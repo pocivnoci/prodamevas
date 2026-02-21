@@ -104,7 +104,7 @@ async function uploadToStorage(
     const filename = `${folder}/${prefix}_${timestamp}.png`
 
     const { error: uploadError } = await supabase.storage
-        .from("audit-screenshots")
+        .from(folder)
         .upload(filename, imageBuffer, {
             contentType,
             cacheControl: "31536000",
@@ -115,7 +115,7 @@ async function uploadToStorage(
     }
 
     const { data: publicUrlData } = supabase.storage
-        .from("audit-screenshots")
+        .from(folder)
         .getPublicUrl(filename)
 
     return publicUrlData.publicUrl
