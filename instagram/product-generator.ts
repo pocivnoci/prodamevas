@@ -193,7 +193,10 @@ Generuj PŘESNĚ ${count} nápadů.`
             temperature: 1.0,
         })
 
-        const parsed = JSON.parse(result)
+        // Clean markdown backticks if Gemini includes them
+        const cleanText = result.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim()
+
+        const parsed = JSON.parse(cleanText)
         return parsed.ideas as ProductIdea[]
     } catch (err) {
         console.error("❌ Product idea generation failed:", err)
@@ -267,7 +270,10 @@ Vrať POUZE validní JSON.`
             temperature: 0.9,
         })
 
-        const concept = JSON.parse(conceptText) as DesignConcept
+        // Clean markdown backticks if Gemini includes them
+        const cleanText = conceptText.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim()
+
+        const concept = JSON.parse(cleanText) as DesignConcept
 
         console.log(`   ✓ Koncept: "${concept.name}"`)
         console.log(`   📐 Style: ${concept.style}`)
