@@ -1,10 +1,9 @@
 import { login } from "@/app/login/actions"
 
-export default function LoginPage({
-    searchParams,
-}: {
-    searchParams: { [key: string]: string | string[] | undefined }
+export default async function LoginPage(props: {
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
+    const searchParams = await props.searchParams
     const isError = searchParams?.error === "invalid_credentials"
 
     return (
