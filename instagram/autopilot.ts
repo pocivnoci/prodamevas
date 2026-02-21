@@ -1610,9 +1610,10 @@ export async function generateOnePost(options: {
                 console.log("📤 Nahrávám do Supabase...")
                 const timestamp = Date.now()
                 const filename = `ig-posts/${timestamp}.png`
+                const bucketName = CLIENT_CONFIG!.storageBucket || "audit-screenshots"
 
                 const { error: uploadError } = await supabaseAdmin.storage
-                    .from("audit-screenshots")
+                    .from(bucketName)
                     .upload(filename, finalImage, {
                         contentType: "image/png",
                         cacheControl: "31536000",
@@ -1622,7 +1623,7 @@ export async function generateOnePost(options: {
                     console.error("   ⚠️ Upload failed:", uploadError.message)
                 } else {
                     const { data: publicUrlData } = supabaseAdmin.storage
-                        .from("audit-screenshots")
+                        .from(bucketName)
                         .getPublicUrl(filename)
                     imageUrl = publicUrlData.publicUrl
                     console.log(`   ✓ URL: ${imageUrl}`)
@@ -2056,7 +2057,9 @@ async function main() {
     const configArg = args.find(a => a.startsWith("--config="))
     const configName = configArg?.split("=")[1] || "mobilnamiru"
     CLIENT_CONFIG = await loadConfig(configName)
-    setActiveProject(CLIENT_CONFIG.id)
+    const { resolveClientId } = await import("./configs")
+    const clientUuid = await resolveClientId(configName)
+    setActiveProject(clientUuid)
 
     console.log(`🏢 Klient: ${CLIENT_CONFIG.name} (${CLIENT_CONFIG.id})`)
     console.log(`🌐 Web: ${CLIENT_CONFIG.website}`)

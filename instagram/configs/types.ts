@@ -138,6 +138,9 @@ export interface ClientConfig {
     /** Gradient colors for text-overlay.ts (replaces hardcoded blue/purple) */
     overlayGradient?: OverlayGradient
 
+    /** Název Supabase public bucketu pro ukládání obrázků tohoto klienta (fallback: "audit-screenshots") */
+    storageBucket?: string
+
     /** Per-post-type image description instructions for mega prompt */
     imageInstructions?: Record<string, string>
 

@@ -13,6 +13,7 @@ export const config: ClientConfig = {
     name: "HanzFans / MRDKE GANG®",
     website: "https://hanzfans.cz",
     instagram: "@hanzfans.cz",
+    storageBucket: "ig-posts-hanzfans",
 
     // ─── Brand Voice ────────────────────────────────────────
 

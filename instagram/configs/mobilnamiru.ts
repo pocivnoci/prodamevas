@@ -12,6 +12,7 @@ export const config: ClientConfig = {
     name: "Mobil na míru",
     website: "https://mobilnamiru.cz",
     instagram: "@mobilnamiru",
+    storageBucket: "ig-posts-mobilnamiru",
 
     // ─── Brand Voice ────────────────────────────────────────
 
