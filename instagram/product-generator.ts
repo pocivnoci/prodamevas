@@ -13,7 +13,7 @@
 import type { ClientConfig } from "./configs/types"
 import { generateText, generateImage, generateImageWithReferences } from "./gemini-client"
 import { Type } from "@google/genai"
-import supabase from "../supabase/client"
+import supabaseAdmin from "../supabase/admin"
 
 // ============================================
 // INTERFACES
@@ -107,7 +107,7 @@ async function uploadToStorage(
     const timestamp = Date.now()
     const filename = `${folder}/${prefix}_${timestamp}.png`
 
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabaseAdmin.storage
         .from(folder)
         .upload(filename, imageBuffer, {
             contentType,
@@ -118,7 +118,7 @@ async function uploadToStorage(
         throw new Error(`Storage upload failed: ${uploadError.message}`)
     }
 
-    const { data: publicUrlData } = supabase.storage
+    const { data: publicUrlData } = supabaseAdmin.storage
         .from(folder)
         .getPublicUrl(filename)
 

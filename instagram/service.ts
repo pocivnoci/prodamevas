@@ -3,7 +3,6 @@
  * Multi-tenant: all queries filter by client_id (uuid FK to clients table)
  */
 
-import supabase from "../supabase/client";
 import supabaseAdmin from "../supabase/admin";
 
 // ============================================
@@ -143,7 +142,7 @@ export async function ensurePostTypes(
 export async function getAvailableIdeas(category?: string): Promise<PostIdea[]> {
     const now = new Date();
 
-    let query = supabase
+    let query = supabaseAdmin
         .from("ig_post_ideas")
         .select("*")
         .eq("is_active", true)
@@ -213,7 +212,7 @@ export async function batchInsertIdeas(ideas: any[]): Promise<number> {
 // ============================================
 
 export async function getApprovedReviews(): Promise<Review[]> {
-    const query = supabase
+    const query = supabaseAdmin
         .from("ig_reviews")
         .select("*")
         .eq("is_approved", true)
@@ -249,7 +248,7 @@ export async function addReview(review: any): Promise<Review> {
 // ============================================
 
 export async function getRecentPosts(limit: number = 30): Promise<Post[]> {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
         .from("ig_posts")
         .select("*")
         .eq("client_id", getActiveProject())
@@ -261,7 +260,7 @@ export async function getRecentPosts(limit: number = 30): Promise<Post[]> {
 }
 
 export async function getPostsByStatus(status: "draft" | "ready" | "posted"): Promise<Post[]> {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
         .from("ig_posts")
         .select("*")
         .eq("status", status)
@@ -311,7 +310,7 @@ export async function getCalendarForDateRange(
     startDate: string,
     endDate: string
 ): Promise<ContentCalendar[]> {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
         .from("ig_content_calendar")
         .select("*, post:ig_posts!inner(*), post_type:ig_post_types(*)")
         .eq("post.client_id", getActiveProject())
