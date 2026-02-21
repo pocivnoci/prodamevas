@@ -11,7 +11,7 @@
  */
 
 import type { ClientConfig } from "./configs/types"
-import { generateText, generateImage } from "./gemini-client"
+import { generateText, generateImage, generateImageWithReferences } from "./gemini-client"
 import { Type } from "@google/genai"
 import supabase from "../supabase/client"
 
@@ -20,6 +20,8 @@ import supabase from "../supabase/client"
 // ============================================
 
 export interface ProductIdea {
+    id?: string
+    client_id?: string
     name: string
     brandingNames: string[]
     type: string
@@ -33,6 +35,8 @@ export interface ProductIdea {
     whyItWorks: string
     productionNotes: string
     designPrompt: string
+    status?: "review" | "saved" | "rejected"
+    created_at?: string
 }
 
 export interface DesignConcept {
@@ -304,7 +308,8 @@ Vrať POUZE validní JSON.`
 
 export async function generateProductDesign(
     config: ClientConfig,
-    idea: ProductIdea
+    idea: ProductIdea,
+    referenceImageUrl?: string
 ): Promise<{ designUrl: string } | null> {
     console.log(`🎨 Generuji vizualizaci produktu: ${idea.name}...`)
 
@@ -314,7 +319,25 @@ export async function generateProductDesign(
     const imagePrompt = `${basePrompt} Product photography, studio lighting, clean dark background, photorealistic render, premium quality, detailed materials and textures, professional product visualization. Brand aesthetic: urban streetwear, bold, premium.`
 
     try {
-        const imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
+        let imageBuffer: Buffer
+
+        if (referenceImageUrl) {
+            console.log(`📸 Stahuji referenční obrázek...`)
+            const refResponse = await fetch(referenceImageUrl)
+            if (!refResponse.ok) throw new Error("Chyba stažení referenčního obrázku")
+
+            const refBuffer = Buffer.from(await refResponse.arrayBuffer())
+            const mimeType = refResponse.headers.get("content-type") || "image/jpeg"
+
+            console.log(`🎨 Fúzuji nápad s referenční fotkou...`)
+            imageBuffer = await generateImageWithReferences(
+                imagePrompt,
+                [{ buffer: refBuffer, mimeType }],
+                { aspectRatio: "1:1" }
+            )
+        } else {
+            imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
+        }
 
         const safeName = idea.name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "").slice(0, 20)
         const designUrl = await uploadToStorage(

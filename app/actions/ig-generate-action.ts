@@ -355,11 +355,12 @@ export async function triggerMockupGeneration(options: {
 export async function triggerProductDesign(options: {
     configName: string
     idea: ProductIdea
+    referenceImageUrl?: string
 }): Promise<{ success: boolean; designUrl?: string; error?: string }> {
     try {
         const config = await loadConfig(options.configName)
         const result = await withRetry(
-            () => generateProductDesign(config, options.idea),
+            () => generateProductDesign(config, options.idea, options.referenceImageUrl),
             1,
             "Product design"
         )
@@ -376,5 +377,77 @@ export async function triggerProductDesign(options: {
         const errorMessage = err?.message || String(err) || "Unknown error"
         console.error("Product design error:", errorMessage)
         return { success: false, error: errorMessage.substring(0, 500) }
+    }
+}
+
+// ============================================
+// PRODUCT IDEAS DB MANAGEMENT
+// ============================================
+
+import { resolveClientId } from "@/instagram/configs"
+
+export async function saveProductIdea(configName: string, idea: Omit<ProductIdea, "id" | "client_id" | "created_at">): Promise<{ success: boolean; error?: string }> {
+    try {
+        const clientId = await resolveClientId(configName)
+
+        const { error } = await supabaseAdmin
+            .from("ig_product_ideas")
+            .insert({
+                client_id: clientId,
+                name: idea.name,
+                brandingNames: idea.brandingNames, // array gets stringified to pg array natively if jsonb
+                type: idea.type,
+                tagline: idea.tagline,
+                description: idea.description,
+                material: idea.material,
+                dimensions: idea.dimensions,
+                manufacturing_method: idea.manufacturingMethod,
+                price_range: idea.priceRange,
+                viral_angle: idea.viralAngle,
+                why_it_works: idea.whyItWorks,
+                production_notes: idea.productionNotes,
+                design_prompt: idea.designPrompt,
+                status: "saved"
+            })
+
+        if (error) throw error
+
+        return { success: true }
+    } catch (err: any) {
+        console.error("saveProductIdea error:", err)
+        return { success: false, error: err.message || "Failed to save idea" }
+    }
+}
+
+export async function rejectProductIdea(configName: string, idea: Omit<ProductIdea, "id" | "client_id" | "created_at">): Promise<{ success: boolean; error?: string }> {
+    try {
+        const clientId = await resolveClientId(configName)
+
+        const { error } = await supabaseAdmin
+            .from("ig_product_ideas")
+            .insert({
+                client_id: clientId,
+                name: idea.name,
+                brandingNames: idea.brandingNames,
+                type: idea.type,
+                tagline: idea.tagline,
+                description: idea.description,
+                material: idea.material,
+                dimensions: idea.dimensions,
+                manufacturing_method: idea.manufacturingMethod,
+                price_range: idea.priceRange,
+                viral_angle: idea.viralAngle,
+                why_it_works: idea.whyItWorks,
+                production_notes: idea.productionNotes,
+                design_prompt: idea.designPrompt,
+                status: "rejected"
+            })
+
+        if (error) throw error
+
+        return { success: true }
+    } catch (err: any) {
+        console.error("rejectProductIdea error:", err)
+        return { success: false, error: err.message || "Failed to reject idea" }
     }
 }

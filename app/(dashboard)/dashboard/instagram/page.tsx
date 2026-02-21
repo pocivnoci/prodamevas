@@ -27,10 +27,15 @@ import {
     triggerProductDesign,
     triggerAIIdeasGeneration,
     triggerAIReviewsGeneration,
+    saveProductIdea,
+    rejectProductIdea,
     type GenerateResult,
     ProductIdea,
     type DesignConcept,
 } from "@/app/actions/ig-generate-action"
+
+// Extra import for downloading ideas
+import supabase from "@/supabase/client"
 
 type Tab = "posts" | "generate" | "ideas" | "reviews" | "logs" | "products"
 type ClientInfo = { id: string; name: string; icon: string; description: string }
@@ -1518,10 +1523,14 @@ function ProductsTab({ projectId }: { projectId: string }) {
     // Ideas state
     const [ideasTheme, setIdeasTheme] = useState("")
     const [ideasCount, setIdeasCount] = useState(5)
+    // currently generated ideas
     const [ideas, setIdeas] = useState<ProductIdea[]>([])
-    const [ideaRatings, setIdeaRatings] = useState<Record<number, "up" | "down" | null>>({})
-    const [ideaVisuals, setIdeaVisuals] = useState<Record<number, string>>({})
-    const [visualizingIdx, setVisualizingIdx] = useState<number | null>(null)
+    // ideas already saved in database
+    const [savedIdeas, setSavedIdeas] = useState<ProductIdea[]>([])
+    const [ideaVisuals, setIdeaVisuals] = useState<Record<string, string>>({})
+    const [visualizingId, setVisualizingId] = useState<string | null>(null)
+    const [referenceUrls, setReferenceUrls] = useState<Record<string, string>>({})
+    const [uploadingId, setUploadingId] = useState<string | null>(null)
 
     // Design state
     const [designTheme, setDesignTheme] = useState("")
@@ -1550,6 +1559,98 @@ function ProductsTab({ projectId }: { projectId: string }) {
     ]
 
     // ── Ideas Handler ─────────────────────────────────────
+    const fetchSavedIdeas = useCallback(async () => {
+        const { data } = await supabase
+            .from("ig_product_ideas")
+            .select("*")
+            .eq("status", "saved")
+            .order("created_at", { ascending: false })
+
+        if (data) {
+            // Map the snake_case DB fields back to the camelCase ProductIdea interface
+            const mappedIdeas = data.map(row => ({
+                id: row.id,
+                client_id: row.client_id,
+                name: row.name,
+                brandingNames: row.brandingNames,
+                type: row.type,
+                tagline: row.tagline,
+                description: row.description,
+                material: row.material,
+                dimensions: row.dimensions,
+                manufacturingMethod: row.manufacturing_method,
+                priceRange: row.price_range,
+                viralAngle: row.viral_angle,
+                whyItWorks: row.why_it_works,
+                productionNotes: row.production_notes,
+                designPrompt: row.design_prompt,
+                status: row.status as "saved" | "review" | "rejected",
+                created_at: row.created_at
+            }))
+
+            setSavedIdeas(mappedIdeas)
+        }
+    }, [])
+
+    useEffect(() => {
+        if (section === "ideas") {
+            fetchSavedIdeas()
+        }
+    }, [projectId, section, fetchSavedIdeas])
+
+    const handleSaveIdea = async (idea: ProductIdea, index: number) => {
+        try {
+            const result = await saveProductIdea(projectId, idea)
+            if (result.success) {
+                // Remove from generated column
+                setIdeas(prev => prev.filter((_, i) => i !== index))
+                // Refresh saved column
+                fetchSavedIdeas()
+            } else {
+                setError(result.error || "Uložení selhalo")
+            }
+        } catch (err: any) { setError(err.message) }
+    }
+
+    const handleRejectIdea = async (idea: ProductIdea, index: number) => {
+        try {
+            const result = await rejectProductIdea(projectId, idea)
+            if (result.success) {
+                // Remove from generated column entirely
+                setIdeas(prev => prev.filter((_, i) => i !== index))
+            } else {
+                setError(result.error || "Zamítnutí selhalo")
+            }
+        } catch (err: any) { setError(err.message) }
+    }
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, ideaId: string) => {
+        if (!e.target.files || e.target.files.length === 0) return
+
+        const file = e.target.files[0]
+        setUploadingId(ideaId)
+        setError(null)
+
+        try {
+            const fileName = `${projectId}_${ideaId}_${Date.now()}`
+            const { data, error } = await supabase.storage
+                .from("product-references")
+                .upload(fileName, file, { cacheControl: "3600", upsert: false })
+
+            if (error) throw error
+
+            const { data: publicUrlData } = supabase.storage
+                .from("product-references")
+                .getPublicUrl(fileName)
+
+            setReferenceUrls(prev => ({ ...prev, [ideaId]: publicUrlData.publicUrl }))
+        } catch (err: any) {
+            setError(`Chyba uploadu: ${err.message}`)
+        } finally {
+            setUploadingId(null)
+        }
+    }
+
     const handleGenerateIdeas = async () => {
         setLoading(true)
         setError(null)
@@ -1701,8 +1802,7 @@ function ProductsTab({ projectId }: { projectId: string }) {
                     {ideas.length > 0 && (
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                             {ideas.map((idea, i) => (
-                                <div key={i} className={`bg-[#0a0a0a] border rounded-sm p-6 shadow-sm transition-all group ${ideaRatings[i] === "up" ? "border-emerald-500/30 bg-emerald-500/5" : ideaRatings[i] === "down" ? "border-aisummit-cinnabar/20 opacity-60" : "border-white/10 hover:border-white/20 hover:bg-white/5"
-                                    }`}>
+                                <div key={i} className="bg-[#0a0a0a] border border-white/10 hover:border-white/20 hover:bg-white/5 rounded-sm p-6 shadow-sm transition-all group">
                                     <div className="flex items-start justify-between mb-4">
                                         <div>
                                             <h4 className="text-white font-bold text-sm tracking-wide uppercase">{idea.name}</h4>
@@ -1710,17 +1810,17 @@ function ProductsTab({ projectId }: { projectId: string }) {
                                         </div>
                                         <div className="flex items-center gap-1.5">
                                             <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-1 bg-white/10 text-white/70 border border-white/10 rounded-sm whitespace-nowrap">{idea.type}</span>
-                                            {/* Rating buttons */}
+                                            {/* Action buttons */}
                                             <button
-                                                onClick={() => setIdeaRatings(r => ({ ...r, [i]: r[i] === "up" ? null : "up" }))}
-                                                className={`w-7 h-7 rounded-sm text-sm border flex items-center justify-center transition-all ${ideaRatings[i] === "up" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-white/5 text-white/30 border-white/10 hover:bg-white/10 hover:text-white"
-                                                    }`}
-                                            >👍</button>
+                                                onClick={() => handleSaveIdea(idea, i)}
+                                                className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center transition-all bg-white/5 text-white/30 border-white/10 hover:bg-emerald-500/20 hover:text-emerald-400 hover:border-emerald-500/30"
+                                                title="Uložit nápad"
+                                            >💾</button>
                                             <button
-                                                onClick={() => setIdeaRatings(r => ({ ...r, [i]: r[i] === "down" ? null : "down" }))}
-                                                className={`w-7 h-7 rounded-sm text-sm border flex items-center justify-center transition-all ${ideaRatings[i] === "down" ? "bg-aisummit-cinnabar/20 text-aisummit-cinnabar border-aisummit-cinnabar/30" : "bg-white/5 text-white/30 border-white/10 hover:bg-white/10 hover:text-white"
-                                                    }`}
-                                            >👎</button>
+                                                onClick={() => handleRejectIdea(idea, i)}
+                                                className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center transition-all bg-white/5 text-white/30 border-white/10 hover:bg-aisummit-cinnabar/20 hover:text-aisummit-cinnabar hover:border-aisummit-cinnabar/30"
+                                                title="Zahodit"
+                                            >🗑️</button>
                                         </div>
                                     </div>
 
@@ -1775,11 +1875,11 @@ function ProductsTab({ projectId }: { projectId: string }) {
                                     </div>
 
                                     {/* Product visualization */}
-                                    {ideaVisuals[i] && (
+                                    {ideaVisuals[`gen_${i}`] && (
                                         <div className="mt-4 relative group/vis">
-                                            <img src={ideaVisuals[i]} alt={idea.name} className="w-full rounded-sm border border-white/10 shadow-sm" />
+                                            <img src={ideaVisuals[`gen_${i}`]} alt={idea.name} className="w-full rounded-sm border border-white/10 shadow-sm" />
                                             <a
-                                                href={ideaVisuals[i]}
+                                                href={ideaVisuals[`gen_${i}`]}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="absolute bottom-2 right-2 px-2 py-1 bg-[#050505] border border-white/10 text-white text-[9px] uppercase tracking-widest font-bold rounded-sm opacity-0 group-hover/vis:opacity-100 transition-opacity shadow-sm"
@@ -1791,22 +1891,22 @@ function ProductsTab({ projectId }: { projectId: string }) {
                                     <div className="mt-4 flex gap-2 pt-2">
                                         <button
                                             onClick={async () => {
-                                                setVisualizingIdx(i)
+                                                setVisualizingId(`gen_${i}`)
                                                 setError(null)
                                                 try {
                                                     const result = await triggerProductDesign({ configName: projectId, idea })
                                                     if (result.success && result.designUrl) {
-                                                        setIdeaVisuals(v => ({ ...v, [i]: result.designUrl! }))
+                                                        setIdeaVisuals(v => ({ ...v, [`gen_${i}`]: result.designUrl! }))
                                                     } else {
                                                         setError(result.error || "Vizualizace selhala")
                                                     }
                                                 } catch (err: any) { setError(err.message) }
-                                                finally { setVisualizingIdx(null) }
+                                                finally { setVisualizingId(null) }
                                             }}
-                                            disabled={visualizingIdx === i}
+                                            disabled={visualizingId === `gen_${i}`}
                                             className="flex-1 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-sm text-[9px] font-bold uppercase tracking-widest text-amber-500 transition-all disabled:opacity-50 shadow-sm"
                                         >
-                                            {visualizingIdx === i ? "⏳ Generuji..." : "🖼️ Vizualizovat produkt"}
+                                            {visualizingId === `gen_${i}` ? "⏳ Generuji..." : "🖼️ Vizualizovat produkt"}
                                         </button>
                                         <button
                                             onClick={() => {
@@ -1820,6 +1920,126 @@ function ProductsTab({ projectId }: { projectId: string }) {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    )}
+
+                    {/* DB Saved Ideas grid */}
+                    {savedIdeas.length > 0 && (
+                        <div className="mt-12">
+                            <h3 className="text-xl font-black uppercase tracking-tighter text-emerald-400 mb-2 border-b border-emerald-900/50 pb-2">💾 Uložené Nápady</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-6">
+                                {savedIdeas.map((idea) => (
+                                    <div key={idea.id} className="bg-[#050505] border border-emerald-500/20 rounded-sm p-6 shadow-sm transition-all relative overflow-hidden">
+                                        {/* Status badge */}
+                                        <div className="absolute top-0 right-0 px-3 py-1 bg-emerald-500/20 text-emerald-400 text-[8px] font-black tracking-widest uppercase rounded-bl-sm border-b border-l border-emerald-500/20">
+                                            Saved
+                                        </div>
+
+                                        <div className="flex items-start justify-between mb-4 pr-12">
+                                            <div>
+                                                <h4 className="text-white font-bold text-sm tracking-wide uppercase">{idea.name}</h4>
+                                                <p className="text-white/50 text-[10px] font-bold mt-1 uppercase tracking-widest">"{idea.tagline}"</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="mb-4">
+                                            <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-1 bg-white/10 text-white/70 border border-white/10 rounded-sm whitespace-nowrap">{idea.type}</span>
+                                        </div>
+
+                                        <p className="text-white/70 text-xs font-medium mb-5">{idea.description}</p>
+
+                                        <div className="space-y-2 text-[10px] font-mono tracking-wide text-white/50">
+                                            <div className="flex gap-2">
+                                                <span className="text-white/30 w-16 uppercase font-bold tracking-widest">💰 Cena:</span>
+                                                <span className="text-emerald-400 font-bold">{idea.priceRange}</span>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <span className="text-white/30 w-16 uppercase font-bold tracking-widest">🔧 Mat.:</span>
+                                                <span>{idea.material}</span>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <span className="text-white/30 w-16 uppercase font-bold tracking-widest">🏭 Výr.:</span>
+                                                <span>{idea.manufacturingMethod}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Product visualization */}
+                                        {ideaVisuals[idea.id as string] && (
+                                            <div className="mt-4 relative group/vis">
+                                                <img src={ideaVisuals[idea.id as string]} alt={idea.name} className="w-full rounded-sm border border-emerald-500/20 shadow-sm" />
+                                                <a
+                                                    href={ideaVisuals[idea.id as string]}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="absolute bottom-2 right-2 px-2 py-1 bg-[#050505] border border-white/10 text-white text-[9px] uppercase tracking-widest font-bold rounded-sm opacity-0 group-hover/vis:opacity-100 transition-opacity shadow-sm"
+                                                >📥 Plná velikost</a>
+                                            </div>
+                                        )}
+
+                                        {/* Action buttons */}
+                                        <div className="mt-4 flex gap-2 pt-4 border-t border-white/5 items-center">
+
+                                            {/* File Uploader */}
+                                            <div className="relative">
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    id={`upload-${idea.id}`}
+                                                    className="hidden"
+                                                    onChange={(e) => handleImageUpload(e, idea.id as string)}
+                                                    disabled={uploadingId === idea.id}
+                                                />
+                                                <label
+                                                    htmlFor={`upload-${idea.id}`}
+                                                    className={`w-9 h-9 rounded-sm border flex items-center justify-center transition-all cursor-pointer ${referenceUrls[idea.id as string]
+                                                            ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400"
+                                                            : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"
+                                                        } ${uploadingId === idea.id ? "opacity-50 cursor-wait" : ""}`}
+                                                    title="Nahrát referenční fotku"
+                                                >
+                                                    {uploadingId === idea.id ? (
+                                                        <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                                    ) : referenceUrls[idea.id as string] ? (
+                                                        "✓"
+                                                    ) : (
+                                                        "📎"
+                                                    )}
+                                                </label>
+                                            </div>
+
+                                            <button
+                                                onClick={async () => {
+                                                    const id = idea.id as string
+                                                    setVisualizingId(id)
+                                                    setError(null)
+                                                    try {
+                                                        const reqUrl = referenceUrls[id]
+                                                        const result = await triggerProductDesign({
+                                                            configName: projectId,
+                                                            idea,
+                                                            referenceImageUrl: reqUrl
+                                                        })
+                                                        if (result.success && result.designUrl) {
+                                                            setIdeaVisuals(v => ({ ...v, [id]: result.designUrl! }))
+                                                        } else {
+                                                            setError(result.error || "Vizualizace selhala")
+                                                        }
+                                                    } catch (err: any) { setError(err.message) }
+                                                    finally { setVisualizingId(null) }
+                                                }}
+                                                disabled={visualizingId === idea.id}
+                                                className="flex-1 px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-sm text-[9px] font-bold uppercase tracking-widest text-emerald-400 transition-all disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
+                                            >
+                                                {visualizingId === idea.id ? "⏳ Generuji..." : (
+                                                    referenceUrls[idea.id as string]
+                                                        ? "🖼️ Fuse vizualizace (i2i)"
+                                                        : "🖼️ Vizualizovat z textu"
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
                 </div>
