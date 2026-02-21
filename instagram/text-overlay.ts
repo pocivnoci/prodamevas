@@ -200,157 +200,162 @@ export async function overlayText(
         .png()
         .toBuffer()
 
-    // ─── Layer 2: Gradient overlay (SVG, no text) ───
-    // Cover variant gets a stronger gradient for better text contrast
-    const gradientOpacity = variant === "cover" ? 0.90 : 0.85
-    const gradientSvg = `
-    <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-            <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" style="stop-color:${gTop};stop-opacity:0.15"/>
-                <stop offset="50%" style="stop-color:${gMid};stop-opacity:0.3"/>
-                <stop offset="100%" style="stop-color:${gBot};stop-opacity:${gradientOpacity}"/>
-            </linearGradient>
-        </defs>
-        <rect width="${width}" height="${height}" fill="url(#grad)"/>
-    </svg>`
+    try {
+        // ─── Layer 2: Gradient overlay (SVG, no text) ───
+        // Cover variant gets a stronger gradient for better text contrast
+        const gradientOpacity = variant === "cover" ? 0.90 : 0.85
+        const gradientSvg = `
+        <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" style="stop-color:${gTop};stop-opacity:0.15"/>
+                    <stop offset="50%" style="stop-color:${gMid};stop-opacity:0.3"/>
+                    <stop offset="100%" style="stop-color:${gBot};stop-opacity:${gradientOpacity}"/>
+                </linearGradient>
+            </defs>
+            <rect width="${width}" height="${height}" fill="url(#grad)"/>
+        </svg>`
 
-    const gradientBuffer = await sharp(Buffer.from(gradientSvg))
-        .png()
-        .toBuffer()
+        const gradientBuffer = await sharp(Buffer.from(gradientSvg))
+            .png()
+            .toBuffer()
 
-    // ─── Layer 3: Logo watermark (pre-rendered PNG) ───
-    let logoBuffer: Buffer | null = null
-    const logoWidth = Math.round(width * 0.30)
-    const logoHeight = Math.round(logoWidth * 0.24)
-    const logoMargin = Math.round(width * 0.04)
+        // ─── Layer 3: Logo watermark (pre-rendered PNG) ───
+        let logoBuffer: Buffer | null = null
+        const logoWidth = Math.round(width * 0.30)
+        const logoHeight = Math.round(logoWidth * 0.24)
+        const logoMargin = Math.round(width * 0.04)
 
-    if (logoFile) {
-        try {
-            const logoPngPath = join(fontsDir, logoFile)
-            if (existsSync(logoPngPath)) {
-                logoBuffer = await sharp(readFileSync(logoPngPath))
-                    .resize(logoWidth, logoHeight, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
-                    .png()
-                    .toBuffer()
-                console.log("✓ Logo watermark loaded:", logoBuffer.length, "bytes")
-            } else {
-                console.warn("⚠️ Logo PNG not found at", logoPngPath)
+        if (logoFile) {
+            try {
+                const logoPngPath = join(fontsDir, logoFile)
+                if (existsSync(logoPngPath)) {
+                    logoBuffer = await sharp(readFileSync(logoPngPath))
+                        .resize(logoWidth, logoHeight, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+                        .png()
+                        .toBuffer()
+                    console.log("✓ Logo watermark loaded:", logoBuffer.length, "bytes")
+                } else {
+                    console.warn("⚠️ Logo PNG not found at", logoPngPath)
+                }
+            } catch (err) {
+                console.warn('⚠️ Logo watermark error, skipping:', err)
             }
-        } catch (err) {
-            console.warn('⚠️ Logo watermark error, skipping:', err)
         }
-    }
 
-    // ─── Layer 4: Slide indicator dots (if carousel) ───
-    let slideIndicatorBuffer: Buffer | null = null
-    if (slideInfo && slideInfo.total > 1) {
-        const dotSize = Math.round(width * 0.012)
-        const dotGap = Math.round(width * 0.008)
-        const totalDotsWidth = slideInfo.total * dotSize + (slideInfo.total - 1) * dotGap
-        const indicatorWidth = totalDotsWidth + dotSize * 4
+        // ─── Layer 4: Slide indicator dots (if carousel) ───
+        let slideIndicatorBuffer: Buffer | null = null
+        if (slideInfo && slideInfo.total > 1) {
+            const dotSize = Math.round(width * 0.012)
+            const dotGap = Math.round(width * 0.008)
+            const totalDotsWidth = slideInfo.total * dotSize + (slideInfo.total - 1) * dotGap
+            const indicatorWidth = totalDotsWidth + dotSize * 4
 
-        const dots = Array.from({ length: slideInfo.total }, (_, i) => {
-            const cx = dotSize * 2 + i * (dotSize + dotGap) + dotSize / 2
-            const cy = dotSize + 2
-            const isCurrent = i === slideInfo.current - 1
-            return `<circle cx="${cx}" cy="${cy}" r="${dotSize / 2}" fill="white" opacity="${isCurrent ? '1' : '0.4'}"/>`
-        }).join("")
+            const dots = Array.from({ length: slideInfo.total }, (_, i) => {
+                const cx = dotSize * 2 + i * (dotSize + dotGap) + dotSize / 2
+                const cy = dotSize + 2
+                const isCurrent = i === slideInfo.current - 1
+                return `<circle cx="${cx}" cy="${cy}" r="${dotSize / 2}" fill="white" opacity="${isCurrent ? '1' : '0.4'}"/>`
+            }).join("")
 
-        const indicatorSvg = `<svg width="${indicatorWidth}" height="${dotSize * 2 + 4}" xmlns="http://www.w3.org/2000/svg">${dots}</svg>`
-        slideIndicatorBuffer = await sharp(Buffer.from(indicatorSvg)).png().toBuffer()
-    }
+            const indicatorSvg = `<svg width="${indicatorWidth}" height="${dotSize * 2 + 4}" xmlns="http://www.w3.org/2000/svg">${dots}</svg>`
+            slideIndicatorBuffer = await sharp(Buffer.from(indicatorSvg)).png().toBuffer()
+        }
 
-    // ─── Layer 5: Step number (if step variant) ───
-    let stepNumberBuffer: Buffer | null = null
-    if (variant === "step" && slideInfo && slideInfo.current > 1) {
-        const stepNum = String(slideInfo.current - 1).padStart(2, "0")
-        const stepFontPx = Math.round(width * 0.14)
-        stepNumberBuffer = await renderText(stepNum, stepFontPx, Math.round(width * 0.35), true, 0.12, options.fontFamily)
-    }
+        // ─── Layer 5: Step number (if step variant) ───
+        let stepNumberBuffer: Buffer | null = null
+        if (variant === "step" && slideInfo && slideInfo.current > 1) {
+            const stepNum = String(slideInfo.current - 1).padStart(2, "0")
+            const stepFontPx = Math.round(width * 0.14)
+            stepNumberBuffer = await renderText(stepNum, stepFontPx, Math.round(width * 0.35), true, 0.12, options.fontFamily)
+        }
 
-    // ─── Layer 6: Headline text (Satori) ───
-    const headlineImage = await renderText(headline, headlineFontPx, textAreaWidth, true, 1, options.fontFamily)
-    const headlineMeta = await sharp(headlineImage).metadata()
-    const headlineW = headlineMeta.width || textAreaWidth
-    const headlineH = headlineMeta.height || 60
+        // ─── Layer 6: Headline text (Satori) ───
+        const headlineImage = await renderText(headline, headlineFontPx, textAreaWidth, true, 1, options.fontFamily)
+        const headlineMeta = await sharp(headlineImage).metadata()
+        const headlineW = headlineMeta.width || textAreaWidth
+        const headlineH = headlineMeta.height || 60
 
-    // ─── Layer 7: Subtext (Satori) ───
-    let subtextImage: Buffer | null = null
-    let subtextW = 0
-    let subtextH = 0
-    if (subtext) {
-        subtextImage = await renderText(subtext, subtextFontPx, textAreaWidth, false, 0.85, options.fontFamily)
-        const subtextMeta = await sharp(subtextImage).metadata()
-        subtextW = subtextMeta.width || textAreaWidth
-        subtextH = subtextMeta.height || 30
-    }
+        // ─── Layer 7: Subtext (Satori) ───
+        let subtextImage: Buffer | null = null
+        let subtextW = 0
+        let subtextH = 0
+        if (subtext) {
+            subtextImage = await renderText(subtext, subtextFontPx, textAreaWidth, false, 0.85, options.fontFamily)
+            const subtextMeta = await sharp(subtextImage).metadata()
+            subtextW = subtextMeta.width || textAreaWidth
+            subtextH = subtextMeta.height || 30
+        }
 
-    // ─── Calculate vertical positions (from bottom up) ───
-    const gap = Math.round(width * 0.02)
-    const bottomPadding = Math.round(width * 0.08)
+        // ─── Calculate vertical positions (from bottom up) ───
+        const gap = Math.round(width * 0.02)
+        const bottomPadding = Math.round(width * 0.08)
 
-    let subtextY = 0
-    let headlineY = 0
+        let subtextY = 0
+        let headlineY = 0
 
-    if (subtextImage) {
-        subtextY = height - bottomPadding - subtextH
-        headlineY = subtextY - gap - headlineH
-    } else {
-        headlineY = height - bottomPadding - headlineH
-    }
+        if (subtextImage) {
+            subtextY = height - bottomPadding - subtextH
+            headlineY = subtextY - gap - headlineH
+        } else {
+            headlineY = height - bottomPadding - headlineH
+        }
 
-    // ─── Composite all layers ───
-    const composites: sharp.OverlayOptions[] = [
-        { input: gradientBuffer, top: 0, left: 0 },
-    ]
+        // ─── Composite all layers ───
+        const composites: sharp.OverlayOptions[] = [
+            { input: gradientBuffer, top: 0, left: 0 },
+        ]
 
-    if (logoBuffer) {
+        if (logoBuffer) {
+            composites.push({
+                input: logoBuffer,
+                top: logoMargin,
+                left: width - logoWidth - logoMargin,
+            })
+        }
+
+        // Slide indicator dots at top center
+        if (slideIndicatorBuffer) {
+            const indicatorMeta = await sharp(slideIndicatorBuffer).metadata()
+            const indicatorW = indicatorMeta.width || 100
+            composites.push({
+                input: slideIndicatorBuffer,
+                top: Math.round(width * 0.04),
+                left: Math.round((width - indicatorW) / 2),
+            })
+        }
+
+        // Step number watermark (large, faded, top-left area)
+        if (stepNumberBuffer) {
+            composites.push({
+                input: stepNumberBuffer,
+                top: Math.round(height * 0.12),
+                left: Math.round(width * 0.06),
+            })
+        }
+
         composites.push({
-            input: logoBuffer,
-            top: logoMargin,
-            left: width - logoWidth - logoMargin,
+            input: headlineImage,
+            top: Math.max(0, headlineY),
+            left: Math.max(0, Math.round((width - headlineW) / 2)),
         })
+
+        if (subtextImage) {
+            composites.push({
+                input: subtextImage,
+                top: Math.max(0, subtextY),
+                left: Math.max(0, Math.round((width - subtextW) / 2)),
+            })
+        }
+
+        const result = await sharp(baseImage)
+            .composite(composites)
+            .png({ quality: 95 })
+            .toBuffer()
+
+        return result
+    } catch (err) {
+        console.error("   ⚠️ Text overlay failed (Satori/Fonts error). Falling back to base image:", err)
+        return Buffer.from(baseImage) // Return original raw image smoothly
     }
-
-    // Slide indicator dots at top center
-    if (slideIndicatorBuffer) {
-        const indicatorMeta = await sharp(slideIndicatorBuffer).metadata()
-        const indicatorW = indicatorMeta.width || 100
-        composites.push({
-            input: slideIndicatorBuffer,
-            top: Math.round(width * 0.04),
-            left: Math.round((width - indicatorW) / 2),
-        })
-    }
-
-    // Step number watermark (large, faded, top-left area)
-    if (stepNumberBuffer) {
-        composites.push({
-            input: stepNumberBuffer,
-            top: Math.round(height * 0.12),
-            left: Math.round(width * 0.06),
-        })
-    }
-
-    composites.push({
-        input: headlineImage,
-        top: Math.max(0, headlineY),
-        left: Math.max(0, Math.round((width - headlineW) / 2)),
-    })
-
-    if (subtextImage) {
-        composites.push({
-            input: subtextImage,
-            top: Math.max(0, subtextY),
-            left: Math.max(0, Math.round((width - subtextW) / 2)),
-        })
-    }
-
-    const result = await sharp(baseImage)
-        .composite(composites)
-        .png({ quality: 95 })
-        .toBuffer()
-
-    return result
 }
