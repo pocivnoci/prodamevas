@@ -21,9 +21,9 @@ export default function Home() {
     <main className="min-h-screen bg-aisummit-bg text-aisummit-text selection:bg-aisummit-cinnabar/30 selection:text-white overflow-hidden font-sans">
 
       {/* DYNAMIC BACKGROUND */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-aisummit-glow/10 rounded-full blur-[150px] opacity-70 mix-blend-screen animate-pulse" style={{ animationDuration: '8s' }}></div>
-        <div className="absolute top-[20%] right-[-10%] w-[40%] h-[60%] bg-aisummit-glow/10 rounded-full blur-[150px] opacity-60 mix-blend-screen animate-pulse" style={{ animationDuration: '12s' }}></div>
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden transform-gpu">
+        <div className="hidden md:block absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-aisummit-glow/10 rounded-full blur-[120px] opacity-50 animate-pulse" style={{ animationDuration: '8s', transform: 'translateZ(0)' }}></div>
+        <div className="hidden md:block absolute top-[20%] right-[-10%] w-[40%] h-[60%] bg-aisummit-glow/10 rounded-full blur-[120px] opacity-40 animate-pulse" style={{ animationDuration: '12s', transform: 'translateZ(0)' }}></div>
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
       </div>
 
@@ -246,7 +246,7 @@ export default function Home() {
         <div className="absolute inset-0 bg-aisummit-bg z-0" />
 
         {/* Soft aurora orb */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-aisummit-glow/10 blur-[150px] rounded-full pointer-events-none mix-blend-screen" />
+        <div className="hidden md:block absolute top-1/2 left-1/2 w-[800px] h-[800px] bg-aisummit-glow/10 blur-[150px] rounded-full pointer-events-none" style={{ transform: 'translate(-50%, -50%) translateZ(0)' }} />
 
         {/* Grid lines */}
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:4rem_4rem]"></div>

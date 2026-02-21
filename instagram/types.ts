@@ -4,17 +4,11 @@
  * Type system for Instagram content automation
  */
 
-import type { Tables } from "../supabase/generated.types"
-
-// ============================================
-// DATABASE TYPES (re-export for convenience)
-// ============================================
-
-export type PostType = Tables<"ig_post_types">
-export type PostIdea = Tables<"ig_post_ideas">
-export type Review = Tables<"ig_reviews">
-export type Post = Tables<"ig_posts">
-export type ContentCalendar = Tables<"ig_content_calendar">
+export type PostType = any
+export type PostIdea = any
+export type Review = any
+export type Post = any
+export type ContentCalendar = any
 
 // ============================================
 // GENERATION PIPELINE TYPES

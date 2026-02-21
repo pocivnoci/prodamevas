@@ -40,7 +40,6 @@ import { runProductIdeas, runDesignConcept } from "./product-generator"
 import { loadConfig } from "./configs"
 import type { ClientConfig, PostFormat } from "./configs/types"
 import type { PostType, PostIdea, Review, Post } from "./types"
-import type { TablesInsert } from "../supabase/generated.types"
 
 // Active client config (set from --config flag or ensureConfig)
 let CLIENT_CONFIG: ClientConfig | null = null
@@ -1928,7 +1927,7 @@ async function generateIdeas(
     count: number,
     performance: PerformanceInsight,
     existingIdeas: PostIdea[]
-): Promise<TablesInsert<"ig_post_ideas">[]> {
+): Promise<any[]> {
     const existingTitles = existingIdeas.map(i => i.title).join(", ")
     const config = CLIENT_CONFIG!
     const bv = config.brandVoice
@@ -1972,7 +1971,7 @@ Každý nápad musí mít: title (krátký název), content (text nápadu/captio
         })
 
         const parsed = JSON.parse(result)
-        const ideas: TablesInsert<"ig_post_ideas">[] = parsed.ideas.map((idea: any) => ({
+        const ideas: any[] = parsed.ideas.map((idea: any) => ({
             title: idea.title,
             content: idea.content,
             category: idea.category || pillar,

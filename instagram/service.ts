@@ -5,7 +5,6 @@
 
 import supabase from "../supabase/client";
 import supabaseAdmin from "../supabase/admin";
-import type { Tables, TablesInsert } from "../supabase/generated.types";
 
 // ============================================
 // MULTI-TENANT: Active client (uuid)
@@ -25,11 +24,11 @@ export function getActiveProject(): string {
 }
 
 // Type aliases for cleaner code
-export type PostType = Tables<"ig_post_types">;
-export type PostIdea = Tables<"ig_post_ideas">;
-export type Review = Tables<"ig_reviews">;
-export type Post = Tables<"ig_posts">;
-export type ContentCalendar = Tables<"ig_content_calendar">;
+export type PostType = any;
+export type PostIdea = any;
+export type Review = any;
+export type Post = any;
+export type ContentCalendar = any;
 
 // ============================================
 // POST TYPES
@@ -185,7 +184,7 @@ export async function markIdeaAsUsed(ideaId: string): Promise<void> {
         .eq("id", ideaId);
 }
 
-export async function addIdea(idea: TablesInsert<"ig_post_ideas">): Promise<PostIdea> {
+export async function addIdea(idea: any): Promise<PostIdea> {
     const { data, error } = await supabaseAdmin
         .from("ig_post_ideas")
         .insert(idea)
@@ -196,7 +195,7 @@ export async function addIdea(idea: TablesInsert<"ig_post_ideas">): Promise<Post
     return data;
 }
 
-export async function batchInsertIdeas(ideas: TablesInsert<"ig_post_ideas">[]): Promise<number> {
+export async function batchInsertIdeas(ideas: any[]): Promise<number> {
     if (ideas.length === 0) return 0;
     // Inject client_id into all ideas
     const ideasWithClient = ideas.map(i => ({ ...i, client_id: getActiveProject() }))
@@ -234,7 +233,7 @@ export async function markReviewAsUsed(reviewId: string): Promise<void> {
         .eq("id", reviewId);
 }
 
-export async function addReview(review: TablesInsert<"ig_reviews">): Promise<Review> {
+export async function addReview(review: any): Promise<Review> {
     const { data, error } = await supabaseAdmin
         .from("ig_reviews")
         .insert(review)
@@ -273,7 +272,7 @@ export async function getPostsByStatus(status: "draft" | "ready" | "posted"): Pr
     return data ?? [];
 }
 
-export async function createPost(post: TablesInsert<"ig_posts">): Promise<Post> {
+export async function createPost(post: any): Promise<Post> {
     const { data, error } = await supabaseAdmin
         .from("ig_posts")
         .insert({ ...post, client_id: getActiveProject() })
