@@ -30,7 +30,7 @@ import {
     saveProductIdea,
     rejectProductIdea,
     type GenerateResult,
-    ProductIdea,
+    type ProductIdea,
     type DesignConcept,
 } from "@/app/actions/ig-generate-action"
 
@@ -1992,8 +1992,8 @@ function ProductsTab({ projectId }: { projectId: string }) {
                                                 <label
                                                     htmlFor={`upload-${idea.id}`}
                                                     className={`w-9 h-9 rounded-sm border flex items-center justify-center transition-all cursor-pointer ${referenceUrls[idea.id as string]
-                                                            ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400"
-                                                            : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"
+                                                        ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400"
+                                                        : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"
                                                         } ${uploadingId === idea.id ? "opacity-50 cursor-wait" : ""}`}
                                                     title="Nahrát referenční fotku"
                                                 >

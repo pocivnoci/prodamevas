@@ -8,9 +8,9 @@ export default function DashboardLayout({
     return (
         <div className="min-h-screen bg-aisummit-bg text-aisummit-text selection:bg-aisummit-cinnabar/30 selection:text-white font-sans relative overflow-hidden">
             {/* Tech-Summit Structural Grid */}
-            <div className="fixed inset-0 pointer-events-none z-0">
-                <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-aisummit-glow/10 rounded-full blur-[150px] mix-blend-screen opacity-70"></div>
-                <div className="absolute top-[20%] right-[-10%] w-[40%] h-[60%] bg-aisummit-glow/10 rounded-full blur-[150px] mix-blend-screen opacity-60"></div>
+            <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden transform-gpu">
+                <div className="hidden md:block absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-aisummit-glow/10 rounded-full blur-[120px] opacity-50" style={{ transform: 'translateZ(0)' }}></div>
+                <div className="hidden md:block absolute top-[20%] right-[-10%] w-[40%] h-[60%] bg-aisummit-glow/10 rounded-full blur-[120px] opacity-40" style={{ transform: 'translateZ(0)' }}></div>
                 <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:4rem_4rem]"></div>
             </div>
 
