@@ -36,10 +36,11 @@ export type ContentCalendar = Tables<"ig_content_calendar">;
 // ============================================
 
 export async function getActivePostTypes(allowedNames?: string[]): Promise<PostType[]> {
-    let query = supabase
+    let query = supabaseAdmin
         .from("ig_post_types")
         .select("*")
         .eq("is_active", true)
+        .eq("client_id", getActiveProject())
         .order("name");
 
     // Multi-tenant: filter to only post types used by the active project
@@ -53,10 +54,11 @@ export async function getActivePostTypes(allowedNames?: string[]): Promise<PostT
 }
 
 export async function getPostTypeByName(name: string): Promise<PostType | null> {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
         .from("ig_post_types")
         .select("*")
         .eq("name", name)
+        .eq("client_id", getActiveProject())
         .single();
 
     if (error) return null;
