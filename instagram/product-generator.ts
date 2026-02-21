@@ -372,31 +372,57 @@ export async function generateProductMockup(
 ): Promise<{ mockupUrl: string } | null> {
     console.log(`📸 Generuji mockup: ${productType}${designDescription ? ` — "${designDescription}"` : ""}...`)
 
-    // Clothing types: the design is a PRINT on the garment
-    const clothingPrompts: Record<string, string> = {
-        triko: "Photorealistic product photography of a premium black t-shirt laid flat on a dark surface. The t-shirt has a bold graphic print on the front chest area. Studio lighting, clean minimal background, e-commerce product shot, high quality fashion photography.",
-        mikina: "Photorealistic product photography of a premium black hoodie laid flat on a dark surface. The hoodie has a bold graphic print on the front chest area. Studio lighting, clean minimal background, e-commerce product shot, high quality fashion photography.",
-        čepice: "Photorealistic product photography of a black snapback cap on a dark surface. The cap has a bold embroidered graphic on the front panel. Studio lighting, clean minimal background, e-commerce product shot, fashion photography.",
-    }
-
-    let promptWithDesign: string
-
-    if (clothingPrompts[productType]) {
-        // Clothing: designDescription is the GRAPHIC PRINT on the garment
-        const basePrompt = clothingPrompts[productType]
-        promptWithDesign = designDescription
-            ? `${basePrompt} The graphic design features: ${designDescription}. Brand: ${config.name}. Urban streetwear aesthetic.`
-            : `${basePrompt} Brand: ${config.name}. Urban streetwear aesthetic, bold graphic design.`
-    } else {
-        // Non-clothing (doplněk, combo, etc.): designDescription IS the product itself
-        if (designDescription) {
-            promptWithDesign = `Photorealistic product photography of: ${designDescription}. Branded product for ${config.name}. Premium quality, studio lighting on a dark surface, clean minimal background, e-commerce product shot, luxury feel. The product should look exactly as described — this is NOT a t-shirt or clothing item, it is the actual product described above.`
-        } else {
-            promptWithDesign = `Photorealistic product photography of a premium branded ${productType} accessory for ${config.name}. Studio lighting on a dark surface, clean minimal background, e-commerce product shot, luxury feel.`
-        }
-    }
+    // Step 1: Download the actual design image and have Gemini describe it
+    console.log(`   📥 Stahuji design z: ${designUrl.substring(0, 60)}...`)
+    let detailedDesignDescription = designDescription || ""
 
     try {
+        const designResponse = await fetch(designUrl)
+        if (!designResponse.ok) throw new Error(`Failed to fetch design: ${designResponse.status}`)
+        const designBuffer = Buffer.from(await designResponse.arrayBuffer())
+        const designMimeType = designResponse.headers.get("content-type") || "image/png"
+        console.log(`   ✅ Design stažen (${(designBuffer.length / 1024).toFixed(0)} KB)`)
+
+        // Use Gemini to analyze the design and create a super-detailed description
+        console.log(`   🧠 Gemini analyzuje design...`)
+        const ai = (await import("./gemini-client")).ai
+        const analysisResponse = await ai.models.generateContent({
+            model: "gemini-3.1-pro-preview",
+            contents: [
+                {
+                    text: `You are a product designer. Analyze this graphic design image in extreme detail. Describe EVERY visual element: colors (exact shades), shapes, composition, style, textures, any symbols or motifs. Your description will be used to recreate this EXACT design on a product mockup. Be very specific about placement, proportions, and artistic style. Write in English, 3-4 sentences max. Focus on what makes this design unique.`
+                },
+                {
+                    inlineData: {
+                        mimeType: designMimeType,
+                        data: designBuffer.toString("base64"),
+                    }
+                }
+            ],
+        })
+
+        const aiDescription = analysisResponse.candidates?.[0]?.content?.parts?.[0]?.text
+        if (aiDescription) {
+            detailedDesignDescription = aiDescription
+            console.log(`   ✅ Design popsán: "${aiDescription.substring(0, 100)}..."`)
+        }
+    } catch (err) {
+        console.warn("⚠️ Nelze analyzovat design obrázek, použiji textový popis:", err)
+    }
+
+    // Step 2: Build mockup prompt with the detailed design description
+    const clothingPrompts: Record<string, string> = {
+        triko: `Photorealistic product photography of a premium black t-shirt laid flat on a dark surface. The t-shirt has this EXACT graphic print on the front chest area: ${detailedDesignDescription}. The print must be clearly visible, centered, vivid colors preserved. Studio lighting, clean minimal background, e-commerce product shot. Brand: ${config.name}.`,
+        mikina: `Photorealistic product photography of a premium black hoodie laid flat on a dark surface. The hoodie has this EXACT graphic print on the front chest area: ${detailedDesignDescription}. The print must be clearly visible, centered, vivid colors preserved. Studio lighting, clean minimal background, e-commerce product shot. Brand: ${config.name}.`,
+        čepice: `Photorealistic product photography of a black snapback cap on a dark surface. The cap has this EXACT embroidered graphic on the front panel: ${detailedDesignDescription}. Studio lighting, clean minimal background, product shot. Brand: ${config.name}.`,
+    }
+
+    const promptWithDesign = clothingPrompts[productType]
+        || `Photorealistic product shot of a branded ${productType} product for ${config.name}. The product features this design: ${detailedDesignDescription}. Studio lighting, dark surface, e-commerce quality, luxury feel.`
+
+    // Step 3: Generate mockup with Imagen 4 Ultra (works in all countries)
+    try {
+        console.log(`   🎨 Imagen 4 generuje mockup...`)
         const imageBuffer = await generateImage(promptWithDesign, { aspectRatio: "1:1" })
 
         const mockupUrl = await uploadToStorage(
@@ -406,7 +432,6 @@ export async function generateProductMockup(
         )
 
         console.log(`   ✓ Mockup nahrán: ${mockupUrl}`)
-
         return { mockupUrl }
     } catch (err) {
         console.error("❌ Mockup generation failed:", err)
