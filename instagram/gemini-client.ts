@@ -133,7 +133,7 @@ export async function generateImageWithReferences(
         resolution?: "1K" | "2K" | "4K"
     } = {}
 ): Promise<Buffer> {
-    const { aspectRatio = "3:4", resolution = "2K" } = options
+    const { resolution = "2K" } = options
 
     return withRetry(async () => {
         // Build contents array: text prompt + reference images as inlineData
@@ -157,7 +157,6 @@ export async function generateImageWithReferences(
             config: {
                 responseModalities: ["TEXT", "IMAGE"],
                 imageConfig: {
-                    aspectRatio,
                     imageSize: resolution,
                 },
             } as any,
