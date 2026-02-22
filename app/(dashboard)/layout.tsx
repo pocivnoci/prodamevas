@@ -1,10 +1,18 @@
+import { redirect } from "next/navigation"
 import { AdminSidebar } from "./AdminSidebar"
+import { checkOnboardingStatus } from "@/app/onboarding/actions"
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
     children,
 }: {
     children: React.ReactNode
 }) {
+    // Check if user needs onboarding (no client config yet)
+    const { needsOnboarding } = await checkOnboardingStatus()
+    if (needsOnboarding) {
+        redirect("/onboarding")
+    }
+
     return (
         <div className="min-h-screen bg-aisummit-bg text-aisummit-text selection:bg-aisummit-cinnabar/30 selection:text-white font-sans relative overflow-hidden">
             {/* Tech-Summit Structural Grid */}
@@ -24,3 +32,4 @@ export default function DashboardLayout({
         </div>
     )
 }
+
