@@ -422,7 +422,7 @@ export async function saveProductIdea(configName: string, idea: Omit<ProductIdea
             .insert({
                 client_id: clientId,
                 name: idea.name,
-                brandingNames: idea.brandingNames, // array gets stringified to pg array natively if jsonb
+                branding_names: idea.brandingNames || [],
                 type: idea.type,
                 tagline: idea.tagline,
                 description: idea.description,
@@ -455,7 +455,7 @@ export async function rejectProductIdea(configName: string, idea: Omit<ProductId
             .insert({
                 client_id: clientId,
                 name: idea.name,
-                brandingNames: idea.brandingNames,
+                branding_names: idea.brandingNames || [],
                 type: idea.type,
                 tagline: idea.tagline,
                 description: idea.description,

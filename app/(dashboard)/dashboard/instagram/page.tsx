@@ -1580,7 +1580,7 @@ function ProductsTab({ projectId }: { projectId: string }) {
                 id: row.id,
                 client_id: row.client_id,
                 name: row.name,
-                brandingNames: row.brandingNames,
+                brandingNames: row.branding_names || [],
                 type: row.type,
                 tagline: row.tagline,
                 description: row.description,
@@ -2356,8 +2356,8 @@ function BrandTab({ projectId }: { projectId: string }) {
             {/* Status Message */}
             {message && (
                 <div className={`px-4 py-3 rounded-sm text-xs font-bold uppercase tracking-wider border ${message.type === 'success'
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                        : 'bg-red-500/10 text-red-400 border-red-500/20'
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    : 'bg-red-500/10 text-red-400 border-red-500/20'
                     }`}>
                     {message.text}
                 </div>
@@ -2369,8 +2369,8 @@ function BrandTab({ projectId }: { projectId: string }) {
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleDrop}
                 className={`border-2 border-dashed rounded-sm p-8 text-center transition-all cursor-pointer ${dragOver
-                        ? 'border-white/40 bg-white/5'
-                        : 'border-white/10 hover:border-white/20 bg-[#0a0a0a]/50'
+                    ? 'border-white/40 bg-white/5'
+                    : 'border-white/10 hover:border-white/20 bg-[#0a0a0a]/50'
                     }`}
                 onClick={() => {
                     const input = document.createElement('input')
