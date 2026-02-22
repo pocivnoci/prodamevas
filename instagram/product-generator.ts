@@ -364,6 +364,27 @@ export async function generateProductDesign(
             }
         }
 
+        // Load characterReferenceImages from config (brand logo/character URLs)
+        if (config.characterReferenceImages?.length && referenceImages.length < 3) {
+            const maxToLoad = Math.min(2, config.characterReferenceImages.length)
+            for (let ri = 0; ri < maxToLoad && referenceImages.length < 3; ri++) {
+                try {
+                    const url = config.characterReferenceImages[ri]
+                    const resp = await fetch(url, { signal: AbortSignal.timeout(5000) })
+                    if (resp.ok) {
+                        const buf = Buffer.from(await resp.arrayBuffer())
+                        const mime = resp.headers.get("content-type") || "image/jpeg"
+                        if (buf.length > 1000) { // skip tiny/broken
+                            referenceImages.push({ buffer: buf, mimeType: mime })
+                            console.log(`   👤 Character ref ${ri + 1} loaded`)
+                        }
+                    }
+                } catch {
+                    // skip failed downloads
+                }
+            }
+        }
+
         if (referenceImages.length > 0) {
             console.log(`🎨 Generuji s ${referenceImages.length} referenčním(i) obrázk(y)...`)
             imageBuffer = await generateImageWithReferences(
