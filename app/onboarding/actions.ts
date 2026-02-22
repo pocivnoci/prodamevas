@@ -409,13 +409,26 @@ DŮLEŽITÉ:
         }
         if (analysis.recommendedFont && config.feedAesthetic) {
             config.feedAesthetic.font = analysis.recommendedFont
+            config.feedAesthetic.fontOverride = analysis.recommendedFont
         }
         if (analysis.visualFeel && config.feedAesthetic) {
             config.feedAesthetic.feel = analysis.visualFeel
         }
         // Set logo file if it was downloaded
         if (analysis.logoDownloaded) {
-            (config as any).logoFile = `logo-${slug}.png`
+            config.logoFile = `logo-${slug}.png`
+        }
+        // Set storage bucket
+        config.storageBucket = `ig-posts-${slug}`
+
+        // Download brand/product images from website → Supabase storage
+        const imageUrls = await downloadProductImages(
+            analysis.brandImageUrls || [],
+            slug
+        )
+        if (imageUrls.length > 0) {
+            config.characterReferenceImages = imageUrls
+            console.log(`✅ ${imageUrls.length} brand images uploaded to storage`)
         }
 
         // Save to database
@@ -551,6 +564,77 @@ function extractSubpageUrls(html: string, baseUrl: string): string[] {
         }
     }
     return Array.from(urls)
+}
+
+/**
+ * Download brand/product images from website URLs → upload to Supabase storage.
+ * Returns array of public URLs that can be used as characterReferenceImages.
+ */
+async function downloadProductImages(
+    imageUrls: string[],
+    clientSlug: string
+): Promise<string[]> {
+    if (!imageUrls.length) return []
+
+    const uploadedUrls: string[] = []
+    const bucketName = 'audit-screenshots' // shared bucket
+
+    // Download up to 5 best images
+    const candidates = imageUrls.slice(0, 8) // try 8, keep 5 max
+
+    for (let i = 0; i < candidates.length && uploadedUrls.length < 5; i++) {
+        const url = candidates[i]
+        try {
+            const controller = new AbortController()
+            const timeout = setTimeout(() => controller.abort(), 8000)
+
+            const resp = await fetch(url, {
+                signal: controller.signal,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+                },
+            })
+            clearTimeout(timeout)
+
+            if (!resp.ok) continue
+
+            const contentType = resp.headers.get('content-type') || 'image/jpeg'
+            if (!contentType.startsWith('image/')) continue
+
+            const buffer = Buffer.from(await resp.arrayBuffer())
+
+            // Skip tiny images (icons, spacers) and huge images
+            if (buffer.length < 5000 || buffer.length > 10_000_000) continue
+
+            const ext = contentType.includes('png') ? 'png' : 'jpg'
+            const filename = `client-assets/${clientSlug}/brand-${i}.${ext}`
+
+            const { error: uploadError } = await supabaseAdmin.storage
+                .from(bucketName)
+                .upload(filename, buffer, {
+                    contentType,
+                    cacheControl: '31536000',
+                    upsert: true,
+                })
+
+            if (uploadError) {
+                console.warn(`   ⚠️ Upload failed for ${url.substring(0, 60)}:`, uploadError.message)
+                continue
+            }
+
+            const { data: publicUrlData } = supabaseAdmin.storage
+                .from(bucketName)
+                .getPublicUrl(filename)
+
+            uploadedUrls.push(publicUrlData.publicUrl)
+            console.log(`   📸 Brand image ${uploadedUrls.length}: uploaded`)
+        } catch (err) {
+            // Skip failed downloads silently
+            continue
+        }
+    }
+
+    return uploadedUrls
 }
 
 function slugify(text: string): string {
