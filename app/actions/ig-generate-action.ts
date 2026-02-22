@@ -478,3 +478,97 @@ export async function rejectProductIdea(configName: string, idea: Omit<ProductId
         return { success: false, error: err.message || "Failed to reject idea" }
     }
 }
+
+// ============================================
+// CREATE PROMO POST FROM PRODUCT IDEA
+// ============================================
+
+import { createPost, setActiveProject } from "@/instagram/service"
+
+export async function createPromoPost(options: {
+    configName: string
+    ideaName: string
+    ideaTagline: string
+    ideaDescription: string
+    ideaType: string
+    ideaPriceRange?: string
+    designUrl: string
+}): Promise<{ success: boolean; postId?: string; caption?: string; error?: string }> {
+    try {
+        const config = await loadConfig(options.configName)
+        const clientId = await resolveClientId(options.configName)
+        setActiveProject(clientId)
+
+        // 1. Gemini generates a promo caption
+        console.log(`📝 Generuji promo caption pro "${options.ideaName}"...`)
+        const { generateText } = await import("@/instagram/gemini-client")
+
+        const captionPrompt = `Jsi copywriter pro značku ${config.name} (${config.website}).
+Napiš prodejní Instagram caption pro NOVÝ PRODUKT.
+
+PRODUKT:
+- Název: ${options.ideaName}
+- Typ: ${options.ideaType}
+- Tagline: "${options.ideaTagline}"
+- Popis: ${options.ideaDescription}
+${options.ideaPriceRange ? `- Cena: ${options.ideaPriceRange}` : ""}
+
+BRAND VOICE:
+${config.brandVoice.persona}
+
+PRAVIDLA:
+- Hook (první řádek) musí okamžitě zaujmout — max 10 slov
+- Body: 2-3 řádky popisující produkt, proč je unikátní
+- CTA: odkaz na eshop nebo "link v biu"
+- Max 5 hashtagů relevantních pro produkt
+- Piš ${config.brandVoice.voiceTraits?.slice(0, 3).join(", ") || "autenticky a přirozeně"}
+- ŽÁDNÉ emoji spam, max 3 emoji celkem
+
+Odpověz POUZE v tomto JSON formátu:
+{
+  "hook": "první řádek - zaujme",
+  "body": "2-3 řádky o produktu",
+  "cta": "call to action",
+  "hashtags": ["#tag1", "#tag2", "#tag3"]
+}`
+
+        const rawText = await generateText(captionPrompt)
+
+        let captionData: { hook: string; body: string; cta: string; hashtags: string[] }
+        try {
+            const jsonMatch = rawText.match(/\{[\s\S]*\}/)
+            captionData = JSON.parse(jsonMatch?.[0] || rawText)
+        } catch {
+            captionData = {
+                hook: `🔥 ${options.ideaName}`,
+                body: options.ideaDescription,
+                cta: `Koukni na ${config.website}`,
+                hashtags: [`#${config.id}`, "#newdrop", "#merch"]
+            }
+        }
+
+        const fullCaption = `${captionData.hook}\n\n${captionData.body}\n\n${captionData.cta}\n\n${captionData.hashtags.join(" ")}`
+
+        // 2. Create Draft post in ig_posts
+        console.log("💾 Ukládám jako Draft post...")
+        const post = await createPost({
+            caption: fullCaption,
+            hashtags: captionData.hashtags,
+            call_to_action: captionData.cta,
+            image_url: options.designUrl,
+            image_style: "product-promo",
+            status: "draft",
+        })
+
+        console.log(`   ✅ Post ${post.id} vytvořen jako Draft`)
+
+        return {
+            success: true,
+            postId: post.id,
+            caption: fullCaption,
+        }
+    } catch (err: any) {
+        console.error("createPromoPost error:", err)
+        return { success: false, error: err.message || "Failed to create promo post" }
+    }
+}

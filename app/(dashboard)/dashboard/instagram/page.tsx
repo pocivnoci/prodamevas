@@ -29,6 +29,7 @@ import {
     triggerAIReviewsGeneration,
     saveProductIdea,
     rejectProductIdea,
+    createPromoPost,
     type GenerateResult,
     type ProductIdea,
     type DesignConcept,
@@ -2046,6 +2047,38 @@ function ProductsTab({ projectId }: { projectId: string }) {
                                                         : "🖼️ Vizualizovat z textu"
                                                 )}
                                             </button>
+
+                                            {/* Promo Post button — only if design exists */}
+                                            {ideaVisuals[idea.id as string] && (
+                                                <button
+                                                    onClick={async () => {
+                                                        const id = idea.id as string
+                                                        setVisualizingId(`promo_${id}`)
+                                                        setError(null)
+                                                        try {
+                                                            const result = await createPromoPost({
+                                                                configName: projectId,
+                                                                ideaName: idea.name,
+                                                                ideaTagline: idea.tagline,
+                                                                ideaDescription: idea.description,
+                                                                ideaType: idea.type,
+                                                                ideaPriceRange: idea.priceRange,
+                                                                designUrl: ideaVisuals[id],
+                                                            })
+                                                            if (result.success) {
+                                                                alert(`✅ Promo post vytvořen!\n\nCaption:\n${result.caption?.substring(0, 200)}...\n\nNajdeš ho v záložce Posts jako Draft.`)
+                                                            } else {
+                                                                setError(result.error || "Vytvoření postu selhalo")
+                                                            }
+                                                        } catch (err: any) { setError(err.message) }
+                                                        finally { setVisualizingId(null) }
+                                                    }}
+                                                    disabled={visualizingId === `promo_${idea.id}`}
+                                                    className="flex-1 px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-sm text-[9px] font-bold uppercase tracking-widest text-blue-400 transition-all disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
+                                                >
+                                                    {visualizingId === `promo_${idea.id}` ? "⏳ Vytvářím..." : "📸 Vytvoř promo post"}
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
