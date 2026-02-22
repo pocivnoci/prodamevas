@@ -370,7 +370,8 @@ export async function generateProductDesign(
             try {
                 imageBuffer = await generateImageWithReferences(
                     imagePrompt,
-                    referenceImages
+                    referenceImages,
+                    { aspectRatio: "1:1" }
                 )
             } catch (refErr: any) {
                 console.warn(`⚠️ Reference generation failed, falling back to plain: ${refErr.message?.substring(0, 100)}`)
