@@ -33,6 +33,30 @@ export interface OnboardingQuestion {
 }
 
 // ============================================
+// ERROR HELPERS
+// ============================================
+
+function humanizeError(error: unknown): string {
+    const msg = (error as Error)?.message || String(error)
+    if (msg.includes('503') || msg.includes('overloaded') || msg.includes('UNAVAILABLE') || msg.includes('high demand')) {
+        return 'AI server je momentálně přetížený. Zkus to za chvíli znovu.'
+    }
+    if (msg.includes('429') || msg.includes('rate limit') || msg.includes('quota')) {
+        return 'Překročen limit API požadavků. Zkus to za minutu.'
+    }
+    if (msg.includes('timeout') || msg.includes('abort') || msg.includes('ETIMEDOUT')) {
+        return 'Připojení k webu vypršelo. Zkontroluj URL a zkus to znovu.'
+    }
+    if (msg.includes('ENOTFOUND') || msg.includes('DNS')) {
+        return 'Web nebyl nalezen. Zkontroluj, jestli je URL správná.'
+    }
+    if (msg.includes('JSON')) {
+        return 'AI vygenerovalo neplatnou odpověď. Zkus to znovu.'
+    }
+    return msg
+}
+
+// ============================================
 // STEP 1: ANALYZE WEBSITE
 // ============================================
 
@@ -151,7 +175,7 @@ Vrať POUZE platný JSON, bez dalšího textu.`
         return { success: true, analysis }
     } catch (error) {
         console.error('Website analysis error:', error)
-        return { success: false, error: `Analýza webu selhala: ${(error as Error).message}` }
+        return { success: false, error: humanizeError(error) }
     }
 }
 
@@ -220,7 +244,7 @@ Vrať POUZE platný JSON pole otázek.`
         return { success: true, questions: parsed.questions }
     } catch (error) {
         console.error('Question generation error:', error)
-        return { success: false, error: `Generování dotazníku selhalo: ${(error as Error).message}` }
+        return { success: false, error: humanizeError(error) }
     }
 }
 
@@ -374,7 +398,7 @@ DŮLEŽITÉ:
         return { success: true, clientSlug }
     } catch (error) {
         console.error('Config build error:', error)
-        return { success: false, error: `Generování konfigurace selhalo: ${(error as Error).message}` }
+        return { success: false, error: humanizeError(error) }
     }
 }
 
