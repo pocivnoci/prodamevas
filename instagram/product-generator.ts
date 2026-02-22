@@ -327,19 +327,33 @@ export async function generateProductDesign(
         basePrompt = basePrompt.replace(/(?:minimalist|neon|green|simple|stylized|abstract)\s*(?:logo|emblem|mark|monogram|symbol)[^.]*\./gi, '')
     }
 
-    // When we have a logo, tell AI to leave space for it but DON'T send as reference
-    // (Gemini refuses to reproduce complex logos as references)
-    const brandInstruction = config.logoFile
-        ? ` The product should have a prominent blank/flat area (front center) suitable for a brand character artwork placement.`
+    // When we have a logo, tell AI to use it as a graphic decal/texture (bypasses "cannot recreate logo" filters)
+    const decalInstruction = config.logoFile
+        ? ` The attached reference image contains the primary graphic decal. You MUST visibly integrate and print this exact graphic texture onto the product's surface (e.g. as a print, engraving, pattern, or main shape). Strictly replicate the attached graphic.`
         : ''
 
-    const imagePrompt = `Generate a product image. ${basePrompt}${brandInstruction} Product photography, studio lighting, clean dark background, photorealistic render, premium quality, detailed materials and textures, professional product visualization. Brand aesthetic: ${config.feedAesthetic?.feel || 'urban streetwear, bold, premium'}.`
+    const imagePrompt = `Generate a product image. ${basePrompt}${decalInstruction} Product photography, studio lighting, clean dark background, photorealistic render, premium quality, detailed materials and textures, professional product visualization. Brand aesthetic: ${config.feedAesthetic?.feel || 'urban streetwear, bold, premium'}. CRITICAL: Output ONLY the generated image. Do not output text advice or constraints on AI limitations.`
 
     try {
         let imageBuffer: Buffer
 
-        // Collect ONLY user-uploaded reference images (NOT logo — that's overlaid later)
+        // Collect reference images
         const referenceImages: { buffer: Buffer; mimeType: string }[] = []
+
+        // Load logo as a "graphic decal" reference
+        if (config.logoFile) {
+            try {
+                const { join } = await import('path')
+                const { readFile } = await import('fs/promises')
+                const fontsDir = join(process.cwd(), 'instagram', 'fonts')
+                const logoPath = join(fontsDir, config.logoFile)
+                const logoBuffer = await readFile(logoPath)
+                referenceImages.push({ buffer: logoBuffer, mimeType: 'image/png' })
+                console.log(`   🏷️ Graphic decal loaded: ${config.logoFile}`)
+            } catch {
+                console.warn(`   ⚠️ Graphic decal not found: ${config.logoFile}`)
+            }
+        }
 
         // Load user-uploaded reference image
         if (referenceImageUrl) {
@@ -370,46 +384,6 @@ export async function generateProductDesign(
             }
         } else {
             imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
-        }
-
-        // Overlay brand logo programmatically (100% reliable, pixel-perfect)
-        if (config.logoFile) {
-            try {
-                const sharp = (await import('sharp')).default
-                const { join } = await import('path')
-                const { readFile } = await import('fs/promises')
-                const fontsDir = join(process.cwd(), 'instagram', 'fonts')
-                const logoPath = join(fontsDir, config.logoFile)
-                const logoBuffer = await readFile(logoPath)
-
-                // Get product image dimensions
-                const metadata = await sharp(imageBuffer).metadata()
-                const imgW = metadata.width || 1024
-                const imgH = metadata.height || 1024
-
-                // Resize logo to ~25% of image width
-                const logoSize = Math.round(imgW * 0.25)
-                const resizedLogo = await sharp(logoBuffer)
-                    .resize(logoSize, logoSize, { fit: 'inside', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-                    .png()
-                    .toBuffer()
-
-                // Composite logo bottom-right with slight padding
-                const padding = Math.round(imgW * 0.04)
-                imageBuffer = await sharp(imageBuffer)
-                    .composite([{
-                        input: resizedLogo,
-                        gravity: 'southeast',
-                        top: imgH - logoSize - padding,
-                        left: imgW - logoSize - padding,
-                    }])
-                    .png()
-                    .toBuffer()
-
-                console.log(`   🏷️ Logo overlay added: ${config.logoFile} (${logoSize}px)`)
-            } catch (logoErr: any) {
-                console.warn(`   ⚠️ Logo overlay failed: ${logoErr.message}`)
-            }
         }
 
         const safeName = idea.name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "").slice(0, 20)
