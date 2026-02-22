@@ -1,4 +1,5 @@
 import { login } from "@/app/login/actions"
+import Link from "next/link"
 
 export default async function LoginPage(props: {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>
@@ -72,6 +73,15 @@ export default async function LoginPage(props: {
                         </span>
                     </button>
                 </form>
+
+                <div className="mt-6 text-center">
+                    <p className="text-sm text-gray-400">
+                        Nemáš účet?{" "}
+                        <Link href="/register" className="text-emerald-400 hover:text-emerald-300 transition-colors font-medium">
+                            Zaregistruj se
+                        </Link>
+                    </p>
+                </div>
             </div>
         </div>
     )

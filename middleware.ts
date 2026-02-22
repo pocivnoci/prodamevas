@@ -46,10 +46,10 @@ export async function middleware(request: NextRequest) {
             return NextResponse.redirect(url)
         }
 
-        // Ensure logged-in users can't visit the login page again
-        if (user && request.nextUrl.pathname.startsWith('/login')) {
+        // Ensure logged-in users can't visit login/register pages
+        if (user && (request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/register'))) {
             const url = request.nextUrl.clone()
-            url.pathname = '/dashboard'
+            url.pathname = '/dashboard/instagram'
             return NextResponse.redirect(url)
         }
 
