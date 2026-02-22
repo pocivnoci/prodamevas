@@ -170,7 +170,13 @@ export async function generateImageWithReferences(
             }
         }
 
-        throw new Error("Gemini 3.1 Pro Image returned no image data")
+        // Log any text response for debugging (model may explain why it refused)
+        const textParts = parts.filter((p: any) => p.text).map((p: any) => p.text).join(' ')
+        if (textParts) {
+            console.warn(`⚠️ Gemini returned text instead of image: ${textParts.substring(0, 200)}`)
+        }
+
+        throw new Error(`Gemini 3.1 Pro returned no image data${textParts ? ': ' + textParts.substring(0, 100) : ''}`)
     })
 }
 
