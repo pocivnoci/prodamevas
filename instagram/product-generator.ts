@@ -320,10 +320,18 @@ export async function generateProductDesign(
     console.log(`🎨 Generuji vizualizaci produktu: ${idea.name}...`)
 
     // Use the idea's own design prompt if available, otherwise build one
-    const basePrompt = idea.designPrompt || `Product concept: ${idea.name}. ${idea.description}. Material: ${idea.material}. Dimensions: ${idea.dimensions}. Brand: ${config.name}.`
+    let basePrompt = idea.designPrompt || `Product concept: ${idea.name}. ${idea.description}. Material: ${idea.material}. Dimensions: ${idea.dimensions}. Brand: ${config.name}.`
 
-    const logoInstruction = config.logoFile
-        ? ` Include the brand logo prominently on the product (embossed, printed, or etched). The logo should be clearly visible and integrated into the design naturally.`
+    // When we attach an actual logo image, strip any conflicting text descriptions of a logo
+    // (AI-generated designPrompt may describe a different logo than the actual one)
+    const hasLogoRef = !!config.logoFile
+    if (hasLogoRef) {
+        basePrompt = basePrompt.replace(/(?:minimalist|neon|green|simple|stylized|abstract)\s*(?:logo|emblem|mark|monogram|symbol)[^.]*\./gi, '')
+        basePrompt = basePrompt.replace(/\blog(?:o|os?)\b[^.]*(?:embossed|printed|etched|engraved|stamped)[^.]*\./gi, '')
+    }
+
+    const logoInstruction = hasLogoRef
+        ? ` IMPORTANT: One of the attached reference images is the EXACT brand logo. Reproduce this logo FAITHFULLY on the product — same style, same details. Do NOT invent a new logo. Place it prominently on the product (embossed, printed, or etched).`
         : ''
 
     const imagePrompt = `${basePrompt}${logoInstruction} Product photography, studio lighting, clean dark background, photorealistic render, premium quality, detailed materials and textures, professional product visualization. Brand aesthetic: ${config.feedAesthetic?.feel || 'urban streetwear, bold, premium'}.`
