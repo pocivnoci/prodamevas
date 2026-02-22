@@ -370,63 +370,80 @@ export async function generateProductMockup(
     productType: string = "triko",
     designDescription?: string
 ): Promise<{ mockupUrl: string } | null> {
-    console.log(`📸 Generuji mockup: ${productType}${designDescription ? ` — "${designDescription}"` : ""}...`)
+    console.log(`📸 Generuji mockup: ${productType}...`)
 
-    // Step 1: Download the actual design image and have Gemini describe it
-    console.log(`   📥 Stahuji design z: ${designUrl.substring(0, 60)}...`)
-    let detailedDesignDescription = designDescription || ""
+    const sharp = (await import("sharp")).default
+    const path = await import("path")
+    const fs = await import("fs")
 
+    // Template mapping
+    const templateMap: Record<string, string> = {
+        triko: "tshirt_black_flat.png",
+        mikina: "hoodie_black_flat.png",
+    }
+
+    const templateFile = templateMap[productType]
+    if (!templateFile) {
+        console.error(`❌ Neexistuje šablona pro typ: ${productType}`)
+        return null
+    }
+
+    const templatePath = path.join(process.cwd(), "instagram", "templates", templateFile)
+    if (!fs.existsSync(templatePath)) {
+        console.error(`❌ Šablona nenalezena: ${templatePath}`)
+        return null
+    }
+
+    // Step 1: Download the actual design image
+    console.log(`   📥 Stahuji design...`)
+    let designBuffer: Buffer
     try {
-        const designResponse = await fetch(designUrl)
-        if (!designResponse.ok) throw new Error(`Failed to fetch design: ${designResponse.status}`)
-        const designBuffer = Buffer.from(await designResponse.arrayBuffer())
-        const designMimeType = designResponse.headers.get("content-type") || "image/png"
+        const response = await fetch(designUrl)
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        designBuffer = Buffer.from(await response.arrayBuffer())
         console.log(`   ✅ Design stažen (${(designBuffer.length / 1024).toFixed(0)} KB)`)
-
-        // Use Gemini to analyze the design and create a super-detailed description
-        console.log(`   🧠 Gemini analyzuje design...`)
-        const ai = (await import("./gemini-client")).ai
-        const analysisResponse = await ai.models.generateContent({
-            model: "gemini-3.1-pro-preview",
-            contents: [
-                {
-                    text: `You are a product designer. Analyze this graphic design image in extreme detail. Describe EVERY visual element: colors (exact shades), shapes, composition, style, textures, any symbols or motifs. Your description will be used to recreate this EXACT design on a product mockup. Be very specific about placement, proportions, and artistic style. Write in English, 3-4 sentences max. Focus on what makes this design unique.`
-                },
-                {
-                    inlineData: {
-                        mimeType: designMimeType,
-                        data: designBuffer.toString("base64"),
-                    }
-                }
-            ],
-        })
-
-        const aiDescription = analysisResponse.candidates?.[0]?.content?.parts?.[0]?.text
-        if (aiDescription) {
-            detailedDesignDescription = aiDescription
-            console.log(`   ✅ Design popsán: "${aiDescription.substring(0, 100)}..."`)
-        }
     } catch (err) {
-        console.warn("⚠️ Nelze analyzovat design obrázek, použiji textový popis:", err)
+        console.error("❌ Nelze stáhnout design:", err)
+        return null
     }
 
-    // Step 2: Build mockup prompt with the detailed design description
-    const clothingPrompts: Record<string, string> = {
-        triko: `Photorealistic product photography of a premium black t-shirt laid flat on a dark surface. The t-shirt has this EXACT graphic print on the front chest area: ${detailedDesignDescription}. The print must be clearly visible, centered, vivid colors preserved. Studio lighting, clean minimal background, e-commerce product shot. Brand: ${config.name}.`,
-        mikina: `Photorealistic product photography of a premium black hoodie laid flat on a dark surface. The hoodie has this EXACT graphic print on the front chest area: ${detailedDesignDescription}. The print must be clearly visible, centered, vivid colors preserved. Studio lighting, clean minimal background, e-commerce product shot. Brand: ${config.name}.`,
-        čepice: `Photorealistic product photography of a black snapback cap on a dark surface. The cap has this EXACT embroidered graphic on the front panel: ${detailedDesignDescription}. Studio lighting, clean minimal background, product shot. Brand: ${config.name}.`,
-    }
-
-    const promptWithDesign = clothingPrompts[productType]
-        || `Photorealistic product shot of a branded ${productType} product for ${config.name}. The product features this design: ${detailedDesignDescription}. Studio lighting, dark surface, e-commerce quality, luxury feel.`
-
-    // Step 3: Generate mockup with Imagen 4 Ultra (works in all countries)
+    // Step 2: Get template dimensions and calculate placement
     try {
-        console.log(`   🎨 Imagen 4 generuje mockup...`)
-        const imageBuffer = await generateImage(promptWithDesign, { aspectRatio: "1:1" })
+        const templateMeta = await sharp(templatePath).metadata()
+        const templateWidth = templateMeta.width || 1024
+        const templateHeight = templateMeta.height || 1024
 
+        // Design print area: centered on chest, ~40% of template width
+        const printWidth = Math.round(templateWidth * 0.40)
+        const printHeight = Math.round(printWidth * 1.0) // square-ish design
+
+        // Center horizontally, place at ~25% from top (chest area)
+        const left = Math.round((templateWidth - printWidth) / 2)
+        const top = Math.round(templateHeight * 0.25)
+
+        console.log(`   📐 Šablona: ${templateWidth}x${templateHeight}, design: ${printWidth}x${printHeight} @ (${left}, ${top})`)
+
+        // Step 3: Resize design and composite onto template
+        const resizedDesign = await sharp(designBuffer)
+            .resize(printWidth, printHeight, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+            .png()
+            .toBuffer()
+
+        const composited = await sharp(templatePath)
+            .composite([{
+                input: resizedDesign,
+                left,
+                top,
+                blend: "over" as const,
+            }])
+            .png()
+            .toBuffer()
+
+        console.log(`   ✅ Kompozice hotová (${(composited.length / 1024).toFixed(0)} KB)`)
+
+        // Step 4: Upload to Supabase
         const mockupUrl = await uploadToStorage(
-            imageBuffer,
+            composited,
             "product-mockups",
             `${config.id}_${productType}`
         )
@@ -434,7 +451,7 @@ export async function generateProductMockup(
         console.log(`   ✓ Mockup nahrán: ${mockupUrl}`)
         return { mockupUrl }
     } catch (err) {
-        console.error("❌ Mockup generation failed:", err)
+        console.error("❌ Mockup composition failed:", err)
         return null
     }
 }
