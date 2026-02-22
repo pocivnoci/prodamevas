@@ -369,8 +369,7 @@ export async function generateProductDesign(
             console.log(`🎨 Generuji s ${referenceImages.length} referenčním(i) obrázk(y)...`)
             imageBuffer = await generateImageWithReferences(
                 imagePrompt,
-                referenceImages,
-                { aspectRatio: "1:1" }
+                referenceImages
             )
         } else {
             imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
