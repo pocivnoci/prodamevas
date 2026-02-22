@@ -133,7 +133,7 @@ export async function generateImageWithReferences(
         resolution?: "1K" | "2K" | "4K"
     } = {}
 ): Promise<Buffer> {
-    const { aspectRatio, resolution = "2K" } = options
+    const { aspectRatio = "3:4", resolution = "2K" } = options
 
     return withRetry(async () => {
         // Build contents array: text prompt + reference images as inlineData
@@ -151,15 +151,15 @@ export async function generateImageWithReferences(
             })
         }
 
-        const imageConfig: any = { imageSize: resolution }
-        if (aspectRatio) imageConfig.aspectRatio = aspectRatio
-
         const response = await ai.models.generateContent({
             model: "gemini-3.1-pro-preview",
             contents,
             config: {
                 responseModalities: ["TEXT", "IMAGE"],
-                imageConfig,
+                imageConfig: {
+                    aspectRatio,
+                    imageSize: resolution,
+                },
             } as any,
         })
 
@@ -171,13 +171,7 @@ export async function generateImageWithReferences(
             }
         }
 
-        // Log any text response for debugging (model may explain why it refused)
-        const textParts = parts.filter((p: any) => p.text).map((p: any) => p.text).join(' ')
-        if (textParts) {
-            console.warn(`⚠️ Gemini returned text instead of image: ${textParts.substring(0, 200)}`)
-        }
-
-        throw new Error(`Gemini 3.1 Pro returned no image data${textParts ? ': ' + textParts.substring(0, 100) : ''}`)
+        throw new Error("Gemini 3.1 Pro Image returned no image data")
     })
 }
 

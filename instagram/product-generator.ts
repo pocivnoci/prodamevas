@@ -322,19 +322,16 @@ export async function generateProductDesign(
     // Use the idea's own design prompt if available, otherwise build one
     let basePrompt = idea.designPrompt || `Product concept: ${idea.name}. ${idea.description}. Material: ${idea.material}. Dimensions: ${idea.dimensions}. Brand: ${config.name}.`
 
-    // When we attach an actual logo image, strip any conflicting text descriptions of a logo
-    // (AI-generated designPrompt may describe a different logo than the actual one)
-    const hasLogoRef = !!config.logoFile
-    if (hasLogoRef) {
+    // Strip any conflicting descriptions of logos from AI-generated designPrompt
+    if (config.logoFile) {
         basePrompt = basePrompt.replace(/(?:minimalist|neon|green|simple|stylized|abstract)\s*(?:logo|emblem|mark|monogram|symbol)[^.]*\./gi, '')
-        basePrompt = basePrompt.replace(/\blog(?:o|os?)\b[^.]*(?:embossed|printed|etched|engraved|stamped)[^.]*\./gi, '')
     }
 
-    const logoInstruction = hasLogoRef
-        ? ` IMPORTANT: One of the attached reference images is the EXACT brand logo. Reproduce this logo FAITHFULLY on the product — same style, same details. Do NOT invent a new logo. Place it prominently on the product (embossed, printed, or etched).`
+    const brandCharacterInstruction = config.logoFile
+        ? ` The attached reference image shows the brand's character artwork. Include this exact character design prominently on the product — printed, embossed, or as the main visual element. Keep the character's details faithful to the reference.`
         : ''
 
-    const imagePrompt = `${basePrompt}${logoInstruction} Product photography, studio lighting, clean dark background, photorealistic render, premium quality, detailed materials and textures, professional product visualization. Brand aesthetic: ${config.feedAesthetic?.feel || 'urban streetwear, bold, premium'}.`
+    const imagePrompt = `Generate a product image. ${basePrompt}${brandCharacterInstruction} Product photography, studio lighting, clean dark background, photorealistic render, premium quality, detailed materials and textures, professional product visualization. Brand aesthetic: ${config.feedAesthetic?.feel || 'urban streetwear, bold, premium'}.`
 
     try {
         let imageBuffer: Buffer
@@ -375,16 +372,11 @@ export async function generateProductDesign(
 
         if (referenceImages.length > 0) {
             console.log(`🎨 Generuji s ${referenceImages.length} referenčním(i) obrázk(y)...`)
-            try {
-                imageBuffer = await generateImageWithReferences(
-                    imagePrompt,
-                    referenceImages,
-                    { resolution: "2K" }
-                )
-            } catch (refErr: any) {
-                console.warn(`⚠️ Reference generation failed, falling back to plain: ${refErr.message?.substring(0, 100)}`)
-                imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
-            }
+            imageBuffer = await generateImageWithReferences(
+                imagePrompt,
+                referenceImages,
+                { aspectRatio: "1:1" }
+            )
         } else {
             imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
         }
