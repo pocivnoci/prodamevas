@@ -372,11 +372,16 @@ export async function generateProductDesign(
 
         if (referenceImages.length > 0) {
             console.log(`🎨 Generuji s ${referenceImages.length} referenčním(i) obrázk(y)...`)
-            imageBuffer = await generateImageWithReferences(
-                imagePrompt,
-                referenceImages,
-                { aspectRatio: "1:1" }
-            )
+            try {
+                imageBuffer = await generateImageWithReferences(
+                    imagePrompt,
+                    referenceImages,
+                    { resolution: "2K" }
+                )
+            } catch (refErr: any) {
+                console.warn(`⚠️ Reference generation failed, falling back to plain: ${refErr.message?.substring(0, 100)}`)
+                imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
+            }
         } else {
             imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
         }

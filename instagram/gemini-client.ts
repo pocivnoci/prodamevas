@@ -133,7 +133,7 @@ export async function generateImageWithReferences(
         resolution?: "1K" | "2K" | "4K"
     } = {}
 ): Promise<Buffer> {
-    const { aspectRatio = "3:4", resolution = "2K" } = options
+    const { aspectRatio, resolution = "2K" } = options
 
     return withRetry(async () => {
         // Build contents array: text prompt + reference images as inlineData
@@ -151,15 +151,15 @@ export async function generateImageWithReferences(
             })
         }
 
+        const imageConfig: any = { imageSize: resolution }
+        if (aspectRatio) imageConfig.aspectRatio = aspectRatio
+
         const response = await ai.models.generateContent({
             model: "gemini-3.1-pro-preview",
             contents,
             config: {
                 responseModalities: ["TEXT", "IMAGE"],
-                imageConfig: {
-                    aspectRatio,
-                    imageSize: resolution,
-                },
+                imageConfig,
             } as any,
         })
 
