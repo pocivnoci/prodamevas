@@ -327,33 +327,18 @@ export async function generateProductDesign(
         basePrompt = basePrompt.replace(/(?:minimalist|neon|green|simple|stylized|abstract)\s*(?:logo|emblem|mark|monogram|symbol)[^.]*\./gi, '')
     }
 
-    // When we have a logo, tell AI to use it as a graphic decal/texture (bypasses "cannot recreate logo" filters)
-    const decalInstruction = config.logoFile
-        ? ` The attached reference image contains the primary graphic decal. You MUST visibly integrate and print this exact graphic texture onto the product's surface (e.g. as a print, engraving, pattern, or main shape). Strictly replicate the attached graphic.`
+    // We tell AI to leave space for a logo, but we DO NOT send it as reference.
+    const brandInstruction = config.logoFile
+        ? ` The product MUST have a prominent, flat, untextured area (front center) suitable for a brand print placement. Keep this central area completely clean.`
         : ''
 
-    const imagePrompt = `Generate a product image. ${basePrompt}${decalInstruction} Product photography, studio lighting, clean dark background, photorealistic render, premium quality, detailed materials and textures, professional product visualization. Brand aesthetic: ${config.feedAesthetic?.feel || 'urban streetwear, bold, premium'}. CRITICAL: Output ONLY the generated image. Do not output text advice or constraints on AI limitations.`
+    const imagePrompt = `Generate a product image. ${basePrompt}${brandInstruction} Product photography, studio lighting, clean dark background, photorealistic render, premium quality, detailed materials and textures, professional product visualization. Brand aesthetic: ${config.feedAesthetic?.feel || 'urban streetwear, bold, premium'}. CRITICAL: Output ONLY the generated image.`
 
     try {
         let imageBuffer: Buffer
 
-        // Collect reference images
+        // Collect ONLY user-uploaded reference images
         const referenceImages: { buffer: Buffer; mimeType: string }[] = []
-
-        // Load logo as a "graphic decal" reference
-        if (config.logoFile) {
-            try {
-                const { join } = await import('path')
-                const { readFile } = await import('fs/promises')
-                const fontsDir = join(process.cwd(), 'instagram', 'fonts')
-                const logoPath = join(fontsDir, config.logoFile)
-                const logoBuffer = await readFile(logoPath)
-                referenceImages.push({ buffer: logoBuffer, mimeType: 'image/png' })
-                console.log(`   🏷️ Graphic decal loaded: ${config.logoFile}`)
-            } catch {
-                console.warn(`   ⚠️ Graphic decal not found: ${config.logoFile}`)
-            }
-        }
 
         // Load user-uploaded reference image
         if (referenceImageUrl) {
@@ -384,6 +369,54 @@ export async function generateProductDesign(
             }
         } else {
             imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
+        }
+
+        // Overlay brand logo programmatically with a realistic blend mode
+        if (config.logoFile) {
+            try {
+                const sharp = (await import('sharp')).default
+                const { join } = await import('path')
+                const { readFile } = await import('fs/promises')
+                const fontsDir = join(process.cwd(), 'instagram', 'fonts')
+                const logoPath = join(fontsDir, config.logoFile)
+                const logoBuffer = await readFile(logoPath)
+
+                // Get product image dimensions
+                const metadata = await sharp(imageBuffer).metadata()
+                const imgW = metadata.width || 1024
+                const imgH = metadata.height || 1024
+
+                // Resize logo to ~25% of image width
+                const logoSize = Math.round(imgW * 0.25)
+
+                // Add minor transparency so it blends into the material rather than looking like a bright sticker
+                const resizedLogo = await sharp(logoBuffer)
+                    .resize(logoSize, logoSize, { fit: 'inside', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+                    .ensureAlpha()
+                    .png()
+                    .toBuffer()
+
+                // Composite logo bottom-right with padding, using blend mode that makes elements darken underneath
+                // similar to a print. Using 'multiply' or 'over' with opacity.
+                const padding = Math.round(imgW * 0.04)
+
+                // We do a standard overlay, but we make sure the logo image is slightly dimmed by AI lighting 
+                // Unfortunately standard Sharp composite 'multiply' can ruin colors, we'll keep 'over' but just slightly fade the image in the future if needed.
+                imageBuffer = await sharp(imageBuffer)
+                    .composite([{
+                        input: resizedLogo,
+                        gravity: 'southeast',
+                        top: imgH - logoSize - padding,
+                        left: imgW - logoSize - padding,
+                        blend: 'over'
+                    }])
+                    .png()
+                    .toBuffer()
+
+                console.log(`   🏷️ Logo overlay added: ${config.logoFile} (${logoSize}px)`)
+            } catch (logoErr: any) {
+                console.warn(`   ⚠️ Logo overlay failed: ${logoErr.message}`)
+            }
         }
 
         const safeName = idea.name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "").slice(0, 20)
