@@ -152,6 +152,7 @@ function PostsTab({ projectId }: { projectId: string }) {
     const [selectedPost, setSelectedPost] = useState<any | null>(null)
 
     const loadPosts = async () => {
+        if (!projectId) return
         setLoading(true)
         setError(null)
         try {
@@ -589,6 +590,7 @@ function GenerateTab({ projectId }: { projectId: string }) {
 
     // Reload post types + formats + categories when project changes
     useEffect(() => {
+        if (!projectId) return
         getIGPostTypes(projectId).then(setPostTypes)
         getIGPostFormats(projectId).then(setPostFormats)
         getIGCategories(projectId).then(setCategories)
@@ -1024,6 +1026,7 @@ function IdeasTab({ projectId }: { projectId: string }) {
     const [generatingAI, setGeneratingAI] = useState(false)
 
     const loadIdeas = async () => {
+        if (!projectId) return
         setLoading(true)
         const data = await getIGIdeasList(projectId)
         setIdeas(data)
@@ -1031,6 +1034,7 @@ function IdeasTab({ projectId }: { projectId: string }) {
     }
 
     useEffect(() => {
+        if (!projectId) return
         loadIdeas()
         getIGCategories(projectId).then(setCategories)
     }, [projectId])
@@ -1318,6 +1322,7 @@ function LogsTab({ projectId }: { projectId: string }) {
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
+        if (!projectId) return
         setLoading(true)
         getIGGenerationLogs(50, projectId).then(data => {
             setLogs(data)
