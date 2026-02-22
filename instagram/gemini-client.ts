@@ -158,7 +158,7 @@ export async function generateImageWithReferences(
             model: "gemini-3.1-pro-preview",
             contents,
             config: {
-                responseModalities: ["TEXT", "IMAGE"],
+                responseModalities: ["IMAGE"],
                 imageConfig,
             } as any,
         })
