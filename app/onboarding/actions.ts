@@ -4,6 +4,9 @@ import { createClient } from '@/supabase/server'
 import supabaseAdmin from '@/supabase/admin'
 import { generateText } from '@/instagram/gemini-client'
 import type { ClientConfig } from '@/instagram/configs/types'
+import { writeFile, mkdir } from 'fs/promises'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
 
 // ============================================
 // TYPES
@@ -21,6 +24,16 @@ export interface WebsiteAnalysis {
     existingContent: string[]
     instagramBio?: string
     logoUrl?: string
+    /** Whether logo was successfully downloaded */
+    logoDownloaded?: boolean
+    /** Recommended font: Inter (modern/clean) or BebasNeue (bold/impact) */
+    recommendedFont?: string
+    /** AI-recommended overlay gradient based on brand colors */
+    overlayGradient?: { topColor: string; midColor: string; bottomColor: string }
+    /** Unique visual feel description */
+    visualFeel?: string
+    /** Brand image URLs scraped from the website */
+    brandImageUrls?: string[]
 }
 
 export interface OnboardingQuestion {
@@ -98,7 +111,7 @@ export async function analyzeWebsite(url: string, igHandle: string): Promise<{
             } catch { /* IG scraping may fail, that's ok */ }
         }
 
-        // Send everything to AI for analysis
+        // Send everything to AI for analysis — including VISUAL identity
         const analysisPrompt = `Analyzuj tuto webovou stránku a extrahuj klíčové informace pro Instagram marketing.
 
 ## HOMEPAGE METADATA
@@ -120,12 +133,16 @@ Analyzuj brand a vrať JSON s těmito poli:
 - companyName: název firmy/značky
 - description: co firma dělá (1-2 věty)
 - industry: odvětví (e-commerce, SaaS, služby, edukace, atd.)
-- products: pole produktů/služeb [{name, type, slug (URL slug pokud je), price, description}] (max 10)
+- products: pole produktů/služeb [{name, type, slug, price, description}] (max 10)
 - brandTone: detekovaný tón komunikace (formální, neformální, drzý, expertní, atd.)
-- colors: {primary, secondary, accent} — HEX barvy z webu
+- colors: {primary, secondary, accent} — HEX barvy detekované z webu (theme-color, CSS, vizuální styl)
 - targetAudience: odhadovaná cílová skupina
 - uniqueSellingPoints: co firmu odlišuje (pole stringů)
 - existingContent: typy existujícího obsahu na webu (blog, recenze, galerie, atd.)
+- recommendedFont: vhodný font pro Instagram overlay — vždy JEDNO z: "Inter" (pro moderní/clean/tech/professional branding) nebo "BebasNeue" (pro bold/dramatic/street/fashion/sport). Vyber podle tónu a brandu.
+- overlayGradient: {topColor, midColor, bottomColor} — 3 HEX barvy pro gradient overlay na Instagramových obrázcích. Barvy MUSÍ být odvozeny z brand palette ale tmavší/syté, aby text (bílý) byl čitelný. Nesmí být neutrálně šedé/černé — musí odrážet brand!
+- visualFeel: 1 věta popisující unikátní vizuální styl feed (např. "Luxusní minimalizmus s deep blue a zlatým akcentem" nebo "Energický street vibe s neonovými barvami")
+- overlayOpacity: doporučená opacity text overlay procenta (např. "35-45%" pro světlé brandy, "50-65%" pro tmavé/kontrastní)
 
 Vrať POUZE platný JSON, bez dalšího textu.`
 
@@ -162,8 +179,20 @@ Vrať POUZE platný JSON, bez dalšího textu.`
                 targetAudience: { type: "string" },
                 uniqueSellingPoints: { type: "array", items: { type: "string" } },
                 existingContent: { type: "array", items: { type: "string" } },
+                recommendedFont: { type: "string", enum: ["Inter", "BebasNeue"] },
+                overlayGradient: {
+                    type: "object",
+                    properties: {
+                        topColor: { type: "string" },
+                        midColor: { type: "string" },
+                        bottomColor: { type: "string" },
+                    },
+                    required: ["topColor", "midColor", "bottomColor"],
+                },
+                visualFeel: { type: "string" },
+                overlayOpacity: { type: "string" },
             },
-            required: ["companyName", "description", "industry", "products", "brandTone", "colors", "targetAudience", "uniqueSellingPoints", "existingContent"],
+            required: ["companyName", "description", "industry", "products", "brandTone", "colors", "targetAudience", "uniqueSellingPoints", "existingContent", "recommendedFont", "overlayGradient", "visualFeel", "overlayOpacity"],
         }
 
         const rawAnalysis = await generateText(analysisPrompt, { responseSchema: analysisSchema })
@@ -171,6 +200,20 @@ Vrať POUZE platný JSON, bez dalšího textu.`
         const analysis: WebsiteAnalysis = JSON.parse(jsonMatch?.[0] || rawAnalysis)
         analysis.instagramBio = instagramBio
         analysis.logoUrl = metadata.ogImage || undefined
+
+        // Extract brand images from HTML (product photos, hero images)
+        analysis.brandImageUrls = extractBrandImages(homepageHtml, baseUrl).slice(0, 5)
+
+        // Try to download logo
+        const slug = slugify(analysis.companyName)
+        const logoUrl = extractLogoUrl(homepageHtml, baseUrl)
+        if (logoUrl) {
+            const logoSaved = await downloadLogo(logoUrl, slug)
+            analysis.logoDownloaded = logoSaved
+            if (logoSaved) {
+                console.log(`✅ Logo saved as logo-${slug}.png`)
+            }
+        }
 
         return { success: true, analysis }
     } catch (error) {
@@ -332,11 +375,7 @@ Vygeneruj kompletní ClientConfig JSON. Buď kreativní ale přesný.
   },
   "contentFocus": "... (O čem značka je, 1 věta)",
   "postTypes": ["tip", "meme", "carousel", "behind_scenes", "product_drop", "recenze", "challenge"],
-  "overlayGradient": {
-    "topColor": "${analysis.colors.primary}",
-    "midColor": "${analysis.colors.secondary}",
-    "bottomColor": "${analysis.colors.primary}"
-  }${analysis.products.length > 0 ? `,
+  "overlayGradient": ${JSON.stringify(analysis.overlayGradient || { topColor: analysis.colors.primary, midColor: analysis.colors.secondary, bottomColor: analysis.colors.primary })}${analysis.products.length > 0 ? `,
   "products": ${JSON.stringify(analysis.products.map(p => ({ name: p.name, type: p.type, slug: p.slug, price: p.price, description: p.description })))}` : ''}
 }
 
@@ -346,6 +385,10 @@ DŮLEŽITÉ:
 - Post types přizpůsobené oboru (${analysis.industry})
 - Hook templates kreativní a specificke pro tuto značku
 - CTA vždy odkazuje na ${websiteUrl}
+- feedAesthetic.font MUSÍ být "${analysis.recommendedFont || 'Inter'}" (to odpovídá brand analýze)
+- feedAesthetic.feel MUSÍ být: "${analysis.visualFeel || 'Moderní a čistý design'}"
+- feedAesthetic.overlayOpacity MUSÍ být: "${(analysis as any).overlayOpacity || '40-50%'}"
+- overlayGradient MUSÍ přesně odpovídat: ${JSON.stringify(analysis.overlayGradient || { topColor: analysis.colors.primary, midColor: analysis.colors.secondary, bottomColor: analysis.colors.primary })}
 - Vrať POUZE platný JSON, bez obalujícího textu`
 
         const rawConfig = await generateText(configPrompt, { temperature: 0.7 })
@@ -355,9 +398,25 @@ DŮLEŽITÉ:
         const config: ClientConfig = JSON.parse(jsonMatch[0])
 
         // Ensure critical fields
-        config.id = slugify(analysis.companyName)
+        const slug = slugify(analysis.companyName)
+        config.id = slug
         config.website = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`
         config.instagram = igHandle.startsWith('@') ? igHandle : `@${igHandle}`
+
+        // Force visual identity from analysis (AI may hallucinate different values)
+        if (analysis.overlayGradient) {
+            config.overlayGradient = analysis.overlayGradient
+        }
+        if (analysis.recommendedFont && config.feedAesthetic) {
+            config.feedAesthetic.font = analysis.recommendedFont
+        }
+        if (analysis.visualFeel && config.feedAesthetic) {
+            config.feedAesthetic.feel = analysis.visualFeel
+        }
+        // Set logo file if it was downloaded
+        if (analysis.logoDownloaded) {
+            (config as any).logoFile = `logo-${slug}.png`
+        }
 
         // Save to database
         const clientSlug = config.id
@@ -503,3 +562,122 @@ function slugify(text: string): string {
         .replace(/(^-|-$)/g, '')
         .substring(0, 30)
 }
+
+// ============================================
+// BRAND ASSET FUNCTIONS
+// ============================================
+
+/**
+ * Find the best logo URL from HTML.
+ * Priority: apple-touch-icon > large favicon > <img> with "logo" > og:image
+ */
+function extractLogoUrl(html: string, baseUrl: string): string | null {
+    const candidates: string[] = []
+
+    // Apple touch icon (usually high-res)
+    const appleTouchMatch = html.match(/<link[^>]+rel="apple-touch-icon"[^>]+href="([^"]+)"/i)
+    if (appleTouchMatch) candidates.push(appleTouchMatch[1])
+
+    // Standard favicon PNG (not .ico)
+    const faviconPngMatch = html.match(/<link[^>]+rel="icon"[^>]+type="image\/png"[^>]+href="([^"]+)"/i)
+        || html.match(/<link[^>]+href="([^"]+)"[^>]+rel="icon"[^>]+type="image\/png"/i)
+    if (faviconPngMatch) candidates.push(faviconPngMatch[1])
+
+    // Any <img> tag with "logo" in src, alt, or class
+    const logoImgRegex = /<img[^>]+(src="([^"]+)")[^>]*(logo|brand)[^>]*>/gi
+    const logoImgRegex2 = /<img[^>]*(logo|brand)[^>]+(src="([^"]+)")[^>]*>/gi
+    let logoMatch
+    while ((logoMatch = logoImgRegex.exec(html)) !== null) {
+        candidates.push(logoMatch[2])
+    }
+    while ((logoMatch = logoImgRegex2.exec(html)) !== null) {
+        candidates.push(logoMatch[3])
+    }
+
+    // og:image as fallback
+    const ogImageMatch = html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i)
+    if (ogImageMatch) candidates.push(ogImageMatch[1])
+
+    // Normalize URLs
+    for (const candidate of candidates) {
+        if (!candidate || candidate.endsWith('.ico')) continue
+        if (candidate.startsWith('http')) return candidate
+        if (candidate.startsWith('//')) return `https:${candidate}`
+        if (candidate.startsWith('/')) return `${baseUrl}${candidate}`
+    }
+
+    return null
+}
+
+/**
+ * Download logo from URL and save as PNG to instagram/fonts/logo-{slug}.png
+ */
+async function downloadLogo(logoUrl: string, slug: string): Promise<boolean> {
+    try {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 8000)
+
+        const resp = await fetch(logoUrl, {
+            signal: controller.signal,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            },
+        })
+        clearTimeout(timeout)
+
+        if (!resp.ok) return false
+
+        const buffer = Buffer.from(await resp.arrayBuffer())
+        if (buffer.length < 100) return false // Too small, probably not a real image
+
+        // Resolve fonts directory — works both in dev and production
+        const fontsDir = join(process.cwd(), 'instagram', 'fonts')
+        await mkdir(fontsDir, { recursive: true })
+
+        const logoPath = join(fontsDir, `logo-${slug}.png`)
+        await writeFile(logoPath, buffer)
+
+        console.log(`   ✅ Logo downloaded: ${buffer.length} bytes → ${logoPath}`)
+        return true
+    } catch (err) {
+        console.warn('   ⚠️ Logo download failed:', (err as Error).message)
+        return false
+    }
+}
+
+/**
+ * Extract brand/product images from HTML (hero images, product photos etc.)
+ */
+function extractBrandImages(html: string, baseUrl: string): string[] {
+    const images = new Set<string>()
+
+    // Find all img tags
+    const imgRegex = /<img[^>]+src="([^"]+)"[^>]*>/gi
+    let match
+    while ((match = imgRegex.exec(html)) !== null) {
+        const src = match[1]
+        // Skip tiny icons, tracking pixels, etc.
+        if (src.endsWith('.svg') || src.endsWith('.ico') || src.includes('pixel')
+            || src.includes('tracking') || src.includes('data:image')
+            || src.includes('placeholder') || src.length > 500
+        ) continue
+
+        let fullUrl = src
+        if (src.startsWith('//')) fullUrl = `https:${src}`
+        else if (src.startsWith('/')) fullUrl = `${baseUrl}${src}`
+        else if (!src.startsWith('http')) continue
+
+        images.add(fullUrl)
+    }
+
+    // Also grab background-image URLs from inline styles
+    const bgRegex = /background-image:\s*url\(['"]?([^'")\s]+)['"]?\)/gi
+    while ((match = bgRegex.exec(html)) !== null) {
+        const url = match[1]
+        if (url.startsWith('http')) images.add(url)
+        else if (url.startsWith('/')) images.add(`${baseUrl}${url}`)
+    }
+
+    return Array.from(images)
+}
+
