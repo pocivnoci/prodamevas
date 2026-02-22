@@ -1919,11 +1919,11 @@ function ProductsTab({ projectId }: { projectId: string }) {
                                     </div>
 
                                     {/* Product visualization */}
-                                    {ideaVisuals[`gen_${i}`] && (
+                                    {ideaVisuals[idea.name] && (
                                         <div className="mt-4 relative group/vis">
-                                            <img src={ideaVisuals[`gen_${i}`]} alt={idea.name} className="w-full rounded-sm border border-white/10 shadow-sm" />
+                                            <img src={ideaVisuals[idea.name]} alt={idea.name} className="w-full rounded-sm border border-white/10 shadow-sm" />
                                             <a
-                                                href={ideaVisuals[`gen_${i}`]}
+                                                href={ideaVisuals[idea.name]}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="absolute bottom-2 right-2 px-2 py-1 bg-[#050505] border border-white/10 text-white text-[9px] uppercase tracking-widest font-bold rounded-sm opacity-0 group-hover/vis:opacity-100 transition-opacity shadow-sm"
@@ -1935,22 +1935,22 @@ function ProductsTab({ projectId }: { projectId: string }) {
                                     <div className="mt-4 flex gap-2 pt-2">
                                         <button
                                             onClick={async () => {
-                                                setVisualizingId(`gen_${i}`)
+                                                setVisualizingId(idea.name)
                                                 setError(null)
                                                 try {
                                                     const result = await triggerProductDesign({ configName: projectId, idea })
                                                     if (result.success && result.designUrl) {
-                                                        setIdeaVisuals(v => ({ ...v, [`gen_${i}`]: result.designUrl! }))
+                                                        setIdeaVisuals(v => ({ ...v, [idea.name]: result.designUrl! }))
                                                     } else {
                                                         setError(result.error || "Vizualizace selhala")
                                                     }
                                                 } catch (err: any) { setError(err.message) }
                                                 finally { setVisualizingId(null) }
                                             }}
-                                            disabled={visualizingId === `gen_${i}`}
+                                            disabled={visualizingId === idea.name}
                                             className="flex-1 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-sm text-[9px] font-bold uppercase tracking-widest text-amber-500 transition-all disabled:opacity-50 shadow-sm"
                                         >
-                                            {visualizingId === `gen_${i}` ? "⏳ Generuji..." : "🖼️ Vizualizovat produkt"}
+                                            {visualizingId === idea.name ? "⏳ Generuji..." : "🖼️ Vizualizovat produkt"}
                                         </button>
                                         <button
                                             onClick={() => {

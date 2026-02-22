@@ -322,23 +322,53 @@ export async function generateProductDesign(
     // Use the idea's own design prompt if available, otherwise build one
     const basePrompt = idea.designPrompt || `Product concept: ${idea.name}. ${idea.description}. Material: ${idea.material}. Dimensions: ${idea.dimensions}. Brand: ${config.name}.`
 
-    const imagePrompt = `${basePrompt} Product photography, studio lighting, clean dark background, photorealistic render, premium quality, detailed materials and textures, professional product visualization. Brand aesthetic: urban streetwear, bold, premium.`
+    const logoInstruction = config.logoFile
+        ? ` Include the brand logo prominently on the product (embossed, printed, or etched). The logo should be clearly visible and integrated into the design naturally.`
+        : ''
+
+    const imagePrompt = `${basePrompt}${logoInstruction} Product photography, studio lighting, clean dark background, photorealistic render, premium quality, detailed materials and textures, professional product visualization. Brand aesthetic: ${config.feedAesthetic?.feel || 'urban streetwear, bold, premium'}.`
 
     try {
         let imageBuffer: Buffer
 
+        // Collect reference images (logo + optional user reference)
+        const referenceImages: { buffer: Buffer; mimeType: string }[] = []
+
+        // Load brand logo as reference
+        if (config.logoFile) {
+            try {
+                const { join } = await import('path')
+                const { readFile } = await import('fs/promises')
+                const fontsDir = join(process.cwd(), 'instagram', 'fonts')
+                const logoPath = join(fontsDir, config.logoFile)
+                const logoBuffer = await readFile(logoPath)
+                referenceImages.push({ buffer: logoBuffer, mimeType: 'image/png' })
+                console.log(`   🏷️ Logo loaded: ${config.logoFile}`)
+            } catch {
+                console.warn(`   ⚠️ Logo not found: ${config.logoFile}`)
+            }
+        }
+
+        // Load user-uploaded reference image
         if (referenceImageUrl) {
-            console.log(`📸 Stahuji referenční obrázek...`)
-            const refResponse = await fetch(referenceImageUrl)
-            if (!refResponse.ok) throw new Error("Chyba stažení referenčního obrázku")
+            try {
+                console.log(`📸 Stahuji referenční obrázek...`)
+                const refResponse = await fetch(referenceImageUrl)
+                if (refResponse.ok) {
+                    const refBuffer = Buffer.from(await refResponse.arrayBuffer())
+                    const mimeType = refResponse.headers.get("content-type") || "image/jpeg"
+                    referenceImages.push({ buffer: refBuffer, mimeType })
+                }
+            } catch {
+                console.warn(`   ⚠️ Reference image fetch failed`)
+            }
+        }
 
-            const refBuffer = Buffer.from(await refResponse.arrayBuffer())
-            const mimeType = refResponse.headers.get("content-type") || "image/jpeg"
-
-            console.log(`🎨 Fúzuji nápad s referenční fotkou...`)
+        if (referenceImages.length > 0) {
+            console.log(`🎨 Generuji s ${referenceImages.length} referenčním(i) obrázk(y)...`)
             imageBuffer = await generateImageWithReferences(
                 imagePrompt,
-                [{ buffer: refBuffer, mimeType }],
+                referenceImages,
                 { aspectRatio: "1:1" }
             )
         } else {
