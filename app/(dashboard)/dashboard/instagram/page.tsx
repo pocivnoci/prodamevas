@@ -1539,6 +1539,9 @@ function ProductsTab({ projectId }: { projectId: string }) {
     const [visualizingId, setVisualizingId] = useState<string | null>(null)
     const [referenceUrls, setReferenceUrls] = useState<Record<string, string>>({})
     const [uploadingId, setUploadingId] = useState<string | null>(null)
+    const [savingId, setSavingId] = useState<number | null>(null)
+    const [rejectingId, setRejectingId] = useState<number | null>(null)
+    const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
     // Design state
     const [designTheme, setDesignTheme] = useState("")
@@ -1616,29 +1619,41 @@ function ProductsTab({ projectId }: { projectId: string }) {
     }, [projectId, section, fetchSavedIdeas])
 
     const handleSaveIdea = async (idea: ProductIdea, index: number) => {
+        setSavingId(index)
+        setError(null)
+        setSuccessMsg(null)
         try {
             const result = await saveProductIdea(projectId, idea)
             if (result.success) {
-                // Remove from generated column
                 setIdeas(prev => prev.filter((_, i) => i !== index))
-                // Refresh saved column
                 fetchSavedIdeas()
+                setSuccessMsg(`"${idea.name}" uložen ✅`)
+                setTimeout(() => setSuccessMsg(null), 3000)
             } else {
-                setError(result.error || "Uložení selhalo")
+                setError(`Uložení selhalo: ${result.error || 'Neznámá chyba'} (client: ${projectId})`)
             }
-        } catch (err: any) { setError(err.message) }
+        } catch (err: any) {
+            setError(`Save error: ${err.message} (client: ${projectId})`)
+        } finally {
+            setSavingId(null)
+        }
     }
 
     const handleRejectIdea = async (idea: ProductIdea, index: number) => {
+        setRejectingId(index)
+        setError(null)
         try {
             const result = await rejectProductIdea(projectId, idea)
             if (result.success) {
-                // Remove from generated column entirely
                 setIdeas(prev => prev.filter((_, i) => i !== index))
             } else {
-                setError(result.error || "Zamítnutí selhalo")
+                setError(`Zamítnutí selhalo: ${result.error || 'Neznámá chyba'}`)
             }
-        } catch (err: any) { setError(err.message) }
+        } catch (err: any) {
+            setError(`Reject error: ${err.message}`)
+        } finally {
+            setRejectingId(null)
+        }
     }
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, ideaId: string) => {
@@ -1767,6 +1782,11 @@ function ProductsTab({ projectId }: { projectId: string }) {
                     ❌ {error}
                 </div>
             )}
+            {successMsg && (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-sm p-4 text-emerald-400 text-[10px] uppercase font-bold tracking-widest">
+                    {successMsg}
+                </div>
+            )}
 
             {/* Loading overlay */}
             {loading && (
@@ -1830,14 +1850,16 @@ function ProductsTab({ projectId }: { projectId: string }) {
                                             {/* Action buttons */}
                                             <button
                                                 onClick={() => handleSaveIdea(idea, i)}
-                                                className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center transition-all bg-white/5 text-white/30 border-white/10 hover:bg-emerald-500/20 hover:text-emerald-400 hover:border-emerald-500/30"
+                                                disabled={savingId === i}
+                                                className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center transition-all bg-white/5 text-white/30 border-white/10 hover:bg-emerald-500/20 hover:text-emerald-400 hover:border-emerald-500/30 disabled:opacity-50"
                                                 title="Uložit nápad"
-                                            >💾</button>
+                                            >{savingId === i ? '⏳' : '💾'}</button>
                                             <button
                                                 onClick={() => handleRejectIdea(idea, i)}
-                                                className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center transition-all bg-white/5 text-white/30 border-white/10 hover:bg-aisummit-cinnabar/20 hover:text-aisummit-cinnabar hover:border-aisummit-cinnabar/30"
+                                                disabled={rejectingId === i}
+                                                className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center transition-all bg-white/5 text-white/30 border-white/10 hover:bg-aisummit-cinnabar/20 hover:text-aisummit-cinnabar hover:border-aisummit-cinnabar/30 disabled:opacity-50"
                                                 title="Zahodit"
-                                            >🗑️</button>
+                                            >{rejectingId === i ? '⏳' : '🗑️'}</button>
                                         </div>
                                     </div>
 
