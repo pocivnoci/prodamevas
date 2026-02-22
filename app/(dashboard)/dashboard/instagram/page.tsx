@@ -1589,6 +1589,15 @@ function ProductsTab({ projectId }: { projectId: string }) {
             }))
 
             setSavedIdeas(mappedIdeas)
+
+            // Pre-populate ideaVisuals from DB-persisted URLs
+            const visuals: Record<string, string> = {}
+            for (const row of data) {
+                if (row.design_url) visuals[row.id] = row.design_url
+            }
+            if (Object.keys(visuals).length > 0) {
+                setIdeaVisuals(prev => ({ ...prev, ...visuals }))
+            }
         }
     }, [])
 
@@ -2017,7 +2026,8 @@ function ProductsTab({ projectId }: { projectId: string }) {
                                                         const result = await triggerProductDesign({
                                                             configName: projectId,
                                                             idea,
-                                                            referenceImageUrl: reqUrl
+                                                            referenceImageUrl: reqUrl,
+                                                            ideaId: id,
                                                         })
                                                         if (result.success && result.designUrl) {
                                                             setIdeaVisuals(v => ({ ...v, [id]: result.designUrl! }))
