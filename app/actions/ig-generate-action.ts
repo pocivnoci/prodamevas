@@ -240,6 +240,7 @@ export async function triggerDesignGeneration(options: {
     configName: string
     theme: string
     productType?: string
+    ideaId?: string
 }): Promise<{ success: boolean; concept?: DesignConcept; designUrl?: string; error?: string }> {
     try {
         const config = await loadConfig(options.configName)
@@ -251,6 +252,14 @@ export async function triggerDesignGeneration(options: {
 
         if (!result) {
             return { success: false, error: "Design generation returned null" }
+        }
+
+        // Save design_url to DB if ideaId provided
+        if (options.ideaId && result.designUrl) {
+            await supabaseAdmin
+                .from("ig_product_ideas")
+                .update({ design_url: result.designUrl })
+                .eq("id", options.ideaId)
         }
 
         return {
@@ -323,6 +332,7 @@ export async function triggerMockupGeneration(options: {
     designUrl: string
     productType?: string
     designDescription?: string
+    ideaId?: string
 }): Promise<{ success: boolean; mockupUrl?: string; error?: string }> {
     try {
         const config = await loadConfig(options.configName)
@@ -341,6 +351,14 @@ export async function triggerMockupGeneration(options: {
             return { success: false, error: "Mockup generation returned null" }
         }
 
+        // Save mockup_url to DB if ideaId provided
+        if (options.ideaId && result.mockupUrl) {
+            await supabaseAdmin
+                .from("ig_product_ideas")
+                .update({ mockup_url: result.mockupUrl })
+                .eq("id", options.ideaId)
+        }
+
         return {
             success: true,
             mockupUrl: result.mockupUrl,
@@ -356,6 +374,7 @@ export async function triggerProductDesign(options: {
     configName: string
     idea: ProductIdea
     referenceImageUrl?: string
+    ideaId?: string
 }): Promise<{ success: boolean; designUrl?: string; error?: string }> {
     try {
         const config = await loadConfig(options.configName)
@@ -367,6 +386,14 @@ export async function triggerProductDesign(options: {
 
         if (!result) {
             return { success: false, error: "Product design generation returned null" }
+        }
+
+        // Save design_url to DB if ideaId provided
+        if (options.ideaId && result.designUrl) {
+            await supabaseAdmin
+                .from("ig_product_ideas")
+                .update({ design_url: result.designUrl })
+                .eq("id", options.ideaId)
         }
 
         return {
