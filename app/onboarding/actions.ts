@@ -86,30 +86,32 @@ export async function analyzeWebsite(url: string, igHandle: string): Promise<{
         console.log(`🔍 Scraping ${baseUrl}...`)
         const homepageHtml = await fetchPage(baseUrl)
 
-        // Try to scrape a few more pages for more context
+        // Fetch subpages and Instagram in parallel to save time (avoids 15s Vercel timeouts)
         const subpageUrls = extractSubpageUrls(homepageHtml, baseUrl).slice(0, 3)
-        const subpageTexts: string[] = []
-        for (const subUrl of subpageUrls) {
-            try {
-                const html = await fetchPage(subUrl)
-                subpageTexts.push(extractText(html).substring(0, 1000))
-            } catch { /* skip failed subpages */ }
-        }
+        const [subpageTextsArray, instagramBioObj] = await Promise.all([
+            Promise.all(subpageUrls.map(async (subUrl) => {
+                try {
+                    const html = await fetchPage(subUrl)
+                    return extractText(html).substring(0, 1000)
+                } catch { return "" }
+            })),
+            (async () => {
+                if (!igHandle) return undefined
+                const handle = igHandle.replace('@', '').replace('https://instagram.com/', '')
+                try {
+                    const igHtml = await fetchPage(`https://www.instagram.com/${handle}/`)
+                    const bioMatch = igHtml.match(/"biography":"([^"]+)"/)
+                    return bioMatch?.[1]?.replace(/\\n/g, '\n')
+                } catch { return undefined }
+            })()
+        ])
 
-        // Extract metadata
+        const subpageTexts = subpageTextsArray.filter(Boolean)
+        const instagramBio = instagramBioObj
+
+        // Extract metadata and main text from homepage
         const metadata = extractMetadata(homepageHtml)
         const mainText = extractText(homepageHtml)
-
-        // Try to get Instagram bio
-        let instagramBio: string | undefined
-        if (igHandle) {
-            const handle = igHandle.replace('@', '').replace('https://instagram.com/', '')
-            try {
-                const igHtml = await fetchPage(`https://www.instagram.com/${handle}/`)
-                const bioMatch = igHtml.match(/"biography":"([^"]+)"/)
-                instagramBio = bioMatch?.[1]?.replace(/\\n/g, '\n')
-            } catch { /* IG scraping may fail, that's ok */ }
-        }
 
         // Send everything to AI for analysis — including VISUAL identity
         const analysisPrompt = `Analyzuj tuto webovou stránku a extrahuj klíčové informace pro Instagram marketing.
