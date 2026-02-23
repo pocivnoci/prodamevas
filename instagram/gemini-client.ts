@@ -176,6 +176,48 @@ export async function generateImageWithReferences(
 }
 
 // ============================================
+// VISION ANALYSIS (Gemini 1.5 Pro)
+// ============================================
+
+export async function detectLogoPlacementArea(imageBuffer: Buffer): Promise<{ x: number; y: number; w: number; h: number } | null> {
+    return withRetry(async () => {
+        const response = await ai.models.generateContent({
+            // We use 1.5 Pro for vision tasks because it is highly reliable for spatial bounding boxes
+            model: "gemini-1.5-pro",
+            contents: [
+                {
+                    inlineData: {
+                        mimeType: "image/png",
+                        data: imageBuffer.toString("base64")
+                    }
+                },
+                { text: 'You are a computer vision layout tool. Analyze this product image (which has size 1024x1024 pixels). Identify the optimal central, front-facing, blank area on the product where a primary brand logo should be printed. Based on a 1024x1024 coordinate system (where 0,0 is top-left), return EXACTLY ONE JSON object with the bounding box coordinates and dimensions in pixels. The box should fit naturally within the product\'s boundaries. The format MUST be: { "x": number, "y": number, "w": number, "h": number }. Do NOT return any markdown, text, or explanations. Only the JSON.' }
+            ],
+            config: {
+                // responseMimeType enforces JSON output
+                responseMimeType: "application/json",
+            } as any,
+        })
+
+        try {
+            const text = response.candidates?.[0]?.content?.parts?.[0]?.text
+            if (!text) return null
+            const cleanText = text.replace(/```(?:json)?/g, '').trim()
+            const parsed = JSON.parse(cleanText)
+
+            if (typeof parsed.x === 'number' && typeof parsed.y === 'number' &&
+                typeof parsed.w === 'number' && typeof parsed.h === 'number') {
+                return parsed
+            }
+            return null
+        } catch (e) {
+            console.warn(`   ⚠️ Vision placement failed: ${e}`)
+            return null
+        }
+    })
+}
+
+// ============================================
 // VIDEO GENERATION — Veo 3.1 (Reels)
 // ============================================
 

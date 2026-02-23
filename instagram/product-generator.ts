@@ -11,7 +11,7 @@
  */
 
 import type { ClientConfig } from "./configs/types"
-import { generateText, generateImage, generateImageWithReferences } from "./gemini-client"
+import { generateText, generateImage, generateImageWithReferences, detectLogoPlacementArea } from "./gemini-client"
 import { Type } from "@google/genai"
 import supabaseAdmin from "../supabase/admin"
 
@@ -385,6 +385,77 @@ export async function generateProductDesign(
             }
         } else {
             imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
+        }
+
+        // Overlay brand logo programmatically using Vision AI for smart placement
+        if (config.logoFile) {
+            try {
+                const sharp = (await import('sharp')).default
+                const { join } = await import('path')
+                const { readFile } = await import('fs/promises')
+                const fontsDir = join(process.cwd(), 'instagram', 'fonts')
+                const logoPath = join(fontsDir, config.logoFile)
+                const logoBuffer = await readFile(logoPath)
+
+                // Get product image dimensions
+                const metadata = await sharp(imageBuffer).metadata()
+                const imgW = metadata.width || 1024
+                const imgH = metadata.height || 1024
+
+                console.log(`   👁️ Vision AI hledá optimální místo pro potisk...`)
+                const placement = await detectLogoPlacementArea(imageBuffer)
+
+                let targetX, targetY, targetW, targetH;
+
+                if (placement && placement.w > 20 && placement.h > 20) {
+                    targetX = Math.round(placement.x)
+                    targetY = Math.round(placement.y)
+                    targetW = Math.round(placement.w)
+                    targetH = Math.round(placement.h)
+                    console.log(`   🎯 Vision AI našlo plochu: ${targetW}x${targetH} px na pozici [${targetX}, ${targetY}]`)
+                } else {
+                    console.warn(`   ⚠️ Vision AI nenašlo vhodnou plochu, použiji bezpečný střed...`)
+                    targetW = Math.round(imgW * 0.4)
+                    targetH = targetW
+                    targetX = Math.round((imgW - targetW) / 2)
+                    targetY = Math.round((imgH - targetH) / 2)
+                }
+
+                // Add slight padding so logo doesn't touch the exact edges of the bounding box
+                const padding = Math.round(targetW * 0.1)
+                const maxLogoW = targetW - (padding * 2)
+                const maxLogoH = targetH - (padding * 2)
+
+                // Resize logo to fit the vision area, keep aspect ratio inside
+                const resizedLogo = await sharp(logoBuffer)
+                    .resize(maxLogoW, maxLogoH, { fit: 'inside', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+                    .ensureAlpha()
+                    .png()
+                    .toBuffer()
+
+                // Calculate exact centering within the AI bounding box
+                const resizedMeta = await sharp(resizedLogo).metadata()
+                const actualW = resizedMeta.width || maxLogoW
+                const actualH = resizedMeta.height || maxLogoH
+
+                const offsetX = targetX + Math.round((targetW - actualW) / 2)
+                const offsetY = targetY + Math.round((targetH - actualH) / 2)
+
+                // Composite logo in the central print area that vision AI found
+                imageBuffer = await sharp(imageBuffer)
+                    .composite([{
+                        input: resizedLogo,
+                        top: offsetY,
+                        left: offsetX,
+                        blend: 'over'
+                    }])
+                    .png()
+                    .toBuffer()
+
+                console.log(`   🏷️ Logo smart-overlayed successfully.`)
+            } catch (logoErr: any) {
+                console.warn(`   ⚠️ Logo overlay failed: ${logoErr.message}`)
+            }
         }
 
         const safeName = idea.name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "").slice(0, 20)
