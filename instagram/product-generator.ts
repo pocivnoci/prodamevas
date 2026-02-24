@@ -435,16 +435,15 @@ Brand aesthetic: ${config.feedAesthetic?.feel || 'urban streetwear, bold, premiu
                 const offsetX = targetX + Math.round((targetW - actualW) / 2)
                 const offsetY = targetY + Math.round((targetH - actualH) / 2)
 
-                // Vložení loga pomocí blending mode 'multiply' a zprůhledněním. 
-                // Multiply zajistí, že světlá místa/bílá splynou s objektem, a tmavá místa (čáry loga) 
-                // prolnou přes přesné drážkování (textury materiálu), takže objekt vypadá jako 
-                // reálně potištěný/gravírovaný v továrně a ne jako připlácnutá nálepka.
+                // Vložení transparentního vektorového loga. 
+                // Zde už není potřeba Multiply pro schování defektů, použijeme čistý 'over', 
+                // logo už je krásně vyřízlé a čisté, takže zachováme maximální věrnost designu.
                 imageBuffer = await sharp(imageBuffer)
                     .composite([{
                         input: resizedLogo,
                         top: offsetY,
                         left: offsetX,
-                        blend: 'multiply'
+                        blend: 'over'
                     }])
                     .png()
                     .toBuffer()
