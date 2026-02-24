@@ -333,7 +333,10 @@ export async function generateProductDesign(
         ? ` The attached reference image contains a custom artwork. Seamlessly integrate this artwork onto the product's surface as a highly realistic printed texture or engraving. The artwork must be faithfully replicated and clearly visible.`
         : ''
 
-    const imagePrompt = `Product concept: ${idea.name}. ${idea.description}. Material: ${idea.material}. Dimensions: ${idea.dimensions}.${decalInstruction} Product photography, studio lighting, clean dark background, photorealistic render, premium quality, detailed materials and textures, professional product visualization. Brand aesthetic: ${config.feedAesthetic?.feel || 'urban streetwear, bold, premium'}.`
+    const imagePrompt = `Product concept: ${idea.name}. ${idea.description}. Material: ${idea.material}. Dimensions: ${idea.dimensions}.${decalInstruction}
+Product photography, studio lighting, clean dark background, photorealistic render, premium quality.
+VERY IMPORTANT: The product MUST feature a prominent, clear, flat, blank surface directly facing the camera, designed specifically for a printed logo or engraving to be applied later. 
+Brand aesthetic: ${config.feedAesthetic?.feel || 'urban streetwear, bold, premium'}.`
 
     try {
         let imageBuffer: Buffer
@@ -380,7 +383,7 @@ export async function generateProductDesign(
                     { resolution: "2K" }
                 )
             } catch (refErr: any) {
-                console.warn(`⚠️ Reference generation failed, falling back to plain: ${refErr.message?.substring(0, 100)}`)
+                console.warn(`   ⚠️ Reference generation failed, falling back to plain: ${refErr.message?.substring(0, 100)}`)
                 imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
             }
         } else {
@@ -422,9 +425,9 @@ export async function generateProductDesign(
                 }
 
                 // Add slight padding so logo doesn't touch the exact edges of the bounding box
-                const padding = Math.round(targetW * 0.1)
-                const maxLogoW = targetW - (padding * 2)
-                const maxLogoH = targetH - (padding * 2)
+                const padding = Math.round(targetW * 0.15)
+                const maxLogoW = Math.max(10, targetW - (padding * 2))
+                const maxLogoH = Math.max(10, targetH - (padding * 2))
 
                 // Resize logo to fit the vision area, keep aspect ratio inside
                 const resizedLogo = await sharp(logoBuffer)
