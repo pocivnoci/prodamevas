@@ -481,59 +481,68 @@ export async function generateOnePost(options: {
 
                     let productImageLoaded = false
                     if (randomProduct.slug) {
+                        // Strategy 1: Supabase storage (works on Vercel + local)
                         try {
-                            const { readdir, readFile } = await import("fs/promises")
-                            const { join, dirname } = await import("path")
-                            const { fileURLToPath } = await import("url")
-                            const baseDir = dirname(fileURLToPath(import.meta.url))
-                            const productDir = join(baseDir, "product-images", config.id)
+                            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://nyvbxpjkwhcuugwevobu.supabase.co'
+                            // List matching files in Supabase bucket
+                            const { default: supabaseAdmin } = await import("../supabase/admin")
+                            const { data: files } = await supabaseAdmin.storage
+                                .from('product-images')
+                                .list(config.id, { search: randomProduct.slug })
 
-                            const files = await readdir(productDir).catch(() => [] as string[])
-                            const productFiles = files
-                                .filter(f => f.startsWith(randomProduct.slug) && /\.(jpg|jpeg|png|webp)$/i.test(f))
-                                .sort()
+                            const matchingFiles = (files || [])
+                                .filter(f => f.name.startsWith(randomProduct.slug) && /\.(jpg|jpeg|png|webp)$/i.test(f.name))
+                                .sort((a, b) => a.name.localeCompare(b.name))
 
-                            if (productFiles.length > 0) {
-                                const mainFile = productFiles[0]
-                                const imgBuffer = await readFile(join(productDir, mainFile))
-                                const mimeType = mainFile.endsWith(".png") ? "image/png" : "image/jpeg"
-                                refImages.push({
-                                    buffer: imgBuffer,
-                                    mimeType,
-                                    label: `EXACT product photo: ${randomProduct.name}`,
-                                })
-                                productImageLoaded = true
-                                console.log(`   🛍️ Loaded local product image: ${mainFile}`)
-                            }
-                        } catch (err) {
-                            // Local files not available
-                        }
-                    }
-
-                    // Fallback to live og:image scraping
-                    if (!productImageLoaded && randomProduct.slug && config.website) {
-                        try {
-                            const productUrl = `${config.website}/p/${randomProduct.slug}`
-                            const pageResp = await fetch(productUrl)
-                            if (pageResp.ok) {
-                                const html = await pageResp.text()
-                                const ogMatch = html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i)
-                                if (ogMatch?.[1]) {
-                                    const imgResp = await fetch(ogMatch[1])
-                                    if (imgResp.ok) {
-                                        const arrayBuf = await imgResp.arrayBuffer()
-                                        refImages.push({
-                                            buffer: Buffer.from(arrayBuf),
-                                            mimeType: "image/jpeg",
-                                            label: `EXACT product photo: ${randomProduct.name}`,
-                                        })
-                                        productImageLoaded = true
-                                        console.log(`   🛍️ Loaded remote product image: ${randomProduct.name}`)
-                                    }
+                            if (matchingFiles.length > 0) {
+                                const mainFile = matchingFiles[0].name
+                                const publicUrl = `${supabaseUrl}/storage/v1/object/public/product-images/${config.id}/${mainFile}`
+                                const resp = await fetch(publicUrl)
+                                if (resp.ok) {
+                                    const arrayBuf = await resp.arrayBuffer()
+                                    const mimeType = mainFile.endsWith(".png") ? "image/png" : "image/jpeg"
+                                    refImages.push({
+                                        buffer: Buffer.from(arrayBuf),
+                                        mimeType,
+                                        label: `EXACT product photo: ${randomProduct.name}`,
+                                    })
+                                    productImageLoaded = true
+                                    console.log(`   🛍️ Loaded product image from Supabase: ${mainFile}`)
                                 }
                             }
                         } catch (err) {
-                            console.warn(`   ⚠️ Product ref error: ${(err as Error).message?.substring(0, 60)}`)
+                            // Supabase not available, try local
+                        }
+
+                        // Strategy 2: Local filesystem fallback (dev only)
+                        if (!productImageLoaded) {
+                            try {
+                                const { readdir, readFile } = await import("fs/promises")
+                                const { join, dirname } = await import("path")
+                                const { fileURLToPath } = await import("url")
+                                const baseDir = dirname(fileURLToPath(import.meta.url))
+                                const productDir = join(baseDir, "product-images", config.id)
+
+                                const localFiles = await readdir(productDir).catch(() => [] as string[])
+                                const productFiles = localFiles
+                                    .filter(f => f.startsWith(randomProduct.slug) && /\.(jpg|jpeg|png|webp)$/i.test(f))
+                                    .sort()
+
+                                if (productFiles.length > 0) {
+                                    const mainFile = productFiles[0]
+                                    const imgBuffer = await readFile(join(productDir, mainFile))
+                                    const mimeType = mainFile.endsWith(".png") ? "image/png" : "image/jpeg"
+                                    refImages.push({
+                                        buffer: imgBuffer,
+                                        mimeType,
+                                        label: `EXACT product photo: ${randomProduct.name}`,
+                                    })
+                                    productImageLoaded = true
+                                    console.log(`   🛍️ Loaded local product image: ${mainFile}`)
+                                }
+                            } catch (err) {
+                                // Local files not available
+                            }
                         }
                     }
 
