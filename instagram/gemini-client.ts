@@ -150,10 +150,10 @@ export async function generateImageWithReferences(
         }
 
         const response = await ai.models.generateContent({
-            model: "gemini-3.1-pro-preview",
+            model: "gemini-3-pro-image-preview",
             contents,
             config: {
-                responseModalities: ["TEXT", "IMAGE"],
+                responseModalities: ["IMAGE"],
                 imageConfig: {
                     imageSize: resolution,
                 },
