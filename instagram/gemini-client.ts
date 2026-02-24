@@ -87,7 +87,7 @@ export async function generateText(
 }
 
 // ============================================
-// IMAGE GENERATION — Imagen 4 Ultra (2K)
+// IMAGE GENERATION — Imagen 3
 // ============================================
 
 export async function generateImage(
@@ -98,7 +98,7 @@ export async function generateImage(
 
     return withRetry(async () => {
         const response = await ai.models.generateImages({
-            model: "imagen-4.0-ultra-generate-001",
+            model: "imagen-3.0-generate-002",
             prompt,
             config: {
                 numberOfImages: 1,
@@ -109,69 +109,10 @@ export async function generateImage(
 
         const generated = response.generatedImages?.[0]
         if (!generated?.image?.imageBytes) {
-            throw new Error("Imagen 4 Ultra returned no image data")
+            throw new Error("Imagen 3 returned no image data")
         }
 
         return Buffer.from(generated.image.imageBytes, "base64")
-    })
-}
-
-/**
- * Generate image with reference photos (Gemini 3.1 Pro Image / "Nano Banana")
- * 
- * Supports up to 5 human reference images for character consistency
- * and up to 6 object reference images (products).
- * 
- * The model preserves the likeness of people from reference images
- * while placing them in the described scene.
- */
-export async function generateImageWithReferences(
-    prompt: string,
-    referenceImages: { buffer: Buffer; mimeType?: string; label?: string }[],
-    options: {
-        aspectRatio?: string
-        resolution?: "1K" | "2K" | "4K"
-    } = {}
-): Promise<Buffer> {
-    const { aspectRatio, resolution = "2K" } = options
-
-    return withRetry(async () => {
-        // Build contents array: text prompt + reference images as inlineData
-        const contents: any[] = [
-            { text: prompt },
-        ]
-
-        for (const ref of referenceImages) {
-            const mimeType = ref.mimeType || "image/jpeg"
-            contents.push({
-                inlineData: {
-                    mimeType,
-                    data: ref.buffer.toString("base64"),
-                },
-            })
-        }
-
-        const imageConfig: any = { imageSize: resolution }
-        if (aspectRatio) imageConfig.aspectRatio = aspectRatio
-
-        const response = await ai.models.generateContent({
-            model: "gemini-3.1-pro-preview",
-            contents,
-            config: {
-                responseModalities: ["IMAGE"],
-                imageConfig,
-            } as any,
-        })
-
-        // Extract image from response parts
-        const parts = response.candidates?.[0]?.content?.parts || []
-        for (const part of parts) {
-            if ((part as any).inlineData?.data) {
-                return Buffer.from((part as any).inlineData.data, "base64")
-            }
-        }
-
-        throw new Error("Gemini 3.1 Pro Image returned no image data")
     })
 }
 

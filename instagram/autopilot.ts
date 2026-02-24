@@ -20,7 +20,7 @@
 
 import supabase from "../supabase/client"
 import supabaseAdmin from "../supabase/admin"
-import { generateText, generateImage, generateImageWithReferences, generateVideo } from "./gemini-client"
+import { generateText, generateImage, generateVideo } from "./gemini-client"
 import { overlayText } from "./text-overlay"
 import {
     getActivePostTypes,
@@ -544,16 +544,10 @@ export async function generateOnePost(options: {
                 }
 
                 if (refImages.length > 0) {
-                    console.log(`🎨 Generuji obrázek (Nano Banana + ${refImages.length} ref images, 2K)...`)
-                    imageBuffer = await generateImageWithReferences(
-                        refinedPrompt,
-                        refImages,
-                        { aspectRatio: format.aspectRatio, resolution: "2K" }
-                    )
-                } else {
-                    console.log("🎨 Generuji obrázek (Imagen 4 Ultra, 2K)...")
-                    imageBuffer = await generateImage(refinedPrompt, { aspectRatio: format.aspectRatio as any })
+                    console.log(`   ⚠️ Reference image detection: Google Imagen API in EU currently does NOT support inline reference image injection in this SDK version. Falling back to plain Imagen 3 text generation...`)
                 }
+                console.log("🎨 Generuji obrázek (Imagen 3, 2K)...")
+                imageBuffer = await generateImage(refinedPrompt, { aspectRatio: format.aspectRatio as any })
                 cost += COSTS.imageGeneration
                 console.log(`   ✓ Obrázek (${(imageBuffer.length / 1024).toFixed(0)} KB, 2K resolution)`)
 

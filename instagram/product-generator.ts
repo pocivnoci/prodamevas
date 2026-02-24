@@ -11,7 +11,7 @@
  */
 
 import type { ClientConfig } from "./configs/types"
-import { generateText, generateImage, generateImageWithReferences, detectLogoPlacementArea } from "./gemini-client"
+import { generateText, generateImage, detectLogoPlacementArea } from "./gemini-client"
 import { Type } from "@google/genai"
 import supabaseAdmin from "../supabase/admin"
 
@@ -375,17 +375,8 @@ Brand aesthetic: ${config.feedAesthetic?.feel || 'urban streetwear, bold, premiu
         }
 
         if (referenceImages.length > 0) {
-            console.log(`🎨 Generuji s ${referenceImages.length} referenčním(i) obrázk(y)...`)
-            try {
-                imageBuffer = await generateImageWithReferences(
-                    imagePrompt,
-                    referenceImages,
-                    { resolution: "2K" }
-                )
-            } catch (refErr: any) {
-                console.warn(`   ⚠️ Reference generation failed, falling back to plain: ${refErr.message?.substring(0, 100)}`)
-                imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
-            }
+            console.log(`🎨 Generuji s ${referenceImages.length} referenčním(i) obrázk(y)... (Google EU constraint fallback)`)
+            imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
         } else {
             imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
         }
