@@ -473,8 +473,8 @@ export async function generateOnePost(options: {
                     }
                 }
 
-                // For product posts, load REAL product photos
-                const productTypes = ["product_drop", "limitka", "outfit_inspo", "produkt", "recenze"]
+                // Load product photos for ALL post types where the brand's merchandise could appear
+                const productTypes = ["product_drop", "limitka", "outfit_inspo", "produkt", "recenze", "meme", "customer_content", "lifestyle", "behind_the_scenes", "collab"]
                 if (productTypes.includes(selectedType.name) && config.products?.length) {
                     const products = config.products
                     const randomProduct = products[Math.floor(Math.random() * products.length)]
@@ -538,14 +538,14 @@ export async function generateOnePost(options: {
                     }
 
                     if (productImageLoaded) {
-                        refinedPrompt = `CRITICAL INSTRUCTION: One of the attached reference images shows the EXACT product "${randomProduct.name}". You MUST reproduce this product's design FAITHFULLY — same colors, same logo placement, same print/pattern. Do NOT invent new designs. The product must look IDENTICAL to the reference photo. Show this exact product in the scene described below.\n\n${refinedPrompt}`
+                        refinedPrompt = `CRITICAL INSTRUCTION: One of the attached reference images shows the EXACT product "${randomProduct.name}". You MUST reproduce this product's design FAITHFULLY — same colors, same logo placement, same print/pattern. Do NOT invent new designs. The product must look IDENTICAL to the reference photo. ABSOLUTELY NEVER misspell, abbreviate, or distort any text visible on the product. If the product says "Zero Fucks Given", it MUST say exactly "Zero Fucks Given" — not "ZFKG", not "Zgarj", not any creative reinterpretation. Treat every letter on the reference as sacred ground truth. Show this exact product in the scene described below.\n\n${refinedPrompt}`
                         console.log(`   📌 Product constraint: "${randomProduct.name}" — exact design enforced`)
                     }
                 }
 
                 if (refImages.length > 0) {
                     try {
-                        console.log(`🎨 Generuji obrázek (Gemini 3.1 Pro + ${refImages.length} ref images, 2K)...`)
+                        console.log(`🎨 Generuji obrázek (Nano Banana Pro + ${refImages.length} ref images, 2K)...`)
                         imageBuffer = await generateImageWithReferences(
                             refinedPrompt,
                             refImages,
