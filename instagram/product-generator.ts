@@ -448,16 +448,15 @@ Brand aesthetic: ${config.feedAesthetic?.feel || 'urban streetwear, bold, premiu
                 const offsetX = targetX + Math.round((targetW - actualW) / 2)
                 const offsetY = targetY + Math.round((targetH - actualH) / 2)
 
-                // Blend mode 'screen': bílé pixely loga "rozsvítí" tmavý povrch produktu,
-                // jako byste na něj svítili projektorem. Černé (průhledné) pixely zmizí.
-                // Výsledek: logo vypadá jako neonový/svítící potisk nebo laserová gravura,
-                // ne jako připlácnutá samolepka.
+                // S transparentním PNG logem stačí standardní 'over' blend:
+                // bílé linky loga se vykreslí přesně jak jsou,
+                // průhledné oblasti propustí produkt pod sebou.
                 imageBuffer = await sharp(imageBuffer)
                     .composite([{
                         input: resizedLogo,
                         top: offsetY,
                         left: offsetX,
-                        blend: 'screen'
+                        blend: 'over'
                     }])
                     .png()
                     .toBuffer()
