@@ -162,6 +162,21 @@ export async function generateImageWithReferences(
 
         // Extract image from response parts
         const parts = response.candidates?.[0]?.content?.parts || []
+
+        // DEBUG: log response structure to understand where image data is
+        console.log(`   🔎 Response parts count: ${parts.length}`)
+        for (let i = 0; i < parts.length; i++) {
+            const p = parts[i] as any
+            const keys = Object.keys(p)
+            if (p.inlineData) {
+                console.log(`   🔎 Part[${i}]: inlineData (mime=${p.inlineData.mimeType}, dataLen=${p.inlineData.data?.length || 0})`)
+            } else if (p.text) {
+                console.log(`   🔎 Part[${i}]: text (${p.text.substring(0, 80)}...)`)
+            } else {
+                console.log(`   🔎 Part[${i}]: keys=[${keys.join(',')}]`)
+            }
+        }
+
         for (const part of parts) {
             if ((part as any).inlineData?.data) {
                 return Buffer.from((part as any).inlineData.data, "base64")
