@@ -323,21 +323,23 @@ export async function generateProductDesign(
     // Strip ANY mention of logos, brands, text, dimensions, artwork from the prompt
     // so Imagen generates a CLEAN, BLANK product
     basePrompt = basePrompt
-        .replace(/(?:minimalist|neon|green|simple|stylized|abstract|custom|brand|logo|emblem|mark|monogram|symbol|artwork|text|label|engrav|print|decal)[^.]*\./gi, '')
-        .replace(/\d+\s*(?:cm|mm|inch|oz|ml)\b/gi, '')  // strip dimensions like "7 cm"
+        .replace(/(?:brand|logo|emblem|mark|monogram|symbol|artwork|text|label|engrav|print|decal)\s*(?:of|with|featuring|showing)?[^.]*\./gi, '')
+        .replace(/\d+\s*(?:cm|mm|inch|oz|ml)\b/gi, '')
         .replace(/(?:dimension|rozměr|kóta|measurement)[^.]*\./gi, '')
 
     const imagePrompt = `${basePrompt}
-CRITICAL RULES FOR THIS IMAGE:
-- The product must be COMPLETELY BLANK — no prints, no logos, no text, no brand names, no artwork of any kind on the product surface.
-- NO dimension labels, NO measurements, NO arrows, NO technical drawings, NO annotations.
-- The product must look like a clean, unbranded prototype fresh from factory — ready for custom branding to be applied later.
-- Style: single product centered, clean dark background, professional product photography, studio lighting, photorealistic e-commerce photo.
-- DO NOT add any text overlay, watermark, or label to the image.`
+DESIGN RULES:
+- Create a visually interesting, creative product with cool design details (textures, patterns, subtle engravings, color accents, material details).
+- IMPORTANT: Reserve a clearly visible, prominent BLANK area on the main face of the product — this area must be completely clean, smooth, and undecorated. A brand logo will be placed there later.
+- The blank logo area should be roughly centered on the product's most visible surface and large enough to be prominent.
+- The product should look premium, streetwear-inspired, and visually striking — NOT boring or plain.
+- NO dimension labels, NO measurements, NO arrows, NO technical drawings, NO annotations, NO text of any kind.
+- NO fake brand names, NO "Supreme", NO existing trademarks.
+- Style: single product centered, clean dark background, professional product photography, studio lighting, photorealistic e-commerce photo.`
 
     try {
-        // Generate BLANK product image (no artwork, no logos — we'll add our own)
-        console.log(`🎨 Generuji čistý produkt (Imagen 4 Ultra)...`)
+        // Generate product with creative design but reserved blank area for logo
+        console.log(`🎨 Generuji kreativní produkt s rezervovaným místem pro logo (Imagen 4 Ultra)...`)
         let imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
 
         // Overlay brand logo programmatically using Vision AI for smart placement
