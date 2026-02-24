@@ -18,7 +18,6 @@ import {
 } from "@/app/actions/admin-actions"
 import {
     triggerPostGeneration,
-    triggerBatchGeneration,
     addNewIdea,
     addNewReview,
     triggerProductIdeas,
@@ -586,6 +585,7 @@ function GenerateTab({ projectId }: { projectId: string }) {
     const [batchCount, setBatchCount] = useState(3)
     const [batchMode, setBatchMode] = useState(false)
     const [batchResult, setBatchResult] = useState<{ generated: number; errors: number; message: string } | null>(null)
+    const [batchProgress, setBatchProgress] = useState<{ current: number; total: number; successes: number; failures: number } | null>(null)
     const [generationHistory, setGenerationHistory] = useState<GenerateResult[]>([])
     const [step, setStep] = useState(1)
 
@@ -604,31 +604,67 @@ function GenerateTab({ projectId }: { projectId: string }) {
         setGenerating(true)
         setResult(null)
         setBatchResult(null)
+        setBatchProgress(null)
 
         const maxClientRetries = 1
 
         try {
             if (batchMode) {
-                let res = await triggerBatchGeneration({
-                    configName: projectId,
-                    count: batchCount,
-                    dryRun,
-                    topic: topic || undefined,
-                    category: category !== "auto" ? category : undefined,
-                })
-                // Auto-retry once on failure
-                if (!res.success && maxClientRetries > 0) {
-                    console.log("⏳ Batch failed, auto-retrying...")
-                    await new Promise(r => setTimeout(r, 3000))
-                    res = await triggerBatchGeneration({
-                        configName: projectId,
-                        count: batchCount,
-                        dryRun,
-                        topic: topic || undefined,
-                        category: category !== "auto" ? category : undefined,
-                    })
+                // === SEQUENTIAL BATCH: generate posts one by one ===
+                // Each post is a separate Vercel request (~90s), never hitting 300s timeout
+                let successes = 0
+                let failures = 0
+                setBatchProgress({ current: 0, total: batchCount, successes: 0, failures: 0 })
+
+                for (let i = 0; i < batchCount; i++) {
+                    setBatchProgress({ current: i + 1, total: batchCount, successes, failures })
+
+                    try {
+                        let res = await triggerPostGeneration({
+                            configName: projectId,
+                            type: undefined, // let autopilot pick smart types
+                            topic: topic || undefined,
+                            category: category !== "auto" ? category : undefined,
+                            dryRun,
+                        })
+                        // Auto-retry once on failure
+                        if (!res.success && maxClientRetries > 0) {
+                            console.log(`⏳ Post ${i + 1} failed, auto-retrying...`)
+                            await new Promise(r => setTimeout(r, 3000))
+                            res = await triggerPostGeneration({
+                                configName: projectId,
+                                type: undefined,
+                                topic: topic || undefined,
+                                category: category !== "auto" ? category : undefined,
+                                dryRun,
+                            })
+                        }
+                        if (res.success) {
+                            successes++
+                            setGenerationHistory(prev => [res, ...prev].slice(0, 10))
+                        } else {
+                            failures++
+                        }
+                    } catch {
+                        failures++
+                    }
+
+                    setBatchProgress({ current: i + 1, total: batchCount, successes, failures })
+
+                    // Small pause between posts to avoid API rate limiting
+                    if (i < batchCount - 1) {
+                        await new Promise(r => setTimeout(r, 2000))
+                    }
                 }
-                setBatchResult(res)
+
+                setBatchResult({
+                    generated: successes,
+                    errors: failures,
+                    message: successes > 0
+                        ? `Úspěšně vygenerováno ${successes} z ${batchCount} postů`
+                        : `Všech ${batchCount} postů selhalo`,
+                    success: successes > 0,
+                } as any)
             } else {
                 let res = await triggerPostGeneration({
                     configName: projectId,
@@ -655,7 +691,6 @@ function GenerateTab({ projectId }: { projectId: string }) {
                 }
             }
         } catch (err: any) {
-            // Catch-all: if the server action itself throws (e.g. serialization error)
             const errorMsg = err?.message || "Neznámá chyba při generování"
             if (batchMode) {
                 setBatchResult({
@@ -671,7 +706,7 @@ function GenerateTab({ projectId }: { projectId: string }) {
             }
         }
 
-        // Move to result step automatically if we were on step 2
+        setBatchProgress(null)
         setStep(3)
         setGenerating(false)
     }
@@ -893,7 +928,7 @@ function GenerateTab({ projectId }: { projectId: string }) {
                                     {generating ? (
                                         <>
                                             <span className="w-4 h-4 border-2 border-white/30 border-t-transparent rounded-full animate-spin" />
-                                            Navrhuji obsah...
+                                            {batchProgress ? `Post ${batchProgress.current}/${batchProgress.total} (✅${batchProgress.successes} ❌${batchProgress.failures})` : "Navrhuji obsah..."}
                                         </>
                                     ) : (
                                         <>
@@ -918,7 +953,15 @@ function GenerateTab({ projectId }: { projectId: string }) {
                             <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0f0f0f] z-10">
                                 <div className="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-aisummit-cinnabar via-[#0f0f0f] to-[#0f0f0f] pointer-events-none mix-blend-screen animate-pulse"></div>
                                 <div className="w-16 h-16 border-[3px] border-white/10 border-t-aisummit-cinnabar rounded-full animate-spin mx-auto mb-8 shadow-sm relative z-10" />
-                                <h3 className="text-2xl font-black uppercase tracking-tighter text-white mb-4 relative z-10">Kreativní proces probíhá...</h3>
+                                <h3 className="text-2xl font-black uppercase tracking-tighter text-white mb-4 relative z-10">{batchProgress ? `Generuji post ${batchProgress.current} z ${batchProgress.total}...` : "Kreativní proces probíhá..."}</h3>
+                                {batchProgress && (
+                                    <div className="w-64 h-2 bg-white/10 rounded-full mb-4 relative z-10 overflow-hidden">
+                                        <div
+                                            className="h-full bg-gradient-to-r from-aisummit-cinnabar to-orange-400 rounded-full transition-all duration-500"
+                                            style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
+                                        />
+                                    </div>
+                                )}
                                 <div className="h-6 overflow-hidden relative z-10">
                                     <motion.div
                                         animate={{ y: [0, -24, -48, -72, -96] }}
