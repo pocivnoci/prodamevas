@@ -149,8 +149,8 @@ export async function generateImageWithReferences(
             })
         }
 
+        // Note: Gemini 3.1 Pro does NOT support aspectRatio in imageConfig
         const imageConfig: any = { imageSize: resolution }
-        if (aspectRatio) imageConfig.aspectRatio = aspectRatio
 
         const response = await ai.models.generateContent({
             model: "gemini-3.1-pro-preview",
