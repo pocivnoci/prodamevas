@@ -182,8 +182,8 @@ export async function generateImageWithReferences(
 export async function detectLogoPlacementArea(imageBuffer: Buffer): Promise<{ x: number; y: number; w: number; h: number } | null> {
     return withRetry(async () => {
         const response = await ai.models.generateContent({
-            // We use 1.5 Pro for vision tasks because it is highly reliable for spatial bounding boxes
-            model: "gemini-1.5-pro",
+            // Sjednoceno na gemini-3.1-pro-preview (původní gemini-1.5-pro házelo ve Vercelu 404)
+            model: "gemini-3.1-pro-preview",
             contents: [
                 {
                     inlineData: {
