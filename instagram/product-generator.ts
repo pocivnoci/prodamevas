@@ -11,7 +11,7 @@
  */
 
 import type { ClientConfig } from "./configs/types"
-import { generateText, generateImage, detectLogoPlacementArea } from "./gemini-client"
+import { generateText, generateImage, generateImageWithReferences } from "./gemini-client"
 import { Type } from "@google/genai"
 import supabaseAdmin from "../supabase/admin"
 
@@ -327,105 +327,61 @@ export async function generateProductDesign(
         .replace(/\d+\s*(?:cm|mm|inch|oz|ml)\b/gi, '')
         .replace(/(?:dimension|rozměr|kóta|measurement)[^.]*\./gi, '')
 
-    const imagePrompt = `${basePrompt}
-DESIGN RULES:
-- Create a visually interesting, creative product with cool design details (textures, patterns, subtle engravings, color accents, material details).
-- IMPORTANT: Reserve a clearly visible, prominent BLANK area on the main face of the product — this area must be completely clean, smooth, and undecorated. A brand logo will be placed there later.
-- The blank logo area should be roughly centered on the product's most visible surface and large enough to be prominent.
-- The product should look premium, streetwear-inspired, and visually striking — NOT boring or plain.
-- NO dimension labels, NO measurements, NO arrows, NO technical drawings, NO annotations, NO text of any kind.
-- NO fake brand names, NO "Supreme", NO existing trademarks.
-- Style: single product centered, clean dark background, professional product photography, studio lighting, photorealistic e-commerce photo.`
+    // 1. Zjistit zda existuje nahrané logo v configu a načíst ho
+    let logoBuffer: Buffer | null = null
+    const { join } = await import('path')
+    const { readFile } = await import('fs/promises')
+
+    if (config.logoFile) {
+        try {
+            const fontsDir = join(process.cwd(), 'instagram', 'fonts')
+            const logoPath = join(fontsDir, config.logoFile)
+            logoBuffer = await readFile(logoPath)
+            console.log(`   🏷️ Logo načteno pro integraci (${config.logoFile})`)
+        } catch (err: any) {
+            console.warn(`   ⚠️ Nepodařilo se načíst logo (${config.logoFile}), generuji bez něj. Error: ${err.message}`)
+        }
+    }
 
     try {
-        // Generate product with creative design but reserved blank area for logo
-        console.log(`🎨 Generuji kreativní produkt s rezervovaným místem pro logo (Imagen 4 Ultra)...`)
-        let imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
+        let imageBuffer: Buffer
 
-        // Overlay brand logo programmatically using Vision AI for smart placement
-        if (config.logoFile) {
+        if (logoBuffer) {
+            // Generování přes Nano Banana Pro (gemini-3-pro-image-preview) 
+            // Model vloží referenční logo přímo do 3D prostoru fotky!
+            const imagePrompt = `${basePrompt}
+DESIGN RULES:
+- IMPORTANT: An image of a brand logo is provided as a reference. You MUST naturally integrate this EXACT logo onto the central, front-facing surface of the generated product.
+- The logo can be embroidered, printed, embossed, debossed, or engraved, but it MUST FEEL NATURAL to the product's material and lighting context.
+- Keep the logo clearly visible and recognizable.
+- Create a visually interesting, premium streetwear-inspired product with cool design details (textures, patterns).
+- NO fake brand names like "Supreme" and NO textual labels or dimensions.
+- Style: single product centered, clean dark background, professional product photography.`
+
+            console.log(`🎨 Generuji kreativní produkt s integrovaným logem (Nano Banana Pro)...`)
+
             try {
-                const sharp = (await import('sharp')).default
-                const { join } = await import('path')
-                const { readFile } = await import('fs/promises')
-                const fontsDir = join(process.cwd(), 'instagram', 'fonts')
-                const logoPath = join(fontsDir, config.logoFile)
-                const logoBuffer = await readFile(logoPath)
-
-                // Get product image dimensions
-                const metadata = await sharp(imageBuffer).metadata()
-                const imgW = metadata.width || 1024
-                const imgH = metadata.height || 1024
-
-                console.log(`   👁️ Vision AI hledá optimální místo pro potisk...`)
-                const placement = await detectLogoPlacementArea(imageBuffer)
-
-                let targetX, targetY, targetW, targetH;
-
-                // Enforce minimum logo size: at least 45% of image width
-                const minLogoSize = Math.round(imgW * 0.45)
-
-                if (placement && placement.w > 20 && placement.h > 20) {
-                    targetX = Math.round(placement.x)
-                    targetY = Math.round(placement.y)
-                    targetW = Math.max(minLogoSize, Math.round(placement.w))
-                    targetH = Math.max(minLogoSize, Math.round(placement.h))
-                    // Re-center if we enlarged beyond Vision AI's box
-                    if (targetW > Math.round(placement.w)) {
-                        targetX = Math.max(0, Math.round(placement.x + placement.w / 2 - targetW / 2))
-                    }
-                    if (targetH > Math.round(placement.h)) {
-                        targetY = Math.max(0, Math.round(placement.y + placement.h / 2 - targetH / 2))
-                    }
-                    // Clamp to image bounds
-                    if (targetX + targetW > imgW) targetX = Math.max(0, imgW - targetW)
-                    if (targetY + targetH > imgH) targetY = Math.max(0, imgH - targetH)
-                    console.log(`   🎯 Vision AI plocha: ${targetW}x${targetH} px na pozici [${targetX}, ${targetY}]`)
-                } else {
-                    console.warn(`   ⚠️ Vision AI nenašlo vhodnou plochu, použiji bezpečný střed...`)
-                    targetW = Math.round(imgW * 0.5)
-                    targetH = targetW
-                    targetX = Math.round((imgW - targetW) / 2)
-                    targetY = Math.round((imgH - targetH) / 2)
-                }
-
-                // Minimal padding
-                const padding = Math.round(targetW * 0.05)
-                const maxLogoW = Math.max(10, targetW - (padding * 2))
-                const maxLogoH = Math.max(10, targetH - (padding * 2))
-
-                // Resize logo to fit the target area, keeping aspect ratio
-                const resizedLogo = await sharp(logoBuffer)
-                    .resize(maxLogoW, maxLogoH, { fit: 'inside', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-                    .ensureAlpha()
-                    .png()
-                    .toBuffer()
-
-                // Calculate exact centering within the target bounding box
-                const resizedMeta = await sharp(resizedLogo).metadata()
-                const actualW = resizedMeta.width || maxLogoW
-                const actualH = resizedMeta.height || maxLogoH
-
-                const offsetX = targetX + Math.round((targetW - actualW) / 2)
-                const offsetY = targetY + Math.round((targetH - actualH) / 2)
-
-                // S transparentním PNG logem stačí standardní 'over' blend:
-                // bílé linky loga se vykreslí přesně jak jsou,
-                // průhledné oblasti propustí produkt pod sebou.
-                imageBuffer = await sharp(imageBuffer)
-                    .composite([{
-                        input: resizedLogo,
-                        top: offsetY,
-                        left: offsetX,
-                        blend: 'over'
-                    }])
-                    .png()
-                    .toBuffer()
-
-                console.log(`   🏷️ Logo smart-overlayed successfully.`)
-            } catch (logoErr: any) {
-                console.warn(`   ⚠️ Logo overlay failed: ${logoErr.message}`)
+                // Posíláme logo jako jedinou referenci
+                imageBuffer = await generateImageWithReferences(
+                    imagePrompt,
+                    [{ buffer: logoBuffer, mimeType: "image/png" }],
+                    { aspectRatio: "1:1" }
+                )
+            } catch (err: any) {
+                console.warn(`   ⚠️ Nano Banana Pro selhalo (${err.message}). Fallback na Imagen 4 Ultra...`)
+                // Fallback prompt pokusí nakreslit alespoň něco textově
+                imageBuffer = await generateImage(basePrompt + ` Add a small central emblem to the product.`, { aspectRatio: "1:1" })
             }
+        } else {
+            // Není logo - čistý Imagen 4 bez loga
+            const imagePrompt = `${basePrompt}
+DESIGN RULES:
+- Create a visually interesting, premium product with cool design details.
+- NO labels, NO measurements, NO "Supreme", NO existing trademarks.
+- Style: single product centered, clean dark background, professional product photography.`
+
+            console.log(`🎨 Generuji kreativní produkt (Imagen 4 Ultra)...`)
+            imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
         }
 
         const safeName = idea.name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "").slice(0, 20)
