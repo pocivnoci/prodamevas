@@ -203,7 +203,7 @@ export async function detectLogoPlacementArea(imageBuffer: Buffer): Promise<{ x:
                         data: imageBuffer.toString("base64")
                     }
                 },
-                { text: 'You are a computer vision layout tool. Analyze this product image (which has size 1024x1024 pixels). Identify the optimal central, front-facing, blank area on the product where a primary brand logo should be printed. Based on a 1024x1024 coordinate system (where 0,0 is top-left), return EXACTLY ONE JSON object with the bounding box coordinates and dimensions in pixels. The box should fit naturally within the product\'s boundaries. The format MUST be: { "x": number, "y": number, "w": number, "h": number }. Do NOT return any markdown, text, or explanations. Only the JSON.' }
+                { text: 'You are a computer vision layout tool. Analyze this product image (which has size 1024x1024 pixels). Identify the optimal central, front-facing, blank area ON THE PHYSICAL MATERIAL OF THE PRODUCT ITSELF where a primary brand logo should be printed. CRITICAL: The bounding box MUST BE ON THE SOLID SURFACE OF THE PRODUCT. Do NOT place the logo floating in the background, in empty space, or in gaps between multiple items. Based on a 1024x1024 coordinate system (where 0,0 is top-left), return EXACTLY ONE JSON object with the bounding box coordinates and dimensions in pixels. The format MUST be: { "x": number, "y": number, "w": number, "h": number }. Do NOT return any markdown, text, or explanations. Only the JSON.' }
             ],
             config: {
                 // responseMimeType enforces JSON output
