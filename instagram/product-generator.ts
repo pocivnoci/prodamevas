@@ -441,13 +441,16 @@ export async function generateProductDesign(
                 const offsetX = targetX + Math.round((targetW - actualW) / 2)
                 const offsetY = targetY + Math.round((targetH - actualH) / 2)
 
-                // Composite logo in the central print area that vision AI found
+                // Vložení loga pomocí blending mode 'multiply' a zprůhledněním. 
+                // Multiply zajistí, že světlá místa/bílá splynou s objektem, a tmavá místa (čáry loga) 
+                // prolnou přes přesné drážkování (textury materiálu), takže objekt vypadá jako 
+                // reálně potištěný/gravírovaný v továrně a ne jako připlácnutá nálepka.
                 imageBuffer = await sharp(imageBuffer)
                     .composite([{
                         input: resizedLogo,
                         top: offsetY,
                         left: offsetX,
-                        blend: 'over'
+                        blend: 'multiply'
                     }])
                     .png()
                     .toBuffer()
