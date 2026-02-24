@@ -401,33 +401,46 @@ Brand aesthetic: ${config.feedAesthetic?.feel || 'urban streetwear, bold, premiu
 
                 let targetX, targetY, targetW, targetH;
 
+                // Enforce minimum logo size: at least 45% of image width
+                const minLogoSize = Math.round(imgW * 0.45)
+
                 if (placement && placement.w > 20 && placement.h > 20) {
                     targetX = Math.round(placement.x)
                     targetY = Math.round(placement.y)
-                    targetW = Math.round(placement.w)
-                    targetH = Math.round(placement.h)
-                    console.log(`   🎯 Vision AI našlo plochu: ${targetW}x${targetH} px na pozici [${targetX}, ${targetY}]`)
+                    targetW = Math.max(minLogoSize, Math.round(placement.w))
+                    targetH = Math.max(minLogoSize, Math.round(placement.h))
+                    // Re-center if we enlarged beyond Vision AI's box
+                    if (targetW > Math.round(placement.w)) {
+                        targetX = Math.max(0, Math.round(placement.x + placement.w / 2 - targetW / 2))
+                    }
+                    if (targetH > Math.round(placement.h)) {
+                        targetY = Math.max(0, Math.round(placement.y + placement.h / 2 - targetH / 2))
+                    }
+                    // Clamp to image bounds
+                    if (targetX + targetW > imgW) targetX = Math.max(0, imgW - targetW)
+                    if (targetY + targetH > imgH) targetY = Math.max(0, imgH - targetH)
+                    console.log(`   🎯 Vision AI plocha: ${targetW}x${targetH} px na pozici [${targetX}, ${targetY}]`)
                 } else {
                     console.warn(`   ⚠️ Vision AI nenašlo vhodnou plochu, použiji bezpečný střed...`)
-                    targetW = Math.round(imgW * 0.4)
+                    targetW = Math.round(imgW * 0.5)
                     targetH = targetW
                     targetX = Math.round((imgW - targetW) / 2)
                     targetY = Math.round((imgH - targetH) / 2)
                 }
 
-                // Add slight padding so logo doesn't touch the exact edges of the bounding box
-                const padding = Math.round(targetW * 0.15)
+                // Minimal padding
+                const padding = Math.round(targetW * 0.05)
                 const maxLogoW = Math.max(10, targetW - (padding * 2))
                 const maxLogoH = Math.max(10, targetH - (padding * 2))
 
-                // Resize logo to fit the vision area, keep aspect ratio inside
+                // Resize logo to fit the target area, keeping aspect ratio
                 const resizedLogo = await sharp(logoBuffer)
                     .resize(maxLogoW, maxLogoH, { fit: 'inside', background: { r: 0, g: 0, b: 0, alpha: 0 } })
                     .ensureAlpha()
                     .png()
                     .toBuffer()
 
-                // Calculate exact centering within the AI bounding box
+                // Calculate exact centering within the target bounding box
                 const resizedMeta = await sharp(resizedLogo).metadata()
                 const actualW = resizedMeta.width || maxLogoW
                 const actualH = resizedMeta.height || maxLogoH
@@ -435,15 +448,16 @@ Brand aesthetic: ${config.feedAesthetic?.feel || 'urban streetwear, bold, premiu
                 const offsetX = targetX + Math.round((targetW - actualW) / 2)
                 const offsetY = targetY + Math.round((targetH - actualH) / 2)
 
-                // Vložení transparentního vektorového loga. 
-                // Zde už není potřeba Multiply pro schování defektů, použijeme čistý 'over', 
-                // logo už je krásně vyřízlé a čisté, takže zachováme maximální věrnost designu.
+                // Blend mode 'screen': bílé pixely loga "rozsvítí" tmavý povrch produktu,
+                // jako byste na něj svítili projektorem. Černé (průhledné) pixely zmizí.
+                // Výsledek: logo vypadá jako neonový/svítící potisk nebo laserová gravura,
+                // ne jako připlácnutá samolepka.
                 imageBuffer = await sharp(imageBuffer)
                     .composite([{
                         input: resizedLogo,
                         top: offsetY,
                         left: offsetX,
-                        blend: 'over'
+                        blend: 'screen'
                     }])
                     .png()
                     .toBuffer()
