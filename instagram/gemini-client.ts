@@ -116,6 +116,63 @@ export async function generateImage(
     })
 }
 
+/**
+ * Generate image with reference photos (Gemini 3.1 Pro Image)
+ * 
+ * Supports inline reference images for character/product consistency.
+ * The model preserves the likeness of products from reference images
+ * while placing them in the described scene.
+ */
+export async function generateImageWithReferences(
+    prompt: string,
+    referenceImages: { buffer: Buffer; mimeType?: string; label?: string }[],
+    options: {
+        aspectRatio?: string
+        resolution?: "1K" | "2K" | "4K"
+    } = {}
+): Promise<Buffer> {
+    const { aspectRatio, resolution = "2K" } = options
+
+    return withRetry(async () => {
+        // Build contents array: text prompt + reference images as inlineData
+        const contents: any[] = [
+            { text: prompt },
+        ]
+
+        for (const ref of referenceImages) {
+            const mimeType = ref.mimeType || "image/jpeg"
+            contents.push({
+                inlineData: {
+                    mimeType,
+                    data: ref.buffer.toString("base64"),
+                },
+            })
+        }
+
+        const imageConfig: any = { imageSize: resolution }
+        if (aspectRatio) imageConfig.aspectRatio = aspectRatio
+
+        const response = await ai.models.generateContent({
+            model: "gemini-3.1-pro-preview",
+            contents,
+            config: {
+                responseModalities: ["IMAGE"],
+                imageConfig,
+            } as any,
+        })
+
+        // Extract image from response parts
+        const parts = response.candidates?.[0]?.content?.parts || []
+        for (const part of parts) {
+            if ((part as any).inlineData?.data) {
+                return Buffer.from((part as any).inlineData.data, "base64")
+            }
+        }
+
+        throw new Error("Gemini 3.1 Pro Image returned no image data")
+    })
+}
+
 // ============================================
 // VISION ANALYSIS (Gemini 1.5 Pro)
 // ============================================
