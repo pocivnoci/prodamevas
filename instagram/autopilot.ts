@@ -544,12 +544,18 @@ export async function generateOnePost(options: {
                 }
 
                 if (refImages.length > 0) {
-                    console.log(`🎨 Generuji obrázek (Gemini 3.1 Pro + ${refImages.length} ref images, 2K)...`)
-                    imageBuffer = await generateImageWithReferences(
-                        refinedPrompt,
-                        refImages,
-                        { aspectRatio: format.aspectRatio, resolution: "2K" }
-                    )
+                    try {
+                        console.log(`🎨 Generuji obrázek (Gemini 3.1 Pro + ${refImages.length} ref images, 2K)...`)
+                        imageBuffer = await generateImageWithReferences(
+                            refinedPrompt,
+                            refImages,
+                            { aspectRatio: format.aspectRatio, resolution: "2K" }
+                        )
+                    } catch (refErr: any) {
+                        console.warn(`   ⚠️ Gemini ref image failed: ${refErr.message?.substring(0, 100)}`)
+                        console.log("🎨 Fallback → Imagen 4 Ultra (bez referencí)...")
+                        imageBuffer = await generateImage(refinedPrompt, { aspectRatio: format.aspectRatio as any })
+                    }
                 } else {
                     console.log("🎨 Generuji obrázek (Imagen 4 Ultra, 2K)...")
                     imageBuffer = await generateImage(refinedPrompt, { aspectRatio: format.aspectRatio as any })
