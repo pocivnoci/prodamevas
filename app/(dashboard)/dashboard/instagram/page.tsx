@@ -25,6 +25,7 @@ import {
     triggerDesignGeneration,
     triggerMockupGeneration,
     triggerProductDesign,
+    triggerCustomProductDesign,
     triggerAIIdeasGeneration,
     triggerAIReviewsGeneration,
     saveProductIdea,
@@ -1543,6 +1544,10 @@ function ProductsTab({ projectId }: { projectId: string }) {
     const [ideaVisuals, setIdeaVisuals] = useState<Record<string, string>>({})
     const [visualizingId, setVisualizingId] = useState<string | null>(null)
     const [referenceUrls, setReferenceUrls] = useState<Record<string, string>>({})
+    // Custom product (user-typed)
+    const [customProductInput, setCustomProductInput] = useState("")
+    const [customProductUrl, setCustomProductUrl] = useState<string | null>(null)
+    const [customProductLoading, setCustomProductLoading] = useState(false)
     const [uploadingId, setUploadingId] = useState<string | null>(null)
     const [savingId, setSavingId] = useState<number | null>(null)
     const [rejectingId, setRejectingId] = useState<number | null>(null)
@@ -1838,6 +1843,70 @@ function ProductsTab({ projectId }: { projectId: string }) {
                                 </button>
                             </div>
                         </div>
+                    </div>
+
+                    {/* ═══════════════ VLASTNÍ PRODUKT ═══════════════ */}
+                    <div className="bg-[#0a0a0a] border border-emerald-500/20 rounded-sm p-6 mb-6">
+                        <h3 className="text-[10px] uppercase tracking-[0.3em] font-black text-emerald-400 mb-4">✏️ Vlastní produkt — napiš co chceš vizualizovat</h3>
+                        <div className="flex gap-3">
+                            <input
+                                value={customProductInput}
+                                onChange={(e) => setCustomProductInput(e.target.value)}
+                                placeholder="např. černý keramický hrnek, zippo zapalovač, snapback čepice..."
+                                className="flex-1 px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-sm font-medium placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && customProductInput.trim() && !customProductLoading) {
+                                        (async () => {
+                                            setCustomProductLoading(true)
+                                            setCustomProductUrl(null)
+                                            setError(null)
+                                            try {
+                                                const result = await triggerCustomProductDesign({
+                                                    configName: projectId,
+                                                    productDescription: customProductInput.trim(),
+                                                })
+                                                if (result.success && result.designUrl) {
+                                                    setCustomProductUrl(result.designUrl)
+                                                } else {
+                                                    setError(result.error || 'Vizualizace selhala')
+                                                }
+                                            } catch (err: any) { setError(err.message) }
+                                            finally { setCustomProductLoading(false) }
+                                        })()
+                                    }
+                                }}
+                            />
+                            <button
+                                onClick={async () => {
+                                    if (!customProductInput.trim()) return
+                                    setCustomProductLoading(true)
+                                    setCustomProductUrl(null)
+                                    setError(null)
+                                    try {
+                                        const result = await triggerCustomProductDesign({
+                                            configName: projectId,
+                                            productDescription: customProductInput.trim(),
+                                        })
+                                        if (result.success && result.designUrl) {
+                                            setCustomProductUrl(result.designUrl)
+                                        } else {
+                                            setError(result.error || 'Vizualizace selhala')
+                                        }
+                                    } catch (err: any) { setError(err.message) }
+                                    finally { setCustomProductLoading(false) }
+                                }}
+                                disabled={customProductLoading || !customProductInput.trim()}
+                                className="px-6 py-3 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-sm text-[10px] font-black uppercase tracking-widest text-emerald-400 transition-all disabled:opacity-50 whitespace-nowrap"
+                            >
+                                {customProductLoading ? '⏳ Generuji...' : '🎨 Vytvořit vizualizaci'}
+                            </button>
+                        </div>
+                        {customProductUrl && (
+                            <div className="mt-4">
+                                <img src={customProductUrl} alt="Custom product" className="max-w-md rounded-sm border border-white/10" />
+                                <a href={customProductUrl} target="_blank" rel="noopener noreferrer" className="inline-block mt-2 text-[9px] text-emerald-400/60 hover:text-emerald-400 uppercase tracking-widest">📸 Plná velikost</a>
+                            </div>
+                        )}
                     </div>
 
                     {/* Ideas grid */}

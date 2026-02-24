@@ -408,6 +408,55 @@ export async function triggerProductDesign(options: {
 }
 
 // ============================================
+// CUSTOM PRODUCT VISUALIZATION (user-typed product)
+// ============================================
+
+export async function triggerCustomProductDesign(options: {
+    configName: string
+    productDescription: string
+}): Promise<{ success: boolean; designUrl?: string; error?: string }> {
+    try {
+        const config = await loadConfig(options.configName)
+
+        // Build a minimal ProductIdea from the user's description
+        const customIdea: ProductIdea = {
+            name: options.productDescription,
+            type: "custom",
+            description: options.productDescription,
+            material: "",
+            dimensions: "",
+            designPrompt: `Single ${options.productDescription} centered on a clean dark background. Product photography, studio lighting, photorealistic render, premium quality, detailed materials and textures. The product must have a clear, flat, prominent surface suitable for a printed logo.`,
+            tagline: "",
+            priceRange: "",
+            brandingNames: [],
+            manufacturingMethod: "",
+            viralAngle: "",
+            whyItWorks: "",
+            productionNotes: "",
+        }
+
+        const result = await withRetry(
+            () => generateProductDesign(config, customIdea),
+            1,
+            "Custom product design"
+        )
+
+        if (!result) {
+            return { success: false, error: "Custom product design generation returned null" }
+        }
+
+        return {
+            success: true,
+            designUrl: result.designUrl,
+        }
+    } catch (err: any) {
+        const errorMessage = err?.message || String(err) || "Unknown error"
+        console.error("Custom product design error:", errorMessage)
+        return { success: false, error: errorMessage.substring(0, 500) }
+    }
+}
+
+// ============================================
 // PRODUCT IDEAS DB MANAGEMENT
 // ============================================
 

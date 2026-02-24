@@ -139,7 +139,7 @@ export async function generateProductIdeas(
         ? config.products.map(p => `- ${p.name} (${p.type}): ${p.price || "?"} — ${p.description || ""}`).join("\n")
         : "Žádné existující produkty"
 
-    const prompt = `Jsi kreativní product designer a vynálezce pro brand "${config.name}".
+    const prompt = `Jsi product designer pro streetwear/lifestyle brand "${config.name}".
 Web: ${config.website} | IG: ${config.instagram}
 
 ## BRAND PERSONA
@@ -156,34 +156,32 @@ ${theme}
 ` : ""}
 
 ## ÚKOL
-Navrhni ${count} NOVÝCH, ORIGINÁLNÍCH produktů pro brand "${config.name}".
+Navrhni ${count} NOVÝCH produktů pro brand "${config.name}".
 
-## KLÍČOVÉ PRAVIDLO — BUDTE KREATIVNÍ!
-Nemysli jen na trička a mikiny. Mysli jako vynálezce:
-- **EDC gadgets**: ocelová škrabka na čelní sklo velikosti kreditní karty (jako MRDKE CARD), mini váha ve tvaru klíče, branded zapalovač, otvírák na lahve ve tvaru pistole
-- **Home & Lifestyle**: rolling tray s logem, popelník z betonu, branded sklenice na whisky, neon nástěnný sign
-- **Accessories**: kožený keychain, branded peněženka, ocelový prsten s logem, řetízek s přívěskem
-- **Novelty/Fun**: custom hrací karty, branded kostky na pití, stírací los "MRDKE LOTTO", branded ponožky s hidden messages
-- **Tech**: branded phone case, custom USB lighter, mini bluetooth speaker
-- **Seasonal**: limitované vánoční edice, letní kolekce, valentýnské balíčky
+## KATEGORIE PRODUKTŮ (vyber z těchto — jde objednat z Číny za pár korun):
+- **Drinkware**: keramický hrnek, termohrnek, sklenice na whisky/pivo, lahev na vodu, shot glass
+- **Accessories**: snapback/dad hat čepice, beanie, klíčenka (kov/kůže/guma), náramek, pásek, peněženka
+- **Smoking**: Zippo-style zapalovač, popelník (kov/beton/keramika), rolling tray, cigaretové pouzdro
+- **Phone**: silikonový/hard phone case, PopSocket grip, stojánek na telefon
+- **Home**: polštář, podtácek, plakát/poster, nástěnné hodiny, svíčka, magnetka na lednici
+- **Clothing basics**: tričko, mikina, ponožky, boxerky, bucket hat, šátek/bandana
+- **EDC/Tools**: otvírák na lahve, multitool karta, karabina, mini baterka
+- **Stationery**: notes/zápisník, samolepky (sticker pack), odznak/pin
+- **Fun/Novelty**: hrací karty, kostky, stírací los, puzzle
 
 ## PRAVIDLA:
-1. Každý produkt MUSÍ sedět k brand identity "${config.name}" — název, design, humor, vibe
-2. Produkty musí být REÁLNĚ vyrobitelné — specifikuj přesnou výrobní metodu
-3. MINIMÁLNĚ 3 z ${count} produktů musí být NON-CLOTHING (gadgets, accessories, lifestyle)
-4. Dvojsmysly a wordplay v názvech = VELKÝ BONUS
-5. Cenový rozsah: 149-1999 Kč (většina pod 699 Kč)
-6. Každý produkt musí mít virální potenciál na IG — popsal scénář jak to bude vypadat na feedu
+1. Každý produkt MUSÍ jít REÁLNĚ objednat z Alibaba/1688 jako hotový polotovar a jen potisknout/gravírovat logem
+2. ŽÁDNÉ vymyšlené předměty! Žádné brzdové kotouče, fidget spinnery, zbraně nebo sci-fi přístroje
+3. Cenový rozsah pro zákazníka: 149-699 Kč (nákupka pod 50 Kč z Číny)
+4. Vtipné názvy s wordplay/dvojsmysly = BONUS
+5. Piš česky, on-brand humor
+6. MINIMÁLNĚ 3 z ${count} produktů musí být NON-CLOTHING
 7. NEDUPLIKUJ stávající produkty!
-8. Piš česky, on-brand humor
-9. U každého produktu specifikuj materiál, rozměry a výrobní metodu
-10. Ke KAŽDÉMU produktu uveď 3-5 ALTERNATIVNÍCH NÁZVŮ (brandingNames) — různé styly:
-    - Wordplay/dvojsmysl (např. "MRDKE CARD" = škrabka + brand)
-    - CZ/EN mix (např. "Zero Fucks Given")
-    - Drzý/provokativní
-    - Elegantní/minimal
-    - Slangový/streetwear
-11. Ke KAŽDÉMU produktu napiš anglický designPrompt — detailní popis jak produkt vypadá pro AI image generator
+8. Ke KAŽDÉMU produktu napiš anglický designPrompt — popis pro AI generátor obrázků:
+   - VŽDY: "single [product] centered on dark background, product photography, studio lighting, photorealistic"
+   - NIKDY: žádné rozměry, kóty, text, labely, schémata, technické výkresy
+   - Produkt musí vypadat jako FOTKA z e-shopu, ne jako technický výkres
+9. U každého produktu specifikuj reálný materiál a metodu potisku (sítotisk, gravírování, sublimace, tampoprint)
 
 Generuj PŘESNĚ ${count} nápadů.`
 
