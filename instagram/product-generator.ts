@@ -318,66 +318,27 @@ export async function generateProductDesign(
     console.log(`🎨 Generuji vizualizaci produktu: ${idea.name}...`)
 
     // Use the idea's own design prompt if available, otherwise build one
-    let basePrompt = idea.designPrompt || `Product concept: ${idea.name}. ${idea.description}. Material: ${idea.material}. Dimensions: ${idea.dimensions}. Brand: ${config.name}.`
+    let basePrompt = idea.designPrompt || `Single ${idea.name} on dark background. Product photography, studio lighting, photorealistic.`
 
-    // Strip any conflicting descriptions of logos from AI-generated designPrompt
-    if (config.logoFile) {
-        basePrompt = basePrompt.replace(/(?:minimalist|neon|green|simple|stylized|abstract)\s*(?:logo|emblem|mark|monogram|symbol)[^.]*\./gi, '')
-    }
+    // Strip ANY mention of logos, brands, text, dimensions, artwork from the prompt
+    // so Imagen generates a CLEAN, BLANK product
+    basePrompt = basePrompt
+        .replace(/(?:minimalist|neon|green|simple|stylized|abstract|custom|brand|logo|emblem|mark|monogram|symbol|artwork|text|label|engrav|print|decal)[^.]*\./gi, '')
+        .replace(/\d+\s*(?:cm|mm|inch|oz|ml)\b/gi, '')  // strip dimensions like "7 cm"
+        .replace(/(?:dimension|rozměr|kóta|measurement)[^.]*\./gi, '')
 
-    // We frame the logo instruction purely as a texture / artwork to integrate seamlessly
-    // and avoid the word 'logo' or 'brand', directing the AI to literally "print" the reference image on the item.
-    const decalInstruction = config.logoFile
-        ? ` The attached reference image contains a custom artwork. Seamlessly integrate this artwork onto the product's surface as a highly realistic printed texture or engraving. The artwork must be faithfully replicated and clearly visible.`
-        : ''
-
-    const imagePrompt = `Product concept: ${idea.name}. ${idea.description}. Material: ${idea.material}. Dimensions: ${idea.dimensions}.${decalInstruction}
-Product photography, studio lighting, clean dark background, photorealistic render, premium quality.
-VERY IMPORTANT: The product MUST feature a prominent, clear, flat, blank surface directly facing the camera, designed specifically for a printed logo or engraving to be applied later. 
-Brand aesthetic: ${config.feedAesthetic?.feel || 'urban streetwear, bold, premium'}.`
+    const imagePrompt = `${basePrompt}
+CRITICAL RULES FOR THIS IMAGE:
+- The product must be COMPLETELY BLANK — no prints, no logos, no text, no brand names, no artwork of any kind on the product surface.
+- NO dimension labels, NO measurements, NO arrows, NO technical drawings, NO annotations.
+- The product must look like a clean, unbranded prototype fresh from factory — ready for custom branding to be applied later.
+- Style: single product centered, clean dark background, professional product photography, studio lighting, photorealistic e-commerce photo.
+- DO NOT add any text overlay, watermark, or label to the image.`
 
     try {
-        let imageBuffer: Buffer
-
-        // Collect BOTH user-uploaded reference images AND the artwork/logo
-        const referenceImages: { buffer: Buffer; mimeType: string }[] = []
-
-        // Load custom artwork (logo) 
-        if (config.logoFile) {
-            try {
-                const { join } = await import('path')
-                const { readFile } = await import('fs/promises')
-                const fontsDir = join(process.cwd(), 'instagram', 'fonts')
-                const logoPath = join(fontsDir, config.logoFile)
-                const logoBuffer = await readFile(logoPath)
-                referenceImages.push({ buffer: logoBuffer, mimeType: 'image/png' })
-                console.log(`   🏷️ Custom artwork loaded: ${config.logoFile}`)
-            } catch {
-                console.warn(`   ⚠️ Custom artwork not found: ${config.logoFile}`)
-            }
-        }
-
-        // Load user-uploaded reference image
-        if (referenceImageUrl) {
-            try {
-                console.log(`📸 Stahuji referenční obrázek...`)
-                const refResponse = await fetch(referenceImageUrl)
-                if (refResponse.ok) {
-                    const refBuffer = Buffer.from(await refResponse.arrayBuffer())
-                    const mimeType = refResponse.headers.get("content-type") || "image/jpeg"
-                    referenceImages.push({ buffer: refBuffer, mimeType })
-                }
-            } catch {
-                console.warn(`   ⚠️ Reference image fetch failed`)
-            }
-        }
-
-        if (referenceImages.length > 0) {
-            console.log(`🎨 Generuji s ${referenceImages.length} referenčním(i) obrázk(y)... (Google EU constraint fallback)`)
-            imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
-        } else {
-            imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
-        }
+        // Generate BLANK product image (no artwork, no logos — we'll add our own)
+        console.log(`🎨 Generuji čistý produkt (Imagen 4 Ultra)...`)
+        let imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
 
         // Overlay brand logo programmatically using Vision AI for smart placement
         if (config.logoFile) {
