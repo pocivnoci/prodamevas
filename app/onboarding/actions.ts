@@ -492,7 +492,6 @@ export async function checkOnboardingStatus(): Promise<{
         .from('clients')
         .select('slug, onboarding_status')
         .eq('user_id', user.id)
-        .eq('onboarding_status', 'complete')
         .limit(1)
         .single()
 
