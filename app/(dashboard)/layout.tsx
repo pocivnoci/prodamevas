@@ -2,6 +2,8 @@ import { redirect } from "next/navigation"
 import { AdminSidebar } from "./AdminSidebar"
 import { checkOnboardingStatus } from "@/app/onboarding/actions"
 
+export const maxDuration = 300 // 5 minutes Vercel Serverless Function timeout
+
 export default async function DashboardLayout({
     children,
 }: {
