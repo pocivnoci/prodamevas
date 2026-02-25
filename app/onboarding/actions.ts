@@ -435,6 +435,19 @@ DŮLEŽITÉ:
 
         // Save to database
         const clientSlug = config.id
+
+        // Ensure Storage Bucket exists for this client (Bug Fix)
+        const { error: bucketError } = await supabaseAdmin.storage.createBucket(config.storageBucket, {
+            public: true,
+            allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp'],
+            fileSizeLimit: 10485760 // 10MB
+        })
+        if (bucketError && !bucketError.message.includes('already exists') && !bucketError.message.includes('Duplicate')) {
+            console.warn(`⚠️ Failed to create bucket ${config.storageBucket}:`, bucketError.message)
+        } else {
+            console.log(`✅ Storage bucket ${config.storageBucket} is ready`)
+        }
+
         const { error: insertError } = await supabaseAdmin
             .from('clients')
             .insert({

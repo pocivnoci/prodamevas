@@ -45,15 +45,32 @@ export async function loadConfig(name: string = "mobilnamiru"): Promise<ClientCo
     return config
 }
 
+import { createClient } from "@/supabase/server"
+
 /**
  * Get metadata for all available active clients (for dashboard dropdowns)
- * Lightweight — doesn't load full configs.
+ * Lightweight — doesn't load full configs. Only loads allowed projects (RBAC).
  */
 export async function getAvailableClients(): Promise<ClientMeta[]> {
-    const { data, error } = await supabaseAdmin
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    let query = supabaseAdmin
         .from("clients")
         .select("slug, name, website")
         .eq("is_active", true)
+
+    if (user) {
+        const isSuperAdmin = ["honza.poc@gmail.com", "hanzfans.cz@gmail.com", "honza@hanzfans.cz"].includes(user.email || "")
+        if (!isSuperAdmin) {
+            query = query.eq("user_id", user.id)
+        }
+    } else {
+        // Unauthenticated -> no clients
+        return []
+    }
+
+    const { data, error } = await query
 
     if (error || !data) return []
 
@@ -69,10 +86,24 @@ export async function getAvailableClients(): Promise<ClientMeta[]> {
  * Get list of available config names
  */
 export async function getAvailableConfigNames(): Promise<string[]> {
-    const { data, error } = await supabaseAdmin
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    let query = supabaseAdmin
         .from("clients")
         .select("slug")
         .eq("is_active", true)
+
+    if (user) {
+        const isSuperAdmin = ["honza.poc@gmail.com", "hanzfans.cz@gmail.com", "honza@hanzfans.cz"].includes(user.email || "")
+        if (!isSuperAdmin) {
+            query = query.eq("user_id", user.id)
+        }
+    } else {
+        return []
+    }
+
+    const { data, error } = await query
 
     if (error || !data) return []
     return data.map(row => row.slug)

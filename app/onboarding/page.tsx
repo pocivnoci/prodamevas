@@ -62,12 +62,11 @@ export default function OnboardingPage() {
             if (!result.success) {
                 throw new Error(result.error || 'Generování konfigurace selhalo')
             }
+
+            // Nevolat ihned přesměrování. 
+            // Posuneme na informační zbrazovku.
             setStep('done')
 
-            // Redirect to dashboard after short delay
-            setTimeout(() => {
-                router.push('/dashboard/instagram')
-            }, 3000)
         } catch (err) {
             setError((err as Error).message)
             setStep('questions')
@@ -325,19 +324,58 @@ export default function OnboardingPage() {
                 {/* ══════════════════════════════════════════════ */}
                 {/* STEP 5: Done!                                 */}
                 {/* ══════════════════════════════════════════════ */}
-                {step === 'done' && (
-                    <div className="animate-fadeIn text-center py-20">
-                        <div className="inline-flex rounded-2xl bg-emerald-500/10 p-5 mb-8 ring-1 ring-inset ring-emerald-500/20">
-                            <svg className="w-10 h-10 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
+                {step === 'done' && analysis && (
+                    <div className="animate-fadeIn max-w-2xl mx-auto py-12">
+                        <div className="text-center mb-10">
+                            <div className="inline-flex rounded-2xl bg-emerald-500/10 p-5 mb-6 ring-1 ring-inset ring-emerald-500/20">
+                                <svg className="w-10 h-10 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                            <h2 className="text-3xl font-bold mb-3">Autopilot je připravený! 🎉</h2>
+                            <p className="text-gray-400 text-lg">AI právě uložila tvou unikátní Brand Identitu do databáze.</p>
                         </div>
-                        <h2 className="text-2xl font-bold mb-4">Autopilot je připravený! 🎉</h2>
-                        <p className="text-gray-400 mb-8">Konfigurace byla vygenerována a uložena. Přesměrovávám na dashboard...</p>
 
-                        <div className="w-48 h-1 mx-auto bg-white/5 rounded-full overflow-hidden">
-                            <div className="h-full bg-emerald-500 rounded-full animate-[progress_3s_ease-in-out_forwards]" />
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8">
+                            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                                <span>🧬</span> Profil klienta: <span className="text-emerald-400">{analysis.companyName}</span>
+                            </h3>
+
+                            <div className="space-y-4 text-sm text-gray-300">
+                                <div>
+                                    <span className="block text-gray-500 text-xs uppercase font-bold tracking-wider mb-1">Brand Voice (Vyznění)</span>
+                                    <p className="bg-black/30 p-3 rounded-xl border border-white/5">{analysis.visualFeel || 'Moderní a přátelský'}</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <span className="block text-gray-500 text-xs uppercase font-bold tracking-wider mb-1">Typografie</span>
+                                        <p className="bg-black/30 px-3 py-2 rounded-xl border border-white/5 font-mono">{analysis.recommendedFont || 'Inter'}</p>
+                                    </div>
+                                    <div>
+                                        <span className="block text-gray-500 text-xs uppercase font-bold tracking-wider mb-1">Sektory (Industry)</span>
+                                        <p className="bg-black/30 px-3 py-2 rounded-xl border border-white/5">{analysis.industry || 'Business'}</p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <span className="block text-gray-500 text-xs uppercase font-bold tracking-wider mb-2">Unikátní prodejní argumenty (USP)</span>
+                                    <ul className="list-disc list-inside space-y-1 ml-1 text-gray-400">
+                                        {analysis.uniqueSellingPoints.slice(0, 3).map((usp: string, i: number) => (
+                                            <li key={i}>{usp}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </div>
                         </div>
+
+                        <button
+                            onClick={() => router.push('/dashboard/instagram')}
+                            className="w-full relative group overflow-hidden rounded-xl bg-emerald-600 px-6 py-4 text-sm font-bold text-white shadow-[0_0_20px_rgba(16,185,129,0.2)] transition-all hover:bg-emerald-500 cursor-pointer text-center"
+                        >
+                            <span className="relative z-10 flex items-center justify-center gap-2">
+                                Vstoupit do Dashboardu Autopilota
+                                <span className="transition-transform group-hover:translate-x-1">→</span>
+                            </span>
+                        </button>
                     </div>
                 )}
             </div>
