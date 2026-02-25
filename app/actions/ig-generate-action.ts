@@ -60,41 +60,7 @@ async function withRetry<T>(
 // SINGLE POST GENERATION
 // ============================================
 
-export async function triggerPostGeneration(options: {
-    configName?: string
-    type?: string
-    topic?: string
-    category?: string
-    dryRun?: boolean
-}): Promise<GenerateResult> {
-    try {
-        const result = await withRetry(
-            () => generateOnePost({
-                configName: options.configName,
-                type: options.type || undefined,
-                topic: options.topic || undefined,
-                dryRun: options.dryRun,
-            }),
-            2,
-            "Post generation"
-        )
 
-        return {
-            success: true,
-            postId: result.id,
-            caption: result.caption,
-            imageUrl: result.imageUrl,
-        }
-    } catch (err: any) {
-        // Always return a clean serializable error — never crash the UI
-        const errorMessage = err?.message || String(err) || "Unknown error"
-        console.error("IG generation error:", errorMessage)
-        return {
-            success: false,
-            error: errorMessage.substring(0, 500), // Truncate to avoid serialization issues
-        }
-    }
-}
 
 // ============================================
 // BATCH GENERATION

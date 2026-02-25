@@ -17,7 +17,6 @@ import {
     getAvailableIGClients,
 } from "@/app/actions/admin-actions"
 import {
-    triggerPostGeneration,
     addNewIdea,
     addNewReview,
     triggerProductIdeas,
@@ -599,6 +598,20 @@ function GenerateTab({ projectId }: { projectId: string }) {
         setCategory("") // reset category on project change
         setStep(1)
     }, [projectId])
+
+    // Fetch wrapper replacing the old 'use server' action (to bypass Vercel 60s limit with our custom API layout maxDuration=300)
+    const triggerPostGeneration = async (options: any) => {
+        const res = await fetch("/api/ig-generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(options)
+        })
+        const data = await res.json()
+        if (!res.ok) {
+            return { success: false, error: data.error || "API error" }
+        }
+        return data
+    }
 
     const handleGenerate = async () => {
         setGenerating(true)
