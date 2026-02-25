@@ -19,20 +19,25 @@ import {
 import {
     addNewIdea,
     addNewReview,
+    triggerAIIdeasGeneration,
+    triggerAIReviewsGeneration,
+    createPromoPost,
+    type GenerateResult,
+} from "@/app/actions/ig-generate-action"
+
+import {
     triggerProductIdeas,
     triggerDesignGeneration,
     triggerMockupGeneration,
     triggerProductDesign,
     triggerCustomProductDesign,
-    triggerAIIdeasGeneration,
-    triggerAIReviewsGeneration,
     saveProductIdea,
     rejectProductIdea,
-    createPromoPost,
-    type GenerateResult,
     type ProductIdea,
     type DesignConcept,
-} from "@/app/actions/ig-generate-action"
+} from "@/app/actions/product-actions"
+
+import { ClientConfig } from "@/instagram/configs/types"
 import {
     uploadBrandImage,
     deleteBrandImage,
@@ -1998,7 +2003,7 @@ function ProductsTab({ projectId }: { projectId: string }) {
                                         <div className="mb-4 pt-2">
                                             <span className="text-[9px] uppercase tracking-widest font-bold text-amber-500/50 mb-2 block">🏷️ Varianty názvů</span>
                                             <div className="flex flex-wrap gap-1.5">
-                                                {idea.brandingNames.map((bn, j) => (
+                                                {idea.brandingNames.map((bn: string, j: number) => (
                                                     <span key={j} className="px-2 py-1 bg-amber-500/5 border border-amber-500/10 text-amber-500 rounded-sm text-[9px] font-bold uppercase tracking-widest cursor-default">
                                                         {bn}
                                                     </span>
