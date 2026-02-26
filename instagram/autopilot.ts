@@ -42,14 +42,14 @@ import type { ClientConfig } from "./configs/types"
 import type { PostType, PostIdea, Review } from "./types"
 
 // Module imports (refactored from monolith)
-import { isHookSimilar, isBodySimilar } from "./dedup"
+import { isHookSimilar, isBodySimilar, createPillarMapper } from "./service"
 import { analyzePerformance, type PerformanceInsight } from "./performance"
 import {
     COSTS,
     IDEA_COOLDOWN_DAYS,
     getPostFormat,
     getReelDuration,
-    getPillarForType,
+
     buildCaptionSchema,
     buildVideoSchema,
     buildCarouselSchema,
@@ -160,7 +160,7 @@ export async function generateOnePost(options: {
         .filter(Boolean)
 
     // 4. Get performance data
-    const _getPillarForType = (t: string) => getPillarForType(config, t)
+    const _getPillarForType = createPillarMapper(config)
     const performance = options.performance || await analyzePerformance(config, _getPillarForType)
 
     // 5. Generate caption / video script / carousel
@@ -689,7 +689,7 @@ export async function generateBatch(options: {
     console.log("═".repeat(60))
 
     console.log("\n📊 Analyzuji výkon minulých postů...")
-    const _getPillarForType = (t: string) => getPillarForType(config, t)
+    const _getPillarForType = createPillarMapper(config)
     const performance = await analyzePerformance(config, _getPillarForType)
     if (performance.topPatterns.length > 0) {
         console.log(`   ✓ Naučené vzorce: ${performance.topPatterns.join(", ")}`)
@@ -801,7 +801,7 @@ async function showStats() {
     console.log(`   📝 Drafty: ${posts.filter(p => p.status === "draft").length}`)
 
     const config = CLIENT_CONFIG!
-    const _getPillarForType = (t: string) => getPillarForType(config, t)
+    const _getPillarForType = createPillarMapper(config)
     const performance = await analyzePerformance(config, _getPillarForType)
 
     if (withMetrics.length > 0) {
@@ -979,7 +979,7 @@ async function runGenerateIdeas() {
     console.log(`🧠 AUTO-GENERACE NÁPADŮ — ${config.name}`)
     console.log("═".repeat(60))
 
-    const _getPillarForType = (t: string) => getPillarForType(config, t)
+    const _getPillarForType = createPillarMapper(config)
     const performance = await analyzePerformance(config, _getPillarForType)
     const existingIdeas = await getAvailableIdeas()
 

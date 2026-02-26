@@ -1,8 +1,3 @@
-/**
- * Performance Analyzer for Instagram Autopilot
- * Analyzes post engagement, detects patterns, tracks conversion rates.
- */
-
 import supabase from "../supabase/client"
 import { getActiveProject } from "./service"
 import type { ClientConfig } from "./configs/types"
@@ -45,11 +40,6 @@ export function extractPatterns(captions: string[]): string[] {
     return patterns
 }
 
-/** Helper to get post type name from ID */
-export function getPostTypeNameById(typeId: string | null, posts: any[]): string {
-    return "value"
-}
-
 // ============================================
 // MAIN ANALYZER
 // ============================================
@@ -77,6 +67,19 @@ export async function analyzePerformance(
             topPatterns: [],
             conversionRate: 0,
             bestConvertingTypes: [],
+        }
+    }
+
+    // Pre-fetch post type names for ID resolution
+    const typeIds = [...new Set(postedPosts.map(p => p.post_type_id).filter(Boolean))]
+    const postTypeNameMap: Record<string, string> = {}
+    if (typeIds.length > 0) {
+        const { data: postTypes } = await supabase
+            .from("ig_post_types")
+            .select("id, name")
+            .in("id", typeIds)
+        for (const pt of postTypes || []) {
+            postTypeNameMap[pt.id] = pt.name
         }
     }
 
@@ -140,7 +143,7 @@ export async function analyzePerformance(
     // Per-pillar analysis
     const pillarData: Record<string, typeof scored> = Object.fromEntries(Object.keys(config.contentPillars).map(k => [k, []]))
     for (const p of scored) {
-        const pillar = p.content_pillar || getPillarForType(getPostTypeNameById(p.post_type_id, postedPosts))
+        const pillar = p.content_pillar || getPillarForType(postTypeNameMap[p.post_type_id] || "unknown")
         if (pillarData[pillar]) pillarData[pillar].push(p)
     }
 

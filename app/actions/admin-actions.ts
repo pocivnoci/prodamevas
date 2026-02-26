@@ -674,6 +674,71 @@ export async function updateIGPostMetrics(
     return { success: !error }
 }
 
+// ─── Performance Insights (Neural Brand Engine MVP) ──────────────────
+
+export async function getPerformanceInsights(projectSlug: string = "mobilnamiru") {
+    try {
+        const { resolveClientId, loadConfig } = await import("@/instagram/configs")
+        const config = await loadConfig(projectSlug)
+        const clientId = await resolveClientId(projectSlug)
+
+        // Set active project for performance.ts queries
+        const { setActiveProject } = await import("@/instagram/service")
+        setActiveProject(clientId)
+        const { analyzePerformance } = await import("@/instagram/performance")
+
+        // Map post type name → pillar key
+        const getPillarForType = (typeName: string): string => {
+            if (!config.contentPillars) return "unknown"
+            for (const [key, pillar] of Object.entries(config.contentPillars)) {
+                if ((pillar as any).postTypes?.includes(typeName)) return key
+            }
+            return "unknown"
+        }
+
+        const insights = await analyzePerformance(config, getPillarForType)
+
+        // Fetch posted/ready posts with metrics for the manual input table
+        const { data: posts } = await supabaseAdmin
+            .from("ig_posts")
+            .select(`
+                id, caption, image_url, status, likes, comments, saves,
+                reach, shares, profile_visits, link_clicks, content_pillar,
+                posted_at, created_at,
+                ig_post_types ( name, display_name, emoji )
+            `)
+            .eq("client_id", clientId)
+            .in("status", ["posted", "ready"])
+            .order("created_at", { ascending: false })
+            .limit(30)
+
+        // Pillar labels for UI
+        const pillarLabels: Record<string, { emoji: string; label: string }> = {}
+        if (config.contentPillars) {
+            for (const [key, pillar] of Object.entries(config.contentPillars)) {
+                pillarLabels[key] = { emoji: (pillar as any).emoji || "📊", label: (pillar as any).label || key }
+            }
+        }
+
+        return { insights, posts: posts || [], pillarLabels }
+    } catch (err: any) {
+        console.error("getPerformanceInsights error:", err?.message || err)
+        return {
+            insights: {
+                bestPostTypes: [],
+                bestHooks: [],
+                bestTimeSlots: [],
+                avgEngagement: 0,
+                topPatterns: [],
+                conversionRate: 0,
+                bestConvertingTypes: [],
+            },
+            posts: [],
+            pillarLabels: {},
+        }
+    }
+}
+
 // ─── Delete Submission ───────────────────────────────────────────────
 
 export async function deleteSubmission(id: string): Promise<{ success: boolean; error?: string }> {

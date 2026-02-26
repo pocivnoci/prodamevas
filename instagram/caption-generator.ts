@@ -9,6 +9,7 @@ import type { ClientConfig, PostFormat } from "./configs/types"
 import type { PostType, PostIdea, Review } from "./types"
 import type { HookTemplate } from "./types"
 import type { PerformanceInsight } from "./performance"
+import { getPillarForType, createPillarMapper } from "./service"
 
 // ============================================
 // COSTS
@@ -42,16 +43,7 @@ export const getReelDuration = (_typeName: string) => 8
 
 export const IDEA_COOLDOWN_DAYS = 90
 
-// ============================================
-// CONFIG-DRIVEN HELPERS
-// ============================================
 
-export function getPillarForType(config: ClientConfig, typeName: string): string {
-    for (const [pillar, pillarConfig] of Object.entries(config.contentPillars)) {
-        if (pillarConfig.postTypes.includes(typeName)) return pillar
-    }
-    return Object.keys(config.contentPillars)[0]
-}
 
 export function getToneDescription(config: ClientConfig, postType: string): string {
     const tone = config.brandVoice.toneByPostType[postType]
@@ -251,7 +243,7 @@ export function buildSmartWeekPlan(config: ClientConfig, performance: Performanc
         plan.push(config.weekPlan[plan.length % config.weekPlan.length])
     }
 
-    const _getPillarForType = (t: string) => getPillarForType(config, t)
+    const _getPillarForType = createPillarMapper(config)
     const byPillar: Record<string, string[]> = Object.fromEntries(Object.keys(config.contentPillars).map(k => [k, []]))
     for (const type of plan) {
         const pillar = _getPillarForType(type)
