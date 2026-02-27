@@ -46,6 +46,7 @@ export interface DesignConcept {
     placement: string
     colors: string[]
     style: string
+    suggestedTexts: string[]
 }
 
 // ============================================
@@ -90,8 +91,9 @@ const DESIGN_CONCEPT_SCHEMA = {
         placement: { type: Type.STRING, description: "Kde bude design: front, back, chest pocket, full-print, all-over" },
         colors: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Hlavní barvy designu" },
         style: { type: Type.STRING, description: "Styl: minimalist, bold graphic, vintage, neon, line art, atd." },
+        suggestedTexts: { type: Type.ARRAY, items: { type: Type.STRING }, description: "5 krátkých vtipných textů/sloganů ke zvolenému tématu — on-brand humor, wordplay, max 5 slov každý. Česky nebo anglicky podle brandu." },
     },
-    required: ["name", "description", "designPrompt", "placement", "colors", "style"],
+    required: ["name", "description", "designPrompt", "placement", "colors", "style", "suggestedTexts"],
 }
 
 // ============================================
@@ -209,9 +211,11 @@ Generuj PŘESNĚ ${count} nápadů.`
 export async function generateDesignConcept(
     config: ClientConfig,
     theme: string,
-    productType: string = "triko"
+    productType: string = "triko",
+    options: { includeLogo?: boolean; overlayText?: string } = {}
 ): Promise<{ concept: DesignConcept; designUrl: string } | null> {
     const bv = config.brandVoice
+    const { includeLogo = false, overlayText } = options
 
     // Product-type specific design instructions
     const productDesignGuides: Record<string, string> = {
@@ -259,6 +263,12 @@ ${isClothing ? `2. Promysli placement (front/back/chest/all-over)
 4. Produkt musí vypadat jako REÁLNÝ, vyrobitelný item`}
 5. Vytvoř detailní ANGLICKÝ prompt pro AI image generator
 6. Think like a product designer — premium, innovative, iconic
+7. V poli "suggestedTexts" navrhni 5 krátkých vtipných textů/sloganů k tomuto tématu:
+   - Max 5 slov každý
+   - On-brand humor, wordplay, dvojsmysly
+   - Mix česky a anglicky
+   - Musí sedět k tématu "${theme}" a brandu "${config.name}"
+   - Příklady stylů: drzé hlášky, memes, streetwear slogany, provokativní nápisy
 
 Vrať POUZE validní JSON.`
 
@@ -277,17 +287,69 @@ Vrať POUZE validní JSON.`
         console.log(`   📐 Style: ${concept.style}`)
         console.log(`   🎨 Colors: ${concept.colors.join(", ")}`)
         console.log(`   📍 Placement: ${concept.placement}`)
+        console.log(`   ✍️ Texty: ${(concept.suggestedTexts || []).join(" | ")}`)
 
-        // Step 2: Generate image with Imagen 4 Ultra
-        console.log("\n🎨 Generuji design (Imagen 4 Ultra)...")
+        // Step 2: Generate image
+        console.log("\n🎨 Generuji design...")
 
         const imageSuffix = isClothing
-            ? "Isolated design on solid black background. Print-ready vector art style, high contrast, clean sharp edges, no text, streetwear graphic design, professional DTG print quality. Single centered composition."
+            ? "Isolated design on solid black background. Print-ready vector art style, high contrast, clean sharp edges, streetwear graphic design, professional DTG print quality. Single centered composition."
             : "Product photography, studio lighting, clean dark background, photorealistic, premium quality, detailed materials and textures visible, professional product shot."
 
-        const imagePrompt = `${concept.designPrompt}. ${imageSuffix}`
+        // Build text overlay instruction for the prompt
+        const textInstruction = overlayText
+            ? ` Include the text "${overlayText}" as a bold, stylized typographic element integrated into the design composition — the text should feel like a natural part of the artwork, not a separate label.`
+            : ""
 
-        const imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
+        let imageBuffer: Buffer
+
+        if (includeLogo && config.logoFile) {
+            // Load logo and use generateImageWithReferences
+            console.log(`   🏷️ Logo mode — načítám ${config.logoFile}...`)
+            const { join } = await import('path')
+            const { readFile } = await import('fs/promises')
+
+            let logoBuffer: Buffer | null = null
+            try {
+                const assetsDir = join(process.cwd(), 'instagram', 'assets')
+                const logoPath = join(assetsDir, config.logoFile)
+                logoBuffer = await readFile(logoPath)
+                console.log(`   ✓ Logo načteno (${(logoBuffer.length / 1024).toFixed(0)} KB)`)
+            } catch (logoErr: any) {
+                console.warn(`   ⚠️ Logo nenalezeno (${config.logoFile}): ${logoErr.message}`)
+            }
+
+            if (logoBuffer) {
+                const imagePrompt = `${concept.designPrompt}.${textInstruction} ${imageSuffix}
+DESIGN RULES:
+- An image of the brand logo is provided as a reference. Naturally integrate this EXACT logo into the design composition.
+- The logo should feel like an organic part of the artwork — embossed, stamped, spray-painted, or stylized to match the design aesthetic.
+- Keep the logo clearly recognizable but creatively integrated.
+- Do NOT just slap it on top — make it part of the art.`
+
+                try {
+                    imageBuffer = await generateImageWithReferences(
+                        imagePrompt,
+                        [{ buffer: logoBuffer, mimeType: "image/png" }],
+                        { aspectRatio: "1:1" }
+                    )
+                    console.log(`   ✓ Design s logem vygenerován (Nano Banana Pro)`)
+                } catch (refErr: any) {
+                    console.warn(`   ⚠️ Reference gen selhalo (${refErr.message}), fallback na Imagen...`)
+                    const fallbackPrompt = `${concept.designPrompt}.${textInstruction} ${imageSuffix}`
+                    imageBuffer = await generateImage(fallbackPrompt, { aspectRatio: "1:1" })
+                }
+            } else {
+                // Logo file not found — proceed without it
+                const imagePrompt = `${concept.designPrompt}.${textInstruction} ${imageSuffix}`
+                imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
+            }
+        } else {
+            // Standard Imagen 4 Ultra generation (no logo)
+            const imagePrompt = `${concept.designPrompt}.${textInstruction} ${imageSuffix}`
+            console.log(`   🖼️ Imagen 4 Ultra...`)
+            imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
+        }
 
         // Upload to Supabase Storage
         const safeName = concept.name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "").slice(0, 30)

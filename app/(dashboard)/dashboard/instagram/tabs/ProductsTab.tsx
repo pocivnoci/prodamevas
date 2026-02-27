@@ -49,6 +49,9 @@ export function ProductsTab({ projectId }: { projectId: string }) {
     const [designTheme, setDesignTheme] = useState("")
     const [designProductType, setDesignProductType] = useState("triko")
     const [designResult, setDesignResult] = useState<{ concept: DesignConcept; designUrl: string } | null>(null)
+    const [designIncludeLogo, setDesignIncludeLogo] = useState(false)
+    const [designOverlayText, setDesignOverlayText] = useState("")
+    const [designConceptOnly, setDesignConceptOnly] = useState<DesignConcept | null>(null)
 
     // Mockup state
     const [mockupDesignUrl, setMockupDesignUrl] = useState("")
@@ -173,12 +176,46 @@ export function ProductsTab({ projectId }: { projectId: string }) {
         }
     }
 
-    // ── Design Handler ────────────────────────────────────
-    const handleGenerateDesign = async () => {
+    // ── Design Handler (two-step: concept → image) ────────────
+    const handleGenerateDesignConcept = async () => {
         if (!designTheme.trim()) {
             setError("Zadej téma designu")
             return
         }
+        setLoading(true)
+        setError(null)
+        setDesignConceptOnly(null)
+        setDesignResult(null)
+        setDesignOverlayText("")
+        try {
+            const result = await triggerDesignGeneration({
+                configName: projectId,
+                theme: designTheme,
+                productType: designProductType,
+                includeLogo: designIncludeLogo,
+                overlayText: "", // Step 1: no text yet, just get concept + suggestions
+            })
+            if (result.success && result.concept) {
+                setDesignConceptOnly(result.concept)
+                // Also set the designUrl if available (concept was generated with image)
+                if (result.designUrl) {
+                    setDesignResult({ concept: result.concept, designUrl: result.designUrl })
+                    setMockupDesignUrl(result.designUrl)
+                    setMockupDescription(result.concept.description)
+                    setMockupProductType(designProductType)
+                }
+            } else {
+                setError(result.error || "Generování selhalo")
+            }
+        } catch (err: any) {
+            setError(err.message)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleRegenerateWithText = async () => {
+        if (!designConceptOnly) return
         setLoading(true)
         setError(null)
         try {
@@ -186,10 +223,11 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                 configName: projectId,
                 theme: designTheme,
                 productType: designProductType,
+                includeLogo: designIncludeLogo,
+                overlayText: designOverlayText || undefined,
             })
             if (result.success && result.concept && result.designUrl) {
                 setDesignResult({ concept: result.concept, designUrl: result.designUrl })
-                // Auto-fill mockup with this design
                 setMockupDesignUrl(result.designUrl)
                 setMockupDescription(result.concept.description)
                 setMockupProductType(designProductType)
@@ -663,7 +701,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                 <input
                                     value={designTheme}
                                     onChange={(e) => setDesignTheme(e.target.value)}
-                                    placeholder="skull and roses, abstract streetwear..."
+                                    placeholder="je ok mít adhd/koho, drogy, holky, dolary! vtipné"
                                     className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-medium placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all"
                                 />
                             </div>
@@ -679,7 +717,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                             </div>
                             <div className="flex items-end">
                                 <button
-                                    onClick={handleGenerateDesign}
+                                    onClick={handleGenerateDesignConcept}
                                     disabled={loading || !designTheme.trim()}
                                     className="w-full px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-sm text-[10px] uppercase font-black tracking-widest border border-white/20 transition-all disabled:opacity-50 shadow-sm"
                                 >
@@ -687,7 +725,71 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                 </button>
                             </div>
                         </div>
+
+                        {/* Logo toggle */}
+                        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-white/5">
+                            <button
+                                onClick={() => setDesignIncludeLogo(!designIncludeLogo)}
+                                className={`flex items-center gap-2 px-3 py-2 rounded-sm text-[9px] uppercase tracking-widest font-bold transition-all border ${designIncludeLogo
+                                    ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                                    : "bg-white/5 text-white/40 border-white/10 hover:bg-white/10 hover:text-white/60"
+                                    }`}
+                            >
+                                <span>{designIncludeLogo ? "✓" : "○"}</span>
+                                <span>🏷️ Zakomponovat logo</span>
+                            </button>
+                            <span className="text-[8px] text-white/25 uppercase tracking-widest">AI kreativně zakomponuje brand logo do designu</span>
+                        </div>
                     </div>
+
+                    {/* ── Step 2: Text selection (after concept generated) ── */}
+                    {designConceptOnly && designConceptOnly.suggestedTexts && designConceptOnly.suggestedTexts.length > 0 && (
+                        <div className="bg-[#0a0a0a] border border-amber-500/20 rounded-sm p-6 shadow-sm">
+                            <h4 className="text-[10px] uppercase tracking-[0.3em] font-black text-amber-400 mb-4">✍️ Vyber text na design — nebo napiš vlastní</h4>
+
+                            {/* Suggested text chips */}
+                            <div className="flex flex-wrap gap-2 mb-4">
+                                <button
+                                    onClick={() => setDesignOverlayText("")}
+                                    className={`px-3 py-2 rounded-sm text-[9px] uppercase tracking-widest font-bold transition-all border ${!designOverlayText
+                                        ? "bg-white/10 text-white border-white/20"
+                                        : "bg-white/5 text-white/40 border-white/10 hover:bg-white/10 hover:text-white/60"
+                                        }`}
+                                >
+                                    🚫 Bez textu
+                                </button>
+                                {designConceptOnly.suggestedTexts.map((text, i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => setDesignOverlayText(text)}
+                                        className={`px-3 py-2 rounded-sm text-[10px] font-bold transition-all border ${designOverlayText === text
+                                            ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                                            : "bg-white/5 text-white/60 border-white/10 hover:bg-amber-500/10 hover:text-amber-400 hover:border-amber-500/20"
+                                            }`}
+                                    >
+                                        &ldquo;{text}&rdquo;
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Custom text input */}
+                            <div className="flex gap-3">
+                                <input
+                                    value={designOverlayText}
+                                    onChange={(e) => setDesignOverlayText(e.target.value)}
+                                    placeholder="Nebo napiš vlastní text..."
+                                    className="flex-1 px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-sm font-medium placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all"
+                                />
+                                <button
+                                    onClick={handleRegenerateWithText}
+                                    disabled={loading}
+                                    className="px-6 py-3 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 rounded-sm text-[10px] font-black uppercase tracking-widest text-amber-400 transition-all disabled:opacity-50 whitespace-nowrap shadow-sm"
+                                >
+                                    {designOverlayText ? "🔄 Přegenerovat s textem" : "🔄 Přegenerovat design"}
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Design result */}
                     {designResult && (

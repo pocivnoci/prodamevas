@@ -35,7 +35,31 @@ export async function middleware(request: NextRequest) {
 
         const {
             data: { user },
+            error,
         } = await supabase.auth.getUser()
+
+        // Handle invalid refresh token — clear session cookies so the user
+        // can log in again cleanly instead of being stuck with a broken session.
+        if (error && error.message?.includes('Refresh Token')) {
+            console.warn('Middleware: Invalid refresh token detected, clearing session.')
+            // Delete all Supabase auth cookies
+            const cookiesToClear = request.cookies.getAll()
+                .filter(c => c.name.startsWith('sb-'))
+            cookiesToClear.forEach(c => {
+                supabaseResponse.cookies.set(c.name, '', { maxAge: 0, path: '/' })
+            })
+
+            if (
+                request.nextUrl.pathname.startsWith('/dashboard') ||
+                request.nextUrl.pathname.startsWith('/onboarding')
+            ) {
+                const url = request.nextUrl.clone()
+                url.pathname = '/login'
+                return NextResponse.redirect(url)
+            }
+
+            return supabaseResponse
+        }
 
         if (
             !user &&

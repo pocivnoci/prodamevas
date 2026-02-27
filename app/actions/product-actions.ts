@@ -48,11 +48,16 @@ export async function triggerDesignGeneration(options: {
     theme: string
     productType?: string
     ideaId?: string
+    includeLogo?: boolean
+    overlayText?: string
 }): Promise<{ success: boolean; concept?: DesignConcept; designUrl?: string; error?: string }> {
     try {
         const config = await loadConfig(options.configName)
         const result = await withRetry(
-            () => generateDesignConcept(config, options.theme, options.productType || "triko"),
+            () => generateDesignConcept(config, options.theme, options.productType || "triko", {
+                includeLogo: options.includeLogo,
+                overlayText: options.overlayText,
+            }),
             1,
             "Design generation"
         )
