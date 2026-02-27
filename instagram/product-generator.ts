@@ -334,8 +334,8 @@ export async function generateProductDesign(
 
     if (config.logoFile) {
         try {
-            const fontsDir = join(process.cwd(), 'instagram', 'fonts')
-            const logoPath = join(fontsDir, config.logoFile)
+            const assetsDir = join(process.cwd(), 'instagram', 'assets')
+            const logoPath = join(assetsDir, config.logoFile)
             logoBuffer = await readFile(logoPath)
             console.log(`   🏷️ Logo načteno pro integraci (${config.logoFile})`)
         } catch (err: any) {

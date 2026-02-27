@@ -14,6 +14,12 @@ export interface ClientMeta {
     description: string
 }
 
+// ─── Super-admin check (from ENV, not hardcoded) ─────────────────────
+function isSuperAdmin(email: string | undefined): boolean {
+    const admins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean)
+    return admins.includes(email || "")
+}
+
 // ─── Caches ──────────────────────────────────────────────────────────
 // Avoid repeated lookups in the same process lifecycle.
 
@@ -61,8 +67,7 @@ export async function getAvailableClients(): Promise<ClientMeta[]> {
         .eq("is_active", true)
 
     if (user) {
-        const isSuperAdmin = ["honza.poc@gmail.com", "hanzfans.cz@gmail.com", "honza@hanzfans.cz"].includes(user.email || "")
-        if (!isSuperAdmin) {
+        if (!isSuperAdmin(user.email)) {
             query = query.eq("user_id", user.id)
         }
     } else {
@@ -95,8 +100,7 @@ export async function getAvailableConfigNames(): Promise<string[]> {
         .eq("is_active", true)
 
     if (user) {
-        const isSuperAdmin = ["honza.poc@gmail.com", "hanzfans.cz@gmail.com", "honza@hanzfans.cz"].includes(user.email || "")
-        if (!isSuperAdmin) {
+        if (!isSuperAdmin(user.email)) {
             query = query.eq("user_id", user.id)
         }
     } else {

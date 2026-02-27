@@ -13,39 +13,7 @@ import { loadConfig, resolveClientId } from "@/instagram/configs"
 
 export { type ProductIdea, type DesignConcept }
 
-// ============================================
-// RETRY WRAPPER — auto-heal on transient errors
-// ============================================
-async function withRetry<T>(
-    fn: () => Promise<T>,
-    maxRetries = 2,
-    label = "operation"
-): Promise<T> {
-    const retryableErrors = [
-        "503", "UNAVAILABLE", "overloaded", "high demand",
-        "ECONNRESET", "ETIMEDOUT", "fetch failed",
-        "socket hang up", "network",
-    ]
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        try {
-            return await fn()
-        } catch (err: any) {
-            const msg = String(err?.message || err)
-            const isRetryable = retryableErrors.some(e => msg.toLowerCase().includes(e.toLowerCase()))
-
-            if (!isRetryable || attempt >= maxRetries) {
-                throw err
-            }
-
-            const delay = (attempt + 1) * 5000 // 5s, 10s
-            console.log(`⏳ ${label}: retry ${attempt + 1}/${maxRetries} za ${delay / 1000}s (${msg.substring(0, 80)})...`)
-            await new Promise(r => setTimeout(r, delay))
-        }
-    }
-
-    throw new Error("withRetry: unreachable")
-}
+import { withRetry } from "@/utils/retry"
 
 // ============================================
 // PRODUCT GENERATION ACTIONS
@@ -295,5 +263,87 @@ export async function rejectProductIdea(configName: string, idea: Omit<ProductId
     } catch (err: any) {
         console.error("rejectProductIdea error:", err)
         return { success: false, error: err.message || "Failed to reject idea" }
+    }
+}
+
+// ============================================
+// PRODUCT REFERENCE UPLOAD (replaces client-side supabase.storage)
+// ============================================
+
+export async function uploadProductReference(
+    projectId: string,
+    ideaId: string,
+    formData: FormData
+): Promise<{ success: boolean; publicUrl?: string; error?: string }> {
+    try {
+        const file = formData.get("file") as File
+        if (!file) return { success: false, error: "No file provided" }
+
+        const fileName = `${projectId}_${ideaId}_${Date.now()}`
+        const arrayBuffer = await file.arrayBuffer()
+        const buffer = Buffer.from(arrayBuffer)
+
+        const { error } = await supabaseAdmin.storage
+            .from("product-references")
+            .upload(fileName, buffer, {
+                cacheControl: "3600",
+                upsert: false,
+                contentType: file.type,
+            })
+
+        if (error) throw error
+
+        const { data: publicUrlData } = supabaseAdmin.storage
+            .from("product-references")
+            .getPublicUrl(fileName)
+
+        return { success: true, publicUrl: publicUrlData.publicUrl }
+    } catch (err: any) {
+        console.error("uploadProductReference error:", err)
+        return { success: false, error: err.message || "Upload failed" }
+    }
+}
+
+// ============================================
+// FETCH SAVED PRODUCT IDEAS (replaces client-side supabase query)
+// ============================================
+
+export async function getSavedProductIdeas(projectId: string): Promise<ProductIdea[]> {
+    try {
+        const clientId = await resolveClientId(projectId)
+
+        const { data, error } = await supabaseAdmin
+            .from("ig_product_ideas")
+            .select("*")
+            .eq("client_id", clientId)
+            .eq("status", "saved")
+            .order("created_at", { ascending: false })
+
+        if (error) throw error
+        if (!data) return []
+
+        return data.map(row => ({
+            id: row.id,
+            client_id: row.client_id,
+            name: row.name,
+            brandingNames: row.branding_names || [],
+            type: row.type,
+            tagline: row.tagline,
+            description: row.description,
+            material: row.material,
+            dimensions: row.dimensions,
+            manufacturingMethod: row.manufacturing_method,
+            priceRange: row.price_range,
+            viralAngle: row.viral_angle,
+            whyItWorks: row.why_it_works,
+            productionNotes: row.production_notes,
+            designPrompt: row.design_prompt,
+            status: row.status as "saved" | "review" | "rejected",
+            created_at: row.created_at,
+            design_url: row.design_url,
+        }))
+    } catch (err: any) {
+        console.error("getSavedProductIdeas error:", err)
+        return []
     }
 }

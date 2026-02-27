@@ -18,7 +18,6 @@
  *   npx tsx instagram/autopilot.ts --stats                 # show what works
  */
 
-import supabase from "../supabase/client"
 import supabaseAdmin from "../supabase/admin"
 import { generateText, generateImage, generateImageWithReferences, generateVideo } from "./gemini-client"
 import { overlayText } from "./text-overlay"
@@ -87,7 +86,7 @@ async function ensureConfig(configName?: string): Promise<void> {
 // ============================================
 
 async function getUsedIdeaIds(): Promise<Set<string>> {
-    const { data } = await supabase
+    const { data } = await supabaseAdmin
         .from("ig_posts")
         .select("idea_id")
         .eq("client_id", getActiveProject())
@@ -745,7 +744,7 @@ async function recordFeedback() {
     console.log("📊 FEEDBACK — Zaznamenat výkon postů")
     console.log("═".repeat(60))
 
-    const { data: posts } = await supabase
+    const { data: posts } = await supabaseAdmin
         .from("ig_posts")
         .select("*")
         .eq("status", "posted")
@@ -785,7 +784,7 @@ async function showStats() {
     console.log("📈 STATISTIKY — Co funguje?")
     console.log("═".repeat(60))
 
-    const { data: allPosts } = await supabase
+    const { data: allPosts } = await supabaseAdmin
         .from("ig_posts")
         .select("*")
         .eq("client_id", getActiveProject())

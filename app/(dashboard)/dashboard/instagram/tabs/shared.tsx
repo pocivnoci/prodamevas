@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { updateIGPostMetrics } from "@/app/actions/admin-actions"
+import type { IGPost } from "./types"
 
 export function CopyButton({ onClick, copied, label }: { onClick: () => void; copied: boolean; label?: string }) {
     return (
@@ -73,7 +74,7 @@ export function MetricInput({ label, value, onChange }: { label: string; value: 
     )
 }
 
-export function MetricsInputForm({ post, onUpdate }: { post: any; onUpdate: () => void }) {
+export function MetricsInputForm({ post, onUpdate }: { post: IGPost; onUpdate: () => void }) {
     const [metrics, setMetrics] = useState({
         likes: post.likes || 0,
         comments: post.comments || 0,

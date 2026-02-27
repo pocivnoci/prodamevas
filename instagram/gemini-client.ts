@@ -41,25 +41,10 @@ const ai = new Proxy({} as GoogleGenAI, {
 })
 
 // ============================================
-// RETRY LOGIC (for 503 rate limiting)
+// RETRY LOGIC — from shared utility
 // ============================================
 
-async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
-    const delays = [10000, 30000, 60000] // 10s, 30s, 60s
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        try {
-            return await fn()
-        } catch (err: any) {
-            const msg = err?.message || String(err)
-            const isRetryable = msg.includes("503") || msg.includes("high demand") || msg.includes("UNAVAILABLE") || msg.includes("overloaded")
-            if (!isRetryable || attempt >= maxRetries) throw err
-            const delay = delays[attempt] || 60000
-            console.log(`   ⏳ API overloaded — retry ${attempt + 1}/${maxRetries} za ${delay / 1000}s...`)
-            await new Promise(r => setTimeout(r, delay))
-        }
-    }
-    throw new Error("withRetry: should not reach here")
-}
+import { withRetry } from "../utils/retry"
 
 // ============================================
 // TEXT GENERATION (Gemini 3.1 Pro)

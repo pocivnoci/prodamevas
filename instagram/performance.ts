@@ -1,4 +1,4 @@
-import supabase from "../supabase/client"
+import supabase from "../supabase/admin"
 import { getActiveProject } from "./service"
 import type { ClientConfig } from "./configs/types"
 

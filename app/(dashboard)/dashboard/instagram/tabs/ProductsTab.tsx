@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { motion } from "framer-motion"
-import supabase from "@/supabase/client"
 import {
     triggerProductIdeas,
     triggerDesignGeneration,
@@ -11,6 +10,8 @@ import {
     triggerCustomProductDesign,
     saveProductIdea,
     rejectProductIdea,
+    uploadProductReference,
+    getSavedProductIdeas,
     type ProductIdea,
     type DesignConcept,
 } from "@/app/actions/product-actions"
@@ -72,46 +73,18 @@ export function ProductsTab({ projectId }: { projectId: string }) {
 
     // ── Ideas Handler ─────────────────────────────────────
     const fetchSavedIdeas = useCallback(async () => {
-        const { data } = await supabase
-            .from("ig_product_ideas")
-            .select("*")
-            .eq("status", "saved")
-            .order("created_at", { ascending: false })
+        const ideas = await getSavedProductIdeas(projectId)
+        setSavedIdeas(ideas)
 
-        if (data) {
-            // Map the snake_case DB fields back to the camelCase ProductIdea interface
-            const mappedIdeas = data.map(row => ({
-                id: row.id,
-                client_id: row.client_id,
-                name: row.name,
-                brandingNames: row.branding_names || [],
-                type: row.type,
-                tagline: row.tagline,
-                description: row.description,
-                material: row.material,
-                dimensions: row.dimensions,
-                manufacturingMethod: row.manufacturing_method,
-                priceRange: row.price_range,
-                viralAngle: row.viral_angle,
-                whyItWorks: row.why_it_works,
-                productionNotes: row.production_notes,
-                designPrompt: row.design_prompt,
-                status: row.status as "saved" | "review" | "rejected",
-                created_at: row.created_at
-            }))
-
-            setSavedIdeas(mappedIdeas)
-
-            // Pre-populate ideaVisuals from DB-persisted URLs
-            const visuals: Record<string, string> = {}
-            for (const row of data) {
-                if (row.design_url) visuals[row.id] = row.design_url
-            }
-            if (Object.keys(visuals).length > 0) {
-                setIdeaVisuals(prev => ({ ...prev, ...visuals }))
-            }
+        // Pre-populate ideaVisuals from DB-persisted URLs
+        const visuals: Record<string, string> = {}
+        for (const idea of ideas) {
+            if ((idea as any).design_url) visuals[idea.id as string] = (idea as any).design_url
         }
-    }, [])
+        if (Object.keys(visuals).length > 0) {
+            setIdeaVisuals(prev => ({ ...prev, ...visuals }))
+        }
+    }, [projectId])
 
     useEffect(() => {
         if (section === "ideas") {
@@ -165,18 +138,13 @@ export function ProductsTab({ projectId }: { projectId: string }) {
         setError(null)
 
         try {
-            const fileName = `${projectId}_${ideaId}_${Date.now()}`
-            const { data, error } = await supabase.storage
-                .from("product-references")
-                .upload(fileName, file, { cacheControl: "3600", upsert: false })
+            const formData = new FormData()
+            formData.append("file", file)
 
-            if (error) throw error
+            const result = await uploadProductReference(projectId, ideaId, formData)
+            if (!result.success) throw new Error(result.error || "Upload failed")
 
-            const { data: publicUrlData } = supabase.storage
-                .from("product-references")
-                .getPublicUrl(fileName)
-
-            setReferenceUrls(prev => ({ ...prev, [ideaId]: publicUrlData.publicUrl }))
+            setReferenceUrls(prev => ({ ...prev, [ideaId]: result.publicUrl! }))
         } catch (err: any) {
             setError(`Chyba uploadu: ${err.message}`)
         } finally {

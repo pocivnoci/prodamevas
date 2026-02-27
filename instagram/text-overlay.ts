@@ -39,6 +39,9 @@ function resolveFontsDir(): string {
 
 const fontsDir = resolveFontsDir()
 
+// ─── Assets directory (logos, watermarks) ────────────────────
+const assetsDir = join(fontsDir, "..", "assets")
+
 // ─── Font Registry ──────────────────────────────────────────
 // Load all available fonts at startup — Satori needs raw ArrayBuffer data
 
@@ -77,7 +80,7 @@ interface TextOverlayOptions {
     height?: number
     /** Gradient colors for brand overlay (default: dark neutral) */
     gradientColors?: { topColor: string; midColor: string; bottomColor: string }
-    /** Logo watermark filename in fonts/ dir (default: none) */
+    /** Logo watermark filename in assets/ dir (default: none) */
     logoFile?: string
     /** Font family override — must match a loaded font name (default: "Inter") */
     fontFamily?: string
@@ -228,7 +231,7 @@ export async function overlayText(
 
         if (logoFile) {
             try {
-                const logoPngPath = join(fontsDir, logoFile)
+                const logoPngPath = join(assetsDir, logoFile)
                 if (existsSync(logoPngPath)) {
                     logoBuffer = await sharp(readFileSync(logoPngPath))
                         .resize(logoWidth, logoHeight, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })

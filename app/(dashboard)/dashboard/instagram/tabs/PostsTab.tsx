@@ -5,17 +5,19 @@ import { createPortal } from "react-dom"
 import { motion } from "framer-motion"
 import { getIGPostsList, updateIGPostStatus } from "@/app/actions/admin-actions"
 import { LoadingSpinner, StatusBadge, PillarBadge, CopyButton, MetricsInputForm } from "./shared"
+import { useCopyToClipboard } from "./hooks"
+import type { IGPost } from "./types"
 
 // ═══════════════════════════════════════════════════════════
 // POSTS TAB  (with detail modal + copy/download)
 // ═══════════════════════════════════════════════════════════
 
 export function PostsTab({ projectId }: { projectId: string }) {
-    const [posts, setPosts] = useState<any[]>([])
+    const [posts, setPosts] = useState<IGPost[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [statusFilter, setStatusFilter] = useState("all")
-    const [selectedPost, setSelectedPost] = useState<any | null>(null)
+    const [selectedPost, setSelectedPost] = useState<IGPost | null>(null)
 
     const loadPosts = async () => {
         if (!projectId) return
@@ -25,7 +27,6 @@ export function PostsTab({ projectId }: { projectId: string }) {
             const data = await getIGPostsList(statusFilter, projectId)
             setPosts(data)
         } catch (err: any) {
-            console.error("loadPosts error:", err)
             setError(err?.message || "Nepodařilo se načíst příspěvky")
             setPosts([])
         }
@@ -166,11 +167,11 @@ function PostDetailModal({
     onClose,
     onStatusChange,
 }: {
-    post: any
+    post: IGPost
     onClose: () => void
     onStatusChange: (postId: string, status: string) => void
 }) {
-    const [copiedField, setCopiedField] = useState<string | null>(null)
+    const { copiedField, copyToClipboard } = useCopyToClipboard()
 
     // Lock ALL scroll containers when modal is open
     useEffect(() => {
@@ -186,12 +187,6 @@ function PostDetailModal({
             document.body.style.overflow = originalBodyOverflow
             if (mainEl) mainEl.style.overflow = originalMainOverflow
         }
-    }, [])
-
-    const copyToClipboard = useCallback(async (text: string, field: string) => {
-        await navigator.clipboard.writeText(text)
-        setCopiedField(field)
-        setTimeout(() => setCopiedField(null), 2000)
     }, [])
 
     const downloadImage = useCallback(async () => {
@@ -317,7 +312,7 @@ function PostDetailModal({
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Image Prompt</span>
                                         <CopyButton
-                                            onClick={() => copyToClipboard(post.image_prompt, "prompt")}
+                                            onClick={() => copyToClipboard(post.image_prompt || "", "prompt")}
                                             copied={copiedField === "prompt"}
                                         />
                                     </div>

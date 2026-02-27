@@ -8,11 +8,13 @@ import {
     getIGCategories,
 } from "@/app/actions/admin-actions"
 import { type GenerateResult } from "@/app/actions/ig-generate-action"
+import { useCopyToClipboard } from "./hooks"
+import type { IGPostType, IGCategory, IGPostFormat } from "./types"
 
 export function GenerateTab({ projectId }: { projectId: string }) {
-    const [postTypes, setPostTypes] = useState<any[]>([])
-    const [postFormats, setPostFormats] = useState<Record<string, { aspectRatio: string; medium: string; overlayStyle: string }>>({})
-    const [categories, setCategories] = useState<{ id: string; emoji: string; label: string }[]>([])
+    const [postTypes, setPostTypes] = useState<IGPostType[]>([])
+    const [postFormats, setPostFormats] = useState<Record<string, IGPostFormat>>({})
+    const [categories, setCategories] = useState<IGCategory[]>([])
     const [selectedType, setSelectedType] = useState("")
     const [topic, setTopic] = useState("")
     const [category, setCategory] = useState("")
@@ -80,7 +82,6 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         })
                         // Auto-retry once on failure
                         if (!res.success && maxClientRetries > 0) {
-                            console.log(`⏳ Post ${i + 1} failed, auto-retrying...`)
                             await new Promise(r => setTimeout(r, 3000))
                             res = await triggerPostGeneration({
                                 configName: projectId,
@@ -126,7 +127,6 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                 })
                 // Auto-retry once on failure
                 if (!res.success && maxClientRetries > 0) {
-                    console.log("⏳ Generation failed, auto-retrying...")
                     await new Promise(r => setTimeout(r, 3000))
                     res = await triggerPostGeneration({
                         configName: projectId,
@@ -162,12 +162,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         setGenerating(false)
     }
 
-    const [copiedField, setCopiedField] = useState<string | null>(null)
-    const copyToClipboard = async (text: string, field: string) => {
-        await navigator.clipboard.writeText(text)
-        setCopiedField(field)
-        setTimeout(() => setCopiedField(null), 2000)
-    }
+    const { copiedField, copyToClipboard } = useCopyToClipboard()
 
     return (
         <div className="max-w-4xl mx-auto space-y-8 mt-2 pb-24">

@@ -23,40 +23,7 @@ export interface GenerateResult {
     retryCount?: number
 }
 
-// ============================================
-// RETRY WRAPPER — auto-heal on transient errors
-// ============================================
-
-async function withRetry<T>(
-    fn: () => Promise<T>,
-    maxRetries = 2,
-    label = "operation"
-): Promise<T> {
-    const retryableErrors = [
-        "503", "UNAVAILABLE", "overloaded", "high demand",
-        "ECONNRESET", "ETIMEDOUT", "fetch failed",
-        "socket hang up", "network",
-    ]
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        try {
-            return await fn()
-        } catch (err: any) {
-            const msg = String(err?.message || err)
-            const isRetryable = retryableErrors.some(e => msg.toLowerCase().includes(e.toLowerCase()))
-
-            if (!isRetryable || attempt >= maxRetries) {
-                throw err
-            }
-
-            const delay = (attempt + 1) * 5000 // 5s, 10s
-            console.log(`⏳ ${label}: retry ${attempt + 1}/${maxRetries} za ${delay / 1000}s (${msg.substring(0, 80)})...`)
-            await new Promise(r => setTimeout(r, delay))
-        }
-    }
-
-    throw new Error("withRetry: unreachable")
-}
+import { withRetry } from "@/utils/retry"
 
 // ============================================
 // SINGLE POST GENERATION
