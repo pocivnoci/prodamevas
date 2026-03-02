@@ -648,7 +648,7 @@ export async function generateOnePost(options: {
         await logGeneration({
             postId: post.id,
             promptUsed: megaPrompt.substring(0, 500),
-            modelUsed: "gemini-3.1-flash-preview + imagen-4.0-ultra",
+            modelUsed: "gemini-3-flash + imagen-4.0-ultra",
             generationTimeMs: Date.now() - startTime,
         })
 
