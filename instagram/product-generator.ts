@@ -409,7 +409,7 @@ export async function generateProductDesign(
         let imageBuffer: Buffer
 
         if (logoBuffer) {
-            // Generování přes Nano Banana Pro (gemini-3-pro-image-preview) 
+            // Generování přes Nano Banana 2 (gemini-3.1-flash-image-preview) 
             // Model vloží referenční logo přímo do 3D prostoru fotky!
             const imagePrompt = `${basePrompt}
 DESIGN RULES:
@@ -420,7 +420,7 @@ DESIGN RULES:
 - NO fake brand names like "Supreme" and NO textual labels or dimensions.
 - Style: single product centered, clean dark background, professional product photography.`
 
-            console.log(`🎨 Generuji kreativní produkt s integrovaným logem (Nano Banana Pro)...`)
+            console.log(`🎨 Generuji kreativní produkt s integrovaným logem (Nano Banana 2)...`)
 
             try {
                 // Posíláme logo jako jedinou referenci
