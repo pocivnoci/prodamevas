@@ -56,7 +56,7 @@ export async function generateText(
 ): Promise<string> {
     return withRetry(async () => {
         const response = await ai.models.generateContent({
-            model: "gemini-3.1-pro-preview",
+            model: "gemini-3.1-flash-preview",
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
@@ -165,8 +165,8 @@ export async function generateImageWithReferences(
 export async function detectLogoPlacementArea(imageBuffer: Buffer): Promise<{ x: number; y: number; w: number; h: number } | null> {
     return withRetry(async () => {
         const response = await ai.models.generateContent({
-            // Sjednoceno na gemini-3.1-pro-preview (původní gemini-1.5-pro házelo ve Vercelu 404)
-            model: "gemini-3.1-pro-preview",
+            // Sjednoceno na gemini-3.1-flash-preview (původní gemini-1.5-pro házelo ve Vercelu 404)
+            model: "gemini-3.1-flash-preview",
             contents: [
                 {
                     inlineData: {
