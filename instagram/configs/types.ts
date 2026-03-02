@@ -74,7 +74,7 @@ export interface OverlayGradient {
 
 // ─── Post Format ────────────────────────────────────────────
 
-export type AspectRatio = "1:1" | "3:4" | "4:3" | "9:16" | "16:9"
+export type AspectRatio = "1:1" | "4:5" | "3:4" | "4:3" | "9:16" | "16:9"
 export type PostMedium = "image" | "carousel" | "reel"
 export type OverlayStyle = "default" | "cover" | "step" | "minimal" | "none"
 

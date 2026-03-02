@@ -14,6 +14,7 @@ export async function POST(req: Request) {
                 type: body.type,
                 topic: body.topic,
                 dryRun: body.dryRun,
+                aspectRatio: body.aspectRatio,
             }),
             2,
             "Post generation API"

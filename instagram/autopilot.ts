@@ -105,6 +105,7 @@ export async function generateOnePost(options: {
     topic?: string
     dryRun?: boolean
     performance?: PerformanceInsight
+    aspectRatio?: string
 }): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number }> {
     await ensureConfig(options.configName)
     const config = CLIENT_CONFIG!
@@ -164,6 +165,11 @@ export async function generateOnePost(options: {
 
     // 5. Generate caption / video script / carousel
     const format = getPostFormat(config, selectedType.name)
+    // User override: if aspectRatio is provided, use it
+    if (options.aspectRatio) {
+        format.aspectRatio = options.aspectRatio as any
+        console.log(`   📐 Formát přepsán uživatelem: ${options.aspectRatio}`)
+    }
     const isReel = format.medium === "reel"
     const isCarousel = format.medium === "carousel"
     const postFormat = isReel ? "video script" : isCarousel ? "carousel" : "caption"
