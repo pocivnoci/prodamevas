@@ -72,7 +72,7 @@ REQUIREMENTS:
 OUTPUT: Single detailed English image generation prompt (2-3 sentences).
 `
         const response = await ai.models.generateContent({
-            model: "gemini-3-flash",
+            model: "gemini-3-flash-preview",
             contents: memePrompt,
         })
         const refined = response.candidates?.[0]?.content?.parts?.[0]?.text
@@ -106,7 +106,7 @@ The prompt should be 2-3 sentences.
 `
 
     const response = await ai.models.generateContent({
-        model: "gemini-3-flash",
+        model: "gemini-3-flash-preview",
         contents: refinementPrompt,
     })
 
@@ -155,7 +155,7 @@ Return a JSON array of exactly ${allSlides.length} strings.
 
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-3-flash",
+            model: "gemini-3-flash-preview",
             contents: refinementPrompt,
             config: { responseMimeType: "application/json" },
         })
@@ -221,7 +221,7 @@ Return a single detailed English video generation prompt (2-4 sentences).
 `
 
     const response = await ai.models.generateContent({
-        model: "gemini-3-flash",
+        model: "gemini-3-flash-preview",
         contents: refinementPrompt,
     })
 

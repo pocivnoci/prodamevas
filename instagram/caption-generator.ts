@@ -502,7 +502,7 @@ Hashtags: ${captionData.hashtags.join(", ")}
 
     try {
         const raw = await ai.models.generateContent({
-            model: "gemini-3-flash",
+            model: "gemini-3-flash-preview",
             contents: scorePrompt,
             config: { responseMimeType: "application/json" },
         })
