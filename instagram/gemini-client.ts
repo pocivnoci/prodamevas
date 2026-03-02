@@ -135,7 +135,7 @@ export async function generateImageWithReferences(
         }
 
         const response = await ai.models.generateContent({
-            model: "gemini-3-pro-image-preview",
+            model: "gemini-3.1-flash-image-preview",  // Nano Banana 2
             contents,
             config: {
                 responseModalities: ["IMAGE"],
@@ -148,27 +148,13 @@ export async function generateImageWithReferences(
         // Extract image from response parts
         const parts = response.candidates?.[0]?.content?.parts || []
 
-        // DEBUG: log response structure to understand where image data is
-        console.log(`   🔎 Response parts count: ${parts.length}`)
-        for (let i = 0; i < parts.length; i++) {
-            const p = parts[i] as any
-            const keys = Object.keys(p)
-            if (p.inlineData) {
-                console.log(`   🔎 Part[${i}]: inlineData (mime=${p.inlineData.mimeType}, dataLen=${p.inlineData.data?.length || 0})`)
-            } else if (p.text) {
-                console.log(`   🔎 Part[${i}]: text (${p.text.substring(0, 80)}...)`)
-            } else {
-                console.log(`   🔎 Part[${i}]: keys=[${keys.join(',')}]`)
-            }
-        }
-
         for (const part of parts) {
             if ((part as any).inlineData?.data) {
                 return Buffer.from((part as any).inlineData.data, "base64")
             }
         }
 
-        throw new Error("Gemini 3.1 Pro Image returned no image data")
+        throw new Error("Nano Banana 2 returned no image data")
     })
 }
 
