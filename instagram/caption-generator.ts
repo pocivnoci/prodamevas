@@ -280,7 +280,8 @@ export function buildMegaPrompt(
     review: Review | null,
     recentCaptions: string[],
     performance: PerformanceInsight,
-    userTopic?: string
+    userTopic?: string,
+    selectedProduct?: { name: string; type: string; slug: string; price?: string; description?: string }
 ): string {
     const bv = config.brandVoice
     const toneDesc = getToneDescription(config, postType.name)
@@ -301,19 +302,30 @@ ${performance.avgEngagement > 0 ? `**Průměrný Engagement (Benchmarking):** ${
 `
     }
 
-    const productsSection = config.products ? `
+    let productsSection = ""
+    if (selectedProduct) {
+        // A specific product was pre-selected — force the AI to use it
+        productsSection = `
+## 🎯 VYBRANÝ PRODUKT (POVINNÝ — NEMĚŇ!)
+**Název:** ${selectedProduct.name}
+**Typ:** ${selectedProduct.type}
+${selectedProduct.description ? `**Popis:** ${selectedProduct.description}` : ""}
+${selectedProduct.price ? `**Cena:** ${selectedProduct.price}` : ""}
+**URL:** ${config.website}/p/${selectedProduct.slug}
+
+### ⚠️ ABSOLUTNĚ POVINNÉ:
+- Caption MUSÍ být o tomto KONKRÉTNÍM produktu: **${selectedProduct.name}**
+- V CTA MUSÍ být odkaz: ${config.website}/p/${selectedProduct.slug}
+- V imagePrompt MUSÍŠ popsat PŘESNĚ tento produkt (jeho barvu, design, styl)
+- NESMÍŠ zmiňovat žádný jiný produkt!
+`
+    } else if (config.products) {
+        productsSection = `
 ## PRODUKTY ZNAČKY (${config.products.length} produktů na ${config.website})
 ${config.products.map(p => `- **${p.name}** (${p.type}): ${p.description || ""} ${p.price ? `— ${p.price}` : ""} → ${config.website}/p/${p.slug}`).join("\n")}
+`
+    }
 
-${["product_drop", "limitka", "outfit_inspo"].includes(postType.name) ? `
-### ⚠️ POVINNĚ VYBER KONKRÉTNÍ PRODUKT z výše uvedeného seznamu!
-Pro tento typ postu (${postType.display_name}) MUSÍŠ:
-- Vybrat 1 konkrétní produkt ze seznamu
-- V caption zmínit jeho název a cenu
-- V CTA odkázat na jeho eshop URL (${config.website}/p/...)
-- V imagePrompt popsat PŘESNĚ tento produkt (barva, design, styl potisk)
-` : ""}
-` : ""
 
     const postFormat = getPostFormat(config, postType.name)
 

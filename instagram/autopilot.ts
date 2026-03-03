@@ -163,6 +163,14 @@ export async function generateOnePost(options: {
     const _getPillarForType = createPillarMapper(config)
     const performance = options.performance || await analyzePerformance(config, _getPillarForType)
 
+    // 4b. Pre-select product for coherence (same product for caption + image)
+    const productTypes = ["product_drop", "limitka", "outfit_inspo", "produkt", "recenze", "meme", "customer_content", "lifestyle", "behind_the_scenes", "collab"]
+    let selectedProduct: typeof config.products extends (infer T)[] | undefined ? T : never = undefined as any
+    if (productTypes.includes(selectedType.name) && config.products?.length) {
+        selectedProduct = config.products[Math.floor(Math.random() * config.products.length)]
+        console.log(`   🛍️ Pre-selected product: "${selectedProduct.name}"`)
+    }
+
     // 5. Generate caption / video script / carousel
     const format = getPostFormat(config, selectedType.name)
     // User override: if aspectRatio is provided, use it
@@ -173,8 +181,8 @@ export async function generateOnePost(options: {
     const isReel = format.medium === "reel"
     const isCarousel = format.medium === "carousel"
     const postFormat = isReel ? "video script" : isCarousel ? "carousel" : "caption"
-    console.log(`✍️  Generuji ${postFormat} (Gemini 3.1 Pro)...`)
-    const megaPrompt = buildMegaPrompt(config, selectedType, idea, review, recentHooks, performance, options.topic)
+    console.log(`✍️  Generuji ${postFormat} (Gemini 3 Flash)...`)
+    const megaPrompt = buildMegaPrompt(config, selectedType, idea, review, recentHooks, performance, options.topic, selectedProduct)
     const schema = isReel ? buildVideoSchema(config) : isCarousel ? buildCarouselSchema(config) : buildCaptionSchema(config)
     const rawText = await generateText(megaPrompt, { responseSchema: schema })
     cost += COSTS.textGeneration
@@ -478,11 +486,9 @@ export async function generateOnePost(options: {
                     }
                 }
 
-                // Load product photos for ALL post types where the brand's merchandise could appear
-                const productTypes = ["product_drop", "limitka", "outfit_inspo", "produkt", "recenze", "meme", "customer_content", "lifestyle", "behind_the_scenes", "collab"]
-                if (productTypes.includes(selectedType.name) && config.products?.length) {
-                    const products = config.products
-                    const randomProduct = products[Math.floor(Math.random() * products.length)]
+                // Load product photos — use the SAME product that was pre-selected for caption
+                if (selectedProduct?.slug && config.products?.length) {
+                    const randomProduct = selectedProduct
 
                     let productImageLoaded = false
                     if (randomProduct.slug) {
