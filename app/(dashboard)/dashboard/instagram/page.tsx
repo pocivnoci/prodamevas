@@ -13,8 +13,9 @@ import { ProductsTab } from "./tabs/ProductsTab"
 import { BrandTab } from "./tabs/BrandTab"
 import { PerformanceTab } from "./tabs/PerformanceTab"
 import { LogsTab } from "./tabs/LogsTab"
+import { OnboardTab } from "./tabs/OnboardTab"
 
-type Tab = "posts" | "generate" | "ideas" | "reviews" | "logs" | "products" | "brand" | "performance"
+type Tab = "posts" | "generate" | "ideas" | "reviews" | "logs" | "products" | "brand" | "performance" | "onboard"
 type ClientInfo = { id: string; name: string; icon: string; description: string }
 
 export default function InstagramPage() {
@@ -42,6 +43,7 @@ export default function InstagramPage() {
         { id: "products", label: "Produkty", icon: "🛍️" },
         { id: "brand", label: "Fotky", icon: "🎨" },
         { id: "performance", label: "Performance", icon: "🧠" },
+        { id: "onboard", label: "Onboard", icon: "➕" },
         { id: "logs", label: "Logy", icon: "📊" },
     ]
 
@@ -105,6 +107,7 @@ export default function InstagramPage() {
                         {activeTab === "products" && <ProductsTab projectId={projectId} />}
                         {activeTab === "brand" && <BrandTab projectId={projectId} />}
                         {activeTab === "performance" && <PerformanceTab projectId={projectId} />}
+                        {activeTab === "onboard" && <OnboardTab />}
                         {activeTab === "logs" && <LogsTab projectId={projectId} />}
                     </motion.div>
                 </AnimatePresence>
