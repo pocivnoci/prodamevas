@@ -2,10 +2,6 @@
 
 import { createClient } from '@/supabase/server'
 
-// Re-export onboarding functions for admin use
-export { analyzeWebsite, generateQuestions, buildAndSaveConfig } from '@/app/onboarding/actions'
-export type { WebsiteAnalysis, OnboardingQuestion } from '@/app/onboarding/actions'
-
 const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean)
 
 /**

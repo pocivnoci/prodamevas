@@ -3,11 +3,13 @@
 import { useState, useEffect } from 'react'
 import {
     checkIsAdmin,
+} from '@/app/actions/admin-onboard-actions'
+import {
     analyzeWebsite,
     generateQuestions,
     buildAndSaveConfig,
-} from '@/app/actions/admin-onboard-actions'
-import type { WebsiteAnalysis, OnboardingQuestion } from '@/app/actions/admin-onboard-actions'
+} from '@/app/onboarding/actions'
+import type { WebsiteAnalysis, OnboardingQuestion } from '@/app/onboarding/actions'
 
 type Step = 'input' | 'analyzing' | 'questions' | 'building' | 'done'
 
