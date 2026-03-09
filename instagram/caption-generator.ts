@@ -518,7 +518,9 @@ Hashtags: ${captionData.hashtags.join(", ")}
             contents: scorePrompt,
             config: { responseMimeType: "application/json" },
         })
-        const text = raw.candidates?.[0]?.content?.parts?.[0]?.text || ""
+        const parts = raw.candidates?.[0]?.content?.parts || []
+        const textPart = parts.find((p: any) => p.text)
+        const text = textPart?.text || ""
         const jsonMatch = text.match(/\{[\s\S]*\}/)
         const result = JSON.parse(jsonMatch?.[0] || text)
         return {

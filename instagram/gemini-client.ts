@@ -65,7 +65,10 @@ export async function generateText(
             },
         })
 
-        const text = response.candidates?.[0]?.content?.parts?.[0]?.text
+        const parts = response.candidates?.[0]?.content?.parts || []
+        const textPart = parts.find((p: any) => p.text)
+        const text = textPart?.text
+
         if (!text) throw new Error("Gemini returned no text")
         return text
     })

@@ -75,7 +75,9 @@ OUTPUT: Single detailed English image generation prompt (2-3 sentences).
             model: "gemini-3.1-pro-preview",
             contents: memePrompt,
         })
-        const refined = response.candidates?.[0]?.content?.parts?.[0]?.text
+        const parts = response.candidates?.[0]?.content?.parts || []
+        const textPart = parts.find((p: any) => p.text)
+        const refined = textPart?.text
         return refined || captionData.imagePrompt
     }
 
@@ -110,7 +112,10 @@ The prompt should be 2-3 sentences.
         contents: refinementPrompt,
     })
 
-    const refined = response.candidates?.[0]?.content?.parts?.[0]?.text
+    const parts = response.candidates?.[0]?.content?.parts || []
+    const textPart = parts.find((p: any) => p.text)
+    const refined = textPart?.text
+
     if (!refined) return captionData.imagePrompt
     return refined.replace(/^["']|["']$/g, "").trim()
 }
@@ -160,7 +165,9 @@ Return a JSON array of exactly ${allSlides.length} strings.
             config: { responseMimeType: "application/json" },
         })
 
-        const text = response.candidates?.[0]?.content?.parts?.[0]?.text || ""
+        const parts = response.candidates?.[0]?.content?.parts || []
+        const textPart = parts.find((p: any) => p.text)
+        const text = textPart?.text || ""
         const parsed = JSON.parse(text)
 
         if (Array.isArray(parsed) && parsed.length === allSlides.length) {
@@ -225,7 +232,10 @@ Return a single detailed English video generation prompt (2-4 sentences).
         contents: refinementPrompt,
     })
 
-    const refined = response.candidates?.[0]?.content?.parts?.[0]?.text
+    const parts = response.candidates?.[0]?.content?.parts || []
+    const textPart = parts.find((p: any) => p.text)
+    const refined = textPart?.text
+
     if (!refined) return videoData.videoScript
     return refined.replace(/^["']|["']$/g, "").trim()
 }
