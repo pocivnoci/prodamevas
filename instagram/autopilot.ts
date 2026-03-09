@@ -19,6 +19,7 @@
  */
 
 import supabaseAdmin from "../supabase/admin"
+import sharp from "sharp"
 import { generateText, generateImage, generateImageWithReferences, generateVideo } from "./gemini-client"
 import { overlayText } from "./text-overlay"
 import {
@@ -390,13 +391,18 @@ export async function generateOnePost(options: {
                         console.log(`   ✓ Text overlay ${i + 1}`)
                     }
 
+                    console.log("🗜️ Komprimuji obrázek před uploadem (PNG -> WebP)...")
+                    const compressedImage = await sharp(finalImage)
+                        .webp({ quality: 90, effort: 6 })
+                        .toBuffer()
+
                     const timestamp = Date.now()
-                    const filename = `ig-carousel/${timestamp}-slide${i}.png`
+                    const filename = `ig-carousel/${timestamp}-slide${i}.webp`
 
                     const { error: uploadError } = await supabaseAdmin.storage
                         .from("audit-screenshots")
-                        .upload(filename, finalImage, {
-                            contentType: "image/png",
+                        .upload(filename, compressedImage, {
+                            contentType: "image/webp",
                             cacheControl: "31536000",
                         })
 
@@ -600,15 +606,22 @@ export async function generateOnePost(options: {
                     console.log(`   ✓ Text overlay (${(finalImage.length / 1024).toFixed(0)} KB)`)
                 }
 
+                console.log("🗜️ Komprimuji obrázek před uploadem (PNG -> WebP)...")
+                const compressedImage = await sharp(finalImage)
+                    .webp({ quality: 90, effort: 6 })
+                    .toBuffer()
+
+                console.log(`   ✓ WebP size: ${(compressedImage.length / 1024).toFixed(0)} KB`)
+
                 console.log("📤 Nahrávám do Supabase...")
                 const timestamp = Date.now()
-                const filename = `ig-posts/${timestamp}.png`
+                const filename = `ig-posts/${timestamp}.webp`
                 const bucketName = config.storageBucket || "audit-screenshots"
 
                 const { error: uploadError } = await supabaseAdmin.storage
                     .from(bucketName)
-                    .upload(filename, finalImage, {
-                        contentType: "image/png",
+                    .upload(filename, compressedImage, {
+                        contentType: "image/webp",
                         cacheControl: "31536000",
                     })
 
