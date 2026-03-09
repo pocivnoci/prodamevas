@@ -1,7 +1,7 @@
 /**
  * Gemini Client — Wrapper for Google Generative AI
  * ==================================================
- * Text generation via Gemini 3.1 Pro (best quality)
+ * Text generation via Gemini 3.1 Pro Preview (best quality)
  * Image generation via Imagen 4 Ultra (2K, premium quality)
  */
 
@@ -47,7 +47,7 @@ const ai = new Proxy({} as GoogleGenAI, {
 import { withRetry } from "../utils/retry"
 
 // ============================================
-// TEXT GENERATION (Gemini 3.1 Pro)
+// TEXT GENERATION (Gemini 3.1 Pro Preview)
 // ============================================
 
 export async function generateText(
@@ -56,7 +56,7 @@ export async function generateText(
 ): Promise<string> {
     return withRetry(async () => {
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-pro",
+            model: "gemini-3.1-pro-preview",
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
@@ -166,7 +166,7 @@ export async function detectLogoPlacementArea(imageBuffer: Buffer): Promise<{ x:
     return withRetry(async () => {
         const response = await ai.models.generateContent({
             // Sjednoceno na gemini-2.5-pro (původní gemini-1.5-pro házelo ve Vercelu 404 a flash-preview padal na 503)
-            model: "gemini-2.5-pro",
+            model: "gemini-3.1-pro-preview",
             contents: [
                 {
                     inlineData: {
