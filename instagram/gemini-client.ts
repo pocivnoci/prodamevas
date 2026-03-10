@@ -144,6 +144,7 @@ export async function generateImageWithReferences(
                 responseModalities: ["IMAGE"],
                 imageConfig: {
                     imageSize: resolution,
+                    aspectRatio: aspectRatio,
                 },
             } as any,
         })

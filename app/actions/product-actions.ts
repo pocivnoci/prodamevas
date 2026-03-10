@@ -184,6 +184,8 @@ export async function triggerCustomProductDesign(options: {
             viralAngle: "",
             whyItWorks: "",
             productionNotes: "",
+            variants: [],
+            supplierMessage: "",
         }
 
         const result = await withRetry(
@@ -228,6 +230,8 @@ export async function saveProductIdea(configName: string, idea: Omit<ProductIdea
                 why_it_works: idea.whyItWorks,
                 production_notes: idea.productionNotes,
                 design_prompt: idea.designPrompt,
+                variants: idea.variants || [],
+                supplier_message: idea.supplierMessage || "",
                 status: "saved"
             })
 
@@ -260,6 +264,8 @@ export async function rejectProductIdea(configName: string, idea: Omit<ProductId
                 why_it_works: idea.whyItWorks,
                 production_notes: idea.productionNotes,
                 design_prompt: idea.designPrompt,
+                variants: idea.variants || [],
+                supplier_message: idea.supplierMessage || "",
                 status: "rejected"
             })
 
@@ -343,6 +349,8 @@ export async function getSavedProductIdeas(projectId: string): Promise<ProductId
             whyItWorks: row.why_it_works,
             productionNotes: row.production_notes,
             designPrompt: row.design_prompt,
+            variants: row.variants || [],
+            supplierMessage: row.supplier_message || "",
             status: row.status as "saved" | "review" | "rejected",
             created_at: row.created_at,
             design_url: row.design_url,

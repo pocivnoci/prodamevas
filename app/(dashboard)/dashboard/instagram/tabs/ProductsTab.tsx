@@ -59,6 +59,9 @@ export function ProductsTab({ projectId }: { projectId: string }) {
     const [mockupDescription, setMockupDescription] = useState("")
     const [mockupUrl, setMockupUrl] = useState<string | null>(null)
 
+    // Modal state
+    const [selectedIdea, setSelectedIdea] = useState<ProductIdea | null>(null)
+
     const productTypes = [
         { value: "triko", label: "👕 Triko" },
         { value: "mikina", label: "🧥 Mikina" },
@@ -575,16 +578,21 @@ export function ProductsTab({ projectId }: { projectId: string }) {
 
                                         {/* Product visualization */}
                                         {ideaVisuals[idea.id as string] && (
-                                            <div className="mt-4 relative group/vis">
-                                                <img src={ideaVisuals[idea.id as string]} alt={idea.name} className="w-full rounded-sm border border-emerald-500/20 shadow-sm" />
-                                                <a
-                                                    href={ideaVisuals[idea.id as string]}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="absolute bottom-2 right-2 px-2 py-1 bg-[#050505] border border-white/10 text-white text-[9px] uppercase tracking-widest font-bold rounded-sm opacity-0 group-hover/vis:opacity-100 transition-opacity shadow-sm"
-                                                >📥 Plná velikost</a>
+                                            <div className="mt-4 relative group/vis cursor-pointer" onClick={() => setSelectedIdea(idea)}>
+                                                <img src={ideaVisuals[idea.id as string]} alt={idea.name} className="w-full rounded-sm border border-emerald-500/20 shadow-sm transition-transform group-hover/vis:scale-[1.02]" />
+                                                <div className="absolute bottom-2 right-2 px-2 py-1 bg-[#050505] border border-white/10 text-white text-[9px] uppercase tracking-widest font-bold rounded-sm opacity-0 group-hover/vis:opacity-100 transition-opacity shadow-sm">
+                                                    🔍 Zvětšit
+                                                </div>
                                             </div>
                                         )}
+
+                                        {/* Detail Button */}
+                                        <button
+                                            onClick={() => setSelectedIdea(idea)}
+                                            className="mt-4 w-full py-2 bg-white/5 hover:bg-white/10 text-white text-[10px] uppercase tracking-widest font-bold rounded-sm border border-white/10 transition-colors"
+                                        >
+                                            👁️ Všechny parametry & Dodavatel
+                                        </button>
 
                                         {/* Action buttons */}
                                         <div className="mt-4 flex gap-2 pt-4 border-t border-white/5 items-center">
@@ -932,6 +940,129 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                             </div>
                         </div>
                     )}
+                </div>
+            )}
+            {/* ═══ MODAL DETAIL ═══ */}
+            {selectedIdea && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="bg-[#0f0f0f] border border-white/10 rounded-sm max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative">
+                        {/* Zavírací křížek */}
+                        <button
+                            onClick={() => setSelectedIdea(null)}
+                            className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors"
+                        >
+                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+
+                        <div className="p-8">
+                            <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">{selectedIdea.name}</h2>
+                            <p className="text-emerald-400 font-bold uppercase tracking-widest text-xs mb-6">"{selectedIdea.tagline}"</p>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                                {/* Levý sloupec - Info */}
+                                <div className="space-y-6">
+                                    <div>
+                                        <h3 className="text-[10px] uppercase font-bold text-white/50 tracking-widest mb-2 border-b border-white/10 pb-1">Popis produktu</h3>
+                                        <p className="text-white text-sm">{selectedIdea.description}</p>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <h3 className="text-[10px] uppercase font-bold text-white/50 tracking-widest mb-1">Cenový rozsah</h3>
+                                            <p className="text-emerald-400 font-mono font-bold">{selectedIdea.priceRange}</p>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-[10px] uppercase font-bold text-white/50 tracking-widest mb-1">Typ</h3>
+                                            <p className="text-white/80">{selectedIdea.type}</p>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-[10px] uppercase font-bold text-white/50 tracking-widest mb-1">Materiál</h3>
+                                            <p className="text-white/80">{selectedIdea.material}</p>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-[10px] uppercase font-bold text-white/50 tracking-widest mb-1">Rozměry</h3>
+                                            <p className="text-white/80">{selectedIdea.dimensions}</p>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <h3 className="text-[10px] uppercase font-bold text-white/50 tracking-widest mb-1">Výroba</h3>
+                                            <p className="text-white/80">{selectedIdea.manufacturingMethod}</p>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h3 className="text-[10px] uppercase font-bold text-white/50 tracking-widest mb-2 border-b border-white/10 pb-1">Marketing</h3>
+                                        <p className="text-white/90 text-sm mb-2"><strong className="text-emerald-400">Virální potenciál:</strong> {selectedIdea.viralAngle}</p>
+                                        <p className="text-white/90 text-sm"><strong className="text-emerald-400">Proč to bude fungovat:</strong> {selectedIdea.whyItWorks}</p>
+                                    </div>
+                                </div>
+
+                                {/* Pravý sloupec - Image & Naming */}
+                                <div className="space-y-6">
+                                    {(selectedIdea.id && ideaVisuals[selectedIdea.id]) && (
+                                        <div className="rounded-sm border border-white/10 overflow-hidden shadow-lg">
+                                            <img src={ideaVisuals[selectedIdea.id as string]} alt={selectedIdea.name} className="w-full" />
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <h3 className="text-[10px] uppercase font-bold text-white/50 tracking-widest mb-2 border-b border-white/10 pb-1">Alternativní názvy</h3>
+                                        <div className="flex flex-wrap gap-2">
+                                            {selectedIdea.brandingNames?.map((name, idx) => (
+                                                <span key={idx} className="bg-white/5 text-white/80 px-2 py-1 rounded-sm text-xs font-medium border border-white/10">
+                                                    {name}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Spodní široký sloupec - Varianty & Supplier message */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-white/10">
+                                <div>
+                                    <h3 className="text-[10px] uppercase font-bold text-emerald-400 tracking-widest mb-3 flex items-center gap-2">
+                                        <span className="text-lg">🎨</span> Varianty
+                                    </h3>
+                                    {selectedIdea.variants && selectedIdea.variants.length > 0 ? (
+                                        <ul className="space-y-2">
+                                            {selectedIdea.variants.map((variant, idx) => (
+                                                <li key={idx} className="flex gap-2 text-sm text-white/80">
+                                                    <span className="text-white/30">•</span> {variant}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    ) : (
+                                        <p className="text-white/30 text-xs italic">Varianty nebyly vygenerovány pro tento produkt.</p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <h3 className="text-[10px] uppercase font-bold text-[#FF9900] tracking-widest mb-3 flex items-center gap-2">
+                                        <span className="text-lg">📧</span> Zpráva pro dodavatele (Alibaba)
+                                    </h3>
+                                    {selectedIdea.supplierMessage ? (
+                                        <div className="bg-[#050505] p-4 rounded-sm border border-[#FF9900]/30 relative font-mono text-xs text-white/70 whitespace-pre-wrap leading-relaxed">
+                                            <button
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(selectedIdea.supplierMessage)
+                                                    alert("Zkopírováno!")
+                                                }}
+                                                className="absolute top-2 right-2 text-white/40 hover:text-white transition-colors"
+                                                title="Zkopírovat"
+                                            >
+                                                📋
+                                            </button>
+                                            {selectedIdea.supplierMessage}
+                                        </div>
+                                    ) : (
+                                        <p className="text-white/30 text-xs italic">Zpráva pro dodavatele nebyla vygenerována pro tento produkt.</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

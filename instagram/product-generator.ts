@@ -35,6 +35,8 @@ export interface ProductIdea {
     whyItWorks: string
     productionNotes: string
     designPrompt: string
+    variants: string[]
+    supplierMessage: string
     status?: "review" | "saved" | "rejected"
     created_at?: string
 }
@@ -74,8 +76,10 @@ const PRODUCT_IDEAS_SCHEMA = {
                     whyItWorks: { type: Type.STRING, description: "Proč to bude fungovat obchodně" },
                     productionNotes: { type: Type.STRING, description: "Konkrétní výrobní postup a kde sourcing" },
                     designPrompt: { type: Type.STRING, description: "Anglický prompt pro AI image generator — detailní popis jak produkt vypadá, materiály, barvy, logo placement. V ANGLIČTINĚ!" },
+                    variants: { type: Type.ARRAY, items: { type: Type.STRING }, description: "3-5 barevných / materiálových variant nebo verzí produktu." },
+                    supplierMessage: { type: Type.STRING, description: "Hotová anglická zpráva pro dodavatele na Alibabě. Obsahuje reálnou a profesionální poptávku ohledně nacenění, dodacích podmínek, MOQ a možností customizace. Buď konkrétní." },
                 },
-                required: ["name", "brandingNames", "type", "tagline", "description", "material", "dimensions", "manufacturingMethod", "priceRange", "viralAngle", "whyItWorks", "productionNotes", "designPrompt"],
+                required: ["name", "brandingNames", "type", "tagline", "description", "material", "dimensions", "manufacturingMethod", "priceRange", "viralAngle", "whyItWorks", "productionNotes", "designPrompt", "variants", "supplierMessage"],
             },
         },
     },
@@ -592,6 +596,8 @@ export async function runProductIdeas(config: ClientConfig) {
         console.log(`   🔥 Virální angle: ${idea.viralAngle}`)
         console.log(`   ✅ Proč to bude fungovat: ${idea.whyItWorks}`)
         console.log(`   📋 Produkce: ${idea.productionNotes}`)
+        console.log(`   🎨 Varianty: ${idea.variants?.join(", ") || "Nenastaveno"}`)
+        console.log(`\n   📧 Zpráva pro dodavatele:\n   ${idea.supplierMessage || "Nenastaveno"}\n`)
     })
 
     console.log(`\n${"═".repeat(60)}`)
