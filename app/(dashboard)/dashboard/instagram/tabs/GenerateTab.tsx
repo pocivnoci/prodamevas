@@ -7,7 +7,7 @@ import {
     getIGPostFormats,
     getIGCategories,
 } from "@/app/actions/admin-actions"
-import { type GenerateResult } from "@/app/actions/ig-generate-action"
+import { uploadCustomImage, type GenerateResult } from "@/app/actions/ig-generate-action"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPostType, IGCategory, IGPostFormat } from "./types"
 
@@ -20,6 +20,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const [aspectRatio, setAspectRatio] = useState("")
     const [category, setCategory] = useState("")
     const [dryRun, setDryRun] = useState(false)
+    const [customImageFile, setCustomImageFile] = useState<File | null>(null)
     const [generating, setGenerating] = useState(false)
     const [result, setResult] = useState<GenerateResult | null>(null)
     const [batchCount, setBatchCount] = useState(3)
@@ -121,6 +122,20 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                     success: successes > 0,
                 } as any)
             } else {
+                let finalImageUrl = undefined;
+                if (customImageFile) {
+                    const formData = new FormData()
+                    formData.append("file", customImageFile)
+                    const uploadRes = await uploadCustomImage(projectId, formData)
+                    if (!uploadRes.success || !uploadRes.publicUrl) {
+                        setResult({ success: false, error: uploadRes.error || "Při nahrávání obrázku došlo k chybě." })
+                        setGenerating(false)
+                        setStep(3)
+                        return
+                    }
+                    finalImageUrl = uploadRes.publicUrl
+                }
+
                 let res = await triggerPostGeneration({
                     configName: projectId,
                     type: selectedType || undefined,
@@ -128,6 +143,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                     category: category !== "auto" ? category : undefined,
                     dryRun,
                     aspectRatio: aspectRatio || undefined,
+                    customImageUrl: finalImageUrl,
                 })
                 // Auto-retry once on failure
                 if (!res.success && maxClientRetries > 0) {
@@ -139,6 +155,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         category: category !== "auto" ? category : undefined,
                         dryRun,
                         aspectRatio: aspectRatio || undefined,
+                        customImageUrl: finalImageUrl,
                     })
                 }
                 setResult(res)
@@ -381,6 +398,27 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     ))}
                                 </div>
                             </div>
+
+                            {!batchMode && (
+                                <div>
+                                    <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">Vlastní obrázek (volitelné)</label>
+                                    <div className="flex flex-col gap-2">
+                                        <input
+                                            type="file"
+                                            accept="image/png, image/jpeg, image/webp"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0]
+                                                if (file) setCustomImageFile(file)
+                                                else setCustomImageFile(null)
+                                            }}
+                                            className="w-full px-5 py-4 bg-[#050505] border border-white/10 rounded-sm text-white/70 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all shadow-sm file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-white hover:file:bg-white/20 cursor-pointer"
+                                        />
+                                        <p className="text-[10px] text-white/30 tracking-widest uppercase">
+                                            Pokud nahrajete vlastní obrázek, AI jej použije místo generování nového vizuálu (přeskočí se i textový overlay).
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="pt-4 border-t border-white/10 flex items-center justify-between">
                                 <label className="flex items-center gap-3 cursor-pointer group">

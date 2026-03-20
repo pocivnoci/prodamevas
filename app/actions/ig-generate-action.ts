@@ -277,3 +277,40 @@ Odpověz POUZE v tomto JSON formátu:
         return { success: false, error: err.message || "Failed to create promo post" }
     }
 }
+
+// ============================================
+// UPLOAD CUSTOM IMAGE (For Manual Image Override)
+// ============================================
+
+export async function uploadCustomImage(
+    projectId: string,
+    formData: FormData
+): Promise<{ success: boolean; publicUrl?: string; error?: string }> {
+    try {
+        const file = formData.get("file") as File
+        if (!file) return { success: false, error: "No file provided" }
+
+        const fileName = `${projectId}_custom_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`
+        const arrayBuffer = await file.arrayBuffer()
+        const buffer = Buffer.from(arrayBuffer)
+
+        const { error } = await supabaseAdmin.storage
+            .from("audit-screenshots") // Using same public bucket as others
+            .upload(`custom-uploads/${fileName}`, buffer, {
+                cacheControl: "31536000",
+                upsert: false,
+                contentType: file.type,
+            })
+
+        if (error) throw error
+
+        const { data: publicUrlData } = supabaseAdmin.storage
+            .from("audit-screenshots")
+            .getPublicUrl(`custom-uploads/${fileName}`)
+
+        return { success: true, publicUrl: publicUrlData.publicUrl }
+    } catch (err: any) {
+        console.error("uploadCustomImage error:", err)
+        return { success: false, error: err.message || "Upload failed" }
+    }
+}

@@ -107,6 +107,7 @@ export async function generateOnePost(options: {
     dryRun?: boolean
     performance?: PerformanceInsight
     aspectRatio?: string
+    customImageUrl?: string
 }): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number }> {
     await ensureConfig(options.configName)
     const config = CLIENT_CONFIG!
@@ -342,6 +343,11 @@ export async function generateOnePost(options: {
             } catch (vidErr) {
                 console.error("   ⚠️ Video generation failed:", vidErr)
             }
+        } else if (options.customImageUrl) {
+            // CUSTOM IMAGE GENERATION PATH
+            console.log("📸 Používám vlastní obrázek od uživatele...")
+            imageUrl = options.customImageUrl
+            console.log(`   ✓ URL: ${imageUrl}`)
         } else if (isCarousel && captionData.slides) {
             // CAROUSEL GENERATION PATH (4 images)
             const slideCount = captionData.slides.length + 1

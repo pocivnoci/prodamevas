@@ -15,6 +15,7 @@ export async function POST(req: Request) {
                 topic: body.topic,
                 dryRun: body.dryRun,
                 aspectRatio: body.aspectRatio,
+                customImageUrl: body.customImageUrl,
             }),
             2,
             "Post generation API"
