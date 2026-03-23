@@ -209,7 +209,7 @@ export async function triggerCustomProductDesign(options: {
     }
 }
 
-export async function saveProductIdea(configName: string, idea: Omit<ProductIdea, "id" | "client_id" | "created_at">): Promise<{ success: boolean; error?: string }> {
+export async function saveProductIdea(configName: string, idea: Omit<ProductIdea, "id" | "client_id" | "created_at">, designUrl?: string): Promise<{ success: boolean; error?: string }> {
     try {
         const clientId = await resolveClientId(configName)
 
@@ -232,7 +232,8 @@ export async function saveProductIdea(configName: string, idea: Omit<ProductIdea
                 design_prompt: idea.designPrompt,
                 variants: idea.variants || [],
                 supplier_message: idea.supplierMessage || "",
-                status: "saved"
+                status: "saved",
+                design_url: designUrl || null
             })
 
         if (error) throw error

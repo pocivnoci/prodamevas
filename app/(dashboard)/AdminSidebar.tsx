@@ -10,10 +10,6 @@ import { LogoPV } from "@/components/LogoPV"
 
 const NAV_ITEMS = [
     { href: "/dashboard/instagram", label: "Studio", icon: "✨" },
-    { href: "/dashboard", label: "Přehled", icon: "📊" },
-    { href: "/dashboard/clients", label: "Značky", icon: "🎭" },
-    { href: "/dashboard/billing", label: "Předplatné", icon: "💎" },
-    { href: "/dashboard/system", label: "Systém", icon: "⚙️" },
 ]
 
 export function AdminSidebar() {

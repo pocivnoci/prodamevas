@@ -62,6 +62,10 @@ export function ProductsTab({ projectId }: { projectId: string }) {
     // Modal state
     const [selectedIdea, setSelectedIdea] = useState<ProductIdea | null>(null)
 
+    // Feature action states
+    const [savingDesign, setSavingDesign] = useState(false)
+    const [creatingPromoPost, setCreatingPromoPost] = useState(false)
+
     const productTypes = [
         { value: "triko", label: "👕 Triko" },
         { value: "mikina", label: "🧥 Mikina" },
@@ -266,6 +270,119 @@ export function ProductsTab({ projectId }: { projectId: string }) {
             setLoading(false)
         }
     }
+
+    // ── Share & Download Handlers ─────────────────────────
+    const handleShareImage = async (imageUrl: string, title: string) => {
+        try {
+            const response = await fetch(imageUrl);
+            const blob = await response.blob();
+            const file = new File([blob], 'design.png', { type: blob.type });
+
+            if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    title: title,
+                    text: 'Koukni na tenhle AI design z ProdámeVás Studia!',
+                    files: [file],
+                });
+            } else if (navigator.share) {
+                // Fallback k URL
+                await navigator.share({
+                    title: title,
+                    text: 'Koukni na tenhle AI design z ProdámeVás Studia!',
+                    url: imageUrl
+                });
+            } else {
+                // Fallback schránka
+                await navigator.clipboard.writeText(imageUrl);
+                alert("Odkaz na obrázek byl zkopírován do schránky.");
+            }
+        } catch (err) {
+            console.error("Chyba při sdílení:", err);
+            // Ignore abort errors (user cancelled share)
+            if ((err as Error).name !== 'AbortError') {
+                alert("Při sdílení přes nativní menu došlo k chybě. Odkaz zkopíruj ručně.");
+            }
+        }
+    };
+
+    const handleDownloadImage = async (imageUrl: string, filename: string) => {
+        try {
+            const response = await fetch(imageUrl);
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(blobUrl);
+        } catch (err) {
+            console.error("Chyba při stahování:", err);
+            alert("Nepodařilo se stáhnout obrázek napřímo. Zkus ho otevřít v plné velikosti a uložit.");
+        }
+    };
+
+    const handleSaveDesignToDb = async () => {
+        if (!designResult) return;
+        setSavingDesign(true);
+        setError(null);
+        try {
+            const customIdea: ProductIdea = {
+                name: designResult.concept.name,
+                type: "print-ready object",
+                description: designResult.concept.description,
+                material: designResult.concept.placement,
+                dimensions: designResult.concept.style,
+                designPrompt: designResult.concept.designPrompt,
+                tagline: `Colors: ${designResult.concept.colors.join(", ")}`,
+                priceRange: "Premium",
+                brandingNames: [],
+                manufacturingMethod: "DTG Print",
+                viralAngle: "Unique print-ready design created specifically for your brand.",
+                whyItWorks: "Visually striking premium look.",
+                productionNotes: "",
+                variants: [],
+                supplierMessage: "",
+            };
+            const result = await saveProductIdea(projectId, customIdea, designResult.designUrl);
+            if (result.success) {
+                setSuccessMsg("Design byl úspěšně uložen do Nápady (Ideas) 💾!");
+                setTimeout(() => setSuccessMsg(null), 3000);
+            } else {
+                setError("Úkládání selhalo: " + result.error);
+            }
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setSavingDesign(false);
+        }
+    };
+
+    const handleCreatePromoPostFromDesign = async (url: string, name: string, desc: string) => {
+        setCreatingPromoPost(true);
+        setError(null);
+        try {
+            const result = await createPromoPost({
+                configName: projectId,
+                ideaName: name,
+                ideaTagline: "Print-ready premium design",
+                ideaDescription: desc,
+                ideaType: "print-ready",
+                ideaPriceRange: "Premium",
+                designUrl: url,
+            });
+            if (result.success) {
+                alert(`✅ Promo post vytvořen!\n\nCaption:\n${result.caption?.substring(0, 200)}...\n\nNajdeš ho v záložce Posts jako Draft.`);
+            } else {
+                setError(result.error || "Vytvoření selhalo.");
+            }
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setCreatingPromoPost(false);
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -810,14 +927,28 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                         alt={designResult.concept.name}
                                         className="w-full rounded-sm border border-white/10 shadow-sm"
                                     />
-                                    <a
-                                        href={designResult.designUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="absolute bottom-3 right-3 px-3 py-1.5 bg-[#050505] border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest rounded-sm opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
-                                    >
-                                        📥 Otevřít v plné velikosti
-                                    </a>
+                                    <div className="absolute bottom-3 right-3 flex flex-wrap gap-2 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
+                                        <button
+                                            onClick={() => handleShareImage(designResult.designUrl, designResult.concept.name)}
+                                            className="px-3 py-1.5 bg-blue-500/20 border border-blue-500/30 text-blue-400 text-[9px] font-bold uppercase tracking-widest rounded-sm shadow-sm hover:bg-blue-500/30 transition-colors"
+                                        >
+                                            🔗 Sdílet
+                                        </button>
+                                        <button
+                                            onClick={() => handleDownloadImage(designResult.designUrl, `design_${designResult.concept.name.replace(/\s+/g, '_')}.png`)}
+                                            className="px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[9px] font-bold uppercase tracking-widest rounded-sm shadow-sm hover:bg-emerald-500/30 transition-colors"
+                                        >
+                                            💾 Stáhnout
+                                        </button>
+                                        <a
+                                            href={designResult.designUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="px-3 py-1.5 bg-[#050505] border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest rounded-sm shadow-sm hover:bg-white/10 transition-colors"
+                                        >
+                                            📥 V plné velikosti
+                                        </a>
+                                    </div>
                                 </div>
 
                                 {/* Concept details */}
@@ -852,18 +983,39 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                         <p className="text-white/50 text-[10px] mt-2 font-mono tracking-wide bg-[#0f0f0f] border border-white/5 shadow-inner rounded-sm p-4 leading-relaxed">{designResult.concept.designPrompt}</p>
                                     </div>
 
-                                    {/* Generate mockup from this design */}
-                                    <button
-                                        onClick={() => {
-                                            setMockupDesignUrl(designResult.designUrl)
-                                            setMockupDescription(designResult.concept.description)
-                                            setMockupProductType(designProductType)
-                                            setSection("mockup")
-                                        }}
-                                        className="w-full px-4 py-3 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all shadow-sm"
-                                    >
-                                        👕 Vytvořit mockup s tímto designem
-                                    </button>
+                                    <div className="pt-4 border-t border-white/10 space-y-2">
+                                        <span className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-2 block">Akce k designu</span>
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                            {/* Generate mockup from this design */}
+                                            <button
+                                                onClick={() => {
+                                                    setMockupDesignUrl(designResult.designUrl)
+                                                    setMockupDescription(designResult.concept.description)
+                                                    setMockupProductType(designProductType)
+                                                    setSection("mockup")
+                                                }}
+                                                className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all shadow-sm"
+                                            >
+                                                👕 Vytvořit mockup
+                                            </button>
+                                            
+                                            <button
+                                                onClick={handleSaveDesignToDb}
+                                                disabled={savingDesign}
+                                                className="px-4 py-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 shadow-sm"
+                                            >
+                                                {savingDesign ? "⏳ Ukládám..." : "💾 Uložit do DB"}
+                                            </button>
+                                            
+                                            <button
+                                                onClick={() => handleCreatePromoPostFromDesign(designResult.designUrl, designResult.concept.name, designResult.concept.description)}
+                                                disabled={creatingPromoPost}
+                                                className="px-4 py-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 shadow-sm"
+                                            >
+                                                {creatingPromoPost ? "⏳ Vytvářím..." : "📸 Vytvoř Promo Post"}
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -918,14 +1070,38 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                     alt="Product mockup"
                                     className="w-full rounded-sm border border-white/10 shadow-sm"
                                 />
-                                <a
-                                    href={mockupUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="absolute bottom-3 right-3 px-3 py-1.5 bg-[#050505] border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest rounded-sm opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                                <div className="absolute bottom-3 right-3 flex flex-wrap gap-2 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
+                                    <button
+                                        onClick={() => handleShareImage(mockupUrl, 'Product Mockup')}
+                                        className="px-3 py-1.5 bg-blue-500/20 border border-blue-500/30 text-blue-400 text-[9px] font-bold uppercase tracking-widest rounded-sm shadow-sm hover:bg-blue-500/30 transition-colors"
+                                    >
+                                        🔗 Sdílet
+                                    </button>
+                                    <button
+                                        onClick={() => handleDownloadImage(mockupUrl, 'product_mockup.png')}
+                                        className="px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[9px] font-bold uppercase tracking-widest rounded-sm shadow-sm hover:bg-emerald-500/30 transition-colors"
+                                    >
+                                        💾 Stáhnout
+                                    </button>
+                                    <a
+                                        href={mockupUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="px-3 py-1.5 bg-[#050505] border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest rounded-sm shadow-sm hover:bg-white/10 transition-colors"
+                                    >
+                                        📥 V plné velikosti
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <div className="mt-4 pt-4 border-t border-white/10 text-center">
+                                <button
+                                    onClick={() => handleCreatePromoPostFromDesign(mockupUrl, "Product Mockup", "Fotorealistický mockup produktu")}
+                                    disabled={creatingPromoPost}
+                                    className="px-6 py-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 shadow-sm"
                                 >
-                                    📥 Otevřít v plné velikosti
-                                </a>
+                                    {creatingPromoPost ? "⏳ Vytvářím..." : "📸 Vytvoř Promo Post s tímto Mockupem"}
+                                </button>
                             </div>
                         </div>
                     )}
