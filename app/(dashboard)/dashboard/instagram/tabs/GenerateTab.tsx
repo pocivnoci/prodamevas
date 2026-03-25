@@ -6,6 +6,8 @@ import {
     getIGPostTypes,
     getIGPostFormats,
     getIGCategories,
+    getIGIdeasList,
+    getIGReviewsList,
 } from "@/app/actions/admin-actions"
 import { uploadCustomImage, type GenerateResult } from "@/app/actions/ig-generate-action"
 import { useCopyToClipboard } from "./hooks"
@@ -30,12 +32,19 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const [generationHistory, setGenerationHistory] = useState<GenerateResult[]>([])
     const [step, setStep] = useState(1)
 
+    // Ideas & Reviews for topic pre-fill
+    const [savedIdeas, setSavedIdeas] = useState<any[]>([])
+    const [approvedReviews, setApprovedReviews] = useState<any[]>([])
+    const [showIdeaPicker, setShowIdeaPicker] = useState(false)
+
     // Reload post types + formats + categories when project changes
     useEffect(() => {
         if (!projectId) return
         getIGPostTypes(projectId).then(setPostTypes)
         getIGPostFormats(projectId).then(setPostFormats)
         getIGCategories(projectId).then(setCategories)
+        getIGIdeasList(projectId).then(setSavedIdeas)
+        getIGReviewsList(projectId).then(reviews => setApprovedReviews(reviews.filter((r: any) => r.is_approved)))
         setSelectedType("") // reset selection on project change
         setCategory("") // reset category on project change
         setStep(1)
@@ -365,7 +374,65 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                             )}
 
                             <div>
-                                <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">Hlavní téma / Myšlenka (Volitelné)</label>
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="text-[10px] text-white/50 uppercase tracking-widest font-bold">Hlavní téma / Myšlenka (Volitelné)</label>
+                                    {(savedIdeas.length > 0 || approvedReviews.length > 0) && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowIdeaPicker(!showIdeaPicker)}
+                                            className="text-[9px] font-bold uppercase tracking-widest text-emerald-400 hover:text-emerald-300 transition-colors"
+                                        >
+                                            {showIdeaPicker ? "✕ Skrýt" : "💡 Vybrat z nápadů / recenzí"}
+                                        </button>
+                                    )}
+                                </div>
+
+                                {showIdeaPicker && (
+                                    <div className="mb-3 bg-[#050505] border border-white/10 rounded-sm p-3 max-h-52 overflow-y-auto space-y-1">
+                                        {savedIdeas.length > 0 && (
+                                            <>
+                                                <span className="text-[9px] font-bold uppercase tracking-widest text-white/30 block mb-1">💡 Nápady na příspěvky</span>
+                                                {savedIdeas.slice(0, 10).map((idea: any) => (
+                                                    <button
+                                                        key={idea.id}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setTopic(`${idea.title}: ${idea.content}`)
+                                                            setShowIdeaPicker(false)
+                                                        }}
+                                                        className="w-full text-left px-3 py-2 rounded-sm text-xs text-white/70 hover:bg-white/10 hover:text-white transition-colors border border-transparent hover:border-white/10 truncate"
+                                                    >
+                                                        <span className="text-[9px] px-1.5 py-0.5 bg-white/5 border border-white/10 rounded-sm text-white/40 mr-2">{idea.category}</span>
+                                                        {idea.title}
+                                                    </button>
+                                                ))}
+                                            </>
+                                        )}
+                                        {approvedReviews.length > 0 && (
+                                            <>
+                                                <span className="text-[9px] font-bold uppercase tracking-widest text-white/30 block mb-1 mt-2">⭐ Schválené recenze</span>
+                                                {approvedReviews.slice(0, 5).map((review: any) => (
+                                                    <button
+                                                        key={review.id}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setTopic(`Recenze zákazníka: "${review.quote}" — ${review.customer_initials || "Anonym"}`)
+                                                            // Auto-select recenze post type if available
+                                                            const reviewType = postTypes.find(pt => pt.name === "recenze" || pt.name === "review" || pt.name === "testimonial")
+                                                            if (reviewType) setSelectedType(reviewType.name)
+                                                            setShowIdeaPicker(false)
+                                                        }}
+                                                        className="w-full text-left px-3 py-2 rounded-sm text-xs text-white/70 hover:bg-white/10 hover:text-white transition-colors border border-transparent hover:border-white/10"
+                                                    >
+                                                        <span className="text-[9px] px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-sm text-amber-400 mr-2">{"⭐".repeat(review.rating || 5)}</span>
+                                                        &ldquo;{review.quote?.substring(0, 80)}{review.quote?.length > 80 ? "..." : ""}&rdquo;
+                                                    </button>
+                                                ))}
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+
                                 <textarea
                                     placeholder="O čem by měl příspěvek komunikovat? Např. Jarní slevy, Nová kolekce šperků, nebo edukace ohledně péče o pleť..."
                                     value={topic}

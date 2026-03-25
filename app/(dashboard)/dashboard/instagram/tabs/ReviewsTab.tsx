@@ -15,7 +15,7 @@ export function ReviewsTab({ projectId }: { projectId: string }) {
 
     const loadReviews = async () => {
         setLoading(true)
-        const data = await getIGReviewsList()
+        const data = await getIGReviewsList(projectId)
         setReviews(data)
         setLoading(false)
     }
