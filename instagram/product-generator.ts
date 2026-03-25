@@ -223,17 +223,21 @@ export async function generateDesignConcept(
 
     // Product-type specific design instructions
     const productDesignGuides: Record<string, string> = {
-        triko: "Design pro potisk trička — izolovaná grafika na černém pozadí, optimalizované pro DTG tisk. Placement: front chest nebo full-front.",
-        mikina: "Design pro potisk mikiny — izolovaná grafika na černém pozadí, optimalizované pro DTG tisk. Placement: front chest, back, nebo chest pocket area.",
-        čepice: "Design pro vyšití/potisk na kšiltovku — jednoduchý, bold, funguje v malém měřítku. Placement: front panel.",
-        gadget: "Design/vizualizace fyzického gadgetu — produkt samotný, ne potisk. ZOBRAZ CELÝ PRODUKT: tvar, materiál, logo placement, jak drží v ruce.",
-        accessory: "Design/vizualizace doplňku — produkt samotný. ZOBRAZ CELÝ PRODUKT: materiál, gravírování/potisk loga, lifestyle kontext.",
-        card: "Design vizitko-velikosti produktu (jako MRDKE CARD) — zobraz z obou stran, materiál, gravírování, texturu kovu.",
-        doplněk: "Design/vizualizace fyzického produktu — ZOBRAZ CELÝ PRODUKT, ne jen grafiku. Materiál, barvy, logo, kontext použití.",
+        triko: "Design pro potisk trička — ZOBRAZ CELÉ TRIČKO (laid flat nebo na modelovi) s tvým designem. Kvalitní produktová fotka, ne jen izolovaná grafika.",
+        mikina: "Design pro potisk mikiny — ZOBRAZ CELOU MIKINU s tvým designem. Streetwear produktová fotka na tmavém pozadí.",
+        čepice: "Design/vizualizace kšiltovky s tvým designem. Zobraz celý produkt (snapback), detailní materiály, výšivka/potisk loga.",
+        ponožky: "Design pro ponožky — pár ponožek s vtipným celoplošným potiskem. Zobraz celý produkt v realistickém provedení.",
+        taška: "Design pro plátěnou tašku (tote bag). Zobraz celou tašku s výrazným potiskem na tmavém pozadí.",
+        plakát: "Design pro plakát — zobraz plakát v minimalistickém rámu v interiéru nebo na zdi. Umělecké dílo.",
+        polštář: "Design pro polštář — zobraz polštář s tvým vzorem/grafikou v interiéru.",
+        hrnek: "Design pro hrnek — zobraz celý hrnek s fotorealistickým potiskem na tmavém pozadí.",
+        gadget: "Design/vizualizace fyzického gadgetu — produkt samotný. ZOBRAZ CELÝ PRODUKT: tvar, materiál, logo placement.",
+        accessory: "Design/vizualizace doplňku — produkt samotný. ZOBRAZ CELÝ PRODUKT: materiál, gravírování/potisk loga.",
+        card: "Design vizitko-velikosti produktu — zobraz materiál, gravírování, texturu.",
     }
 
     const designGuide = productDesignGuides[productType] || productDesignGuides.triko
-    const isClothing = ["triko", "mikina", "čepice"].includes(productType)
+    const isMockupReady = ["triko", "mikina", "ponožky", "taška", "čepice"].includes(productType)
 
     // Step 1: Generate design concept via AI text
     console.log("🧠 Generuji design koncept...")
@@ -243,10 +247,8 @@ export async function generateDesignConcept(
 ${bv.persona}
 
 ## BRAND VIZUÁL
-- Barvy: černá, bílá, zlatá, neon green, neon purple
 - Styl: Streetwear, urban, drzý, provokativní
-- Fonty: Bold sans-serif, graffiti-inspired
-- Inspirace: Supreme, Off-White, Palace, BAPE (ale ČESKÁ verze)
+- Barvy: Preferuj barvy brandu, ale buď kreativní
 
 ## STÁVAJÍCÍ PRODUKTY
 ${config.products?.map(p => `- ${p.name}: ${p.description || ""}`).join("\n") || "Žádné"}
@@ -260,19 +262,14 @@ ${designGuide}
 
 ## PRAVIDLA:
 1. Design MUSÍ sedět k "${config.name}" brand identity
-${isClothing ? `2. Promysli placement (front/back/chest/all-over)
-3. Prompt MUSÍ obsahovat: "Isolated design on solid black background, print-ready, high contrast, clean edges"
-4. Design musí být TISKNUTELNÝ — čisté kontury, žádné rozmazání` : `2. Prompt musí popisovat CELÝ FYZICKÝ PRODUKT — jak vypadá, materiál, tvar, branding
-3. Prompt MUSÍ obsahovat: "Product photography, studio lighting, dark background, professional quality"
-4. Produkt musí vypadat jako REÁLNÝ, vyrobitelný item`}
+2. **Nezobrazuj jen plochý obrázek**, zobraz vždy REÁLNÝ PRODUKT v prostoru (S výjimkou plakátu, který může být i v rámu).
+3. Prompt MUSÍ obsahovat: "Product photography, studio lighting, photorealistic, clean dark background, professional quality"
+4. Design musí být vizuálně atraktivní a vypadat jako hotový prémiový kousek.
 5. Vytvoř detailní ANGLICKÝ prompt pro AI image generator
-6. Think like a product designer — premium, innovative, iconic
-7. V poli "suggestedTexts" navrhni 5 krátkých vtipných textů/sloganů k tomuto tématu:
+6. V poli "suggestedTexts" navrhni 5 krátkých vtipných textů/sloganů k tomuto tématu:
    - Max 5 slov každý
-   - On-brand humor, wordplay, dvojsmysly
-   - Mix česky a anglicky
-   - Musí sedět k tématu "${theme}" a brandu "${config.name}"
-   - Příklady stylů: drzé hlášky, memes, streetwear slogany, provokativní nápisy
+   - On-brand humor, mix česky/anglicky
+   - Musí sedět k tématu "${theme}"
 
 Vrať POUZE validní JSON.`
 
@@ -296,9 +293,7 @@ Vrať POUZE validní JSON.`
         // Step 2: Generate image
         console.log("\n🎨 Generuji design...")
 
-        const imageSuffix = isClothing
-            ? "Isolated design on solid black background. Print-ready vector art style, high contrast, clean sharp edges, streetwear graphic design, professional DTG print quality. Single centered composition."
-            : "Product photography, studio lighting, clean dark background, photorealistic, premium quality, detailed materials and textures visible, professional product shot."
+        const imageSuffix = "Product photography, studio lighting, clean dark background, photorealistic, premium quality, detailed materials and textures visible, professional product shot."
 
         // Build text overlay instruction for the prompt
         const textInstruction = overlayText
@@ -494,9 +489,49 @@ export async function generateProductMockup(
     }
 
     const templatePath = path.join(process.cwd(), "instagram", "templates", templateFile)
+    let templateBuffer: Buffer
+    
+    // Fallback akce: Generování AI Šablony pokud fyzicky neexistuje
     if (!fs.existsSync(templatePath)) {
-        console.error(`❌ Šablona nenalezena: ${templatePath}`)
-        return null
+        console.warn(`⚠️ Šablona nenalezena: ${templatePath}. Generuji realistickou AI šablonu pomocí Imagen na míru...`)
+        try {
+            const { generateImage } = await import("./gemini-client")
+            
+            // Map the product type to a prompt
+            let templatePrompt = `blank plain black ${productType} laid flat on simple studio background, photorealistic product photography, studio lighting, high resolution, no text, no logo`
+            
+            if (productType === "triko") {
+                templatePrompt = "blank plain black t-shirt laid flat on simple studio background, high quality apparel product photography, no text, no logo, pristine condition"
+            } else if (productType === "mikina") {
+                templatePrompt = "blank plain black hoodie sweatshirt laid flat on simple studio background, high quality apparel product photography, no text, no logo, pristine condition"
+            } else if (productType === "čepice") {
+                templatePrompt = "blank plain black snapback cap, front view, isolated on dark studio background, product photography, no text, no logo"
+            } else if (productType === "ponožky") {
+                templatePrompt = "pair of blank plain black crew socks laid flat, high quality apparel product photography, studio lighting, no text, no logo"
+            } else if (productType === "taška") {
+                templatePrompt = "blank plain black canvas tote bag shopper, isolated on dark studio background, product photography, no text, no logo"
+            } else if (productType === "plakát") {
+                templatePrompt = "vertical blank white poster mockup in a minimal modern black frame leaning against a dark wall, studio lighting, high resolution"
+            } else if (productType === "polštář") {
+                templatePrompt = "blank plain white square throw pillow, isolated on a dark minimal sofa background, product photography, no text, no logo"
+            } else if (productType === "hrnek") {
+                templatePrompt = "blank plain white ceramic coffee mug, studio lighting, isolated on dark background, product photography, no text, no logo"
+            }
+            
+            templateBuffer = await generateImage(templatePrompt, { aspectRatio: "1:1" })
+            console.log(`   ✅ AI Šablona "${productType}" úspěšně vygenerována`)
+        } catch (err) {
+            console.error("❌ AI selhalo při tvorbě šablony, vracím tvrdý fallback:", err)
+            // Hard fallback if AI fails
+            templateBuffer = await sharp({
+                create: {
+                    width: 1024, height: 1024, channels: 4,
+                    background: { r: 15, g: 15, b: 15, alpha: 1 }
+                }
+            }).png().toBuffer()
+        }
+    } else {
+        templateBuffer = fs.readFileSync(templatePath)
     }
 
     // Step 1: Download the actual design image
@@ -514,7 +549,7 @@ export async function generateProductMockup(
 
     // Step 2: Get template dimensions and calculate placement
     try {
-        const templateMeta = await sharp(templatePath).metadata()
+        const templateMeta = await sharp(templateBuffer).metadata()
         const templateWidth = templateMeta.width || 1024
         const templateHeight = templateMeta.height || 1024
 
@@ -534,7 +569,7 @@ export async function generateProductMockup(
             .png()
             .toBuffer()
 
-        const composited = await sharp(templatePath)
+        const composited = await sharp(templateBuffer)
             .composite([{
                 input: resizedDesign,
                 left,
