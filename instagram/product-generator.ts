@@ -145,6 +145,7 @@ export async function generateProductIdeas(
         ? config.products.map(p => `- ${p.name} (${p.type}): ${p.price || "?"} — ${p.description || ""}`).join("\n")
         : "Žádné existující produkty"
 
+    const randomSeed = Math.floor(Math.random() * 10000)
     const prompt = `Jsi product designer pro streetwear/lifestyle brand "${config.name}".
 Web: ${config.website} | IG: ${config.instagram}
 
@@ -154,7 +155,7 @@ ${bv.persona}
 ## BRAND VALUES
 ${bv.values.join("\n")}
 
-## STÁVAJÍCÍ PRODUKTY
+## STÁVAJÍCÍ PRODUKTY (TĚMTO SE OBLOUKEM VYHNI)
 ${existingProducts}
 
 ${theme ? `## TÉMA / INSPIRACE
@@ -162,39 +163,38 @@ ${theme}
 ` : ""}
 
 ## ÚKOL
-Navrhni ${count} NOVÝCH produktů pro brand "${config.name}".
+Navrhni ${count} NAPROSTO NOVÝCH, NEČEKANÝCH produktů pro brand "${config.name}".
+ZAPOMEŇ na nudný merch. Chceme produkty, které zaujmou na první pohled.
 
 ## KATEGORIE PRODUKTŮ (vyber z těchto — jde objednat z Číny za pár korun):
-- **Drinkware**: keramický hrnek, termohrnek, sklenice na whisky/pivo, lahev na vodu, shot glass
-- **Accessories**: snapback/dad hat čepice, beanie, klíčenka (kov/kůže/guma), náramek, pásek, peněženka
-- **Smoking**: Zippo-style zapalovač, popelník (kov/beton/keramika), rolling tray, cigaretové pouzdro
-- **Phone**: silikonový/hard phone case, PopSocket grip, stojánek na telefon
-- **Home**: polštář, podtácek, plakát/poster, nástěnné hodiny, svíčka, magnetka na lednici
-- **Clothing basics**: tričko, mikina, ponožky, boxerky, bucket hat, šátek/bandana
-- **EDC/Tools**: otvírák na lahve, multitool karta, karabina, mini baterka
-- **Stationery**: notes/zápisník, samolepky (sticker pack), odznak/pin
-- **Fun/Novelty**: hrací karty, kostky, stírací los, puzzle
+- **Drinkware**: keramický hrnek (atypický tvar), termohrnek, sklenice na whisky/pivo, lahev na vodu, shot glass
+- **Accessories**: snapback, beanie, klíčenka (kov/kůže/guma), náramek, pásek, peněženka, sluneční brýle
+- **Smoking**: Zippo-style zapalovač, popelník (beton/keramika/sklo), rolling tray, grinder, cigaretové pouzdro
+- **Phone & Tech**: silikonový/hard phone case, stojánek na telefon, powerbanka, LED neony do pokoje, custom USB flashky
+- **Home & Lifestyle**: polštář (tvarovaný), stojan na vonné tyčinky, plakát/poster, nástěnné hodiny, svíčka v plechovce, rohožka přede dveře
+- **Clothing basics**: tričko, mikina, ponožky s vtipným potiskem, boxerky, bucket hat, pláštěnka
+- **EDC/Tools**: otvírák na lahve (zajímavý tvar), multitool karta, karabina, placatka
+- **Stationery & Office**: luxusní notes, sticker pack, kovový pin / odznak, podložka pod myš
+- **Fun/Novelty**: hrací karty, kostky, stírací los, puzzle, stress ball ve vlastním tvaru, plyšák/maskot
 
-## PRAVIDLA:
-1. Každý produkt MUSÍ jít REÁLNĚ objednat z Alibaba/1688 jako hotový polotovar a jen potisknout/gravírovat logem
-2. ŽÁDNÉ vymyšlené předměty! Žádné brzdové kotouče, fidget spinnery, zbraně nebo sci-fi přístroje
-3. Cenový rozsah pro zákazníka: 149-699 Kč (nákupka pod 50 Kč z Číny)
-4. Vtipné názvy s wordplay/dvojsmysly = BONUS
-5. Piš česky, on-brand humor
-6. MINIMÁLNĚ 3 z ${count} produktů musí být NON-CLOTHING
-7. NEDUPLIKUJ stávající produkty!
-8. Ke KAŽDÉMU produktu napiš anglický designPrompt — popis pro AI generátor obrázků:
-   - VŽDY: "single [product] centered on dark background, product photography, studio lighting, photorealistic"
-   - NIKDY: žádné rozměry, kóty, text, labely, schémata, technické výkresy
-   - Produkt musí vypadat jako FOTKA z e-shopu, ne jako technický výkres
-9. U každého produktu specifikuj reálný materiál a metodu potisku (sítotisk, gravírování, sublimace, tampoprint)
+## PRAVIDLA (Kriticky důležité pro kreativitu):
+1. **PŘEKVAP NÁS:** NIKDY nevybírej ty nejběžnější předměty (obyčejný bílý hrnek, klíčenka s logem). Když hrnek, tak ve tvaru lebky, objektivu, granátu atd. Když polštář, tak tvarovaný jako kus sushi, bota, disketa atd.
+2. NIKDY se neopakuj v nápadech, každý generátorem spuštěný běh musí přinést úplně jiné kategorie produktů. (Seed této iterace: ${randomSeed})
+3. Každý produkt MUSÍ jít REÁLNĚ objednat z Alibaba/1688 jako hotový polotovar (nevyžaduje R&D).
+4. Cenový rozsah pro zákazníka: 149-699 Kč.
+5. Vtipné názvy s wordplay/dvojsmysly = NUTNOST.
+6. Piš drze, česky, on-brand streetwear humor.
+7. MINIMÁLNĚ 3 z ${count} produktů musí být NON-CLOTHING.
+8. NEDUPLIKUJ stávající produkty!
+9. Anglický designPrompt — popis vizuálu pro AI obrázky MUSÍ BÝT MEGA DETAILNÍ. (VŽDY: "single [product] centered on dark background, product photography, studio lighting...").
+10. U každého produktu specifikuj reálný materiál a potisk (sítotisk, gravírování, sublimace).
 
 Generuj PŘESNĚ ${count} nápadů.`
 
     try {
         const result = await generateText(prompt, {
             responseSchema: PRODUCT_IDEAS_SCHEMA,
-            temperature: 1.0,
+            temperature: 1.3,
         })
 
         // Clean markdown backticks if Gemini includes them

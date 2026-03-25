@@ -52,26 +52,53 @@ import { withRetry } from "../utils/retry"
 
 export async function generateText(
     prompt: string,
-    options?: { responseSchema?: any; temperature?: number }
+    options?: { responseSchema?: any; temperature?: number; model?: string }
 ): Promise<string> {
-    return withRetry(async () => {
-        const response = await ai.models.generateContent({
-            model: "gemini-3.1-pro-preview",
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                ...(options?.responseSchema && { responseSchema: options.responseSchema }),
-                ...(options?.temperature !== undefined && { temperature: options.temperature }),
-            },
+    const defaultModel = options?.model || "gemini-3.1-pro-preview"
+    try {
+        return await withRetry(async () => {
+            const response = await ai.models.generateContent({
+                model: defaultModel,
+                contents: prompt,
+                config: {
+                    responseMimeType: "application/json",
+                    ...(options?.responseSchema && { responseSchema: options.responseSchema }),
+                    ...(options?.temperature !== undefined && { temperature: options.temperature }),
+                },
+            })
+
+            const parts = response.candidates?.[0]?.content?.parts || []
+            const textPart = parts.find((p: any) => p.text)
+            const text = textPart?.text
+
+            if (!text) throw new Error("Gemini returned no text")
+            return text
         })
+    } catch (err: any) {
+        // Fallback to gemini-2.5-pro on 503 Overloaded errors
+        if (err.status === 503 || err.message?.includes("503") || err.message?.includes("high demand") || err.message?.includes("overloaded")) {
+            console.warn(`⚠️ ${defaultModel} is overloaded (503). Falling back to gemini-2.5-pro...`)
+            return await withRetry(async () => {
+                const response = await ai.models.generateContent({
+                    model: "gemini-2.5-pro",
+                    contents: prompt,
+                    config: {
+                        responseMimeType: "application/json",
+                        ...(options?.responseSchema && { responseSchema: options.responseSchema }),
+                        ...(options?.temperature !== undefined && { temperature: options.temperature }),
+                    },
+                })
 
-        const parts = response.candidates?.[0]?.content?.parts || []
-        const textPart = parts.find((p: any) => p.text)
-        const text = textPart?.text
+                const parts = response.candidates?.[0]?.content?.parts || []
+                const textPart = parts.find((p: any) => p.text)
+                const text = textPart?.text
 
-        if (!text) throw new Error("Gemini returned no text")
-        return text
-    })
+                if (!text) throw new Error("Gemini returned no text")
+                return text
+            }, 1) // Only retry once for the fallback
+        }
+        throw err
+    }
 }
 
 // ============================================
