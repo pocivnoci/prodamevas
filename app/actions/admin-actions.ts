@@ -322,3 +322,63 @@ export async function getPerformanceInsights(projectSlug: string = "mobilnamiru"
     }
 }
 
+export async function getClientConfig(projectSlug: string): Promise<any> {
+    try {
+        const { loadConfig } = await import("@/instagram/configs")
+        const config = await loadConfig(projectSlug)
+        return config
+    } catch (err: any) {
+        console.error("getClientConfig error:", err?.message || err)
+        return null
+    }
+}
+
+// ─── Client Config Editor ────────────────────────────────────────────────
+
+export async function updateClientConfig(projectSlug: string, partialConfig: any): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { resolveClientId } = await import("@/instagram/configs")
+        const clientId = await resolveClientId(projectSlug)
+
+        // Fetch current config from DB directly
+        const { data: client, error: fetchErr } = await supabaseAdmin
+            .from("clients")
+            .select("config")
+            .eq("id", clientId)
+            .single()
+            
+        if (fetchErr || !client) {
+            throw new Error(`Failed to fetch client for update: ${fetchErr?.message}`)
+        }
+
+        const currentConfig = client.config || {}
+        
+        // Merge top-level config fields
+        const newConfig = {
+            ...currentConfig,
+            ...partialConfig,
+        }
+
+        // Specifically merge nested objects if they are partially passed (like brandVoice or feedAesthetic)
+        if (partialConfig.brandVoice && currentConfig.brandVoice) {
+            newConfig.brandVoice = { ...currentConfig.brandVoice, ...partialConfig.brandVoice }
+        }
+        if (partialConfig.feedAesthetic && currentConfig.feedAesthetic) {
+            newConfig.feedAesthetic = { ...currentConfig.feedAesthetic, ...partialConfig.feedAesthetic }
+        }
+
+        const { error: updateErr } = await supabaseAdmin
+            .from("clients")
+            .update({ config: newConfig })
+            .eq("id", clientId)
+
+        if (updateErr) throw updateErr
+
+        return { success: true }
+    } catch (err: any) {
+        console.error("updateClientConfig error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}
+
+
