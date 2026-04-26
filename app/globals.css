@@ -24,6 +24,12 @@
   --color-dark-800: #1e293b;
   --color-dark-900: #0f172a;
   --color-dark-950: #020617;
+
+  /* ProdámeVás Brand Tokens */
+  --color-aisummit-bg: #050505;
+  --color-aisummit-text: #f0f0f0;
+  --color-aisummit-cinnabar: #e63946;
+  --color-aisummit-glow: #ff6b6b;
 }
 
 @layer base {
