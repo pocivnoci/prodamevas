@@ -275,55 +275,122 @@ export default function Home() {
         </div>
       </section>
 
-      {/* DEMO SECTION */}
-      <section id="demo" className="relative py-32 border-t border-white/5 bg-[#0a0a0a]">
+      {/* DEMO SECTION — Seed of Life Pipeline */}
+      <section id="demo" className="relative py-32 border-t border-white/5 bg-[#0a0a0a] overflow-hidden">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Podívejte se, <br /><span className="text-white/30">jak to funguje.</span></h2>
-            <p className="text-white/50 font-medium text-lg max-w-2xl mx-auto">Od zadání webu po hotový měsíc obsahu. Celý proces trvá méně než 2 minuty.</p>
+          <div className="text-center mb-20">
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Architektura <br /><span className="text-white/30">inteligence.</span></h2>
+            <p className="text-white/50 font-medium text-lg max-w-2xl mx-auto">7 propojených AI vrstev. Každá rozhoduje, analyzuje a tvoří. Společně generují obsah, který nevypadá jako od robota.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {[
-              { num: "01", title: "Zadáte URL webu", desc: "AI automaticky analyzuje vaši značku — barvy, produkty, tone of voice, cílovou skupinu. Žádné vyplňování formulářů.", icon: "🌐", color: "from-blue-500/20 to-cyan-500/10" },
-              { num: "02", title: "Odpovíte na 5 otázek", desc: "Personalizovaný dotazník na věci, které AI nezvládne zjistit samo — frekvence, tabu témata, vizuální preference.", icon: "💬", color: "from-emerald-500/20 to-green-500/10" },
-              { num: "03", title: "Autopilot generuje", desc: "Kognitivní engine vytvoří captiony, vizuály přes Imagen 4 a sestaví měsíční content plán. Vy jen schvalujete.", icon: "✨", color: "from-aisummit-cinnabar/20 to-amber-500/10" },
-            ].map((item, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.15, duration: 0.6 }}
-                className={`relative overflow-hidden rounded-sm border border-white/10 bg-gradient-to-br ${item.color} p-8 group hover:border-white/20 transition-all`}
-              >
-                <div className="text-5xl font-black text-white/[0.03] absolute top-4 right-4">{item.num}</div>
-                <span className="text-4xl mb-6 block">{item.icon}</span>
-                <h3 className="text-lg font-black uppercase tracking-widest text-white mb-3">{item.title}</h3>
-                <p className="text-white/50 text-sm leading-relaxed">{item.desc}</p>
-              </motion.div>
-            ))}
-          </div>
+          <div className="flex flex-col lg:flex-row items-center gap-16 max-w-6xl mx-auto">
+            {/* Seed of Life SVG */}
+            <div className="lg:w-1/2 flex justify-center">
+              <div className="relative w-[360px] h-[360px] md:w-[420px] md:h-[420px]">
+                <svg viewBox="0 0 420 420" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                  {/* Definitions */}
+                  <defs>
+                    <radialGradient id="glow-center" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#e63946" stopOpacity="0.3" />
+                      <stop offset="100%" stopColor="#e63946" stopOpacity="0" />
+                    </radialGradient>
+                  </defs>
 
-          {/* Live Stats Bar */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="mt-16 max-w-4xl mx-auto bg-[#0f0f0f] border border-white/10 rounded-sm p-6 flex flex-col sm:flex-row items-center justify-around gap-6"
-          >
-            {[
-              { value: "~2 min", label: "Nastavení" },
-              { value: "30+", label: "Postů / měsíc" },
-              { value: "$0.08", label: "Za post" },
-              { value: "0", label: "Lidských hodin" },
-            ].map((stat, i) => (
-              <div key={i} className="text-center">
-                <div className="text-2xl md:text-3xl font-black text-white">{stat.value}</div>
-                <div className="text-[9px] font-bold uppercase tracking-widest text-white/40 mt-1">{stat.label}</div>
+                  {/* Background glow */}
+                  <circle cx="210" cy="210" r="180" fill="url(#glow-center)" opacity="0.4" />
+
+                  {/* Seed of Life circles — 7 circles: 1 center + 6 petals */}
+                  {(() => {
+                    const cx = 210, cy = 210, r = 80
+                    const circles = [
+                      { x: cx, y: cy, label: "Engine", delay: 0 },
+                      { x: cx, y: cy - r, label: "Brand", delay: 0.3 },
+                      { x: cx + r * Math.sin(Math.PI / 3), y: cy - r * Math.cos(Math.PI / 3), label: "Strategie", delay: 0.6 },
+                      { x: cx + r * Math.sin(Math.PI / 3), y: cy + r * Math.cos(Math.PI / 3), label: "Copy", delay: 0.9 },
+                      { x: cx, y: cy + r, label: "Vizuál", delay: 1.2 },
+                      { x: cx - r * Math.sin(Math.PI / 3), y: cy + r * Math.cos(Math.PI / 3), label: "Overlay", delay: 1.5 },
+                      { x: cx - r * Math.sin(Math.PI / 3), y: cy - r * Math.cos(Math.PI / 3), label: "Quality", delay: 1.8 },
+                    ]
+                    return circles.map((c, i) => (
+                      <motion.g key={i}
+                        initial={{ opacity: 0, scale: 0.3 }}
+                        whileInView={{ opacity: 1, scale: 1 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: c.delay, duration: 0.8, ease: "easeOut" }}
+                      >
+                        <circle
+                          cx={c.x} cy={c.y} r={r}
+                          fill="none"
+                          stroke={i === 0 ? "#e63946" : "rgba(255,255,255,0.08)"}
+                          strokeWidth={i === 0 ? 2 : 1}
+                          className={i === 0 ? "" : ""}
+                        />
+                        {/* Intersection fill — vesica piscis glow */}
+                        {i > 0 && (
+                          <circle
+                            cx={c.x} cy={c.y} r={r}
+                            fill="rgba(230,57,70,0.03)"
+                            stroke="none"
+                          />
+                        )}
+                        {/* Label */}
+                        <text
+                          x={c.x} y={i === 0 ? c.y + 2 : c.y + 2}
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                          fill={i === 0 ? "#e63946" : "rgba(255,255,255,0.5)"}
+                          fontSize={i === 0 ? "13" : "11"}
+                          fontWeight="900"
+                          letterSpacing="0.15em"
+                          style={{ textTransform: "uppercase", fontFamily: "inherit" }}
+                        >
+                          {c.label}
+                        </text>
+                      </motion.g>
+                    ))
+                  })()}
+
+                  {/* Center dot pulse */}
+                  <motion.circle
+                    cx="210" cy="210" r="4"
+                    fill="#e63946"
+                    initial={{ opacity: 0 }}
+                    whileInView={{ opacity: [0.3, 1, 0.3] }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 2.2, duration: 2, repeat: Infinity }}
+                  />
+                </svg>
               </div>
-            ))}
-          </motion.div>
+            </div>
+
+            {/* Step Descriptions */}
+            <div className="lg:w-1/2 space-y-5">
+              {[
+                { num: "01", name: "Brand Analysis", desc: "AI naskenuje váš web, extrahuje barvy, produkty, tón komunikace a cílovou skupinu." },
+                { num: "02", name: "Content Strategie", desc: "Na základě analýzy sestaví pilíře obsahu — edukace, prodej, humor, behind-the-scenes." },
+                { num: "03", name: "AI Copywriting", desc: "Mega-prompt engine napíše caption s háčkem, CTA a hashtagy přesně ve vašem stylu." },
+                { num: "04", name: "Vizuální Generace", desc: "Imagen 4 vytvoří fotorealistický obrázek na míru. Žádné stock fotky." },
+                { num: "05", name: "Textový Overlay", desc: "Satori engine vykreslí typografii, gradient a logo přímo na obrázek." },
+                { num: "06", name: "Quality Gate", desc: "Každý post projde hodnocením 1-10. Pod 7 bodů? Automatická regenerace." },
+                { num: "07", name: "Hotový Post", desc: "Caption + vizuál + hashtagy. Připraveno ke zveřejnění nebo naplánování." },
+              ].map((step, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: 20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.1, duration: 0.5 }}
+                  className="flex items-start gap-4 group"
+                >
+                  <span className="text-[10px] font-black text-white/15 tracking-widest mt-1 shrink-0 w-6">{step.num}</span>
+                  <div>
+                    <h4 className="text-sm font-black uppercase tracking-widest text-white group-hover:text-aisummit-cinnabar transition-colors">{step.name}</h4>
+                    <p className="text-xs text-white/40 leading-relaxed mt-1">{step.desc}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -334,6 +401,9 @@ export default function Home() {
           <div className="text-center mb-20">
             <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Investice do <br /><span className="text-aisummit-cinnabar">růstu.</span></h2>
             <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Kolik stojí social media manažer? 25 000 Kč měsíčně. Kolik stojí ProdámeVás? Zlomek.</p>
+            <div className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-sm border border-aisummit-cinnabar/30 bg-aisummit-cinnabar/10 backdrop-blur-sm">
+              <span className="text-aisummit-cinnabar text-sm font-black">Kvalitní příspěvek na Instagram již od 50 Kč</span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto items-stretch">
