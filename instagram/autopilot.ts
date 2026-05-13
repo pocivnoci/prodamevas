@@ -183,10 +183,10 @@ export async function generateOnePost(options: {
     const isReel = format.medium === "reel"
     const isCarousel = format.medium === "carousel"
     const postFormat = isReel ? "video script" : isCarousel ? "carousel" : "caption"
-    console.log(`✍️  Generuji ${postFormat} (Gemini 3 Flash)...`)
+    console.log(`✍️  Generuji ${postFormat} (Gemini 2.5 Pro)...`)
     const megaPrompt = buildMegaPrompt(config, selectedType, idea, review, recentHooks, performance, options.topic, selectedProduct)
     const schema = isReel ? buildVideoSchema(config) : isCarousel ? buildCarouselSchema(config) : buildCaptionSchema(config)
-    const rawText = await generateText(megaPrompt, { responseSchema: schema })
+    const rawText = await generateText(megaPrompt, { responseSchema: schema, model: "gemini-2.5-pro" })
     cost += COSTS.textGeneration
 
     let captionData: {
