@@ -54,7 +54,7 @@ export async function generateText(
     prompt: string,
     options?: { responseSchema?: any; temperature?: number; model?: string }
 ): Promise<string> {
-    const defaultModel = options?.model || "gemini-3.1-pro-preview"
+    const defaultModel = options?.model || "gemini-2.5-pro"
     try {
         return await withRetry(async () => {
             const response = await ai.models.generateContent({
@@ -197,7 +197,7 @@ export async function detectLogoPlacementArea(imageBuffer: Buffer): Promise<{ x:
     return withRetry(async () => {
         const response = await ai.models.generateContent({
             // Sjednoceno na gemini-2.5-pro (původní gemini-1.5-pro házelo ve Vercelu 404 a flash-preview padal na 503)
-            model: "gemini-3.1-pro-preview",
+            model: "gemini-2.5-pro",
             contents: [
                 {
                     inlineData: {
