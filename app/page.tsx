@@ -332,81 +332,109 @@ export default function Home() {
         <div className="absolute top-0 left-1/2 w-[800px] h-[400px] bg-aisummit-cinnabar/5 blur-[150px] rounded-full pointer-events-none" style={{ transform: 'translateX(-50%)' }} />
         <div className="max-w-7xl mx-auto px-6 relative z-10">
           <div className="text-center mb-20">
-            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Transparentní <br /><span className="text-aisummit-cinnabar">ceník.</span></h2>
-            <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Žádné skryté poplatky. Žádné dlouhodobé smlouvy. Zrušit můžete kdykoliv.</p>
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Investice do <br /><span className="text-aisummit-cinnabar">růstu.</span></h2>
+            <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Kolik stojí social media manažer? 25 000 Kč měsíčně. Kolik stojí ProdámeVás? Zlomek.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {/* Free Plan */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto items-stretch">
+            {/* Start Plan */}
             <div className="rounded-sm border border-white/10 bg-[#0a0a0a] p-8 flex flex-col relative overflow-hidden group hover:border-white/20 transition-all">
               <div className="mb-8">
                 <h3 className="text-xl font-black uppercase tracking-widest text-white mb-2">Start</h3>
-                <p className="text-white/40 text-xs">Pro vyzkoušení platformy</p>
+                <p className="text-white/40 text-xs font-medium">Vyzkoušejte si sílu AI obsahu</p>
               </div>
               <div className="mb-8">
-                <span className="text-5xl font-black text-white">0 Kč</span>
-                <span className="text-white/30 text-sm font-bold ml-2">/ měsíc</span>
+                <span className="text-5xl font-black text-white">Zdarma</span>
               </div>
               <ul className="space-y-3 mb-10 flex-1">
-                {["1 projekt", "5 postů / měsíc", "AI captiony", "Textový overlay", "Komunitní podpora"].map((f, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm text-white/60">
-                    <CheckCircle2 className="w-4 h-4 text-white/30 shrink-0" />
+                {[
+                  "1 projekt / značka",
+                  "5 postů měsíčně",
+                  "AI captiony a hashtagy",
+                  "Základní obrázky",
+                  "Textový overlay na posty",
+                ].map((f, i) => (
+                  <li key={i} className="flex items-center gap-3 text-sm text-white/50">
+                    <CheckCircle2 className="w-4 h-4 text-white/20 shrink-0" />
                     {f}
                   </li>
                 ))}
               </ul>
-              <Link href="/register" className="block text-center py-3 px-6 rounded-sm border border-white/20 text-white/70 font-bold text-xs uppercase tracking-widest hover:bg-white/5 hover:text-white transition-all">
-                Začít zdarma
+              <Link href="/register" className="block text-center py-3.5 px-6 rounded-sm border border-white/15 text-white/60 font-bold text-xs uppercase tracking-widest hover:bg-white/5 hover:text-white transition-all">
+                Vytvořit účet
               </Link>
             </div>
 
-            {/* Pro Plan — FEATURED */}
-            <div className="rounded-sm border-2 border-aisummit-cinnabar bg-[#0a0a0a] p-8 flex flex-col relative overflow-hidden group scale-[1.02] shadow-[0_0_40px_rgba(230,57,70,0.15)]">
-              <div className="absolute top-0 right-0 bg-aisummit-cinnabar text-white text-[9px] font-black uppercase tracking-widest px-4 py-1.5">Populární</div>
-              <div className="mb-8">
-                <h3 className="text-xl font-black uppercase tracking-widest text-white mb-2">Pro</h3>
-                <p className="text-white/40 text-xs">Pro firmy a freelancery</p>
+            {/* Business Plan — FEATURED */}
+            <div className="rounded-sm border-2 border-aisummit-cinnabar bg-[#0a0a0a] p-8 flex flex-col relative overflow-hidden group scale-[1.03] shadow-[0_0_60px_rgba(230,57,70,0.15)]">
+              <div className="absolute top-0 right-0 bg-aisummit-cinnabar text-white text-[9px] font-black uppercase tracking-widest px-4 py-1.5">Nejoblíbenější</div>
+              <div className="absolute inset-0 bg-gradient-to-b from-aisummit-cinnabar/5 via-transparent to-transparent pointer-events-none" />
+              <div className="relative z-10 mb-8">
+                <h3 className="text-xl font-black uppercase tracking-widest text-white mb-2">Business</h3>
+                <p className="text-white/40 text-xs font-medium">Pro firmy a freelancery</p>
               </div>
-              <div className="mb-8">
-                <span className="text-5xl font-black text-white">990 Kč</span>
-                <span className="text-white/30 text-sm font-bold ml-2">/ měsíc</span>
+              <div className="relative z-10 mb-2">
+                <span className="text-5xl font-black text-white">1 490</span>
+                <span className="text-white/40 text-lg font-black ml-1">Kč</span>
               </div>
-              <ul className="space-y-3 mb-10 flex-1">
-                {["3 projekty", "Neomezené posty", "AI captiony + Imagen 4", "Produktový generátor", "Video Reels (Veo 3.1)", "Prioritní podpora", "Performance analytika"].map((f, i) => (
+              <p className="text-white/30 text-xs font-bold mb-8">měsíčně · bez závazku</p>
+              <ul className="space-y-3 mb-10 flex-1 relative z-10">
+                {[
+                  "3 projekty / značky",
+                  "60 postů měsíčně",
+                  "Prémiové AI obrázky (Imagen 4)",
+                  "Produktový generátor + mockupy",
+                  "Performance analytika",
+                  "AI generátor nápadů a recenzí",
+                  "Prioritní e-mail podpora",
+                ].map((f, i) => (
                   <li key={i} className="flex items-center gap-3 text-sm text-white/80">
                     <CheckCircle2 className="w-4 h-4 text-aisummit-cinnabar shrink-0" />
                     {f}
                   </li>
                 ))}
               </ul>
-              <Link href="/register" className="block text-center py-3 px-6 rounded-sm bg-aisummit-cinnabar text-white font-bold text-xs uppercase tracking-widest hover:bg-aisummit-cinnabar/90 transition-all shadow-[0_0_20px_rgba(230,57,70,0.3)]">
-                Začít 14 dní zdarma
+              <Link href="/register" className="relative z-10 block text-center py-3.5 px-6 rounded-sm bg-aisummit-cinnabar text-white font-bold text-xs uppercase tracking-widest hover:bg-aisummit-cinnabar/90 transition-all shadow-[0_0_25px_rgba(230,57,70,0.4)]">
+                Vyzkoušet 14 dní zdarma
               </Link>
             </div>
 
             {/* Agency Plan */}
-            <div className="rounded-sm border border-white/10 bg-[#0a0a0a] p-8 flex flex-col relative overflow-hidden group hover:border-white/20 transition-all">
+            <div className="rounded-sm border border-white/10 bg-[#0a0a0a] p-8 flex flex-col relative overflow-hidden group hover:border-emerald-500/30 transition-all">
+              <div className="absolute top-0 right-0 bg-emerald-500/10 text-emerald-400 text-[9px] font-black uppercase tracking-widest px-4 py-1.5 border-l border-b border-emerald-500/20">Pro agentury</div>
               <div className="mb-8">
-                <h3 className="text-xl font-black uppercase tracking-widest text-white mb-2">Agentura</h3>
-                <p className="text-white/40 text-xs">Pro marketingové agentury</p>
+                <h3 className="text-xl font-black uppercase tracking-widest text-white mb-2">Agency</h3>
+                <p className="text-white/40 text-xs font-medium">Pro marketingové agentury a týmy</p>
               </div>
-              <div className="mb-8">
-                <span className="text-5xl font-black text-white">2 490 Kč</span>
-                <span className="text-white/30 text-sm font-bold ml-2">/ měsíc</span>
+              <div className="mb-2">
+                <span className="text-5xl font-black text-white">3 990</span>
+                <span className="text-white/40 text-lg font-black ml-1">Kč</span>
               </div>
+              <p className="text-white/30 text-xs font-bold mb-8">měsíčně · bez závazku</p>
               <ul className="space-y-3 mb-10 flex-1">
-                {["Neomezené projekty", "Neomezené posty", "Vše z Pro plánu", "White-label branding", "API přístup", "Dedikovaný account manager", "SLA 99.9% uptime"].map((f, i) => (
+                {[
+                  "Neomezené projekty",
+                  "Neomezené posty",
+                  "Vše z Business plánu",
+                  "Video Reels (Veo 3.1)",
+                  "White-label branding",
+                  "Onboarding konzultace",
+                  "Přednostní podpora do 4h",
+                ].map((f, i) => (
                   <li key={i} className="flex items-center gap-3 text-sm text-white/60">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                     {f}
                   </li>
                 ))}
               </ul>
-              <Link href="/register" className="block text-center py-3 px-6 rounded-sm border border-white/20 text-white/70 font-bold text-xs uppercase tracking-widest hover:bg-white/5 hover:text-white transition-all">
-                Kontaktovat nás
+              <Link href="/register" className="block text-center py-3.5 px-6 rounded-sm border border-emerald-500/30 text-emerald-400 font-bold text-xs uppercase tracking-widest hover:bg-emerald-500/10 hover:text-emerald-300 transition-all">
+                Začít s Agency plánem
               </Link>
             </div>
           </div>
+
+          {/* Trust line */}
+          <p className="text-center mt-12 text-[9px] text-white/25 font-bold uppercase tracking-widest">Všechny plány včetně 14denní záruky vrácení peněz · Zrušit kdykoliv · Fakturace měsíčně</p>
         </div>
       </section>
 
