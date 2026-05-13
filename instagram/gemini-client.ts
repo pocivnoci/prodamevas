@@ -54,7 +54,7 @@ export async function generateText(
     prompt: string,
     options?: { responseSchema?: any; temperature?: number; model?: string }
 ): Promise<string> {
-    const defaultModel = options?.model || "gemini-2.5-flash"
+    const defaultModel = options?.model || "gemini-3.1-pro-preview"
     try {
         return await withRetry(async () => {
             const response = await ai.models.generateContent({
@@ -75,12 +75,12 @@ export async function generateText(
             return text
         })
     } catch (err: any) {
-        // Fallback to gemini-2.0-flash on 503/429 errors
+        // Fallback to gemini-2.5-pro on 503/429 errors
         if (err.status === 503 || err.status === 429 || err.message?.includes("503") || err.message?.includes("429") || err.message?.includes("quota") || err.message?.includes("high demand") || err.message?.includes("overloaded")) {
-            console.warn(`⚠️ ${defaultModel} unavailable (${err.status}). Falling back to gemini-2.0-flash...`)
+            console.warn(`⚠️ ${defaultModel} unavailable (${err.status}). Falling back to gemini-2.5-pro...`)
             return await withRetry(async () => {
                 const response = await ai.models.generateContent({
-                    model: "gemini-2.0-flash",
+                    model: "gemini-2.5-pro",
                     contents: prompt,
                     config: {
                         responseMimeType: "application/json",
@@ -196,8 +196,8 @@ export async function generateImageWithReferences(
 export async function detectLogoPlacementArea(imageBuffer: Buffer): Promise<{ x: number; y: number; w: number; h: number } | null> {
     return withRetry(async () => {
         const response = await ai.models.generateContent({
-            // Flash model — Pro modely mají vyčerpaný free tier limit
-            model: "gemini-2.5-flash",
+            // Pro modely mají vyčerpaný free tier limit, ale uživatel vyžaduje nejlepší kvalitu
+            model: "gemini-3.1-pro-preview",
             contents: [
                 {
                     inlineData: {
