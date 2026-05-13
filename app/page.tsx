@@ -275,6 +275,141 @@ export default function Home() {
         </div>
       </section>
 
+      {/* DEMO SECTION */}
+      <section id="demo" className="relative py-32 border-t border-white/5 bg-[#0a0a0a]">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Podívejte se, <br /><span className="text-white/30">jak to funguje.</span></h2>
+            <p className="text-white/50 font-medium text-lg max-w-2xl mx-auto">Od zadání webu po hotový měsíc obsahu. Celý proces trvá méně než 2 minuty.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {[
+              { num: "01", title: "Zadáte URL webu", desc: "AI automaticky analyzuje vaši značku — barvy, produkty, tone of voice, cílovou skupinu. Žádné vyplňování formulářů.", icon: "🌐", color: "from-blue-500/20 to-cyan-500/10" },
+              { num: "02", title: "Odpovíte na 5 otázek", desc: "Personalizovaný dotazník na věci, které AI nezvládne zjistit samo — frekvence, tabu témata, vizuální preference.", icon: "💬", color: "from-emerald-500/20 to-green-500/10" },
+              { num: "03", title: "Autopilot generuje", desc: "Kognitivní engine vytvoří captiony, vizuály přes Imagen 4 a sestaví měsíční content plán. Vy jen schvalujete.", icon: "✨", color: "from-aisummit-cinnabar/20 to-amber-500/10" },
+            ].map((item, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.15, duration: 0.6 }}
+                className={`relative overflow-hidden rounded-sm border border-white/10 bg-gradient-to-br ${item.color} p-8 group hover:border-white/20 transition-all`}
+              >
+                <div className="text-5xl font-black text-white/[0.03] absolute top-4 right-4">{item.num}</div>
+                <span className="text-4xl mb-6 block">{item.icon}</span>
+                <h3 className="text-lg font-black uppercase tracking-widest text-white mb-3">{item.title}</h3>
+                <p className="text-white/50 text-sm leading-relaxed">{item.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Live Stats Bar */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="mt-16 max-w-4xl mx-auto bg-[#0f0f0f] border border-white/10 rounded-sm p-6 flex flex-col sm:flex-row items-center justify-around gap-6"
+          >
+            {[
+              { value: "~2 min", label: "Nastavení" },
+              { value: "30+", label: "Postů / měsíc" },
+              { value: "$0.08", label: "Za post" },
+              { value: "0", label: "Lidských hodin" },
+            ].map((stat, i) => (
+              <div key={i} className="text-center">
+                <div className="text-2xl md:text-3xl font-black text-white">{stat.value}</div>
+                <div className="text-[9px] font-bold uppercase tracking-widest text-white/40 mt-1">{stat.label}</div>
+              </div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* PRICING SECTION */}
+      <section id="pricing" className="relative py-32 border-t border-white/5 bg-[#050505]">
+        <div className="absolute top-0 left-1/2 w-[800px] h-[400px] bg-aisummit-cinnabar/5 blur-[150px] rounded-full pointer-events-none" style={{ transform: 'translateX(-50%)' }} />
+        <div className="max-w-7xl mx-auto px-6 relative z-10">
+          <div className="text-center mb-20">
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Transparentní <br /><span className="text-aisummit-cinnabar">ceník.</span></h2>
+            <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Žádné skryté poplatky. Žádné dlouhodobé smlouvy. Zrušit můžete kdykoliv.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {/* Free Plan */}
+            <div className="rounded-sm border border-white/10 bg-[#0a0a0a] p-8 flex flex-col relative overflow-hidden group hover:border-white/20 transition-all">
+              <div className="mb-8">
+                <h3 className="text-xl font-black uppercase tracking-widest text-white mb-2">Start</h3>
+                <p className="text-white/40 text-xs">Pro vyzkoušení platformy</p>
+              </div>
+              <div className="mb-8">
+                <span className="text-5xl font-black text-white">0 Kč</span>
+                <span className="text-white/30 text-sm font-bold ml-2">/ měsíc</span>
+              </div>
+              <ul className="space-y-3 mb-10 flex-1">
+                {["1 projekt", "5 postů / měsíc", "AI captiony", "Textový overlay", "Komunitní podpora"].map((f, i) => (
+                  <li key={i} className="flex items-center gap-3 text-sm text-white/60">
+                    <CheckCircle2 className="w-4 h-4 text-white/30 shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <Link href="/register" className="block text-center py-3 px-6 rounded-sm border border-white/20 text-white/70 font-bold text-xs uppercase tracking-widest hover:bg-white/5 hover:text-white transition-all">
+                Začít zdarma
+              </Link>
+            </div>
+
+            {/* Pro Plan — FEATURED */}
+            <div className="rounded-sm border-2 border-aisummit-cinnabar bg-[#0a0a0a] p-8 flex flex-col relative overflow-hidden group scale-[1.02] shadow-[0_0_40px_rgba(230,57,70,0.15)]">
+              <div className="absolute top-0 right-0 bg-aisummit-cinnabar text-white text-[9px] font-black uppercase tracking-widest px-4 py-1.5">Populární</div>
+              <div className="mb-8">
+                <h3 className="text-xl font-black uppercase tracking-widest text-white mb-2">Pro</h3>
+                <p className="text-white/40 text-xs">Pro firmy a freelancery</p>
+              </div>
+              <div className="mb-8">
+                <span className="text-5xl font-black text-white">990 Kč</span>
+                <span className="text-white/30 text-sm font-bold ml-2">/ měsíc</span>
+              </div>
+              <ul className="space-y-3 mb-10 flex-1">
+                {["3 projekty", "Neomezené posty", "AI captiony + Imagen 4", "Produktový generátor", "Video Reels (Veo 3.1)", "Prioritní podpora", "Performance analytika"].map((f, i) => (
+                  <li key={i} className="flex items-center gap-3 text-sm text-white/80">
+                    <CheckCircle2 className="w-4 h-4 text-aisummit-cinnabar shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <Link href="/register" className="block text-center py-3 px-6 rounded-sm bg-aisummit-cinnabar text-white font-bold text-xs uppercase tracking-widest hover:bg-aisummit-cinnabar/90 transition-all shadow-[0_0_20px_rgba(230,57,70,0.3)]">
+                Začít 14 dní zdarma
+              </Link>
+            </div>
+
+            {/* Agency Plan */}
+            <div className="rounded-sm border border-white/10 bg-[#0a0a0a] p-8 flex flex-col relative overflow-hidden group hover:border-white/20 transition-all">
+              <div className="mb-8">
+                <h3 className="text-xl font-black uppercase tracking-widest text-white mb-2">Agentura</h3>
+                <p className="text-white/40 text-xs">Pro marketingové agentury</p>
+              </div>
+              <div className="mb-8">
+                <span className="text-5xl font-black text-white">2 490 Kč</span>
+                <span className="text-white/30 text-sm font-bold ml-2">/ měsíc</span>
+              </div>
+              <ul className="space-y-3 mb-10 flex-1">
+                {["Neomezené projekty", "Neomezené posty", "Vše z Pro plánu", "White-label branding", "API přístup", "Dedikovaný account manager", "SLA 99.9% uptime"].map((f, i) => (
+                  <li key={i} className="flex items-center gap-3 text-sm text-white/60">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <Link href="/register" className="block text-center py-3 px-6 rounded-sm border border-white/20 text-white/70 font-bold text-xs uppercase tracking-widest hover:bg-white/5 hover:text-white transition-all">
+                Kontaktovat nás
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA SECTION */}
       <section className="relative py-40 overflow-hidden z-10 border-t border-white/5 bg-[#050505]">
         <div className="absolute top-1/2 left-1/2 w-[600px] h-[600px] bg-aisummit-cinnabar/10 blur-[120px] rounded-full pointer-events-none" style={{ transform: 'translate(-50%, -50%)' }} />
@@ -315,8 +450,8 @@ export default function Home() {
           <div>
             <h4 className="font-bold mb-5 text-white/70 tracking-widest uppercase text-[10px]">Právní</h4>
             <ul className="space-y-3 text-[10px] tracking-wider uppercase text-white/30 font-bold">
-              <li><Link href="#" className="hover:text-white transition-colors">Obchodní podmínky</Link></li>
-              <li><Link href="#" className="hover:text-white transition-colors">Zpracování dat</Link></li>
+              <li><Link href="/terms" className="hover:text-white transition-colors">Obchodní podmínky</Link></li>
+              <li><Link href="/privacy" className="hover:text-white transition-colors">Zpracování dat</Link></li>
             </ul>
           </div>
         </div>
