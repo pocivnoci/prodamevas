@@ -275,20 +275,19 @@ export default function Home() {
         </div>
       </section>
 
-      {/* DEMO SECTION — Seed of Life Pipeline */}
+      {/* DEMO SECTION — Seed of Life: Self-Learning Loop */}
       <section id="demo" className="relative py-32 border-t border-white/5 bg-[#0a0a0a] overflow-hidden">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-20">
-            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Architektura <br /><span className="text-white/30">inteligence.</span></h2>
-            <p className="text-white/50 font-medium text-lg max-w-2xl mx-auto">7 propojených AI vrstev. Každá rozhoduje, analyzuje a tvoří. Společně generují obsah, který nevypadá jako od robota.</p>
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Systém, který se <br /><span className="text-aisummit-cinnabar">učí z vašich výsledků.</span></h2>
+            <p className="text-white/50 font-medium text-lg max-w-2xl mx-auto">Každý post, každý like, každý uložený příspěvek — to vše se vrací zpět do AI enginu. Čím víc tvoříte, tím chytřejší obsah dostáváte.</p>
           </div>
 
           <div className="flex flex-col lg:flex-row items-center gap-16 max-w-6xl mx-auto">
-            {/* Seed of Life SVG */}
+            {/* Seed of Life SVG — growth through learning cycles */}
             <div className="lg:w-1/2 flex justify-center">
               <div className="relative w-[360px] h-[360px] md:w-[420px] md:h-[420px]">
                 <svg viewBox="0 0 420 420" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-                  {/* Definitions */}
                   <defs>
                     <radialGradient id="glow-center" cx="50%" cy="50%" r="50%">
                       <stop offset="0%" stopColor="#e63946" stopOpacity="0.3" />
@@ -296,20 +295,30 @@ export default function Home() {
                     </radialGradient>
                   </defs>
 
-                  {/* Background glow */}
                   <circle cx="210" cy="210" r="180" fill="url(#glow-center)" opacity="0.4" />
 
-                  {/* Seed of Life circles — 7 circles: 1 center + 6 petals */}
+                  {/* Rotating orbit — continuous learning cycle */}
+                  <motion.circle
+                    cx="210" cy="210" r="140"
+                    fill="none" stroke="rgba(230,57,70,0.1)" strokeWidth="1"
+                    strokeDasharray="6 8"
+                    initial={{ rotate: 0 }}
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+                    style={{ transformOrigin: "210px 210px" }}
+                  />
+
+                  {/* Seed of Life — 7 interconnected layers */}
                   {(() => {
                     const cx = 210, cy = 210, r = 80
                     const circles = [
-                      { x: cx, y: cy, label: "Engine", delay: 0 },
-                      { x: cx, y: cy - r, label: "Brand", delay: 0.3 },
-                      { x: cx + r * Math.sin(Math.PI / 3), y: cy - r * Math.cos(Math.PI / 3), label: "Strategie", delay: 0.6 },
-                      { x: cx + r * Math.sin(Math.PI / 3), y: cy + r * Math.cos(Math.PI / 3), label: "Copy", delay: 0.9 },
-                      { x: cx, y: cy + r, label: "Vizuál", delay: 1.2 },
-                      { x: cx - r * Math.sin(Math.PI / 3), y: cy + r * Math.cos(Math.PI / 3), label: "Overlay", delay: 1.5 },
-                      { x: cx - r * Math.sin(Math.PI / 3), y: cy - r * Math.cos(Math.PI / 3), label: "Quality", delay: 1.8 },
+                      { x: cx, y: cy, label: "VÝSLEDKY", sub: "feedback loop", delay: 0 },
+                      { x: cx, y: cy - r, label: "TVORBA", sub: "generování", delay: 0.3 },
+                      { x: cx + r * Math.sin(Math.PI / 3), y: cy - r * Math.cos(Math.PI / 3), label: "DOSAH", sub: "reach", delay: 0.6 },
+                      { x: cx + r * Math.sin(Math.PI / 3), y: cy + r * Math.cos(Math.PI / 3), label: "REAKCE", sub: "engagement", delay: 0.9 },
+                      { x: cx, y: cy + r, label: "ANALÝZA", sub: "patterns", delay: 1.2 },
+                      { x: cx - r * Math.sin(Math.PI / 3), y: cy + r * Math.cos(Math.PI / 3), label: "UČENÍ", sub: "adaptation", delay: 1.5 },
+                      { x: cx - r * Math.sin(Math.PI / 3), y: cy - r * Math.cos(Math.PI / 3), label: "EVOLUCE", sub: "improvement", delay: 1.8 },
                     ]
                     return circles.map((c, i) => (
                       <motion.g key={i}
@@ -318,77 +327,73 @@ export default function Home() {
                         viewport={{ once: true }}
                         transition={{ delay: c.delay, duration: 0.8, ease: "easeOut" }}
                       >
-                        <circle
-                          cx={c.x} cy={c.y} r={r}
-                          fill="none"
-                          stroke={i === 0 ? "#e63946" : "rgba(255,255,255,0.08)"}
+                        <circle cx={c.x} cy={c.y} r={r}
+                          fill={i === 0 ? "rgba(230,57,70,0.05)" : "rgba(230,57,70,0.02)"}
+                          stroke={i === 0 ? "#e63946" : "rgba(255,255,255,0.07)"}
                           strokeWidth={i === 0 ? 2 : 1}
-                          className={i === 0 ? "" : ""}
                         />
-                        {/* Intersection fill — vesica piscis glow */}
-                        {i > 0 && (
-                          <circle
-                            cx={c.x} cy={c.y} r={r}
-                            fill="rgba(230,57,70,0.03)"
-                            stroke="none"
-                          />
-                        )}
-                        {/* Label */}
-                        <text
-                          x={c.x} y={i === 0 ? c.y + 2 : c.y + 2}
-                          textAnchor="middle"
-                          dominantBaseline="middle"
+                        <text x={c.x} y={c.y - 4} textAnchor="middle" dominantBaseline="middle"
                           fill={i === 0 ? "#e63946" : "rgba(255,255,255,0.5)"}
-                          fontSize={i === 0 ? "13" : "11"}
-                          fontWeight="900"
-                          letterSpacing="0.15em"
+                          fontSize={i === 0 ? "12" : "10"} fontWeight="900" letterSpacing="0.15em"
                           style={{ textTransform: "uppercase", fontFamily: "inherit" }}
-                        >
-                          {c.label}
-                        </text>
+                        >{c.label}</text>
+                        <text x={c.x} y={c.y + 12} textAnchor="middle" dominantBaseline="middle"
+                          fill={i === 0 ? "rgba(230,57,70,0.5)" : "rgba(255,255,255,0.2)"}
+                          fontSize="8" fontWeight="700" letterSpacing="0.1em"
+                          style={{ fontFamily: "inherit" }}
+                        >{c.sub}</text>
                       </motion.g>
                     ))
                   })()}
 
-                  {/* Center dot pulse */}
-                  <motion.circle
-                    cx="210" cy="210" r="4"
-                    fill="#e63946"
+                  {/* Center heartbeat */}
+                  <motion.circle cx="210" cy="210" r="4" fill="#e63946"
                     initial={{ opacity: 0 }}
                     whileInView={{ opacity: [0.3, 1, 0.3] }}
                     viewport={{ once: true }}
                     transition={{ delay: 2.2, duration: 2, repeat: Infinity }}
                   />
+                  <motion.circle cx="210" cy="210" r="4" fill="none" stroke="#e63946"
+                    initial={{ opacity: 0 }}
+                    whileInView={{ opacity: [0.6, 0] }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 2.2, duration: 2, repeat: Infinity }}
+                    style={{ r: 40 }}
+                  />
                 </svg>
               </div>
             </div>
 
-            {/* Step Descriptions */}
-            <div className="lg:w-1/2 space-y-5">
+            {/* Learning Loop Steps */}
+            <div className="lg:w-1/2 space-y-6">
+              <p className="text-white/60 text-sm leading-relaxed mb-8">Jako semínko, které roste v dokonalý květ — každý cyklus přidává vrstvu inteligence. Systém se neustále učí z reálných dat vašich sociálních sítí.</p>
               {[
-                { num: "01", name: "Brand Analysis", desc: "AI naskenuje váš web, extrahuje barvy, produkty, tón komunikace a cílovou skupinu." },
-                { num: "02", name: "Content Strategie", desc: "Na základě analýzy sestaví pilíře obsahu — edukace, prodej, humor, behind-the-scenes." },
-                { num: "03", name: "AI Copywriting", desc: "Mega-prompt engine napíše caption s háčkem, CTA a hashtagy přesně ve vašem stylu." },
-                { num: "04", name: "Vizuální Generace", desc: "Imagen 4 vytvoří fotorealistický obrázek na míru. Žádné stock fotky." },
-                { num: "05", name: "Textový Overlay", desc: "Satori engine vykreslí typografii, gradient a logo přímo na obrázek." },
-                { num: "06", name: "Quality Gate", desc: "Každý post projde hodnocením 1-10. Pod 7 bodů? Automatická regenerace." },
-                { num: "07", name: "Hotový Post", desc: "Caption + vizuál + hashtagy. Připraveno ke zveřejnění nebo naplánování." },
+                { name: "Tvorba obsahu", desc: "AI vygeneruje post na základě vaší značky, strategie a historicky nejúspěšnějších vzorců.", icon: "✦" },
+                { name: "Měření dosahu", desc: "Systém sleduje reach, liky, uložení, komentáře a sdílení u každého postu.", icon: "◎" },
+                { name: "Analýza vzorců", desc: "Neural Brand Engine identifikuje co funguje — jaký háček, jaký vizuální styl, jaké CTA přináší výsledky.", icon: "◈" },
+                { name: "Adaptace strategie", desc: "Příští generace obsahu automaticky přebírá vítězné vzorce a vyhýbá se slabým.", icon: "↻" },
+                { name: "Evoluce kvality", desc: "Každý cyklus = chytřejší obsah. Po měsíci je engine vyladěný přesně na vaše publikum.", icon: "❋" },
               ].map((step, i) => (
-                <motion.div
-                  key={i}
+                <motion.div key={i}
                   initial={{ opacity: 0, x: 20 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
-                  transition={{ delay: i * 0.1, duration: 0.5 }}
+                  transition={{ delay: i * 0.12, duration: 0.5 }}
                   className="flex items-start gap-4 group"
                 >
-                  <span className="text-[10px] font-black text-white/15 tracking-widest mt-1 shrink-0 w-6">{step.num}</span>
+                  <span className="text-lg text-aisummit-cinnabar/40 group-hover:text-aisummit-cinnabar transition-colors mt-0.5 shrink-0 w-6 text-center">{step.icon}</span>
                   <div>
                     <h4 className="text-sm font-black uppercase tracking-widest text-white group-hover:text-aisummit-cinnabar transition-colors">{step.name}</h4>
                     <p className="text-xs text-white/40 leading-relaxed mt-1">{step.desc}</p>
                   </div>
                 </motion.div>
               ))}
+
+              <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ delay: 0.8 }}
+                className="mt-8 pt-6 border-t border-white/10"
+              >
+                <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">Výsledek: Čím déle systém běží, tím lepší obsah produkuje. Žádný social media manažer se nezlepšuje takhle rychle.</p>
+              </motion.div>
             </div>
           </div>
         </div>
