@@ -67,7 +67,7 @@ export default function Home() {
             >
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-emerald-500/20 text-emerald-400 text-[9px] font-bold uppercase tracking-widest mb-8 bg-emerald-500/5 backdrop-blur-sm">
                 <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>
-                Gemini 3.1 & Imagen 4 Ready
+                AI-Powered Content Engine
               </div>
 
               <h1 className="text-6xl md:text-[5.5rem] font-black tracking-tighter mb-6 text-white leading-[0.9] uppercase">
@@ -86,7 +86,7 @@ export default function Home() {
                   Spustit Autopilota <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </Link>
                 <Link href="#demo" className="group inline-flex items-center justify-center gap-3 px-8 py-4 bg-transparent border border-white/10 hover:border-white/30 hover:bg-white/5 text-white rounded-sm font-bold uppercase tracking-widest transition-all text-sm">
-                  Přehrát Demo
+                  Jak to funguje ↓
                 </Link>
               </div>
 
@@ -207,7 +207,7 @@ export default function Home() {
                 <Cpu className="w-5 h-5 text-white group-hover:text-aisummit-cinnabar" />
               </div>
               <h3 className="text-2xl font-black uppercase tracking-widest mb-3 text-white">Kognitivní Autopilot</h3>
-              <p className="text-white/40 text-sm font-medium max-w-md leading-relaxed">Gemini 3.1 analyzuje vaši tóninu, historii z Instagram API a strategické pilíře. Pak chrlí měsíce obsahu naprosto bez halucinací.</p>
+              <p className="text-white/40 text-sm font-medium max-w-md leading-relaxed">AI analyzuje vaši tóninu, historii a strategické pilíře. Pak generuje měsíce originálního obsahu přesně ve vašem stylu.</p>
             </div>
           </div>
 
@@ -240,8 +240,8 @@ export default function Home() {
             </div>
 
             <div className="relative z-10 text-right">
-              <div className="text-6xl font-black text-white">+380%</div>
-              <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/60 mt-2">Nárůst dosahu</div>
+              <div className="text-6xl font-black text-white">24/7</div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/60 mt-2">Nepřetržitý provoz</div>
             </div>
           </div>
 

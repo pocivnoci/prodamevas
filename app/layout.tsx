@@ -8,8 +8,23 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "ProdámeVás.cz | Autopilot pro váš Instagram",
-  description: "Vygenerujte měsíc obsahu pro váš e-shop nebo osobní brand za pár minut. Od strategií, přes texty až po generování produktových mockupdate pomocí AI.",
+  title: "ProdámeVás — AI Autopilot pro Instagram | Automatizace obsahu",
+  description: "Vygenerujte měsíc Instagram obsahu za 2 minuty. AI analyzuje váš brand, vytvoří captiony, obrázky i reels. Pro e-shopy, freelancery a agentury.",
+  keywords: ["instagram autopilot", "AI obsah", "generování postů", "automatizace sociálních sítí", "content marketing", "AI marketing"],
+  openGraph: {
+    title: "ProdámeVás — AI Autopilot pro Instagram",
+    description: "Vygenerujte měsíc Instagram obsahu za 2 minuty. AI captiony, obrázky, reels.",
+    url: "https://prodamevas.vercel.app",
+    siteName: "ProdámeVás",
+    locale: "cs_CZ",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "ProdámeVás — AI Autopilot pro Instagram",
+    description: "Vygenerujte měsíc Instagram obsahu za 2 minuty.",
+  },
+  robots: { index: true, follow: true },
 };
 
 export default function RootLayout({
