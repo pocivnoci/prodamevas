@@ -51,34 +51,38 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         setStep(1)
     }, [projectId])
 
-    // Generation: synchronous fetch + parallel polling for live progress display
+    // Generation: POST blocks synchronously, but we extract jobId via a pre-flight call
     const triggerPostGeneration = async (options: any): Promise<any> => {
         let pollingActive = true
-        let pollingJobId: string | null = null
+        const jobIdRef = { current: null as string | null }
 
-        // Start the main request (blocks on server for up to 300s)
-        const fetchPromise = fetch("/api/ig-generate", {
+        // Step 1: Create job only (fast, returns jobId immediately)
+        const createRes = await fetch("/api/ig-create-job", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(options)
         })
+        if (!createRes.ok) {
+            const err = await createRes.json().catch(() => ({}))
+            return { success: false, error: err.error || "Failed to create job" }
+        }
+        const { jobId } = await createRes.json()
+        jobIdRef.current = jobId
 
-        // Parallel polling loop — runs while fetch is in-flight
+        // Step 2: Kick off actual generation (fire — we'll poll for result)
+        const fetchPromise = fetch("/api/ig-run-job", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ jobId })
+        })
+
+        // Step 3: Poll job status in parallel — we have jobId from step 1
         const pollLoop = async () => {
-            // Wait a moment for job to be created in DB
-            await new Promise(r => setTimeout(r, 3000))
+            await new Promise(r => setTimeout(r, 2000))
 
-            while (pollingActive) {
+            while (pollingActive && jobIdRef.current) {
                 try {
-                    // If we don't have jobId yet, try to find latest pending job
-                    if (!pollingJobId) {
-                        // We'll get jobId from the response — for now just show generic status
-                        setAgentStatus({ stage: "researcher", progress: 10, message: "🔍 Researcher vybírá zdroje..." })
-                        await new Promise(r => setTimeout(r, 4000))
-                        continue
-                    }
-
-                    const statusRes = await fetch(`/api/ig-job-status?id=${pollingJobId}`)
+                    const statusRes = await fetch(`/api/ig-job-status?id=${jobIdRef.current}`)
                     const status = await statusRes.json()
 
                     if (status.agentMessage && status.status !== "done" && status.status !== "failed") {
@@ -93,9 +97,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                 await new Promise(r => setTimeout(r, 2000))
             }
         }
-
-        // Run polling in background (don't await)
-        pollLoop()
+        pollLoop() // fire-and-forget
 
         try {
             const result = await fetchPromise
@@ -103,13 +105,9 @@ export function GenerateTab({ projectId }: { projectId: string }) {
             setAgentStatus(null)
 
             const data = await result.json()
-
             if (!result.ok || !data.success) {
-                return { success: false, error: data.error || "API error" }
+                return { success: false, error: data.error || "Generování selhalo" }
             }
-
-            // Store jobId for future reference
-            pollingJobId = data.jobId
             return data
 
         } catch (err: any) {

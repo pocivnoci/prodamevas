@@ -1,8 +1,9 @@
 /**
  * Gemini Client — Wrapper for Google Generative AI
  * ==================================================
- * Text generation via Gemini 3.1 Pro Preview (best quality)
- * Image generation via Imagen 4 Ultra (2K, premium quality)
+ * PRIMARY:  gemini-3.1-pro-preview   — flagship reasoning, agentic, complex tasks
+ * FALLBACK: gemini-2.5-flash-lite    — fast, cheap, stable
+ * IMAGE:    gemini-3-pro-image-preview (with refs) / imagen-4.0-ultra (without)
  */
 
 import { GoogleGenAI, PersonGeneration } from "@google/genai"
@@ -47,14 +48,14 @@ const ai = new Proxy({} as GoogleGenAI, {
 import { withRetry } from "../utils/retry"
 
 // ============================================
-// TEXT GENERATION (Gemini 2.5 Pro)
+// TEXT GENERATION (Gemini 3.1 Pro Preview)
 // ============================================
 
 export async function generateText(
     prompt: string,
     options?: { responseSchema?: any; temperature?: number; model?: string }
 ): Promise<string> {
-    const defaultModel = options?.model || "gemini-2.5-pro"
+    const defaultModel = options?.model || "gemini-3.1-pro-preview"
     try {
         return await withRetry(async () => {
             const response = await ai.models.generateContent({
@@ -75,12 +76,12 @@ export async function generateText(
             return text
         })
     } catch (err: any) {
-        // Fallback to gemini-2.0-flash on 503/429 errors
+        // Fallback to gemini-2.5-flash-lite on 503/429 errors
         if (err.status === 503 || err.status === 429 || err.message?.includes("503") || err.message?.includes("429") || err.message?.includes("quota") || err.message?.includes("high demand") || err.message?.includes("overloaded")) {
-            console.warn(`⚠️ ${defaultModel} unavailable (${err.status}). Falling back to gemini-2.0-flash...`)
+            console.warn(`⚠️ ${defaultModel} unavailable (${err.status}). Falling back to gemini-2.5-flash-lite...`)
             return await withRetry(async () => {
                 const response = await ai.models.generateContent({
-                    model: "gemini-2.0-flash",
+                    model: "gemini-2.5-flash-lite",
                     contents: prompt,
                     config: {
                         responseMimeType: "application/json",
@@ -165,7 +166,7 @@ export async function generateImageWithReferences(
         }
 
         const response = await ai.models.generateContent({
-            model: "gemini-3.1-flash-image-preview",  // Native image gen with reference support
+            model: "gemini-3-pro-image-preview",  // Nano Banana Pro — studio-quality 4K, reasoning core
             contents,
             config: {
                 responseModalities: ["IMAGE"],
@@ -185,7 +186,7 @@ export async function generateImageWithReferences(
             }
         }
 
-        throw new Error("Nano Banana 2 returned no image data")
+        throw new Error("Nano Banana Pro returned no image data")
     })
 }
 

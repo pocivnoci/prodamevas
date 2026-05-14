@@ -172,13 +172,14 @@ Vrať POUZE validní JSON pole:
         for (const learning of learnings) {
             if (!learning.content || !learning.type) continue
 
-            // Check if similar memory already exists
+            // Check if similar memory already exists (fuzzy keyword match)
+            const keywordMatch = learning.content.split(" ").slice(0, 3).join(" ")
             const { data: existing } = await supabaseAdmin
                 .from("ig_brand_memory")
                 .select("id, confidence, times_confirmed, source_post_ids")
                 .eq("client_id", getActiveProject())
                 .eq("memory_type", learning.type)
-                .textSearch("content", learning.content.split(" ").slice(0, 3).join(" & "), { type: "plain" })
+                .ilike("content", `%${keywordMatch}%`)
                 .limit(1)
 
             const sourceIds = [...topPosts, ...bottomPosts].map(p => p.id)
