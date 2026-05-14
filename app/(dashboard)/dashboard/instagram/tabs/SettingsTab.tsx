@@ -22,16 +22,12 @@ export function SettingsTab({ projectId }: { projectId: string }) {
         setLoading(false)
     }, [projectId])
 
-    useEffect(() => {
-        loadData()
-    }, [loadData])
+    useEffect(() => { loadData() }, [loadData])
 
     const handleSave = async () => {
         setSaving(true)
         setMessage(null)
-        
         const result = await updateClientConfig(projectId, config)
-        
         if (result.success) {
             setMessage({ type: 'success', text: 'Nastavení úspěšně uloženo.' })
             setTimeout(() => setMessage(null), 3000)
@@ -68,6 +64,13 @@ export function SettingsTab({ projectId }: { projectId: string }) {
         })
     }
 
+    const setGradientKey = (key: string, value: string) => {
+        setConfig((prev: any) => ({
+            ...prev,
+            overlayGradient: { ...(prev.overlayGradient || {}), [key]: value }
+        }))
+    }
+
     if (loading) {
         return (
             <div className="flex items-center justify-center py-12">
@@ -86,12 +89,11 @@ export function SettingsTab({ projectId }: { projectId: string }) {
 
     return (
         <div className="space-y-8 pb-12">
+            {/* Sticky header */}
             <div className="flex items-center justify-between bg-[#0a0a0a]/90 backdrop-blur-xl border border-white/10 rounded-sm p-6 shadow-sm sticky top-0 z-10">
                 <div>
-                    <h2 className="text-lg font-black uppercase tracking-tight text-white">Nastavení Profilu</h2>
-                    <p className="text-white/50 text-xs mt-1 tracking-wide">
-                        Upravuj Brand Voice a vizuální identitu pro {config.name}.
-                    </p>
+                    <h2 className="text-lg font-black uppercase tracking-tight text-white">Nastavení</h2>
+                    <p className="text-white/50 text-xs mt-1 tracking-wide">Brand Voice a vizuální identita — {config.name}</p>
                 </div>
                 <div className="flex items-center gap-4">
                     {message && (
@@ -109,154 +111,116 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                 </div>
             </div>
 
-            {/* Základní Info */}
+            {/* ── Základní informace ── */}
             <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-6 space-y-4">
                 <h3 className="text-sm font-black uppercase tracking-widest text-white/70 border-b border-white/10 pb-2 mb-4">Základní Informace</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Název klienta</label>
-                        <input
-                            value={config.name || ""}
-                            onChange={(e) => updateField(["name"], e.target.value)}
-                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all"
-                        />
+                        <input value={config.name || ""} onChange={(e) => updateField(["name"], e.target.value)}
+                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all" />
                     </div>
                     <div>
                         <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Web</label>
-                        <input
-                            value={config.website || ""}
-                            onChange={(e) => updateField(["website"], e.target.value)}
-                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all"
-                        />
+                        <input value={config.website || ""} onChange={(e) => updateField(["website"], e.target.value)}
+                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all" />
                     </div>
                     <div>
                         <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Instagram Handle</label>
-                        <input
-                            value={config.instagram || ""}
-                            onChange={(e) => updateField(["instagram"], e.target.value)}
-                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all"
-                        />
+                        <input value={config.instagram || ""} onChange={(e) => updateField(["instagram"], e.target.value)}
+                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all" />
                     </div>
                     <div>
-                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Zaměření obsahu (Content Focus)</label>
-                        <input
-                            value={config.contentFocus || ""}
-                            onChange={(e) => updateField(["contentFocus"], e.target.value)}
-                            placeholder="Např. O TELEFONECH a screen time"
-                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all"
-                        />
+                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">O čem tvoříme obsah</label>
+                        <input value={config.contentFocus || ""} onChange={(e) => updateField(["contentFocus"], e.target.value)}
+                            placeholder="Např. O penzionu a cestování do přírody"
+                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all" />
                     </div>
                 </div>
             </div>
 
-            {/* Brand Voice */}
+            {/* ── Brand Voice ── */}
             <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-6 space-y-4">
                 <h3 className="text-sm font-black uppercase tracking-widest text-white/70 border-b border-white/10 pb-2 mb-4">Brand Voice</h3>
-                
+
                 <div>
-                    <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Persona</label>
-                    <textarea
-                        value={config.brandVoice?.persona || ""}
-                        onChange={(e) => updateField(["brandVoice", "persona"], e.target.value)}
-                        rows={3}
-                        className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all resize-y"
-                    />
-                </div>
-                
-                <div>
-                    <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Tón komunikace (Voice Traits) — oddělené čárkou</label>
-                    <input
-                        value={(config.brandVoice?.voiceTraits || []).join(", ")}
-                        onChange={(e) => updateArrayField(["brandVoice", "voiceTraits"], e.target.value)}
-                        placeholder="Např. Přátelský, Moderní, Rychlý"
-                        className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all"
-                    />
+                    <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Persona — kdo jsme, jak mluvíme</label>
+                    <textarea value={config.brandVoice?.persona || ""} onChange={(e) => updateField(["brandVoice", "persona"], e.target.value)}
+                        rows={3} className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all resize-y" />
                 </div>
 
                 <div>
-                    <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Zakázaná slova (Anti-patterns) — oddělené čárkou</label>
-                    <input
-                        value={(config.brandVoice?.antiPatterns || []).join(", ")}
+                    <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Tón komunikace — oddělené čárkou</label>
+                    <input value={(config.brandVoice?.voiceTraits || []).join(", ")}
+                        onChange={(e) => updateArrayField(["brandVoice", "voiceTraits"], e.target.value)}
+                        placeholder="Např. Přátelský, Neformální, Nápomocný"
+                        className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all" />
+                </div>
+
+                <div>
+                    <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Slova a fráze které NEPOUŽÍVÁME — oddělené čárkou</label>
+                    <input value={(config.brandVoice?.antiPatterns || []).join(", ")}
                         onChange={(e) => updateArrayField(["brandVoice", "antiPatterns"], e.target.value)}
-                        placeholder="Např. Ahoj lidi, Zdravím"
-                        className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all"
-                    />
+                        placeholder="Např. Ahoj lidi, Korporátní jazyk"
+                        className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all" />
                 </div>
             </div>
 
-            {/* Vizuální identita */}
+            {/* ── Vizuální identita ── */}
             <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-6 space-y-4">
-                <h3 className="text-sm font-black uppercase tracking-widest text-white/70 border-b border-white/10 pb-2 mb-4">Vizuální identita (Aesthetic)</h3>
-                
+                <h3 className="text-sm font-black uppercase tracking-widest text-white/70 border-b border-white/10 pb-2 mb-4">Vizuální Identita</h3>
+                <p className="text-[9px] text-white/30 uppercase tracking-widest -mt-2">Popis pro AI — jak má vizuálně vypadat obsah</p>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Paleta barev</label>
-                        <input
-                            value={config.feedAesthetic?.colorPalette || ""}
-                            onChange={(e) => updateField(["feedAesthetic", "colorPalette"], e.target.value)}
-                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all"
-                        />
+                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Barevná paleta</label>
+                        <input value={config.feedAesthetic?.colorPalette || ""} onChange={(e) => updateField(["feedAesthetic", "colorPalette"], e.target.value)}
+                            placeholder="Např. Lesní zelená, dřevo, přírodní tóny"
+                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all" />
                     </div>
                     <div>
-                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Font</label>
-                        <input
-                            value={config.feedAesthetic?.font || ""}
-                            onChange={(e) => updateField(["feedAesthetic", "font"], e.target.value)}
-                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all"
-                        />
+                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Atmosféra & Styl fotek</label>
+                        <input value={config.feedAesthetic?.feel || ""} onChange={(e) => updateField(["feedAesthetic", "feel"], e.target.value)}
+                            placeholder="Např. Přírodní, hřejivý, denní světlo, rustikální"
+                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all" />
                     </div>
-                    <div>
-                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Celkový vzhled (Feel)</label>
-                        <input
-                            value={config.feedAesthetic?.feel || ""}
-                            onChange={(e) => updateField(["feedAesthetic", "feel"], e.target.value)}
-                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all"
-                        />
+                    <div className="md:col-span-2">
+                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Typografie pro AI (popis)</label>
+                        <input value={config.feedAesthetic?.font || ""} onChange={(e) => updateField(["feedAesthetic", "font"], e.target.value)}
+                            placeholder="Např. Moderní sans-serif, čitelný, žádné dekorativní fonty"
+                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all" />
                     </div>
                 </div>
 
                 <div className="mt-4 pt-4 border-t border-white/5">
-                    <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Logo File (název souboru ve složce instagram/assets/)</label>
-                    <input
-                        value={config.logoFile || ""}
-                        onChange={(e) => updateField(["logoFile"], e.target.value)}
-                        className="w-full md:w-1/2 px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all"
-                    />
+                    <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1 block">Logo soubor</label>
+                    <p className="text-[9px] text-white/20 mb-2">Název PNG souboru ve složce <code className="text-white/30">instagram/assets/</code> — nahrát přes deployment</p>
+                    <input value={config.logoFile || ""} onChange={(e) => updateField(["logoFile"], e.target.value)}
+                        placeholder="logo-nazevklienta.png"
+                        className="w-full md:w-1/2 px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-mono focus:outline-none focus:ring-1 focus:ring-white/30 transition-all" />
                 </div>
             </div>
-            
-            {/* Overlay nastavení */}
+
+            {/* ── Overlay & Typografie ── */}
             <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-6 space-y-4">
                 <h3 className="text-sm font-black uppercase tracking-widest text-white/70 border-b border-white/10 pb-2 mb-4">Overlay & Typografie</h3>
-                <p className="text-[9px] text-white/30 uppercase tracking-widest -mt-2">Nastavení textu a gradientu na generovaných obrázcích</p>
+                <p className="text-[9px] text-white/30 uppercase tracking-widest -mt-2">Jak vypadá text na generovaných obrázcích</p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Font Override */}
                     <div>
                         <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Font přes obrázky</label>
-                        <select
-                            value={config.feedAesthetic?.fontOverride || "Inter"}
+                        <select value={config.feedAesthetic?.fontOverride || "Inter"}
                             onChange={(e) => updateField(["feedAesthetic", "fontOverride"], e.target.value)}
-                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all"
-                        >
+                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all">
                             <option value="Inter">Inter — moderní, čistý</option>
                             <option value="BebasNeue">Bebas Neue — streetwear, bold</option>
                         </select>
                     </div>
-
-                    {/* Overlay style */}
                     <div>
-                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Výchozí styl overlay</label>
-                        <select
-                            value={config.defaultFormat?.overlayStyle || "default"}
-                            onChange={(e) => {
-                                setConfig((prev: any) => ({
-                                    ...prev,
-                                    defaultFormat: { ...(prev.defaultFormat || {}), overlayStyle: e.target.value }
-                                }))
-                            }}
-                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all"
-                        >
+                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Styl overlay</label>
+                        <select value={config.defaultFormat?.overlayStyle || "default"}
+                            onChange={(e) => setConfig((prev: any) => ({ ...prev, defaultFormat: { ...(prev.defaultFormat || {}), overlayStyle: e.target.value } }))}
+                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all">
                             <option value="default">Default — text dole</option>
                             <option value="cover">Cover — velký text, silnější gradient</option>
                             <option value="minimal">Minimal — žádný gradient</option>
@@ -265,100 +229,35 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                     </div>
                 </div>
 
-                {/* Gradient colors */}
                 <div>
-                    <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-3 block">Gradient overlay (barvy pozadí textu)</label>
+                    <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-3 block">Barvy gradientu (pozadí textu)</label>
                     <div className="grid grid-cols-3 gap-3">
-                        <div>
-                            <label className="text-[8px] text-white/30 mb-1 block uppercase tracking-widest">Vrchní barva</label>
-                            <div className="flex gap-2 items-center">
-                                <input
-                                    type="color"
-                                    value={config.overlayGradient?.topColor || "#111111"}
-                                    onChange={(e) => {
-                                        setConfig((prev: any) => ({
-                                            ...prev,
-                                            overlayGradient: { ...(prev.overlayGradient || {}), topColor: e.target.value }
-                                        }))
-                                    }}
-                                    className="w-10 h-10 rounded cursor-pointer border border-white/10 bg-transparent"
-                                />
-                                <input
-                                    value={config.overlayGradient?.topColor || "#111111"}
-                                    onChange={(e) => {
-                                        setConfig((prev: any) => ({
-                                            ...prev,
-                                            overlayGradient: { ...(prev.overlayGradient || {}), topColor: e.target.value }
-                                        }))
-                                    }}
-                                    className="flex-1 px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-mono focus:outline-none focus:ring-1 focus:ring-white/30"
-                                />
+                        {[
+                            { key: "topColor", label: "Vrchní" },
+                            { key: "midColor", label: "Střední" },
+                            { key: "bottomColor", label: "Spodní" },
+                        ].map(({ key, label }) => (
+                            <div key={key}>
+                                <label className="text-[8px] text-white/30 mb-1 block uppercase tracking-widest">{label}</label>
+                                <div className="flex gap-2 items-center">
+                                    <input type="color"
+                                        value={(config.overlayGradient as any)?.[key] || "#111111"}
+                                        onChange={(e) => setGradientKey(key, e.target.value)}
+                                        className="w-10 h-10 rounded cursor-pointer border border-white/10 bg-transparent" />
+                                    <input value={(config.overlayGradient as any)?.[key] || "#111111"}
+                                        onChange={(e) => setGradientKey(key, e.target.value)}
+                                        className="flex-1 px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-mono focus:outline-none focus:ring-1 focus:ring-white/30" />
+                                </div>
                             </div>
-                        </div>
-                        <div>
-                            <label className="text-[8px] text-white/30 mb-1 block uppercase tracking-widest">Střední barva</label>
-                            <div className="flex gap-2 items-center">
-                                <input
-                                    type="color"
-                                    value={config.overlayGradient?.midColor || "#111111"}
-                                    onChange={(e) => {
-                                        setConfig((prev: any) => ({
-                                            ...prev,
-                                            overlayGradient: { ...(prev.overlayGradient || {}), midColor: e.target.value }
-                                        }))
-                                    }}
-                                    className="w-10 h-10 rounded cursor-pointer border border-white/10 bg-transparent"
-                                />
-                                <input
-                                    value={config.overlayGradient?.midColor || "#111111"}
-                                    onChange={(e) => {
-                                        setConfig((prev: any) => ({
-                                            ...prev,
-                                            overlayGradient: { ...(prev.overlayGradient || {}), midColor: e.target.value }
-                                        }))
-                                    }}
-                                    className="flex-1 px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-mono focus:outline-none focus:ring-1 focus:ring-white/30"
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="text-[8px] text-white/30 mb-1 block uppercase tracking-widest">Spodní barva</label>
-                            <div className="flex gap-2 items-center">
-                                <input
-                                    type="color"
-                                    value={config.overlayGradient?.bottomColor || "#111111"}
-                                    onChange={(e) => {
-                                        setConfig((prev: any) => ({
-                                            ...prev,
-                                            overlayGradient: { ...(prev.overlayGradient || {}), bottomColor: e.target.value }
-                                        }))
-                                    }}
-                                    className="w-10 h-10 rounded cursor-pointer border border-white/10 bg-transparent"
-                                />
-                                <input
-                                    value={config.overlayGradient?.bottomColor || "#111111"}
-                                    onChange={(e) => {
-                                        setConfig((prev: any) => ({
-                                            ...prev,
-                                            overlayGradient: { ...(prev.overlayGradient || {}), bottomColor: e.target.value }
-                                        }))
-                                    }}
-                                    className="flex-1 px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-mono focus:outline-none focus:ring-1 focus:ring-white/30"
-                                />
-                            </div>
-                        </div>
+                        ))}
                     </div>
 
-                    {/* Live gradient preview */}
-                    <div
-                        className="mt-3 h-12 rounded-sm border border-white/10"
-                        style={{
-                            background: `linear-gradient(to bottom, ${config.overlayGradient?.topColor || "#111111"}26, ${config.overlayGradient?.midColor || "#111111"}4D, ${config.overlayGradient?.bottomColor || "#111111"}E6)`
-                        }}
-                    >
-                        <div className="flex items-end h-full px-3 pb-2">
-                            <span className={`text-white text-xs font-bold ${config.feedAesthetic?.fontOverride === "BebasNeue" ? "uppercase tracking-widest" : ""}`}>
-                                {config.feedAesthetic?.fontOverride === "BebasNeue" ? "NÁHLED TEXTU — BEBAS NEUE" : "Náhled textu — Inter Bold"}
+                    {/* Live preview */}
+                    <div className="mt-3 h-14 rounded-sm border border-white/10 overflow-hidden"
+                        style={{ background: `linear-gradient(to bottom, ${config.overlayGradient?.topColor || "#111111"}26, ${config.overlayGradient?.midColor || "#111111"}4D, ${config.overlayGradient?.bottomColor || "#111111"}E6)` }}>
+                        <div className="flex items-end h-full px-4 pb-3">
+                            <span className={`text-white text-sm font-bold ${config.feedAesthetic?.fontOverride === "BebasNeue" ? "uppercase tracking-widest text-base" : ""}`}>
+                                {config.name || "Náhled textu"}
                             </span>
                         </div>
                     </div>
@@ -366,9 +265,8 @@ export function SettingsTab({ projectId }: { projectId: string }) {
             </div>
 
             <div className="text-center text-white/20 text-[10px] tracking-widest uppercase">
-                Obsahové pilíře a Post Formáty lze aktuálně měnit pouze v JSON konfiguraci.
+                Obsahové pilíře a Post Formáty lze měnit přes JSON konfiguraci v DB.
             </div>
-
         </div>
     )
 }
