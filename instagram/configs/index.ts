@@ -56,58 +56,87 @@ import { createClient } from "@/supabase/server"
 /**
  * Get metadata for all available active clients (for dashboard dropdowns)
  * Lightweight — doesn't load full configs. Only loads allowed projects (RBAC).
+ * Non-super-admins see only clients linked via user_clients join table.
  */
 export async function getAvailableClients(): Promise<ClientMeta[]> {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
-    let query = supabaseAdmin
+    if (!user) return []
+
+    if (isSuperAdmin(user.email)) {
+        // Super admin sees everything
+        const { data, error } = await supabaseAdmin
+            .from("clients")
+            .select("slug, name, website")
+            .eq("is_active", true)
+
+        if (error || !data) return []
+        return data.map(client => ({
+            id: client.slug,
+            name: client.name,
+            icon: "📱",
+            description: client.website || ""
+        }))
+    }
+
+    // Normal user: join through user_clients
+    const { data: links } = await supabaseAdmin
+        .from("user_clients")
+        .select("client_id")
+        .eq("user_id", user.id)
+
+    if (!links || links.length === 0) return []
+
+    const clientIds = links.map(l => l.client_id)
+    const { data, error } = await supabaseAdmin
         .from("clients")
         .select("slug, name, website")
         .eq("is_active", true)
-
-    if (user) {
-        if (!isSuperAdmin(user.email)) {
-            query = query.eq("user_id", user.id)
-        }
-    } else {
-        // Unauthenticated -> no clients
-        return []
-    }
-
-    const { data, error } = await query
+        .in("id", clientIds)
 
     if (error || !data) return []
-
     return data.map(client => ({
         id: client.slug,
         name: client.name,
-        icon: "📱", // Default icon
+        icon: "📱",
         description: client.website || ""
     }))
 }
 
 /**
- * Get list of available config names
+ * Get list of available config names (slugs)
  */
 export async function getAvailableConfigNames(): Promise<string[]> {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
-    let query = supabaseAdmin
+    if (!user) return []
+
+    if (isSuperAdmin(user.email)) {
+        const { data, error } = await supabaseAdmin
+            .from("clients")
+            .select("slug")
+            .eq("is_active", true)
+
+        if (error || !data) return []
+        return data.map(row => row.slug)
+    }
+
+    // Normal user: join through user_clients
+    const { data: links } = await supabaseAdmin
+        .from("user_clients")
+        .select("client_id")
+        .eq("user_id", user.id)
+
+    if (!links || links.length === 0) return []
+
+    const clientIds = links.map(l => l.client_id)
+    const { data, error } = await supabaseAdmin
         .from("clients")
         .select("slug")
         .eq("is_active", true)
-
-    if (user) {
-        if (!isSuperAdmin(user.email)) {
-            query = query.eq("user_id", user.id)
-        }
-    } else {
-        return []
-    }
-
-    const { data, error } = await query
+        .in("id", clientIds)
 
     if (error || !data) return []
     return data.map(row => row.slug)
