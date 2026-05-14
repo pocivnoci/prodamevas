@@ -213,14 +213,6 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                             className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all"
                         />
                     </div>
-                    <div>
-                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Model telefonu</label>
-                        <input
-                            value={config.feedAesthetic?.phoneModel || ""}
-                            onChange={(e) => updateField(["feedAesthetic", "phoneModel"], e.target.value)}
-                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all"
-                        />
-                    </div>
                 </div>
 
                 <div className="mt-4 pt-4 border-t border-white/5">
