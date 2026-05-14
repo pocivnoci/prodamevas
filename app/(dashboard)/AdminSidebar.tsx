@@ -10,7 +10,6 @@ import { LogoPV } from "@/components/LogoPV"
 
 const NAV_ITEMS = [
     { href: "/dashboard/instagram", label: "Studio", icon: "✨" },
-    { href: "/dashboard/settings", label: "Nastavení Profilu", icon: "⚙️" },
 ]
 
 export function AdminSidebar() {
