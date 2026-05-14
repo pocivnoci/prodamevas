@@ -24,6 +24,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const [dryRun, setDryRun] = useState(false)
     const [customImageFile, setCustomImageFile] = useState<File | null>(null)
     const [generating, setGenerating] = useState(false)
+    const [agentStatus, setAgentStatus] = useState<{ stage: string; progress: number; message: string } | null>(null)
     const [result, setResult] = useState<GenerateResult | null>(null)
     const [batchCount, setBatchCount] = useState(3)
     const [batchMode, setBatchMode] = useState(false)
@@ -50,18 +51,57 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         setStep(1)
     }, [projectId])
 
-    // Fetch wrapper replacing the old 'use server' action (to bypass Vercel 60s limit with our custom API layout maxDuration=300)
-    const triggerPostGeneration = async (options: any) => {
-        const res = await fetch("/api/ig-generate", {
+    // Async job-based generation: create job → poll status → get result
+    const triggerPostGeneration = async (options: any): Promise<any> => {
+        // Step 1: Create job
+        const createRes = await fetch("/api/ig-generate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(options)
         })
-        const data = await res.json()
-        if (!res.ok) {
-            return { success: false, error: data.error || "API error" }
+        const createData = await createRes.json()
+        if (!createRes.ok || !createData.jobId) {
+            return { success: false, error: createData.error || "Failed to create job" }
         }
-        return data
+
+        const jobId = createData.jobId
+
+        // Step 2: Poll until done/failed
+        const maxPollTime = 5 * 60 * 1000 // 5 minutes max
+        const pollInterval = 2000 // 2 seconds
+        const startTime = Date.now()
+
+        while (Date.now() - startTime < maxPollTime) {
+            await new Promise(r => setTimeout(r, pollInterval))
+
+            try {
+                const statusRes = await fetch(`/api/ig-job-status?id=${jobId}`)
+                const status = await statusRes.json()
+
+                if (status.agentMessage) {
+                    setAgentStatus({
+                        stage: status.status,
+                        progress: status.progress || 0,
+                        message: status.agentMessage,
+                    })
+                }
+
+                if (status.status === "done" && status.result) {
+                    setAgentStatus(null)
+                    return status.result
+                }
+
+                if (status.status === "failed") {
+                    setAgentStatus(null)
+                    return { success: false, error: status.error || "Generování selhalo" }
+                }
+            } catch {
+                // Network error — continue polling
+            }
+        }
+
+        setAgentStatus(null)
+        return { success: false, error: "Timeout — generování trvá příliš dlouho" }
     }
 
     const handleGenerate = async () => {
@@ -534,6 +574,19 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 <div className="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-aisummit-cinnabar via-[#0f0f0f] to-[#0f0f0f] pointer-events-none mix-blend-screen animate-pulse"></div>
                                 <div className="w-16 h-16 border-[3px] border-white/10 border-t-aisummit-cinnabar rounded-full animate-spin mx-auto mb-8 shadow-sm relative z-10" />
                                 <h3 className="text-2xl font-black uppercase tracking-tighter text-white mb-4 relative z-10">{batchProgress ? `Generuji post ${batchProgress.current} z ${batchProgress.total}...` : "Kreativní proces probíhá..."}</h3>
+                                {agentStatus && !batchProgress && (
+                                    <div className="relative z-10 mb-4 w-full max-w-xs">
+                                        <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mb-3">
+                                            <div
+                                                className="h-full bg-gradient-to-r from-aisummit-cinnabar to-orange-400 rounded-full transition-all duration-700 ease-out"
+                                                style={{ width: `${agentStatus.progress}%` }}
+                                            />
+                                        </div>
+                                        <p className="text-[11px] text-white/70 font-bold tracking-wide text-center">
+                                            {agentStatus.message}
+                                        </p>
+                                    </div>
+                                )}
                                 {batchProgress && (
                                     <div className="w-64 h-2 bg-white/10 rounded-full mb-4 relative z-10 overflow-hidden">
                                         <div

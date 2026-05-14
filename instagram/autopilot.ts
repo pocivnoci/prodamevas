@@ -58,6 +58,7 @@ import {
     scorePost,
 } from "./caption-generator"
 import { refineImagePrompt, refineCarouselPrompts, refineVideoPrompt } from "./image-pipeline"
+import { getBrandMemories, formatMemoriesForPrompt } from "./memory-agent"
 
 // Active client config (set from --config flag or ensureConfig)
 let CLIENT_CONFIG: ClientConfig | null = null
@@ -108,13 +109,16 @@ export async function generateOnePost(options: {
     performance?: PerformanceInsight
     aspectRatio?: string
     customImageUrl?: string
+    onProgress?: (stage: string, progress: number, message: string) => Promise<void>
 }): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number }> {
+    const report = options.onProgress || (async () => {}) // no-op if not provided
     await ensureConfig(options.configName)
     const config = CLIENT_CONFIG!
     const startTime = Date.now()
     let cost = 0
 
     // 1. Select post type
+    await report("researcher", 5, "🔍 Researcher vybírá typ postu...")
     console.log("\n📋 Vybírám typ postu...")
     const postTypes = await getActivePostTypes(config.postTypes)
     if (postTypes.length === 0) {
@@ -135,6 +139,7 @@ export async function generateOnePost(options: {
     console.log(`   ✓ ${selectedType.emoji} ${selectedType.display_name}`)
 
     // 2. Get source material (90-day cooldown deduplikace)
+    await report("researcher", 15, `🔍 Researcher hledá zdroje pro ${selectedType.display_name}...`)
     console.log("📚 Hledám zdroje (cooldown: 90 dní)...")
     let idea: PostIdea | null = null
     let review: Review | null = null
@@ -183,8 +188,21 @@ export async function generateOnePost(options: {
     const isReel = format.medium === "reel"
     const isCarousel = format.medium === "carousel"
     const postFormat = isReel ? "video script" : isCarousel ? "carousel" : "caption"
+    await report("copywriter", 25, `✍️ Copywriter generuje ${postFormat}...`)
     console.log(`✍️  Generuji ${postFormat} (Gemini 2.5 Pro)...`)
-    const megaPrompt = buildMegaPrompt(config, selectedType, idea, review, recentHooks, performance, options.topic, selectedProduct)
+    let megaPrompt = buildMegaPrompt(config, selectedType, idea, review, recentHooks, performance, options.topic, selectedProduct)
+
+    // Inject brand memories (long-term learning from past performance)
+    try {
+        const memories = await getBrandMemories(8)
+        if (memories.length > 0) {
+            megaPrompt += formatMemoriesForPrompt(memories)
+            console.log(`   🧠 Brand memory: ${memories.length} vzorců načteno`)
+        }
+    } catch {
+        // Non-fatal — continue without memories
+    }
+
     const schema = isReel ? buildVideoSchema(config) : isCarousel ? buildCarouselSchema(config) : buildCaptionSchema(config)
     const rawText = await generateText(megaPrompt, { responseSchema: schema, model: "gemini-2.5-pro" })
     cost += COSTS.textGeneration
@@ -240,8 +258,9 @@ export async function generateOnePost(options: {
     }
 
     // 6b. Quality gate — auto-score before proceeding
-    console.log("🔍 Quality gate (Gemini 3.1 Pro scoring)...")
-    const { score, feedback } = await scorePost(
+    await report("critic", 45, "🔍 Kritik hodnotí kvalitu obsahu...")
+    console.log("🔍 Quality gate (Gemini 2.5 Pro scoring)...")
+    const { score, feedback, detail } = await scorePost(
         config,
         captionData as { hook: string; body?: string; cta: string; hashtags: string[]; slides?: { headline: string; subtext: string }[] },
         selectedType.name
@@ -249,10 +268,24 @@ export async function generateOnePost(options: {
     cost += COSTS.textGeneration
     const scoreEmoji = score >= 8 ? "🟢" : score >= 6 ? "🟡" : "🔴"
     console.log(`   ${scoreEmoji} Score: ${score}/10 — ${feedback}`)
+    if (detail) {
+        console.log(`   📊 Hook: ${detail.hookScore}/3 | Body: ${detail.bodyScore}/3 | CTA: ${detail.ctaScore}/2 | Orig: ${detail.originalityScore}/2`)
+        if (detail.feedback.keep.length > 0) console.log(`   ✅ Zachovat: ${detail.feedback.keep.join(", ")}`)
+        if (detail.feedback.fix.length > 0) console.log(`   🔧 Opravit: ${detail.feedback.fix.join(", ")}`)
+    }
 
-    if (score < 7) {
-        console.log("   ⚠️ Low quality — regeneruji s feedbackem...")
-        const improvePrompt = megaPrompt + `\n\nDŮLEŽITÉ: Předchozí verze dostala ${score}/10. Feedback: "${feedback}". VYLEPŠI TO!`
+    if (score < 7 && detail?.feedback.fix.length) {
+        await report("critic", 50, `🔧 Copywriter opravuje: ${detail.feedback.fix[0]}...`)
+        console.log("   ⚠️ Low quality — cílená oprava (dialog Kritik → Copywriter)...")
+
+        // Targeted repair: tell Copywriter exactly what to keep and what to fix
+        const keepInstructions = detail.feedback.keep.length > 0
+            ? `\n## ✅ ZACHOVEJ BEZE ZMĚNY (Kritik schválil):\n${detail.feedback.keep.map(k => `- ${k}`).join("\n")}\n- Hook: "${captionData.hook}"${detail.hookScore >= 2 ? " ← NESMÍŠ MĚNIT" : ""}\n- ${detail.bodyScore >= 2 ? `Body zachovej nebo jen mírně uprav` : ""}`
+            : ""
+
+        const fixInstructions = `\n## 🔧 OPRAV POUZE TOTO (Kritik odmítl):\n${detail.feedback.fix.map(f => `- ${f}`).join("\n")}\n${detail.ctaScore < 1 ? `- CTA MUSÍ obsahovat ${config.website}` : ""}`
+
+        const improvePrompt = megaPrompt + `\n\n${keepInstructions}\n${fixInstructions}\n\nVrať kompletní JSON se VŠEMI poli (i těmi co se nemění).`
         const improvedText = await generateText(improvePrompt, { responseSchema: schema })
         cost += COSTS.textGeneration
         try {
@@ -266,7 +299,7 @@ export async function generateOnePost(options: {
             const newEmoji = newScore >= 8 ? "🟢" : newScore >= 6 ? "🟡" : "🔴"
             console.log(`   ${newEmoji} Re-score: ${newScore}/10 — ${newFeedback}`)
         } catch {
-            console.log("   ⚠️ Regeneration failed — pokračuji s originálem")
+            console.log("   ⚠️ Targeted repair failed — pokračuji s originálem")
         }
     }
 
@@ -432,6 +465,7 @@ export async function generateOnePost(options: {
             }
         } else {
             // IMAGE GENERATION PATH
+            await report("art_director", 55, "🎨 Art Director vylepšuje image prompt...")
             console.log("🧠 Vylepšuji image prompt (2-step pipeline)...")
             const bodySnippet = captionData.body ? captionData.body.substring(0, 150) : undefined
             let refinedPrompt = await refineImagePrompt(
@@ -580,6 +614,7 @@ export async function generateOnePost(options: {
 
                 if (refImages.length > 0) {
                     try {
+                        await report("rendering", 65, `🖼️ Generuji obrázek (${refImages.length} referencí)...`)
                         console.log(`🎨 Generuji obrázek (Nano Banana Pro + ${refImages.length} ref images, 2K)...`)
                         imageBuffer = await generateImageWithReferences(
                             refinedPrompt,
@@ -622,6 +657,7 @@ export async function generateOnePost(options: {
 
                 console.log(`   ✓ WebP size: ${(compressedImage.length / 1024).toFixed(0)} KB`)
 
+                await report("uploading", 85, "📤 Nahrávám do Supabase...")
                 console.log("📤 Nahrávám do Supabase...")
                 const timestamp = Date.now()
                 const filename = `ig-posts/${timestamp}.webp`
@@ -655,6 +691,7 @@ export async function generateOnePost(options: {
     let postId: string | undefined
 
     if (!options.dryRun) {
+        await report("uploading", 90, "💾 Ukládám do databáze...")
         console.log("💾 Ukládám...")
         const post = await createPost({
             post_type_id: selectedType.id,

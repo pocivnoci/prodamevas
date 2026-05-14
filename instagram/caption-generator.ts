@@ -465,8 +465,20 @@ ${(() => {
 }
 
 // ============================================
-// QUALITY GATE
+// QUALITY GATE — Multi-Agent Dialog
 // ============================================
+
+export interface QualityGateResult {
+    overall: number
+    hookScore: number
+    bodyScore: number
+    ctaScore: number
+    originalityScore: number
+    feedback: {
+        keep: string[]
+        fix: string[]
+    }
+}
 
 export async function scorePost(
     config: ClientConfig,
@@ -478,7 +490,7 @@ export async function scorePost(
         slides?: { headline: string; subtext: string }[]
     },
     postTypeName?: string
-): Promise<{ score: number; feedback: string }> {
+): Promise<{ score: number; feedback: string; detail?: QualityGateResult }> {
     const isCarousel = captionData.slides && captionData.slides.length > 0
 
     let slidesSection = ""
@@ -493,7 +505,6 @@ export async function scorePost(
     const scorePrompt = `
 Jsi prisny Instagram content reviewer pro znacku ${config.name} (${config.website}).
 IG handle: ${config.instagram}
-Ohodno tento post na skale 1-10.
 
 ## POST${postTypeName ? ` (typ: ${postTypeName})` : ""}:
 Hook: "${captionData.hook}"
@@ -508,13 +519,21 @@ Hashtags: ${captionData.hashtags.join(", ")}
 4. **CTA (0-1 bod):** Obsahuje ${config.website}?
 5. **Celkovy dojem (0-2 body):** Zverejnil bys to?${carouselCriteria}
 
-## VYSTUP - vrat POUZE validni JSON:
-{ "score": <cislo 1-10>, "feedback": "<1 veta co zlepsit, cesky>" }
+## VYSTUP — vrat POUZE validni JSON s touto strukturou:
+{
+  "overall": <cislo 1-10>,
+  "hookScore": <cislo 0-3>,
+  "bodyScore": <cislo 0-3>,
+  "ctaScore": <cislo 0-2>,
+  "originalityScore": <cislo 0-2>,
+  "keep": ["co je dobre a NESMI se menit, cesky, max 2 polozky"],
+  "fix": ["co je spatne a MUSI se opravit, cesky, max 2 polozky. Prazdne pole pokud je vse OK."]
+}
 `
 
     try {
         const raw = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-2.5-pro",
             contents: scorePrompt,
             config: { responseMimeType: "application/json" },
         })
@@ -523,9 +542,28 @@ Hashtags: ${captionData.hashtags.join(", ")}
         const text = textPart?.text || ""
         const jsonMatch = text.match(/\{[\s\S]*\}/)
         const result = JSON.parse(jsonMatch?.[0] || text)
+
+        const detail: QualityGateResult = {
+            overall: Math.min(10, Math.max(1, Number(result.overall) || 5)),
+            hookScore: Math.min(3, Math.max(0, Number(result.hookScore) || 1)),
+            bodyScore: Math.min(3, Math.max(0, Number(result.bodyScore) || 1)),
+            ctaScore: Math.min(2, Math.max(0, Number(result.ctaScore) || 0)),
+            originalityScore: Math.min(2, Math.max(0, Number(result.originalityScore) || 1)),
+            feedback: {
+                keep: Array.isArray(result.keep) ? result.keep : [],
+                fix: Array.isArray(result.fix) ? result.fix : [],
+            },
+        }
+
+        // Build human-readable summary
+        const fixSummary = detail.feedback.fix.length > 0
+            ? detail.feedback.fix.join("; ")
+            : "Vše OK"
+
         return {
-            score: Math.min(10, Math.max(1, Number(result.score) || 5)),
-            feedback: result.feedback || "Zadny feedback",
+            score: detail.overall,
+            feedback: fixSummary,
+            detail,
         }
     } catch {
         return { score: 7, feedback: "Scoring failed - passing through" }

@@ -47,14 +47,14 @@ const ai = new Proxy({} as GoogleGenAI, {
 import { withRetry } from "../utils/retry"
 
 // ============================================
-// TEXT GENERATION (Gemini 3.1 Pro Preview)
+// TEXT GENERATION (Gemini 2.5 Pro)
 // ============================================
 
 export async function generateText(
     prompt: string,
     options?: { responseSchema?: any; temperature?: number; model?: string }
 ): Promise<string> {
-    const defaultModel = options?.model || "gemini-2.5-flash"
+    const defaultModel = options?.model || "gemini-2.5-pro"
     try {
         return await withRetry(async () => {
             const response = await ai.models.generateContent({
@@ -196,8 +196,8 @@ export async function generateImageWithReferences(
 export async function detectLogoPlacementArea(imageBuffer: Buffer): Promise<{ x: number; y: number; w: number; h: number } | null> {
     return withRetry(async () => {
         const response = await ai.models.generateContent({
-            // Flash for vision — fast enough for layout detection
-            model: "gemini-2.5-flash",
+            // Nejchytřejší Vision model pro absolutní detail
+            model: "gemini-2.5-pro",
             contents: [
                 {
                     inlineData: {
