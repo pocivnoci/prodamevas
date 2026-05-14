@@ -233,9 +233,150 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                 </div>
             </div>
             
+            {/* Overlay nastavení */}
+            <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-6 space-y-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-white/70 border-b border-white/10 pb-2 mb-4">Overlay & Typografie</h3>
+                <p className="text-[9px] text-white/30 uppercase tracking-widest -mt-2">Nastavení textu a gradientu na generovaných obrázcích</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Font Override */}
+                    <div>
+                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Font přes obrázky</label>
+                        <select
+                            value={config.feedAesthetic?.fontOverride || "Inter"}
+                            onChange={(e) => updateField(["feedAesthetic", "fontOverride"], e.target.value)}
+                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all"
+                        >
+                            <option value="Inter">Inter — moderní, čistý</option>
+                            <option value="BebasNeue">Bebas Neue — streetwear, bold</option>
+                        </select>
+                    </div>
+
+                    {/* Overlay style */}
+                    <div>
+                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Výchozí styl overlay</label>
+                        <select
+                            value={config.defaultFormat?.overlayStyle || "default"}
+                            onChange={(e) => {
+                                setConfig((prev: any) => ({
+                                    ...prev,
+                                    defaultFormat: { ...(prev.defaultFormat || {}), overlayStyle: e.target.value }
+                                }))
+                            }}
+                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all"
+                        >
+                            <option value="default">Default — text dole</option>
+                            <option value="cover">Cover — velký text, silnější gradient</option>
+                            <option value="minimal">Minimal — žádný gradient</option>
+                            <option value="none">None — bez overlay</option>
+                        </select>
+                    </div>
+                </div>
+
+                {/* Gradient colors */}
+                <div>
+                    <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-3 block">Gradient overlay (barvy pozadí textu)</label>
+                    <div className="grid grid-cols-3 gap-3">
+                        <div>
+                            <label className="text-[8px] text-white/30 mb-1 block uppercase tracking-widest">Vrchní barva</label>
+                            <div className="flex gap-2 items-center">
+                                <input
+                                    type="color"
+                                    value={config.overlayGradient?.topColor || "#111111"}
+                                    onChange={(e) => {
+                                        setConfig((prev: any) => ({
+                                            ...prev,
+                                            overlayGradient: { ...(prev.overlayGradient || {}), topColor: e.target.value }
+                                        }))
+                                    }}
+                                    className="w-10 h-10 rounded cursor-pointer border border-white/10 bg-transparent"
+                                />
+                                <input
+                                    value={config.overlayGradient?.topColor || "#111111"}
+                                    onChange={(e) => {
+                                        setConfig((prev: any) => ({
+                                            ...prev,
+                                            overlayGradient: { ...(prev.overlayGradient || {}), topColor: e.target.value }
+                                        }))
+                                    }}
+                                    className="flex-1 px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-mono focus:outline-none focus:ring-1 focus:ring-white/30"
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-[8px] text-white/30 mb-1 block uppercase tracking-widest">Střední barva</label>
+                            <div className="flex gap-2 items-center">
+                                <input
+                                    type="color"
+                                    value={config.overlayGradient?.midColor || "#111111"}
+                                    onChange={(e) => {
+                                        setConfig((prev: any) => ({
+                                            ...prev,
+                                            overlayGradient: { ...(prev.overlayGradient || {}), midColor: e.target.value }
+                                        }))
+                                    }}
+                                    className="w-10 h-10 rounded cursor-pointer border border-white/10 bg-transparent"
+                                />
+                                <input
+                                    value={config.overlayGradient?.midColor || "#111111"}
+                                    onChange={(e) => {
+                                        setConfig((prev: any) => ({
+                                            ...prev,
+                                            overlayGradient: { ...(prev.overlayGradient || {}), midColor: e.target.value }
+                                        }))
+                                    }}
+                                    className="flex-1 px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-mono focus:outline-none focus:ring-1 focus:ring-white/30"
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-[8px] text-white/30 mb-1 block uppercase tracking-widest">Spodní barva</label>
+                            <div className="flex gap-2 items-center">
+                                <input
+                                    type="color"
+                                    value={config.overlayGradient?.bottomColor || "#111111"}
+                                    onChange={(e) => {
+                                        setConfig((prev: any) => ({
+                                            ...prev,
+                                            overlayGradient: { ...(prev.overlayGradient || {}), bottomColor: e.target.value }
+                                        }))
+                                    }}
+                                    className="w-10 h-10 rounded cursor-pointer border border-white/10 bg-transparent"
+                                />
+                                <input
+                                    value={config.overlayGradient?.bottomColor || "#111111"}
+                                    onChange={(e) => {
+                                        setConfig((prev: any) => ({
+                                            ...prev,
+                                            overlayGradient: { ...(prev.overlayGradient || {}), bottomColor: e.target.value }
+                                        }))
+                                    }}
+                                    className="flex-1 px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-mono focus:outline-none focus:ring-1 focus:ring-white/30"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Live gradient preview */}
+                    <div
+                        className="mt-3 h-12 rounded-sm border border-white/10"
+                        style={{
+                            background: `linear-gradient(to bottom, ${config.overlayGradient?.topColor || "#111111"}26, ${config.overlayGradient?.midColor || "#111111"}4D, ${config.overlayGradient?.bottomColor || "#111111"}E6)`
+                        }}
+                    >
+                        <div className="flex items-end h-full px-3 pb-2">
+                            <span className={`text-white text-xs font-bold ${config.feedAesthetic?.fontOverride === "BebasNeue" ? "uppercase tracking-widest" : ""}`}>
+                                {config.feedAesthetic?.fontOverride === "BebasNeue" ? "NÁHLED TEXTU — BEBAS NEUE" : "Náhled textu — Inter Bold"}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div className="text-center text-white/20 text-[10px] tracking-widest uppercase">
                 Obsahové pilíře a Post Formáty lze aktuálně měnit pouze v JSON konfiguraci.
             </div>
+
         </div>
     )
 }
