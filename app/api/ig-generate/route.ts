@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
+import { waitUntil } from "@vercel/functions"
 
-export const maxDuration = 10 // Fast — just creates a job
+export const maxDuration = 300 // Full 5 min — worker runs here via waitUntil
 
 /**
  * POST /api/ig-generate
  * 
- * Creates an async generation job and self-triggers the worker.
- * Returns immediately with a jobId for the client to poll.
+ * Creates a job, returns jobId immediately, then runs the worker
+ * in the background using Vercel's waitUntil() (correct async pattern).
  */
 export async function POST(req: Request) {
     try {
@@ -42,30 +43,73 @@ export async function POST(req: Request) {
             throw new Error(`Failed to create job: ${error?.message}`)
         }
 
-        // Self-trigger worker (fire-and-forget)
-        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL
-            || process.env.VERCEL_URL
-                ? `https://${process.env.VERCEL_URL}`
-                : "http://localhost:3000"
+        const jobId = job.id
 
-        fetch(`${baseUrl}/api/ig-worker`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ jobId: job.id }),
-        }).catch(err => {
-            // Non-fatal — worker can also be triggered by cron
-            console.warn("Self-trigger failed (non-fatal):", err.message)
-        })
+        // Run the heavy work AFTER responding — Vercel keeps the function alive
+        waitUntil(runWorker(jobId))
 
-        return NextResponse.json({
-            success: true,
-            jobId: job.id,
-        })
+        return NextResponse.json({ success: true, jobId })
+
     } catch (err: any) {
         console.error("IG generate API error:", err?.message)
         return NextResponse.json({
             success: false,
             error: err?.message?.substring(0, 500) || "Unknown error",
         }, { status: 500 })
+    }
+}
+
+async function runWorker(jobId: string) {
+    const { generateOnePost } = await import("@/instagram/autopilot")
+
+    // Helper to update job status in real-time
+    const updateJob = async (update: Record<string, any>) => {
+        await supabaseAdmin.from("ig_jobs").update(update).eq("id", jobId)
+    }
+
+    try {
+        // Fetch job config
+        const { data: job } = await supabaseAdmin
+            .from("ig_jobs")
+            .select("config")
+            .eq("id", jobId)
+            .single()
+
+        if (!job) throw new Error("Job not found")
+
+        const config = job.config as any
+
+        const result = await generateOnePost({
+            configName: config.configName,
+            type: config.type,
+            topic: config.topic,
+            dryRun: config.dryRun,
+            aspectRatio: config.aspectRatio,
+            customImageUrl: config.customImageUrl,
+            onProgress: async (stage: string, progress: number, message: string) => {
+                await updateJob({ status: stage, progress, agent_message: message })
+            },
+        })
+
+        await updateJob({
+            status: "done",
+            progress: 100,
+            agent_message: "✅ Hotovo!",
+            result: {
+                success: true,
+                postId: result.id,
+                caption: result.caption,
+                imageUrl: result.imageUrl,
+                cost: result.cost,
+            },
+        })
+
+    } catch (err: any) {
+        console.error("Worker error:", err?.message)
+        await supabaseAdmin.from("ig_jobs").update({
+            status: "failed",
+            agent_message: "❌ Generování selhalo",
+            error: err?.message?.substring(0, 1000) || "Unknown error",
+        }).eq("id", jobId)
     }
 }
