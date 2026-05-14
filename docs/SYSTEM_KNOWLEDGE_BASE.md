@@ -4,6 +4,9 @@
 > **Stack:** Next.js 16 (App Router) · Supabase (Postgres + Auth + Storage) · Google Gemini 3.1 Pro Preview · Nano Banana Pro · Imagen 4 Ultra · Veo 3.1  
 > **Last Updated:** 2026-05-14
 
+> [!CAUTION]
+> **AI AGENTE: Tento dokument MUSÍŠ aktualizovat po každé změně kódu.** Viz `docs/AI_RULES.md` pro checklist co a kde updatovat. Zastaralá dokumentace = technický dluh.
+
 ---
 
 ## 1. High-Level Architecture

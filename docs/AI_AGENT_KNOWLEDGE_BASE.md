@@ -2,6 +2,9 @@
 
 **POZOR PRO VŠECHNY AI AGENTY A LLM MODELY**: Tento dokument slouží jako zdroj pravdy (Source of Truth) pro architektonická, obchodní a technická rozhodnutí platformy. Jste-li asistující AI, PŘEČTĚTE SI TENTO DOKUMENT jako první, než budete cokoliv modifikovat.
 
+> [!CAUTION]
+> **Po každé změně kódu MUSÍŠ aktualizovat tento dokument.** Checklist: `docs/AI_RULES.md`. Datum updatu vlož do hlavičky. Zastaralé docs = selhání.
+
 *Last Updated: 2026-05-14 — v3.0 Interconnected Architecture*
 
 ---
