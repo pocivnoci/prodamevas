@@ -1,10 +1,40 @@
 /**
  * Image Pipeline for Instagram Autopilot
  * Prompt refinement for images, carousels, and videos.
+ * Art Director now receives Visual Memory from past top-performing posts.
  */
 
 import { ai } from "./gemini-client"
+import { getBrandMemories } from "./memory-agent"
 import type { ClientConfig } from "./configs/types"
+
+// ============================================
+// VISUAL MEMORY FORMATTER
+// ============================================
+
+/**
+ * Load and format visual memories for Art Director injection.
+ * Returns an empty string if no visual memories exist yet.
+ */
+export async function getVisualMemoriesSection(): Promise<string> {
+    try {
+        const { getActiveProject } = await import("./service")
+        getActiveProject() // will throw if not set — safe to catch
+    } catch {
+        return ""
+    }
+
+    const memories = await getBrandMemories(5)
+    const visual = memories.filter(m => m.memory_type === "visual")
+
+    if (visual.length === 0) return ""
+
+    return `
+## 💡 VISUAL MEMORY (co vizuálně fungovalo u této značky):
+${visual.map(m => `- ${m.content} (confidence: ${(m.confidence * 100).toFixed(0)}%)`).join("\n")}
+⚠️ Použij tyto vzorce jako inspiraci — nekopíruj doslova.
+`
+}
 
 // ============================================
 // FEED AESTHETIC BUILDER
@@ -50,7 +80,8 @@ export async function refineImagePrompt(
     config: ClientConfig,
     captionData: { imagePrompt: string; hook: string; imageSubtext?: string },
     postType: string,
-    bodyContext?: string
+    bodyContext?: string,
+    visualMemoriesSection?: string
 ): Promise<string> {
     // MEME EXCEPTION
     if (postType === "meme") {
@@ -71,7 +102,7 @@ Visual mood: funny, relatable, meme-style
 OUTPUT: Single detailed English image prompt (2-3 sentences). NO TEXT IN IMAGE.
 `
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-pro",
+            model: "gemini-3.1-pro-preview",
             contents: memePrompt,
         })
         const parts = response.candidates?.[0]?.content?.parts || []
@@ -80,10 +111,13 @@ OUTPUT: Single detailed English image prompt (2-3 sentences). NO TEXT IN IMAGE.
         return refined || captionData.imagePrompt
     }
 
+    // Load visual memories if not provided
+    const memSection = visualMemoriesSection ?? await getVisualMemoriesSection()
+
     // STANDARD POST
     const refinementPrompt = `
 ${buildFeedAesthetic(config)}
-
+${memSection}
 ## YOUR TASK:
 Take this raw image prompt and transform it into a DETAILED, professional image prompt.
 
@@ -107,7 +141,7 @@ The prompt should be 2-3 sentences.
 `
 
     const response = await ai.models.generateContent({
-        model: "gemini-2.5-pro",
+        model: "gemini-3.1-pro-preview",
         contents: refinementPrompt,
     })
 
@@ -133,9 +167,12 @@ export async function refineCarouselPrompts(
         `Slide ${i === 0 ? "COVER" : String(i)}: headline="${s.headline}", subtext="${s.subtext}", rawPrompt="${s.imagePrompt}"`
     ).join("\n")
 
+    // Inject visual memories for carousel cohesion
+    const memSection = await getVisualMemoriesSection()
+
     const refinementPrompt = `
 ${buildFeedAesthetic(config)}
-
+${memSection}
 ## YOUR TASK:
 You are refining image prompts for an Instagram CAROUSEL (${allSlides.length} slides).
 All slides MUST feel like ONE cohesive series.
@@ -159,7 +196,7 @@ Return a JSON array of exactly ${allSlides.length} strings.
 
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-pro",
+            model: "gemini-3.1-pro-preview",
             contents: refinementPrompt,
             config: { responseMimeType: "application/json" },
         })
@@ -179,13 +216,15 @@ Return a JSON array of exactly ${allSlides.length} strings.
         console.warn("   ⚠️ Carousel batch refinement failed — falling back:", err)
     }
 
-    // Fallback: refine individually
+    // Fallback: refine individually (reuse the already-loaded memories)
     const results: string[] = []
     for (const slide of allSlides) {
         const refined = await refineImagePrompt(
             config,
             { imagePrompt: slide.imagePrompt, hook: slide.headline, imageSubtext: slide.subtext },
-            postType
+            postType,
+            undefined,
+            memSection
         )
         results.push(refined)
     }
@@ -202,10 +241,12 @@ export async function refineVideoPrompt(
     postType: string,
     duration: number
 ): Promise<string> {
+    const memSection = await getVisualMemoriesSection()
+
     const refinementPrompt = `
 You are a professional video director for Instagram Reels.
 Transform this raw script into a DETAILED Veo 3.1 video generation prompt.
-
+${memSection}
 Raw script: "${videoData.videoScript}"
 Hook text: "${videoData.hook}"
 Duration: ${duration} seconds
@@ -227,7 +268,7 @@ Return a single detailed English video generation prompt (2-4 sentences).
 `
 
     const response = await ai.models.generateContent({
-        model: "gemini-2.5-pro",
+        model: "gemini-3.1-pro-preview",
         contents: refinementPrompt,
     })
 

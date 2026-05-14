@@ -69,5 +69,6 @@ Kdykoli uděláš změnu v kódu (nový soubor, nová funkce, nová tabulka, nov
 |-------|-------|---------------|
 | 2026-02-27 | v2.0 | Základní architektura, multi-tenant, retry logika |
 | 2026-05-14 | v3.0 | 2-step API, feedback loops, weighted selection, Memory Agent, model upgrade |
+| 2026-05-14 | v3.1 | Visual Memory (Fáze 2): analyzeVisualPatterns(), getVisualMemoriesSection(), Art Director injection |
 
 *Při dalším updatu přidej řádek sem.*
