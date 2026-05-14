@@ -51,57 +51,72 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         setStep(1)
     }, [projectId])
 
-    // Async job-based generation: create job → poll status → get result
+    // Generation: synchronous fetch + parallel polling for live progress display
     const triggerPostGeneration = async (options: any): Promise<any> => {
-        // Step 1: Create job
-        const createRes = await fetch("/api/ig-generate", {
+        let pollingActive = true
+        let pollingJobId: string | null = null
+
+        // Start the main request (blocks on server for up to 300s)
+        const fetchPromise = fetch("/api/ig-generate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(options)
         })
-        const createData = await createRes.json()
-        if (!createRes.ok || !createData.jobId) {
-            return { success: false, error: createData.error || "Failed to create job" }
-        }
 
-        const jobId = createData.jobId
+        // Parallel polling loop — runs while fetch is in-flight
+        const pollLoop = async () => {
+            // Wait a moment for job to be created in DB
+            await new Promise(r => setTimeout(r, 3000))
 
-        // Step 2: Poll until done/failed
-        const maxPollTime = 5 * 60 * 1000 // 5 minutes max
-        const pollInterval = 2000 // 2 seconds
-        const startTime = Date.now()
+            while (pollingActive) {
+                try {
+                    // If we don't have jobId yet, try to find latest pending job
+                    if (!pollingJobId) {
+                        // We'll get jobId from the response — for now just show generic status
+                        setAgentStatus({ stage: "researcher", progress: 10, message: "🔍 Researcher vybírá zdroje..." })
+                        await new Promise(r => setTimeout(r, 4000))
+                        continue
+                    }
 
-        while (Date.now() - startTime < maxPollTime) {
-            await new Promise(r => setTimeout(r, pollInterval))
+                    const statusRes = await fetch(`/api/ig-job-status?id=${pollingJobId}`)
+                    const status = await statusRes.json()
 
-            try {
-                const statusRes = await fetch(`/api/ig-job-status?id=${jobId}`)
-                const status = await statusRes.json()
+                    if (status.agentMessage && status.status !== "done" && status.status !== "failed") {
+                        setAgentStatus({
+                            stage: status.status,
+                            progress: status.progress || 0,
+                            message: status.agentMessage,
+                        })
+                    }
+                } catch { /* ignore polling errors */ }
 
-                if (status.agentMessage) {
-                    setAgentStatus({
-                        stage: status.status,
-                        progress: status.progress || 0,
-                        message: status.agentMessage,
-                    })
-                }
-
-                if (status.status === "done" && status.result) {
-                    setAgentStatus(null)
-                    return status.result
-                }
-
-                if (status.status === "failed") {
-                    setAgentStatus(null)
-                    return { success: false, error: status.error || "Generování selhalo" }
-                }
-            } catch {
-                // Network error — continue polling
+                await new Promise(r => setTimeout(r, 2000))
             }
         }
 
-        setAgentStatus(null)
-        return { success: false, error: "Timeout — generování trvá příliš dlouho" }
+        // Run polling in background (don't await)
+        pollLoop()
+
+        try {
+            const result = await fetchPromise
+            pollingActive = false
+            setAgentStatus(null)
+
+            const data = await result.json()
+
+            if (!result.ok || !data.success) {
+                return { success: false, error: data.error || "API error" }
+            }
+
+            // Store jobId for future reference
+            pollingJobId = data.jobId
+            return data
+
+        } catch (err: any) {
+            pollingActive = false
+            setAgentStatus(null)
+            return { success: false, error: err.message || "Network error" }
+        }
     }
 
     const handleGenerate = async () => {
