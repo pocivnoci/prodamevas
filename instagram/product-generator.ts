@@ -14,6 +14,7 @@ import type { ClientConfig } from "./configs/types"
 import { generateText, generateImage, generateImageWithReferences } from "./gemini-client"
 import { Type } from "@google/genai"
 import supabaseAdmin from "../supabase/admin"
+import { getProductCategories, getProductCategoryBySlug, type ProductCategory } from "./service"
 
 // ============================================
 // INTERFACES
@@ -145,6 +146,12 @@ export async function generateProductIdeas(
         ? config.products.map(p => `- ${p.name} (${p.type}): ${p.price || "?"} — ${p.description || ""}`).join("\n")
         : "Žádné existující produkty"
 
+    // Load dynamic categories from DB
+    const categories = await getProductCategories()
+    const categorySection = categories.length > 0
+        ? categories.map(c => `- **${c.label}** (${c.icon}): ${c.material_hint || ""} — ${c.manufacturing_hint || ""}`).join("\n")
+        : "- Jakýkoliv produkt, který jde objednat z Alibaba/1688"
+
     const randomSeed = Math.floor(Math.random() * 10000)
     const prompt = `Jsi product designer pro streetwear/lifestyle brand "${config.name}".
 Web: ${config.website} | IG: ${config.instagram}
@@ -167,15 +174,7 @@ Navrhni ${count} NAPROSTO NOVÝCH, NEČEKANÝCH produktů pro brand "${config.na
 ZAPOMEŇ na nudný merch. Chceme produkty, které zaujmou na první pohled.
 
 ## KATEGORIE PRODUKTŮ (vyber z těchto — jde objednat z Číny za pár korun):
-- **Drinkware**: keramický hrnek (atypický tvar), termohrnek, sklenice na whisky/pivo, lahev na vodu, shot glass
-- **Accessories**: snapback, beanie, klíčenka (kov/kůže/guma), náramek, pásek, peněženka, sluneční brýle
-- **Smoking**: Zippo-style zapalovač, popelník (beton/keramika/sklo), rolling tray, grinder, cigaretové pouzdro
-- **Phone & Tech**: silikonový/hard phone case, stojánek na telefon, powerbanka, LED neony do pokoje, custom USB flashky
-- **Home & Lifestyle**: polštář (tvarovaný), stojan na vonné tyčinky, plakát/poster, nástěnné hodiny, svíčka v plechovce, rohožka přede dveře
-- **Clothing basics**: tričko, mikina, ponožky s vtipným potiskem, boxerky, bucket hat, pláštěnka
-- **EDC/Tools**: otvírák na lahve (zajímavý tvar), multitool karta, karabina, placatka
-- **Stationery & Office**: luxusní notes, sticker pack, kovový pin / odznak, podložka pod myš
-- **Fun/Novelty**: hrací karty, kostky, stírací los, puzzle, stress ball ve vlastním tvaru, plyšák/maskot
+${categorySection}
 
 ## PRAVIDLA (Kriticky důležité pro kreativitu):
 1. **PŘEKVAP NÁS:** NIKDY nevybírej ty nejběžnější předměty (obyčejný bílý hrnek, klíčenka s logem). Když hrnek, tak ve tvaru lebky, objektivu, granátu atd. Když polštář, tak tvarovaný jako kus sushi, bota, disketa atd.
@@ -221,23 +220,11 @@ export async function generateDesignConcept(
     const bv = config.brandVoice
     const { includeLogo = false, overlayText } = options
 
-    // Product-type specific design instructions
-    const productDesignGuides: Record<string, string> = {
-        triko: "Design pro potisk trička — ZOBRAZ CELÉ TRIČKO (laid flat nebo na modelovi) s tvým designem. Kvalitní produktová fotka, ne jen izolovaná grafika.",
-        mikina: "Design pro potisk mikiny — ZOBRAZ CELOU MIKINU s tvým designem. Streetwear produktová fotka na tmavém pozadí.",
-        čepice: "Design/vizualizace kšiltovky s tvým designem. Zobraz celý produkt (snapback), detailní materiály, výšivka/potisk loga.",
-        ponožky: "Design pro ponožky — pár ponožek s vtipným celoplošným potiskem. Zobraz celý produkt v realistickém provedení.",
-        taška: "Design pro plátěnou tašku (tote bag). Zobraz celou tašku s výrazným potiskem na tmavém pozadí.",
-        plakát: "Design pro plakát — zobraz plakát v minimalistickém rámu v interiéru nebo na zdi. Umělecké dílo.",
-        polštář: "Design pro polštář — zobraz polštář s tvým vzorem/grafikou v interiéru.",
-        hrnek: "Design pro hrnek — zobraz celý hrnek s fotorealistickým potiskem na tmavém pozadí.",
-        gadget: "Design/vizualizace fyzického gadgetu — produkt samotný. ZOBRAZ CELÝ PRODUKT: tvar, materiál, logo placement.",
-        accessory: "Design/vizualizace doplňku — produkt samotný. ZOBRAZ CELÝ PRODUKT: materiál, gravírování/potisk loga.",
-        card: "Design vizitko-velikosti produktu — zobraz materiál, gravírování, texturu.",
-    }
-
-    const designGuide = productDesignGuides[productType] || productDesignGuides.triko
-    const isMockupReady = ["triko", "mikina", "ponožky", "taška", "čepice"].includes(productType)
+    // Dynamic design guide from DB categories
+    const category = await getProductCategoryBySlug(productType)
+    const designGuide = category?.design_guide || `Design/vizualizace produktu typu ${productType}. Zobraz celý produkt, studio lighting, dark background.`
+    const materialContext = category?.material_hint ? `\nMateriál: ${category.material_hint}` : ""
+    const isMockupReady = ["triko", "mikina", "ponožky", "taška", "taska", "čepice", "cepice"].includes(productType)
 
     // Step 1: Generate design concept via AI text
     console.log("🧠 Generuji design koncept...")
@@ -476,53 +463,35 @@ export async function generateProductMockup(
     const path = await import("path")
     const fs = await import("fs")
 
-    // Template mapping
+    // Dynamic mockup prompt from DB categories
+    const category = await getProductCategoryBySlug(productType)
+
+    // Template mapping (physical files override AI generation)
     const templateMap: Record<string, string> = {
         triko: "tshirt_black_flat.png",
         mikina: "hoodie_black_flat.png",
     }
 
     const templateFile = templateMap[productType]
-    if (!templateFile) {
-        console.error(`❌ Neexistuje šablona pro typ: ${productType}`)
-        return null
-    }
-
-    const templatePath = path.join(process.cwd(), "instagram", "templates", templateFile)
+    const templatePath = templateFile
+        ? path.join(process.cwd(), "instagram", "templates", templateFile)
+        : null
     let templateBuffer: Buffer
-    
-    // Fallback akce: Generování AI Šablony pokud fyzicky neexistuje
-    if (!fs.existsSync(templatePath)) {
-        console.warn(`⚠️ Šablona nenalezena: ${templatePath}. Generuji realistickou AI šablonu pomocí Imagen na míru...`)
+
+    // Try physical template first, then AI-generate from category prompt
+    if (templatePath && fs.existsSync(templatePath)) {
+        templateBuffer = fs.readFileSync(templatePath)
+    } else {
+        console.warn(`⚠️ Šablona pro "${productType}" — generuji AI šablonu...`)
         try {
             const { generateImage } = await import("./gemini-client")
-            
-            // Map the product type to a prompt
-            let templatePrompt = `blank plain black ${productType} laid flat on simple studio background, photorealistic product photography, studio lighting, high resolution, no text, no logo`
-            
-            if (productType === "triko") {
-                templatePrompt = "blank plain black t-shirt laid flat on simple studio background, high quality apparel product photography, no text, no logo, pristine condition"
-            } else if (productType === "mikina") {
-                templatePrompt = "blank plain black hoodie sweatshirt laid flat on simple studio background, high quality apparel product photography, no text, no logo, pristine condition"
-            } else if (productType === "čepice") {
-                templatePrompt = "blank plain black snapback cap, front view, isolated on dark studio background, product photography, no text, no logo"
-            } else if (productType === "ponožky") {
-                templatePrompt = "pair of blank plain black crew socks laid flat, high quality apparel product photography, studio lighting, no text, no logo"
-            } else if (productType === "taška") {
-                templatePrompt = "blank plain black canvas tote bag shopper, isolated on dark studio background, product photography, no text, no logo"
-            } else if (productType === "plakát") {
-                templatePrompt = "vertical blank white poster mockup in a minimal modern black frame leaning against a dark wall, studio lighting, high resolution"
-            } else if (productType === "polštář") {
-                templatePrompt = "blank plain white square throw pillow, isolated on a dark minimal sofa background, product photography, no text, no logo"
-            } else if (productType === "hrnek") {
-                templatePrompt = "blank plain white ceramic coffee mug, studio lighting, isolated on dark background, product photography, no text, no logo"
-            }
-            
+            // Use category mockup_prompt if available, otherwise generic
+            const templatePrompt = category?.mockup_prompt
+                || `blank plain black ${productType} laid flat on simple studio background, photorealistic product photography, studio lighting, high resolution, no text, no logo`
             templateBuffer = await generateImage(templatePrompt, { aspectRatio: "1:1" })
             console.log(`   ✅ AI Šablona "${productType}" úspěšně vygenerována`)
         } catch (err) {
             console.error("❌ AI selhalo při tvorbě šablony, vracím tvrdý fallback:", err)
-            // Hard fallback if AI fails
             templateBuffer = await sharp({
                 create: {
                     width: 1024, height: 1024, channels: 4,
@@ -530,8 +499,6 @@ export async function generateProductMockup(
                 }
             }).png().toBuffer()
         }
-    } else {
-        templateBuffer = fs.readFileSync(templatePath)
     }
 
     // Step 1: Download the actual design image

@@ -630,4 +630,137 @@ export function createPillarMapper(config: ClientConfig): (typeName: string) => 
     return (typeName: string) => getPillarForType(config, typeName)
 }
 
+// ============================================
+// PRODUCT CATEGORIES (dynamic, per-client)
+// ============================================
 
+export interface ProductCategory {
+    id: string
+    client_id: string | null
+    slug: string
+    label: string
+    icon: string
+    design_guide: string
+    mockup_prompt: string | null
+    material_hint: string | null
+    manufacturing_hint: string | null
+    sort_order: number
+    is_active: boolean
+    created_at: string
+}
+
+/**
+ * Get product categories for the active client.
+ * Returns client-specific categories if they exist,
+ * otherwise falls back to global defaults (client_id IS NULL).
+ */
+export async function getProductCategories(clientId?: string): Promise<ProductCategory[]> {
+    const cid = clientId || getActiveProject()
+
+    // First try client-specific
+    const { data: clientCats } = await supabaseAdmin
+        .from("ig_product_categories")
+        .select("*")
+        .eq("client_id", cid)
+        .eq("is_active", true)
+        .order("sort_order")
+
+    if (clientCats && clientCats.length > 0) {
+        return clientCats as ProductCategory[]
+    }
+
+    // Fallback to global defaults
+    const { data: globalCats } = await supabaseAdmin
+        .from("ig_product_categories")
+        .select("*")
+        .is("client_id", null)
+        .eq("is_active", true)
+        .order("sort_order")
+
+    return (globalCats || []) as ProductCategory[]
+}
+
+/** Get a single product category by slug for the active client */
+export async function getProductCategoryBySlug(slug: string, clientId?: string): Promise<ProductCategory | null> {
+    const cid = clientId || getActiveProject()
+
+    // Try client-specific first
+    const { data: clientCat } = await supabaseAdmin
+        .from("ig_product_categories")
+        .select("*")
+        .eq("client_id", cid)
+        .eq("slug", slug)
+        .eq("is_active", true)
+        .limit(1)
+
+    if (clientCat && clientCat.length > 0) return clientCat[0] as ProductCategory
+
+    // Fallback to global
+    const { data: globalCat } = await supabaseAdmin
+        .from("ig_product_categories")
+        .select("*")
+        .is("client_id", null)
+        .eq("slug", slug)
+        .eq("is_active", true)
+        .limit(1)
+
+    return globalCat?.[0] as ProductCategory || null
+}
+
+/** Create a new product category for a client */
+export async function createProductCategory(
+    clientId: string,
+    data: { slug: string; label: string; icon?: string; design_guide: string; mockup_prompt?: string; material_hint?: string; manufacturing_hint?: string }
+): Promise<ProductCategory> {
+    // Determine sort_order (append at end)
+    const { data: existing } = await supabaseAdmin
+        .from("ig_product_categories")
+        .select("sort_order")
+        .eq("client_id", clientId)
+        .order("sort_order", { ascending: false })
+        .limit(1)
+
+    const nextOrder = (existing?.[0]?.sort_order ?? 0) + 1
+
+    const { data: created, error } = await supabaseAdmin
+        .from("ig_product_categories")
+        .insert({
+            client_id: clientId,
+            slug: data.slug,
+            label: data.label,
+            icon: data.icon || "📦",
+            design_guide: data.design_guide,
+            mockup_prompt: data.mockup_prompt || null,
+            material_hint: data.material_hint || null,
+            manufacturing_hint: data.manufacturing_hint || null,
+            sort_order: nextOrder,
+        })
+        .select()
+        .single()
+
+    if (error) throw error
+    return created as ProductCategory
+}
+
+/** Update an existing product category */
+export async function updateProductCategory(
+    id: string,
+    data: Partial<{ label: string; icon: string; design_guide: string; mockup_prompt: string; material_hint: string; manufacturing_hint: string; sort_order: number }>
+): Promise<void> {
+    const { error } = await supabaseAdmin
+        .from("ig_product_categories")
+        .update(data)
+        .eq("id", id)
+
+    if (error) throw error
+}
+
+/** Soft-delete a product category */
+export async function deleteProductCategory(id: string): Promise<void> {
+    const { error } = await supabaseAdmin
+        .from("ig_product_categories")
+        .update({ is_active: false })
+        .eq("id", id)
+
+    if (error) throw error
+}

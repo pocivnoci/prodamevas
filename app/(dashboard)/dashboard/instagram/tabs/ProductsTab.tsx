@@ -16,43 +16,62 @@ import {
     type DesignConcept,
 } from "@/app/actions/product-actions"
 import { createPromoPost } from "@/app/actions/ig-generate-action"
+import {
+    fetchProductCategories,
+    addProductCategory,
+    editProductCategory,
+    removeProductCategory,
+} from "@/app/actions/product-category-actions"
 import { LoadingSpinner } from "./shared"
 
 
-type ProductSection = "ideas" | "design" | "mockup"
+type ProductSection = "ideas" | "design" | "mockup" | "categories"
 
-// ── Product Type Grid (replaces boring <select>) ─────────────────
-const PRODUCT_TYPES = [
-    { value: "triko",    label: "Triko",         icon: "👕" },
-    { value: "mikina",   label: "Mikina",        icon: "🧥" },
-    { value: "čepice",  label: "Čepice",        icon: "🧢" },
-    { value: "ponožky", label: "Ponožky",       icon: "🧦" },
-    { value: "taška",   label: "Taška",         icon: "👜" },
-    { value: "plakát",  label: "Plakát",        icon: "🖼️" },
-    { value: "polštář", label: "Polštář",       icon: "🛋️" },
-    { value: "hrnek",   label: "Hrnek",         icon: "☕" },
-    { value: "gadget",  label: "Gadget",        icon: "🔧" },
-    { value: "accessory", label: "Doplněk",     icon: "🔑" },
-    { value: "card",    label: "Karta",         icon: "💳" },
-]
+// ── Dynamic Product Type Grid ────────────────────────────────
+interface CategoryItem {
+    id: string
+    slug: string
+    label: string
+    icon: string
+    client_id: string | null
+    design_guide: string
+    mockup_prompt: string | null
+    material_hint: string | null
+    manufacturing_hint: string | null
+}
 
-function ProductTypeGrid({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function ProductTypeGrid({
+    value,
+    onChange,
+    categories,
+}: {
+    value: string
+    onChange: (v: string) => void
+    categories: CategoryItem[]
+}) {
+    if (categories.length === 0) {
+        return (
+            <div className="text-center py-6 text-white/30 text-[10px] uppercase tracking-widest font-bold">
+                Žádné produktové kategorie. Přidej je v záložce "Kategorie".
+            </div>
+        )
+    }
     return (
         <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-            {PRODUCT_TYPES.map(t => (
+            {categories.map(t => (
                 <button
-                    key={t.value}
+                    key={t.slug}
                     type="button"
-                    onClick={() => onChange(t.value)}
+                    onClick={() => onChange(t.slug)}
                     className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded border transition-all ${
-                        value === t.value
+                        value === t.slug
                             ? "bg-amber-500/10 border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.15)]"
                             : "bg-[#0a0a0a] border-white/8 hover:border-white/20 hover:bg-white/5"
                     }`}
                 >
                     <span className="text-2xl leading-none">{t.icon}</span>
                     <span className={`text-[8px] font-bold uppercase tracking-widest leading-none ${
-                        value === t.value ? "text-amber-400" : "text-white/50"
+                        value === t.slug ? "text-amber-400" : "text-white/50"
                     }`}>{t.label}</span>
                 </button>
             ))}
@@ -106,12 +125,30 @@ export function ProductsTab({ projectId }: { projectId: string }) {
     const [savingDesign, setSavingDesign] = useState(false)
     const [creatingPromoPost, setCreatingPromoPost] = useState(false)
 
-    // productTypes retained for reference only — UI uses ProductTypeGrid
+    // ── Product Categories (dynamic, from DB) ────────────────────
+    const [productCategories, setProductCategories] = useState<CategoryItem[]>([])
+    const [categoriesCustom, setCategoriesCustom] = useState(false)
+    const [catLoading, setCatLoading] = useState(false)
+    const [showAddCategory, setShowAddCategory] = useState(false)
+    const [editingCat, setEditingCat] = useState<CategoryItem | null>(null)
+    const [newCat, setNewCat] = useState({ slug: "", label: "", icon: "📦", design_guide: "", mockup_prompt: "", material_hint: "", manufacturing_hint: "" })
+
+    // Load categories on mount
+    const loadCategories = useCallback(async () => {
+        const { categories, isCustom } = await fetchProductCategories(projectId)
+        setProductCategories(categories as CategoryItem[])
+        setCategoriesCustom(isCustom)
+    }, [projectId])
+
+    useEffect(() => {
+        loadCategories()
+    }, [loadCategories])
 
     const sections: { id: ProductSection; label: string; icon: string }[] = [
         { id: "ideas", label: "Nápady", icon: "💡" },
         { id: "design", label: "Design", icon: "🎨" },
         { id: "mockup", label: "Mockup", icon: "👕" },
+        { id: "categories", label: "Kategorie", icon: "📦" },
     ]
 
     // ── Ideas Handler ─────────────────────────────────────
@@ -876,7 +913,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
 
                         <div className="mb-4">
                             <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-2 block">Typ produktu</label>
-                            <ProductTypeGrid value={designProductType} onChange={setDesignProductType} />
+                            <ProductTypeGrid value={designProductType} onChange={setDesignProductType} categories={productCategories} />
                         </div>
 
                         {/* Logo toggle */}
@@ -1060,7 +1097,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
 
                         <div className="mb-4">
                             <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-2 block">Typ produktu</label>
-                            <ProductTypeGrid value={mockupProductType} onChange={setMockupProductType} />
+                            <ProductTypeGrid value={mockupProductType} onChange={setMockupProductType} categories={productCategories} />
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
@@ -1261,6 +1298,240 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══ CATEGORIES SECTION ═══ */}
+            {section === "categories" && !loading && (
+                <div className="space-y-6">
+                    <div className="bg-[#0f0f0f] border border-white/10 rounded-sm p-8 shadow-lg">
+                        <div className="flex items-center justify-between mb-6">
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tighter text-white mb-2">📦 Produktové kategorie</h3>
+                                <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest">
+                                    {categoriesCustom
+                                        ? "Vlastní kategorie tohoto klienta"
+                                        : "Globální výchozí kategorie — přidej vlastní pro tento brand"}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => { setShowAddCategory(!showAddCategory); setEditingCat(null) }}
+                                className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-sm text-[10px] font-black uppercase tracking-widest text-amber-400 transition-all"
+                            >
+                                {showAddCategory ? "✕ Zavřít" : "＋ Nová kategorie"}
+                            </button>
+                        </div>
+
+                        {/* Add/Edit form */}
+                        {(showAddCategory || editingCat) && (
+                            <div className="bg-[#0a0a0a] border border-amber-500/20 rounded-sm p-6 mb-6 space-y-4">
+                                <h4 className="text-[10px] uppercase tracking-[0.3em] font-black text-amber-400">
+                                    {editingCat ? `✏️ Upravit: ${editingCat.label}` : "✨ Nová produktová kategorie"}
+                                </h4>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">Slug (bez diakritiky) *</label>
+                                        <input
+                                            value={editingCat ? editingCat.slug : newCat.slug}
+                                            onChange={e => editingCat ? null : setNewCat(p => ({ ...p, slug: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "") }))}
+                                            disabled={!!editingCat}
+                                            placeholder="sklenicka"
+                                            className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-medium placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/30 disabled:opacity-50 transition-all"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">Název *</label>
+                                        <input
+                                            value={editingCat ? editingCat.label : newCat.label}
+                                            onChange={e => editingCat ? setEditingCat({ ...editingCat, label: e.target.value }) : setNewCat(p => ({ ...p, label: e.target.value }))}
+                                            placeholder="Sklenička"
+                                            className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-medium placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">Emoji ikona</label>
+                                        <input
+                                            value={editingCat ? editingCat.icon : newCat.icon}
+                                            onChange={e => editingCat ? setEditingCat({ ...editingCat, icon: e.target.value }) : setNewCat(p => ({ ...p, icon: e.target.value }))}
+                                            placeholder="🥃"
+                                            className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-center text-lg focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">AI instrukce pro vizualizaci (design_guide) *</label>
+                                    <textarea
+                                        value={editingCat ? editingCat.design_guide : newCat.design_guide}
+                                        onChange={e => editingCat ? setEditingCat({ ...editingCat, design_guide: e.target.value }) : setNewCat(p => ({ ...p, design_guide: e.target.value }))}
+                                        placeholder="Zobraz křišťálovou skleničku s gravírovaným vzorem, studio osvětlení, průhledné sklo, detailní lom světla na tmavém pozadí..."
+                                        rows={3}
+                                        className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all resize-none"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">Mockup prompt (EN)</label>
+                                        <input
+                                            value={editingCat ? (editingCat.mockup_prompt || "") : newCat.mockup_prompt}
+                                            onChange={e => editingCat ? setEditingCat({ ...editingCat, mockup_prompt: e.target.value }) : setNewCat(p => ({ ...p, mockup_prompt: e.target.value }))}
+                                            placeholder="blank crystal glass tumbler on dark background..."
+                                            className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-medium placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">Materiál</label>
+                                        <input
+                                            value={editingCat ? (editingCat.material_hint || "") : newCat.material_hint}
+                                            onChange={e => editingCat ? setEditingCat({ ...editingCat, material_hint: e.target.value }) : setNewCat(p => ({ ...p, material_hint: e.target.value }))}
+                                            placeholder="křišťál, borosilikát, sklo"
+                                            className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-medium placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">Výroba</label>
+                                        <input
+                                            value={editingCat ? (editingCat.manufacturing_hint || "") : newCat.manufacturing_hint}
+                                            onChange={e => editingCat ? setEditingCat({ ...editingCat, manufacturing_hint: e.target.value }) : setNewCat(p => ({ ...p, manufacturing_hint: e.target.value }))}
+                                            placeholder="gravírování, pískování, malování"
+                                            className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-medium placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-3 pt-2">
+                                    {editingCat ? (
+                                        <>
+                                            <button
+                                                onClick={async () => {
+                                                    setCatLoading(true)
+                                                    const result = await editProductCategory(editingCat.id, {
+                                                        label: editingCat.label,
+                                                        icon: editingCat.icon,
+                                                        design_guide: editingCat.design_guide,
+                                                        mockup_prompt: editingCat.mockup_prompt || "",
+                                                        material_hint: editingCat.material_hint || "",
+                                                        manufacturing_hint: editingCat.manufacturing_hint || "",
+                                                    })
+                                                    if (result.success) {
+                                                        setEditingCat(null)
+                                                        loadCategories()
+                                                        setSuccessMsg("Kategorie upravena ✅")
+                                                        setTimeout(() => setSuccessMsg(null), 3000)
+                                                    } else {
+                                                        setError(result.error || "Upravení selhalo")
+                                                    }
+                                                    setCatLoading(false)
+                                                }}
+                                                disabled={catLoading || !editingCat.label || !editingCat.design_guide}
+                                                className="px-6 py-3 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 rounded-sm text-[10px] font-black uppercase tracking-widest text-amber-400 transition-all disabled:opacity-50"
+                                            >
+                                                {catLoading ? "⏳" : "💾"} Uložit změny
+                                            </button>
+                                            <button
+                                                onClick={() => setEditingCat(null)}
+                                                className="px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-sm text-[10px] font-bold uppercase tracking-widest text-white/50 transition-all"
+                                            >
+                                                Zrušit
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <button
+                                            onClick={async () => {
+                                                if (!newCat.slug || !newCat.label || !newCat.design_guide) {
+                                                    setError("Vyplň slug, název a AI instrukce")
+                                                    return
+                                                }
+                                                setCatLoading(true)
+                                                setError(null)
+                                                const result = await addProductCategory(projectId, newCat)
+                                                if (result.success) {
+                                                    setNewCat({ slug: "", label: "", icon: "📦", design_guide: "", mockup_prompt: "", material_hint: "", manufacturing_hint: "" })
+                                                    setShowAddCategory(false)
+                                                    loadCategories()
+                                                    setSuccessMsg(`Kategorie "${newCat.label}" přidána ✅`)
+                                                    setTimeout(() => setSuccessMsg(null), 3000)
+                                                } else {
+                                                    setError(result.error || "Přidání selhalo")
+                                                }
+                                                setCatLoading(false)
+                                            }}
+                                            disabled={catLoading || !newCat.slug || !newCat.label || !newCat.design_guide}
+                                            className="px-6 py-3 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-sm text-[10px] font-black uppercase tracking-widest text-emerald-400 transition-all disabled:opacity-50"
+                                        >
+                                            {catLoading ? "⏳ Ukládám..." : "＋ Přidat kategorii"}
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Existing categories grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                            {productCategories.map(cat => (
+                                <div key={cat.id} className={`bg-[#0a0a0a] border rounded-sm p-5 transition-all ${cat.client_id ? "border-amber-500/20" : "border-white/10"}`}>
+                                    <div className="flex items-start justify-between mb-3">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-3xl">{cat.icon}</span>
+                                            <div>
+                                                <h4 className="text-white font-bold text-sm uppercase tracking-wide">{cat.label}</h4>
+                                                <span className="text-[9px] font-mono text-white/30">{cat.slug}</span>
+                                            </div>
+                                        </div>
+                                        {cat.client_id && (
+                                            <div className="flex gap-1">
+                                                <button
+                                                    onClick={() => { setEditingCat(cat); setShowAddCategory(false) }}
+                                                    className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center bg-white/5 text-white/30 border-white/10 hover:bg-amber-500/20 hover:text-amber-400 hover:border-amber-500/30 transition-all"
+                                                    title="Upravit"
+                                                >✏️</button>
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!confirm(`Smazat kategorii "${cat.label}"?`)) return
+                                                        const result = await removeProductCategory(cat.id)
+                                                        if (result.success) loadCategories()
+                                                        else setError(result.error || "Smazání selhalo")
+                                                    }}
+                                                    className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center bg-white/5 text-white/30 border-white/10 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 transition-all"
+                                                    title="Smazat"
+                                                >🗑️</button>
+                                            </div>
+                                        )}
+                                        {!cat.client_id && (
+                                            <span className="text-[8px] font-bold uppercase tracking-widest px-2 py-1 bg-white/5 text-white/30 border border-white/5 rounded-sm">
+                                                Global
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <p className="text-white/50 text-[10px] font-medium leading-relaxed mb-3 line-clamp-2">{cat.design_guide}</p>
+
+                                    <div className="flex flex-wrap gap-2">
+                                        {cat.material_hint && (
+                                            <span className="text-[8px] font-bold uppercase tracking-widest px-2 py-1 bg-white/5 text-white/40 border border-white/5 rounded-sm">
+                                                🔧 {cat.material_hint}
+                                            </span>
+                                        )}
+                                        {cat.manufacturing_hint && (
+                                            <span className="text-[8px] font-bold uppercase tracking-widest px-2 py-1 bg-white/5 text-white/40 border border-white/5 rounded-sm">
+                                                🏭 {cat.manufacturing_hint}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {!categoriesCustom && productCategories.length > 0 && (
+                            <div className="mt-6 p-4 bg-amber-500/5 border border-amber-500/20 rounded-sm">
+                                <p className="text-[10px] text-amber-400/70 font-bold uppercase tracking-widest">
+                                    ℹ️ Zobrazují se globální výchozí kategorie. Jakmile přidáš první vlastní kategorii, budou se zobrazovat jen tvé vlastní.
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
