@@ -342,7 +342,7 @@ export async function schedulePost(
 }
 
 // ============================================
-// GENERATION LOG
+// GENERATION LOG (with Critic feedback)
 // ============================================
 
 export async function logGeneration(log: {
@@ -352,17 +352,160 @@ export async function logGeneration(log: {
     tokensUsed?: number;
     generationTimeMs?: number;
     error?: string;
+    criticScore?: number;
+    criticKeep?: string[];
+    criticFix?: string[];
 }): Promise<void> {
     await supabaseAdmin
         .from("ig_generation_log")
         .insert({
             post_id: log.postId,
+            client_id: getActiveProject(),
             prompt_used: log.promptUsed,
             model_used: log.modelUsed,
             tokens_used: log.tokensUsed,
             generation_time_ms: log.generationTimeMs,
-            error: log.error
+            error: log.error,
+            critic_score: log.criticScore,
+            critic_keep: log.criticKeep,
+            critic_fix: log.criticFix,
         });
+}
+
+// ============================================
+// FEEDBACK LOOP — Performance scoring
+// ============================================
+
+/**
+ * Update performance scores for ideas and reviews based on post metrics.
+ * Called when metrics are entered for published posts.
+ * This is the key feedback loop: Metrics → Ideas/Reviews → Future selection.
+ */
+export async function propagateMetricsToSources(): Promise<{ ideasUpdated: number; reviewsUpdated: number }> {
+    const clientId = getActiveProject()
+
+    // Get posts that have metrics AND linked ideas/reviews
+    const { data: posts } = await supabaseAdmin
+        .from("ig_posts")
+        .select("id, idea_id, review_id, likes, comments, saves, reach, shares, link_clicks")
+        .eq("client_id", clientId)
+        .eq("status", "posted")
+        .not("likes", "is", null)
+
+    if (!posts || posts.length === 0) return { ideasUpdated: 0, reviewsUpdated: 0 }
+
+    let ideasUpdated = 0
+    let reviewsUpdated = 0
+
+    // Group metrics by idea_id
+    const ideaMetrics: Record<string, number[]> = {}
+    const reviewMetrics: Record<string, number[]> = {}
+
+    for (const post of posts) {
+        const engagement = (post.likes || 0) + (post.comments || 0) * 3 + (post.saves || 0) * 5
+        if (post.idea_id) {
+            if (!ideaMetrics[post.idea_id]) ideaMetrics[post.idea_id] = []
+            ideaMetrics[post.idea_id].push(engagement)
+        }
+        if (post.review_id) {
+            if (!reviewMetrics[post.review_id]) reviewMetrics[post.review_id] = []
+            reviewMetrics[post.review_id].push(engagement)
+        }
+    }
+
+    // Update idea performance scores
+    for (const [ideaId, scores] of Object.entries(ideaMetrics)) {
+        const avgScore = scores.reduce((s, v) => s + v, 0) / scores.length
+        await supabaseAdmin
+            .from("ig_post_ideas")
+            .update({
+                performance_score: avgScore,
+                times_used_with_metrics: scores.length,
+            })
+            .eq("id", ideaId)
+        ideasUpdated++
+    }
+
+    // Update review performance scores
+    for (const [reviewId, scores] of Object.entries(reviewMetrics)) {
+        const avgScore = scores.reduce((s, v) => s + v, 0) / scores.length
+        await supabaseAdmin
+            .from("ig_reviews")
+            .update({
+                performance_score: avgScore,
+                times_used_with_metrics: scores.length,
+            })
+            .eq("id", reviewId)
+        reviewsUpdated++
+    }
+
+    return { ideasUpdated, reviewsUpdated }
+}
+
+/**
+ * Get ideas weighted by performance score.
+ * High-performing ideas are 3x more likely to be selected.
+ * Ideas with no metrics yet get a fair chance too.
+ */
+export async function getWeightedIdeas(limit = 5): Promise<PostIdea[]> {
+    const clientId = getActiveProject()
+
+    // Get all available ideas (respecting cooldown)
+    const cooldownDate = new Date()
+    cooldownDate.setDate(cooldownDate.getDate() - 90) // 90-day cooldown
+
+    const { data: ideas } = await supabaseAdmin
+        .from("ig_post_ideas")
+        .select("*")
+        .eq("client_id", clientId)
+        .eq("is_active", true)
+        .or(`last_used_at.is.null,last_used_at.lt.${cooldownDate.toISOString()}`)
+        .order("performance_score", { ascending: false })
+        .limit(50)
+
+    if (!ideas || ideas.length === 0) return []
+
+    // Weighted random selection: top performers get 3x weight
+    const avgScore = ideas.reduce((s, i) => s + (i.performance_score || 0), 0) / ideas.length
+    const weighted = ideas.flatMap(idea => {
+        const score = idea.performance_score || 0
+        if (score > avgScore * 1.5) return [idea, idea, idea] // 3x weight
+        if (score > avgScore) return [idea, idea]              // 2x weight
+        return [idea]                                          // 1x weight (default/no data)
+    })
+
+    // Shuffle and pick
+    const shuffled = weighted.sort(() => Math.random() - 0.5)
+    return shuffled.slice(0, limit)
+}
+
+/**
+ * Get reviews weighted by performance score.
+ */
+export async function getWeightedReviews(limit = 3): Promise<Review[]> {
+    const clientId = getActiveProject()
+
+    const { data: reviews } = await supabaseAdmin
+        .from("ig_reviews")
+        .select("*")
+        .eq("client_id", clientId)
+        .eq("is_approved", true)
+        .or("used_at.is.null,used_at.lt." + new Date(Date.now() - 30 * 86400000).toISOString())
+        .order("performance_score", { ascending: false })
+        .limit(20)
+
+    if (!reviews || reviews.length === 0) return []
+
+    const avgScore = reviews.reduce((s, r) => s + (r.performance_score || 0), 0) / reviews.length
+    const weighted = reviews.flatMap(review => {
+        const score = review.performance_score || 0
+        if (score > avgScore * 1.5) return [review, review, review]
+        if (score > avgScore) return [review, review]
+        return [review]
+    })
+
+    const shuffled = weighted.sort(() => Math.random() - 0.5)
+    return shuffled.slice(0, limit)
 }
 
 // ============================================

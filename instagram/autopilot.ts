@@ -35,6 +35,9 @@ import {
     setActiveProject,
     getActiveProject,
     ensurePostTypes,
+    getWeightedIdeas,
+    getWeightedReviews,
+    propagateMetricsToSources,
 } from "./service"
 import { runProductIdeas, runDesignConcept } from "./product-generator"
 import { loadConfig } from "./configs"
@@ -145,16 +148,16 @@ export async function generateOnePost(options: {
     let review: Review | null = null
 
     if (selectedType.name === "recenze") {
-        const reviews = await getApprovedReviews()
+        const reviews = await getWeightedReviews(3)
         if (reviews.length > 0) {
-            review = reviews[Math.floor(Math.random() * reviews.length)]
-            console.log(`   ✓ Recenze: "${review.quote.substring(0, 40)}..."`)
+            review = reviews[0]
+            console.log(`   ✓ Recenze (weighted): "${review.quote.substring(0, 40)}..." (score: ${review.performance_score || 'N/A'})`)
         }
     } else {
-        const ideas = await getAvailableIdeas()
+        const ideas = await getWeightedIdeas(3)
         if (ideas.length > 0) {
-            idea = ideas[Math.floor(Math.random() * Math.min(ideas.length, 3))]
-            console.log(`   ✓ Nápad: "${idea.title}" (${ideas.length} dostupných, cooldown ${IDEA_COOLDOWN_DAYS} dní)`)
+            idea = ideas[0]
+            console.log(`   ✓ Nápad (weighted): "${idea.title}" (score: ${idea.performance_score || 'N/A'}, ${ideas.length} dostupných)`)
         } else {
             console.log(`   ℹ️ Všechny nápady v cooldownu — Gemini vymyslí vlastní`)
         }
@@ -715,6 +718,9 @@ export async function generateOnePost(options: {
             promptUsed: megaPrompt.substring(0, 500),
             modelUsed: "gemini-3.1-pro-preview + imagen-4.0-ultra",
             generationTimeMs: Date.now() - startTime,
+            criticScore: score,
+            criticKeep: detail?.feedback.keep,
+            criticFix: detail?.feedback.fix,
         })
 
         console.log(`   ✓ ID: ${post.id}`)

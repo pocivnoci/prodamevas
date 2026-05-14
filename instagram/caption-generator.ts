@@ -220,12 +220,31 @@ export function buildSmartWeekPlan(config: ClientConfig, performance: Performanc
         ratios[key] = pillar.ratio
     }
 
+    // Data-driven ratio adaptation — aggressive, not timid
     if (performance.pillarPerformance) {
         const pp = performance.pillarPerformance
-        const pillarNames = Object.keys(ratios)
-        for (const name of pillarNames) {
-            if (pp[name] && pp[name].avgScore < performance.avgEngagement * 0.5) {
-                ratios[name] = Math.min(0.5, ratios[name] + 0.05)
+        const avg = performance.avgEngagement
+
+        for (const name of Object.keys(ratios)) {
+            if (!pp[name] || pp[name].avgScore === 0) continue
+
+            const pillarAvg = pp[name].avgScore
+            if (pillarAvg > avg * 1.5) {
+                // Top performer: boost ratio by 50%
+                ratios[name] = Math.min(0.6, ratios[name] * 1.5)
+                console.log(`   📈 ${name}: ratio ×1.5 (${pillarAvg.toFixed(0)} vs avg ${avg.toFixed(0)})`)
+            } else if (pillarAvg < avg * 0.5) {
+                // Underperformer: cut ratio in half
+                ratios[name] = Math.max(0.05, ratios[name] * 0.5)
+                console.log(`   📉 ${name}: ratio ×0.5 (${pillarAvg.toFixed(0)} vs avg ${avg.toFixed(0)})`)
+            }
+        }
+
+        // Normalize so ratios sum to ~1.0
+        const totalRatio = Object.values(ratios).reduce((s, r) => s + r, 0)
+        if (totalRatio > 0) {
+            for (const key of Object.keys(ratios)) {
+                ratios[key] = ratios[key] / totalRatio
             }
         }
     }
