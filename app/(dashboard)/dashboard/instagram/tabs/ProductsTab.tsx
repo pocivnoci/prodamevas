@@ -21,6 +21,46 @@ import { LoadingSpinner } from "./shared"
 
 type ProductSection = "ideas" | "design" | "mockup"
 
+// ── Product Type Grid (replaces boring <select>) ─────────────────
+const PRODUCT_TYPES = [
+    { value: "triko",    label: "Triko",         icon: "👕" },
+    { value: "mikina",   label: "Mikina",        icon: "🧥" },
+    { value: "čepice",  label: "Čepice",        icon: "🧢" },
+    { value: "ponožky", label: "Ponožky",       icon: "🧦" },
+    { value: "taška",   label: "Taška",         icon: "👜" },
+    { value: "plakát",  label: "Plakát",        icon: "🖼️" },
+    { value: "polštář", label: "Polštář",       icon: "🛋️" },
+    { value: "hrnek",   label: "Hrnek",         icon: "☕" },
+    { value: "gadget",  label: "Gadget",        icon: "🔧" },
+    { value: "accessory", label: "Doplněk",     icon: "🔑" },
+    { value: "card",    label: "Karta",         icon: "💳" },
+]
+
+function ProductTypeGrid({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+    return (
+        <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+            {PRODUCT_TYPES.map(t => (
+                <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => onChange(t.value)}
+                    className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded border transition-all ${
+                        value === t.value
+                            ? "bg-amber-500/10 border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.15)]"
+                            : "bg-[#0a0a0a] border-white/8 hover:border-white/20 hover:bg-white/5"
+                    }`}
+                >
+                    <span className="text-2xl leading-none">{t.icon}</span>
+                    <span className={`text-[8px] font-bold uppercase tracking-widest leading-none ${
+                        value === t.value ? "text-amber-400" : "text-white/50"
+                    }`}>{t.label}</span>
+                </button>
+            ))}
+        </div>
+    )
+}
+
+
 export function ProductsTab({ projectId }: { projectId: string }) {
     const [section, setSection] = useState<ProductSection>("ideas")
     const [loading, setLoading] = useState(false)
@@ -66,19 +106,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
     const [savingDesign, setSavingDesign] = useState(false)
     const [creatingPromoPost, setCreatingPromoPost] = useState(false)
 
-    const productTypes = [
-        { value: "triko", label: "👕 Triko" },
-        { value: "mikina", label: "🧥 Mikina" },
-        { value: "čepice", label: "🧢 Čepice" },
-        { value: "ponožky", label: "🧦 Ponožky" },
-        { value: "taška", label: "👜 Taška / Shopper" },
-        { value: "plakát", label: "🖼️ Plakát / Poster" },
-        { value: "polštář", label: "🛋️ Polštář" },
-        { value: "hrnek", label: "☕ Hrnek" },
-        { value: "gadget", label: "🔧 Gadget" },
-        { value: "accessory", label: "🔑 Doplněk" },
-        { value: "card", label: "💳 Karta/Card" },
-    ]
+    // productTypes retained for reference only — UI uses ProductTypeGrid
 
     const sections: { id: ProductSection; label: string; icon: string }[] = [
         { id: "ideas", label: "Nápady", icon: "💡" },
@@ -825,7 +853,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                         <h3 className="text-2xl font-black uppercase tracking-tighter text-white mb-2">🎨 Print-Ready Design Generator</h3>
                         <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest mb-6">AI vytvoří tisknutelný grafický design izolovaný na černém pozadí — připravený pro DTG potisk.</p>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                             <div>
                                 <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">Téma designu *</label>
                                 <input
@@ -834,16 +862,6 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                     placeholder="je ok mít adhd/koho, drogy, holky, dolary! vtipné"
                                     className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-medium placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all"
                                 />
-                            </div>
-                            <div>
-                                <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">Typ produktu</label>
-                                <select
-                                    value={designProductType}
-                                    onChange={(e) => setDesignProductType(e.target.value)}
-                                    className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all"
-                                >
-                                    {productTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                                </select>
                             </div>
                             <div className="flex items-end">
                                 <button
@@ -854,6 +872,11 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                     🎨 Generovat design
                                 </button>
                             </div>
+                        </div>
+
+                        <div className="mb-4">
+                            <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-2 block">Typ produktu</label>
+                            <ProductTypeGrid value={designProductType} onChange={setDesignProductType} />
                         </div>
 
                         {/* Logo toggle */}
@@ -1035,17 +1058,12 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                         <h3 className="text-2xl font-black uppercase tracking-tighter text-white mb-2">👕 Product Mockup Generator</h3>
                         <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest mb-6">AI vygeneruje fotorealistický mockup produktu s designem — ideální pro e-shop a Instagram.</p>
 
+                        <div className="mb-4">
+                            <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-2 block">Typ produktu</label>
+                            <ProductTypeGrid value={mockupProductType} onChange={setMockupProductType} />
+                        </div>
+
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                            <div>
-                                <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">Typ produktu</label>
-                                <select
-                                    value={mockupProductType}
-                                    onChange={(e) => setMockupProductType(e.target.value)}
-                                    className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all"
-                                >
-                                    {productTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                                </select>
-                            </div>
                             <div>
                                 <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">Popis designu (volitelné)</label>
                                 <input
