@@ -2,141 +2,196 @@
 
 **POZOR PRO VŠECHNY AI AGENTY A LLM MODELY**: Tento dokument slouží jako zdroj pravdy (Source of Truth) pro architektonická, obchodní a technická rozhodnutí platformy. Jste-li asistující AI, PŘEČTĚTE SI TENTO DOKUMENT jako první, než budete cokoliv modifikovat.
 
+*Last Updated: 2026-05-14 — v3.0 Interconnected Architecture*
+
 ---
 
 ## 🏗️ 1. Hlavní účel a Architektura systému
-Tato platforma (`instagram/autopilot.ts`) je automatizovaný **Multi-Tenant Content Engine** určený ke generování Instagram příspěvků pro RŮZNÉ nezávislé klienty/značky.
-Aplikace běží na serverless stacku (Next.js 16, Vercel) a data ukládá do **Supabase** (PostgreSQL + Object Storage).
+
+Tato platforma (`instagram/autopilot.ts`) je automatizovaný **Multi-Tenant Content Engine** určený ke generování Instagram příspěvků pro RŮZNÉ nezávislé klienty/značky. Běží na serverless stacku (Next.js 16, Vercel) a data ukládá do **Supabase** (PostgreSQL + Object Storage).
 
 **Klíčová pravidla architektury:**
-- **Multi-tenant by design**: Aplikace se nesmí chovat klientsky specificky. Všechna specifika (barvy, weby, tone of voice, hashtagy) jsou izolovaná v **klientské konfiguraci** uložené v DB (`clients.config` JSONB sloupec).
-- **Žádný hardcoding**: Ať jde o databázová ID, názvy bucketů, admin emaily nebo URL, vždy si je aplikace musí vytáhnout z `ClientConfig` (z DB) nebo ENV proměnných.
-- **Konfigurace žije POUZE v Supabase DB** — v kódu existují pouze `configs/types.ts` (TypeScript interface) a `configs/index.ts` (loader s cache a RBAC).
+- **Multi-tenant by design**: Všechna specifika (barvy, weby, tone of voice) jsou izolovaná v klientské konfiguraci uložené v DB (`clients.config` JSONB sloupec).
+- **Žádný hardcoding**: Databázová ID, buckety, admin emaily, URL — vždy z `ClientConfig` (DB) nebo ENV proměnných.
+- **Konfigurace žije POUZE v Supabase DB** — v kódu existují pouze `configs/types.ts` a `configs/index.ts`.
+- **Feedback loops jsou posvátné**: Každý agent předává data dalšímu. Nikdy nezkracujte zpětnovazební smyčky.
 
 ---
 
-## 📦 2. Průběh Pipeline (Od nápadu k hotovému postu)
-Proces běží v `instagram/autopilot.ts` a je zásadní ho dodržovat v přesném pořadí. NIKDY nepřeskakujte validaci.
+## 🤖 2. Multi-Agent Pipeline
 
-1. **Inicializace Configu**: Určí se aktivní klient přes `resolveClientId(slug)` → `setActiveProject(UUID)`. Config se načte z DB přes `loadConfig()` (cached).
-2. **Výběr typu postu**: Podle `weekPlan` (nebo `--type` v CLI) se vybere formát (např. `meme`, `product_drop`, `tip_nastaveni`).
-3. **Výběr Nápadu (Idea)**: Z tabulky `ig_post_ideas` se vytáhne nejstarší nepoužitý nápad pro daný pilíř a klienta. Cooldown 90 dní. Pokud nic není, Gemini vygeneruje vlastní téma.
-4. **Mega-Prompt pro Gemini 3.1 Pro**: `buildMegaPrompt()` v `caption-generator.ts` poskládá prompt obsahující specifikaci (tone of voice, háčky, anti-patterny, performance data, recenze) z `ClientConfig`. Výstup: strukturovaný JSON (hook, body, cta, hashtags, imagePrompt).
-5. **Quality Gate (Autokritika AI)**: `scorePost()` ohodnotí výstup 1-10. Pokud skóre < 7, generování se opakuje s kritikou jako kontextem.
-6. **Deduplikace**: Hook a body se porovnají s posledními 30 posty pomocí Levenshteinovy vzdálenosti. Duplicity se regenerují.
-7. **Image Pipeline**:
-   - `refineImagePrompt()` v `image-pipeline.ts` vylepší raw prompt pro Imagen
-   - Imagen 4 Ultra vygeneruje POUZE RAW POZADÍ (žádný text v obrázku!)
-   - `overlayText()` v `text-overlay.ts` přidá text vrstvy přes Satori + resvg-js (pure JS, žádné system dependencies)
-   - Fonty: `instagram/fonts/` (Inter, BebasNeue)
-   - Loga: `instagram/assets/` (logo-watermark.png, logo-hanzfans.png atd.)
-8. **Storage Upload a DB Sync**:
-   - Obrázky se ukládají do Supabase Storage
-   - Post se zapíše do `ig_posts` s `status: "draft"`
-   - Generování se zaloguje do `ig_generation_log`
-   - Použitý nápad se označí jako `used`
+Systém běží jako propojená síť agentů. **Každý agent předává data dalším.**
+
+```
+Researcher → Copywriter → Critic → Copywriter (repair) → Art Director → Renderer → Uploader
+    ↑                        ↓                                                         ↓
+Brand Memory ←────── ig_generation_log (critic_score) ─────────────── ig_posts ───────┘
+    ↑                                                                      ↓
+ig_post_ideas (weighted) ←──────────────── propagateMetricsToSources() ←─┘
+ig_reviews (weighted) ←─────────────────── propagateMetricsToSources() ←─┘
+buildSmartWeekPlan() ←──────────────────── performance.analyzePerformance() ←─────────┘
+```
+
+### Agent Role Assignment
+
+| Agent | Funkce | Model |
+|-------|--------|-------|
+| **Researcher** | Vybere typ, nápad (weighted), recenzi (weighted), analyzuje výkon | — |
+| **Copywriter** | Generuje caption/script/carousel z mega promptu | `gemini-3.1-pro-preview` |
+| **Critic** | Hodnotí 1–10, vrací `keep[]` a `fix[]`, ukládá do logu | `gemini-3.1-pro-preview` |
+| **Art Director** | Vylepšuje image prompt, injektuje vizuální pravidla z memory | `gemini-3.1-pro-preview` |
+| **Renderer** | Generuje obrázek/video, přidává text overlay | Imagen 4 Ultra / Nano Banana Pro / Veo 3.1 |
+| **Memory Agent** | Analyzuje vzorce z postů, zapisuje/updatuje `ig_brand_memory` | `gemini-3.1-pro-preview` |
 
 ---
 
-## 🔐 3. Bezpečnostní pravidla
+## 📦 3. Průběh Pipeline (krok za krokem)
+
+1. **UI volá `/api/ig-create-job`** → vytvoří záznam v `ig_jobs`, vrátí `jobId`
+2. **UI začne pollovat `/api/ig-job-status?id=...`** každé 2s (vidí reálný progress)
+3. **UI volá `/api/ig-run-job`** s `{ jobId }` — blokuje až 300s
+4. **Uvnitř `generateOnePost()`:**
+   - Researcher: vybere typ postu, nápad (`getWeightedIdeas()`), recenzi (`getWeightedReviews()`)
+   - Brand Memory: `getBrandMemories(8)` → injektuje vzorce do mega promptu
+   - Copywriter: `generateText(megaPrompt)` → JSON `{hook, body, cta, hashtags, imagePrompt}`
+   - Dedup check: hook + body vs. posledních 30 postů (Levenshtein)
+   - Critic: `scorePost()` → score 1–10, `keep[]`, `fix[]`
+   - Pokud score < 7: targeted repair s instrukcemi co zachovat a co opravit
+   - Art Director: `refineImagePrompt()` → vylepšený prompt
+   - Renderer: `generateImage()` nebo `generateImageWithReferences()` nebo `generateVideo()`
+   - Text overlay: Satori + resvg-js → gradient + hook text + logo
+   - Upload: Supabase Storage → `createPost()` → `logGeneration(+ critic data)`
+5. **`ig_jobs` se updatuje** `status=done`
+
+---
+
+## 🔄 4. Feedback Loop (klíčová novinka v3.0)
+
+> [!IMPORTANT]
+> Bez aktivace feedback loopu se systém neučí. Volat po zadání metrik.
+
+### Spuštění: `POST /api/ig-learn { configName }`
+
+Spustí 2 procesy:
+
+**A) `propagateMetricsToSources()`** — Metrics → Ideas/Reviews
+- Načte `ig_posts` s metrikami (likes, comments, saves)
+- Vypočítá engagement score pro každý post
+- Updatuje `ig_post_ideas.performance_score` dle průměrného engagement postů z daného nápadu
+- Updatuje `ig_reviews.performance_score` stejným způsobem
+
+**B) `analyzeAndLearn()`** — Metrics → Brand Memory
+- Načte top posty (>1.5x průměr) a slabé posty (<0.5x průměr)
+- Gemini extrahuje max 3 pravidla (pattern / preference / avoid)
+- Ukládá/updatuje záznamy v `ig_brand_memory`
+- Dedup přes `ilike` match prvních 3 slov pravidla
+
+### Weighted Selection
+
+```typescript
+// Researcher bere nápady váženě:
+getWeightedIdeas(3)   // score > avg*1.5 → 3x výběr, score > avg → 2x, ostatní 1x
+getWeightedReviews(3) // stejný pattern
+
+// Week plan se adaptuje:
+buildSmartWeekPlan()  // pillar ratio × 1.5 (top performer) / × 0.5 (underperformer)
+                      // normalizováno na součet 1.0
+```
+
+### Critic → Memory pipeline
+
+Každé generování ukládá:
+```typescript
+logGeneration({
+  criticScore: 8,
+  criticKeep: ["hook je skvělý", "CTA je jasné"],
+  criticFix: ["body je příliš dlouhé"]
+})
+```
+→ `ig_generation_log.critic_score/keep/fix` — budoucí aggregace odhalí systémové problémy.
+
+---
+
+## 🔐 5. Bezpečnostní pravidla
 
 ### Supabase klienti — 3 typy
+
 | Klient | Soubor | Kdy použít |
 |--------|--------|-----------|
 | **Browser** | `supabase/client.ts` | POUZE frontend komponenty (`"use client"`) |
 | **Server** | `supabase/server.ts` | Server actions — má auth kontext (cookies) |
-| **Admin** | `supabase/admin.ts` | Engine backend (`autopilot.ts`, `performance.ts`, `service.ts`) — service role key, obchází RLS |
+| **Admin** | `supabase/admin.ts` | Engine backend — service role key, obchází RLS |
 
 > [!CAUTION]
-> **NIKDY nepoužívat `supabase/client` v backendu.** Browser klient nemá auth kontext na serveru a může selhat nebo obejít bezpečnost.
-
-### Admin práva
-- Super-admin emaily jsou v ENV proměnné `SUPER_ADMIN_EMAILS` (comma-separated)
-- Funkce `isSuperAdmin()` v `configs/index.ts` je čte z ENV
-- **ŽÁDNÉ hardcoded emaily v kódu**
-
-### Retry logika
-- Sdílený modul `utils/retry.ts` — jediný zdroj pravdy pro retry chování
-- Použit v: `gemini-client.ts`, `ig-generate-action.ts`, `product-actions.ts`, `route.ts`
-- **NEKOPÍROVAT retry logiku do nových souborů** — importovat z `utils/retry.ts`
+> **NIKDY nepoužívat `supabase/client` v backendu.** Retry logika: importovat z `utils/retry.ts`, nikdy nekopírovat.
 
 ---
 
-## 🗃️ 4. Databázová Struktura (Supabase)
-Celý engine se opírá o vztahy s `clients` tabulkou jakožto Multi-Tenant pojistkou (viz `client_id`).
+## 🗃️ 6. Databázová Struktura
 
-### Nejdůležitější tabulky
-1. **`clients`**: Registry klientů/tenantů. UUID + slug (`mobilnamiru`). Config jako JSONB.
-2. **`ig_post_types`**: Typy příspěvků (meme, reel, carousel) aktivní pro dané `client_id`.
-3. **`ig_post_ideas`**: Zásobárna nápadů. `used_count`, `cooldown_days`, `is_active`.
-4. **`ig_posts`**: Hotové příspěvky. Image URL, caption, hashtags. Status: `draft` → `ready` → `posted`.
-5. **`ig_reviews`**: Recenze. `is_approved` musí být true pro použití v pipeline.
-6. **`ig_product_ideas`**: Produktové nápady. Status: `review` → `saved` / `rejected`.
-
-### Pravidla DB volání
-- `client_id` je UUID, ne slug — vždy resolvovat přes `resolveClientId(slug)`
-- Backendové skripty používají `supabase/admin.ts` (service_role_key)
-- `.env.local` musí být dostupný pro admin připojení
+| Tabulka | Klíčové sloupce | Poznámka |
+|---------|----------------|---------|
+| `clients` | `id`, `slug`, `config` (jsonb) | Multi-tenant root |
+| `ig_post_ideas` | `performance_score`, `times_used_with_metrics` | **NOVÉ** — Idea Ranker |
+| `ig_reviews` | `performance_score`, `times_used_with_metrics` | **NOVÉ** — Review Ranker |
+| `ig_posts` | `idea_id`, `review_id`, `likes`, `saves`, `reach` | FK na ideas/reviews pro propagaci |
+| `ig_generation_log` | `critic_score`, `critic_keep[]`, `critic_fix[]` | **NOVÉ** — Critic → Memory |
+| `ig_brand_memory` | `memory_type` (pattern/preference/avoid/**visual**) | **ROZŠÍŘENO** — visual typ |
+| `ig_jobs` | `status`, `progress`, `agent_message`, `result` | Progress tracking pro UI |
 
 ---
 
-## 🎨 5. Přidání Nového Klienta
+## 🤖 7. AI Modely
 
-1. **Vložit řádek do `clients` tabulky** v Supabase Dashboard:
-   - `slug`: unikátní identifikátor (např. `"novafirma"`)
-   - `name`: zobrazovaný název
-   - `config`: kompletní `ClientConfig` jako JSONB (viz `configs/types.ts` pro strukturu)
-   - `is_active`: `true`
-2. **Propojit uživatele** přes `user_clients` tabulku nebo `scripts/setup-user.ts`
-3. **Připravit assets**: Logo do `instagram/assets/`, nastavit `logoFile` v configu
-4. **Vytvořit storage bucket** přes `scripts/create-client-buckets.ts` pokud oddělený
-5. Dashboard ho automaticky objeví přes `getAvailableClients()` (RBAC)
-
-> [!WARNING]
-> **NEEXISTUJÍ žádné config soubory v kódu** — konfigurace se vkládá přímo do DB jako JSON.
+| Role | Model | Poznámka |
+|------|-------|---------|
+| Text gen (primary) | `gemini-3.1-pro-preview` | Flagship reasoning |
+| Text gen (fallback) | `gemini-2.5-flash-lite` | Na 503/429 — **NE** 2.0-flash (deprecated!) |
+| Image s referencemi | `gemini-3-pro-image-preview` | Nano Banana Pro, 4K |
+| Image bez referencí | `imagen-4.0-ultra-generate-001` | Nejlepší text-to-image |
+| Vision | `gemini-2.5-pro` | Logo placement detection |
+| Video | `veo-3.1-generate-preview` / `veo-3.1-fast-generate-preview` | Reels 9:16 |
 
 ---
 
-## 🧩 6. Záludnosti při úpravách
+## 🧩 8. Záludnosti při úpravách
 
-1. **Vercel vs. Statické Soubory**: Fonty a assets pro dynamický load nutno balit do `outputFileTracingIncludes` (`next.config.ts`), jinak na Vercelu nebudou dostupné.
-2. **Text v obrázcích**: Imagen 4 NESMÍ generovat text — vždy přes Satori (`text-overlay.ts`). V případě pádu Satori se vrátí raw obrázek bez textu.
-3. **Timeouty GenAI**: Ošetřuje sdílený `withRetry()` v `utils/retry.ts`. Gemini/Imagen hází 503 při přetížení. Vercel má 5min limit (`maxDuration = 300`).
-4. **Carousel fallback**: Pokud selže generování jednoho slidu, pipeline pokračuje s fallback na raw obrázek.
+1. **2-step API**: Vždy nejdřív `ig-create-job` (vrátí jobId), pak `ig-run-job`. UI může pollovat od prvního requestu.
+2. **Weighted selection**: Nové zdroje dat (nápady, recenze, produkty) musí mít `performance_score` + weighted selection funkci.
+3. **Critic data**: Každý nový generační krok → uložit hodnocení do `ig_generation_log` nebo `ig_brand_memory`.
+4. **Vercel timeouty**: `ig-create-job` = `maxDuration: 10`, `ig-run-job` = `maxDuration: 300`, `ig-learn` = `maxDuration: 60`.
+5. **Fonty/assets na Vercelu**: Musí být v `outputFileTracingIncludes` v `next.config.ts`, jinak nejsou dostupné.
+6. **Text v obrázcích**: Imagen NESMÍ generovat text — vždy přes Satori (`text-overlay.ts`).
+7. **Memory Agent ilike**: `ig_brand_memory` nemá FTS index — používat `.ilike("content", `%keyword%`)`, ne `.textSearch()`.
 
 ---
 
-## 📁 7. Adresářová struktura
+## 📁 9. Adresářová Struktura
 
 ```
 instagram/
-├── autopilot.ts          # Core orchestrator (1107 ř.)
-├── caption-generator.ts  # Mega prompt, schemas, quality gate
-├── gemini-client.ts      # AI gateway (Gemini, Imagen, Veo)
+├── autopilot.ts          # Core orchestrator — multi-agent pipeline
+├── caption-generator.ts  # Mega prompt, schemas, quality gate, week plan
+├── gemini-client.ts      # AI gateway (3.1-pro-preview + fallback)
+├── memory-agent.ts       # Brand Memory — analyzeAndLearn, getBrandMemories
+├── performance.ts        # Analytics — engagement, reach, conversion per pillar
+├── service.ts            # DB access + Idea/Review Ranker + feedback loop
 ├── image-pipeline.ts     # Prompt refinement
 ├── text-overlay.ts       # Satori + resvg-js text rendering
-├── performance.ts        # Neural Brand Engine analytics
 ├── product-generator.ts  # Product idea → design → mockup
-├── service.ts            # DB access layer (multi-tenant)
-├── idea-generator.ts     # AI idea generation
-├── review-generator.ts   # AI review generation
-├── eshop-scraper.ts      # Product image scraper
-├── types.ts              # Pipeline types (GenerateOptions, BrandVoice)
-├── configs/
-│   ├── index.ts          # DB loader, RBAC, resolveClientId
-│   └── types.ts          # ClientConfig interface (166 ř.)
-├── fonts/                # TTF fonts (Inter, BebasNeue)
-└── assets/               # Logos, watermarks (per-client)
+├── types.ts              # Pipeline types
+└── configs/
+    ├── index.ts          # DB loader, RBAC, resolveClientId
+    └── types.ts          # ClientConfig interface
 
-app/actions/
-├── admin-actions.ts      # Dashboard reads (773 ř.)
-├── ig-generate-action.ts # Generation + ideas/reviews writes
-├── product-actions.ts    # Product pipeline actions
-└── brand-images-action.ts # Brand asset management
+app/api/
+├── ig-create-job/route.ts  # Step 1: create job (fast)
+├── ig-run-job/route.ts     # Step 2: run generation (300s)
+├── ig-job-status/route.ts  # Progress polling
+└── ig-learn/route.ts       # Feedback loop trigger
 
-utils/
-└── retry.ts              # Shared retry logic (single source)
+supabase/migrations/
+├── 20260514_ig_jobs.sql         # Job tracking table
+├── 20260514_ig_brand_memory.sql # Brand memory table
+└── 20260514_feedback_loop.sql   # Performance scores + critic columns
 ```
-
----
-*Last Updated: 2026-02-27 — v2.0 Architecture*
