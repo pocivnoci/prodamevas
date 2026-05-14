@@ -95,7 +95,9 @@ export async function getIGPostTypes(configName?: string): Promise<any[]> {
         .from("ig_post_types")
         .select("*")
         .order("name")
-    const allTypes = data || []
+    const allTypes = (data || []).filter(
+        (pt: any, index: number, self: any[]) => self.findIndex((t: any) => t.name === pt.name) === index
+    )
 
     // Filter by client's postTypes if config specified
     if (configName) {

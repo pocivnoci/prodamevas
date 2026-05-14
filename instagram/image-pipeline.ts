@@ -61,15 +61,14 @@ Raw idea: "${captionData.imagePrompt}"
 Meme text (will be IN the image): "${captionData.hook}"
 
 ## YOUR TASK:
-Create a funny, relatable meme-style image prompt.
+Create a meme-style BACKGROUND IMAGE — NO TEXT, NO WORDS, NO LETTERS in the image.
+The image must be a relatable, funny visual scene that perfectly matches the meme concept below.
+Text will be added programmatically on top — DO NOT render any text in the image.
 
-REQUIREMENTS:
-- Include the text "${captionData.hook}" directly in the image
-- Use classic meme formats
-- Keep it simple and authentic
-- Style: meme aesthetic
+Meme concept: "${captionData.imagePrompt}"
+Visual mood: funny, relatable, meme-style
 
-OUTPUT: Single detailed English image generation prompt (2-3 sentences).
+OUTPUT: Single detailed English image prompt (2-3 sentences). NO TEXT IN IMAGE.
 `
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
@@ -97,12 +96,12 @@ ${bodyContext ? `Post body context: "${bodyContext}"` : ""}
 
 ## OUTPUT:
 Return ONLY a single detailed English image generation prompt (NO JSON).
-DO NOT include any text rendering instructions.
-Be specific about:
-1. Background scene
-2. Lighting and mood
-3. Camera angle and composition
-4. Overall aesthetic quality
+
+⚠️ CRITICAL RULES — MUST FOLLOW:
+- ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY in the image
+- NO signs, NO labels, NO overlays, NO captions
+- The image is a pure BACKGROUND PHOTO — text will be added programmatically
+- Be specific about: scene, lighting, camera angle, composition
 
 The prompt should be 2-3 sentences.
 `

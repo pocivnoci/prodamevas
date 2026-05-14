@@ -441,6 +441,9 @@ export async function generateOnePost(options: {
                 bodySnippet
             )
             cost += COSTS.promptRefinement
+            // Hard enforce: Imagen/Gemini must NEVER render text in the background image
+            // Text is added programmatically via Satori overlay — double rendering = broken UI
+            refinedPrompt = refinedPrompt.trim() + " IMPORTANT: NO TEXT, NO WORDS, NO LETTERS, NO SIGNS anywhere in the image. Pure background photo only."
             console.log(`   ✓ Prompt refined`)
 
             try {

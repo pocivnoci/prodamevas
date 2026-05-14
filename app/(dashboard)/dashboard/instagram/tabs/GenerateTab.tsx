@@ -338,7 +338,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                             .filter(pt => category === "auto" || category === "" || pt.pillarId === category)
                                             .map(pt => (
                                                 <option key={pt.id} value={pt.name}>
-                                                    {pt.emoji} {pt.display_name}
+                                                    {pt.display_name}
                                                 </option>
                                             ))}
                                     </select>
