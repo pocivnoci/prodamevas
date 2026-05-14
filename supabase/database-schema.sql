@@ -137,6 +137,71 @@ CREATE TABLE ig_generation_log (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- 10. Brand Memory (Self-learning feedback loop)
+CREATE TABLE ig_brand_memory (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id uuid REFERENCES clients(id) ON DELETE CASCADE,
+  memory_type text NOT NULL, -- 'pattern', 'preference', 'avoid', 'visual'
+  content text NOT NULL,
+  confidence numeric DEFAULT 0.5,
+  source_post_ids uuid[],
+  times_confirmed integer DEFAULT 1,
+  created_at timestamptz DEFAULT now()
+);
+
+-- 11. Jobs (Async generation queue)
+CREATE TABLE ig_jobs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id uuid REFERENCES clients(id) ON DELETE CASCADE,
+  status text DEFAULT 'pending', -- 'pending', 'running', 'done', 'error'
+  job_type text DEFAULT 'generate',
+  params jsonb DEFAULT '{}'::jsonb,
+  result jsonb,
+  error text,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- 12. Product Ideas (AI-generated product concepts)
+CREATE TABLE ig_product_ideas (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id uuid REFERENCES clients(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  type text,
+  tagline text,
+  description text,
+  material text,
+  dimensions text,
+  manufacturing_method text,
+  price_range text,
+  viral_angle text,
+  why_it_works text,
+  production_notes text,
+  design_prompt text,
+  branding_names text[],
+  variants text[],
+  supplier_message text,
+  design_url text,
+  status text DEFAULT 'review', -- 'review', 'saved', 'rejected'
+  created_at timestamptz DEFAULT now()
+);
+
+-- 13. Product Categories (Dynamic per-client product types with AI instructions)
+CREATE TABLE ig_product_categories (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id uuid REFERENCES clients(id) ON DELETE CASCADE, -- NULL = global default
+  slug text NOT NULL,
+  label text NOT NULL,
+  icon text DEFAULT '📦',
+  design_guide text NOT NULL,
+  mockup_prompt text,
+  material_hint text,
+  manufacturing_hint text,
+  sort_order integer DEFAULT 0,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now()
+);
+
 -- SECURITY: Enable Row Level Security (RLS)
 ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_clients ENABLE ROW LEVEL SECURITY;
@@ -147,6 +212,10 @@ ALTER TABLE ig_products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ig_posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ig_content_calendar ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ig_generation_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ig_brand_memory ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ig_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ig_product_ideas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ig_product_categories ENABLE ROW LEVEL SECURITY;
 
 -- Default Policies (Allow everything for Service Role internally, but block anon by default)
 -- (You can refine these later to specifically link to auth.uid() based on user_clients)
