@@ -655,21 +655,21 @@ export interface ProductCategory {
  * otherwise falls back to global defaults (client_id IS NULL).
  */
 export async function getProductCategories(clientId?: string): Promise<ProductCategory[]> {
-    const cid = clientId || getActiveProject()
+    // If clientId provided, try client-specific first
+    if (clientId) {
+        const { data: clientCats } = await supabaseAdmin
+            .from("ig_product_categories")
+            .select("*")
+            .eq("client_id", clientId)
+            .eq("is_active", true)
+            .order("sort_order")
 
-    // First try client-specific
-    const { data: clientCats } = await supabaseAdmin
-        .from("ig_product_categories")
-        .select("*")
-        .eq("client_id", cid)
-        .eq("is_active", true)
-        .order("sort_order")
-
-    if (clientCats && clientCats.length > 0) {
-        return clientCats as ProductCategory[]
+        if (clientCats && clientCats.length > 0) {
+            return clientCats as ProductCategory[]
+        }
     }
 
-    // Fallback to global defaults
+    // Fallback to global defaults (client_id IS NULL)
     const { data: globalCats } = await supabaseAdmin
         .from("ig_product_categories")
         .select("*")
