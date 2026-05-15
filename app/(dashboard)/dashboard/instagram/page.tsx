@@ -15,8 +15,9 @@ import { PerformanceTab } from "./tabs/PerformanceTab"
 import { LogsTab } from "./tabs/LogsTab"
 import { OnboardTab } from "./tabs/OnboardTab"
 import { SettingsTab } from "./tabs/SettingsTab"
+import { CalendarTab } from "./tabs/CalendarTab"
 
-type Tab = "posts" | "generate" | "ideas" | "reviews" | "logs" | "products" | "brand" | "performance" | "onboard" | "settings"
+type Tab = "posts" | "calendar" | "generate" | "ideas" | "reviews" | "logs" | "products" | "brand" | "performance" | "onboard" | "settings"
 type ClientInfo = { id: string; name: string; icon: string; description: string }
 
 export default function InstagramPage() {
@@ -38,6 +39,7 @@ export default function InstagramPage() {
 
     const tabs: { id: Tab; label: string; icon: string }[] = [
         { id: "posts", label: "Příspěvky", icon: "📸" },
+        { id: "calendar", label: "Kalendář", icon: "📅" },
         { id: "generate", label: "Generovat", icon: "🚀" },
         { id: "ideas", label: "Nápady", icon: "💡" },
         { id: "reviews", label: "Recenze", icon: "⭐" },
@@ -103,6 +105,7 @@ export default function InstagramPage() {
                         transition={{ duration: 0.3, ease: "easeOut" }}
                     >
                         {activeTab === "posts" && <PostsTab projectId={projectId} />}
+                        {activeTab === "calendar" && <CalendarTab projectId={projectId} />}
                         {activeTab === "generate" && <GenerateTab projectId={projectId} />}
                         {activeTab === "ideas" && <IdeasTab projectId={projectId} />}
                         {activeTab === "reviews" && <ReviewsTab projectId={projectId} />}
