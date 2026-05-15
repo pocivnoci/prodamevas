@@ -5,7 +5,7 @@ import { createClient } from '@/supabase/server'
 
 /**
  * Upload a brand/reference image from the dashboard.
- * Saves to Supabase storage and adds URL to characterReferenceImages in client config.
+ * Saves to Supabase storage and adds URL to brandReferenceImages in client config.
  */
 export async function uploadBrandImage(formData: FormData): Promise<{
     success: boolean
@@ -60,7 +60,7 @@ export async function uploadBrandImage(formData: FormData): Promise<{
 
         const imageUrl = publicUrlData.publicUrl
 
-        // Add URL to client config's characterReferenceImages
+        // Add URL to client config's brandReferenceImages
         const { data: client, error: fetchError } = await supabaseAdmin
             .from('clients')
             .select('config')
@@ -72,13 +72,14 @@ export async function uploadBrandImage(formData: FormData): Promise<{
         }
 
         const config = client.config as any
-        const existingRefs = config.characterReferenceImages || []
+        // Read from brandReferenceImages (primary) or characterReferenceImages (legacy fallback)
+        const existingRefs = (config.brandReferenceImages?.length ? config.brandReferenceImages : config.characterReferenceImages) || []
         const updatedRefs = [...existingRefs, imageUrl]
 
         await supabaseAdmin
             .from('clients')
             .update({
-                config: { ...config, characterReferenceImages: updatedRefs }
+                config: { ...config, brandReferenceImages: updatedRefs }
             })
             .eq('slug', clientSlug)
 
@@ -110,13 +111,13 @@ export async function deleteBrandImage(
 
         if (client) {
             const config = client.config as any
-            const existingRefs = config.characterReferenceImages || []
+            const existingRefs = (config.brandReferenceImages?.length ? config.brandReferenceImages : config.characterReferenceImages) || []
             const updatedRefs = existingRefs.filter((url: string) => url !== imageUrl)
 
             await supabaseAdmin
                 .from('clients')
                 .update({
-                    config: { ...config, characterReferenceImages: updatedRefs }
+                    config: { ...config, brandReferenceImages: updatedRefs }
                 })
                 .eq('slug', clientSlug)
         }
@@ -152,7 +153,9 @@ export async function getBrandImages(clientSlug: string): Promise<string[]> {
             .single()
 
         if (!client) return []
-        return (client.config as any)?.characterReferenceImages || []
+        const config = client.config as any
+        // Primary: brandReferenceImages, fallback: characterReferenceImages
+        return (config?.brandReferenceImages?.length ? config.brandReferenceImages : config?.characterReferenceImages) || []
     } catch {
         return []
     }
