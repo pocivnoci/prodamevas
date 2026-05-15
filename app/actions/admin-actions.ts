@@ -390,3 +390,109 @@ export async function updateClientConfig(projectSlug: string, partialConfig: any
 }
 
 
+// ─── Brand Image Management ─────────────────────────────────────────
+
+/**
+ * Upload a brand reference image to Supabase storage and add its URL to config.
+ */
+export async function uploadBrandImage(
+    projectSlug: string,
+    formData: FormData
+): Promise<{ success: boolean; url?: string; error?: string }> {
+    try {
+        const { resolveClientId } = await import("@/instagram/configs")
+        const clientId = await resolveClientId(projectSlug)
+
+        const file = formData.get("file") as File
+        if (!file || !file.type.startsWith("image/")) {
+            return { success: false, error: "Neplatný soubor — nahraj obrázek (JPG, PNG, WebP)" }
+        }
+        if (file.size > 10_000_000) {
+            return { success: false, error: "Soubor je příliš velký (max 10 MB)" }
+        }
+
+        const buffer = Buffer.from(await file.arrayBuffer())
+        const ext = file.type.includes("png") ? "png" : file.type.includes("webp") ? "webp" : "jpg"
+        const timestamp = Date.now()
+        const filename = `client-assets/${projectSlug}/brand-upload-${timestamp}.${ext}`
+
+        const { error: uploadError } = await supabaseAdmin.storage
+            .from("audit-screenshots")
+            .upload(filename, buffer, {
+                contentType: file.type,
+                cacheControl: "31536000",
+                upsert: true,
+            })
+
+        if (uploadError) throw uploadError
+
+        const { data: publicUrlData } = supabaseAdmin.storage
+            .from("audit-screenshots")
+            .getPublicUrl(filename)
+
+        const publicUrl = publicUrlData.publicUrl
+
+        // Add URL to config.brandReferenceImages
+        const { data: client } = await supabaseAdmin
+            .from("clients")
+            .select("config")
+            .eq("id", clientId)
+            .single()
+
+        const currentConfig = client?.config || {}
+        const refs = currentConfig.brandReferenceImages || currentConfig.characterReferenceImages || []
+        refs.push(publicUrl)
+
+        await supabaseAdmin
+            .from("clients")
+            .update({ config: { ...currentConfig, brandReferenceImages: refs } })
+            .eq("id", clientId)
+
+        return { success: true, url: publicUrl }
+    } catch (err: any) {
+        console.error("uploadBrandImage error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}
+
+/**
+ * Delete a brand reference image from storage and config.
+ */
+export async function deleteBrandImage(
+    projectSlug: string,
+    imageUrl: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { resolveClientId } = await import("@/instagram/configs")
+        const clientId = await resolveClientId(projectSlug)
+
+        // Remove from storage
+        const storagePath = imageUrl.split("/storage/v1/object/public/audit-screenshots/")[1]
+        if (storagePath) {
+            await supabaseAdmin.storage
+                .from("audit-screenshots")
+                .remove([storagePath])
+        }
+
+        // Remove from config
+        const { data: client } = await supabaseAdmin
+            .from("clients")
+            .select("config")
+            .eq("id", clientId)
+            .single()
+
+        const currentConfig = client?.config || {}
+        const refs = (currentConfig.brandReferenceImages || currentConfig.characterReferenceImages || [])
+            .filter((url: string) => url !== imageUrl)
+
+        await supabaseAdmin
+            .from("clients")
+            .update({ config: { ...currentConfig, brandReferenceImages: refs } })
+            .eq("id", clientId)
+
+        return { success: true }
+    } catch (err: any) {
+        console.error("deleteBrandImage error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}

@@ -489,36 +489,28 @@ export async function generateOnePost(options: {
                 // Load reference images
                 const refImages: { buffer: Buffer; mimeType?: string; label?: string }[] = []
 
-                // Strategy 1: Local reference images
-                try {
-                    const { readdir, readFile } = await import("fs/promises")
-                    const { join, dirname } = await import("path")
-                    const { fileURLToPath } = await import("url")
-                    const baseDir = dirname(fileURLToPath(import.meta.url))
-                    const refDir = join(baseDir, "reference-images", config.id)
+                // Load brand reference images (scraped or uploaded)
+                const brandRefUrls = config.brandReferenceImages || config.characterReferenceImages || []
 
-                    const files = await readdir(refDir).catch(() => [] as string[])
-                    const imageFiles = files
-                        .filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f))
-                        .sort()
+                if (brandRefUrls.length > 0) {
+                    // Dynamic label based on what the brand actually is
+                    const industry = (config as any).industry || ''
+                    const isLocation = /ubytov|hotel|penzion|apartm|restaurac|kavárn|bar\b|wellness|spa/i.test(industry)
+                        || /ubytov|hotel|penzion|apartm/i.test(config.name || '')
+                    const isProduct = /e-?shop|obchod|product|merch|fashion|oblečen/i.test(industry)
 
-                    for (const file of imageFiles) {
-                        const imgBuffer = await readFile(join(refDir, file))
-                        const mimeType = file.endsWith(".png") ? "image/png" : "image/jpeg"
-                        refImages.push({
-                            buffer: imgBuffer,
-                            mimeType,
-                            label: "brand character reference — preserve this person's EXACT face and likeness",
-                        })
-                        console.log(`   📸 Loaded local ref: ${file}`)
-                    }
-                } catch {
-                    // Local files not available (e.g. Vercel)
-                }
+                    const refLabel = isLocation
+                        ? "brand environment reference — use this EXACT location, interior, and atmosphere in your image"
+                        : isProduct
+                            ? "brand product reference — maintain this exact visual style, colors, and product aesthetic"
+                            : "brand visual reference — maintain this exact visual style, colors, and aesthetic atmosphere"
 
-                // Strategy 2: Remote reference images from config URLs
-                if (config.characterReferenceImages?.length) {
-                    for (const refUrl of config.characterReferenceImages) {
+                    // Pick up to 3 reference images per post (more = slower + noisier)
+                    const selectedRefs = brandRefUrls.length <= 3
+                        ? brandRefUrls
+                        : brandRefUrls.sort(() => Math.random() - 0.5).slice(0, 3)
+
+                    for (const refUrl of selectedRefs) {
                         try {
                             const resp = await fetch(refUrl)
                             if (resp.ok) {
@@ -526,14 +518,12 @@ export async function generateOnePost(options: {
                                 refImages.push({
                                     buffer: Buffer.from(arrayBuf),
                                     mimeType: refUrl.endsWith(".png") ? "image/png" : "image/jpeg",
-                                    label: "brand character reference — preserve this person's EXACT face and likeness",
+                                    label: refLabel,
                                 })
-                                console.log(`   📸 Loaded remote ref: ${refUrl.split("/").pop()?.substring(0, 40)}`)
-                            } else {
-                                console.warn(`   ⚠️ Ref image fetch failed (${resp.status}): ${refUrl.substring(0, 60)}`)
+                                console.log(`   📸 Loaded brand ref: ${refUrl.split("/").pop()?.substring(0, 40)}`)
                             }
                         } catch (err) {
-                            console.warn(`   ⚠️ Ref image error: ${(err as Error).message?.substring(0, 60)}`)
+                            console.warn(`   ⚠️ Brand ref error: ${(err as Error).message?.substring(0, 60)}`)
                         }
                     }
                 }

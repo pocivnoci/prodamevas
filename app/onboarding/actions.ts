@@ -255,8 +255,22 @@ Vrať POUZE platný JSON, bez dalšího textu.`
         analysis.instagramBio = instagramBio
         analysis.logoUrl = metadata.ogImage || undefined
 
-        // Extract brand images from HTML (product photos, hero images)
-        analysis.brandImageUrls = extractBrandImages(homepageHtml, baseUrl).slice(0, 5)
+        // Extract brand images from ALL scraped pages (homepage + subpages)
+        const allImages = new Set<string>()
+        for (const imgUrl of extractBrandImages(homepageHtml, baseUrl)) {
+            allImages.add(imgUrl)
+        }
+        // Also extract from subpage HTML — fetch them for images too
+        for (const subUrl of subpageUrls) {
+            try {
+                const subHtml = await fetchPage(subUrl)
+                const subBase = new URL(subUrl).origin
+                for (const imgUrl of extractBrandImages(subHtml, subBase)) {
+                    allImages.add(imgUrl)
+                }
+            } catch { /* subpage fetch failed, skip */ }
+        }
+        analysis.brandImageUrls = Array.from(allImages).slice(0, 20)
 
         // Try to download logo
         const slug = slugify(analysis.companyName)
@@ -480,7 +494,7 @@ DŮLEŽITÉ:
             slug
         )
         if (imageUrls.length > 0) {
-            config.characterReferenceImages = imageUrls
+            config.brandReferenceImages = imageUrls
             console.log(`✅ ${imageUrls.length} brand images uploaded to storage`)
         }
 
@@ -654,7 +668,8 @@ function extractSubpageUrls(html: string, baseUrl: string): string[] {
 
 /**
  * Download brand/product images from website URLs → upload to Supabase storage.
- * Returns array of public URLs that can be used as characterReferenceImages.
+ * Validates real image dimensions via sharp (skips icons < 300x300).
+ * Returns array of public URLs stored as brand reference images.
  */
 async function downloadProductImages(
     imageUrls: string[],
@@ -662,13 +677,18 @@ async function downloadProductImages(
 ): Promise<string[]> {
     if (!imageUrls.length) return []
 
+    // Dynamic import sharp only when needed (avoids bundling issues)
+    const sharp = (await import('sharp')).default
+
     const uploadedUrls: string[] = []
-    const bucketName = 'audit-screenshots' // shared bucket
+    const bucketName = 'audit-screenshots'
+    const MAX_IMAGES = 15
+    const candidates = imageUrls.slice(0, 25) // try 25, keep 15
 
-    // Download up to 5 best images
-    const candidates = imageUrls.slice(0, 8) // try 8, keep 5 max
+    console.log(`   📷 Downloading brand images: ${candidates.length} candidates → max ${MAX_IMAGES}`)
 
-    for (let i = 0; i < candidates.length && uploadedUrls.length < 5; i++) {
+    let uploadIndex = 0
+    for (let i = 0; i < candidates.length && uploadedUrls.length < MAX_IMAGES; i++) {
         const url = candidates[i]
         try {
             const controller = new AbortController()
@@ -689,11 +709,23 @@ async function downloadProductImages(
 
             const buffer = Buffer.from(await resp.arrayBuffer())
 
-            // Skip tiny images (icons, spacers) and huge images
+            // Skip tiny (< 5KB) and huge (> 10MB)
             if (buffer.length < 5000 || buffer.length > 10_000_000) continue
 
-            const ext = contentType.includes('png') ? 'png' : 'jpg'
-            const filename = `client-assets/${clientSlug}/brand-${i}.${ext}`
+            // Check real dimensions — skip icons, spacers, social badges
+            try {
+                const metadata = await sharp(buffer).metadata()
+                const w = metadata.width || 0
+                const h = metadata.height || 0
+                if (w < 300 || h < 300) {
+                    continue // too small — likely icon/badge
+                }
+            } catch {
+                continue // can't parse = not a valid image
+            }
+
+            const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg'
+            const filename = `client-assets/${clientSlug}/brand-${String(uploadIndex).padStart(2, '0')}.${ext}`
 
             const { error: uploadError } = await supabaseAdmin.storage
                 .from(bucketName)
@@ -704,7 +736,7 @@ async function downloadProductImages(
                 })
 
             if (uploadError) {
-                console.warn(`   ⚠️ Upload failed for ${url.substring(0, 60)}:`, uploadError.message)
+                console.warn(`   ⚠️ Upload failed: ${uploadError.message}`)
                 continue
             }
 
@@ -713,15 +745,17 @@ async function downloadProductImages(
                 .getPublicUrl(filename)
 
             uploadedUrls.push(publicUrlData.publicUrl)
-            console.log(`   📸 Brand image ${uploadedUrls.length}: uploaded`)
-        } catch (err) {
-            // Skip failed downloads silently
+            uploadIndex++
+            console.log(`   📸 Brand image ${uploadedUrls.length}/${MAX_IMAGES}: ${(buffer.length / 1024).toFixed(0)}KB`)
+        } catch {
             continue
         }
     }
 
+    console.log(`   ✅ ${uploadedUrls.length} brand images uploaded`)
     return uploadedUrls
 }
+
 
 function slugify(text: string): string {
     return text
@@ -827,36 +861,63 @@ async function downloadLogo(logoUrl: string, slug: string): Promise<boolean> {
 
 
 /**
- * Extract brand/product images from HTML (hero images, product photos etc.)
+ * Extract brand/product images from HTML (product photos, hero images, galleries).
+ * Scrapes: <img src>, <img srcset>, <source srcset>, background-image CSS, og:image.
  */
 function extractBrandImages(html: string, baseUrl: string): string[] {
     const images = new Set<string>()
 
-    // Find all img tags
-    const imgRegex = /<img[^>]+src="([^"]+)"[^>]*>/gi
-    let match
-    while ((match = imgRegex.exec(html)) !== null) {
-        const src = match[1]
-        // Skip tiny icons, tracking pixels, etc.
-        if (src.endsWith('.svg') || src.endsWith('.ico') || src.includes('pixel')
-            || src.includes('tracking') || src.includes('data:image')
-            || src.includes('placeholder') || src.length > 500
-        ) continue
+    function addUrl(raw: string) {
+        let url = raw.trim()
+        if (!url || url.length > 500) return
+        // Skip noise
+        if (url.endsWith('.svg') || url.endsWith('.ico') || url.includes('data:image')
+            || url.includes('pixel') || url.includes('tracking') || url.includes('placeholder')
+            || url.includes('facebook.com') || url.includes('twitter.com') || url.includes('google')
+            || url.includes('analytics') || url.includes('widget') || url.includes('gravatar')
+            || url.includes('emoji') || url.includes('spinner') || url.includes('loading')
+            || url.includes('avatar') || /\b(1x1|2x2|spacer)\b/i.test(url)
+        ) return
 
-        let fullUrl = src
-        if (src.startsWith('//')) fullUrl = `https:${src}`
-        else if (src.startsWith('/')) fullUrl = `${baseUrl}${src}`
-        else if (!src.startsWith('http')) continue
+        if (url.startsWith('//')) url = `https:${url}`
+        else if (url.startsWith('/')) url = `${baseUrl}${url}`
+        else if (!url.startsWith('http')) return
 
-        images.add(fullUrl)
+        images.add(url)
     }
 
-    // Also grab background-image URLs from inline styles
+    // 1) <img src="...">
+    const imgSrcRegex = /<img[^>]+src="([^"]+)"[^>]*>/gi
+    let match
+    while ((match = imgSrcRegex.exec(html)) !== null) {
+        addUrl(match[1])
+    }
+
+    // 2) <img srcset="..."> and <source srcset="..."> — pick the largest
+    const srcsetRegex = /(?:srcset|data-srcset)="([^"]+)"/gi
+    while ((match = srcsetRegex.exec(html)) !== null) {
+        const parts = match[1].split(',')
+        // Pick the last (usually largest) descriptor
+        const largest = parts[parts.length - 1]?.trim().split(/\s+/)[0]
+        if (largest) addUrl(largest)
+    }
+
+    // 3) background-image: url(...)
     const bgRegex = /background-image:\s*url\(['"]?([^'")\s]+)['"]?\)/gi
     while ((match = bgRegex.exec(html)) !== null) {
-        const url = match[1]
-        if (url.startsWith('http')) images.add(url)
-        else if (url.startsWith('/')) images.add(`${baseUrl}${url}`)
+        addUrl(match[1])
+    }
+
+    // 4) <meta property="og:image"> and similar
+    const metaImgRegex = /<meta[^>]+(?:property|name)="(?:og:image|twitter:image)"[^>]+content="([^"]+)"/gi
+    while ((match = metaImgRegex.exec(html)) !== null) {
+        addUrl(match[1])
+    }
+
+    // 5) data-src (lazy loaded images)
+    const dataSrcRegex = /data-src="([^"]+)"/gi
+    while ((match = dataSrcRegex.exec(html)) !== null) {
+        addUrl(match[1])
     }
 
     return Array.from(images)

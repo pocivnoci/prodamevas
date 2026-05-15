@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
-import { getClientConfig, updateClientConfig } from "@/app/actions/admin-actions"
+import { useEffect, useState, useCallback, useRef } from "react"
+import { getClientConfig, updateClientConfig, uploadBrandImage, deleteBrandImage } from "@/app/actions/admin-actions"
 
 export function SettingsTab({ projectId }: { projectId: string }) {
     const [config, setConfig] = useState<any>(null)
@@ -243,9 +243,117 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                 </div>
             </div>
 
+            {/* ── Brand foto knihovna ── */}
+            <BrandPhotosSection projectId={projectId} config={config} setConfig={setConfig} />
+
             <div className="text-center text-white/20 text-[10px] tracking-widest uppercase">
                 Obsahové pilíře a Post Formáty lze měnit přes JSON konfiguraci v DB.
             </div>
+        </div>
+    )
+}
+
+// ─── Brand Photo Library ────────────────────────────────────────────
+
+function BrandPhotosSection({ projectId, config, setConfig }: {
+    projectId: string
+    config: any
+    setConfig: (fn: (prev: any) => any) => void
+}) {
+    const [uploading, setUploading] = useState(false)
+    const [deleting, setDeleting] = useState<string | null>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
+    const images: string[] = config?.brandReferenceImages || config?.characterReferenceImages || []
+
+    const handleUpload = async (files: FileList | null) => {
+        if (!files || files.length === 0) return
+        setUploading(true)
+        try {
+            for (const file of Array.from(files)) {
+                const formData = new FormData()
+                formData.append("file", file)
+                const result = await uploadBrandImage(projectId, formData)
+                if (result.success && result.url) {
+                    setConfig((prev: any) => ({
+                        ...prev,
+                        brandReferenceImages: [...(prev.brandReferenceImages || prev.characterReferenceImages || []), result.url],
+                    }))
+                }
+            }
+        } finally {
+            setUploading(false)
+            if (fileInputRef.current) fileInputRef.current.value = ""
+        }
+    }
+
+    const handleDelete = async (url: string) => {
+        setDeleting(url)
+        const result = await deleteBrandImage(projectId, url)
+        if (result.success) {
+            setConfig((prev: any) => ({
+                ...prev,
+                brandReferenceImages: (prev.brandReferenceImages || prev.characterReferenceImages || [])
+                    .filter((u: string) => u !== url),
+            }))
+        }
+        setDeleting(null)
+    }
+
+    return (
+        <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2">
+                <h3 className="text-sm font-black uppercase tracking-widest text-white/70">
+                    Brand Fotky
+                </h3>
+                <span className="text-[10px] text-white/30 tabular-nums">{images.length} fotek</span>
+            </div>
+            <p className="text-[9px] text-white/30 uppercase tracking-widest -mt-2">
+                Reálné fotky značky — AI je používá jako vizuální reference při generování příspěvků
+            </p>
+
+            {/* Image grid */}
+            {images.length > 0 && (
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                    {images.map((url, i) => (
+                        <div key={url} className="relative group aspect-square rounded overflow-hidden border border-white/10 bg-black">
+                            <img
+                                src={url}
+                                alt={`Brand foto ${i + 1}`}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                            />
+                            <button
+                                onClick={() => handleDelete(url)}
+                                disabled={deleting === url}
+                                className="absolute top-1 right-1 w-6 h-6 bg-red-600/80 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs font-bold"
+                                title="Smazat"
+                            >
+                                {deleting === url ? "…" : "×"}
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Upload */}
+            <label className={`block border-2 border-dashed rounded-sm p-6 text-center cursor-pointer transition-all ${uploading ? "border-white/20 opacity-50" : "border-white/10 hover:border-white/30"}`}>
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    disabled={uploading}
+                    onChange={(e) => handleUpload(e.target.files)}
+                />
+                <div className="text-white/40 text-xs">
+                    {uploading ? "Nahrávám…" : "📷 Klikni nebo přetáhni fotky sem"}
+                </div>
+                <div className="text-[9px] text-white/20 mt-1">
+                    JPG, PNG, WebP — max 10 MB
+                </div>
+            </label>
         </div>
     )
 }

@@ -158,8 +158,12 @@ export interface ClientConfig {
      *  Imagen generates the same recognizable person across all posts. */
     characterDescription?: string
 
-    /** URLs to reference photos of the brand character.
-     *  Used by Gemini 3 Pro Image for face/likeness consistency.
-     *  Max 5 human images supported. Fetched at runtime. */
+    /** @deprecated Use brandReferenceImages instead */
     characterReferenceImages?: string[]
+
+    /** URLs of real brand photos (scraped during onboarding, or uploaded manually).
+     *  Used as visual references for AI image generation.
+     *  Includes interiors, products, locations, team photos — NOT just faces.
+     *  Up to 15 images stored in Supabase storage. */
+    brandReferenceImages?: string[]
 }
