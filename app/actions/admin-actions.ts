@@ -394,6 +394,61 @@ export async function updateClientConfig(projectSlug: string, partialConfig: any
 // ─── Brand Image Management ─────────────────────────────────────────
 
 /**
+ * Upload a client logo to Supabase storage.
+ * Saves as client-assets/{slug}/logo.png and updates config.logoFile.
+ */
+export async function uploadClientLogo(
+    projectSlug: string,
+    formData: FormData
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { resolveClientId } = await import("@/instagram/configs")
+        const clientId = await resolveClientId(projectSlug)
+
+        const file = formData.get("file") as File
+        if (!file || !file.type.startsWith("image/")) {
+            return { success: false, error: "Neplatný soubor — nahraj PNG nebo JPG" }
+        }
+        if (file.size > 5_000_000) {
+            return { success: false, error: "Logo je příliš velké (max 5 MB)" }
+        }
+
+        const buffer = Buffer.from(await file.arrayBuffer())
+
+        // Always save as logo.png (canonical path used by logo-loader.ts)
+        const filename = `client-assets/${projectSlug}/logo.png`
+        const { error: uploadError } = await supabaseAdmin.storage
+            .from("audit-screenshots")
+            .upload(filename, buffer, {
+                contentType: "image/png",
+                cacheControl: "31536000",
+                upsert: true, // replace existing
+            })
+
+        if (uploadError) throw uploadError
+
+        // Update config.logoFile to canonical filename
+        const { data: client } = await supabaseAdmin
+            .from("clients")
+            .select("config")
+            .eq("id", clientId)
+            .single()
+
+        const currentConfig = client?.config || {}
+        await supabaseAdmin
+            .from("clients")
+            .update({ config: { ...currentConfig, logoFile: `logo-${projectSlug}.png` } })
+            .eq("id", clientId)
+
+        console.log(`✅ Logo uploaded: ${filename}`)
+        return { success: true }
+    } catch (err: any) {
+        console.error("uploadClientLogo error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}
+
+/**
  * Upload a brand reference image to Supabase storage and add its URL to config.
  */
 export async function uploadBrandImage(

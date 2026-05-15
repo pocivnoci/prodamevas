@@ -2,12 +2,13 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient } from "@/app/actions/admin-actions"
+import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo } from "@/app/actions/admin-actions"
 
 export function SettingsTab({ projectId }: { projectId: string }) {
     const [config, setConfig] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
+    const [logoUploading, setLogoUploading] = useState(false)
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
     const loadData = useCallback(async () => {
@@ -24,6 +25,24 @@ export function SettingsTab({ projectId }: { projectId: string }) {
     }, [projectId])
 
     useEffect(() => { loadData() }, [loadData])
+
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        setLogoUploading(true)
+        setMessage(null)
+        const fd = new FormData()
+        fd.append('file', file)
+        const result = await uploadClientLogo(projectId, fd)
+        if (result.success) {
+            setMessage({ type: 'success', text: 'Logo nahráno. Refresh stránky pro zobrazení.' })
+            await loadData()
+        } else {
+            setMessage({ type: 'error', text: result.error || 'Upload loga selhal.' })
+        }
+        setLogoUploading(false)
+        e.target.value = ''
+    }
 
     const handleSave = async () => {
         setSaving(true)
@@ -200,11 +219,30 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                         </select>
                     </div>
                     <div>
-                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1 block">Logo soubor</label>
-                        <p className="text-[9px] text-white/20 mb-1.5">PNG ve složce <code className="text-white/30">instagram/assets/</code></p>
-                        <input value={config.logoFile || ""} onChange={(e) => updateField(["logoFile"], e.target.value)}
-                            placeholder="logo-nazevklienta.png"
-                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-mono focus:outline-none focus:ring-1 focus:ring-white/30 transition-all" />
+                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-2 block">Logo</label>
+                        {/* Current logo preview */}
+                        {config.logoFile && (
+                            <div className="mb-2 flex items-center gap-3">
+                                <img
+                                    src={`https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/client-assets/${projectId}/logo.png?t=${Date.now()}`}
+                                    alt="Logo"
+                                    className="h-10 object-contain bg-white/5 rounded px-2"
+                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                                />
+                                <span className="text-[9px] text-white/30 font-mono">{config.logoFile}</span>
+                            </div>
+                        )}
+                        {/* Logo upload */}
+                        <label className={`flex items-center gap-2 px-3 py-2 border border-dashed border-white/20 rounded-sm cursor-pointer hover:border-white/40 transition-all text-[10px] text-white/40 hover:text-white/60 ${logoUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            {logoUploading ? 'Nahrávám...' : config.logoFile ? 'Nahradit logo' : 'Nahrát logo (PNG/JPG)'}
+                            <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} disabled={logoUploading} />
+                        </label>
+                        <p className="text-[9px] text-white/20 mt-1.5">Max 5 MB. Doporučujeme PNG s průhledným pozadím.</p>
                     </div>
                 </div>
 
