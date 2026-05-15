@@ -217,5 +217,55 @@ ALTER TABLE ig_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ig_product_ideas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ig_product_categories ENABLE ROW LEVEL SECURITY;
 
+-- 14. Subscription Plans
+CREATE TABLE subscription_plans (
+  id text PRIMARY KEY,
+  name text NOT NULL,
+  description text,
+  price_czk integer NOT NULL,
+  price_eur integer,
+  interval text NOT NULL DEFAULT 'month',
+  features jsonb DEFAULT '[]'::jsonb,
+  post_limit integer,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now()
+);
+
+-- 15. Client Subscriptions
+CREATE TABLE subscriptions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id uuid REFERENCES clients(id) ON DELETE CASCADE NOT NULL,
+  plan_id text REFERENCES subscription_plans(id) NOT NULL,
+  status text NOT NULL DEFAULT 'pending',
+  current_period_start timestamptz,
+  current_period_end timestamptz,
+  cancelled_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- 16. Payment Records (Comgate)
+CREATE TABLE payments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id uuid REFERENCES clients(id) ON DELETE CASCADE NOT NULL,
+  subscription_id uuid REFERENCES subscriptions(id) ON DELETE SET NULL,
+  comgate_trans_id text UNIQUE,
+  ref_id text NOT NULL,
+  amount integer NOT NULL,
+  currency text NOT NULL DEFAULT 'CZK',
+  status text NOT NULL DEFAULT 'PENDING',
+  payment_method text,
+  label text,
+  payer_email text,
+  comgate_response jsonb,
+  paid_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE subscription_plans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+
 -- Default Policies (Allow everything for Service Role internally, but block anon by default)
 -- (You can refine these later to specifically link to auth.uid() based on user_clients)
