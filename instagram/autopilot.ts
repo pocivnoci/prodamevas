@@ -660,8 +660,65 @@ export async function generateOnePost(options: {
                         console.log(`   📌 Product constraint: "${randomProduct.name}" — exact design enforced`)
                     }
                 }
+                // Determine brand type for image strategy
+                const industry = (config as any).industry || ''
+                const isLocationBrand = /ubytov|hotel|penzion|apartm|restaurac|kavárn|bar\b|wellness|spa/i.test(industry)
+                    || /ubytov|hotel|penzion|apartm/i.test(config.name || '')
 
-                if (refImages.length > 0) {
+                // STRATEGY A: Location brands → EDIT a real photo (preserves actual space)
+                // Instead of generating a fake scene, take a real brand photo and modify it
+                if (isLocationBrand && brandRefObjects.length > 0) {
+                    try {
+                        // Pick the best matching real photo based on smart selection
+                        const bestRef = refImages.length > 0
+                            ? refImages[0]  // Already smart-selected above
+                            : null
+
+                        if (bestRef) {
+                            await report("rendering", 65, `🖼️ Edituji reálnou fotku...`)
+                            console.log(`🏨 Location brand → editing REAL photo (not generating fake scene)`)
+
+                            // Build edit prompt: keep the real space, add the creative element
+                            const editPrompt = `Edit this real photograph. ${refinedPrompt}
+                            
+CRITICAL RULES:
+- PRESERVE the original room/space/environment exactly as it is
+- Only ADD or modify the specific creative elements described
+- The location, furniture, walls, floor, lighting setup must remain IDENTICAL to the original photo
+- Make the edit look natural and photorealistic — as if the new element was really there
+- DO NOT change the architecture, layout, or interior design of the space
+- ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS anywhere in the image`
+
+                            const { editExistingImage } = await import("./gemini-client")
+                            imageBuffer = await editExistingImage(
+                                bestRef.buffer,
+                                editPrompt,
+                                {
+                                    mimeType: bestRef.mimeType,
+                                    aspectRatio: format.aspectRatio,
+                                    resolution: "2K",
+                                }
+                            )
+                            console.log(`   ✓ Real photo edited (${(imageBuffer.length / 1024).toFixed(0)} KB)`)
+                        } else {
+                            throw new Error("No reference image buffer available")
+                        }
+                    } catch (editErr: any) {
+                        console.warn(`   ⚠️ Photo editing failed: ${editErr.message?.substring(0, 100)}`)
+                        console.log(`   🔄 Falling back to standard generation...`)
+                        // Fall through to standard generation
+                        if (refImages.length > 0) {
+                            imageBuffer = await generateImageWithReferences(
+                                refinedPrompt, refImages,
+                                { aspectRatio: format.aspectRatio, resolution: "2K" }
+                            )
+                        } else {
+                            imageBuffer = await generateImage(refinedPrompt, { aspectRatio: format.aspectRatio as any })
+                        }
+                    }
+                }
+                // STRATEGY B: Product/other brands → generate with references (style transfer)
+                else if (refImages.length > 0) {
                     try {
                         await report("rendering", 65, `🖼️ Generuji obrázek (${refImages.length} referencí)...`)
                         console.log(`🎨 Generuji obrázek (Nano Banana Pro + ${refImages.length} ref images, 2K)...`)
@@ -675,7 +732,9 @@ export async function generateOnePost(options: {
                         console.log("🎨 Fallback → Imagen 4 Ultra (bez referencí)...")
                         imageBuffer = await generateImage(refinedPrompt, { aspectRatio: format.aspectRatio as any })
                     }
-                } else {
+                }
+                // STRATEGY C: No references → pure generation
+                else {
                     console.log("🎨 Generuji obrázek (Imagen 4 Ultra, 2K)...")
                     imageBuffer = await generateImage(refinedPrompt, { aspectRatio: format.aspectRatio as any })
                 }

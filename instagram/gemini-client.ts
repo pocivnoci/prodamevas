@@ -191,6 +191,71 @@ export async function generateImageWithReferences(
 }
 
 // ============================================
+// IMAGE EDITING — Modify existing real photos
+// ============================================
+
+/**
+ * Edit an existing real photo using AI.
+ * 
+ * CRITICAL DIFFERENCE from generateImageWithReferences:
+ * - generateImageWithReferences: creates NEW image inspired by style
+ * - editExistingImage: modifies the ACTUAL photo (adds elements, changes mood)
+ * 
+ * Use for location-based brands (hotels, restaurants, apartments):
+ * "Vezmi tuto reálnou fotku apartmánu a přidej psa na postel"
+ * → Result = real apartment with AI-added dog
+ */
+export async function editExistingImage(
+    originalImage: Buffer,
+    editPrompt: string,
+    options: {
+        mimeType?: string
+        aspectRatio?: string
+        resolution?: "1K" | "2K" | "4K"
+    } = {}
+): Promise<Buffer> {
+    const { mimeType = "image/jpeg", aspectRatio = "1:1", resolution = "2K" } = options
+
+    return withRetry(async () => {
+        const response = await ai.models.generateContent({
+            model: "gemini-3-pro-image-preview",
+            contents: [
+                {
+                    role: "user",
+                    parts: [
+                        {
+                            inlineData: {
+                                mimeType,
+                                data: originalImage.toString("base64"),
+                            },
+                        },
+                        {
+                            text: editPrompt,
+                        },
+                    ],
+                },
+            ],
+            config: {
+                responseModalities: ["IMAGE"],
+                imageConfig: {
+                    imageSize: resolution,
+                    aspectRatio,
+                },
+            } as any,
+        })
+
+        const parts = response.candidates?.[0]?.content?.parts || []
+        for (const part of parts) {
+            if ((part as any).inlineData?.data) {
+                return Buffer.from((part as any).inlineData.data, "base64")
+            }
+        }
+
+        throw new Error("Image editing returned no image data")
+    })
+}
+
+// ============================================
 // VISION ANALYSIS (Gemini 1.5 Pro)
 // ============================================
 
