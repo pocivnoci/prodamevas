@@ -504,7 +504,7 @@ export async function deleteBrandImage(
  */
 export async function rescanClientWebsite(
     projectSlug: string
-): Promise<{ success: boolean; newImages: number; error?: string }> {
+): Promise<{ success: boolean; newImages: number; existingImages: number; foundUrls: number; error?: string }> {
     try {
         const { resolveClientId } = await import("@/instagram/configs")
         const clientId = await resolveClientId(projectSlug)
@@ -519,12 +519,12 @@ export async function rescanClientWebsite(
         const currentConfig = client?.config || {}
         const websiteUrl = currentConfig.website
         if (!websiteUrl) {
-            return { success: false, newImages: 0, error: "Klient nemá nastavenou URL webu" }
+            return { success: false, newImages: 0, existingImages: 0, foundUrls: 0, error: "Klient nemá nastavenou URL webu" }
         }
-
 
         // Fetch website and extract images
         const baseUrl = websiteUrl.startsWith("http") ? websiteUrl : `https://${websiteUrl}`
+        console.log(`🔍 Rescan: fetching ${baseUrl}...`)
 
         const resp = await fetch(baseUrl, {
             headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" },
@@ -534,10 +534,11 @@ export async function rescanClientWebsite(
         const html = await resp.text()
 
         // Extract image URLs from HTML
-        const imageUrls: string[] = []
+        const imageUrls = new Set<string>()
         const imgRegex = /<img[^>]+(?:src|data-src)="([^"]+)"[^>]*>/gi
         const srcsetRegex = /(?:srcset|data-srcset)="([^"]+)"/gi
         const bgRegex = /background-image:\s*url\(['"]?([^'")\s]+)['"]?\)/gi
+        const dataSrcRegex = /data-src="([^"]+)"/gi
         let match
 
         function addUrl(raw: string) {
@@ -546,11 +547,12 @@ export async function rescanClientWebsite(
             if (url.endsWith('.svg') || url.endsWith('.ico') || url.includes('data:image')
                 || url.includes('pixel') || url.includes('tracking') || url.includes('facebook.com')
                 || url.includes('google') || url.includes('analytics') || url.includes('gravatar')
+                || url.includes('emoji') || url.includes('spinner') || url.includes('widget')
             ) return
             if (url.startsWith('//')) url = `https:${url}`
             else if (url.startsWith('/')) url = `${baseUrl}${url}`
             else if (!url.startsWith('http')) return
-            imageUrls.push(url)
+            imageUrls.add(url)
         }
 
         while ((match = imgRegex.exec(html)) !== null) addUrl(match[1])
@@ -560,6 +562,7 @@ export async function rescanClientWebsite(
             if (largest) addUrl(largest)
         }
         while ((match = bgRegex.exec(html)) !== null) addUrl(match[1])
+        while ((match = dataSrcRegex.exec(html)) !== null) addUrl(match[1])
 
         // Also scan subpages
         const linkRegex = /href="([^"]+)"/gi
@@ -573,10 +576,10 @@ export async function rescanClientWebsite(
                 subpageUrls.push(`${baseUrl}${href}`)
             }
         }
-        for (const subUrl of subpageUrls.slice(0, 3)) {
+        for (const subUrl of [...new Set(subpageUrls)].slice(0, 3)) {
             try {
                 const subResp = await fetch(subUrl, {
-                    headers: { "User-Agent": "Mozilla/5.0" },
+                    headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" },
                     signal: AbortSignal.timeout(8000),
                 })
                 if (subResp.ok) {
@@ -587,22 +590,26 @@ export async function rescanClientWebsite(
             } catch { /* skip */ }
         }
 
-        // Deduplicate against existing
-        const existingUrls = new Set<string>(currentConfig.brandReferenceImages || currentConfig.characterReferenceImages || [])
-        const existingBasenames = new Set(
-            Array.from(existingUrls).map(u => u.split('/').pop())
-        )
+        console.log(`🔍 Rescan: found ${imageUrls.size} image URLs on ${baseUrl}`)
+
+        // Existing brand images (check both fields, prefer non-empty)
+        const existingRefs: string[] = (currentConfig.brandReferenceImages?.length
+            ? currentConfig.brandReferenceImages
+            : currentConfig.characterReferenceImages) || []
+        const existingUrls = new Set<string>(existingRefs)
 
         // Download new images
         const sharp = (await import("sharp")).default
         const newUrls: string[] = []
         let uploadIndex = existingUrls.size
 
-        for (const url of imageUrls.slice(0, 30)) {
-            if (newUrls.length >= 10) break // max 10 new images per rescan
+        for (const url of Array.from(imageUrls).slice(0, 30)) {
+            if (newUrls.length >= 10) break
+            // Skip if we already have this exact URL stored
+            if (existingUrls.has(url)) continue
             try {
                 const imgResp = await fetch(url, {
-                    headers: { "User-Agent": "Mozilla/5.0" },
+                    headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" },
                     signal: AbortSignal.timeout(8000),
                 })
                 if (!imgResp.ok) continue
@@ -627,26 +634,30 @@ export async function rescanClientWebsite(
                     .from("audit-screenshots")
                     .getPublicUrl(filename)
 
-                if (!existingUrls.has(pubUrl.publicUrl)) {
-                    newUrls.push(pubUrl.publicUrl)
-                    uploadIndex++
-                }
+                newUrls.push(pubUrl.publicUrl)
+                uploadIndex++
+                console.log(`   📸 Rescan image ${newUrls.length}: ${(buffer.length / 1024).toFixed(0)}KB`)
             } catch { continue }
         }
 
-        // Merge into config
-        if (newUrls.length > 0) {
-            const allRefs = [...Array.from(existingUrls), ...newUrls]
-            await supabaseAdmin
-                .from("clients")
-                .update({ config: { ...currentConfig, brandReferenceImages: allRefs } })
-                .eq("id", clientId)
-        }
+        // Always save to brandReferenceImages (migrates from characterReferenceImages)
+        const allRefs = [...existingRefs, ...newUrls]
+        await supabaseAdmin
+            .from("clients")
+            .update({ config: { ...currentConfig, brandReferenceImages: allRefs } })
+            .eq("id", clientId)
 
-        return { success: true, newImages: newUrls.length }
+        console.log(`✅ Rescan done: ${existingRefs.length} existing + ${newUrls.length} new = ${allRefs.length} total`)
+
+        return {
+            success: true,
+            newImages: newUrls.length,
+            existingImages: existingRefs.length,
+            foundUrls: imageUrls.size,
+        }
     } catch (err: any) {
         console.error("rescanClientWebsite error:", err?.message || err)
-        return { success: false, newImages: 0, error: err?.message || String(err) }
+        return { success: false, newImages: 0, existingImages: 0, foundUrls: 0, error: err?.message || String(err) }
     }
 }
 

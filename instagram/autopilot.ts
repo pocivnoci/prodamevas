@@ -490,7 +490,7 @@ export async function generateOnePost(options: {
                 const refImages: { buffer: Buffer; mimeType?: string; label?: string }[] = []
 
                 // Load brand reference images (scraped or uploaded)
-                const brandRefUrls = config.brandReferenceImages || config.characterReferenceImages || []
+                const brandRefUrls = (config.brandReferenceImages?.length ? config.brandReferenceImages : config.characterReferenceImages) || []
 
                 if (brandRefUrls.length > 0) {
                     // Dynamic label based on what the brand actually is

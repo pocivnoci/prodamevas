@@ -268,7 +268,7 @@ function BrandPhotosSection({ projectId, config, setConfig }: {
     const [deleting, setDeleting] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    const images: string[] = config?.brandReferenceImages || config?.characterReferenceImages || []
+    const images: string[] = (config?.brandReferenceImages?.length ? config.brandReferenceImages : config?.characterReferenceImages) || []
 
     const handleUpload = async (files: FileList | null) => {
         if (!files || files.length === 0) return
@@ -381,8 +381,12 @@ function ClientManagementSection({ projectId, config, setConfig, onReload }: {
         setRescanResult(null)
         const result = await rescanClientWebsite(projectId)
         if (result.success) {
-            setRescanResult(`✅ Nalezeno ${result.newImages} nových fotek`)
-            if (result.newImages > 0) onReload()
+            const parts = []
+            if (result.foundUrls > 0) parts.push(`nalezeno ${result.foundUrls} URL na webu`)
+            parts.push(`${result.existingImages} existujících fotek`)
+            parts.push(`${result.newImages} nových staženo`)
+            setRescanResult(`✅ ${parts.join(' · ')}`)
+            onReload() // always reload to sync UI
         } else {
             setRescanResult(`❌ ${result.error}`)
         }
