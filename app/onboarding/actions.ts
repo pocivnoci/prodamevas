@@ -522,6 +522,12 @@ export async function checkOnboardingStatus(): Promise<{
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { needsOnboarding: false }
 
+    // Super-admins never need onboarding — they see all clients
+    const admins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean)
+    if (admins.includes(user.email || "")) {
+        return { needsOnboarding: false }
+    }
+
     // Check via user_clients join (RBAC-consistent)
     const { data: link } = await supabaseAdmin
         .from('user_clients')
@@ -532,6 +538,36 @@ export async function checkOnboardingStatus(): Promise<{
 
     if (link) {
         return { needsOnboarding: false, clientSlug: (link.clients as any).slug }
+    }
+
+    // Fallback: check if any client exists at all (legacy data without user_clients link)
+    const { data: anyClient } = await supabaseAdmin
+        .from('clients')
+        .select('slug')
+        .eq('is_active', true)
+        .limit(1)
+        .single()
+
+    if (anyClient) {
+        // Legacy client exists but no user_clients link — auto-link as member
+        const { data: clientRecord } = await supabaseAdmin
+            .from('clients')
+            .select('id')
+            .eq('slug', anyClient.slug)
+            .single()
+
+        if (clientRecord) {
+            await supabaseAdmin
+                .from('user_clients')
+                .upsert({
+                    user_id: user.id,
+                    client_id: clientRecord.id,
+                    role: 'member',
+                }, { onConflict: 'user_id,client_id' })
+            console.log(`✅ Auto-linked user ${user.email} to legacy client ${anyClient.slug}`)
+        }
+
+        return { needsOnboarding: false, clientSlug: anyClient.slug }
     }
 
     return { needsOnboarding: true }
