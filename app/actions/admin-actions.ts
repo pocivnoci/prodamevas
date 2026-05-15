@@ -16,7 +16,8 @@ export async function getIGPostsList(statusFilter?: string, projectSlug: string 
                 id, caption, hashtags, call_to_action, image_url, image_prompt,
                 scheduled_for, time_slot, status, posted_at, likes, comments, saves,
                 reach, shares, profile_visits, link_clicks, content_pillar,
-                created_at, updated_at, client_id,
+                created_at, updated_at, client_id, quality_score,
+                feedback, revision_of,
                 ig_post_types ( name, display_name, emoji )
             `)
             .eq("client_id", clientId)
@@ -843,3 +844,106 @@ export async function deleteClient(
         return { success: false, error: err?.message || String(err) }
     }
 }
+
+// ─── Post Revision ───────────────────────────────────────────
+
+/**
+ * Revise a post based on user feedback.
+ * Creates a new draft post with revised caption/hashtags.
+ * Original post is preserved unchanged.
+ */
+export async function revisePost(
+    postId: string,
+    feedback: string,
+    projectSlug: string
+): Promise<{ success: boolean; newPostId?: string; error?: string }> {
+    try {
+        // 1. Load original post
+        const { data: original, error: fetchErr } = await supabaseAdmin
+            .from("ig_posts")
+            .select("*, ig_post_types(name, display_name)")
+            .eq("id", postId)
+            .single()
+
+        if (fetchErr || !original) throw new Error("Post nenalezen")
+
+        // 2. Load client config for brand voice
+        const { resolveClientId } = await import("@/instagram/configs")
+        const { ai } = await import("@/instagram/gemini-client")
+        const clientId = await resolveClientId(projectSlug)
+
+        const { data: clientData } = await supabaseAdmin
+            .from("clients")
+            .select("config")
+            .eq("id", clientId)
+            .single()
+
+        const config = clientData?.config || {}
+        const brandVoice = config.brandVoice || ""
+        const brandName = config.name || projectSlug
+        const postTypeName = original.ig_post_types?.display_name || "Instagram příspěvek"
+
+        // 3. Build revision prompt
+        const prompt = `Jsi copywriter pro značku "${brandName}".
+
+Tón značky: ${brandVoice}
+Typ příspěvku: ${postTypeName}
+
+PŮVODNÍ CAPTION:
+${original.caption}
+
+HASHTAGY: ${(original.hashtags || []).join(" ")}
+
+FEEDBACK OD KLIENTA:
+"${feedback}"
+
+Přepiš caption a hashtags podle feedbacku. Zachovej tón a styl značky.
+Vrať PŘESNĚ tento JSON (nic jiného):
+{
+  "caption": "nový text příspěvku",
+  "hashtags": ["hashtag1", "hashtag2", ...]
+}`
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash-lite",
+            contents: prompt,
+            config: { responseMimeType: "application/json" },
+        })
+
+        const text = response.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || ""
+        let parsed: { caption: string; hashtags: string[] }
+        try {
+            parsed = JSON.parse(text.replace(/```json|```/g, "").trim())
+        } catch {
+            throw new Error("AI vrátilo neplatný JSON")
+        }
+
+        // 4. Save as new draft (non-destructive)
+        const { data: newPost, error: insertErr } = await supabaseAdmin
+            .from("ig_posts")
+            .insert({
+                client_id: clientId,
+                caption: parsed.caption,
+                hashtags: parsed.hashtags,
+                image_url: original.image_url,   // reuse existing image
+                image_prompt: original.image_prompt,
+                image_style: original.image_style,
+                post_type_id: original.post_type_id,
+                content_pillar: original.content_pillar,
+                status: "draft",
+                feedback: feedback,
+                revision_of: postId,
+            })
+            .select("id")
+            .single()
+
+        if (insertErr) throw insertErr
+
+        console.log(`✅ Post revised: ${postId} → ${newPost.id}`)
+        return { success: true, newPostId: newPost.id }
+    } catch (err: any) {
+        console.error("revisePost error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}
+

@@ -372,3 +372,99 @@ export async function getSavedProductIdeas(projectId: string): Promise<ProductId
         return []
     }
 }
+
+// ─── Product Revision ───────────────────────────────────────
+
+/**
+ * Revise a saved product idea based on user feedback.
+ * Updates name, description, variants, and supplier message in-place.
+ */
+export async function reviseProduct(
+    ideaId: string,
+    feedback: string,
+    configName: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        // 1. Load the existing product idea
+        const { data: original, error: fetchErr } = await supabaseAdmin
+            .from("ig_product_ideas")
+            .select("*")
+            .eq("id", ideaId)
+            .single()
+
+        if (fetchErr || !original) throw new Error("Produkt nenalezen")
+
+        // 2. Load client config for brand voice
+        const config = await loadConfig(configName)
+        const { ai } = await import("@/instagram/gemini-client")
+
+        const brandName = config.name || configName
+        const brandVoice = (config as any).brandVoice || ""
+
+        // 3. Build revision prompt
+        const prompt = `Jsi produktový copywriter pro značku "${brandName}".
+
+Tón značky: ${brandVoice}
+
+PŮVODNÍ PRODUKT:
+Název: ${original.name}
+Popis: ${original.description}
+Tagline: ${original.tagline}
+Varianty: ${(original.variants || []).join(", ")}
+Zpráva pro dodavatele: ${original.supplier_message}
+
+FEEDBACK OD KLIENTA:
+"${feedback}"
+
+Přepiš produkt podle feedbacku. Zachovej typ produktu (${original.type}).
+Vrať PŘESNĚ tento JSON (nic jiného):
+{
+  "name": "název produktu",
+  "tagline": "tagline",
+  "description": "popis produktu (2-3 věty)",
+  "variants": ["varianta 1", "varianta 2"],
+  "supplierMessage": "zpráva pro dodavatele v angličtině"
+}`
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash-lite",
+            contents: prompt,
+            config: { responseMimeType: "application/json" },
+        })
+
+        const text = response.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || ""
+        let parsed: {
+            name: string
+            tagline: string
+            description: string
+            variants: string[]
+            supplierMessage: string
+        }
+        try {
+            parsed = JSON.parse(text.replace(/```json|```/g, "").trim())
+        } catch {
+            throw new Error("AI vrátilo neplatný JSON")
+        }
+
+        // 4. Update in-place
+        const { error: updateErr } = await supabaseAdmin
+            .from("ig_product_ideas")
+            .update({
+                name: parsed.name,
+                tagline: parsed.tagline,
+                description: parsed.description,
+                variants: parsed.variants,
+                supplier_message: parsed.supplierMessage,
+                feedback: feedback,
+            })
+            .eq("id", ideaId)
+
+        if (updateErr) throw updateErr
+
+        console.log(`✅ Product revised: ${ideaId}`)
+        return { success: true }
+    } catch (err: any) {
+        console.error("reviseProduct error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}

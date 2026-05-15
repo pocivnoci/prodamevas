@@ -12,6 +12,7 @@ import {
     rejectProductIdea,
     uploadProductReference,
     getSavedProductIdeas,
+    reviseProduct,
     type ProductIdea,
     type DesignConcept,
 } from "@/app/actions/product-actions"
@@ -103,6 +104,10 @@ export function ProductsTab({ projectId }: { projectId: string }) {
     const [savingId, setSavingId] = useState<number | null>(null)
     const [rejectingId, setRejectingId] = useState<number | null>(null)
     const [successMsg, setSuccessMsg] = useState<string | null>(null)
+    // Revision state — per-idea feedback text and loading flag
+    const [productFeedback, setProductFeedback] = useState<Record<string, string>>({})
+    const [productRevising, setProductRevising] = useState<Record<string, boolean>>({})
+    const [productRevisionDone, setProductRevisionDone] = useState<Record<string, boolean>>({})
 
     // Design state
     const [designTheme, setDesignTheme] = useState("")
@@ -873,6 +878,50 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                 >
                                                     {visualizingId === `promo_${idea.id}` ? "⏳ Vytvářím..." : "📸 Vytvoř promo post"}
                                                 </button>
+                                            )}
+                                        </div>
+
+                                        {/* Feedback / Revision */}
+                                        <div className="mt-4 pt-4 border-t border-white/5">
+                                            {productRevisionDone[idea.id as string] ? (
+                                                <p className="text-[10px] text-emerald-400">✅ Produkt přepracován</p>
+                                            ) : (
+                                                <div className="flex gap-2 items-start">
+                                                    <textarea
+                                                        value={productFeedback[idea.id as string] || ""}
+                                                        onChange={e => setProductFeedback(f => ({ ...f, [idea.id as string]: e.target.value }))}
+                                                        placeholder="💬 Feedback: uprav název, zdraž, změň varianty..."
+                                                        rows={2}
+                                                        className="flex-1 px-3 py-2 bg-[#030303] border border-white/10 rounded-sm text-white text-[10px] resize-none focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
+                                                    />
+                                                    <button
+                                                        onClick={async () => {
+                                                            const id = idea.id as string
+                                                            const fb = (productFeedback[id] || "").trim()
+                                                            if (!fb || productRevising[id]) return
+                                                            setProductRevising(r => ({ ...r, [id]: true }))
+                                                            const result = await reviseProduct(id, fb, projectId)
+                                                            setProductRevising(r => ({ ...r, [id]: false }))
+                                                            if (result.success) {
+                                                                setProductRevisionDone(d => ({ ...d, [id]: true }))
+                                                                // Reload saved ideas to show updated content
+                                                                const updated = await getSavedProductIdeas(projectId)
+                                                                setSavedIdeas(updated)
+                                                            } else {
+                                                                setError(result.error || "Revize selhala")
+                                                            }
+                                                        }}
+                                                        disabled={productRevising[idea.id as string] || !(productFeedback[idea.id as string] || "").trim()}
+                                                        className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest rounded-sm bg-white/5 text-white/50 hover:bg-white/10 hover:text-white transition-all border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
+                                                    >
+                                                        {productRevising[idea.id as string] ? (
+                                                            <span className="flex items-center gap-1">
+                                                                <svg className="animate-spin" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" /></svg>
+                                                                Přeprac...
+                                                            </span>
+                                                        ) : "🔄"}
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
                                     </div>

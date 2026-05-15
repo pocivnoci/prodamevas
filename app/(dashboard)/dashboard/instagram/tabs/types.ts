@@ -25,11 +25,14 @@ export interface IGPost {
     reach: number | null
     profile_visits: number | null
     link_clicks: number | null
+    feedback: string | null
+    revision_of: string | null
     ig_post_types?: {
         display_name: string
         emoji: string
     } | null
 }
+
 
 /** Post type definition from ig_post_types */
 export interface IGPostType {

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { motion } from "framer-motion"
-import { getIGPostsList, updateIGPostStatus, deleteIGPost } from "@/app/actions/admin-actions"
+import { getIGPostsList, updateIGPostStatus, deleteIGPost, revisePost } from "@/app/actions/admin-actions"
 import { LoadingSpinner, StatusBadge, PillarBadge, CopyButton, MetricsInputForm } from "./shared"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPost } from "./types"
@@ -151,16 +151,15 @@ export function PostsTab({ projectId }: { projectId: string }) {
             }
 
             {/* Post Detail Modal */}
-            {
-                selectedPost && (
+            {selectedPost && (
                     <PostDetailModal
                         post={selectedPost}
+                        projectId={projectId}
                         onClose={() => setSelectedPost(null)}
                         onStatusChange={handleStatusChange}
                         onDelete={handleDelete}
                     />
-                )
-            }
+                )}
         </div >
     )
 }
@@ -171,17 +170,22 @@ export function PostsTab({ projectId }: { projectId: string }) {
 
 function PostDetailModal({
     post,
+    projectId,
     onClose,
     onStatusChange,
     onDelete,
 }: {
     post: IGPost
+    projectId: string
     onClose: () => void
     onStatusChange: (postId: string, status: string) => void
     onDelete: (postId: string) => void
 }) {
     const { copiedField, copyToClipboard } = useCopyToClipboard()
     const [confirmDelete, setConfirmDelete] = useState(false)
+    const [feedbackText, setFeedbackText] = useState("")
+    const [revising, setRevising] = useState(false)
+    const [revisionResult, setRevisionResult] = useState<{ success: boolean; newPostId?: string; error?: string } | null>(null)
 
     // Lock ALL scroll containers when modal is open
     useEffect(() => {
@@ -366,6 +370,53 @@ function PostDetailModal({
                             )}
                         </div>
                     </div>
+                </div>
+
+                {/* Revision Panel */}
+                <div className="px-4 sm:px-6 py-4 border-t border-white/10 bg-[#030303]">
+                    <p className="text-[9px] uppercase tracking-widest font-bold text-white/30 mb-2">💬 Feedback k revizi</p>
+                    {revisionResult?.success ? (
+                        <div className="flex items-center gap-3 py-2">
+                            <span className="text-xs text-emerald-400">✅ Revize hotova — nový draft vytvořen</span>
+                            <button
+                                onClick={() => { onClose() }}
+                                className="text-[10px] underline text-white/40 hover:text-white/70"
+                            >
+                                Zobrazit v seznamu
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex gap-2 items-start">
+                            <textarea
+                                value={feedbackText}
+                                onChange={e => setFeedbackText(e.target.value)}
+                                placeholder="Např: přidej emoji, zkrať text, zmiň konkrétní cenu..."
+                                rows={2}
+                                className="flex-1 px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-xs resize-none focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
+                            />
+                            <button
+                                onClick={async () => {
+                                    if (!feedbackText.trim() || revising) return
+                                    setRevising(true)
+                                    const result = await revisePost(post.id, feedbackText.trim(), projectId)
+                                    setRevisionResult(result)
+                                    setRevising(false)
+                                }}
+                                disabled={revising || !feedbackText.trim()}
+                                className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-white/5 text-white/60 hover:bg-white/10 hover:text-white transition-all border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
+                            >
+                                {revising ? (
+                                    <span className="flex items-center gap-1.5">
+                                        <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" /></svg>
+                                        Přepracovávám...
+                                    </span>
+                                ) : "🔄 Přepracovat"}
+                            </button>
+                        </div>
+                    )}
+                    {revisionResult?.error && (
+                        <p className="text-[10px] text-red-400 mt-1.5">❌ {revisionResult.error}</p>
+                    )}
                 </div>
 
                 {/* Footer Actions */}
