@@ -10,6 +10,7 @@ import {
     type DesignConcept
 } from "@/instagram/product-generator"
 import { loadConfig, resolveClientId } from "@/instagram/configs"
+import { setActiveProject } from "@/instagram/service"
 
 export { type ProductIdea, type DesignConcept }
 
@@ -26,6 +27,8 @@ export async function triggerProductIdeas(options: {
 }): Promise<{ success: boolean; ideas?: ProductIdea[]; error?: string }> {
     try {
         const config = await loadConfig(options.configName)
+        const clientId = await resolveClientId(options.configName)
+        setActiveProject(clientId)
         const ideas = await withRetry(
             () => generateProductIdeas(config, options.count || 5, options.theme || undefined),
             1,
@@ -53,6 +56,8 @@ export async function triggerDesignGeneration(options: {
 }): Promise<{ success: boolean; concept?: DesignConcept; designUrl?: string; error?: string }> {
     try {
         const config = await loadConfig(options.configName)
+        const clientId = await resolveClientId(options.configName)
+        setActiveProject(clientId)
         const result = await withRetry(
             () => generateDesignConcept(config, options.theme, options.productType || "triko", {
                 includeLogo: options.includeLogo,
@@ -94,6 +99,8 @@ export async function triggerMockupGeneration(options: {
 }): Promise<{ success: boolean; mockupUrl?: string; error?: string }> {
     try {
         const config = await loadConfig(options.configName)
+        const clientId = await resolveClientId(options.configName)
+        setActiveProject(clientId)
         const result = await withRetry(
             () => generateProductMockup(
                 config,
@@ -135,6 +142,8 @@ export async function triggerProductDesign(options: {
 }): Promise<{ success: boolean; designUrl?: string; error?: string }> {
     try {
         const config = await loadConfig(options.configName)
+        const clientId = await resolveClientId(options.configName)
+        setActiveProject(clientId)
         const result = await withRetry(
             () => generateProductDesign(config, options.idea, options.referenceImageUrl),
             1,
@@ -169,6 +178,8 @@ export async function triggerCustomProductDesign(options: {
 }): Promise<{ success: boolean; designUrl?: string; error?: string }> {
     try {
         const config = await loadConfig(options.configName)
+        const clientId = await resolveClientId(options.configName)
+        setActiveProject(clientId)
 
         const customIdea: ProductIdea = {
             name: options.productDescription,
