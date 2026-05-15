@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { getClientConfig, updateClientConfig, uploadBrandImage, deleteBrandImage } from "@/app/actions/admin-actions"
+import { useRouter } from "next/navigation"
+import { getClientConfig, updateClientConfig, uploadBrandImage, deleteBrandImage, rescanClientWebsite, deleteClient } from "@/app/actions/admin-actions"
 
 export function SettingsTab({ projectId }: { projectId: string }) {
     const [config, setConfig] = useState<any>(null)
@@ -246,6 +247,9 @@ export function SettingsTab({ projectId }: { projectId: string }) {
             {/* ── Brand foto knihovna ── */}
             <BrandPhotosSection projectId={projectId} config={config} setConfig={setConfig} />
 
+            {/* ── Správa klienta ── */}
+            <ClientManagementSection projectId={projectId} config={config} setConfig={setConfig} onReload={loadData} />
+
             <div className="text-center text-white/20 text-[10px] tracking-widest uppercase">
                 Obsahové pilíře a Post Formáty lze měnit přes JSON konfiguraci v DB.
             </div>
@@ -354,6 +358,113 @@ function BrandPhotosSection({ projectId, config, setConfig }: {
                     JPG, PNG, WebP — max 10 MB
                 </div>
             </label>
+        </div>
+    )
+}
+
+// ─── Client Management (Rescan + Delete) ────────────────────────────
+
+function ClientManagementSection({ projectId, config, setConfig, onReload }: {
+    projectId: string
+    config: any
+    setConfig: (fn: (prev: any) => any) => void
+    onReload: () => void
+}) {
+    const router = useRouter()
+    const [rescanning, setRescanning] = useState(false)
+    const [rescanResult, setRescanResult] = useState<string | null>(null)
+    const [confirmDelete, setConfirmDelete] = useState(false)
+    const [deleting, setDeleting] = useState(false)
+
+    const handleRescan = async () => {
+        setRescanning(true)
+        setRescanResult(null)
+        const result = await rescanClientWebsite(projectId)
+        if (result.success) {
+            setRescanResult(`✅ Nalezeno ${result.newImages} nových fotek`)
+            if (result.newImages > 0) onReload()
+        } else {
+            setRescanResult(`❌ ${result.error}`)
+        }
+        setRescanning(false)
+    }
+
+    const handleDelete = async () => {
+        setDeleting(true)
+        const result = await deleteClient(projectId)
+        if (result.success) {
+            router.push("/dashboard/instagram")
+        } else {
+            setDeleting(false)
+            setConfirmDelete(false)
+            alert(`Smazání se nezdařilo: ${result.error}`)
+        }
+    }
+
+    return (
+        <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-6 space-y-4">
+            <div className="border-b border-white/10 pb-2 mb-2">
+                <h3 className="text-sm font-black uppercase tracking-widest text-white/70">
+                    Správa klienta
+                </h3>
+            </div>
+
+            {/* Re-scan */}
+            <div className="flex items-center justify-between gap-4">
+                <div>
+                    <p className="text-xs text-white/60 font-bold">Re-skenovat web</p>
+                    <p className="text-[9px] text-white/30 mt-0.5">
+                        Znovu projde {config?.website || "web"} a stáhne nové fotky
+                    </p>
+                </div>
+                <button
+                    onClick={handleRescan}
+                    disabled={rescanning}
+                    className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all border border-blue-500/20 disabled:opacity-50 whitespace-nowrap"
+                >
+                    {rescanning ? "Skenuji…" : "🔍 Skenovat"}
+                </button>
+            </div>
+            {rescanResult && (
+                <p className="text-[10px] text-white/50 bg-white/5 rounded-sm px-3 py-2">{rescanResult}</p>
+            )}
+
+            {/* Danger zone */}
+            <div className="border-t border-red-500/10 pt-4 mt-4">
+                <div className="flex items-center justify-between gap-4">
+                    <div>
+                        <p className="text-xs text-red-400/70 font-bold">Smazat klienta</p>
+                        <p className="text-[9px] text-white/30 mt-0.5">
+                            Odstraní klienta, všechny příspěvky i uložené fotky. Nelze vrátit!
+                        </p>
+                    </div>
+                    {!confirmDelete ? (
+                        <button
+                            onClick={() => setConfirmDelete(true)}
+                            className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-all border border-red-500/10 hover:border-red-500/20 whitespace-nowrap"
+                        >
+                            🗑️ Smazat
+                        </button>
+                    ) : (
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setConfirmDelete(false)}
+                                disabled={deleting}
+                                className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm text-white/40 bg-white/5 hover:bg-white/10 border border-white/10 whitespace-nowrap"
+                            >
+                                Zrušit
+                            </button>
+                            <button
+                                onClick={handleDelete}
+                                disabled={deleting}
+                                className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-red-600/30 text-red-400 border border-red-500/30 hover:bg-red-600/50 transition-all whitespace-nowrap disabled:opacity-50"
+                            >
+                                {deleting ? "Mažu…" : "⚠️ Opravdu smazat"}
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     )
 }

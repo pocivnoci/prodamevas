@@ -496,3 +496,251 @@ export async function deleteBrandImage(
         return { success: false, error: err?.message || String(err) }
     }
 }
+
+// ─── Re-scan Website ─────────────────────────────────────────────────
+
+/**
+ * Re-scrape client website for new brand images (without resetting config).
+ */
+export async function rescanClientWebsite(
+    projectSlug: string
+): Promise<{ success: boolean; newImages: number; error?: string }> {
+    try {
+        const { resolveClientId } = await import("@/instagram/configs")
+        const clientId = await resolveClientId(projectSlug)
+
+        // Get current config
+        const { data: client } = await supabaseAdmin
+            .from("clients")
+            .select("config")
+            .eq("id", clientId)
+            .single()
+
+        const currentConfig = client?.config || {}
+        const websiteUrl = currentConfig.website
+        if (!websiteUrl) {
+            return { success: false, newImages: 0, error: "Klient nemá nastavenou URL webu" }
+        }
+
+
+        // Fetch website and extract images
+        const baseUrl = websiteUrl.startsWith("http") ? websiteUrl : `https://${websiteUrl}`
+
+        const resp = await fetch(baseUrl, {
+            headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" },
+            signal: AbortSignal.timeout(15000),
+        })
+        if (!resp.ok) throw new Error(`Web vrátil ${resp.status}`)
+        const html = await resp.text()
+
+        // Extract image URLs from HTML
+        const imageUrls: string[] = []
+        const imgRegex = /<img[^>]+(?:src|data-src)="([^"]+)"[^>]*>/gi
+        const srcsetRegex = /(?:srcset|data-srcset)="([^"]+)"/gi
+        const bgRegex = /background-image:\s*url\(['"]?([^'")\s]+)['"]?\)/gi
+        let match
+
+        function addUrl(raw: string) {
+            let url = raw.trim()
+            if (!url || url.length > 500) return
+            if (url.endsWith('.svg') || url.endsWith('.ico') || url.includes('data:image')
+                || url.includes('pixel') || url.includes('tracking') || url.includes('facebook.com')
+                || url.includes('google') || url.includes('analytics') || url.includes('gravatar')
+            ) return
+            if (url.startsWith('//')) url = `https:${url}`
+            else if (url.startsWith('/')) url = `${baseUrl}${url}`
+            else if (!url.startsWith('http')) return
+            imageUrls.push(url)
+        }
+
+        while ((match = imgRegex.exec(html)) !== null) addUrl(match[1])
+        while ((match = srcsetRegex.exec(html)) !== null) {
+            const parts = match[1].split(',')
+            const largest = parts[parts.length - 1]?.trim().split(/\s+/)[0]
+            if (largest) addUrl(largest)
+        }
+        while ((match = bgRegex.exec(html)) !== null) addUrl(match[1])
+
+        // Also scan subpages
+        const linkRegex = /href="([^"]+)"/gi
+        const subpageUrls: string[] = []
+        while ((match = linkRegex.exec(html)) !== null) {
+            const href = match[1]
+            if (href.startsWith('/') && !href.startsWith('//') && href.length > 1
+                && !href.match(/\.(js|css|png|jpg|svg|ico|webp|gif|pdf|xml|json)/i)
+                && !href.includes('#') && !href.includes('?')
+            ) {
+                subpageUrls.push(`${baseUrl}${href}`)
+            }
+        }
+        for (const subUrl of subpageUrls.slice(0, 3)) {
+            try {
+                const subResp = await fetch(subUrl, {
+                    headers: { "User-Agent": "Mozilla/5.0" },
+                    signal: AbortSignal.timeout(8000),
+                })
+                if (subResp.ok) {
+                    const subHtml = await subResp.text()
+                    const subImgRegex = /<img[^>]+(?:src|data-src)="([^"]+)"[^>]*>/gi
+                    while ((match = subImgRegex.exec(subHtml)) !== null) addUrl(match[1])
+                }
+            } catch { /* skip */ }
+        }
+
+        // Deduplicate against existing
+        const existingUrls = new Set<string>(currentConfig.brandReferenceImages || currentConfig.characterReferenceImages || [])
+        const existingBasenames = new Set(
+            Array.from(existingUrls).map(u => u.split('/').pop())
+        )
+
+        // Download new images
+        const sharp = (await import("sharp")).default
+        const newUrls: string[] = []
+        let uploadIndex = existingUrls.size
+
+        for (const url of imageUrls.slice(0, 30)) {
+            if (newUrls.length >= 10) break // max 10 new images per rescan
+            try {
+                const imgResp = await fetch(url, {
+                    headers: { "User-Agent": "Mozilla/5.0" },
+                    signal: AbortSignal.timeout(8000),
+                })
+                if (!imgResp.ok) continue
+                const ct = imgResp.headers.get("content-type") || ""
+                if (!ct.startsWith("image/")) continue
+
+                const buffer = Buffer.from(await imgResp.arrayBuffer())
+                if (buffer.length < 5000 || buffer.length > 10_000_000) continue
+
+                const meta = await sharp(buffer).metadata().catch(() => null)
+                if (!meta || (meta.width || 0) < 300 || (meta.height || 0) < 300) continue
+
+                const ext = ct.includes("png") ? "png" : ct.includes("webp") ? "webp" : "jpg"
+                const filename = `client-assets/${projectSlug}/brand-rescan-${String(uploadIndex).padStart(2, '0')}.${ext}`
+
+                const { error: upErr } = await supabaseAdmin.storage
+                    .from("audit-screenshots")
+                    .upload(filename, buffer, { contentType: ct, cacheControl: "31536000", upsert: true })
+                if (upErr) continue
+
+                const { data: pubUrl } = supabaseAdmin.storage
+                    .from("audit-screenshots")
+                    .getPublicUrl(filename)
+
+                if (!existingUrls.has(pubUrl.publicUrl)) {
+                    newUrls.push(pubUrl.publicUrl)
+                    uploadIndex++
+                }
+            } catch { continue }
+        }
+
+        // Merge into config
+        if (newUrls.length > 0) {
+            const allRefs = [...Array.from(existingUrls), ...newUrls]
+            await supabaseAdmin
+                .from("clients")
+                .update({ config: { ...currentConfig, brandReferenceImages: allRefs } })
+                .eq("id", clientId)
+        }
+
+        return { success: true, newImages: newUrls.length }
+    } catch (err: any) {
+        console.error("rescanClientWebsite error:", err?.message || err)
+        return { success: false, newImages: 0, error: err?.message || String(err) }
+    }
+}
+
+// ─── Delete IG Post ──────────────────────────────────────────────────
+
+export async function deleteIGPost(
+    postId: string,
+    projectSlug: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { resolveClientId } = await import("@/instagram/configs")
+        const clientId = await resolveClientId(projectSlug)
+
+        // Get post to find image URL for cleanup
+        const { data: post } = await supabaseAdmin
+            .from("ig_posts")
+            .select("image_url, client_id")
+            .eq("id", postId)
+            .single()
+
+        if (!post || post.client_id !== clientId) {
+            return { success: false, error: "Příspěvek nenalezen" }
+        }
+
+        // Delete images from storage
+        if (post.image_url) {
+            const urls = post.image_url.split("|")
+            for (const url of urls) {
+                const path = url.split("/storage/v1/object/public/audit-screenshots/")[1]
+                    || url.split("/storage/v1/object/public/")[1]?.split("/").slice(1).join("/")
+                if (path) {
+                    const bucket = url.includes("audit-screenshots") ? "audit-screenshots" : url.split("/storage/v1/object/public/")[1]?.split("/")[0]
+                    if (bucket) {
+                        await supabaseAdmin.storage.from(bucket).remove([path]).catch(() => {})
+                    }
+                }
+            }
+        }
+
+        // Delete from DB
+        const { error } = await supabaseAdmin
+            .from("ig_posts")
+            .delete()
+            .eq("id", postId)
+
+        if (error) throw error
+        return { success: true }
+    } catch (err: any) {
+        console.error("deleteIGPost error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}
+
+// ─── Delete Client ───────────────────────────────────────────────────
+
+export async function deleteClient(
+    projectSlug: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { resolveClientId } = await import("@/instagram/configs")
+        const clientId = await resolveClientId(projectSlug)
+
+        // 1. Delete all IG posts for this client
+        await supabaseAdmin
+            .from("ig_posts")
+            .delete()
+            .eq("client_id", clientId)
+
+        // 2. Delete user_clients links
+        await supabaseAdmin
+            .from("user_clients")
+            .delete()
+            .eq("client_id", clientId)
+
+        // 3. Delete storage assets
+        const { data: files } = await supabaseAdmin.storage
+            .from("audit-screenshots")
+            .list(`client-assets/${projectSlug}`)
+        if (files && files.length > 0) {
+            await supabaseAdmin.storage
+                .from("audit-screenshots")
+                .remove(files.map(f => `client-assets/${projectSlug}/${f.name}`))
+        }
+
+        // 4. Delete client record
+        const { error } = await supabaseAdmin
+            .from("clients")
+            .delete()
+            .eq("id", clientId)
+
+        if (error) throw error
+        return { success: true }
+    } catch (err: any) {
+        console.error("deleteClient error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}

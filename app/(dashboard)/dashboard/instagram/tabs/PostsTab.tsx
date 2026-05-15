@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { motion } from "framer-motion"
-import { getIGPostsList, updateIGPostStatus } from "@/app/actions/admin-actions"
+import { getIGPostsList, updateIGPostStatus, deleteIGPost } from "@/app/actions/admin-actions"
 import { LoadingSpinner, StatusBadge, PillarBadge, CopyButton, MetricsInputForm } from "./shared"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPost } from "./types"
@@ -37,6 +37,12 @@ export function PostsTab({ projectId }: { projectId: string }) {
 
     const handleStatusChange = async (postId: string, newStatus: string) => {
         await updateIGPostStatus(postId, newStatus)
+        setSelectedPost(null)
+        loadPosts()
+    }
+
+    const handleDelete = async (postId: string) => {
+        await deleteIGPost(postId, projectId)
         setSelectedPost(null)
         loadPosts()
     }
@@ -151,6 +157,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                         post={selectedPost}
                         onClose={() => setSelectedPost(null)}
                         onStatusChange={handleStatusChange}
+                        onDelete={handleDelete}
                     />
                 )
             }
@@ -166,12 +173,15 @@ function PostDetailModal({
     post,
     onClose,
     onStatusChange,
+    onDelete,
 }: {
     post: IGPost
     onClose: () => void
     onStatusChange: (postId: string, status: string) => void
+    onDelete: (postId: string) => void
 }) {
     const { copiedField, copyToClipboard } = useCopyToClipboard()
+    const [confirmDelete, setConfirmDelete] = useState(false)
 
     // Lock ALL scroll containers when modal is open
     useEffect(() => {
@@ -420,6 +430,23 @@ function PostDetailModal({
                             className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-white/5 text-white/40 hover:bg-white/10 transition-all border border-white/10"
                         >
                             📦 Archivovat
+                        </button>
+                    )}
+
+                    {/* Delete */}
+                    {!confirmDelete ? (
+                        <button
+                            onClick={() => setConfirmDelete(true)}
+                            className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20"
+                        >
+                            🗑️ Smazat
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => onDelete(post.id)}
+                            className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse"
+                        >
+                            ⚠️ Opravdu smazat?
                         </button>
                     )}
                 </div>
