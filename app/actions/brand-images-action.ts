@@ -61,7 +61,17 @@ export async function uploadBrandImage(formData: FormData): Promise<{
 
         const imageUrl = publicUrlData.publicUrl
 
-        // Add URL to client config's brandReferenceImages
+        // Tag the uploaded image with AI
+        let brandImageObj: any = imageUrl  // fallback: just the URL string
+        try {
+            const { tagBrandImage } = await import('@/instagram/brand-tagger')
+            const { tags, description } = await tagBrandImage(buffer, file.type)
+            if (tags.length > 0 || description) {
+                brandImageObj = { url: imageUrl, tags, description }
+            }
+        } catch { /* tagging failed, save as plain URL */ }
+
+        // Add to client config's brandReferenceImages
         const { data: client, error: fetchError } = await supabaseAdmin
             .from('clients')
             .select('config')
@@ -73,9 +83,9 @@ export async function uploadBrandImage(formData: FormData): Promise<{
         }
 
         const config = client.config as any
-        // Read from brandReferenceImages (primary) or characterReferenceImages (legacy fallback)
-        const existingRefs = getConfigBrandImages(config)
-        const updatedRefs = [...existingRefs, imageUrl]
+        const { getConfigBrandImageObjects } = await import('@/instagram/configs/types')
+        const existingRefs = getConfigBrandImageObjects(config)
+        const updatedRefs = [...existingRefs, brandImageObj]
 
         await supabaseAdmin
             .from('clients')
@@ -112,8 +122,9 @@ export async function deleteBrandImage(
 
         if (client) {
             const config = client.config as any
-            const existingRefs = getConfigBrandImages(config)
-            const updatedRefs = existingRefs.filter((url: string) => url !== imageUrl)
+            const { getConfigBrandImageObjects } = await import('@/instagram/configs/types')
+            const existingRefs = getConfigBrandImageObjects(config)
+            const updatedRefs = existingRefs.filter(img => img.url !== imageUrl)
 
             await supabaseAdmin
                 .from('clients')

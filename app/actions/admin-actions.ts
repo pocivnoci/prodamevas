@@ -1,7 +1,7 @@
 "use server"
 
 import supabaseAdmin from "@/supabase/admin"
-import { getConfigBrandImages } from "@/instagram/configs/types"
+import { getConfigBrandImageObjects } from "@/instagram/configs/types"
 
 // ─── Instagram Actions ───────────────────────────────────────────────
 
@@ -441,12 +441,23 @@ export async function uploadBrandImage(
             .single()
 
         const currentConfig = client?.config || {}
-        const refs = [...getConfigBrandImages(currentConfig)]
-        refs.push(publicUrl)
+        const existingRefs = [...getConfigBrandImageObjects(currentConfig)]
+
+        // Tag the uploaded image
+        let newEntry: any = publicUrl
+        try {
+            const { tagBrandImage } = await import("@/instagram/brand-tagger")
+            const { tags, description } = await tagBrandImage(buffer, file.type, currentConfig.name)
+            if (tags.length > 0 || description) {
+                newEntry = { url: publicUrl, tags, description }
+            }
+        } catch { /* tagging failed */ }
+
+        existingRefs.push(newEntry)
 
         await supabaseAdmin
             .from("clients")
-            .update({ config: { ...currentConfig, brandReferenceImages: refs } })
+            .update({ config: { ...currentConfig, brandReferenceImages: existingRefs } })
             .eq("id", clientId)
 
         return { success: true, url: publicUrl }
@@ -483,8 +494,8 @@ export async function deleteBrandImage(
             .single()
 
         const currentConfig = client?.config || {}
-        const refs = getConfigBrandImages(currentConfig)
-            .filter((url: string) => url !== imageUrl)
+        const refs = getConfigBrandImageObjects(currentConfig)
+            .filter(img => img.url !== imageUrl)
 
         await supabaseAdmin
             .from("clients")
@@ -577,7 +588,14 @@ export async function rescanClientWebsite(
                 subpageUrls.push(`${baseUrl}${href}`)
             }
         }
-        for (const subUrl of [...new Set(subpageUrls)].slice(0, 3)) {
+        // Prioritize gallery/rooms/product pages
+        const priorityKeywords = /galeri|pokoje|apart|rooms|suite|product|nabid|sluzb|služb|photo|foto|ubytov|akce|cenik|ceník|menu/i
+        const uniqueSubpages = [...new Set(subpageUrls)].sort((a, b) => {
+            const ap = priorityKeywords.test(a) ? 0 : 1
+            const bp = priorityKeywords.test(b) ? 0 : 1
+            return ap - bp
+        })
+        for (const subUrl of uniqueSubpages.slice(0, 8)) {
             try {
                 const subResp = await fetch(subUrl, {
                     headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" },
@@ -593,17 +611,18 @@ export async function rescanClientWebsite(
 
         console.log(`🔍 Rescan: found ${imageUrls.size} image URLs on ${baseUrl}`)
 
-        // Existing brand images (check both fields, prefer non-empty)
-        const existingRefs: string[] = getConfigBrandImages(currentConfig)
-        const existingUrls = new Set<string>(existingRefs)
+        // Existing brand images — preserve full objects if present
+        const { getConfigBrandImageObjects } = await import("@/instagram/configs/types")
+        const existingObjects = getConfigBrandImageObjects(currentConfig)
+        const existingUrls = new Set<string>(existingObjects.map(img => img.url))
 
         // Download new images
         const sharp = (await import("sharp")).default
-        const newUrls: string[] = []
+        const newImages: { url: string; buffer: Buffer; mimeType: string }[] = []
         let uploadIndex = existingUrls.size
 
-        for (const url of Array.from(imageUrls).slice(0, 30)) {
-            if (newUrls.length >= 10) break
+        for (const url of Array.from(imageUrls).slice(0, 50)) {
+            if (newImages.length >= 20) break
             // Skip if we already have this exact URL stored
             if (existingUrls.has(url)) continue
             try {
@@ -633,25 +652,40 @@ export async function rescanClientWebsite(
                     .from("audit-screenshots")
                     .getPublicUrl(filename)
 
-                newUrls.push(pubUrl.publicUrl)
+                newImages.push({ url: pubUrl.publicUrl, buffer, mimeType: ct })
                 uploadIndex++
-                console.log(`   📸 Rescan image ${newUrls.length}: ${(buffer.length / 1024).toFixed(0)}KB`)
+                console.log(`   📸 Rescan image ${newImages.length}: ${(buffer.length / 1024).toFixed(0)}KB`)
             } catch { continue }
         }
 
-        // Always save to brandReferenceImages (migrates from characterReferenceImages)
-        const allRefs = [...existingRefs, ...newUrls]
+        // Tag new images with AI
+        let taggedNew: any[] = []
+        if (newImages.length > 0) {
+            try {
+                const { tagBrandImages } = await import("@/instagram/brand-tagger")
+                taggedNew = await tagBrandImages(
+                    newImages.map(img => ({ url: img.url, buffer: img.buffer, mimeType: img.mimeType })),
+                    currentConfig.name || projectSlug,
+                )
+            } catch (tagErr) {
+                console.warn(`⚠️ Tagging failed: ${(tagErr as Error).message}`)
+                taggedNew = newImages.map(img => ({ url: img.url, tags: [], description: '' }))
+            }
+        }
+
+        // Merge: keep existing objects + add tagged new ones
+        const allRefs = [...existingObjects, ...taggedNew]
         await supabaseAdmin
             .from("clients")
             .update({ config: { ...currentConfig, brandReferenceImages: allRefs } })
             .eq("id", clientId)
 
-        console.log(`✅ Rescan done: ${existingRefs.length} existing + ${newUrls.length} new = ${allRefs.length} total`)
+        console.log(`✅ Rescan done: ${existingObjects.length} existing + ${taggedNew.length} new = ${allRefs.length} total`)
 
         return {
             success: true,
-            newImages: newUrls.length,
-            existingImages: existingRefs.length,
+            newImages: taggedNew.length,
+            existingImages: existingObjects.length,
             foundUrls: imageUrls.size,
         }
     } catch (err: any) {

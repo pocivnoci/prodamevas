@@ -139,7 +139,7 @@ export async function analyzeWebsite(url: string, igHandle: string): Promise<{
         const homepageHtml = await fetchPage(baseUrl)
 
         // Fetch subpages and Instagram in parallel to save time (avoids 15s Vercel timeouts)
-        const subpageUrls = extractSubpageUrls(homepageHtml, baseUrl).slice(0, 3)
+        const subpageUrls = extractSubpageUrls(homepageHtml, baseUrl).slice(0, 8)
         const [subpageTextsArray, instagramBioObj] = await Promise.all([
             Promise.all(subpageUrls.map(async (subUrl) => {
                 try {
@@ -270,7 +270,7 @@ Vrať POUZE platný JSON, bez dalšího textu.`
                 }
             } catch { /* subpage fetch failed, skip */ }
         }
-        analysis.brandImageUrls = Array.from(allImages).slice(0, 20)
+        analysis.brandImageUrls = Array.from(allImages).slice(0, 50)
 
         // Try to download logo
         const slug = slugify(analysis.companyName)
@@ -494,8 +494,34 @@ DŮLEŽITÉ:
             slug
         )
         if (imageUrls.length > 0) {
-            config.brandReferenceImages = imageUrls
-            console.log(`✅ ${imageUrls.length} brand images uploaded to storage`)
+            // Tag images with AI descriptions
+            try {
+                const { tagBrandImages } = await import('@/instagram/brand-tagger')
+                // Fetch buffers for tagging
+                const imagesToTag: { url: string; buffer: Buffer; mimeType?: string }[] = []
+                for (const url of imageUrls) {
+                    try {
+                        const resp = await fetch(url)
+                        if (resp.ok) {
+                            const buf = Buffer.from(await resp.arrayBuffer())
+                            const ct = resp.headers.get('content-type') || 'image/jpeg'
+                            imagesToTag.push({ url, buffer: buf, mimeType: ct })
+                        }
+                    } catch { /* skip failed fetches */ }
+                }
+                if (imagesToTag.length > 0) {
+                    const tagged = await tagBrandImages(imagesToTag, analysis.companyName)
+                    config.brandReferenceImages = tagged
+                    console.log(`✅ ${tagged.length} brand images tagged and uploaded`)
+                } else {
+                    config.brandReferenceImages = imageUrls
+                    console.log(`✅ ${imageUrls.length} brand images uploaded (tagging skipped)`)
+                }
+            } catch (tagErr) {
+                // Tagging failed — fall back to URLs only
+                console.warn(`⚠️ Tagging failed, saving URLs only: ${(tagErr as Error).message}`)
+                config.brandReferenceImages = imageUrls
+            }
         }
 
         // Save to database
@@ -663,7 +689,14 @@ function extractSubpageUrls(html: string, baseUrl: string): string[] {
             }
         }
     }
-    return Array.from(urls)
+    // Prioritize pages likely to contain product/room/gallery images
+    const priorityKeywords = /galeri|pokoje|apart|rooms|suite|product|nabid|sluzb|služb|photo|foto|ubytov|akce|cenik|ceník|menu/i
+    const sorted = Array.from(urls).sort((a, b) => {
+        const aPriority = priorityKeywords.test(a) ? 0 : 1
+        const bPriority = priorityKeywords.test(b) ? 0 : 1
+        return aPriority - bPriority
+    })
+    return sorted
 }
 
 /**
@@ -682,8 +715,8 @@ async function downloadProductImages(
 
     const uploadedUrls: string[] = []
     const bucketName = 'audit-screenshots'
-    const MAX_IMAGES = 15
-    const candidates = imageUrls.slice(0, 25) // try 25, keep 15
+    const MAX_IMAGES = 30
+    const candidates = imageUrls.slice(0, 50) // try 50, keep 30
 
     console.log(`   📷 Downloading brand images: ${candidates.length} candidates → max ${MAX_IMAGES}`)
 

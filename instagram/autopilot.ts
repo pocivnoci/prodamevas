@@ -42,7 +42,7 @@ import {
 import { runProductIdeas, runDesignConcept } from "./product-generator"
 import { loadConfig } from "./configs"
 import type { ClientConfig } from "./configs/types"
-import { getConfigBrandImages } from "./configs/types"
+// getConfigBrandImageObjects is imported dynamically where needed
 import type { PostType, PostIdea, Review } from "./types"
 
 // Module imports (refactored from monolith)
@@ -491,9 +491,10 @@ export async function generateOnePost(options: {
                 const refImages: { buffer: Buffer; mimeType?: string; label?: string }[] = []
 
                 // Load brand reference images (scraped or uploaded)
-                const brandRefUrls = getConfigBrandImages(config)
+                const { getConfigBrandImageObjects } = await import("./configs/types")
+                const brandRefObjects = getConfigBrandImageObjects(config)
 
-                if (brandRefUrls.length > 0) {
+                if (brandRefObjects.length > 0) {
                     // Dynamic label based on what the brand actually is
                     const industry = (config as any).industry || ''
                     const isLocation = /ubytov|hotel|penzion|apartm|restaurac|kavárn|bar\b|wellness|spa/i.test(industry)
@@ -506,22 +507,76 @@ export async function generateOnePost(options: {
                             ? "brand product reference — maintain this exact visual style, colors, and product aesthetic"
                             : "brand visual reference — maintain this exact visual style, colors, and aesthetic atmosphere"
 
-                    // Pick up to 3 reference images per post (more = slower + noisier)
-                    const selectedRefs = brandRefUrls.length <= 3
-                        ? brandRefUrls
-                        : brandRefUrls.sort(() => Math.random() - 0.5).slice(0, 3)
+                    // Smart selection: match photos to post context using tags
+                    let selectedRefs: { url: string; tags: string[]; description: string }[]
 
-                    for (const refUrl of selectedRefs) {
+                    const hasTaggedImages = brandRefObjects.some(img => img.tags.length > 0)
+
+                    if (hasTaggedImages && brandRefObjects.length > 3) {
+                        // Build context string from post content
+                        const postContext = [
+                            selectedType?.name || '',
+                            captionData?.hook || '',
+                            (captionData as any)?.body?.substring(0, 100) || '',
+                            (captionData as any)?.imagePrompt || '',
+                        ].join(' ').toLowerCase()
+
+                        // Score each image based on tag/description match to post context
+                        const scored = brandRefObjects.map(img => {
+                            let score = 0
+                            // Tag matching
+                            for (const tag of img.tags) {
+                                if (postContext.includes(tag)) score += 3
+                            }
+                            // Description keyword matching
+                            if (img.description) {
+                                const descWords = img.description.toLowerCase().split(/\s+/)
+                                for (const word of descWords) {
+                                    if (word.length > 3 && postContext.includes(word)) score += 1
+                                }
+                            }
+                            return { ...img, score }
+                        })
+
+                        // Sort by relevance, then add randomness for variety
+                        scored.sort((a, b) => b.score - a.score)
+
+                        // Take top-scored images, with some randomness among equal scores
+                        const topScore = scored[0]?.score || 0
+                        if (topScore > 0) {
+                            // At least some matches found — pick best
+                            const relevant = scored.filter(s => s.score > 0)
+                            const topPicks = relevant.slice(0, 3)
+                            console.log(`   🎯 Smart selection: picked ${topPicks.length} tagged images (scores: ${topPicks.map(s => s.score).join(',')})`)
+                            selectedRefs = topPicks
+                        } else {
+                            // No tag matches — fall back to random
+                            selectedRefs = brandRefObjects.sort(() => Math.random() - 0.5).slice(0, 3)
+                            console.log(`   🎲 No tag matches — random ${selectedRefs.length} images`)
+                        }
+                    } else {
+                        // No tagged images or too few — random selection (backward compat)
+                        selectedRefs = brandRefObjects.length <= 3
+                            ? brandRefObjects
+                            : brandRefObjects.sort(() => Math.random() - 0.5).slice(0, 3)
+                    }
+
+                    for (const ref of selectedRefs) {
                         try {
-                            const resp = await fetch(refUrl)
+                            const resp = await fetch(ref.url)
                             if (resp.ok) {
                                 const arrayBuf = await resp.arrayBuffer()
+                                // Build label from tag data if available
+                                const contextLabel = ref.description
+                                    ? `${refLabel} — ${ref.description}`
+                                    : refLabel
                                 refImages.push({
                                     buffer: Buffer.from(arrayBuf),
-                                    mimeType: refUrl.endsWith(".png") ? "image/png" : "image/jpeg",
-                                    label: refLabel,
+                                    mimeType: ref.url.endsWith(".png") ? "image/png" : "image/jpeg",
+                                    label: contextLabel,
                                 })
-                                console.log(`   📸 Loaded brand ref: ${refUrl.split("/").pop()?.substring(0, 40)}`)
+                                const tagInfo = ref.tags.length > 0 ? ` [${ref.tags.join(',')}]` : ''
+                                console.log(`   📸 Loaded brand ref: ${ref.url.split("/").pop()?.substring(0, 30)}${tagInfo}`)
                             }
                         } catch (err) {
                             console.warn(`   ⚠️ Brand ref error: ${(err as Error).message?.substring(0, 60)}`)

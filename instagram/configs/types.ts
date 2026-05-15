@@ -161,27 +161,61 @@ export interface ClientConfig {
     /** @deprecated Use brandReferenceImages instead */
     characterReferenceImages?: string[]
 
-    /** URLs of real brand photos (scraped during onboarding, or uploaded manually).
+    /** Brand reference photos (scraped during onboarding, or uploaded manually).
      *  Used as visual references for AI image generation.
-     *  Includes interiors, products, locations, team photos — NOT just faces.
-     *  Up to 15 images stored in Supabase storage. */
-    brandReferenceImages?: string[]
+     *  Supports both legacy flat URLs and new tagged objects.
+     *  Up to 30 images stored in Supabase storage. */
+    brandReferenceImages?: (string | BrandImage)[]
+}
+
+// ─── Brand Image Type ────────────────────────────────────────────────
+
+/** Tagged brand reference image with AI-generated metadata */
+export interface BrandImage {
+    /** Public URL in Supabase storage */
+    url: string
+    /** AI-generated tags: exterior, interior, bedroom, bathroom, kitchen, living,
+     *  pool, restaurant, team, product, logo, food, nature, detail, lobby, garden */
+    tags: string[]
+    /** AI-generated one-sentence description in Czech */
+    description: string
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 /**
- * Canonical way to read brand reference images from any config object.
- * Reads brandReferenceImages (primary), falls back to characterReferenceImages (legacy).
+ * Canonical way to read brand reference image URLs from any config object.
+ * Handles both legacy flat string arrays AND new BrandImage objects.
+ * Returns flat array of URL strings.
  * 
- * ALWAYS use this instead of accessing the fields directly to avoid
- * the empty-array truthiness bug ([] is truthy in JS).
+ * ALWAYS use this instead of accessing the fields directly.
  */
 export function getConfigBrandImages(config: ClientConfig | Record<string, any> | null | undefined): string[] {
+    const objects = getConfigBrandImageObjects(config)
+    return objects.map(img => img.url)
+}
+
+/**
+ * Get brand reference images as full BrandImage objects (with tags + description).
+ * Normalizes legacy string entries into BrandImage objects with empty metadata.
+ */
+export function getConfigBrandImageObjects(config: ClientConfig | Record<string, any> | null | undefined): BrandImage[] {
     if (!config) return []
     const primary = (config as any).brandReferenceImages
     const legacy = (config as any).characterReferenceImages
-    if (Array.isArray(primary) && primary.length > 0) return primary
-    if (Array.isArray(legacy) && legacy.length > 0) return legacy
-    return []
+
+    let raw: (string | BrandImage)[] = []
+    if (Array.isArray(primary) && primary.length > 0) {
+        raw = primary
+    } else if (Array.isArray(legacy) && legacy.length > 0) {
+        raw = legacy
+    }
+
+    // Normalize: strings → BrandImage with empty metadata
+    return raw.map(item => {
+        if (typeof item === 'string') {
+            return { url: item, tags: [], description: '' }
+        }
+        return item as BrandImage
+    })
 }
