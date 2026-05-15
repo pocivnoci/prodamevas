@@ -4,9 +4,6 @@ import { createClient } from '@/supabase/server'
 import supabaseAdmin from '@/supabase/admin'
 import { generateText } from '@/instagram/gemini-client'
 import type { ClientConfig } from '@/instagram/configs/types'
-import { writeFile, mkdir } from 'fs/promises'
-import { join, dirname } from 'path'
-import { fileURLToPath } from 'url'
 
 // ============================================
 // TYPES
@@ -67,6 +64,47 @@ function humanizeError(error: unknown): string {
         return 'AI vygenerovalo neplatnou odpověď. Zkus to znovu.'
     }
     return msg
+}
+
+// ============================================
+// DB HELPERS
+// ============================================
+
+/**
+ * Insert a new client record and return its UUID.
+ * Handles slug duplicates by appending a short suffix.
+ */
+async function insertClient(slug: string, config: ClientConfig): Promise<string> {
+    const payload = {
+        slug,
+        name: config.name,
+        website: config.website,
+        config: config,
+        is_active: true,
+    }
+
+    const { data, error } = await supabaseAdmin
+        .from('clients')
+        .insert(payload)
+        .select('id')
+        .single()
+
+    if (error) {
+        if (error.message.includes('duplicate') || error.message.includes('unique')) {
+            // Slug collision — retry with suffix
+            const newSlug = `${slug}-${Date.now().toString(36).slice(-4)}`
+            config.id = newSlug
+            const { data: retryData, error: retryError } = await supabaseAdmin
+                .from('clients')
+                .insert({ ...payload, slug: newSlug })
+                .select('id')
+                .single()
+            if (retryError) throw retryError
+            return retryData!.id
+        }
+        throw error
+    }
+    return data!.id
 }
 
 // ============================================
@@ -359,14 +397,13 @@ Vygeneruj kompletní ClientConfig JSON. Buď kreativní ale přesný.
     "hard": ["... (3-4 agresivní CTA)"],
     "none": [""]
   },
-  "feedAesthetic": {
-    "colorPalette": "... (popis barev z analýzy: ${analysis.colors.primary}, ${analysis.colors.secondary})",
-    "overlayOpacity": "35-45%",
-    "textPosition": "BOTTOM",
-    "font": "Inter, Helvetica Neue",
-    "feel": "... (popis vizuálního pocitu)",
-    "phoneModel": "iPhone 16 Pro"
-  },
+   "feedAesthetic": {
+     "colorPalette": "... (popis barev z analýzy: ${analysis.colors.primary}, ${analysis.colors.secondary})",
+     "overlayOpacity": "35-45%",
+     "textPosition": "BOTTOM",
+     "font": "Inter, Helvetica Neue",
+     "feel": "... (popis vizuálního pocitu)"
+   },
   "weekPlan": ["tip", "meme", "carousel", "product", "behind_scenes", "tip", "meme"],
   "hashtagPools": {
     "core": ["#${slugify(analysis.companyName)}", "... (3-4 branded hashtags)"],
@@ -436,7 +473,7 @@ DŮLEŽITÉ:
         // Save to database
         const clientSlug = config.id
 
-        // Ensure Storage Bucket exists for this client (Bug Fix)
+        // Ensure Storage Bucket exists for this client
         const { error: bucketError } = await supabaseAdmin.storage.createBucket(config.storageBucket, {
             public: true,
             allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp'],
@@ -448,38 +485,22 @@ DŮLEŽITÉ:
             console.log(`✅ Storage bucket ${config.storageBucket} is ready`)
         }
 
-        const { error: insertError } = await supabaseAdmin
-            .from('clients')
-            .insert({
-                slug: clientSlug,
-                name: config.name,
-                website: config.website,
-                config: config,
-                user_id: user.id,
-                onboarding_status: 'complete',
-                is_active: true,
-            })
+        // Insert client record (no user_id column — RBAC is via user_clients)
+        const insertedClientId = await insertClient(clientSlug, config)
 
-        if (insertError) {
-            // If slug exists, try with number suffix
-            if (insertError.message.includes('duplicate') || insertError.message.includes('unique')) {
-                const newSlug = `${clientSlug}-${Date.now().toString(36).slice(-4)}`
-                config.id = newSlug
-                const { error: retryError } = await supabaseAdmin
-                    .from('clients')
-                    .insert({
-                        slug: newSlug,
-                        name: config.name,
-                        website: config.website,
-                        config: config,
-                        user_id: user.id,
-                        onboarding_status: 'complete',
-                        is_active: true,
-                    })
-                if (retryError) throw retryError
-                return { success: true, clientSlug: newSlug }
-            }
-            throw insertError
+        // ── RBAC: Link user → client as owner ──
+        const { error: linkError } = await supabaseAdmin
+            .from('user_clients')
+            .insert({
+                user_id: user.id,
+                client_id: insertedClientId,
+                role: 'owner',
+            })
+        if (linkError) {
+            console.error('⚠️ Failed to create user_clients link:', linkError.message)
+            // Non-fatal — admin can fix manually
+        } else {
+            console.log(`✅ User ${user.id} linked to client ${insertedClientId} as owner`)
         }
 
         return { success: true, clientSlug }
@@ -501,15 +522,16 @@ export async function checkOnboardingStatus(): Promise<{
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { needsOnboarding: false }
 
-    const { data: client } = await supabaseAdmin
-        .from('clients')
-        .select('slug, onboarding_status')
+    // Check via user_clients join (RBAC-consistent)
+    const { data: link } = await supabaseAdmin
+        .from('user_clients')
+        .select('client_id, clients!inner(slug)')
         .eq('user_id', user.id)
         .limit(1)
         .single()
 
-    if (client) {
-        return { needsOnboarding: false, clientSlug: client.slug }
+    if (link) {
+        return { needsOnboarding: false, clientSlug: (link.clients as any).slug }
     }
 
     return { needsOnboarding: true }
@@ -708,7 +730,9 @@ function extractLogoUrl(html: string, baseUrl: string): string | null {
 }
 
 /**
- * Download logo from URL and save as PNG to instagram/fonts/logo-{slug}.png
+ * Download logo from URL and upload to Supabase storage.
+ * Saved as client-assets/{slug}/logo.png in 'audit-screenshots' bucket.
+ * Returns true if successful.
  */
 async function downloadLogo(logoUrl: string, slug: string): Promise<boolean> {
     try {
@@ -728,20 +752,29 @@ async function downloadLogo(logoUrl: string, slug: string): Promise<boolean> {
         const buffer = Buffer.from(await resp.arrayBuffer())
         if (buffer.length < 100) return false // Too small, probably not a real image
 
-        // Resolve fonts directory — works both in dev and production
-        const fontsDir = join(process.cwd(), 'instagram', 'fonts')
-        await mkdir(fontsDir, { recursive: true })
+        // Upload to Supabase storage (filesystem is ephemeral on Vercel)
+        const filename = `client-assets/${slug}/logo.png`
+        const { error: uploadError } = await supabaseAdmin.storage
+            .from('audit-screenshots')
+            .upload(filename, buffer, {
+                contentType: 'image/png',
+                cacheControl: '31536000',
+                upsert: true,
+            })
 
-        const logoPath = join(fontsDir, `logo-${slug}.png`)
-        await writeFile(logoPath, buffer)
+        if (uploadError) {
+            console.warn(`   ⚠️ Logo upload failed: ${uploadError.message}`)
+            return false
+        }
 
-        console.log(`   ✅ Logo downloaded: ${buffer.length} bytes → ${logoPath}`)
+        console.log(`   ✅ Logo uploaded: ${buffer.length} bytes → ${filename}`)
         return true
     } catch (err) {
         console.warn('   ⚠️ Logo download failed:', (err as Error).message)
         return false
     }
 }
+
 
 /**
  * Extract brand/product images from HTML (hero images, product photos etc.)
