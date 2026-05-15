@@ -4,6 +4,7 @@
  * Czech payment gateway — https://comgate.eu
  * 
  * API Docs: https://apidoc.comgate.cz/en
+ * Client Portal: https://portal.comgate.cz
  * 
  * Flow:
  * 1. Create payment (server) → get transId + redirect URL
@@ -14,6 +15,16 @@
  * Auth: Basic auth (merchant:secret) in Authorization header
  * Content-Type: application/x-www-form-urlencoded
  * Prices: in smallest currency unit (haléře for CZK, cents for EUR)
+ * 
+ * ── SETUP TODO ──────────────────────────────────────────────
+ * 1. Spustit migraci v Supabase: supabase/migrations/20260515_payments.sql
+ * 2. V Comgate portálu (https://portal.comgate.cz) získat MERCHANT_ID a SECRET
+ * 3. Vyplnit env vars: COMGATE_MERCHANT_ID, COMGATE_SECRET (v .env.local + Vercel)
+ * 4. V Comgate portálu nastavit callback URL: https://prodamevas.vercel.app/api/payments/callback
+ * 5. V Comgate portálu nastavit return URL:   https://prodamevas.vercel.app/api/payments/return
+ * 6. Přepnout COMGATE_TEST="false" až půjde do produkce
+ * 7. Vytvořit pricing UI stránku (výběr plánu → platba)
+ * ────────────────────────────────────────────────────────────
  */
 
 const COMGATE_API = "https://payments.comgate.cz/v1.0"
