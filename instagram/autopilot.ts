@@ -660,82 +660,62 @@ export async function generateOnePost(options: {
                         console.log(`   📌 Product constraint: "${randomProduct.name}" — exact design enforced`)
                     }
                 }
-                // Determine brand type for image strategy
-                const industry = (config as any).industry || ''
-                const isLocationBrand = /ubytov|hotel|penzion|apartm|restaurac|kavárn|bar\b|wellness|spa/i.test(industry)
-                    || /ubytov|hotel|penzion|apartm/i.test(config.name || '')
+                // ─── IMAGE STRATEGY: Real photos first, generation as fallback ───
+                // If brand has reference photos → ALWAYS edit a real one
+                // Never generate fake scenes when real photos exist
 
-                // STRATEGY A: Location brands → EDIT a real photo (preserves actual space)
-                // Instead of generating a fake scene, take a real brand photo and modify it
-                if (isLocationBrand && brandRefObjects.length > 0) {
+                if (refImages.length > 0) {
                     try {
-                        // Pick the best matching real photo based on smart selection
-                        const bestRef = refImages.length > 0
-                            ? refImages[0]  // Already smart-selected above
-                            : null
+                        // Pick the best matching real photo (already smart-selected above)
+                        const bestRef = refImages[0]
 
-                        if (bestRef) {
-                            await report("rendering", 65, `🖼️ Edituji reálnou fotku...`)
-                            console.log(`🏨 Location brand → editing REAL photo (not generating fake scene)`)
+                        await report("rendering", 65, `🖼️ Edituji reálnou fotku...`)
+                        console.log(`📸 Editing REAL brand photo (not generating fake scene)`)
+                        console.log(`   📎 Using: ${bestRef.label?.substring(0, 80) || 'brand photo'}`)
 
-                            // Build edit prompt: keep the real space, add the creative element
-                            const editPrompt = `Edit this real photograph. ${refinedPrompt}
-                            
+                        // Build edit prompt: preserve the real scene, enhance creatively
+                        const editPrompt = `Edit this real photograph to match the following creative direction:
+
+${refinedPrompt}
+
 CRITICAL RULES:
-- PRESERVE the original room/space/environment exactly as it is
-- Only ADD or modify the specific creative elements described
-- The location, furniture, walls, floor, lighting setup must remain IDENTICAL to the original photo
-- Make the edit look natural and photorealistic — as if the new element was really there
-- DO NOT change the architecture, layout, or interior design of the space
-- ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS anywhere in the image`
+- This is a REAL photograph from the brand. PRESERVE the authentic environment, space, and atmosphere.
+- You may add creative elements (people, animals, objects, mood lighting) but the REAL location/product/food must remain recognizable.
+- Make any additions look natural and photorealistic — as if they were really there when the photo was taken.
+- DO NOT replace the entire scene. The original photo IS the scene.
+- DO NOT change the core subject (the room, the food, the product, the building).
+- ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS anywhere in the image.
+- If the creative direction doesn't require adding anything, simply enhance the photo (better lighting, color grading, professional touch) while keeping it 100% authentic.`
 
-                            const { editExistingImage } = await import("./gemini-client")
-                            imageBuffer = await editExistingImage(
-                                bestRef.buffer,
-                                editPrompt,
-                                {
-                                    mimeType: bestRef.mimeType,
-                                    aspectRatio: format.aspectRatio,
-                                    resolution: "2K",
-                                }
-                            )
-                            console.log(`   ✓ Real photo edited (${(imageBuffer.length / 1024).toFixed(0)} KB)`)
-                        } else {
-                            throw new Error("No reference image buffer available")
-                        }
+                        const { editExistingImage } = await import("./gemini-client")
+                        imageBuffer = await editExistingImage(
+                            bestRef.buffer,
+                            editPrompt,
+                            {
+                                mimeType: bestRef.mimeType,
+                                aspectRatio: format.aspectRatio,
+                                resolution: "2K",
+                            }
+                        )
+                        console.log(`   ✓ Real photo edited (${(imageBuffer.length / 1024).toFixed(0)} KB)`)
                     } catch (editErr: any) {
                         console.warn(`   ⚠️ Photo editing failed: ${editErr.message?.substring(0, 100)}`)
-                        console.log(`   🔄 Falling back to standard generation...`)
-                        // Fall through to standard generation
-                        if (refImages.length > 0) {
+                        console.log(`   🔄 Fallback → generating with references...`)
+                        try {
                             imageBuffer = await generateImageWithReferences(
                                 refinedPrompt, refImages,
                                 { aspectRatio: format.aspectRatio, resolution: "2K" }
                             )
-                        } else {
+                        } catch (refErr: any) {
+                            console.warn(`   ⚠️ Ref generation also failed: ${refErr.message?.substring(0, 100)}`)
+                            console.log("🎨 Final fallback → Imagen 4 Ultra (no refs)...")
                             imageBuffer = await generateImage(refinedPrompt, { aspectRatio: format.aspectRatio as any })
                         }
                     }
                 }
-                // STRATEGY B: Product/other brands → generate with references (style transfer)
-                else if (refImages.length > 0) {
-                    try {
-                        await report("rendering", 65, `🖼️ Generuji obrázek (${refImages.length} referencí)...`)
-                        console.log(`🎨 Generuji obrázek (Nano Banana Pro + ${refImages.length} ref images, 2K)...`)
-                        imageBuffer = await generateImageWithReferences(
-                            refinedPrompt,
-                            refImages,
-                            { aspectRatio: format.aspectRatio, resolution: "2K" }
-                        )
-                    } catch (refErr: any) {
-                        console.warn(`   ⚠️ Gemini ref image failed: ${refErr.message?.substring(0, 100)}`)
-                        console.log("🎨 Fallback → Imagen 4 Ultra (bez referencí)...")
-                        imageBuffer = await generateImage(refinedPrompt, { aspectRatio: format.aspectRatio as any })
-                    }
-                }
-                // STRATEGY C: No references → pure generation
+                // No reference photos at all → pure generation (only fallback)
                 else {
-                    console.log("🎨 Generuji obrázek (Imagen 4 Ultra, 2K)...")
+                    console.log("🎨 No brand photos available → Imagen 4 Ultra (2K)...")
                     imageBuffer = await generateImage(refinedPrompt, { aspectRatio: format.aspectRatio as any })
                 }
                 cost += COSTS.imageGeneration
