@@ -258,7 +258,66 @@ export async function updateIGPostMetrics(
             updated_at: new Date().toISOString(),
         })
         .eq("id", postId)
-    return { success: !error }
+
+    if (error) return { success: false }
+
+    // ─── LEARNING TRIGGER ─────────────────────────────
+    // After saving metrics, check if we have enough data to learn from.
+    // If 3+ posted posts have metrics, trigger the memory agent to analyze
+    // patterns and write to ig_brand_memory for future post generation.
+    try {
+        // Get client_id from the post we just updated
+        const { data: post } = await supabaseAdmin
+            .from("ig_posts")
+            .select("client_id")
+            .eq("id", postId)
+            .single()
+
+        if (post?.client_id) {
+            // Fetch all posted posts with metrics for this client
+            const { data: postsWithMetrics } = await supabaseAdmin
+                .from("ig_posts")
+                .select("id, caption, likes, comments, saves, reach, shares, link_clicks, post_type_id, ig_post_types(name)")
+                .eq("client_id", post.client_id)
+                .eq("status", "posted")
+                .not("likes", "is", null)
+                .gt("likes", 0)
+                .order("created_at", { ascending: false })
+                .limit(30)
+
+            if (postsWithMetrics && postsWithMetrics.length >= 3) {
+                // Fire and forget — don't block the metrics save response
+                const { setActiveProject } = await import("@/instagram/service")
+                const { analyzeAndLearn } = await import("@/instagram/memory-agent")
+                setActiveProject(post.client_id)
+
+                const learnData = postsWithMetrics.map(p => ({
+                    id: p.id,
+                    caption: p.caption || "",
+                    post_type_name: (p.ig_post_types as any)?.name,
+                    likes: p.likes || 0,
+                    comments: p.comments || 0,
+                    saves: p.saves || 0,
+                    reach: p.reach || 0,
+                    shares: p.shares || 0,
+                    link_clicks: p.link_clicks || 0,
+                }))
+
+                analyzeAndLearn(learnData).then(result => {
+                    if (result.memoriesCreated > 0 || result.memoriesUpdated > 0) {
+                        console.log(`🧠 Learning triggered: ${result.memoriesCreated} new memories, ${result.memoriesUpdated} updated`)
+                    }
+                }).catch(err => {
+                    console.warn("⚠️ Learning trigger failed (non-fatal):", err?.message)
+                })
+            }
+        }
+    } catch (learnErr: any) {
+        // Non-fatal — metrics were already saved successfully
+        console.warn("⚠️ Learning check failed:", learnErr?.message)
+    }
+
+    return { success: true }
 }
 
 // ─── Performance Insights (Neural Brand Engine MVP) ──────────────────
