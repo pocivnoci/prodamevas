@@ -167,3 +167,21 @@ export interface ClientConfig {
      *  Up to 15 images stored in Supabase storage. */
     brandReferenceImages?: string[]
 }
+
+// ─── Helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Canonical way to read brand reference images from any config object.
+ * Reads brandReferenceImages (primary), falls back to characterReferenceImages (legacy).
+ * 
+ * ALWAYS use this instead of accessing the fields directly to avoid
+ * the empty-array truthiness bug ([] is truthy in JS).
+ */
+export function getConfigBrandImages(config: ClientConfig | Record<string, any> | null | undefined): string[] {
+    if (!config) return []
+    const primary = (config as any).brandReferenceImages
+    const legacy = (config as any).characterReferenceImages
+    if (Array.isArray(primary) && primary.length > 0) return primary
+    if (Array.isArray(legacy) && legacy.length > 0) return legacy
+    return []
+}

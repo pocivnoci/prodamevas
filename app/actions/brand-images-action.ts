@@ -2,6 +2,7 @@
 
 import supabaseAdmin from '@/supabase/admin'
 import { createClient } from '@/supabase/server'
+import { getConfigBrandImages } from '@/instagram/configs/types'
 
 /**
  * Upload a brand/reference image from the dashboard.
@@ -73,7 +74,7 @@ export async function uploadBrandImage(formData: FormData): Promise<{
 
         const config = client.config as any
         // Read from brandReferenceImages (primary) or characterReferenceImages (legacy fallback)
-        const existingRefs = (config.brandReferenceImages?.length ? config.brandReferenceImages : config.characterReferenceImages) || []
+        const existingRefs = getConfigBrandImages(config)
         const updatedRefs = [...existingRefs, imageUrl]
 
         await supabaseAdmin
@@ -111,7 +112,7 @@ export async function deleteBrandImage(
 
         if (client) {
             const config = client.config as any
-            const existingRefs = (config.brandReferenceImages?.length ? config.brandReferenceImages : config.characterReferenceImages) || []
+            const existingRefs = getConfigBrandImages(config)
             const updatedRefs = existingRefs.filter((url: string) => url !== imageUrl)
 
             await supabaseAdmin
@@ -155,7 +156,7 @@ export async function getBrandImages(clientSlug: string): Promise<string[]> {
         if (!client) return []
         const config = client.config as any
         // Primary: brandReferenceImages, fallback: characterReferenceImages
-        return (config?.brandReferenceImages?.length ? config.brandReferenceImages : config?.characterReferenceImages) || []
+        return getConfigBrandImages(config)
     } catch {
         return []
     }

@@ -1,6 +1,7 @@
 "use server"
 
 import supabaseAdmin from "@/supabase/admin"
+import { getConfigBrandImages } from "@/instagram/configs/types"
 
 // ─── Instagram Actions ───────────────────────────────────────────────
 
@@ -440,7 +441,7 @@ export async function uploadBrandImage(
             .single()
 
         const currentConfig = client?.config || {}
-        const refs = currentConfig.brandReferenceImages || currentConfig.characterReferenceImages || []
+        const refs = [...getConfigBrandImages(currentConfig)]
         refs.push(publicUrl)
 
         await supabaseAdmin
@@ -482,7 +483,7 @@ export async function deleteBrandImage(
             .single()
 
         const currentConfig = client?.config || {}
-        const refs = (currentConfig.brandReferenceImages || currentConfig.characterReferenceImages || [])
+        const refs = getConfigBrandImages(currentConfig)
             .filter((url: string) => url !== imageUrl)
 
         await supabaseAdmin
@@ -593,9 +594,7 @@ export async function rescanClientWebsite(
         console.log(`🔍 Rescan: found ${imageUrls.size} image URLs on ${baseUrl}`)
 
         // Existing brand images (check both fields, prefer non-empty)
-        const existingRefs: string[] = (currentConfig.brandReferenceImages?.length
-            ? currentConfig.brandReferenceImages
-            : currentConfig.characterReferenceImages) || []
+        const existingRefs: string[] = getConfigBrandImages(currentConfig)
         const existingUrls = new Set<string>(existingRefs)
 
         // Download new images

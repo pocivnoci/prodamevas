@@ -42,6 +42,7 @@ import {
 import { runProductIdeas, runDesignConcept } from "./product-generator"
 import { loadConfig } from "./configs"
 import type { ClientConfig } from "./configs/types"
+import { getConfigBrandImages } from "./configs/types"
 import type { PostType, PostIdea, Review } from "./types"
 
 // Module imports (refactored from monolith)
@@ -490,7 +491,7 @@ export async function generateOnePost(options: {
                 const refImages: { buffer: Buffer; mimeType?: string; label?: string }[] = []
 
                 // Load brand reference images (scraped or uploaded)
-                const brandRefUrls = (config.brandReferenceImages?.length ? config.brandReferenceImages : config.characterReferenceImages) || []
+                const brandRefUrls = getConfigBrandImages(config)
 
                 if (brandRefUrls.length > 0) {
                     // Dynamic label based on what the brand actually is
