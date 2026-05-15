@@ -32,7 +32,7 @@ export async function loadLogo(logoFile: string): Promise<Buffer | null> {
 
     // 2) Supabase storage fallback (production uploads from onboarding)
     try {
-        const slug = logoFile.replace(/^logo-/, "").replace(/\\.png$/i, "")
+        const slug = logoFile.replace(/^logo-/, "").replace(/\.png$/i, "")
         const storagePath = `client-assets/${slug}/logo.png`
         const { data, error } = await supabaseAdmin.storage
             .from("audit-screenshots")
