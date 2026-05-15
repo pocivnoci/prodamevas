@@ -47,20 +47,34 @@ export interface OnboardingQuestion {
 // ============================================
 
 function humanizeError(error: unknown): string {
+    // Node.js wraps network errors: TypeError("fetch failed") with error.cause
+    const cause = (error as any)?.cause
+    const causeMsg = cause?.message || cause?.code || ''
     const msg = (error as Error)?.message || String(error)
-    if (msg.includes('503') || msg.includes('overloaded') || msg.includes('UNAVAILABLE') || msg.includes('high demand')) {
-        return 'AI server je momentálně přetížený. Zkus to za chvíli znovu.'
-    }
-    if (msg.includes('429') || msg.includes('rate limit') || msg.includes('quota')) {
-        return 'Překročen limit API požadavků. Zkus to za minutu.'
-    }
-    if (msg.includes('timeout') || msg.includes('abort') || msg.includes('ETIMEDOUT')) {
-        return 'Připojení k webu vypršelo. Zkontroluj URL a zkus to znovu.'
-    }
-    if (msg.includes('ENOTFOUND') || msg.includes('DNS')) {
+    const full = `${msg} ${causeMsg}`.toLowerCase()
+
+    if (full.includes('fetch failed') && (causeMsg.includes('ENOTFOUND') || causeMsg.includes('getaddrinfo') || causeMsg.includes('dns'))) {
         return 'Web nebyl nalezen. Zkontroluj, jestli je URL správná.'
     }
-    if (msg.includes('JSON')) {
+    if (full.includes('fetch failed') && causeMsg.includes('ECONNREFUSED')) {
+        return 'Web odmítl připojení. Zkontroluj URL.'
+    }
+    if (full.includes('fetch failed')) {
+        return `Nepodařilo se načíst web${causeMsg ? ': ' + causeMsg : ''}. Zkontroluj URL a zkus to znovu.`
+    }
+    if (full.includes('503') || full.includes('overloaded') || full.includes('unavailable') || full.includes('high demand')) {
+        return 'AI server je momentálně přetížený. Zkus to za chvíli znovu.'
+    }
+    if (full.includes('429') || full.includes('rate limit') || full.includes('quota')) {
+        return 'Překročen limit API požadavků. Zkus to za minutu.'
+    }
+    if (full.includes('timeout') || full.includes('abort') || full.includes('etimedout')) {
+        return 'Připojení k webu vypršelo. Zkontroluj URL a zkus to znovu.'
+    }
+    if (full.includes('enotfound') || full.includes('dns') || full.includes('getaddrinfo')) {
+        return 'Web nebyl nalezen. Zkontroluj, jestli je URL správná.'
+    }
+    if (full.includes('json')) {
         return 'AI vygenerovalo neplatnou odpověď. Zkus to znovu.'
     }
     return msg
