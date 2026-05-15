@@ -17,6 +17,7 @@ export async function getIGPostsList(statusFilter?: string, projectSlug: string 
                 scheduled_for, time_slot, status, posted_at, likes, comments, saves,
                 reach, shares, profile_visits, link_clicks, content_pillar,
                 created_at, updated_at, client_id,
+                feedback, revision_of,
                 ig_post_types ( name, display_name, emoji )
             `)
             .eq("client_id", clientId)
