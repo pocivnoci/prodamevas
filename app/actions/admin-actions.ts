@@ -361,12 +361,18 @@ export async function updateClientConfig(projectSlug: string, partialConfig: any
             ...partialConfig,
         }
 
-        // Specifically merge nested objects if they are partially passed (like brandVoice or feedAesthetic)
+        // Specifically merge nested objects if they are partially passed
         if (partialConfig.brandVoice && currentConfig.brandVoice) {
             newConfig.brandVoice = { ...currentConfig.brandVoice, ...partialConfig.brandVoice }
         }
         if (partialConfig.feedAesthetic && currentConfig.feedAesthetic) {
             newConfig.feedAesthetic = { ...currentConfig.feedAesthetic, ...partialConfig.feedAesthetic }
+        }
+        if (partialConfig.overlayGradient && currentConfig.overlayGradient) {
+            newConfig.overlayGradient = { ...currentConfig.overlayGradient, ...partialConfig.overlayGradient }
+        }
+        if (partialConfig.defaultFormat && currentConfig.defaultFormat) {
+            newConfig.defaultFormat = { ...currentConfig.defaultFormat, ...partialConfig.defaultFormat }
         }
 
         const { error: updateErr } = await supabaseAdmin

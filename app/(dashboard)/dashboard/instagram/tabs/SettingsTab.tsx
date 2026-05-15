@@ -166,47 +166,18 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                 </div>
             </div>
 
-            {/* ── Vizuální identita ── */}
-            <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-6 space-y-4">
-                <h3 className="text-sm font-black uppercase tracking-widest text-white/70 border-b border-white/10 pb-2 mb-4">Vizuální Identita</h3>
-                <p className="text-[9px] text-white/30 uppercase tracking-widest -mt-2">Popis pro AI — jak má vizuálně vypadat obsah</p>
+            {/* ── Vizuální identita & Overlay ── */}
+            <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-6 space-y-6">
+                <h3 className="text-sm font-black uppercase tracking-widest text-white/70 border-b border-white/10 pb-2 mb-4">Vizuální Identita & Overlay</h3>
 
+                {/* AI popis */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Barevná paleta</label>
-                        <input value={config.feedAesthetic?.colorPalette || ""} onChange={(e) => updateField(["feedAesthetic", "colorPalette"], e.target.value)}
-                            placeholder="Např. Lesní zelená, dřevo, přírodní tóny"
-                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all" />
-                    </div>
-                    <div>
-                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Atmosféra & Styl fotek</label>
+                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Atmosféra & Styl fotek <span className="text-white/20">(pro AI)</span></label>
                         <input value={config.feedAesthetic?.feel || ""} onChange={(e) => updateField(["feedAesthetic", "feel"], e.target.value)}
                             placeholder="Např. Přírodní, hřejivý, denní světlo, rustikální"
                             className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all" />
                     </div>
-                    <div className="md:col-span-2">
-                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Typografie pro AI (popis)</label>
-                        <input value={config.feedAesthetic?.font || ""} onChange={(e) => updateField(["feedAesthetic", "font"], e.target.value)}
-                            placeholder="Např. Moderní sans-serif, čitelný, žádné dekorativní fonty"
-                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30 transition-all" />
-                    </div>
-                </div>
-
-                <div className="mt-4 pt-4 border-t border-white/5">
-                    <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1 block">Logo soubor</label>
-                    <p className="text-[9px] text-white/20 mb-2">Název PNG souboru ve složce <code className="text-white/30">instagram/assets/</code> — nahrát přes deployment</p>
-                    <input value={config.logoFile || ""} onChange={(e) => updateField(["logoFile"], e.target.value)}
-                        placeholder="logo-nazevklienta.png"
-                        className="w-full md:w-1/2 px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-mono focus:outline-none focus:ring-1 focus:ring-white/30 transition-all" />
-                </div>
-            </div>
-
-            {/* ── Overlay & Typografie ── */}
-            <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-6 space-y-4">
-                <h3 className="text-sm font-black uppercase tracking-widest text-white/70 border-b border-white/10 pb-2 mb-4">Overlay & Typografie</h3>
-                <p className="text-[9px] text-white/30 uppercase tracking-widest -mt-2">Jak vypadá text na generovaných obrázcích</p>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Font přes obrázky</label>
                         <select value={config.feedAesthetic?.fontOverride || "Inter"}
@@ -227,10 +198,18 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                             <option value="none">None — bez overlay</option>
                         </select>
                     </div>
+                    <div>
+                        <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1 block">Logo soubor</label>
+                        <p className="text-[9px] text-white/20 mb-1.5">PNG ve složce <code className="text-white/30">instagram/assets/</code></p>
+                        <input value={config.logoFile || ""} onChange={(e) => updateField(["logoFile"], e.target.value)}
+                            placeholder="logo-nazevklienta.png"
+                            className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-mono focus:outline-none focus:ring-1 focus:ring-white/30 transition-all" />
+                    </div>
                 </div>
 
-                <div>
-                    <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-3 block">Barvy gradientu (pozadí textu)</label>
+                {/* Gradient barvy */}
+                <div className="pt-4 border-t border-white/5">
+                    <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-3 block">Barvy gradientu (pozadí textu na obrázcích)</label>
                     <div className="grid grid-cols-3 gap-3">
                         {[
                             { key: "topColor", label: "Vrchní" },
