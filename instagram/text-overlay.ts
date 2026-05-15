@@ -14,6 +14,7 @@ import satori from "satori"
 import { Resvg } from "@resvg/resvg-js"
 import { readFileSync, existsSync } from "fs"
 import { join } from "path"
+import { loadLogo } from "./logo-loader"
 
 // ─── Font loading ────────────────────────────────────────────
 // Load font files as Buffers — Satori handles parsing in pure JS
@@ -230,19 +231,12 @@ export async function overlayText(
         const logoMargin = Math.round(width * 0.04)
 
         if (logoFile) {
-            try {
-                const logoPngPath = join(assetsDir, logoFile)
-                if (existsSync(logoPngPath)) {
-                    logoBuffer = await sharp(readFileSync(logoPngPath))
-                        .resize(logoWidth, logoHeight, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
-                        .png()
-                        .toBuffer()
-                    console.log("✓ Logo watermark loaded:", logoBuffer.length, "bytes")
-                } else {
-                    console.warn("⚠️ Logo PNG not found at", logoPngPath)
-                }
-            } catch (err) {
-                console.warn('⚠️ Logo watermark error, skipping:', err)
+            const rawLogo = await loadLogo(logoFile)
+            if (rawLogo) {
+                logoBuffer = await sharp(rawLogo)
+                    .resize(logoWidth, logoHeight, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+                    .png()
+                    .toBuffer()
             }
         }
 

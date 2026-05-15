@@ -290,20 +290,9 @@ Vrať POUZE validní JSON.`
         let imageBuffer: Buffer
 
         if (includeLogo && config.logoFile) {
-            // Load logo and use generateImageWithReferences
-            console.log(`   🏷️ Logo mode — načítám ${config.logoFile}...`)
-            const { join } = await import('path')
-            const { readFile } = await import('fs/promises')
-
-            let logoBuffer: Buffer | null = null
-            try {
-                const assetsDir = join(process.cwd(), 'instagram', 'assets')
-                const logoPath = join(assetsDir, config.logoFile)
-                logoBuffer = await readFile(logoPath)
-                console.log(`   ✓ Logo načteno (${(logoBuffer.length / 1024).toFixed(0)} KB)`)
-            } catch (logoErr: any) {
-                console.warn(`   ⚠️ Logo nenalezeno (${config.logoFile}): ${logoErr.message}`)
-            }
+            // Load logo via shared loader (filesystem + Supabase fallback)
+            const { loadLogo } = await import('./logo-loader')
+            const logoBuffer = await loadLogo(config.logoFile)
 
             if (logoBuffer) {
                 const imagePrompt = `${concept.designPrompt}.${textInstruction} ${imageSuffix}
@@ -375,20 +364,11 @@ export async function generateProductDesign(
         .replace(/\d+\s*(?:cm|mm|inch|oz|ml)\b/gi, '')
         .replace(/(?:dimension|rozměr|kóta|measurement)[^.]*\./gi, '')
 
-    // 1. Zjistit zda existuje nahrané logo v configu a načíst ho
     let logoBuffer: Buffer | null = null
-    const { join } = await import('path')
-    const { readFile } = await import('fs/promises')
 
     if (config.logoFile) {
-        try {
-            const assetsDir = join(process.cwd(), 'instagram', 'assets')
-            const logoPath = join(assetsDir, config.logoFile)
-            logoBuffer = await readFile(logoPath)
-            console.log(`   🏷️ Logo načteno pro integraci (${config.logoFile})`)
-        } catch (err: any) {
-            console.warn(`   ⚠️ Nepodařilo se načíst logo (${config.logoFile}), generuji bez něj. Error: ${err.message}`)
-        }
+        const { loadLogo } = await import('./logo-loader')
+        logoBuffer = await loadLogo(config.logoFile)
     }
 
     try {
