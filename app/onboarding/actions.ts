@@ -557,6 +557,16 @@ DŮLEŽITÉ:
             console.log(`✅ User ${user.id} linked to client ${insertedClientId} as owner`)
         }
 
+        // ── Create 7-day trial subscription ──
+        try {
+            const { createTrialSubscription } = await import('@/lib/subscription')
+            await createTrialSubscription(insertedClientId)
+            console.log(`✅ 7-day trial created for client ${insertedClientId}`)
+        } catch (trialErr) {
+            console.error('⚠️ Trial creation failed:', (trialErr as Error).message)
+            // Non-fatal — client works without subscription, just can't generate
+        }
+
         return { success: true, clientSlug }
     } catch (error) {
         console.error('Config build error:', error)
