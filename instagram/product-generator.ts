@@ -146,47 +146,70 @@ export async function generateProductIdeas(
         ? config.products.map(p => `- ${p.name} (${p.type}): ${p.price || "?"} — ${p.description || ""}`).join("\n")
         : "Žádné existující produkty"
 
-    // Load dynamic categories from DB
+    // Detect what kind of business this is from config signals
+    const hasEshop = (config.products && config.products.length > 0)
+    const contentFocus = config.contentFocus || ""
+    const persona = bv.persona || ""
+    const values = bv.values || []
+
+    // Build business-aware context
+    const businessContext = `
+## CO JE TO ZA ZNAČKU (POCHOP TOHLE NEŽ ZAČNEŠ!)
+Název: "${config.name}"
+Web: ${config.website} | IG: ${config.instagram}
+Zaměření obsahu: ${contentFocus || "Nespecifikováno"}
+
+### Brand persona:
+${persona}
+
+### Brand values:
+${values.join("\n")}
+
+### Stávající produkty/služby:
+${existingProducts}
+${hasEshop ? "\n→ Tato značka MÁ e-shop s fyzickými produkty." : "\n→ Tato značka NEMÁ e-shop — zaměř se na služby, balíčky, zážitky, nebo merch, který dává smysl pro TENTO byznys."}
+`
+
+    // Load dynamic categories from DB (optional — may be empty for non-merch brands)
     const categories = await getProductCategories()
     const categorySection = categories.length > 0
-        ? categories.map(c => `- **${c.label}** (${c.icon}): ${c.material_hint || ""} — ${c.manufacturing_hint || ""}`).join("\n")
-        : "- Jakýkoliv produkt, který jde objednat z Alibaba/1688"
+        ? `\n## DOSTUPNÉ KATEGORIE PRODUKTŮ (volitelné):\n${categories.map(c => `- **${c.label}** (${c.icon}): ${c.material_hint || ""} — ${c.manufacturing_hint || ""}`).join("\n")}`
+        : ""
 
     const randomSeed = Math.floor(Math.random() * 10000)
-    const prompt = `Jsi product designer pro streetwear/lifestyle brand "${config.name}".
-Web: ${config.website} | IG: ${config.instagram}
+    const prompt = `Jsi kreativní product/service designer. Tvůj úkol je navrhnout nové produkty, služby, nebo nabídky pro KONKRÉTNÍ značku.
 
-## BRAND PERSONA
-${bv.persona}
+${businessContext}
 
-## BRAND VALUES
-${bv.values.join("\n")}
-
-## STÁVAJÍCÍ PRODUKTY (TĚMTO SE OBLOUKEM VYHNI)
-${existingProducts}
-
-${theme ? `## TÉMA / INSPIRACE
-${theme}
-` : ""}
-
-## ÚKOL
-Navrhni ${count} NAPROSTO NOVÝCH, NEČEKANÝCH produktů pro brand "${config.name}".
-ZAPOMEŇ na nudný merch. Chceme produkty, které zaujmou na první pohled.
-
-## KATEGORIE PRODUKTŮ (vyber z těchto — jde objednat z Číny za pár korun):
+${theme ? `## TÉMA / INSPIRACE\n${theme}\n` : ""}
 ${categorySection}
 
-## PRAVIDLA (Kriticky důležité pro kreativitu):
-1. **PŘEKVAP NÁS:** NIKDY nevybírej ty nejběžnější předměty (obyčejný bílý hrnek, klíčenka s logem). Když hrnek, tak ve tvaru lebky, objektivu, granátu atd. Když polštář, tak tvarovaný jako kus sushi, bota, disketa atd.
-2. NIKDY se neopakuj v nápadech, každý generátorem spuštěný běh musí přinést úplně jiné kategorie produktů. (Seed této iterace: ${randomSeed})
-3. Každý produkt MUSÍ jít REÁLNĚ objednat z Alibaba/1688 jako hotový polotovar (nevyžaduje R&D).
-4. Cenový rozsah pro zákazníka: 149-699 Kč.
-5. Vtipné názvy s wordplay/dvojsmysly = NUTNOST.
-6. Piš drze, česky, on-brand streetwear humor.
-7. MINIMÁLNĚ 3 z ${count} produktů musí být NON-CLOTHING.
-8. NEDUPLIKUJ stávající produkty!
-9. Anglický designPrompt — popis vizuálu pro AI obrázky MUSÍ BÝT MEGA DETAILNÍ. (VŽDY: "single [product] centered on dark background, product photography, studio lighting...").
-10. U každého produktu specifikuj reálný materiál a potisk (sítotisk, gravírování, sublimace).
+## ÚKOL
+Navrhni ${count} NOVÝCH, KREATIVNÍCH produktů nebo nabídek pro "${config.name}".
+
+## CO "PRODUKT" ZNAMENÁ PRO TENTO BRAND:
+Podle typu byznysu navrhuj RELEVANTNÍ věci:
+
+${hasEshop ? `Tato značka prodává fyzické produkty → navrhuj NOVÉ produkty, limitované edice, bundly, kolekce, seasonal items.
+- Každý produkt MUSÍ jít reálně vyrobit/objednat
+- Buď kreativní — ne jen "další triko", ale unikátní kusy co zaujmou
+- Cenový rozsah konzistentní se stávajícími produkty` : `Tato značka NEPRODÁVÁ fyzické produkty → navrhuj:
+- Speciální balíčky, limitované nabídky, seasonal menu/akce
+- Up-sell a cross-sell příležitosti
+- Zážitkové produkty (workshopy, events, gift cards)
+- Merch POUZE pokud dává smysl pro značku (ne každý potřebuje tričko)
+- Spolupráce s lokálními dodavateli
+- Digitální produkty (e-books, kurzy, membership)`}
+
+## KRITICKÁ PRAVIDLA:
+1. **RELEVANCE:** Každý nápad MUSÍ dávat smysl pro "${config.name}" a její zákazníky. Hotelu nenavrhuj streetwear tričko. Restauraci nenavrhuj klíčenku.
+2. **KREATIVITA:** Překvap — ne očekávatelné nápady. Ale musí to být realistické a realizovatelné.
+3. **SEED:** ${randomSeed} — každé spuštění musí generovat JINÉ nápady.
+4. **NEDUPLIKUJ** stávající produkty/služby!
+5. **NÁZVY:** Kreativní, brandové, zapamatovatelné. Můžou být vtipné pokud to sedí k tónu značky.
+6. **JAZYK:** Piš česky, v tónu odpovídajícím brand voice (viz persona výše).
+7. **designPrompt** = anglický prompt pro AI image generator. Popiš jak produkt/nabídka VYPADÁ vizuálně. Vždy: "product photography, studio lighting, photorealistic, clean background."
+8. **supplierMessage** = anglická zpráva pro dodavatele/partnera — profesionální poptávka. U služeb/zážitků popiš co by dodavatel měl zajistit.
 
 Generuj PŘESNĚ ${count} nápadů.`
 
