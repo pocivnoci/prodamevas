@@ -24,6 +24,8 @@ import {
     removeProductCategory,
 } from "@/app/actions/product-category-actions"
 import { LoadingSpinner } from "./shared"
+import { analyzeProductForBrief } from "@/app/actions/product-brief-actions"
+import { generateProductBriefDOCX } from "@/lib/product-brief-docx"
 
 
 type ProductSection = "ideas" | "design" | "mockup" | "categories"
@@ -108,6 +110,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
     const [productFeedback, setProductFeedback] = useState<Record<string, string>>({})
     const [productRevising, setProductRevising] = useState<Record<string, boolean>>({})
     const [productRevisionDone, setProductRevisionDone] = useState<Record<string, boolean>>({})
+    const [briefGenerating, setBriefGenerating] = useState<string | null>(null)
 
     // Design state
     const [designTheme, setDesignTheme] = useState("")
@@ -722,6 +725,30 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                         >
                                             🎨 Design pro tisk
                                         </button>
+                                        <button
+                                            onClick={async () => {
+                                                setBriefGenerating(idea.name)
+                                                setError(null)
+                                                try {
+                                                    const result = await analyzeProductForBrief(projectId, idea)
+                                                    if (result.success && result.analysis) {
+                                                        await generateProductBriefDOCX(
+                                                            idea,
+                                                            result.analysis,
+                                                            projectId,
+                                                            ideaVisuals[idea.name],
+                                                        )
+                                                    } else {
+                                                        setError(result.error || "Analýza selhala")
+                                                    }
+                                                } catch (err: any) { setError(err.message) }
+                                                finally { setBriefGenerating(null) }
+                                            }}
+                                            disabled={briefGenerating === idea.name}
+                                            className="flex-1 px-3 py-2 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 rounded-sm text-[9px] font-bold uppercase tracking-widest text-violet-400 transition-all disabled:opacity-50 shadow-sm"
+                                        >
+                                            {briefGenerating === idea.name ? "⏳ Brief..." : "📄 Brief"}
+                                        </button>
                                     </div>
                                 </div>
                             ))}
@@ -879,6 +906,33 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                     {visualizingId === `promo_${idea.id}` ? "⏳ Vytvářím..." : "📸 Vytvoř promo post"}
                                                 </button>
                                             )}
+
+                                            {/* Business Brief DOCX */}
+                                            <button
+                                                onClick={async () => {
+                                                    const id = idea.id as string
+                                                    setBriefGenerating(id)
+                                                    setError(null)
+                                                    try {
+                                                        const result = await analyzeProductForBrief(projectId, idea)
+                                                        if (result.success && result.analysis) {
+                                                            await generateProductBriefDOCX(
+                                                                idea,
+                                                                result.analysis,
+                                                                projectId,
+                                                                ideaVisuals[id],
+                                                            )
+                                                        } else {
+                                                            setError(result.error || "Analýza selhala")
+                                                        }
+                                                    } catch (err: any) { setError(err.message) }
+                                                    finally { setBriefGenerating(null) }
+                                                }}
+                                                disabled={briefGenerating === idea.id}
+                                                className="flex-1 px-3 py-2 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 rounded-sm text-[9px] font-bold uppercase tracking-widest text-violet-400 transition-all disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
+                                            >
+                                                {briefGenerating === idea.id ? "⏳ Generuji brief..." : "📄 Business Brief"}
+                                            </button>
                                         </div>
 
                                         {/* Feedback / Revision */}
