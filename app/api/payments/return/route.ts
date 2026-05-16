@@ -1,23 +1,39 @@
 /**
- * GET /api/payments/return
+ * GET /api/payments/return?id=<transId>
  * 
  * User is redirected here after completing payment on Comgate.
- * This is NOT the payment confirmation — that happens via callback.
- * This just shows a "thank you" page or redirects to dashboard.
+ * We verify the actual payment status and redirect to dashboard
+ * with the correct result so UI can show a toast.
  */
 
 import { NextRequest, NextResponse } from "next/server"
+import { getPaymentStatus } from "@/lib/comgate"
 
 export async function GET(req: NextRequest) {
-    const { searchParams } = new URL(req.url)
-    const refId = searchParams.get("refId")
-    const id = searchParams.get("id") // Comgate transId
+    const transId = req.nextUrl.searchParams.get("id")
 
-    // Redirect to dashboard with payment confirmation
-    const redirectUrl = new URL("/dashboard/instagram", req.url)
-    redirectUrl.searchParams.set("tab", "settings")
-    if (id) redirectUrl.searchParams.set("paymentId", id)
-    redirectUrl.searchParams.set("payment", "success")
+    const dashUrl = new URL("/dashboard/instagram", req.url)
 
-    return NextResponse.redirect(redirectUrl)
+    if (!transId) {
+        dashUrl.searchParams.set("payment", "error")
+        return NextResponse.redirect(dashUrl)
+    }
+
+    try {
+        const status = await getPaymentStatus(transId)
+
+        if (status.status === "PAID") {
+            dashUrl.searchParams.set("payment", "success")
+        } else if (status.status === "CANCELLED") {
+            dashUrl.searchParams.set("payment", "cancelled")
+        } else {
+            // PENDING or AUTHORIZED
+            dashUrl.searchParams.set("payment", "pending")
+        }
+    } catch (err) {
+        console.error("Payment return error:", err)
+        dashUrl.searchParams.set("payment", "error")
+    }
+
+    return NextResponse.redirect(dashUrl)
 }

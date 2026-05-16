@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { AdminSidebar } from "./AdminSidebar"
 import { StudioProvider } from "./StudioContext"
 import { ErrorBoundary } from "./ErrorBoundary"
+import { PaywallProvider } from "./PaywallProvider"
 import { checkOnboardingStatus } from "@/app/onboarding/actions"
 
 export const maxDuration = 300 // 5 minutes Vercel Serverless Function timeout
@@ -19,6 +20,7 @@ export default async function DashboardLayout({
 
     return (
         <StudioProvider>
+            <PaywallProvider>
             <div className="min-h-screen bg-aisummit-bg text-aisummit-text selection:bg-aisummit-cinnabar/30 selection:text-white font-sans relative overflow-hidden">
                 {/* Tech-Summit Structural Grid */}
                 <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden transform-gpu">
@@ -37,6 +39,7 @@ export default async function DashboardLayout({
                     </div>
                 </main>
             </div>
+            </PaywallProvider>
         </StudioProvider>
     )
 }
