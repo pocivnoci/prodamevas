@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo } from "@/app/actions/admin-actions"
+import { SubscriptionSection } from "./SubscriptionSection"
 
 export function SettingsTab({ projectId }: { projectId: string }) {
     const [config, setConfig] = useState<any>(null)
@@ -130,6 +131,9 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                     </button>
                 </div>
             </div>
+
+            {/* ── Předplatné & Kredity ── */}
+            <SubscriptionSection projectId={projectId} />
 
             {/* ── Základní informace ── */}
             <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-6 space-y-4">

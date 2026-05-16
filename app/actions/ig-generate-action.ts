@@ -24,6 +24,7 @@ export interface GenerateResult {
 }
 
 import { withRetry } from "@/utils/retry"
+import { creditGuard } from "./credit-guard"
 
 // ============================================
 // SINGLE POST GENERATION
@@ -41,6 +42,7 @@ export async function triggerBatchGeneration(options: {
     dryRun: boolean
     topic?: string
     category?: string
+    projectId?: string
 }): Promise<{
     success: boolean
     generated: number
@@ -48,6 +50,14 @@ export async function triggerBatchGeneration(options: {
     message: string
 }> {
     try {
+        // Credit check: 1 credit per post
+        if (options.projectId && !options.dryRun) {
+            const guard = await creditGuard(options.projectId, "post")
+            if (!guard.ok) {
+                return { success: false, generated: 0, errors: 0, message: guard.error || "Nedostatek kreditů" }
+            }
+        }
+
         await withRetry(
             () => generateBatch({
                 configName: options.configName,
@@ -58,6 +68,14 @@ export async function triggerBatchGeneration(options: {
             1,
             "Batch generation"
         )
+
+        // Deduct credits for each generated post
+        if (options.projectId && !options.dryRun) {
+            for (let i = 0; i < options.count; i++) {
+                const guard = await creditGuard(options.projectId, "post")
+                await guard.commit(`Post batch ${i + 1}/${options.count}`)
+            }
+        }
 
         return {
             success: true,
@@ -139,13 +157,26 @@ export async function triggerAIIdeasGeneration(options: {
     configName: string
     pillarId: string
     count?: number
+    projectId?: string
 }): Promise<{ success: boolean; generatedCount: number; error?: string }> {
     try {
+        // Credit check
+        if (options.projectId) {
+            const guard = await creditGuard(options.projectId, "idea_generate")
+            if (!guard.ok) return { success: false, generatedCount: 0, error: guard.error }
+        }
+
         const { loadConfig } = await import("@/instagram/configs")
         const { generateAIIdeas } = await import("@/instagram/idea-generator")
 
         const config = await loadConfig(options.configName)
         const result = await generateAIIdeas(config, options.pillarId, options.count || 10)
+
+        // Deduct credits after success
+        if (options.projectId) {
+            const guard = await creditGuard(options.projectId, "idea_generate")
+            await guard.commit(`Nápady: ${options.pillarId}`)
+        }
 
         return {
             success: true,

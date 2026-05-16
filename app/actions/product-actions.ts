@@ -15,6 +15,7 @@ import { setActiveProject } from "@/instagram/service"
 export { type ProductIdea, type DesignConcept }
 
 import { withRetry } from "@/utils/retry"
+import { creditGuard } from "./credit-guard"
 
 // ============================================
 // PRODUCT GENERATION ACTIONS
@@ -28,12 +29,19 @@ export async function triggerProductIdeas(options: {
     try {
         const config = await loadConfig(options.configName)
         const clientId = await resolveClientId(options.configName)
+
+        // Credit check
+        const guard = await creditGuard(options.configName, "product_ideas")
+        if (!guard.ok) return { success: false, error: guard.error }
+
         setActiveProject(clientId)
         const ideas = await withRetry(
             () => generateProductIdeas(config, options.count || 5, options.theme || undefined),
             1,
             "Product ideas"
         )
+
+        await guard.commit(`Produktové nápady: ${options.theme || 'auto'}`)
 
         return {
             success: true,
@@ -55,6 +63,10 @@ export async function triggerDesignGeneration(options: {
     overlayText?: string
 }): Promise<{ success: boolean; concept?: DesignConcept; designUrl?: string; error?: string }> {
     try {
+        // Credit check
+        const guard = await creditGuard(options.configName, "product_design")
+        if (!guard.ok) return { success: false, error: guard.error }
+
         const config = await loadConfig(options.configName)
         const clientId = await resolveClientId(options.configName)
         setActiveProject(clientId)
@@ -70,6 +82,8 @@ export async function triggerDesignGeneration(options: {
         if (!result) {
             return { success: false, error: "Design generation returned null" }
         }
+
+        await guard.commit(`Design: ${options.theme}`)
 
         if (options.ideaId && result.designUrl) {
             await supabaseAdmin
@@ -98,6 +112,10 @@ export async function triggerMockupGeneration(options: {
     ideaId?: string
 }): Promise<{ success: boolean; mockupUrl?: string; error?: string }> {
     try {
+        // Credit check
+        const guard = await creditGuard(options.configName, "product_mockup")
+        if (!guard.ok) return { success: false, error: guard.error }
+
         const config = await loadConfig(options.configName)
         const clientId = await resolveClientId(options.configName)
         setActiveProject(clientId)
@@ -115,6 +133,8 @@ export async function triggerMockupGeneration(options: {
         if (!result) {
             return { success: false, error: "Mockup generation returned null" }
         }
+
+        await guard.commit(`Mockup: ${options.productType || 'triko'}`)
 
         if (options.ideaId && result.mockupUrl) {
             await supabaseAdmin

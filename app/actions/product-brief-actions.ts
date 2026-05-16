@@ -3,6 +3,7 @@
 import { loadConfig } from "@/instagram/configs"
 import { generateText } from "@/instagram/gemini-client"
 import { Type } from "@google/genai"
+import { creditGuard } from "./credit-guard"
 
 // ============================================
 // PRODUCT BRIEF — AI Business Analysis
@@ -100,6 +101,10 @@ export async function analyzeProductForBrief(
     }
 ): Promise<{ success: boolean; analysis?: ProductAnalysis; error?: string }> {
     try {
+        // Credit check — brief costs 5 credits
+        const guard = await creditGuard(configName, "product_brief")
+        if (!guard.ok) return { success: false, error: guard.error }
+
         const config = await loadConfig(configName)
 
         const prompt = `Jsi product business analyst. Na základě produktového nápadu vygeneruj DETAILNÍ business analýzu.
@@ -138,6 +143,8 @@ Buď konkrétní, piš čísla, ne vágní odhady.`
 
         const cleanText = result.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim()
         const analysis = JSON.parse(cleanText) as ProductAnalysis
+
+        await guard.commit(`Brief: ${idea.name}`)
 
         return { success: true, analysis }
     } catch (err: any) {
