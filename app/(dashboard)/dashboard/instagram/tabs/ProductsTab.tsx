@@ -154,8 +154,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
 
     const sections: { id: ProductSection; label: string; icon: string }[] = [
         { id: "ideas", label: "Nápady", icon: "💡" },
-        { id: "design", label: "Design", icon: "🎨" },
-        { id: "mockup", label: "Mockup", icon: "👕" },
+        { id: "design", label: "Tvorba designu", icon: "🎨" },
         { id: "categories", label: "Kategorie", icon: "📦" },
     ]
 
@@ -1154,13 +1153,16 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                     <div className="pt-4 border-t border-white/10 space-y-2">
                                         <span className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-2 block">Akce k designu</span>
                                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                            {/* Generate mockup from this design */}
+                                            {/* Generate mockup inline — no tab switch */}
                                             <button
                                                 onClick={() => {
                                                     setMockupDesignUrl(designResult.designUrl)
                                                     setMockupDescription(designResult.concept.description)
                                                     setMockupProductType(designProductType)
-                                                    setSection("mockup")
+                                                    // Scroll to mockup section below
+                                                    setTimeout(() => {
+                                                        document.getElementById('mockup-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                                    }, 50)
                                                 }}
                                                 className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all shadow-sm"
                                             >
@@ -1191,20 +1193,25 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                 </div>
             )}
 
-            {/* ═══ MOCKUP SECTION ═══ */}
-            {section === "mockup" && !loading && (
-                <div className="space-y-6">
+                {/* ═══ MOCKUP — inline below design, shown when design section is active ═══ */}
+            {section === "design" && mockupDesignUrl && !loading && (
+                <div id="mockup-section" className="space-y-6">
                     <div className="bg-[#0f0f0f] border border-white/10 rounded-sm p-8 shadow-lg">
-                        <h3 className="text-2xl font-black uppercase tracking-tighter text-white mb-2">👕 Product Mockup Generator</h3>
-                        <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest mb-6">AI vygeneruje fotorealistický mockup produktu s designem — ideální pro e-shop a Instagram.</p>
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="w-px h-10 bg-aisummit-cinnabar" />
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tighter text-white">👕 Krok 2 — Mockup na produkt</h3>
+                                <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest">AI vloží design na reálný produkt — fotorealistický náhled.</p>
+                            </div>
+                        </div>
 
-                        <div className="mb-4">
+                        <div className="mb-4 mt-6">
                             <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-2 block">Typ produktu</label>
                             <ProductTypeGrid value={mockupProductType} onChange={setMockupProductType} categories={productCategories} />
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                            <div>
+                        <div className="flex gap-4 items-end">
+                            <div className="flex-1">
                                 <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">Popis designu (volitelné)</label>
                                 <input
                                     value={mockupDescription}
@@ -1213,15 +1220,20 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                     className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-medium placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all"
                                 />
                             </div>
+                            <button
+                                onClick={handleGenerateMockup}
+                                disabled={loading}
+                                className="px-6 py-3 bg-aisummit-cinnabar/90 hover:bg-aisummit-cinnabar text-white rounded-sm text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 shadow-sm whitespace-nowrap"
+                            >
+                                📸 Generovat mockup
+                            </button>
                         </div>
 
-                        <button
-                            onClick={handleGenerateMockup}
-                            disabled={loading}
-                            className="w-full sm:w-auto px-6 py-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-sm text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 shadow-sm"
-                        >
-                            📸 Generovat mockup
-                        </button>
+                        {/* Zdrojový design mini preview */}
+                        <div className="flex items-center gap-3 mt-4 pt-4 border-t border-white/5">
+                            <img src={mockupDesignUrl} alt="Source" className="w-10 h-10 rounded-sm border border-white/10 object-cover" />
+                            <span className="text-[9px] text-white/30 font-bold uppercase tracking-widest">Zdrojový design</span>
+                        </div>
                     </div>
 
                     {/* Mockup result */}
@@ -1256,7 +1268,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                     </a>
                                 </div>
                             </div>
-                            
+
                             <div className="mt-4 pt-4 border-t border-white/10 text-center">
                                 <button
                                     onClick={() => handleCreatePromoPostFromDesign(mockupUrl, "Product Mockup", "Fotorealistický mockup produktu")}
@@ -1265,17 +1277,6 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                 >
                                     {creatingPromoPost ? "⏳ Vytvářím..." : "📸 Vytvoř Promo Post s tímto Mockupem"}
                                 </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Show design reference if available */}
-                    {mockupDesignUrl && (
-                        <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-5 shadow-inner">
-                            <span className="text-[9px] font-bold uppercase tracking-widest text-white/40">Zdrojový design</span>
-                            <div className="flex items-center gap-4 mt-3">
-                                <img src={mockupDesignUrl} alt="Source design" className="w-16 h-16 rounded-sm border border-white/10 object-cover shadow-sm" />
-                                <code className="text-[10px] text-white/50 tracking-wide font-mono break-all">{mockupDesignUrl}</code>
                             </div>
                         </div>
                     )}
