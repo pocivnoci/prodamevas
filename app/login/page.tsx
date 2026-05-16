@@ -46,7 +46,7 @@ export default async function LoginPage(props: {
                             name="email"
                             type="email"
                             required
-                            placeholder="tym@prodamevas.cz"
+                            placeholder="tym@chrlit.cz"
                             className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/50 transition-all font-inter text-sm"
                         />
                     </div>

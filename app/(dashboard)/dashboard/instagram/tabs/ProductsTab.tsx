@@ -358,14 +358,14 @@ export function ProductsTab({ projectId }: { projectId: string }) {
             if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
                 await navigator.share({
                     title: title,
-                    text: 'Koukni na tenhle AI design z ProdámeVás Studia!',
+                    text: 'Koukni na tenhle AI design z Chrlit Studia!',
                     files: [file],
                 });
             } else if (navigator.share) {
                 // Fallback k URL
                 await navigator.share({
                     title: title,
-                    text: 'Koukni na tenhle AI design z ProdámeVás Studia!',
+                    text: 'Koukni na tenhle AI design z Chrlit Studia!',
                     url: imageUrl
                 });
             } else {

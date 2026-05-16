@@ -14,7 +14,7 @@ export default function PrivacyPage() {
                 <div className="prose prose-invert max-w-none space-y-10 text-white/70 text-sm leading-relaxed">
                     <section>
                         <h2 className="text-lg font-black uppercase tracking-widest text-white mb-4">1. Správce údajů</h2>
-                        <p>Správcem osobních údajů je ProdámeVás.cz (dále jen „Správce"). Kontaktní e-mail pro záležitosti ochrany osobních údajů: info@prodamevas.cz</p>
+                        <p>Správcem osobních údajů je Chrlit.cz (dále jen „Správce"). Kontaktní e-mail pro záležitosti ochrany osobních údajů: info@chrlit.cz</p>
                     </section>
 
                     <section>
@@ -30,7 +30,7 @@ export default function PrivacyPage() {
                     <section>
                         <h2 className="text-lg font-black uppercase tracking-widest text-white mb-4">3. Účel zpracování</h2>
                         <ul className="list-disc list-inside space-y-2 text-white/60">
-                            <li>Poskytování a provoz služby ProdámeVás</li>
+                            <li>Poskytování a provoz služby Chrlit</li>
                             <li>Autentizace a zabezpečení uživatelského účtu</li>
                             <li>Zlepšování kvality služby a uživatelského zážitku</li>
                             <li>Komunikace s uživatelem (technické notifikace, změny podmínek)</li>
@@ -83,7 +83,7 @@ export default function PrivacyPage() {
                             <li><strong className="text-white/80">Právo na přenositelnost</strong> — export dat ve strojově čitelném formátu</li>
                             <li><strong className="text-white/80">Právo vznést námitku</strong> — proti zpracování na základě oprávněného zájmu</li>
                         </ul>
-                        <p className="mt-3">Pro uplatnění svých práv nás kontaktujte na info@prodamevas.cz.</p>
+                        <p className="mt-3">Pro uplatnění svých práv nás kontaktujte na info@chrlit.cz.</p>
                     </section>
 
                     <section>
@@ -98,7 +98,7 @@ export default function PrivacyPage() {
                 </div>
 
                 <div className="mt-16 pt-8 border-t border-white/10 text-[9px] text-white/20 font-bold uppercase tracking-widest">
-                    © 2026 ProdámeVás.cz — Všechna práva vyhrazena
+                    © 2026 Chrlit.cz — Všechna práva vyhrazena
                 </div>
             </div>
         </div>

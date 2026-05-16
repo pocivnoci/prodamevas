@@ -8,20 +8,20 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "ProdámeVás — AI Autopilot pro Instagram | Automatizace obsahu",
+  title: "Chrlit — AI Autopilot pro Instagram | Chrlíme obsah, ale kvalitní",
   description: "Vygenerujte měsíc Instagram obsahu za 2 minuty. AI analyzuje váš brand, vytvoří captiony, obrázky i reels. Pro e-shopy, freelancery a agentury.",
-  keywords: ["instagram autopilot", "AI obsah", "generování postů", "automatizace sociálních sítí", "content marketing", "AI marketing"],
+  keywords: ["instagram autopilot", "AI obsah", "generování postů", "automatizace sociálních sítí", "content marketing", "AI marketing", "chrlit"],
   openGraph: {
-    title: "ProdámeVás — AI Autopilot pro Instagram",
+    title: "Chrlit — AI Autopilot pro Instagram",
     description: "Vygenerujte měsíc Instagram obsahu za 2 minuty. AI captiony, obrázky, reels.",
-    url: "https://prodamevas.vercel.app",
-    siteName: "ProdámeVás",
+    url: "https://chrlit.cz",
+    siteName: "Chrlit",
     locale: "cs_CZ",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "ProdámeVás — AI Autopilot pro Instagram",
+    title: "Chrlit — AI Autopilot pro Instagram",
     description: "Vygenerujte měsíc Instagram obsahu za 2 minuty.",
   },
   robots: { index: true, follow: true },

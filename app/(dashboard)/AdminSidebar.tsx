@@ -115,7 +115,7 @@ export function AdminSidebar() {
                             <LogoPV className="relative z-10 text-white w-6 h-6 group-hover:scale-110 transition-transform" />
                         </div>
                         <div>
-                            <h2 className="text-white font-black tracking-tighter text-lg uppercase">Prodáme<span className="text-aisummit-cinnabar">Vás</span></h2>
+                            <h2 className="text-white font-black tracking-tighter text-lg uppercase">Chr<span className="text-aisummit-cinnabar">lit</span></h2>
                             <p className="text-[8px] text-white/30 font-bold tracking-[0.2em] uppercase">Studio</p>
                         </div>
                     </div>

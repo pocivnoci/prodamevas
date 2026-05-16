@@ -40,7 +40,7 @@ export default function Home() {
             <div className="relative w-8 h-8 bg-aisummit-cinnabar rounded-sm flex items-center justify-center">
               <LogoPV className="text-white w-5 h-5" />
             </div>
-            <span className="font-black tracking-tighter text-lg uppercase">Prodáme<span className="text-aisummit-cinnabar">Vás</span> <span className="text-white/30 text-xs font-mono ml-2 tracking-widest hidden sm:inline">STUDIO</span></span>
+            <span className="font-black tracking-tighter text-lg uppercase">Chr<span className="text-aisummit-cinnabar">lit</span> <span className="text-white/30 text-xs font-mono ml-2 tracking-widest hidden sm:inline">STUDIO</span></span>
           </div>
           
           <div className="flex items-center gap-6">
@@ -193,7 +193,7 @@ export default function Home() {
       <section id="features" className="relative z-10 max-w-7xl mx-auto px-6 py-32">
         <div className="mb-20 text-center max-w-3xl mx-auto">
           <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-6 text-white uppercase">Ukaž, nestřílej <br /><span className="text-white/30">naslepo.</span></h2>
-          <p className="text-white/50 font-medium text-lg">Zahodili jsme složité nástroje. ProdámeVás je postavené na jedné věci: generování prémiových výsledků, které nevypadají jako od AI.</p>
+          <p className="text-white/50 font-medium text-lg">Zahodili jsme složité nástroje. Chrlit je postavený na jedné věci: chrlí prémiový obsah, který nevypadá jako od AI.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:auto-rows-[320px]">
@@ -294,7 +294,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 relative z-10">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Investice do <br /><span className="text-aisummit-cinnabar">růstu.</span></h2>
-            <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Kolik stojí social media manažer? 25 000 Kč měsíčně. Kolik stojí ProdámeVás? Zlomek.</p>
+            <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Kolik stojí social media manažer? 25 000 Kč měsíčně. Kolik stojí Chrlit? Zlomek.</p>
             <div className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-sm border border-emerald-500/30 bg-emerald-500/10 backdrop-blur-sm">
               <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>
               <span className="text-emerald-400 text-sm font-black">Kreditový systém — platíte jen za to, co skutečně použijete</span>
@@ -563,7 +563,7 @@ export default function Home() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-6 pt-10 mt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center text-[9px] text-white/20 font-bold tracking-[0.2em] uppercase">
-          <p>© 2026 ProdámeVás.cz</p>
+          <p>© 2026 Chrlit.cz</p>
           <div className="mt-2 md:mt-0">Tech-Summit Edition _0.2</div>
         </div>
       </footer>

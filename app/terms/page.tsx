@@ -14,13 +14,13 @@ export default function TermsPage() {
                 <div className="prose prose-invert max-w-none space-y-10 text-white/70 text-sm leading-relaxed">
                     <section>
                         <h2 className="text-lg font-black uppercase tracking-widest text-white mb-4">1. Úvodní ustanovení</h2>
-                        <p>Tyto obchodní podmínky (dále jen „Podmínky") upravují práva a povinnosti mezi provozovatelem platformy ProdámeVás (dále jen „Provozovatel") a uživatelem služby (dále jen „Uživatel").</p>
-                        <p className="mt-3">Provozovatelem je ProdámeVás.cz. Platforma je poskytována jako služba (SaaS) prostřednictvím webové aplikace na adrese prodamevas.vercel.app.</p>
+                        <p>Tyto obchodní podmínky (dále jen „Podmínky") upravují práva a povinnosti mezi provozovatelem platformy Chrlit (dále jen „Provozovatel") a uživatelem služby (dále jen „Uživatel").</p>
+                        <p className="mt-3">Provozovatelem je Chrlit.cz. Platforma je poskytována jako služba (SaaS) prostřednictvím webové aplikace na adrese chrlit.cz.</p>
                     </section>
 
                     <section>
                         <h2 className="text-lg font-black uppercase tracking-widest text-white mb-4">2. Popis služby</h2>
-                        <p>ProdámeVás je AI-powered platforma pro automatizované generování obsahu pro sociální sítě. Služba využívá modely Google Gemini a Imagen k vytváření textového a vizuálního obsahu na základě konfigurace značky uživatele.</p>
+                        <p>Chrlit je AI-powered platforma pro automatizované generování obsahu pro sociální sítě. Služba využívá modely Google Gemini a Imagen k vytváření textového a vizuálního obsahu na základě konfigurace značky uživatele.</p>
                         <p className="mt-3">Služba zahrnuje:</p>
                         <ul className="list-disc list-inside space-y-2 mt-3 text-white/60">
                             <li>Automatickou analýzu webu a brandingu</li>
@@ -57,7 +57,7 @@ export default function TermsPage() {
 
                     <section>
                         <h2 className="text-lg font-black uppercase tracking-widest text-white mb-4">7. Zkušební období</h2>
-                        <p>Nově registrovaní uživatelé mají nárok na 14denní bezplatné zkušební období placeného plánu. Po uplynutí zkušebního období bude účet automaticky převeden na bezplatný plán, pokud uživatel nezadá platební údaje.</p>
+                        <p>Nově registrovaní uživatelé mají nárok na 7denní bezplatné zkušební období placeného plánu. Po uplynutí zkušebního období bude účet automaticky převeden na bezplatný plán, pokud uživatel nezadá platební údaje.</p>
                     </section>
 
                     <section>
@@ -68,7 +68,7 @@ export default function TermsPage() {
                 </div>
 
                 <div className="mt-16 pt-8 border-t border-white/10 text-[9px] text-white/20 font-bold uppercase tracking-widest">
-                    © 2026 ProdámeVás.cz — Všechna práva vyhrazena
+                    © 2026 Chrlit.cz — Všechna práva vyhrazena
                 </div>
             </div>
         </div>

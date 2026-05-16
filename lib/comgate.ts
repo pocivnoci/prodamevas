@@ -20,8 +20,8 @@
  * 1. Spustit migraci v Supabase: supabase/migrations/20260515_payments.sql
  * 2. V Comgate portálu (https://portal.comgate.cz) získat MERCHANT_ID a SECRET
  * 3. Vyplnit env vars: COMGATE_MERCHANT_ID, COMGATE_SECRET (v .env.local + Vercel)
- * 4. V Comgate portálu nastavit callback URL: https://prodamevas.vercel.app/api/payments/callback
- * 5. V Comgate portálu nastavit return URL:   https://prodamevas.vercel.app/api/payments/return
+ * 4. V Comgate portálu nastavit callback URL: https://chrlit.cz/api/payments/callback
+ * 5. V Comgate portálu nastavit return URL:   https://chrlit.cz/api/payments/return
  * 6. Přepnout COMGATE_TEST="false" až půjde do produkce
  * 7. Vytvořit pricing UI stránku (výběr plánu → platba)
  * ────────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ function authHeader(merchant: string, secret: string): string {
 // ─── Types ───────────────────────────────────────────────────────────
 
 export interface CreatePaymentParams {
-    /** Our internal reference ID (e.g. "sub-prodamevas-1715790000") */
+    /** Our internal reference ID (e.g. "sub-chrlit-1715790000") */
     refId: string
     /** Amount in smallest currency unit (haléře/cents) */
     price: number

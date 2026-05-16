@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
                 .single()
             if (link) {
                 const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(link.user_id)
-                payerEmail = user?.email || "unknown@prodamevas.cz"
+                payerEmail = user?.email || "unknown@chrlit.cz"
             }
         }
 
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
             price: plan.price_czk,
             curr: "CZK",
             label: label.substring(0, 40), // Comgate label max ~40 chars
-            email: payerEmail || "noreply@prodamevas.cz",
+            email: payerEmail || "noreply@chrlit.cz",
         })
 
         if (!comgateResult.transId || !comgateResult.redirect) {
