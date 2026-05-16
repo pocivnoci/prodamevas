@@ -3,6 +3,54 @@
 -- Run: supabase db push or paste into Supabase SQL editor
 -- ═══════════════════════════════════════════════════════════════
 
+-- 0. Create billing tables if they don't exist yet
+CREATE TABLE IF NOT EXISTS subscription_plans (
+  id text PRIMARY KEY,
+  name text NOT NULL,
+  description text,
+  price_czk integer NOT NULL,
+  price_eur integer,
+  interval text NOT NULL DEFAULT 'month',
+  features jsonb DEFAULT '[]'::jsonb,
+  post_limit integer,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id uuid REFERENCES clients(id) ON DELETE CASCADE NOT NULL,
+  plan_id text REFERENCES subscription_plans(id) NOT NULL,
+  status text NOT NULL DEFAULT 'pending',
+  current_period_start timestamptz,
+  current_period_end timestamptz,
+  cancelled_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS payments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id uuid REFERENCES clients(id) ON DELETE CASCADE NOT NULL,
+  subscription_id uuid REFERENCES subscriptions(id) ON DELETE SET NULL,
+  comgate_trans_id text UNIQUE,
+  ref_id text NOT NULL,
+  amount integer NOT NULL,
+  currency text NOT NULL DEFAULT 'CZK',
+  status text NOT NULL DEFAULT 'PENDING',
+  payment_method text,
+  label text,
+  payer_email text,
+  comgate_response jsonb,
+  paid_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE subscription_plans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+
 -- 1. Clear old plans (if any)
 DELETE FROM subscription_plans;
 
