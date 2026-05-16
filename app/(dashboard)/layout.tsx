@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { AdminSidebar } from "./AdminSidebar"
 import { StudioProvider } from "./StudioContext"
+import { ErrorBoundary } from "./ErrorBoundary"
 import { checkOnboardingStatus } from "@/app/onboarding/actions"
 
 export const maxDuration = 300 // 5 minutes Vercel Serverless Function timeout
@@ -30,7 +31,9 @@ export default async function DashboardLayout({
 
                 <main className="lg:pl-72 min-h-screen relative z-10 transition-all duration-300">
                     <div className="p-4 sm:p-6 lg:p-10 mb-20 max-w-7xl mx-auto">
-                        {children}
+                        <ErrorBoundary>
+                            {children}
+                        </ErrorBoundary>
                     </div>
                 </main>
             </div>

@@ -92,8 +92,8 @@ export default function Home() {
               </div>
 
               <div className="mt-8 flex items-center gap-6 text-[9px] font-bold uppercase tracking-widest text-white/30">
-                <div className="flex items-center gap-2"><CheckCircle2 className="w-3 h-3 text-emerald-500" /> 14 Dní Zdarma</div>
-                <div className="flex items-center gap-2"><CheckCircle2 className="w-3 h-3 text-emerald-500" /> Žádná karta</div>
+                <div className="flex items-center gap-2"><CheckCircle2 className="w-3 h-3 text-emerald-500" /> 7 Dní Trial Zdarma</div>
+                <div className="flex items-center gap-2"><CheckCircle2 className="w-3 h-3 text-emerald-500" /> Bez kreditky</div>
               </div>
             </motion.div>
 
@@ -292,113 +292,228 @@ export default function Home() {
       <section id="pricing" className="relative py-32 border-t border-white/5 bg-[#050505]">
         <div className="absolute top-0 left-1/2 w-[800px] h-[400px] bg-aisummit-cinnabar/5 blur-[150px] rounded-full pointer-events-none" style={{ transform: 'translateX(-50%)' }} />
         <div className="max-w-7xl mx-auto px-6 relative z-10">
-          <div className="text-center mb-20">
+          <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Investice do <br /><span className="text-aisummit-cinnabar">růstu.</span></h2>
             <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Kolik stojí social media manažer? 25 000 Kč měsíčně. Kolik stojí ProdámeVás? Zlomek.</p>
-            <div className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-sm border border-aisummit-cinnabar/30 bg-aisummit-cinnabar/10 backdrop-blur-sm">
-              <span className="text-aisummit-cinnabar text-sm font-black">Kvalitní příspěvek na Instagram již od 50 Kč</span>
+            <div className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-sm border border-emerald-500/30 bg-emerald-500/10 backdrop-blur-sm">
+              <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>
+              <span className="text-emerald-400 text-sm font-black">Kreditový systém — platíte jen za to, co skutečně použijete</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto items-stretch">
-            {/* Start Plan */}
-            <div className="rounded-sm border border-white/10 bg-[#0a0a0a] p-8 flex flex-col relative overflow-hidden group hover:border-white/20 transition-all">
-              <div className="mb-8">
-                <h3 className="text-xl font-black uppercase tracking-widest text-white mb-2">Start</h3>
-                <p className="text-white/40 text-xs font-medium">Vyzkoušejte si sílu AI obsahu</p>
+          {/* Plan cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 max-w-7xl mx-auto items-stretch">
+
+            {/* ─── STARTER ─── */}
+            <div className="rounded-sm border border-white/10 bg-[#0a0a0a] p-6 flex flex-col relative overflow-hidden group hover:border-white/20 transition-all">
+              <div className="mb-6">
+                <h3 className="text-lg font-black uppercase tracking-widest text-white mb-1">Starter</h3>
+                <p className="text-white/40 text-[10px] font-medium">Pro začínající tvůrce</p>
               </div>
-              <div className="mb-8">
-                <span className="text-5xl font-black text-white">Zdarma</span>
+              <div className="mb-1">
+                <span className="text-4xl font-black text-white">490</span>
+                <span className="text-white/40 text-sm font-black ml-1">Kč</span>
               </div>
-              <ul className="space-y-3 mb-10 flex-1">
+              <p className="text-white/30 text-[10px] font-bold mb-6">měsíčně · bez závazku</p>
+              <div className="bg-white/5 rounded-sm px-3 py-2 mb-6 border border-white/5">
+                <span className="text-white font-black text-sm">20</span>
+                <span className="text-white/40 text-[10px] font-bold ml-1">kreditů/měs</span>
+                <span className="text-white/20 text-[9px] block">~24 Kč/kredit</span>
+              </div>
+              <ul className="space-y-2.5 mb-8 flex-1">
                 {[
-                  "1 projekt / značka",
-                  "5 postů měsíčně",
-                  "AI captiony a hashtagy",
-                  "Základní obrázky",
-                  "Textový overlay na posty",
+                  { t: "1 projekt", on: true },
+                  { t: "Posty s AI obrázky", on: true },
+                  { t: "AI captiony + hashtagy", on: true },
+                  { t: "Základní analytika", on: true },
+                  { t: "Varianty příspěvků", on: false },
+                  { t: "Produktový pipeline", on: false },
                 ].map((f, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm text-white/50">
-                    <CheckCircle2 className="w-4 h-4 text-white/20 shrink-0" />
-                    {f}
+                  <li key={i} className={`flex items-center gap-2.5 text-xs ${f.on ? 'text-white/60' : 'text-white/20 line-through'}`}>
+                    <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${f.on ? 'text-white/30' : 'text-white/10'}`} />
+                    {f.t}
                   </li>
                 ))}
               </ul>
-              <Link href="/register" className="block text-center py-3.5 px-6 rounded-sm border border-white/15 text-white/60 font-bold text-xs uppercase tracking-widest hover:bg-white/5 hover:text-white transition-all">
-                Vytvořit účet
+              <Link href="/register" className="block text-center py-3 px-4 rounded-sm border border-white/15 text-white/60 font-bold text-[10px] uppercase tracking-widest hover:bg-white/5 hover:text-white transition-all">
+                Začít
               </Link>
             </div>
 
-            {/* Business Plan — FEATURED */}
-            <div className="rounded-sm border-2 border-aisummit-cinnabar bg-[#0a0a0a] p-8 flex flex-col relative overflow-hidden group scale-[1.03] shadow-[0_0_60px_rgba(230,57,70,0.15)]">
-              <div className="absolute top-0 right-0 bg-aisummit-cinnabar text-white text-[9px] font-black uppercase tracking-widest px-4 py-1.5">Nejoblíbenější</div>
+            {/* ─── CREATOR ─── */}
+            <div className="rounded-sm border border-white/10 bg-[#0a0a0a] p-6 flex flex-col relative overflow-hidden group hover:border-white/20 transition-all">
+              <div className="mb-6">
+                <h3 className="text-lg font-black uppercase tracking-widest text-white mb-1">Creator</h3>
+                <p className="text-white/40 text-[10px] font-medium">Pro freelancery a kreativce</p>
+              </div>
+              <div className="mb-1">
+                <span className="text-4xl font-black text-white">990</span>
+                <span className="text-white/40 text-sm font-black ml-1">Kč</span>
+              </div>
+              <p className="text-white/30 text-[10px] font-bold mb-6">měsíčně · bez závazku</p>
+              <div className="bg-white/5 rounded-sm px-3 py-2 mb-6 border border-white/5">
+                <span className="text-white font-black text-sm">50</span>
+                <span className="text-white/40 text-[10px] font-bold ml-1">kreditů/měs</span>
+                <span className="text-white/20 text-[9px] block">~20 Kč/kredit · dobíjecí 5 Kč/ks</span>
+              </div>
+              <ul className="space-y-2.5 mb-8 flex-1">
+                {[
+                  { t: "2 projekty", on: true },
+                  { t: "Vše ze Starter", on: true },
+                  { t: "Varianty příspěvků", on: true },
+                  { t: "Produktové nápady AI", on: true },
+                  { t: "Dobíjecí kredity", on: true },
+                  { t: "Design + Mockupy", on: false },
+                ].map((f, i) => (
+                  <li key={i} className={`flex items-center gap-2.5 text-xs ${f.on ? 'text-white/60' : 'text-white/20 line-through'}`}>
+                    <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${f.on ? 'text-amber-500/60' : 'text-white/10'}`} />
+                    {f.t}
+                  </li>
+                ))}
+              </ul>
+              <Link href="/register" className="block text-center py-3 px-4 rounded-sm border border-white/15 text-white/60 font-bold text-[10px] uppercase tracking-widest hover:bg-white/5 hover:text-white transition-all">
+                Začít tvořit
+              </Link>
+            </div>
+
+            {/* ─── BUSINESS (FEATURED) ─── */}
+            <div className="rounded-sm border-2 border-aisummit-cinnabar bg-[#0a0a0a] p-6 flex flex-col relative overflow-hidden group sm:scale-[1.03] shadow-[0_0_60px_rgba(230,57,70,0.15)]">
+              <div className="absolute top-0 right-0 bg-aisummit-cinnabar text-white text-[8px] font-black uppercase tracking-widest px-3 py-1">Nejoblíbenější</div>
               <div className="absolute inset-0 bg-gradient-to-b from-aisummit-cinnabar/5 via-transparent to-transparent pointer-events-none" />
-              <div className="relative z-10 mb-8">
-                <h3 className="text-xl font-black uppercase tracking-widest text-white mb-2">Business</h3>
-                <p className="text-white/40 text-xs font-medium">Pro firmy a freelancery</p>
+              <div className="relative z-10 mb-6">
+                <h3 className="text-lg font-black uppercase tracking-widest text-white mb-1">Business</h3>
+                <p className="text-white/40 text-[10px] font-medium">Pro firmy — plný pipeline</p>
               </div>
-              <div className="relative z-10 mb-2">
-                <span className="text-5xl font-black text-white">1 490</span>
-                <span className="text-white/40 text-lg font-black ml-1">Kč</span>
+              <div className="relative z-10 mb-1">
+                <span className="text-4xl font-black text-white">1 890</span>
+                <span className="text-white/40 text-sm font-black ml-1">Kč</span>
               </div>
-              <p className="text-white/30 text-xs font-bold mb-8">měsíčně · bez závazku</p>
-              <ul className="space-y-3 mb-10 flex-1 relative z-10">
+              <p className="text-white/30 text-[10px] font-bold mb-6">měsíčně · bez závazku</p>
+              <div className="relative z-10 bg-aisummit-cinnabar/10 rounded-sm px-3 py-2 mb-6 border border-aisummit-cinnabar/20">
+                <span className="text-white font-black text-sm">120</span>
+                <span className="text-white/60 text-[10px] font-bold ml-1">kreditů/měs</span>
+                <span className="text-white/30 text-[9px] block">~16 Kč/kredit · dobíjecí 4 Kč/ks</span>
+              </div>
+              <ul className="space-y-2.5 mb-8 flex-1 relative z-10">
                 {[
-                  "3 projekty / značky",
-                  "60 postů měsíčně",
-                  "Prémiové AI obrázky (Imagen 4)",
-                  "Produktový generátor + mockupy",
-                  "Performance analytika",
-                  "AI generátor nápadů a recenzí",
-                  "Prioritní e-mail podpora",
+                  { t: "5 projektů" },
+                  { t: "Vše z Creator" },
+                  { t: "Design pro tisk + Mockupy" },
+                  { t: "Vizualizace produktů" },
+                  { t: "Business Brief PDF" },
+                  { t: "Plná analytika" },
                 ].map((f, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm text-white/80">
-                    <CheckCircle2 className="w-4 h-4 text-aisummit-cinnabar shrink-0" />
-                    {f}
+                  <li key={i} className="flex items-center gap-2.5 text-xs text-white/80">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-aisummit-cinnabar shrink-0" />
+                    {f.t}
                   </li>
                 ))}
               </ul>
-              <Link href="/register" className="relative z-10 block text-center py-3.5 px-6 rounded-sm bg-aisummit-cinnabar text-white font-bold text-xs uppercase tracking-widest hover:bg-aisummit-cinnabar/90 transition-all shadow-[0_0_25px_rgba(230,57,70,0.4)]">
-                Vyzkoušet 14 dní zdarma
+              <Link href="/register" className="relative z-10 block text-center py-3 px-4 rounded-sm bg-aisummit-cinnabar text-white font-bold text-[10px] uppercase tracking-widest hover:bg-aisummit-cinnabar/90 transition-all shadow-[0_0_25px_rgba(230,57,70,0.4)]">
+                Vyzkoušet 7 dní zdarma
               </Link>
             </div>
 
-            {/* Agency Plan */}
-            <div className="rounded-sm border border-white/10 bg-[#0a0a0a] p-8 flex flex-col relative overflow-hidden group hover:border-emerald-500/30 transition-all">
-              <div className="absolute top-0 right-0 bg-emerald-500/10 text-emerald-400 text-[9px] font-black uppercase tracking-widest px-4 py-1.5 border-l border-b border-emerald-500/20">Pro agentury</div>
-              <div className="mb-8">
-                <h3 className="text-xl font-black uppercase tracking-widest text-white mb-2">Agency</h3>
-                <p className="text-white/40 text-xs font-medium">Pro marketingové agentury a týmy</p>
+            {/* ─── PRO ─── */}
+            <div className="rounded-sm border border-white/10 bg-[#0a0a0a] p-6 flex flex-col relative overflow-hidden group hover:border-white/20 transition-all">
+              <div className="mb-6">
+                <h3 className="text-lg font-black uppercase tracking-widest text-white mb-1">Pro</h3>
+                <p className="text-white/40 text-[10px] font-medium">Maximální objem + priorita</p>
               </div>
-              <div className="mb-2">
-                <span className="text-5xl font-black text-white">3 990</span>
-                <span className="text-white/40 text-lg font-black ml-1">Kč</span>
+              <div className="mb-1">
+                <span className="text-4xl font-black text-white">3 790</span>
+                <span className="text-white/40 text-sm font-black ml-1">Kč</span>
               </div>
-              <p className="text-white/30 text-xs font-bold mb-8">měsíčně · bez závazku</p>
-              <ul className="space-y-3 mb-10 flex-1">
+              <p className="text-white/30 text-[10px] font-bold mb-6">měsíčně · bez závazku</p>
+              <div className="bg-white/5 rounded-sm px-3 py-2 mb-6 border border-white/5">
+                <span className="text-white font-black text-sm">260</span>
+                <span className="text-white/40 text-[10px] font-bold ml-1">kreditů/měs</span>
+                <span className="text-white/20 text-[9px] block">~15 Kč/kredit · dobíjecí 3.5 Kč/ks</span>
+              </div>
+              <ul className="space-y-2.5 mb-8 flex-1">
                 {[
-                  "Neomezené projekty",
-                  "Neomezené posty",
-                  "Vše z Business plánu",
-                  "Video Reels (Veo 3.1)",
-                  "White-label branding",
-                  "Onboarding konzultace",
-                  "Přednostní podpora do 4h",
+                  { t: "10 projektů" },
+                  { t: "Vše z Business" },
+                  { t: "Prioritní generování ⚡" },
+                  { t: "260 kreditů měsíčně" },
+                  { t: "Nejlevnější dobíjecí kredity" },
                 ].map((f, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm text-white/60">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                    {f}
+                  <li key={i} className="flex items-center gap-2.5 text-xs text-white/60">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-400/60 shrink-0" />
+                    {f.t}
                   </li>
                 ))}
               </ul>
-              <Link href="/register" className="block text-center py-3.5 px-6 rounded-sm border border-emerald-500/30 text-emerald-400 font-bold text-xs uppercase tracking-widest hover:bg-emerald-500/10 hover:text-emerald-300 transition-all">
-                Začít s Agency plánem
+              <Link href="/register" className="block text-center py-3 px-4 rounded-sm border border-white/15 text-white/60 font-bold text-[10px] uppercase tracking-widest hover:bg-white/5 hover:text-white transition-all">
+                Začít s Pro
               </Link>
+            </div>
+
+            {/* ─── AGENCY ─── */}
+            <div className="rounded-sm border border-white/10 bg-[#0a0a0a] p-6 flex flex-col relative overflow-hidden group hover:border-emerald-500/30 transition-all">
+              <div className="absolute top-0 right-0 bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase tracking-widest px-3 py-1 border-l border-b border-emerald-500/20">Agentury</div>
+              <div className="mb-6">
+                <h3 className="text-lg font-black uppercase tracking-widest text-white mb-1">Agency</h3>
+                <p className="text-white/40 text-[10px] font-medium">Pro agentury a velké týmy</p>
+              </div>
+              <div className="mb-1">
+                <span className="text-4xl font-black text-white">7 990</span>
+                <span className="text-white/40 text-sm font-black ml-1">Kč</span>
+              </div>
+              <p className="text-white/30 text-[10px] font-bold mb-6">měsíčně · bez závazku</p>
+              <div className="bg-emerald-500/5 rounded-sm px-3 py-2 mb-6 border border-emerald-500/10">
+                <span className="text-white font-black text-sm">600</span>
+                <span className="text-white/40 text-[10px] font-bold ml-1">kreditů/měs</span>
+                <span className="text-white/20 text-[9px] block">~13 Kč/kredit · dobíjecí 3 Kč/ks</span>
+              </div>
+              <ul className="space-y-2.5 mb-8 flex-1">
+                {[
+                  { t: "25 projektů" },
+                  { t: "Vše z Pro" },
+                  { t: "600 kreditů měsíčně" },
+                  { t: "Prioritní generování ⚡" },
+                  { t: "Přednostní podpora do 4h" },
+                ].map((f, i) => (
+                  <li key={i} className="flex items-center gap-2.5 text-xs text-white/60">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    {f.t}
+                  </li>
+                ))}
+              </ul>
+              <Link href="/register" className="block text-center py-3 px-4 rounded-sm border border-emerald-500/30 text-emerald-400 font-bold text-[10px] uppercase tracking-widest hover:bg-emerald-500/10 hover:text-emerald-300 transition-all">
+                Začít s Agency
+              </Link>
+            </div>
+
+          </div>
+
+          {/* Credit costs table */}
+          <div className="mt-16 max-w-3xl mx-auto">
+            <h3 className="text-center text-sm font-black uppercase tracking-widest text-white/40 mb-6">Kolik stojí jednotlivé AI akce</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { icon: "📸", label: "Post", credits: "1 kredit" },
+                { icon: "🔄", label: "Varianta", credits: "1 kredit" },
+                { icon: "💡", label: "Nápady", credits: "2 kredity" },
+                { icon: "🎨", label: "Vizualizace", credits: "2 kredity" },
+                { icon: "👕", label: "Design", credits: "3 kredity" },
+                { icon: "📦", label: "Mockup", credits: "2 kredity" },
+                { icon: "📄", label: "Business Brief", credits: "5 kreditů" },
+                { icon: "💡", label: "Nápady na posty", credits: "1 kredit" },
+              ].map((a, i) => (
+                <div key={i} className="bg-[#0a0a0a] border border-white/5 rounded-sm px-3 py-2.5 flex items-center gap-2.5">
+                  <span className="text-base">{a.icon}</span>
+                  <div>
+                    <span className="text-[10px] text-white/50 font-bold block">{a.label}</span>
+                    <span className="text-[10px] text-aisummit-cinnabar font-black">{a.credits}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
           {/* Trust line */}
-          <p className="text-center mt-12 text-[9px] text-white/25 font-bold uppercase tracking-widest">Všechny plány včetně 14denní záruky vrácení peněz · Zrušit kdykoliv · Fakturace měsíčně</p>
+          <p className="text-center mt-12 text-[9px] text-white/25 font-bold uppercase tracking-widest">7 dní trial zdarma · Zrušit kdykoliv · Bez kreditky na trial · Fakturace měsíčně</p>
         </div>
       </section>
 
@@ -415,7 +530,7 @@ export default function Home() {
             <ArrowRight className="w-4 h-4 ml-3 group-hover:translate-x-1 transition-transform" />
           </Link>
           
-          <p className="mt-6 text-[9px] uppercase tracking-widest font-bold text-white/30">14 dní zdarma. Žádná kreditka. Možnost zrušit kdykoliv.</p>
+          <p className="mt-6 text-[9px] uppercase tracking-widest font-bold text-white/30">7 dní zdarma. Žádná kreditka. Zrušit kdykoliv.</p>
         </div>
       </section>
 
