@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { motion } from "framer-motion"
-import { getIGPostsList, updateIGPostStatus, deleteIGPost, revisePost } from "@/app/actions/admin-actions"
+import { getIGPostsList, updateIGPostStatus, deleteIGPost, revisePost, generatePostVariant } from "@/app/actions/admin-actions"
 import { LoadingSpinner, StatusBadge, PillarBadge, CopyButton, MetricsInputForm } from "./shared"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPost } from "./types"
@@ -186,6 +186,8 @@ function PostDetailModal({
     const [feedbackText, setFeedbackText] = useState("")
     const [revising, setRevising] = useState(false)
     const [revisionResult, setRevisionResult] = useState<{ success: boolean; newPostId?: string; error?: string } | null>(null)
+    const [generatingVariant, setGeneratingVariant] = useState(false)
+    const [variantResult, setVariantResult] = useState<{ success: boolean; newPostId?: string; error?: string } | null>(null)
 
     // Lock ALL scroll containers when modal is open
     useEffect(() => {
@@ -482,6 +484,30 @@ function PostDetailModal({
                         >
                             📦 Archivovat
                         </button>
+                    )}
+
+                    {/* Generate Variant */}
+                    <button
+                        onClick={async () => {
+                            setGeneratingVariant(true)
+                            setVariantResult(null)
+                            const result = await generatePostVariant(post.id, projectId)
+                            setVariantResult(result)
+                            setGeneratingVariant(false)
+                        }}
+                        disabled={generatingVariant}
+                        className={`px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all border ${
+                            generatingVariant
+                                ? "bg-violet-500/10 text-violet-300 border-violet-500/20 animate-pulse cursor-not-allowed"
+                                : variantResult?.success
+                                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                    : "bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 border-violet-500/20"
+                        }`}
+                    >
+                        {generatingVariant ? "⏳ Generuji..." : variantResult?.success ? "✅ Varianta vytvořena" : "🔄 Varianta"}
+                    </button>
+                    {variantResult?.error && (
+                        <span className="text-[9px] text-red-400">{variantResult.error.substring(0, 60)}</span>
                     )}
 
                     {/* Delete */}

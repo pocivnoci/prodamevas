@@ -1006,3 +1006,71 @@ Vrať PŘESNĚ tento JSON (nic jiného):
     }
 }
 
+// ─── Post Variant Generation ─────────────────────────────────
+/**
+ * Generate a variant of an existing post — same topic, different angle/hook/image.
+ * Creates a new draft post linked to the original via variant_of field.
+ */
+export async function generatePostVariant(
+    postId: string,
+    projectSlug: string
+): Promise<{ success: boolean; newPostId?: string; error?: string }> {
+    try {
+        // 1. Load original post
+        const { data: original, error: fetchErr } = await supabaseAdmin
+            .from("ig_posts")
+            .select("*, ig_post_types(name, display_name)")
+            .eq("id", postId)
+            .single()
+
+        if (fetchErr || !original) throw new Error("Post nenalezen")
+
+        // 2. Extract topic from caption (hook + first paragraph)
+        const captionLines = (original.caption || "").split("\n").filter(Boolean)
+        const hook = captionLines[0] || ""
+        const body = captionLines.slice(1, 3).join(" ").substring(0, 200)
+        const topicSummary = body ? `${hook} — ${body}` : hook
+
+        // 3. Build a topic instruction that tells AI "same topic, different everything else"
+        const variantTopic = `VARIANTA existujícího příspěvku. Stejné TÉMA ale ÚPLNĚ jiný úhel, hook a vizuál.
+
+PŮVODNÍ PŘÍSPĚVEK (NEOPAKUJ!):
+"${topicSummary}"
+
+PRAVIDLA PRO VARIANTU:
+- Stejné téma/produkt jako originál
+- ÚPLNĚ jiný hook (jiná emoce, jiný formát)
+- Jiný vizuální styl pro obrázek
+- Jiné CTA
+- Můžeš rozvinout jiný aspekt toho samého tématu`
+
+        const postTypeName = original.ig_post_types?.name || undefined
+
+        // 4. Generate via autopilot
+        const { generateOnePost } = await import("@/instagram/autopilot")
+        const { setActiveProject } = await import("@/instagram/service")
+        const { resolveClientId } = await import("@/instagram/configs")
+        const clientId = await resolveClientId(projectSlug)
+        setActiveProject(clientId)
+
+        const result = await generateOnePost({
+            configName: projectSlug,
+            topic: variantTopic,
+            type: postTypeName,
+        })
+
+        if (result.id) {
+            // Mark as variant
+            await supabaseAdmin
+                .from("ig_posts")
+                .update({ revision_of: postId })
+                .eq("id", result.id)
+        }
+
+        console.log(`✅ Varianta vygenerována: ${postId} → ${result.id}`)
+        return { success: true, newPostId: result.id }
+    } catch (err: any) {
+        console.error("generatePostVariant error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}
