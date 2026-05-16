@@ -164,10 +164,16 @@ export async function generateOnePost(options: {
         }
     }
 
-    // 3. Get recent captions for dedup
+    // 3. Get recent captions for dedup — include hook + body summary (not just hooks!)
     const recentPosts = await getRecentPosts(30)
     const recentHooks = recentPosts
-        .map(p => p.caption?.split("\n")[0]?.substring(0, 80) || "")
+        .map(p => {
+            if (!p.caption) return ""
+            const lines = p.caption.split("\n").filter(Boolean)
+            const hook = lines[0]?.substring(0, 80) || ""
+            const body = lines.slice(1).join(" ").substring(0, 120)
+            return body ? `${hook} — ${body}` : hook
+        })
         .filter(Boolean)
 
     // 4. Get performance data

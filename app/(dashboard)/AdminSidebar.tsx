@@ -35,6 +35,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Tvořit",
         items: [
             { id: "generate", label: "Generovat", icon: "🚀" },
+            { id: "products", label: "Produkty", icon: "🛍️" },
             { id: "ideas", label: "Nápady", icon: "💡" },
         ],
     },
@@ -43,7 +44,6 @@ const NAV_GROUPS: NavGroup[] = [
         items: [
             { id: "reviews", label: "Recenze", icon: "⭐" },
             { id: "brand", label: "Brand fotky", icon: "🖼️" },
-            { id: "products", label: "Produkty", icon: "🛍️" },
         ],
     },
     {

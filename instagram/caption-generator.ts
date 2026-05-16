@@ -410,8 +410,16 @@ ${(() => {
 ${(pillarCTAs || []).map((c: string) => `- ${c}`).join("\n")}`
         })()}
 
-## ⚠️ NEOPAKUJ SE! Tyto hooky už byly použity:
-${recentCaptions.map((c, i) => `${i + 1}. "${c}"`).join("\n")}
+## ⚠️ NEOPAKUJ SE! Tyto příspěvky (včetně draftů) už existují — NESMÍŠ opakovat stejné TÉMA ani stejný HOOK:
+${recentCaptions.map((c, i) => {
+    // Show hook + body summary so AI sees the full topic, not just the hook
+    return `${i + 1}. "${c}"`
+}).join("\n")}
+
+### PRAVIDLA DEDUPLIKACE:
+- Pokud existující post mluví o konkrétním místě/faktu (např. "Česká Kamenice"), NESMÍŠ o tom samém místě/faktu psát znovu
+- Pokud existující post používá stejný formát (např. "POV:", "3 důvody proč..."), použij JINÝ formát
+- Pokud existující posty pokrývají určitá témata, přijď s ÚPLNĚ jiným úhlem pohledu
 
 ${postFormat.medium === "reel" ? `
 ## 🎬 REELS VIDEO
