@@ -13,24 +13,47 @@ import { createPayment, generateRefId } from "@/lib/comgate"
 
 export async function POST(req: NextRequest) {
     try {
-        const { clientSlug, planId, email } = await req.json()
+        const body = await req.json()
+        const { clientSlug, clientId, planId, email } = body
 
-        if (!clientSlug || !planId || !email) {
+        if (!planId || (!clientSlug && !clientId)) {
             return NextResponse.json(
-                { error: "Missing required fields: clientSlug, planId, email" },
+                { error: "Missing required fields: planId and (clientSlug or clientId)" },
                 { status: 400 }
             )
         }
 
-        // 1. Resolve client
-        const { data: client } = await supabaseAdmin
+        // 1. Resolve client (by slug or UUID)
+        let clientQuery = supabaseAdmin
             .from("clients")
             .select("id, slug, name")
-            .eq("slug", clientSlug)
-            .single()
+
+        if (clientId) {
+            clientQuery = clientQuery.eq("id", clientId)
+        } else {
+            clientQuery = clientQuery.eq("slug", clientSlug)
+        }
+
+        const { data: client } = await clientQuery.single()
 
         if (!client) {
             return NextResponse.json({ error: "Client not found" }, { status: 404 })
+        }
+
+        // Get payer email from user_clients → auth.users if not provided
+        let payerEmail = email
+        if (!payerEmail) {
+            const { data: link } = await supabaseAdmin
+                .from("user_clients")
+                .select("user_id")
+                .eq("client_id", client.id)
+                .eq("role", "owner")
+                .limit(1)
+                .single()
+            if (link) {
+                const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(link.user_id)
+                payerEmail = user?.email || "unknown@prodamevas.cz"
+            }
         }
 
         // 2. Get plan
@@ -54,7 +77,7 @@ export async function POST(req: NextRequest) {
             price: plan.price_czk,
             curr: "CZK",
             label: label.substring(0, 40), // Comgate label max ~40 chars
-            email,
+            email: payerEmail || "noreply@prodamevas.cz",
         })
 
         if (!comgateResult.transId || !comgateResult.redirect) {
@@ -84,7 +107,7 @@ export async function POST(req: NextRequest) {
                 currency: "CZK",
                 status: "PENDING",
                 label,
-                payer_email: email,
+                payer_email: payerEmail,
                 comgate_response: comgateResult,
             })
 
@@ -94,6 +117,7 @@ export async function POST(req: NextRequest) {
             success: true,
             transId: comgateResult.transId,
             redirect: comgateResult.redirect,
+            redirectUrl: comgateResult.redirect, // alias for frontend
         })
     } catch (err: any) {
         console.error("Payment create error:", err?.message || err)
