@@ -25,7 +25,7 @@ import {
 } from "@/app/actions/product-category-actions"
 import { LoadingSpinner } from "./shared"
 import { analyzeProductForBrief } from "@/app/actions/product-brief-actions"
-import { generateProductBriefDOCX } from "@/lib/product-brief-docx"
+import { generateProductBriefPDF } from "@/lib/product-brief-docx"
 
 
 type ProductSection = "ideas" | "design" | "mockup" | "categories"
@@ -731,7 +731,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                 try {
                                                     const result = await analyzeProductForBrief(projectId, idea)
                                                     if (result.success && result.analysis) {
-                                                        await generateProductBriefDOCX(
+                                                        generateProductBriefPDF(
                                                             idea,
                                                             result.analysis,
                                                             projectId,
@@ -915,7 +915,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                     try {
                                                         const result = await analyzeProductForBrief(projectId, idea)
                                                         if (result.success && result.analysis) {
-                                                            await generateProductBriefDOCX(
+                                                            generateProductBriefPDF(
                                                                 idea,
                                                                 result.analysis,
                                                                 projectId,

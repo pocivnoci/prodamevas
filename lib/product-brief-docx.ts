@@ -1,32 +1,17 @@
 /**
- * Product Brief DOCX Generator
- * =============================
- * Generates a professional .docx document from a ProductIdea + AI business analysis.
- * Runs entirely client-side using the `docx` npm package.
+ * Product Brief PDF Generator
+ * ============================
+ * Generates a professional product brief as styled HTML, opens it in
+ * a new browser tab, and triggers the browser's print dialog (Save as PDF).
+ *
+ * Why this approach:
+ * - Czech characters work perfectly (browser rendering)
+ * - Tables render correctly everywhere
+ * - Professional CSS print styling
+ * - Zero external dependencies
+ * - Works on all browsers
  */
 
-import {
-    Document,
-    Packer,
-    Paragraph,
-    TextRun,
-    Table,
-    TableRow,
-    TableCell,
-    WidthType,
-    AlignmentType,
-    BorderStyle,
-    HeadingLevel,
-    ShadingType,
-    ImageRun,
-    PageBreak,
-    Header,
-    Footer,
-    TabStopType,
-    TabStopPosition,
-    convertInchesToTwip,
-} from "docx"
-import { saveAs } from "file-saver"
 import type { ProductAnalysis } from "@/app/actions/product-brief-actions"
 
 interface ProductIdeaInput {
@@ -46,636 +31,402 @@ interface ProductIdeaInput {
     supplierMessage: string
 }
 
-// ─── Colors ──────────────────────────────────────────────────
-const C = {
-    brand: "E5534F",       // cinnabar
-    dark: "1A1A1A",
-    medium: "333333",
-    light: "666666",
-    muted: "999999",
-    bg: "F7F7F7",
-    bgAlt: "EFEFEF",
-    white: "FFFFFF",
-    border: "D0D0D0",
-    borderLight: "E5E5E5",
-    green: "2E7D32",
-    amber: "E65100",
-    red: "C62828",
-}
-
-// ─── Reusable builders ──────────────────────────────────────
-
-const CELL_MARGIN = {
-    top: convertInchesToTwip(0.06),
-    bottom: convertInchesToTwip(0.06),
-    left: convertInchesToTwip(0.12),
-    right: convertInchesToTwip(0.12),
-}
-
-const TABLE_BORDER = {
-    style: BorderStyle.SINGLE,
-    size: 1,
-    color: C.border,
-}
-
-const TABLE_BORDERS = {
-    top: TABLE_BORDER,
-    bottom: TABLE_BORDER,
-    left: TABLE_BORDER,
-    right: TABLE_BORDER,
-}
-
-function sectionTitle(text: string): Paragraph {
-    return new Paragraph({
-        spacing: { before: 360, after: 160 },
-        children: [
-            new TextRun({ text, bold: true, size: 28, font: "Calibri", color: C.dark }),
-        ],
-    })
-}
-
-function subTitle(text: string): Paragraph {
-    return new Paragraph({
-        spacing: { before: 240, after: 100 },
-        children: [
-            new TextRun({ text, bold: true, size: 22, font: "Calibri", color: C.medium }),
-        ],
-    })
-}
-
-function bodyText(text: string): Paragraph {
-    return new Paragraph({
-        spacing: { after: 100 },
-        children: [new TextRun({ text, size: 20, font: "Calibri", color: C.medium })],
-    })
-}
-
-function labelValueRow(label: string, value: string): Paragraph {
-    return new Paragraph({
-        spacing: { after: 60 },
-        children: [
-            new TextRun({ text: `${label}:  `, bold: true, size: 20, font: "Calibri", color: C.dark }),
-            new TextRun({ text: value, size: 20, font: "Calibri", color: C.medium }),
-        ],
-    })
-}
-
-function bulletPoint(text: string, color = C.medium): Paragraph {
-    return new Paragraph({
-        bullet: { level: 0 },
-        spacing: { after: 50 },
-        children: [new TextRun({ text, size: 20, font: "Calibri", color })],
-    })
-}
-
-function spacer(pts = 100): Paragraph {
-    return new Paragraph({ spacing: { before: pts }, children: [] })
-}
-
-function dividerLine(): Paragraph {
-    return new Paragraph({
-        spacing: { before: 200, after: 200 },
-        border: { bottom: { style: BorderStyle.SINGLE, size: 2, color: C.borderLight } },
-        children: [],
-    })
-}
-
-function numberedItem(num: number, text: string): Paragraph {
-    return new Paragraph({
-        spacing: { after: 60 },
-        children: [
-            new TextRun({ text: `${num}. `, bold: true, size: 20, font: "Calibri", color: C.brand }),
-            new TextRun({ text, size: 20, font: "Calibri", color: C.medium }),
-        ],
-    })
-}
-
-// ─── Professional table (DXA widths for Pages compatibility) ─
-
-// A4 content area with 0.9" margins = ~9300 twips
-const CONTENT_WIDTH = 9300
-
-function proTable(headers: string[], rows: string[][], widthPercents?: number[]): Table {
-    const colCount = headers.length
-    const defaultPct = Math.floor(100 / colCount)
-    const colWidths = headers.map((_, i) => Math.floor(CONTENT_WIDTH * ((widthPercents?.[i] ?? defaultPct) / 100)))
-
-    return new Table({
-        width: { size: CONTENT_WIDTH, type: WidthType.DXA },
-        rows: [
-            // Header row
-            new TableRow({
-                tableHeader: true,
-                children: headers.map((h, i) => new TableCell({
-                    borders: TABLE_BORDERS,
-                    shading: { type: ShadingType.SOLID, color: C.dark },
-                    margins: CELL_MARGIN,
-                    width: { size: colWidths[i], type: WidthType.DXA },
-                    children: [new Paragraph({
-                        spacing: { before: 40, after: 40 },
-                        children: [new TextRun({
-                            text: h.toUpperCase(),
-                            bold: true,
-                            size: 17,
-                            font: "Calibri",
-                            color: C.white,
-                        })],
-                    })],
-                })),
-            }),
-            // Data rows with alternating background
-            ...rows.map((row, rowIdx) => new TableRow({
-                children: row.map((cell, i) => new TableCell({
-                    borders: TABLE_BORDERS,
-                    shading: { type: ShadingType.SOLID, color: rowIdx % 2 === 0 ? C.white : C.bg },
-                    margins: CELL_MARGIN,
-                    width: { size: colWidths[i], type: WidthType.DXA },
-                    children: [new Paragraph({
-                        spacing: { before: 30, after: 30 },
-                        children: [new TextRun({
-                            text: cell,
-                            size: 19,
-                            font: "Calibri",
-                            color: i === 0 ? C.dark : C.medium,
-                            bold: i === 0,
-                        })],
-                    })],
-                })),
-            })),
-        ],
-    })
-}
-
-// ─── Accent table (colored first column) ─────────────────────
-
-function accentTable(rows: [string, string, string, string][], _headerColor: string): Table {
-    const headers = ["Scénář", "Prodané ks", "Tržby", "Čistý zisk"]
-    const colWidths = [3255, 1860, 2046, 2139] // sum = 9300
-
-    return new Table({
-        width: { size: CONTENT_WIDTH, type: WidthType.DXA },
-        rows: [
-            new TableRow({
-                tableHeader: true,
-                children: headers.map((h, i) => new TableCell({
-                    borders: TABLE_BORDERS,
-                    shading: { type: ShadingType.SOLID, color: C.dark },
-                    margins: CELL_MARGIN,
-                    width: { size: colWidths[i], type: WidthType.DXA },
-                    children: [new Paragraph({
-                        spacing: { before: 40, after: 40 },
-                        children: [new TextRun({ text: h.toUpperCase(), bold: true, size: 17, font: "Calibri", color: C.white })],
-                    })],
-                })),
-            }),
-            ...rows.map((row, rowIdx) => {
-                const colors = [C.red, C.amber, C.green]
-                return new TableRow({
-                    children: row.map((cell, i) => new TableCell({
-                        borders: TABLE_BORDERS,
-                        shading: { type: ShadingType.SOLID, color: rowIdx % 2 === 0 ? C.white : C.bg },
-                        margins: CELL_MARGIN,
-                        width: { size: colWidths[i], type: WidthType.DXA },
-                        children: [new Paragraph({
-                            spacing: { before: 30, after: 30 },
-                            children: [new TextRun({
-                                text: cell,
-                                size: 19,
-                                font: "Calibri",
-                                color: i === 0 ? colors[rowIdx] || C.dark : C.medium,
-                                bold: i === 0 || i === 3,
-                            })],
-                        })],
-                    })),
-                })
-            }),
-        ],
-    })
-}
-
-// ─── Image fetcher ───────────────────────────────────────────
-
-async function fetchImage(url: string, maxWidth = 420, maxHeight = 420): Promise<ImageRun | null> {
-    try {
-        const res = await fetch(url)
-        if (!res.ok) return null
-        const blob = await res.blob()
-        const buffer = await blob.arrayBuffer()
-
-        // Try to detect actual dimensions from the image
-        // For now use reasonable defaults
-        return new ImageRun({
-            data: buffer,
-            transformation: { width: maxWidth, height: maxHeight },
-            type: "png",
-        })
-    } catch {
-        return null
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// MAIN GENERATOR
-// ═══════════════════════════════════════════════════════════════
-
-export async function generateProductBriefDOCX(
+export function generateProductBriefPDF(
     idea: ProductIdeaInput,
     analysis: ProductAnalysis,
     brandName: string,
     visualUrl?: string,
-): Promise<void> {
+): void {
     const now = new Date().toLocaleDateString("cs-CZ", {
         year: "numeric",
         month: "long",
         day: "numeric",
     })
 
-    // Fetch product image
-    const imageRun = visualUrl ? await fetchImage(visualUrl, 380, 380) : null
+    const html = `<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<title>Product Brief — ${esc(idea.name)}</title>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
-    const content: (Paragraph | Table)[] = []
-
-    // ═══════════════════════════════════════════════════════════
-    // PAGE 1: COVER
-    // ═══════════════════════════════════════════════════════════
-
-    content.push(
-        spacer(600),
-        // Brand
-        new Paragraph({
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 60 },
-            children: [new TextRun({
-                text: brandName.toUpperCase(),
-                size: 22,
-                font: "Calibri",
-                bold: true,
-                color: C.muted,
-                characterSpacing: 200,
-            })],
-        }),
-        // Title
-        new Paragraph({
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 40 },
-            children: [new TextRun({
-                text: "PRODUCT BRIEF",
-                size: 56,
-                font: "Calibri",
-                bold: true,
-                color: C.dark,
-            })],
-        }),
-        // Decorative line
-        new Paragraph({
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 120 },
-            children: [new TextRun({
-                text: "━━━━━━━━━━━━━━━━━━━",
-                size: 20,
-                color: C.brand,
-            })],
-        }),
-        // Product name
-        new Paragraph({
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 80 },
-            children: [new TextRun({
-                text: idea.name,
-                size: 40,
-                font: "Calibri",
-                bold: true,
-                color: C.brand,
-            })],
-        }),
-        // Tagline
-        new Paragraph({
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 200 },
-            children: [new TextRun({
-                text: `„${idea.tagline}"`,
-                size: 24,
-                font: "Calibri",
-                italics: true,
-                color: C.light,
-            })],
-        }),
-    )
-
-    // Product image on cover
-    if (imageRun) {
-        content.push(
-            new Paragraph({
-                alignment: AlignmentType.CENTER,
-                spacing: { after: 200 },
-                children: [imageRun],
-            }),
-        )
+    :root {
+        --brand: #E5534F;
+        --dark: #1a1a1a;
+        --medium: #333;
+        --light: #666;
+        --muted: #999;
+        --bg: #f7f7f7;
+        --border: #e0e0e0;
+        --white: #fff;
     }
 
-    // Type badge + date
-    content.push(
-        new Paragraph({
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 60 },
-            children: [new TextRun({
-                text: idea.type.toUpperCase(),
-                size: 18,
-                font: "Calibri",
-                bold: true,
-                color: C.white,
-                shading: { type: ShadingType.SOLID, color: C.brand },
-            })],
-        }),
-        spacer(200),
-        new Paragraph({
-            alignment: AlignmentType.CENTER,
-            children: [new TextRun({
-                text: `Vytvořeno: ${now}`,
-                size: 18,
-                font: "Calibri",
-                color: C.muted,
-            })],
-        }),
-        // Page break
-        new Paragraph({ children: [new PageBreak()] }),
-    )
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    // ═══════════════════════════════════════════════════════════
-    // PAGE 2: PŘEHLED PRODUKTU
-    // ═══════════════════════════════════════════════════════════
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        color: var(--medium);
+        font-size: 11pt;
+        line-height: 1.5;
+        background: white;
+    }
 
-    content.push(
-        sectionTitle("1  PŘEHLED PRODUKTU"),
-        bodyText(idea.description),
-        spacer(80),
-        proTable(
-            ["Vlastnost", "Hodnota"],
-            [
-                ["Typ produktu", idea.type],
-                ["Materiál", idea.material],
-                ["Rozměry", idea.dimensions],
-                ["Výrobní metoda", idea.manufacturingMethod],
-                ["Cenový rozsah", idea.priceRange],
-            ],
-            [40, 60],
-        ),
-    )
+    @page {
+        size: A4;
+        margin: 20mm 18mm 18mm 18mm;
+    }
 
-    // Production notes
-    content.push(
-        spacer(80),
-        subTitle("Produkční poznámky"),
-        bodyText(idea.productionNotes),
-    )
+    @media print {
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .no-print { display: none !important; }
+        .page-break { page-break-before: always; }
+    }
 
-    // ─── Branding Names ──────────────────────────────────────
-    content.push(
-        dividerLine(),
-        sectionTitle("2  BRANDING & NAMING"),
-        bodyText("Navrhované varianty názvu pro různé kontexty (e-shop, IG, balení):"),
-        spacer(40),
-    )
-    idea.brandingNames.forEach((name, i) => {
-        content.push(numberedItem(i + 1, name))
-    })
+    /* ─── Print button ─── */
+    .print-bar {
+        position: fixed; top: 0; left: 0; right: 0;
+        background: var(--dark); color: white;
+        padding: 12px 24px; display: flex; align-items: center; gap: 16px;
+        z-index: 1000; font-size: 13px;
+    }
+    .print-bar button {
+        background: var(--brand); color: white; border: none;
+        padding: 8px 24px; border-radius: 6px; font-weight: 700;
+        cursor: pointer; font-size: 13px;
+    }
+    .print-bar button:hover { opacity: 0.9; }
 
-    // ─── Product Variants ────────────────────────────────────
-    content.push(
-        dividerLine(),
-        sectionTitle("3  VARIANTY PRODUKTU"),
-        bodyText("Barevné, materiálové a designové varianty:"),
-        spacer(40),
-    )
-    idea.variants.forEach(v => content.push(bulletPoint(v)))
+    .container { max-width: 210mm; margin: 0 auto; padding: 60px 0 0 0; }
 
-    // Page break
-    content.push(new Paragraph({ children: [new PageBreak()] }))
+    @media print { .container { padding: 0; max-width: none; } }
 
-    // ═══════════════════════════════════════════════════════════
-    // PAGE 3: BUSINESS ANALÝZA
-    // ═══════════════════════════════════════════════════════════
+    /* ─── Cover ─── */
+    .cover {
+        display: flex; flex-direction: column; align-items: center;
+        justify-content: center; min-height: 90vh; text-align: center;
+        padding: 60px 40px;
+    }
+    .cover-brand {
+        font-size: 11pt; font-weight: 700; letter-spacing: 6px;
+        color: var(--muted); text-transform: uppercase; margin-bottom: 16px;
+    }
+    .cover-title {
+        font-size: 36pt; font-weight: 900; color: var(--dark);
+        letter-spacing: -1px; margin-bottom: 8px;
+    }
+    .cover-line {
+        width: 120px; height: 3px; background: var(--brand);
+        margin: 16px auto 24px;
+    }
+    .cover-product {
+        font-size: 22pt; font-weight: 800; color: var(--brand);
+        margin-bottom: 8px;
+    }
+    .cover-tagline {
+        font-size: 13pt; font-style: italic; color: var(--light);
+        margin-bottom: 32px;
+    }
+    .cover-image {
+        max-width: 340px; max-height: 340px; border-radius: 8px;
+        margin-bottom: 32px; box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    .cover-badge {
+        display: inline-block; background: var(--brand); color: white;
+        padding: 4px 16px; border-radius: 4px; font-size: 9pt;
+        font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+        margin-bottom: 24px;
+    }
+    .cover-date { font-size: 9pt; color: var(--muted); }
 
-    content.push(
-        sectionTitle("4  BUSINESS ANALÝZA"),
-        subTitle("Pricing, náklady & marže"),
-        spacer(40),
-        proTable(
-            ["Parametr", "Hodnota"],
-            [
-                ["Odhadovaná cena za kus (sourcing)", analysis.estimatedUnitCost],
-                ["Doporučená prodejní cena", analysis.recommendedRetailPrice],
-                ["Marže na kus", analysis.marginPerUnit],
-                ["Procentuální marže", analysis.marginPercent],
-                ["MOQ od dodavatele", analysis.moqRecommendation],
-                ["Doporučená 1. objednávka", analysis.firstBatchSize],
-                ["Náklady 1. várky", analysis.firstBatchCost],
-                ["Break-even (bod zvratu)", analysis.breakEvenUnits],
-                ["Čas od objednávky po prodej", analysis.timeline],
-            ],
-            [55, 45],
-        ),
-    )
+    /* ─── Sections ─── */
+    .section { margin-bottom: 32px; }
 
-    // ─── Revenue Scenarios ───────────────────────────────────
-    content.push(
-        dividerLine(),
-        sectionTitle("5  SCÉNÁŘE VÝDĚLKU  (3 měsíce)"),
-        spacer(40),
-        accentTable(
-            [
-                ["Pesimistický",  analysis.revenueScenarios.pessimistic.units,  analysis.revenueScenarios.pessimistic.revenue,  analysis.revenueScenarios.pessimistic.profit],
-                ["Realistický",   analysis.revenueScenarios.realistic.units,    analysis.revenueScenarios.realistic.revenue,    analysis.revenueScenarios.realistic.profit],
-                ["Optimistický",  analysis.revenueScenarios.optimistic.units,   analysis.revenueScenarios.optimistic.revenue,   analysis.revenueScenarios.optimistic.profit],
-            ],
-            C.brand,
-        ),
-    )
+    h2 {
+        font-size: 16pt; font-weight: 800; color: var(--dark);
+        border-bottom: 2px solid var(--brand); padding-bottom: 6px;
+        margin-bottom: 16px; letter-spacing: -0.3px;
+    }
+    h3 {
+        font-size: 12pt; font-weight: 700; color: var(--dark);
+        margin-bottom: 8px; margin-top: 20px;
+    }
+    p { margin-bottom: 10px; }
 
-    // Page break
-    content.push(new Paragraph({ children: [new PageBreak()] }))
+    .label-value { margin-bottom: 4px; }
+    .label-value strong { color: var(--dark); }
 
-    // ═══════════════════════════════════════════════════════════
-    // PAGE 4: MARKETING
-    // ═══════════════════════════════════════════════════════════
+    /* ─── Tables ─── */
+    table {
+        width: 100%; border-collapse: collapse; margin: 12px 0 20px;
+        font-size: 10pt;
+    }
+    th {
+        background: var(--dark); color: white; text-align: left;
+        padding: 8px 12px; font-weight: 700; font-size: 8pt;
+        letter-spacing: 1.5px; text-transform: uppercase;
+    }
+    td {
+        padding: 7px 12px; border-bottom: 1px solid var(--border);
+    }
+    tr:nth-child(even) td { background: var(--bg); }
+    td:first-child { font-weight: 600; color: var(--dark); }
 
-    content.push(
-        sectionTitle("6  MARKETING & CÍLOVÁ SKUPINA"),
-        subTitle("Cílová skupina"),
-        bodyText(analysis.targetAudience),
-        spacer(80),
-        subTitle("Analýza konkurence"),
-        bodyText(analysis.competitorAnalysis),
-        spacer(80),
-        subTitle("Virální potenciál"),
-        bodyText(idea.viralAngle),
-        spacer(80),
-        subTitle("Proč to bude fungovat"),
-        bodyText(idea.whyItWorks),
-    )
+    /* ─── Scenario colors ─── */
+    .scenario-pessimistic td:first-child { color: #C62828; }
+    .scenario-realistic td:first-child { color: #E65100; }
+    .scenario-optimistic td:first-child { color: #2E7D32; }
+    .scenario-pessimistic td:last-child,
+    .scenario-realistic td:last-child,
+    .scenario-optimistic td:last-child { font-weight: 700; }
 
-    // ─── Launch Strategy ─────────────────────────────────────
-    content.push(
-        dividerLine(),
-        sectionTitle("7  LAUNCH STRATEGIE"),
-        spacer(40),
-    )
-    analysis.launchStrategy.forEach((step, i) => {
-        content.push(numberedItem(i + 1, step))
-    })
+    /* ─── Lists ─── */
+    .numbered-list { list-style: none; padding: 0; counter-reset: item; }
+    .numbered-list li {
+        counter-increment: item; padding: 4px 0 4px 28px;
+        position: relative;
+    }
+    .numbered-list li::before {
+        content: counter(item) ".";
+        position: absolute; left: 0; font-weight: 800;
+        color: var(--brand); width: 22px;
+    }
+    ul.clean { list-style: none; padding: 0; }
+    ul.clean li { padding: 3px 0 3px 20px; position: relative; }
+    ul.clean li::before {
+        content: "→"; position: absolute; left: 0; color: var(--brand);
+        font-weight: 700;
+    }
+    ul.risk-list { list-style: none; padding: 0; }
+    ul.risk-list li {
+        padding: 6px 0 6px 24px; position: relative;
+        border-left: 3px solid #FFA726; margin-bottom: 6px;
+        background: #FFF8E1; padding-left: 12px; border-radius: 0 4px 4px 0;
+    }
 
-    // ─── Risks ───────────────────────────────────────────────
-    content.push(
-        dividerLine(),
-        sectionTitle("8  RIZIKA & MITIGACE"),
-        spacer(40),
-    )
-    analysis.risks.forEach(risk => {
-        content.push(bulletPoint(`⚠  ${risk}`, C.dark))
-    })
+    /* ─── Supplier box ─── */
+    .supplier-box {
+        background: var(--bg); border-top: 3px solid var(--brand);
+        border-radius: 0 0 6px 6px; padding: 20px 24px; margin-top: 12px;
+        font-size: 10pt; line-height: 1.7;
+    }
+    .supplier-box .label {
+        font-size: 8pt; font-weight: 700; letter-spacing: 2px;
+        color: var(--brand); text-transform: uppercase; margin-bottom: 8px;
+    }
 
-    // Page break
-    content.push(new Paragraph({ children: [new PageBreak()] }))
+    /* ─── Footer ─── */
+    .page-footer {
+        text-align: center; font-size: 8pt; color: var(--muted);
+        padding-top: 24px; margin-top: 40px;
+        border-top: 1px solid var(--border);
+        letter-spacing: 2px; text-transform: uppercase;
+    }
 
-    // ═══════════════════════════════════════════════════════════
-    // PAGE 5: SUPPLIER MESSAGE
-    // ═══════════════════════════════════════════════════════════
+    /* ─── Header ─── */
+    .page-header {
+        text-align: right; font-size: 7pt; color: var(--muted);
+        letter-spacing: 1.5px; text-transform: uppercase;
+        margin-bottom: 20px; padding-bottom: 8px;
+        border-bottom: 1px solid var(--border);
+    }
+</style>
+</head>
+<body>
 
-    content.push(
-        sectionTitle("9  ZPRÁVA PRO DODAVATELE"),
-        bodyText("Hotová anglická zpráva připravená k odeslání na Alibaba / Made-in-China:"),
-        spacer(80),
-    )
+<!-- Print button (hidden when printing) -->
+<div class="print-bar no-print">
+    <button onclick="window.print()">📄 Uložit jako PDF</button>
+    <span>Otevře se dialogové okno — zvol „Uložit jako PDF"</span>
+</div>
 
-    // Supplier message in a styled box (using a single-cell table as a "box")
-    content.push(
-        new Table({
-            width: { size: CONTENT_WIDTH, type: WidthType.DXA },
-            rows: [new TableRow({
-                children: [new TableCell({
-                    borders: {
-                        top: { style: BorderStyle.SINGLE, size: 2, color: C.brand },
-                        bottom: { style: BorderStyle.SINGLE, size: 1, color: C.borderLight },
-                        left: { style: BorderStyle.SINGLE, size: 1, color: C.borderLight },
-                        right: { style: BorderStyle.SINGLE, size: 1, color: C.borderLight },
-                    },
-                    shading: { type: ShadingType.SOLID, color: C.bg },
-                    margins: {
-                        top: convertInchesToTwip(0.15),
-                        bottom: convertInchesToTwip(0.15),
-                        left: convertInchesToTwip(0.2),
-                        right: convertInchesToTwip(0.2),
-                    },
-                    children: [
-                        new Paragraph({
-                            spacing: { after: 80 },
-                            children: [new TextRun({
-                                text: "SUPPLIER INQUIRY",
-                                bold: true,
-                                size: 18,
-                                font: "Calibri",
-                                color: C.brand,
-                                characterSpacing: 100,
-                            })],
-                        }),
-                        ...idea.supplierMessage.split("\n").filter(Boolean).map(line =>
-                            new Paragraph({
-                                spacing: { after: 60 },
-                                children: [new TextRun({
-                                    text: line,
-                                    size: 19,
-                                    font: "Calibri",
-                                    color: C.medium,
-                                })],
-                            })
-                        ),
-                    ],
-                })],
-            })],
-        }),
-    )
+<div class="container">
 
-    // ─── Footer note ─────────────────────────────────────────
-    content.push(
-        spacer(300),
-        new Paragraph({
-            alignment: AlignmentType.CENTER,
-            children: [new TextRun({
-                text: `— Dokument vygenerován AI systémem ${brandName} —`,
-                size: 16,
-                font: "Calibri",
-                color: C.muted,
-                italics: true,
-            })],
-        }),
-    )
+<!-- ═══════════════════════════════════════════ -->
+<!-- COVER PAGE -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="cover">
+    <div class="cover-brand">${esc(brandName)}</div>
+    <div class="cover-title">PRODUCT BRIEF</div>
+    <div class="cover-line"></div>
+    <div class="cover-product">${esc(idea.name)}</div>
+    <div class="cover-tagline">„${esc(idea.tagline)}"</div>
+    ${visualUrl ? `<img src="${esc(visualUrl)}" class="cover-image" alt="${esc(idea.name)}" crossorigin="anonymous" />` : ""}
+    <div class="cover-badge">${esc(idea.type)}</div>
+    <div class="cover-date">Vytvořeno: ${now}</div>
+</div>
 
-    // ═══════════════════════════════════════════════════════════
-    // BUILD & DOWNLOAD
-    // ═══════════════════════════════════════════════════════════
+<!-- ═══════════════════════════════════════════ -->
+<!-- PRODUCT OVERVIEW -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="page-break"></div>
+<div class="page-header">${esc(brandName)} &middot; PRODUCT BRIEF &middot; ${esc(idea.name)}</div>
 
-    const doc = new Document({
-        creator: brandName,
-        title: `Product Brief — ${idea.name}`,
-        description: `Business brief pro produkt ${idea.name}`,
-        styles: {
-            default: {
-                document: {
-                    run: { font: "Calibri", size: 20, color: C.medium },
-                },
-                listParagraph: {
-                    run: { font: "Calibri", size: 20 },
-                },
-            },
-        },
-        sections: [{
-            properties: {
-                page: {
-                    margin: {
-                        top: convertInchesToTwip(0.8),
-                        bottom: convertInchesToTwip(0.7),
-                        left: convertInchesToTwip(0.9),
-                        right: convertInchesToTwip(0.9),
-                    },
-                },
-            },
-            headers: {
-                default: new Header({
-                    children: [new Paragraph({
-                        alignment: AlignmentType.RIGHT,
-                        children: [new TextRun({
-                            text: `${brandName.toUpperCase()}  ·  PRODUCT BRIEF  ·  ${idea.name}`,
-                            size: 14,
-                            font: "Calibri",
-                            color: C.muted,
-                            characterSpacing: 60,
-                        })],
-                    })],
-                }),
-            },
-            footers: {
-                default: new Footer({
-                    children: [new Paragraph({
-                        alignment: AlignmentType.CENTER,
-                        children: [new TextRun({
-                            text: `CONFIDENTIAL  ·  ${now}`,
-                            size: 14,
-                            font: "Calibri",
-                            color: C.muted,
-                            characterSpacing: 80,
-                        })],
-                    })],
-                }),
-            },
-            children: content,
-        }],
-    })
+<div class="section">
+    <h2>1&ensp;Přehled produktu</h2>
+    <p>${esc(idea.description)}</p>
 
-    const blob = await Packer.toBlob(doc)
-    const safeName = idea.name
-        .toLowerCase()
-        .replace(/\s+/g, "_")
-        .replace(/[^a-z0-9_áčďéěíňóřšťúůýž]/g, "")
-        .slice(0, 30)
-    saveAs(blob, `product_brief_${safeName}.docx`)
+    <table>
+        <tr><th style="width:40%">Vlastnost</th><th>Hodnota</th></tr>
+        <tr><td>Typ produktu</td><td>${esc(idea.type)}</td></tr>
+        <tr><td>Materiál</td><td>${esc(idea.material)}</td></tr>
+        <tr><td>Rozměry</td><td>${esc(idea.dimensions)}</td></tr>
+        <tr><td>Výrobní metoda</td><td>${esc(idea.manufacturingMethod)}</td></tr>
+        <tr><td>Cenový rozsah</td><td>${esc(idea.priceRange)}</td></tr>
+    </table>
+
+    <h3>Produkční poznámky</h3>
+    <p>${esc(idea.productionNotes)}</p>
+</div>
+
+<!-- BRANDING -->
+<div class="section">
+    <h2>2&ensp;Branding &amp; Naming</h2>
+    <p>Navrhované varianty názvu:</p>
+    <ol class="numbered-list">
+        ${idea.brandingNames.map(n => `<li>${esc(n)}</li>`).join("\n        ")}
+    </ol>
+</div>
+
+<!-- VARIANTS -->
+<div class="section">
+    <h2>3&ensp;Varianty produktu</h2>
+    <ul class="clean">
+        ${idea.variants.map(v => `<li>${esc(v)}</li>`).join("\n        ")}
+    </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- BUSINESS ANALYSIS -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="page-break"></div>
+<div class="page-header">${esc(brandName)} &middot; PRODUCT BRIEF &middot; ${esc(idea.name)}</div>
+
+<div class="section">
+    <h2>4&ensp;Business analýza</h2>
+    <h3>Pricing, náklady &amp; marže</h3>
+    <table>
+        <tr><th style="width:55%">Parametr</th><th>Hodnota</th></tr>
+        <tr><td>Odhadovaná cena/ks (sourcing)</td><td>${esc(analysis.estimatedUnitCost)}</td></tr>
+        <tr><td>Doporučená prodejní cena</td><td><strong>${esc(analysis.recommendedRetailPrice)}</strong></td></tr>
+        <tr><td>Marže na kus</td><td>${esc(analysis.marginPerUnit)}</td></tr>
+        <tr><td>Procentuální marže</td><td><strong>${esc(analysis.marginPercent)}</strong></td></tr>
+        <tr><td>MOQ od dodavatele</td><td>${esc(analysis.moqRecommendation)}</td></tr>
+        <tr><td>Doporučená 1. objednávka</td><td>${esc(analysis.firstBatchSize)}</td></tr>
+        <tr><td>Náklady 1. várky</td><td>${esc(analysis.firstBatchCost)}</td></tr>
+        <tr><td>Break-even</td><td>${esc(analysis.breakEvenUnits)}</td></tr>
+        <tr><td>Čas od objednávky po prodej</td><td>${esc(analysis.timeline)}</td></tr>
+    </table>
+</div>
+
+<!-- REVENUE SCENARIOS -->
+<div class="section">
+    <h2>5&ensp;Scénáře výdělku&ensp;(3 měsíce)</h2>
+    <table>
+        <tr><th style="width:30%">Scénář</th><th>Prodané ks</th><th>Tržby</th><th>Čistý zisk</th></tr>
+        <tr class="scenario-pessimistic">
+            <td>🔴 Pesimistický</td>
+            <td>${esc(analysis.revenueScenarios.pessimistic.units)}</td>
+            <td>${esc(analysis.revenueScenarios.pessimistic.revenue)}</td>
+            <td>${esc(analysis.revenueScenarios.pessimistic.profit)}</td>
+        </tr>
+        <tr class="scenario-realistic">
+            <td>🟡 Realistický</td>
+            <td>${esc(analysis.revenueScenarios.realistic.units)}</td>
+            <td>${esc(analysis.revenueScenarios.realistic.revenue)}</td>
+            <td>${esc(analysis.revenueScenarios.realistic.profit)}</td>
+        </tr>
+        <tr class="scenario-optimistic">
+            <td>🟢 Optimistický</td>
+            <td>${esc(analysis.revenueScenarios.optimistic.units)}</td>
+            <td>${esc(analysis.revenueScenarios.optimistic.revenue)}</td>
+            <td>${esc(analysis.revenueScenarios.optimistic.profit)}</td>
+        </tr>
+    </table>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- MARKETING -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="page-break"></div>
+<div class="page-header">${esc(brandName)} &middot; PRODUCT BRIEF &middot; ${esc(idea.name)}</div>
+
+<div class="section">
+    <h2>6&ensp;Marketing &amp; cílová skupina</h2>
+
+    <h3>Cílová skupina</h3>
+    <p>${esc(analysis.targetAudience)}</p>
+
+    <h3>Analýza konkurence</h3>
+    <p>${esc(analysis.competitorAnalysis)}</p>
+
+    <h3>Virální potenciál</h3>
+    <p>${esc(idea.viralAngle)}</p>
+
+    <h3>Proč to bude fungovat</h3>
+    <p>${esc(idea.whyItWorks)}</p>
+</div>
+
+<!-- LAUNCH STRATEGY -->
+<div class="section">
+    <h2>7&ensp;Launch strategie</h2>
+    <ol class="numbered-list">
+        ${analysis.launchStrategy.map(s => `<li>${esc(s)}</li>`).join("\n        ")}
+    </ol>
+</div>
+
+<!-- RISKS -->
+<div class="section">
+    <h2>8&ensp;Rizika &amp; mitigace</h2>
+    <ul class="risk-list">
+        ${analysis.risks.map(r => `<li>${esc(r)}</li>`).join("\n        ")}
+    </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- SUPPLIER -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="page-break"></div>
+<div class="page-header">${esc(brandName)} &middot; PRODUCT BRIEF &middot; ${esc(idea.name)}</div>
+
+<div class="section">
+    <h2>9&ensp;Zpráva pro dodavatele</h2>
+    <p>Hotová anglická zpráva připravená k odeslání na Alibaba / Made-in-China:</p>
+    <div class="supplier-box">
+        <div class="label">Supplier Inquiry</div>
+        ${idea.supplierMessage.split("\n").filter(Boolean).map(line => `<p>${esc(line)}</p>`).join("\n        ")}
+    </div>
+</div>
+
+<!-- FOOTER -->
+<div class="page-footer">
+    Confidential &middot; ${now} &middot; Vygenerováno AI systémem ${esc(brandName)}
+</div>
+
+</div>
+</body>
+</html>`
+
+    // Open in new tab and trigger print
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const win = window.open(url, "_blank")
+    if (win) {
+        // Auto-trigger print after images load
+        win.addEventListener("load", () => {
+            setTimeout(() => {
+                // Revoke URL after print dialog closes
+                win.addEventListener("afterprint", () => URL.revokeObjectURL(url))
+            }, 500)
+        })
+    }
+}
+
+/** Escape HTML entities */
+function esc(str: string): string {
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
 }
