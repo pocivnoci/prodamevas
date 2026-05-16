@@ -150,14 +150,18 @@ function numberedItem(num: number, text: string): Paragraph {
     })
 }
 
-// ─── Professional table ──────────────────────────────────────
+// ─── Professional table (DXA widths for Pages compatibility) ─
 
-function proTable(headers: string[], rows: string[][], widths?: number[]): Table {
+// A4 content area with 0.9" margins = ~9300 twips
+const CONTENT_WIDTH = 9300
+
+function proTable(headers: string[], rows: string[][], widthPercents?: number[]): Table {
     const colCount = headers.length
-    const defaultWidth = Math.floor(100 / colCount)
+    const defaultPct = Math.floor(100 / colCount)
+    const colWidths = headers.map((_, i) => Math.floor(CONTENT_WIDTH * ((widthPercents?.[i] ?? defaultPct) / 100)))
 
     return new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
+        width: { size: CONTENT_WIDTH, type: WidthType.DXA },
         rows: [
             // Header row
             new TableRow({
@@ -166,7 +170,7 @@ function proTable(headers: string[], rows: string[][], widths?: number[]): Table
                     borders: TABLE_BORDERS,
                     shading: { type: ShadingType.SOLID, color: C.dark },
                     margins: CELL_MARGIN,
-                    width: { size: widths?.[i] ?? defaultWidth, type: WidthType.PERCENTAGE },
+                    width: { size: colWidths[i], type: WidthType.DXA },
                     children: [new Paragraph({
                         spacing: { before: 40, after: 40 },
                         children: [new TextRun({
@@ -185,7 +189,7 @@ function proTable(headers: string[], rows: string[][], widths?: number[]): Table
                     borders: TABLE_BORDERS,
                     shading: { type: ShadingType.SOLID, color: rowIdx % 2 === 0 ? C.white : C.bg },
                     margins: CELL_MARGIN,
-                    width: { size: widths?.[i] ?? defaultWidth, type: WidthType.PERCENTAGE },
+                    width: { size: colWidths[i], type: WidthType.DXA },
                     children: [new Paragraph({
                         spacing: { before: 30, after: 30 },
                         children: [new TextRun({
@@ -204,10 +208,12 @@ function proTable(headers: string[], rows: string[][], widths?: number[]): Table
 
 // ─── Accent table (colored first column) ─────────────────────
 
-function accentTable(rows: [string, string, string, string][], headerColor: string): Table {
+function accentTable(rows: [string, string, string, string][], _headerColor: string): Table {
     const headers = ["Scénář", "Prodané ks", "Tržby", "Čistý zisk"]
+    const colWidths = [3255, 1860, 2046, 2139] // sum = 9300
+
     return new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
+        width: { size: CONTENT_WIDTH, type: WidthType.DXA },
         rows: [
             new TableRow({
                 tableHeader: true,
@@ -215,7 +221,7 @@ function accentTable(rows: [string, string, string, string][], headerColor: stri
                     borders: TABLE_BORDERS,
                     shading: { type: ShadingType.SOLID, color: C.dark },
                     margins: CELL_MARGIN,
-                    width: { size: [35, 20, 22, 23][i], type: WidthType.PERCENTAGE },
+                    width: { size: colWidths[i], type: WidthType.DXA },
                     children: [new Paragraph({
                         spacing: { before: 40, after: 40 },
                         children: [new TextRun({ text: h.toUpperCase(), bold: true, size: 17, font: "Calibri", color: C.white })],
@@ -229,6 +235,7 @@ function accentTable(rows: [string, string, string, string][], headerColor: stri
                         borders: TABLE_BORDERS,
                         shading: { type: ShadingType.SOLID, color: rowIdx % 2 === 0 ? C.white : C.bg },
                         margins: CELL_MARGIN,
+                        width: { size: colWidths[i], type: WidthType.DXA },
                         children: [new Paragraph({
                             spacing: { before: 30, after: 30 },
                             children: [new TextRun({
@@ -543,7 +550,7 @@ export async function generateProductBriefDOCX(
     // Supplier message in a styled box (using a single-cell table as a "box")
     content.push(
         new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
+            width: { size: CONTENT_WIDTH, type: WidthType.DXA },
             rows: [new TableRow({
                 children: [new TableCell({
                     borders: {
