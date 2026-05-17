@@ -68,26 +68,28 @@ export default function Home() {
             >
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-emerald-500/20 text-emerald-400 text-[9px] font-bold uppercase tracking-widest mb-8 bg-emerald-500/5 backdrop-blur-sm">
                 <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>
-                AI-Powered Content Engine
+                Obsah na měsíc za pár minut
               </div>
 
               <h1 className="text-6xl md:text-[5.5rem] font-black tracking-tighter mb-6 text-white leading-[0.9] uppercase">
-                INSTAGRAM <br />
+                POSTY NA<br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-aisummit-cinnabar to-amber-500">
-                  AUTOPILOT.
+                  INSTAGRAM?
                 </span>
+                <br />
+                <span className="text-white/30 text-4xl md:text-5xl">Hotovo.</span>
               </h1>
               
               <p className="text-lg text-white/40 font-medium mb-10 max-w-lg leading-relaxed">
-                Bez halucinací. Bez kompromisů. 10 000+ možností a 2 minuty na nastavení. Náš inteligentní systém funguje jako váš osobní AI architekt, stavějící monumentální obsahovou strategii za vás.
+                Zadejte web svého podnikání. AI pochopí váš styl, vytvoří texty, obrázky i hashtagy — a vy máte měsíc obsahu připravený k publikaci. Bez grafika, bez copywritera.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
                 <Link href="/register" className="group relative inline-flex items-center justify-center gap-3 px-8 py-4 bg-aisummit-cinnabar text-white rounded-sm font-black text-sm transition-all hover:bg-aisummit-cinnabar/90 uppercase tracking-widest shadow-[0_0_30px_rgba(230,57,70,0.3)]">
-                  Spustit Autopilota <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  Vyzkoušet zdarma <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </Link>
                 <Link href="#demo" className="group inline-flex items-center justify-center gap-3 px-8 py-4 bg-transparent border border-white/10 hover:border-white/30 hover:bg-white/5 text-white rounded-sm font-bold uppercase tracking-widest transition-all text-sm">
-                  Jak to funguje ↓
+                  Ukázat jak to funguje ↓
                 </Link>
               </div>
 
@@ -180,7 +182,7 @@ export default function Home() {
       {/* SOCIAL PROOF */}
       <section className="border-y border-white/5 bg-[#0a0a0a]/50 backdrop-blur-sm py-12 relative z-10">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-8 opacity-40 grayscale hover:grayscale-0 transition-all duration-500">
-          <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/50 whitespace-nowrap">Důvěřují nám vizionáři</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/50 whitespace-nowrap">Už to používají</div>
           <div className="flex items-center gap-12 md:gap-24 overflow-hidden">
             <span className="text-lg font-black tracking-widest uppercase">MobilNaMíru</span>
             <span className="text-lg font-black tracking-widest uppercase">HanzFans</span>
@@ -192,8 +194,8 @@ export default function Home() {
       {/* BENTO GRID */}
       <section id="features" className="relative z-10 max-w-7xl mx-auto px-6 py-32">
         <div className="mb-20 text-center max-w-3xl mx-auto">
-          <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-6 text-white uppercase">Ukaž, nestřílej <br /><span className="text-white/30">naslepo.</span></h2>
-          <p className="text-white/50 font-medium text-lg">Zahodili jsme složité nástroje. Chrlit je postavený na jedné věci: chrlí prémiový obsah, který nevypadá jako od AI.</p>
+          <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-6 text-white uppercase">Co dostanete<br /><span className="text-white/30">za pár kliků.</span></h2>
+          <p className="text-white/50 font-medium text-lg">Žádné složité nástroje. Řeknete nám o svém podnikání a Chrlit vám dodá hotový obsah — texty, obrázky, hashtagy. Vypadá to profesionálně, ne jako od robota.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:auto-rows-[320px]">
@@ -207,8 +209,8 @@ export default function Home() {
               <div className="w-12 h-12 rounded-sm bg-white/5 flex items-center justify-center mb-6 border border-white/10 group-hover:bg-aisummit-cinnabar/20 group-hover:border-aisummit-cinnabar/30 transition-colors">
                 <Cpu className="w-5 h-5 text-white group-hover:text-aisummit-cinnabar" />
               </div>
-              <h3 className="text-2xl font-black uppercase tracking-widest mb-3 text-white">Kognitivní Autopilot</h3>
-              <p className="text-white/40 text-sm font-medium max-w-md leading-relaxed">AI analyzuje vaši tóninu, historii a strategické pilíře. Pak generuje měsíce originálního obsahu přesně ve vašem stylu.</p>
+              <h3 className="text-2xl font-black uppercase tracking-widest mb-3 text-white">Celý měsíc obsahu za vás</h3>
+              <p className="text-white/40 text-sm font-medium max-w-md leading-relaxed">AI se naučí váš styl komunikace, vaše barvy, vaši cílovku — a pak vygeneruje desítky hotových postů. Texty, obrázky, hashtagy. Stačí publikovat.</p>
             </div>
           </div>
 
@@ -219,16 +221,16 @@ export default function Home() {
             
             <div className="relative z-20">
               <PenTool className="w-6 h-6 text-emerald-400 mb-4" />
-              <h3 className="text-xl font-black uppercase tracking-widest text-white mb-2">Design & Mockupy</h3>
-              <p className="text-white/60 text-xs font-medium">Generátor vymyslí potisk a ihned ho nasadí na fotorealistický produkt pomocí Imagen 4.</p>
+              <h3 className="text-xl font-black uppercase tracking-widest text-white mb-2">Produktové vizualizace</h3>
+              <p className="text-white/60 text-xs font-medium">Máte nápad na produkt? AI navrhne design a ukáže vám realistický mockup — tričko, hrnek, krabičku. Bez grafika.</p>
             </div>
           </div>
 
           {/* Box 3: Multi-tenant */}
           <div className="md:col-span-1 group relative overflow-hidden rounded-sm bg-[#0a0a0a] border border-white/10 p-10 transition-colors hover:border-white/30">
             <Layers className="w-6 h-6 text-amber-500 mb-6" />
-            <h3 className="text-xl font-black uppercase tracking-widest text-white mb-3">Multi-tenant pro Agentury</h3>
-            <p className="text-white/40 text-xs font-medium leading-relaxed">Spravujete 10 klientů? Systém striktně odděluje znalosti, loga a data per projekt. Přepínání na klik.</p>
+            <h3 className="text-xl font-black uppercase tracking-widest text-white mb-3">Víc značek? Žádný problém</h3>
+            <p className="text-white/40 text-xs font-medium leading-relaxed">Spravujete obsah pro více firem nebo klientů? Každý projekt má vlastní nastavení, loga a styl. Přepínáte jedním klikem.</p>
           </div>
 
           {/* Box 4: Performance */}
@@ -236,8 +238,8 @@ export default function Home() {
             <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors" />
             
             <div className="relative z-10">
-              <h3 className="text-3xl font-black uppercase tracking-widest text-white mb-2">Neural Brand Engine</h3>
-              <p className="text-white/80 text-sm font-medium max-w-sm">Analytika, která rozumí kontextu. Víme, jaký háček zafungoval a proč.</p>
+              <h3 className="text-3xl font-black uppercase tracking-widest text-white mb-2">Ví, co funguje</h3>
+              <p className="text-white/80 text-sm font-medium max-w-sm">Chrlit sleduje, které posty zaujaly vaše publikum — a příští obsah podle toho přizpůsobí. Čím víc ho používáte, tím lepší výsledky.</p>
             </div>
 
             <div className="relative z-10 text-right">
@@ -254,15 +256,15 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row items-center gap-16">
             <div className="md:w-1/3">
-              <h2 className="text-3xl font-black uppercase tracking-tighter text-white mb-4">Frikce nula.<br/>Výsledek sto.</h2>
-              <p className="text-white/40 text-sm">Zapomeňte na zdlouhavé psaní promptů. Celý proces jsme zredukovali na tři brutálně efektivní kroky.</p>
+              <h2 className="text-3xl font-black uppercase tracking-tighter text-white mb-4">Tři kroky.<br/>Hotový Instagram.</h2>
+              <p className="text-white/40 text-sm">Žádné promptování, žádné složité nastavování. Prostě zadáte web, počkáte minutu a máte obsah.</p>
             </div>
             
             <div className="md:w-2/3 grid grid-cols-1 sm:grid-cols-3 gap-6">
               {[
-                { step: "01", title: "Brand Voice", desc: "AI analyzuje váš tone of voice a vizuální identitu z pár příkladů." },
-                { step: "02", title: "Ideace", desc: "Kognitivní engine vygeneruje obsahové pilíře a strategie." },
-                { step: "03", title: "Autopilot", desc: "Systém chrlí hotové posty, mockupy a reels přímo do kalendáře." }
+                { step: "01", title: "Zadejte web", desc: "AI prozkoumá váš web, pochopí čím se zabýváte, jaké máte barvy a styl." },
+                { step: "02", title: "Vyberte, co chcete", desc: "Posty na Instagram? Produktové nápady? Vizualizace? Vyberte si a nechte AI pracovat." },
+                { step: "03", title: "Hotovo", desc: "Za pár minut máte hotové posty s obrázky, texty a hashtagy. Stačí publikovat." }
               ].map((item, i) => (
                 <div key={i} className="bg-[#0a0a0a] border border-white/5 p-6 rounded-sm relative">
                   <div className="text-4xl font-black text-white/5 absolute top-4 right-4">{item.step}</div>
@@ -280,8 +282,8 @@ export default function Home() {
       <section id="demo" className="relative py-32 border-t border-white/5 bg-[#0a0a0a] overflow-hidden">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Systém, který se <br /><span className="text-aisummit-cinnabar">učí z vašich výsledků.</span></h2>
-            <p className="text-white/50 font-medium text-lg max-w-2xl mx-auto">Každý post, každý like, každý uložený příspěvek — to vše se vrací zpět do AI enginu. Čím víc tvoříte, tím chytřejší obsah dostáváte.</p>
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Čím víc tvoříte,<br /><span className="text-aisummit-cinnabar">tím lepší obsah dostáváte.</span></h2>
+            <p className="text-white/50 font-medium text-lg max-w-2xl mx-auto">Chrlit se učí z vašich výsledků. Každý like, každý uložený příspěvek — to vše pomáhá AI lépe pochopit vaše publikum a tvořit přesnější obsah.</p>
           </div>
           <SeedOfLife />
         </div>
@@ -293,8 +295,8 @@ export default function Home() {
         <div className="absolute top-0 left-1/2 w-[800px] h-[400px] bg-aisummit-cinnabar/5 blur-[150px] rounded-full pointer-events-none" style={{ transform: 'translateX(-50%)' }} />
         <div className="max-w-7xl mx-auto px-6 relative z-10">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Investice do <br /><span className="text-aisummit-cinnabar">růstu.</span></h2>
-            <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Kolik stojí social media manažer? 25 000 Kč měsíčně. Kolik stojí Chrlit? Zlomek.</p>
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Kolik ušetříte<br /><span className="text-aisummit-cinnabar">oproti agentuře?</span></h2>
+            <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Social media manažer stojí 25 000 Kč měsíčně. Chrlit zvládne to samé od 490 Kč — a pracuje 24 hodin denně.</p>
             <div className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-sm border border-emerald-500/30 bg-emerald-500/10 backdrop-blur-sm">
               <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>
               <span className="text-emerald-400 text-sm font-black">Kreditový systém — platíte jen za to, co skutečně použijete</span>
@@ -522,8 +524,8 @@ export default function Home() {
         <div className="absolute top-1/2 left-1/2 w-[600px] h-[600px] bg-aisummit-cinnabar/10 blur-[120px] rounded-full pointer-events-none" style={{ transform: 'translate(-50%, -50%)' }} />
         
         <div className="relative z-10 max-w-3xl mx-auto px-6 text-center">
-          <h2 className="text-5xl md:text-7xl font-black tracking-tighter mb-6 text-white uppercase leading-[0.9]">Nenechte utéct <br /> <span className="text-aisummit-cinnabar">konkurenci.</span></h2>
-          <p className="text-base text-white/40 font-medium mb-12 max-w-xl mx-auto">Váš první plně automatizovaný měsíc obsahu na Instagram čeká na vygenerování. Zničte tvůrčí blok ještě dnes.</p>
+          <h2 className="text-5xl md:text-7xl font-black tracking-tighter mb-6 text-white uppercase leading-[0.9]">Váš Instagram<br /> <span className="text-aisummit-cinnabar">si zaslouží víc.</span></h2>
+          <p className="text-base text-white/40 font-medium mb-12 max-w-xl mx-auto">Přestaňte trávit hodiny vymýšlením co postovat. Nechte AI udělat těžkou práci — vy se soustřeďte na to, co umíte nejlíp.</p>
 
           <Link href="/register" className="group relative inline-flex items-center justify-center px-10 py-5 bg-white text-black rounded-sm font-black text-sm hover:bg-white/90 transition-all uppercase tracking-widest shadow-[0_0_40px_rgba(255,255,255,0.2)]">
             Vytvořit účet zdarma
@@ -542,9 +544,9 @@ export default function Home() {
               <div className="w-6 h-6 bg-aisummit-cinnabar rounded-sm flex items-center justify-center">
                 <LogoPV className="text-white w-3 h-3" />
               </div>
-              <span className="font-black tracking-tighter text-base text-white uppercase">Prodáme<span className="text-aisummit-cinnabar">Vás</span></span>
+              <span className="font-black tracking-tighter text-base text-white uppercase">Chr<span className="text-aisummit-cinnabar">lit</span></span>
             </div>
-            <p className="text-white/30 text-xs font-medium max-w-sm leading-relaxed">Prémiový SaaS nástroj pro automatizaci firemních sociálních sítí poháněný modely Gemini a Imagen.</p>
+            <p className="text-white/30 text-xs font-medium max-w-sm leading-relaxed">Obsah na sociální sítě, který vypadá profesionálně — bez grafika, bez copywritera, bez stresu.</p>
           </div>
           <div>
             <h4 className="font-bold mb-5 text-white/70 tracking-widest uppercase text-[10px]">Produkt</h4>

@@ -8,16 +8,16 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Chrlit — AI Autopilot pro Instagram | Chrlíme obsah, ale kvalitní",
-  description: "Vygenerujte měsíc Instagram obsahu za 2 minuty. AI analyzuje váš brand, vytvoří captiony, obrázky i reels. Pro e-shopy, freelancery a agentury.",
-  keywords: ["instagram autopilot", "AI obsah", "generování postů", "automatizace sociálních sítí", "content marketing", "AI marketing", "chrlit"],
+  title: "Chrlit — Posty na Instagram za pár minut | AI obsah pro firmy",
+  description: "Zadejte web svého podnikání a dostanete měsíc hotového obsahu na Instagram — texty, obrázky, hashtagy. Bez grafika, bez copywritera. Od 490 Kč měsíčně.",
+  keywords: ["instagram posty", "obsah na sociální sítě", "AI obsah pro firmy", "generování příspěvků", "správa Instagramu", "chrlit", "obsah bez grafika"],
   icons: {
     icon: "/favicon.ico",
     apple: "/chrlit-icon.png",
   },
   openGraph: {
-    title: "Chrlit — AI Autopilot pro Instagram",
-    description: "Vygenerujte měsíc Instagram obsahu za 2 minuty. AI captiony, obrázky, reels.",
+    title: "Chrlit — Posty na Instagram za pár minut",
+    description: "Měsíc obsahu na Instagram — texty, obrázky, hashtagy. Bez grafika, bez copywritera.",
     url: "https://chrlit.cz",
     siteName: "Chrlit",
     images: [{ url: "/chrlit-logo.png", width: 1024, height: 1024, alt: "Chrlit Logo" }],
@@ -26,8 +26,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Chrlit — AI Autopilot pro Instagram",
-    description: "Vygenerujte měsíc Instagram obsahu za 2 minuty.",
+    title: "Chrlit — Posty na Instagram za pár minut",
+    description: "Měsíc obsahu bez grafika a copywritera. Od 490 Kč.",
     images: ["/chrlit-logo.png"],
   },
   robots: { index: true, follow: true },
