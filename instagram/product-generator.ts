@@ -257,8 +257,8 @@ export async function generateDesignConcept(
 ${bv.persona}
 
 ## BRAND VIZUÁL
-- Styl: Streetwear, urban, drzý, provokativní
-- Barvy: Preferuj barvy brandu, ale buď kreativní
+- Styl: ${config.feedAesthetic?.feel || 'Moderní a kvalitní'}
+- Barvy: ${config.feedAesthetic?.colorPalette || 'Preferuj barvy brandu, ale buď kreativní'}
 
 ## STÁVAJÍCÍ PRODUKTY
 ${config.products?.map(p => `- ${p.name}: ${p.description || ""}`).join("\n") || "Žádné"}
@@ -405,8 +405,8 @@ DESIGN RULES:
 - IMPORTANT: An image of a brand logo is provided as a reference. You MUST naturally integrate this EXACT logo onto the central, front-facing surface of the generated product.
 - The logo can be embroidered, printed, embossed, debossed, or engraved, but it MUST FEEL NATURAL to the product's material and lighting context.
 - Keep the logo clearly visible and recognizable.
-- Create a visually interesting, premium streetwear-inspired product with cool design details (textures, patterns).
-- NO fake brand names like "Supreme" and NO textual labels or dimensions.
+- Create a visually interesting, premium product with cool design details (textures, patterns).
+- NO fake brand names and NO textual labels or dimensions.
 - Style: single product centered, clean dark background, professional product photography.`
 
             console.log(`🎨 Generuji kreativní produkt s integrovaným logem (Nano Banana 2)...`)
@@ -613,7 +613,7 @@ export async function runProductIdeas(config: ClientConfig) {
 export async function runDesignConcept(config: ClientConfig) {
     const args = process.argv.slice(2)
     const themeArg = args.find(a => a.startsWith("--theme="))
-    const theme = themeArg?.split("=")[1] || "iconic streetwear"
+    const theme = themeArg?.split("=")[1] || "premium product design"
     const productArg = args.find(a => a.startsWith("--product="))
     const productType = productArg?.split("=")[1] || "triko"
 

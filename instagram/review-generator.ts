@@ -14,9 +14,9 @@ ${config.brandVoice?.persona || ""}
 Hodnoty: ${config.brandVoice?.values?.join(", ") || ""}
 
 TYPICKÁ CÍLOVÁ SKUPINA A PRODUKTY:
-- Zaměř se na recenze ohledně typických produktů, které tato značka prodává.
-- Pokud je to např. drsný HanzFans streetwear, recenze musí znít jako od skutečných "bros" nebo fanoušků aut (např. "Drip jak prase", "Materiál top").
-- Pokud je to korporátní značka, recenze bude formálnější.
+- Zaměř se na recenze ohledně typických produktů/služeb, které tato značka nabízí.
+- Tón a slang recenzí MUSÍ odpovídat brand voice výše — pokud je značka neformální, recenze budou hovorové. Pokud formální, recenze budou profesionální.
+- Recenze musí znít jako od REÁLNÝCH zákazníků této konkrétní značky.
 
 POŽADAVKY:
 - Vygeneruj přesně ${count} odlišných, autentických recenzí.
