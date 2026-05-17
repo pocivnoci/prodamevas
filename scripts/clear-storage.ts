@@ -6,7 +6,6 @@ dotenv.config({ path: '.env.local' });
 const BUCKETS_TO_CLEAR = [
   'ig-posts',
   'ig-posts-mobilnamiru',
-  'ig-posts-hanzfans',
   'product-designs',
   'product-concepts',
   'product-mockups',

@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
 async function createBuckets() {
-    const bucketsToCreate = ['ig-posts-mobilnamiru', 'ig-posts-hanzfans'];
+    const bucketsToCreate = ['ig-posts-mobilnamiru'];
 
     for (const bucket of bucketsToCreate) {
         try {

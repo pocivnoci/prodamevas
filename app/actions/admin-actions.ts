@@ -168,25 +168,8 @@ export async function getIGCategories(configName: string): Promise<{ id: string;
     }
 }
 
-/**
- * Sync eshop product images — scrapes and downloads product photos from the client's eshop
- */
-export async function syncEshopProducts(configName: string): Promise<{ success: boolean; message: string; imageCount: number }> {
-    try {
-        const { loadConfig } = await import("@/instagram/configs")
-        const { scrapeAllProducts } = await import("@/instagram/eshop-scraper")
-        const config = await loadConfig(configName)
-        const results = await scrapeAllProducts(config)
-        const totalImages = results.reduce((sum, r) => sum + r.localPaths.length, 0)
-        return {
-            success: true,
-            message: `Synced ${results.length} products, ${totalImages} images downloaded`,
-            imageCount: totalImages,
-        }
-    } catch (err: any) {
-        return { success: false, message: err.message || "Sync failed", imageCount: 0 }
-    }
-}
+
+
 
 export async function getIGGenerationLogs(limit = 50, projectSlug: string = "mobilnamiru"): Promise<any[]> {
     try {

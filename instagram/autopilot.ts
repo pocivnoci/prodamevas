@@ -1231,7 +1231,7 @@ Product & Design:
   npx tsx instagram/autopilot.ts --config=${configName} --design --theme="neon"     Design koncept + obrázek
   npx tsx instagram/autopilot.ts --config=${configName} --design --product=triko --theme="summer vibes"
 
-Dostupné konfigurace: mobilnamiru, hanzfans
+Dostupné konfigurace: mobilnamiru (a klientské UUIDs z DB)
 (bez --config se použije mobilnamiru)
 `)
         return

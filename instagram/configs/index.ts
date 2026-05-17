@@ -30,7 +30,7 @@ const clientIdCache = new Map<string, string>() // slug → uuid
 
 /**
  * Load client config by name (cached)
- * @param name - Config slug (mobilnamiru, hanzfans, etc.)
+ * @param name - Config slug (e.g. mobilnamiru, or a UUID)
  */
 export async function loadConfig(name: string = "mobilnamiru"): Promise<ClientConfig> {
     const cached = configCache.get(name)
