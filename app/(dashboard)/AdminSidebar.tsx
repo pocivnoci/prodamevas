@@ -111,9 +111,7 @@ export function AdminSidebar() {
                 {/* Logo */}
                 <div className="p-6 pb-4 border-b border-white/5">
                     <div className="flex items-center gap-3">
-                        <div className="relative w-10 h-10 bg-aisummit-cinnabar rounded-sm flex items-center justify-center flex-shrink-0 group cursor-pointer overflow-hidden border border-white/10">
-                            <LogoPV className="relative z-10 text-white w-6 h-6 group-hover:scale-110 transition-transform" />
-                        </div>
+                        <LogoPV className="w-10 h-10 rounded-sm flex-shrink-0 group-hover:scale-105 transition-transform" />
                         <div>
                             <h2 className="text-white font-black tracking-tighter text-lg uppercase">Chr<span className="text-aisummit-cinnabar">lit</span></h2>
                             <p className="text-[8px] text-white/30 font-bold tracking-[0.2em] uppercase">Studio</p>

@@ -37,10 +37,8 @@ export default function Home() {
       >
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="relative w-8 h-8 bg-aisummit-cinnabar rounded-sm flex items-center justify-center">
-              <LogoPV className="text-white w-5 h-5" />
-            </div>
-            <span className="font-black tracking-tighter text-lg uppercase">Chr<span className="text-aisummit-cinnabar">lit</span> <span className="text-white/30 text-xs font-mono ml-2 tracking-widest hidden sm:inline">STUDIO</span></span>
+            <LogoPV className="w-8 h-8 rounded-sm" />
+            <span className="font-black tracking-tighter text-lg uppercase">Chr<span className="text-aisummit-cinnabar">lit</span></span>
           </div>
           
           <div className="flex items-center gap-6">
@@ -98,63 +96,90 @@ export default function Home() {
                 <div className="flex items-center gap-2"><CheckCircle2 className="w-3 h-3 text-emerald-500" /> Bez kreditky</div>
               </div>
             </motion.div>
-            {/* PRODUCT PREVIEW — real post examples */}
+            {/* WORKFLOW ANIMATION */}
             <motion.div 
               className="lg:w-1/2 relative w-full"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 1, delay: 0.2, type: "spring", bounce: 0.3 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.3 }}
             >
-              <div className="grid grid-cols-2 gap-3">
-                {/* Post 1 — hlavní, velký */}
-                <div className="col-span-2 sm:col-span-1 row-span-2 rounded-sm border border-white/10 bg-[#0a0a0a] overflow-hidden group hover:border-white/20 transition-all">
-                  <div className="aspect-square bg-gradient-to-br from-aisummit-cinnabar/30 via-amber-600/20 to-purple-600/20 relative flex items-center justify-center">
-                    <div className="text-center px-6">
-                      <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-white/10 border border-white/20 flex items-center justify-center">
-                        <Sparkles className="w-6 h-6 text-white" />
-                      </div>
-                      <p className="text-white/90 text-sm font-bold leading-snug">AI vygenerovaný<br />Instagram post</p>
-                      <p className="text-white/30 text-[9px] mt-2">1024 × 1024px</p>
-                    </div>
-                    <div className="absolute top-3 right-3 px-2 py-0.5 bg-emerald-500/20 border border-emerald-500/30 rounded-sm text-emerald-400 text-[8px] font-bold uppercase">Hotovo ✓</div>
+              <div className="space-y-3">
+                {/* Step 1 — web */}
+                <motion.div 
+                  className="rounded-sm border border-white/10 bg-[#0a0a0a] p-5 flex items-center gap-4 group hover:border-white/20 transition-all"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.4, duration: 0.5 }}
+                >
+                  <div className="w-10 h-10 shrink-0 rounded-sm bg-aisummit-cinnabar/15 border border-aisummit-cinnabar/25 flex items-center justify-center">
+                    <span className="text-aisummit-cinnabar font-black text-sm">01</span>
                   </div>
-                  <div className="p-4">
-                    <p className="text-white/70 text-xs leading-relaxed mb-3">
-                      ☕ Pondělní dávka inspirace? U nás to není jen káva — je to rituál. Každý šálek pražíme s láskou a péčí, která se prostě pozná...
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {["#kavarna", "#prazirna", "#pondeli", "#inspir"].map((h) => (
-                        <span key={h} className="text-[9px] text-aisummit-cinnabar/70 font-bold">{h}</span>
-                      ))}
-                    </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-bold text-sm">Zadáte web vašeho podnikání</p>
+                    <p className="text-white/30 text-[10px] mt-0.5">chrlit.cz</p>
                   </div>
+                  <div className="px-2 py-0.5 bg-emerald-500/15 border border-emerald-500/25 rounded-sm text-emerald-400 text-[8px] font-bold uppercase shrink-0">Hotovo ✓</div>
+                </motion.div>
+
+                {/* Connector */}
+                <div className="flex justify-center">
+                  <div className="w-px h-4 bg-gradient-to-b from-white/10 to-white/5"></div>
                 </div>
 
-                {/* Post 2 — menší */}
-                <div className="rounded-sm border border-white/10 bg-[#0a0a0a] overflow-hidden group hover:border-white/20 transition-all">
-                  <div className="aspect-[4/3] bg-gradient-to-br from-blue-600/20 to-emerald-500/15 relative flex items-center justify-center">
-                    <PenTool className="w-8 h-8 text-white/30" />
-                    <div className="absolute top-2 right-2 px-2 py-0.5 bg-amber-500/20 border border-amber-500/30 rounded-sm text-amber-400 text-[8px] font-bold uppercase">Generuje se...</div>
+                {/* Step 2 — analysis */}
+                <motion.div 
+                  className="rounded-sm border border-white/10 bg-[#0a0a0a] p-5 flex items-center gap-4 group hover:border-white/20 transition-all"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.7, duration: 0.5 }}
+                >
+                  <div className="w-10 h-10 shrink-0 rounded-sm bg-amber-500/15 border border-amber-500/25 flex items-center justify-center">
+                    <span className="text-amber-400 font-black text-sm">02</span>
                   </div>
-                  <div className="p-3">
-                    <p className="text-white/50 text-[10px] leading-relaxed">
-                      🏋️ Nová kolekce fitness doplňků je tady. Testováno sportovci, schváleno výsledky...
-                    </p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-bold text-sm">AI analyzuje váš brand</p>
+                    <p className="text-white/30 text-[10px] mt-0.5">Barvy · Tón komunikace · Produkty · Cílovka</p>
                   </div>
+                  <div className="px-2 py-0.5 bg-emerald-500/15 border border-emerald-500/25 rounded-sm text-emerald-400 text-[8px] font-bold uppercase shrink-0">Hotovo ✓</div>
+                </motion.div>
+
+                {/* Connector */}
+                <div className="flex justify-center">
+                  <div className="w-px h-4 bg-gradient-to-b from-white/10 to-white/5"></div>
                 </div>
 
-                {/* Post 3 — menší */}
-                <div className="rounded-sm border border-white/10 bg-[#0a0a0a] overflow-hidden group hover:border-white/20 transition-all">
-                  <div className="aspect-[4/3] bg-gradient-to-br from-purple-600/20 to-pink-500/15 relative flex items-center justify-center">
-                    <Bot className="w-8 h-8 text-white/30" />
-                    <div className="absolute top-2 right-2 px-2 py-0.5 bg-emerald-500/20 border border-emerald-500/30 rounded-sm text-emerald-400 text-[8px] font-bold uppercase">Hotovo ✓</div>
+                {/* Step 3 — generation */}
+                <motion.div 
+                  className="rounded-sm border border-aisummit-cinnabar/30 bg-[#0a0a0a] p-5 group"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 1.0, duration: 0.5 }}
+                >
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-10 h-10 shrink-0 rounded-sm bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center">
+                      <span className="text-emerald-400 font-black text-sm">03</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-bold text-sm">Dostanete hotový obsah</p>
+                      <p className="text-white/30 text-[10px] mt-0.5">30 postů · texty · obrázky · hashtagy</p>
+                    </div>
                   </div>
-                  <div className="p-3">
-                    <p className="text-white/50 text-[10px] leading-relaxed">
-                      🌿 Věděli jste, že naše produkty jsou 100% přírodní? Žádná chemie, žádné kompromisy...
-                    </p>
+                  {/* Mini post preview */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-sm bg-gradient-to-br from-aisummit-cinnabar/20 to-amber-500/10 border border-white/5 p-2.5">
+                      <p className="text-white/60 text-[9px] leading-relaxed">☕ Pon-dělní inspirace? U nás to není jen káva — je to rituál...</p>
+                      <p className="text-aisummit-cinnabar/50 text-[8px] mt-1.5 font-bold">#chrlit #obsah</p>
+                    </div>
+                    <div className="rounded-sm bg-gradient-to-br from-blue-600/15 to-emerald-500/10 border border-white/5 p-2.5">
+                      <p className="text-white/60 text-[9px] leading-relaxed">🚀 Jak vyřešit správu sociálních sítí za zlomek nákladů?</p>
+                      <p className="text-blue-400/50 text-[8px] mt-1.5 font-bold">#ai #marketing</p>
+                    </div>
+                    <div className="rounded-sm bg-gradient-to-br from-purple-600/15 to-pink-500/10 border border-white/5 p-2.5">
+                      <p className="text-white/60 text-[9px] leading-relaxed">🎯 3 tipy, jak zvýšit engagement na Instagramu...</p>
+                      <p className="text-purple-400/50 text-[8px] mt-1.5 font-bold">#instagram #tipy</p>
+                    </div>
                   </div>
-                </div>
+                </motion.div>
               </div>
               
               {/* Floating Stat */}
@@ -162,29 +187,17 @@ export default function Home() {
                 className="absolute -bottom-4 -right-4 bg-[#0f0f0f] border border-white/10 rounded-sm p-4 shadow-2xl backdrop-blur-xl flex items-center gap-4 z-20"
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.8, duration: 0.5 }}
+                transition={{ delay: 1.5, duration: 0.5 }}
               >
                 <div className="w-10 h-10 rounded-sm bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
                   <TrendingUp className="w-5 h-5 text-emerald-500" />
                 </div>
                 <div>
                   <p className="text-white font-black text-sm uppercase tracking-widest">30 Postů</p>
-                  <p className="text-white/40 text-[9px] uppercase tracking-widest mt-0.5">Vygenerováno za 2 min</p>
+                  <p className="text-white/40 text-[9px] uppercase tracking-widest mt-0.5">Vygenerováno za ~30 min</p>
                 </div>
               </motion.div>
             </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* SOCIAL PROOF */}
-      <section className="border-y border-white/5 bg-[#0a0a0a]/50 backdrop-blur-sm py-12 relative z-10">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-8 opacity-40 grayscale hover:grayscale-0 transition-all duration-500">
-          <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/50 whitespace-nowrap">Už to používají</div>
-          <div className="flex items-center gap-12 md:gap-24 overflow-hidden">
-            <span className="text-lg font-black tracking-widest uppercase">MobilNaMíru</span>
-            <span className="text-lg font-black tracking-widest uppercase">HanzFans</span>
-            <span className="text-lg font-black tracking-widest uppercase">Ríša Rybář</span>
           </div>
         </div>
       </section>
@@ -539,9 +552,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-12">
           <div className="md:col-span-2">
             <div className="flex items-center gap-2 mb-6">
-              <div className="w-6 h-6 bg-aisummit-cinnabar rounded-sm flex items-center justify-center">
-                <LogoPV className="text-white w-3 h-3" />
-              </div>
+              <LogoPV className="w-6 h-6 rounded-sm" />
               <span className="font-black tracking-tighter text-base text-white uppercase">Chr<span className="text-aisummit-cinnabar">lit</span></span>
             </div>
             <p className="text-white/30 text-xs font-medium max-w-sm leading-relaxed">Obsah na sociální sítě, který vypadá profesionálně — bez grafika, bez copywritera, bez stresu.</p>
