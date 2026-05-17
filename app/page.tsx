@@ -218,6 +218,70 @@ export default function Home() {
         </div>
       </section>
 
+      {/* TIME SAVED COMPARISON */}
+      <section className="relative z-10 py-32 border-t border-white/5 bg-[#050505]">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Kolik času<br /><span className="text-aisummit-cinnabar">reálně ušetříte?</span></h2>
+            <p className="text-white/50 font-medium text-lg max-w-2xl mx-auto">Spočítali jsme to. Tady je srovnání klasického přístupu vs. Chrlit — na reálných úkolech, které řešíte každý týden.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+            {/* Traditional */}
+            <div className="bg-[#0a0a0a] border border-white/5 rounded-sm p-8">
+              <div className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-6">❌ Klasický přístup</div>
+              <div className="space-y-4">
+                {[
+                  { task: "Vymyslet téma příspěvku", time: "30 min" },
+                  { task: "Napsat caption + CTA", time: "45 min" },
+                  { task: "Vytvořit vizuál (Canva/grafik)", time: "60 min" },
+                  { task: "Vybrat hashtagy", time: "15 min" },
+                  { task: "Naplánovat na měsíc (20 postů)", time: "~30 hodin" },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center justify-between border-b border-white/5 pb-3">
+                    <span className="text-white/40 text-xs">{item.task}</span>
+                    <span className="text-white/60 text-xs font-black">{item.time}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-6 pt-4 border-t border-white/10">
+                <span className="text-white/30 text-[10px] font-bold uppercase tracking-widest">Celkem na měsíc</span>
+                <div className="text-3xl font-black text-white/80 mt-1">~30 hodin</div>
+              </div>
+            </div>
+
+            {/* Chrlit */}
+            <div className="bg-[#0a0a0a] border-2 border-aisummit-cinnabar/30 rounded-sm p-8 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-aisummit-cinnabar/5 blur-[80px] rounded-full pointer-events-none" />
+              <div className="relative z-10">
+                <div className="text-[10px] font-black uppercase tracking-widest text-aisummit-cinnabar mb-6">✓ S Chrlitem</div>
+                <div className="space-y-4">
+                  {[
+                    { task: "AI navrhne témata z vašeho webu", time: "0 min" },
+                    { task: "AI napíše caption ve vašem stylu", time: "0 min" },
+                    { task: "AI vytvoří vizuál s vašimi barvami", time: "0 min" },
+                    { task: "AI vybere hashtagy podle oboru", time: "0 min" },
+                    { task: "20 postů na měsíc", time: "~15 min" },
+                  ].map((item, i) => (
+                    <div key={i} className="flex items-center justify-between border-b border-white/5 pb-3">
+                      <span className="text-white/50 text-xs">{item.task}</span>
+                      <span className="text-emerald-400 text-xs font-black">{item.time}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-6 pt-4 border-t border-aisummit-cinnabar/20">
+                  <span className="text-aisummit-cinnabar/50 text-[10px] font-bold uppercase tracking-widest">Celkem na měsíc</span>
+                  <div className="text-3xl font-black text-aisummit-cinnabar mt-1">~15 minut</div>
+                  <div className="text-emerald-400 text-[10px] font-black uppercase tracking-widest mt-1">Ušetříte 29+ hodin měsíčně</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-center text-white/20 text-[10px] font-bold uppercase tracking-widest">Čas je odhadován na základě průměrného social media manažera · 20 příspěvků/měsíc</p>
+        </div>
+      </section>
+
       {/* BENTO GRID */}
       <section id="features" className="relative z-10 max-w-7xl mx-auto px-6 py-32">
         <div className="mb-20 text-center max-w-3xl mx-auto">
