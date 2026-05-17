@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
-import Image from "next/image"
 import { motion, useScroll, useTransform } from "framer-motion"
 import { Sparkles, Bot, PenTool, TrendingUp, ArrowRight, CheckCircle2, Layers, Cpu } from "lucide-react"
 import { SeedOfLife } from "@/components/SeedOfLife"
@@ -36,9 +35,10 @@ export default function Home() {
         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
       >
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Image src="/chrlit-logo.png" alt="Chrlit" width={180} height={40} className="h-10 w-auto" priority />
-          </div>
+          <Link href="/" className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-aisummit-cinnabar rounded-sm flex items-center justify-center text-white font-black text-sm">C</div>
+            <span className="font-black tracking-tight text-xl text-white">chr<span className="text-aisummit-cinnabar">lit</span></span>
+          </Link>
           
           <div className="flex items-center gap-6">
             <Link href="/login" className="text-[10px] font-bold uppercase tracking-widest text-white/50 hover:text-white transition-colors hidden sm:block">
@@ -551,7 +551,8 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-12">
           <div className="md:col-span-2">
             <div className="flex items-center gap-2 mb-6">
-              <Image src="/chrlit-logo.png" alt="Chrlit" width={100} height={24} className="h-5 w-auto" />
+              <div className="w-6 h-6 bg-aisummit-cinnabar rounded-sm flex items-center justify-center text-white font-black text-[10px]">C</div>
+              <span className="font-black tracking-tight text-base text-white">chr<span className="text-aisummit-cinnabar">lit</span></span>
             </div>
             <p className="text-white/30 text-xs font-medium max-w-sm leading-relaxed">Obsah na sociální sítě, který vypadá profesionálně — bez grafika, bez copywritera, bez stresu.</p>
           </div>
