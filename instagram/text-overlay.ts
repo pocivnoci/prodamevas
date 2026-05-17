@@ -147,17 +147,28 @@ async function renderText(
     const baseColor = `rgba(255, 255, 255, ${opacity})`
     const fd = getFontData(fontFamily)
 
-    // Build children: either plain text or colored segments
+    // Build children: either plain text or colored word spans
     let children: any
     if (accentWords && accentWords.length > 0 && accentColor && bold) {
+        // Split text into phrase-level segments (accent vs non-accent)
         const segments = splitByAccent(text, accentWords)
-        children = segments.map((seg, i) => ({
+        // Then split each segment into individual words for flex spacing
+        const words: { word: string; accent: boolean }[] = []
+        for (const seg of segments) {
+            const parts = seg.text.split(/(\s+)/).filter(Boolean)
+            for (const part of parts) {
+                if (/^\s+$/.test(part)) continue // skip whitespace tokens
+                words.push({ word: part, accent: seg.accent })
+            }
+        }
+        children = words.map((w, i) => ({
             type: "span",
             props: {
                 key: String(i),
-                children: seg.text,
+                children: w.word,
                 style: {
-                    color: seg.accent ? accentColor : baseColor,
+                    color: w.accent ? accentColor : baseColor,
+                    marginRight: "0.25em",
                 },
             },
         }))
@@ -165,23 +176,18 @@ async function renderText(
         children = text
     }
 
-    // Use different layout for accent vs plain text:
-    // - Accent: block+inline spans (preserves whitespace between segments)
-    // - Plain: flex+wrap (original behavior, better centering)
-    const useAccentLayout = Array.isArray(children)
-
     // Satori renders a React-like element tree to SVG
+    // NOTE: Satori only supports flexbox layout, NOT block/inline
     const svg = await satori(
         {
             type: "div",
             props: {
                 children,
                 style: {
-                    display: useAccentLayout ? "block" : "flex",
-                    flexWrap: useAccentLayout ? undefined : "wrap",
-                    justifyContent: useAccentLayout ? undefined : "center",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    justifyContent: "center",
                     textAlign: "center",
-                    whiteSpace: useAccentLayout ? "pre-wrap" : undefined,
                     width: "100%",
                     color: baseColor,
                     fontSize: fontSizePx,
