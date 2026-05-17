@@ -138,32 +138,26 @@ export async function analyzeWebsite(url: string, igHandle: string): Promise<{
         console.log(`🔍 Scraping ${baseUrl}...`)
         const homepageHtml = await fetchPage(baseUrl)
 
-        // Fetch subpages and Instagram in parallel to save time (avoids 15s Vercel timeouts)
-        const subpageUrls = extractSubpageUrls(homepageHtml, baseUrl).slice(0, 8)
-        const [subpageTextsArray, instagramBioObj] = await Promise.all([
-            Promise.all(subpageUrls.map(async (subUrl) => {
-                try {
-                    const html = await fetchPage(subUrl)
-                    return extractText(html).substring(0, 1000)
-                } catch { return "" }
-            })),
-            (async () => {
-                if (!igHandle) return undefined
-                const handle = igHandle.replace('@', '').replace('https://instagram.com/', '')
-                try {
-                    const igHtml = await fetchPage(`https://www.instagram.com/${handle}/`)
-                    const bioMatch = igHtml.match(/"biography":"([^"]+)"/)
-                    return bioMatch?.[1]?.replace(/\\n/g, '\n')
-                } catch { return undefined }
-            })()
-        ])
+        // Discover subpages: sitemap.xml first, then <a href> fallback
+        const sitemapUrls = await fetchSitemapUrls(baseUrl)
+        const linkUrls = extractSubpageUrls(homepageHtml, baseUrl)
+        const allSubUrls = [...new Set([...sitemapUrls, ...linkUrls])].slice(0, 15)
+        console.log(`   📄 Found ${sitemapUrls.length} sitemap + ${linkUrls.length} link URLs → ${allSubUrls.length} to crawl`)
+
+        // Fetch subpages in parallel
+        const subpageTextsArray = await Promise.all(allSubUrls.map(async (subUrl) => {
+            try {
+                const html = await fetchPage(subUrl)
+                return extractStructuredText(html).substring(0, 1500)
+            } catch { return "" }
+        }))
 
         const subpageTexts = subpageTextsArray.filter(Boolean)
-        const instagramBio = instagramBioObj
 
-        // Extract metadata and main text from homepage
+        // Extract metadata, structured text, and CSS colors from homepage
         const metadata = extractMetadata(homepageHtml)
-        const mainText = extractText(homepageHtml)
+        const mainText = extractStructuredText(homepageHtml)
+        const cssColors = extractCSSColors(homepageHtml)
 
         // Send everything to AI for analysis — including VISUAL identity
         const analysisPrompt = `Analyzuj tuto webovou stránku a extrahuj klíčové informace pro Instagram marketing.
@@ -174,13 +168,14 @@ Description: ${metadata.description}
 OG Image: ${metadata.ogImage || 'N/A'}
 Theme Color: ${metadata.themeColor || 'N/A'}
 
-## HOMEPAGE TEXT (zkráceno)
-${mainText.substring(0, 3000)}
+## CSS BARVY DETEKOVANÉ Z WEBU
+${cssColors.length > 0 ? cssColors.map(c => `- ${c}`).join('\n') : 'Žádné nalezeny'}
 
-## DALŠÍ STRÁNKY
-${subpageTexts.map((t, i) => `### ${subpageUrls[i]}\n${t}`).join('\n\n')}
+## HOMEPAGE TEXT (strukturovaný)
+${mainText.substring(0, 5000)}
 
-${instagramBio ? `## INSTAGRAM BIO\n${instagramBio}` : ''}
+## DALŠÍ STRÁNKY (${allSubUrls.length})
+${subpageTexts.map((t, i) => `### ${allSubUrls[i]}\n${t}`).join('\n\n')}
 
 ## ÚKOL
 Analyzuj brand a vrať JSON s těmito poli:
@@ -252,8 +247,22 @@ Vrať POUZE platný JSON, bez dalšího textu.`
         const rawAnalysis = await generateText(analysisPrompt, { responseSchema: analysisSchema })
         const jsonMatch = rawAnalysis.match(/\{[\s\S]*\}/)
         const analysis: WebsiteAnalysis = JSON.parse(jsonMatch?.[0] || rawAnalysis)
-        analysis.instagramBio = instagramBio
         analysis.logoUrl = metadata.ogImage || undefined
+
+        // Enrich colors: if AI missed them but we have CSS colors, override
+        if (cssColors.length > 0 && analysis.colors.primary === '#000000') {
+            analysis.colors.primary = cssColors[0]
+            if (cssColors[1]) analysis.colors.secondary = cssColors[1]
+            if (cssColors[2]) analysis.colors.accent = cssColors[2]
+        }
+
+        // Extract dominant color from og:image as fallback
+        if (metadata.ogImage && analysis.colors.primary === '#000000') {
+            try {
+                const dominantColor = await extractDominantColor(metadata.ogImage)
+                if (dominantColor) analysis.colors.primary = dominantColor
+            } catch { /* non-critical */ }
+        }
 
         // Extract brand images from ALL scraped pages (homepage + subpages)
         const allImages = new Set<string>()
@@ -261,7 +270,7 @@ Vrať POUZE platný JSON, bez dalšího textu.`
             allImages.add(imgUrl)
         }
         // Also extract from subpage HTML — fetch them for images too
-        for (const subUrl of subpageUrls) {
+        for (const subUrl of allSubUrls) {
             try {
                 const subHtml = await fetchPage(subUrl)
                 const subBase = new URL(subUrl).origin
@@ -673,13 +682,108 @@ function extractMetadata(html: string): {
     return { title, description, ogImage, themeColor }
 }
 
-function extractText(html: string): string {
-    return html
+/**
+ * Structured text extraction — preserves semantic meaning.
+ * Returns text with headings marked, prices highlighted, lists preserved.
+ */
+function extractStructuredText(html: string): string {
+    let text = html
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '') // skip navigation
+        .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '') // skip footer
+
+    // Preserve headings as markers
+    text = text.replace(/<h([1-6])[^>]*>(.*?)<\/h\1>/gi, (_, level, content) => {
+        const clean = content.replace(/<[^>]+>/g, '').trim()
+        return clean ? `\n[H${level}] ${clean}\n` : ''
+    })
+
+    // Preserve list items
+    text = text.replace(/<li[^>]*>(.*?)<\/li>/gi, (_, content) => {
+        const clean = content.replace(/<[^>]+>/g, '').trim()
+        return clean ? `• ${clean}\n` : ''
+    })
+
+    // Preserve prices (common Czech patterns)
+    text = text.replace(/(\d[\d\s]*(?:Kč|CZK|,-|€|\$))/gi, ' [CENA: $1] ')
+
+    // Strip remaining tags
+    text = text
         .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
         .replace(/\s+/g, ' ')
         .trim()
+
+    return text
+}
+
+/**
+ * Fetch sitemap.xml and extract page URLs.
+ * Tries /sitemap.xml, /sitemap_index.xml, robots.txt Sitemap: directive.
+ */
+async function fetchSitemapUrls(baseUrl: string): Promise<string[]> {
+    const urls = new Set<string>()
+    const sitemapCandidates = [
+        `${baseUrl}/sitemap.xml`,
+        `${baseUrl}/sitemap_index.xml`,
+    ]
+
+    // Check robots.txt for Sitemap: directive
+    try {
+        const robotsTxt = await fetchPage(`${baseUrl}/robots.txt`)
+        const sitemapMatches = robotsTxt.match(/Sitemap:\s*(\S+)/gi)
+        if (sitemapMatches) {
+            for (const m of sitemapMatches) {
+                const url = m.replace(/Sitemap:\s*/i, '').trim()
+                if (url.startsWith('http')) sitemapCandidates.unshift(url)
+            }
+        }
+    } catch { /* no robots.txt */ }
+
+    for (const sitemapUrl of sitemapCandidates) {
+        try {
+            const xml = await fetchPage(sitemapUrl)
+            // Extract <loc> URLs
+            const locRegex = /<loc>([^<]+)<\/loc>/gi
+            let match
+            while ((match = locRegex.exec(xml)) !== null) {
+                const loc = match[1].trim()
+                // Skip assets and non-page URLs
+                if (!loc.match(/\.(jpg|png|gif|svg|pdf|xml|css|js)/i)) {
+                    urls.add(loc)
+                }
+                // If it's a sub-sitemap, fetch it too
+                if (loc.endsWith('.xml')) {
+                    try {
+                        const subXml = await fetchPage(loc)
+                        const subLocRegex = /<loc>([^<]+)<\/loc>/gi
+                        let subMatch
+                        while ((subMatch = subLocRegex.exec(subXml)) !== null) {
+                            const subLoc = subMatch[1].trim()
+                            if (!subLoc.match(/\.(jpg|png|gif|svg|pdf|xml|css|js)/i)) {
+                                urls.add(subLoc)
+                            }
+                        }
+                    } catch { /* sub-sitemap fetch failed */ }
+                }
+            }
+            if (urls.size > 0) break // found a working sitemap
+        } catch { /* sitemap not found, try next */ }
+    }
+
+    // Prioritize content-rich pages
+    const priorityKeywords = /galeri|pokoje|apart|rooms|suite|product|nabid|sluzb|služb|photo|foto|ubytov|akce|cenik|ceník|menu|about|o-nas|kontakt|blog/i
+    return Array.from(urls)
+        .sort((a, b) => {
+            const aPriority = priorityKeywords.test(a) ? 0 : 1
+            const bPriority = priorityKeywords.test(b) ? 0 : 1
+            return aPriority - bPriority
+        })
+        .slice(0, 30)
 }
 
 function extractSubpageUrls(html: string, baseUrl: string): string[] {
@@ -690,7 +794,6 @@ function extractSubpageUrls(html: string, baseUrl: string): string[] {
         const href = match[1]
         if (href.startsWith('/') && !href.startsWith('//') && href.length > 1) {
             const full = `${baseUrl}${href}`
-            // Skip assets, anchors, etc.
             if (!href.match(/\.(js|css|png|jpg|svg|ico|webp|gif|pdf|xml|json)/i)
                 && !href.includes('#')
                 && !href.includes('?')
@@ -699,7 +802,6 @@ function extractSubpageUrls(html: string, baseUrl: string): string[] {
             }
         }
     }
-    // Prioritize pages likely to contain product/room/gallery images
     const priorityKeywords = /galeri|pokoje|apart|rooms|suite|product|nabid|sluzb|služb|photo|foto|ubytov|akce|cenik|ceník|menu/i
     const sorted = Array.from(urls).sort((a, b) => {
         const aPriority = priorityKeywords.test(a) ? 0 : 1
@@ -707,6 +809,66 @@ function extractSubpageUrls(html: string, baseUrl: string): string[] {
         return aPriority - bPriority
     })
     return sorted
+}
+
+/**
+ * Extract colors from CSS: theme-color meta, CSS custom properties, inline styles.
+ * Returns array of unique hex colors found.
+ */
+function extractCSSColors(html: string): string[] {
+    const colors = new Set<string>()
+
+    // 1) theme-color meta tag
+    const themeColorMatch = html.match(/<meta[^>]+name="theme-color"[^>]+content="([^"]+)"/i)
+    if (themeColorMatch) colors.add(themeColorMatch[1])
+
+    // 2) CSS custom properties (--primary-color, --brand-color, etc.)
+    const cssVarRegex = /--(?:primary|secondary|accent|brand|main|theme|color)[^:]*:\s*(#[0-9a-fA-F]{3,8})/gi
+    let match2
+    while ((match2 = cssVarRegex.exec(html)) !== null) {
+        colors.add(match2[1])
+    }
+
+    // 3) Inline style colors (background-color, color, border-color)
+    const inlineColorRegex = /(?:background-color|(?<!-)color|border-color):\s*(#[0-9a-fA-F]{3,8})/gi
+    while ((match2 = inlineColorRegex.exec(html)) !== null) {
+        const hex = match2[1]
+        // Skip black, white, near-black, near-white (too generic)
+        if (!['#000', '#000000', '#fff', '#ffffff', '#333', '#333333', '#666', '#999', '#ccc', '#eee', '#111', '#222'].includes(hex.toLowerCase())) {
+            colors.add(hex)
+        }
+    }
+
+    // 4) CSS gradient colors
+    const gradientRegex = /linear-gradient\([^)]*?(#[0-9a-fA-F]{3,8})/gi
+    while ((match2 = gradientRegex.exec(html)) !== null) {
+        colors.add(match2[1])
+    }
+
+    return Array.from(colors).slice(0, 10)
+}
+
+/**
+ * Extract dominant color from an image URL using sharp.
+ * Returns hex color string or null.
+ */
+async function extractDominantColor(imageUrl: string): Promise<string | null> {
+    try {
+        const sharp = (await import('sharp')).default
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 5000)
+        const resp = await fetch(imageUrl, { signal: controller.signal })
+        clearTimeout(timeout)
+        if (!resp.ok) return null
+
+        const buffer = Buffer.from(await resp.arrayBuffer())
+        const { dominant } = await sharp(buffer).resize(50, 50, { fit: 'cover' }).stats()
+        const hex = `#${dominant.r.toString(16).padStart(2, '0')}${dominant.g.toString(16).padStart(2, '0')}${dominant.b.toString(16).padStart(2, '0')}`
+        console.log(`   🎨 Dominant color from og:image: ${hex}`)
+        return hex
+    } catch {
+        return null
+    }
 }
 
 /**
