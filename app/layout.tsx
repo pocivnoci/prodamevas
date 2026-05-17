@@ -53,10 +53,77 @@ export default function RootLayout({
       <body
         className={`${inter.className} antialiased selection:bg-aisummit-cinnabar/30 selection:text-white bg-aisummit-bg text-aisummit-text`}
       >
+        {/* PWA Splash Screen */}
+        <div id="splash" style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: '#050505',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          transition: 'opacity 0.5s ease, visibility 0.5s ease',
+        }}>
+          <style dangerouslySetInnerHTML={{ __html: `
+            @keyframes splash-pulse {
+              0%, 100% { transform: scale(1); opacity: 0.9; }
+              50% { transform: scale(1.08); opacity: 1; }
+            }
+            @keyframes splash-glow {
+              0%, 100% { box-shadow: 0 0 20px rgba(192,57,43,0), 0 0 60px rgba(192,57,43,0); }
+              50% { box-shadow: 0 0 30px rgba(192,57,43,0.3), 0 0 80px rgba(192,57,43,0.1); }
+            }
+            @keyframes splash-text {
+              0% { opacity: 0; transform: translateY(8px); }
+              100% { opacity: 1; transform: translateY(0); }
+            }
+            @keyframes splash-bar {
+              0% { width: 0%; }
+              100% { width: 100%; }
+            }
+            #splash-logo {
+              width: 72px; height: 72px; border-radius: 16px;
+              animation: splash-pulse 2s ease-in-out infinite, splash-glow 2s ease-in-out infinite;
+            }
+            #splash-name {
+              margin-top: 20px; font-size: 24px; font-weight: 900;
+              letter-spacing: -0.03em; text-transform: uppercase;
+              color: #fff; opacity: 0;
+              animation: splash-text 0.6s ease forwards 0.3s;
+            }
+            #splash-name span { color: #c0392b; }
+            #splash-sub {
+              margin-top: 6px; font-size: 9px; font-weight: 700;
+              letter-spacing: 0.25em; text-transform: uppercase;
+              color: rgba(255,255,255,0.25); opacity: 0;
+              animation: splash-text 0.6s ease forwards 0.5s;
+            }
+            #splash-progress {
+              margin-top: 32px; width: 120px; height: 2px;
+              background: rgba(255,255,255,0.05); border-radius: 2px;
+              overflow: hidden; opacity: 0;
+              animation: splash-text 0.4s ease forwards 0.7s;
+            }
+            #splash-progress-bar {
+              height: 100%; background: linear-gradient(90deg, #c0392b, #e74c3c);
+              border-radius: 2px;
+              animation: splash-bar 1.8s ease-in-out forwards 0.8s;
+            }
+          `}} />
+          <img id="splash-logo" src="/icon-512.png" alt="" />
+          <div id="splash-name">Chrl<span>it</span></div>
+          <div id="splash-sub">AI Instagram Studio</div>
+          <div id="splash-progress"><div id="splash-progress-bar" /></div>
+        </div>
+
         {children}
         <script
           dangerouslySetInnerHTML={{
-            __html: `if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js')})}`,
+            __html: `
+if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js')})}
+window.addEventListener('load',()=>{
+  setTimeout(()=>{
+    var s=document.getElementById('splash');
+    if(s){s.style.opacity='0';s.style.visibility='hidden';setTimeout(()=>s.remove(),500)}
+  },1200)
+})`,
           }}
         />
       </body>
