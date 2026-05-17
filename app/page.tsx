@@ -5,6 +5,7 @@ import Link from "next/link"
 import { motion, useScroll, useTransform } from "framer-motion"
 import { Bot, PenTool, ArrowRight, CheckCircle2, Layers, Cpu } from "lucide-react"
 import { SeedOfLife } from "@/components/SeedOfLife"
+import { LiveDemoWidget } from "@/components/LiveDemoWidget"
 
 export default function Home() {
   const [scrolled, setScrolled] = useState(false)
@@ -251,8 +252,20 @@ export default function Home() {
         </div>
       </section>
 
-      {/* DEMO SECTION — Seed of Life: Self-Learning Loop */}
+      {/* INTERACTIVE DEMO */}
       <section id="demo" className="relative py-32 border-t border-white/5 bg-[#0a0a0a] overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(192,57,43,0.05),transparent_70%)] pointer-events-none" />
+        <div className="max-w-7xl mx-auto px-6 relative z-10">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Vyzkoušejte si to<br /><span className="text-aisummit-cinnabar">rovnou teď.</span></h2>
+            <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Zadejte cokoliv a sledujte, jak AI vytvoří post na míru. Žádná registrace, žádné závazky.</p>
+          </div>
+          <LiveDemoWidget />
+        </div>
+      </section>
+
+      {/* SELF-LEARNING ENGINE */}
+      <section className="relative py-32 border-t border-white/5 bg-[#050505] overflow-hidden">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Čím víc tvoříte,<br /><span className="text-aisummit-cinnabar">tím lepší obsah dostáváte.</span></h2>
