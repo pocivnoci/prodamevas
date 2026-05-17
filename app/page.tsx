@@ -42,6 +42,12 @@ export default function Home() {
           </Link>
           
           <div className="flex items-center gap-6">
+            <Link href="#demo" className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors hidden sm:block">
+              Demo
+            </Link>
+            <Link href="#pricing" className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors hidden sm:block">
+              Ceník
+            </Link>
             <Link href="/login" className="text-[10px] font-bold uppercase tracking-widest text-white/50 hover:text-white transition-colors hidden sm:block">
               Přihlásit se
             </Link>
