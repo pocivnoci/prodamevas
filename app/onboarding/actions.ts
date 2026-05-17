@@ -300,8 +300,127 @@ Vrať POUZE platný JSON, bez dalšího textu.`
 }
 
 // ============================================
-// STEP 2: GENERATE QUESTIONS
+// STEP 1B: MANUAL ANALYSIS (no website)
 // ============================================
+
+export interface ManualBusinessInfo {
+    businessName: string
+    category: string
+    description: string
+    products: string
+    tone: string
+    igHandle: string
+}
+
+const CATEGORY_DEFAULTS: Record<string, { industry: string; postTypes: string[]; audience: string }> = {
+    'kavarna': { industry: 'Gastronomie / Kavárna', postTypes: ['tip', 'behind_scenes', 'product_drop', 'meme'], audience: 'Milovníci kávy, lidé hledající příjemné místo k práci nebo relaxaci, 20-45 let' },
+    'restaurace': { industry: 'Gastronomie / Restaurace', postTypes: ['product_drop', 'behind_scenes', 'tip', 'recenze'], audience: 'Foodie komunita, páry na rande, rodiny, 25-55 let' },
+    'salon': { industry: 'Krása / Salon', postTypes: ['before_after', 'tip', 'product_drop', 'behind_scenes'], audience: 'Ženy 18-50, muži 20-40, lidé dbající na svůj vzhled' },
+    'fitness': { industry: 'Fitness / Wellness', postTypes: ['tip', 'challenge', 'behind_scenes', 'meme'], audience: 'Aktivní lidé 18-45, začátečníci i pokročilí sportovci' },
+    'eshop': { industry: 'E-commerce', postTypes: ['product_drop', 'recenze', 'tip', 'carousel'], audience: 'Online nakupující, fanoušci značky, 20-45 let' },
+    'remeslnik': { industry: 'Řemeslo / Služby', postTypes: ['before_after', 'tip', 'behind_scenes', 'recenze'], audience: 'Majitelé domů a bytů, lidé plánující rekonstrukci, 30-60 let' },
+    'poradce': { industry: 'Poradenství / Koučink', postTypes: ['tip', 'carousel', 'meme', 'behind_scenes'], audience: 'Podnikatelé, manažeři, lidé hledající osobní rozvoj, 25-50 let' },
+    'fotograf': { industry: 'Fotografie / Kreativa', postTypes: ['behind_scenes', 'tip', 'product_drop', 'carousel'], audience: 'Páry, rodiny, firmy hledající profesionální foto, 25-45 let' },
+    'jine': { industry: 'Služby', postTypes: ['tip', 'behind_scenes', 'product_drop', 'meme'], audience: 'Lokální komunita, potenciální zákazníci v okolí' },
+}
+
+export async function buildManualAnalysis(info: ManualBusinessInfo): Promise<{
+    success: boolean
+    analysis?: WebsiteAnalysis
+    error?: string
+}> {
+    try {
+        const categoryDefaults = CATEGORY_DEFAULTS[info.category] || CATEGORY_DEFAULTS['jine']
+
+        // Parse products from free text (comma or newline separated)
+        const productNames = info.products
+            .split(/[,\n]+/)
+            .map(p => p.trim())
+            .filter(Boolean)
+            .slice(0, 10)
+
+        const products = productNames.map(name => ({
+            name,
+            type: 'product',
+            slug: name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').substring(0, 30),
+        }))
+
+        // Build analysis from manual input + AI enrichment
+        const enrichPrompt = `Na základě těchto informací o firmě vygeneruj doplňující data pro Instagram marketing.
+
+FIRMA: ${info.businessName}
+KATEGORIE: ${info.category}
+POPIS: ${info.description}
+PRODUKTY/SLUŽBY: ${info.products}
+TÓN KOMUNIKACE: ${info.tone}
+
+Vrať JSON:
+{
+  "uniqueSellingPoints": ["... (3-5 USP odvozených z popisu)"],
+  "recommendedFont": "Inter" nebo "BebasNeue",
+  "overlayGradient": {"topColor": "#hex", "midColor": "#hex", "bottomColor": "#hex"},
+  "visualFeel": "1 věta popisující vizuální styl feed",
+  "colors": {"primary": "#hex", "secondary": "#hex", "accent": "#hex"},
+  "brandTone": "detailnější popis tónu (2-3 slova)"
+}
+
+Barvy a gradient MUSÍ odpovídat kategorii a tónu. Nesmí být černé/šedé — musí odrážet brand!
+Vrať POUZE platný JSON.`
+
+        const enrichSchema = {
+            type: "object",
+            properties: {
+                uniqueSellingPoints: { type: "array", items: { type: "string" } },
+                recommendedFont: { type: "string", enum: ["Inter", "BebasNeue"] },
+                overlayGradient: {
+                    type: "object",
+                    properties: {
+                        topColor: { type: "string" },
+                        midColor: { type: "string" },
+                        bottomColor: { type: "string" },
+                    },
+                    required: ["topColor", "midColor", "bottomColor"],
+                },
+                visualFeel: { type: "string" },
+                colors: {
+                    type: "object",
+                    properties: {
+                        primary: { type: "string" },
+                        secondary: { type: "string" },
+                        accent: { type: "string" },
+                    },
+                    required: ["primary", "secondary", "accent"],
+                },
+                brandTone: { type: "string" },
+            },
+            required: ["uniqueSellingPoints", "recommendedFont", "overlayGradient", "visualFeel", "colors", "brandTone"],
+        }
+
+        const rawEnrich = await generateText(enrichPrompt, { responseSchema: enrichSchema })
+        const jsonMatch = rawEnrich.match(/\{[\s\S]*\}/)
+        const enriched = JSON.parse(jsonMatch?.[0] || rawEnrich)
+
+        const analysis: WebsiteAnalysis = {
+            companyName: info.businessName,
+            description: info.description,
+            industry: categoryDefaults.industry,
+            products,
+            brandTone: enriched.brandTone || info.tone,
+            colors: enriched.colors,
+            targetAudience: categoryDefaults.audience,
+            uniqueSellingPoints: enriched.uniqueSellingPoints,
+            existingContent: [],
+            recommendedFont: enriched.recommendedFont,
+            overlayGradient: enriched.overlayGradient,
+            visualFeel: enriched.visualFeel,
+        }
+
+        return { success: true, analysis }
+    } catch (error) {
+        console.error('Manual analysis error:', error)
+        return { success: false, error: humanizeError(error) }
+    }
+}
 
 export async function generateQuestions(analysis: WebsiteAnalysis): Promise<{
     success: boolean

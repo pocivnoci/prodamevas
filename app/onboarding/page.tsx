@@ -2,50 +2,77 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { analyzeWebsite, generateQuestions, buildAndSaveConfig } from './actions'
+import { analyzeWebsite, generateQuestions, buildAndSaveConfig, buildManualAnalysis } from './actions'
 import type { WebsiteAnalysis, OnboardingQuestion } from './actions'
 
-type Step = 'input' | 'analyzing' | 'questions' | 'building' | 'done'
+type Step = 'choose' | 'input' | 'manual' | 'analyzing' | 'questions' | 'building' | 'done'
+type Mode = 'website' | 'manual' | null
 
 export default function OnboardingPage() {
     const router = useRouter()
 
-    const [step, setStep] = useState<Step>('input')
+    const [step, setStep] = useState<Step>('choose')
+    const [mode, setMode] = useState<Mode>(null)
     const [url, setUrl] = useState('')
     const [igHandle, setIgHandle] = useState('')
     const [error, setError] = useState<string | null>(null)
+
+    // Manual fields
+    const [businessName, setBusinessName] = useState('')
+    const [category, setCategory] = useState('')
+    const [description, setDescription] = useState('')
+    const [products, setProducts] = useState('')
+    const [tone, setTone] = useState('')
 
     // Analysis data
     const [analysis, setAnalysis] = useState<WebsiteAnalysis | null>(null)
     const [questions, setQuestions] = useState<OnboardingQuestion[]>([])
     const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
 
-    // ─── Step 1 → 2: Submit URL & IG ────────────────────────────
+    // ─── Step 1A: Submit URL & IG ────────────────────────────
     async function handleAnalyze(e: React.FormEvent) {
         e.preventDefault()
         if (!url.trim()) return
-
         setError(null)
         setStep('analyzing')
-
         try {
-            // Analyze website
             const result = await analyzeWebsite(url.trim(), igHandle.trim())
-            if (!result.success || !result.analysis) {
-                throw new Error(result.error || 'Analýza selhala')
-            }
+            if (!result.success || !result.analysis) throw new Error(result.error || 'Analýza selhala')
             setAnalysis(result.analysis)
-
-            // Generate questions
             const qResult = await generateQuestions(result.analysis)
-            if (!qResult.success || !qResult.questions) {
-                throw new Error(qResult.error || 'Generování dotazníku selhalo')
-            }
+            if (!qResult.success || !qResult.questions) throw new Error(qResult.error || 'Generování dotazníku selhalo')
             setQuestions(qResult.questions)
             setStep('questions')
         } catch (err) {
             setError((err as Error).message)
             setStep('input')
+        }
+    }
+
+    // ─── Step 1B: Manual form submit ────────────────────────────
+    async function handleManualSubmit(e: React.FormEvent) {
+        e.preventDefault()
+        if (!businessName.trim() || !category || !description.trim()) return
+        setError(null)
+        setStep('analyzing')
+        try {
+            const result = await buildManualAnalysis({
+                businessName: businessName.trim(),
+                category,
+                description: description.trim(),
+                products: products.trim(),
+                tone: tone || 'přátelský',
+                igHandle: igHandle.trim(),
+            })
+            if (!result.success || !result.analysis) throw new Error(result.error || 'Analýza selhala')
+            setAnalysis(result.analysis)
+            const qResult = await generateQuestions(result.analysis)
+            if (!qResult.success || !qResult.questions) throw new Error(qResult.error || 'Generování dotazníku selhalo')
+            setQuestions(qResult.questions)
+            setStep('questions')
+        } catch (err) {
+            setError((err as Error).message)
+            setStep('manual')
         }
     }
 
@@ -96,7 +123,7 @@ export default function OnboardingPage() {
                     <div
                         className="h-full bg-gradient-to-r from-emerald-500 to-blue-500 transition-all duration-700 ease-out"
                         style={{
-                            width: step === 'input' ? '0%'
+                            width: (step === 'choose' || step === 'input' || step === 'manual') ? '0%'
                                 : step === 'analyzing' ? '33%'
                                     : step === 'questions' ? '66%'
                                         : '100%'
@@ -107,59 +134,140 @@ export default function OnboardingPage() {
 
             <div className="max-w-2xl mx-auto px-4 py-16">
                 {/* ══════════════════════════════════════════════ */}
-                {/* STEP 1: Input URL & IG Handle                */}
+                {/* STEP 0: Choose mode                          */}
+                {/* ══════════════════════════════════════════════ */}
+                {step === 'choose' && (
+                    <div className="animate-fadeIn">
+                        <div className="text-center mb-10">
+                            <h1 className="text-3xl font-bold tracking-tight mb-3">Nastavíme tvůj Autopilot</h1>
+                            <p className="text-gray-400 text-lg">Jak chceš začít?</p>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <button
+                                onClick={() => { setMode('website'); setStep('input') }}
+                                className="p-6 bg-white/5 border border-white/10 rounded-2xl text-left hover:border-emerald-500/40 transition-all cursor-pointer group"
+                            >
+                                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">🌐</div>
+                                <h3 className="font-bold text-white mb-1">Mám webovou stránku</h3>
+                                <p className="text-sm text-gray-400">AI analyzuje tvůj web a nastaví vše automaticky.</p>
+                            </button>
+                            <button
+                                onClick={() => { setMode('manual'); setStep('manual') }}
+                                className="p-6 bg-white/5 border border-white/10 rounded-2xl text-left hover:border-blue-500/40 transition-all cursor-pointer group"
+                            >
+                                <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">✏️</div>
+                                <h3 className="font-bold text-white mb-1">Nemám web</h3>
+                                <p className="text-sm text-gray-400">Vyplníš pár otázek a AI nastaví autopilot za tebe.</p>
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* ══════════════════════════════════════════════ */}
+                {/* STEP 1A: Input URL & IG Handle               */}
                 {/* ══════════════════════════════════════════════ */}
                 {step === 'input' && (
                     <div className="animate-fadeIn">
                         <div className="text-center mb-10">
-                            <div className="inline-flex rounded-2xl bg-emerald-500/10 p-4 mb-6 ring-1 ring-inset ring-emerald-500/20">
-                                <svg className="w-8 h-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                                </svg>
-                            </div>
-                            <h1 className="text-3xl font-bold tracking-tight mb-3">Nastavíme tvůj Autopilot</h1>
-                            <p className="text-gray-400 text-lg">Zadej web a Instagram — AI analyzuje tvou značku a nastaví vše za tebe.</p>
+                            <h1 className="text-3xl font-bold tracking-tight mb-3">Zadej svůj web</h1>
+                            <p className="text-gray-400 text-lg">AI analyzuje tvou značku a nastaví vše za tebe.</p>
                         </div>
-
                         {error && <ErrorBanner message={error} />}
-
                         <form onSubmit={handleAnalyze} className="space-y-5">
                             <div className="p-6 bg-white/5 border border-white/10 rounded-2xl space-y-5">
                                 <div>
                                     <label htmlFor="url" className="block text-sm font-medium text-gray-300 mb-2">Webová stránka</label>
-                                    <input
-                                        id="url"
-                                        type="text"
-                                        value={url}
-                                        onChange={e => setUrl(e.target.value)}
-                                        required
-                                        placeholder="https://tvujweb.cz"
-                                        className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm"
-                                    />
+                                    <input id="url" type="text" value={url} onChange={e => setUrl(e.target.value)} required placeholder="https://tvujweb.cz" className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm" />
                                 </div>
                                 <div>
                                     <label htmlFor="ig" className="block text-sm font-medium text-gray-300 mb-2">Instagram handle</label>
-                                    <input
-                                        id="ig"
-                                        type="text"
-                                        value={igHandle}
-                                        onChange={e => setIgHandle(e.target.value)}
-                                        placeholder="@tvujinstagram"
-                                        className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm"
-                                    />
-                                    <p className="mt-1.5 text-xs text-gray-500">Volitelné — pomůže nám lépe pochopit tvůj brand</p>
+                                    <input id="ig" type="text" value={igHandle} onChange={e => setIgHandle(e.target.value)} placeholder="@tvujinstagram" className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm" />
+                                    <p className="mt-1.5 text-xs text-gray-500">Volitelné</p>
                                 </div>
                             </div>
+                            <div className="flex gap-3">
+                                <button type="button" onClick={() => setStep('choose')} className="px-4 py-3.5 rounded-xl border border-white/10 text-sm text-gray-400 hover:text-white transition-all cursor-pointer">← Zpět</button>
+                                <button type="submit" className="flex-1 relative group overflow-hidden rounded-xl bg-emerald-600 px-6 py-3.5 text-sm font-medium text-white shadow-[0_0_20px_rgba(16,185,129,0.2)] transition-all hover:bg-emerald-500 cursor-pointer">
+                                    <span className="relative z-10 flex items-center justify-center gap-2">🔍 Analyzovat web<span className="transition-transform group-hover:translate-x-1">→</span></span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                )}
 
-                            <button
-                                type="submit"
-                                className="w-full relative group overflow-hidden rounded-xl bg-emerald-600 px-6 py-3.5 text-sm font-medium text-white shadow-[0_0_20px_rgba(16,185,129,0.2)] transition-all hover:bg-emerald-500 cursor-pointer"
-                            >
-                                <span className="relative z-10 flex items-center justify-center gap-2">
-                                    🔍 Analyzovat web
-                                    <span className="transition-transform group-hover:translate-x-1">→</span>
-                                </span>
-                            </button>
+                {/* ══════════════════════════════════════════════ */}
+                {/* STEP 1B: Manual form (no website)             */}
+                {/* ══════════════════════════════════════════════ */}
+                {step === 'manual' && (
+                    <div className="animate-fadeIn">
+                        <div className="text-center mb-10">
+                            <h1 className="text-3xl font-bold tracking-tight mb-3">Řekni nám o svém podnikání</h1>
+                            <p className="text-gray-400 text-lg">Pár otázek a AI nastaví autopilot za tebe.</p>
+                        </div>
+                        {error && <ErrorBanner message={error} />}
+                        <form onSubmit={handleManualSubmit} className="space-y-5">
+                            <div className="p-6 bg-white/5 border border-white/10 rounded-2xl space-y-5">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">Název firmy / značky</label>
+                                    <input type="text" value={businessName} onChange={e => setBusinessName(e.target.value)} required placeholder="např. Café Pohoda" className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">Kategorie</label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {[
+                                            { id: 'kavarna', label: '☕ Kavárna' },
+                                            { id: 'restaurace', label: '🍽️ Restaurace' },
+                                            { id: 'salon', label: '💇 Salon' },
+                                            { id: 'fitness', label: '💪 Fitness' },
+                                            { id: 'eshop', label: '🛒 E-shop' },
+                                            { id: 'remeslnik', label: '🔧 Řemeslník' },
+                                            { id: 'poradce', label: '📊 Poradce' },
+                                            { id: 'fotograf', label: '📸 Fotograf' },
+                                            { id: 'jine', label: '📌 Jiné' },
+                                        ].map(cat => (
+                                            <button key={cat.id} type="button" onClick={() => setCategory(cat.id)}
+                                                className={`px-3 py-2.5 rounded-xl text-sm transition-all cursor-pointer text-left ${
+                                                    category === cat.id ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 border' : 'bg-black/30 border border-white/10 text-gray-300 hover:border-white/20'
+                                                }`}>{cat.label}</button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">Co děláte? Popište své podnikání</label>
+                                    <textarea value={description} onChange={e => setDescription(e.target.value)} required placeholder="např. Útulná kavárna v centru Brna, pražíme vlastní kávu, děláme domácí dezerty..." rows={3} className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm resize-none" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">Produkty / služby <span className="text-gray-500">(oddělte čárkou)</span></label>
+                                    <input type="text" value={products} onChange={e => setProducts(e.target.value)} placeholder="např. Espresso, Cappuccino, Cheesecake, Brunch menu" className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">Jak chcete komunikovat?</label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {[
+                                            { id: 'přátelský', label: '😊 Přátelský' },
+                                            { id: 'profesionální', label: '👔 Profesionální' },
+                                            { id: 'drzý', label: '😎 Drzý / Vtipný' },
+                                            { id: 'expertní', label: '🎓 Expertní' },
+                                        ].map(t => (
+                                            <button key={t.id} type="button" onClick={() => setTone(t.id)}
+                                                className={`px-3 py-2.5 rounded-xl text-sm transition-all cursor-pointer text-left ${
+                                                    tone === t.id ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 border' : 'bg-black/30 border border-white/10 text-gray-300 hover:border-white/20'
+                                                }`}>{t.label}</button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">Instagram handle <span className="text-gray-500">(volitelné)</span></label>
+                                    <input type="text" value={igHandle} onChange={e => setIgHandle(e.target.value)} placeholder="@tvujinstagram" className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
+                                </div>
+                            </div>
+                            <div className="flex gap-3">
+                                <button type="button" onClick={() => setStep('choose')} className="px-4 py-3.5 rounded-xl border border-white/10 text-sm text-gray-400 hover:text-white transition-all cursor-pointer">← Zpět</button>
+                                <button type="submit" disabled={!businessName || !category || !description}
+                                    className="flex-1 relative group overflow-hidden rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-medium text-white shadow-[0_0_20px_rgba(59,130,246,0.2)] transition-all hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
+                                    <span className="relative z-10 flex items-center justify-center gap-2">🚀 Analyzovat a nastavit<span className="transition-transform group-hover:translate-x-1">→</span></span>
+                                </button>
+                            </div>
                         </form>
                     </div>
                 )}
