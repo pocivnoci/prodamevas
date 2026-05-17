@@ -2,9 +2,9 @@
 
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { motion, useScroll, useTransform } from "framer-motion"
 import { Sparkles, Bot, PenTool, TrendingUp, ArrowRight, CheckCircle2, Layers, Cpu } from "lucide-react"
-import { LogoPV } from "@/components/LogoPV"
 import { SeedOfLife } from "@/components/SeedOfLife"
 
 export default function Home() {
@@ -37,8 +37,7 @@ export default function Home() {
       >
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <LogoPV className="w-8 h-8 rounded-sm" />
-            <span className="font-black tracking-tighter text-lg uppercase">Chr<span className="text-aisummit-cinnabar">lit</span></span>
+            <Image src="/chrlit-logo.png" alt="Chrlit" width={140} height={32} className="h-8 w-auto" priority />
           </div>
           
           <div className="flex items-center gap-6">
@@ -552,8 +551,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-12">
           <div className="md:col-span-2">
             <div className="flex items-center gap-2 mb-6">
-              <LogoPV className="w-6 h-6 rounded-sm" />
-              <span className="font-black tracking-tighter text-base text-white uppercase">Chr<span className="text-aisummit-cinnabar">lit</span></span>
+              <Image src="/chrlit-logo.png" alt="Chrlit" width={100} height={24} className="h-5 w-auto" />
             </div>
             <p className="text-white/30 text-xs font-medium max-w-sm leading-relaxed">Obsah na sociální sítě, který vypadá profesionálně — bez grafika, bez copywritera, bez stresu.</p>
           </div>
