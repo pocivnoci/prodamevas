@@ -652,6 +652,41 @@ DŮLEŽITÉ:
             }
         }
 
+        // Generate audience personas
+        try {
+            const personaPrompt = `Pro firmu "${analysis.companyName}" (${analysis.industry}) vygeneruj 3 audience persony.
+
+Popis firmy: ${analysis.description}
+Cílová skupina: ${analysis.targetAudience || 'obecná'}
+
+Vrať JSON pole s 3 objekty:
+[
+  {
+    "label": "krátký název persony (česky, 1-2 slova)",
+    "ageRange": "XX-XX",
+    "painPoints": ["3 konkrétní problémy/potřeby"],
+    "triggers": ["3 typy obsahu co na ně fungují"],
+    "ctaStyle": "soft" | "medium" | "hard"
+  }
+]
+
+Pravidla:
+- Persona 1: Nový zákazník (soft CTA — budování důvěry)
+- Persona 2: Zvažující zákazník (medium CTA — motivace k akci)
+- Persona 3: Připravený kupovat (hard CTA — přímý prodej)
+- Pain points a triggers MUSÍ být specifické pro ${analysis.industry}
+- Vrať POUZE platný JSON pole.`
+
+            const rawPersonas = await generateText(personaPrompt, { temperature: 0.8 })
+            const personaMatch = rawPersonas.match(/\[[\s\S]*\]/)
+            if (personaMatch) {
+                config.audiencePersonas = JSON.parse(personaMatch[0])
+                console.log(`✅ ${config.audiencePersonas!.length} audience personas generated`)
+            }
+        } catch (personaErr) {
+            console.warn(`⚠️ Persona generation failed: ${(personaErr as Error).message}`)
+        }
+
         // Save to database
         const clientSlug = config.id
 

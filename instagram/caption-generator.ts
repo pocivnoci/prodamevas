@@ -307,6 +307,24 @@ export function buildMegaPrompt(
     const hookTemplates = getHookTemplates(config, postType.name, 4)
     const ctaOptions = getRandomCTAs(config, 6)
 
+    // Audience persona targeting — pick one at random for this post
+    let personaSection = ""
+    if (config.audiencePersonas && config.audiencePersonas.length > 0) {
+        const persona = config.audiencePersonas[Math.floor(Math.random() * config.audiencePersonas.length)]
+        personaSection = `
+## 🎯 CÍLOVÁ PERSONA PRO TENTO POST
+**Segment:** ${persona.label} (${persona.ageRange} let)
+**Pain points:** ${persona.painPoints.join(", ")}
+**Co na ně funguje:** ${persona.triggers.join(", ")}
+**CTA přístup:** ${persona.ctaStyle === "hard" ? "Přímý, urgentní — tlač na akci" : persona.ctaStyle === "medium" ? "Motivující — ukaž hodnotu" : "Jemný — buduj důvěru, neptej se o nic"}
+
+⚠️ **INSTRUKCE:** Hook, tón body a CTA MUSÍ být přizpůsobeny PŘESNĚ pro tuto personu.
+- Hook musí rezonovat s jejich pain points
+- Body musí používat jejich triggery
+- CTA musí odpovídat jejich stylu (${persona.ctaStyle})
+`
+    }
+
     let learningSection = ""
     if (performance.topPatterns.length > 0 || performance.bestHooks.length > 0) {
         learningSection = `
@@ -385,7 +403,7 @@ ${review ? `## RECENZE K VYUŽITÍ
 "${review.quote}" — ${review.customer_initials || "Zákazník"}
 ` : ""}
 ${learningSection}
-
+${personaSection}
 ## INSPIRACE PRO HOOKY
 ${hookTemplates.map(h => `- Vzor: "${h.pattern}" → Příklad: "${h.example}" (trigger: ${h.trigger})`).join("\n")}
 

@@ -87,6 +87,21 @@ export interface PostFormat {
     overlayStyle: OverlayStyle
 }
 
+// ─── Audience Persona ───────────────────────────────────────
+
+export interface AudiencePersona {
+    /** Short label, e.g. "Začátečník", "Skeptik" */
+    label: string
+    /** Age range, e.g. "25-35" */
+    ageRange: string
+    /** What they struggle with / want */
+    painPoints: string[]
+    /** What content hooks work on them */
+    triggers: string[]
+    /** Preferred CTA approach */
+    ctaStyle: "soft" | "medium" | "hard"
+}
+
 // ─── Client Config ──────────────────────────────────────────
 
 export interface ClientConfig {
@@ -157,6 +172,10 @@ export interface ClientConfig {
      *  If set, this description is injected into every image prompt so
      *  Imagen generates the same recognizable person across all posts. */
     characterDescription?: string
+
+    /** Audience personas — AI tailors content tone, hooks, and CTAs per persona.
+     *  Generated during onboarding based on business type and target audience. */
+    audiencePersonas?: AudiencePersona[]
 
     /** @deprecated Use brandReferenceImages instead */
     characterReferenceImages?: string[]
