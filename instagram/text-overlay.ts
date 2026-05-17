@@ -85,10 +85,53 @@ interface TextOverlayOptions {
     logoFile?: string
     /** Font family override — must match a loaded font name (default: "Inter") */
     fontFamily?: string
+    /** Primary brand accent color (hex) for keyword highlighting */
+    accentColor?: string
+    /** Words/phrases to highlight with accent color (must be exact substrings of headline) */
+    accentWords?: string[]
+    /** Headline size multiplier (default: 1.0). BebasNeue auto-scales to 1.25 if not set. */
+    headlineScale?: number
+}
+
+/**
+ * Split text into segments by accent words (case-insensitive, diacritics-aware).
+ * Returns array of { text, accent } segments preserving original casing.
+ */
+function splitByAccent(text: string, accentWords: string[]): { text: string; accent: boolean }[] {
+    if (!accentWords || accentWords.length === 0) return [{ text, accent: false }]
+
+    // Build regex from accent words, escape special chars, case insensitive
+    const escaped = accentWords
+        .filter(w => w.length > 0)
+        .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    if (escaped.length === 0) return [{ text, accent: false }]
+
+    // Sort by length descending so longer phrases match first
+    escaped.sort((a, b) => b.length - a.length)
+    const regex = new RegExp(`(${escaped.join("|")})`, "gi")
+
+    const segments: { text: string; accent: boolean }[] = []
+    let lastIndex = 0
+    let match: RegExpExecArray | null
+
+    while ((match = regex.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+            segments.push({ text: text.slice(lastIndex, match.index), accent: false })
+        }
+        segments.push({ text: match[0], accent: true })
+        lastIndex = match.index + match[0].length
+    }
+
+    if (lastIndex < text.length) {
+        segments.push({ text: text.slice(lastIndex), accent: false })
+    }
+
+    return segments.length > 0 ? segments : [{ text, accent: false }]
 }
 
 /**
  * Render text to a transparent PNG using Satori + resvg-js.
+ * Supports accent-colored keywords via accentWords/accentColor.
  * No Pango, no FontConfig, no system dependencies.
  */
 async function renderText(
@@ -98,23 +141,43 @@ async function renderText(
     bold: boolean,
     opacity: number = 1,
     fontFamily: string = "Inter",
+    accentWords?: string[],
+    accentColor?: string,
 ): Promise<Buffer> {
-    const color = `rgba(255, 255, 255, ${opacity})`
+    const baseColor = `rgba(255, 255, 255, ${opacity})`
     const fd = getFontData(fontFamily)
+
+    // Build children: either plain text or colored segments
+    let children: any
+    if (accentWords && accentWords.length > 0 && accentColor && bold) {
+        const segments = splitByAccent(text, accentWords)
+        children = segments.map((seg, i) => ({
+            type: "span",
+            props: {
+                key: String(i),
+                children: seg.text,
+                style: {
+                    color: seg.accent ? accentColor : baseColor,
+                },
+            },
+        }))
+    } else {
+        children = text
+    }
 
     // Satori renders a React-like element tree to SVG
     const svg = await satori(
         {
             type: "div",
             props: {
-                children: text,
+                children,
                 style: {
                     display: "flex",
                     flexWrap: "wrap",
                     justifyContent: "center",
                     textAlign: "center",
                     width: "100%",
-                    color: color,
+                    color: baseColor,
                     fontSize: fontSizePx,
                     fontWeight: bold ? 700 : 400,
                     fontFamily: fd.name,
@@ -158,7 +221,8 @@ async function renderText(
     const pngData = resvg.render()
     const pngBuffer = pngData.asPng()
 
-    console.log(`   🔤 Rendered text (${bold ? 'bold' : 'regular'}, ${fontSizePx}px): "${text.substring(0, 40)}..." → ${pngBuffer.length} bytes`)
+    const accentInfo = accentWords?.length ? ` [accent: ${accentWords.join(", ")}]` : ""
+    console.log(`   🔤 Rendered text (${bold ? 'bold' : 'regular'}, ${fontSizePx}px${accentInfo}): "${text.substring(0, 40)}..." → ${pngBuffer.length} bytes`)
 
     return Buffer.from(pngBuffer)
 }
@@ -194,7 +258,11 @@ export async function overlayText(
     // Calculate sizes proportionally — cover variant gets larger text
     const padding = Math.round(width * 0.06)
     const textAreaWidth = width - padding * 2
-    const headlineFontPx = Math.round(width * (variant === "cover" ? 0.058 : 0.050))
+    // Auto-scale: BebasNeue is narrow, looks better 25% bigger
+    const fontName = options.fontFamily || "Inter"
+    const autoScale = fontName === "BebasNeue" ? 1.25 : 1.0
+    const scale = options.headlineScale || autoScale
+    const headlineFontPx = Math.round(width * (variant === "cover" ? 0.058 : 0.050) * scale)
     const subtextFontPx = Math.round(width * 0.028)
 
     // ─── Layer 1: Resize original image ───
@@ -267,8 +335,11 @@ export async function overlayText(
             stepNumberBuffer = await renderText(stepNum, stepFontPx, Math.round(width * 0.35), true, 0.12, options.fontFamily)
         }
 
-        // ─── Layer 6: Headline text (Satori) ───
-        const headlineImage = await renderText(headline, headlineFontPx, textAreaWidth, true, 1, options.fontFamily)
+        // ─── Layer 6: Headline text (Satori) — with accent color support ───
+        const headlineImage = await renderText(
+            headline, headlineFontPx, textAreaWidth, true, 1,
+            options.fontFamily, options.accentWords, options.accentColor
+        )
         const headlineMeta = await sharp(headlineImage).metadata()
         const headlineW = headlineMeta.width || textAreaWidth
         const headlineH = headlineMeta.height || 60

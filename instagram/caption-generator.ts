@@ -116,8 +116,13 @@ export function buildCaptionSchema(config: ClientConfig) {
                 type: Type.STRING,
                 description: "Subtext below hook (benefit, max 8 words, Czech)",
             },
+            accentWords: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "2-3 key words/phrases FROM the hook that should be visually highlighted (each 1-2 words, Czech, must be exact substring of hook)",
+            },
         },
-        required: ["hook", "body", "cta", "hashtags", "imagePrompt", "imageSubtext"],
+        required: ["hook", "body", "cta", "hashtags", "imagePrompt", "imageSubtext", "accentWords"],
     }
 }
 
@@ -158,6 +163,11 @@ export function buildCarouselSchema(config: ClientConfig) {
             hook: {
                 type: Type.STRING,
                 description: "Cover slide headline (max 8 words, Czech, punchy). ZADNE EMOJI.",
+            },
+            accentWords: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "2-3 key words/phrases FROM the hook that should be visually highlighted (each 1-2 words, Czech, must be exact substring of hook)",
             },
             imageSubtext: {
                 type: Type.STRING,

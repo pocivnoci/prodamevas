@@ -59,6 +59,9 @@ export interface FeedAesthetic {
     /** Font family override for text overlay — must match font files in fonts/ dir.
      * Available: "Inter" (default), "BebasNeue" */
     fontOverride?: string
+    /** Primary brand accent color (hex, e.g. "#e63946") for keyword highlighting in overlay text.
+     * When set, AI-selected accentWords in the headline will render in this color instead of white. */
+    accentColor?: string
 }
 
 // ─── Overlay Gradient ───────────────────────────────────────

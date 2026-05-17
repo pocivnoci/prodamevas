@@ -224,6 +224,7 @@ export async function generateOnePost(options: {
         hashtags: string[]
         imagePrompt?: string
         imageSubtext?: string
+        accentWords?: string[]
         videoScript?: string
         caption?: string
         slides?: { headline: string; subtext: string; imagePrompt: string }[]
@@ -436,6 +437,8 @@ export async function generateOnePost(options: {
                             gradientColors: config.overlayGradient,
                             logoFile: config.logoFile,
                             fontFamily: config.feedAesthetic?.fontOverride,
+                            accentColor: config.feedAesthetic?.accentColor,
+                            accentWords: i === 0 ? captionData.accentWords : undefined,
                         })
                         console.log(`   ✓ Text overlay ${i + 1}`)
                     }
@@ -740,6 +743,8 @@ CRITICAL RULES:
                         gradientColors: config.overlayGradient,
                         logoFile: config.logoFile,
                         fontFamily: config.feedAesthetic?.fontOverride,
+                        accentColor: config.feedAesthetic?.accentColor,
+                        accentWords: captionData.accentWords,
                     })
                     console.log(`   ✓ Text overlay (${(finalImage.length / 1024).toFixed(0)} KB)`)
                 }
