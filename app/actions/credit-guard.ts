@@ -17,6 +17,7 @@ import {
     type ActionType,
     ACTION_LABELS,
 } from "@/lib/subscription"
+import { createClient } from "@/supabase/server"
 
 export interface CreditGuardResult {
     ok: boolean
@@ -38,6 +39,21 @@ export async function creditGuard(
     action: ActionType,
 ): Promise<CreditGuardResult> {
     try {
+        // Super-admin bypass — no credit checks, no deductions
+        const admins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean)
+        if (admins.length > 0) {
+            const supabase = await createClient()
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user?.email && admins.includes(user.email)) {
+                const clientId = await resolveClientId(projectId)
+                return {
+                    ok: true,
+                    clientId,
+                    commit: async () => {}, // no-op — don't deduct credits for admins
+                }
+            }
+        }
+
         const clientId = await resolveClientId(projectId)
 
         const check = await canPerformAction(clientId, action)
