@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { motion, useScroll, useTransform } from "framer-motion"
-import { Sparkles, Bot, PenTool, TrendingUp, ArrowRight, CheckCircle2, Layers, Cpu, BarChart3, Activity } from "lucide-react"
+import { Sparkles, Bot, PenTool, TrendingUp, ArrowRight, CheckCircle2, Layers, Cpu } from "lucide-react"
 import { LogoPV } from "@/components/LogoPV"
 import { SeedOfLife } from "@/components/SeedOfLife"
 
@@ -98,70 +98,68 @@ export default function Home() {
                 <div className="flex items-center gap-2"><CheckCircle2 className="w-3 h-3 text-emerald-500" /> Bez kreditky</div>
               </div>
             </motion.div>
-
-            {/* VISUAL MOCKUP */}
+            {/* PRODUCT PREVIEW — real post examples */}
             <motion.div 
               className="lg:w-1/2 relative w-full"
-              initial={{ opacity: 0, scale: 0.95, rotateY: 10 }}
-              animate={{ opacity: 1, scale: 1, rotateY: 0 }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 1, delay: 0.2, type: "spring", bounce: 0.3 }}
             >
-              <div className="relative rounded-sm border border-white/10 bg-[#050505] overflow-hidden shadow-2xl p-1 group">
-                <div className="absolute inset-0 bg-gradient-to-br from-aisummit-cinnabar/10 via-transparent to-emerald-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
-                <div className="rounded-sm overflow-hidden bg-[#0a0a0a] border border-white/5 relative z-10 h-[450px] flex flex-col">
-                  {/* Top Bar */}
-                  <div className="h-10 border-b border-white/5 bg-[#0f0f0f] px-4 flex items-center justify-between">
-                    <div className="flex gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-white/20"></div>
-                      <div className="w-2.5 h-2.5 rounded-full bg-white/20"></div>
-                      <div className="w-2.5 h-2.5 rounded-full bg-white/20"></div>
+              <div className="grid grid-cols-2 gap-3">
+                {/* Post 1 — hlavní, velký */}
+                <div className="col-span-2 sm:col-span-1 row-span-2 rounded-sm border border-white/10 bg-[#0a0a0a] overflow-hidden group hover:border-white/20 transition-all">
+                  <div className="aspect-square bg-gradient-to-br from-aisummit-cinnabar/30 via-amber-600/20 to-purple-600/20 relative flex items-center justify-center">
+                    <div className="text-center px-6">
+                      <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-white/10 border border-white/20 flex items-center justify-center">
+                        <Sparkles className="w-6 h-6 text-white" />
+                      </div>
+                      <p className="text-white/90 text-sm font-bold leading-snug">AI vygenerovaný<br />Instagram post</p>
+                      <p className="text-white/30 text-[9px] mt-2">1024 × 1024px</p>
                     </div>
-                    <div className="text-[9px] font-mono text-white/30 uppercase tracking-widest flex items-center gap-2">
-                      <Activity className="w-3 h-3 text-emerald-500" /> System Online
+                    <div className="absolute top-3 right-3 px-2 py-0.5 bg-emerald-500/20 border border-emerald-500/30 rounded-sm text-emerald-400 text-[8px] font-bold uppercase">Hotovo ✓</div>
+                  </div>
+                  <div className="p-4">
+                    <p className="text-white/70 text-xs leading-relaxed mb-3">
+                      ☕ Pondělní dávka inspirace? U nás to není jen káva — je to rituál. Každý šálek pražíme s láskou a péčí, která se prostě pozná...
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {["#kavarna", "#prazirna", "#pondeli", "#inspir"].map((h) => (
+                        <span key={h} className="text-[9px] text-aisummit-cinnabar/70 font-bold">{h}</span>
+                      ))}
                     </div>
                   </div>
-                  
-                  {/* UI Body */}
-                  <div className="flex flex-1 overflow-hidden">
-                    {/* Sidebar */}
-                    <div className="w-16 border-r border-white/5 flex flex-col items-center py-4 gap-6 bg-[#080808]">
-                      <div className="w-8 h-8 rounded-sm bg-white/10 flex items-center justify-center"><Layers className="w-4 h-4 text-white/50" /></div>
-                      <div className="w-8 h-8 rounded-sm bg-aisummit-cinnabar/20 text-aisummit-cinnabar flex items-center justify-center border border-aisummit-cinnabar/30 shadow-[0_0_15px_rgba(230,57,70,0.4)]"><Sparkles className="w-4 h-4" /></div>
-                      <div className="w-8 h-8 rounded-sm bg-transparent flex items-center justify-center"><BarChart3 className="w-4 h-4 text-white/30" /></div>
-                    </div>
-                    
-                    {/* Main */}
-                    <div className="flex-1 p-6 flex flex-col gap-4 bg-[#0a0a0a]">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="h-3 w-32 bg-white/20 rounded-sm mb-2"></div>
-                          <div className="h-2 w-48 bg-white/10 rounded-sm"></div>
-                        </div>
-                        <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[8px] font-bold uppercase tracking-widest rounded-sm">Generating</div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4 mt-4">
-                        <div className="aspect-square bg-[#0f0f0f] border border-white/5 rounded-sm p-4 relative overflow-hidden flex flex-col justify-between">
-                          <div className="h-2 w-1/2 bg-white/20 rounded-sm"></div>
-                          <div className="space-y-2">
-                            <div className="h-1.5 w-full bg-white/5 rounded-sm"></div>
-                            <div className="h-1.5 w-4/5 bg-white/5 rounded-sm"></div>
-                          </div>
-                          <div className="absolute top-0 right-0 p-3"><Cpu className="w-4 h-4 text-white/20" /></div>
-                        </div>
-                        <div className="aspect-square bg-gradient-to-br from-aisummit-cinnabar/20 to-amber-500/10 border border-aisummit-cinnabar/20 rounded-sm relative overflow-hidden flex items-center justify-center">
-                          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"></div>
-                          <Sparkles className="w-8 h-8 text-white relative z-10 animate-pulse" />
-                        </div>
-                      </div>
-                    </div>
+                </div>
+
+                {/* Post 2 — menší */}
+                <div className="rounded-sm border border-white/10 bg-[#0a0a0a] overflow-hidden group hover:border-white/20 transition-all">
+                  <div className="aspect-[4/3] bg-gradient-to-br from-blue-600/20 to-emerald-500/15 relative flex items-center justify-center">
+                    <PenTool className="w-8 h-8 text-white/30" />
+                    <div className="absolute top-2 right-2 px-2 py-0.5 bg-amber-500/20 border border-amber-500/30 rounded-sm text-amber-400 text-[8px] font-bold uppercase">Generuje se...</div>
+                  </div>
+                  <div className="p-3">
+                    <p className="text-white/50 text-[10px] leading-relaxed">
+                      🏋️ Nová kolekce fitness doplňků je tady. Testováno sportovci, schváleno výsledky...
+                    </p>
+                  </div>
+                </div>
+
+                {/* Post 3 — menší */}
+                <div className="rounded-sm border border-white/10 bg-[#0a0a0a] overflow-hidden group hover:border-white/20 transition-all">
+                  <div className="aspect-[4/3] bg-gradient-to-br from-purple-600/20 to-pink-500/15 relative flex items-center justify-center">
+                    <Bot className="w-8 h-8 text-white/30" />
+                    <div className="absolute top-2 right-2 px-2 py-0.5 bg-emerald-500/20 border border-emerald-500/30 rounded-sm text-emerald-400 text-[8px] font-bold uppercase">Hotovo ✓</div>
+                  </div>
+                  <div className="p-3">
+                    <p className="text-white/50 text-[10px] leading-relaxed">
+                      🌿 Věděli jste, že naše produkty jsou 100% přírodní? Žádná chemie, žádné kompromisy...
+                    </p>
                   </div>
                 </div>
               </div>
               
               {/* Floating Stat */}
               <motion.div 
-                className="absolute -bottom-6 -right-6 bg-[#0f0f0f] border border-white/10 rounded-sm p-4 shadow-2xl backdrop-blur-xl flex items-center gap-4 z-20"
+                className="absolute -bottom-4 -right-4 bg-[#0f0f0f] border border-white/10 rounded-sm p-4 shadow-2xl backdrop-blur-xl flex items-center gap-4 z-20"
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.8, duration: 0.5 }}
