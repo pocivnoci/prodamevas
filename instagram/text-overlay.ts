@@ -165,6 +165,11 @@ async function renderText(
         children = text
     }
 
+    // Use different layout for accent vs plain text:
+    // - Accent: block+inline spans (preserves whitespace between segments)
+    // - Plain: flex+wrap (original behavior, better centering)
+    const useAccentLayout = Array.isArray(children)
+
     // Satori renders a React-like element tree to SVG
     const svg = await satori(
         {
@@ -172,10 +177,11 @@ async function renderText(
             props: {
                 children,
                 style: {
-                    display: "flex",
-                    flexWrap: "wrap",
-                    justifyContent: "center",
+                    display: useAccentLayout ? "block" : "flex",
+                    flexWrap: useAccentLayout ? undefined : "wrap",
+                    justifyContent: useAccentLayout ? undefined : "center",
                     textAlign: "center",
+                    whiteSpace: useAccentLayout ? "pre-wrap" : undefined,
                     width: "100%",
                     color: baseColor,
                     fontSize: fontSizePx,
