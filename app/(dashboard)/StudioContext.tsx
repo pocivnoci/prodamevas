@@ -13,6 +13,7 @@ export type StudioSection =
     | "products"
     | "performance"
     | "settings"
+    | "onboard"
 
 export interface SubscriptionState {
     planId: string

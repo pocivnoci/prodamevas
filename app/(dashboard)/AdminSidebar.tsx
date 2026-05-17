@@ -52,6 +52,12 @@ const NAV_GROUPS: NavGroup[] = [
             { id: "performance", label: "Výkon", icon: "📊" },
         ],
     },
+    {
+        label: "Admin",
+        items: [
+            { id: "onboard", label: "Onboarding", icon: "➕" },
+        ],
+    },
 ]
 
 export function AdminSidebar() {

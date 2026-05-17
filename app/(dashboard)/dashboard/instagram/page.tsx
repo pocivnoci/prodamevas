@@ -29,6 +29,7 @@ const SECTION_LABELS: Record<string, { title: string; description: string }> = {
     products: { title: "Produkty", description: "Produktové nápady a vizualizace" },
     performance: { title: "Výkon", description: "Jak si váš obsah vede" },
     settings: { title: "Nastavení", description: "Konfigurace značky a systému" },
+    onboard: { title: "Onboarding", description: "Onboardujte nového klienta" },
 }
 
 export default function InstagramPage() {
@@ -62,6 +63,7 @@ export default function InstagramPage() {
                     {activeSection === "brand" && <BrandTab projectId={projectId} />}
                     {activeSection === "performance" && <PerformanceTab projectId={projectId} />}
                     {activeSection === "settings" && <SettingsTab projectId={projectId} />}
+                    {activeSection === "onboard" && <OnboardTab />}
                 </motion.div>
             </AnimatePresence>
         </div>
