@@ -2,13 +2,35 @@
 
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
-import { motion, useScroll, useTransform } from "framer-motion"
+import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion"
 import { Bot, PenTool, ArrowRight, CheckCircle2, Layers, Cpu } from "lucide-react"
 import { SeedOfLife } from "@/components/SeedOfLife"
 import { LiveDemoWidget } from "@/components/LiveDemoWidget"
 
+const SHOWCASE_POSTS = [
+  {
+    src: "/showcase-1.png",
+    alt: "Chrlit AI post — Challenge pro CEO",
+    caption: "🎯 CHALLENGE: Změř si, kolik času ti tento týden reálně sežere tvorba obsahu. Výsledek tě překvapí. Získej zpět svůj čas jako CEO — nech AI pracovat za tebe.",
+    hashtags: "#chrlit #aiobsah #ceo #productivita #marketing #autopilot #challenge",
+  },
+  {
+    src: "/showcase-2.png",
+    alt: "Chrlit AI post — Kreativní peklo",
+    caption: "😱 Tvoje tvář, když klient pošle feedback 'Můžeme to udělat víc… pop?' Konec kreativního pekla. Chrlit generuje obsah, který sedí od první verze.",
+    hashtags: "#chrlit #kreativnipeklo #socialmanager #aiobsah #meme #marketing",
+  },
+  {
+    src: "/showcase-3.png",
+    alt: "Chrlit AI post — Lepší vstup",
+    caption: "🤖 Tvoje AI plive generické bláboly? Problém není v ní. Lepší vstup = lepší výstup. Chrlit analyzuje tvůj brand a generuje obsah, který mluví tvým jazykem.",
+    hashtags: "#chrlit #ai #marketing #brandvoice #content #kvalitniobsah",
+  },
+]
+
 export default function Home() {
   const [scrolled, setScrolled] = useState(false)
+  const [selectedShowcase, setSelectedShowcase] = useState<number | null>(null)
   const { scrollYProgress } = useScroll()
   const opacity = useTransform(scrollYProgress, [0, 0.05], [1, 0])
 
@@ -112,52 +134,77 @@ export default function Home() {
               <div className="relative">
                 {/* Label */}
                 <div className="text-center mb-4">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/20">Reálné výstupy z Chrlit</span>
+                  <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/20">Reálné výstupy z Chrlit · klikni pro detail</span>
                 </div>
 
                 {/* Instagram-style grid */}
                 <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-                  {[
-                    { src: "/showcase-1.png", delay: 0.4 },
-                    { src: "/showcase-2.png", delay: 0.7 },
-                    { src: "/showcase-3.png", delay: 1.0 },
-                  ].map((post, i) => (
+                  {SHOWCASE_POSTS.map((post, i) => (
                     <motion.div
                       key={i}
                       className="aspect-square rounded-sm overflow-hidden border border-white/5 group cursor-pointer relative"
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: post.delay, duration: 0.5 }}
+                      transition={{ delay: 0.4 + i * 0.3, duration: 0.5 }}
+                      onClick={() => setSelectedShowcase(i)}
                     >
                       <img 
                         src={post.src} 
-                        alt={`Chrlit showcase ${i + 1}`}
+                        alt={post.alt}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-300 flex items-center justify-center">
+                        <span className="text-white/0 group-hover:text-white/80 text-[10px] font-black uppercase tracking-widest transition-all">Detail</span>
+                      </div>
                     </motion.div>
                   ))}
                 </div>
-
-                {/* Caption preview */}
-                <motion.div 
-                  className="mt-4 rounded-sm bg-[#0a0a0a] border border-white/5 p-4"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 1.3, duration: 0.5 }}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-5 h-5 bg-aisummit-cinnabar rounded-full flex items-center justify-center text-white text-[8px] font-black">C</div>
-                    <span className="text-white/60 text-[10px] font-bold">chrlit.cz</span>
-                    <span className="text-white/20 text-[9px] ml-auto">Vygenerováno AI</span>
-                  </div>
-                  <p className="text-white/50 text-[11px] leading-relaxed">🎯 Změř si, kolik času ti tento týden reálně sežere tvorba obsahu. Výsledek tě překvapí. Získej zpět svůj čas — nech AI pracovat za tebe.</p>
-                  <p className="text-aisummit-cinnabar/50 text-[10px] font-bold mt-2">#chrlit #aiobsah #instagram #marketing #autopilot</p>
-                </motion.div>
               </div>
             </motion.div>
           </div>
         </div>
       </section>
+
+      {/* Showcase Modal */}
+      <AnimatePresence>
+        {selectedShowcase !== null && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={() => setSelectedShowcase(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-[#0a0a0a] border border-white/10 rounded-sm max-w-lg w-full overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img 
+                src={SHOWCASE_POSTS[selectedShowcase].src}
+                alt={SHOWCASE_POSTS[selectedShowcase].alt}
+                className="w-full aspect-square object-cover"
+              />
+              <div className="p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-6 h-6 bg-aisummit-cinnabar rounded-full flex items-center justify-center text-white text-[8px] font-black">C</div>
+                  <span className="text-white/60 text-[10px] font-bold">chrlit.cz</span>
+                  <span className="text-white/20 text-[9px] ml-auto">Vygenerováno AI</span>
+                </div>
+                <p className="text-white/60 text-sm leading-relaxed">{SHOWCASE_POSTS[selectedShowcase].caption}</p>
+                <p className="text-aisummit-cinnabar/50 text-[10px] font-bold mt-3">{SHOWCASE_POSTS[selectedShowcase].hashtags}</p>
+              </div>
+              <div className="px-5 py-3 border-t border-white/5">
+                <button onClick={() => setSelectedShowcase(null)} className="text-[9px] font-black uppercase tracking-widest text-white/30 hover:text-white transition-colors">
+                  ✕ Zavřít
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* SOCIAL PROOF STRIP */}
       <section className="relative z-10 py-16 border-t border-white/5">
