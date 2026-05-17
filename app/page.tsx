@@ -95,49 +95,61 @@ export default function Home() {
                 <div className="flex items-center gap-2"><CheckCircle2 className="w-3 h-3 text-emerald-500" /> Bez kreditky</div>
               </div>
             </motion.div>
-            {/* PHONE MOCKUP with generated posts */}
+            {/* SHOWCASE — real Chrlit-generated posts */}
             <motion.div 
-              className="lg:w-1/2 relative w-full flex justify-center"
+              className="lg:w-1/2 relative w-full"
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.3 }}
             >
-              {/* Phone frame */}
-              <div className="relative w-[280px] sm:w-[320px]">
-                <div className="rounded-[2rem] border-2 border-white/10 bg-[#0a0a0a] p-3 pb-6 shadow-2xl shadow-black/50">
-                  {/* Notch */}
-                  <div className="w-24 h-5 bg-[#0a0a0a] rounded-full mx-auto mb-3 border border-white/5"></div>
-                  
-                  {/* Posts stack */}
-                  <div className="space-y-2.5 px-1">
-                    {[
-                      { delay: 0.5, emoji: "☕", text: "Pondělní dávka energie? Tahle není jen tak. Každý šálek je příběh, který stojí za to ochutnat.", tags: "#kavarna #rano #ritual", gradient: "from-amber-600/25 to-orange-500/15" },
-                      { delay: 0.8, emoji: "🚀", text: "Víte, že 73 % firem řeší sociální sítě ručně? My to za vás zvládneme za zlomek času.", tags: "#marketing #ai #chrlit", gradient: "from-blue-600/20 to-cyan-500/10" },
-                      { delay: 1.1, emoji: "🎯", text: "3 věci, které váš Instagram potřebuje: konzistenci, kvalitní vizuál a texty co zaujmou. Splněno.", tags: "#instagram #tipy #obsah", gradient: "from-purple-600/20 to-pink-500/10" },
-                    ].map((post, i) => (
-                      <motion.div
-                        key={i}
-                        className={`rounded-xl bg-gradient-to-br ${post.gradient} border border-white/5 p-4`}
-                        initial={{ opacity: 0, y: 15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: post.delay, duration: 0.5 }}
-                      >
-                        <p className="text-white/80 text-[11px] leading-relaxed mb-2">{post.emoji} {post.text}</p>
-                        <p className="text-white/30 text-[9px] font-bold">{post.tags}</p>
-                      </motion.div>
-                    ))}
-                  </div>
-
-                  {/* Bottom bar */}
-                  <div className="mt-4 flex justify-center gap-8 px-4">
-                    <div className="w-8 h-0.5 rounded-full bg-white/10"></div>
-                    <div className="w-8 h-0.5 rounded-full bg-white/20"></div>
-                    <div className="w-8 h-0.5 rounded-full bg-white/10"></div>
-                  </div>
+              <div className="relative">
+                {/* Label */}
+                <div className="text-center mb-4">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/20">Vygenerováno Chrlitem pro Chrlit</span>
                 </div>
 
-                {/* Glow behind phone */}
-                <div className="absolute -inset-10 bg-aisummit-cinnabar/5 rounded-full blur-[60px] -z-10 pointer-events-none"></div>
+                {/* Instagram-style grid */}
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                  {[
+                    { src: "/showcase-1.png", delay: 0.4 },
+                    { src: "/showcase-2.png", delay: 0.7 },
+                    { src: "/showcase-3.png", delay: 1.0 },
+                  ].map((post, i) => (
+                    <motion.div
+                      key={i}
+                      className="aspect-square rounded-sm overflow-hidden border border-white/5 group cursor-pointer relative"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: post.delay, duration: 0.5 }}
+                    >
+                      <img 
+                        src={post.src} 
+                        alt={`Chrlit showcase ${i + 1}`}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      {/* Hover overlay */}
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-4">
+                        <div className="text-white/80 text-[10px] font-bold flex items-center gap-1">❤️ 142</div>
+                        <div className="text-white/80 text-[10px] font-bold flex items-center gap-1">💬 18</div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+
+                {/* Caption preview */}
+                <motion.div 
+                  className="mt-4 rounded-sm bg-[#0a0a0a] border border-white/5 p-4"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 1.3, duration: 0.5 }}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-5 h-5 bg-aisummit-cinnabar rounded-full flex items-center justify-center text-white text-[8px] font-black">C</div>
+                    <span className="text-white/60 text-[10px] font-bold">chrlit.cz</span>
+                  </div>
+                  <p className="text-white/50 text-[11px] leading-relaxed">🚀 Víte, že 73 % firem řeší sociální sítě ručně? My to za vás zvládneme za zlomek času — a výsledek vypadá líp než od většiny agentur.</p>
+                  <p className="text-aisummit-cinnabar/50 text-[10px] font-bold mt-2">#chrlit #aiobsah #instagram #marketing</p>
+                </motion.div>
               </div>
             </motion.div>
           </div>
