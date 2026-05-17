@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { motion, useScroll, useTransform } from "framer-motion"
-import { Sparkles, Bot, PenTool, TrendingUp, ArrowRight, CheckCircle2, Layers, Cpu } from "lucide-react"
+import { Bot, PenTool, ArrowRight, CheckCircle2, Layers, Cpu } from "lucide-react"
 import { SeedOfLife } from "@/components/SeedOfLife"
 
 export default function Home() {
@@ -95,107 +95,50 @@ export default function Home() {
                 <div className="flex items-center gap-2"><CheckCircle2 className="w-3 h-3 text-emerald-500" /> Bez kreditky</div>
               </div>
             </motion.div>
-            {/* WORKFLOW ANIMATION */}
+            {/* PHONE MOCKUP with generated posts */}
             <motion.div 
-              className="lg:w-1/2 relative w-full"
-              initial={{ opacity: 0, y: 20 }}
+              className="lg:w-1/2 relative w-full flex justify-center"
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.3 }}
             >
-              <div className="space-y-3">
-                {/* Step 1 — web */}
-                <motion.div 
-                  className="rounded-sm border border-white/10 bg-[#0a0a0a] p-5 flex items-center gap-4 group hover:border-white/20 transition-all"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.4, duration: 0.5 }}
-                >
-                  <div className="w-10 h-10 shrink-0 rounded-sm bg-aisummit-cinnabar/15 border border-aisummit-cinnabar/25 flex items-center justify-center">
-                    <span className="text-aisummit-cinnabar font-black text-sm">01</span>
+              {/* Phone frame */}
+              <div className="relative w-[280px] sm:w-[320px]">
+                <div className="rounded-[2rem] border-2 border-white/10 bg-[#0a0a0a] p-3 pb-6 shadow-2xl shadow-black/50">
+                  {/* Notch */}
+                  <div className="w-24 h-5 bg-[#0a0a0a] rounded-full mx-auto mb-3 border border-white/5"></div>
+                  
+                  {/* Posts stack */}
+                  <div className="space-y-2.5 px-1">
+                    {[
+                      { delay: 0.5, emoji: "☕", text: "Pondělní dávka energie? Tahle není jen tak. Každý šálek je příběh, který stojí za to ochutnat.", tags: "#kavarna #rano #ritual", gradient: "from-amber-600/25 to-orange-500/15" },
+                      { delay: 0.8, emoji: "🚀", text: "Víte, že 73 % firem řeší sociální sítě ručně? My to za vás zvládneme za zlomek času.", tags: "#marketing #ai #chrlit", gradient: "from-blue-600/20 to-cyan-500/10" },
+                      { delay: 1.1, emoji: "🎯", text: "3 věci, které váš Instagram potřebuje: konzistenci, kvalitní vizuál a texty co zaujmou. Splněno.", tags: "#instagram #tipy #obsah", gradient: "from-purple-600/20 to-pink-500/10" },
+                    ].map((post, i) => (
+                      <motion.div
+                        key={i}
+                        className={`rounded-xl bg-gradient-to-br ${post.gradient} border border-white/5 p-4`}
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: post.delay, duration: 0.5 }}
+                      >
+                        <p className="text-white/80 text-[11px] leading-relaxed mb-2">{post.emoji} {post.text}</p>
+                        <p className="text-white/30 text-[9px] font-bold">{post.tags}</p>
+                      </motion.div>
+                    ))}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-bold text-sm">Zadáte web vašeho podnikání</p>
-                    <p className="text-white/30 text-[10px] mt-0.5">chrlit.cz</p>
-                  </div>
-                  <div className="px-2 py-0.5 bg-emerald-500/15 border border-emerald-500/25 rounded-sm text-emerald-400 text-[8px] font-bold uppercase shrink-0">Hotovo ✓</div>
-                </motion.div>
 
-                {/* Connector */}
-                <div className="flex justify-center">
-                  <div className="w-px h-4 bg-gradient-to-b from-white/10 to-white/5"></div>
+                  {/* Bottom bar */}
+                  <div className="mt-4 flex justify-center gap-8 px-4">
+                    <div className="w-8 h-0.5 rounded-full bg-white/10"></div>
+                    <div className="w-8 h-0.5 rounded-full bg-white/20"></div>
+                    <div className="w-8 h-0.5 rounded-full bg-white/10"></div>
+                  </div>
                 </div>
 
-                {/* Step 2 — analysis */}
-                <motion.div 
-                  className="rounded-sm border border-white/10 bg-[#0a0a0a] p-5 flex items-center gap-4 group hover:border-white/20 transition-all"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.7, duration: 0.5 }}
-                >
-                  <div className="w-10 h-10 shrink-0 rounded-sm bg-amber-500/15 border border-amber-500/25 flex items-center justify-center">
-                    <span className="text-amber-400 font-black text-sm">02</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-bold text-sm">AI analyzuje váš brand</p>
-                    <p className="text-white/30 text-[10px] mt-0.5">Barvy · Tón komunikace · Produkty · Cílovka</p>
-                  </div>
-                  <div className="px-2 py-0.5 bg-emerald-500/15 border border-emerald-500/25 rounded-sm text-emerald-400 text-[8px] font-bold uppercase shrink-0">Hotovo ✓</div>
-                </motion.div>
-
-                {/* Connector */}
-                <div className="flex justify-center">
-                  <div className="w-px h-4 bg-gradient-to-b from-white/10 to-white/5"></div>
-                </div>
-
-                {/* Step 3 — generation */}
-                <motion.div 
-                  className="rounded-sm border border-aisummit-cinnabar/30 bg-[#0a0a0a] p-5 group"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 1.0, duration: 0.5 }}
-                >
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-10 h-10 shrink-0 rounded-sm bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center">
-                      <span className="text-emerald-400 font-black text-sm">03</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white font-bold text-sm">Dostanete hotový obsah</p>
-                      <p className="text-white/30 text-[10px] mt-0.5">30 postů · texty · obrázky · hashtagy</p>
-                    </div>
-                  </div>
-                  {/* Mini post preview */}
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="rounded-sm bg-gradient-to-br from-aisummit-cinnabar/20 to-amber-500/10 border border-white/5 p-2.5">
-                      <p className="text-white/60 text-[9px] leading-relaxed">☕ Pon-dělní inspirace? U nás to není jen káva — je to rituál...</p>
-                      <p className="text-aisummit-cinnabar/50 text-[8px] mt-1.5 font-bold">#chrlit #obsah</p>
-                    </div>
-                    <div className="rounded-sm bg-gradient-to-br from-blue-600/15 to-emerald-500/10 border border-white/5 p-2.5">
-                      <p className="text-white/60 text-[9px] leading-relaxed">🚀 Jak vyřešit správu sociálních sítí za zlomek nákladů?</p>
-                      <p className="text-blue-400/50 text-[8px] mt-1.5 font-bold">#ai #marketing</p>
-                    </div>
-                    <div className="rounded-sm bg-gradient-to-br from-purple-600/15 to-pink-500/10 border border-white/5 p-2.5">
-                      <p className="text-white/60 text-[9px] leading-relaxed">🎯 3 tipy, jak zvýšit engagement na Instagramu...</p>
-                      <p className="text-purple-400/50 text-[8px] mt-1.5 font-bold">#instagram #tipy</p>
-                    </div>
-                  </div>
-                </motion.div>
+                {/* Glow behind phone */}
+                <div className="absolute -inset-10 bg-aisummit-cinnabar/5 rounded-full blur-[60px] -z-10 pointer-events-none"></div>
               </div>
-              
-              {/* Floating Stat */}
-              <motion.div 
-                className="absolute -bottom-4 -right-4 bg-[#0f0f0f] border border-white/10 rounded-sm p-4 shadow-2xl backdrop-blur-xl flex items-center gap-4 z-20"
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 1.5, duration: 0.5 }}
-              >
-                <div className="w-10 h-10 rounded-sm bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5 text-emerald-500" />
-                </div>
-                <div>
-                  <p className="text-white font-black text-sm uppercase tracking-widest">30 Postů</p>
-                  <p className="text-white/40 text-[9px] uppercase tracking-widest mt-0.5">Vygenerováno za ~30 min</p>
-                </div>
-              </motion.div>
             </motion.div>
           </div>
         </div>
