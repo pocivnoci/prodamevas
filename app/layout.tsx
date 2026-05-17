@@ -13,7 +13,13 @@ export const metadata: Metadata = {
   keywords: ["instagram posty", "obsah na sociální sítě", "AI obsah pro firmy", "generování příspěvků", "správa Instagramu", "chrlit", "obsah bez grafika"],
   icons: {
     icon: "/favicon.ico",
-    apple: "/chrlit-icon.png",
+    apple: "/icon-192.png",
+  },
+  manifest: "/manifest.json",
+  other: {
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "black-translucent",
   },
   openGraph: {
     title: "Chrlit — Posty na Instagram za pár minut",
@@ -40,10 +46,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="cs" className={`${inter.variable}`}>
+      <head>
+        <meta name="theme-color" content="#050505" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+      </head>
       <body
         className={`${inter.className} antialiased selection:bg-aisummit-cinnabar/30 selection:text-white bg-aisummit-bg text-aisummit-text`}
       >
         {children}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js')})}`,
+          }}
+        />
       </body>
     </html>
   );

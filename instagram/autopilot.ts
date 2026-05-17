@@ -115,7 +115,7 @@ export async function generateOnePost(options: {
     customImageUrl?: string
     onProgress?: (stage: string, progress: number, message: string) => Promise<void>
 }): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number }> {
-    const report = options.onProgress || (async () => {}) // no-op if not provided
+    const report = options.onProgress || (async () => { }) // no-op if not provided
     await ensureConfig(options.configName)
     const config = CLIENT_CONFIG!
     const startTime = Date.now()
