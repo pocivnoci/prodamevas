@@ -69,12 +69,12 @@ export default function Home() {
               </div>
 
               <h1 className="text-6xl md:text-[5.5rem] font-black tracking-tighter mb-6 text-white leading-[0.9] uppercase">
-                POSTY NA<br />
+                CHRLÍME<br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-aisummit-cinnabar to-amber-500">
-                  INSTAGRAM?
+                  OBSAH.
                 </span>
                 <br />
-                <span className="text-white/30 text-4xl md:text-5xl">Hotovo.</span>
+                <span className="text-white/30 text-4xl md:text-5xl">Ale kvalitní.</span>
               </h1>
               
               <p className="text-lg text-white/40 font-medium mb-10 max-w-lg leading-relaxed">
