@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion"
 import { Bot, PenTool, ArrowRight, CheckCircle2, Layers, Cpu } from "lucide-react"
-import { SeedOfLife } from "@/components/SeedOfLife"
 import { LiveDemoWidget } from "@/components/LiveDemoWidget"
 
 const SHOWCASE_POSTS = [
@@ -374,21 +373,10 @@ export default function Home() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(192,57,43,0.05),transparent_70%)] pointer-events-none" />
         <div className="max-w-7xl mx-auto px-6 relative z-10">
           <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Vyzkoušejte si to<br /><span className="text-aisummit-cinnabar">rovnou teď.</span></h2>
-            <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Zadejte cokoliv a sledujte, jak AI vytvoří post na míru. Žádná registrace, žádné závazky.</p>
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Čím víc tvoříte,<br /><span className="text-aisummit-cinnabar">tím lepší obsah dostáváte.</span></h2>
+            <p className="text-white/50 font-medium text-lg max-w-2xl mx-auto">Chrlit se učí z vašich výsledků. Každý like, každý uložený příspěvek — to vše pomáhá AI lépe pochopit vaše publikum. Spusťte ukázku a sledujte celý cyklus.</p>
           </div>
           <LiveDemoWidget />
-        </div>
-      </section>
-
-      {/* SELF-LEARNING ENGINE */}
-      <section className="relative py-32 border-t border-white/5 bg-[#050505] overflow-hidden">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Čím víc tvoříte,<br /><span className="text-aisummit-cinnabar">tím lepší obsah dostáváte.</span></h2>
-            <p className="text-white/50 font-medium text-lg max-w-2xl mx-auto">Chrlit se učí z vašich výsledků. Každý like, každý uložený příspěvek — to vše pomáhá AI lépe pochopit vaše publikum a tvořit přesnější obsah.</p>
-          </div>
-          <SeedOfLife />
         </div>
       </section>
 
