@@ -105,7 +105,7 @@ export default function Home() {
               <div className="relative">
                 {/* Label */}
                 <div className="text-center mb-4">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/20">Vygenerováno Chrlitem pro Chrlit</span>
+                  <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/20">Reálné výstupy z Chrlit</span>
                 </div>
 
                 {/* Instagram-style grid */}
@@ -127,11 +127,6 @@ export default function Home() {
                         alt={`Chrlit showcase ${i + 1}`}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
-                      {/* Hover overlay */}
-                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-4">
-                        <div className="text-white/80 text-[10px] font-bold flex items-center gap-1">❤️ 142</div>
-                        <div className="text-white/80 text-[10px] font-bold flex items-center gap-1">💬 18</div>
-                      </div>
                     </motion.div>
                   ))}
                 </div>
@@ -146,12 +141,25 @@ export default function Home() {
                   <div className="flex items-center gap-2 mb-2">
                     <div className="w-5 h-5 bg-aisummit-cinnabar rounded-full flex items-center justify-center text-white text-[8px] font-black">C</div>
                     <span className="text-white/60 text-[10px] font-bold">chrlit.cz</span>
+                    <span className="text-white/20 text-[9px] ml-auto">Vygenerováno AI</span>
                   </div>
-                  <p className="text-white/50 text-[11px] leading-relaxed">🚀 Víte, že 73 % firem řeší sociální sítě ručně? My to za vás zvládneme za zlomek času — a výsledek vypadá líp než od většiny agentur.</p>
-                  <p className="text-aisummit-cinnabar/50 text-[10px] font-bold mt-2">#chrlit #aiobsah #instagram #marketing</p>
+                  <p className="text-white/50 text-[11px] leading-relaxed">🎯 Změř si, kolik času ti tento týden reálně sežere tvorba obsahu. Výsledek tě překvapí. Získej zpět svůj čas — nech AI pracovat za tebe.</p>
+                  <p className="text-aisummit-cinnabar/50 text-[10px] font-bold mt-2">#chrlit #aiobsah #instagram #marketing #autopilot</p>
                 </motion.div>
               </div>
             </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* SOCIAL PROOF STRIP */}
+      <section className="relative z-10 py-16 border-t border-white/5">
+        <div className="max-w-5xl mx-auto px-6">
+          <p className="text-center text-[9px] font-bold uppercase tracking-[0.3em] text-white/20 mb-8">Testujeme na firmách z různých oborů</p>
+          <div className="flex flex-wrap justify-center gap-x-8 gap-y-3">
+            {["🏨 Hotely", "🍷 Vinařství", "💇 Salóny", "🚚 Stěhování", "🎪 Zábava", "🏗️ Stavby", "☕ Kavárny", "🛒 E-shopy", "🏋️ Fitness", "📸 Fotografie"].map((item, i) => (
+              <span key={i} className="text-white/25 text-xs font-bold tracking-wider hover:text-white/50 transition-colors">{item}</span>
+            ))}
           </div>
         </div>
       </section>
@@ -528,8 +536,8 @@ export default function Home() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-6 pt-10 mt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center text-[9px] text-white/20 font-bold tracking-[0.2em] uppercase">
-          <p>© 2026 Chrlit.cz</p>
-          <div className="mt-2 md:mt-0">Tech-Summit Edition _0.2</div>
+          <p>© {new Date().getFullYear()} Chrlit.cz</p>
+          <div className="mt-2 md:mt-0">Testováno na 10+ firmách z různých oborů</div>
         </div>
       </footer>
     </main>
