@@ -147,28 +147,20 @@ async function renderText(
     const baseColor = `rgba(255, 255, 255, ${opacity})`
     const fd = getFontData(fontFamily)
 
-    // Build children: either plain text or colored word spans
+    // Build children: either plain text or colored phrase spans
     let children: any
     if (accentWords && accentWords.length > 0 && accentColor && bold) {
         // Split text into phrase-level segments (accent vs non-accent)
         const segments = splitByAccent(text, accentWords)
-        // Then split each segment into individual words for flex spacing
-        const words: { word: string; accent: boolean }[] = []
-        for (const seg of segments) {
-            const parts = seg.text.split(/(\s+)/).filter(Boolean)
-            for (const part of parts) {
-                if (/^\s+$/.test(part)) continue // skip whitespace tokens
-                words.push({ word: part, accent: seg.accent })
-            }
-        }
-        children = words.map((w, i) => ({
+        // Replace regular spaces with non-breaking spaces (U+00A0)
+        // so flex layout won't collapse whitespace at segment boundaries
+        children = segments.map((seg, i) => ({
             type: "span",
             props: {
                 key: String(i),
-                children: w.word,
+                children: seg.text.replace(/ /g, "\u00A0"),
                 style: {
-                    color: w.accent ? accentColor : baseColor,
-                    marginRight: "0.25em",
+                    color: seg.accent ? accentColor : baseColor,
                 },
             },
         }))
@@ -306,9 +298,9 @@ export async function overlayText(
 
         // ─── Layer 3: Logo watermark (pre-rendered PNG) ───
         let logoBuffer: Buffer | null = null
-        const logoWidth = Math.round(width * 0.35)
+        const logoWidth = Math.round(width * 0.25)
         const logoHeight = Math.round(logoWidth * 0.35)
-        const logoMargin = Math.round(width * 0.05)
+        const logoMargin = Math.round(width * 0.025)
 
         if (logoFile) {
             const rawLogo = await loadLogo(logoFile)
