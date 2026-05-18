@@ -12,6 +12,8 @@
 import { generateOnePost, generateBatch } from "@/instagram/autopilot"
 import supabaseAdmin from "@/supabase/admin"
 import { loadConfig, resolveClientId } from "@/instagram/configs"
+import { requireSuperAdmin } from "@/lib/auth-guard"
+
 
 
 export interface GenerateResult {
@@ -50,6 +52,7 @@ export async function triggerBatchGeneration(options: {
     message: string
 }> {
     try {
+        await requireSuperAdmin()
         // Credit check: 1 credit per post
         if (options.projectId && !options.dryRun) {
             const guard = await creditGuard(options.projectId, "post")
@@ -107,6 +110,7 @@ export async function addNewIdea(data: {
     projectId: string
 }): Promise<{ success: boolean; error?: string }> {
     try {
+        await requireSuperAdmin()
         const { resolveClientId } = await import("@/instagram/configs")
         const clientId = await resolveClientId(data.projectId)
 
@@ -132,6 +136,7 @@ export async function addNewReview(data: {
     projectId: string
 }): Promise<{ success: boolean; error?: string }> {
     try {
+        await requireSuperAdmin()
         const { resolveClientId } = await import("@/instagram/configs")
         const clientId = await resolveClientId(data.projectId)
 
@@ -160,6 +165,7 @@ export async function triggerAIIdeasGeneration(options: {
     projectId?: string
 }): Promise<{ success: boolean; generatedCount: number; error?: string }> {
     try {
+        await requireSuperAdmin()
         // Credit check
         if (options.projectId) {
             const guard = await creditGuard(options.projectId, "idea_generate")
@@ -198,6 +204,7 @@ export async function triggerAIReviewsGeneration(options: {
     count?: number
 }): Promise<{ success: boolean; generatedCount: number; error?: string }> {
     try {
+        await requireSuperAdmin()
         const { loadConfig } = await import("@/instagram/configs")
         const { generateAIReviews } = await import("@/instagram/review-generator")
 
@@ -231,6 +238,7 @@ export async function createPromoPost(options: {
     designUrl: string
 }): Promise<{ success: boolean; postId?: string; caption?: string; error?: string }> {
     try {
+        await requireSuperAdmin()
         const config = await loadConfig(options.configName)
         const clientId = await resolveClientId(options.configName)
         setActiveProject(clientId)
@@ -318,6 +326,7 @@ export async function uploadCustomImage(
     formData: FormData
 ): Promise<{ success: boolean; publicUrl?: string; error?: string }> {
     try {
+        await requireSuperAdmin()
         const file = formData.get("file") as File
         if (!file) return { success: false, error: "No file provided" }
 

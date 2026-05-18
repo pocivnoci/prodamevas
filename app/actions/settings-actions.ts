@@ -3,9 +3,11 @@
 import supabaseAdmin from "@/supabase/admin"
 import { revalidatePath } from "next/cache"
 import type { ClientConfig } from "@/instagram/configs/types"
+import { requireSuperAdmin } from "@/lib/auth-guard"
 
 export async function getClientConfig(projectId: string): Promise<ClientConfig | null> {
     try {
+        await requireSuperAdmin()
         const { data, error } = await supabaseAdmin
             .from("clients")
             .select("config")
@@ -26,6 +28,7 @@ export async function getClientConfig(projectId: string): Promise<ClientConfig |
 
 export async function updateClientConfig(projectId: string, newConfig: any): Promise<{ success: boolean; error?: string }> {
     try {
+        await requireSuperAdmin()
         // Validation - verify the config is valid JSON and has minimum required fields
         if (!newConfig || typeof newConfig !== "object") {
             return { success: false, error: "Neplatný formát konfigurace (musí být JSON objekt)." }

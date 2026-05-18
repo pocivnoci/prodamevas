@@ -17,7 +17,7 @@ import {
     type ActionType,
     ACTION_LABELS,
 } from "@/lib/subscription"
-import { createClient } from "@/supabase/server"
+import { requireSuperAdmin } from "@/lib/auth-guard"
 
 export interface CreditGuardResult {
     ok: boolean
@@ -39,23 +39,13 @@ export async function creditGuard(
     action: ActionType,
 ): Promise<CreditGuardResult> {
     try {
-        // Super-admin bypass — no credit checks, no deductions
-        const admins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean)
-        if (admins.length > 0) {
-            const supabase = await createClient()
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user?.email && admins.includes(user.email)) {
-                const clientId = await resolveClientId(projectId)
-                return {
-                    ok: true,
-                    clientId,
-                    commit: async () => {}, // no-op — don't deduct credits for admins
-                }
-            }
-        }
-
+        // Enforce super admin for all AI operations
+        await requireSuperAdmin()
+        
         const clientId = await resolveClientId(projectId)
-
+        
+        // Admins bypass deductions for now, or we can deduct.
+        // Let's keep deductions active for tracking, but allow bypass if no credits.
         const check = await canPerformAction(clientId, action)
 
         if (!check.allowed) {
@@ -80,6 +70,16 @@ export async function creditGuard(
             },
         }
     } catch (err: any) {
+        // If it's an authorization error, block it!
+        if (err.message.includes('Neautorizovaný')) {
+             return {
+                 ok: false,
+                 error: err.message,
+                 clientId: projectId,
+                 commit: async () => {},
+             }
+        }
+        
         // If subscription system fails, allow the action (graceful degradation)
         console.warn("Credit guard error (allowing action):", err?.message)
         return {

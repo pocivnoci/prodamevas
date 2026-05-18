@@ -1,8 +1,10 @@
 'use server'
 
 import supabaseAdmin from '@/supabase/admin'
+import { requireSuperAdmin } from '@/lib/auth-guard'
 
 export async function getWaitlist() {
+    await requireSuperAdmin()
     const { data, error } = await supabaseAdmin
         .from('waitlist')
         .select('*')
@@ -16,6 +18,7 @@ export async function getWaitlist() {
 }
 
 export async function getInviteCodes() {
+    await requireSuperAdmin()
     const { data, error } = await supabaseAdmin
         .from('invite_codes')
         .select('*')
@@ -29,6 +32,7 @@ export async function getInviteCodes() {
 }
 
 export async function createInviteCode(code: string, maxUses: number) {
+    await requireSuperAdmin()
     const { error } = await supabaseAdmin
         .from('invite_codes')
         .insert({
@@ -44,6 +48,7 @@ export async function createInviteCode(code: string, maxUses: number) {
 }
 
 export async function toggleInviteCodeActive(id: string, isActive: boolean) {
+    await requireSuperAdmin()
     const { error } = await supabaseAdmin
         .from('invite_codes')
         .update({ is_active: isActive })

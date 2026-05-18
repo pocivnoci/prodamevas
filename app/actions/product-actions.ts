@@ -1,6 +1,7 @@
 "use server"
 
 import supabaseAdmin from "@/supabase/admin"
+import { requireSuperAdmin } from "@/lib/auth-guard"
 import {
     generateProductIdeas,
     generateDesignConcept,
@@ -353,6 +354,7 @@ export async function uploadProductReference(
 
 export async function getSavedProductIdeas(projectId: string): Promise<ProductIdea[]> {
     try {
+        await requireSuperAdmin()
         const clientId = await resolveClientId(projectId)
 
         const { data, error } = await supabaseAdmin
