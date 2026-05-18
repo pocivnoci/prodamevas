@@ -56,6 +56,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Admin",
         items: [
             { id: "onboard", label: "Onboarding", icon: "➕" },
+            { id: "waitlist", label: "Waitlist", icon: "🔑" },
         ],
     },
 ]

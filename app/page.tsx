@@ -5,6 +5,7 @@ import Link from "next/link"
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion"
 import { Bot, PenTool, ArrowRight, CheckCircle2, Layers, Cpu } from "lucide-react"
 import { LiveDemoWidget } from "@/components/LiveDemoWidget"
+import { WaitlistForm } from "@/components/WaitlistForm"
 
 const SHOWCASE_POSTS = [
   {
@@ -72,8 +73,9 @@ export default function Home() {
             <Link href="/login" className="text-[10px] font-bold uppercase tracking-widest text-white/50 hover:text-white transition-colors hidden sm:block">
               Přihlásit se
             </Link>
-            <Link href="/register" className="group relative inline-flex items-center gap-2 text-[10px] font-bold px-6 py-2.5 bg-white/10 hover:bg-white text-white hover:text-black rounded-sm transition-all uppercase tracking-widest">
-              Začít zdarma
+            <Link href="#waitlist" className="group relative inline-flex items-center gap-2 text-[10px] font-bold px-6 py-2.5 bg-white/10 hover:bg-white text-white hover:text-black rounded-sm transition-all uppercase tracking-widest">
+              Připojit se
+              <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
         </div>
@@ -109,18 +111,8 @@ export default function Home() {
                 Zadejte web svého podnikání. AI pochopí váš styl, vytvoří texty, obrázky i hashtagy — a vy máte měsíc obsahu připravený k publikaci. Bez grafika, bez copywritera.
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-                <Link href="/register" className="group relative inline-flex items-center justify-center gap-3 px-8 py-4 bg-aisummit-cinnabar text-white rounded-sm font-black text-sm transition-all hover:bg-aisummit-cinnabar/90 uppercase tracking-widest shadow-[0_0_30px_rgba(230,57,70,0.3)]">
-                  Vyzkoušet zdarma <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </Link>
-                <Link href="#demo" className="group inline-flex items-center justify-center gap-3 px-8 py-4 bg-transparent border border-white/10 hover:border-white/30 hover:bg-white/5 text-white rounded-sm font-bold uppercase tracking-widest transition-all text-sm">
-                  Ukázat jak to funguje ↓
-                </Link>
-              </div>
-
-              <div className="mt-8 flex items-center gap-6 text-[9px] font-bold uppercase tracking-widest text-white/30">
-                <div className="flex items-center gap-2"><CheckCircle2 className="w-3 h-3 text-emerald-500" /> 7 Dní Trial Zdarma</div>
-                <div className="flex items-center gap-2"><CheckCircle2 className="w-3 h-3 text-emerald-500" /> Bez kreditky</div>
+              <div id="waitlist" className="w-full sm:w-auto mt-6 mb-8 relative z-20">
+                <WaitlistForm />
               </div>
             </motion.div>
             {/* SHOWCASE — real Chrlit-generated posts */}
@@ -428,8 +420,8 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
-              <Link href="/register" className="block text-center py-3 px-4 rounded-sm border border-white/15 text-white/60 font-bold text-[10px] uppercase tracking-widest hover:bg-white/5 hover:text-white transition-all">
-                Začít
+              <Link href="#waitlist" className="block text-center py-3 px-4 rounded-sm border border-white/15 text-white/60 font-bold text-[10px] uppercase tracking-widest hover:bg-white/5 hover:text-white transition-all">
+                Připojit se
               </Link>
             </div>
 
@@ -464,8 +456,8 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
-              <Link href="/register" className="block text-center py-3 px-4 rounded-sm border border-white/15 text-white/60 font-bold text-[10px] uppercase tracking-widest hover:bg-white/5 hover:text-white transition-all">
-                Začít tvořit
+              <Link href="#waitlist" className="block text-center py-3 px-4 rounded-sm border border-white/15 text-white/60 font-bold text-[10px] uppercase tracking-widest hover:bg-white/5 hover:text-white transition-all">
+                Připojit se
               </Link>
             </div>
 
@@ -502,8 +494,8 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
-              <Link href="/register" className="relative z-10 block text-center py-3 px-4 rounded-sm bg-aisummit-cinnabar text-white font-bold text-[10px] uppercase tracking-widest hover:bg-aisummit-cinnabar/90 transition-all shadow-[0_0_25px_rgba(230,57,70,0.4)]">
-                VYZKOUŠET 7 DNÍ ZDARMA
+              <Link href="#waitlist" className="relative z-10 block text-center py-3 px-4 rounded-sm bg-aisummit-cinnabar text-white font-bold text-[10px] uppercase tracking-widest hover:bg-aisummit-cinnabar/90 transition-all shadow-[0_0_25px_rgba(230,57,70,0.4)]">
+                Připojit se
               </Link>
             </div>
 
@@ -537,8 +529,8 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
-              <Link href="/register" className="block text-center py-3 px-4 rounded-sm border border-white/15 text-white/60 font-bold text-[10px] uppercase tracking-widest hover:bg-white/5 hover:text-white transition-all">
-                Začít s Pro
+              <Link href="#waitlist" className="block text-center py-3 px-4 rounded-sm border border-white/15 text-white/60 font-bold text-[10px] uppercase tracking-widest hover:bg-white/5 hover:text-white transition-all">
+                Připojit se
               </Link>
             </div>
 
@@ -573,8 +565,8 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
-              <Link href="/register" className="block text-center py-3 px-4 rounded-sm border border-emerald-500/30 text-emerald-400 font-bold text-[10px] uppercase tracking-widest hover:bg-emerald-500/10 hover:text-emerald-300 transition-all">
-                Začít s Agency
+              <Link href="#waitlist" className="block text-center py-3 px-4 rounded-sm border border-emerald-500/30 text-emerald-400 font-bold text-[10px] uppercase tracking-widest hover:bg-emerald-500/10 hover:text-emerald-300 transition-all">
+                Připojit se
               </Link>
             </div>
 
@@ -618,9 +610,8 @@ export default function Home() {
           <h2 className="text-5xl md:text-7xl font-black tracking-tighter mb-6 text-white uppercase leading-[0.9]">Váš Instagram<br /> <span className="text-aisummit-cinnabar">si zaslouží víc.</span></h2>
           <p className="text-base text-white/40 font-medium mb-12 max-w-xl mx-auto">Přestaňte trávit hodiny vymýšlením co postovat. Nechte AI udělat těžkou práci — vy se soustřeďte na to, co umíte nejlíp.</p>
 
-          <Link href="/register" className="group relative inline-flex items-center justify-center px-10 py-5 bg-white text-black rounded-sm font-black text-sm hover:bg-white/90 transition-all uppercase tracking-widest shadow-[0_0_40px_rgba(255,255,255,0.2)]">
-            Vytvořit účet zdarma
-            <ArrowRight className="w-4 h-4 ml-3 group-hover:translate-x-1 transition-transform" />
+          <Link href="#waitlist" className="group relative inline-flex items-center justify-center px-10 py-5 bg-white text-black rounded-sm font-black text-sm hover:bg-white/90 transition-all uppercase tracking-widest shadow-[0_0_40px_rgba(255,255,255,0.2)]">
+            Připojit se na Waitlist <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
           </Link>
           
           <p className="mt-6 text-[9px] uppercase tracking-widest font-bold text-white/30">7 dní zdarma. Žádná kreditka. Zrušit kdykoliv.</p>

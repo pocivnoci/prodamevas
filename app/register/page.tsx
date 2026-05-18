@@ -7,6 +7,7 @@ const ERROR_MESSAGES: Record<string, string> = {
     password_too_short: "Heslo musí mít alespoň 6 znaků.",
     already_exists: "Účet s tímto emailem už existuje. Přihlas se.",
     signup_failed: "Registrace selhala. Zkus to znovu.",
+    invalid_invite: "Neplatný nebo vyčerpaný kód pozvánky.",
 }
 
 export default async function RegisterPage(props: {
@@ -103,6 +104,18 @@ export default async function RegisterPage(props: {
                                 minLength={6}
                                 placeholder="Zopakuj heslo"
                                 className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all font-inter text-sm"
+                            />
+                        </div>
+
+                        <div>
+                            <label htmlFor="inviteCode" className="block text-sm font-medium text-gray-300 mb-1">Kód pozvánky</label>
+                            <input
+                                id="inviteCode"
+                                name="inviteCode"
+                                type="text"
+                                required
+                                placeholder="Např. BETA-VIP"
+                                className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all font-inter text-sm uppercase"
                             />
                         </div>
 

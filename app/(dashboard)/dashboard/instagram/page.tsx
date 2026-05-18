@@ -16,6 +16,7 @@ import { OnboardTab } from "./tabs/OnboardTab"
 import { SettingsTab } from "./tabs/SettingsTab"
 import { CalendarTab } from "./tabs/CalendarTab"
 import { FeedTab } from "./tabs/FeedTab"
+import { WaitlistTab } from "./tabs/WaitlistTab"
 
 // Section labels for header
 const SECTION_LABELS: Record<string, { title: string; description: string }> = {
@@ -30,6 +31,7 @@ const SECTION_LABELS: Record<string, { title: string; description: string }> = {
     performance: { title: "Výkon", description: "Jak si váš obsah vede" },
     settings: { title: "Nastavení", description: "Konfigurace značky a systému" },
     onboard: { title: "Onboarding", description: "Onboardujte nového klienta" },
+    waitlist: { title: "Waitlist", description: "Správa zájemců a zvacích kódů" },
 }
 
 export default function InstagramPage() {
@@ -64,6 +66,7 @@ export default function InstagramPage() {
                     {activeSection === "performance" && <PerformanceTab projectId={projectId} />}
                     {activeSection === "settings" && <SettingsTab projectId={projectId} />}
                     {activeSection === "onboard" && <OnboardTab />}
+                    {activeSection === "waitlist" && <WaitlistTab />}
                 </motion.div>
             </AnimatePresence>
         </div>
