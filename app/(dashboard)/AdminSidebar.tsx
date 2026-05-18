@@ -86,6 +86,15 @@ export function AdminSidebar() {
 
     return (
         <>
+            {/* Mobile Refresh */}
+            <button
+                onClick={() => window.location.reload()}
+                className="lg:hidden fixed top-4 right-20 z-[60] w-12 h-12 bg-[#0a0a0a]/90 backdrop-blur-xl border border-white/10 rounded-sm flex items-center justify-center text-white shadow-sm hover:bg-white/5 transition-all"
+                aria-label="Obnovit"
+            >
+                <span className="text-xl">🔄</span>
+            </button>
+
             {/* Mobile hamburger */}
             <button
                 onClick={() => setOpen(!open)}
@@ -278,6 +287,14 @@ export function AdminSidebar() {
                         )}
                         <span className="relative z-10 text-base">⚙️</span>
                         <span className="relative z-10">Nastavení</span>
+                    </button>
+
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="group relative flex items-center gap-3 w-full px-3 py-2.5 rounded-sm text-[11px] font-bold uppercase tracking-wider text-white/40 hover:text-white/70 transition-all cursor-pointer"
+                    >
+                        <span className="text-base opacity-70 group-hover:opacity-100 transition-opacity">🔄</span>
+                        <span>Aktualizovat</span>
                     </button>
 
                     <form action={logout}>
