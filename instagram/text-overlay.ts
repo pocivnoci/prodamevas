@@ -178,7 +178,7 @@ async function renderText(
                 children.push({
                     type: "div",
                     props: {
-                        style: { display: "flex", flexDirection: "row" },
+                        style: { display: "flex", flexDirection: "row", flexShrink: 0 },
                         children: token.replace(/ /g, "\u00A0"),
                     }
                 })
@@ -208,7 +208,7 @@ async function renderText(
         children.push({
             type: "div",
             props: {
-                style: { display: "flex", flexDirection: "row" },
+                style: { display: "flex", flexDirection: "row", flexShrink: 0 },
                 children: wordSpans.map((ws, idx) => ({
                     type: "span",
                     props: {
