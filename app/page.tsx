@@ -387,7 +387,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 relative z-10">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Kolik ušetříte<br /><span className="text-aisummit-cinnabar">oproti agentuře?</span></h2>
-            <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Social media manažer stojí 25 000 Kč měsíčně. Chrlit zvládne to samé od 490 Kč — a pracuje 24 hodin denně.</p>
+            <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Social media manažer stojí 25 000 Kč měsíčně. Chrlit zvládne to samé od 450 Kč — a pracuje 24 hodin denně.</p>
             <div className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-sm border border-emerald-500/30 bg-emerald-500/10 backdrop-blur-sm">
               <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>
               <span className="text-emerald-400 text-sm font-black">Kreditový systém — platíte jen za to, co skutečně použijete</span>
@@ -404,14 +404,14 @@ export default function Home() {
                 <p className="text-white/40 text-[10px] font-medium">Pro začínající tvůrce</p>
               </div>
               <div className="mb-1">
-                <span className="text-4xl font-black text-white">490</span>
+                <span className="text-4xl font-black text-white">450</span>
                 <span className="text-white/40 text-sm font-black ml-1">Kč</span>
               </div>
               <p className="text-white/30 text-[10px] font-bold mb-6">měsíčně · bez závazku</p>
               <div className="bg-white/5 rounded-sm px-3 py-2 mb-6 border border-white/5">
-                <span className="text-white font-black text-sm">20</span>
+                <span className="text-white font-black text-sm">30</span>
                 <span className="text-white/40 text-[10px] font-bold ml-1">kreditů/měs</span>
-                <span className="text-white/20 text-[9px] block">~24 Kč/kredit</span>
+                <span className="text-white/20 text-[9px] block">~15 Kč/kredit</span>
               </div>
               <ul className="space-y-2.5 mb-8 flex-1">
                 {[
@@ -440,14 +440,14 @@ export default function Home() {
                 <p className="text-white/40 text-[10px] font-medium">Pro freelancery a kreativce</p>
               </div>
               <div className="mb-1">
-                <span className="text-4xl font-black text-white">990</span>
+                <span className="text-4xl font-black text-white">890</span>
                 <span className="text-white/40 text-sm font-black ml-1">Kč</span>
               </div>
               <p className="text-white/30 text-[10px] font-bold mb-6">měsíčně · bez závazku</p>
               <div className="bg-white/5 rounded-sm px-3 py-2 mb-6 border border-white/5">
-                <span className="text-white font-black text-sm">50</span>
+                <span className="text-white font-black text-sm">70</span>
                 <span className="text-white/40 text-[10px] font-bold ml-1">kreditů/měs</span>
-                <span className="text-white/20 text-[9px] block">~20 Kč/kredit · dobíjecí 5 Kč/ks</span>
+                <span className="text-white/20 text-[9px] block">~13 Kč/kredit · dobíjecí 5 Kč/ks</span>
               </div>
               <ul className="space-y-2.5 mb-8 flex-1">
                 {[
@@ -478,14 +478,14 @@ export default function Home() {
                 <p className="text-white/40 text-[10px] font-medium">Pro firmy — plný pipeline</p>
               </div>
               <div className="relative z-10 mb-1">
-                <span className="text-4xl font-black text-white">1 890</span>
+                <span className="text-4xl font-black text-white">1 690</span>
                 <span className="text-white/40 text-sm font-black ml-1">Kč</span>
               </div>
               <p className="text-white/30 text-[10px] font-bold mb-6">měsíčně · bez závazku</p>
               <div className="relative z-10 bg-aisummit-cinnabar/10 rounded-sm px-3 py-2 mb-6 border border-aisummit-cinnabar/20">
-                <span className="text-white font-black text-sm">120</span>
+                <span className="text-white font-black text-sm">150</span>
                 <span className="text-white/60 text-[10px] font-bold ml-1">kreditů/měs</span>
-                <span className="text-white/30 text-[9px] block">~16 Kč/kredit · dobíjecí 4 Kč/ks</span>
+                <span className="text-white/30 text-[9px] block">~11 Kč/kredit · dobíjecí 4 Kč/ks</span>
               </div>
               <ul className="space-y-2.5 mb-8 flex-1 relative z-10">
                 {[
@@ -503,7 +503,7 @@ export default function Home() {
                 ))}
               </ul>
               <Link href="/register" className="relative z-10 block text-center py-3 px-4 rounded-sm bg-aisummit-cinnabar text-white font-bold text-[10px] uppercase tracking-widest hover:bg-aisummit-cinnabar/90 transition-all shadow-[0_0_25px_rgba(230,57,70,0.4)]">
-                Vyzkoušet 7 dní zdarma
+                VYZKOUŠET 7 DNÍ ZDARMA
               </Link>
             </div>
 
@@ -514,21 +514,21 @@ export default function Home() {
                 <p className="text-white/40 text-[10px] font-medium">Maximální objem + priorita</p>
               </div>
               <div className="mb-1">
-                <span className="text-4xl font-black text-white">3 790</span>
+                <span className="text-4xl font-black text-white">3 290</span>
                 <span className="text-white/40 text-sm font-black ml-1">Kč</span>
               </div>
               <p className="text-white/30 text-[10px] font-bold mb-6">měsíčně · bez závazku</p>
               <div className="bg-white/5 rounded-sm px-3 py-2 mb-6 border border-white/5">
-                <span className="text-white font-black text-sm">260</span>
+                <span className="text-white font-black text-sm">320</span>
                 <span className="text-white/40 text-[10px] font-bold ml-1">kreditů/měs</span>
-                <span className="text-white/20 text-[9px] block">~15 Kč/kredit · dobíjecí 3.5 Kč/ks</span>
+                <span className="text-white/20 text-[9px] block">~10 Kč/kredit · dobíjecí 3.5 Kč/ks</span>
               </div>
               <ul className="space-y-2.5 mb-8 flex-1">
                 {[
                   { t: "10 projektů" },
                   { t: "Vše z Business" },
                   { t: "Prioritní generování ⚡" },
-                  { t: "260 kreditů měsíčně" },
+                  { t: "320 kreditů měsíčně" },
                   { t: "Nejlevnější dobíjecí kredity" },
                 ].map((f, i) => (
                   <li key={i} className="flex items-center gap-2.5 text-xs text-white/60">
@@ -550,20 +550,20 @@ export default function Home() {
                 <p className="text-white/40 text-[10px] font-medium">Pro agentury a velké týmy</p>
               </div>
               <div className="mb-1">
-                <span className="text-4xl font-black text-white">7 990</span>
+                <span className="text-4xl font-black text-white">6 990</span>
                 <span className="text-white/40 text-sm font-black ml-1">Kč</span>
               </div>
               <p className="text-white/30 text-[10px] font-bold mb-6">měsíčně · bez závazku</p>
               <div className="bg-emerald-500/5 rounded-sm px-3 py-2 mb-6 border border-emerald-500/10">
-                <span className="text-white font-black text-sm">600</span>
+                <span className="text-white font-black text-sm">750</span>
                 <span className="text-white/40 text-[10px] font-bold ml-1">kreditů/měs</span>
-                <span className="text-white/20 text-[9px] block">~13 Kč/kredit · dobíjecí 3 Kč/ks</span>
+                <span className="text-white/20 text-[9px] block">~9 Kč/kredit · dobíjecí 3 Kč/ks</span>
               </div>
               <ul className="space-y-2.5 mb-8 flex-1">
                 {[
                   { t: "25 projektů" },
                   { t: "Vše z Pro" },
-                  { t: "600 kreditů měsíčně" },
+                  { t: "750 kreditů měsíčně" },
                   { t: "Prioritní generování ⚡" },
                   { t: "Přednostní podpora do 4h" },
                 ].map((f, i) => (
