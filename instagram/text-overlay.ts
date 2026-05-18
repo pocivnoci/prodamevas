@@ -147,25 +147,78 @@ async function renderText(
     const baseColor = `rgba(255, 255, 255, ${opacity})`
     const fd = getFontData(fontFamily)
 
-    // Build children: either plain text or colored phrase spans
-    let children: any
+    // Tokenize text to keep words and their punctuation together in flex items
+    let markedText = text
     if (accentWords && accentWords.length > 0 && accentColor && bold) {
-        // Split text into phrase-level segments (accent vs non-accent)
-        const segments = splitByAccent(text, accentWords)
-        // Replace regular spaces with non-breaking spaces (U+00A0)
-        // so flex layout won't collapse whitespace at segment boundaries
-        children = segments.map((seg, i) => ({
-            type: "span",
+        const escaped = accentWords
+            .filter(w => w.length > 0)
+            .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+            .sort((a, b) => b.length - a.length)
+        if (escaped.length > 0) {
+            const regex = new RegExp(`(${escaped.join("|")})`, "gi")
+            markedText = text.replace(regex, "\x01$1\x02")
+        }
+    }
+
+    const tokens = markedText.split(/(\s+)/)
+    let isAccent = false
+    const children = []
+
+    for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i]
+        if (!token) continue
+
+        if (/^\s+$/.test(token)) {
+            if (token.includes("\n")) {
+                children.push({
+                    type: "div",
+                    props: { style: { width: "100%", height: 0 } }
+                })
+            } else {
+                children.push({
+                    type: "div",
+                    props: {
+                        style: { display: "flex", flexDirection: "row" },
+                        children: token.replace(/ /g, "\u00A0"),
+                    }
+                })
+            }
+            continue
+        }
+
+        const wordSpans = []
+        let currentText = ""
+
+        for (let j = 0; j < token.length; j++) {
+            const char = token[j]
+            if (char === "\x01") {
+                if (currentText) wordSpans.push({ text: currentText, accent: isAccent })
+                currentText = ""
+                isAccent = true
+            } else if (char === "\x02") {
+                if (currentText) wordSpans.push({ text: currentText, accent: isAccent })
+                currentText = ""
+                isAccent = false
+            } else {
+                currentText += char
+            }
+        }
+        if (currentText) wordSpans.push({ text: currentText, accent: isAccent })
+
+        children.push({
+            type: "div",
             props: {
-                key: String(i),
-                children: seg.text.replace(/ /g, "\u00A0"),
-                style: {
-                    color: seg.accent ? accentColor : baseColor,
-                },
-            },
-        }))
-    } else {
-        children = text
+                style: { display: "flex", flexDirection: "row" },
+                children: wordSpans.map((ws, idx) => ({
+                    type: "span",
+                    props: {
+                        key: `${i}-${idx}`,
+                        style: { color: ws.accent ? accentColor : baseColor },
+                        children: ws.text,
+                    }
+                }))
+            }
+        })
     }
 
     // Satori renders a React-like element tree to SVG
@@ -288,8 +341,13 @@ export async function overlayText(
                     <stop offset="50%" style="stop-color:${gMid};stop-opacity:0.3"/>
                     <stop offset="100%" style="stop-color:${gBot};stop-opacity:${gradientOpacity}"/>
                 </linearGradient>
+                <linearGradient id="darken" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="40%" style="stop-color:#000000;stop-opacity:0"/>
+                    <stop offset="100%" style="stop-color:#000000;stop-opacity:0.8"/>
+                </linearGradient>
             </defs>
             <rect width="${width}" height="${height}" fill="url(#grad)"/>
+            <rect width="${width}" height="${height}" fill="url(#darken)"/>
         </svg>`
 
         const gradientBuffer = await sharp(Buffer.from(gradientSvg))
