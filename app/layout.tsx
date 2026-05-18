@@ -117,11 +117,16 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `
-if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js')})}
+if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js').catch(console.error)})}
 window.addEventListener('load',()=>{
   setTimeout(()=>{
     var s=document.getElementById('splash');
-    if(s){s.style.opacity='0';s.style.visibility='hidden';setTimeout(()=>s.remove(),500)}
+    if(s){
+      s.style.opacity='0';
+      s.style.visibility='hidden';
+      s.style.pointerEvents='none';
+      setTimeout(()=>s.style.display='none',500);
+    }
   },1200)
 })`,
           }}

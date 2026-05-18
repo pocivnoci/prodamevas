@@ -27,8 +27,9 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event
 
-  // Skip non-GET, API calls, and auth requests
+  // Skip non-GET, API calls, auth requests, and non-HTTP requests
   if (request.method !== 'GET') return
+  if (!request.url.startsWith('http')) return
   if (request.url.includes('/api/') || request.url.includes('/auth/')) return
   if (request.url.includes('supabase.co')) return
 
@@ -36,9 +37,11 @@ self.addEventListener('fetch', (event) => {
     fetch(request)
       .then((response) => {
         // Cache successful responses for static assets
-        if (response.ok && (request.url.match(/\.(js|css|png|jpg|webp|svg|ico|woff2?)$/))) {
+        if (response.ok && response.type === 'basic' && (request.url.match(/\.(js|css|png|jpg|webp|svg|ico|woff2?)$/))) {
           const clone = response.clone()
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, clone).catch((err) => console.warn('SW cache put error:', err))
+          })
         }
         return response
       })
