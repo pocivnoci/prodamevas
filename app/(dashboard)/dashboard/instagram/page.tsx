@@ -20,6 +20,7 @@ import { FeedTab } from "./tabs/FeedTab"
 import { IdeasTab } from "./tabs/IdeasTab"
 import { ReviewsTab } from "./tabs/ReviewsTab"
 import { WaitlistTab } from "./tabs/WaitlistTab"
+import { TutorialOverlay, useTutorialState } from "./tabs/TutorialOverlay"
 
 // Section labels for header
 const SECTION_LABELS: Record<string, { title: string; description: string }> = {
@@ -43,6 +44,7 @@ const SECTION_LABELS: Record<string, { title: string; description: string }> = {
 export default function InstagramPage() {
     const { activeSection, projectId } = useStudio()
     const sectionInfo = SECTION_LABELS[activeSection] || { title: "", description: "" }
+    const { showTutorial, openTutorial, closeTutorial } = useTutorialState()
 
     // Dashboard has its own header
     const showHeader = activeSection !== "dashboard"
@@ -66,7 +68,7 @@ export default function InstagramPage() {
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.2, ease: "easeOut" }}
                 >
-                    {activeSection === "dashboard" && <DashboardTab projectId={projectId} />}
+                    {activeSection === "dashboard" && <DashboardTab projectId={projectId} onOpenTutorial={openTutorial} />}
                     {activeSection === "posts" && <PostsTab projectId={projectId} />}
                     {activeSection === "plan" && <PlanTab projectId={projectId} />}
                     {activeSection === "calendar" && <CalendarTab projectId={projectId} />}
@@ -83,6 +85,9 @@ export default function InstagramPage() {
                     {activeSection === "waitlist" && <WaitlistTab />}
                 </motion.div>
             </AnimatePresence>
+
+            {/* Tutorial Overlay */}
+            <TutorialOverlay isOpen={showTutorial} onClose={closeTutorial} />
         </div>
     )
 }

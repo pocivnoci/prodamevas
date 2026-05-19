@@ -61,7 +61,7 @@ const ACTION_CARDS = [
     },
 ]
 
-export function DashboardTab({ projectId }: { projectId: string }) {
+export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string; onOpenTutorial?: () => void }) {
     const { setActiveSection, subscription } = useStudio()
     const [stats, setStats] = useState<DashboardStats | null>(null)
     const [loading, setLoading] = useState(true)
@@ -85,13 +85,23 @@ export function DashboardTab({ projectId }: { projectId: string }) {
             >
                 {/* Ambient glow */}
                 <div className="absolute top-0 right-0 w-[300px] h-[200px] bg-aisummit-cinnabar/10 blur-[100px] pointer-events-none" />
-                <div className="relative">
-                    <h1 className="text-3xl font-black uppercase tracking-tight text-white mb-2">
-                        Vítejte v <span className="text-aisummit-cinnabar">Chrlit</span> Studio
-                    </h1>
-                    <p className="text-white/40 text-sm font-medium max-w-lg">
-                        Vaše centrum pro tvorbu a správu Instagram obsahu. Vyberte akci nebo se podívejte na stav vašeho účtu.
-                    </p>
+                <div className="relative flex items-start justify-between gap-4">
+                    <div>
+                        <h1 className="text-3xl font-black uppercase tracking-tight text-white mb-2">
+                            Vítejte v <span className="text-aisummit-cinnabar">Chrlit</span> Studio
+                        </h1>
+                        <p className="text-white/40 text-sm font-medium max-w-lg">
+                            Vaše centrum pro tvorbu a správu Instagram obsahu. Vyberte akci nebo se podívejte na stav vašeho účtu.
+                        </p>
+                    </div>
+                    {onOpenTutorial && (
+                        <button
+                            onClick={onOpenTutorial}
+                            className="flex-shrink-0 px-4 py-2.5 bg-white/5 border border-white/10 rounded-sm text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all flex items-center gap-2"
+                        >
+                            <span>📖</span> Průvodce
+                        </button>
+                    )}
                 </div>
             </motion.div>
 
