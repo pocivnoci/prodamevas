@@ -5,6 +5,60 @@ import { getConfigBrandImageObjects } from "@/instagram/configs/types"
 
 // ─── Instagram Actions ───────────────────────────────────────────────
 
+// ─── Dashboard Stats (lightweight aggregate) ──────────────────────────
+
+export async function getDashboardStats(projectSlug: string) {
+    try {
+        const { resolveClientId } = await import("@/instagram/configs")
+        const clientId = await resolveClientId(projectSlug)
+
+        // Post counts by status
+        const { data: posts } = await supabaseAdmin
+            .from("ig_posts")
+            .select("id, status, caption, image_url, created_at, ig_post_types ( display_name, emoji )")
+            .eq("client_id", clientId)
+            .order("created_at", { ascending: false })
+            .limit(50)
+
+        const allPosts = posts || []
+        const drafts = allPosts.filter(p => p.status === "draft").length
+        const ready = allPosts.filter(p => p.status === "ready").length
+        const posted = allPosts.filter(p => p.status === "posted").length
+
+        // Idea count
+        const { count: ideasCount } = await supabaseAdmin
+            .from("ig_post_ideas")
+            .select("id", { count: "exact", head: true })
+            .eq("client_id", clientId)
+
+        // Recent 3 posts with images
+        const recentPosts = allPosts
+            .filter(p => p.image_url)
+            .slice(0, 3)
+            .map(p => ({
+                id: p.id,
+                caption: p.caption?.split("\n")[0]?.substring(0, 80) || "—",
+                image_url: p.image_url,
+                status: p.status,
+                created_at: p.created_at,
+                type_name: (p.ig_post_types as any)?.display_name || "Post",
+                type_emoji: (p.ig_post_types as any)?.emoji || "📸",
+            }))
+
+        return {
+            totalPosts: allPosts.length,
+            drafts,
+            ready,
+            posted,
+            ideas: ideasCount || 0,
+            recentPosts,
+        }
+    } catch (err: any) {
+        console.error("getDashboardStats error:", err?.message || err)
+        return { totalPosts: 0, drafts: 0, ready: 0, posted: 0, ideas: 0, recentPosts: [] }
+    }
+}
+
 export async function getIGPostsList(statusFilter?: string, projectSlug: string = "mobilnamiru"): Promise<any[]> {
     try {
         const { resolveClientId } = await import("@/instagram/configs")

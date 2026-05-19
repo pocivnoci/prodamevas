@@ -3,12 +3,15 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 
 export type StudioSection =
+    | "dashboard"
     | "posts"
     | "calendar"
     | "feed"
+    | "plan"
     | "generate"
     | "ideas"
     | "reviews"
+    | "inspiration"
     | "brand"
     | "products"
     | "performance"
@@ -41,7 +44,7 @@ interface StudioState {
 }
 
 const StudioContext = createContext<StudioState>({
-    activeSection: "posts",
+    activeSection: "dashboard",
     setActiveSection: () => {},
     projectId: "",
     setProjectId: () => {},
@@ -51,7 +54,7 @@ const StudioContext = createContext<StudioState>({
 })
 
 export function StudioProvider({ children }: { children: ReactNode }) {
-    const [activeSection, setActiveSection] = useState<StudioSection>("posts")
+    const [activeSection, setActiveSection] = useState<StudioSection>("dashboard")
     const [projectId, setProjectId] = useState("")
     const [subscription, setSubscription] = useState<SubscriptionState | null>(null)
     const [subscriptionLoading, setSubscriptionLoading] = useState(true)
