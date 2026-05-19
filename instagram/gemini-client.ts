@@ -166,7 +166,7 @@ export async function generateImageWithReferences(
         }
 
         const response = await ai.models.generateContent({
-            model: "gemini-3-pro-image-preview",  // Nano Banana Pro — studio-quality 4K, reasoning core
+            model: "gemini-3-pro-image-preview",
             contents,
             config: {
                 responseModalities: ["IMAGE"],
@@ -186,7 +186,7 @@ export async function generateImageWithReferences(
             }
         }
 
-        throw new Error("Nano Banana Pro returned no image data")
+        throw new Error("Gemini 3 Pro Image returned no image data")
     })
 }
 

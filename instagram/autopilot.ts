@@ -4,7 +4,7 @@
  *
  * This is the main orchestrator. Business logic is split into:
  *   📊 performance.ts  — analyzePerformance, PerformanceInsight
- *   🚫 dedup.ts         — isHookSimilar, isBodySimilar
+ *   🚫 service.ts       — isHookSimilar, isBodySimilar (dedup)
  *   ✍️ caption-generator.ts — schemas, mega prompt, quality gate, helpers
  *   🎨 image-pipeline.ts — prompt refinement (image, carousel, video)
  *
@@ -25,7 +25,6 @@ import { overlayText } from "./text-overlay"
 import {
     getActivePostTypes,
     getAvailableIdeas,
-    getApprovedReviews,
     getRecentPosts,
     createPost,
     markIdeaAsUsed,
@@ -601,7 +600,8 @@ export async function generateOnePost(options: {
                     if (randomProduct.slug) {
                         // Strategy 1: Supabase storage (works on Vercel + local)
                         try {
-                            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://nyvbxpjkwhcuugwevobu.supabase.co'
+                            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+                            if (!supabaseUrl) throw new Error('NEXT_PUBLIC_SUPABASE_URL not set')
                             // List matching files in Supabase bucket
                             const { default: supabaseAdmin } = await import("../supabase/admin")
                             const { data: files } = await supabaseAdmin.storage
@@ -812,7 +812,7 @@ CRITICAL RULES:
         await logGeneration({
             postId: post.id,
             promptUsed: megaPrompt.substring(0, 500),
-            modelUsed: "gemini-3.1-pro-preview + imagen-4.0-ultra",
+            modelUsed: "gemini-2.5-pro + imagen-4.0-ultra",
             generationTimeMs: Date.now() - startTime,
             criticScore: score,
             criticKeep: detail?.feedback.keep,
@@ -856,7 +856,8 @@ export async function generateBatch(options: {
     console.log("📅 AUTOPILOT — BATCH GENEROVÁNÍ")
     console.log("═".repeat(60))
     console.log(`   📊 Postů: ${count}`)
-    console.log(`   💰 Odhadovaná cena: ~$${estimatedCost.toFixed(2)} (${(estimatedCost * 24).toFixed(0)} Kč)`)
+    const USD_TO_CZK = 23
+    console.log(`   💰 Odhadovaná cena: ~$${estimatedCost.toFixed(2)} (${(estimatedCost * USD_TO_CZK).toFixed(0)} Kč)`)
     console.log(`   ${dryRun ? "🔍 MODE: DRY-RUN" : "🚀 MODE: PRODUKCE"}`)
     console.log("═".repeat(60))
 
@@ -904,7 +905,7 @@ export async function generateBatch(options: {
     })
     console.log("─".repeat(60))
     console.log(`   ✅ ${successCount}/${results.length} postů`)
-    console.log(`   💰 Celkem: $${totalCost.toFixed(3)} (${(totalCost * 24).toFixed(0)} Kč)`)
+    console.log(`   💰 Celkem: $${totalCost.toFixed(3)} (${(totalCost * 23).toFixed(0)} Kč)`)
     console.log("═".repeat(60) + "\n")
 }
 
@@ -919,7 +920,7 @@ async function recordFeedback() {
 
     const { data: posts } = await supabaseAdmin
         .from("ig_posts")
-        .select("*")
+        .select("id, caption, posted_at, created_at, likes, comments, saves")
         .eq("status", "posted")
         .eq("client_id", getActiveProject())
         .is("likes", null)
@@ -959,7 +960,7 @@ async function showStats() {
 
     const { data: allPosts } = await supabaseAdmin
         .from("ig_posts")
-        .select("*")
+        .select("id, status, caption, posted_at, created_at, likes, comments, saves")
         .eq("client_id", getActiveProject())
         .order("created_at", { ascending: false })
 
@@ -1036,9 +1037,10 @@ async function showStats() {
     console.log("\n" + "─".repeat(60))
     console.log("💰 BUDGET")
     console.log("─".repeat(60))
-    console.log(`   Cena za post: ~$${COSTS.perPost.toFixed(3)} (${(COSTS.perPost * 24).toFixed(0)} Kč)`)
-    console.log(`   Týden (${weekCount} postů): ~$${(COSTS.perPost * weekCount).toFixed(2)} (${(COSTS.perPost * weekCount * 24).toFixed(0)} Kč)`)
-    console.log(`   Měsíc (${weekCount * 4} postů): ~$${(COSTS.perPost * weekCount * 4).toFixed(2)} (${(COSTS.perPost * weekCount * 4 * 24).toFixed(0)} Kč)`)
+    const USD_TO_CZK = 23
+    console.log(`   Cena za post: ~$${COSTS.perPost.toFixed(3)} (${(COSTS.perPost * USD_TO_CZK).toFixed(0)} Kč)`)
+    console.log(`   Týden (${weekCount} postů): ~$${(COSTS.perPost * weekCount).toFixed(2)} (${(COSTS.perPost * weekCount * USD_TO_CZK).toFixed(0)} Kč)`)
+    console.log(`   Měsíc (${weekCount * 4} postů): ~$${(COSTS.perPost * weekCount * 4).toFixed(2)} (${(COSTS.perPost * weekCount * 4 * USD_TO_CZK).toFixed(0)} Kč)`)
 
     console.log("\n" + "═".repeat(60) + "\n")
 }

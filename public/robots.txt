@@ -1,0 +1,10 @@
+# https://www.robotstxt.org/robotstxt.html
+
+User-agent: *
+Allow: /
+Disallow: /dashboard/
+Disallow: /onboarding/
+Disallow: /api/
+Disallow: /auth/
+
+Sitemap: https://chrlit.cz/sitemap.xml

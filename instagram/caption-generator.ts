@@ -15,14 +15,19 @@ import { getPillarForType, createPillarMapper } from "./service"
 // COSTS
 // ============================================
 
+// Pricing as of May 2026:
+// - Gemini 2.5 Pro: $1.25/M input + $10/M output (~$0.025 per ~2K token request)
+// - Gemini 3.1 Pro: $2.00/M input + $12/M output (~$0.03 per request)
+// - Imagen 4 Ultra: $0.06/image
+// - Veo 3.1 Fast: $0.15/second
 export const COSTS = {
-    textGeneration: 0.01,
-    promptRefinement: 0.01,
-    imageGeneration: 0.08,
+    textGeneration: 0.025,
+    promptRefinement: 0.025,
+    imageGeneration: 0.06,
     videoPerSecond: 0.15,
-    perPost: 0.10,
-    perCarousel: 0.37,
-    perReel: 1.07,
+    perPost: 0.14,       // 3× text ($0.075) + 1× image ($0.06) + overhead
+    perCarousel: 0.35,   // 3× text + 4× image ($0.24) + overhead
+    perReel: 1.30,       // 3× text + Veo 3.1 Fast 8s ($1.20)
 }
 
 // ============================================
