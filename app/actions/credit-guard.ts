@@ -17,7 +17,7 @@ import {
     type ActionType,
     ACTION_LABELS,
 } from "@/lib/subscription"
-import { requireSuperAdmin } from "@/lib/auth-guard"
+import { requireAuth } from "@/lib/auth-guard"
 
 export interface CreditGuardResult {
     ok: boolean
@@ -40,7 +40,7 @@ export async function creditGuard(
 ): Promise<CreditGuardResult> {
     try {
         // Enforce super admin for all AI operations
-        await requireSuperAdmin()
+        await requireAuth()
         
         const clientId = await resolveClientId(projectId)
         

@@ -249,13 +249,13 @@ export async function deductCredits(
 
 /**
  * Create a trial subscription for a newly registered client.
- * 7 days, 10 credits, full features unlocked.
+ * 7 days, 30 credits, full features unlocked.
  */
 export async function createTrialSubscription(clientId: string): Promise<void> {
     const trialEnd = new Date()
     trialEnd.setDate(trialEnd.getDate() + 7) // 7-day trial
 
-    // Use 'trial' plan for beta testing (10 credits)
+    // Use 'trial' plan for beta testing (30 credits — configured in subscription_plans DB table)
     await supabaseAdmin.from("subscriptions").insert({
         client_id: clientId,
         plan_id: "trial",

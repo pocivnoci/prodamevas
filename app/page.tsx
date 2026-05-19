@@ -104,7 +104,7 @@ export default function Home() {
                   OBSAH.
                 </span>
                 <br />
-                <span className="text-white/30 text-4xl md:text-5xl tracking-normal">Ale kvalitní.</span>
+                <span className="text-white/30 text-4xl md:text-5xl tracking-wide">Ale kvalitní.</span>
               </h1>
               
               <p className="text-lg text-white/40 font-medium mb-10 max-w-lg leading-relaxed">

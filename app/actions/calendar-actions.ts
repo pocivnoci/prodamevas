@@ -1,7 +1,7 @@
 "use server"
 
 import supabaseAdmin from "@/supabase/admin"
-import { requireSuperAdmin } from "@/lib/auth-guard"
+import { requireAuth } from "@/lib/auth-guard"
 
 // ─── Plan Week ──────────────────────────────────────────
 
@@ -16,7 +16,7 @@ export async function planWeekAction(
     error?: string
 }> {
     try {
-        await requireSuperAdmin()
+        await requireAuth()
         const { resolveClientId, loadConfig } = await import("@/instagram/configs")
         const config = await loadConfig(projectSlug)
         const clientId = await resolveClientId(projectSlug)
@@ -108,7 +108,7 @@ export async function getWeekPosts(
     }[]
 }> {
     try {
-        await requireSuperAdmin()
+        await requireAuth()
         const { resolveClientId } = await import("@/instagram/configs")
         const clientId = await resolveClientId(projectSlug)
 
@@ -152,7 +152,7 @@ export async function movePost(
     newDate: string,    // "2026-05-22"
     newTime?: string    // "17:00"
 ): Promise<{ success: boolean }> {
-    await requireSuperAdmin()
+    await requireAuth()
     const update: Record<string, any> = {
         scheduled_for: `${newDate}T${newTime || "12:00"}:00`,
         updated_at: new Date().toISOString(),
@@ -170,7 +170,7 @@ export async function movePost(
 // ─── Approve Post ──────────────────────────────────────
 
 export async function approvePost(postId: string): Promise<{ success: boolean }> {
-    await requireSuperAdmin()
+    await requireAuth()
     const { error } = await supabaseAdmin
         .from("ig_posts")
         .update({
