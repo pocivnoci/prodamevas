@@ -43,6 +43,7 @@ export async function POST(req: Request) {
             dryRun: config.dryRun,
             aspectRatio: config.aspectRatio,
             customImageUrl: config.customImageUrl,
+            campaignContext: config.campaignContext,
             onProgress: async (stage: string, progress: number, message: string) => {
                 await updateJob({ status: stage, progress, agent_message: message })
             },

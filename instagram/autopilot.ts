@@ -112,6 +112,7 @@ export async function generateOnePost(options: {
     performance?: PerformanceInsight
     aspectRatio?: string
     customImageUrl?: string
+    campaignContext?: { postNumber: number; totalPosts: number; previousPosts: { hook: string; topic: string }[] }
     onProgress?: (stage: string, progress: number, message: string) => Promise<void>
 }): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number }> {
     const report = options.onProgress || (async () => { }) // no-op if not provided
@@ -212,8 +213,16 @@ export async function generateOnePost(options: {
         // Non-fatal — continue without memories
     }
 
+    // Inject campaign continuity context
+    if (options.campaignContext && options.campaignContext.previousPosts.length > 0) {
+        const cc = options.campaignContext
+        const prevSummary = cc.previousPosts.map((p, i) => `  ${i + 1}. Hook: "${p.hook}" | Téma: ${p.topic}`).join("\n")
+        megaPrompt += `\n\n## 🎯 KAMPAŇ — NÁVAZNOST PŘÍSPĚVKŮ (KRITICKÉ!)\nToto je příspěvek **${cc.postNumber}/${cc.totalPosts}** v rámci koherentní kampaně.\n\n### Předchozí příspěvky v kampani:\n${prevSummary}\n\n### INSTRUKCE PRO NÁVAZNOST:\n- Tento post MUSÍ tematicky navazovat na předchozí — buduj na nich, prohlubuj téma, přidej nový úhel\n- NEOPAKUJ stejný hook ani stejný argument — posuň příběh dál\n- Zachovej konzistentní tón a vizuální styl napříč celou kampaní\n- Pokud je zadané hlavní téma kampaně, drž se ho ale z jiného úhlu než předchozí posty\n- Série by měla fungovat jako storytelling: každý post přidává novou vrstvu\n`
+        console.log(`   🎯 Campaign context: post ${cc.postNumber}/${cc.totalPosts} (${cc.previousPosts.length} previous)`)
+    }
+
     const schema = isReel ? buildVideoSchema(config) : isCarousel ? buildCarouselSchema(config) : buildCaptionSchema(config)
-    const rawText = await generateText(megaPrompt, { responseSchema: schema, model: "gemini-2.5-pro" })
+    const rawText = await generateText(megaPrompt, { responseSchema: schema, model: "gemini-3.5-flash" })
     cost += COSTS.textGeneration
 
     let captionData: {
@@ -812,7 +821,7 @@ CRITICAL RULES:
         await logGeneration({
             postId: post.id,
             promptUsed: megaPrompt.substring(0, 500),
-            modelUsed: "gemini-2.5-pro + imagen-4.0-ultra",
+            modelUsed: "gemini-3.5-flash + imagen-4.0-ultra",
             generationTimeMs: Date.now() - startTime,
             criticScore: score,
             criticKeep: detail?.feedback.keep,

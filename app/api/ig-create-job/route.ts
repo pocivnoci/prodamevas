@@ -29,6 +29,7 @@ export async function POST(req: Request) {
                     aspectRatio: body.aspectRatio,
                     customImageUrl: body.customImageUrl,
                     category: body.category,
+                    campaignContext: body.campaignContext,
                 },
                 status: "researcher",
                 progress: 5,

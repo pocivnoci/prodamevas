@@ -142,7 +142,7 @@ Vrať POUZE validní JSON pole:
 
     try {
         const raw = await ai.models.generateContent({
-            model: "gemini-3.1-pro-preview",
+            model: "gemini-3.5-flash",
             contents: visualPrompt,
             config: { responseMimeType: "application/json" },
         })
@@ -275,7 +275,7 @@ Vrať POUZE validní JSON pole:
 
     try {
         const raw = await ai.models.generateContent({
-            model: "gemini-3.1-pro-preview",
+            model: "gemini-3.5-flash",
             contents: analysisPrompt,
             config: { responseMimeType: "application/json" },
         })

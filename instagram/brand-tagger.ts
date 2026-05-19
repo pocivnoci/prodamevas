@@ -44,7 +44,7 @@ POPIS: [popis]
 TAGY: [tag1, tag2]`
 
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash-lite",
+            model: "gemini-3.5-flash",
             contents: [{
                 role: "user",
                 parts: [

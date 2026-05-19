@@ -8,6 +8,9 @@ import {
     getIGCategories,
     getIGIdeasList,
     getIGReviewsList,
+    generateContentPlan,
+    regeneratePlanItem,
+    type ContentPlanItem,
 } from "@/app/actions/admin-actions"
 import { uploadCustomImage, type GenerateResult } from "@/app/actions/ig-generate-action"
 import { useCopyToClipboard } from "./hooks"
@@ -32,6 +35,13 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const [batchProgress, setBatchProgress] = useState<{ current: number; total: number; successes: number; failures: number } | null>(null)
     const [generationHistory, setGenerationHistory] = useState<GenerateResult[]>([])
     const [step, setStep] = useState(1)
+
+    // Content Plan Preview (batch mode intermediate step)
+    const [contentPlan, setContentPlan] = useState<ContentPlanItem[]>([])
+    const [planGenerating, setPlanGenerating] = useState(false)
+    const [editingPlanItem, setEditingPlanItem] = useState<string | null>(null)
+    const [regeneratingItem, setRegeneratingItem] = useState<string | null>(null)
+    const [pendingGenerate, setPendingGenerate] = useState(false)
 
     // Ideas & Reviews for topic pre-fill
     const [savedIdeas, setSavedIdeas] = useState<any[]>([])
@@ -127,38 +137,53 @@ export function GenerateTab({ projectId }: { projectId: string }) {
 
         try {
             if (batchMode) {
-                // === SEQUENTIAL BATCH: generate posts one by one ===
-                // Each post is a separate Vercel request (~90s), never hitting 300s timeout
+                // === SEQUENTIAL CAMPAIGN using approved plan ===
+                const planToExecute = contentPlan.length > 0 ? contentPlan : []
+                const totalPosts = planToExecute.length || batchCount
                 let successes = 0
                 let failures = 0
-                setBatchProgress({ current: 0, total: batchCount, successes: 0, failures: 0 })
+                const campaignPosts: { hook: string; topic: string }[] = []
+                setBatchProgress({ current: 0, total: totalPosts, successes: 0, failures: 0 })
 
-                for (let i = 0; i < batchCount; i++) {
-                    setBatchProgress({ current: i + 1, total: batchCount, successes, failures })
+                for (let i = 0; i < totalPosts; i++) {
+                    setBatchProgress({ current: i + 1, total: totalPosts, successes, failures })
+
+                    const planItem = planToExecute[i]
+                    const campaignContext = campaignPosts.length > 0
+                        ? { postNumber: i + 1, totalPosts, previousPosts: campaignPosts }
+                        : undefined
+
+                    // Use plan item's type and topic if available
+                    const postType = planItem?.postType || undefined
+                    const postTopic = planItem?.topic ? `${planItem.topic}: ${planItem.hookPreview}` : (topic || undefined)
 
                     try {
                         let res = await triggerPostGeneration({
                             configName: projectId,
-                            type: undefined, // let autopilot pick smart types
-                            topic: topic || undefined,
+                            type: postType,
+                            topic: postTopic,
                             category: category !== "auto" ? category : undefined,
                             dryRun,
                             aspectRatio: aspectRatio || undefined,
+                            campaignContext,
                         })
                         // Auto-retry once on failure
                         if (!res.success && maxClientRetries > 0) {
                             await new Promise(r => setTimeout(r, 3000))
                             res = await triggerPostGeneration({
                                 configName: projectId,
-                                type: undefined,
-                                topic: topic || undefined,
+                                type: postType,
+                                topic: postTopic,
                                 category: category !== "auto" ? category : undefined,
                                 dryRun,
                                 aspectRatio: aspectRatio || undefined,
+                                campaignContext,
                             })
                         }
                         if (res.success) {
                             successes++
+                            const hook = res.caption?.split("\n")?.[0] || ""
+                            campaignPosts.push({ hook, topic: postTopic || "auto" })
                             setGenerationHistory(prev => [res, ...prev].slice(0, 10))
                         } else {
                             failures++
@@ -167,10 +192,9 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         failures++
                     }
 
-                    setBatchProgress({ current: i + 1, total: batchCount, successes, failures })
+                    setBatchProgress({ current: i + 1, total: totalPosts, successes, failures })
 
-                    // Small pause between posts to avoid API rate limiting
-                    if (i < batchCount - 1) {
+                    if (i < totalPosts - 1) {
                         await new Promise(r => setTimeout(r, 2000))
                     }
                 }
@@ -179,8 +203,8 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                     generated: successes,
                     errors: failures,
                     message: successes > 0
-                        ? `Úspěšně vygenerováno ${successes} z ${batchCount} postů`
-                        : `Všech ${batchCount} postů selhalo`,
+                        ? `Úspěšně vygenerováno ${successes} z ${totalPosts} postů`
+                        : `Všech ${totalPosts} postů selhalo`,
                     success: successes > 0,
                 } as any)
             } else {
@@ -242,36 +266,135 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         }
 
         setBatchProgress(null)
-        setStep(3)
+        setStep(batchMode ? 4 : 3)
         setGenerating(false)
     }
 
+    // Content Plan: generate plan preview
+    const handleGeneratePlan = async () => {
+        setPlanGenerating(true)
+        const result = await generateContentPlan(
+            projectId,
+            batchCount,
+            topic || undefined,
+            category !== "auto" ? category : undefined
+        )
+        if (result.success && result.plan) {
+            setContentPlan(result.plan)
+            setStep(3)
+        } else {
+            alert(result.error || "Generování plánu selhalo")
+        }
+        setPlanGenerating(false)
+    }
+
+    // Content Plan: regenerate single item
+    const handleRegenerateItem = async (itemId: string) => {
+        setRegeneratingItem(itemId)
+        const item = contentPlan.find(p => p.id === itemId)
+        if (!item) return
+
+        const existingHooks = contentPlan.map(p => p.hookPreview)
+        const result = await regeneratePlanItem(projectId, item.postType, existingHooks, topic || undefined)
+
+        if (result.success && result.item) {
+            setContentPlan(prev => prev.map(p =>
+                p.id === itemId
+                    ? { ...p, hookPreview: result.item!.hookPreview, angle: result.item!.angle, topic: result.item!.topic }
+                    : p
+            ))
+        }
+        setRegeneratingItem(null)
+    }
+
+    // Content Plan: remove item
+    const handleRemovePlanItem = (itemId: string) => {
+        setContentPlan(prev => prev.filter(p => p.id !== itemId).map((p, i) => ({ ...p, day: i + 1 })))
+    }
+
+    // Content Plan: update item topic inline
+    const handleUpdatePlanTopic = (itemId: string, newTopic: string) => {
+        setContentPlan(prev => prev.map(p => p.id === itemId ? { ...p, topic: newTopic } : p))
+    }
+
+    // Content Plan: add a blank post slot
+    const handleAddPlanItem = () => {
+        const lastItem = contentPlan[contentPlan.length - 1]
+        const newItem: ContentPlanItem = {
+            id: `plan_${Date.now()}_add`,
+            postType: lastItem?.postType || "auto",
+            postTypeEmoji: lastItem?.postTypeEmoji || "📝",
+            postTypeLabel: lastItem?.postTypeLabel || "Auto",
+            pillar: lastItem?.pillar || "content",
+            pillarEmoji: lastItem?.pillarEmoji || "📋",
+            hookPreview: "Nový post — klikni 🔄 pro vygenerování konceptu",
+            angle: "",
+            topic: topic || "volné téma",
+            day: contentPlan.length + 1,
+            week: contentPlan.length >= 14 ? Math.floor(contentPlan.length / 7) + 1 : undefined,
+        }
+        setContentPlan(prev => [...prev, newItem])
+    }
+
+    // Content Plan: start generation from approved plan
+    const handleApproveAndGenerate = () => {
+        setBatchCount(contentPlan.length)
+        setStep(4)
+        setPendingGenerate(true)
+    }
+
+    // Trigger generation when pendingGenerate flag is set (after step render)
+    useEffect(() => {
+        if (pendingGenerate && step === 4 && !generating) {
+            setPendingGenerate(false)
+            handleGenerate()
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pendingGenerate, step])
+
     const { copiedField, copyToClipboard } = useCopyToClipboard()
+
+    // Dynamic steps: batch mode has 4 steps (with plan preview), single has 3
+    const steps = batchMode
+        ? [
+            { id: 1, label: "1. Styl & Vibe" },
+            { id: 2, label: "2. Kreativní Brief" },
+            { id: 3, label: "3. Content Plan" },
+            { id: 4, label: "4. Prezentace" },
+        ]
+        : [
+            { id: 1, label: "1. Styl & Vibe" },
+            { id: 2, label: "2. Kreativní Brief" },
+            { id: 3, label: "3. Prezentace" },
+        ]
+
+    const resultStep = batchMode ? 4 : 3
+    const hasResult = result || batchResult
 
     return (
         <div className="max-w-4xl mx-auto space-y-8 mt-2 pb-24">
             {/* Progress Pill */}
             <div className="flex justify-center">
                 <div className="inline-flex items-center bg-[#0a0a0a] shadow-sm border border-white/10 rounded-sm p-1.5 relative overflow-hidden">
-                    {/* Animated gradient accent behind active step */}
                     <div className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-transparent via-aisummit-cinnabar to-transparent opacity-50 blur-[2px]"></div>
 
-                    {[1, 2, 3].map(s => (
+                    {steps.map(s => (
                         <button
-                            key={s}
+                            key={s.id}
                             onClick={() => {
                                 if (generating) return
-                                // Prevent skipping directly to result if not generated yet
-                                if (s === 3 && !result && !batchResult && !generating) return
-                                setStep(s)
+                                if (s.id === 3 && batchMode && contentPlan.length === 0 && !planGenerating) return
+                                if (s.id === resultStep && !hasResult && !generating) return
+                                setStep(s.id)
                             }}
-                            disabled={generating && s !== step}
-                            className={`px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all duration-300 relative z-10 ${step === s
+                            disabled={generating && s.id !== step}
+                            className={`px-4 sm:px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all duration-300 relative z-10 ${step === s.id
                                 ? "bg-white/10 text-white shadow-md border border-white/20"
                                 : "text-white/40 hover:text-white hover:bg-white/5"
-                                } ${s === 3 && !result && !batchResult && !generating ? "opacity-30 cursor-not-allowed" : ""}`}
+                                } ${s.id === resultStep && !hasResult && !generating ? "opacity-30 cursor-not-allowed" : ""}
+                                ${s.id === 3 && batchMode && contentPlan.length === 0 ? "opacity-30 cursor-not-allowed" : ""}`}
                         >
-                            {s === 1 ? "1. Styl & Vibe" : s === 2 ? "2. Kreativní Brief" : "3. Prezentace"}
+                            {s.label}
                         </button>
                     ))}
                 </div>
@@ -550,31 +673,240 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     <span className="text-[10px] uppercase tracking-widest font-bold text-white/70 group-hover:text-white transition-colors mt-1.5">Návrhový režim <span className="text-white/40 font-normal">(bez obrázků)</span></span>
                                 </label>
 
+                                {batchMode ? (
+                                    <button
+                                        onClick={handleGeneratePlan}
+                                        disabled={planGenerating}
+                                        className={`px-8 py-4 rounded-sm transition-all flex items-center gap-3 text-[10px] font-black tracking-widest uppercase ${planGenerating
+                                            ? "bg-white/5 text-white/30 cursor-wait border border-white/10"
+                                            : "bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:shadow-[0_0_20px_rgba(16,185,129,0.5)]"
+                                            }`}
+                                    >
+                                        {planGenerating ? (
+                                            <>
+                                                <span className="w-4 h-4 border-2 border-white/30 border-t-transparent rounded-full animate-spin" />
+                                                AI plánuje...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span>📋 Vytvořit plán kampaně</span>
+                                            </>
+                                        )}
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={handleGenerate}
+                                        disabled={generating}
+                                        className={`px-8 py-4 rounded-sm transition-all flex items-center gap-3 text-[10px] font-black tracking-widest uppercase ${generating
+                                            ? "bg-white/5 text-white/30 cursor-wait border border-white/10"
+                                            : "bg-aisummit-cinnabar text-white shadow-[0_0_15px_rgba(229,83,63,0.3)] hover:shadow-[0_0_20px_rgba(229,83,63,0.6)]"
+                                            }`}
+                                    >
+                                        {generating ? (
+                                            <>
+                                                <span className="w-4 h-4 border-2 border-white/30 border-t-transparent rounded-full animate-spin" />
+                                                Navrhuji obsah...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span>✨ Vytvořit magii</span>
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+
+                {/* ═══ STEP 3: Content Plan Preview (batch mode only) ═══ */}
+                {step === 3 && batchMode && (
+                    <motion.div
+                        key="step3-plan"
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -15 }}
+                        className="bg-[#0f0f0f] rounded-sm p-8 sm:p-12 border border-white/10"
+                    >
+                        <div className="text-center mb-8">
+                            <h2 className="text-4xl font-black uppercase tracking-tighter text-white/90 mb-3">Content Plan</h2>
+                            <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">
+                                AI navrhuje strategický mix {contentPlan.length} postů. Upravte a schvalte.
+                            </p>
+                        </div>
+
+                        {/* Pillar ratio bar */}
+                        {contentPlan.length > 0 && (() => {
+                            const pillarCounts: Record<string, { count: number; emoji: string }> = {}
+                            contentPlan.forEach(p => {
+                                if (!pillarCounts[p.pillar]) pillarCounts[p.pillar] = { count: 0, emoji: p.pillarEmoji }
+                                pillarCounts[p.pillar].count++
+                            })
+                            return (
+                                <div className="mb-8 space-y-2">
+                                    <div className="flex h-2.5 rounded-sm overflow-hidden border border-white/10">
+                                        {Object.entries(pillarCounts).map(([key, { count }], idx) => (
+                                            <div key={key} className="h-full transition-all duration-500"
+                                                style={{
+                                                    width: `${(count / contentPlan.length) * 100}%`,
+                                                    backgroundColor: `hsl(${idx * 70}, 50%, 45%)`
+                                                }}
+                                                title={`${key}: ${count} postů`}
+                                            />
+                                        ))}
+                                    </div>
+                                    <div className="flex flex-wrap gap-3 text-[8px] text-white/30 font-bold uppercase tracking-widest">
+                                        {Object.entries(pillarCounts).map(([key, { count, emoji }], idx) => (
+                                            <span key={key} className="flex items-center gap-1">
+                                                <span className="w-2 h-2 rounded-sm inline-block" style={{ backgroundColor: `hsl(${idx * 70}, 50%, 45%)` }} />
+                                                {emoji} {key}: {count} ({Math.round(count / contentPlan.length * 100)}%)
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )
+                        })()}
+
+                        {/* Plan items */}
+                        <div className="space-y-3 max-w-2xl mx-auto">
+                            {(() => {
+                                let currentWeek = 0
+                                return contentPlan.map((item, idx) => {
+                                    const showWeekHeader = item.week && item.week !== currentWeek
+                                    if (item.week) currentWeek = item.week
+
+                                    return (
+                                        <div key={item.id}>
+                                            {showWeekHeader && (
+                                                <div className="flex items-center gap-3 pt-6 pb-2">
+                                                    <div className="h-px flex-1 bg-white/10" />
+                                                    <span className="text-[9px] font-black uppercase tracking-widest text-white/30">Týden {item.week}</span>
+                                                    <div className="h-px flex-1 bg-white/10" />
+                                                </div>
+                                            )}
+                                            <div className={`bg-[#0a0a0a] border rounded-sm p-4 transition-all hover:border-white/20 ${
+                                                regeneratingItem === item.id ? "border-amber-500/30 animate-pulse" : "border-white/10"
+                                            }`}>
+                                                <div className="flex items-start gap-3">
+                                                    {/* Number + Type */}
+                                                    <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-white/5 border border-white/10 rounded-sm">
+                                                        <span className="text-lg">{item.postTypeEmoji}</span>
+                                                    </div>
+
+                                                    {/* Content */}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="text-[8px] text-white/30 font-bold uppercase tracking-widest">#{idx + 1}</span>
+                                                            <span className="text-[8px] px-1.5 py-0.5 bg-white/5 border border-white/10 rounded-sm text-white/40 font-bold uppercase tracking-wider">{item.postTypeLabel}</span>
+                                                            <span className="text-[8px] text-white/20">{item.pillarEmoji} {item.pillar}</span>
+                                                        </div>
+
+                                                        {/* Hook preview */}
+                                                        <p className="text-white/80 text-sm font-bold leading-snug mb-1">
+                                                            &ldquo;{item.hookPreview}&rdquo;
+                                                        </p>
+
+                                                        {/* Angle */}
+                                                        <p className="text-[10px] text-white/40 leading-relaxed">{item.angle}</p>
+
+                                                        {/* Editable topic */}
+                                                        {editingPlanItem === item.id ? (
+                                                            <div className="mt-2 flex gap-2">
+                                                                <input
+                                                                    autoFocus
+                                                                    defaultValue={item.topic}
+                                                                    onBlur={(e) => {
+                                                                        handleUpdatePlanTopic(item.id, e.target.value)
+                                                                        setEditingPlanItem(null)
+                                                                    }}
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === "Enter") {
+                                                                            handleUpdatePlanTopic(item.id, e.currentTarget.value)
+                                                                            setEditingPlanItem(null)
+                                                                        }
+                                                                    }}
+                                                                    className="flex-1 px-3 py-1.5 bg-[#050505] border border-white/20 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                                                                />
+                                                            </div>
+                                                        ) : (
+                                                            <div className="mt-1 flex items-center gap-1.5">
+                                                                <span className="text-[9px] text-emerald-400/60 font-mono">📌 {item.topic}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Actions */}
+                                                    <div className="flex-shrink-0 flex items-center gap-1">
+                                                        <button
+                                                            onClick={() => setEditingPlanItem(editingPlanItem === item.id ? null : item.id)}
+                                                            className="p-1.5 text-white/20 hover:text-white/60 transition-colors"
+                                                            title="Upravit téma"
+                                                        >
+                                                            <span className="text-[10px]">✏️</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleRegenerateItem(item.id)}
+                                                            disabled={regeneratingItem === item.id}
+                                                            className="p-1.5 text-white/20 hover:text-amber-400/80 transition-colors disabled:opacity-30"
+                                                            title="Jiný koncept"
+                                                        >
+                                                            <span className="text-[10px]">🔄</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleRemovePlanItem(item.id)}
+                                                            className="p-1.5 text-white/20 hover:text-red-400/80 transition-colors"
+                                                            title="Odebrat"
+                                                        >
+                                                            <span className="text-[10px]">✕</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
+                                })
+                            })()}
+                        </div>
+
+                        {/* Add post button */}
+                        <div className="flex justify-center mt-4">
+                            <button
+                                onClick={handleAddPlanItem}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-[#0a0a0a] border border-dashed border-white/15 rounded-sm text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white/60 hover:border-white/30 transition-all"
+                            >
+                                <span>+</span> Přidat post
+                            </button>
+                        </div>
+
+                        {/* Bottom bar */}
+                        <div className="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-4 text-[10px] text-white/30 font-bold uppercase tracking-widest">
+                                <span>{contentPlan.length} postů</span>
+                                <span>·</span>
+                                <span>~${(contentPlan.length * (dryRun ? 0.03 : 0.14)).toFixed(2)} AI cost</span>
+                            </div>
+
+                            <div className="flex items-center gap-3">
                                 <button
-                                    onClick={handleGenerate}
-                                    disabled={generating}
-                                    className={`px-8 py-4 rounded-sm transition-all flex items-center gap-3 text-[10px] font-black tracking-widest uppercase ${generating
-                                        ? "bg-white/5 text-white/30 cursor-wait border border-white/10"
-                                        : "bg-aisummit-cinnabar text-white shadow-[0_0_15px_rgba(229,83,63,0.3)] hover:shadow-[0_0_20px_rgba(229,83,63,0.6)]"
-                                        }`}
+                                    onClick={() => setStep(2)}
+                                    className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest text-white/40 bg-white/5 border border-white/10 hover:text-white hover:bg-white/10 transition-all"
                                 >
-                                    {generating ? (
-                                        <>
-                                            <span className="w-4 h-4 border-2 border-white/30 border-t-transparent rounded-full animate-spin" />
-                                            {batchProgress ? `Post ${batchProgress.current}/${batchProgress.total} (✅${batchProgress.successes} ❌${batchProgress.failures})` : "Navrhuji obsah..."}
-                                        </>
-                                    ) : (
-                                        <>
-                                            <span>✨ Vytvořit magii</span>
-                                        </>
-                                    )}
+                                    ← Zpět na brief
+                                </button>
+                                <button
+                                    onClick={handleApproveAndGenerate}
+                                    disabled={contentPlan.length === 0 || generating}
+                                    className="px-8 py-3 rounded-sm text-[10px] font-black uppercase tracking-widest bg-aisummit-cinnabar text-white shadow-[0_0_15px_rgba(229,83,63,0.3)] hover:shadow-[0_0_20px_rgba(229,83,63,0.6)] transition-all disabled:opacity-50"
+                                >
+                                    ✅ Schválit & generovat ({contentPlan.length})
                                 </button>
                             </div>
                         </div>
                     </motion.div>
                 )}
 
-                {step === 3 && (
+                {/* ═══ STEP 3 (single) / STEP 4 (batch): Results ═══ */}
+                {step === resultStep && (
                     <motion.div
                         key="step3"
                         initial={{ opacity: 0, y: 15 }}
@@ -683,7 +1015,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     </div>
                                 </div>
 
-                                <button onClick={() => setStep(1)} className="mt-8 px-8 py-3 rounded-sm bg-[#050505] text-white font-bold uppercase tracking-widest text-[10px] border border-white/10 hover:border-white/30 transition-colors">
+                                <button onClick={() => { setStep(1); setContentPlan([]) }} className="mt-8 px-8 py-3 rounded-sm bg-[#050505] text-white font-bold uppercase tracking-widest text-[10px] border border-white/10 hover:border-white/30 transition-colors">
                                     Vytvořit další
                                 </button>
                             </div>

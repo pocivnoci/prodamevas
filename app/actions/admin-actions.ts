@@ -1111,3 +1111,170 @@ PRAVIDLA PRO VARIANTU:
         return { success: false, error: err?.message || String(err) }
     }
 }
+
+// ─── Content Plan Preview (cheap text-only plan before expensive generation) ──
+
+export interface ContentPlanItem {
+    id: string
+    postType: string
+    postTypeEmoji: string
+    postTypeLabel: string
+    pillar: string
+    pillarEmoji: string
+    hookPreview: string
+    angle: string
+    topic: string
+    week?: number
+    day?: number
+}
+
+export async function generateContentPlan(
+    projectSlug: string,
+    count: number,
+    userTopic?: string,
+    category?: string
+): Promise<{ success: boolean; plan?: ContentPlanItem[]; error?: string }> {
+    try {
+        const { resolveClientId } = await import("@/instagram/configs")
+        const { loadConfig } = await import("@/instagram/configs")
+        const { buildSmartWeekPlan } = await import("@/instagram/caption-generator")
+        const { analyzePerformance } = await import("@/instagram/performance")
+        const { setActiveProject, createPillarMapper, getPillarForType } = await import("@/instagram/service")
+
+        const config = await loadConfig(projectSlug)
+        const clientId = await resolveClientId(projectSlug)
+        setActiveProject(clientId)
+
+        // Get strategic post type sequence
+        const _getPillarForType = createPillarMapper(config)
+        const performance = await analyzePerformance(config, _getPillarForType)
+        const typeSequence = buildSmartWeekPlan(config, performance, count)
+
+        // Get post type metadata from DB
+        const { data: dbPostTypes } = await supabaseAdmin
+            .from("ig_post_types")
+            .select("name, display_name, emoji, description")
+            .eq("client_id", clientId)
+            .eq("is_active", true)
+
+        const ptMap = new Map((dbPostTypes || []).map(pt => [pt.name, pt]))
+
+        // Build context for Gemini
+        const typeList = typeSequence.map((typeName, i) => {
+            const pt = ptMap.get(typeName)
+            const pillar = getPillarForType(config, typeName)
+            const pillarCfg = config.contentPillars[pillar]
+            return `${i + 1}. Typ: "${typeName}" (${pt?.display_name || typeName}) | Pilíř: ${pillarCfg?.label || pillar} | Popis: ${pt?.description || pillarCfg?.description || ""}`
+        }).join("\n")
+
+        const topicInstruction = userTopic
+            ? `\n## 🎯 HLAVNÍ TÉMA KAMPANĚ: "${userTopic}"\nVšechny posty MUSÍ souviset s tímto tématem, ale každý z jiného úhlu.`
+            : ""
+
+        const prompt = `Jsi strategický content planner pro značku "${config.name}" (${config.website}).
+
+## ÚKOL
+Vytvoř content plan na ${count} postů. Pro každý post napiš:
+- hookPreview: český hook (první věta postu, max 12 slov, poutavá, BEZ emoji)
+- angle: 1 věta popisující úhel/přístup k tématu (česky)
+- topic: krátké téma v 3-5 slovech (česky)
+
+## BRAND VOICE
+${config.brandVoice.persona}
+Tón: ${config.brandVoice.voiceTraits?.join(", ")}
+
+## ANTI-PATTERNS (NEPOUŽÍVEJ)
+${config.brandVoice.antiPatterns?.join(", ")}
+${topicInstruction}
+
+## SEKVENCE POSTŮ (strategicky sestavená):
+${typeList}
+
+## PRAVIDLA
+- Každý hook MUSÍ být unikátní — žádné opakování vzorců
+- Hooky musí zastavit scrollování — provokativní, překvapivé, kontroverzní
+- Posty v sérii na sebe NAVAZUJÍ — budují příběh, ne náhodné izolované posty
+- ${count > 14 ? "Rozděl do týdnů — každý týden má vlastní mini-téma" : "Posty by měly mít logický flow"}
+- Piš česky, moderní hovorovou češtinou
+
+## VÝSTUP
+Vrať POUZE validní JSON pole:
+[
+  { "hookPreview": "...", "angle": "...", "topic": "..." },
+  ...
+]
+Pole musí mít PŘESNĚ ${count} položek.`
+
+        const { generateText } = await import("@/instagram/gemini-client")
+        const raw = await generateText(prompt, { model: "gemini-3.5-flash" })
+
+        // Parse response
+        const jsonMatch = raw.match(/\[[\s\S]*\]/)
+        if (!jsonMatch) {
+            throw new Error("AI nevrátila validní JSON pole")
+        }
+        const concepts: { hookPreview: string; angle: string; topic: string }[] = JSON.parse(jsonMatch[0])
+
+        // Build plan items with metadata
+        const plan: ContentPlanItem[] = typeSequence.slice(0, count).map((typeName, i) => {
+            const pt = ptMap.get(typeName)
+            const pillar = getPillarForType(config, typeName)
+            const pillarCfg = config.contentPillars[pillar]
+            const concept = concepts[i] || { hookPreview: "", angle: "", topic: "" }
+
+            return {
+                id: `plan_${Date.now()}_${i}`,
+                postType: typeName,
+                postTypeEmoji: pt?.emoji || "📝",
+                postTypeLabel: pt?.display_name || typeName,
+                pillar,
+                pillarEmoji: pillarCfg?.emoji || "📋",
+                hookPreview: concept.hookPreview,
+                angle: concept.angle,
+                topic: concept.topic,
+                week: count > 14 ? Math.floor(i / 7) + 1 : undefined,
+                day: i + 1,
+            }
+        })
+
+        return { success: true, plan }
+    } catch (err: any) {
+        console.error("generateContentPlan error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}
+
+export async function regeneratePlanItem(
+    projectSlug: string,
+    postType: string,
+    existingHooks: string[],
+    userTopic?: string
+): Promise<{ success: boolean; item?: { hookPreview: string; angle: string; topic: string }; error?: string }> {
+    try {
+        const { loadConfig } = await import("@/instagram/configs")
+        const config = await loadConfig(projectSlug)
+
+        const prompt = `Jsi content planner pro "${config.name}" (${config.website}).
+
+Vygeneruj JEDEN nový koncept pro post typu "${postType}".
+${userTopic ? `Téma kampaně: "${userTopic}"` : ""}
+
+## NESMÍŠ OPAKOVAT tyto hooky:
+${existingHooks.map(h => `- "${h}"`).join("\n")}
+
+Brand voice: ${config.brandVoice.voiceTraits?.join(", ")}
+
+Vrať POUZE validní JSON:
+{ "hookPreview": "český hook max 12 slov BEZ emoji", "angle": "1 věta o přístupu", "topic": "3-5 slov" }`
+
+        const { generateText } = await import("@/instagram/gemini-client")
+        const raw = await generateText(prompt, { model: "gemini-3.5-flash" })
+        const jsonMatch = raw.match(/\{[\s\S]*\}/)
+        if (!jsonMatch) throw new Error("Invalid JSON response")
+        const item = JSON.parse(jsonMatch[0])
+
+        return { success: true, item }
+    } catch (err: any) {
+        return { success: false, error: err?.message || String(err) }
+    }
+}

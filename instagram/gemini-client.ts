@@ -1,8 +1,8 @@
 /**
  * Gemini Client — Wrapper for Google Generative AI
  * ==================================================
- * PRIMARY:  gemini-3.1-pro-preview   — flagship reasoning, agentic, complex tasks
- * FALLBACK: gemini-2.5-flash-lite    — fast, cheap, stable
+ * PRIMARY:  gemini-3.5-flash         — fastest frontier, agentic, reasoning
+ * FALLBACK: gemini-2.5-flash-lite    — cheap stable fallback
  * IMAGE:    gemini-3-pro-image-preview (with refs) / imagen-4.0-ultra (without)
  */
 
@@ -48,14 +48,14 @@ const ai = new Proxy({} as GoogleGenAI, {
 import { withRetry } from "../utils/retry"
 
 // ============================================
-// TEXT GENERATION (Gemini 3.1 Pro Preview)
+// TEXT GENERATION (Gemini 3.5 Flash)
 // ============================================
 
 export async function generateText(
     prompt: string,
     options?: { responseSchema?: any; temperature?: number; model?: string }
 ): Promise<string> {
-    const defaultModel = options?.model || "gemini-3.1-pro-preview"
+    const defaultModel = options?.model || "gemini-3.5-flash"
     try {
         return await withRetry(async () => {
             const response = await ai.models.generateContent({
@@ -263,7 +263,7 @@ export async function detectLogoPlacementArea(imageBuffer: Buffer): Promise<{ x:
     return withRetry(async () => {
         const response = await ai.models.generateContent({
             // Nejchytřejší Vision model pro absolutní detail
-            model: "gemini-2.5-pro",
+            model: "gemini-3.5-flash",
             contents: [
                 {
                     inlineData: {

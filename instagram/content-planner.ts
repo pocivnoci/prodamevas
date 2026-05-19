@@ -139,7 +139,7 @@ Vrať POUZE validní JSON pole:
 
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash-lite-preview-06-17",
+            model: "gemini-3.5-flash",
             contents: planPrompt,
             config: { responseMimeType: "application/json" },
         })
