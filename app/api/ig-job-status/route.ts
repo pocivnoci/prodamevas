@@ -10,6 +10,9 @@ export const maxDuration = 5 // Ultra-lightweight polling
  * Called by the UI every 2 seconds for real-time progress.
  */
 export async function GET(req: Request) {
+    const { requireAuth } = await import("@/lib/auth-guard")
+    try { await requireAuth() } catch { return NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
+
     const { searchParams } = new URL(req.url)
     const jobId = searchParams.get("id")
 

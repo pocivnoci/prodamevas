@@ -33,6 +33,7 @@ import {
     batchInsertIdeas,
     setActiveProject,
     getActiveProject,
+    withActiveProject,
     ensurePostTypes,
     getWeightedIdeas,
     getWeightedReviews,
@@ -71,19 +72,22 @@ let CLIENT_CONFIG: ClientConfig | null = null
  * Called automatically by generateOnePost/generateBatch when invoked from server actions.
  * No-op if config is already loaded for the same client.
  */
-async function ensureConfig(configName?: string): Promise<void> {
+async function ensureConfig(configName?: string): Promise<string> {
     const name = configName || "mobilnamiru"
-    if (CLIENT_CONFIG && CLIENT_CONFIG.id === name) return // already loaded
+    if (CLIENT_CONFIG && CLIENT_CONFIG.id === name) {
+        return getActiveProject() // already loaded, return current clientId
+    }
     CLIENT_CONFIG = await loadConfig(name)
 
     // Resolve slug → uuid and set the active client for all service queries
     const { resolveClientId } = await import("./configs")
     const clientUuid = await resolveClientId(name)
-    setActiveProject(clientUuid)
+    setActiveProject(clientUuid) // fallback for legacy code paths
     console.log(`🏢 Config loaded: ${CLIENT_CONFIG.name} (${name} → ${clientUuid.substring(0, 8)}...)`)
 
     // Auto-create any missing post types in DB for this client
     await ensurePostTypes(CLIENT_CONFIG, clientUuid)
+    return clientUuid
 }
 
 // ============================================
@@ -116,7 +120,10 @@ export async function generateOnePost(options: {
     onProgress?: (stage: string, progress: number, message: string) => Promise<void>
 }): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number }> {
     const report = options.onProgress || (async () => { }) // no-op if not provided
-    await ensureConfig(options.configName)
+    const clientUuid = await ensureConfig(options.configName)
+
+    // Wrap entire generation in request-scoped context to prevent race conditions
+    return withActiveProject(clientUuid, async () => {
     const config = CLIENT_CONFIG!
     const startTime = Date.now()
     let cost = 0
@@ -844,6 +851,7 @@ CRITICAL RULES:
     console.log("═".repeat(60) + "\n")
 
     return { id: postId, caption: fullCaption, imageUrl, cost }
+    }) // end withActiveProject
 }
 
 // ============================================

@@ -56,10 +56,14 @@ HIGH QUALITY image prompt for Imagen 4 Ultra (Google's best image model).
 ${fa.customInstructions || ""}
 
 ## IMAGE QUALITY REQUIREMENTS:
-- Photorealistic, professional photography quality
-- Good lighting (natural or studio)
+- Photorealistic, professional editorial photography quality
+- VISUAL VARIETY is key — alternate between people shots, product details, environments, creative angles
+- When featuring people: authentic emotions, candid body language, real interactions
+- When featuring products: dramatic close-ups, interesting textures, creative compositions
+- Good lighting (golden hour, studio, or dramatic natural)
 - Sharp focus, shallow depth of field where appropriate  
-- Modern, aspirational lifestyle aesthetic
+- Modern, aspirational lifestyle aesthetic — NOT stock photo vibes
+- Dynamic angles: low angle, over-shoulder, close-up details, environmental portraits, bird’s eye
 - 2K resolution output
 ${config.characterDescription ? `
 ## BRAND CHARACTER:
@@ -135,7 +139,15 @@ Return ONLY a single detailed English image generation prompt (NO JSON).
 - ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY in the image
 - NO signs, NO labels, NO overlays, NO captions
 - The image is a pure BACKGROUND PHOTO — text will be added programmatically
-- Be specific about: scene, lighting, camera angle, composition
+
+🎯 VISUAL QUALITY RULES — WHAT MAKES A GREAT INSTAGRAM FEED:
+- VARIETY is everything — each post should look DIFFERENT from the last
+- Alternate between: people (emotions, candid), product close-ups (texture, detail), environments (mood, atmosphere), creative angles (aerial, macro, motion blur)
+- NEVER generate boring static shots (laptop on desk, coffee cup, flat lay of random objects)
+- Cinematic lighting: golden hour, dramatic shadows, rim light, neon glow
+- Depth: foreground + subject + background layers, shallow DOF
+- When people appear: show authentic expression, gesture, interaction
+- When no people: make the composition visually striking and unexpected
 
 The prompt should be 2-3 sentences.
 `

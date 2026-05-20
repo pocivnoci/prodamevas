@@ -115,7 +115,7 @@ export function buildCaptionSchema(config: ClientConfig) {
             },
             imagePrompt: {
                 type: Type.STRING,
-                description: "English prompt for Imagen 4 Ultra. MUST be 2-3 sentences describing: (1) specific scene/environment, (2) lighting and mood, (3) camera angle. Generate ONLY background photo, NO TEXT in image! Style: photorealistic, premium, 1:1 square.",
+                description: "English prompt for Imagen 4 Ultra. Create VARIED visuals — alternate between: (A) people in authentic situations with real emotions, (B) dramatic product/detail close-ups, (C) atmospheric environments/lifestyle scenes, (D) creative compositions with unexpected angles. NEVER repeat the same visual style twice in a row. Avoid boring static shots (laptop on desk, coffee on table). Style: photorealistic, editorial, cinematic lighting. NO TEXT in image. 2-3 sentences.",
             },
             imageSubtext: {
                 type: Type.STRING,

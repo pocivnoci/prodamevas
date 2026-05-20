@@ -9,6 +9,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { getClientSubscription, type SubscriptionInfo } from "@/lib/subscription"
 
 export async function GET(req: NextRequest) {
+    const { requireAuth } = await import("@/lib/auth-guard")
+    try { await requireAuth() } catch { return NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
+
     const clientId = req.nextUrl.searchParams.get("clientId")
 
     if (!clientId) {

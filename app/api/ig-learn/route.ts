@@ -16,6 +16,9 @@ export const maxDuration = 60
  */
 export async function POST(req: Request) {
     try {
+        const { requireAuth } = await import("@/lib/auth-guard")
+        await requireAuth()
+
         const body = await req.json()
         const configName = body.configName || "mobilnamiru"
 

@@ -12,6 +12,9 @@ export const maxDuration = 300 // Full 5 min for generation
  * Blocks synchronously, updates job progress in DB throughout.
  */
 export async function POST(req: Request) {
+    const { requireAuth } = await import("@/lib/auth-guard")
+    try { await requireAuth() } catch { return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 }) }
+
     const { jobId } = await req.json()
 
     if (!jobId) {

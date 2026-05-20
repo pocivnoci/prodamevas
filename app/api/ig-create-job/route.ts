@@ -12,6 +12,9 @@ export const maxDuration = 10 // Fast — just creates a job record
  */
 export async function POST(req: Request) {
     try {
+        const { requireAuth } = await import("@/lib/auth-guard")
+        await requireAuth()
+
         const body = await req.json()
 
         const { resolveClientId } = await import("@/instagram/configs")

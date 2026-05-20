@@ -15,6 +15,9 @@ export async function POST(req: Request) {
     let jobId: string | null = null
 
     try {
+        const { requireAuth } = await import("@/lib/auth-guard")
+        await requireAuth()
+
         const body = await req.json()
 
         // Resolve client UUID
