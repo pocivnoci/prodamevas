@@ -11,13 +11,13 @@ export async function getDashboardStats(projectSlug: string) {
         const { resolveClientId } = await import("@/instagram/configs")
         const clientId = await resolveClientId(projectSlug)
 
-        // Post counts by status
+        // Post counts by status (last 200 for accurate totals)
         const { data: posts } = await supabaseAdmin
             .from("ig_posts")
-            .select("id, status, caption, image_url, created_at, ig_post_types ( display_name, emoji )")
+            .select("id, status, caption, image_url, created_at, scheduled_for, ig_post_types ( name, display_name, emoji )")
             .eq("client_id", clientId)
             .order("created_at", { ascending: false })
-            .limit(50)
+            .limit(200)
 
         const allPosts = posts || []
         const drafts = allPosts.filter(p => p.status === "draft").length
@@ -30,10 +30,10 @@ export async function getDashboardStats(projectSlug: string) {
             .select("id", { count: "exact", head: true })
             .eq("client_id", clientId)
 
-        // Recent 3 posts with images
+        // Recent 6 posts with images
         const recentPosts = allPosts
             .filter(p => p.image_url)
-            .slice(0, 3)
+            .slice(0, 6)
             .map(p => ({
                 id: p.id,
                 caption: p.caption?.split("\n")[0]?.substring(0, 80) || "—",
@@ -44,6 +44,71 @@ export async function getDashboardStats(projectSlug: string) {
                 type_emoji: (p.ig_post_types as any)?.emoji || "📸",
             }))
 
+        // This week calendar (Mon-Sun)
+        const now = new Date()
+        const dayOfWeek = now.getDay() // 0=Sun
+        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+        const monday = new Date(now)
+        monday.setDate(now.getDate() + mondayOffset)
+        monday.setHours(0, 0, 0, 0)
+
+        const weekDays: { date: string; dayName: string; isToday: boolean; posts: { id: string; caption: string; image_url: string | null; status: string; type_emoji: string }[] }[] = []
+        const dayNames = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"]
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(monday)
+            d.setDate(monday.getDate() + i)
+            const dateStr = d.toISOString().split("T")[0]
+            const isToday = dateStr === now.toISOString().split("T")[0]
+            // Match posts by scheduled_for or created_at date
+            const dayPosts = allPosts.filter(p => {
+                const postDate = (p.scheduled_for || p.created_at || "").split("T")[0]
+                return postDate === dateStr
+            }).slice(0, 2).map(p => ({
+                id: p.id,
+                caption: p.caption?.split("\n")[0]?.substring(0, 40) || "—",
+                image_url: p.image_url,
+                status: p.status,
+                type_emoji: (p.ig_post_types as any)?.emoji || "📸",
+            }))
+            weekDays.push({ date: dateStr, dayName: dayNames[i], isToday, posts: dayPosts })
+        }
+
+        // Recent activity (last 5 events combining posts + gen logs)
+        const { data: recentLogs } = await supabaseAdmin
+            .from("ig_generation_log")
+            .select("id, created_at, generation_time_ms, ig_posts ( caption, status )")
+            .eq("client_id", clientId)
+            .order("created_at", { ascending: false })
+            .limit(5)
+
+        const activity = (recentLogs || []).map(log => ({
+            id: log.id,
+            type: "generated" as const,
+            caption: (log.ig_posts as any)?.caption?.split("\n")[0]?.substring(0, 60) || "Post",
+            timeMs: log.generation_time_ms,
+            created_at: log.created_at,
+        }))
+
+        // Post type distribution (for smart suggestions)
+        const typeCounts: Record<string, { count: number; emoji: string; display_name: string }> = {}
+        for (const p of allPosts) {
+            const name = (p.ig_post_types as any)?.name || "unknown"
+            if (!typeCounts[name]) {
+                typeCounts[name] = {
+                    count: 0,
+                    emoji: (p.ig_post_types as any)?.emoji || "📸",
+                    display_name: (p.ig_post_types as any)?.display_name || name,
+                }
+            }
+            typeCounts[name].count++
+        }
+
+        // Posts this week / this month
+        const weekStart = monday.toISOString()
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+        const postsThisWeek = allPosts.filter(p => p.created_at >= weekStart).length
+        const postsThisMonth = allPosts.filter(p => p.created_at >= monthStart).length
+
         return {
             totalPosts: allPosts.length,
             drafts,
@@ -51,10 +116,19 @@ export async function getDashboardStats(projectSlug: string) {
             posted,
             ideas: ideasCount || 0,
             recentPosts,
+            weekDays,
+            activity,
+            typeCounts,
+            postsThisWeek,
+            postsThisMonth,
         }
     } catch (err: any) {
         console.error("getDashboardStats error:", err?.message || err)
-        return { totalPosts: 0, drafts: 0, ready: 0, posted: 0, ideas: 0, recentPosts: [] }
+        return {
+            totalPosts: 0, drafts: 0, ready: 0, posted: 0, ideas: 0,
+            recentPosts: [], weekDays: [], activity: [], typeCounts: {},
+            postsThisWeek: 0, postsThisMonth: 0,
+        }
     }
 }
 
