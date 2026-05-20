@@ -218,7 +218,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                                     <div className="flex items-center gap-3 min-w-0">
                                         {post.image_url && (
                                             <img
-                                                src={post.image_url}
+                                                src={post.image_url.split("|")[0]}
                                                 alt=""
                                                 className="w-8 h-8 rounded-sm object-cover flex-shrink-0"
                                             />

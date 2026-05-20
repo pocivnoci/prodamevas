@@ -115,6 +115,7 @@ export async function generateOnePost(options: {
     dryRun?: boolean
     performance?: PerformanceInsight
     aspectRatio?: string
+    medium?: "image" | "carousel" | "reel"
     customImageUrl?: string
     campaignContext?: { postNumber: number; totalPosts: number; previousPosts: { hook: string; topic: string }[] }
     onProgress?: (stage: string, progress: number, message: string) => Promise<void>
@@ -201,6 +202,14 @@ export async function generateOnePost(options: {
     if (options.aspectRatio) {
         format.aspectRatio = options.aspectRatio as any
         console.log(`   📐 Formát přepsán uživatelem: ${options.aspectRatio}`)
+    }
+    // User override: force medium (image/carousel/reel)
+    if (options.medium) {
+        format.medium = options.medium
+        if (options.medium === "carousel" && format.overlayStyle === "none") {
+            format.overlayStyle = "cover"
+        }
+        console.log(`   📐 Médium přepsáno uživatelem: ${options.medium}`)
     }
     const isReel = format.medium === "reel"
     const isCarousel = format.medium === "carousel"

@@ -30,6 +30,7 @@ export async function POST(req: Request) {
                     topic: body.topic,
                     dryRun: body.dryRun,
                     aspectRatio: body.aspectRatio,
+                    medium: body.medium,
                     customImageUrl: body.customImageUrl,
                     category: body.category,
                     campaignContext: body.campaignContext,

@@ -37,10 +37,13 @@ export const COSTS = {
 const DEFAULT_FORMAT: PostFormat = { aspectRatio: "3:4", medium: "image", overlayStyle: "default" }
 
 export function getPostFormat(config: ClientConfig, typeName: string): PostFormat {
+    // 1. Explicit per-type override (highest priority)
     if (config?.postFormats?.[typeName]) return config.postFormats[typeName]
-    if (config?.defaultFormat) return config.defaultFormat
+    // 2. Convention-based: prefix determines medium
     if (typeName.startsWith("reel_")) return { aspectRatio: "9:16", medium: "reel", overlayStyle: "none" }
     if (typeName.startsWith("carousel_")) return { aspectRatio: "1:1", medium: "carousel", overlayStyle: "cover" }
+    // 3. Client default format
+    if (config?.defaultFormat) return config.defaultFormat
     return DEFAULT_FORMAT
 }
 

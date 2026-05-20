@@ -45,6 +45,7 @@ export async function POST(req: Request) {
             topic: config.topic,
             dryRun: config.dryRun,
             aspectRatio: config.aspectRatio,
+            medium: config.medium,
             customImageUrl: config.customImageUrl,
             campaignContext: config.campaignContext,
             onProgress: async (stage: string, progress: number, message: string) => {

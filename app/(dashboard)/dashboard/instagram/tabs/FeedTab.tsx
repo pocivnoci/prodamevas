@@ -67,7 +67,7 @@ export function FeedTab({ projectId }: { projectId: string }) {
                     {/* Profile pic placeholder (first post image) */}
                     <div className="w-20 h-20 rounded-full border-2 border-white/20 overflow-hidden flex-shrink-0 bg-white/5">
                         {posts[0]?.image_url && (
-                            <img src={posts[0].image_url} alt="" className="w-full h-full object-cover" />
+                            <img src={posts[0].image_url.split("|")[0]} alt="" className="w-full h-full object-cover" />
                         )}
                     </div>
                     <div className="flex-1">
@@ -111,7 +111,7 @@ export function FeedTab({ projectId }: { projectId: string }) {
                             className="relative aspect-square overflow-hidden group cursor-pointer"
                         >
                             <img
-                                src={post.image_url!}
+                                src={post.image_url!.split("|")[0]}
                                 alt=""
                                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                             />
@@ -121,6 +121,10 @@ export function FeedTab({ projectId }: { projectId: string }) {
                                     {post.post_type?.emoji || "📸"}
                                 </span>
                             </div>
+                            {/* Carousel indicator */}
+                            {post.image_url!.includes("|") && (
+                                <div className="absolute top-2 left-2 text-white/80 text-[10px]">🖼️🖼️</div>
+                            )}
                             {/* Status dot */}
                             <div className={`absolute top-2 right-2 w-2 h-2 rounded-full ${statusDot[post.status] || "bg-white/30"} shadow-lg`} />
                         </button>
@@ -149,7 +153,7 @@ export function FeedTab({ projectId }: { projectId: string }) {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={() => setSelectedPost(null)}>
                     <div className="bg-[#0a0a0a] border border-white/10 rounded-sm max-w-lg w-full mx-4 max-h-[85vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
                         {selectedPost.image_url && (
-                            <img src={selectedPost.image_url} alt="" className="w-full aspect-square object-cover" />
+                            <img src={selectedPost.image_url.split("|")[0]} alt="" className="w-full aspect-square object-cover" />
                         )}
                         <div className="p-5 space-y-3">
                             <div className="flex items-center gap-2">

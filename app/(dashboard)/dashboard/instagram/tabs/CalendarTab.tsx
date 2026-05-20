@@ -213,7 +213,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                             {/* Thumbnail */}
                                             {post.image_url && (
                                                 <img
-                                                    src={post.image_url}
+                                                    src={post.image_url.split("|")[0]}
                                                     alt=""
                                                     className="w-full h-16 object-cover rounded-sm mb-1.5 opacity-80"
                                                 />
@@ -252,7 +252,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                     <div className="bg-[#0a0a0a] border border-white/10 rounded-sm max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
                         {/* Image */}
                         {selectedPost.image_url && (
-                            <img src={selectedPost.image_url} alt="" className="w-full aspect-square object-cover" />
+                            <img src={selectedPost.image_url.split("|")[0]} alt="" className="w-full aspect-square object-cover" />
                         )}
 
                         <div className="p-6 space-y-4">

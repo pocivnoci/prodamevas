@@ -23,6 +23,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const [selectedType, setSelectedType] = useState("")
     const [topic, setTopic] = useState("")
     const [aspectRatio, setAspectRatio] = useState("")
+    const [medium, setMedium] = useState("")
     const [category, setCategory] = useState("")
     const [dryRun, setDryRun] = useState(false)
     const [customImageFile, setCustomImageFile] = useState<File | null>(null)
@@ -165,6 +166,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                             category: category !== "auto" ? category : undefined,
                             dryRun,
                             aspectRatio: aspectRatio || undefined,
+                            medium: medium || undefined,
                             campaignContext,
                         })
                         // Auto-retry once on failure
@@ -177,6 +179,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 category: category !== "auto" ? category : undefined,
                                 dryRun,
                                 aspectRatio: aspectRatio || undefined,
+                                medium: medium || undefined,
                                 campaignContext,
                             })
                         }
@@ -229,6 +232,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                     category: category !== "auto" ? category : undefined,
                     dryRun,
                     aspectRatio: aspectRatio || undefined,
+                    medium: medium || undefined,
                     customImageUrl: finalImageUrl,
                 })
                 // Auto-retry once on failure
@@ -241,6 +245,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         category: category !== "auto" ? category : undefined,
                         dryRun,
                         aspectRatio: aspectRatio || undefined,
+                        medium: medium || undefined,
                         customImageUrl: finalImageUrl,
                     })
                 }
@@ -642,6 +647,28 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 </div>
                             </div>
 
+                            <div>
+                                <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">🎞️ Typ média</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[
+                                        { value: "", label: "Auto", desc: "Dle typu", emoji: "🎲" },
+                                        { value: "image", label: "Obrázek", desc: "1 vizuál", emoji: "🖼️" },
+                                        { value: "carousel", label: "Carousel", desc: "4 slidy", emoji: "📸" },
+                                    ].map(opt => (
+                                        <button
+                                            key={opt.value}
+                                            onClick={() => setMedium(opt.value)}
+                                            className={`py-3 px-2 rounded-sm text-center transition-all border ${medium === opt.value
+                                                ? "bg-white/10 border-white/30 text-white shadow-sm"
+                                                : "bg-[#050505] border-white/10 text-white/40 hover:text-white hover:border-white/20"
+                                                }`}
+                                        >
+                                            <span className="text-sm font-black block">{opt.emoji} {opt.label}</span>
+                                            <span className="text-[8px] uppercase tracking-widest font-bold opacity-50">{opt.desc}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                             {!batchMode && (
                                 <div>
                                     <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">Vlastní obrázek (volitelné)</label>

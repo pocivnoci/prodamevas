@@ -210,13 +210,12 @@ export async function getAvailableIGClients(): Promise<{ id: string; name: strin
 export async function getIGPostFormats(configName: string): Promise<Record<string, { aspectRatio: string; medium: string; overlayStyle: string }>> {
     try {
         const { loadConfig } = await import("@/instagram/configs")
+        const { getPostFormat } = await import("@/instagram/caption-generator")
         const config = await loadConfig(configName)
         const formats: Record<string, { aspectRatio: string; medium: string; overlayStyle: string }> = {}
-        const defaultFmt = config.defaultFormat || { aspectRatio: "4:5", medium: "image", overlayStyle: "default" }
 
-        // Build format map for all post types
         for (const name of (config.postTypes || [])) {
-            formats[name] = config.postFormats?.[name] || defaultFmt
+            formats[name] = getPostFormat(config, name)
         }
         return formats
     } catch {

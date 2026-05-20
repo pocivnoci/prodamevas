@@ -123,6 +123,11 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                                {post.image_url.includes("|") && (
+                                    <span className="absolute top-2 right-2 bg-black/70 border border-white/20 text-white/80 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm backdrop-blur-sm">
+                                        📸 {post.image_url.split("|").length} slidů
+                                    </span>
+                                )}
                             </div>
                         ) : (
                             <div className="w-full h-56 rounded-sm bg-[#0f0f0f]/50 border border-white/5 flex flex-col items-center justify-center mb-4 gap-2">
@@ -219,6 +224,10 @@ function PostDetailModal({
     const [revisionResult, setRevisionResult] = useState<{ success: boolean; newPostId?: string; error?: string } | null>(null)
     const [generatingVariant, setGeneratingVariant] = useState(false)
     const [variantResult, setVariantResult] = useState<{ success: boolean; newPostId?: string; error?: string } | null>(null)
+    const [carouselIndex, setCarouselIndex] = useState(0)
+
+    const imageUrls = post.image_url ? post.image_url.split("|").filter(Boolean) : []
+    const isCarousel = imageUrls.length > 1
 
     // Lock ALL scroll containers when modal is open
     useEffect(() => {
@@ -237,15 +246,17 @@ function PostDetailModal({
     }, [])
 
     const downloadImage = useCallback(async () => {
-        if (!post.image_url) return
-        const url = post.image_url.split("|")[0]
+        if (imageUrls.length === 0) return
+        const url = imageUrls[carouselIndex] || imageUrls[0]
         try {
             const response = await fetch(url)
             const blob = await response.blob()
             const blobUrl = URL.createObjectURL(blob)
             const a = document.createElement("a")
             a.href = blobUrl
-            a.download = `ig-post-${post.id.substring(0, 8)}.png`
+            a.download = isCarousel
+                ? `ig-post-${post.id.substring(0, 8)}-slide${carouselIndex + 1}.png`
+                : `ig-post-${post.id.substring(0, 8)}.png`
             document.body.appendChild(a)
             a.click()
             document.body.removeChild(a)
@@ -253,7 +264,7 @@ function PostDetailModal({
         } catch {
             window.open(url, "_blank")
         }
-    }, [post])
+    }, [post, carouselIndex, imageUrls, isCarousel])
 
     const hashtags = Array.isArray(post.hashtags) ? post.hashtags : []
     const hashtagsText = hashtags.join(" ")
@@ -296,13 +307,49 @@ function PostDetailModal({
                 <div className="flex-1 overflow-y-auto">
                     <div className="flex flex-col lg:flex-row">
                         {/* Left: Image */}
-                        <div className="lg:w-1/2 bg-[#0f0f0f] border-r border-white/10 flex items-center justify-center p-4">
-                            {post.image_url ? (
-                                <img
-                                    src={post.image_url.split("|")[0]}
-                                    alt=""
-                                    className="max-w-full max-h-[300px] sm:max-h-[500px] rounded-sm object-contain border border-white/10 shadow-lg"
-                                />
+                        <div className="lg:w-1/2 bg-[#0f0f0f] border-r border-white/10 flex flex-col items-center justify-center p-4 relative">
+                            {imageUrls.length > 0 ? (
+                                <>
+                                    <img
+                                        src={imageUrls[carouselIndex] || imageUrls[0]}
+                                        alt={isCarousel ? `Slide ${carouselIndex + 1}` : ""}
+                                        className="max-w-full max-h-[300px] sm:max-h-[500px] rounded-sm object-contain border border-white/10 shadow-lg"
+                                    />
+                                    {isCarousel && (
+                                        <>
+                                            {/* Prev/Next Arrows */}
+                                            {carouselIndex > 0 && (
+                                                <button
+                                                    onClick={() => setCarouselIndex(i => i - 1)}
+                                                    className="absolute left-6 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center bg-black/70 border border-white/20 rounded-full text-white/80 hover:bg-white/10 hover:text-white transition-all text-sm"
+                                                >
+                                                    ←
+                                                </button>
+                                            )}
+                                            {carouselIndex < imageUrls.length - 1 && (
+                                                <button
+                                                    onClick={() => setCarouselIndex(i => i + 1)}
+                                                    className="absolute right-6 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center bg-black/70 border border-white/20 rounded-full text-white/80 hover:bg-white/10 hover:text-white transition-all text-sm"
+                                                >
+                                                    →
+                                                </button>
+                                            )}
+                                            {/* Dots + Counter */}
+                                            <div className="flex items-center gap-2 mt-3">
+                                                {imageUrls.map((_, i) => (
+                                                    <button
+                                                        key={i}
+                                                        onClick={() => setCarouselIndex(i)}
+                                                        className={`w-2 h-2 rounded-full transition-all ${i === carouselIndex ? "bg-white scale-125" : "bg-white/30 hover:bg-white/50"}`}
+                                                    />
+                                                ))}
+                                                <span className="text-[10px] font-mono text-white/40 ml-2">
+                                                    {carouselIndex + 1}/{imageUrls.length}
+                                                </span>
+                                            </div>
+                                        </>
+                                    )}
+                                </>
                             ) : (
                                 <div className="text-white/20 text-center py-20 border border-white/5 rounded-sm p-12 flex flex-col items-center justify-center">
                                     <p className="text-4xl mb-4">🖼️</p>
@@ -455,12 +502,12 @@ function PostDetailModal({
                 {/* Footer Actions */}
                 <div className="px-4 sm:px-6 py-3 sm:py-4 bg-[#050505] border-t border-white/10 flex flex-wrap items-center gap-2 sm:gap-3">
                     {/* Download Image */}
-                    {post.image_url && (
+                    {imageUrls.length > 0 && (
                         <button
                             onClick={downloadImage}
                             className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-[#0f0f0f] text-white/70 hover:bg-white/10 hover:text-white transition-all flex items-center gap-2 border border-white/10"
                         >
-                            ⬇️ Stáhnout obrázek
+                            ⬇️ {isCarousel ? `Stáhnout slide ${carouselIndex + 1}` : "Stáhnout obrázek"}
                         </button>
                     )}
 
