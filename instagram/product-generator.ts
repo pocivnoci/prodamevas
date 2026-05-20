@@ -92,7 +92,7 @@ const DESIGN_CONCEPT_SCHEMA = {
     properties: {
         name: { type: Type.STRING, description: "Název designu" },
         description: { type: Type.STRING, description: "Popis konceptu designu" },
-        designPrompt: { type: Type.STRING, description: "Anglický prompt pro Imagen 4 Ultra — popis vizuálu, barev, stylu. MUSÍ být v angličtině! Optimalizovaný pro print/potisk. NO TEXT in the design unless it's part of the brand." },
+        designPrompt: { type: Type.STRING, description: "Anglický prompt pro Nano Banana Pro — popis vizuálu, barev, stylu. MUSÍ být v angličtině! Optimalizovaný pro print/potisk. NO TEXT in the design unless it's part of the brand." },
         placement: { type: Type.STRING, description: "Kde bude design: front, back, chest pocket, full-print, all-over" },
         colors: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Hlavní barvy designu" },
         style: { type: Type.STRING, description: "Styl: minimalist, bold graphic, vintage, neon, line art, atd." },
@@ -340,12 +340,14 @@ DESIGN RULES:
             } else {
                 // Logo file not found — proceed without it
                 const imagePrompt = `${concept.designPrompt}.${textInstruction} ${imageSuffix}`
+                const { generateImage } = await import("./gemini-client")
                 imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
             }
         } else {
-            // Standard Imagen 4 Ultra generation (no logo)
+            // Standard Nano Banana Pro generation (no logo)
+            const { generateImage } = await import("./gemini-client")
             const imagePrompt = `${concept.designPrompt}.${textInstruction} ${imageSuffix}`
-            console.log(`   🖼️ Imagen 4 Ultra...`)
+            console.log(`   🖼️ Nano Banana Pro...`)
             imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
         }
 
@@ -419,19 +421,19 @@ DESIGN RULES:
                     { aspectRatio: "1:1" }
                 )
             } catch (err: any) {
-                console.warn(`   ⚠️ Nano Banana Pro selhalo (${err.message}). Fallback na Imagen 4 Ultra...`)
+                console.warn(`   ⚠️ Nano Banana Pro selhalo (${err.message}). Fallback na Nano Banana 2...`)
                 // Fallback prompt pokusí nakreslit alespoň něco textově
                 imageBuffer = await generateImage(basePrompt + ` Add a small central emblem to the product.`, { aspectRatio: "1:1" })
             }
         } else {
-            // Není logo - čistý Imagen 4 bez loga
+            // Není logo - čistý Nano Banana bez loga
             const imagePrompt = `${basePrompt}
 DESIGN RULES:
 - Create a visually interesting, premium product with cool design details.
 - NO labels, NO measurements, NO "Supreme", NO existing trademarks.
 - Style: single product centered, clean dark background, professional product photography.`
 
-            console.log(`🎨 Generuji kreativní produkt (Imagen 4 Ultra)...`)
+            console.log(`🎨 Generuji kreativní produkt (Nano Banana Pro)...`)
             imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
         }
 

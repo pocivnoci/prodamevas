@@ -948,7 +948,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest h-6 flex items-center">Architekt analyzuje brand identitu...</p>
                                         <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest h-6 flex items-center">Copywriter skládá úderné texty...</p>
                                         <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest h-6 flex items-center">Generuji vizuální prompt pro AI...</p>
-                                        <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest h-6 flex items-center">Vykreslování pixelů v Imagen 3...</p>
+                                        <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest h-6 flex items-center">Generuji obrázek...</p>
                                         <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest h-6 flex items-center">Finální leštění a optimalizace...</p>
                                     </motion.div>
                                 </div>

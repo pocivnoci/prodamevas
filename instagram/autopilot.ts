@@ -206,7 +206,7 @@ export async function generateOnePost(options: {
     const isCarousel = format.medium === "carousel"
     const postFormat = isReel ? "video script" : isCarousel ? "carousel" : "caption"
     await report("copywriter", 25, `✍️ Copywriter generuje ${postFormat}...`)
-    console.log(`✍️  Generuji ${postFormat} (Gemini 2.5 Pro)...`)
+    console.log(`✍️  Generuji ${postFormat} (Gemini 3.5 Flash)...`)
     let megaPrompt = buildMegaPrompt(config, selectedType, idea, review, recentHooks, performance, options.topic, selectedProduct)
 
     // Inject brand memories (long-term learning from past performance)
@@ -285,7 +285,7 @@ export async function generateOnePost(options: {
 
     // 6b. Quality gate — auto-score before proceeding
     await report("critic", 45, "🔍 Kritik hodnotí kvalitu obsahu...")
-    console.log("🔍 Quality gate (Gemini 2.5 Pro scoring)...")
+    console.log("🔍 Quality gate (Gemini 3.5 Flash scoring)...")
     const { score, feedback, detail } = await scorePost(
         config,
         captionData as { hook: string; body?: string; cta: string; hashtags: string[]; slides?: { headline: string; subtext: string }[] },
@@ -733,14 +733,14 @@ CRITICAL RULES:
                             )
                         } catch (refErr: any) {
                             console.warn(`   ⚠️ Ref generation also failed: ${refErr.message?.substring(0, 100)}`)
-                            console.log("🎨 Final fallback → Imagen 4 Ultra (no refs)...")
+                            console.log("🎨 Final fallback → Nano Banana Pro (no refs)...")
                             imageBuffer = await generateImage(refinedPrompt, { aspectRatio: format.aspectRatio as any })
                         }
                     }
                 }
                 // No reference photos at all → pure generation (only fallback)
                 else {
-                    console.log("🎨 No brand photos available → Imagen 4 Ultra (2K)...")
+                    console.log("🎨 No brand photos available → Nano Banana Pro (2K)...")
                     imageBuffer = await generateImage(refinedPrompt, { aspectRatio: format.aspectRatio as any })
                 }
                 cost += COSTS.imageGeneration
@@ -828,7 +828,7 @@ CRITICAL RULES:
         await logGeneration({
             postId: post.id,
             promptUsed: megaPrompt.substring(0, 500),
-            modelUsed: "gemini-3.5-flash + imagen-4.0-ultra",
+            modelUsed: "gemini-3.5-flash + gemini-3-pro-image-preview",
             generationTimeMs: Date.now() - startTime,
             criticScore: score,
             criticKeep: detail?.feedback.keep,

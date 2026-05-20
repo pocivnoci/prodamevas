@@ -2,7 +2,7 @@
 
 /**
  * Server action wrapper for the Instagram Autopilot engine.
- * Bridges the admin UI → autopilot.ts → Gemini 3 Pro + Imagen 4 Ultra.
+ * Bridges the admin UI → autopilot.ts → Gemini 3.5 Flash + Nano Banana Pro.
  *
  * Auto-heal: wraps every call in try/catch with retry logic.
  * All errors are caught and returned as { success: false, error: "..." }

@@ -1,12 +1,14 @@
 /**
- * Gemini Client — Wrapper for Google Generative AI
- * ==================================================
+ * Gemini API Client
+ * =================
  * PRIMARY:  gemini-3.5-flash         — fastest frontier, agentic, reasoning
  * FALLBACK: gemini-2.5-flash-lite    — cheap stable fallback
- * IMAGE:    gemini-3-pro-image-preview (with refs) / imagen-4.0-ultra (without)
+ * IMAGE:    gemini-3-pro-image-preview (Nano Banana Pro) — primary image gen
+ *           gemini-3.1-flash-image-preview (Nano Banana 2) — fallback image gen
+ * VIDEO:    veo-3.1-fast-generate-001 / veo-3.1-generate-001
  */
 
-import { GoogleGenAI, PersonGeneration } from "@google/genai"
+import { GoogleGenAI } from "@google/genai"
 import dotenv from "dotenv"
 
 // Load env vars for CLI usage
@@ -103,7 +105,8 @@ export async function generateText(
 }
 
 // ============================================
-// IMAGE GENERATION — Imagen 3
+// IMAGE GENERATION — Nano Banana (Gemini native image models)
+// Replaces deprecated Imagen 4 Ultra (shutdown June 24, 2026)
 // ============================================
 
 export async function generateImage(
@@ -112,24 +115,57 @@ export async function generateImage(
 ): Promise<Buffer> {
     const { aspectRatio = "1:1" } = options
 
-    return withRetry(async () => {
-        const response = await ai.models.generateImages({
-            model: "imagen-4.0-ultra-generate-001",
-            prompt,
-            config: {
-                numberOfImages: 1,
-                aspectRatio,
-                personGeneration: PersonGeneration.ALLOW_ADULT,
-            },
-        })
+    // Primary: Nano Banana Pro (highest quality)
+    try {
+        return await withRetry(async () => {
+            const response = await ai.models.generateContent({
+                model: "gemini-3-pro-image-preview",
+                contents: [{ text: prompt }],
+                config: {
+                    responseModalities: ["IMAGE"],
+                    imageConfig: {
+                        imageSize: "2K",
+                        aspectRatio,
+                    },
+                } as any,
+            })
 
-        const generated = response.generatedImages?.[0]
-        if (!generated?.image?.imageBytes) {
-            throw new Error("Imagen 3 returned no image data")
+            const parts = response.candidates?.[0]?.content?.parts || []
+            for (const part of parts) {
+                if ((part as any).inlineData?.data) {
+                    return Buffer.from((part as any).inlineData.data, "base64")
+                }
+            }
+            throw new Error("Nano Banana Pro returned no image data")
+        }, 1) // max 1 retry
+    } catch (err: any) {
+        // Fallback: Nano Banana 2 (faster, cheaper)
+        const msg = String(err?.message || "")
+        if (msg.includes("503") || msg.includes("UNAVAILABLE") || msg.includes("overloaded") || msg.includes("no image data")) {
+            console.log("⚠️ Nano Banana Pro unavailable — falling back to Nano Banana 2...")
+            return await withRetry(async () => {
+                const response = await ai.models.generateContent({
+                    model: "gemini-3.1-flash-image-preview",
+                    contents: [{ text: prompt }],
+                    config: {
+                        responseModalities: ["IMAGE"],
+                        imageConfig: {
+                            imageSize: "2K",
+                            aspectRatio,
+                        },
+                    } as any,
+                })
+                const parts = response.candidates?.[0]?.content?.parts || []
+                for (const part of parts) {
+                    if ((part as any).inlineData?.data) {
+                        return Buffer.from((part as any).inlineData.data, "base64")
+                    }
+                }
+                throw new Error("Nano Banana 2 fallback returned no image data")
+            }, 1)
         }
-
-        return Buffer.from(generated.image.imageBytes, "base64")
-    })
+        throw err
+    }
 }
 
 /**
@@ -312,8 +348,8 @@ export async function generateVideo(
     const { duration = 8, aspectRatio = "9:16", fast = true } = options
 
     const model = fast
-        ? "veo-3.1-fast-generate-preview"
-        : "veo-3.1-generate-preview"
+        ? "veo-3.1-fast-generate-001"
+        : "veo-3.1-generate-001"
 
     let operation = await ai.models.generateVideos({
         model,

@@ -16,9 +16,9 @@ import { getPillarForType, createPillarMapper } from "./service"
 // ============================================
 
 // Pricing as of May 2026:
-// - Gemini 2.5 Pro: $1.25/M input + $10/M output (~$0.025 per ~2K token request)
+// - Gemini 3.5 Flash: primary model for caption generation
 // - Gemini 3.1 Pro: $2.00/M input + $12/M output (~$0.03 per request)
-// - Imagen 4 Ultra: $0.06/image
+// - Nano Banana Pro (gemini-3-pro-image-preview): primary image gen
 // - Veo 3.1 Fast: $0.15/second
 export const COSTS = {
     textGeneration: 0.025,
@@ -115,7 +115,7 @@ export function buildCaptionSchema(config: ClientConfig) {
             },
             imagePrompt: {
                 type: Type.STRING,
-                description: "English prompt for Imagen 4 Ultra. Create VARIED visuals — alternate between: (A) people in authentic situations with real emotions, (B) dramatic product/detail close-ups, (C) atmospheric environments/lifestyle scenes, (D) creative compositions with unexpected angles. NEVER repeat the same visual style twice in a row. Avoid boring static shots (laptop on desk, coffee on table). Style: photorealistic, editorial, cinematic lighting. NO TEXT in image. 2-3 sentences.",
+                description: "English prompt for Nano Banana Pro image generation. Create VARIED visuals — alternate between: (A) people in authentic situations with real emotions, (B) dramatic product/detail close-ups, (C) atmospheric environments/lifestyle scenes, (D) creative compositions with unexpected angles. NEVER repeat the same visual style twice in a row. Avoid boring static shots (laptop on desk, coffee on table). Style: photorealistic, editorial, cinematic lighting. NO TEXT in image. 2-3 sentences.",
             },
             imageSubtext: {
                 type: Type.STRING,
@@ -517,7 +517,7 @@ ${(() => {
   "body": "Hlavní text (max 120 slov). ${config.contentFocus}",
   "cta": "CTA — ideálně směřuje na ${config.website}",
   "hashtags": ["8-10", "relevantních", "hashtagů"],
-  "imagePrompt": "English prompt for Imagen 4 Ultra. NO TEXT in image! ${config.contentFocus}.",
+  "imagePrompt": "English prompt for AI image generation. NO TEXT in image! ${config.contentFocus}.",
   "imageSubtext": "Podtext dole pod hookem (max 8 slov, česky)"
 }
 `}

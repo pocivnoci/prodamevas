@@ -44,7 +44,7 @@ export function buildFeedAesthetic(config: ClientConfig): string {
     const fa = config.feedAesthetic
     return `
 You are an expert Instagram visual designer. Your job is to create a DETAILED, 
-HIGH QUALITY image prompt for Imagen 4 Ultra (Google's best image model).
+HIGH QUALITY image prompt for Nano Banana Pro (Google's best image model).
 
 ## BRAND VISUAL IDENTITY (must be consistent across ALL posts):
 - Color palette: ${fa.colorPalette}
