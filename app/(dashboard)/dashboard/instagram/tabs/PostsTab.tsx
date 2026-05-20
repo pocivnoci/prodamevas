@@ -15,43 +15,61 @@ import type { IGPost } from "./types"
 export function PostsTab({ projectId }: { projectId: string }) {
     const [posts, setPosts] = useState<IGPost[]>([])
     const [loading, setLoading] = useState(true)
+    const [loadingMore, setLoadingMore] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [statusFilter, setStatusFilter] = useState("all")
     const [selectedPost, setSelectedPost] = useState<IGPost | null>(null)
+    const [page, setPage] = useState(0)
+    const [total, setTotal] = useState(0)
+    const [hasMore, setHasMore] = useState(false)
 
-    const loadPosts = async () => {
+    const loadPosts = async (pageNum: number = 0, append: boolean = false) => {
         if (!projectId) return
-        setLoading(true)
+        if (append) {
+            setLoadingMore(true)
+        } else {
+            setLoading(true)
+        }
         setError(null)
         try {
-            const data = await getIGPostsList(statusFilter, projectId)
-            setPosts(data)
+            const result = await getIGPostsList(statusFilter, projectId, pageNum)
+            if (append) {
+                setPosts(prev => [...prev, ...result.posts])
+            } else {
+                setPosts(result.posts)
+            }
+            setTotal(result.total)
+            setHasMore(result.hasMore)
+            setPage(pageNum)
         } catch (err: any) {
             setError(err?.message || "Nepodařilo se načíst příspěvky")
-            setPosts([])
+            if (!append) setPosts([])
         }
         setLoading(false)
+        setLoadingMore(false)
     }
 
-    useEffect(() => { loadPosts() }, [statusFilter, projectId])
+    const loadMore = () => loadPosts(page + 1, true)
+
+    useEffect(() => { loadPosts(0) }, [statusFilter, projectId])
 
     const handleStatusChange = async (postId: string, newStatus: string) => {
         await updateIGPostStatus(postId, newStatus)
         setSelectedPost(null)
-        loadPosts()
+        loadPosts(0)
     }
 
     const handleDelete = async (postId: string) => {
         await deleteIGPost(postId, projectId)
         setSelectedPost(null)
-        loadPosts()
+        loadPosts(0)
     }
 
     if (loading) return <LoadingSpinner />
     if (error) return (
         <div className="text-center py-12">
             <p className="text-aisummit-cinnabar mb-4 font-bold uppercase tracking-widest text-sm">❌ {error}</p>
-            <button onClick={loadPosts} className="px-5 py-2.5 bg-[#0f0f0f] shadow-sm border border-white/10 text-white rounded-sm text-xs font-bold uppercase tracking-widest hover:bg-white/10 transition-colors">
+            <button onClick={() => loadPosts(0)} className="px-5 py-2.5 bg-[#0f0f0f] shadow-sm border border-white/10 text-white rounded-sm text-xs font-bold uppercase tracking-widest hover:bg-white/10 transition-colors">
                 🔄 Zkusit znovu
             </button>
         </div>
@@ -73,7 +91,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                         {status === "all" ? "Všechny" : status === "draft" ? "Drafty" : status === "ready" ? "Připravené" : "Publikované"}
                     </button>
                 ))}
-                <span className="text-xs font-mono uppercase tracking-widest text-white/40 ml-auto whitespace-nowrap pl-4">{posts.length} příspěvků</span>
+                <span className="text-xs font-mono uppercase tracking-widest text-white/40 ml-auto whitespace-nowrap pl-4">{posts.length} z {total} příspěvků</span>
             </div>
 
             {/* Posts Grid */}
@@ -137,6 +155,19 @@ export function PostsTab({ projectId }: { projectId: string }) {
                     </motion.div>
                 ))}
             </motion.div>
+
+            {/* Load More */}
+            {hasMore && (
+                <div className="flex justify-center pt-4">
+                    <button
+                        onClick={loadMore}
+                        disabled={loadingMore}
+                        className="px-8 py-3 bg-[#0f0f0f] border border-white/10 text-white/70 rounded-sm text-xs font-bold uppercase tracking-widest hover:bg-white/5 hover:text-white hover:border-white/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                        {loadingMore ? "Načítám..." : `Načíst další (${total - posts.length} zbývá)`}
+                    </button>
+                </div>
+            )}
 
             {
                 posts.length === 0 && !loading && (

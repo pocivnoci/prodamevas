@@ -58,10 +58,30 @@ export async function getDashboardStats(projectSlug: string) {
     }
 }
 
-export async function getIGPostsList(statusFilter?: string, projectSlug: string = "mobilnamiru"): Promise<any[]> {
+export async function getIGPostsList(
+    statusFilter?: string,
+    projectSlug: string = "mobilnamiru",
+    page: number = 0,
+    pageSize: number = 15
+): Promise<{ posts: any[]; total: number; hasMore: boolean }> {
     try {
         const { resolveClientId } = await import("@/instagram/configs")
         const clientId = await resolveClientId(projectSlug)
+
+        // Count total for pagination
+        let countQuery = supabaseAdmin
+            .from("ig_posts")
+            .select("id", { count: "exact", head: true })
+            .eq("client_id", clientId)
+        if (statusFilter && statusFilter !== "all") {
+            countQuery = countQuery.eq("status", statusFilter)
+        }
+        const { count } = await countQuery
+        const total = count || 0
+
+        // Fetch page
+        const from = page * pageSize
+        const to = from + pageSize - 1
 
         let query = supabaseAdmin
             .from("ig_posts")
@@ -75,7 +95,7 @@ export async function getIGPostsList(statusFilter?: string, projectSlug: string 
             `)
             .eq("client_id", clientId)
             .order("created_at", { ascending: false })
-            .limit(15)
+            .range(from, to)
 
         if (statusFilter && statusFilter !== "all") {
             query = query.eq("status", statusFilter)
@@ -84,12 +104,13 @@ export async function getIGPostsList(statusFilter?: string, projectSlug: string 
         const { data, error } = await query
         if (error) {
             console.error("getIGPostsList error:", error.message)
-            return []
+            return { posts: [], total: 0, hasMore: false }
         }
-        return data || []
+        const posts = data || []
+        return { posts, total, hasMore: from + posts.length < total }
     } catch (err: any) {
         console.error("getIGPostsList exception:", err?.message || err)
-        return []
+        return { posts: [], total: 0, hasMore: false }
     }
 }
 

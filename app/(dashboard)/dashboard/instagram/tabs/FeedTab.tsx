@@ -20,9 +20,9 @@ export function FeedTab({ projectId }: { projectId: string }) {
     useEffect(() => {
         if (!projectId) return
         setLoading(true)
-        getIGPostsList(projectId).then(data => {
+        getIGPostsList(undefined, projectId, 0, 100).then(result => {
             // Show only posts with images, prioritize posted > ready > draft
-            const withImages = (data || [])
+            const withImages = (result.posts || [])
                 .filter((p: any) => p.image_url)
                 .sort((a: any, b: any) => {
                     const statusOrder: Record<string, number> = { posted: 0, ready: 1, draft: 2 }
