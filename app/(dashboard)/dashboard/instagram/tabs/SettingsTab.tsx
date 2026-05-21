@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, getProducts, createProduct, updateProduct, deleteProduct, uploadProductImage, syncConfigProductsToDb } from "@/app/actions/admin-actions"
+import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, getProducts, createProduct, updateProduct, deleteProduct, uploadProductImage, syncConfigProductsToDb, scrapeProductsFromWebsite } from "@/app/actions/admin-actions"
 import { SubscriptionSection } from "./SubscriptionSection"
 
 // ═══════════════════════════════════════════════════════════
@@ -1078,6 +1078,8 @@ function ProductCatalogSection({ projectId }: { projectId: string }) {
     const [editingId, setEditingId] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
     const [uploading, setUploading] = useState<string | null>(null)
+    const [scraping, setScraping] = useState(false)
+    const [scrapeResult, setScrapeResult] = useState<string | null>(null)
     const [form, setForm] = useState({ name: "", type: "", slug: "", price: "", description: "" })
 
     const loadProducts = useCallback(async () => {
@@ -1142,9 +1144,44 @@ function ProductCatalogSection({ projectId }: { projectId: string }) {
     return (
         <div className="space-y-6">
             <SectionCard title="Produktový katalog" description="Produkty používané při generování obsahu. Přiřaďte je k postům přes @ mention v content planu.">
-                {products.length === 0 && !showForm && (
-                    <p className="text-[10px] text-white/30 text-center py-4">Žádné produkty. Přidejte první produkt pro lepší AI generování.</p>
-                )}
+                <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1">
+                        {products.length === 0 && !showForm && (
+                            <p className="text-[10px] text-white/30">Žádné produkty. Načtěte z webu nebo přidejte ručně.</p>
+                        )}
+                        {products.length > 0 && (
+                            <p className="text-[10px] text-white/30">{products.length} produkt{products.length === 1 ? '' : products.length < 5 ? 'y' : 'ů'} v katalogu</p>
+                        )}
+                        {scrapeResult && (
+                            <p className="text-[10px] text-white/50 mt-1">{scrapeResult}</p>
+                        )}
+                    </div>
+                    <button
+                        onClick={async () => {
+                            setScraping(true)
+                            setScrapeResult(null)
+                            const res = await scrapeProductsFromWebsite(projectId)
+                            if (res.success) {
+                                setScrapeResult(`✅ Nalezeno ${res.found} · vloženo ${res.inserted} nových`)
+                                await loadProducts()
+                            } else {
+                                setScrapeResult(`❌ ${res.error}`)
+                            }
+                            setScraping(false)
+                        }}
+                        disabled={scraping}
+                        className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all border border-blue-500/20 disabled:opacity-50 whitespace-nowrap flex items-center gap-1.5"
+                    >
+                        {scraping ? (
+                            <>
+                                <div className="w-3 h-3 border border-blue-400/50 border-t-blue-400 rounded-full animate-spin" />
+                                Scanuji web…
+                            </>
+                        ) : (
+                            <>🌐 Načíst z webu</>
+                        )}
+                    </button>
+                </div>
             </SectionCard>
 
             {/* Product list */}
