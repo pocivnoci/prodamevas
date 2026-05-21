@@ -883,6 +883,55 @@ export async function deleteIGPost(
     }
 }
 
+export async function deleteIGPosts(
+    postIds: string[],
+    projectSlug: string
+): Promise<{ success: boolean; deleted: number; error?: string }> {
+    try {
+        if (!postIds.length) return { success: true, deleted: 0 }
+        const { resolveClientId } = await import("@/instagram/configs")
+        const clientId = await resolveClientId(projectSlug)
+
+        // Get posts for image cleanup
+        const { data: posts } = await supabaseAdmin
+            .from("ig_posts")
+            .select("id, image_url")
+            .eq("client_id", clientId)
+            .in("id", postIds)
+
+        // Delete images from storage
+        if (posts) {
+            for (const post of posts) {
+                if (!post.image_url) continue
+                const urls = post.image_url.split("|")
+                for (const url of urls) {
+                    const path = url.split("/storage/v1/object/public/audit-screenshots/")[1]
+                        || url.split("/storage/v1/object/public/")[1]?.split("/").slice(1).join("/")
+                    if (path) {
+                        const bucket = url.includes("audit-screenshots") ? "audit-screenshots" : url.split("/storage/v1/object/public/")[1]?.split("/")[0]
+                        if (bucket) {
+                            await supabaseAdmin.storage.from(bucket).remove([path]).catch(() => {})
+                        }
+                    }
+                }
+            }
+        }
+
+        // Bulk delete from DB
+        const { error, count } = await supabaseAdmin
+            .from("ig_posts")
+            .delete({ count: "exact" })
+            .eq("client_id", clientId)
+            .in("id", postIds)
+
+        if (error) throw error
+        return { success: true, deleted: count || postIds.length }
+    } catch (err: any) {
+        console.error("deleteIGPosts error:", err?.message || err)
+        return { success: false, deleted: 0, error: err?.message || String(err) }
+    }
+}
+
 // ─── Delete Client ───────────────────────────────────────────────────
 
 export async function deleteClient(

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { motion } from "framer-motion"
-import { getIGPostsList, updateIGPostStatus, deleteIGPost, revisePost, generatePostVariant } from "@/app/actions/admin-actions"
+import { getIGPostsList, updateIGPostStatus, deleteIGPost, deleteIGPosts, revisePost, generatePostVariant } from "@/app/actions/admin-actions"
 import { LoadingSpinner, StatusBadge, PillarBadge, CopyButton, MetricsInputForm } from "./shared"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPost } from "./types"
@@ -22,6 +22,8 @@ export function PostsTab({ projectId }: { projectId: string }) {
     const [page, setPage] = useState(0)
     const [total, setTotal] = useState(0)
     const [hasMore, setHasMore] = useState(false)
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+    const [bulkDeleting, setBulkDeleting] = useState(false)
 
     const loadPosts = async (pageNum: number = 0, append: boolean = false) => {
         if (!projectId) return
@@ -94,6 +96,42 @@ export function PostsTab({ projectId }: { projectId: string }) {
                 <span className="text-xs font-mono uppercase tracking-widest text-white/40 ml-auto whitespace-nowrap pl-4">{posts.length} z {total} příspěvků</span>
             </div>
 
+            {/* Bulk actions bar */}
+            {posts.length > 0 && (
+                <div className="flex items-center justify-between gap-3 bg-[#0a0a0a] border border-white/5 rounded-sm px-4 py-3">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => {
+                                if (selectedIds.size === posts.length) setSelectedIds(new Set())
+                                else setSelectedIds(new Set(posts.map(p => p.id)))
+                            }}
+                            className="text-[9px] text-white/40 hover:text-white/70 font-bold uppercase tracking-widest transition-colors"
+                        >
+                            {selectedIds.size === posts.length && posts.length > 0 ? "Odznačit vše" : "Vybrat vše"}
+                        </button>
+                        {selectedIds.size > 0 && (
+                            <span className="text-[9px] text-white/30">{selectedIds.size} vybráno</span>
+                        )}
+                    </div>
+                    {selectedIds.size > 0 && (
+                        <button
+                            onClick={async () => {
+                                if (!confirm(`Smazat ${selectedIds.size} příspěvků? Tato akce je nevratná.`)) return
+                                setBulkDeleting(true)
+                                await deleteIGPosts(Array.from(selectedIds), projectId)
+                                setSelectedIds(new Set())
+                                setBulkDeleting(false)
+                                loadPosts(0)
+                            }}
+                            disabled={bulkDeleting}
+                            className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all border border-red-500/20 disabled:opacity-50 whitespace-nowrap"
+                        >
+                            {bulkDeleting ? "Mažu…" : `🗑 Smazat ${selectedIds.size}`}
+                        </button>
+                    )}
+                </div>
+            )}
+
             {/* Posts Grid */}
             <motion.div
                 className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
@@ -111,9 +149,32 @@ export function PostsTab({ projectId }: { projectId: string }) {
                             visible: { opacity: 1, scale: 1, y: 0 }
                         }}
                         key={post.id}
-                        onClick={() => setSelectedPost(post)}
-                        className="bg-[#0a0a0a]/80 backdrop-blur-md rounded-sm p-3 border border-white/10 hover:border-white/30 transition-all cursor-pointer group flex flex-col"
+                        className={`bg-[#0a0a0a]/80 backdrop-blur-md rounded-sm border transition-all flex flex-col relative ${selectedIds.has(post.id) ? 'border-red-500/30 bg-red-500/5' : 'border-white/10 hover:border-white/30'}`}
                     >
+                        {/* Checkbox */}
+                        <label
+                            className="absolute top-2 left-2 z-10 cursor-pointer"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={selectedIds.has(post.id)}
+                                onChange={(e) => {
+                                    setSelectedIds(prev => {
+                                        const next = new Set(prev)
+                                        if (e.target.checked) next.add(post.id)
+                                        else next.delete(post.id)
+                                        return next
+                                    })
+                                }}
+                                className="w-4 h-4 rounded-sm border-white/20 bg-black/60 accent-red-500 cursor-pointer"
+                            />
+                        </label>
+
+                        <div
+                            onClick={() => setSelectedPost(post)}
+                            className="p-3 cursor-pointer group flex flex-col flex-1"
+                        >
                         {/* Image Preview */}
                         {post.image_url ? (
                             <div className="w-full h-56 rounded-sm bg-[#0f0f0f] overflow-hidden relative mb-4">
@@ -156,6 +217,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                     {new Date(post.created_at).toLocaleDateString("cs-CZ")}
                                 </span>
                             </div>
+                        </div>
                         </div>
                     </motion.div>
                 ))}
