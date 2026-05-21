@@ -90,3 +90,16 @@ export interface IGReview {
     approved: boolean
     created_at: string
 }
+
+/** Product from ig_products table */
+export interface IGProduct {
+    id: string
+    name: string
+    type: string | null
+    slug: string
+    variants: number | null
+    price: string | null
+    description: string | null
+    image_urls: string[] | null
+    created_at: string
+}

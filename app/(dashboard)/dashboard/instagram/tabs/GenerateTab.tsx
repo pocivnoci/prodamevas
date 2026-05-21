@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
     getIGPostTypes,
@@ -10,6 +10,7 @@ import {
     getIGReviewsList,
     generateContentPlan,
     regeneratePlanItem,
+    getProducts,
     type ContentPlanItem,
 } from "@/app/actions/admin-actions"
 import { uploadCustomImage, type GenerateResult } from "@/app/actions/ig-generate-action"
@@ -49,6 +50,12 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const [approvedReviews, setApprovedReviews] = useState<any[]>([])
     const [showIdeaPicker, setShowIdeaPicker] = useState(false)
 
+    // Product catalog for @ mention picker
+    const [catalogProducts, setCatalogProducts] = useState<any[]>([])
+    const [productPickerItem, setProductPickerItem] = useState<string | null>(null)
+    const [productSearch, setProductSearch] = useState("")
+    const productPickerRef = useRef<HTMLDivElement>(null)
+
     // Reload post types + formats + categories when project changes
     useEffect(() => {
         if (!projectId) return
@@ -57,10 +64,34 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         getIGCategories(projectId).then(setCategories)
         getIGIdeasList(projectId).then(setSavedIdeas)
         getIGReviewsList(projectId).then(reviews => setApprovedReviews(reviews.filter((r: any) => r.is_approved)))
+        getProducts(projectId).then(setCatalogProducts)
         setSelectedType("") // reset selection on project change
         setCategory("") // reset category on project change
         setStep(1)
     }, [projectId])
+
+    // Close product picker on outside click
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (productPickerRef.current && !productPickerRef.current.contains(e.target as Node)) {
+                setProductPickerItem(null)
+                setProductSearch("")
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside)
+        return () => document.removeEventListener("mousedown", handleClickOutside)
+    }, [])
+
+    // Set product on content plan item
+    const handleSetProduct = (itemId: string, product: any | null) => {
+        setContentPlan(prev => prev.map(p =>
+            p.id === itemId
+                ? { ...p, productId: product?.id || undefined, productName: product?.name || undefined, productImage: product?.image_urls?.[0] || undefined }
+                : p
+        ))
+        setProductPickerItem(null)
+        setProductSearch("")
+    }
 
     // Generation: POST blocks synchronously, but we extract jobId via a pre-flight call
     const triggerPostGeneration = async (options: any): Promise<any> => {
@@ -167,6 +198,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                             dryRun,
                             aspectRatio: aspectRatio || undefined,
                             medium: medium || undefined,
+                            productId: planItem?.productId || undefined,
                             campaignContext,
                         })
                         // Auto-retry once on failure
@@ -180,6 +212,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 dryRun,
                                 aspectRatio: aspectRatio || undefined,
                                 medium: medium || undefined,
+                                productId: planItem?.productId || undefined,
                                 campaignContext,
                             })
                         }
@@ -860,6 +893,80 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                                 <span className="text-[9px] text-emerald-400/60 font-mono">📌 {item.topic}</span>
                                                             </div>
                                                         )}
+
+                                                        {/* Product @ mention */}
+                                                        <div className="mt-2 relative">
+                                                            {item.productId ? (
+                                                                <div className="inline-flex items-center gap-2 px-2.5 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-sm group">
+                                                                    {item.productImage && (
+                                                                        <img src={item.productImage} alt="" className="w-5 h-5 rounded-sm object-cover" />
+                                                                    )}
+                                                                    <span className="text-[9px] text-blue-400 font-bold">@{item.productName}</span>
+                                                                    <button
+                                                                        onClick={() => handleSetProduct(item.id, null)}
+                                                                        className="text-[8px] text-blue-400/40 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                                                                    >
+                                                                        ✕
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setProductPickerItem(productPickerItem === item.id ? null : item.id)
+                                                                        setProductSearch("")
+                                                                    }}
+                                                                    className="inline-flex items-center gap-1 px-2 py-1 text-[9px] text-white/25 hover:text-white/50 font-bold uppercase tracking-widest transition-colors"
+                                                                    title="Přiřadit produkt"
+                                                                >
+                                                                    <span>@</span> Produkt
+                                                                </button>
+                                                            )}
+
+                                                            {/* Product picker dropdown */}
+                                                            {productPickerItem === item.id && catalogProducts.length > 0 && (
+                                                                <div ref={productPickerRef} className="absolute left-0 top-full mt-1 z-50 w-72 bg-[#0a0a0a] border border-white/15 rounded-sm shadow-2xl overflow-hidden">
+                                                                    <div className="p-2 border-b border-white/10">
+                                                                        <input
+                                                                            autoFocus
+                                                                            value={productSearch}
+                                                                            onChange={(e) => setProductSearch(e.target.value)}
+                                                                            placeholder="Hledat produkt..."
+                                                                            className="w-full px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="max-h-48 overflow-y-auto">
+                                                                        {catalogProducts
+                                                                            .filter(p => !productSearch || p.name.toLowerCase().includes(productSearch.toLowerCase()))
+                                                                            .map(p => (
+                                                                                <button
+                                                                                    key={p.id}
+                                                                                    onClick={() => handleSetProduct(item.id, p)}
+                                                                                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 transition-colors text-left"
+                                                                                >
+                                                                                    <div className="w-8 h-8 flex-shrink-0 bg-[#050505] border border-white/10 rounded-sm overflow-hidden flex items-center justify-center">
+                                                                                        {p.image_urls?.[0] ? (
+                                                                                            <img src={p.image_urls[0]} alt="" className="w-full h-full object-cover" />
+                                                                                        ) : (
+                                                                                            <span className="text-sm opacity-30">📦</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <div className="flex-1 min-w-0">
+                                                                                        <p className="text-white/80 text-xs font-bold truncate">{p.name}</p>
+                                                                                        <p className="text-[8px] text-white/30">
+                                                                                            {p.type && <span>{p.type}</span>}
+                                                                                            {p.price && <span> · {p.price}</span>}
+                                                                                        </p>
+                                                                                    </div>
+                                                                                </button>
+                                                                            ))
+                                                                        }
+                                                                        {catalogProducts.filter(p => !productSearch || p.name.toLowerCase().includes(productSearch.toLowerCase())).length === 0 && (
+                                                                            <p className="px-3 py-4 text-[10px] text-white/30 text-center">Žádné produkty nenalezeny</p>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
 
                                                     {/* Actions */}

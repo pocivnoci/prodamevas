@@ -34,6 +34,7 @@ export async function POST(req: Request) {
                     customImageUrl: body.customImageUrl,
                     category: body.category,
                     campaignContext: body.campaignContext,
+                    productId: body.productId,
                 },
                 status: "researcher",
                 progress: 5,

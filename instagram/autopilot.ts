@@ -117,6 +117,8 @@ export async function generateOnePost(options: {
     aspectRatio?: string
     medium?: "image" | "carousel" | "reel"
     customImageUrl?: string
+    /** Explicit product ID from ig_products — overrides random product selection */
+    productId?: string
     campaignContext?: { postNumber: number; totalPosts: number; previousPosts: { hook: string; topic: string }[] }
     onProgress?: (stage: string, progress: number, message: string) => Promise<void>
 }): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number }> {
@@ -190,10 +192,33 @@ export async function generateOnePost(options: {
 
     // 4b. Pre-select product for coherence (same product for caption + image)
     const productTypes = ["product_drop", "limitka", "outfit_inspo", "produkt", "recenze", "meme", "customer_content", "lifestyle", "behind_the_scenes", "collab"]
-    let selectedProduct: typeof config.products extends (infer T)[] | undefined ? T : never = undefined as any
-    if (productTypes.includes(selectedType.name) && config.products?.length) {
-        selectedProduct = config.products[Math.floor(Math.random() * config.products.length)]
-        console.log(`   🛍️ Pre-selected product: "${selectedProduct.name}"`)
+    let selectedProduct: { name: string; type: string; slug: string; price?: string; description?: string; imageUrls?: string[] } | undefined = undefined
+    let linkedProductId: string | undefined = undefined
+
+    if (options.productId) {
+        // Explicit product from ig_products DB table (user picked via @ mention)
+        const { data: dbProduct } = await supabaseAdmin
+            .from("ig_products")
+            .select("id, name, type, slug, price, description, image_urls")
+            .eq("id", options.productId)
+            .single()
+        if (dbProduct) {
+            selectedProduct = {
+                name: dbProduct.name,
+                type: dbProduct.type || "product",
+                slug: dbProduct.slug,
+                price: dbProduct.price || undefined,
+                description: dbProduct.description || undefined,
+                imageUrls: dbProduct.image_urls || undefined,
+            }
+            linkedProductId = dbProduct.id
+            console.log(`   🛍️ Explicit product (from DB): "${selectedProduct.name}"`)
+        }
+    } else if (productTypes.includes(selectedType.name) && config.products?.length) {
+        // Fallback: random product from config JSONB
+        const rp = config.products[Math.floor(Math.random() * config.products.length)]
+        selectedProduct = rp
+        console.log(`   🛍️ Pre-selected product (random): "${selectedProduct.name}"`)
     }
 
     // 5. Generate caption / video script / carousel
@@ -821,6 +846,7 @@ CRITICAL RULES:
             post_type_id: selectedType.id,
             idea_id: idea?.id,
             review_id: review?.id,
+            product_id: linkedProductId || undefined,
             caption: fullCaption,
             hashtags: finalHashtags,
             call_to_action: captionData.cta,

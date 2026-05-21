@@ -705,6 +705,31 @@ Pravidla:
         // Insert client record (no user_id column — RBAC is via user_clients)
         const insertedClientId = await insertClient(clientSlug, config)
 
+        // ── Sync scraped products → ig_products table ──
+        if (config.products && config.products.length > 0) {
+            try {
+                const productRows = config.products.map((p: any) => ({
+                    client_id: insertedClientId,
+                    name: p.name,
+                    type: p.type || 'product',
+                    slug: p.slug,
+                    price: p.price || null,
+                    description: p.description || null,
+                    image_urls: [],
+                }))
+                const { error: prodError } = await supabaseAdmin
+                    .from('ig_products')
+                    .insert(productRows)
+                if (prodError) {
+                    console.warn('⚠️ Product sync failed:', prodError.message)
+                } else {
+                    console.log(`✅ ${productRows.length} products synced to ig_products`)
+                }
+            } catch (prodErr) {
+                console.warn('⚠️ Product sync exception:', (prodErr as Error).message)
+            }
+        }
+
         // ── RBAC: Link user → client as owner ──
         const { error: linkError } = await supabaseAdmin
             .from('user_clients')

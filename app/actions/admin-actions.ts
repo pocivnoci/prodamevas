@@ -1113,6 +1113,10 @@ export interface ContentPlanItem {
     topic: string
     week?: number
     day?: number
+    /** Linked product from ig_products */
+    productId?: string
+    productName?: string
+    productImage?: string
 }
 
 export async function generateContentPlan(
@@ -1263,5 +1267,254 @@ Vrať POUZE validní JSON:
         return { success: true, item }
     } catch (err: any) {
         return { success: false, error: err?.message || String(err) }
+    }
+}
+
+// ─── Product Catalog (ig_products) ───────────────────────────────────
+
+export async function getProducts(projectSlug: string): Promise<any[]> {
+    try {
+        const { resolveClientId } = await import("@/instagram/configs")
+        const clientId = await resolveClientId(projectSlug)
+
+        const { data, error } = await supabaseAdmin
+            .from("ig_products")
+            .select("*")
+            .eq("client_id", clientId)
+            .order("created_at", { ascending: false })
+
+        if (error) {
+            console.error("getProducts error:", error.message)
+            return []
+        }
+        return data || []
+    } catch (err: any) {
+        console.error("getProducts exception:", err?.message || err)
+        return []
+    }
+}
+
+export async function createProduct(
+    projectSlug: string,
+    product: { name: string; type?: string; slug: string; price?: string; description?: string; variants?: number }
+): Promise<{ success: boolean; product?: any; error?: string }> {
+    try {
+        const { resolveClientId } = await import("@/instagram/configs")
+        const clientId = await resolveClientId(projectSlug)
+
+        const { data, error } = await supabaseAdmin
+            .from("ig_products")
+            .insert({
+                client_id: clientId,
+                name: product.name,
+                type: product.type || null,
+                slug: product.slug,
+                price: product.price || null,
+                description: product.description || null,
+                variants: product.variants || null,
+                image_urls: [],
+            })
+            .select()
+            .single()
+
+        if (error) throw error
+        return { success: true, product: data }
+    } catch (err: any) {
+        console.error("createProduct error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}
+
+export async function updateProduct(
+    productId: string,
+    projectSlug: string,
+    updates: { name?: string; type?: string; slug?: string; price?: string; description?: string; variants?: number }
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { resolveClientId } = await import("@/instagram/configs")
+        const clientId = await resolveClientId(projectSlug)
+
+        const { error } = await supabaseAdmin
+            .from("ig_products")
+            .update({
+                ...updates,
+                updated_at: new Date().toISOString(),
+            })
+            .eq("id", productId)
+            .eq("client_id", clientId)
+
+        if (error) throw error
+        return { success: true }
+    } catch (err: any) {
+        console.error("updateProduct error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}
+
+export async function deleteProduct(
+    productId: string,
+    projectSlug: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { resolveClientId } = await import("@/instagram/configs")
+        const clientId = await resolveClientId(projectSlug)
+
+        // Delete product images from storage
+        const { data: product } = await supabaseAdmin
+            .from("ig_products")
+            .select("image_urls, slug")
+            .eq("id", productId)
+            .eq("client_id", clientId)
+            .single()
+
+        if (product?.slug) {
+            const { data: files } = await supabaseAdmin.storage
+                .from("product-images")
+                .list(clientId, { search: product.slug })
+            if (files && files.length > 0) {
+                await supabaseAdmin.storage
+                    .from("product-images")
+                    .remove(files.map(f => `${clientId}/${f.name}`))
+            }
+        }
+
+        const { error } = await supabaseAdmin
+            .from("ig_products")
+            .delete()
+            .eq("id", productId)
+            .eq("client_id", clientId)
+
+        if (error) throw error
+        return { success: true }
+    } catch (err: any) {
+        console.error("deleteProduct error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}
+
+export async function uploadProductImage(
+    projectSlug: string,
+    productId: string,
+    formData: FormData
+): Promise<{ success: boolean; publicUrl?: string; error?: string }> {
+    try {
+        const { resolveClientId } = await import("@/instagram/configs")
+        const clientId = await resolveClientId(projectSlug)
+
+        const file = formData.get("file") as File
+        if (!file || !file.type.startsWith("image/")) {
+            return { success: false, error: "Neplatný soubor — nahraj PNG, JPG nebo WebP" }
+        }
+        if (file.size > 10_000_000) {
+            return { success: false, error: "Obrázek je příliš velký (max 10 MB)" }
+        }
+
+        // Get product slug for filename
+        const { data: product } = await supabaseAdmin
+            .from("ig_products")
+            .select("slug, image_urls")
+            .eq("id", productId)
+            .eq("client_id", clientId)
+            .single()
+
+        if (!product) return { success: false, error: "Produkt nenalezen" }
+
+        const buffer = Buffer.from(await file.arrayBuffer())
+        const ext = file.type.includes("png") ? "png" : file.type.includes("webp") ? "webp" : "jpg"
+        const existingCount = (product.image_urls || []).length
+        const filename = `${clientId}/${product.slug}-${existingCount}.${ext}`
+
+        const { error: uploadError } = await supabaseAdmin.storage
+            .from("product-images")
+            .upload(filename, buffer, {
+                contentType: file.type,
+                cacheControl: "31536000",
+                upsert: true,
+            })
+
+        if (uploadError) throw uploadError
+
+        const { data: pubUrl } = supabaseAdmin.storage
+            .from("product-images")
+            .getPublicUrl(filename)
+
+        // Append URL to product's image_urls array
+        const updatedUrls = [...(product.image_urls || []), pubUrl.publicUrl]
+        await supabaseAdmin
+            .from("ig_products")
+            .update({ image_urls: updatedUrls, updated_at: new Date().toISOString() })
+            .eq("id", productId)
+
+        return { success: true, publicUrl: pubUrl.publicUrl }
+    } catch (err: any) {
+        console.error("uploadProductImage error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}
+
+/**
+ * One-shot migration: sync config.products JSONB → ig_products table
+ * for all active clients. Safe to run multiple times (dedup by slug).
+ */
+export async function syncConfigProductsToDb(): Promise<{ success: boolean; synced: number; skipped: number; error?: string }> {
+    try {
+        const { data: clients, error } = await supabaseAdmin
+            .from("clients")
+            .select("id, slug, config")
+            .eq("is_active", true)
+
+        if (error) throw error
+        if (!clients || clients.length === 0) return { success: true, synced: 0, skipped: 0 }
+
+        let totalSynced = 0
+        let totalSkipped = 0
+
+        for (const client of clients) {
+            const config = client.config as any
+            const products = config?.products
+            if (!products || !Array.isArray(products) || products.length === 0) continue
+
+            // Get existing slugs to avoid duplicates
+            const { data: existing } = await supabaseAdmin
+                .from("ig_products")
+                .select("slug")
+                .eq("client_id", client.id)
+
+            const existingSlugs = new Set((existing || []).map((p: any) => p.slug))
+
+            const toInsert = products
+                .filter((p: any) => p.slug && !existingSlugs.has(p.slug))
+                .map((p: any) => ({
+                    client_id: client.id,
+                    name: p.name,
+                    type: p.type || "product",
+                    slug: p.slug,
+                    price: p.price || null,
+                    description: p.description || null,
+                    image_urls: [],
+                }))
+
+            if (toInsert.length === 0) {
+                totalSkipped += products.length
+                continue
+            }
+
+            const { error: insertError } = await supabaseAdmin
+                .from("ig_products")
+                .insert(toInsert)
+
+            if (insertError) {
+                console.warn(`⚠️ Sync failed for ${client.slug}:`, insertError.message)
+            } else {
+                totalSynced += toInsert.length
+                totalSkipped += products.length - toInsert.length
+                console.log(`✅ ${client.slug}: ${toInsert.length} products synced`)
+            }
+        }
+
+        return { success: true, synced: totalSynced, skipped: totalSkipped }
+    } catch (err: any) {
+        console.error("syncConfigProductsToDb error:", err?.message || err)
+        return { success: false, synced: 0, skipped: 0, error: err?.message || String(err) }
     }
 }
