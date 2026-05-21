@@ -1162,7 +1162,7 @@ function ProductCatalogSection({ projectId }: { projectId: string }) {
                             setScrapeResult(null)
                             const res = await scrapeProductsFromWebsite(projectId)
                             if (res.success) {
-                                setScrapeResult(`✅ Nalezeno ${res.found} · vloženo ${res.inserted} nových`)
+                                setScrapeResult(`✅ Nalezeno ${res.found} · vloženo ${res.inserted} nových · ${res.images} fotek staženo`)
                                 await loadProducts()
                             } else {
                                 setScrapeResult(`❌ ${res.error}`)
