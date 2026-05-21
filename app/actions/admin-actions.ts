@@ -1392,6 +1392,53 @@ export async function deleteProduct(
     }
 }
 
+export async function deleteProducts(
+    productIds: string[],
+    projectSlug: string
+): Promise<{ success: boolean; deleted: number; error?: string }> {
+    try {
+        if (!productIds.length) return { success: true, deleted: 0 }
+        const { resolveClientId } = await import("@/instagram/configs")
+        const clientId = await resolveClientId(projectSlug)
+
+        // Get slugs for storage cleanup
+        const { data: products } = await supabaseAdmin
+            .from("ig_products")
+            .select("id, slug")
+            .eq("client_id", clientId)
+            .in("id", productIds)
+
+        // Delete images from storage
+        if (products && products.length > 0) {
+            for (const p of products) {
+                try {
+                    const { data: files } = await supabaseAdmin.storage
+                        .from("product-images")
+                        .list(clientId, { search: p.slug })
+                    if (files && files.length > 0) {
+                        await supabaseAdmin.storage
+                            .from("product-images")
+                            .remove(files.map(f => `${clientId}/${f.name}`))
+                    }
+                } catch { /* non-critical */ }
+            }
+        }
+
+        // Bulk delete from DB
+        const { error, count } = await supabaseAdmin
+            .from("ig_products")
+            .delete({ count: "exact" })
+            .eq("client_id", clientId)
+            .in("id", productIds)
+
+        if (error) throw error
+        return { success: true, deleted: count || productIds.length }
+    } catch (err: any) {
+        console.error("deleteProducts error:", err?.message || err)
+        return { success: false, deleted: 0, error: err?.message || String(err) }
+    }
+}
+
 export async function uploadProductImage(
     projectSlug: string,
     productId: string,
@@ -1698,51 +1745,59 @@ Vrať POUZE platný JSON pole objektů.`
         // --- Dedup + insert ---
         const { data: existing } = await supabaseAdmin
             .from("ig_products")
-            .select("slug")
+            .select("id, slug, image_urls")
             .eq("client_id", clientId)
 
-        const existingSlugs = new Set((existing || []).map((p: any) => p.slug))
+        const existingBySlug = new Map((existing || []).map((p: any) => [p.slug, p]))
 
-        const newProducts = products.filter(p => p.slug && !existingSlugs.has(p.slug))
+        const newProducts = products.filter(p => p.slug && !existingBySlug.has(p.slug))
 
-        if (newProducts.length === 0) {
-            return { success: true, found: products.length, inserted: 0, images: 0 }
+        let insertedRows: any[] = []
+        if (newProducts.length > 0) {
+            const toInsert = newProducts.map(p => ({
+                client_id: clientId,
+                name: p.name,
+                type: p.type || "product",
+                slug: p.slug.substring(0, 40),
+                price: p.price || null,
+                description: p.description || null,
+                image_urls: [],
+            }))
+
+            const { data, error: insertError } = await supabaseAdmin
+                .from("ig_products")
+                .insert(toInsert)
+                .select("id, slug")
+
+            if (insertError) throw insertError
+            insertedRows = data || []
         }
 
-        const toInsert = newProducts.map(p => ({
-            client_id: clientId,
-            name: p.name,
-            type: p.type || "product",
-            slug: p.slug.substring(0, 40),
-            price: p.price || null,
-            description: p.description || null,
-            image_urls: [],
-        }))
-
-        const { data: insertedRows, error: insertError } = await supabaseAdmin
-            .from("ig_products")
-            .insert(toInsert)
-            .select("id, slug")
-
-        if (insertError) throw insertError
-
         // --- Download and upload product images ---
+        // Build map of products that need images (newly inserted + existing without images)
         let totalImages = 0
+        const sharp = (await import("sharp")).default
 
-        if (insertedRows && insertedRows.length > 0) {
-            const sharp = (await import("sharp")).default
+        const slugToData = new Map<string, { id: string; imageUrl: string }>()
+        for (const p of products) {
+            if (!p.imageUrl || typeof p.imageUrl !== "string" || !p.imageUrl.startsWith("http")) continue
+            const slug = p.slug.substring(0, 40)
 
-            // Build slug → { id, imageUrl } map
-            const slugToData = new Map<string, { id: string; imageUrl: string }>()
-            for (const p of newProducts) {
-                if (p.imageUrl && typeof p.imageUrl === "string" && p.imageUrl.startsWith("http")) {
-                    const row = insertedRows.find((r: any) => r.slug === p.slug.substring(0, 40))
-                    if (row) {
-                        slugToData.set(row.slug, { id: row.id, imageUrl: p.imageUrl })
-                    }
-                }
+            // Check if this is a newly inserted product
+            const newRow = insertedRows.find((r: any) => r.slug === slug)
+            if (newRow) {
+                slugToData.set(slug, { id: newRow.id, imageUrl: p.imageUrl })
+                continue
             }
 
+            // Check if this is an existing product WITHOUT images
+            const existingProduct = existingBySlug.get(slug)
+            if (existingProduct && (!existingProduct.image_urls || existingProduct.image_urls.length === 0)) {
+                slugToData.set(slug, { id: existingProduct.id, imageUrl: p.imageUrl })
+            }
+        }
+
+        if (slugToData.size > 0) {
             console.log(`📷 Downloading images for ${slugToData.size} products...`)
 
             for (const [slug, { id: productId, imageUrl }] of slugToData) {

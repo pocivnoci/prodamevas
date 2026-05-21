@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, getProducts, createProduct, updateProduct, deleteProduct, uploadProductImage, syncConfigProductsToDb, scrapeProductsFromWebsite } from "@/app/actions/admin-actions"
+import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, getProducts, createProduct, updateProduct, deleteProduct, deleteProducts, uploadProductImage, syncConfigProductsToDb, scrapeProductsFromWebsite } from "@/app/actions/admin-actions"
 import { SubscriptionSection } from "./SubscriptionSection"
 
 // ═══════════════════════════════════════════════════════════
@@ -1081,6 +1081,8 @@ function ProductCatalogSection({ projectId }: { projectId: string }) {
     const [scraping, setScraping] = useState(false)
     const [scrapeResult, setScrapeResult] = useState<string | null>(null)
     const [form, setForm] = useState({ name: "", type: "", slug: "", price: "", description: "" })
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+    const [bulkDeleting, setBulkDeleting] = useState(false)
 
     const loadProducts = useCallback(async () => {
         setLoading(true)
@@ -1184,10 +1186,63 @@ function ProductCatalogSection({ projectId }: { projectId: string }) {
                 </div>
             </SectionCard>
 
+            {/* Bulk actions bar */}
+            {products.length > 0 && (
+                <div className="flex items-center justify-between gap-3 bg-[#0a0a0a] border border-white/5 rounded-sm px-4 py-3">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => {
+                                if (selectedIds.size === products.length) setSelectedIds(new Set())
+                                else setSelectedIds(new Set(products.map(p => p.id)))
+                            }}
+                            className="text-[9px] text-white/40 hover:text-white/70 font-bold uppercase tracking-widest transition-colors"
+                        >
+                            {selectedIds.size === products.length ? "Odznačit vše" : "Vybrat vše"}
+                        </button>
+                        {selectedIds.size > 0 && (
+                            <span className="text-[9px] text-white/30">{selectedIds.size} vybráno</span>
+                        )}
+                    </div>
+                    {selectedIds.size > 0 && (
+                        <button
+                            onClick={async () => {
+                                if (!confirm(`Smazat ${selectedIds.size} produktů? Tato akce je nevratná.`)) return
+                                setBulkDeleting(true)
+                                await deleteProducts(Array.from(selectedIds), projectId)
+                                setSelectedIds(new Set())
+                                setBulkDeleting(false)
+                                await loadProducts()
+                            }}
+                            disabled={bulkDeleting}
+                            className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all border border-red-500/20 disabled:opacity-50 whitespace-nowrap"
+                        >
+                            {bulkDeleting ? "Mažu…" : `🗑 Smazat ${selectedIds.size}`}
+                        </button>
+                    )}
+                </div>
+            )}
+
             {/* Product list */}
             {products.map(p => (
-                <div key={p.id} className="bg-[#0f0f0f] border border-white/5 rounded-sm p-5 hover:border-white/10 transition-all">
+                <div key={p.id} className={`bg-[#0f0f0f] border rounded-sm p-5 transition-all ${selectedIds.has(p.id) ? 'border-red-500/30 bg-red-500/5' : 'border-white/5 hover:border-white/10'}`}>
                     <div className="flex items-start gap-4">
+                        {/* Checkbox */}
+                        <label className="flex-shrink-0 flex items-center justify-center w-5 h-16 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={selectedIds.has(p.id)}
+                                onChange={(e) => {
+                                    setSelectedIds(prev => {
+                                        const next = new Set(prev)
+                                        if (e.target.checked) next.add(p.id)
+                                        else next.delete(p.id)
+                                        return next
+                                    })
+                                }}
+                                className="w-3.5 h-3.5 rounded-sm border-white/20 bg-[#050505] accent-red-500 cursor-pointer"
+                            />
+                        </label>
+
                         {/* Thumbnail */}
                         <div className="w-16 h-16 flex-shrink-0 bg-[#050505] border border-white/10 rounded-sm overflow-hidden flex items-center justify-center">
                             {p.image_urls?.length > 0 ? (
