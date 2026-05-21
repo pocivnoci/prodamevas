@@ -17,6 +17,7 @@ const VALID_TAGS = [
     "pool", "restaurant", "team", "product", "logo", "food", "nature",
     "detail", "lobby", "garden", "terrace", "parking", "view", "sport",
     "wellness", "bar", "conference", "office", "shop", "warehouse",
+    "people", "event", "branding", "packaging", "drink",
 ] as const
 
 /**
@@ -34,10 +35,28 @@ export async function tagBrandImage(
 
         const ai = new GoogleGenAI({ apiKey })
 
-        const prompt = `Analyzuj tento obrázek značky${brandName ? ` "${brandName}"` : ""}.
+        const prompt = `Analyzuj tento obrázek${brandName ? ` značky "${brandName}"` : ""}.
 
 1. Popiš jednou krátkou větou v češtině co přesně je na obrázku (max 15 slov).
-2. Přiřaď 1-3 tagy z tohoto seznamu: ${VALID_TAGS.join(", ")}
+2. Přiřaď 1-3 tagy z tohoto seznamu:
+
+DOSTUPNÉ TAGY:
+- exterior: venkovní záběr budovy, fasáda, vchod
+- interior: vnitřní prostor, pokoj, místnost
+- bedroom/bathroom/kitchen/living: konkrétní místnosti
+- pool/garden/terrace/parking: venkovní areál
+- restaurant/bar/lobby: stravovací a společné prostory
+- shop/warehouse/office/conference: pracovní prostory
+- product: záběr na konkrétní produkt, zboží, výrobek
+- packaging: balení, krabice, obal produktu
+- food/drink: jídlo nebo nápoj
+- logo/branding: logo značky, vizuální identita
+- team/people: lidé, zaměstnanci, zákazníci, skupinové foto
+- event: akce, událost, slavnostní příležitost
+- nature: příroda, krajina, exteriér bez budov
+- detail: detail, textura, macro záběr
+- view: výhled, panorama
+- sport/wellness: sportovní nebo wellness aktivity
 
 Odpověz PŘESNĚ v tomto formátu (nic jiného):
 POPIS: [popis]

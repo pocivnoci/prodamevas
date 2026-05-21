@@ -421,35 +421,60 @@ export async function reviseProduct(
         const { ai } = await import("@/instagram/gemini-client")
 
         const brandName = config.name || configName
-        const brandVoice = (config as any).brandVoice || ""
+        const bv = config.brandVoice || {} as any
+
+        // Existing products for naming consistency
+        const existingProducts = config.products?.slice(0, 8)
+            .map(p => `- ${p.name} (${p.type})`)
+            .join("\n") || "Žádné"
 
         // 3. Build revision prompt
-        const prompt = `Jsi produktový copywriter pro značku "${brandName}".
+        const prompt = `Jsi produktový stratég a copywriter pro značku "${brandName}" (${config.website || ""}).
 
-Tón značky: ${brandVoice}
+## BRAND PERSONA
+${bv.persona || "Profesionální a kreativní přístup."}
 
-PŮVODNÍ PRODUKT:
+## VOICE TRAITS
+${(bv.voiceTraits || []).map((t: string) => `- ${t}`).join("\n") || "- Autentický"}
+
+## STÁVAJÍCÍ PRODUKTY (pro konzistenci pojmenování)
+${existingProducts}
+
+## PŮVODNÍ PRODUKT:
 Název: ${original.name}
+Typ: ${original.type}
+Tagline: "${original.tagline}"
 Popis: ${original.description}
-Tagline: ${original.tagline}
+Materiál: ${original.material || "neuvedeno"}
+Cenový rozsah: ${original.price_range || "neuvedeno"}
 Varianty: ${(original.variants || []).join(", ")}
 Zpráva pro dodavatele: ${original.supplier_message}
 
-FEEDBACK OD KLIENTA:
+## FEEDBACK OD KLIENTA:
 "${feedback}"
 
-Přepiš produkt podle feedbacku. Zachovej typ produktu (${original.type}).
-Vrať PŘESNĚ tento JSON (nic jiného):
+## INSTRUKCE:
+1. Přepiš produkt PŘESNĚ podle feedbacku — ale zachovej brand identitu
+2. Název musí být kreativní a brandový — konzistentní se stávajícími produkty
+3. Tagline: max 8 slov, chytlavý, zapamatovatelný
+4. Popis: 2-3 věty, přesný, prodejní
+5. Varianty: 3-5 realistických variant (barvy/materiály/velikosti)
+6. Zpráva pro dodavatele: VŽDY v angličtině, profesionální, konkrétní
+7. Zachovej typ produktu (${original.type}) pokud feedback neříká jinak
+8. Design prompt: aktualizovaný anglický prompt pro AI image generator
+
+## VÝSTUP — vrať POUZE validní JSON:
 {
   "name": "název produktu",
-  "tagline": "tagline",
-  "description": "popis produktu (2-3 věty)",
-  "variants": ["varianta 1", "varianta 2"],
-  "supplierMessage": "zpráva pro dodavatele v angličtině"
+  "tagline": "tagline max 8 slov",
+  "description": "popis produktu (2-3 věty, česky)",
+  "variants": ["varianta 1", "varianta 2", "varianta 3"],
+  "supplierMessage": "professional English message for supplier",
+  "designPrompt": "Updated English prompt for AI image generator — describe the revised product visually. Product photography, studio lighting, dark background."
 }`
 
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash-lite",
+            model: "gemini-3.5-flash",
             contents: prompt,
             config: { responseMimeType: "application/json" },
         })
@@ -461,6 +486,7 @@ Vrať PŘESNĚ tento JSON (nic jiného):
             description: string
             variants: string[]
             supplierMessage: string
+            designPrompt?: string
         }
         try {
             parsed = JSON.parse(text.replace(/```json|```/g, "").trim())
@@ -469,16 +495,19 @@ Vrať PŘESNĚ tento JSON (nic jiného):
         }
 
         // 4. Update in-place
+        const updateData: Record<string, any> = {
+            name: parsed.name,
+            tagline: parsed.tagline,
+            description: parsed.description,
+            variants: parsed.variants,
+            supplier_message: parsed.supplierMessage,
+            feedback: feedback,
+        }
+        if (parsed.designPrompt) updateData.design_prompt = parsed.designPrompt
+
         const { error: updateErr } = await supabaseAdmin
             .from("ig_product_ideas")
-            .update({
-                name: parsed.name,
-                tagline: parsed.tagline,
-                description: parsed.description,
-                variants: parsed.variants,
-                supplier_message: parsed.supplierMessage,
-                feedback: feedback,
-            })
+            .update(updateData)
             .eq("id", ideaId)
 
         if (updateErr) throw updateErr

@@ -247,32 +247,41 @@ export async function createPromoPost(options: {
         console.log(`📝 Generuji promo caption pro "${options.ideaName}"...`)
         const { generateText } = await import("@/instagram/gemini-client")
 
-        const captionPrompt = `Jsi copywriter pro značku ${config.name} (${config.website}).
+        const captionPrompt = `Jsi senior copywriter pro značku "${config.name}" (${config.website}).
 Napiš prodejní Instagram caption pro NOVÝ PRODUKT.
 
-PRODUKT:
+## PRODUKT:
 - Název: ${options.ideaName}
 - Typ: ${options.ideaType}
 - Tagline: "${options.ideaTagline}"
 - Popis: ${options.ideaDescription}
 ${options.ideaPriceRange ? `- Cena: ${options.ideaPriceRange}` : ""}
 
-BRAND VOICE:
+## BRAND VOICE:
 ${config.brandVoice.persona}
+Tón: ${config.brandVoice.voiceTraits?.slice(0, 4).join(", ") || "autenticky"}
 
-PRAVIDLA:
-- Hook (první řádek) musí okamžitě zaujmout — max 10 slov
-- Body: 2-3 řádky popisující produkt, proč je unikátní
-- CTA: odkaz na eshop nebo "link v biu"
-- Max 5 hashtagů relevantních pro produkt
+## ZAKÁZÁNO:
+${config.brandVoice.antiPatterns?.slice(0, 5).map((p: string) => `- ${p}`).join("\n") || "- Generické fráze"}
+
+## PRAVIDLA:
+- Hook (první řádek) musí okamžitě zaujmout — max 10 slov, BEZ emoji
+- Body: 2-3 řádky popisující produkt, proč je unikátní, co zákazník získá
+- CTA: musí obsahovat ${config.website} — buď přímý odkaz nebo "🔗 ${config.website}"
 - Piš ${config.brandVoice.voiceTraits?.slice(0, 3).join(", ") || "autenticky a přirozeně"}
-- ŽÁDNÉ emoji spam, max 3 emoji celkem
+- MAX 3 emoji v celém textu
+- NIKDY nepřekládej název produktu do češtiny pokud je anglicky
 
-Odpověz POUZE v tomto JSON formátu:
+${config.hashtagPools ? `## HASHTAG POOLS (vyber z těchto + přidej product-specific):
+- Core: ${config.hashtagPools.core?.slice(0, 5).join(", ") || ""}
+- Niche: ${config.hashtagPools.niche?.slice(0, 5).join(", ") || ""}
+Použij 5-8 hashtagů: mix core + niche + 1-2 specifické pro tento produkt.` : "Max 5-8 relevantních hashtagů."}
+
+## VÝSTUP — vrať POUZE validní JSON:
 {
-  "hook": "první řádek - zaujme",
+  "hook": "první řádek - zaujme, max 10 slov",
   "body": "2-3 řádky o produktu",
-  "cta": "call to action",
+  "cta": "call to action s odkazem na ${config.website}",
   "hashtags": ["#tag1", "#tag2", "#tag3"]
 }`
 

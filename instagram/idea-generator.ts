@@ -9,34 +9,69 @@ export async function generateAIIdeas(config: ClientConfig, pillarId: string, co
     if (!pillar) throw new Error(`Pillar ${pillarId} not found in config.`)
 
     // 2. Build prompt
+    const productsSection = config.products?.length
+        ? `\n## PRODUKTY ZNAČKY\n${config.products.slice(0, 8).map(p => `- ${p.name} (${p.type})${p.price ? ` — ${p.price}` : ""}`).join("\n")}\nNápady mohou být propojené s konkrétními produkty.\n`
+        : ""
+
+    const personaSection = config.audiencePersonas?.length
+        ? `\n## CÍLOVÁ SKUPINA\n${config.audiencePersonas.map(p => `- ${p.label} (${p.ageRange} let): ${p.painPoints.slice(0, 2).join(", ")}`).join("\n")}\n`
+        : ""
+
     const prompt = `
 Jsi hlavní kreativec a stratég pro značku "${config.name}".
 Tvým úkolem je vymyslet nové, dosud nepoužité nápady na příspěvky (Ideas) pro obsahový pilíř "${pillar.label}" (${pillar.emoji}).
 
-ZDE JE BRAND VOICE NAŠÍ ZNAČKY:
+## BRAND VOICE
 ${config.brandVoice?.persona || ""}
 Hodnoty: ${config.brandVoice?.values?.join(", ") || ""}
+Tón: ${config.brandVoice?.voiceTraits?.slice(0, 4).join(", ") || ""}
 
-SPECIFIKACE PILÍŘE (CO MÁ BÝT OBSAHEM):
+## ZAKÁZÁNO
+${config.brandVoice?.antiPatterns?.slice(0, 5).join("\n") || ""}
+
+## SPECIFIKACE PILÍŘE
 ${pillar.ideaPrompt || pillar.description || ""}
-
-POŽADAVKY:
-- Vygeneruj přesně ${count} odlišných, atraktivních nápadů.
-- Každý nápad by měl mít chytlavý 'title', detailní 'content' (o čem to přesně bude) a pole 'keywords'.
-- Vrať striktně čisté JSON pole s objekty typu: {"title": string, "content": string, "keywords": string[]}.
-- Žádný markdown text attorno (bez \`\`\`json).
+Typy postů: ${pillar.postTypes?.join(", ") || ""}
+${productsSection}${personaSection}
+## POŽADAVKY:
+- Vygeneruj přesně ${count} odlišných, atraktivních nápadů
+- Každý nápad musí mít chytlavý 'title', detailní 'content' (o čem to přesně bude) a pole 'keywords'
+- Nápady musí být specifické pro "${config.name}" — ne generické "tipy pro podnikání"
+- Střídej formáty: edukativní, zábavné, prodejní, behind-the-scenes
 `
+
+    const ideasSchema = {
+        type: "object",
+        properties: {
+            ideas: {
+                type: "array",
+                items: {
+                    type: "object",
+                    properties: {
+                        title: { type: "string" },
+                        content: { type: "string" },
+                        keywords: { type: "array", items: { type: "string" } },
+                    },
+                    required: ["title", "content", "keywords"],
+                },
+            },
+        },
+        required: ["ideas"],
+    }
+
     // 3. Call Gemini
     console.log(`💡 Generuji AI Nápady (${count}x) pro kategorii: ${pillarId}...`)
-    const resultJson = await generateText(prompt)
+    const resultJson = await generateText(prompt, { responseSchema: ideasSchema })
 
-    let ideasPayload: any[] = []
+    let ideasPayload: any[]
     try {
-        ideasPayload = JSON.parse(resultJson)
+        const parsed = JSON.parse(resultJson)
+        ideasPayload = parsed.ideas || parsed
     } catch {
         const cleaned = resultJson.replace(/```json/gi, "").replace(/```/g, "").trim()
         try {
-            ideasPayload = JSON.parse(cleaned)
+            const parsed = JSON.parse(cleaned)
+            ideasPayload = parsed.ideas || parsed
         } catch (err: any) {
             throw new Error(`Failed to parse AI output as JSON: ${err.message}`)
         }

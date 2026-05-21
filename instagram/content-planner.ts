@@ -92,6 +92,11 @@ export async function planWeek(
 Jsi content strategist pro značku "${config.name}" (${(config as any).industry || "business"}).
 Web: ${config.website} | IG: ${config.instagram}
 
+## BRAND PERSONA
+${config.brandVoice?.persona || ""}
+${config.contentFocus ? `Zaměření: ${config.contentFocus}` : ""}
+
+${config.products?.length ? `## PRODUKTY (${config.products.length})\n${config.products.slice(0, 8).map(p => `- ${p.name} (${p.type})${p.price ? ` — ${p.price}` : ""}`).join("\n")}\n` : ""}
 ## TENTO TÝDEN:
 ${calendarSection}
 

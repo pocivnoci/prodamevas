@@ -354,17 +354,31 @@ POPIS: ${info.description}
 PRODUKTY/SLUŽBY: ${info.products}
 TÓN KOMUNIKACE: ${info.tone}
 
+## PŘÍKLADY BAREV PODLE ODVĚTVÍ (inspiruj se, ale přizpůsob):
+- Restaurace/café: teplé tóny (burgundy #722F37, golden #C9A96E, olive #5C6B3C)
+- Tech/SaaS: moderní (deep blue #1A237E, electric #00BCD4, slate #334155)
+- Fashion/lifestyle: luxusní (nude #D4A574, rose #C77A8B, charcoal #2D2D2D)
+- Wellness/beauty: jemné (sage #9CAF88, lavender #B39DDB, soft pink #F5C6D0)
+- Sport/fitness: energické (crimson #DC2626, neon green #22C55E, midnight #0F172A)
+- Služby/B2B: profesionální (navy #1E3A5F, steel #6B7280, amber #F59E0B)
+
+## INSTRUKCE:
+- USP: musí být SPECIFICKÉ a AKCIONOVATELNÉ — ne "kvalitní služby", ale "24h dodání do celé ČR" nebo "ruční výroba z českého dřeva"
+- Barvy: SYTÉ, VÝRAZNÉ — musí vyniknout v Instagram feedu. Gradient: topColor=nejtmavší, bottomColor=nejsvětlejší
+- Font: "BebasNeue" pro drzé/bold brandy, "Inter" pro elegantní/profesionální
+- VisualFeel: konkrétní (ne "moderní a čistý", ale "tmavý industriální s neon akcenty")
+- BrandTone: přesný popis (ne "přátelský", ale "drzý, hravý s dávkou sarkasmu")
+
 Vrať JSON:
 {
-  "uniqueSellingPoints": ["... (3-5 USP odvozených z popisu)"],
+  "uniqueSellingPoints": ["... (3-5 USP — specifické, ne generické)"],
   "recommendedFont": "Inter" nebo "BebasNeue",
-  "overlayGradient": {"topColor": "#hex", "midColor": "#hex", "bottomColor": "#hex"},
-  "visualFeel": "1 věta popisující vizuální styl feed",
+  "overlayGradient": {"topColor": "#hex tmavý", "midColor": "#hex střední", "bottomColor": "#hex světlejší"},
+  "visualFeel": "1 věta popisující vizuální styl feed — buď konkrétní",
   "colors": {"primary": "#hex", "secondary": "#hex", "accent": "#hex"},
-  "brandTone": "detailnější popis tónu (2-3 slova)"
+  "brandTone": "2-3 slova přesně popisující tón"
 }
 
-Barvy a gradient MUSÍ odpovídat kategorii a tónu. Nesmí být černé/šedé — musí odrážet brand!
 Vrať POUZE platný JSON.`
 
         const enrichSchema = {

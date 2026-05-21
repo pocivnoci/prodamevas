@@ -5,40 +5,73 @@ import supabaseAdmin from "../supabase/admin"
 
 export async function generateAIReviews(config: ClientConfig, count: number = 5) {
     // 1. Build prompt
+    const productsSection = config.products?.length
+        ? `\n## PRODUKTY/SLUŽBY (recenze MUSÍ zmiňovat KONKRÉTNÍ produkty)\n${config.products.slice(0, 8).map(p => `- ${p.name} (${p.type})${p.price ? ` — ${p.price}` : ""}`).join("\n")}\n`
+        : ""
+
+    const personaSection = config.audiencePersonas?.length
+        ? `\n## TYPY ZÁKAZNÍKŮ (každá recenze by měla být od jiného segmentu)\n${config.audiencePersonas.map(p => `- ${p.label} (${p.ageRange} let) — ${p.ctaStyle === "hard" ? "kupuje hned" : p.ctaStyle === "medium" ? "porovnává" : "jen se dívá"}`).join("\n")}\n`
+        : ""
+
     const prompt = `
-Jsi copywriter pro značku "${config.name}".
+Jsi copywriter pro značku "${config.name}" (${config.website || ""}).
 Tvým úkolem je vymyslet vysoce uvěřitelné a autenticky znějící zákaznické recenze, které přesně odrážejí styl, slang a komunitu této značky.
 
-ZDE JE BRAND VOICE NAŠÍ ZNAČKY:
+## BRAND VOICE
 ${config.brandVoice?.persona || ""}
 Hodnoty: ${config.brandVoice?.values?.join(", ") || ""}
+Tón: ${config.brandVoice?.voiceTraits?.slice(0, 3).join(", ") || ""}
+${productsSection}${personaSection}
+## TYPICKÁ CÍLOVÁ SKUPINA A PRODUKTY:
+- Zaměř se na recenze ohledně KONKRÉTNÍCH produktů/služeb z katalogu výše
+- Tón a slang recenzí MUSÍ odpovídat brand voice — pokud je značka neformální, recenze budou hovorové
+- Recenze musí znít jako od REÁLNÝCH zákazníků — s drobnými nedokonalostmi, zkratkami, emocemi
+- Každá recenze by měla být od JINÉHO typu zákazníka (věk, styl, motivace)
 
-TYPICKÁ CÍLOVÁ SKUPINA A PRODUKTY:
-- Zaměř se na recenze ohledně typických produktů/služeb, které tato značka nabízí.
-- Tón a slang recenzí MUSÍ odpovídat brand voice výše — pokud je značka neformální, recenze budou hovorové. Pokud formální, recenze budou profesionální.
-- Recenze musí znít jako od REÁLNÝCH zákazníků této konkrétní značky.
-
-POŽADAVKY:
-- Vygeneruj přesně ${count} odlišných, autentických recenzí.
+## POŽADAVKY:
+- Vygeneruj přesně ${count} odlišných, autentických recenzí
 - Každá recenze musí obsahovat:
   - 'customer_name' (Jméno nebo přezdívka, např. "Tomáš D.", "Kiki99")
   - 'customer_initials' (iniciály, např. "TD")
-  - 'quote' (samotný text recenze)
+  - 'quote' (samotný text recenze — zmíň KONKRÉTNÍ produkt/službu)
   - 'rating' (číslo 4 nebo 5)
   - 'source' (kde recenzi napsali - "instagram", "web", "email", nebo "dm")
-- Vrať striktně čisté JSON pole s těmito objekty. Žádný text okolo, žádné markdown \`\`\`json.
 `
+
+    const reviewsSchema = {
+        type: "object",
+        properties: {
+            reviews: {
+                type: "array",
+                items: {
+                    type: "object",
+                    properties: {
+                        customer_name: { type: "string" },
+                        customer_initials: { type: "string" },
+                        quote: { type: "string" },
+                        rating: { type: "number" },
+                        source: { type: "string" },
+                    },
+                    required: ["customer_name", "customer_initials", "quote", "rating", "source"],
+                },
+            },
+        },
+        required: ["reviews"],
+    }
+
     // 2. Call Gemini
     console.log(`⭐ Generuji AI Recenze (${count}x) pro klienta ${config.id}...`)
-    const resultJson = await generateText(prompt)
+    const resultJson = await generateText(prompt, { responseSchema: reviewsSchema })
 
-    let reviewsPayload: any[] = []
+    let reviewsPayload: any[]
     try {
-        reviewsPayload = JSON.parse(resultJson)
+        const parsed = JSON.parse(resultJson)
+        reviewsPayload = parsed.reviews || parsed
     } catch {
         const cleaned = resultJson.replace(/```json/gi, "").replace(/```/g, "").trim()
         try {
-            reviewsPayload = JSON.parse(cleaned)
+            const parsed = JSON.parse(cleaned)
+            reviewsPayload = parsed.reviews || parsed
         } catch (err: any) {
             throw new Error(`Failed to parse AI output as JSON: ${err.message}`)
         }

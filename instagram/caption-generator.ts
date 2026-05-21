@@ -566,8 +566,15 @@ export async function scorePost(
     }
 
     const scorePrompt = `
-Jsi prisny Instagram content reviewer pro znacku ${config.name} (${config.website}).
+Jsi prisny Instagram content reviewer pro znacku "${config.name}" (${config.website}).
 IG handle: ${config.instagram}
+
+## BRAND VOICE (post MUSI odpovidat):
+${config.brandVoice.persona ? `Persona: ${config.brandVoice.persona.substring(0, 200)}` : ""}
+Tón: ${config.brandVoice.voiceTraits?.slice(0, 4).join(", ") || "autentický"}
+
+## ANTI-PATTERNS (post NESMI obsahovat):
+${config.brandVoice.antiPatterns?.slice(0, 5).join(", ") || "generické fráze"}
 
 ## POST${postTypeName ? ` (typ: ${postTypeName})` : ""}:
 Hook: "${captionData.hook}"
@@ -577,10 +584,11 @@ Hashtags: ${captionData.hashtags.join(", ")}
 
 ## KRITERIA:
 1. **Hook (0-3 body):** Zastavi scrollovani? Kratky (max 15 slov)? Bez emoji?
-2. **Relevance (0-2 body):** Odpovida brand voice?
-3. **Originalita (0-2 body):** Nepusobi genericky?
+2. **Relevance (0-2 body):** Odpovida brand voice a persone vyse?
+3. **Originalita (0-2 body):** Nepusobi genericky? Nepouziva anti-patterns?
 4. **CTA (0-1 bod):** Obsahuje ${config.website}?
-5. **Celkovy dojem (0-2 body):** Zverejnil bys to?${carouselCriteria}
+5. **Brand compliance (0-1 bod):** Sedi ton k voice traits? Neporusuje anti-patterns?${carouselCriteria}
+6. **Celkovy dojem (0-1 bod):** Zverejnil bys to jako brand manager?
 
 ## VYSTUP — vrat POUZE validni JSON s touto strukturou:
 {

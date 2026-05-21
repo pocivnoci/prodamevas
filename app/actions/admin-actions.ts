@@ -1011,33 +1011,67 @@ export async function revisePost(
             .single()
 
         const config = clientData?.config || {}
-        const brandVoice = config.brandVoice || ""
+        const bv = config.brandVoice || {}
         const brandName = config.name || projectSlug
         const postTypeName = original.ig_post_types?.display_name || "Instagram příspěvek"
+        const postTypeSlug = original.ig_post_types?.name || ""
+
+        // Resolve linked product if any
+        let productSection = ""
+        if (original.product_id) {
+            const { data: product } = await supabaseAdmin
+                .from("ig_products")
+                .select("name, slug, price, description")
+                .eq("id", original.product_id)
+                .single()
+            if (product) {
+                productSection = `\n## PRODUKT V PŘÍSPĚVKU\nNázev: ${product.name}\nCena: ${product.price || "neuvedena"}\nPopis: ${product.description || ""}\nURL: ${config.website}/p/${product.slug}\n⚠️ Pokud feedback nemění produkt, zachovej odkaz na ${config.website}/p/${product.slug} v CTA.\n`
+            }
+        }
+
+        // Hashtag pool instructions
+        const hashtagSection = config.hashtagPools
+            ? `\n## HASHTAG POOLS (vyber z těchto):\n- Core: ${config.hashtagPools.core?.join(", ") || ""}\n- Niche: ${config.hashtagPools.niche?.slice(0, 5).join(", ") || ""}\n- Broad: ${config.hashtagPools.broad?.slice(0, 4).join(", ") || ""}\nPoužij 8-10 hashtagů, mix core + niche + relevantní z originálu.\n`
+            : ""
 
         // 3. Build revision prompt
-        const prompt = `Jsi copywriter pro značku "${brandName}".
+        const prompt = `Jsi senior copywriter pro značku "${brandName}" (${config.website || ""}).
 
-Tón značky: ${brandVoice}
-Typ příspěvku: ${postTypeName}
+## BRAND PERSONA
+${bv.persona || "Profesionální a přátelský tón."}
 
-PŮVODNÍ CAPTION:
+## VOICE TRAITS
+${(bv.voiceTraits || []).map((t: string) => `- ${t}`).join("\n") || "- Autentický a přirozený"}
+
+## ZAKÁZÁNO (NIKDY NEPOUŽÍVEJ)
+${(bv.antiPatterns || []).map((p: string) => `- ${p}`).join("\n") || "- Generické fráze, emoji spam"}
+
+## TYP PŘÍSPĚVKU: ${postTypeName}
+${productSection}
+## PŮVODNÍ CAPTION:
 ${original.caption}
 
-HASHTAGY: ${(original.hashtags || []).join(" ")}
-
-FEEDBACK OD KLIENTA:
+## PŮVODNÍ HASHTAGY: ${(original.hashtags || []).join(" ")}
+${hashtagSection}
+## FEEDBACK OD KLIENTA:
 "${feedback}"
 
-Přepiš caption a hashtags podle feedbacku. Zachovej tón a styl značky.
-Vrať PŘESNĚ tento JSON (nic jiného):
+## INSTRUKCE:
+1. Přepiš caption PŘESNĚ podle feedbacku — ale zachovej brand voice a styl
+2. Hook (první řádek) musí stále zastavit scrollování — max 15 slov, bez emoji
+3. CTA musí směřovat na ${config.website || "web značky"}
+4. Zachovej strukturu: hook → body → CTA → hashtags
+5. Pokud feedback říká "zkrátit" — zkrať. Pokud "přidat humor" — přidej. Buď DOSLOVNÝ.
+6. NIKDY nepřekládej anglické názvy produktů/kolekcí do češtiny
+
+## VÝSTUP — vrať POUZE validní JSON:
 {
-  "caption": "nový text příspěvku",
-  "hashtags": ["hashtag1", "hashtag2", ...]
+  "caption": "kompletní nový text příspěvku (hook + body + CTA)",
+  "hashtags": ["#hashtag1", "#hashtag2", "..."]
 }`
 
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash-lite",
+            model: "gemini-3.5-flash",
             contents: prompt,
             config: { responseMimeType: "application/json" },
         })
@@ -1225,6 +1259,9 @@ Tón: ${config.brandVoice.voiceTraits?.join(", ")}
 
 ## ANTI-PATTERNS (NEPOUŽÍVEJ)
 ${config.brandVoice.antiPatterns?.join(", ")}
+
+${config.products?.length ? `## PRODUKTY ZNAČKY (${config.products.length})\n${config.products.slice(0, 10).map(p => `- **${p.name}** (${p.type})${p.price ? ` — ${p.price}` : ""}${p.description ? `: ${p.description.substring(0, 60)}` : ""}`).join("\n")}\n⚠️ Pro posty typu product_drop/produkt MUSÍŠ zmínit KONKRÉTNÍ produkt z tohoto seznamu v hooku!\n` : ""}
+${config.audiencePersonas?.length ? `## CÍLOVÉ PERSONY\n${config.audiencePersonas.map(p => `- **${p.label}** (${p.ageRange} let): Pain points: ${p.painPoints.slice(0, 2).join(", ")}`).join("\n")}\n` : ""}
 ${topicInstruction}
 
 ## SEKVENCE POSTŮ (strategicky sestavená):
@@ -1235,6 +1272,7 @@ ${typeList}
 - Hooky musí zastavit scrollování — provokativní, překvapivé, kontroverzní
 - Posty v sérii na sebe NAVAZUJÍ — budují příběh, ne náhodné izolované posty
 - ${count > 14 ? "Rozděl do týdnů — každý týden má vlastní mini-téma" : "Posty by měly mít logický flow"}
+- Pro product posty: hook MUSÍ zmínit konkrétní produkt/službu
 - Piš česky, moderní hovorovou češtinou
 
 ## VÝSTUP
@@ -1292,17 +1330,46 @@ export async function regeneratePlanItem(
 ): Promise<{ success: boolean; item?: { hookPreview: string; angle: string; topic: string }; error?: string }> {
     try {
         const { loadConfig } = await import("@/instagram/configs")
+        const { getPillarForType } = await import("@/instagram/service")
         const config = await loadConfig(projectSlug)
 
-        const prompt = `Jsi content planner pro "${config.name}" (${config.website}).
+        // Build pillar context for this post type
+        const pillar = getPillarForType(config, postType)
+        const pillarCfg = config.contentPillars[pillar]
+        const pillarSection = pillarCfg
+            ? `## PILÍŘ: ${pillarCfg.emoji} ${pillarCfg.label}\n${pillarCfg.description || ""}\nCíl: ${pillarCfg.ctaStrategy === "hard" ? "PRODEJ" : pillarCfg.ctaStrategy === "medium" ? "HODNOTA" : pillarCfg.ctaStrategy === "soft" ? "DOSAH" : "KOMUNITA"}\n`
+            : ""
 
+        const productsSection = config.products?.length
+            ? `## PRODUKTY (${config.products.length})\n${config.products.slice(0, 6).map(p => `- ${p.name} (${p.type})${p.price ? ` — ${p.price}` : ""}`).join("\n")}\n`
+            : ""
+
+        const prompt = `Jsi content stratég pro "${config.name}" (${config.website}).
+
+## BRAND PERSONA
+${config.brandVoice.persona || ""}
+
+## VOICE TRAITS
+${config.brandVoice.voiceTraits?.map((t: string) => `- ${t}`).join("\n") || ""}
+
+## ZAKÁZÁNO
+${config.brandVoice.antiPatterns?.slice(0, 5).map((p: string) => `- ${p}`).join("\n") || ""}
+
+${productsSection}
+${pillarSection}
+## ÚKOL
 Vygeneruj JEDEN nový koncept pro post typu "${postType}".
-${userTopic ? `Téma kampaně: "${userTopic}"` : ""}
+${userTopic ? `Téma kampaně: "${userTopic}" — hook MUSÍ souviset s tímto tématem.` : ""}
 
 ## NESMÍŠ OPAKOVAT tyto hooky:
 ${existingHooks.map(h => `- "${h}"`).join("\n")}
 
-Brand voice: ${config.brandVoice.voiceTraits?.join(", ")}
+## PRAVIDLA:
+- Hook musí zastavit scrollování — provokativní, překvapivý, specifický pro "${config.name}"
+- ŽÁDNÉ emoji v hooku
+- Hook max 12 slov, česky
+- Angle musí být konkrétní — ne "zajímavý pohled" ale "srovnání cen s konkurencí"
+- Topic: 3-5 slov shrnující o čem post bude
 
 Vrať POUZE validní JSON:
 { "hookPreview": "český hook max 12 slov BEZ emoji", "angle": "1 věta o přístupu", "topic": "3-5 slov" }`
