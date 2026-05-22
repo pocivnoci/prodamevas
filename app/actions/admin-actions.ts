@@ -1080,7 +1080,10 @@ ${hashtagSection}
 ## VÝSTUP — vrať POUZE validní JSON:
 {
   "caption": "kompletní nový text příspěvku (hook + body + CTA)",
-  "hashtags": ["#hashtag1", "#hashtag2", "..."]
+  "hashtags": ["#hashtag1", "#hashtag2", "..."],
+  "hook": "první řádek captiony — hook text pro overlay na obrázku (max 15 slov, bez emoji)",
+  "imagePrompt": "English prompt for AI image generation — describe the background photo. NO TEXT in image. Photorealistic, editorial quality.",
+  "imageSubtext": "krátký podtext pod hook na obrázku (max 8 slov, česky)"
 }`
 
         const response = await ai.models.generateContent({
@@ -1090,22 +1093,88 @@ ${hashtagSection}
         })
 
         const text = response.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || ""
-        let parsed: { caption: string; hashtags: string[] }
+        let parsed: { caption: string; hashtags: string[]; hook?: string; imagePrompt?: string; imageSubtext?: string }
         try {
             parsed = JSON.parse(text.replace(/```json|```/g, "").trim())
         } catch {
             throw new Error("AI vrátilo neplatný JSON")
         }
 
-        // 4. Save as new draft (non-destructive)
+        // 4. Regenerate image if we have an image prompt
+        let imageUrl = original.image_url
+        let imagePrompt = original.image_prompt
+        const imageStyle = original.image_style
+
+        if (parsed.imagePrompt) {
+            try {
+                const { loadConfig } = await import("@/instagram/configs")
+                const { refineImagePrompt } = await import("@/instagram/image-pipeline")
+                const { generateImage } = await import("@/instagram/gemini-client")
+                const { overlayText } = await import("@/instagram/text-overlay")
+
+                const fullConfig = await loadConfig(projectSlug)
+                const refinedPrompt = await refineImagePrompt(
+                    fullConfig,
+                    { imagePrompt: parsed.imagePrompt, hook: parsed.hook || parsed.caption.split("\n")[0], imageSubtext: parsed.imageSubtext },
+                    postTypeSlug
+                )
+
+                const imageBuffer = await generateImage(refinedPrompt, { aspectRatio: "3:4" as any })
+                console.log(`   ✓ Revised image generated (${(imageBuffer.length / 1024).toFixed(0)} KB)`)
+
+                // Apply text overlay
+                const overlayStyle = imageStyle || "default"
+                const finalImage = await overlayText(imageBuffer, {
+                    headline: parsed.hook || parsed.caption.split("\n")[0],
+                    subtext: parsed.imageSubtext,
+                    variant: overlayStyle as any,
+                    textAlign: fullConfig.feedAesthetic?.textAlign,
+                    headlineScale: fullConfig.feedAesthetic?.headlineScale,
+                    gradientColors: fullConfig.overlayGradient,
+                    logoFile: fullConfig.logoFile,
+                    fontFamily: fullConfig.feedAesthetic?.fontOverride,
+                    accentColor: fullConfig.feedAesthetic?.accentColor,
+                })
+
+                // Compress and upload
+                const sharp = (await import("sharp")).default
+                const compressed = await sharp(finalImage)
+                    .webp({ quality: 90, effort: 6 })
+                    .toBuffer()
+
+                const bucketName = fullConfig.storageBucket || "audit-screenshots"
+                const filename = `ig-posts/${Date.now()}-revised.webp`
+                const { error: uploadError } = await supabaseAdmin.storage
+                    .from(bucketName)
+                    .upload(filename, compressed, {
+                        contentType: "image/webp",
+                        cacheControl: "31536000",
+                    })
+
+                if (!uploadError) {
+                    const { data: publicUrlData } = supabaseAdmin.storage
+                        .from(bucketName)
+                        .getPublicUrl(filename)
+                    imageUrl = publicUrlData.publicUrl
+                    imagePrompt = refinedPrompt
+                    console.log(`   ✓ Revised image uploaded: ${imageUrl}`)
+                } else {
+                    console.warn(`   ⚠️ Revised image upload failed:`, uploadError.message)
+                }
+            } catch (imgErr: any) {
+                console.warn(`   ⚠️ Image regeneration failed (keeping original):`, imgErr.message?.substring(0, 100))
+            }
+        }
+
+        // 5. Save as new draft (non-destructive)
         const { data: newPost, error: insertErr } = await supabaseAdmin
             .from("ig_posts")
             .insert({
                 client_id: clientId,
                 caption: parsed.caption,
                 hashtags: parsed.hashtags,
-                image_url: original.image_url,   // reuse existing image
-                image_prompt: original.image_prompt,
+                image_url: imageUrl,
+                image_prompt: imagePrompt,
                 image_style: original.image_style,
                 post_type_id: original.post_type_id,
                 content_pillar: original.content_pillar,

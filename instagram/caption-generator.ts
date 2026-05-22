@@ -49,14 +49,14 @@ export function getPostFormat(config: ClientConfig, typeName: string): PostForma
 
 // ─── Smart Overlay Rotation ─────────────────────────────────
 
-type ImageOverlayStyle = "default" | "centered" | "top" | "split" | "full-typo" | "editorial"
+type ImageOverlayStyle = "default" | "centered" | "top" | "split" | "editorial"
 
 /** Map post type name patterns to suitable overlay layouts */
 const OVERLAY_POOLS: { pattern: RegExp; styles: ImageOverlayStyle[] }[] = [
     // Educational/how-to → structured layouts
     { pattern: /tip|how_to|edukace|navod|tutorial|hack/i, styles: ["split", "top", "editorial"] },
     // Meme/humor → bold, impactful
-    { pattern: /meme|humor|vtip|quote/i, styles: ["centered", "editorial", "full-typo"] },
+    { pattern: /meme|humor|vtip|quote/i, styles: ["centered", "editorial"] },
     // Product/sales → classic with product visible
     { pattern: /product|produkt|drop|limitka|nabidka/i, styles: ["default", "split"] },
     // Engagement/question → attention-grabbing
@@ -66,7 +66,7 @@ const OVERLAY_POOLS: { pattern: RegExp; styles: ImageOverlayStyle[] }[] = [
     // Review/testimonial → clean readability
     { pattern: /recenze|review|testimonial/i, styles: ["split", "editorial", "centered"] },
     // Stats/data → bold typography
-    { pattern: /stat|data|cisla|numbers/i, styles: ["full-typo", "centered", "editorial"] },
+    { pattern: /stat|data|cisla|numbers/i, styles: ["centered", "editorial"] },
 ]
 
 /** All available styles for fallback rotation */

@@ -514,6 +514,16 @@ export async function overlayText(
         )
         const headlineMeta = await sharp(headlineImage).metadata()
         const headlineW = headlineMeta.width || textAreaWidth
+        const headlineActualH = headlineMeta.height || prelimHeadlineH
+
+        // Recalculate subtextY if actual headline is taller than prelim estimate
+        if (subtext && headlineActualH > prelimHeadlineH) {
+            const gap = Math.round(width * 0.02)
+            layout.subtextY = Math.max(
+                layout.subtextY,
+                layout.headlineY + headlineActualH + gap
+            )
+        }
 
         // ─── Layer 7: Subtext ───
         let subtextImage: Buffer | null = null
