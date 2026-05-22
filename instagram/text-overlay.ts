@@ -76,7 +76,9 @@ interface TextOverlayOptions {
     headline: string
     subtext?: string
     slideInfo?: { current: number; total: number }
-    variant?: "default" | "cover" | "step"
+    variant?: "default" | "cover" | "step" | "centered" | "top" | "split" | "full-typo" | "editorial"
+    /** Text alignment override (default: "center") */
+    textAlign?: "left" | "center" | "right"
     width?: number
     height?: number
     /** Gradient colors for brand overlay (default: dark neutral) */
@@ -91,6 +93,102 @@ interface TextOverlayOptions {
     accentWords?: string[]
     /** Headline size multiplier (default: 1.0). BebasNeue auto-scales to 1.25 if not set. */
     headlineScale?: number
+}
+
+// ─── Layout Engine ──────────────────────────────────────────
+
+interface LayoutPositions {
+    headlineY: number
+    subtextY: number
+    headlineAlign: "left" | "center" | "right"
+    /** Gradient direction: controls where the darkening is strongest */
+    gradientMode: "bottom" | "top" | "full"
+    /** Font scale multiplier applied on top of base size */
+    fontScale: number
+}
+
+function calculateLayout(
+    variant: string,
+    width: number,
+    height: number,
+    headlineH: number,
+    subtextH: number,
+    opts: TextOverlayOptions
+): LayoutPositions {
+    const padding = Math.round(width * 0.06)
+    const gap = Math.round(width * 0.02)
+    const bottomPadding = Math.round(width * 0.08)
+    const align = opts.textAlign || "center"
+    const userScale = opts.headlineScale || 1.0
+
+    switch (variant) {
+        case "centered": {
+            const totalH = headlineH + (subtextH ? gap + subtextH : 0)
+            return {
+                headlineY: Math.round((height - totalH) / 2),
+                subtextY: Math.round((height - totalH) / 2 + headlineH + gap),
+                headlineAlign: align,
+                gradientMode: "full",
+                fontScale: userScale * 1.1,
+            }
+        }
+        case "top": {
+            const topPad = Math.round(height * 0.12)
+            return {
+                headlineY: topPad,
+                subtextY: topPad + headlineH + gap,
+                headlineAlign: align,
+                gradientMode: "top",
+                fontScale: userScale,
+            }
+        }
+        case "split": {
+            return {
+                headlineY: Math.round(height * 0.40 - headlineH / 2),
+                subtextY: height - bottomPadding - subtextH,
+                headlineAlign: align,
+                gradientMode: "full",
+                fontScale: userScale * 1.05,
+            }
+        }
+        case "full-typo": {
+            return {
+                headlineY: Math.round((height - headlineH) / 2 - (subtextH ? subtextH / 2 + gap : 0)),
+                subtextY: Math.round((height + headlineH) / 2 + gap),
+                headlineAlign: align,
+                gradientMode: "full",
+                fontScale: userScale * 1.5,
+            }
+        }
+        case "editorial": {
+            return {
+                headlineY: Math.round(height * 0.25),
+                subtextY: Math.round(height * 0.25 + headlineH + gap * 2),
+                headlineAlign: align,
+                gradientMode: "full",
+                fontScale: userScale * 1.3,
+            }
+        }
+        default: {
+            // "default", "cover", "step" — existing bottom-anchor behavior
+            const coverBoost = variant === "cover" ? 1.16 : 1.0
+            let hY: number, sY: number
+            if (subtextH) {
+                sY = height - bottomPadding - subtextH
+                hY = sY - gap - headlineH
+            } else {
+                hY = height - bottomPadding - headlineH
+                sY = 0
+            }
+            return {
+                headlineY: hY,
+                subtextY: sY,
+                headlineAlign: align,
+                gradientMode: "bottom",
+                fontScale: userScale * coverBoost,
+            }
+        }
+    }
 }
 
 /**
@@ -143,6 +241,7 @@ async function renderText(
     fontFamily: string = "Inter",
     accentWords?: string[],
     accentColor?: string,
+    textAlign: "left" | "center" | "right" = "center",
 ): Promise<Buffer> {
     const baseColor = `rgba(255, 255, 255, ${opacity})`
     const fd = getFontData(fontFamily)
@@ -231,8 +330,8 @@ async function renderText(
                 style: {
                     display: "flex",
                     flexWrap: "wrap",
-                    justifyContent: "center",
-                    textAlign: "center",
+                    justifyContent: textAlign === "left" ? "flex-start" : textAlign === "right" ? "flex-end" : "center",
+                    textAlign: textAlign,
                     width: "100%",
                     color: baseColor,
                     fontSize: fontSizePx,
@@ -312,49 +411,59 @@ export async function overlayText(
     const width = options.width || metadata.width || 1080
     const height = options.height || metadata.height || 1080
 
-    // Calculate sizes proportionally — cover variant gets larger text
+    // Calculate sizes proportionally
     const padding = Math.round(width * 0.06)
     const textAreaWidth = width - padding * 2
-    // Auto-scale: BebasNeue is narrow, looks better 25% bigger
     const fontName = options.fontFamily || "Inter"
     const autoScale = fontName === "BebasNeue" ? 1.25 : 1.0
-    const scale = options.headlineScale || autoScale
-    const headlineFontPx = Math.round(width * (variant === "cover" ? 0.058 : 0.050) * scale)
+    const baseScale = options.headlineScale || autoScale
     const subtextFontPx = Math.round(width * 0.028)
 
-    // ─── Layer 1: Resize original image ───
-    const baseImage = await sharp(imageBuffer)
-        .resize(width, height, { fit: "cover" })
-        .ensureAlpha()
-        .png()
-        .toBuffer()
-
-    try {
-        // ─── Layer 2: Gradient overlay (SVG, no text) ───
-        // Cover variant gets a stronger gradient for better text contrast
-        const gradientOpacity = variant === "cover" ? 0.90 : 0.85
-        const gradientSvg = `
-        <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-                <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" style="stop-color:${gTop};stop-opacity:0.15"/>
-                    <stop offset="50%" style="stop-color:${gMid};stop-opacity:0.3"/>
-                    <stop offset="100%" style="stop-color:${gBot};stop-opacity:${gradientOpacity}"/>
-                </linearGradient>
-                <linearGradient id="darken" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="40%" style="stop-color:#000000;stop-opacity:0"/>
-                    <stop offset="100%" style="stop-color:#000000;stop-opacity:0.8"/>
-                </linearGradient>
-            </defs>
-            <rect width="${width}" height="${height}" fill="url(#grad)"/>
-            <rect width="${width}" height="${height}" fill="url(#darken)"/>
-        </svg>`
-
-        const gradientBuffer = await sharp(Buffer.from(gradientSvg))
+    // ─── Layer 1: Base image ───
+    // full-typo: solid gradient background, no image
+    let baseImage: Buffer
+    if (variant === "full-typo") {
+        baseImage = await sharp({
+            create: { width, height, channels: 4, background: { r: 5, g: 5, b: 5, alpha: 255 } }
+        }).png().toBuffer()
+    } else {
+        baseImage = await sharp(imageBuffer)
+            .resize(width, height, { fit: "cover" })
+            .ensureAlpha()
             .png()
             .toBuffer()
+    }
 
-        // ─── Layer 3: Logo watermark (pre-rendered PNG) ───
+    try {
+        // We need preliminary text render to get dimensions for layout calculation
+        // Use a temporary font size — will re-render with correct scale after layout
+        const prelimFontPx = Math.round(width * 0.050 * baseScale)
+        const prelimHeadline = await renderText(
+            headline, prelimFontPx, textAreaWidth, true, 1,
+            options.fontFamily, options.accentWords, options.accentColor,
+            options.textAlign || "center"
+        )
+        const prelimMeta = await sharp(prelimHeadline).metadata()
+        const prelimHeadlineH = prelimMeta.height || 60
+
+        let prelimSubtextH = 0
+        if (subtext) {
+            const prelimSubtext = await renderText(subtext, subtextFontPx, textAreaWidth, false, 0.85, options.fontFamily,
+                undefined, undefined, options.textAlign || "center")
+            const sMeta = await sharp(prelimSubtext).metadata()
+            prelimSubtextH = sMeta.height || 30
+        }
+
+        // ─── Calculate layout ───
+        const layout = calculateLayout(variant, width, height, prelimHeadlineH, prelimSubtextH, options)
+
+        // Apply layout font scale for final render
+        const headlineFontPx = Math.round(width * 0.050 * layout.fontScale)
+
+        // ─── Layer 2: Gradient overlay ───
+        const gradientBuffer = await renderGradient(width, height, gTop, gMid, gBot, layout.gradientMode, variant)
+
+        // ─── Layer 3: Logo watermark ───
         let logoBuffer: Buffer | null = null
         const logoWidth = Math.round(width * 0.40)
         const logoHeight = Math.round(logoWidth * 0.35)
@@ -370,7 +479,7 @@ export async function overlayText(
             }
         }
 
-        // ─── Layer 4: Slide indicator dots (if carousel) ───
+        // ─── Layer 4: Slide indicator dots ───
         let slideIndicatorBuffer: Buffer | null = null
         if (slideInfo && slideInfo.total > 1) {
             const dotSize = Math.round(width * 0.012)
@@ -397,39 +506,39 @@ export async function overlayText(
             stepNumberBuffer = await renderText(stepNum, stepFontPx, Math.round(width * 0.35), true, 0.12, options.fontFamily)
         }
 
-        // ─── Layer 6: Headline text (Satori) — with accent color support ───
+        // ─── Layer 6: Headline text (final render with correct scale) ───
         const headlineImage = await renderText(
             headline, headlineFontPx, textAreaWidth, true, 1,
-            options.fontFamily, options.accentWords, options.accentColor
+            options.fontFamily, options.accentWords, options.accentColor,
+            layout.headlineAlign
         )
         const headlineMeta = await sharp(headlineImage).metadata()
         const headlineW = headlineMeta.width || textAreaWidth
-        const headlineH = headlineMeta.height || 60
 
-        // ─── Layer 7: Subtext (Satori) ───
+        // ─── Layer 7: Subtext ───
         let subtextImage: Buffer | null = null
         let subtextW = 0
-        let subtextH = 0
         if (subtext) {
-            subtextImage = await renderText(subtext, subtextFontPx, textAreaWidth, false, 0.85, options.fontFamily)
+            subtextImage = await renderText(subtext, subtextFontPx, textAreaWidth, false, 0.85, options.fontFamily,
+                undefined, undefined, layout.headlineAlign)
             const subtextMeta = await sharp(subtextImage).metadata()
             subtextW = subtextMeta.width || textAreaWidth
-            subtextH = subtextMeta.height || 30
         }
 
-        // ─── Calculate vertical positions (from bottom up) ───
-        const gap = Math.round(width * 0.02)
-        const bottomPadding = Math.round(width * 0.08)
+        // ─── Compute horizontal positions based on alignment ───
+        const headlineLeft = layout.headlineAlign === "left"
+            ? padding
+            : layout.headlineAlign === "right"
+                ? width - padding - headlineW
+                : Math.round((width - headlineW) / 2)
 
-        let subtextY = 0
-        let headlineY = 0
-
-        if (subtextImage) {
-            subtextY = height - bottomPadding - subtextH
-            headlineY = subtextY - gap - headlineH
-        } else {
-            headlineY = height - bottomPadding - headlineH
-        }
+        const subtextLeft = subtextImage
+            ? (layout.headlineAlign === "left"
+                ? padding
+                : layout.headlineAlign === "right"
+                    ? width - padding - subtextW
+                    : Math.round((width - subtextW) / 2))
+            : 0
 
         // ─── Composite all layers ───
         const composites: sharp.OverlayOptions[] = [
@@ -444,7 +553,6 @@ export async function overlayText(
             })
         }
 
-        // Slide indicator dots at top center
         if (slideIndicatorBuffer) {
             const indicatorMeta = await sharp(slideIndicatorBuffer).metadata()
             const indicatorW = indicatorMeta.width || 100
@@ -455,7 +563,6 @@ export async function overlayText(
             })
         }
 
-        // Step number watermark (large, faded, top-left area)
         if (stepNumberBuffer) {
             composites.push({
                 input: stepNumberBuffer,
@@ -466,15 +573,15 @@ export async function overlayText(
 
         composites.push({
             input: headlineImage,
-            top: Math.max(0, headlineY),
-            left: Math.max(0, Math.round((width - headlineW) / 2)),
+            top: Math.max(0, layout.headlineY),
+            left: Math.max(0, headlineLeft),
         })
 
         if (subtextImage) {
             composites.push({
                 input: subtextImage,
-                top: Math.max(0, subtextY),
-                left: Math.max(0, Math.round((width - subtextW) / 2)),
+                top: Math.max(0, layout.subtextY),
+                left: Math.max(0, subtextLeft),
             })
         }
 
@@ -486,6 +593,75 @@ export async function overlayText(
         return result
     } catch (err) {
         console.error("   ⚠️ Text overlay failed (Satori/Fonts error). Falling back to base image:", err)
-        return Buffer.from(baseImage) // Return original raw image smoothly
+        return Buffer.from(baseImage)
     }
+}
+
+// ─── Gradient Rendering ────────────────────────────────────
+
+function renderGradient(
+    width: number,
+    height: number,
+    gTop: string,
+    gMid: string,
+    gBot: string,
+    mode: "bottom" | "top" | "full",
+    variant: string,
+): Promise<Buffer> {
+    let gradientSvg: string
+
+    if (mode === "full") {
+        // Full overlay — even darkening across entire image (for centered/editorial/full-typo)
+        const opacity = variant === "full-typo" ? 1.0 : 0.75
+        gradientSvg = `
+        <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" style="stop-color:${gTop};stop-opacity:${opacity}"/>
+                    <stop offset="50%" style="stop-color:${gMid};stop-opacity:${opacity}"/>
+                    <stop offset="100%" style="stop-color:${gBot};stop-opacity:${opacity}"/>
+                </linearGradient>
+            </defs>
+            <rect width="${width}" height="${height}" fill="url(#grad)"/>
+        </svg>`
+    } else if (mode === "top") {
+        // Top-heavy gradient — for "top" variant where text is at the top
+        gradientSvg = `
+        <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" style="stop-color:${gTop};stop-opacity:0.90"/>
+                    <stop offset="50%" style="stop-color:${gMid};stop-opacity:0.3"/>
+                    <stop offset="100%" style="stop-color:${gBot};stop-opacity:0.15"/>
+                </linearGradient>
+                <linearGradient id="darken" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" style="stop-color:#000000;stop-opacity:0.8"/>
+                    <stop offset="60%" style="stop-color:#000000;stop-opacity:0"/>
+                </linearGradient>
+            </defs>
+            <rect width="${width}" height="${height}" fill="url(#grad)"/>
+            <rect width="${width}" height="${height}" fill="url(#darken)"/>
+        </svg>`
+    } else {
+        // Bottom-heavy (default) — existing behavior
+        const gradientOpacity = variant === "cover" ? 0.90 : 0.85
+        gradientSvg = `
+        <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" style="stop-color:${gTop};stop-opacity:0.15"/>
+                    <stop offset="50%" style="stop-color:${gMid};stop-opacity:0.3"/>
+                    <stop offset="100%" style="stop-color:${gBot};stop-opacity:${gradientOpacity}"/>
+                </linearGradient>
+                <linearGradient id="darken" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="40%" style="stop-color:#000000;stop-opacity:0"/>
+                    <stop offset="100%" style="stop-color:#000000;stop-opacity:0.8"/>
+                </linearGradient>
+            </defs>
+            <rect width="${width}" height="${height}" fill="url(#grad)"/>
+            <rect width="${width}" height="${height}" fill="url(#darken)"/>
+        </svg>`
+    }
+
+    return sharp(Buffer.from(gradientSvg)).png().toBuffer()
 }

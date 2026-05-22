@@ -62,6 +62,10 @@ export interface FeedAesthetic {
     /** Primary brand accent color (hex, e.g. "#e63946") for keyword highlighting in overlay text.
      * When set, AI-selected accentWords in the headline will render in this color instead of white. */
     accentColor?: string
+    /** Default text alignment for overlay (default: "center") */
+    textAlign?: "left" | "center" | "right"
+    /** Default headline scale multiplier (default: 1.0) */
+    headlineScale?: number
 }
 
 // ─── Overlay Gradient ───────────────────────────────────────
@@ -79,7 +83,7 @@ export interface OverlayGradient {
 
 export type AspectRatio = "1:1" | "4:5" | "3:4" | "4:3" | "9:16" | "16:9"
 export type PostMedium = "image" | "carousel" | "reel"
-export type OverlayStyle = "default" | "cover" | "step" | "minimal" | "none"
+export type OverlayStyle = "default" | "cover" | "step" | "minimal" | "none" | "centered" | "top" | "split" | "full-typo" | "editorial"
 
 export interface PostFormat {
     /** Image/video aspect ratio */

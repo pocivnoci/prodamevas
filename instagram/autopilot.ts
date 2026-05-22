@@ -523,6 +523,8 @@ export async function generateOnePost(options: {
                             subtext: slide.subtext,
                             slideInfo: { current: i + 1, total: allSlides.length },
                             variant: i === 0 ? "cover" : "step",
+                            textAlign: config.feedAesthetic?.textAlign,
+                            headlineScale: config.feedAesthetic?.headlineScale,
                             gradientColors: config.overlayGradient,
                             logoFile: config.logoFile,
                             fontFamily: config.feedAesthetic?.fontOverride,
@@ -565,6 +567,51 @@ export async function generateOnePost(options: {
                 imageUrl = uploadedUrls.join("|")
                 console.log(`\n   ✓ Carousel: ${uploadedUrls.length}/${slideCount} slidů nahráno`)
             }
+        } else if (format.overlayStyle === "full-typo") {
+            // PURE TYPOGRAPHIC POST — no AI image, just text on gradient
+            await report("art_director", 55, "✏️ Čistě typografický post...")
+            console.log("✏️ Full-typo mode — přeskakuji generování obrázku...")
+
+            const solidBg = await sharp({
+                create: { width: 1080, height: 1350, channels: 4,
+                          background: { r: 5, g: 5, b: 5, alpha: 255 } }
+            }).png().toBuffer()
+
+            console.log("✏️  Přidávám text na gradient...")
+            const finalImage = await overlayText(solidBg, {
+                headline: captionData.hook,
+                subtext: captionData.imageSubtext,
+                variant: "full-typo",
+                textAlign: config.feedAesthetic?.textAlign,
+                headlineScale: config.feedAesthetic?.headlineScale,
+                gradientColors: config.overlayGradient,
+                logoFile: config.logoFile,
+                fontFamily: config.feedAesthetic?.fontOverride,
+                accentColor: config.feedAesthetic?.accentColor,
+                accentWords: captionData.accentWords,
+            })
+
+            console.log("🗜️ Komprimuji obrázek před uploadem (PNG -> WebP)...")
+            const compressedImage = await sharp(finalImage)
+                .webp({ quality: 90, effort: 6 })
+                .toBuffer()
+
+            const timestamp = Date.now()
+            const filename = `ig-images/${timestamp}.webp`
+            const { error: uploadError } = await supabaseAdmin.storage
+                .from("audit-screenshots")
+                .upload(filename, compressedImage, {
+                    contentType: "image/webp",
+                    upsert: false,
+                })
+            if (uploadError) throw uploadError
+
+            const { data: publicData } = supabaseAdmin.storage
+                .from("audit-screenshots")
+                .getPublicUrl(filename)
+            imageUrl = publicData.publicUrl
+            cost += COSTS.promptRefinement
+            console.log(`   ✓ Full-typo post (${(compressedImage.length / 1024).toFixed(0)} KB)`)
         } else {
             // IMAGE GENERATION PATH
             await report("art_director", 55, "🎨 Art Director vylepšuje image prompt...")
@@ -851,6 +898,9 @@ CRITICAL RULES:
                     finalImage = await overlayText(imageBuffer, {
                         headline: captionData.hook,
                         subtext: captionData.imageSubtext,
+                        variant: (format.overlayStyle || "default") as any,
+                        textAlign: config.feedAesthetic?.textAlign,
+                        headlineScale: config.feedAesthetic?.headlineScale,
                         gradientColors: config.overlayGradient,
                         logoFile: config.logoFile,
                         fontFamily: config.feedAesthetic?.fontOverride,
