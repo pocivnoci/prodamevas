@@ -1204,6 +1204,8 @@ export interface ContentPlanItem {
     topic: string
     week?: number
     day?: number
+    /** AI self-evaluation: 1-10 quality score for the hook */
+    qualityScore?: number
     /** Linked product from ig_products */
     productId?: string
     productName?: string
@@ -1241,6 +1243,30 @@ export async function generateContentPlan(
 
         const ptMap = new Map((dbPostTypes || []).map(pt => [pt.name, pt]))
 
+        // ─── Quality Context: top hooks + recent dedup ───
+        const { data: topPosts } = await supabaseAdmin
+            .from("ig_posts")
+            .select("caption, engagement_score")
+            .eq("client_id", clientId)
+            .not("engagement_score", "is", null)
+            .order("engagement_score", { ascending: false })
+            .limit(5)
+
+        const topHooks = (topPosts || [])
+            .map(p => p.caption?.split("\n")[0]?.substring(0, 80))
+            .filter(Boolean)
+
+        const { data: recentPosts } = await supabaseAdmin
+            .from("ig_posts")
+            .select("caption")
+            .eq("client_id", clientId)
+            .order("created_at", { ascending: false })
+            .limit(15)
+
+        const recentHooks = (recentPosts || [])
+            .map(p => p.caption?.split("\n")[0]?.substring(0, 60))
+            .filter(Boolean)
+
         // Build context for Gemini
         const typeList = typeSequence.map((typeName, i) => {
             const pt = ptMap.get(typeName)
@@ -1253,6 +1279,14 @@ export async function generateContentPlan(
             ? `\n## 🎯 HLAVNÍ TÉMA KAMPANĚ: "${userTopic}"\nVšechny posty MUSÍ souviset s tímto tématem, ale každý z jiného úhlu.`
             : ""
 
+        const topHooksSection = topHooks.length > 0
+            ? `\n## ✅ PŘÍKLADY NEJLEPŠÍCH HOOKŮ (tyto fungovaly — inspiruj se stylem, NEkopíruj):\n${topHooks.map(h => `- "${h}"`).join("\n")}\n`
+            : ""
+
+        const deduplicationSection = recentHooks.length > 0
+            ? `\n## 🚫 NEDÁVNÉ HOOKY (NEPOUŽÍVEJ podobné vzorce ani témata!):\n${recentHooks.map(h => `- "${h}"`).join("\n")}\n`
+            : ""
+
         const prompt = `Jsi strategický content planner pro značku "${config.name}" (${config.website}).
 
 ## ÚKOL
@@ -1260,6 +1294,7 @@ Vytvoř content plan na ${count} postů. Pro každý post napiš:
 - hookPreview: český hook (první věta postu, max 12 slov, poutavá, BEZ emoji)
 - angle: 1 věta popisující úhel/přístup k tématu (česky)
 - topic: krátké téma v 3-5 slovech (česky)
+- qualityScore: 1-10 — ohodnoť kvalitu vlastního hooku (10 = zastaví scrollování, 1 = generické)
 
 ## BRAND VOICE
 ${config.brandVoice.persona}
@@ -1270,14 +1305,16 @@ ${config.brandVoice.antiPatterns?.join(", ")}
 
 ${config.products?.length ? `## PRODUKTY ZNAČKY (${config.products.length})\n${config.products.slice(0, 10).map(p => `- **${p.name}** (${p.type})${p.price ? ` — ${p.price}` : ""}${p.description ? `: ${p.description.substring(0, 60)}` : ""}`).join("\n")}\n⚠️ Pro posty typu product_drop/produkt MUSÍŠ zmínit KONKRÉTNÍ produkt z tohoto seznamu v hooku!\n` : ""}
 ${config.audiencePersonas?.length ? `## CÍLOVÉ PERSONY\n${config.audiencePersonas.map(p => `- **${p.label}** (${p.ageRange} let): Pain points: ${p.painPoints.slice(0, 2).join(", ")}`).join("\n")}\n` : ""}
-${topicInstruction}
+${topHooksSection}${deduplicationSection}${topicInstruction}
 
 ## SEKVENCE POSTŮ (strategicky sestavená):
 ${typeList}
 
-## PRAVIDLA
-- Každý hook MUSÍ být unikátní — žádné opakování vzorců
-- Hooky musí zastavit scrollování — provokativní, překvapivé, kontroverzní
+## PRAVIDLA KVALITY
+- Každý hook MUSÍ mít qualityScore ≥ 7 — pokud nedokážeš vymyslet kvalitní hook, snaž se víc
+- Hook musí zastavit scrollování — provokativní, překvapivý, kontroverzní, nebo extrémně specifický
+- ZAKÁZÁNO: generické fráze ("Víte co...", "Dnes vám ukážu...", "Zajímavý fakt...")
+- POVINNÉ: konkrétní čísla, jména, příklady kde to dává smysl
 - Posty v sérii na sebe NAVAZUJÍ — budují příběh, ne náhodné izolované posty
 - ${count > 14 ? "Rozděl do týdnů — každý týden má vlastní mini-téma" : "Posty by měly mít logický flow"}
 - Pro product posty: hook MUSÍ zmínit konkrétní produkt/službu
@@ -1286,7 +1323,7 @@ ${typeList}
 ## VÝSTUP
 Vrať POUZE validní JSON pole:
 [
-  { "hookPreview": "...", "angle": "...", "topic": "..." },
+  { "hookPreview": "...", "angle": "...", "topic": "...", "qualityScore": 8 },
   ...
 ]
 Pole musí mít PŘESNĚ ${count} položek.`
@@ -1299,7 +1336,52 @@ Pole musí mít PŘESNĚ ${count} položek.`
         if (!jsonMatch) {
             throw new Error("AI nevrátila validní JSON pole")
         }
-        const concepts: { hookPreview: string; angle: string; topic: string }[] = JSON.parse(jsonMatch[0])
+        const concepts: { hookPreview: string; angle: string; topic: string; qualityScore?: number }[] = JSON.parse(jsonMatch[0])
+
+        // Auto-retry weak hooks (qualityScore < 6)
+        const weakIndices = concepts
+            .map((c, i) => ({ idx: i, score: c.qualityScore || 5 }))
+            .filter(c => c.score < 6)
+            .map(c => c.idx)
+
+        if (weakIndices.length > 0 && weakIndices.length <= count) {
+            console.log(`📊 Content plan: ${weakIndices.length} weak hooks detected, regenerating...`)
+            const weakTypes = weakIndices.map(i => typeSequence[i] || "auto")
+            const existingHooks = concepts.map(c => c.hookPreview)
+
+            const retryPrompt = `Jsi content planner pro "${config.name}". Tyto hooky byly příliš slabé — přepiš je.
+
+${topHooksSection}
+## ŠPATNÉ HOOKY (přepiš do VÝRAZNĚ lepší verze):
+${weakIndices.map(i => `${i + 1}. [${weakTypes[weakIndices.indexOf(i)]}] "${concepts[i].hookPreview}" — qualityScore: ${concepts[i].qualityScore}`).join("\n")}
+
+## EXISTUJÍCÍ HOOKY V PLÁNU (nesmíš duplikovat):
+${existingHooks.filter((_, i) => !weakIndices.includes(i)).map(h => `- "${h}"`).join("\n")}
+
+## PRAVIDLA
+- Kvalita ≥ 7 — provokativní, specifické, zastavující scroll
+- Zachovej stejný typ postu a přístup
+- Piš česky
+
+Vrať POUZE JSON pole (${weakIndices.length} položek):
+[{ "hookPreview": "...", "angle": "...", "topic": "...", "qualityScore": 8 }]`
+
+            try {
+                const retryRaw = await generateText(retryPrompt, { model: "gemini-3.5-flash" })
+                const retryMatch = retryRaw.match(/\[[\s\S]*\]/)
+                if (retryMatch) {
+                    const retryConcepts: { hookPreview: string; angle: string; topic: string; qualityScore?: number }[] = JSON.parse(retryMatch[0])
+                    weakIndices.forEach((origIdx, retryIdx) => {
+                        if (retryConcepts[retryIdx]) {
+                            concepts[origIdx] = retryConcepts[retryIdx]
+                            console.log(`   ✅ Hook #${origIdx + 1} regenerated: "${retryConcepts[retryIdx].hookPreview}" (score: ${retryConcepts[retryIdx].qualityScore})`)
+                        }
+                    })
+                }
+            } catch {
+                console.warn("   ⚠️ Hook retry failed — using original hooks")
+            }
+        }
 
         // Build plan items with metadata
         const plan: ContentPlanItem[] = typeSequence.slice(0, count).map((typeName, i) => {
@@ -1318,6 +1400,7 @@ Pole musí mít PŘESNĚ ${count} položek.`
                 hookPreview: concept.hookPreview,
                 angle: concept.angle,
                 topic: concept.topic,
+                qualityScore: concept.qualityScore || undefined,
                 week: count > 14 ? Math.floor(i / 7) + 1 : undefined,
                 day: i + 1,
             }

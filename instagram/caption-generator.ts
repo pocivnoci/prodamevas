@@ -47,6 +47,60 @@ export function getPostFormat(config: ClientConfig, typeName: string): PostForma
     return DEFAULT_FORMAT
 }
 
+// ─── Smart Overlay Rotation ─────────────────────────────────
+
+type ImageOverlayStyle = "default" | "centered" | "top" | "split" | "full-typo" | "editorial"
+
+/** Map post type name patterns to suitable overlay layouts */
+const OVERLAY_POOLS: { pattern: RegExp; styles: ImageOverlayStyle[] }[] = [
+    // Educational/how-to → structured layouts
+    { pattern: /tip|how_to|edukace|navod|tutorial|hack/i, styles: ["split", "top", "editorial"] },
+    // Meme/humor → bold, impactful
+    { pattern: /meme|humor|vtip|quote/i, styles: ["centered", "editorial", "full-typo"] },
+    // Product/sales → classic with product visible
+    { pattern: /product|produkt|drop|limitka|nabidka/i, styles: ["default", "split"] },
+    // Engagement/question → attention-grabbing
+    { pattern: /engage|anketa|otazka|poll|cta/i, styles: ["centered", "top", "editorial"] },
+    // Behind the scenes/personal → editorial feel
+    { pattern: /bts|behind|personal|story|pribehy/i, styles: ["editorial", "top", "centered"] },
+    // Review/testimonial → clean readability
+    { pattern: /recenze|review|testimonial/i, styles: ["split", "editorial", "centered"] },
+    // Stats/data → bold typography
+    { pattern: /stat|data|cisla|numbers/i, styles: ["full-typo", "centered", "editorial"] },
+]
+
+/** All available styles for fallback rotation */
+const ALL_IMAGE_STYLES: ImageOverlayStyle[] = ["default", "centered", "top", "split", "editorial"]
+
+/**
+ * Select an overlay variant based on post type + avoid repeating the last used layout.
+ * Only called for image posts — carousels use cover/step, reels use none.
+ */
+export function selectOverlayVariant(
+    typeName: string,
+    recentOverlayStyles: string[] = [],
+): ImageOverlayStyle {
+    // Find matching pool for this post type
+    let pool: ImageOverlayStyle[] = ALL_IMAGE_STYLES
+    for (const entry of OVERLAY_POOLS) {
+        if (entry.pattern.test(typeName)) {
+            pool = entry.styles
+            break
+        }
+    }
+
+    // Filter out the last 2 used styles to avoid visual repetition
+    const recentSet = new Set(recentOverlayStyles.slice(0, 2))
+    let candidates = pool.filter(s => !recentSet.has(s))
+
+    // If all filtered out (small pool), use full pool
+    if (candidates.length === 0) candidates = pool
+
+    // Pick randomly from candidates
+    const selected = candidates[Math.floor(Math.random() * candidates.length)]
+    return selected
+}
+
 export const getReelDuration = (_typeName: string) => 8
 
 export const IDEA_COOLDOWN_DAYS = 90

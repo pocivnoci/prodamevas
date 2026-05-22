@@ -53,6 +53,7 @@ import {
     IDEA_COOLDOWN_DAYS,
     getPostFormat,
     getReelDuration,
+    selectOverlayVariant,
 
     buildCaptionSchema,
     buildVideoSchema,
@@ -276,6 +277,20 @@ export async function generateOnePost(options: {
         }
         console.log(`   📐 Médium přepsáno uživatelem: ${options.medium}`)
     }
+
+    // Smart overlay rotation — for image posts only, auto-select layout variant
+    if (format.medium === "image" && format.overlayStyle === "default") {
+        // Extract recent overlay styles from recent posts' image_style field
+        // If no history, just vary based on post type
+        const recentStyles = recentPosts
+            .filter(p => p.image_style && p.image_style.startsWith("overlay:"))
+            .slice(0, 3)
+            .map(p => p.image_style.replace("overlay:", ""))
+        const smartOverlay = selectOverlayVariant(selectedType.name, recentStyles)
+        format.overlayStyle = smartOverlay
+        console.log(`   🎨 Smart overlay: "${smartOverlay}" (${recentStyles.length ? `avoided: ${recentStyles.join(", ")}` : "no history"})`)
+    }
+
     const isReel = format.medium === "reel"
     const isCarousel = format.medium === "carousel"
     const postFormat = isReel ? "video script" : isCarousel ? "carousel" : "caption"
@@ -963,7 +978,7 @@ CRITICAL RULES:
             call_to_action: captionData.cta,
             image_prompt: captionData.imagePrompt,
             image_url: imageUrl,
-            image_style: "gemini-pro",
+            image_style: isReel ? "veo-3.1" : `overlay:${format.overlayStyle || "default"}`,
             status: "draft",
         })
 
