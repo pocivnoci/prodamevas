@@ -14,10 +14,12 @@ import {
     type ContentPlanItem,
 } from "@/app/actions/admin-actions"
 import { uploadCustomImage, type GenerateResult } from "@/app/actions/ig-generate-action"
+import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPostType, IGCategory, IGPostFormat } from "./types"
 
 export function GenerateTab({ projectId }: { projectId: string }) {
+    const { refreshSubscription } = useStudio()
     const [postTypes, setPostTypes] = useState<IGPostType[]>([])
     const [postFormats, setPostFormats] = useState<Record<string, IGPostFormat>>({})
     const [categories, setCategories] = useState<IGCategory[]>([])
@@ -306,6 +308,8 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         setBatchProgress(null)
         setStep(batchMode ? 4 : 3)
         setGenerating(false)
+        // Refresh credit display in sidebar/dashboard
+        refreshSubscription()
     }
 
     // Content Plan: generate plan preview

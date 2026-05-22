@@ -248,8 +248,68 @@ export async function deductCredits(
 }
 
 /**
+ * Check if a client can perform a batch of actions (e.g. 7 posts at once).
+ * Validates total credits needed upfront to avoid partial failures.
+ */
+export async function canPerformBatchAction(
+    clientId: string,
+    action: ActionType,
+    count: number,
+): Promise<CanPerformResult> {
+    const creditsRequired = ACTION_CREDITS[action] * count
+    const sub = await getClientSubscription(clientId)
+
+    if (!sub) {
+        return {
+            allowed: false,
+            reason: "Nemáte aktivní předplatné. Vyberte si plán pro pokračování.",
+            creditsRequired,
+            creditsRemaining: 0,
+        }
+    }
+
+    if (sub.status === "expired") {
+        return {
+            allowed: false,
+            reason: sub.trialEndsAt
+                ? "Váš trial vypršel. Vyberte si plán pro pokračování."
+                : "Vaše předplatné vypršelo. Obnovte ho pro pokračování.",
+            creditsRequired,
+            creditsRemaining: 0,
+        }
+    }
+
+    if (!sub.features.allowed_actions.includes(action)) {
+        const planSuggestion = getPlanForAction(action)
+        return {
+            allowed: false,
+            reason: `Funkce "${ACTION_LABELS[action]}" není dostupná v plánu ${sub.planName}. Upgradujte na ${planSuggestion}.`,
+            creditsRequired,
+            creditsRemaining: sub.creditsRemaining,
+            featureBlocked: true,
+            planRequired: planSuggestion,
+        }
+    }
+
+    if (sub.creditsRemaining < creditsRequired) {
+        return {
+            allowed: false,
+            reason: `Nedostatek kreditů pro ${count}× ${ACTION_LABELS[action]}. Potřebujete ${creditsRequired}, zbývá ${sub.creditsRemaining}. Dokupte kredity nebo upgradujte plán.`,
+            creditsRequired,
+            creditsRemaining: sub.creditsRemaining,
+        }
+    }
+
+    return {
+        allowed: true,
+        creditsRequired,
+        creditsRemaining: sub.creditsRemaining,
+    }
+}
+
+/**
  * Create a trial subscription for a newly registered client.
- * 7 days, 30 credits, full features unlocked.
+ * 7 days, 10 credits, full features unlocked.
  */
 export async function createTrialSubscription(clientId: string): Promise<void> {
     const trialEnd = new Date()

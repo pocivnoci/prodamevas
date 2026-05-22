@@ -26,7 +26,7 @@ export interface GenerateResult {
 }
 
 import { withRetry } from "@/utils/retry"
-import { creditGuard } from "./credit-guard"
+import { creditGuard, creditGuardBatch } from "./credit-guard"
 
 // ============================================
 // SINGLE POST GENERATION
@@ -53,11 +53,12 @@ export async function triggerBatchGeneration(options: {
 }> {
     try {
         await requireAuth()
-        // Credit check: 1 credit per post
+        // Upfront credit check for entire batch
+        let batchGuard: Awaited<ReturnType<typeof creditGuardBatch>> | null = null
         if (options.projectId && !options.dryRun) {
-            const guard = await creditGuard(options.projectId, "post")
-            if (!guard.ok) {
-                return { success: false, generated: 0, errors: 0, message: guard.error || "Nedostatek kreditů" }
+            batchGuard = await creditGuardBatch(options.projectId, "post", options.count)
+            if (!batchGuard.ok) {
+                return { success: false, generated: 0, errors: 0, message: batchGuard.error || "Nedostatek kreditů" }
             }
         }
 
@@ -72,12 +73,9 @@ export async function triggerBatchGeneration(options: {
             "Batch generation"
         )
 
-        // Deduct credits for each generated post
-        if (options.projectId && !options.dryRun) {
-            for (let i = 0; i < options.count; i++) {
-                const guard = await creditGuard(options.projectId, "post")
-                await guard.commit(`Post batch ${i + 1}/${options.count}`)
-            }
+        // Deduct credits for all posts (generateBatch throws on total failure)
+        if (batchGuard && !options.dryRun) {
+            await batchGuard.commitCount(options.count, `Batch: ${options.count} postů`)
         }
 
         return {
@@ -166,9 +164,10 @@ export async function triggerAIIdeasGeneration(options: {
 }): Promise<{ success: boolean; generatedCount: number; error?: string }> {
     try {
         await requireAuth()
-        // Credit check
+        // Credit check + commit with single guard instance
+        let guard: Awaited<ReturnType<typeof creditGuard>> | null = null
         if (options.projectId) {
-            const guard = await creditGuard(options.projectId, "idea_generate")
+            guard = await creditGuard(options.projectId, "idea_generate")
             if (!guard.ok) return { success: false, generatedCount: 0, error: guard.error }
         }
 
@@ -178,9 +177,8 @@ export async function triggerAIIdeasGeneration(options: {
         const config = await loadConfig(options.configName)
         const result = await generateAIIdeas(config, options.pillarId, options.count || 10)
 
-        // Deduct credits after success
-        if (options.projectId) {
-            const guard = await creditGuard(options.projectId, "idea_generate")
+        // Deduct credits after success — same guard instance, no redundant DB call
+        if (guard) {
             await guard.commit(`Nápady: ${options.pillarId}`)
         }
 

@@ -162,6 +162,10 @@ export async function triggerProductDesign(options: {
     ideaId?: string
 }): Promise<{ success: boolean; designUrl?: string; error?: string }> {
     try {
+        // Credit check
+        const guard = await creditGuard(options.configName, "product_design")
+        if (!guard.ok) return { success: false, error: guard.error }
+
         const config = await loadConfig(options.configName)
         const clientId = await resolveClientId(options.configName)
         setActiveProject(clientId)
@@ -174,6 +178,8 @@ export async function triggerProductDesign(options: {
         if (!result) {
             return { success: false, error: "Product design generation returned null" }
         }
+
+        await guard.commit(`Design: ${options.idea.name}`)
 
         if (options.ideaId && result.designUrl) {
             await supabaseAdmin
@@ -198,6 +204,10 @@ export async function triggerCustomProductDesign(options: {
     productDescription: string
 }): Promise<{ success: boolean; designUrl?: string; error?: string }> {
     try {
+        // Credit check
+        const guard = await creditGuard(options.configName, "product_design")
+        if (!guard.ok) return { success: false, error: guard.error }
+
         const config = await loadConfig(options.configName)
         const clientId = await resolveClientId(options.configName)
         setActiveProject(clientId)
@@ -229,6 +239,8 @@ export async function triggerCustomProductDesign(options: {
         if (!result) {
             return { success: false, error: "Custom product design generation returned null" }
         }
+
+        await guard.commit(`Custom design: ${options.productDescription.substring(0, 40)}`)
 
         return {
             success: true,
@@ -407,6 +419,10 @@ export async function reviseProduct(
     configName: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
+        // Credit check — AI revision costs 1 credit
+        const guard = await creditGuard(configName, "idea_generate")
+        if (!guard.ok) return { success: false, error: guard.error }
+
         // 1. Load the existing product idea
         const { data: original, error: fetchErr } = await supabaseAdmin
             .from("ig_product_ideas")
@@ -512,6 +528,7 @@ Zpráva pro dodavatele: ${original.supplier_message}
 
         if (updateErr) throw updateErr
 
+        await guard.commit(`Revize: ${parsed.name}`)
         console.log(`✅ Product revised: ${ideaId}`)
         return { success: true }
     } catch (err: any) {

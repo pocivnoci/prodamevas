@@ -54,6 +54,19 @@ export async function POST(req: Request) {
             },
         })
 
+        // Deduct credit AFTER successful generation (not before)
+        if (!config.dryRun && result.id) {
+            try {
+                const { deductCredits } = await import("@/lib/subscription")
+                const { resolveClientId } = await import("@/instagram/configs")
+                const clientId = await resolveClientId(config.configName || "mobilnamiru")
+                await deductCredits(clientId, "post", `Post: ${result.caption?.split("\n")?.[0]?.substring(0, 60) || "vygenerováno"}`, result.id)
+            } catch (creditErr: any) {
+                // Non-fatal — post already created, log but don't fail
+                console.warn("Credit deduction failed (post created):", creditErr?.message)
+            }
+        }
+
         await updateJob({
             status: "done",
             progress: 100,

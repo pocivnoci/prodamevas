@@ -20,6 +20,18 @@ export async function POST(req: Request) {
         const { resolveClientId } = await import("@/instagram/configs")
         const clientId = await resolveClientId(body.configName || "mobilnamiru")
 
+        // Credit check before creating job — don't waste resources if no credits
+        if (!body.dryRun) {
+            const { creditGuard } = await import("@/app/actions/credit-guard")
+            const guard = await creditGuard(body.configName || "mobilnamiru", "post")
+            if (!guard.ok) {
+                return NextResponse.json(
+                    { success: false, error: guard.error || "Nedostatek kreditů" },
+                    { status: 402 }
+                )
+            }
+        }
+
         const { data: job, error } = await supabaseAdmin
             .from("ig_jobs")
             .insert({
@@ -48,6 +60,7 @@ export async function POST(req: Request) {
         }
 
         return NextResponse.json({ success: true, jobId: job.id })
+
 
     } catch (err: any) {
         const msg = err?.message?.substring(0, 500) || "Unknown error"

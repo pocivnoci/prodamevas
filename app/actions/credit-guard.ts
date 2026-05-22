@@ -4,19 +4,30 @@
  * Credit Guard — server action wrapper
  * =====================================
  * Wraps any AI action with credit check + deduction.
- * Use: const guard = await creditGuard(projectId, "post")
- *      if (!guard.ok) return { success: false, error: guard.error }
- *      ... do work ...
- *      await guard.commit("Post: Letní kolekce")
+ * 
+ * Single action:
+ *   const guard = await creditGuard(projectId, "post")
+ *   if (!guard.ok) return { success: false, error: guard.error }
+ *   ... do work ...
+ *   await guard.commit("Post: Letní kolekce")
+ * 
+ * Batch action:
+ *   const guard = await creditGuardBatch(projectId, "post", 7)
+ *   if (!guard.ok) return { success: false, error: guard.error }
+ *   ... do work (returns actual success count) ...
+ *   await guard.commitCount(successCount, "Batch: 5/7 postů")
  */
 
 import { resolveClientId } from "@/instagram/configs"
 import {
     canPerformAction,
+    canPerformBatchAction,
     deductCredits,
     type ActionType,
+    ACTION_CREDITS,
     ACTION_LABELS,
 } from "@/lib/subscription"
+import supabaseAdmin from "@/supabase/admin"
 import { requireAuth } from "@/lib/auth-guard"
 
 export interface CreditGuardResult {
@@ -27,25 +38,25 @@ export interface CreditGuardResult {
     commit: (description?: string, referenceId?: string) => Promise<void>
 }
 
+export interface CreditGuardBatchResult {
+    ok: boolean
+    error?: string
+    clientId: string
+    /** Call after batch completes — deducts credits only for successful items */
+    commitCount: (successCount: number, description?: string) => Promise<void>
+}
+
 /**
- * Check if a project can perform an action and return a commit function.
- * 
- * @param projectId - The project slug or UUID
- * @param action - The action type (post, product_brief, etc.)
- * @returns Guard result with ok/error and commit function
+ * Check if a project can perform a single action and return a commit function.
  */
 export async function creditGuard(
     projectId: string,
     action: ActionType,
 ): Promise<CreditGuardResult> {
     try {
-        // Enforce super admin for all AI operations
         await requireAuth()
         
         const clientId = await resolveClientId(projectId)
-        
-        // Admins bypass deductions for now, or we can deduct.
-        // Let's keep deductions active for tracking, but allow bypass if no credits.
         const check = await canPerformAction(clientId, action)
 
         if (!check.allowed) {
@@ -70,22 +81,68 @@ export async function creditGuard(
             },
         }
     } catch (err: any) {
-        // If it's an authorization error, block it!
-        if (err.message.includes('Neautorizovaný')) {
-             return {
-                 ok: false,
-                 error: err.message,
-                 clientId: projectId,
-                 commit: async () => {},
-             }
-        }
-        
-        // If subscription system fails, allow the action (graceful degradation)
-        console.warn("Credit guard error (allowing action):", err?.message)
+        // All errors block the action — no silent bypass
+        console.error("Credit guard error (blocking action):", err?.message)
         return {
-            ok: true,
+            ok: false,
+            error: err?.message?.includes('Neautorizovaný')
+                ? err.message
+                : "Nepodařilo se ověřit kredity. Zkuste to znovu.",
             clientId: projectId,
             commit: async () => {},
+        }
+    }
+}
+
+/**
+ * Check if a project can perform a batch of actions.
+ * Validates total credits upfront, deducts only for actual successes.
+ */
+export async function creditGuardBatch(
+    projectId: string,
+    action: ActionType,
+    count: number,
+): Promise<CreditGuardBatchResult> {
+    try {
+        await requireAuth()
+        
+        const clientId = await resolveClientId(projectId)
+        const check = await canPerformBatchAction(clientId, action, count)
+
+        if (!check.allowed) {
+            return {
+                ok: false,
+                error: check.reason || "Nedostatek kreditů pro batch.",
+                clientId,
+                commitCount: async () => {},
+            }
+        }
+
+        return {
+            ok: true,
+            clientId,
+            commitCount: async (successCount: number, description?: string) => {
+                if (successCount <= 0) return
+                // Deduct credits only for items that actually succeeded
+                const creditsPerAction = ACTION_CREDITS[action]
+                const totalCredits = creditsPerAction * successCount
+                await supabaseAdmin.from("credit_transactions").insert({
+                    client_id: clientId,
+                    action,
+                    credits: totalCredits,
+                    description: description || `${ACTION_LABELS[action]} ×${successCount}`,
+                })
+            },
+        }
+    } catch (err: any) {
+        console.error("Credit guard batch error (blocking action):", err?.message)
+        return {
+            ok: false,
+            error: err?.message?.includes('Neautorizovaný')
+                ? err.message
+                : "Nepodařilo se ověřit kredity. Zkuste to znovu.",
+            clientId: projectId,
+            commitCount: async () => {},
         }
     }
 }

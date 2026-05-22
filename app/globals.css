@@ -35,6 +35,8 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    /* Prevent iOS double-tap zoom (Safari ignores user-scalable=no since iOS 10) */
+    touch-action: manipulation;
   }
   :root {
     --background: #020617;
