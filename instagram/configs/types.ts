@@ -141,8 +141,11 @@ export interface ClientConfig {
         czech: string[]
     }
 
-    /** Products catalog (for merch/eshop clients) */
+    /** Products catalog (for merch/eshop clients) @deprecated Use ig_products table instead */
     products?: ProductInfo[]
+
+    /** Cooldown in days before a product can be featured again (default: 14) */
+    productCooldownDays?: number
 
     /** Post types this client uses */
     postTypes?: string[]

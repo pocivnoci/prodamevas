@@ -374,12 +374,8 @@ ${selectedProduct.price ? `**Cena:** ${selectedProduct.price}` : ""}
 - V imagePrompt MUSÍŠ popsat PŘESNĚ tento produkt (jeho barvu, design, styl)
 - NESMÍŠ zmiňovat žádný jiný produkt!
 `
-    } else if (config.products) {
-        productsSection = `
-## PRODUKTY ZNAČKY (${config.products.length} produktů na ${config.website})
-${config.products.map(p => `- **${p.name}** (${p.type}): ${p.description || ""} ${p.price ? `— ${p.price}` : ""} → ${config.website}/p/${p.slug}`).join("\n")}
-`
     }
+    // No product → AI generates generic branded content (no product list dump)
 
 
     const postFormat = getPostFormat(config, postType.name)

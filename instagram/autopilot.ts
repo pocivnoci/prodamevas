@@ -145,9 +145,25 @@ export async function generateOnePost(options: {
         if (!found) throw new Error(`Post type "${options.type}" not found. Available: ${postTypes.map(t => t.name).join(", ")}`)
         selectedType = found
     } else {
-        const weighted = postTypes.flatMap(type =>
-            Array(type.frequency === "daily" ? 3 : type.frequency === "weekly" ? 2 : 1).fill(type)
-        )
+        // Memory-informed post type weighting
+        let postTypeBoosts: Record<string, number> = {}
+        try {
+            const { getPostTypeBoosts } = await import("./memory-agent")
+            postTypeBoosts = await getPostTypeBoosts(postTypes.map(t => t.name))
+            const boostedTypes = Object.entries(postTypeBoosts).filter(([, v]) => v !== 0)
+            if (boostedTypes.length > 0) {
+                console.log(`   🧠 Memory boosts: ${boostedTypes.map(([k, v]) => `${k}=${v > 0 ? "+" : ""}${v.toFixed(2)}`).join(", ")}`)
+            }
+        } catch {
+            // Non-fatal — continue with base weights
+        }
+
+        const weighted = postTypes.flatMap(type => {
+            const baseWeight = type.frequency === "daily" ? 3 : type.frequency === "weekly" ? 2 : 1
+            const boost = postTypeBoosts[type.name] || 0
+            const finalWeight = Math.max(1, Math.round(baseWeight * (1 + boost)))
+            return Array(finalWeight).fill(type)
+        })
         selectedType = weighted[Math.floor(Math.random() * weighted.length)]
     }
     console.log(`   ✓ ${selectedType.emoji} ${selectedType.display_name}`)
@@ -190,8 +206,7 @@ export async function generateOnePost(options: {
     const _getPillarForType = createPillarMapper(config)
     const performance = options.performance || await analyzePerformance(config, _getPillarForType)
 
-    // 4b. Pre-select product for coherence (same product for caption + image)
-    const productTypes = ["product_drop", "limitka", "outfit_inspo", "produkt", "recenze", "meme", "customer_content", "lifestyle", "behind_the_scenes", "collab"]
+    // 4b. Smart product selection — cooldown-based from ig_products
     let selectedProduct: { name: string; type: string; slug: string; price?: string; description?: string; imageUrls?: string[] } | undefined = undefined
     let linkedProductId: string | undefined = undefined
 
@@ -214,11 +229,36 @@ export async function generateOnePost(options: {
             linkedProductId = dbProduct.id
             console.log(`   🛍️ Explicit product (from DB): "${selectedProduct.name}"`)
         }
-    } else if (productTypes.includes(selectedType.name) && config.products?.length) {
-        // Fallback: random product from config JSONB
-        const rp = config.products[Math.floor(Math.random() * config.products.length)]
-        selectedProduct = rp
-        console.log(`   🛍️ Pre-selected product (random): "${selectedProduct.name}"`)
+    } else if (selectedType.uses_product) {
+        // Smart: cooldown-based selection from ig_products
+        const cooldownDays = config.productCooldownDays ?? 14
+        const cooldownDate = new Date()
+        cooldownDate.setDate(cooldownDate.getDate() - cooldownDays)
+
+        const { data: candidates } = await supabaseAdmin
+            .from("ig_products")
+            .select("id, name, type, slug, price, description, image_urls")
+            .eq("client_id", clientUuid)
+            .or(`last_used_at.is.null,last_used_at.lt.${cooldownDate.toISOString()}`)
+            .order("last_used_at", { ascending: true, nullsFirst: true })
+            .limit(5)
+
+        if (candidates && candidates.length > 0) {
+            // Pick from top 3 least-recently-used (slight randomness to avoid predictability)
+            const pick = candidates[Math.floor(Math.random() * Math.min(3, candidates.length))]
+            selectedProduct = {
+                name: pick.name,
+                type: pick.type || "product",
+                slug: pick.slug,
+                price: pick.price || undefined,
+                description: pick.description || undefined,
+                imageUrls: pick.image_urls || undefined,
+            }
+            linkedProductId = pick.id
+            console.log(`   🛍️ Smart product (cooldown ${cooldownDays}d): "${selectedProduct.name}"`)
+        } else {
+            console.log(`   ℹ️ All products in cooldown (${cooldownDays}d) — generating without product`)
+        }
     }
 
     // 5. Generate caption / video script / carousel
@@ -643,16 +683,37 @@ export async function generateOnePost(options: {
                 }
 
                 // Load product photos — use the SAME product that was pre-selected for caption
-                if (selectedProduct?.slug && config.products?.length) {
+                if (selectedProduct?.slug) {
                     const randomProduct = selectedProduct
 
                     let productImageLoaded = false
-                    if (randomProduct.slug) {
-                        // Strategy 1: Supabase storage (works on Vercel + local)
+
+                    // Priority 0: Use product's own image_urls from ig_products DB
+                    if (!productImageLoaded && selectedProduct.imageUrls?.length) {
+                        try {
+                            const imageUrl = selectedProduct.imageUrls[0]
+                            const resp = await fetch(imageUrl)
+                            if (resp.ok) {
+                                const arrayBuf = await resp.arrayBuffer()
+                                const mimeType = imageUrl.endsWith(".png") ? "image/png" : "image/jpeg"
+                                refImages.push({
+                                    buffer: Buffer.from(arrayBuf),
+                                    mimeType,
+                                    label: `EXACT product photo: ${randomProduct.name}`,
+                                })
+                                productImageLoaded = true
+                                console.log(`   🛍️ Loaded product image from DB image_urls: ${imageUrl.substring(0, 80)}...`)
+                            }
+                        } catch (err) {
+                            console.warn(`   ⚠️ DB image_url fetch failed, trying storage...`)
+                        }
+                    }
+
+                    // Priority 1: Supabase storage (works on Vercel + local)
+                    if (!productImageLoaded && randomProduct.slug) {
                         try {
                             const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
                             if (!supabaseUrl) throw new Error('NEXT_PUBLIC_SUPABASE_URL not set')
-                            // List matching files in Supabase bucket
                             const { default: supabaseAdmin } = await import("../supabase/admin")
                             const { data: files } = await supabaseAdmin.storage
                                 .from('product-images')
@@ -681,36 +742,36 @@ export async function generateOnePost(options: {
                         } catch (err) {
                             // Supabase not available, try local
                         }
+                    }
 
-                        // Strategy 2: Local filesystem fallback (dev only)
-                        if (!productImageLoaded) {
-                            try {
-                                const { readdir, readFile } = await import("fs/promises")
-                                const { join, dirname } = await import("path")
-                                const { fileURLToPath } = await import("url")
-                                const baseDir = dirname(fileURLToPath(import.meta.url))
-                                const productDir = join(baseDir, "product-images", config.id)
+                    // Priority 2: Local filesystem fallback (dev only)
+                    if (!productImageLoaded) {
+                        try {
+                            const { readdir, readFile } = await import("fs/promises")
+                            const { join, dirname } = await import("path")
+                            const { fileURLToPath } = await import("url")
+                            const baseDir = dirname(fileURLToPath(import.meta.url))
+                            const productDir = join(baseDir, "product-images", config.id)
 
-                                const localFiles = await readdir(productDir).catch(() => [] as string[])
-                                const productFiles = localFiles
-                                    .filter(f => f.startsWith(randomProduct.slug) && /\.(jpg|jpeg|png|webp)$/i.test(f))
-                                    .sort()
+                            const localFiles = await readdir(productDir).catch(() => [] as string[])
+                            const productFiles = localFiles
+                                .filter(f => f.startsWith(randomProduct.slug) && /\.(jpg|jpeg|png|webp)$/i.test(f))
+                                .sort()
 
-                                if (productFiles.length > 0) {
-                                    const mainFile = productFiles[0]
-                                    const imgBuffer = await readFile(join(productDir, mainFile))
-                                    const mimeType = mainFile.endsWith(".png") ? "image/png" : "image/jpeg"
-                                    refImages.push({
-                                        buffer: imgBuffer,
-                                        mimeType,
-                                        label: `EXACT product photo: ${randomProduct.name}`,
-                                    })
-                                    productImageLoaded = true
-                                    console.log(`   🛍️ Loaded local product image: ${mainFile}`)
-                                }
-                            } catch (err) {
-                                // Local files not available
+                            if (productFiles.length > 0) {
+                                const mainFile = productFiles[0]
+                                const imgBuffer = await readFile(join(productDir, mainFile))
+                                const mimeType = mainFile.endsWith(".png") ? "image/png" : "image/jpeg"
+                                refImages.push({
+                                    buffer: imgBuffer,
+                                    mimeType,
+                                    label: `EXACT product photo: ${randomProduct.name}`,
+                                })
+                                productImageLoaded = true
+                                console.log(`   🛍️ Loaded local product image: ${mainFile}`)
                             }
+                        } catch (err) {
+                            // Local files not available
                         }
                     }
 
@@ -859,6 +920,18 @@ CRITICAL RULES:
         postId = post.id
         if (idea) await markIdeaAsUsed(idea.id)
         if (review) await markReviewAsUsed(review.id)
+
+        // Track product usage for cooldown rotation
+        if (linkedProductId) {
+            await supabaseAdmin
+                .from("ig_products")
+                .update({
+                    last_used_at: new Date().toISOString(),
+                    times_used: (await supabaseAdmin.from("ig_products").select("times_used").eq("id", linkedProductId).single()).data?.times_used + 1 || 1,
+                })
+                .eq("id", linkedProductId)
+            console.log(`   📌 Product "${selectedProduct?.name}" marked as used`)
+        }
 
         await logGeneration({
             postId: post.id,

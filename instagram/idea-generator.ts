@@ -17,6 +17,19 @@ export async function generateAIIdeas(config: ClientConfig, pillarId: string, co
         ? `\n## CÍLOVÁ SKUPINA\n${config.audiencePersonas.map(p => `- ${p.label} (${p.ageRange} let): ${p.painPoints.slice(0, 2).join(", ")}`).join("\n")}\n`
         : ""
 
+    // Inject brand memories so new ideas build on what historically worked
+    let memorySection = ""
+    try {
+        const { getBrandMemories, formatMemoriesForPrompt } = await import("./memory-agent")
+        const memories = await getBrandMemories(5)
+        if (memories.length > 0) {
+            memorySection = formatMemoriesForPrompt(memories)
+            console.log(`   🧠 Brand memory: ${memories.length} vzorců injected into idea generation`)
+        }
+    } catch {
+        // Non-fatal — continue without memories
+    }
+
     const prompt = `
 Jsi hlavní kreativec a stratég pro značku "${config.name}".
 Tvým úkolem je vymyslet nové, dosud nepoužité nápady na příspěvky (Ideas) pro obsahový pilíř "${pillar.label}" (${pillar.emoji}).
@@ -32,7 +45,7 @@ ${config.brandVoice?.antiPatterns?.slice(0, 5).join("\n") || ""}
 ## SPECIFIKACE PILÍŘE
 ${pillar.ideaPrompt || pillar.description || ""}
 Typy postů: ${pillar.postTypes?.join(", ") || ""}
-${productsSection}${personaSection}
+${productsSection}${personaSection}${memorySection}
 ## POŽADAVKY:
 - Vygeneruj přesně ${count} odlišných, atraktivních nápadů
 - Každý nápad musí mít chytlavý 'title', detailní 'content' (o čem to přesně bude) a pole 'keywords'

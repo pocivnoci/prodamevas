@@ -53,6 +53,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Analytika",
         items: [
             { id: "performance", label: "Výkon", icon: "📊" },
+            { id: "brain", label: "Paměť", icon: "🧠" },
         ],
     },
 ]

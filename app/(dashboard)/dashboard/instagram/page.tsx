@@ -20,6 +20,7 @@ import { FeedTab } from "./tabs/FeedTab"
 import { IdeasTab } from "./tabs/IdeasTab"
 import { ReviewsTab } from "./tabs/ReviewsTab"
 import { WaitlistTab } from "./tabs/WaitlistTab"
+import { BrainTab } from "./tabs/BrainTab"
 import { TutorialOverlay, useTutorialState } from "./tabs/TutorialOverlay"
 
 // Section labels for header
@@ -39,6 +40,7 @@ const SECTION_LABELS: Record<string, { title: string; description: string }> = {
     settings: { title: "Nastavení", description: "Konfigurace značky a systému" },
     onboard: { title: "Onboarding", description: "Onboardujte nového klienta" },
     waitlist: { title: "Waitlist", description: "Správa zájemců a zvacích kódů" },
+    brain: { title: "Paměť", description: "Naučené vzorce z reálného výkonu" },
 }
 
 export default function InstagramPage() {
@@ -83,6 +85,7 @@ export default function InstagramPage() {
                     {activeSection === "settings" && <SettingsTab projectId={projectId} />}
                     {activeSection === "onboard" && <OnboardTab />}
                     {activeSection === "waitlist" && <WaitlistTab />}
+                    {activeSection === "brain" && <BrainTab projectId={projectId} />}
                 </motion.div>
             </AnimatePresence>
 

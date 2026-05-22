@@ -92,6 +92,112 @@ export function formatMemoriesForPrompt(memories: BrandMemory[]): string {
 }
 
 // ============================================
+// POST TYPE BOOST (memory → post type selection)
+// ============================================
+
+/**
+ * Scan memories for mentions of post types and return boost multipliers.
+ * Used by autopilot.ts to weight post type selection based on what works.
+ * Returns: { "behind_the_scenes": 1.5, "meme": 0.5, ... }
+ */
+export async function getPostTypeBoosts(availableTypes: string[]): Promise<Record<string, number>> {
+    const memories = await getBrandMemories(15)
+    const boosts: Record<string, number> = {}
+
+    if (memories.length === 0) return boosts
+
+    // Normalize type names for matching (e.g. "behind_the_scenes" → "behind the scenes")
+    const typeNormalized = new Map<string, string>()
+    for (const t of availableTypes) {
+        typeNormalized.set(t.replace(/_/g, " ").toLowerCase(), t)
+        typeNormalized.set(t.toLowerCase(), t)
+    }
+
+    for (const m of memories) {
+        const contentLower = m.content.toLowerCase()
+        for (const [normalized, original] of typeNormalized) {
+            if (contentLower.includes(normalized)) {
+                const boost = m.memory_type === "avoid"
+                    ? -m.confidence * 0.3  // Penalize avoided types
+                    : m.confidence * 0.4   // Boost successful types
+                boosts[original] = (boosts[original] || 0) + boost
+            }
+        }
+    }
+
+    return boosts
+}
+
+// ============================================
+// MEMORY LIFECYCLE (decay, dedup, pruning)
+// ============================================
+
+/**
+ * Decay confidence of memories not confirmed in 60+ days.
+ * Prevents stale patterns from dominating fresh insights.
+ */
+async function decayStaleMemories(clientId: string): Promise<number> {
+    const threshold = new Date()
+    threshold.setDate(threshold.getDate() - 60)
+
+    const { data: stale } = await supabaseAdmin
+        .from("ig_brand_memory")
+        .select("id, confidence")
+        .eq("client_id", clientId)
+        .lt("updated_at", threshold.toISOString())
+        .gte("confidence", 0.3)
+
+    let decayed = 0
+    for (const mem of stale || []) {
+        const newConf = Math.max(0.2, mem.confidence - 0.15)
+        await supabaseAdmin
+            .from("ig_brand_memory")
+            .update({ confidence: newConf })
+            .eq("id", mem.id)
+        decayed++
+    }
+    if (decayed > 0) console.log(`   📉 Decayed ${decayed} stale memories`)
+    return decayed
+}
+
+/**
+ * Prune excess memories — keep only top N by confidence.
+ * Prevents prompt bloat from accumulating too many rules.
+ */
+async function pruneExcessMemories(clientId: string, maxMemories = 25): Promise<number> {
+    const { data: all } = await supabaseAdmin
+        .from("ig_brand_memory")
+        .select("id")
+        .eq("client_id", clientId)
+        .order("confidence", { ascending: true })
+
+    if (!all || all.length <= maxMemories) return 0
+
+    const toDelete = all.slice(0, all.length - maxMemories)
+    await supabaseAdmin
+        .from("ig_brand_memory")
+        .delete()
+        .in("id", toDelete.map(m => m.id))
+
+    console.log(`   🗑️ Pruned ${toDelete.length} low-confidence memories (cap: ${maxMemories})`)
+    return toDelete.length
+}
+
+/**
+ * Check if two memory contents are semantically similar.
+ * Used to merge/deduplicate during learning.
+ */
+function isSimilarMemory(a: string, b: string): boolean {
+    const normalize = (s: string) =>
+        s.toLowerCase().replace(/[^\w\sáčďéěíňóřšťúůýž]/g, "").split(/\s+/).filter(w => w.length > 3)
+    const wordsA = new Set(normalize(a))
+    const wordsB = normalize(b)
+    if (wordsA.size === 0 || wordsB.length === 0) return false
+    const overlap = wordsB.filter(w => wordsA.has(w)).length
+    return overlap / Math.max(wordsA.size, wordsB.length) > 0.5
+}
+
+// ============================================
 // VISUAL PATTERN ANALYSIS (Phase 2)
 // ============================================
 
@@ -287,30 +393,28 @@ Vrať POUZE validní JSON pole:
         for (const learning of learnings) {
             if (!learning.content || !learning.type) continue
 
-            const keywordMatch = learning.content.split(" ").slice(0, 3).join(" ")
-            const { data: existing } = await supabaseAdmin
+            // Improved dedup: check all existing memories of same type for semantic similarity
+            const { data: sameTypeMemories } = await supabaseAdmin
                 .from("ig_brand_memory")
-                .select("id, confidence, times_confirmed, source_post_ids")
+                .select("id, content, confidence, times_confirmed, source_post_ids")
                 .eq("client_id", clientId)
                 .eq("memory_type", learning.type)
-                .ilike("content", `%${keywordMatch}%`)
-                .limit(1)
 
             const sourceIds = [...topPosts, ...bottomPosts].map(p => p.id)
+            const existingMatch = (sameTypeMemories || []).find(m => isSimilarMemory(m.content, learning.content))
 
-            if (existing && existing.length > 0) {
-                const mem = existing[0]
-                const newConfidence = Math.min(1, mem.confidence + 0.1)
-                const mergedSources = [...new Set([...(mem.source_post_ids || []), ...sourceIds])]
+            if (existingMatch) {
+                const newConfidence = Math.min(1, existingMatch.confidence + 0.1)
+                const mergedSources = [...new Set([...(existingMatch.source_post_ids || []), ...sourceIds])]
 
                 await supabaseAdmin
                     .from("ig_brand_memory")
                     .update({
                         confidence: newConfidence,
-                        times_confirmed: mem.times_confirmed + 1,
+                        times_confirmed: existingMatch.times_confirmed + 1,
                         source_post_ids: mergedSources.slice(-20),
                     })
-                    .eq("id", mem.id)
+                    .eq("id", existingMatch.id)
 
                 updated++
                 console.log(`   📝 Updated: "${learning.content}" (confidence: ${(newConfidence * 100).toFixed(0)}%)`)
@@ -342,6 +446,14 @@ Vrať POUZE validní JSON pole:
     )
     created += vCreated
     updated += vUpdated
+
+    // === Phase 3: Memory lifecycle maintenance ===
+    try {
+        await decayStaleMemories(clientId)
+        await pruneExcessMemories(clientId)
+    } catch (lifecycleErr: any) {
+        console.warn("   ⚠️ Memory lifecycle maintenance failed:", lifecycleErr?.message)
+    }
 
     return { memoriesCreated: created, memoriesUpdated: updated }
 }

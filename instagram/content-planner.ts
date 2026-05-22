@@ -88,6 +88,24 @@ export async function planWeek(
         ? [...new Set(config.weekPlan)]
         : Object.values(config.contentPillars).flatMap(p => p.postTypes)
 
+    // Inject brand memories into planning context
+    let memorySection = ""
+    try {
+        const { getBrandMemories, formatMemoriesForPrompt } = await import("./memory-agent")
+        const { setActiveProject } = await import("./service")
+        // Ensure active project is set for memory queries
+        const { resolveClientId } = await import("./configs")
+        const clientId = await resolveClientId(config.id)
+        setActiveProject(clientId)
+        const memories = await getBrandMemories(8)
+        if (memories.length > 0) {
+            memorySection = formatMemoriesForPrompt(memories)
+            console.log(`   🧠 Brand memory: ${memories.length} vzorců injected into content planner`)
+        }
+    } catch {
+        // Non-fatal — continue without memories
+    }
+
     const planPrompt = `
 Jsi content strategist pro značku "${config.name}" (${(config as any).industry || "business"}).
 Web: ${config.website} | IG: ${config.instagram}
@@ -105,7 +123,7 @@ ${weatherSection}
 
 ## PERFORMANCE DATA:
 ${perfSection}
-
+${memorySection}
 ## DOSTUPNÉ TYPY POSTŮ:
 ${availableTypes.map(t => `- ${t}`).join("\n")}
 
