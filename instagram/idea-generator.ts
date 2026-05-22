@@ -3,10 +3,13 @@ import { type ClientConfig } from "./configs/types"
 import { resolveClientId } from "./configs"
 import supabaseAdmin from "../supabase/admin"
 
-export async function generateAIIdeas(config: ClientConfig, pillarId: string, count: number = 10) {
+export async function generateAIIdeas(config: ClientConfig, pillarId: string, count: number = 10, categoryId?: string) {
     // 1. Validate pillar
     const pillar = config.contentPillars?.[pillarId]
     if (!pillar) throw new Error(`Pillar ${pillarId} not found in config.`)
+
+    // Resolve category if specified
+    const category = categoryId ? pillar.categories?.find(c => c.id === categoryId) : undefined
 
     // 2. Build prompt
     const productsSection = config.products?.length
@@ -30,6 +33,12 @@ export async function generateAIIdeas(config: ClientConfig, pillarId: string, co
         // Non-fatal — continue without memories
     }
 
+    const categorySection = category
+        ? `\n## 🎯 KATEGORIE: ${category.emoji} ${category.label}\n${category.prompt || ""}\nVšechny nápady MUSÍ spadat do této kategorie.\n`
+        : pillar.categories?.length
+            ? `\n## DOSTUPNÉ KATEGORIE V TOMTO PILÍŘI:\n${pillar.categories.map(c => `- ${c.emoji} ${c.label}${c.prompt ? `: ${c.prompt}` : ""}`).join("\n")}\nRozděl nápady rovnoměrně mezi tyto kategorie.\n`
+            : ""
+
     const prompt = `
 Jsi hlavní kreativec a stratég pro značku "${config.name}".
 Tvým úkolem je vymyslet nové, dosud nepoužité nápady na příspěvky (Ideas) pro obsahový pilíř "${pillar.label}" (${pillar.emoji}).
@@ -45,7 +54,7 @@ ${config.brandVoice?.antiPatterns?.slice(0, 5).join("\n") || ""}
 ## SPECIFIKACE PILÍŘE
 ${pillar.ideaPrompt || pillar.description || ""}
 Typy postů: ${pillar.postTypes?.join(", ") || ""}
-${productsSection}${personaSection}${memorySection}
+${categorySection}${productsSection}${personaSection}${memorySection}
 ## POŽADAVKY:
 - Vygeneruj přesně ${count} odlišných, atraktivních nápadů
 - Každý nápad musí mít chytlavý 'title', detailní 'content' (o čem to přesně bude) a pole 'keywords'
@@ -73,7 +82,8 @@ ${productsSection}${personaSection}${memorySection}
     }
 
     // 3. Call Gemini
-    console.log(`💡 Generuji AI Nápady (${count}x) pro kategorii: ${pillarId}...`)
+    const catLabel = category ? ` → ${category.label}` : ""
+    console.log(`💡 Generuji AI Nápady (${count}x) pro: ${pillarId}${catLabel}...`)
     const resultJson = await generateText(prompt, { responseSchema: ideasSchema })
 
     let ideasPayload: any[]
@@ -103,7 +113,7 @@ ${productsSection}${personaSection}${memorySection}
     const rows = ideasPayload.slice(0, count).map(idea => ({
         client_id: clientId,
         category: pillarId,
-        subcategory: "AI Generated",
+        subcategory: categoryId || "AI Generated",
         title: idea.title,
         content: idea.content,
         keywords: idea.keywords || [],

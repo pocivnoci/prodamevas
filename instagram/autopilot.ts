@@ -1239,9 +1239,15 @@ async function showStats() {
 // AUTO-IDEA GENERATION
 // ============================================
 
-function buildIdeasSchema(): object {
+function buildIdeasSchema(pillarKey?: string): object {
     const config = CLIENT_CONFIG!
     const categories = Object.keys(config.contentPillars).join(", ")
+
+    // If pillar has sub-categories, use them for subcategory enum
+    const pillarCfg = pillarKey ? config.contentPillars[pillarKey] : undefined
+    const subCatDesc = pillarCfg?.categories?.length
+        ? `Sub-category: ${pillarCfg.categories.map(c => c.id).join(", ")}`
+        : "Sub-topic or platform, e.g. 'general'"
 
     return {
         type: "object",
@@ -1254,7 +1260,7 @@ function buildIdeasSchema(): object {
                         title: { type: "string", description: "Short title (3-6 words, Czech)" },
                         content: { type: "string", description: "Detailed description of the idea (2-3 sentences, Czech)" },
                         category: { type: "string", description: `Category: ${categories}` },
-                        subcategory: { type: "string", description: "Sub-topic or platform, e.g. 'general'" },
+                        subcategory: { type: "string", description: subCatDesc },
                         keywords: { type: "array", items: { type: "string" }, description: "3-5 relevant keywords" },
                     },
                     required: ["title", "content", "category", "subcategory", "keywords"],
@@ -1295,7 +1301,11 @@ ${config.products.map(p => `- ${p.name} (${p.type}): ${p.description || p.price 
 ## PILÍŘ: ${pillarInfo?.label || pillar.toUpperCase()}
 ${pillarInfo?.description || ""}
 Typy postů: ${pillarInfo?.postTypes.join(", ") || "meme, product_drop"}
-
+${pillarInfo?.categories?.length ? `
+## KATEGORIE V TOMTO PILÍŘI:
+${pillarInfo.categories.map(c => `- ${c.emoji} **${c.label}** (id: "${c.id}")${c.prompt ? `: ${c.prompt}` : ""}`).join("\n")}
+Každý nápad MUSÍ mít subcategory nastavený na jedno z těchto ID. Rozděl nápady rovnoměrně.
+` : ""}
 ## PRAVIDLA:
 1. Všechny nápady MUSÍ odpovídat brand voice a tématu značky "${config.name}"
 2. Piš česky, moderní hovorovou češtinou
@@ -1304,11 +1314,11 @@ Typy postů: ${pillarInfo?.postTypes.join(", ") || "meme, product_drop"}
 5. CTA musí směřovat na ${config.website}
 
 Generuj PŘESNĚ ${count} nápadů.
-Každý nápad musí mít: title (krátký název), content (text nápadu/caption), category, keywords.`
+Každý nápad musí mít: title (krátký název), content (text nápadu/caption), category, subcategory, keywords.`
 
     try {
         const result = await generateText(prompt, {
-            responseSchema: buildIdeasSchema(),
+            responseSchema: buildIdeasSchema(pillar),
             temperature: 0.9,
         })
 

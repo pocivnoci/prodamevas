@@ -586,6 +586,51 @@ function PillarsSection({ config, setConfig }: { config: any; setConfig: (fn: an
                         <textarea value={pillar.ideaPrompt || ""} onChange={(e) => updatePillar(key, "ideaPrompt", e.target.value)}
                             rows={2} placeholder="Zaměř se na praktické tipy, používej čísla a statistiky..." className={textareaClass} />
                     </div>
+
+                    {/* Categories within pillar */}
+                    <div className="border-t border-white/5 pt-4 mt-2">
+                        <FieldLabel hint="Tematické úhly — soutěž, edukace, tip, FAQ... AI generuje nápady per kategorie">Kategorie</FieldLabel>
+                        <div className="space-y-2">
+                            {(pillar.categories || []).map((cat: any, catIdx: number) => (
+                                <div key={catIdx} className="flex items-start gap-2 bg-[#050505] border border-white/5 rounded-sm p-3">
+                                    <input value={cat.emoji || "📌"} onChange={(e) => {
+                                        const cats = [...(pillar.categories || [])]
+                                        cats[catIdx] = { ...cats[catIdx], emoji: e.target.value }
+                                        updatePillar(key, "categories", cats)
+                                    }} className="w-9 h-9 text-center text-lg bg-transparent border border-white/10 rounded-sm focus:outline-none focus:ring-1 focus:ring-white/30" />
+                                    <div className="flex-1 space-y-1.5">
+                                        <div className="flex gap-2">
+                                            <input value={cat.id || ""} onChange={(e) => {
+                                                const cats = [...(pillar.categories || [])]
+                                                cats[catIdx] = { ...cats[catIdx], id: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "_") }
+                                                updatePillar(key, "categories", cats)
+                                            }} placeholder="id (slug)" className="w-28 px-2 py-1.5 bg-transparent border border-white/10 rounded-sm text-[9px] font-mono text-white/50 focus:outline-none focus:ring-1 focus:ring-white/30" />
+                                            <input value={cat.label || ""} onChange={(e) => {
+                                                const cats = [...(pillar.categories || [])]
+                                                cats[catIdx] = { ...cats[catIdx], label: e.target.value }
+                                                updatePillar(key, "categories", cats)
+                                            }} placeholder="Název" className="flex-1 px-2 py-1.5 bg-transparent border border-white/10 rounded-sm text-xs text-white font-bold focus:outline-none focus:ring-1 focus:ring-white/30" />
+                                        </div>
+                                        <input value={cat.prompt || ""} onChange={(e) => {
+                                            const cats = [...(pillar.categories || [])]
+                                            cats[catIdx] = { ...cats[catIdx], prompt: e.target.value }
+                                            updatePillar(key, "categories", cats)
+                                        }} placeholder="AI prompt hint (volitelné)" className="w-full px-2 py-1.5 bg-transparent border border-white/5 rounded-sm text-[10px] text-white/40 focus:outline-none focus:ring-1 focus:ring-white/30" />
+                                    </div>
+                                    <button onClick={() => {
+                                        const cats = (pillar.categories || []).filter((_: any, i: number) => i !== catIdx)
+                                        updatePillar(key, "categories", cats)
+                                    }} className="text-[9px] text-red-400/40 hover:text-red-400 transition-colors mt-1">✕</button>
+                                </div>
+                            ))}
+                            <button onClick={() => {
+                                const cats = [...(pillar.categories || []), { id: `cat_${Date.now()}`, label: "", emoji: "📌", prompt: "" }]
+                                updatePillar(key, "categories", cats)
+                            }} className="w-full py-2 border border-dashed border-white/10 rounded-sm text-[9px] text-white/30 font-bold uppercase tracking-widest hover:text-white/50 hover:border-white/20 transition-all">
+                                + Přidat kategorii
+                            </button>
+                        </div>
+                    </div>
                 </div>
             ))}
 

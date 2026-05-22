@@ -460,10 +460,19 @@ Názvy produktů, kolekcí a brand names ponechej V ANGLIČTINĚ! Příklady:
 ## TÓN: ${toneDesc}
 
 ${productsSection}
-${idea && !userTopic ? `## ZDROJOVÝ NÁPAD
+${idea && !userTopic ? (() => {
+    // Resolve category context from idea's subcategory
+    const pillarKey = getPillarForType(config, postType.name)
+    const pillarConfig = config.contentPillars[pillarKey]
+    const ideaCategory = idea.subcategory && pillarConfig?.categories?.find(c => c.id === idea.subcategory)
+    const categoryContext = ideaCategory
+        ? `\n**Kategorie:** ${ideaCategory.emoji} ${ideaCategory.label}${ideaCategory.prompt ? `\n**Úhel:** ${ideaCategory.prompt}` : ""}\nPost MUSÍ odpovídat tomuto typu obsahu.`
+        : `Kategorie: ${idea.category}, Platforma: ${idea.subcategory || "general"}`
+    return `## ZDROJOVÝ NÁPAD
 **${idea.title}**: ${idea.content}
-Kategorie: ${idea.category}, Platforma: ${idea.subcategory || "general"}
-` : ""}
+${categoryContext}
+`
+})() : ""}
 ${userTopic ? `## 🎯 ZADANÉ TÉMA OD UŽIVATELE (NEJVYŠŠÍ PRIORITA!)
 **Post MUSÍ být PŘESNĚ o tomto tématu:** ${userTopic}
 ` : ""}

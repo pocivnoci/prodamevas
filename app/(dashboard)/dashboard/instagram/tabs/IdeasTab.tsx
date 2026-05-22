@@ -1,19 +1,27 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { motion } from "framer-motion"
 import { getIGIdeasList, getIGCategories } from "@/app/actions/admin-actions"
 import { addNewIdea, triggerAIIdeasGeneration } from "@/app/actions/ig-generate-action"
 import { LoadingSpinner } from "./shared"
 
+type PillarWithCategories = {
+    id: string
+    emoji: string
+    label: string
+    categories?: { id: string; emoji: string; label: string }[]
+}
+
 export function IdeasTab({ projectId }: { projectId: string }) {
     const [ideas, setIdeas] = useState<any[]>([])
-    const [categories, setCategories] = useState<{ id: string; emoji: string; label: string }[]>([])
+    const [pillars, setPillars] = useState<PillarWithCategories[]>([])
     const [loading, setLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
     const [newIdea, setNewIdea] = useState({ title: "", content: "", category: "tip", subcategory: "" })
     const [saving, setSaving] = useState(false)
     const [generatingAI, setGeneratingAI] = useState(false)
+    const [filterCategory, setFilterCategory] = useState<string>("all")
 
     const loadIdeas = async () => {
         if (!projectId) return
@@ -26,8 +34,36 @@ export function IdeasTab({ projectId }: { projectId: string }) {
     useEffect(() => {
         if (!projectId) return
         loadIdeas()
-        getIGCategories(projectId).then(setCategories)
+        getIGCategories(projectId).then(setPillars)
     }, [projectId])
+
+    // Build flat list of all categories for filtering
+    const allCategories = useMemo(() => {
+        const cats: { id: string; emoji: string; label: string; pillarLabel: string }[] = []
+        for (const p of pillars) {
+            if (p.categories?.length) {
+                for (const c of p.categories) {
+                    cats.push({ ...c, pillarLabel: p.label })
+                }
+            }
+        }
+        return cats
+    }, [pillars])
+
+    // Category label lookup
+    const categoryLabelMap = useMemo(() => {
+        const map: Record<string, { emoji: string; label: string }> = {}
+        for (const c of allCategories) {
+            map[c.id] = { emoji: c.emoji, label: c.label }
+        }
+        return map
+    }, [allCategories])
+
+    // Filtered ideas
+    const filteredIdeas = useMemo(() => {
+        if (filterCategory === "all") return ideas
+        return ideas.filter(i => i.subcategory === filterCategory)
+    }, [ideas, filterCategory])
 
     const handleAddIdea = async () => {
         if (!newIdea.title || !newIdea.content) return
@@ -39,10 +75,15 @@ export function IdeasTab({ projectId }: { projectId: string }) {
         loadIdeas()
     }
 
-    const handleGenerateAIIdeas = async (pillarId: string) => {
+    const handleGenerateAIIdeas = async (pillarId: string, categoryId?: string) => {
         if (!pillarId) return
         setGeneratingAI(true)
-        const res = await triggerAIIdeasGeneration({ configName: projectId, pillarId, count: 10 })
+        const res = await triggerAIIdeasGeneration({
+            configName: projectId,
+            pillarId,
+            count: 10,
+            categoryId: categoryId || undefined,
+        })
         if (res.success) {
             await loadIdeas()
         } else {
@@ -56,23 +97,42 @@ export function IdeasTab({ projectId }: { projectId: string }) {
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
-                <span className="text-[10px] text-white/40 tracking-widest uppercase font-bold">{ideas.length} nápadů</span>
+                <span className="text-[10px] text-white/40 tracking-widest uppercase font-bold">
+                    {filteredIdeas.length}{filterCategory !== "all" ? ` / ${ideas.length}` : ""} nápadů
+                </span>
                 <div className="flex items-center gap-3">
-                    {/* Select for AI Generation Category */}
+                    {/* AI Generation — 2-level dropdown (pillar → category) */}
                     <div className="relative group">
                         <select
                             onChange={(e) => {
-                                if (e.target.value) {
-                                    handleGenerateAIIdeas(e.target.value)
-                                    e.target.value = "" // reset select
-                                }
+                                const val = e.target.value
+                                if (!val) return
+                                // Value format: "pillarId" or "pillarId:categoryId"
+                                const [pillarId, categoryId] = val.split(":")
+                                handleGenerateAIIdeas(pillarId, categoryId)
+                                e.target.value = "" // reset
                             }}
                             disabled={generatingAI}
                             className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-[0_0_15px_rgba(16,185,129,0.1)] appearance-none cursor-pointer pr-8 ${generatingAI ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-500/20'}`}
                         >
                             <option value="">{generatingAI ? "✨ Generuji..." : "✨ AI Nápady (10x)"}</option>
-                            {categories.map(cat => (
-                                <option key={cat.id} value={cat.id}>{cat.emoji} {cat.label}</option>
+                            {pillars.map(pillar => (
+                                pillar.categories && pillar.categories.length > 0 ? (
+                                    <optgroup key={pillar.id} label={`${pillar.emoji} ${pillar.label}`}>
+                                        <option value={pillar.id}>
+                                            {pillar.emoji} Vše ({pillar.label})
+                                        </option>
+                                        {pillar.categories.map(cat => (
+                                            <option key={`${pillar.id}:${cat.id}`} value={`${pillar.id}:${cat.id}`}>
+                                                {cat.emoji} {cat.label}
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                ) : (
+                                    <option key={pillar.id} value={pillar.id}>
+                                        {pillar.emoji} {pillar.label}
+                                    </option>
+                                )
                             ))}
                         </select>
                         <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-emerald-500">
@@ -88,6 +148,35 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                     </button>
                 </div>
             </div>
+
+            {/* Category filter chips */}
+            {allCategories.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                    <button
+                        onClick={() => setFilterCategory("all")}
+                        className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest rounded-sm border transition-all ${
+                            filterCategory === "all"
+                                ? "bg-white/10 text-white border-white/20"
+                                : "bg-white/3 text-white/40 border-white/5 hover:text-white/60 hover:border-white/10"
+                        }`}
+                    >
+                        Vše
+                    </button>
+                    {allCategories.map(cat => (
+                        <button
+                            key={cat.id}
+                            onClick={() => setFilterCategory(cat.id === filterCategory ? "all" : cat.id)}
+                            className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest rounded-sm border transition-all ${
+                                filterCategory === cat.id
+                                    ? "bg-white/10 text-white border-white/20"
+                                    : "bg-white/3 text-white/40 border-white/5 hover:text-white/60 hover:border-white/10"
+                            }`}
+                        >
+                            {cat.emoji} {cat.label}
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {showForm && (
                 <div className="bg-[#0f0f0f] border border-white/10 rounded-sm p-6 space-y-4 shadow-lg shrink-0">
@@ -111,11 +200,27 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                             onChange={(e) => setNewIdea(prev => ({ ...prev, category: e.target.value }))}
                             className="px-4 py-2 bg-[#050505] border border-white/10 rounded-sm text-white/70 text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all"
                         >
-                            <option value="tip">Tip</option>
-                            <option value="edukace">Edukace</option>
-                            <option value="motivace">Motivace</option>
-                            <option value="statistika">Statistika</option>
+                            {pillars.map(p => (
+                                <option key={p.id} value={p.id}>{p.emoji} {p.label}</option>
+                            ))}
                         </select>
+                        {/* Subcategory select — show only if pillar has categories */}
+                        {(() => {
+                            const selectedPillar = pillars.find(p => p.id === newIdea.category)
+                            if (!selectedPillar?.categories?.length) return null
+                            return (
+                                <select
+                                    value={newIdea.subcategory}
+                                    onChange={(e) => setNewIdea(prev => ({ ...prev, subcategory: e.target.value }))}
+                                    className="px-4 py-2 bg-[#050505] border border-white/10 rounded-sm text-white/70 text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all"
+                                >
+                                    <option value="">— Kategorie —</option>
+                                    {selectedPillar.categories.map(c => (
+                                        <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>
+                                    ))}
+                                </select>
+                            )
+                        })()}
                         <button
                             onClick={handleAddIdea}
                             disabled={saving}
@@ -136,33 +241,43 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                     visible: { opacity: 1, transition: { staggerChildren: 0.05 } }
                 }}
             >
-                {ideas.map(idea => (
-                    <motion.div
-                        variants={{
-                            hidden: { opacity: 0, x: -20 },
-                            visible: { opacity: 1, x: 0 }
-                        }}
-                        key={idea.id}
-                        className="bg-[#0a0a0a] border border-white/5 rounded-sm p-4 hover:border-white/10 transition-all hover:bg-white/5 shadow-sm"
-                    >
-                        <div className="flex items-start justify-between gap-3">
-                            <div>
-                                <h4 className="text-xs font-bold uppercase tracking-wider text-white">{idea.title}</h4>
-                                <p className="text-xs text-white/50 mt-1.5 font-medium">{idea.content}</p>
+                {filteredIdeas.map(idea => {
+                    const catInfo = categoryLabelMap[idea.subcategory]
+                    return (
+                        <motion.div
+                            variants={{
+                                hidden: { opacity: 0, x: -20 },
+                                visible: { opacity: 1, x: 0 }
+                            }}
+                            key={idea.id}
+                            className="bg-[#0a0a0a] border border-white/5 rounded-sm p-4 hover:border-white/10 transition-all hover:bg-white/5 shadow-sm"
+                        >
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-white">{idea.title}</h4>
+                                    <p className="text-xs text-white/50 mt-1.5 font-medium">{idea.content}</p>
+                                </div>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                    {catInfo && (
+                                        <span className="text-[9px] px-2 py-1 rounded-sm bg-emerald-500/10 text-emerald-400/80 uppercase tracking-widest font-bold border border-emerald-500/20">
+                                            {catInfo.emoji} {catInfo.label}
+                                        </span>
+                                    )}
+                                    <span className="text-[9px] px-2 py-1 rounded-sm bg-white/5 text-white/50 uppercase tracking-widest font-bold border border-white/10">{idea.category}</span>
+                                    <span className="text-[9px] font-mono text-white/40 uppercase tracking-widest">×{idea.times_used || 0}</span>
+                                </div>
                             </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                                <span className="text-[9px] px-2 py-1 rounded-sm bg-white/5 text-white/50 uppercase tracking-widest font-bold border border-white/10">{idea.category}</span>
-                                <span className="text-[9px] font-mono text-white/40 uppercase tracking-widest">×{idea.times_used || 0}</span>
-                            </div>
-                        </div>
-                    </motion.div>
-                ))}
+                        </motion.div>
+                    )
+                })}
             </motion.div>
 
-            {ideas.length === 0 && (
+            {filteredIdeas.length === 0 && (
                 <div className="text-center py-12 text-white/40">
                     <p className="text-4xl mb-3 grayscale opacity-30">💡</p>
-                    <p className="text-[10px] uppercase font-bold tracking-widest">Žádné nápady</p>
+                    <p className="text-[10px] uppercase font-bold tracking-widest">
+                        {filterCategory !== "all" ? "Žádné nápady v této kategorii" : "Žádné nápady"}
+                    </p>
                 </div>
             )}
         </div>

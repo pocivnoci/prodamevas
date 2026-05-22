@@ -502,21 +502,18 @@ Vrať POUZE platný JSON pole otázek.`
 }
 
 // ============================================
-// STEP 3: BUILD AND SAVE CONFIG
+// STEP 3A: GENERATE CONFIG PREVIEW (no save)
 // ============================================
 
-export async function buildAndSaveConfig(
+export type ReviewSection = 'brand_voice' | 'pillars' | 'products' | 'visual' | 'hooks_cta'
+
+export async function generateConfigPreview(
     analysis: WebsiteAnalysis,
     answers: Record<string, string | string[]>,
     websiteUrl: string,
     igHandle: string
-): Promise<{ success: boolean; clientSlug?: string; error?: string }> {
+): Promise<{ success: boolean; config?: ClientConfig; error?: string }> {
     try {
-        // Get current user
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return { success: false, error: 'Nepřihlášený uživatel' }
-
         // Build the config via AI
         const configPrompt = `Vytvořme kompletní Instagram autopilot konfiguraci pro firmu "${analysis.companyName}".
 
@@ -556,11 +553,25 @@ Vygeneruj kompletní ClientConfig JSON. Buď kreativní ale přesný.
     }
   },
   "contentPillars": {
-    "reach": {"emoji": "🎯", "label": "Dosah", "description": "...", "postTypes": [...], "ratio": 0.3, "ctaStrategy": "soft", "kpi": ["reach", "impressions"]},
-    "engagement": {"emoji": "💬", "label": "Engagement", "description": "...", "postTypes": [...], "ratio": 0.35, "ctaStrategy": "medium", "kpi": ["likes", "comments"]},
-    "sales": {"emoji": "🛒", "label": "Prodej", "description": "...", "postTypes": [...], "ratio": 0.20, "ctaStrategy": "hard", "kpi": ["clicks", "conversions"]},
-    "community": {"emoji": "🤝", "label": "Komunita", "description": "...", "postTypes": [...], "ratio": 0.15, "ctaStrategy": "none", "kpi": ["saves", "shares"]}
+    "reach": {"emoji": "🎯", "label": "Dosah", "description": "...", "postTypes": [...], "ratio": 0.3, "ctaStrategy": "soft", "kpi": ["reach", "impressions"], "categories": [
+      {"id": "slug_id", "emoji": "🎭", "label": "Lidský název", "prompt": "1 věta AI hint co generovat"}
+    ]},
+    "engagement": {"emoji": "💬", "label": "Engagement", "description": "...", "postTypes": [...], "ratio": 0.35, "ctaStrategy": "medium", "kpi": ["likes", "comments"], "categories": [...]},
+    "sales": {"emoji": "🛒", "label": "Prodej", "description": "...", "postTypes": [...], "ratio": 0.20, "ctaStrategy": "hard", "kpi": ["clicks", "conversions"], "categories": [...]},
+    "community": {"emoji": "🤝", "label": "Komunita", "description": "...", "postTypes": [...], "ratio": 0.15, "ctaStrategy": "none", "kpi": ["saves", "shares"], "categories": [...]}
   },
+
+### PRAVIDLA PRO CATEGORIES:
+- Každý pilíř MUSÍ mít 3-5 kategorií (sub-categories = tematické úhly v rámci pilíře)
+- Kategorie id MUSÍ být URL-safe slug (lowercase, jen a-z0-9_-)
+- Příklady kategorií podle industry:
+  - E-shop: tip, recenze, soutez, behind_scenes, unboxing, styling, trending
+  - Hotel/penzion: tipy_na_vylet, recenze_hostu, sezona, gastronomie, behind_scenes, zajimavosti
+  - Restaurace/kavárna: menu_highlight, recept, behind_scenes, sezona, event
+  - Fitness: cviceni, motivace, vyziva, challenge, vysledky
+  - Služby/řemeslo: pred_po, tip, faq, proces, reference
+  - Poradenství: tip, case_study, myt_vs_realita, statistika, qa
+- prompt field = 1 věta co AI generuje pro tuto kategorii (česky)
   "ctaStrategies": {
     "soft": ["... (3-4 jemné CTA)"],
     "medium": ["... (3-4 střední CTA)"],
@@ -636,10 +647,8 @@ DŮLEŽITÉ:
             slug
         )
         if (imageUrls.length > 0) {
-            // Tag images with AI descriptions
             try {
                 const { tagBrandImages } = await import('@/instagram/brand-tagger')
-                // Fetch buffers for tagging
                 const imagesToTag: { url: string; buffer: Buffer; mimeType?: string }[] = []
                 for (const url of imageUrls) {
                     try {
@@ -654,14 +663,11 @@ DŮLEŽITÉ:
                 if (imagesToTag.length > 0) {
                     const tagged = await tagBrandImages(imagesToTag, analysis.companyName)
                     config.brandReferenceImages = tagged
-                    console.log(`✅ ${tagged.length} brand images tagged and uploaded`)
                 } else {
                     config.brandReferenceImages = imageUrls
-                    console.log(`✅ ${imageUrls.length} brand images uploaded (tagging skipped)`)
                 }
             } catch (tagErr) {
-                // Tagging failed — fall back to URLs only
-                console.warn(`⚠️ Tagging failed, saving URLs only: ${(tagErr as Error).message}`)
+                console.warn(`⚠️ Tagging failed: ${(tagErr as Error).message}`)
                 config.brandReferenceImages = imageUrls
             }
         }
@@ -695,31 +701,153 @@ Pravidla:
             const personaMatch = rawPersonas.match(/\[[\s\S]*\]/)
             if (personaMatch) {
                 config.audiencePersonas = JSON.parse(personaMatch[0])
-                console.log(`✅ ${config.audiencePersonas!.length} audience personas generated`)
             }
         } catch (personaErr) {
             console.warn(`⚠️ Persona generation failed: ${(personaErr as Error).message}`)
         }
 
-        // Save to database
+        return { success: true, config }
+    } catch (error) {
+        console.error('Config preview error:', error)
+        return { success: false, error: humanizeError(error) }
+    }
+}
+
+// ============================================
+// STEP 3B: REFINE ONE SECTION (based on user feedback)
+// ============================================
+
+const SECTION_LABELS: Record<ReviewSection, string> = {
+    brand_voice: 'Brand Voice (persona, traits, anti-patterns)',
+    pillars: 'Content Pilíře a Kategorie',
+    products: 'Produkty a služby',
+    visual: 'Vizuální identita (gradient, font, feed aesthetic)',
+    hooks_cta: 'Hook templates a CTA strategie',
+}
+
+export async function refineConfigSection(
+    config: ClientConfig,
+    section: ReviewSection,
+    feedback: string,
+    analysis: WebsiteAnalysis
+): Promise<{ success: boolean; config?: ClientConfig; error?: string }> {
+    try {
+        const sectionData = extractSectionData(config, section)
+        const prompt = `Uživatel kontroluje konfiguraci Instagram autopilota pro "${config.name}" (${analysis.industry}).
+
+## SEKCE K PŘEPRACOVÁNÍ: ${SECTION_LABELS[section]}
+
+## AKTUÁLNÍ DATA
+${JSON.stringify(sectionData, null, 2)}
+
+## FEEDBACK OD UŽIVATELE
+"${feedback}"
+
+## KONTEXT FIRMY
+Název: ${config.name}
+Web: ${config.website}
+Obor: ${analysis.industry}
+Popis: ${analysis.description}
+Brand tón: ${analysis.brandTone}
+
+## ÚKOL
+Na základě feedbacku PŘEPRACUJ tuto sekci. Zachovej JSON strukturu, jen změň obsah podle feedbacku.
+${section === 'brand_voice' ? `Vrať JSON objekt s klíči: persona, values, voiceTraits, antiPatterns, ctaVariations, toneByPostType.` : ''}
+${section === 'pillars' ? `Vrať JSON objekt kde klíče jsou pillar IDs a hodnoty mají: emoji, label, description, postTypes, ratio, ctaStrategy, kpi, categories[]. Ratia musí dávat ~1.0. Každý pilíř MUSÍ mít 3-5 kategorií.` : ''}
+${section === 'products' ? `Vrať JSON pole produktů s: name, type, slug, price, description.` : ''}
+${section === 'visual' ? `Vrať JSON objekt s: feedAesthetic (colorPalette, overlayOpacity, textPosition, font, fontOverride, feel, accentColor), overlayGradient (topColor, midColor, bottomColor).` : ''}
+${section === 'hooks_cta' ? `Vrať JSON objekt s: hookTemplates (pole s pattern, example, bestFor, trigger) a ctaStrategies (soft, medium, hard, none — každý pole stringů).` : ''}
+
+Piš česky. Vrať POUZE platný JSON.`
+
+        const raw = await generateText(prompt, { temperature: 0.7 })
+        const jsonMatch = raw.match(/[\[{][\s\S]*[\]}]/)
+        if (!jsonMatch) throw new Error('AI nevrátilo platný JSON')
+
+        const refined = JSON.parse(jsonMatch[0])
+        const updated = applySectionData(config, section, refined)
+
+        return { success: true, config: updated }
+    } catch (error) {
+        console.error(`Refine section ${section} error:`, error)
+        return { success: false, error: humanizeError(error) }
+    }
+}
+
+function extractSectionData(config: ClientConfig, section: ReviewSection): any {
+    switch (section) {
+        case 'brand_voice':
+            return config.brandVoice || {}
+        case 'pillars':
+            return config.contentPillars || {}
+        case 'products':
+            return config.products || []
+        case 'visual':
+            return { feedAesthetic: config.feedAesthetic, overlayGradient: config.overlayGradient }
+        case 'hooks_cta':
+            return {
+                hookTemplates: config.brandVoice?.hookTemplates || [],
+                ctaStrategies: config.ctaStrategies || {},
+            }
+    }
+}
+
+function applySectionData(config: ClientConfig, section: ReviewSection, data: any): ClientConfig {
+    const updated = { ...config }
+    switch (section) {
+        case 'brand_voice':
+            updated.brandVoice = { ...(updated.brandVoice || {} as any), ...data }
+            break
+        case 'pillars':
+            updated.contentPillars = data
+            break
+        case 'products':
+            updated.products = Array.isArray(data) ? data : config.products
+            break
+        case 'visual':
+            if (data.feedAesthetic) updated.feedAesthetic = { ...(updated.feedAesthetic || {} as any), ...data.feedAesthetic }
+            if (data.overlayGradient) updated.overlayGradient = data.overlayGradient
+            break
+        case 'hooks_cta':
+            if (data.hookTemplates && updated.brandVoice) {
+                updated.brandVoice = { ...updated.brandVoice, hookTemplates: data.hookTemplates }
+            }
+            if (data.ctaStrategies) updated.ctaStrategies = data.ctaStrategies
+            break
+    }
+    return updated
+}
+
+// ============================================
+// STEP 3C: SAVE REVIEWED CONFIG
+// ============================================
+
+export async function saveReviewedConfig(
+    config: ClientConfig,
+    analysis: WebsiteAnalysis
+): Promise<{ success: boolean; clientSlug?: string; error?: string }> {
+    try {
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return { success: false, error: 'Nepřihlášený uživatel' }
+
         const clientSlug = config.id
 
-        // Ensure Storage Bucket exists for this client
-        const { error: bucketError } = await supabaseAdmin.storage.createBucket(config.storageBucket, {
+        // Ensure Storage Bucket
+        const bucketName = config.storageBucket || `ig-posts-${config.id}`
+        const { error: bucketError } = await supabaseAdmin.storage.createBucket(bucketName, {
             public: true,
             allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp'],
-            fileSizeLimit: 10485760 // 10MB
+            fileSizeLimit: 10485760
         })
         if (bucketError && !bucketError.message.includes('already exists') && !bucketError.message.includes('Duplicate')) {
-            console.warn(`⚠️ Failed to create bucket ${config.storageBucket}:`, bucketError.message)
-        } else {
-            console.log(`✅ Storage bucket ${config.storageBucket} is ready`)
+            console.warn(`⚠️ Failed to create bucket ${bucketName}:`, bucketError.message)
         }
 
-        // Insert client record (no user_id column — RBAC is via user_clients)
+        // Insert client record
         const insertedClientId = await insertClient(clientSlug, config)
 
-        // ── Sync scraped products → ig_products table ──
+        // Sync products → ig_products
         if (config.products && config.products.length > 0) {
             try {
                 const productRows = config.products.map((p: any) => ({
@@ -734,46 +862,50 @@ Pravidla:
                 const { error: prodError } = await supabaseAdmin
                     .from('ig_products')
                     .insert(productRows)
-                if (prodError) {
-                    console.warn('⚠️ Product sync failed:', prodError.message)
-                } else {
-                    console.log(`✅ ${productRows.length} products synced to ig_products`)
-                }
+                if (prodError) console.warn('⚠️ Product sync failed:', prodError.message)
             } catch (prodErr) {
                 console.warn('⚠️ Product sync exception:', (prodErr as Error).message)
             }
         }
 
-        // ── RBAC: Link user → client as owner ──
+        // RBAC: Link user → client as owner
         const { error: linkError } = await supabaseAdmin
             .from('user_clients')
-            .insert({
-                user_id: user.id,
-                client_id: insertedClientId,
-                role: 'owner',
-            })
+            .insert({ user_id: user.id, client_id: insertedClientId, role: 'owner' })
         if (linkError) {
             console.error('⚠️ Failed to create user_clients link:', linkError.message)
-            // Non-fatal — admin can fix manually
-        } else {
-            console.log(`✅ User ${user.id} linked to client ${insertedClientId} as owner`)
         }
 
-        // ── Create 7-day trial subscription ──
+        // Create 7-day trial subscription
         try {
             const { createTrialSubscription } = await import('@/lib/subscription')
             await createTrialSubscription(insertedClientId)
-            console.log(`✅ 7-day trial created for client ${insertedClientId}`)
         } catch (trialErr) {
             console.error('⚠️ Trial creation failed:', (trialErr as Error).message)
-            // Non-fatal — client works without subscription, just can't generate
         }
 
         return { success: true, clientSlug }
     } catch (error) {
-        console.error('Config build error:', error)
+        console.error('Save config error:', error)
         return { success: false, error: humanizeError(error) }
     }
+}
+
+// ============================================
+// STEP 3 (LEGACY WRAPPER): BUILD AND SAVE CONFIG
+// ============================================
+
+export async function buildAndSaveConfig(
+    analysis: WebsiteAnalysis,
+    answers: Record<string, string | string[]>,
+    websiteUrl: string,
+    igHandle: string
+): Promise<{ success: boolean; clientSlug?: string; error?: string }> {
+    const preview = await generateConfigPreview(analysis, answers, websiteUrl, igHandle)
+    if (!preview.success || !preview.config) {
+        return { success: false, error: preview.error || 'Config generation failed' }
+    }
+    return saveReviewedConfig(preview.config, analysis)
 }
 
 // ============================================

@@ -160,6 +160,7 @@ export async function triggerAIIdeasGeneration(options: {
     configName: string
     pillarId: string
     count?: number
+    categoryId?: string
     projectId?: string
 }): Promise<{ success: boolean; generatedCount: number; error?: string }> {
     try {
@@ -175,11 +176,12 @@ export async function triggerAIIdeasGeneration(options: {
         const { generateAIIdeas } = await import("@/instagram/idea-generator")
 
         const config = await loadConfig(options.configName)
-        const result = await generateAIIdeas(config, options.pillarId, options.count || 10)
+        const result = await generateAIIdeas(config, options.pillarId, options.count || 10, options.categoryId)
 
         // Deduct credits after success — same guard instance, no redundant DB call
         if (guard) {
-            await guard.commit(`Nápady: ${options.pillarId}`)
+            const catLabel = options.categoryId ? ` → ${options.categoryId}` : ""
+            await guard.commit(`Nápady: ${options.pillarId}${catLabel}`)
         }
 
         return {

@@ -2,11 +2,14 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { analyzeWebsite, generateQuestions, buildAndSaveConfig, buildManualAnalysis } from './actions'
-import type { WebsiteAnalysis, OnboardingQuestion } from './actions'
+import { analyzeWebsite, generateQuestions, generateConfigPreview, refineConfigSection, saveReviewedConfig, buildManualAnalysis } from './actions'
+import type { WebsiteAnalysis, OnboardingQuestion, ReviewSection } from './actions'
+import type { ClientConfig } from '@/instagram/configs/types'
 
-type Step = 'choose' | 'input' | 'manual' | 'analyzing' | 'questions' | 'building' | 'done'
+type Step = 'choose' | 'input' | 'manual' | 'analyzing' | 'questions' | 'building' | 'review' | 'saving' | 'done'
 type Mode = 'website' | 'manual' | null
+
+type SectionStatus = 'pending' | 'approved' | 'rejected' | 'refining'
 
 export default function OnboardingPage() {
     const router = useRouter()
@@ -28,6 +31,19 @@ export default function OnboardingPage() {
     const [analysis, setAnalysis] = useState<WebsiteAnalysis | null>(null)
     const [questions, setQuestions] = useState<OnboardingQuestion[]>([])
     const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
+
+    // Review state
+    const [configPreview, setConfigPreview] = useState<ClientConfig | null>(null)
+    const [sectionStatuses, setSectionStatuses] = useState<Record<ReviewSection, SectionStatus>>({
+        brand_voice: 'pending',
+        pillars: 'pending',
+        products: 'pending',
+        visual: 'pending',
+        hooks_cta: 'pending',
+    })
+    const [sectionFeedback, setSectionFeedback] = useState<Record<string, string>>({})
+    const [refiningSection, setRefiningSection] = useState<ReviewSection | null>(null)
+    const [refineCounts, setRefineCounts] = useState<Record<string, number>>({})
 
     // ─── Step 1A: Submit URL & IG ────────────────────────────
     async function handleAnalyze(e: React.FormEvent) {
@@ -76,7 +92,7 @@ export default function OnboardingPage() {
         }
     }
 
-    // ─── Step 3 → 4: Submit Answers ─────────────────────────────
+    // ─── Step 3 → 4: Submit Answers → Generate preview ────────
     async function handleSubmitAnswers(e: React.FormEvent) {
         e.preventDefault()
         if (!analysis) return
@@ -85,18 +101,72 @@ export default function OnboardingPage() {
         setStep('building')
 
         try {
-            const result = await buildAndSaveConfig(analysis, answers, url.trim(), igHandle.trim())
-            if (!result.success) {
+            const result = await generateConfigPreview(analysis, answers, url.trim(), igHandle.trim())
+            if (!result.success || !result.config) {
                 throw new Error(result.error || 'Generování konfigurace selhalo')
             }
-
-            // Nevolat ihned přesměrování. 
-            // Posuneme na informační zbrazovku.
-            setStep('done')
-
+            setConfigPreview(result.config)
+            // Reset review states
+            setSectionStatuses({
+                brand_voice: 'pending',
+                pillars: 'pending',
+                products: 'pending',
+                visual: 'pending',
+                hooks_cta: 'pending',
+            })
+            setSectionFeedback({})
+            setRefineCounts({})
+            setStep('review')
         } catch (err) {
             setError((err as Error).message)
             setStep('questions')
+        }
+    }
+
+    // ─── Review: Approve / Reject section ──────────────────────
+    function approveSection(section: ReviewSection) {
+        setSectionStatuses(prev => ({ ...prev, [section]: 'approved' }))
+        setSectionFeedback(prev => { const n = { ...prev }; delete n[section]; return n })
+    }
+
+    function rejectSection(section: ReviewSection) {
+        setSectionStatuses(prev => ({ ...prev, [section]: 'rejected' }))
+    }
+
+    async function handleRefineSection(section: ReviewSection) {
+        if (!configPreview || !analysis) return
+        const feedback = sectionFeedback[section]
+        if (!feedback?.trim()) return
+
+        setRefiningSection(section)
+        setSectionStatuses(prev => ({ ...prev, [section]: 'refining' }))
+
+        try {
+            const result = await refineConfigSection(configPreview, section, feedback, analysis)
+            if (!result.success || !result.config) throw new Error(result.error)
+            setConfigPreview(result.config)
+            setSectionStatuses(prev => ({ ...prev, [section]: 'pending' }))
+            setSectionFeedback(prev => { const n = { ...prev }; delete n[section]; return n })
+            setRefineCounts(prev => ({ ...prev, [section]: (prev[section] || 0) + 1 }))
+        } catch (err) {
+            setError((err as Error).message)
+            setSectionStatuses(prev => ({ ...prev, [section]: 'rejected' }))
+        }
+        setRefiningSection(null)
+    }
+
+    // ─── Review: Save approved config ──────────────────────────
+    async function handleSaveConfig() {
+        if (!configPreview || !analysis) return
+        setError(null)
+        setStep('saving')
+        try {
+            const result = await saveReviewedConfig(configPreview, analysis)
+            if (!result.success) throw new Error(result.error)
+            setStep('done')
+        } catch (err) {
+            setError((err as Error).message)
+            setStep('review')
         }
     }
 
@@ -124,9 +194,11 @@ export default function OnboardingPage() {
                         className="h-full bg-gradient-to-r from-emerald-500 to-blue-500 transition-all duration-700 ease-out"
                         style={{
                             width: (step === 'choose' || step === 'input' || step === 'manual') ? '0%'
-                                : step === 'analyzing' ? '33%'
-                                    : step === 'questions' ? '66%'
-                                        : '100%'
+                                : step === 'analyzing' ? '20%'
+                                    : step === 'questions' ? '40%'
+                                        : step === 'building' ? '60%'
+                                            : step === 'review' ? '80%'
+                                                : '100%'
                         }}
                     />
                 </div>
@@ -424,13 +496,163 @@ export default function OnboardingPage() {
                             <LoadingStep label="Content pilíře & strategie" />
                             <LoadingStep label="Hook templates & CTA" />
                             <LoadingStep label="Feed aesthetic & vizuální styl" />
-                            <LoadingStep label="Ukládám do databáze" />
                         </div>
                     </div>
                 )}
 
                 {/* ══════════════════════════════════════════════ */}
-                {/* STEP 5: Done!                                 */}
+                {/* STEP 5: Review config                         */}
+                {/* ══════════════════════════════════════════════ */}
+                {step === 'review' && configPreview && analysis && (
+                    <div className="animate-fadeIn">
+                        <div className="text-center mb-8">
+                            <h2 className="text-2xl font-bold mb-2">Zkontroluj konfiguraci</h2>
+                            <p className="text-gray-400">Projdi si jednotlivé sekce. Pokud je něco špatně, klikni 👎 a napiš co změnit.</p>
+                        </div>
+
+                        {error && <ErrorBanner message={error} />}
+
+                        <div className="space-y-4">
+                            <ReviewCard section="brand_voice" icon="🎤" title="Brand Voice & Persona"
+                                status={sectionStatuses.brand_voice} feedback={sectionFeedback.brand_voice || ''}
+                                refineCount={refineCounts.brand_voice || 0} isRefining={refiningSection === 'brand_voice'}
+                                onApprove={() => approveSection('brand_voice')} onReject={() => rejectSection('brand_voice')}
+                                onFeedbackChange={(v) => setSectionFeedback(prev => ({ ...prev, brand_voice: v }))}
+                                onRefine={() => handleRefineSection('brand_voice')}>
+                                <div className="space-y-3">
+                                    <ReviewField label="Persona" value={configPreview.brandVoice?.persona} />
+                                    <ReviewField label="Tón" value={(configPreview.brandVoice?.voiceTraits || []).join(', ')} />
+                                    <ReviewField label="Hodnoty" value={(configPreview.brandVoice?.values || []).join(', ')} />
+                                    <ReviewField label="Nepoužíváme" value={(configPreview.brandVoice?.antiPatterns || []).join(', ')} />
+                                </div>
+                            </ReviewCard>
+
+                            <ReviewCard section="pillars" icon="🏛️" title="Content Pilíře & Kategorie"
+                                status={sectionStatuses.pillars} feedback={sectionFeedback.pillars || ''}
+                                refineCount={refineCounts.pillars || 0} isRefining={refiningSection === 'pillars'}
+                                onApprove={() => approveSection('pillars')} onReject={() => rejectSection('pillars')}
+                                onFeedbackChange={(v) => setSectionFeedback(prev => ({ ...prev, pillars: v }))}
+                                onRefine={() => handleRefineSection('pillars')}>
+                                <div className="space-y-2">
+                                    {Object.entries(configPreview.contentPillars || {}).map(([key, pillar]: [string, any]) => (
+                                        <div key={key} className="flex items-start gap-2 bg-black/20 rounded-lg px-3 py-2">
+                                            <span className="text-lg">{pillar.emoji}</span>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-sm text-white">{pillar.label}</span>
+                                                    <span className="text-[10px] text-gray-500 font-mono">{Math.round((pillar.ratio || 0) * 100)}%</span>
+                                                </div>
+                                                <p className="text-xs text-gray-400 mt-0.5">{pillar.description}</p>
+                                                {pillar.categories?.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1 mt-1.5">
+                                                        {pillar.categories.map((cat: any) => (
+                                                            <span key={cat.id} className="text-[9px] px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-gray-400">
+                                                                {cat.emoji} {cat.label}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </ReviewCard>
+
+                            <ReviewCard section="products" icon="📦" title="Produkty & Služby"
+                                status={sectionStatuses.products} feedback={sectionFeedback.products || ''}
+                                refineCount={refineCounts.products || 0} isRefining={refiningSection === 'products'}
+                                onApprove={() => approveSection('products')} onReject={() => rejectSection('products')}
+                                onFeedbackChange={(v) => setSectionFeedback(prev => ({ ...prev, products: v }))}
+                                onRefine={() => handleRefineSection('products')}>
+                                {(configPreview.products || []).length > 0 ? (
+                                    <div className="flex flex-wrap gap-2">
+                                        {(configPreview.products || []).map((p: any, i: number) => (
+                                            <span key={i} className="text-xs px-3 py-1.5 bg-black/20 rounded-lg border border-white/5 text-gray-300">
+                                                {p.name}{p.price ? ` · ${p.price}` : ''}
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-gray-500 italic">Žádné produkty detekovány</p>
+                                )}
+                            </ReviewCard>
+
+                            <ReviewCard section="visual" icon="🎨" title="Vizuální Identita"
+                                status={sectionStatuses.visual} feedback={sectionFeedback.visual || ''}
+                                refineCount={refineCounts.visual || 0} isRefining={refiningSection === 'visual'}
+                                onApprove={() => approveSection('visual')} onReject={() => rejectSection('visual')}
+                                onFeedbackChange={(v) => setSectionFeedback(prev => ({ ...prev, visual: v }))}
+                                onRefine={() => handleRefineSection('visual')}>
+                                <div className="space-y-3">
+                                    <ReviewField label="Feel" value={configPreview.feedAesthetic?.feel} />
+                                    <ReviewField label="Font" value={configPreview.feedAesthetic?.fontOverride || configPreview.feedAesthetic?.font} />
+                                    {configPreview.overlayGradient && (
+                                        <div>
+                                            <span className="block text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-1">Gradient preview</span>
+                                            <div className="h-10 rounded-lg border border-white/10 overflow-hidden"
+                                                style={{ background: `linear-gradient(to right, ${configPreview.overlayGradient.topColor}, ${configPreview.overlayGradient.midColor}, ${configPreview.overlayGradient.bottomColor})` }} />
+                                        </div>
+                                    )}
+                                </div>
+                            </ReviewCard>
+
+                            <ReviewCard section="hooks_cta" icon="🪝" title="Hook Templates & CTA"
+                                status={sectionStatuses.hooks_cta} feedback={sectionFeedback.hooks_cta || ''}
+                                refineCount={refineCounts.hooks_cta || 0} isRefining={refiningSection === 'hooks_cta'}
+                                onApprove={() => approveSection('hooks_cta')} onReject={() => rejectSection('hooks_cta')}
+                                onFeedbackChange={(v) => setSectionFeedback(prev => ({ ...prev, hooks_cta: v }))}
+                                onRefine={() => handleRefineSection('hooks_cta')}>
+                                <div className="space-y-3">
+                                    {(configPreview.brandVoice?.hookTemplates || []).slice(0, 4).map((h: any, i: number) => (
+                                        <div key={i} className="text-xs text-gray-400">
+                                            <span className="text-gray-500 font-mono mr-1">#{i + 1}</span>
+                                            <span className="text-white/80">{h.pattern}</span>
+                                            {h.example && <span className="block text-[10px] text-gray-500 ml-5 mt-0.5">→ {h.example}</span>}
+                                        </div>
+                                    ))}
+                                    <ReviewField label="CTA (soft)" value={(configPreview.ctaStrategies?.soft || []).slice(0, 3).join(' · ')} />
+                                </div>
+                            </ReviewCard>
+                        </div>
+
+                        <div className="mt-8">
+                            {Object.values(sectionStatuses).every(s => s === 'approved') ? (
+                                <button onClick={handleSaveConfig}
+                                    className="w-full relative group overflow-hidden rounded-xl bg-emerald-600 px-6 py-4 text-sm font-bold text-white shadow-[0_0_20px_rgba(16,185,129,0.2)] transition-all hover:bg-emerald-500 cursor-pointer">
+                                    <span className="relative z-10 flex items-center justify-center gap-2">
+                                        ✅ Vše schváleno — Uložit a pokračovat
+                                        <span className="transition-transform group-hover:translate-x-1">→</span>
+                                    </span>
+                                </button>
+                            ) : (
+                                <div className="text-center">
+                                    <p className="text-xs text-gray-500 mb-3">
+                                        {Object.values(sectionStatuses).filter(s => s === 'approved').length} / {Object.values(sectionStatuses).length} sekcí schváleno
+                                    </p>
+                                    <button disabled className="w-full rounded-xl bg-white/5 px-6 py-4 text-sm text-gray-500 border border-white/10 cursor-not-allowed">
+                                        Schval všechny sekce pro pokračování
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* ══════════════════════════════════════════════ */}
+                {/* STEP 5B: Saving (loading after review)        */}
+                {/* ══════════════════════════════════════════════ */}
+                {step === 'saving' && (
+                    <div className="animate-fadeIn text-center py-20">
+                        <div className="inline-flex rounded-2xl bg-emerald-500/10 p-5 mb-8 ring-1 ring-inset ring-emerald-500/20">
+                            <div className="w-10 h-10 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />
+                        </div>
+                        <h2 className="text-2xl font-bold mb-4">Ukládám konfiguraci</h2>
+                        <p className="text-gray-400">Vytvářím bucket, propojuji účet, startuji trial...</p>
+                    </div>
+                )}
+
+                {/* ══════════════════════════════════════════════ */}
+                {/* STEP 6: Done!                                 */}
                 {/* ══════════════════════════════════════════════ */}
                 {step === 'done' && analysis && (
                     <div className="animate-fadeIn max-w-2xl mx-auto py-12">
@@ -441,38 +663,7 @@ export default function OnboardingPage() {
                                 </svg>
                             </div>
                             <h2 className="text-3xl font-bold mb-3">Autopilot je připravený! 🎉</h2>
-                            <p className="text-gray-400 text-lg">AI právě uložila tvou unikátní Brand Identitu do databáze.</p>
-                        </div>
-
-                        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8">
-                            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                                <span>🧬</span> Profil klienta: <span className="text-emerald-400">{analysis.companyName}</span>
-                            </h3>
-
-                            <div className="space-y-4 text-sm text-gray-300">
-                                <div>
-                                    <span className="block text-gray-500 text-xs uppercase font-bold tracking-wider mb-1">Brand Voice (Vyznění)</span>
-                                    <p className="bg-black/30 p-3 rounded-xl border border-white/5">{analysis.visualFeel || 'Moderní a přátelský'}</p>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <span className="block text-gray-500 text-xs uppercase font-bold tracking-wider mb-1">Typografie</span>
-                                        <p className="bg-black/30 px-3 py-2 rounded-xl border border-white/5 font-mono">{analysis.recommendedFont || 'Inter'}</p>
-                                    </div>
-                                    <div>
-                                        <span className="block text-gray-500 text-xs uppercase font-bold tracking-wider mb-1">Sektory (Industry)</span>
-                                        <p className="bg-black/30 px-3 py-2 rounded-xl border border-white/5">{analysis.industry || 'Business'}</p>
-                                    </div>
-                                </div>
-                                <div>
-                                    <span className="block text-gray-500 text-xs uppercase font-bold tracking-wider mb-2">Unikátní prodejní argumenty (USP)</span>
-                                    <ul className="list-disc list-inside space-y-1 ml-1 text-gray-400">
-                                        {analysis.uniqueSellingPoints.slice(0, 3).map((usp: string, i: number) => (
-                                            <li key={i}>{usp}</li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            </div>
+                            <p className="text-gray-400 text-lg">Tvá schválená konfigurace je uložená. Můžeš začít generovat.</p>
                         </div>
 
                         <button
@@ -529,6 +720,108 @@ function LoadingStep({ label, active }: { label: string; active?: boolean }) {
                 <div className="w-4 h-4 rounded-full border border-white/20" />
             )}
             <span className="text-sm text-gray-300">{label}</span>
+        </div>
+    )
+}
+
+function ReviewField({ label, value }: { label: string; value?: string }) {
+    if (!value) return null
+    return (
+        <div>
+            <span className="block text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-0.5">{label}</span>
+            <p className="text-xs text-gray-300 bg-black/20 px-3 py-2 rounded-lg border border-white/5">{value}</p>
+        </div>
+    )
+}
+
+function ReviewCard({
+    section: _section,
+    icon,
+    title,
+    status,
+    feedback,
+    refineCount,
+    isRefining,
+    onApprove,
+    onReject,
+    onFeedbackChange,
+    onRefine,
+    children,
+}: {
+    section: string
+    icon: string
+    title: string
+    status: 'pending' | 'approved' | 'rejected' | 'refining'
+    feedback: string
+    refineCount: number
+    isRefining: boolean
+    onApprove: () => void
+    onReject: () => void
+    onFeedbackChange: (v: string) => void
+    onRefine: () => void
+    children: React.ReactNode
+}) {
+    const maxRefines = 3
+    const borderColor = status === 'approved' ? 'border-emerald-500/30'
+        : status === 'rejected' ? 'border-amber-500/30'
+            : status === 'refining' ? 'border-purple-500/30'
+                : 'border-white/10'
+
+    return (
+        <div className={`bg-white/5 border ${borderColor} rounded-2xl p-5 transition-all`}>
+            <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                    <span className="text-lg">{icon}</span>
+                    <h3 className="font-bold text-sm text-white">{title}</h3>
+                    {status === 'approved' && <span className="text-emerald-400 text-sm">✅</span>}
+                    {status === 'refining' && <span className="text-purple-400 text-xs animate-pulse">Přegenerovávám...</span>}
+                    {refineCount > 0 && <span className="text-[9px] text-gray-500 font-mono">v{refineCount + 1}</span>}
+                </div>
+                <div className="flex gap-1.5">
+                    <button onClick={onApprove}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                            status === 'approved'
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                : 'bg-white/5 text-gray-400 border border-white/10 hover:text-emerald-300 hover:border-emerald-500/30'
+                        }`}>
+                        👍
+                    </button>
+                    <button onClick={onReject} disabled={isRefining || refineCount >= maxRefines}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                            status === 'rejected'
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                : 'bg-white/5 text-gray-400 border border-white/10 hover:text-amber-300 hover:border-amber-500/30'
+                        } ${(isRefining || refineCount >= maxRefines) ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                        👎
+                    </button>
+                </div>
+            </div>
+
+            {children}
+
+            {status === 'rejected' && (
+                <div className="mt-3 pt-3 border-t border-white/5 space-y-2">
+                    <textarea
+                        value={feedback}
+                        onChange={(e) => onFeedbackChange(e.target.value)}
+                        placeholder="Co je špatně? Co chceš změnit?"
+                        rows={2}
+                        className="w-full px-3 py-2 rounded-lg bg-black/30 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all text-xs resize-none"
+                    />
+                    <div className="flex items-center justify-between">
+                        <span className="text-[9px] text-gray-500">
+                            {refineCount >= maxRefines ? 'Max. počet úprav — doladíš v Settings' : `Pokus ${refineCount + 1}/${maxRefines}`}
+                        </span>
+                        <button
+                            onClick={onRefine}
+                            disabled={!feedback.trim() || isRefining || refineCount >= maxRefines}
+                            className="px-4 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-medium hover:bg-amber-500/30 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            {isRefining ? '⏳ Přepracovávám...' : '🔄 Přegenerovat'}
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

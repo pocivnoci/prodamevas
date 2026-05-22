@@ -300,7 +300,7 @@ export async function getIGPostFormats(configName: string): Promise<Record<strin
 /**
  * Get content pillar categories for a client (used in Generate tab dropdown)
  */
-export async function getIGCategories(configName: string): Promise<{ id: string; emoji: string; label: string }[]> {
+export async function getIGCategories(configName: string): Promise<{ id: string; emoji: string; label: string; categories?: { id: string; emoji: string; label: string }[] }[]> {
     try {
         const { loadConfig } = await import("@/instagram/configs")
         const config = await loadConfig(configName)
@@ -309,6 +309,11 @@ export async function getIGCategories(configName: string): Promise<{ id: string;
             id,
             emoji: pillar.emoji || "📦",
             label: pillar.label || id,
+            categories: pillar.categories?.map((c: any) => ({
+                id: c.id,
+                emoji: c.emoji || "📌",
+                label: c.label || c.id,
+            })) || [],
         }))
     } catch {
         return []

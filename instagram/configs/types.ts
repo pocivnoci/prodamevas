@@ -21,6 +21,21 @@ export interface ProductInfo {
     imageUrls?: string[]
 }
 
+// ─── Pillar Category ────────────────────────────────────────
+
+/** Sub-category within a content pillar — specific content angle/theme */
+export interface PillarCategory {
+    /** URL-safe identifier, e.g. "soutez", "tip", "faq" */
+    id: string
+    /** Display name, e.g. "Soutěž" */
+    label: string
+    emoji: string
+    /** AI prompt hint — what this category is about, angles to use */
+    prompt?: string
+    /** Weight within pillar (0-1, all categories should sum to ~1.0). Default = equal */
+    weight?: number
+}
+
 // ─── Content Pillar ─────────────────────────────────────────
 
 export interface ContentPillar {
@@ -37,6 +52,8 @@ export interface ContentPillar {
     kpi: string[]
     /** Optional prompt section for idea generation — examples, angles, tips */
     ideaPrompt?: string
+    /** Sub-categories — specific content angles within this pillar */
+    categories?: PillarCategory[]
 }
 
 // ─── Feed Aesthetic ─────────────────────────────────────────
