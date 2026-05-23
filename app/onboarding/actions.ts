@@ -824,14 +824,15 @@ function applySectionData(config: ClientConfig, section: ReviewSection, data: an
 
 export async function saveReviewedConfig(
     config: ClientConfig,
-    analysis: WebsiteAnalysis
+    analysis: WebsiteAnalysis,
+    existingClientSlug?: string,
 ): Promise<{ success: boolean; clientSlug?: string; error?: string }> {
     try {
         const supabase = await createClient()
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return { success: false, error: 'Nepřihlášený uživatel' }
 
-        const clientSlug = config.id
+        const clientSlug = existingClientSlug || config.id
 
         // Ensure Storage Bucket
         const bucketName = config.storageBucket || `ig-posts-${config.id}`
@@ -844,7 +845,48 @@ export async function saveReviewedConfig(
             console.warn(`⚠️ Failed to create bucket ${bucketName}:`, bucketError.message)
         }
 
-        // Insert client record
+        if (existingClientSlug) {
+            // ── RE-ONBOARDING: Update existing client ──
+            const { resolveClientId } = await import('@/instagram/configs')
+            const clientId = await resolveClientId(existingClientSlug)
+
+            const { error: updateError } = await supabaseAdmin
+                .from('clients')
+                .update({
+                    config: config,
+                    name: config.name,
+                    website: config.website,
+                })
+                .eq('id', clientId)
+
+            if (updateError) throw updateError
+
+            // Sync products → ig_products (upsert — keep existing, add new)
+            if (config.products && config.products.length > 0) {
+                try {
+                    for (const p of config.products) {
+                        const { error: prodError } = await supabaseAdmin
+                            .from('ig_products')
+                            .upsert({
+                                client_id: clientId,
+                                name: p.name,
+                                type: p.type || 'product',
+                                slug: p.slug,
+                                price: p.price || null,
+                                description: p.description || null,
+                            }, { onConflict: 'client_id,slug' })
+                        if (prodError) console.warn(`⚠️ Product upsert failed for ${p.name}:`, prodError.message)
+                    }
+                } catch (prodErr) {
+                    console.warn('⚠️ Product sync exception:', (prodErr as Error).message)
+                }
+            }
+
+            console.log(`✅ Re-onboarding complete: ${existingClientSlug} (${clientId})`)
+            return { success: true, clientSlug: existingClientSlug }
+        }
+
+        // ── NEW CLIENT: Insert ──
         const insertedClientId = await insertClient(clientSlug, config)
 
         // Sync products → ig_products

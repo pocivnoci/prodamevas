@@ -1022,6 +1022,24 @@ function ClientManagementSection({ projectId, config, setConfig, onReload }: {
 
     return (
         <SectionCard title="Správa klienta">
+            {/* Re-onboarding */}
+            <div className="flex items-center justify-between gap-4">
+                <div>
+                    <p className="text-xs text-white/60 font-bold">Kompletní re-onboarding</p>
+                    <p className="text-[9px] text-white/30 mt-0.5">
+                        Znovu analyzuje web, položí nové otázky a přegeneruje celý config od základu
+                    </p>
+                </div>
+                <button
+                    onClick={() => router.push(`/onboarding?reonboard=${projectId}`)}
+                    className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-all border border-amber-500/20 whitespace-nowrap"
+                >
+                    🔄 Re-onboarding
+                </button>
+            </div>
+
+            <div className="border-t border-white/5 pt-4 mt-4" />
+
             {/* Re-scan */}
             <div className="flex items-center justify-between gap-4">
                 <div>

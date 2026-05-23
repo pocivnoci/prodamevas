@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { analyzeWebsite, generateQuestions, generateConfigPreview, refineConfigSection, saveReviewedConfig, buildManualAnalysis } from './actions'
 import type { WebsiteAnalysis, OnboardingQuestion, ReviewSection } from './actions'
 import type { ClientConfig } from '@/instagram/configs/types'
@@ -12,10 +12,20 @@ type Mode = 'website' | 'manual' | null
 type SectionStatus = 'pending' | 'approved' | 'rejected' | 'refining'
 
 export default function OnboardingPage() {
-    const router = useRouter()
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center"><div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" /></div>}>
+            <OnboardingContent />
+        </Suspense>
+    )
+}
 
-    const [step, setStep] = useState<Step>('choose')
-    const [mode, setMode] = useState<Mode>(null)
+function OnboardingContent() {
+    const router = useRouter()
+    const searchParams = useSearchParams()
+    const reonboardSlug = searchParams.get('reonboard')
+
+    const [step, setStep] = useState<Step>(reonboardSlug ? 'input' : 'choose')
+    const [mode, setMode] = useState<Mode>(reonboardSlug ? 'website' : null)
     const [url, setUrl] = useState('')
     const [igHandle, setIgHandle] = useState('')
     const [error, setError] = useState<string | null>(null)
@@ -44,6 +54,20 @@ export default function OnboardingPage() {
     const [sectionFeedback, setSectionFeedback] = useState<Record<string, string>>({})
     const [refiningSection, setRefiningSection] = useState<ReviewSection | null>(null)
     const [refineCounts, setRefineCounts] = useState<Record<string, number>>({})
+
+    // ─── Re-onboarding: load existing client data ────────────
+    useEffect(() => {
+        if (!reonboardSlug) return
+        async function loadExisting() {
+            try {
+                const { getClientConfig } = await import('@/app/actions/admin-actions')
+                const config = await getClientConfig(reonboardSlug!)
+                if (config?.website) setUrl(config.website)
+                if (config?.instagramHandle) setIgHandle(config.instagramHandle)
+            } catch { /* ignore */ }
+        }
+        loadExisting()
+    }, [reonboardSlug])
 
     // ─── Step 1A: Submit URL & IG ────────────────────────────
     async function handleAnalyze(e: React.FormEvent) {
@@ -161,7 +185,7 @@ export default function OnboardingPage() {
         setError(null)
         setStep('saving')
         try {
-            const result = await saveReviewedConfig(configPreview, analysis)
+            const result = await saveReviewedConfig(configPreview, analysis, reonboardSlug || undefined)
             if (!result.success) throw new Error(result.error)
             setStep('done')
         } catch (err) {
@@ -662,8 +686,14 @@ export default function OnboardingPage() {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                             </div>
-                            <h2 className="text-3xl font-bold mb-3">Autopilot je připravený! 🎉</h2>
-                            <p className="text-gray-400 text-lg">Tvá schválená konfigurace je uložená. Můžeš začít generovat.</p>
+                            <h2 className="text-3xl font-bold mb-3">
+                                {reonboardSlug ? 'Konfigurace aktualizována! 🔄' : 'Autopilot je připravený! 🎉'}
+                            </h2>
+                            <p className="text-gray-400 text-lg">
+                                {reonboardSlug
+                                    ? 'Tvá nová konfigurace je uložená. Všechny budoucí posty budou využívat nové nastavení.'
+                                    : 'Tvá schválená konfigurace je uložená. Můžeš začít generovat.'}
+                            </p>
                         </div>
 
                         <button
@@ -671,7 +701,7 @@ export default function OnboardingPage() {
                             className="w-full relative group overflow-hidden rounded-xl bg-emerald-600 px-6 py-4 text-sm font-bold text-white shadow-[0_0_20px_rgba(16,185,129,0.2)] transition-all hover:bg-emerald-500 cursor-pointer text-center"
                         >
                             <span className="relative z-10 flex items-center justify-center gap-2">
-                                Vstoupit do Dashboardu Autopilota
+                                {reonboardSlug ? 'Zpět do Dashboardu' : 'Vstoupit do Dashboardu Autopilota'}
                                 <span className="transition-transform group-hover:translate-x-1">→</span>
                             </span>
                         </button>
