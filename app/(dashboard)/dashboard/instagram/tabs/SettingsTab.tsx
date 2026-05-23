@@ -575,12 +575,7 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
                         </div>
                     </div>
 
-                    <div>
-                        <FieldLabel hint="Oddělené čárkou — jaké typy postů patří pod tento pilíř">Post Types</FieldLabel>
-                        <input value={(pillar.postTypes || []).join(", ")}
-                            onChange={(e) => updatePillar(key, "postTypes", e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean))}
-                            placeholder="tip_nastaveni, statistika, hack" className={inputClass} />
-                    </div>
+                    {/* postTypes hidden — managed internally via categories */}
 
                     <div>
                         <FieldLabel hint="Specifické instrukce pro AI při generování nápadů v tomto pilíři">Idea Prompt (pro AI)</FieldLabel>
@@ -642,6 +637,41 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
                                             >
                                                 {generatingPrompt === `${key}-${catIdx}` ? "⏳" : "✨"}
                                             </button>
+                                        </div>
+                                        {/* Format preferences */}
+                                        <div className="flex gap-1.5">
+                                            <select value={cat.medium || "auto"} onChange={(e) => {
+                                                const cats = [...(pillar.categories || [])]
+                                                cats[catIdx] = { ...cats[catIdx], medium: e.target.value }
+                                                updatePillar(key, "categories", cats)
+                                            }} className="flex-1 px-1.5 py-1 bg-[#050505] border border-white/5 rounded-sm text-[9px] text-white/40 focus:outline-none focus:ring-1 focus:ring-white/30" title="Formát">
+                                                <option value="auto">📐 Auto</option>
+                                                <option value="image">🖼️ Obrázek</option>
+                                                <option value="carousel">📸 Carousel</option>
+                                            </select>
+                                            <select value={cat.overlayStyle || "auto"} onChange={(e) => {
+                                                const cats = [...(pillar.categories || [])]
+                                                cats[catIdx] = { ...cats[catIdx], overlayStyle: e.target.value }
+                                                updatePillar(key, "categories", cats)
+                                            }} className="flex-1 px-1.5 py-1 bg-[#050505] border border-white/5 rounded-sm text-[9px] text-white/40 focus:outline-none focus:ring-1 focus:ring-white/30" title="Overlay styl">
+                                                <option value="auto">🎨 Auto overlay</option>
+                                                <option value="default">Default (dole)</option>
+                                                <option value="top">Top (nahoře)</option>
+                                                <option value="cover">Cover (velký)</option>
+                                                <option value="editorial">Editorial</option>
+                                                <option value="centered">Centered</option>
+                                                <option value="none">None</option>
+                                            </select>
+                                            <select value={cat.aspectRatio || "auto"} onChange={(e) => {
+                                                const cats = [...(pillar.categories || [])]
+                                                cats[catIdx] = { ...cats[catIdx], aspectRatio: e.target.value }
+                                                updatePillar(key, "categories", cats)
+                                            }} className="flex-1 px-1.5 py-1 bg-[#050505] border border-white/5 rounded-sm text-[9px] text-white/40 focus:outline-none focus:ring-1 focus:ring-white/30" title="Poměr stran">
+                                                <option value="auto">📏 Auto ratio</option>
+                                                <option value="1:1">1:1 Čtverec</option>
+                                                <option value="4:5">4:5 IG Feed</option>
+                                                <option value="3:4">3:4 Na výšku</option>
+                                            </select>
                                         </div>
                                     </div>
                                     <button onClick={() => {

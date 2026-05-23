@@ -34,6 +34,12 @@ export interface PillarCategory {
     prompt?: string
     /** Weight within pillar (0-1, all categories should sum to ~1.0). Default = equal */
     weight?: number
+    /** Preferred medium: undefined/"auto" = system decides */
+    medium?: "auto" | "image" | "carousel"
+    /** Preferred overlay style: undefined/"auto" = system decides based on post type */
+    overlayStyle?: "auto" | "default" | "top" | "cover" | "editorial" | "centered" | "none"
+    /** Preferred aspect ratio: undefined/"auto" = from config default */
+    aspectRatio?: "auto" | "1:1" | "4:5" | "3:4"
 }
 
 // ─── Content Pillar ─────────────────────────────────────────

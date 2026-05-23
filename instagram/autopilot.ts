@@ -264,7 +264,31 @@ export async function generateOnePost(options: {
 
     // 5. Generate caption / video script / carousel
     const format = getPostFormat(config, selectedType.name)
-    // User override: if aspectRatio is provided, use it
+
+    // Category format override — preferences from pillar category config
+    const _pillarKey = _getPillarForType(selectedType.name)
+    const _pillarCfg = config.contentPillars[_pillarKey]
+    const _category = idea?.subcategory
+        ? _pillarCfg?.categories?.find((c: any) => c.id === idea.subcategory)
+        : undefined
+
+    if (_category?.medium && _category.medium !== "auto") {
+        format.medium = _category.medium
+        if (_category.medium === "carousel" && format.overlayStyle === "none") {
+            format.overlayStyle = "cover"
+        }
+        console.log(`   📁 Kategorie "${_category.label}" → medium: ${_category.medium}`)
+    }
+    if (_category?.overlayStyle && _category.overlayStyle !== "auto") {
+        format.overlayStyle = _category.overlayStyle
+        console.log(`   🎨 Kategorie "${_category.label}" → overlay: ${_category.overlayStyle}`)
+    }
+    if (_category?.aspectRatio && _category.aspectRatio !== "auto") {
+        format.aspectRatio = _category.aspectRatio as any
+        console.log(`   📐 Kategorie "${_category.label}" → ratio: ${_category.aspectRatio}`)
+    }
+
+    // User override: if aspectRatio is provided, use it (highest priority)
     if (options.aspectRatio) {
         format.aspectRatio = options.aspectRatio as any
         console.log(`   📐 Formát přepsán uživatelem: ${options.aspectRatio}`)
