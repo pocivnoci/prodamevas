@@ -436,70 +436,77 @@ Vrať POUZE platný JSON.`
     }
 }
 
-export async function generateQuestions(analysis: WebsiteAnalysis): Promise<{
+export async function generateQuestions(_analysis: WebsiteAnalysis): Promise<{
     success: boolean
     questions?: OnboardingQuestion[]
     error?: string
 }> {
-    try {
-        const prompt = `Na základě analýzy webové stránky vygeneruj personalizovaný dotazník pro nastavení Instagram autopilota.
+    // Fixed questions — each maps directly to a ClientConfig field.
+    // No AI call needed, instant response.
+    const questions: OnboardingQuestion[] = [
+        {
+            id: 'ig_goal',
+            question: 'Co je tvůj hlavní cíl na Instagramu?',
+            type: 'select',
+            options: [
+                'Získat nové zákazníky',
+                'Budovat komunitu a důvěru',
+                'Prodávat produkty / služby',
+                'Zvýšit povědomí o značce',
+            ],
+            required: true,
+        },
+        {
+            id: 'ig_tone',
+            question: 'Jakým tónem chceš na Instagramu komunikovat?',
+            type: 'select',
+            options: [
+                'Přátelský a hravý',
+                'Profesionální a expertní',
+                'Drzý a vtipný',
+                'Inspirativní a motivační',
+                'Luxusní a minimalistický',
+            ],
+            required: true,
+        },
+        {
+            id: 'ig_taboo',
+            question: 'Jsou témata, kterým se chceš vyhnout?',
+            type: 'text',
+            placeholder: 'např. politika, konkurence, slevy, vulgarita...',
+            required: false,
+        },
+        {
+            id: 'ig_cta',
+            question: 'Co chceš, aby lidé udělali po přečtení postu?',
+            type: 'multiselect',
+            options: [
+                'Navštívit web / e-shop',
+                'Napsat DM nebo komentář',
+                'Uložit si post na později',
+                'Sdílet s přáteli',
+                'Koupit produkt / objednat službu',
+            ],
+            required: true,
+        },
+        {
+            id: 'ig_visual',
+            question: 'Jaký vizuální styl feedu ti sedí?',
+            type: 'select',
+            options: [
+                'Čistý a minimalistický',
+                'Barevný a energický',
+                'Tmavý a dramatický',
+                'Teplý a útulný',
+                'Luxusní a elegantní',
+            ],
+            required: false,
+        },
+    ]
 
-## ANALYZOVANÁ FIRMA
-Název: ${analysis.companyName}
-Obor: ${analysis.industry}
-Popis: ${analysis.description}
-Produkty: ${analysis.products.map(p => p.name).join(', ')}
-Detekovaný tón: ${analysis.brandTone}
-Cílová skupina: ${analysis.targetAudience}
-${analysis.instagramBio ? `IG Bio: ${analysis.instagramBio}` : ''}
-
-## PRAVIDLA
-1. Generuj 5-7 otázek, které AI NEZVLÁDNE zodpovědět samo z webu
-2. Neptej se na věci, které už víme z analýzy (název firmy, web, produkty)
-3. Zaměř se na: tón, frekvenci, cíle, tabu témata, vizuální preference
-4. Každá otázka má ID, text, typ (select/multiselect/text/scale) a options
-5. Piš česky
-
-## TYPY OTÁZEK
-- select: výběr jedné možnosti (vyžaduje options)
-- multiselect: výběr více možností (vyžaduje options)
-- text: volný text (vyžaduje placeholder)
-- scale: škála 1-5 (automaticky)
-
-Vrať POUZE platný JSON pole otázek.`
-
-        const questionsSchema = {
-            type: "object",
-            properties: {
-                questions: {
-                    type: "array",
-                    items: {
-                        type: "object",
-                        properties: {
-                            id: { type: "string" },
-                            question: { type: "string" },
-                            type: { type: "string", enum: ["select", "multiselect", "text", "scale"] },
-                            options: { type: "array", items: { type: "string" } },
-                            placeholder: { type: "string" },
-                            required: { type: "boolean" },
-                        },
-                        required: ["id", "question", "type", "required"],
-                    },
-                },
-            },
-            required: ["questions"],
-        }
-
-        const rawQuestions = await generateText(prompt, { responseSchema: questionsSchema })
-        const jsonMatch = rawQuestions.match(/\{[\s\S]*\}/)
-        const parsed = JSON.parse(jsonMatch?.[0] || rawQuestions)
-
-        return { success: true, questions: parsed.questions }
-    } catch (error) {
-        console.error('Question generation error:', error)
-        return { success: false, error: humanizeError(error) }
-    }
+    return { success: true, questions }
 }
+
 
 // ============================================
 // STEP 3A: GENERATE CONFIG PREVIEW (no save)
