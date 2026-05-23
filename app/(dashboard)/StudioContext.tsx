@@ -19,6 +19,7 @@ export type StudioSection =
     | "onboard"
     | "waitlist"
     | "brain"
+    | "faq"
 
 export interface SubscriptionState {
     planId: string

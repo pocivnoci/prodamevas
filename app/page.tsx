@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion"
-import { Bot, PenTool, ArrowRight, CheckCircle2, Layers, Cpu } from "lucide-react"
+import { Bot, PenTool, ArrowRight, CheckCircle2, Layers, Cpu, ChevronDown } from "lucide-react"
 import { LiveDemoWidget } from "@/components/LiveDemoWidget"
 import { WaitlistForm } from "@/components/WaitlistForm"
 
@@ -69,6 +69,9 @@ export default function Home() {
             </Link>
             <Link href="#pricing" className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors hidden sm:block">
               Ceník
+            </Link>
+            <Link href="#faq" className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors hidden sm:block">
+              FAQ
             </Link>
             <Link href="/login" className="text-[10px] font-bold uppercase tracking-widest text-white/50 hover:text-white transition-colors hidden sm:block">
               Přihlásit se
@@ -602,6 +605,19 @@ export default function Home() {
         </div>
       </section>
 
+      {/* FAQ SECTION */}
+      <section id="faq" className="relative py-32 border-t border-white/5 bg-[#0a0a0a]">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(192,57,43,0.04),transparent_60%)] pointer-events-none" />
+        <div className="max-w-3xl mx-auto px-6 relative z-10">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Časté<br /><span className="text-aisummit-cinnabar">dotazy</span></h2>
+            <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Všechno, co potřebujete vědět, než začnete.</p>
+          </div>
+
+          <FaqAccordion />
+        </div>
+      </section>
+
       {/* CTA SECTION */}
       <section className="relative py-40 overflow-hidden z-10 border-t border-white/5 bg-[#050505]">
         <div className="absolute top-1/2 left-1/2 w-[600px] h-[600px] bg-aisummit-cinnabar/10 blur-[120px] rounded-full pointer-events-none" style={{ transform: 'translate(-50%, -50%)' }} />
@@ -633,6 +649,7 @@ export default function Home() {
             <ul className="space-y-3 text-[10px] tracking-wider uppercase text-white/30 font-bold">
               <li><Link href="#features" className="hover:text-white transition-colors">Platforma</Link></li>
               <li><Link href="#pricing" className="hover:text-white transition-colors">Ceník</Link></li>
+              <li><Link href="#faq" className="hover:text-white transition-colors">FAQ</Link></li>
               <li><Link href="/login" className="hover:text-white transition-colors text-white/60">Přihlášení</Link></li>
             </ul>
           </div>
@@ -650,5 +667,101 @@ export default function Home() {
         </div>
       </footer>
     </main>
+  )
+}
+
+// ─── FAQ Accordion ──────────────────────────────────────────
+
+const FAQ_ITEMS = [
+  {
+    q: "Co přesně Chrlit dělá?",
+    a: "Chrlit je AI platforma, která generuje hotový Instagram obsah — texty, obrázky, hashtagy — přizpůsobený vaší značce. Zadáte web, AI pochopí váš styl, a vy dostanete měsíc obsahu připraveného k publikaci.",
+  },
+  {
+    q: "Musím něco umět? Jak to funguje?",
+    a: "Ne. Zadáte URL svého webu (nebo vyplníte pár otázek), AI analyzuje vaši značku — barvy, tón, produkty — a automaticky vygeneruje konfiguraci. Pak jedním klikem generujete posty. Žádné promptování, žádné složité nastavování.",
+  },
+  {
+    q: "Jak vypadá výstup? Nepozná se, že to dělá AI?",
+    a: "Každý post obsahuje unikátní AI-generovaný obrázek s vaším brand gradientem a textem, caption psaný vaším tónem komunikace, a ručně vybrané hashtagy pro váš obor. Výstup vypadá jako od profesionálního social media manažera, ne jako generický AI obsah.",
+  },
+  {
+    q: "Kolik postů dostanu za měsíc?",
+    a: "Záleží na plánu. Starter (30 kreditů) = cca 30 postů. Business (150 kreditů) = 150+ postů. Jeden post stojí 1 kredit. Můžete si kdykoliv dokoupit další kredity.",
+  },
+  {
+    q: "Co jsou kredity a jak fungují?",
+    a: "Kredity jsou měna v Chrlitu. Každá AI akce stojí kredity — post 1 kredit, generování nápadů 1 kredit, produktová vizualizace 2 kredity. Každý měsíc dostanete novou dávku podle plánu. Nevyčerpané kredity nepřenášíte, ale můžete si dokoupit extra za zvýhodněnou cenu.",
+  },
+  {
+    q: "Můžu to zrušit kdykoliv?",
+    a: "Ano. Žádné smlouvy, žádné závazky. Měsíční předplatné zrušíte jedním klikem a doběhne do konce zaplaceného období. Trial je 7 dní zdarma bez kreditky.",
+  },
+  {
+    q: "Pro jaké obory to funguje?",
+    a: "Testujeme na firmách z 10+ oborů — e-shopy, kavárny, hotely, fitness, salóny, řemeslníci, fotografové, poradci. AI se přizpůsobí jakémukoliv odvětví díky analýze vašeho webu a konfigurovatelným content pilířům.",
+  },
+  {
+    q: "Můžu upravit vygenerovaný obsah?",
+    a: "Samozřejmě. Každý post můžete před publikací upravit — změnit text, přegenerovat obrázek, upravit hashtagy. Chrlit vám dá základ, vy ho doladíte podle sebe.",
+  },
+  {
+    q: "Potřebuju dávat Chrlitu přístup k Instagramu?",
+    a: "Ne. Chrlit nepotřebuje přístup k vašemu Instagram účtu. Generuje obsah, který si stáhnete nebo zkopírujete a publikujete sami. Vaše data jsou v bezpečí.",
+  },
+  {
+    q: "Jak se liší od ChatGPT nebo Canvy?",
+    a: "ChatGPT generuje text, Canva dělá design — ale obojí vyžaduje vaše promptování a manuální práci. Chrlit kombinuje obojí do jednoho kliknutí: pochopí váš brand, vygeneruje text i obrázek ve vašem stylu, a učí se z výsledků. Je to autopilot, ne nástroj.",
+  },
+]
+
+function FaqAccordion() {
+  const [openIndex, setOpenIndex] = useState<number | null>(null)
+
+  return (
+    <div className="space-y-2">
+      {FAQ_ITEMS.map((item, i) => {
+        const isOpen = openIndex === i
+        return (
+          <div
+            key={i}
+            className={`border rounded-sm overflow-hidden transition-colors duration-300 ${
+              isOpen ? "border-white/15 bg-white/[0.03]" : "border-white/5 bg-[#050505] hover:border-white/10"
+            }`}
+          >
+            <button
+              onClick={() => setOpenIndex(isOpen ? null : i)}
+              className="w-full flex items-center justify-between px-6 py-5 text-left cursor-pointer group"
+            >
+              <span className={`text-sm font-bold transition-colors ${isOpen ? "text-white" : "text-white/60 group-hover:text-white/80"}`}>
+                {item.q}
+              </span>
+              <motion.div
+                animate={{ rotate: isOpen ? 180 : 0 }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                className="ml-4 flex-shrink-0"
+              >
+                <ChevronDown className={`w-4 h-4 transition-colors ${isOpen ? "text-aisummit-cinnabar" : "text-white/20"}`} />
+              </motion.div>
+            </button>
+            <AnimatePresence initial={false}>
+              {isOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                  className="overflow-hidden"
+                >
+                  <div className="px-6 pb-5 border-t border-white/5">
+                    <p className="text-white/40 text-sm leading-relaxed pt-4">{item.a}</p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )
+      })}
+    </div>
   )
 }
