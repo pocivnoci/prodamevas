@@ -465,9 +465,9 @@ export async function overlayText(
 
         // ─── Layer 3: Logo watermark ───
         let logoBuffer: Buffer | null = null
-        const logoWidth = Math.round(width * 0.40)
+        const logoWidth = Math.round(width * 0.20)
         const logoHeight = Math.round(logoWidth * 0.35)
-        const logoMargin = Math.round(width * 0.025)
+        const logoMargin = Math.round(width * 0.03)
 
         if (logoFile) {
             const rawLogo = await loadLogo(logoFile)
