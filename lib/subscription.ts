@@ -6,6 +6,27 @@
  */
 
 import supabaseAdmin from "@/supabase/admin"
+import { createClient } from "@/supabase/server"
+
+// ─── Admin bypass ────────────────────────────────────────────
+
+async function isSuperAdmin(): Promise<boolean> {
+    try {
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user?.email) return false
+        const admins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean)
+        return admins.includes(user.email)
+    } catch {
+        return false
+    }
+}
+
+const ADMIN_BYPASS: CanPerformResult = {
+    allowed: true,
+    creditsRequired: 0,
+    creditsRemaining: 999,
+}
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -171,6 +192,9 @@ export async function canPerformAction(
     clientId: string,
     action: ActionType,
 ): Promise<CanPerformResult> {
+    // Super admin bypasses all checks
+    if (await isSuperAdmin()) return ADMIN_BYPASS
+
     const creditsRequired = ACTION_CREDITS[action]
     const sub = await getClientSubscription(clientId)
 
@@ -256,6 +280,9 @@ export async function canPerformBatchAction(
     action: ActionType,
     count: number,
 ): Promise<CanPerformResult> {
+    // Super admin bypasses all checks
+    if (await isSuperAdmin()) return ADMIN_BYPASS
+
     const creditsRequired = ACTION_CREDITS[action] * count
     const sub = await getClientSubscription(clientId)
 
