@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, getProducts, createProduct, updateProduct, deleteProduct, deleteProducts, uploadProductImage, syncConfigProductsToDb, scrapeProductsFromWebsite } from "@/app/actions/admin-actions"
+import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, getProducts, createProduct, updateProduct, deleteProduct, deleteProducts, uploadProductImage, syncConfigProductsToDb, scrapeProductsFromWebsite, generateCategoryPrompt } from "@/app/actions/admin-actions"
 import { SubscriptionSection } from "./SubscriptionSection"
 
 // ═══════════════════════════════════════════════════════════
@@ -198,7 +198,7 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                         <VoiceSection config={config} updateField={updateField} updateArrayField={updateArrayField} />
                     )}
                     {activeSection === "pillars" && (
-                        <PillarsSection config={config} setConfig={setConfig} />
+                        <PillarsSection config={config} setConfig={setConfig} projectId={projectId} />
                     )}
                     {activeSection === "audience" && (
                         <AudienceSection config={config} setConfig={setConfig} />
@@ -448,7 +448,8 @@ function HookTemplatesEditor({ config, updateField }: { config: any; updateField
 // 3. CONTENT PILLARS
 // ═══════════════════════════════════════════════════════════
 
-function PillarsSection({ config, setConfig }: { config: any; setConfig: (fn: any) => void }) {
+function PillarsSection({ config, setConfig, projectId }: { config: any; setConfig: (fn: any) => void; projectId: string }) {
+    const [generatingPrompt, setGeneratingPrompt] = useState<string | null>(null)
     const pillars: Record<string, any> = config.contentPillars || {}
     const pillarEntries = Object.entries(pillars)
 
@@ -611,11 +612,37 @@ function PillarsSection({ config, setConfig }: { config: any; setConfig: (fn: an
                                                 updatePillar(key, "categories", cats)
                                             }} placeholder="Název" className="flex-1 px-2 py-1.5 bg-transparent border border-white/10 rounded-sm text-xs text-white font-bold focus:outline-none focus:ring-1 focus:ring-white/30" />
                                         </div>
-                                        <input value={cat.prompt || ""} onChange={(e) => {
-                                            const cats = [...(pillar.categories || [])]
-                                            cats[catIdx] = { ...cats[catIdx], prompt: e.target.value }
-                                            updatePillar(key, "categories", cats)
-                                        }} placeholder="AI prompt hint (volitelné)" className="w-full px-2 py-1.5 bg-transparent border border-white/5 rounded-sm text-[10px] text-white/40 focus:outline-none focus:ring-1 focus:ring-white/30" />
+                                        <div className="flex gap-1.5 items-start">
+                                            <input value={cat.prompt || ""} onChange={(e) => {
+                                                const cats = [...(pillar.categories || [])]
+                                                cats[catIdx] = { ...cats[catIdx], prompt: e.target.value }
+                                                updatePillar(key, "categories", cats)
+                                            }} placeholder="AI prompt hint (volitelné)" className="flex-1 px-2 py-1.5 bg-transparent border border-white/5 rounded-sm text-[10px] text-white/40 focus:outline-none focus:ring-1 focus:ring-white/30" />
+                                            <button
+                                                disabled={generatingPrompt === `${key}-${catIdx}` || !cat.label}
+                                                onClick={async () => {
+                                                    if (!cat.label) return
+                                                    setGeneratingPrompt(`${key}-${catIdx}`)
+                                                    const res = await generateCategoryPrompt(projectId, cat.label, pillar.label || key, pillar.description || "")
+                                                    if (res.success && res.prompt) {
+                                                        const cats = [...(pillar.categories || [])]
+                                                        cats[catIdx] = { ...cats[catIdx], prompt: res.prompt }
+                                                        updatePillar(key, "categories", cats)
+                                                    }
+                                                    setGeneratingPrompt(null)
+                                                }}
+                                                className={`shrink-0 px-2 py-1.5 rounded-sm text-[9px] font-bold uppercase tracking-widest border transition-all ${
+                                                    generatingPrompt === `${key}-${catIdx}`
+                                                        ? "border-white/10 text-white/20 cursor-wait"
+                                                        : !cat.label
+                                                            ? "border-white/5 text-white/15 cursor-not-allowed"
+                                                            : "border-white/10 text-amber-400/60 hover:text-amber-400 hover:border-amber-400/30"
+                                                }`}
+                                                title="AI vygeneruje prompt hint na základě názvu kategorie"
+                                            >
+                                                {generatingPrompt === `${key}-${catIdx}` ? "⏳" : "✨"}
+                                            </button>
+                                        </div>
                                     </div>
                                     <button onClick={() => {
                                         const cats = (pillar.categories || []).filter((_: any, i: number) => i !== catIdx)

@@ -1487,6 +1487,45 @@ Vrať POUZE JSON pole (${weakIndices.length} položek):
     }
 }
 
+/**
+ * AI-generate a prompt hint for a pillar category based on its label + pillar context.
+ */
+export async function generateCategoryPrompt(
+    projectSlug: string,
+    categoryLabel: string,
+    pillarLabel: string,
+    pillarDescription: string
+): Promise<{ success: boolean; prompt?: string; error?: string }> {
+    try {
+        const { loadConfig } = await import("@/instagram/configs")
+        const { generateText } = await import("@/instagram/gemini-client")
+        const config = await loadConfig(projectSlug)
+
+        const raw = await generateText(`Jsi content stratég pro značku "${config.name}" (${config.website}).
+
+## KONTEXT
+Pilíř: "${pillarLabel}" — ${pillarDescription}
+Kategorie: "${categoryLabel}"
+
+## ÚKOL
+Napiš STRUČNÝ prompt hint (1-2 věty, česky) pro tuto kategorii.
+Prompt hint říká AI generátoru obsahu JAKÝ typ příspěvků a Z JAKÉHO ÚHLU má pro tuto kategorii tvořit.
+
+## PRAVIDLA
+- Max 2 věty, konkrétní a akční
+- Zaměř se na: jaká témata, jaký tón, jaké formáty fungují
+- Piš česky
+- Vrať POUZE text promptu, nic jiného
+
+Příklad pro kategorii "Tipy" v pilíři "Edukace":
+"Praktické tipy a návody krok za krokem. Používej čísla v hooku, konkrétní příklady a řešení reálných problémů zákazníků."`, { model: "gemini-3.5-flash" })
+
+        return { success: true, prompt: raw.trim().replace(/^["']|["']$/g, "") }
+    } catch (err: any) {
+        return { success: false, error: err?.message || String(err) }
+    }
+}
+
 export async function regeneratePlanItem(
     projectSlug: string,
     postType: string,

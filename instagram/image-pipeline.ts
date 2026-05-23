@@ -187,7 +187,7 @@ ${buildFeedAesthetic(config)}
 ${memSection}
 ## YOUR TASK:
 You are refining image prompts for an Instagram CAROUSEL (${allSlides.length} slides).
-All slides MUST feel like ONE cohesive series.
+All slides MUST feel like ONE cohesive series — as if photographed in the same session.
 
 Visual theme: "${visualTheme}"
 
@@ -195,15 +195,21 @@ Visual theme: "${visualTheme}"
 ${slideSummary}
 
 ## CRITICAL RULES FOR CAROUSEL COHESION:
-1. ALL slides share the SAME environment/location
-2. ALL slides share the SAME lighting
-3. ALL slides share the SAME color temperature
-4. ONLY camera angle changes between slides
-5. Consistent props/products across slides
-6. Camera feels like moving THROUGH the scene
+1. ALL slides share the SAME environment/location — describe it consistently
+2. ALL slides share the SAME lighting setup and color temperature
+3. ALL slides share the SAME style (e.g. all editorial, all product close-up, all lifestyle)
+4. ONLY camera angle and framing changes between slides (wide → medium → close-up → detail)
+5. Consistent props, products, and brand elements across all slides
+6. Camera progression should feel like moving THROUGH a scene, not jumping between locations
+
+## ⚠️ ABSOLUTE REQUIREMENT — NO TEXT IN IMAGES:
+- ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY in any slide
+- NO signs, NO labels, NO overlays, NO captions, NO watermarks
+- Each image is a pure BACKGROUND PHOTO — text is added programmatically via overlay
 
 ## OUTPUT:
-Return a JSON array of exactly ${allSlides.length} strings.
+Return a JSON array of exactly ${allSlides.length} strings, each a detailed image prompt.
+Each prompt should be 2-3 sentences and end with "NO TEXT in image."
 `
 
     try {

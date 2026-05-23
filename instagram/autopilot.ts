@@ -532,8 +532,10 @@ export async function generateOnePost(options: {
                         }
 
                         const refinedPrompt = refinedPrompts[i] || slide.imagePrompt
+                        // Hard enforce: Imagen must NEVER render text in carousel backgrounds
+                        const noTextPrompt = refinedPrompt.trim() + " IMPORTANT: NO TEXT, NO WORDS, NO LETTERS, NO SIGNS anywhere in the image. Pure background photo only."
 
-                        const imageBuffer = await generateImage(refinedPrompt, { aspectRatio: format.aspectRatio as any })
+                        const imageBuffer = await generateImage(noTextPrompt, { aspectRatio: format.aspectRatio as any })
                         cost += COSTS.imageGeneration
                         console.log(`   ✓ Obrázek ${i + 1} (${(imageBuffer.length / 1024).toFixed(0)} KB)`)
 

@@ -556,9 +556,15 @@ export async function overlayText(
         ]
 
         if (logoBuffer) {
+            // Move logo to opposite side of text to avoid overlap
+            const textIsAtTop = variant === "top" || variant === "editorial" || variant === "centered"
+            const logoTop = textIsAtTop
+                ? height - logoHeight - logoMargin  // bottom-right when text is at top
+                : logoMargin                         // top-right when text is at bottom (default)
+
             composites.push({
                 input: logoBuffer,
-                top: logoMargin,
+                top: logoTop,
                 left: width - logoWidth - logoMargin,
             })
         }

@@ -242,11 +242,11 @@ export function buildCarouselSchema(config: ClientConfig) {
                     properties: {
                         headline: { type: Type.STRING, description: "Step headline (max 6 words, Czech, e.g. 'Krok 1: Otevri Nastaveni')" },
                         subtext: { type: Type.STRING, description: "Step detail - exact path or explanation (max 20 words, Czech)" },
-                        imagePrompt: { type: Type.STRING, description: "English image prompt for this step - MUST share the same environment/setting as all other slides" },
+                        imagePrompt: { type: Type.STRING, description: "English image prompt for this step - MUST share the same environment/setting as all other slides. NO TEXT, NO WORDS, NO LETTERS in image. Pure background photo." },
                     },
                     required: ["headline", "subtext", "imagePrompt"],
                 },
-                description: "Exactly 3 steps that walk through ONE topic step-by-step (cover slide introduces the topic)",
+                description: "3 to 5 steps that walk through ONE topic step-by-step (cover slide introduces the topic). Use 3 for simple topics, 4-5 for richer topics.",
             },
             body: {
                 type: Type.STRING,
@@ -354,7 +354,12 @@ export function buildSmartWeekPlan(config: ClientConfig, performance: Performanc
             interleaved.push(byPillar[p].shift()!)
         }
         pillarIdx++
-        if (pillarIdx > count * 3) break
+        if (pillarIdx > count * 10) break
+    }
+
+    // Fallback: if interleaving fell short due to empty pillar queues, fill from plan
+    while (interleaved.length < count) {
+        interleaved.push(plan[interleaved.length % plan.length])
     }
 
     return interleaved.slice(0, count)
@@ -534,13 +539,14 @@ Toto je Instagram Reel (krátké video, 7-10 sekund).
   "hashtags": ["8-10", "relevantních", "hashtagů"]
 }
 ` : postFormat.medium === "carousel" ? `
-## 📸 CAROUSEL POST (4 slidy) — JEDEN TIP, KROK ZA KROKEM
+## 📸 CAROUSEL POST (4-6 slidů) — JEDEN TIP, KROK ZA KROKEM
 
 ### STRUKTURA (POVINNÁ):
 1. **Slide 1 (COVER):** Bold hook headline
-2. **Slide 2 (KROK 1):** První krok
-3. **Slide 3 (KROK 2):** Další krok
-4. **Slide 4 (KROK 3):** Poslední krok + CTA na ${config.website}
+2. **Slide 2-4 (KROKY):** Jednotlivé kroky/body
+3. **Poslední slide:** Shrnutí + CTA na ${config.website}
+
+Použij 3 kroky pro jednoduchá témata, 4-5 kroků pro komplexnější témata. Celkem 4-6 slidů (cover + 3-5 kroků).
 
 ## VÝSTUP — vrať POUZE validní JSON:
 {
@@ -549,7 +555,7 @@ Toto je Instagram Reel (krátké video, 7-10 sekund).
     { "headline": "Krok 1: ...", "subtext": "...", "imagePrompt": "English prompt..." },
     { "headline": "Krok 2: ...", "subtext": "...", "imagePrompt": "English prompt..." },
     { "headline": "Krok 3: ...", "subtext": "...", "imagePrompt": "English prompt..." }
-  ],
+  ],  // můžeš přidat 4. a 5. krok pokud téma vyžaduje víc detailu
   "body": "Hlavní caption (max 120 slov).",
   "cta": "CTA směřující na ${config.website}",
   "hashtags": ["8-10", "hashtagů"],
