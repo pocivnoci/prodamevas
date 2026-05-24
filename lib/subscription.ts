@@ -116,8 +116,9 @@ export interface CanPerformResult {
  * Returns null if no subscription exists.
  */
 export async function getClientSubscription(clientId: string): Promise<SubscriptionInfo | null> {
-    // 1. Get active/trialing subscription
-    const { data: sub } = await supabaseAdmin
+    // 1. Get active/trialing subscription (with v2 columns, fallback to legacy)
+    let sub: any = null
+    const { data: subV2, error: v2Error } = await supabaseAdmin
         .from("subscriptions")
         .select("id, plan_id, status, trial_ends_at, current_period_start, current_period_end, created_at, plan_generated_at, plan_posts_unlocked")
         .eq("client_id", clientId)
@@ -125,6 +126,21 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
         .order("created_at", { ascending: false })
         .limit(1)
         .single()
+
+    if (subV2 && !v2Error) {
+        sub = subV2
+    } else {
+        // Fallback: v2 columns don't exist yet (migration not run)
+        const { data: subLegacy } = await supabaseAdmin
+            .from("subscriptions")
+            .select("id, plan_id, status, trial_ends_at, current_period_start, current_period_end, created_at")
+            .eq("client_id", clientId)
+            .in("status", ["active", "trialing", "pending"])
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single()
+        sub = subLegacy ? { ...subLegacy, plan_generated_at: null, plan_posts_unlocked: 0 } : null
+    }
 
     if (!sub) return null
 
@@ -165,7 +181,7 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
     const creditsTotal = features.credits_per_month
     const creditsRemaining = Math.max(0, creditsTotal - creditsUsed)
 
-    const isTrial = sub.plan_id === "trial_v2" || sub.plan_id === "trial"
+    const isTrial = sub.plan_id === "trial_v2"
 
     return {
         planId: plan.id,

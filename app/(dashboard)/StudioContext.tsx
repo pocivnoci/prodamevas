@@ -79,7 +79,15 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             const resp = await fetch(`/api/subscription?clientId=${projectId}`)
             if (resp.ok) {
                 const data = await resp.json()
-                setSubscription(data)
+                // Ensure v2 fields have defaults (safe before DB migration)
+                setSubscription(data ? {
+                    ...data,
+                    planPostsUnlocked: data.planPostsUnlocked ?? 0,
+                    planPostsLimit: data.planPostsLimit ?? 0,
+                    planPostsTotal: data.planPostsTotal ?? 0,
+                    planGeneratedAt: data.planGeneratedAt ?? null,
+                    isTrial: data.isTrial ?? false,
+                } : null)
             } else {
                 setSubscription(null)
             }

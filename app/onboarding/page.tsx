@@ -7,7 +7,7 @@ import type { WebsiteAnalysis, OnboardingQuestion, ReviewSection } from './actio
 import type { ClientConfig } from '@/instagram/configs/types'
 import { trackEvent } from '@/components/GoogleAnalytics'
 
-type Step = 'choose' | 'input' | 'manual' | 'analyzing' | 'questions' | 'building' | 'review' | 'saving' | 'done'
+type Step = 'choose' | 'input' | 'manual' | 'analyzing' | 'questions' | 'building' | 'review' | 'saving' | 'generating' | 'done'
 type Mode = 'website' | 'manual' | null
 
 type SectionStatus = 'pending' | 'approved' | 'rejected' | 'refining'
@@ -55,6 +55,11 @@ function OnboardingContent() {
     const [sectionFeedback, setSectionFeedback] = useState<Record<string, string>>({})
     const [refiningSection, setRefiningSection] = useState<ReviewSection | null>(null)
     const [refineCounts, setRefineCounts] = useState<Record<string, number>>({})
+
+    // Generating state (post-save showcase generation)
+    const [generatingProgress, setGeneratingProgress] = useState<{ phase: string; current: number; total: number }>({
+        phase: 'plan', current: 0, total: 4,
+    })
 
     // ─── Re-onboarding: load existing client data ────────────
     useEffect(() => {
@@ -188,6 +193,38 @@ function OnboardingContent() {
         try {
             const result = await saveReviewedConfig(configPreview, analysis, reonboardSlug || undefined)
             if (!result.success) throw new Error(result.error)
+
+            // Skip generating for re-onboarding (config update only)
+            if (reonboardSlug) {
+                setStep('done')
+                trackEvent('onboarding_completed', { method: mode || 'unknown' })
+                return
+            }
+
+            // New onboarding: generate showcase content
+            const clientSlug = result.clientSlug || configPreview.id
+            setStep('generating')
+
+            // Phase 1: Generate 27 locked text concepts
+            setGeneratingProgress({ phase: 'plan', current: 0, total: 4 })
+            try {
+                const { generateMonthlyPlan } = await import('@/app/actions/ig-generate-action')
+                await generateMonthlyPlan({ configName: clientSlug, projectId: clientSlug })
+            } catch (planErr) {
+                console.warn('Plan generation failed (non-fatal):', planErr)
+            }
+
+            // Phase 2: Generate 3 full showcase posts (sequential, each ~30-60s)
+            for (let i = 0; i < 3; i++) {
+                setGeneratingProgress({ phase: 'showcase', current: i + 1, total: 3 })
+                try {
+                    const { generateShowcasePost } = await import('@/app/actions/ig-generate-action')
+                    await generateShowcasePost({ configName: clientSlug })
+                } catch (showcaseErr) {
+                    console.warn(`Showcase post ${i + 1} failed (non-fatal):`, showcaseErr)
+                }
+            }
+
             setStep('done')
             trackEvent('onboarding_completed', { method: mode || 'unknown' })
         } catch (err) {
@@ -673,7 +710,37 @@ function OnboardingContent() {
                             <div className="w-10 h-10 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />
                         </div>
                         <h2 className="text-2xl font-bold mb-4">Ukládám konfiguraci</h2>
-                        <p className="text-gray-400">Vytvářím bucket, propojuji účet, startuji trial...</p>
+                        <p className="text-gray-400">Vytvářím bucket, propojuji účet...</p>
+                    </div>
+                )}
+
+                {/* ══════════════════════════════════════════════ */}
+                {/* STEP 5C: Generating showcase content           */}
+                {/* ══════════════════════════════════════════════ */}
+                {step === 'generating' && (
+                    <div className="animate-fadeIn text-center py-20 max-w-md mx-auto">
+                        <div className="inline-flex rounded-2xl bg-violet-500/10 p-5 mb-8 ring-1 ring-inset ring-violet-500/20">
+                            <div className="w-10 h-10 border-2 border-violet-400/30 border-t-violet-400 rounded-full animate-spin" />
+                        </div>
+                        <h2 className="text-2xl font-bold mb-4">
+                            Generuji ukázkový příspěvek {generatingProgress.current}/3
+                        </h2>
+                        <p className="text-gray-400 mb-8">
+                            Copywriter píše text, Art Director tvoří obrázek, Kritik kontroluje kvalitu...
+                        </p>
+                        {/* Progress bar */}
+                        <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden mb-3">
+                            <div
+                                className="h-full rounded-full bg-violet-500 transition-all duration-1000 ease-out"
+                                style={{ width: `${(generatingProgress.current / 3) * 100}%` }}
+                            />
+                        </div>
+                        <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">
+                            {generatingProgress.current === 0
+                                ? 'Připravuji měsíční plán...'
+                                : `Příspěvek ${generatingProgress.current} ze 3 — plný obsah se vším`
+                            }
+                        </p>
                     </div>
                 )}
 

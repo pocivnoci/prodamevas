@@ -368,10 +368,42 @@ export async function uploadCustomImage(
 // MONTHLY PLAN GENERATION (v2 credit model)
 // ============================================
 
+// Template captions for locked posts — visible only through 3px blur, so content doesn't matter.
+// Just needs to look like real text at a glance.
+const PLACEHOLDER_HOOKS = [
+    "Tohle vám nikdo neřekne o vašem podnikání",
+    "3 věci které děláte špatně na Instagramu",
+    "Proč vaši zákazníci odcházejí ke konkurenci",
+    "Největší chyba kterou podnikatelé dělají",
+    "Tenhle trik změní váš marketing navždy",
+    "Co jsme se naučili za poslední měsíc",
+    "Zákulisí naší firmy — bez filtrů",
+    "Recenze od zákazníka co nás dostala",
+    "5 tipů jak zvýšit engagement o 200%",
+    "Tohle jsme zkusili a funguje to",
+    "Nový produkt který musíte vidět",
+    "Jak jsme vyřešili největší problém",
+    "Tajný recept na úspěch v online světě",
+    "Za oponou — jak vzniká náš obsah",
+    "Výsledky které mluví za vše",
+    "Co nám řekli zákazníci nás překvapilo",
+    "Trend kterému se nevyhnete v roce 2025",
+    "Meme který vás bude bavit celý den",
+    "Produkt na který se nás ptáte nejvíc",
+    "Příběh jednoho zákazníka — inspirace",
+    "Proč bychom to udělali znovu jinak",
+    "Věc kterou byste měli změnit hned teď",
+    "Behind the scenes — jak to doopravdy vypadá",
+    "Tip od profíka co vám ušetří hodiny",
+    "Otázka na kterou odpovídáme nejčastěji",
+    "Novinka v nabídce — první pohled",
+    "Tohle jsme nečekali — příběh z praxe",
+]
+
 /**
- * Generate a monthly content plan: 30 post concepts in one AI call.
- * First 3 are unlocked (plan_draft), remaining 27 are locked (plan_locked).
- * Images are NOT generated here — only captions and metadata.
+ * Create 27 fake plan_locked posts from config — ZERO AI cost.
+ * Uses client's post types + pillars to look realistic when blurred.
+ * The 3 showcase posts are generated separately via generateShowcasePost().
  */
 export async function generateMonthlyPlan(options: {
     configName: string
@@ -397,77 +429,13 @@ export async function generateMonthlyPlan(options: {
             const now = new Date()
             const daysSince = (now.getTime() - lastGen.getTime()) / (1000 * 60 * 60 * 24)
             if (daysSince < 25) {
-                return { success: false, postsCreated: 0, error: "Měsíční plán už byl vygenerován. Nový plán bude dostupný na začátku dalšího období." }
+                return { success: false, postsCreated: 0, error: "Měsíční plán už byl vygenerován." }
             }
         }
 
-        // Build pillar/category context for the AI
-        const pillarContext = Object.entries(config.contentPillars || {})
-            .map(([key, pillar]: [string, any]) => {
-                const categories = (pillar.categories || [])
-                    .map((c: any) => `  - ${c.emoji || ""} ${c.label}: ${c.prompt || ""}`)
-                    .join("\n")
-                return `### ${pillar.emoji || ""} ${pillar.label} (${key}) — ratio: ${pillar.ratio || 0.25}\nTypy: ${(pillar.postTypes || []).join(", ")}\n${categories}`
-            })
-            .join("\n\n")
-
+        // Build template posts from config — no AI needed
         const weekPlan = config.weekPlan || ["tip", "meme", "carousel", "product", "behind_scenes", "tip", "meme"]
-
-        const { generateText } = await import("@/instagram/gemini-client")
-
-        const prompt = `Jsi senior Instagram content stratég pro "${config.name}" (${config.website}).
-
-## BRAND CONTEXT
-${config.brandVoice?.persona || ""}
-Tón: ${config.brandVoice?.voiceTraits?.join(", ") || "autentický"}
-
-## CONTENT PILÍŘE
-${pillarContext}
-
-## TÝDENNÍ PLÁN (opakuje se 4×)
-${weekPlan.map((t: string, i: number) => `Den ${i + 1}: ${t}`).join("\n")}
-
-## ÚKOL
-Vygeneruj 30 unikátních příspěvků pro celý měsíc. Každý příspěvek musí obsahovat:
-- hook: prvních max 10 slov (zaujme, bez emoji)
-- body: 2-3 věty hlavního obsahu
-- cta: call-to-action
-- postType: typ postu (${weekPlan.filter((v: string, i: number, a: string[]) => a.indexOf(v) === i).join(", ")})
-- pillar: klíč pilíře (${Object.keys(config.contentPillars || {}).join(", ")})
-- topic: krátký popis tématu (2-4 slova)
-
-## PRAVIDLA
-- Každý post MUSÍ mít unikátní téma — žádné opakování
-- Respektuj ratio pilířů (${Object.entries(config.contentPillars || {}).map(([k, p]: [string, any]) => `${k}: ${Math.round((p.ratio || 0.25) * 100)}%`).join(", ")})
-- Hooky musí být výrazné, drzé a clickbait-ové (ne generické)
-- CTA musí obsahovat ${config.website}
-- Piš česky, moderní hovorovou češtinou
-- Vrať POUZE platný JSON pole
-
-## VÝSTUP — JSON POLE 30 OBJEKTŮ:
-[
-  { "hook": "...", "body": "...", "cta": "...", "postType": "...", "pillar": "...", "topic": "..." },
-  ...
-]`
-
-        const rawText = await generateText(prompt, { temperature: 0.9 })
-
-        // Parse JSON array
-        const jsonMatch = rawText.match(/\[[\s\S]*\]/)
-        if (!jsonMatch) throw new Error("AI nevrátilo platný JSON pole")
-
-        const posts: Array<{
-            hook: string
-            body: string
-            cta: string
-            postType: string
-            pillar: string
-            topic: string
-        }> = JSON.parse(jsonMatch[0])
-
-        if (!Array.isArray(posts) || posts.length < 10) {
-            throw new Error(`AI vygenerovalo jen ${posts?.length || 0} postů — potřebujeme 30`)
-        }
+        const pillarKeys = Object.keys(config.contentPillars || {})
 
         // Resolve post types to get type IDs
         const { data: postTypes } = await supabaseAdmin
@@ -477,19 +445,25 @@ Vygeneruj 30 unikátních příspěvků pro celý měsíc. Každý příspěvek 
 
         const typeMap = new Map((postTypes || []).map(t => [t.name, t.id]))
 
-        // Insert posts: first 3 as plan_draft, rest as plan_locked
-        const UNLOCKED_COUNT = 3
-        const insertRows = posts.slice(0, 30).map((post, index) => ({
-            client_id: clientId,
-            caption: `${post.hook}\n\n${post.body}\n\n${post.cta}`,
-            hashtags: null,
-            call_to_action: post.cta,
-            image_url: null,
-            image_prompt: null,
-            status: index < UNLOCKED_COUNT ? "plan_draft" : "plan_locked",
-            content_pillar: post.pillar,
-            post_type_id: typeMap.get(post.postType) || null,
-        }))
+        // Generate 27 template rows — cycle through week plan and pillars
+        const insertRows = Array.from({ length: 27 }, (_, i) => {
+            const postTypeName = weekPlan[i % weekPlan.length]
+            const pillar = pillarKeys[i % pillarKeys.length] || "reach"
+            const hook = PLACEHOLDER_HOOKS[i % PLACEHOLDER_HOOKS.length]
+            const fakeBody = `Inspirujte se naším obsahem a posuňte svou značku na novou úroveň. Více na ${config.website}`
+
+            return {
+                client_id: clientId,
+                caption: `${hook}\n\n${fakeBody}\n\n👉 ${config.website}`,
+                hashtags: null,
+                call_to_action: `👉 ${config.website}`,
+                image_url: null,
+                image_prompt: null,
+                status: "plan_locked",
+                content_pillar: pillar,
+                post_type_id: typeMap.get(postTypeName) || null,
+            }
+        })
 
         const { error: insertError } = await supabaseAdmin
             .from("ig_posts")
@@ -497,23 +471,55 @@ Vygeneruj 30 unikátních příspěvků pro celý měsíc. Každý příspěvek 
 
         if (insertError) throw new Error(`Failed to insert plan posts: ${insertError.message}`)
 
-        // Update subscription: mark plan as generated, set unlocked count
+        // Update subscription: mark plan as generated
         if (sub) {
             await supabaseAdmin
                 .from("subscriptions")
                 .update({
                     plan_generated_at: new Date().toISOString(),
-                    plan_posts_unlocked: UNLOCKED_COUNT,
                     updated_at: new Date().toISOString(),
                 })
                 .eq("id", sub.id)
         }
 
-        console.log(`✅ Monthly plan generated: ${insertRows.length} posts (${UNLOCKED_COUNT} unlocked, ${insertRows.length - UNLOCKED_COUNT} locked)`)
+        console.log(`✅ Monthly plan generated: ${insertRows.length} locked posts (zero AI cost)`)
 
         return { success: true, postsCreated: insertRows.length }
     } catch (err: any) {
         console.error("generateMonthlyPlan error:", err?.message || err)
         return { success: false, postsCreated: 0, error: (err?.message || String(err)).substring(0, 500) }
+    }
+}
+
+// ============================================
+// SHOWCASE POST (full autopilot — used after onboarding)
+// ============================================
+
+/**
+ * Generate 1 full post via autopilot (caption + image + overlay).
+ * Marks result as plan_draft. Called 3 times from onboarding to create showcase posts.
+ * Each call is a separate server action to avoid timeout issues (~30-60s each).
+ */
+export async function generateShowcasePost(options: {
+    configName: string
+}): Promise<{ success: boolean; postId?: string; error?: string }> {
+    try {
+        await requireAuth()
+        const { generateOnePost } = await import("@/instagram/autopilot")
+
+        const result = await generateOnePost({ configName: options.configName })
+
+        // Mark the generated post as plan_draft (autopilot creates it as "draft")
+        if (result.id) {
+            await supabaseAdmin
+                .from("ig_posts")
+                .update({ status: "plan_draft" })
+                .eq("id", result.id)
+        }
+
+        return { success: true, postId: result.id }
+    } catch (err: any) {
+        console.error("generateShowcasePost error:", err?.message || err)
+        return { success: false, error: (err?.message || String(err)).substring(0, 300) }
     }
 }
