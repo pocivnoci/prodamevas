@@ -225,7 +225,7 @@ export async function canPerformAction(
         const planSuggestion = getPlanForAction(action)
         return {
             allowed: false,
-            reason: `Funkce "${ACTION_LABELS[action]}" není dostupná v plánu ${sub.planName}. Upgradujte na ${planSuggestion}.`,
+            reason: `Funkce "${ACTION_LABELS[action]}" vyžaduje předplatné Chrlit.`,
             creditsRequired,
             creditsRemaining: sub.creditsRemaining,
             featureBlocked: true,
@@ -237,7 +237,7 @@ export async function canPerformAction(
     if (sub.creditsRemaining < creditsRequired) {
         return {
             allowed: false,
-            reason: `Nedostatek kreditů. Potřebujete ${creditsRequired}, zbývá ${sub.creditsRemaining}. Dokupte kredity nebo upgradujte plán.`,
+            reason: `Nedostatek kreditů. Potřebujete ${creditsRequired}, zbývá ${sub.creditsRemaining}. Dobijte si kredity za 15 Kč/ks.`,
             creditsRequired,
             creditsRemaining: sub.creditsRemaining,
         }
@@ -310,7 +310,7 @@ export async function canPerformBatchAction(
         const planSuggestion = getPlanForAction(action)
         return {
             allowed: false,
-            reason: `Funkce "${ACTION_LABELS[action]}" není dostupná v plánu ${sub.planName}. Upgradujte na ${planSuggestion}.`,
+            reason: `Funkce "${ACTION_LABELS[action]}" vyžaduje předplatné Chrlit.`,
             creditsRequired,
             creditsRemaining: sub.creditsRemaining,
             featureBlocked: true,
@@ -321,7 +321,7 @@ export async function canPerformBatchAction(
     if (sub.creditsRemaining < creditsRequired) {
         return {
             allowed: false,
-            reason: `Nedostatek kreditů pro ${count}× ${ACTION_LABELS[action]}. Potřebujete ${creditsRequired}, zbývá ${sub.creditsRemaining}. Dokupte kredity nebo upgradujte plán.`,
+            reason: `Nedostatek kreditů pro ${count}× ${ACTION_LABELS[action]}. Potřebujete ${creditsRequired}, zbývá ${sub.creditsRemaining}. Dobijte si kredity za 15 Kč/ks.`,
             creditsRequired,
             creditsRemaining: sub.creditsRemaining,
         }
@@ -356,16 +356,5 @@ export async function createTrialSubscription(clientId: string): Promise<void> {
 // ─── Helpers ─────────────────────────────────────────────────
 
 function getPlanForAction(action: ActionType): string {
-    switch (action) {
-        case "post_variant":
-        case "product_ideas":
-            return "Creator"
-        case "product_visual":
-        case "product_design":
-        case "product_mockup":
-        case "product_brief":
-            return "Business"
-        default:
-            return "Starter"
-    }
+    return "Chrlit"
 }

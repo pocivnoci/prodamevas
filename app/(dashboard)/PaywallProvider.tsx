@@ -152,7 +152,7 @@ function UpgradeModal({
                     </div>
 
                     <h2 className="text-xl font-black uppercase tracking-tight text-white mb-3">
-                        Upgradujte plán
+                        Dobijte kredity
                     </h2>
 
                     <p className="text-white/50 text-sm mb-6 max-w-xs mx-auto">
@@ -161,8 +161,8 @@ function UpgradeModal({
 
                     {requiredPlan && (
                         <div className="bg-white/5 border border-white/5 rounded-sm px-4 py-3 mb-6">
-                            <span className="text-[9px] text-white/30 font-bold uppercase tracking-widest">Doporučený plán</span>
-                            <p className="text-white font-black text-lg mt-1">{requiredPlan}</p>
+                            <span className="text-[9px] text-white/30 font-bold uppercase tracking-widest">Dobijecí kredity</span>
+                            <p className="text-white font-black text-lg mt-1">15 Kč / kredit</p>
                         </div>
                     )}
 
@@ -174,7 +174,7 @@ function UpgradeModal({
                             }}
                             className="flex-1 py-3 bg-aisummit-cinnabar text-white rounded-sm font-bold text-xs uppercase tracking-widest hover:bg-aisummit-cinnabar/90 transition-all shadow-[0_0_25px_rgba(230,57,70,0.3)]"
                         >
-                            🚀 Vybrat plán
+                            💳 Dobijte kredity
                         </button>
                         <button
                             onClick={onClose}

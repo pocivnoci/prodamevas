@@ -65,19 +65,19 @@ const FAQ_CATEGORIES: FaqCategory[] = [
             },
             {
                 q: "Jak funguje dobíjení kreditů?",
-                a: "Od plánu Creator výš si můžete dokoupit extra kredity za zvýhodněnou cenu. Cena za kredit klesá s vyšším plánem — od 5 Kč/ks (Creator) po 3 Kč/ks (Agency).",
+                a: "Kdykoli si můžete dokoupit extra kredity za 15 Kč/ks. Jdete do Nastavení → Předplatné a dobíjete. Kredity se přičtou okamžitě.",
             },
             {
                 q: "Převádí se nevyčerpané kredity do dalšího měsíce?",
-                a: "Ne. Každý měsíc dostanete plnou dávku kreditů podle plánu. Nevyčerpané kredity propadnou. Proto doporučujeme generovat pravidelně.",
+                a: "Ne. Každý měsíc dostanete 30 kreditů v ceně předplatného. Nevyčerpané kredity propadnou. Pokud potřebujete víc, dobijte si je za 15 Kč/ks.",
             },
             {
                 q: "Jak funguje trial?",
                 a: "7 dní zdarma, bez kreditky. Dostanete plný přístup ke všem funkcím s omezeným počtem kreditů. Po skončení trialu se nic nesmaže — jen nemůžete generovat nový obsah, dokud si nevyberete plán.",
             },
             {
-                q: "Jak přejdu na vyšší plán?",
-                a: "V Nastavení → Předplatné. Upgrade se projeví okamžitě — dostanete novou dávku kreditů a odemknou se funkce vyššího plánu.",
+                q: "Jak si dobiju kredity?",
+                a: "Chrlit má jeden balíček za 490 Kč/měsíc se všemi funkcemi. Pokud potřebujete víc kreditů, jednoduše si je dobijte za 15 Kč/ks v Nastavení → Předplatné.",
             },
         ],
     },
