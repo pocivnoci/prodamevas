@@ -320,7 +320,7 @@ export async function generateOnePost(options: {
     const postFormat = isReel ? "video script" : isCarousel ? "carousel" : "caption"
     await report("copywriter", 25, `✍️ Copywriter generuje ${postFormat}...`)
     console.log(`✍️  Generuji ${postFormat} (Gemini 3.5 Flash)...`)
-    let megaPrompt = buildMegaPrompt(config, selectedType, idea, review, recentHooks, performance, options.topic, selectedProduct)
+    let megaPrompt = buildMegaPrompt(config, selectedType, idea, review, recentHooks, performance, options.topic, selectedProduct, format)
 
     // Inject brand memories (long-term learning from past performance)
     try {

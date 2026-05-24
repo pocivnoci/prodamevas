@@ -1,20 +1,15 @@
 import React from "react"
-import Image from "next/image"
 
 /**
- * Chrlit logomark — uses the generated PNG icon.
- * Falls back to a red square with "C" if image fails.
+ * Chrlit logomark — uses the transparent SVG logo.
  */
 export function LogoPV({ className = "w-8 h-8", style }: { className?: string; style?: React.CSSProperties }) {
     return (
-        <Image
-            src="/chrlit-icon.png"
+        <img
+            src="/chrlit-logo-transparent.svg"
             alt="Chrlit"
-            width={32}
-            height={32}
             className={className}
             style={style}
-            priority
         />
     )
 }

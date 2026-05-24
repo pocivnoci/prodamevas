@@ -377,7 +377,8 @@ export function buildMegaPrompt(
     recentCaptions: string[],
     performance: PerformanceInsight,
     userTopic?: string,
-    selectedProduct?: { name: string; type: string; slug: string; price?: string; description?: string }
+    selectedProduct?: { name: string; type: string; slug: string; price?: string; description?: string },
+    formatOverride?: PostFormat
 ): string {
     const bv = config.brandVoice
     const toneDesc = getToneDescription(config, postType.name)
@@ -437,7 +438,7 @@ ${selectedProduct.price ? `**Cena:** ${selectedProduct.price}` : ""}
     // No product → AI generates generic branded content (no product list dump)
 
 
-    const postFormat = getPostFormat(config, postType.name)
+    const postFormat = formatOverride || getPostFormat(config, postType.name)
 
     return `
 ${bv.persona}
