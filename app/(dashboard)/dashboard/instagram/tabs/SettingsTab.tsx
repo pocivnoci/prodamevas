@@ -99,6 +99,15 @@ export function SettingsTab({ projectId }: { projectId: string }) {
         }))
     }
 
+    const [showAdvanced, setShowAdvanced] = useState(false)
+
+    // Auto-expand advanced if user is already on an advanced tab
+    useEffect(() => {
+        if (["audience", "hashtags", "cta"].includes(activeSection)) {
+            setShowAdvanced(true)
+        }
+    }, [])
+
     if (loading) {
         return (
             <div className="flex items-center justify-center py-12">
@@ -129,15 +138,6 @@ export function SettingsTab({ projectId }: { projectId: string }) {
         { id: "hashtags", label: "Hashtagy", icon: "#️⃣" },
         { id: "cta", label: "CTA", icon: "📣" },
     ]
-
-    const [showAdvanced, setShowAdvanced] = useState(false)
-
-    // Auto-expand advanced if user is already on an advanced tab
-    useEffect(() => {
-        if (["audience", "hashtags", "cta"].includes(activeSection)) {
-            setShowAdvanced(true)
-        }
-    }, [])
 
     return (
         <div className="space-y-6 pb-12">
