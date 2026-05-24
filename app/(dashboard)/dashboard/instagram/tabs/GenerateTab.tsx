@@ -277,7 +277,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                     if (!uploadRes.success || !uploadRes.publicUrl) {
                         setResult({ success: false, error: uploadRes.error || "Při nahrávání obrázku došlo k chybě." })
                         setGenerating(false)
-                        setStep(3)
+                        setStep(2)
                         return
                     }
                     finalImageUrl = uploadRes.publicUrl
@@ -345,7 +345,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         )
         if (result.success && result.plan) {
             setContentPlan(result.plan)
-            setStep(3)
+            setStep(2)
         } else {
             alert(result.error || "Generování plánu selhalo")
         }
@@ -403,13 +403,13 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     // Content Plan: start generation from approved plan
     const handleApproveAndGenerate = () => {
         setBatchCount(contentPlan.length)
-        setStep(4)
+        setStep(3)
         setPendingGenerate(true)
     }
 
     // Trigger generation when pendingGenerate flag is set (after step render)
     useEffect(() => {
-        if (pendingGenerate && step === 4 && !generating) {
+        if (pendingGenerate && step === 3 && !generating) {
             setPendingGenerate(false)
             handleGenerate()
         }
@@ -418,402 +418,283 @@ export function GenerateTab({ projectId }: { projectId: string }) {
 
     const { copiedField, copyToClipboard } = useCopyToClipboard()
 
-    // Dynamic steps: batch mode has 4 steps (with plan preview), single has 3
+    // Simplified steps: Single = 2 steps, Plan = 3 steps
     const steps = batchMode
         ? [
-            { id: 1, label: "1. Typ obsahu" },
-            { id: 2, label: "2. Detaily" },
-            { id: 3, label: "3. Plán obsahu" },
-            { id: 4, label: "4. Prezentace" },
+            { id: 1, label: "Zadání" },
+            { id: 2, label: "Plán" },
+            { id: 3, label: "Výsledek" },
         ]
         : [
-            { id: 1, label: "1. Typ obsahu" },
-            { id: 2, label: "2. Detaily" },
-            { id: 3, label: "3. Prezentace" },
+            { id: 1, label: "Zadání" },
+            { id: 2, label: "Výsledek" },
         ]
 
-    const resultStep = batchMode ? 4 : 3
+    const resultStep = batchMode ? 3 : 2
     const hasResult = result || batchResult
 
     return (
         <div className="max-w-4xl mx-auto space-y-8 mt-2 pb-24">
-            {/* Progress Pill */}
-            <div className="flex justify-center">
-                <div className="inline-flex items-center bg-[#0a0a0a] shadow-sm border border-white/10 rounded-sm p-1.5 relative overflow-hidden">
-                    <div className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-transparent via-aisummit-cinnabar to-transparent opacity-50 blur-[2px]"></div>
-
-                    {steps.map(s => (
+            {/* Mode toggle + Step dots */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex bg-[#0a0a0a] p-1 rounded-sm border border-white/10">
+                    <button
+                        onClick={() => { setBatchMode(false); setStep(1) }}
+                        className={`px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all ${!batchMode
+                            ? "bg-white/10 text-white border border-white/20"
+                            : "text-white/40 hover:text-white"
+                        }`}
+                    >
+                        ✨ Jeden příspěvek
+                    </button>
+                    <button
+                        onClick={() => { setBatchMode(true); setStep(1) }}
+                        className={`px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all ${batchMode
+                            ? "bg-aisummit-cinnabar/20 text-aisummit-cinnabar border border-aisummit-cinnabar/30"
+                            : "text-white/40 hover:text-white"
+                        }`}
+                    >
+                        📅 Obsahový plán
+                    </button>
+                </div>
+                <div className="flex items-center gap-2">
+                    {steps.map((s, i) => (
                         <button
                             key={s.id}
                             onClick={() => {
                                 if (generating) return
-                                if (s.id === 3 && batchMode && contentPlan.length === 0 && !planGenerating) return
+                                if (s.id === 2 && batchMode && contentPlan.length === 0) return
                                 if (s.id === resultStep && !hasResult && !generating) return
                                 setStep(s.id)
                             }}
                             disabled={generating && s.id !== step}
-                            className={`px-4 sm:px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all duration-300 relative z-10 ${step === s.id
-                                ? "bg-white/10 text-white shadow-md border border-white/20"
-                                : "text-white/40 hover:text-white hover:bg-white/5"
-                                } ${s.id === resultStep && !hasResult && !generating ? "opacity-30 cursor-not-allowed" : ""}
-                                ${s.id === 3 && batchMode && contentPlan.length === 0 ? "opacity-30 cursor-not-allowed" : ""}`}
+                            className="flex items-center gap-2"
                         >
-                            {s.label}
+                            <span className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black transition-all ${
+                                step === s.id ? "bg-white text-black"
+                                : step > s.id ? "bg-white/20 text-white/60"
+                                : "bg-white/5 text-white/20"
+                            }`}>{s.id}</span>
+                            <span className={`text-[10px] font-bold uppercase tracking-widest hidden sm:inline ${
+                                step === s.id ? "text-white" : "text-white/30"
+                            }`}>{s.label}</span>
+                            {i < steps.length - 1 && <span className="w-6 h-px bg-white/10 mx-1" />}
                         </button>
                     ))}
                 </div>
             </div>
 
+            {/* Credit error */}
+            {creditError && (
+                <div className="bg-aisummit-cinnabar/10 border border-aisummit-cinnabar/20 rounded-sm p-4 flex items-center gap-3">
+                    <span className="text-lg">⚠️</span>
+                    <p className="text-sm text-aisummit-cinnabar font-bold">{creditError}</p>
+                </div>
+            )}
+
             <AnimatePresence mode="wait">
+                {/* ═══ STEP 1: Unified Brief ═══ */}
                 {step === 1 && (
                     <motion.div
-                        key="step1"
+                        key="brief"
                         initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -15 }}
-                        className="bg-[#0f0f0f] rounded-sm p-8 sm:p-12 border border-white/10 flex flex-col items-center"
+                        className="bg-[#0f0f0f] rounded-sm p-8 sm:p-10 border border-white/10"
                     >
-                        <div className="text-center mb-10">
-                            <h2 className="text-4xl font-black tracking-tighter uppercase text-white/90 mb-3">Typ obsahu</h2>
-                            <p className="text-[10px] text-white/40 font-bold tracking-widest uppercase">Jaký typ obsahu chcete vytvořit?</p>
-                        </div>
-
-                        {/* Mode Selector */}
-                        <div className="flex bg-[#050505] p-1.5 rounded-sm border border-white/10 w-full max-w-sm mb-10 mx-auto">
-                            <button
-                                onClick={() => setBatchMode(false)}
-                                className={`flex-1 py-3.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all ${!batchMode
-                                    ? "bg-white/10 text-white border border-white/20 shadow-sm"
-                                    : "text-white/50 hover:text-white"
-                                    }`}
-                            >
-                                Nový příspěvek
-                            </button>
-                            <button
-                                onClick={() => setBatchMode(true)}
-                                className={`flex-1 py-3.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all ${batchMode
-                                    ? "bg-aisummit-cinnabar/20 text-aisummit-cinnabar border border-aisummit-cinnabar/30 shadow-sm"
-                                    : "text-white/50 hover:text-white"
-                                    }`}
-                            >
-                                Obsahový plán
-                            </button>
-                        </div>
-
-                        {/* Category Grid - Only for Single Post Mode */}
                         {!batchMode ? (
-                            <div className="w-full">
-                                <label className="text-[10px] text-white/40 mb-4 block uppercase tracking-widest text-center font-bold">Vyberte téma</label>
-                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                                    <button
-                                        onClick={() => setCategory("auto")}
-                                        className={`p-4 rounded-sm border transition-all text-center flex flex-col items-center justify-center gap-3 ${category === "auto" || category === ""
-                                            ? "border-white/30 bg-white/10 text-white shadow-sm scale-[1.02]"
-                                            : "border-white/5 bg-[#0a0a0a] hover:border-white/20 text-white/50"
-                                            }`}
-                                    >
-                                        <span className="text-3xl grayscale opacity-80">🤖</span>
-                                        <span className="text-[10px] font-bold uppercase tracking-widest mt-1">Automaticky</span>
-                                    </button>
-                                    {categories.map(cat => (
-                                        <button
-                                            key={cat.id}
-                                            onClick={() => setCategory(cat.id)}
-                                            className={`p-4 rounded-sm border transition-all text-center flex flex-col items-center justify-center gap-3 ${category === cat.id
-                                                ? "border-aisummit-cinnabar/50 bg-aisummit-cinnabar/10 text-aisummit-cinnabar shadow-[0_0_15px_rgba(229,83,63,0.1)] scale-[1.02]"
-                                                : "border-white/5 bg-[#0a0a0a] hover:border-white/20 text-white/50"
-                                                }`}
-                                        >
-                                            <span className="text-3xl">{cat.emoji}</span>
-                                            <span className="text-[10px] font-bold uppercase tracking-widest mt-1">{cat.label}</span>
+                            /* ── SINGLE POST ── */
+                            <div className="max-w-2xl mx-auto space-y-8">
+                                <div className="text-center">
+                                    <h2 className="text-3xl font-black tracking-tighter uppercase text-white/90 mb-2">Nový příspěvek</h2>
+                                    <p className="text-white/40 text-sm">Řekněte AI o čem má psát, nebo nechte vše na automatice.</p>
+                                </div>
+
+                                {/* Topic */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="text-[10px] text-white/50 uppercase tracking-widest font-bold">O čem? (volitelné)</label>
+                                        {(savedIdeas.length > 0 || approvedReviews.length > 0) && (
+                                            <button type="button" onClick={() => setShowIdeaPicker(!showIdeaPicker)}
+                                                className="text-[9px] font-bold uppercase tracking-widest text-emerald-400 hover:text-emerald-300 transition-colors">
+                                                {showIdeaPicker ? "✕ Skrýt" : "💡 Vybrat z nápadů"}
+                                            </button>
+                                        )}
+                                    </div>
+                                    {showIdeaPicker && (
+                                        <div className="mb-3 bg-[#050505] border border-white/10 rounded-sm p-3 max-h-52 overflow-y-auto space-y-1">
+                                            {savedIdeas.length > 0 && (
+                                                <>
+                                                    <span className="text-[9px] font-bold uppercase tracking-widest text-white/30 block mb-1">💡 Nápady</span>
+                                                    {savedIdeas.slice(0, 10).map((idea: any) => (
+                                                        <button key={idea.id} type="button"
+                                                            onClick={() => { setTopic(`${idea.title}: ${idea.content}`); setShowIdeaPicker(false) }}
+                                                            className="w-full text-left px-3 py-2 rounded-sm text-xs text-white/70 hover:bg-white/10 hover:text-white transition-colors truncate">
+                                                            <span className="text-[9px] px-1.5 py-0.5 bg-white/5 border border-white/10 rounded-sm text-white/40 mr-2">{idea.category}</span>
+                                                            {idea.title}
+                                                        </button>
+                                                    ))}
+                                                </>
+                                            )}
+                                            {approvedReviews.length > 0 && (
+                                                <>
+                                                    <span className="text-[9px] font-bold uppercase tracking-widest text-white/30 block mb-1 mt-2">⭐ Recenze</span>
+                                                    {approvedReviews.slice(0, 5).map((review: any) => (
+                                                        <button key={review.id} type="button"
+                                                            onClick={() => {
+                                                                setTopic(`Recenze zákazníka: "${review.quote}" — ${review.customer_initials || "Anonym"}`)
+                                                                const reviewType = postTypes.find(pt => pt.name === "recenze" || pt.name === "review" || pt.name === "testimonial")
+                                                                if (reviewType) setSelectedType(reviewType.name)
+                                                                setShowIdeaPicker(false)
+                                                            }}
+                                                            className="w-full text-left px-3 py-2 rounded-sm text-xs text-white/70 hover:bg-white/10 hover:text-white transition-colors">
+                                                            <span className="text-[9px] px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-sm text-amber-400 mr-2">{"⭐".repeat(review.rating || 5)}</span>
+                                                            &ldquo;{review.quote?.substring(0, 80)}{review.quote?.length > 80 ? "..." : ""}&rdquo;
+                                                        </button>
+                                                    ))}
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
+                                    <textarea
+                                        placeholder="Např. Jarní slevy, Nová kolekce, Péče o pleť... nebo nechte prázdné a AI vybere samo."
+                                        value={topic} onChange={(e) => setTopic(e.target.value)} rows={2}
+                                        className="w-full px-5 py-4 bg-[#050505] border border-white/10 rounded-sm text-white placeholder:text-white/30 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all shadow-sm resize-none"
+                                    />
+                                </div>
+
+                                {/* Category pills */}
+                                <div>
+                                    <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Zaměření (volitelné)</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        <button onClick={() => setCategory("auto")}
+                                            className={`px-4 py-2.5 rounded-sm border text-xs font-bold transition-all flex items-center gap-2 ${category === "auto" || category === ""
+                                                ? "border-white/30 bg-white/10 text-white" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
+                                            <span className="grayscale opacity-80">🤖</span> Automaticky
                                         </button>
-                                    ))}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="w-full text-center py-8 bg-[#0a0a0a] border border-white/5 rounded-sm">
-                                <span className="text-4xl block mb-4">📅</span>
-                                <h3 className="text-white/90 font-bold mb-2">Inteligentní obsahový plán</h3>
-                                <p className="text-white/50 text-sm max-w-md mx-auto">
-                                    Vygeneruje celou sérii příspěvků na základě nastavené týdenní strategie (např. Poměr Edukace vs Prodej vs Humor). System zajistí dokonalý mix.
-                                </p>
-                            </div>
-                        )}
-
-                        <button
-                            onClick={() => setStep(2)}
-                            className="mt-12 group flex items-center gap-3 px-8 py-4 bg-[#050505] text-white rounded-sm font-bold uppercase tracking-widest border border-white/10 hover:border-white/30 transition-all hover:pr-6"
-                        >
-                            <span>Pokračovat k Detailům</span>
-                            <span className="opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all">→</span>
-                        </button>
-                    </motion.div>
-                )}
-
-                {step === 2 && (
-                    <motion.div
-                        key="step2"
-                        initial={{ opacity: 0, y: 15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -15 }}
-                        className="bg-[#0f0f0f] rounded-sm p-8 sm:p-12 border border-white/10"
-                    >
-                        <div className="text-center mb-10">
-                            <h2 className="text-4xl font-black uppercase tracking-tighter text-white/90 mb-3">Detaily</h2>
-                            <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">Upřesněte zadání pro {batchMode ? 'kampaň' : 'příspěvek'}.</p>
-                        </div>
-
-                        <div className="max-w-2xl mx-auto space-y-8">
-                            {!batchMode && (
-                                <div>
-                                    <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">Specifický Formát (Kategorie: {category === "auto" || !category ? "Vše" : categories.find(c => c.id === category)?.label})</label>
-                                    <select
-                                        value={selectedType}
-                                        onChange={(e) => setSelectedType(e.target.value)}
-                                        className="w-full px-5 py-4 bg-[#050505] border border-white/10 rounded-sm text-white text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all shadow-sm"
-                                    >
-                                        <option value="">🎲 Překvapte mě (Náhodný výběr AI)</option>
-                                        {postTypes
-                                            .filter(pt => pt.is_active)
-                                            .filter(pt => category === "auto" || category === "" || pt.pillarId === category)
-                                            .map(pt => (
-                                                <option key={pt.id} value={pt.name}>
-                                                    {pt.display_name}
-                                                </option>
-                                            ))}
-                                    </select>
-                                </div>
-                            )}
-
-                            {batchMode && (
-                                <div>
-                                    <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">Objem kampaně</label>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                        {[
-                                            { count: 3, label: "3 dny (Zkouška)" },
-                                            { count: 7, label: "7 dní (Týden)" },
-                                            { count: 14, label: "14 dní (Půl měsíce)" },
-                                            { count: 30, label: "30 dní (Měsíc)" }
-                                        ].map(opt => (
-                                            <button
-                                                key={opt.count}
-                                                onClick={() => setBatchCount(opt.count)}
-                                                className={`py-4 px-2 rounded-sm text-sm font-semibold transition-all border ${batchCount === opt.count
-                                                    ? "bg-aisummit-cinnabar/20 border-aisummit-cinnabar/30 text-aisummit-cinnabar shadow-sm"
-                                                    : "bg-[#050505] border-white/10 text-white/40 hover:text-white hover:border-white/30"
-                                                    }`}
-                                            >
-                                                {opt.label}
+                                        {categories.map(cat => (
+                                            <button key={cat.id} onClick={() => setCategory(cat.id)}
+                                                className={`px-4 py-2.5 rounded-sm border text-xs font-bold transition-all flex items-center gap-2 ${category === cat.id
+                                                    ? "border-aisummit-cinnabar/50 bg-aisummit-cinnabar/10 text-aisummit-cinnabar" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
+                                                {cat.emoji} {cat.label}
                                             </button>
                                         ))}
                                     </div>
-                                    <p className="text-[10px] text-white/30 mt-2 text-right font-mono tracking-widest uppercase">
-                                        Spotřeba: {batchCount} kreditů
-                                    </p>
                                 </div>
-                            )}
 
-                            <div>
-                                <div className="flex items-center justify-between mb-2">
-                                    <label className="text-[10px] text-white/50 uppercase tracking-widest font-bold">Hlavní téma / Myšlenka (Volitelné)</label>
-                                    {(savedIdeas.length > 0 || approvedReviews.length > 0) && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowIdeaPicker(!showIdeaPicker)}
-                                            className="text-[9px] font-bold uppercase tracking-widest text-emerald-400 hover:text-emerald-300 transition-colors"
-                                        >
-                                            {showIdeaPicker ? "✕ Skrýt" : "💡 Vybrat z nápadů / recenzí"}
-                                        </button>
+                                {/* Format selector */}
+                                <div>
+                                    <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">Formát (volitelné)</label>
+                                    <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)}
+                                        className="w-full px-5 py-3.5 bg-[#050505] border border-white/10 rounded-sm text-white text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all">
+                                        <option value="">🎲 AI vybere nejlepší formát</option>
+                                        {postTypes.filter(pt => pt.is_active).filter(pt => category === "auto" || category === "" || pt.pillarId === category)
+                                            .map(pt => (<option key={pt.id} value={pt.name}>{pt.display_name}</option>))}
+                                    </select>
+                                </div>
+
+                                {/* Advanced */}
+                                <div>
+                                    <button type="button" onClick={() => setShowAdvanced(!showAdvanced)}
+                                        className="text-[10px] text-white/20 hover:text-white/40 font-bold uppercase tracking-widest transition-colors flex items-center gap-2 mb-3">
+                                        <span>{showAdvanced ? "▼" : "▶"}</span> Pokročilé
+                                    </button>
+                                    {showAdvanced && (
+                                        <div className="space-y-5 pl-4 border-l border-white/10">
+                                            <div>
+                                                <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">📐 Poměr stran</label>
+                                                <div className="grid grid-cols-4 gap-2">
+                                                    {[{ value: "", label: "Auto" }, { value: "1:1", label: "1:1" }, { value: "4:5", label: "4:5" }, { value: "3:4", label: "3:4" }].map(opt => (
+                                                        <button key={opt.value} onClick={() => setAspectRatio(opt.value)}
+                                                            className={`py-2.5 rounded-sm text-center transition-all border text-xs font-bold ${aspectRatio === opt.value
+                                                                ? "bg-white/10 border-white/30 text-white" : "bg-[#050505] border-white/10 text-white/40 hover:text-white"}`}>
+                                                            {opt.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">🎞️ Typ</label>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    {[{ value: "", label: "Auto", emoji: "🎲" }, { value: "image", label: "Obrázek", emoji: "🖼️" }, { value: "carousel", label: "Carousel", emoji: "📸" }].map(opt => (
+                                                        <button key={opt.value} onClick={() => setMedium(opt.value)}
+                                                            className={`py-2.5 rounded-sm text-center transition-all border text-xs font-bold ${medium === opt.value
+                                                                ? "bg-white/10 border-white/30 text-white" : "bg-[#050505] border-white/10 text-white/40 hover:text-white"}`}>
+                                                            {opt.emoji} {opt.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">Vlastní obrázek</label>
+                                                <input type="file" accept="image/png, image/jpeg, image/webp"
+                                                    onChange={(e) => { const file = e.target.files?.[0]; if (file) setCustomImageFile(file); else setCustomImageFile(null) }}
+                                                    className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white/70 text-xs focus:outline-none file:mr-3 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-white cursor-pointer"
+                                                />
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
 
-                                {showIdeaPicker && (
-                                    <div className="mb-3 bg-[#050505] border border-white/10 rounded-sm p-3 max-h-52 overflow-y-auto space-y-1">
-                                        {savedIdeas.length > 0 && (
-                                            <>
-                                                <span className="text-[9px] font-bold uppercase tracking-widest text-white/30 block mb-1">💡 Nápady na příspěvky</span>
-                                                {savedIdeas.slice(0, 10).map((idea: any) => (
-                                                    <button
-                                                        key={idea.id}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setTopic(`${idea.title}: ${idea.content}`)
-                                                            setShowIdeaPicker(false)
-                                                        }}
-                                                        className="w-full text-left px-3 py-2 rounded-sm text-xs text-white/70 hover:bg-white/10 hover:text-white transition-colors border border-transparent hover:border-white/10 truncate"
-                                                    >
-                                                        <span className="text-[9px] px-1.5 py-0.5 bg-white/5 border border-white/10 rounded-sm text-white/40 mr-2">{idea.category}</span>
-                                                        {idea.title}
-                                                    </button>
-                                                ))}
-                                            </>
-                                        )}
-                                        {approvedReviews.length > 0 && (
-                                            <>
-                                                <span className="text-[9px] font-bold uppercase tracking-widest text-white/30 block mb-1 mt-2">⭐ Schválené recenze</span>
-                                                {approvedReviews.slice(0, 5).map((review: any) => (
-                                                    <button
-                                                        key={review.id}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setTopic(`Recenze zákazníka: "${review.quote}" — ${review.customer_initials || "Anonym"}`)
-                                                            // Auto-select recenze post type if available
-                                                            const reviewType = postTypes.find(pt => pt.name === "recenze" || pt.name === "review" || pt.name === "testimonial")
-                                                            if (reviewType) setSelectedType(reviewType.name)
-                                                            setShowIdeaPicker(false)
-                                                        }}
-                                                        className="w-full text-left px-3 py-2 rounded-sm text-xs text-white/70 hover:bg-white/10 hover:text-white transition-colors border border-transparent hover:border-white/10"
-                                                    >
-                                                        <span className="text-[9px] px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-sm text-amber-400 mr-2">{"⭐".repeat(review.rating || 5)}</span>
-                                                        &ldquo;{review.quote?.substring(0, 80)}{review.quote?.length > 80 ? "..." : ""}&rdquo;
-                                                    </button>
-                                                ))}
-                                            </>
-                                        )}
-                                    </div>
-                                )}
-
-                                <textarea
-                                    placeholder="O čem by měl příspěvek komunikovat? Např. Jarní slevy, Nová kolekce šperků, nebo edukace ohledně péče o pleť..."
-                                    value={topic}
-                                    onChange={(e) => setTopic(e.target.value)}
-                                    rows={3}
-                                    className="w-full px-5 py-4 bg-[#050505] border border-white/10 rounded-sm text-white placeholder:text-white/30 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all shadow-sm resize-none"
-                                />
-                            </div>
-
-                            {/* Advanced options — collapsed by default */}
-                            <div>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowAdvanced(!showAdvanced)}
-                                    className="text-[10px] text-white/30 hover:text-white/50 font-bold uppercase tracking-widest transition-colors flex items-center gap-2 mb-3"
-                                >
-                                    <span>{showAdvanced ? "▼" : "▶"}</span>
-                                    Pokročilé nastavení
+                                {/* Generate CTA */}
+                                <button onClick={handleGenerate} disabled={generating}
+                                    className={`w-full py-5 rounded-sm transition-all flex items-center justify-center gap-3 text-sm font-black tracking-wider uppercase ${generating
+                                        ? "bg-white/5 text-white/30 cursor-wait border border-white/10"
+                                        : "bg-aisummit-cinnabar text-white shadow-[0_0_20px_rgba(229,83,63,0.3)] hover:shadow-[0_0_30px_rgba(229,83,63,0.5)] hover:scale-[1.01] active:scale-[0.99]"}`}>
+                                    {generating ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-transparent rounded-full animate-spin" /> Pracuji na tom...</>)
+                                        : (<>✨ Vytvořit příspěvek</>)}
                                 </button>
-                                {showAdvanced && (
-                                    <div className="space-y-5 pl-4 border-l border-white/10">
-                                        <div>
-                                            <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">📐 Formát obrázku</label>
-                                            <div className="grid grid-cols-4 gap-2">
-                                                {[
-                                                    { value: "", label: "Auto", desc: "Dle configu" },
-                                                    { value: "1:1", label: "1:1", desc: "Čtverec" },
-                                                    { value: "4:5", label: "4:5", desc: "IG Feed" },
-                                                    { value: "3:4", label: "3:4", desc: "Na výšku" },
-                                                ].map(opt => (
-                                                    <button
-                                                        key={opt.value}
-                                                        onClick={() => setAspectRatio(opt.value)}
-                                                        className={`py-3 px-2 rounded-sm text-center transition-all border ${aspectRatio === opt.value
-                                                            ? "bg-white/10 border-white/30 text-white shadow-sm"
-                                                            : "bg-[#050505] border-white/10 text-white/40 hover:text-white hover:border-white/20"
-                                                            }`}
-                                                    >
-                                                        <span className="text-sm font-black block">{opt.label}</span>
-                                                        <span className="text-[8px] uppercase tracking-widest font-bold opacity-50">{opt.desc}</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
+                            </div>
+                        ) : (
+                            /* ── CONTENT PLAN ── */
+                            <div className="max-w-2xl mx-auto space-y-8">
+                                <div className="text-center">
+                                    <h2 className="text-3xl font-black tracking-tighter uppercase text-white/90 mb-2">Obsahový plán</h2>
+                                    <p className="text-white/40 text-sm">AI navrhne sérii příspěvků. Vy schválíte a spustíte.</p>
+                                </div>
 
-                                        <div>
-                                            <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">🎞️ Typ média</label>
-                                            <div className="grid grid-cols-3 gap-2">
-                                                {[
-                                                    { value: "", label: "Auto", desc: "Dle typu", emoji: "🎲" },
-                                                    { value: "image", label: "Obrázek", desc: "1 vizuál", emoji: "🖼️" },
-                                                    { value: "carousel", label: "Carousel", desc: "4 slidy", emoji: "📸" },
-                                                ].map(opt => (
-                                                    <button
-                                                        key={opt.value}
-                                                        onClick={() => setMedium(opt.value)}
-                                                        className={`py-3 px-2 rounded-sm text-center transition-all border ${medium === opt.value
-                                                            ? "bg-white/10 border-white/30 text-white shadow-sm"
-                                                            : "bg-[#050505] border-white/10 text-white/40 hover:text-white hover:border-white/20"
-                                                            }`}
-                                                    >
-                                                        <span className="text-sm font-black block">{opt.emoji} {opt.label}</span>
-                                                        <span className="text-[8px] uppercase tracking-widest font-bold opacity-50">{opt.desc}</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        {!batchMode && (
-                                            <div>
-                                                <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">Vlastní obrázek (volitelné)</label>
-                                                <div className="flex flex-col gap-2">
-                                                    <input
-                                                        type="file"
-                                                        accept="image/png, image/jpeg, image/webp"
-                                                        onChange={(e) => {
-                                                            const file = e.target.files?.[0]
-                                                            if (file) setCustomImageFile(file)
-                                                            else setCustomImageFile(null)
-                                                        }}
-                                                        className="w-full px-5 py-4 bg-[#050505] border border-white/10 rounded-sm text-white/70 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all shadow-sm file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-white hover:file:bg-white/20 cursor-pointer"
-                                                    />
-                                                    <p className="text-[10px] text-white/30 tracking-widest uppercase">
-                                                        Pokud nahrajete vlastní obrázek, AI jej použije místo generování nového vizuálu (přeskočí se i textový overlay).
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        )}
+                                {/* Count */}
+                                <div>
+                                    <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Kolik příspěvků?</label>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                        {[{ count: 3, label: "3", desc: "Zkouška" }, { count: 7, label: "7", desc: "Týden" }, { count: 14, label: "14", desc: "Dva týdny" }, { count: 30, label: "30", desc: "Měsíc" }].map(opt => (
+                                            <button key={opt.count} onClick={() => setBatchCount(opt.count)}
+                                                className={`py-4 rounded-sm transition-all border text-center ${batchCount === opt.count
+                                                    ? "bg-aisummit-cinnabar/20 border-aisummit-cinnabar/30 text-aisummit-cinnabar" : "bg-[#050505] border-white/10 text-white/40 hover:text-white hover:border-white/30"}`}>
+                                                <span className="text-2xl font-black block">{opt.label}</span>
+                                                <span className="text-[9px] font-bold uppercase tracking-widest opacity-60">{opt.desc}</span>
+                                            </button>
+                                        ))}
                                     </div>
-                                )}
-                            </div>
+                                    <p className="text-[10px] text-white/20 mt-2 text-right font-bold uppercase tracking-widest">Spotřeba: {batchCount} kreditů</p>
+                                </div>
 
-                            <div className="pt-4 border-t border-white/10 flex items-center justify-end">
+                                {/* Topic */}
+                                <div>
+                                    <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">Téma kampaně (volitelné)</label>
+                                    <textarea placeholder="Např. Letní kolekce, Vánoční kampaň... nebo nechte prázdné."
+                                        value={topic} onChange={(e) => setTopic(e.target.value)} rows={2}
+                                        className="w-full px-5 py-4 bg-[#050505] border border-white/10 rounded-sm text-white placeholder:text-white/30 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all shadow-sm resize-none"
+                                    />
+                                </div>
 
-                                {batchMode ? (
-                                    <button
-                                        onClick={handleGeneratePlan}
-                                        disabled={planGenerating}
-                                        className={`px-8 py-4 rounded-sm transition-all flex items-center gap-3 text-[10px] font-black tracking-widest uppercase ${planGenerating
-                                            ? "bg-white/5 text-white/30 cursor-wait border border-white/10"
-                                            : "bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:shadow-[0_0_20px_rgba(16,185,129,0.5)]"
-                                            }`}
-                                    >
-                                        {planGenerating ? (
-                                            <>
-                                                <span className="w-4 h-4 border-2 border-white/30 border-t-transparent rounded-full animate-spin" />
-                                                AI plánuje...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <span>📋 Vytvořit plán kampaně</span>
-                                            </>
-                                        )}
-                                    </button>
-                                ) : (
-                                    <button
-                                        onClick={handleGenerate}
-                                        disabled={generating}
-                                        className={`px-8 py-4 rounded-sm transition-all flex items-center gap-3 text-[10px] font-black tracking-widest uppercase ${generating
-                                            ? "bg-white/5 text-white/30 cursor-wait border border-white/10"
-                                            : "bg-aisummit-cinnabar text-white shadow-[0_0_15px_rgba(229,83,63,0.3)] hover:shadow-[0_0_20px_rgba(229,83,63,0.6)]"
-                                            }`}
-                                    >
-                                        {generating ? (
-                                            <>
-                                                <span className="w-4 h-4 border-2 border-white/30 border-t-transparent rounded-full animate-spin" />
-                                                Navrhuji obsah...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <span>✨ Vytvořit magii</span>
-                                            </>
-                                        )}
-                                    </button>
-                                )}
+                                {/* Generate Plan CTA */}
+                                <button onClick={handleGeneratePlan} disabled={planGenerating}
+                                    className={`w-full py-5 rounded-sm transition-all flex items-center justify-center gap-3 text-sm font-black tracking-wider uppercase ${planGenerating
+                                        ? "bg-white/5 text-white/30 cursor-wait border border-white/10"
+                                        : "bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] hover:scale-[1.01] active:scale-[0.99]"}`}>
+                                    {planGenerating ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-transparent rounded-full animate-spin" /> AI plánuje...</>)
+                                        : (<>📋 Vytvořit plán</>)}
+                                </button>
                             </div>
-                        </div>
+                        )}
                     </motion.div>
                 )}
 
-                {/* ═══ STEP 3: Content Plan Preview (batch mode only) ═══ */}
-                {step === 3 && batchMode && (
+
+
+                {/* ═══ STEP 2: Content Plan Preview (batch mode only) ═══ */}
+                {step === 2 && batchMode && (
                     <motion.div
                         key="step3-plan"
                         initial={{ opacity: 0, y: 15 }}
@@ -1055,7 +936,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
 
                             <div className="flex items-center gap-3">
                                 <button
-                                    onClick={() => setStep(2)}
+                                    onClick={() => setStep(1)}
                                     className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest text-white/40 bg-white/5 border border-white/10 hover:text-white hover:bg-white/10 transition-all"
                                 >
                                     ← Zpět na brief
@@ -1217,7 +1098,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 <p className="text-5xl mb-4 opacity-30 grayscale">✨</p>
                                 <p className="text-xl font-black uppercase tracking-tighter text-white/50 mb-2">Čekám na zadání</p>
                                 <p className="font-bold uppercase tracking-widest text-[10px]">Vraťte se na krok Brief a spusťte generování.</p>
-                                <button onClick={() => setStep(2)} className="mt-6 px-6 py-2 rounded-sm text-[10px] font-bold tracking-widest uppercase bg-white/5 text-white/50 border border-white/10 hover:text-white hover:bg-white/10 transition-colors">Zpět na Brief</button>
+                                <button onClick={() => setStep(1)} className="mt-6 px-6 py-2 rounded-sm text-[10px] font-bold tracking-widest uppercase bg-white/5 text-white/50 border border-white/10 hover:text-white hover:bg-white/10 transition-colors">Zpět na Zadání</button>
                             </div>
                         )}
                     </motion.div>
