@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chrlit-v1'
+const CACHE_NAME = 'chrlit-v2'
 
 // Assets to precache (app shell)
 const PRECACHE_URLS = [
@@ -32,6 +32,9 @@ self.addEventListener('fetch', (event) => {
   if (!request.url.startsWith('http')) return
   if (request.url.includes('/api/') || request.url.includes('/auth/')) return
   if (request.url.includes('supabase.co')) return
+  // Skip page navigations — only intercept static assets
+  if (request.mode === 'navigate') return
+  if (!request.url.match(/\.(js|css|png|jpg|webp|svg|ico|woff2?)(\?|$)/)) return
 
   event.respondWith(
     fetch(request)
@@ -46,8 +49,12 @@ self.addEventListener('fetch', (event) => {
         return response
       })
       .catch(() => {
-        // Offline fallback — serve from cache
-        return caches.match(request)
+        // Offline fallback — serve from cache, or let browser handle natively
+        return caches.match(request).then((cached) => {
+          if (cached) return cached
+          // No cache hit — return a proper error response instead of undefined
+          return new Response('Offline', { status: 503, statusText: 'Service Unavailable' })
+        })
       })
   )
 })
