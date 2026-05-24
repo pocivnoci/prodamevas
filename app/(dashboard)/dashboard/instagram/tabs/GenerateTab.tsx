@@ -17,7 +17,7 @@ import { uploadCustomImage, type GenerateResult } from "@/app/actions/ig-generat
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPostType, IGCategory, IGPostFormat } from "./types"
-import { trackEvent } from "@/components/GoogleAnalytics"
+import { trackEvent } from "@/lib/analytics"
 
 export function GenerateTab({ projectId }: { projectId: string }) {
     const { refreshSubscription } = useStudio()
