@@ -34,12 +34,6 @@ export interface SubscriptionState {
     allowedActions: string[]
     analytics: "basic" | "full"
     maxProjects: number
-    // v2: plan tracking
-    planPostsUnlocked: number
-    planPostsLimit: number
-    planPostsTotal: number
-    planGeneratedAt: string | null
-    isTrial: boolean
 }
 
 interface StudioState {
@@ -79,15 +73,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             const resp = await fetch(`/api/subscription?clientId=${projectId}`)
             if (resp.ok) {
                 const data = await resp.json()
-                // Ensure v2 fields have defaults (safe before DB migration)
-                setSubscription(data ? {
-                    ...data,
-                    planPostsUnlocked: data.planPostsUnlocked ?? 0,
-                    planPostsLimit: data.planPostsLimit ?? 0,
-                    planPostsTotal: data.planPostsTotal ?? 0,
-                    planGeneratedAt: data.planGeneratedAt ?? null,
-                    isTrial: data.isTrial ?? false,
-                } : null)
+                setSubscription(data)
             } else {
                 setSubscription(null)
             }
