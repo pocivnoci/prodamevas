@@ -22,7 +22,7 @@ interface BrandMemory {
 
 const MEMORY_TYPES = {
     pattern: { label: "Co funguje", emoji: "✅", color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
-    preference: { label: "Preference", emoji: "🎯", color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20" },
+    preference: { label: "Styl značky", emoji: "🎯", color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20" },
     avoid: { label: "Vyhnout se", emoji: "❌", color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20" },
     visual: { label: "Vizuální", emoji: "🖼️", color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
 } as const
@@ -105,7 +105,7 @@ export function BrainTab({ projectId }: { projectId: string }) {
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                        <span className="text-xl">🧠</span> Brand Memory
+                        <span className="text-xl">🧠</span> Paměť značky
                     </h2>
                     <p className="text-[10px] uppercase tracking-widest text-white/30 mt-1">
                         Naučené vzorce z reálného výkonu • {memories.length} pravidel
@@ -153,7 +153,7 @@ export function BrainTab({ projectId }: { projectId: string }) {
                             />
                             <div className="flex items-center gap-4">
                                 <label className="text-[9px] uppercase tracking-widest text-white/30 font-bold">
-                                    Confidence: {(newConfidence * 100).toFixed(0)}%
+                                    Jistota: {(newConfidence * 100).toFixed(0)}%
                                 </label>
                                 <input
                                     type="range"

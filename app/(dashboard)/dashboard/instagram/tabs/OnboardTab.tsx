@@ -341,11 +341,11 @@ export function OnboardTab() {
                         <div className="w-10 h-10 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
                     </div>
                     <h2 className="text-xl font-bold text-white mb-3">Generuji konfiguraci</h2>
-                    <p className="text-white/40 text-sm mb-8">AI staví brand voice, content pilíře, hashtag strategie...</p>
+                    <p className="text-white/40 text-sm mb-8">AI staví styl textu, témata obsahu, hashtag strategie...</p>
                     <div className="max-w-sm mx-auto space-y-2 text-left">
-                        <LoadingStep label="Brand voice & persona" active />
-                        <LoadingStep label="Content pilíře & strategie" />
-                        <LoadingStep label="Hook templates & CTA" />
+                        <LoadingStep label="Styl textu & persona" active />
+                        <LoadingStep label="Témata obsahu & strategie" />
+                        <LoadingStep label="Šablony úvodních vět & CTA" />
                         <LoadingStep label="Ukládám do databáze" />
                     </div>
                 </div>
