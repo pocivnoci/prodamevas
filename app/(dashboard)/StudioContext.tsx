@@ -33,12 +33,6 @@ export interface SubscriptionState {
     allowedActions: string[]
     analytics: "basic" | "full"
     maxProjects: number
-    // v2 (optional — present when API returns them)
-    planPostsUnlocked?: number
-    planPostsLimit?: number
-    planPostsTotal?: number
-    planGeneratedAt?: string | null
-    isTrial?: boolean
 }
 
 interface StudioState {
