@@ -14,7 +14,7 @@ import {
     type ContentPlanItem,
 } from "@/app/actions/admin-actions"
 import { uploadCustomImage, type GenerateResult } from "@/app/actions/ig-generate-action"
-import { creditGuard, creditGuardBatch } from "@/app/actions/credit-guard"
+import { canGenerate } from "@/app/actions/credit-guard"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
 import { useCopyToClipboard } from "./hooks"
@@ -177,22 +177,12 @@ export function GenerateTab({ projectId }: { projectId: string }) {
 
         try {
             // Credit check before generation
-            if (batchMode) {
-                const guard = await creditGuardBatch(projectId, "post", contentPlan.length || batchCount)
-                if (!guard.ok) {
-                    setCreditError(guard.error || "Nedostatek kreditů")
-                    setGenerating(false)
-                    showPlanUnlockModal()
-                    return
-                }
-            } else {
-                const guard = await creditGuard(projectId, "post")
-                if (!guard.ok) {
-                    setCreditError(guard.error || "Nedostatek kreditů")
-                    setGenerating(false)
-                    showPlanUnlockModal()
-                    return
-                }
+            const creditCheck = await canGenerate(projectId, batchMode ? (contentPlan.length || batchCount) : 1)
+            if (!creditCheck.ok) {
+                setCreditError(creditCheck.error || "Nedostatek kreditů")
+                setGenerating(false)
+                showPlanUnlockModal()
+                return
             }
 
             if (batchMode) {

@@ -165,3 +165,33 @@ export async function creditGuardBatch(
         }
     }
 }
+
+/**
+ * Lightweight credit check for client components.
+ * Returns only serializable data (no functions).
+ * Use this for pre-flight checks before triggering generation.
+ */
+export async function canGenerate(
+    projectId: string,
+    count: number = 1,
+): Promise<{ ok: boolean; error?: string }> {
+    try {
+        await requireAuth()
+        const clientId = await resolveClientId(projectId)
+
+        if (count <= 1) {
+            const check = await canPerformAction(clientId, "post")
+            return { ok: check.allowed, error: check.reason }
+        } else {
+            const check = await canPerformBatchAction(clientId, "post", count)
+            return { ok: check.allowed, error: check.reason }
+        }
+    } catch (err: any) {
+        return {
+            ok: false,
+            error: err?.message?.includes('Neautorizovaný')
+                ? err.message
+                : "Nepodařilo se ověřit kredity.",
+        }
+    }
+}
