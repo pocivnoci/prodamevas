@@ -59,8 +59,7 @@ export default function Home() {
       >
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-aisummit-cinnabar rounded-sm flex items-center justify-center text-white font-black text-sm">C</div>
-            <span className="font-black tracking-tight text-xl text-white">chrl<span className="text-aisummit-cinnabar">it</span></span>
+            <img src="/chrlit-logo-transparent.svg" alt="Chrlit" className="h-8" />
           </Link>
           
           <div className="flex items-center gap-6">
@@ -183,7 +182,7 @@ export default function Home() {
               />
               <div className="p-5">
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="w-6 h-6 bg-aisummit-cinnabar rounded-full flex items-center justify-center text-white text-[8px] font-black">C</div>
+                  <img src="/chrlit-logo-transparent.svg" alt="Chrlit" className="h-4" />
                   <span className="text-white/60 text-[10px] font-bold">chrlit.cz</span>
                   <span className="text-white/20 text-[9px] ml-auto">Vygenerováno AI</span>
                 </div>
@@ -639,8 +638,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-12">
           <div className="md:col-span-2">
             <div className="flex items-center gap-2 mb-6">
-              <div className="w-6 h-6 bg-aisummit-cinnabar rounded-sm flex items-center justify-center text-white font-black text-[10px]">C</div>
-              <span className="font-black tracking-tight text-base text-white">chrl<span className="text-aisummit-cinnabar">it</span></span>
+              <img src="/chrlit-logo-transparent.svg" alt="Chrlit" className="h-6" />
             </div>
             <p className="text-white/30 text-xs font-medium max-w-sm leading-relaxed">Obsah na sociální sítě, který vypadá profesionálně — bez grafika, bez copywritera, bez stresu.</p>
           </div>
