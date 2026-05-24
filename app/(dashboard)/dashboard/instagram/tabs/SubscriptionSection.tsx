@@ -109,23 +109,27 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
     )
 }
 function CurrentPlanCard({ sub, onRefresh }: { sub: SubscriptionState; onRefresh: () => void }) {
-    const pct = sub.creditsTotal > 0
-        ? Math.min(100, (sub.creditsUsed / sub.creditsTotal) * 100)
+    // DEBUG: log subscription shape to find React #310 cause
+    console.log("[SubscriptionSection] sub data:", JSON.stringify(sub))
+    
+    const pct = (sub.creditsTotal ?? 0) > 0
+        ? Math.min(100, ((sub.creditsUsed ?? 0) / (sub.creditsTotal ?? 1)) * 100)
         : 0
     const isLow = pct > 80
     const isTrial = sub.status === "trialing"
     const trialDays = isTrial && sub.trialEndsAt
-        ? Math.max(0, Math.ceil((new Date(sub.trialEndsAt).getTime() - Date.now()) / 86400000))
+        ? Math.max(0, Math.ceil((new Date(String(sub.trialEndsAt)).getTime() - Date.now()) / 86400000))
         : null
+    const periodEnd = sub.currentPeriodEnd ? String(sub.currentPeriodEnd) : null
 
     return (
         <div className={`rounded-sm p-5 border ${isLow ? 'bg-aisummit-cinnabar/5 border-aisummit-cinnabar/20' : 'bg-[#080808] border-white/5'}`}>
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                    <span className="text-lg font-black text-white">{sub.planName}</span>
+                    <span className="text-lg font-black text-white">{String(sub.planName ?? "")}</span>
                     {isTrial && (
                         <span className="text-[9px] bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full font-bold uppercase">
-                            Trial · {trialDays}d zbývá
+                            Trial · {trialDays ?? 0}d zbývá
                         </span>
                     )}
                     {sub.status === "active" && (
@@ -152,7 +156,7 @@ function CurrentPlanCard({ sub, onRefresh }: { sub: SubscriptionState; onRefresh
                 <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] text-white/40 font-bold">Využité kredity</span>
                     <span className="text-[10px] text-white/60 font-bold">
-                        {sub.creditsUsed} / {sub.creditsTotal}
+                        {sub.creditsUsed ?? 0} / {sub.creditsTotal ?? 0}
                     </span>
                 </div>
                 <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
@@ -163,11 +167,11 @@ function CurrentPlanCard({ sub, onRefresh }: { sub: SubscriptionState; onRefresh
                 </div>
                 <div className="flex items-center justify-between mt-1">
                     <span className="text-[9px] text-white/20 font-bold">
-                        {sub.creditsRemaining} kreditů zbývá
+                        {sub.creditsRemaining ?? 0} kreditů zbývá
                     </span>
-                    {sub.currentPeriodEnd && (
+                    {periodEnd && (
                         <span className="text-[9px] text-white/20 font-bold">
-                            Obnoví se {new Date(sub.currentPeriodEnd).toLocaleDateString("cs")}
+                            Obnoví se {new Date(periodEnd).toLocaleDateString("cs")}
                         </span>
                     )}
                 </div>
