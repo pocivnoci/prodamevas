@@ -33,6 +33,12 @@ export interface SubscriptionState {
     allowedActions: string[]
     analytics: "basic" | "full"
     maxProjects: number
+    // v2 (optional — present when API returns them)
+    planPostsUnlocked?: number
+    planPostsLimit?: number
+    planPostsTotal?: number
+    planGeneratedAt?: string | null
+    isTrial?: boolean
 }
 
 interface StudioState {
@@ -56,7 +62,6 @@ const StudioContext = createContext<StudioState>({
 })
 
 export function StudioProvider({ children }: { children: ReactNode }) {
-    console.log("[Chrlit] build: 2024-05-24T22:42")
     const [activeSection, setActiveSection] = useState<StudioSection>("dashboard")
     const [projectId, setProjectId] = useState("")
     const [subscription, setSubscription] = useState<SubscriptionState | null>(null)
