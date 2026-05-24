@@ -56,6 +56,7 @@ const StudioContext = createContext<StudioState>({
 })
 
 export function StudioProvider({ children }: { children: ReactNode }) {
+    console.log("[Chrlit] build: 2024-05-24T22:42")
     const [activeSection, setActiveSection] = useState<StudioSection>("dashboard")
     const [projectId, setProjectId] = useState("")
     const [subscription, setSubscription] = useState<SubscriptionState | null>(null)
