@@ -17,6 +17,7 @@ import { uploadCustomImage, type GenerateResult } from "@/app/actions/ig-generat
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPostType, IGCategory, IGPostFormat } from "./types"
+import { trackEvent } from "@/lib/analytics"
 
 export function GenerateTab({ projectId }: { projectId: string }) {
     const { refreshSubscription } = useStudio()
@@ -45,6 +46,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const [planGenerating, setPlanGenerating] = useState(false)
     const [editingPlanItem, setEditingPlanItem] = useState<string | null>(null)
     const [regeneratingItem, setRegeneratingItem] = useState<string | null>(null)
+    const [showAdvanced, setShowAdvanced] = useState(false)
     const [pendingGenerate, setPendingGenerate] = useState(false)
 
     // Ideas & Reviews for topic pre-fill
@@ -108,7 +110,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         })
         if (!createRes.ok) {
             const err = await createRes.json().catch(() => ({}))
-            return { success: false, error: err.error || "Failed to create job" }
+            return { success: false, error: err.error || "Nepodařilo se vytvořit úlohu" }
         }
         const { jobId } = await createRes.json()
         jobIdRef.current = jobId
@@ -157,7 +159,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         } catch (err: any) {
             pollingActive = false
             setAgentStatus(null)
-            return { success: false, error: err.message || "Network error" }
+            return { success: false, error: err.message || "Chyba sítě" }
         }
     }
 
@@ -287,6 +289,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                 setResult(res)
                 if (res.success) {
                     setGenerationHistory(prev => [res, ...prev].slice(0, 10))
+                    trackEvent('post_generated', { mode: 'single', category: category || 'auto' })
                 }
             }
         } catch (err: any) {
@@ -399,14 +402,14 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     // Dynamic steps: batch mode has 4 steps (with plan preview), single has 3
     const steps = batchMode
         ? [
-            { id: 1, label: "1. Styl & Vibe" },
-            { id: 2, label: "2. Kreativní Brief" },
-            { id: 3, label: "3. Content Plan" },
+            { id: 1, label: "1. Typ obsahu" },
+            { id: 2, label: "2. Detaily" },
+            { id: 3, label: "3. Plán obsahu" },
             { id: 4, label: "4. Prezentace" },
         ]
         : [
-            { id: 1, label: "1. Styl & Vibe" },
-            { id: 2, label: "2. Kreativní Brief" },
+            { id: 1, label: "1. Typ obsahu" },
+            { id: 2, label: "2. Detaily" },
             { id: 3, label: "3. Prezentace" },
         ]
 
@@ -452,8 +455,8 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         className="bg-[#0f0f0f] rounded-sm p-8 sm:p-12 border border-white/10 flex flex-col items-center"
                     >
                         <div className="text-center mb-10">
-                            <h2 className="text-4xl font-black tracking-tighter uppercase text-white/90 mb-3">Základní směr</h2>
-                            <p className="text-[10px] text-white/40 font-bold tracking-widest uppercase">Jaký typ obsahu pro vás dnes AI architekt navrhne?</p>
+                            <h2 className="text-4xl font-black tracking-tighter uppercase text-white/90 mb-3">Typ obsahu</h2>
+                            <p className="text-[10px] text-white/40 font-bold tracking-widest uppercase">Jaký typ obsahu chcete vytvořit?</p>
                         </div>
 
                         {/* Mode Selector */}
@@ -465,7 +468,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     : "text-white/50 hover:text-white"
                                     }`}
                             >
-                                Exkluzivní post
+                                Nový příspěvek
                             </button>
                             <button
                                 onClick={() => setBatchMode(true)}
@@ -481,7 +484,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         {/* Category Grid - Only for Single Post Mode */}
                         {!batchMode ? (
                             <div className="w-full">
-                                <label className="text-[10px] text-white/40 mb-4 block uppercase tracking-widest text-center font-bold">Vyberte Základní Pilíř</label>
+                                <label className="text-[10px] text-white/40 mb-4 block uppercase tracking-widest text-center font-bold">Vyberte téma</label>
                                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                                     <button
                                         onClick={() => setCategory("auto")}
@@ -537,8 +540,8 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         className="bg-[#0f0f0f] rounded-sm p-8 sm:p-12 border border-white/10"
                     >
                         <div className="text-center mb-10">
-                            <h2 className="text-4xl font-black uppercase tracking-tighter text-white/90 mb-3">Kreativní Brief</h2>
-                            <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">Upřesněte zadání pro dnešní {batchMode ? 'kampaň' : 'příspěvek'}.</p>
+                            <h2 className="text-4xl font-black uppercase tracking-tighter text-white/90 mb-3">Detaily</h2>
+                            <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">Upřesněte zadání pro {batchMode ? 'kampaň' : 'příspěvek'}.</p>
                         </div>
 
                         <div className="max-w-2xl mx-auto space-y-8">
@@ -660,82 +663,89 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 />
                             </div>
 
+                            {/* Advanced options — collapsed by default */}
                             <div>
-                                <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">📐 Formát obrázku</label>
-                                <div className="grid grid-cols-4 gap-2">
-                                    {[
-                                        { value: "", label: "Auto", desc: "Dle configu" },
-                                        { value: "1:1", label: "1:1", desc: "Čtverec" },
-                                        { value: "4:5", label: "4:5", desc: "IG Feed" },
-                                        { value: "3:4", label: "3:4", desc: "Na výšku" },
-                                    ].map(opt => (
-                                        <button
-                                            key={opt.value}
-                                            onClick={() => setAspectRatio(opt.value)}
-                                            className={`py-3 px-2 rounded-sm text-center transition-all border ${aspectRatio === opt.value
-                                                ? "bg-white/10 border-white/30 text-white shadow-sm"
-                                                : "bg-[#050505] border-white/10 text-white/40 hover:text-white hover:border-white/20"
-                                                }`}
-                                        >
-                                            <span className="text-sm font-black block">{opt.label}</span>
-                                            <span className="text-[8px] uppercase tracking-widest font-bold opacity-50">{opt.desc}</span>
-                                        </button>
-                                    ))}
-                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAdvanced(!showAdvanced)}
+                                    className="text-[10px] text-white/30 hover:text-white/50 font-bold uppercase tracking-widest transition-colors flex items-center gap-2 mb-3"
+                                >
+                                    <span>{showAdvanced ? "▼" : "▶"}</span>
+                                    Pokročilé nastavení
+                                </button>
+                                {showAdvanced && (
+                                    <div className="space-y-5 pl-4 border-l border-white/10">
+                                        <div>
+                                            <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">📐 Formát obrázku</label>
+                                            <div className="grid grid-cols-4 gap-2">
+                                                {[
+                                                    { value: "", label: "Auto", desc: "Dle configu" },
+                                                    { value: "1:1", label: "1:1", desc: "Čtverec" },
+                                                    { value: "4:5", label: "4:5", desc: "IG Feed" },
+                                                    { value: "3:4", label: "3:4", desc: "Na výšku" },
+                                                ].map(opt => (
+                                                    <button
+                                                        key={opt.value}
+                                                        onClick={() => setAspectRatio(opt.value)}
+                                                        className={`py-3 px-2 rounded-sm text-center transition-all border ${aspectRatio === opt.value
+                                                            ? "bg-white/10 border-white/30 text-white shadow-sm"
+                                                            : "bg-[#050505] border-white/10 text-white/40 hover:text-white hover:border-white/20"
+                                                            }`}
+                                                    >
+                                                        <span className="text-sm font-black block">{opt.label}</span>
+                                                        <span className="text-[8px] uppercase tracking-widest font-bold opacity-50">{opt.desc}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">🎞️ Typ média</label>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {[
+                                                    { value: "", label: "Auto", desc: "Dle typu", emoji: "🎲" },
+                                                    { value: "image", label: "Obrázek", desc: "1 vizuál", emoji: "🖼️" },
+                                                    { value: "carousel", label: "Carousel", desc: "4 slidy", emoji: "📸" },
+                                                ].map(opt => (
+                                                    <button
+                                                        key={opt.value}
+                                                        onClick={() => setMedium(opt.value)}
+                                                        className={`py-3 px-2 rounded-sm text-center transition-all border ${medium === opt.value
+                                                            ? "bg-white/10 border-white/30 text-white shadow-sm"
+                                                            : "bg-[#050505] border-white/10 text-white/40 hover:text-white hover:border-white/20"
+                                                            }`}
+                                                    >
+                                                        <span className="text-sm font-black block">{opt.emoji} {opt.label}</span>
+                                                        <span className="text-[8px] uppercase tracking-widest font-bold opacity-50">{opt.desc}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        {!batchMode && (
+                                            <div>
+                                                <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">Vlastní obrázek (volitelné)</label>
+                                                <div className="flex flex-col gap-2">
+                                                    <input
+                                                        type="file"
+                                                        accept="image/png, image/jpeg, image/webp"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0]
+                                                            if (file) setCustomImageFile(file)
+                                                            else setCustomImageFile(null)
+                                                        }}
+                                                        className="w-full px-5 py-4 bg-[#050505] border border-white/10 rounded-sm text-white/70 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all shadow-sm file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-white hover:file:bg-white/20 cursor-pointer"
+                                                    />
+                                                    <p className="text-[10px] text-white/30 tracking-widest uppercase">
+                                                        Pokud nahrajete vlastní obrázek, AI jej použije místo generování nového vizuálu (přeskočí se i textový overlay).
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
-                            <div>
-                                <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">🎞️ Typ média</label>
-                                <div className="grid grid-cols-3 gap-2">
-                                    {[
-                                        { value: "", label: "Auto", desc: "Dle typu", emoji: "🎲" },
-                                        { value: "image", label: "Obrázek", desc: "1 vizuál", emoji: "🖼️" },
-                                        { value: "carousel", label: "Carousel", desc: "4 slidy", emoji: "📸" },
-                                    ].map(opt => (
-                                        <button
-                                            key={opt.value}
-                                            onClick={() => setMedium(opt.value)}
-                                            className={`py-3 px-2 rounded-sm text-center transition-all border ${medium === opt.value
-                                                ? "bg-white/10 border-white/30 text-white shadow-sm"
-                                                : "bg-[#050505] border-white/10 text-white/40 hover:text-white hover:border-white/20"
-                                                }`}
-                                        >
-                                            <span className="text-sm font-black block">{opt.emoji} {opt.label}</span>
-                                            <span className="text-[8px] uppercase tracking-widest font-bold opacity-50">{opt.desc}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                            {!batchMode && (
-                                <div>
-                                    <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">Vlastní obrázek (volitelné)</label>
-                                    <div className="flex flex-col gap-2">
-                                        <input
-                                            type="file"
-                                            accept="image/png, image/jpeg, image/webp"
-                                            onChange={(e) => {
-                                                const file = e.target.files?.[0]
-                                                if (file) setCustomImageFile(file)
-                                                else setCustomImageFile(null)
-                                            }}
-                                            className="w-full px-5 py-4 bg-[#050505] border border-white/10 rounded-sm text-white/70 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all shadow-sm file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-white hover:file:bg-white/20 cursor-pointer"
-                                        />
-                                        <p className="text-[10px] text-white/30 tracking-widest uppercase">
-                                            Pokud nahrajete vlastní obrázek, AI jej použije místo generování nového vizuálu (přeskočí se i textový overlay).
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="pt-4 border-t border-white/10 flex items-center justify-between">
-                                <label className="flex items-center gap-3 cursor-pointer group">
-                                    <div className={`relative w-12 h-6 rounded-full transition-colors ${dryRun ? "bg-aisummit-cinnabar" : "bg-white/10 hover:bg-white/20"}`}
-                                        onClick={() => setDryRun(!dryRun)}
-                                    >
-                                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${dryRun ? "translate-x-7" : "translate-x-1"}`} />
-                                    </div>
-                                    <span className="text-[10px] uppercase tracking-widest font-bold text-white/70 group-hover:text-white transition-colors mt-1.5">Návrhový režim <span className="text-white/40 font-normal">(bez obrázků)</span></span>
-                                </label>
+                            <div className="pt-4 border-t border-white/10 flex items-center justify-end">
 
                                 {batchMode ? (
                                     <button
@@ -793,7 +803,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         className="bg-[#0f0f0f] rounded-sm p-8 sm:p-12 border border-white/10"
                     >
                         <div className="text-center mb-8">
-                            <h2 className="text-4xl font-black uppercase tracking-tighter text-white/90 mb-3">Content Plan</h2>
+                            <h2 className="text-4xl font-black uppercase tracking-tighter text-white/90 mb-3">Plán obsahu</h2>
                             <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">
                                 AI navrhuje strategický mix {contentPlan.length} postů. Upravte a schvalte.
                             </p>
@@ -1021,7 +1031,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                             <div className="flex items-center gap-4 text-[10px] text-white/30 font-bold uppercase tracking-widest">
                                 <span>{contentPlan.length} postů</span>
                                 <span>·</span>
-                                <span>~${(contentPlan.length * (dryRun ? 0.03 : 0.14)).toFixed(2)} AI cost</span>
+                                <span>~${(contentPlan.length * 0.14).toFixed(2)} AI cost</span>
                             </div>
 
                             <div className="flex items-center gap-3">
