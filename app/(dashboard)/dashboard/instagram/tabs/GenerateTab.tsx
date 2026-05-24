@@ -14,13 +14,16 @@ import {
     type ContentPlanItem,
 } from "@/app/actions/admin-actions"
 import { uploadCustomImage, type GenerateResult } from "@/app/actions/ig-generate-action"
+import { creditGuard, creditGuardBatch } from "@/app/actions/credit-guard"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
+import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPostType, IGCategory, IGPostFormat } from "./types"
 import { trackEvent } from "@/lib/analytics"
 
 export function GenerateTab({ projectId }: { projectId: string }) {
-    const { refreshSubscription } = useStudio()
+    const { refreshSubscription, setActiveSection } = useStudio()
+    const { showPlanUnlockModal } = usePaywall()
     const [postTypes, setPostTypes] = useState<IGPostType[]>([])
     const [postFormats, setPostFormats] = useState<Record<string, IGPostFormat>>({})
     const [categories, setCategories] = useState<IGCategory[]>([])
@@ -29,7 +32,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const [aspectRatio, setAspectRatio] = useState("")
     const [medium, setMedium] = useState("")
     const [category, setCategory] = useState("")
-    const [dryRun, setDryRun] = useState(false)
+    const [creditError, setCreditError] = useState<string | null>(null)
     const [customImageFile, setCustomImageFile] = useState<File | null>(null)
     const [generating, setGenerating] = useState(false)
     const [agentStatus, setAgentStatus] = useState<{ stage: string; progress: number; message: string } | null>(null)
@@ -168,10 +171,30 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         setResult(null)
         setBatchResult(null)
         setBatchProgress(null)
+        setCreditError(null)
 
         const maxClientRetries = 1
 
         try {
+            // Credit check before generation
+            if (batchMode) {
+                const guard = await creditGuardBatch(projectId, "post", contentPlan.length || batchCount)
+                if (!guard.ok) {
+                    setCreditError(guard.error || "Nedostatek kreditů")
+                    setGenerating(false)
+                    showPlanUnlockModal()
+                    return
+                }
+            } else {
+                const guard = await creditGuard(projectId, "post")
+                if (!guard.ok) {
+                    setCreditError(guard.error || "Nedostatek kreditů")
+                    setGenerating(false)
+                    showPlanUnlockModal()
+                    return
+                }
+            }
+
             if (batchMode) {
                 // === SEQUENTIAL CAMPAIGN using approved plan ===
                 const planToExecute = contentPlan.length > 0 ? contentPlan : []
@@ -199,8 +222,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                             type: postType,
                             topic: postTopic,
                             category: category !== "auto" ? category : undefined,
-                            dryRun,
-                            aspectRatio: aspectRatio || undefined,
+                                                        aspectRatio: aspectRatio || undefined,
                             medium: medium || undefined,
                             productId: planItem?.productId || undefined,
                             campaignContext,
@@ -213,8 +235,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 type: postType,
                                 topic: postTopic,
                                 category: category !== "auto" ? category : undefined,
-                                dryRun,
-                                aspectRatio: aspectRatio || undefined,
+                                                                aspectRatio: aspectRatio || undefined,
                                 medium: medium || undefined,
                                 productId: planItem?.productId || undefined,
                                 campaignContext,
@@ -267,7 +288,6 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                     type: selectedType || undefined,
                     topic: topic || undefined,
                     category: category !== "auto" ? category : undefined,
-                    dryRun,
                     aspectRatio: aspectRatio || undefined,
                     medium: medium || undefined,
                     customImageUrl: finalImageUrl,
@@ -280,7 +300,6 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         type: selectedType || undefined,
                         topic: topic || undefined,
                         category: category !== "auto" ? category : undefined,
-                        dryRun,
                         aspectRatio: aspectRatio || undefined,
                         medium: medium || undefined,
                         customImageUrl: finalImageUrl,
@@ -477,7 +496,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     : "text-white/50 hover:text-white"
                                     }`}
                             >
-                                Content Plán
+                                Obsahový plán
                             </button>
                         </div>
 
@@ -514,7 +533,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         ) : (
                             <div className="w-full text-center py-8 bg-[#0a0a0a] border border-white/5 rounded-sm">
                                 <span className="text-4xl block mb-4">📅</span>
-                                <h3 className="text-white/90 font-bold mb-2">Inteligentní Content Plán</h3>
+                                <h3 className="text-white/90 font-bold mb-2">Inteligentní obsahový plán</h3>
                                 <p className="text-white/50 text-sm max-w-md mx-auto">
                                     Vygeneruje celou sérii příspěvků na základě nastavené týdenní strategie (např. Poměr Edukace vs Prodej vs Humor). System zajistí dokonalý mix.
                                 </p>
@@ -589,7 +608,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         ))}
                                     </div>
                                     <p className="text-[10px] text-white/30 mt-2 text-right font-mono tracking-widest uppercase">
-                                        Odhadovaná cena AI: ${(batchCount * 0.10).toFixed(2)}
+                                        Spotřeba: {batchCount} kreditů
                                     </p>
                                 </div>
                             )}
@@ -1031,7 +1050,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                             <div className="flex items-center gap-4 text-[10px] text-white/30 font-bold uppercase tracking-widest">
                                 <span>{contentPlan.length} postů</span>
                                 <span>·</span>
-                                <span>~${(contentPlan.length * 0.14).toFixed(2)} AI cost</span>
+                                <span>{contentPlan.length} kreditů</span>
                             </div>
 
                             <div className="flex items-center gap-3">
@@ -1143,6 +1162,22 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                 <p className="text-white/70 font-medium leading-relaxed whitespace-pre-wrap bg-[#0f0f0f] p-5 rounded-sm border border-white/5 shadow-sm">{result.caption}</p>
                                             </div>
                                         )}
+
+                                        {/* Action buttons */}
+                                        <div className="flex items-center justify-center gap-3 pt-6 mt-6 border-t border-white/10">
+                                            <button
+                                                onClick={() => setActiveSection("posts")}
+                                                className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
+                                            >
+                                                📋 Otevřít v Příspěvcích
+                                            </button>
+                                            <button
+                                                onClick={() => { setResult(null); setStep(1) }}
+                                                className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-white/5 text-white/60 border border-white/10 hover:text-white hover:bg-white/10 transition-all"
+                                            >
+                                                ✨ Generovat další
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -1162,10 +1197,20 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         <p className="text-[10px] font-bold tracking-widest uppercase text-aisummit-cinnabar/50">Selhání</p>
                                     </div>
                                 </div>
-
-                                <button onClick={() => { setStep(1); setContentPlan([]) }} className="mt-8 px-8 py-3 rounded-sm bg-[#050505] text-white font-bold uppercase tracking-widest text-[10px] border border-white/10 hover:border-white/30 transition-colors">
-                                    Vytvořit další
-                                </button>
+                                <div className="flex items-center justify-center gap-3 mt-8">
+                                    <button
+                                        onClick={() => setActiveSection("posts")}
+                                        className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
+                                    >
+                                        📋 Otevřít v Příspěvcích
+                                    </button>
+                                    <button
+                                        onClick={() => { setStep(1); setContentPlan([]) }}
+                                        className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-white/5 text-white/60 border border-white/10 hover:text-white hover:bg-white/10 transition-all"
+                                    >
+                                        ✨ Vytvořit další
+                                    </button>
+                                </div>
                             </div>
                         ) : (
                             <div className="text-center text-white/40">
