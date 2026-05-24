@@ -31,10 +31,13 @@ const clientIdCache = new Map<string, string>() // slug → uuid
 /**
  * Load client config by name (cached)
  * @param name - Config slug (e.g. mobilnamiru, or a UUID)
+ * @param forceRefresh - Skip cache and fetch from DB
  */
-export async function loadConfig(name: string = "mobilnamiru"): Promise<ClientConfig> {
-    const cached = configCache.get(name)
-    if (cached) return cached
+export async function loadConfig(name: string = "mobilnamiru", forceRefresh = false): Promise<ClientConfig> {
+    if (!forceRefresh) {
+        const cached = configCache.get(name)
+        if (cached) return cached
+    }
 
     const { data, error } = await supabaseAdmin
         .from("clients")
@@ -49,6 +52,18 @@ export async function loadConfig(name: string = "mobilnamiru"): Promise<ClientCo
     const config = data.config as ClientConfig
     configCache.set(name, config)
     return config
+}
+
+/**
+ * Invalidate cached config for a slug (or all if no slug given).
+ * Call after onboarding, updateClientConfig, or any config mutation.
+ */
+export function invalidateConfigCache(slug?: string): void {
+    if (slug) {
+        configCache.delete(slug)
+    } else {
+        configCache.clear()
+    }
 }
 
 import { createClient } from "@/supabase/server"

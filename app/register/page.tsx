@@ -28,7 +28,7 @@ export default async function RegisterPage(props: {
                         </svg>
                     </div>
                     <h1 className="text-2xl font-bold font-inter tracking-tight">Registrace</h1>
-                    <p className="text-gray-400 mt-2 text-sm">Vytvoř si účet pro přístup do Autopilota.</p>
+                    <p className="text-gray-400 mt-2 text-sm">Vytvoř si účet pro přístup do Chrlit Studia.</p>
                 </div>
 
                 {isSuccess && (

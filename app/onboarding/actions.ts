@@ -890,6 +890,9 @@ export async function saveReviewedConfig(
             }
 
             console.log(`✅ Re-onboarding complete: ${existingClientSlug} (${clientId})`)
+            // Invalidate config cache so Settings tab picks up new data
+            const { invalidateConfigCache } = await import('@/instagram/configs')
+            invalidateConfigCache(existingClientSlug)
             return { success: true, clientSlug: existingClientSlug }
         }
 
@@ -925,7 +928,7 @@ export async function saveReviewedConfig(
             console.error('⚠️ Failed to create user_clients link:', linkError.message)
         }
 
-        // Create 7-day trial subscription
+        // Create content-gated trial subscription (v2 — no time limit)
         try {
             const { createTrialSubscription } = await import('@/lib/subscription')
             await createTrialSubscription(insertedClientId)

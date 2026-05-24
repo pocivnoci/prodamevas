@@ -1,9 +1,12 @@
 "use server"
 
 /**
- * Credit Guard — server action wrapper
- * =====================================
+ * Credit Guard — server action wrapper (v2)
+ * ==========================================
  * Wraps any AI action with credit check + deduction.
+ * 
+ * Plan posts: commit() increments plan counter (no credit cost).
+ * Extra posts: commit() deducts credits as before.
  * 
  * Single action:
  *   const guard = await creditGuard(projectId, "post")
@@ -23,6 +26,7 @@ import {
     canPerformAction,
     canPerformBatchAction,
     deductCredits,
+    incrementPlanPostCount,
     type ActionType,
     ACTION_CREDITS,
     ACTION_LABELS,
@@ -34,7 +38,9 @@ export interface CreditGuardResult {
     ok: boolean
     error?: string
     clientId: string
-    /** Call after successful AI operation to deduct credits */
+    /** True if this is a plan post (no credit cost) */
+    isPlanPost: boolean
+    /** Call after successful AI operation to deduct credits or increment plan counter */
     commit: (description?: string, referenceId?: string) => Promise<void>
 }
 
@@ -52,32 +58,44 @@ export interface CreditGuardBatchResult {
 export async function creditGuard(
     projectId: string,
     action: ActionType,
+    /** If true, always treat as extra post (costs credits even if plan has capacity) */
+    isExtraPost?: boolean,
 ): Promise<CreditGuardResult> {
     try {
         await requireAuth()
         
         const clientId = await resolveClientId(projectId)
-        const check = await canPerformAction(clientId, action)
+        const check = await canPerformAction(clientId, action, isExtraPost)
 
         if (!check.allowed) {
             return {
                 ok: false,
                 error: check.reason || "Akce není povolena.",
                 clientId,
+                isPlanPost: false,
                 commit: async () => {},
             }
         }
 
+        const isPlanPost = !!check.isPlanPost
+
         return {
             ok: true,
             clientId,
+            isPlanPost,
             commit: async (description?: string, referenceId?: string) => {
-                await deductCredits(
-                    clientId,
-                    action,
-                    description || ACTION_LABELS[action],
-                    referenceId,
-                )
+                if (isPlanPost) {
+                    // Plan post — increment counter, no credit deduction
+                    await incrementPlanPostCount(clientId)
+                } else {
+                    // Extra post — deduct credits
+                    await deductCredits(
+                        clientId,
+                        action,
+                        description || ACTION_LABELS[action],
+                        referenceId,
+                    )
+                }
             },
         }
     } catch (err: any) {
@@ -89,6 +107,7 @@ export async function creditGuard(
                 ? err.message
                 : "Nepodařilo se ověřit kredity. Zkuste to znovu.",
             clientId: projectId,
+            isPlanPost: false,
             commit: async () => {},
         }
     }

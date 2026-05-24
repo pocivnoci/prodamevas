@@ -363,3 +363,157 @@ export async function uploadCustomImage(
         return { success: false, error: err.message || "Upload failed" }
     }
 }
+
+// ============================================
+// MONTHLY PLAN GENERATION (v2 credit model)
+// ============================================
+
+/**
+ * Generate a monthly content plan: 30 post concepts in one AI call.
+ * First 3 are unlocked (plan_draft), remaining 27 are locked (plan_locked).
+ * Images are NOT generated here — only captions and metadata.
+ */
+export async function generateMonthlyPlan(options: {
+    configName: string
+    projectId: string
+}): Promise<{ success: boolean; postsCreated: number; error?: string }> {
+    try {
+        await requireAuth()
+        const config = await loadConfig(options.configName)
+        const clientId = await resolveClientId(options.configName)
+
+        // Check if plan was already generated this month
+        const { data: sub } = await supabaseAdmin
+            .from("subscriptions")
+            .select("id, plan_generated_at")
+            .eq("client_id", clientId)
+            .in("status", ["active", "trialing"])
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single()
+
+        if (sub?.plan_generated_at) {
+            const lastGen = new Date(sub.plan_generated_at)
+            const now = new Date()
+            const daysSince = (now.getTime() - lastGen.getTime()) / (1000 * 60 * 60 * 24)
+            if (daysSince < 25) {
+                return { success: false, postsCreated: 0, error: "Měsíční plán už byl vygenerován. Nový plán bude dostupný na začátku dalšího období." }
+            }
+        }
+
+        // Build pillar/category context for the AI
+        const pillarContext = Object.entries(config.contentPillars || {})
+            .map(([key, pillar]: [string, any]) => {
+                const categories = (pillar.categories || [])
+                    .map((c: any) => `  - ${c.emoji || ""} ${c.label}: ${c.prompt || ""}`)
+                    .join("\n")
+                return `### ${pillar.emoji || ""} ${pillar.label} (${key}) — ratio: ${pillar.ratio || 0.25}\nTypy: ${(pillar.postTypes || []).join(", ")}\n${categories}`
+            })
+            .join("\n\n")
+
+        const weekPlan = config.weekPlan || ["tip", "meme", "carousel", "product", "behind_scenes", "tip", "meme"]
+
+        const { generateText } = await import("@/instagram/gemini-client")
+
+        const prompt = `Jsi senior Instagram content stratég pro "${config.name}" (${config.website}).
+
+## BRAND CONTEXT
+${config.brandVoice?.persona || ""}
+Tón: ${config.brandVoice?.voiceTraits?.join(", ") || "autentický"}
+
+## CONTENT PILÍŘE
+${pillarContext}
+
+## TÝDENNÍ PLÁN (opakuje se 4×)
+${weekPlan.map((t: string, i: number) => `Den ${i + 1}: ${t}`).join("\n")}
+
+## ÚKOL
+Vygeneruj 30 unikátních příspěvků pro celý měsíc. Každý příspěvek musí obsahovat:
+- hook: prvních max 10 slov (zaujme, bez emoji)
+- body: 2-3 věty hlavního obsahu
+- cta: call-to-action
+- postType: typ postu (${weekPlan.filter((v: string, i: number, a: string[]) => a.indexOf(v) === i).join(", ")})
+- pillar: klíč pilíře (${Object.keys(config.contentPillars || {}).join(", ")})
+- topic: krátký popis tématu (2-4 slova)
+
+## PRAVIDLA
+- Každý post MUSÍ mít unikátní téma — žádné opakování
+- Respektuj ratio pilířů (${Object.entries(config.contentPillars || {}).map(([k, p]: [string, any]) => `${k}: ${Math.round((p.ratio || 0.25) * 100)}%`).join(", ")})
+- Hooky musí být výrazné, drzé a clickbait-ové (ne generické)
+- CTA musí obsahovat ${config.website}
+- Piš česky, moderní hovorovou češtinou
+- Vrať POUZE platný JSON pole
+
+## VÝSTUP — JSON POLE 30 OBJEKTŮ:
+[
+  { "hook": "...", "body": "...", "cta": "...", "postType": "...", "pillar": "...", "topic": "..." },
+  ...
+]`
+
+        const rawText = await generateText(prompt, { temperature: 0.9 })
+
+        // Parse JSON array
+        const jsonMatch = rawText.match(/\[[\s\S]*\]/)
+        if (!jsonMatch) throw new Error("AI nevrátilo platný JSON pole")
+
+        const posts: Array<{
+            hook: string
+            body: string
+            cta: string
+            postType: string
+            pillar: string
+            topic: string
+        }> = JSON.parse(jsonMatch[0])
+
+        if (!Array.isArray(posts) || posts.length < 10) {
+            throw new Error(`AI vygenerovalo jen ${posts?.length || 0} postů — potřebujeme 30`)
+        }
+
+        // Resolve post types to get type IDs
+        const { data: postTypes } = await supabaseAdmin
+            .from("ig_post_types")
+            .select("id, name")
+            .eq("client_id", clientId)
+
+        const typeMap = new Map((postTypes || []).map(t => [t.name, t.id]))
+
+        // Insert posts: first 3 as plan_draft, rest as plan_locked
+        const UNLOCKED_COUNT = 3
+        const insertRows = posts.slice(0, 30).map((post, index) => ({
+            client_id: clientId,
+            caption: `${post.hook}\n\n${post.body}\n\n${post.cta}`,
+            hashtags: null,
+            call_to_action: post.cta,
+            image_url: null,
+            image_prompt: null,
+            status: index < UNLOCKED_COUNT ? "plan_draft" : "plan_locked",
+            content_pillar: post.pillar,
+            post_type_id: typeMap.get(post.postType) || null,
+        }))
+
+        const { error: insertError } = await supabaseAdmin
+            .from("ig_posts")
+            .insert(insertRows)
+
+        if (insertError) throw new Error(`Failed to insert plan posts: ${insertError.message}`)
+
+        // Update subscription: mark plan as generated, set unlocked count
+        if (sub) {
+            await supabaseAdmin
+                .from("subscriptions")
+                .update({
+                    plan_generated_at: new Date().toISOString(),
+                    plan_posts_unlocked: UNLOCKED_COUNT,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("id", sub.id)
+        }
+
+        console.log(`✅ Monthly plan generated: ${insertRows.length} posts (${UNLOCKED_COUNT} unlocked, ${insertRows.length - UNLOCKED_COUNT} locked)`)
+
+        return { success: true, postsCreated: insertRows.length }
+    } catch (err: any) {
+        console.error("generateMonthlyPlan error:", err?.message || err)
+        return { success: false, postsCreated: 0, error: (err?.message || String(err)).substring(0, 500) }
+    }
+}

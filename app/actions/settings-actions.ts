@@ -44,6 +44,10 @@ export async function updateClientConfig(projectId: string, newConfig: any): Pro
             return { success: false, error: error.message }
         }
 
+        // Invalidate config cache
+        const { invalidateConfigCache } = await import("@/instagram/configs")
+        invalidateConfigCache(projectId)
+
         // Revalidate the app to reflect changes
         revalidatePath("/dashboard")
         revalidatePath("/api/ig-generate")

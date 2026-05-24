@@ -1,0 +1,185 @@
+{
+  "main": {
+    "id": "6b0aae90a603db45",
+    "type": "split",
+    "children": [
+      {
+        "id": "27749a1840ae2769",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "b41d0732e566683c",
+            "type": "leaf",
+            "state": {
+              "type": "empty",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "Nová karta"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "567a969ed530e2de",
+    "type": "split",
+    "children": [
+      {
+        "id": "a5d5a16e7489861f",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "16284fa9dc258741",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Průzkumník souborů"
+            }
+          },
+          {
+            "id": "eafaeb4575ecf97a",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Hledat"
+            }
+          },
+          {
+            "id": "7f2fa3294c9c6623",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Záložky"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "3c6279cc04096423",
+    "type": "split",
+    "children": [
+      {
+        "id": "e5cca502e869bc8b",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "a917442d708eee45",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Zpětné odkazy"
+            }
+          },
+          {
+            "id": "5b56bfbd76e5eaac",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Odchozí odkazy"
+            }
+          },
+          {
+            "id": "94addf81bc4b9a73",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Štítky"
+            }
+          },
+          {
+            "id": "db1aa5be84fb0b38",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "Všechny vlastnosti"
+            }
+          },
+          {
+            "id": "158f98bb4799bba5",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Přehled"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Otevřít rychlé přepínání": false,
+      "graph:Otevřít graf": false,
+      "canvas:Vytvořit nový canvas": false,
+      "daily-notes:Otevřít dnešní poznámku": false,
+      "templates:Vložit šablonu": false,
+      "command-palette:Otevřít paletu příkazů": false,
+      "bases:Vytvořit novou základnu": false
+    }
+  },
+  "active": "b41d0732e566683c",
+  "lastOpenFiles": [
+    "Bez názvu.canvas",
+    "Bez názvu.md",
+    "Vítejte.md"
+  ]
+}

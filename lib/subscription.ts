@@ -1,8 +1,11 @@
 /**
- * Subscription & Credit System
- * =============================
- * Central library for checking plans, credits, and enforcing limits.
- * Used by server actions and API routes before any AI operation.
+ * Subscription & Credit System v2
+ * ================================
+ * Monthly Plan + Credits for Extras model.
+ * 
+ * Plan posts (included in subscription) don't cost credits.
+ * Extra posts (beyond plan) cost credits.
+ * Trial = content-gated: 3 full posts + 27 locked.
  */
 
 import supabaseAdmin from "@/supabase/admin"
@@ -26,6 +29,7 @@ const ADMIN_BYPASS: CanPerformResult = {
     allowed: true,
     creditsRequired: 0,
     creditsRemaining: 999,
+    isPlanPost: false,
 }
 
 // ─── Types ───────────────────────────────────────────────────
@@ -40,7 +44,7 @@ export type ActionType =
     | "product_mockup"
     | "product_brief"
 
-/** How many credits each action costs */
+/** How many credits each action costs (for EXTRA posts, not plan posts) */
 export const ACTION_CREDITS: Record<ActionType, number> = {
     post: 1,
     post_variant: 1,
@@ -73,6 +77,9 @@ export interface PlanFeatures {
     priority: boolean
     label: string
     highlight: boolean
+    // v2: plan post limits
+    plan_posts_limit?: number  // how many plan posts are unlocked (3 for trial, 30 for paid)
+    plan_posts_total?: number  // total plan posts generated (always 30)
 }
 
 export interface SubscriptionInfo {
@@ -85,6 +92,10 @@ export interface SubscriptionInfo {
     creditsRemaining: number
     trialEndsAt: string | null
     currentPeriodEnd: string | null
+    // v2: plan tracking
+    planPostsUnlocked: number
+    planGeneratedAt: string | null
+    isTrial: boolean
 }
 
 export interface CanPerformResult {
@@ -94,6 +105,8 @@ export interface CanPerformResult {
     creditsRemaining: number
     featureBlocked?: boolean
     planRequired?: string
+    /** True if this action is a plan post (no credit cost) */
+    isPlanPost?: boolean
 }
 
 // ─── Main API ────────────────────────────────────────────────
@@ -106,7 +119,7 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
     // 1. Get active/trialing subscription
     const { data: sub } = await supabaseAdmin
         .from("subscriptions")
-        .select("id, plan_id, status, trial_ends_at, current_period_start, current_period_end, created_at")
+        .select("id, plan_id, status, trial_ends_at, current_period_start, current_period_end, created_at, plan_generated_at, plan_posts_unlocked")
         .eq("client_id", clientId)
         .in("status", ["active", "trialing", "pending"])
         .order("created_at", { ascending: false })
@@ -126,12 +139,11 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
 
     const features = plan.features as PlanFeatures
 
-    // 3. Check if trial is still active
+    // 3. Check if old-style trial is still active (legacy)
     let status = sub.status as SubscriptionInfo["status"]
     if (status === "trialing" && sub.trial_ends_at) {
         const trialEnd = new Date(sub.trial_ends_at)
         if (trialEnd < new Date()) {
-            // Trial expired — mark as expired
             await supabaseAdmin
                 .from("subscriptions")
                 .update({ status: "expired", updated_at: new Date().toISOString() })
@@ -153,6 +165,8 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
     const creditsTotal = features.credits_per_month
     const creditsRemaining = Math.max(0, creditsTotal - creditsUsed)
 
+    const isTrial = sub.plan_id === "trial_v2" || sub.plan_id === "trial"
+
     return {
         planId: plan.id,
         planName: plan.name,
@@ -163,6 +177,9 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
         creditsRemaining,
         trialEndsAt: sub.trial_ends_at,
         currentPeriodEnd: sub.current_period_end,
+        planPostsUnlocked: sub.plan_posts_unlocked || 0,
+        planGeneratedAt: sub.plan_generated_at,
+        isTrial,
     }
 }
 
@@ -186,11 +203,13 @@ export async function getCreditsUsedThisMonth(clientId: string): Promise<number>
 
 /**
  * Check if a client can perform a specific action.
- * Returns { allowed, reason, creditsRequired, creditsRemaining }.
+ * For "post" actions: checks if it's a plan post (free) or extra post (costs credits).
  */
 export async function canPerformAction(
     clientId: string,
     action: ActionType,
+    /** If true, this is an extra post (not part of monthly plan) — always costs credits */
+    isExtraPost?: boolean,
 ): Promise<CanPerformResult> {
     // Super admin bypasses all checks
     if (await isSuperAdmin()) return ADMIN_BYPASS
@@ -233,7 +252,21 @@ export async function canPerformAction(
         }
     }
 
-    // Not enough credits
+    // Plan post check: if action is "post" and not explicitly extra, check plan capacity
+    if (action === "post" && !isExtraPost) {
+        const planLimit = sub.features.plan_posts_limit || 0
+        if (sub.planPostsUnlocked < planLimit) {
+            // Plan post — no credit cost
+            return {
+                allowed: true,
+                creditsRequired: 0,
+                creditsRemaining: sub.creditsRemaining,
+                isPlanPost: true,
+            }
+        }
+    }
+
+    // Extra post / non-post action — costs credits
     if (sub.creditsRemaining < creditsRequired) {
         return {
             allowed: false,
@@ -247,11 +280,12 @@ export async function canPerformAction(
         allowed: true,
         creditsRequired,
         creditsRemaining: sub.creditsRemaining,
+        isPlanPost: false,
     }
 }
 
 /**
- * Deduct credits for a performed action.
+ * Deduct credits for a performed action (extra posts only).
  * Call this AFTER the AI operation succeeds.
  */
 export async function deductCredits(
@@ -269,6 +303,32 @@ export async function deductCredits(
         description: description || ACTION_LABELS[action],
         reference_id: referenceId,
     })
+}
+
+/**
+ * Increment plan_posts_unlocked counter for a plan post.
+ * Call this AFTER a plan post is generated successfully.
+ */
+export async function incrementPlanPostCount(clientId: string): Promise<void> {
+    // Get current subscription
+    const { data: sub } = await supabaseAdmin
+        .from("subscriptions")
+        .select("id, plan_posts_unlocked")
+        .eq("client_id", clientId)
+        .in("status", ["active", "trialing"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single()
+
+    if (!sub) return
+
+    await supabaseAdmin
+        .from("subscriptions")
+        .update({
+            plan_posts_unlocked: (sub.plan_posts_unlocked || 0) + 1,
+            updated_at: new Date().toISOString(),
+        })
+        .eq("id", sub.id)
 }
 
 /**
@@ -335,22 +395,62 @@ export async function canPerformBatchAction(
 }
 
 /**
- * Create a trial subscription for a newly registered client.
- * 7 days, 10 credits, full features unlocked.
+ * Create a content-gated trial subscription (v2).
+ * No expiration — trial is limited by content gating, not time.
+ * User sees 3 full posts + 27 locked posts.
  */
 export async function createTrialSubscription(clientId: string): Promise<void> {
-    const trialEnd = new Date()
-    trialEnd.setDate(trialEnd.getDate() + 7) // 7-day trial
-
-    // Use 'trial' plan for beta testing (30 credits — configured in subscription_plans DB table)
     await supabaseAdmin.from("subscriptions").insert({
         client_id: clientId,
-        plan_id: "trial",
+        plan_id: "trial_v2",
         status: "trialing",
-        trial_ends_at: trialEnd.toISOString(),
         current_period_start: new Date().toISOString(),
-        current_period_end: trialEnd.toISOString(),
+        // No trial_ends_at — content-gated, not time-gated
+        // No current_period_end — unlimited until they pay
+        plan_posts_unlocked: 0,
     })
+}
+
+/**
+ * Upgrade a trial subscription to paid (after successful payment).
+ * Called by payment callback.
+ */
+export async function upgradeTrialToPaid(clientId: string): Promise<void> {
+    const now = new Date()
+    const periodEnd = new Date(now)
+    periodEnd.setMonth(periodEnd.getMonth() + 1)
+
+    // Find active trial
+    const { data: sub } = await supabaseAdmin
+        .from("subscriptions")
+        .select("id")
+        .eq("client_id", clientId)
+        .in("status", ["trialing", "pending"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single()
+
+    if (sub) {
+        // Upgrade existing trial
+        await supabaseAdmin
+            .from("subscriptions")
+            .update({
+                plan_id: "chrlit",
+                status: "active",
+                current_period_start: now.toISOString(),
+                current_period_end: periodEnd.toISOString(),
+                plan_posts_unlocked: 30, // unlock all plan posts
+                updated_at: now.toISOString(),
+            })
+            .eq("id", sub.id)
+    }
+
+    // Unlock all plan_locked posts for this client
+    await supabaseAdmin
+        .from("ig_posts")
+        .update({ status: "draft" })
+        .eq("client_id", clientId)
+        .eq("status", "plan_locked")
 }
 
 // ─── Helpers ─────────────────────────────────────────────────

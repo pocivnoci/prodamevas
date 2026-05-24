@@ -20,10 +20,12 @@ export function CopyButton({ onClick, copied, label }: { onClick: () => void; co
 
 export function StatusBadge({ status }: { status: string }) {
     const config: Record<string, { text: string; class: string }> = {
-        draft: { text: "DRAFT", class: "bg-amber-500/10 text-amber-500 border-amber-500/20" },
-        ready: { text: "READY", class: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
-        posted: { text: "POSTED", class: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
-        archived: { text: "ARCHIVED", class: "bg-white/5 text-white/40 border-white/10" },
+        draft: { text: "KONCEPT", class: "bg-amber-500/10 text-amber-500 border-amber-500/20" },
+        plan_draft: { text: "PLÁN", class: "bg-violet-500/10 text-violet-400 border-violet-500/20" },
+        plan_locked: { text: "🔒 ZAMČENO", class: "bg-amber-500/10 text-amber-500/60 border-amber-500/15" },
+        ready: { text: "PŘIPRAVENO", class: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
+        posted: { text: "PUBLIKOVÁNO", class: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
+        archived: { text: "ARCHIVOVÁNO", class: "bg-white/5 text-white/40 border-white/10" },
     }
     const badge = config[status] || config.draft
     return (
@@ -43,10 +45,10 @@ export function LoadingSpinner() {
 
 export function PillarBadge({ pillar }: { pillar: string }) {
     const config: Record<string, { emoji: string; label: string; color: string }> = {
-        reach: { emoji: "🔥", label: "REACH", color: "text-amber-500 bg-amber-500/10 border-amber-500/20" },
-        value: { emoji: "📚", label: "VALUE", color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
-        convert: { emoji: "💰", label: "CONVERT", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
-        connect: { emoji: "🤝", label: "CONNECT", color: "text-purple-400 bg-purple-500/10 border-purple-500/20" },
+        reach: { emoji: "🔥", label: "DOSAH", color: "text-amber-500 bg-amber-500/10 border-amber-500/20" },
+        value: { emoji: "📚", label: "HODNOTA", color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
+        convert: { emoji: "💰", label: "KONVERZE", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
+        connect: { emoji: "🤝", label: "PROPOJENÍ", color: "text-purple-400 bg-purple-500/10 border-purple-500/20" },
     }
 
     const badge = config[pillar]
@@ -111,25 +113,25 @@ export function MetricsInputForm({ post, onUpdate }: { post: IGPost; onUpdate: (
 
             <div className="grid grid-cols-2 gap-3">
                 {/* Engagement metrics */}
-                <MetricInput label="❤️ Likes" value={metrics.likes} onChange={(v) => setMetrics({ ...metrics, likes: v })} />
-                <MetricInput label="💬 Comments" value={metrics.comments} onChange={(v) => setMetrics({ ...metrics, comments: v })} />
-                <MetricInput label="🔖 Saves" value={metrics.saves} onChange={(v) => setMetrics({ ...metrics, saves: v })} />
+                <MetricInput label="❤️ Lajky" value={metrics.likes} onChange={(v) => setMetrics({ ...metrics, likes: v })} />
+                <MetricInput label="💬 Komentáře" value={metrics.comments} onChange={(v) => setMetrics({ ...metrics, comments: v })} />
+                <MetricInput label="🔖 Uložení" value={metrics.saves} onChange={(v) => setMetrics({ ...metrics, saves: v })} />
 
                 {/* Growth Engine metrics */}
-                <MetricInput label="👀 Reach" value={metrics.reach} onChange={(v) => setMetrics({ ...metrics, reach: v })} />
-                <MetricInput label="↗️ Shares" value={metrics.shares} onChange={(v) => setMetrics({ ...metrics, shares: v })} />
-                <MetricInput label="👤 Profile Visits" value={metrics.profile_visits} onChange={(v) => setMetrics({ ...metrics, profile_visits: v })} />
-                <MetricInput label="🔗 Link Clicks" value={metrics.link_clicks} onChange={(v) => setMetrics({ ...metrics, link_clicks: v })} />
+                <MetricInput label="👀 Dosah" value={metrics.reach} onChange={(v) => setMetrics({ ...metrics, reach: v })} />
+                <MetricInput label="↗️ Sdílení" value={metrics.shares} onChange={(v) => setMetrics({ ...metrics, shares: v })} />
+                <MetricInput label="👤 Návštěvy profilu" value={metrics.profile_visits} onChange={(v) => setMetrics({ ...metrics, profile_visits: v })} />
+                <MetricInput label="🔗 Prokliknutí" value={metrics.link_clicks} onChange={(v) => setMetrics({ ...metrics, link_clicks: v })} />
             </div>
 
             {/* Calculated scores */}
             <div className="flex gap-3 pt-4 border-t border-white/10 mt-4">
                 <div className="flex-1 bg-amber-500/5 rounded-sm p-3 border border-amber-500/10">
-                    <p className="text-[9px] text-amber-500/50 uppercase tracking-widest font-bold">Reach Score</p>
+                    <p className="text-[9px] text-amber-500/50 uppercase tracking-widest font-bold">Dosah</p>
                     <p className="text-2xl font-black text-amber-500">{reachScore}</p>
                 </div>
                 <div className="flex-1 bg-emerald-500/5 rounded-sm p-3 border border-emerald-500/10">
-                    <p className="text-[9px] text-emerald-500/50 uppercase tracking-widest font-bold">Conversion Score</p>
+                    <p className="text-[9px] text-emerald-500/50 uppercase tracking-widest font-bold">Konverze</p>
                     <p className="text-2xl font-black text-emerald-500">{conversionScore}</p>
                 </div>
             </div>

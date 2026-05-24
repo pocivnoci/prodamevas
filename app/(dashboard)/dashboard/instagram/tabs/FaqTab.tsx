@@ -26,7 +26,7 @@ const FAQ_CATEGORIES: FaqCategory[] = [
         items: [
             {
                 q: "Jak funguje generování příspěvků?",
-                a: "AI přečte vaši brand konfiguraci (tón komunikace, barvy, produkty, content pilíře) a na základě toho vygeneruje caption, obrázek a hashtagy. Výsledek odpovídá vaší značce — používá vaše barvy, font a styl komunikace.",
+                a: "AI přečte vaši brand konfiguraci (tón komunikace, barvy, produkty, témata obsahu) a na základě toho vygeneruje caption, obrázek a hashtagy. Výsledek odpovídá vaší značce — používá vaše barvy, font a styl komunikace.",
             },
             {
                 q: "Proč je výsledek pokaždé jiný?",
@@ -34,7 +34,7 @@ const FAQ_CATEGORIES: FaqCategory[] = [
             },
             {
                 q: "Co ovlivní kvalitu výstupu?",
-                a: "Hlavně kvalita konfigurace. Čím detailnější máte brand voice (persona, voice traits, anti-patterns), content pilíře s kategoriemi, a hook templates — tím přesnější výstup dostanete. Investice do nastavení se vyplatí.",
+                a: "Hlavně kvalita konfigurace. Čím detailnější máte styl textu (persona, tón komunikace, co neříkáme), témata s kategoriemi, a šablony úvodních vět — tím přesnější výstup dostanete. Investice do nastavení se vyplatí.",
             },
             {
                 q: "Jak funguje batch generování?",
@@ -88,7 +88,7 @@ const FAQ_CATEGORIES: FaqCategory[] = [
         items: [
             {
                 q: "Jak změním tón komunikace?",
-                a: "V Nastavení → Brand Voice. Upravte personu, voice traits a anti-patterns. Změny se projeví u všech nově generovaných postů. Existující posty zůstávají beze změny.",
+                a: "V Nastavení → Styl textu. Upravte personu, voice traits a anti-patterns. Změny se projeví u všech nově generovaných postů. Existující posty zůstávají beze změny.",
             },
             {
                 q: "Jak přidám nový produkt?",
@@ -99,12 +99,12 @@ const FAQ_CATEGORIES: FaqCategory[] = [
                 a: "Ano, v Nastavení → Vizuální identita. Změníte overlay gradient (3 barvy), font, accent color a celkový feel feedu. Doporučujeme tmavší, syté barvy — bílý text musí být čitelný.",
             },
             {
-                q: "Co jsou content pilíře?",
-                a: "Pilíře definují strategii obsahu: Dosah (virální obsah), Engagement (komunita), Prodej (konverze), Komunita (sdílení). Každý má ratio (kolik % obsahu), post typy a kategorie. AI podle nich vybírá, co generovat.",
+                q: "Co jsou témata obsahu?",
+                a: "Témata definují strategii obsahu: Dosah (virální obsah), Hodnota (edukace), Konverze (prodej), Propojení (komunita). Každé téma má poměr (kolik % obsahu), post typy a kategorie. AI podle nich vybírá, co generovat.",
             },
             {
-                q: "Jak fungují hook templates?",
-                a: "Hook templates jsou šablony pro první řádek captionů — to, co zaujme v feedu. Příklady: '{{téma}}? Tohle nikdo neříká.' nebo '3 chyby, které děláš s {{produkt}}'. AI je používá jako inspiraci, ne doslova.",
+                q: "Jak fungují šablony úvodních vět?",
+                a: "Šablony úvodních vět jsou vzory pro první řádek captionů — to, co zaujme v feedu. Příklady: '{{téma}}? Tohle nikdo neříká.' nebo '3 chyby, které děláš s {{produkt}}'. AI je používá jako inspiraci, ne doslova.",
             },
             {
                 q: "Jak spustím re-onboarding?",
@@ -142,7 +142,7 @@ const FAQ_CATEGORIES: FaqCategory[] = [
         items: [
             {
                 q: "Jak dostanu lepší výsledky?",
-                a: "1) Vyplňte detailní brand voice — hlavně anti-patterns (co nepoužívat). 2) Přidejte brand referenční fotky — AI se z nich učí styl. 3) Používejte kategorie v pilířích pro cílenější obsah. 4) Pravidelně kontrolujte Paměť (Brain) — AI se učí z výkonu.",
+                a: "1) Vyplňte detailní styl textu — hlavně co neříkáme (co nepoužívat). 2) Přidejte fotky značky — AI se z nich učí styl. 3) Používejte kategorie v tématech pro cílenější obsah. 4) Pravidelně kontrolujte Paměť — AI se učí z výkonu.",
             },
             {
                 q: "Kolik postů na týden je optimální?",
@@ -158,7 +158,7 @@ const FAQ_CATEGORIES: FaqCategory[] = [
             },
             {
                 q: "Jak nejlépe využít Nápady?",
-                a: "Nechte AI vygenerovat dávku nápadů pro konkrétní pilíř (Dosah, Engagement, Prodej...). Pak je projděte a ty nejlepší použijte jako základ pro generování postů. Je to rychlejší než vymýšlet témata od nuly.",
+                a: "Nechte AI vygenerovat dávku nápadů pro konkrétní téma (Dosah, Hodnota, Konverze...). Pak je projděte a ty nejlepší použijte jako základ pro generování postů. Je to rychlejší než vymýšlet témata od nuly.",
             },
         ],
     },

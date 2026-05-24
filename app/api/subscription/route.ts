@@ -38,6 +38,12 @@ export async function GET(req: NextRequest) {
             allowedActions: sub.features.allowed_actions,
             analytics: sub.features.analytics,
             maxProjects: sub.features.max_projects,
+            // v2: plan tracking
+            planPostsUnlocked: sub.planPostsUnlocked,
+            planPostsLimit: sub.features.plan_posts_limit || 0,
+            planPostsTotal: sub.features.plan_posts_total || 0,
+            planGeneratedAt: sub.planGeneratedAt,
+            isTrial: sub.isTrial,
         })
     } catch (err: any) {
         console.error("Subscription fetch error:", err?.message)

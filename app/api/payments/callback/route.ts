@@ -68,23 +68,41 @@ export async function POST(req: NextRequest) {
             })
         }
 
-        // If PAID → activate subscription
-        if (confirmedStatus === "PAID" && payment.subscription_id) {
-            const now = new Date()
-            const periodEnd = new Date(now)
-            periodEnd.setMonth(periodEnd.getMonth() + 1) // +1 month
+        // If PAID → upgrade subscription (trial → paid) + unlock plan posts
+        if (confirmedStatus === "PAID" && payment.client_id) {
+            try {
+                const { upgradeTrialToPaid } = await import("@/lib/subscription")
+                await upgradeTrialToPaid(payment.client_id)
+                console.log(`✅ Subscription upgraded for client ${payment.client_id} — all plan posts unlocked`)
+            } catch (upgradeErr) {
+                // Fallback: manual upgrade if the function fails
+                console.error("upgradeTrialToPaid failed, falling back:", upgradeErr)
+                if (payment.subscription_id) {
+                    const now = new Date()
+                    const periodEnd = new Date(now)
+                    periodEnd.setMonth(periodEnd.getMonth() + 1)
 
-            await supabaseAdmin
-                .from("subscriptions")
-                .update({
-                    status: "active",
-                    current_period_start: now.toISOString(),
-                    current_period_end: periodEnd.toISOString(),
-                    updated_at: now.toISOString(),
-                })
-                .eq("id", payment.subscription_id)
+                    await supabaseAdmin
+                        .from("subscriptions")
+                        .update({
+                            plan_id: "chrlit",
+                            status: "active",
+                            current_period_start: now.toISOString(),
+                            current_period_end: periodEnd.toISOString(),
+                            plan_posts_unlocked: 30,
+                            updated_at: now.toISOString(),
+                        })
+                        .eq("id", payment.subscription_id)
 
-            console.log(`✅ Subscription activated for client ${payment.client_id}`)
+                    // Unlock locked posts
+                    await supabaseAdmin
+                        .from("ig_posts")
+                        .update({ status: "draft" })
+                        .eq("client_id", payment.client_id)
+                        .eq("status", "plan_locked")
+                }
+                console.log(`✅ Subscription activated for client ${payment.client_id} (fallback)`)
+            }
         }
 
         // If CANCELLED → mark subscription

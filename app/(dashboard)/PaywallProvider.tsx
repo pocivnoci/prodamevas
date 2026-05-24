@@ -2,7 +2,7 @@
 
 import { useState, useEffect, createContext, useContext, useCallback, type ReactNode } from "react"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
-import { CheckCircle2, X, Zap, AlertTriangle } from "lucide-react"
+import { CheckCircle2, X, Zap, AlertTriangle, Lock } from "lucide-react"
 
 // ─── Toast System ────────────────────────────────────────────
 
@@ -15,11 +15,13 @@ interface Toast {
 
 interface PaywallContextType {
     showUpgradeModal: (reason: string, requiredPlan?: string) => void
+    showPlanUnlockModal: () => void
     showToast: (type: Toast["type"], message: string) => void
 }
 
 const PaywallContext = createContext<PaywallContextType>({
     showUpgradeModal: () => {},
+    showPlanUnlockModal: () => {},
     showToast: () => {},
 })
 
@@ -33,6 +35,7 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
         show: false,
         reason: "",
     })
+    const [planUnlockModal, setPlanUnlockModal] = useState(false)
 
     const showToast = useCallback((type: Toast["type"], message: string, duration = 5000) => {
         const id = Math.random().toString(36).slice(2)
@@ -44,6 +47,10 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
 
     const showUpgradeModal = useCallback((reason: string, requiredPlan?: string) => {
         setModal({ show: true, reason, requiredPlan })
+    }, [])
+
+    const showPlanUnlockModal = useCallback(() => {
+        setPlanUnlockModal(true)
     }, [])
 
     // Check URL for payment result
@@ -74,7 +81,7 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
     }, [showToast])
 
     return (
-        <PaywallContext.Provider value={{ showUpgradeModal, showToast }}>
+        <PaywallContext.Provider value={{ showUpgradeModal, showPlanUnlockModal, showToast }}>
             {children}
 
             {/* Toast notifications */}
@@ -107,7 +114,7 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
                 ))}
             </div>
 
-            {/* Upgrade Modal */}
+            {/* Upgrade Modal (credits) */}
             {modal.show && (
                 <UpgradeModal
                     reason={modal.reason}
@@ -115,11 +122,16 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
                     onClose={() => setModal({ show: false, reason: "" })}
                 />
             )}
+
+            {/* Plan Unlock Modal (trial → paid) */}
+            {planUnlockModal && (
+                <PlanUnlockModal onClose={() => setPlanUnlockModal(false)} />
+            )}
         </PaywallContext.Provider>
     )
 }
 
-// ─── Upgrade Modal ───────────────────────────────────────────
+// ─── Upgrade Modal (credits) ─────────────────────────────────
 
 function UpgradeModal({
     reason,
@@ -161,7 +173,7 @@ function UpgradeModal({
 
                     {requiredPlan && (
                         <div className="bg-white/5 border border-white/5 rounded-sm px-4 py-3 mb-6">
-                            <span className="text-[9px] text-white/30 font-bold uppercase tracking-widest">Dobijecí kredity</span>
+                            <span className="text-[9px] text-white/30 font-bold uppercase tracking-widest">Dobíjecí kredity</span>
                             <p className="text-white font-black text-lg mt-1">15 Kč / kredit</p>
                         </div>
                     )}
@@ -181,6 +193,106 @@ function UpgradeModal({
                             className="px-6 py-3 border border-white/10 text-white/40 rounded-sm font-bold text-xs uppercase tracking-widest hover:bg-white/5 transition-all"
                         >
                             Zavřít
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// ─── Plan Unlock Modal (trial → paid) ────────────────────────
+
+function PlanUnlockModal({ onClose }: { onClose: () => void }) {
+    const { subscription, projectId } = useStudio()
+    const [loading, setLoading] = useState(false)
+
+    const handleActivate = async () => {
+        if (!projectId) return
+        setLoading(true)
+        try {
+            const resp = await fetch("/api/payments/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ clientId: projectId, planId: "chrlit" }),
+            })
+            const data = await resp.json()
+            if (data.redirectUrl) {
+                window.location.href = data.redirectUrl
+            }
+        } catch {
+            setLoading(false)
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-[99] flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+
+            <div className="relative bg-[#0a0a0a] border border-white/10 rounded-sm max-w-lg w-full mx-4 overflow-hidden shadow-2xl">
+                {/* Glow */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[400px] h-[120px] bg-gradient-to-r from-aisummit-cinnabar/20 to-orange-500/20 blur-[80px] pointer-events-none" />
+
+                <div className="relative p-8">
+                    {/* Icon */}
+                    <div className="w-16 h-16 mx-auto mb-6 bg-gradient-to-br from-aisummit-cinnabar/20 to-orange-600/20 border border-aisummit-cinnabar/30 rounded-sm flex items-center justify-center">
+                        <Lock className="w-8 h-8 text-aisummit-cinnabar" />
+                    </div>
+
+                    <h2 className="text-xl font-black uppercase tracking-tight text-white mb-2 text-center">
+                        Odemkněte svůj plán
+                    </h2>
+
+                    <p className="text-white/40 text-sm mb-6 text-center max-w-sm mx-auto">
+                        Váš měsíční plán obsahuje {subscription?.planPostsTotal || 30} příspěvků.
+                        Aktivujte předplatné a odemkněte je všechny.
+                    </p>
+
+                    {/* What you get */}
+                    <div className="bg-white/[0.02] border border-white/5 rounded-sm p-4 mb-6 space-y-3">
+                        <div className="flex items-center gap-3">
+                            <span className="text-base">📋</span>
+                            <div>
+                                <p className="text-[10px] text-white/70 font-bold">Měsíční plán (~30 příspěvků)</p>
+                                <p className="text-[9px] text-white/30">Caption, hashtags, obrázek — vše vygenerováno</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <span className="text-base">⚡</span>
+                            <div>
+                                <p className="text-[10px] text-white/70 font-bold">30 kreditů na tvorbu navíc</p>
+                                <p className="text-[9px] text-white/30">Extra posty, varianty, nápady, produkty</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <span className="text-base">📊</span>
+                            <div>
+                                <p className="text-[10px] text-white/70 font-bold">Plná analytika</p>
+                                <p className="text-[9px] text-white/30">Výkon příspěvků, doporučení, trendy</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Price */}
+                    <div className="text-center mb-6">
+                        <span className="text-3xl font-black text-white">490 Kč</span>
+                        <span className="text-white/30 text-sm font-bold ml-1">/ měsíc</span>
+                    </div>
+
+                    {/* CTA */}
+                    <div className="flex gap-3">
+                        <button
+                            onClick={handleActivate}
+                            disabled={loading}
+                            className="flex-1 py-3.5 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm font-black text-xs uppercase tracking-widest hover:opacity-90 transition-all shadow-[0_0_30px_rgba(229,83,63,0.3)] disabled:opacity-50"
+                        >
+                            {loading ? "Přesměrování..." : "💳 Aktivovat nyní"}
+                        </button>
+                        <button
+                            onClick={onClose}
+                            className="px-6 py-3.5 border border-white/10 text-white/40 rounded-sm font-bold text-xs uppercase tracking-widest hover:bg-white/5 transition-all"
+                        >
+                            Později
                         </button>
                     </div>
                 </div>

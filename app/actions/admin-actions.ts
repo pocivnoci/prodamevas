@@ -6,6 +6,28 @@ import supabaseAdmin from "@/supabase/admin"
 
 // ─── Dashboard Stats (lightweight aggregate) ──────────────────────────
 
+function computeQuickMetrics(posts: any[]) {
+    const withMetrics = posts.filter(p => p.status === "posted" && (p.likes > 0 || p.comments > 0 || p.saves > 0))
+    if (withMetrics.length < 2) return null
+    const sum = (key: string) => withMetrics.reduce((acc, p) => acc + (p[key] || 0), 0)
+    const avg = (key: string) => Math.round(sum(key) / withMetrics.length)
+    const best = withMetrics.reduce((top, p) => {
+        const eng = (p.likes || 0) + (p.comments || 0) * 3 + (p.saves || 0) * 2
+        const topEng = (top.likes || 0) + (top.comments || 0) * 3 + (top.saves || 0) * 2
+        return eng > topEng ? p : top
+    }, withMetrics[0])
+    return {
+        postsWithMetrics: withMetrics.length,
+        avgLikes: avg("likes"),
+        avgComments: avg("comments"),
+        avgSaves: avg("saves"),
+        avgReach: avg("reach"),
+        totalEngagement: sum("likes") + sum("comments") + sum("saves"),
+        bestPostId: best.id,
+        bestPostCaption: best.caption?.split("\n")[0]?.substring(0, 60) || "—",
+    }
+}
+
 export async function getDashboardStats(projectSlug: string) {
     try {
         const { resolveClientId } = await import("@/instagram/configs")
@@ -14,7 +36,7 @@ export async function getDashboardStats(projectSlug: string) {
         // Post counts by status (last 200 for accurate totals)
         const { data: posts } = await supabaseAdmin
             .from("ig_posts")
-            .select("id, status, caption, image_url, created_at, scheduled_for, ig_post_types ( name, display_name, emoji )")
+            .select("id, status, caption, image_url, created_at, scheduled_for, likes, comments, saves, reach, ig_post_types ( name, display_name, emoji )")
             .eq("client_id", clientId)
             .order("created_at", { ascending: false })
             .limit(200)
@@ -121,6 +143,7 @@ export async function getDashboardStats(projectSlug: string) {
             typeCounts,
             postsThisWeek,
             postsThisMonth,
+            quickMetrics: computeQuickMetrics(allPosts),
         }
     } catch (err: any) {
         console.error("getDashboardStats error:", err?.message || err)
@@ -128,6 +151,7 @@ export async function getDashboardStats(projectSlug: string) {
             totalPosts: 0, drafts: 0, ready: 0, posted: 0, ideas: 0,
             recentPosts: [], weekDays: [], activity: [], typeCounts: {},
             postsThisWeek: 0, postsThisMonth: 0,
+            quickMetrics: null,
         }
     }
 }
@@ -541,7 +565,8 @@ export async function getPerformanceInsights(projectSlug: string = "mobilnamiru"
 export async function getClientConfig(projectSlug: string): Promise<any> {
     try {
         const { loadConfig } = await import("@/instagram/configs")
-        const config = await loadConfig(projectSlug)
+        // Always fetch fresh from DB — Settings tab must show latest data
+        const config = await loadConfig(projectSlug, true)
         return config
     } catch (err: any) {
         console.error("getClientConfig error:", err?.message || err)
@@ -595,6 +620,10 @@ export async function updateClientConfig(projectSlug: string, partialConfig: any
             .eq("id", clientId)
 
         if (updateErr) throw updateErr
+
+        // Invalidate config cache so next loadConfig fetches fresh data
+        const { invalidateConfigCache } = await import("@/instagram/configs")
+        invalidateConfigCache(projectSlug)
 
         return { success: true }
     } catch (err: any) {
@@ -654,6 +683,9 @@ export async function uploadClientLogo(
             .eq("id", clientId)
 
         console.log(`✅ Logo uploaded: ${filename}`)
+        // Invalidate config cache
+        const { invalidateConfigCache } = await import('@/instagram/configs')
+        invalidateConfigCache(projectSlug)
         return { success: true }
     } catch (err: any) {
         console.error("uploadClientLogo error:", err?.message || err)
@@ -833,6 +865,10 @@ export async function rescanClientWebsite(
             .eq("id", clientId)
 
         console.log(`✅ Rescan done: ${existingObjects.length} existing + ${taggedNew.length} new = ${allRefs.length} total`)
+
+        // Invalidate config cache
+        const { invalidateConfigCache } = await import('@/instagram/configs')
+        invalidateConfigCache(projectSlug)
 
         return {
             success: true,

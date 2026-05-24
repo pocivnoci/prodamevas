@@ -17,7 +17,7 @@ export default async function LoginPage(props: {
                         </svg>
                     </div>
                     <h1 className="text-2xl font-bold font-inter tracking-tight">Přihlášení</h1>
-                    <p className="text-gray-400 mt-2 text-sm">Zadej své údaje pro přístup do Autopilota.</p>
+                    <p className="text-gray-400 mt-2 text-sm">Zadej své údaje pro přístup do Chrlit Studia.</p>
                 </div>
 
                 {isError && (

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { analyzeWebsite, generateQuestions, generateConfigPreview, refineConfigSection, saveReviewedConfig, buildManualAnalysis } from './actions'
 import type { WebsiteAnalysis, OnboardingQuestion, ReviewSection } from './actions'
 import type { ClientConfig } from '@/instagram/configs/types'
+import { trackEvent } from '@/components/GoogleAnalytics'
 
 type Step = 'choose' | 'input' | 'manual' | 'analyzing' | 'questions' | 'building' | 'review' | 'saving' | 'done'
 type Mode = 'website' | 'manual' | null
@@ -188,6 +189,7 @@ function OnboardingContent() {
             const result = await saveReviewedConfig(configPreview, analysis, reonboardSlug || undefined)
             if (!result.success) throw new Error(result.error)
             setStep('done')
+            trackEvent('onboarding_completed', { method: mode || 'unknown' })
         } catch (err) {
             setError((err as Error).message)
             setStep('review')
@@ -235,12 +237,12 @@ function OnboardingContent() {
                 {step === 'choose' && (
                     <div className="animate-fadeIn">
                         <div className="text-center mb-10">
-                            <h1 className="text-3xl font-bold tracking-tight mb-3">Nastavíme tvůj Autopilot</h1>
+                            <h1 className="text-3xl font-bold tracking-tight mb-3">Nastavíme tvůj Chrlit</h1>
                             <p className="text-gray-400 text-lg">Jak chceš začít?</p>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <button
-                                onClick={() => { setMode('website'); setStep('input') }}
+                                onClick={() => { setMode('website'); setStep('input'); trackEvent('onboarding_started', { method: 'website' }) }}
                                 className="p-6 bg-white/5 border border-white/10 rounded-2xl text-left hover:border-emerald-500/40 transition-all cursor-pointer group"
                             >
                                 <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">🌐</div>
@@ -248,12 +250,12 @@ function OnboardingContent() {
                                 <p className="text-sm text-gray-400">AI analyzuje tvůj web a nastaví vše automaticky.</p>
                             </button>
                             <button
-                                onClick={() => { setMode('manual'); setStep('manual') }}
+                                onClick={() => { setMode('manual'); setStep('manual'); trackEvent('onboarding_started', { method: 'manual' }) }}
                                 className="p-6 bg-white/5 border border-white/10 rounded-2xl text-left hover:border-blue-500/40 transition-all cursor-pointer group"
                             >
                                 <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">✏️</div>
                                 <h3 className="font-bold text-white mb-1">Nemám web</h3>
-                                <p className="text-sm text-gray-400">Vyplníš pár otázek a AI nastaví autopilot za tebe.</p>
+                                <p className="text-sm text-gray-400">Vyplníš pár otázek a AI nastaví vše za tebe.</p>
                             </button>
                         </div>
                     </div>
@@ -298,7 +300,7 @@ function OnboardingContent() {
                     <div className="animate-fadeIn">
                         <div className="text-center mb-10">
                             <h1 className="text-3xl font-bold tracking-tight mb-3">Řekni nám o svém podnikání</h1>
-                            <p className="text-gray-400 text-lg">Pár otázek a AI nastaví autopilot za tebe.</p>
+                            <p className="text-gray-400 text-lg">Pár otázek a AI nastaví vše za tebe.</p>
                         </div>
                         {error && <ErrorBanner message={error} />}
                         <form onSubmit={handleManualSubmit} className="space-y-5">
@@ -687,7 +689,7 @@ function OnboardingContent() {
                                 </svg>
                             </div>
                             <h2 className="text-3xl font-bold mb-3">
-                                {reonboardSlug ? 'Konfigurace aktualizována! 🔄' : 'Autopilot je připravený! 🎉'}
+                                {reonboardSlug ? 'Konfigurace aktualizována! 🔄' : 'Vše je připravené! 🎉'}
                             </h2>
                             <p className="text-gray-400 text-lg">
                                 {reonboardSlug
@@ -701,7 +703,7 @@ function OnboardingContent() {
                             className="w-full relative group overflow-hidden rounded-xl bg-emerald-600 px-6 py-4 text-sm font-bold text-white shadow-[0_0_20px_rgba(16,185,129,0.2)] transition-all hover:bg-emerald-500 cursor-pointer text-center"
                         >
                             <span className="relative z-10 flex items-center justify-center gap-2">
-                                {reonboardSlug ? 'Zpět do Dashboardu' : 'Vstoupit do Dashboardu Autopilota'}
+                                {reonboardSlug ? 'Zpět do Dashboardu' : 'Vstoupit do Chrlit Studia'}
                                 <span className="transition-transform group-hover:translate-x-1">→</span>
                             </span>
                         </button>
