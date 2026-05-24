@@ -115,29 +115,17 @@ export function SettingsTab({ projectId }: { projectId: string }) {
         )
     }
 
-    const TABS_MAIN = [
+    const TABS = [
         { id: "basic", label: "Základní", icon: "📋" },
-        { id: "voice", label: "Styl textu", icon: "🎤" },
-        { id: "pillars", label: "Témata", icon: "🏛️" },
-        { id: "visual", label: "Vizuál", icon: "🎨" },
-        { id: "products", label: "Produkty", icon: "🛍️" },
-        { id: "manage", label: "Správa", icon: "⚙️" },
-    ]
-
-    const TABS_ADVANCED = [
+        { id: "voice", label: "Brand Voice", icon: "🎤" },
+        { id: "pillars", label: "Pilíře", icon: "🏛️" },
         { id: "audience", label: "Publikum", icon: "👥" },
+        { id: "products", label: "Produkty", icon: "🛍️" },
+        { id: "visual", label: "Vizuál", icon: "🎨" },
         { id: "hashtags", label: "Hashtagy", icon: "#️⃣" },
         { id: "cta", label: "CTA", icon: "📣" },
+        { id: "manage", label: "Správa", icon: "⚙️" },
     ]
-
-    const [showAdvanced, setShowAdvanced] = useState(false)
-
-    // Auto-expand advanced if user is already on an advanced tab
-    useEffect(() => {
-        if (["audience", "hashtags", "cta"].includes(activeSection)) {
-            setShowAdvanced(true)
-        }
-    }, [])
 
     return (
         <div className="space-y-6 pb-12">
@@ -167,87 +155,31 @@ export function SettingsTab({ projectId }: { projectId: string }) {
             <SubscriptionSection projectId={projectId} />
 
             {/* Tab navigation */}
-            <div className="space-y-2">
-                <div className="flex flex-wrap gap-1 bg-[#0a0a0a]/60 border border-white/10 rounded-sm p-1.5">
-                    {TABS_MAIN.map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveSection(tab.id)}
-                            className={`relative px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all duration-200 ${
-                                activeSection === tab.id
-                                    ? "text-white"
-                                    : "text-white/40 hover:text-white/70"
-                            }`}
-                        >
-                            {activeSection === tab.id && (
-                                <motion.div
-                                    layoutId="settingsTab"
-                                    className="absolute inset-0 bg-white/10 border border-white/10 rounded-sm"
-                                    initial={false}
-                                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                                />
-                            )}
-                            <span className="relative z-10 flex items-center gap-2">
-                                <span>{tab.icon}</span>
-                                <span className="hidden sm:inline">{tab.label}</span>
-                            </span>
-                        </button>
-                    ))}
-
-                    {/* Advanced toggle */}
+            <div className="flex flex-wrap gap-1 bg-[#0a0a0a]/60 border border-white/10 rounded-sm p-1.5">
+                {TABS.map(tab => (
                     <button
-                        onClick={() => setShowAdvanced(!showAdvanced)}
-                        className={`relative px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all duration-200 ml-auto ${
-                            showAdvanced ? "text-white/60" : "text-white/25 hover:text-white/50"
+                        key={tab.id}
+                        onClick={() => setActiveSection(tab.id)}
+                        className={`relative px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all duration-200 ${
+                            activeSection === tab.id
+                                ? "text-white"
+                                : "text-white/40 hover:text-white/70"
                         }`}
                     >
+                        {activeSection === tab.id && (
+                            <motion.div
+                                layoutId="settingsTab"
+                                className="absolute inset-0 bg-white/10 border border-white/10 rounded-sm"
+                                initial={false}
+                                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                            />
+                        )}
                         <span className="relative z-10 flex items-center gap-2">
-                            <span>{showAdvanced ? "▼" : "▶"}</span>
-                            <span className="hidden sm:inline">Pokročilé</span>
+                            <span>{tab.icon}</span>
+                            <span className="hidden sm:inline">{tab.label}</span>
                         </span>
                     </button>
-                </div>
-
-                {/* Advanced tabs - collapsed by default */}
-                <AnimatePresence>
-                    {showAdvanced && (
-                        <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.2 }}
-                            className="overflow-hidden"
-                        >
-                            <div className="flex flex-wrap gap-1 bg-[#0a0a0a]/40 border border-white/5 rounded-sm p-1.5">
-                                <span className="px-3 py-2.5 text-[9px] text-white/20 font-bold uppercase tracking-widest">Pokročilé:</span>
-                                {TABS_ADVANCED.map(tab => (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveSection(tab.id)}
-                                        className={`relative px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all duration-200 ${
-                                            activeSection === tab.id
-                                                ? "text-white"
-                                                : "text-white/40 hover:text-white/70"
-                                        }`}
-                                    >
-                                        {activeSection === tab.id && (
-                                            <motion.div
-                                                layoutId="settingsTab"
-                                                className="absolute inset-0 bg-white/10 border border-white/10 rounded-sm"
-                                                initial={false}
-                                                transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                                            />
-                                        )}
-                                        <span className="relative z-10 flex items-center gap-2">
-                                            <span>{tab.icon}</span>
-                                            <span className="hidden sm:inline">{tab.label}</span>
-                                        </span>
-                                    </button>
-                                ))}
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                ))}
             </div>
 
             {/* Tab Content */}
@@ -377,7 +309,7 @@ function VoiceSection({ config, updateField, updateArrayField }: {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <FieldLabel hint="Oddělené čárkou — určují styl textu">Tón komunikace</FieldLabel>
+                        <FieldLabel hint="Oddělené čárkou — určují styl textu">Tón komunikace (Voice Traits)</FieldLabel>
                         <input value={(voice.voiceTraits || []).join(", ")}
                             onChange={(e) => updateArrayField(["brandVoice", "voiceTraits"], e.target.value)}
                             placeholder="Přátelský, Neformální, Nápomocný, Vtipný" className={inputClass} />
@@ -406,7 +338,7 @@ function VoiceSection({ config, updateField, updateArrayField }: {
                 </div>
 
                 <div>
-                    <FieldLabel hint="Oddělené čárkou — slova a fráze, které AI nikdy nepoužije">Co neříkáme</FieldLabel>
+                    <FieldLabel hint="Oddělené čárkou — slova a fráze, které AI nikdy nepoužije">Anti-Patterns — co NEŘÍKÁME</FieldLabel>
                     <input value={(voice.antiPatterns || []).join(", ")}
                         onChange={(e) => updateArrayField(["brandVoice", "antiPatterns"], e.target.value)}
                         placeholder="Ahoj lidi, Kupte si, Korporátní jazyk, Slevový nátlak" className={inputClass} />
@@ -430,7 +362,7 @@ function VoiceSection({ config, updateField, updateArrayField }: {
                 </div>
             </SectionCard>
 
-            <SectionCard title="Šablony úvodních vět" description="Vzory pro úvodní věty — {{topic}} se nahradí automaticky">
+            <SectionCard title="Hook Templates" description="Vzory pro úvodní věty — {{topic}} se nahradí automaticky">
                 <HookTemplatesEditor config={config} updateField={updateField} />
             </SectionCard>
         </div>
@@ -467,7 +399,7 @@ function HookTemplatesEditor({ config, updateField }: { config: any; updateField
     return (
         <div className="space-y-4">
             {templates.length === 0 && (
-                <p className="text-[10px] text-white/30 text-center py-4">Žádné šablony. Přidejte první vzor pro lepší AI texty.</p>
+                <p className="text-[10px] text-white/30 text-center py-4">Žádné hook templates. Přidejte první vzor pro lepší AI texty.</p>
             )}
             {templates.map((t: any, idx: number) => (
                 <div key={idx} className="bg-[#050505] border border-white/10 rounded-sm p-4 space-y-3">
@@ -477,7 +409,7 @@ function HookTemplatesEditor({ config, updateField }: { config: any; updateField
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
-                            <FieldLabel hint="Vzor s {{topic}} zástupcem">Vzor</FieldLabel>
+                            <FieldLabel hint="Vzor s {{topic}} zástupcem">Pattern</FieldLabel>
                             <input value={t.pattern || ""} onChange={(e) => updateTemplate(idx, "pattern", e.target.value)}
                                 placeholder="Věděli jste, že {{topic}}?" className={inputClass} />
                         </div>
@@ -488,7 +420,7 @@ function HookTemplatesEditor({ config, updateField }: { config: any; updateField
                         </div>
                     </div>
                     <div>
-                        <FieldLabel>Emoční spoušť</FieldLabel>
+                        <FieldLabel>Emocionální trigger</FieldLabel>
                         <div className="flex flex-wrap gap-1.5">
                             {TRIGGERS.map(tr => (
                                 <button key={tr} onClick={() => updateTemplate(idx, "trigger", tr)}
@@ -506,7 +438,7 @@ function HookTemplatesEditor({ config, updateField }: { config: any; updateField
             ))}
             <button onClick={addTemplate}
                 className="w-full py-3 border border-dashed border-white/15 rounded-sm text-[10px] text-white/40 font-bold uppercase tracking-widest hover:text-white/70 hover:border-white/30 transition-all">
-                + Přidat šablonu
+                + Přidat hook template
             </button>
         </div>
     )
@@ -537,7 +469,7 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
             ...prev,
             contentPillars: {
                 ...prev.contentPillars,
-                [id]: { emoji: "📝", label: "Nové téma", description: "", postTypes: [], ratio: 0.2, ctaStrategy: "soft", kpi: [] }
+                [id]: { emoji: "📝", label: "Nový pilíř", description: "", postTypes: [], ratio: 0.2, ctaStrategy: "soft", kpi: [] }
             }
         }))
     }
@@ -552,9 +484,9 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
 
     const CTA_OPTIONS = [
         { value: "none", label: "Žádné CTA", color: "text-white/30" },
-        { value: "soft", label: "Jemné", color: "text-blue-400" },
-        { value: "medium", label: "Střední", color: "text-amber-400" },
-        { value: "hard", label: "Přímý prodej", color: "text-red-400" },
+        { value: "soft", label: "Soft", color: "text-blue-400" },
+        { value: "medium", label: "Medium", color: "text-amber-400" },
+        { value: "hard", label: "Hard sell", color: "text-red-400" },
     ]
 
     // Total ratio
@@ -562,7 +494,7 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
 
     return (
         <div className="space-y-6">
-            <SectionCard title="Témata obsahu" description="Tematické kategorie definují mix vašeho obsahu. Každé téma má poměr (ratio) — celkový součet by měl být ~1.0">
+            <SectionCard title="Content Pilíře" description="Tematické pilíře definují mix vašeho obsahu. Každý pilíř má poměr (ratio) — celkový součet by měl být ~1.0">
                 {/* Ratio bar */}
                 {pillarEntries.length > 0 && (
                     <div className="space-y-2">
@@ -595,7 +527,7 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
                                 className="w-12 h-12 text-center text-2xl bg-[#050505] border border-white/10 rounded-sm focus:outline-none focus:ring-1 focus:ring-white/30" />
                             <div>
                                 <input value={pillar.label || ""} onChange={(e) => updatePillar(key, "label", e.target.value)}
-                                    className="bg-transparent text-white font-black uppercase tracking-tight text-sm border-none focus:outline-none w-48" placeholder="Název tématu" />
+                                    className="bg-transparent text-white font-black uppercase tracking-tight text-sm border-none focus:outline-none w-48" placeholder="Název pilíře" />
                                 <p className="text-[8px] text-white/20 font-mono">{key}</p>
                             </div>
                         </div>
@@ -607,12 +539,12 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
                     <div>
                         <FieldLabel>Popis</FieldLabel>
                         <textarea value={pillar.description || ""} onChange={(e) => updatePillar(key, "description", e.target.value)}
-                            rows={2} placeholder="Co toto téma pokrývá, jaké téma..." className={textareaClass} />
+                            rows={2} placeholder="Co tento pilíř pokrývá, jaké téma..." className={textareaClass} />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
-                            <FieldLabel hint="Poměr obsahu (0.0–1.0)">Poměr</FieldLabel>
+                            <FieldLabel hint="Poměr obsahu (0.0–1.0)">Ratio</FieldLabel>
                             <div className="flex items-center gap-3">
                                 <input type="range" min="0" max="1" step="0.05" value={pillar.ratio || 0}
                                     onChange={(e) => updatePillar(key, "ratio", parseFloat(e.target.value))}
@@ -636,17 +568,17 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
                             </div>
                         </div>
                         <div>
-                            <FieldLabel hint="Oddělené čárkou">Cílové metriky</FieldLabel>
+                            <FieldLabel hint="Oddělené čárkou">KPI k optimalizaci</FieldLabel>
                             <input value={(pillar.kpi || []).join(", ")}
                                 onChange={(e) => updatePillar(key, "kpi", e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean))}
-                                placeholder="interakce, uložení, dosah" className={inputClass} />
+                                placeholder="engagement, saves, reach" className={inputClass} />
                         </div>
                     </div>
 
                     {/* postTypes hidden — managed internally via categories */}
 
                     <div>
-                        <FieldLabel hint="Specifické instrukce pro AI při generování nápadů v tomto tématu">Idea Prompt (pro AI)</FieldLabel>
+                        <FieldLabel hint="Specifické instrukce pro AI při generování nápadů v tomto pilíři">Idea Prompt (pro AI)</FieldLabel>
                         <textarea value={pillar.ideaPrompt || ""} onChange={(e) => updatePillar(key, "ideaPrompt", e.target.value)}
                             rows={2} placeholder="Zaměř se na praktické tipy, používej čísla a statistiky..." className={textareaClass} />
                     </div>
@@ -721,21 +653,21 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
                                                 const cats = [...(pillar.categories || [])]
                                                 cats[catIdx] = { ...cats[catIdx], overlayStyle: e.target.value }
                                                 updatePillar(key, "categories", cats)
-                                            }} className="flex-1 px-1.5 py-1 bg-[#050505] border border-white/5 rounded-sm text-[9px] text-white/40 focus:outline-none focus:ring-1 focus:ring-white/30" title="Styl textu">
-                                                <option value="auto">🎨 Auto</option>
-                                                <option value="default">Klasický (dole)</option>
-                                                <option value="top">Nahoře</option>
-                                                <option value="cover">Přes celý</option>
-                                                <option value="editorial">Editoriál</option>
-                                                <option value="centered">Na střed</option>
-                                                <option value="none">Bez textu</option>
+                                            }} className="flex-1 px-1.5 py-1 bg-[#050505] border border-white/5 rounded-sm text-[9px] text-white/40 focus:outline-none focus:ring-1 focus:ring-white/30" title="Overlay styl">
+                                                <option value="auto">🎨 Auto overlay</option>
+                                                <option value="default">Default (dole)</option>
+                                                <option value="top">Top (nahoře)</option>
+                                                <option value="cover">Cover (velký)</option>
+                                                <option value="editorial">Editorial</option>
+                                                <option value="centered">Centered</option>
+                                                <option value="none">None</option>
                                             </select>
                                             <select value={cat.aspectRatio || "auto"} onChange={(e) => {
                                                 const cats = [...(pillar.categories || [])]
                                                 cats[catIdx] = { ...cats[catIdx], aspectRatio: e.target.value }
                                                 updatePillar(key, "categories", cats)
                                             }} className="flex-1 px-1.5 py-1 bg-[#050505] border border-white/5 rounded-sm text-[9px] text-white/40 focus:outline-none focus:ring-1 focus:ring-white/30" title="Poměr stran">
-                                                <option value="auto">📏 Auto</option>
+                                                <option value="auto">📏 Auto ratio</option>
                                                 <option value="1:1">1:1 Čtverec</option>
                                                 <option value="4:5">4:5 IG Feed</option>
                                                 <option value="3:4">3:4 Na výšku</option>
@@ -761,7 +693,7 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
 
             <button onClick={addPillar}
                 className="w-full py-4 border border-dashed border-white/15 rounded-sm text-[10px] text-white/40 font-bold uppercase tracking-widest hover:text-white/70 hover:border-white/30 transition-all">
-                + Přidat nové téma
+                + Přidat nový pilíř
             </button>
         </div>
     )
@@ -836,7 +768,7 @@ function AudienceSection({ config, setConfig }: { config: any; setConfig: (fn: a
                                                 ? "bg-white/10 border-white/20 text-white"
                                                 : "border-white/5 text-white/30 hover:text-white/60"
                                         }`}>
-                                        {style === "soft" ? "🫶 Jemné" : style === "medium" ? "💪 Střední" : "🔥 Přímý"}
+                                        {style === "soft" ? "🫶 Soft" : style === "medium" ? "💪 Medium" : "🔥 Hard"}
                                     </button>
                                 ))}
                             </div>
@@ -899,18 +831,18 @@ function VisualSection({ config, updateField, setGradientKey, handleLogoUpload, 
                         </select>
                     </div>
                     <div>
-                        <FieldLabel>Styl textu na obrázku</FieldLabel>
+                        <FieldLabel>Styl overlay</FieldLabel>
                         <select value={config.defaultFormat?.overlayStyle || "default"}
                             onChange={(e) => setConfig((prev: any) => ({ ...prev, defaultFormat: { ...(prev.defaultFormat || {}), overlayStyle: e.target.value } }))}
                             className={inputClass}>
-                            <option value="default">Klasický — text dole</option>
-                            <option value="cover">Přes celý — velký text, silnější gradient</option>
-                            <option value="minimal">Minimální — žádný gradient</option>
-                            <option value="none">Bez textu — čistý obrázek</option>
+                            <option value="default">Default — text dole</option>
+                            <option value="cover">Cover — velký text, silnější gradient</option>
+                            <option value="minimal">Minimal — žádný gradient</option>
+                            <option value="none">None — bez overlay</option>
                         </select>
                     </div>
                     <div>
-                        <FieldLabel hint="Hex barva pro zvýrazněná klíčová slova v textu">Barva zvýraznění</FieldLabel>
+                        <FieldLabel hint="Hex barva pro zvýrazněná klíčová slova v textu">Accent Color</FieldLabel>
                         <div className="flex gap-2 items-center">
                             <input type="color"
                                 value={config.feedAesthetic?.accentColor || "#e63946"}
@@ -924,20 +856,20 @@ function VisualSection({ config, updateField, setGradientKey, handleLogoUpload, 
                 </div>
 
                 <div>
-                    <FieldLabel hint="Extra vizuální instrukce pro image prompt">Vlastní instrukce (pro AI)</FieldLabel>
+                    <FieldLabel hint="Extra vizuální instrukce pro image prompt">Custom instrukce (pro AI)</FieldLabel>
                     <textarea value={config.feedAesthetic?.customInstructions || ""} onChange={(e) => updateField(["feedAesthetic", "customInstructions"], e.target.value)}
                         rows={2} placeholder="Vždy zahrnout zelené rostliny, dřevěné textury..." className={textareaClass} />
                 </div>
 
                 <div>
-                    <FieldLabel hint="Instrukce pro video obsah">Zaměření videí</FieldLabel>
+                    <FieldLabel hint="Instrukce pro video obsah">Video Focus</FieldLabel>
                     <textarea value={config.videoFocus || ""} onChange={(e) => updateField(["videoFocus"], e.target.value)}
                         rows={2} placeholder="Zaměřit na interiéry, pohled z první osoby, B-roll..." className={textareaClass} />
                 </div>
             </SectionCard>
 
             {/* Logo */}
-            <SectionCard title="Logo" description="Vodoznak na obrázcích">
+            <SectionCard title="Logo" description="Watermark logo na obrázcích">
                 {config.logoFile && (
                     <div className="flex items-center gap-3">
                         <img
@@ -1013,7 +945,7 @@ function HashtagsSection({ config, updateArrayField }: { config: any; updateArra
     ]
 
     return (
-        <SectionCard title="Skupiny hashtagů" description="AI vybírá mix hashtagů z těchto skupin pro každý post">
+        <SectionCard title="Hashtag Pools" description="AI vybírá mix hashtagů z těchto skupin pro každý post">
             <div className="space-y-5">
                 {POOL_TYPES.map(pool => (
                     <div key={pool.key}>
@@ -1052,9 +984,9 @@ function CTASection({ config, setConfig }: { config: any; setConfig: (fn: any) =
 
     const STRATEGY_TYPES = [
         { key: "none", label: "Žádné CTA", description: "Čistý obsah bez výzvy k akci", emoji: "🤫", color: "text-white/40" },
-        { key: "soft", label: "Jemné CTA", description: "Jemné pobídnutí — ulož, sdílej, přemýšlej", emoji: "🫶", color: "text-blue-400" },
-        { key: "medium", label: "Střední CTA", description: "Jasná výzva — komentuj, pošli kamarádovi", emoji: "💪", color: "text-amber-400" },
-        { key: "hard", label: "Přímý prodej", description: "Přímý prodej — kup, objednej, rezervuj", emoji: "🔥", color: "text-red-400" },
+        { key: "soft", label: "Soft CTA", description: "Jemné pobídnutí — ulož, sdílej, přemýšlej", emoji: "🫶", color: "text-blue-400" },
+        { key: "medium", label: "Medium CTA", description: "Jasná výzva — komentuj, pošli kamarádovi", emoji: "💪", color: "text-amber-400" },
+        { key: "hard", label: "Hard CTA", description: "Přímý prodej — kup, objednej, rezervuj", emoji: "🔥", color: "text-red-400" },
     ]
 
     const updateStrategy = (key: string, value: string) => {
@@ -1066,7 +998,7 @@ function CTASection({ config, setConfig }: { config: any; setConfig: (fn: any) =
     }
 
     return (
-        <SectionCard title="CTA Strategie" description="Výzvy k akci podle intenzity — AI vybírá na základě tématu a persony">
+        <SectionCard title="CTA Strategie" description="Výzvy k akci podle intenzity — AI vybírá na základě pilíře a persony">
             <div className="space-y-5">
                 {STRATEGY_TYPES.map(strat => (
                     <div key={strat.key} className="bg-[#050505] border border-white/10 rounded-sm p-4">
@@ -1502,7 +1434,7 @@ function ProductCatalogSection({ projectId }: { projectId: string }) {
                                     const name = e.target.value
                                     setForm(f => ({ ...f, name, slug: editingId ? f.slug : autoSlug(name) }))
                                 }}
-                                placeholder="Chrlit 490 Kč"
+                                placeholder="Balíček Starter"
                                 className={inputClass}
                             />
                         </div>

@@ -1,7 +1,6 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
-import { trackEvent } from "@/components/GoogleAnalytics"
 
 export type StudioSection =
     | "dashboard"
@@ -34,12 +33,6 @@ export interface SubscriptionState {
     allowedActions: string[]
     analytics: "basic" | "full"
     maxProjects: number
-    // v2: plan tracking
-    planPostsUnlocked: number
-    planPostsLimit: number
-    planPostsTotal: number
-    planGeneratedAt: string | null
-    isTrial: boolean
 }
 
 interface StudioState {
@@ -63,11 +56,7 @@ const StudioContext = createContext<StudioState>({
 })
 
 export function StudioProvider({ children }: { children: ReactNode }) {
-    const [activeSection, setActiveSectionRaw] = useState<StudioSection>("dashboard")
-    const setActiveSection = useCallback((s: StudioSection) => {
-        setActiveSectionRaw(s)
-        trackEvent('tab_viewed', { tab_name: s })
-    }, [])
+    const [activeSection, setActiveSection] = useState<StudioSection>("dashboard")
     const [projectId, setProjectId] = useState("")
     const [subscription, setSubscription] = useState<SubscriptionState | null>(null)
     const [subscriptionLoading, setSubscriptionLoading] = useState(true)
@@ -79,15 +68,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             const resp = await fetch(`/api/subscription?clientId=${projectId}`)
             if (resp.ok) {
                 const data = await resp.json()
-                // Ensure v2 fields have defaults (safe before DB migration)
-                setSubscription(data ? {
-                    ...data,
-                    planPostsUnlocked: data.planPostsUnlocked ?? 0,
-                    planPostsLimit: data.planPostsLimit ?? 0,
-                    planPostsTotal: data.planPostsTotal ?? 0,
-                    planGeneratedAt: data.planGeneratedAt ?? null,
-                    isTrial: data.isTrial ?? false,
-                } : null)
+                setSubscription(data)
             } else {
                 setSubscription(null)
             }

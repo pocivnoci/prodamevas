@@ -80,10 +80,10 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
 
     return (
         <div className="space-y-8">
-            {/* ── Statistiky výkonu ──────────────────────────── */}
+            {/* ── Neural Insights Panel ──────────────────────── */}
             <div>
                 <h2 className="text-lg font-black uppercase tracking-tight text-white mb-4 flex items-center gap-2">
-                    📊 Statistiky výkonu
+                    🧠 Neural Insights
                     {!hasData && <span className="text-[10px] font-normal normal-case tracking-normal text-white/30">— zatím žádná data, zadej metriky níže</span>}
                 </h2>
 
@@ -92,11 +92,11 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                         {/* Key Metrics */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                             <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
-                                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">Průměrná interakce</div>
+                                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">Průměrný Engagement</div>
                                 <div className="text-2xl font-black text-white">{Math.round(insights.avgEngagement)}</div>
                             </div>
                             <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
-                                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">Konverzní poměr</div>
+                                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">Conversion Rate</div>
                                 <div className="text-2xl font-black text-white">{(insights.conversionRate * 100).toFixed(1)}%</div>
                             </div>
                             <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
@@ -146,7 +146,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                         {/* Per-Pillar Performance */}
                         {insights.pillarPerformance && Object.keys(insights.pillarPerformance).length > 0 && (
                             <div>
-                                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-3">📊 Výkon podle témat</div>
+                                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-3">📊 Výkon podle pilířů</div>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                     {Object.entries(insights.pillarPerformance).map(([key, perf]: [string, any]) => {
                                         const label = pillarLabels[key]
@@ -169,7 +169,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                     <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-6 text-center">
                         <div className="text-2xl mb-2">🧠</div>
                         <div className="text-sm text-white/50">Zadej metriky k publikovaným postům níže</div>
-                        <div className="text-[10px] text-white/30 mt-1">Statistiky se zobrazí po přidání dat k alespoň 3 postům</div>
+                        <div className="text-[10px] text-white/30 mt-1">Neural Insights se zobrazí po přidání dat k alespoň 3 postům</div>
                     </div>
                 )}
             </div>
