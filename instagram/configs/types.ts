@@ -144,6 +144,11 @@ export interface ClientConfig {
     /** Instagram handle */
     instagram: string
 
+    /** Industry/niche for context agent, e.g. "gastronomie", "e-commerce", "ubytování" */
+    industry?: string
+    /** City for weather + local context, e.g. "Český Krumlov", "Praha" */
+    city?: string
+
     /** Brand voice configuration (persona, hooks, tones, anti-patterns) */
     brandVoice: BrandVoiceConfig
 

@@ -23,11 +23,12 @@ import { getPillarForType, createPillarMapper } from "./service"
 export const COSTS = {
     textGeneration: 0.025,
     promptRefinement: 0.025,
+    contextAgent: 0.025,     // 1× Gemini Flash for industry + local pulse
     imageGeneration: 0.06,
     videoPerSecond: 0.15,
-    perPost: 0.14,       // 3× text ($0.075) + 1× image ($0.06) + overhead
-    perCarousel: 0.35,   // 3× text + 4× image ($0.24) + overhead
-    perReel: 1.30,       // 3× text + Veo 3.1 Fast 8s ($1.20)
+    perPost: 0.165,      // 3× text ($0.075) + 1× context ($0.025) + 1× image ($0.06) + overhead
+    perCarousel: 0.375,  // 3× text + 1× context + 4× image ($0.24) + overhead
+    perReel: 1.325,      // 3× text + 1× context + Veo 3.1 Fast 8s ($1.20)
 }
 
 // ============================================

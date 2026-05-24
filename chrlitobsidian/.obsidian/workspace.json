@@ -4,17 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "27749a1840ae2769",
+        "id": "5f51132bbabfdd95",
         "type": "tabs",
         "children": [
           {
-            "id": "b41d0732e566683c",
+            "id": "21a48fff6c822026",
             "type": "leaf",
             "state": {
-              "type": "empty",
+              "type": "graph",
               "state": {},
-              "icon": "lucide-file",
-              "title": "Nová karta"
+              "icon": "lucide-git-fork",
+              "title": "Graf"
             }
           }
         ]
@@ -176,7 +176,7 @@
       "bases:Vytvořit novou základnu": false
     }
   },
-  "active": "b41d0732e566683c",
+  "active": "16284fa9dc258741",
   "lastOpenFiles": [
     "Bez názvu.canvas",
     "Bez názvu.md",

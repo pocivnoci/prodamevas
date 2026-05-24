@@ -44,3 +44,6 @@ next-env.d.ts
 instagram/output/
 instagram/product-images/
 instagram/reference-images/
+
+# Obsidian
+.obsidian/

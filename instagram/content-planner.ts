@@ -52,7 +52,7 @@ export async function planWeek(
 ): Promise<WeekPlan> {
     // Collect signals
     const calendarContext = getWeekContext(startDate)
-    const weatherCity = city || (config as any).city || "Praha"
+    const weatherCity = city || config.city || "Praha"
     const forecast = await getWeatherForecast(weatherCity)
 
     // Build AI prompt
@@ -106,8 +106,19 @@ export async function planWeek(
         // Non-fatal — continue without memories
     }
 
+    // Inject context agent (plan mode — broader perspective for week planning)
+    let contextSection = ""
+    try {
+        const { gatherContext, formatContextForPrompt } = await import("./context-agent")
+        const context = await gatherContext(config, "plan")
+        contextSection = formatContextForPrompt(context)
+        console.log(`   🌍 Context (plan): ${context.season} | ${context.pulse.length} signálů`)
+    } catch {
+        // Non-fatal — continue without context
+    }
+
     const planPrompt = `
-Jsi content strategist pro značku "${config.name}" (${(config as any).industry || "business"}).
+Jsi content strategist pro značku "${config.name}" (${config.industry || "business"}).
 Web: ${config.website} | IG: ${config.instagram}
 
 ## BRAND PERSONA
@@ -123,7 +134,7 @@ ${weatherSection}
 
 ## PERFORMANCE DATA:
 ${perfSection}
-${memorySection}
+${memorySection}${contextSection}
 ## DOSTUPNÉ TYPY POSTŮ:
 ${availableTypes.map(t => `- ${t}`).join("\n")}
 

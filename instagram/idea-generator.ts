@@ -33,6 +33,17 @@ export async function generateAIIdeas(config: ClientConfig, pillarId: string, co
         // Non-fatal — continue without memories
     }
 
+    // Inject seasonal/industry context so ideas are grounded in current reality
+    let contextSection = ""
+    try {
+        const { gatherContext, formatContextForPrompt } = await import("./context-agent")
+        const context = await gatherContext(config, "plan")
+        contextSection = formatContextForPrompt(context)
+        console.log(`   🌍 Context: ${context.season} | ${context.pulse.length} signálů pro nápady`)
+    } catch {
+        // Non-fatal
+    }
+
     const categorySection = category
         ? `\n## 🎯 KATEGORIE: ${category.emoji} ${category.label}\n${category.prompt || ""}\nVšechny nápady MUSÍ spadat do této kategorie.\n`
         : pillar.categories?.length
@@ -54,7 +65,7 @@ ${config.brandVoice?.antiPatterns?.slice(0, 5).join("\n") || ""}
 ## SPECIFIKACE PILÍŘE
 ${pillar.ideaPrompt || pillar.description || ""}
 Typy postů: ${pillar.postTypes?.join(", ") || ""}
-${categorySection}${productsSection}${personaSection}${memorySection}
+${categorySection}${productsSection}${personaSection}${memorySection}${contextSection}
 ## POŽADAVKY:
 - Vygeneruj přesně ${count} odlišných, atraktivních nápadů
 - Každý nápad musí mít chytlavý 'title', detailní 'content' (o čem to přesně bude) a pole 'keywords'

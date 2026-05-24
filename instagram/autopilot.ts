@@ -333,6 +333,19 @@ export async function generateOnePost(options: {
         // Non-fatal — continue without memories
     }
 
+    // Inject real-world context (season, industry trends, local relevance)
+    await report("copywriter", 30, "🌍 Context Agent sbírá sezónní a oborový kontext...")
+    try {
+        const { gatherContext, formatContextForPrompt } = await import("./context-agent")
+        const context = await gatherContext(config, "single", selectedType.name)
+        megaPrompt += formatContextForPrompt(context)
+        const holidayInfo = context.holidays.length > 0 ? ` | 📅 ${context.holidays[0]}` : ""
+        console.log(`   🌍 Context: ${context.season}${holidayInfo} | ${context.pulse.length} signálů`)
+        cost += COSTS.contextAgent
+    } catch (err: any) {
+        console.warn(`   ⚠️ Context agent skipped: ${err?.message?.substring(0, 60)}`)
+    }
+
     // Inject campaign continuity context
     if (options.campaignContext && options.campaignContext.previousPosts.length > 0) {
         const cc = options.campaignContext
@@ -662,7 +675,7 @@ export async function generateOnePost(options: {
 
                 if (brandRefObjects.length > 0) {
                     // Dynamic label based on what the brand actually is
-                    const industry = (config as any).industry || ''
+                    const industry = config.industry || ''
                     const isLocation = /ubytov|hotel|penzion|apartm|restaurac|kavárn|bar\b|wellness|spa/i.test(industry)
                         || /ubytov|hotel|penzion|apartm/i.test(config.name || '')
                     const isProduct = /e-?shop|obchod|product|merch|fashion|oblečen/i.test(industry)
