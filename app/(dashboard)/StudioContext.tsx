@@ -1,7 +1,13 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
-import { trackEvent } from "@/components/GoogleAnalytics"
+
+// Inline to avoid importing GoogleAnalytics.tsx (pulls in next/script → React #310)
+function trackEvent(name: string, params?: Record<string, string | number | boolean>) {
+    if (typeof window !== "undefined" && typeof (window as any).gtag === "function") {
+        ;(window as any).gtag("event", name, params)
+    }
+}
 
 export type StudioSection =
     | "dashboard"
@@ -34,6 +40,12 @@ export interface SubscriptionState {
     allowedActions: string[]
     analytics: "basic" | "full"
     maxProjects: number
+    // v2: plan tracking
+    planPostsUnlocked: number
+    planPostsLimit: number
+    planPostsTotal: number
+    planGeneratedAt: string | null
+    isTrial: boolean
 }
 
 interface StudioState {
@@ -73,7 +85,15 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             const resp = await fetch(`/api/subscription?clientId=${projectId}`)
             if (resp.ok) {
                 const data = await resp.json()
-                setSubscription(data)
+                // Ensure v2 fields have defaults (safe before DB migration)
+                setSubscription(data ? {
+                    ...data,
+                    planPostsUnlocked: data.planPostsUnlocked ?? 0,
+                    planPostsLimit: data.planPostsLimit ?? 0,
+                    planPostsTotal: data.planPostsTotal ?? 0,
+                    planGeneratedAt: data.planGeneratedAt ?? null,
+                    isTrial: data.isTrial ?? false,
+                } : null)
             } else {
                 setSubscription(null)
             }
