@@ -35,7 +35,7 @@ const SECTION_LABELS: Record<string, { title: string; description: string }> = {
     inspiration: { title: "Inspirace", description: "Nápady a recenze pro tvorbu obsahu" },
     ideas: { title: "Nápady", description: "Banka nápadů na obsah" },
     reviews: { title: "Recenze", description: "Recenze zákazníků pro tvorbu obsahu" },
-    brand: { title: "Fotky značky", description: "Referenční fotky vaší značky" },
+    brand: { title: "Brand fotky", description: "Referenční fotky vaší značky" },
     products: { title: "Produkty", description: "Produktové nápady a vizualizace" },
     performance: { title: "Výkon", description: "Jak si váš obsah vede" },
     settings: { title: "Nastavení", description: "Konfigurace značky a systému" },

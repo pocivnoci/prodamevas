@@ -40,6 +40,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Tvořit",
         items: [
             { id: "generate", label: "Generovat", icon: "🚀" },
+            { id: "products", label: "Produkty", icon: "🛍️" },
         ],
     },
     {
@@ -52,6 +53,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Analytika",
         items: [
             { id: "performance", label: "Výkon", icon: "📊" },
+            { id: "brain", label: "Paměť", icon: "🧠" },
         ],
     },
 ]
@@ -320,8 +322,30 @@ export function AdminSidebar() {
                     })()}
                 </div>
 
-                {/* Bottom: Settings + Logout */}
+                {/* Bottom: FAQ + Settings + Logout */}
                 <div className="px-3 py-3 border-t border-white/5 space-y-0.5">
+                    <button
+                        onClick={() => {
+                            setActiveSection("faq")
+                            setOpen(false)
+                        }}
+                        className={`group relative flex items-center gap-3 w-full px-3 py-2.5 rounded-sm text-[11px] font-bold uppercase tracking-wider transition-all ${
+                            activeSection === "faq"
+                                ? "text-white"
+                                : "text-white/40 hover:text-white/70"
+                        }`}
+                    >
+                        {activeSection === "faq" && (
+                            <motion.div
+                                layoutId="sidebarActive"
+                                className="absolute inset-0 bg-white/8 border border-white/10 rounded-sm"
+                                initial={false}
+                                transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                            />
+                        )}
+                        <span className="relative z-10 text-base">❓</span>
+                        <span className="relative z-10">FAQ</span>
+                    </button>
                     <button
                         onClick={() => {
                             setActiveSection("settings")

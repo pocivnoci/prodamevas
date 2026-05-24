@@ -14,7 +14,7 @@ export interface IGPost {
     hashtags: string[] | null
     image_url: string | null
     image_prompt: string | null
-    status: "draft" | "plan_draft" | "plan_locked" | "ready" | "posted" | "archived"
+    status: "draft" | "ready" | "posted" | "archived"
     content_pillar: string | null
     quality_score: number | null
     created_at: string

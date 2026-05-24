@@ -44,16 +44,6 @@ interface DashboardStats {
     typeCounts: Record<string, { count: number; emoji: string; display_name: string }>
     postsThisWeek: number
     postsThisMonth: number
-    quickMetrics: {
-        postsWithMetrics: number
-        avgLikes: number
-        avgComments: number
-        avgSaves: number
-        avgReach: number
-        totalEngagement: number
-        bestPostId: string
-        bestPostCaption: string
-    } | null
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -148,7 +138,7 @@ export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string;
                 className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-5"
             >
                 <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40">Přehled obsahu</h2>
+                    <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40">Content Pipeline</h2>
                     <div className="flex items-center gap-3 text-[9px] text-white/30 font-bold uppercase tracking-widest">
                         <span>Tento týden: <span className="text-white/60">{stats.postsThisWeek}</span></span>
                         <span className="text-white/10">|</span>
@@ -161,7 +151,7 @@ export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string;
                     <div className="absolute top-1/2 left-[12.5%] right-[12.5%] h-px bg-gradient-to-r from-amber-500/20 via-blue-500/20 to-emerald-500/20 -translate-y-1/2 z-0" />
 
                     <PipelineStep
-                        icon="📝" label="Koncepty" count={stats.drafts}
+                        icon="📝" label="Drafty" count={stats.drafts}
                         color="amber" onClick={() => setActiveSection("posts")}
                     />
                     <PipelineStep
@@ -257,7 +247,7 @@ export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string;
                     transition={{ delay: 0.15 }}
                     className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-5 flex flex-col"
                 >
-                    <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-4">Rychlá tvorba</h2>
+                    <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-4">Quick Generate</h2>
                     <div className="flex-1 flex flex-col gap-2">
                         {suggestions.map((s, i) => (
                             <button
@@ -390,39 +380,8 @@ export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string;
                 </motion.div>
             </div>
 
-            {/* ──── PERFORMANCE SUMMARY ──── */}
-            {stats.quickMetrics && (
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.28 }}
-                    className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-5"
-                >
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40">Výkon příspěvků</h2>
-                        <button
-                            onClick={() => setActiveSection("performance")}
-                            className="text-[9px] font-bold uppercase tracking-widest text-white/25 hover:text-white/50 transition-colors"
-                        >
-                            Detail →
-                        </button>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <MetricCard emoji="❤️" label="Ø Lajky" value={stats.quickMetrics.avgLikes} />
-                        <MetricCard emoji="💬" label="Ø Komentáře" value={stats.quickMetrics.avgComments} />
-                        <MetricCard emoji="🔖" label="Ø Uložení" value={stats.quickMetrics.avgSaves} />
-                        <MetricCard emoji="👁" label="Ø Dosah" value={stats.quickMetrics.avgReach} />
-                    </div>
-                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/5">
-                        <span className="text-[9px] text-white/25 font-bold uppercase tracking-widest">
-                            Z {stats.quickMetrics.postsWithMetrics} příspěvků s metrikami
-                        </span>
-                    </div>
-                </motion.div>
-            )}
-
             {/* ──── CONTENT MIX ──── */}
-            {stats.totalPosts >= 10 && Object.keys(stats.typeCounts).length > 0 && (
+            {Object.keys(stats.typeCounts).length > 0 && (
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -430,7 +389,7 @@ export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string;
                     className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-5"
                 >
                     <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40">Mix obsahu</h2>
+                        <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40">Content Mix</h2>
                         <span className="text-[9px] text-white/20 font-bold">{stats.totalPosts} celkem</span>
                     </div>
                     <div className="flex gap-1 h-3 rounded-full overflow-hidden mb-3">
@@ -469,68 +428,38 @@ export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string;
                 </motion.div>
             )}
 
-            {/* ──── PLAN STATUS ──── */}
+            {/* ──── CREDIT METER ──── */}
             {subscription && (
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.35 }}
-                    className={`border rounded-sm p-4 ${
-                        subscription.isTrial
-                            ? "bg-gradient-to-r from-aisummit-cinnabar/5 to-orange-600/5 border-aisummit-cinnabar/20"
-                            : "bg-[#0a0a0a]/60 border-white/5"
-                    }`}
+                    className="flex items-center gap-4 bg-[#0a0a0a]/60 border border-white/5 rounded-sm p-4"
                 >
-                    {subscription.isTrial ? (
-                        /* Trial: show content-gated CTA */
-                        <div className="flex items-center gap-4">
-                            <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1.5">
-                                    <span className="text-[9px] text-amber-400 font-bold uppercase tracking-widest">Trial</span>
-                                    <span className="text-[9px] text-white/30 font-bold">
-                                        {subscription.planPostsUnlocked}/{subscription.planPostsTotal} příspěvků odemčeno
-                                    </span>
-                                </div>
-                                <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mb-2">
-                                    <div
-                                        className="h-full rounded-full bg-amber-500 transition-all duration-500"
-                                        style={{ width: `${subscription.planPostsTotal > 0 ? (subscription.planPostsUnlocked / subscription.planPostsTotal) * 100 : 0}%` }}
-                                    />
-                                </div>
-                                <p className="text-[10px] text-white/40 font-medium">
-                                    Odemkněte všech {subscription.planPostsTotal} příspěvků + 30 kreditů na tvorbu navíc
-                                </p>
-                            </div>
-                            <button
-                                onClick={() => setActiveSection("settings")}
-                                className="px-4 py-2.5 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm text-[9px] font-black uppercase tracking-widest hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(229,83,63,0.2)] whitespace-nowrap"
-                            >
-                                Aktivovat za 490 Kč
-                            </button>
+                    <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[9px] text-white/40 font-bold uppercase tracking-widest">
+                                {subscription.planName}
+                                {subscription.status === "trialing" && <span className="text-amber-400 ml-1">Trial</span>}
+                            </span>
+                            <span className="text-[9px] text-white/30 font-bold">
+                                {subscription.creditsRemaining} kreditů zbývá
+                                {subscription.creditsTotal > 0 && (
+                                    <span className="text-white/15"> (~{Math.floor(subscription.creditsRemaining / 3)} postů)</span>
+                                )}
+                            </span>
                         </div>
-                    ) : (
-                        /* Paid: show credits */
-                        <div className="flex-1">
-                            <div className="flex items-center justify-between mb-1.5">
-                                <span className="text-[9px] text-white/40 font-bold uppercase tracking-widest">
-                                    {subscription.planName}
-                                </span>
-                                <span className="text-[9px] text-white/30 font-bold">
-                                    {subscription.creditsRemaining} kreditů na tvorbu navíc
-                                </span>
-                            </div>
-                            <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                <div
-                                    className={`h-full rounded-full transition-all duration-500 ${
-                                        subscription.creditsTotal > 0 && (subscription.creditsUsed / subscription.creditsTotal) > 0.8
-                                            ? "bg-aisummit-cinnabar"
-                                            : "bg-emerald-500"
-                                    }`}
-                                    style={{ width: `${subscription.creditsTotal > 0 ? Math.min(100, (subscription.creditsUsed / subscription.creditsTotal) * 100) : 0}%` }}
-                                />
-                            </div>
+                        <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                            <div
+                                className={`h-full rounded-full transition-all duration-500 ${
+                                    subscription.creditsTotal > 0 && (subscription.creditsUsed / subscription.creditsTotal) > 0.8
+                                        ? "bg-aisummit-cinnabar"
+                                        : "bg-emerald-500"
+                                }`}
+                                style={{ width: `${subscription.creditsTotal > 0 ? Math.min(100, (subscription.creditsUsed / subscription.creditsTotal) * 100) : 0}%` }}
+                            />
                         </div>
-                    )}
+                    </div>
                 </motion.div>
             )}
 
@@ -562,16 +491,6 @@ export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string;
 // ═══════════════════════════════════════════════════════════
 // SUB-COMPONENTS
 // ═══════════════════════════════════════════════════════════
-
-function MetricCard({ emoji, label, value }: { emoji: string; label: string; value: number }) {
-    return (
-        <div className="bg-white/[0.02] border border-white/5 rounded-sm p-3 text-center">
-            <span className="text-base">{emoji}</span>
-            <p className="text-lg font-black text-white/80 mt-1">{value.toLocaleString("cs-CZ")}</p>
-            <p className="text-[8px] font-bold uppercase tracking-widest text-white/30 mt-0.5">{label}</p>
-        </div>
-    )
-}
 
 function PipelineStep({ icon, label, count, color, onClick }: {
     icon: string; label: string; count: number; color: string; onClick: () => void
