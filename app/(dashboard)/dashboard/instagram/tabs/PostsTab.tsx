@@ -7,6 +7,8 @@ import { getIGPostsList, updateIGPostStatus, deleteIGPost, deleteIGPosts, revise
 import { LoadingSpinner, StatusBadge, PillarBadge, CopyButton, MetricsInputForm } from "./shared"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPost } from "./types"
+import { trackEvent } from "@/lib/analytics"
+import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
 
 // ═══════════════════════════════════════════════════════════
 // POSTS TAB  (with detail modal + copy/download)
@@ -57,6 +59,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
 
     const handleStatusChange = async (postId: string, newStatus: string) => {
         await updateIGPostStatus(postId, newStatus)
+        if (newStatus === "posted") trackEvent('post_published')
         setSelectedPost(null)
         loadPosts(0)
     }
@@ -81,7 +84,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
         <div className="space-y-6 pt-2">
             {/* Filters */}
             <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                {["all", "draft", "ready", "posted"].map(status => (
+                {["all", "draft", "ready", "posted", "plan_locked"].map(status => (
                     <button
                         key={status}
                         onClick={() => setStatusFilter(status)}
@@ -90,7 +93,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                             : "text-white/50 bg-[#0f0f0f] border-white/10 hover:text-white hover:bg-white/5"
                             }`}
                     >
-                        {status === "all" ? "Všechny" : status === "draft" ? "Drafty" : status === "ready" ? "Připravené" : "Publikované"}
+                        {status === "all" ? "Všechny" : status === "draft" ? "Koncepty" : status === "ready" ? "Připravené" : status === "posted" ? "Publikované" : "🔒 Plán"}
                     </button>
                 ))}
                 <span className="text-xs font-mono uppercase tracking-widest text-white/40 ml-auto whitespace-nowrap pl-4">{posts.length} z {total} příspěvků</span>
@@ -171,6 +174,10 @@ export function PostsTab({ projectId }: { projectId: string }) {
                             />
                         </label>
 
+                        {/* Locked post overlay */}
+                        {post.status === "plan_locked" ? (
+                            <LockedPostCard post={post} />
+                        ) : (
                         <div
                             onClick={() => setSelectedPost(post)}
                             className="p-3 cursor-pointer group flex flex-col flex-1"
@@ -197,7 +204,6 @@ export function PostsTab({ projectId }: { projectId: string }) {
                             </div>
                         )}
 
-                        {/* Content */}
                         <div className="flex-1 px-3 pb-3 flex flex-col">
                             <div className="flex items-start justify-between gap-2 mb-4">
                                 <div className="flex items-center gap-2 flex-wrap">
@@ -207,11 +213,53 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                 <span className="text-sm bg-white/5 shadow-sm border border-white/10 px-2 py-1 rounded-sm">{post.ig_post_types?.emoji || "📸"}</span>
                             </div>
 
-                            <p className="text-sm text-white/70 line-clamp-2 leading-relaxed mb-6 font-medium">
+                            <p className="text-sm text-white/70 line-clamp-2 leading-relaxed mb-4 font-medium">
                                 {post.caption || "Bez textu"}
                             </p>
 
-                            <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/10">
+                            {/* Inline quick actions — always visible */}
+                            <div className="flex items-center gap-1.5 mb-3" onClick={(e) => e.stopPropagation()}>
+                                <InlineAction
+                                    label="📋"
+                                    title="Kopírovat text"
+                                    onClick={() => {
+                                        if (post.caption) {
+                                            navigator.clipboard.writeText(post.caption + (post.hashtags ? "\n\n" + post.hashtags : ""))
+                                        }
+                                    }}
+                                />
+                                {post.image_url && (
+                                    <InlineAction
+                                        label="⬇️"
+                                        title="Stáhnout obrázek"
+                                        onClick={() => {
+                                            const a = document.createElement("a")
+                                            a.href = post.image_url!.split("|")[0]
+                                            a.download = `post-${post.id.slice(0, 8)}.png`
+                                            a.target = "_blank"
+                                            a.click()
+                                        }}
+                                    />
+                                )}
+                                {post.status === "draft" && (
+                                    <InlineAction
+                                        label="✅"
+                                        title="Označit jako Připraveno"
+                                        onClick={() => handleStatusChange(post.id, "ready")}
+                                        accent="blue"
+                                    />
+                                )}
+                                {post.status === "ready" && (
+                                    <InlineAction
+                                        label="📤"
+                                        title="Označit jako Publikováno"
+                                        onClick={() => handleStatusChange(post.id, "posted")}
+                                        accent="emerald"
+                                    />
+                                )}
+                            </div>
+
+                            <div className="flex items-center justify-between mt-auto pt-3 border-t border-white/10">
                                 <StatusBadge status={post.status} />
                                 <span className="text-[10px] font-mono uppercase tracking-widest text-white/40">
                                     {new Date(post.created_at).toLocaleDateString("cs-CZ")}
@@ -219,6 +267,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                             </div>
                         </div>
                         </div>
+                        )}
                     </motion.div>
                 ))}
             </motion.div>
@@ -265,6 +314,62 @@ export function PostsTab({ projectId }: { projectId: string }) {
 // ═══════════════════════════════════════════════════════════
 // POST DETAIL MODAL — full view + copy/download
 // ═══════════════════════════════════════════════════════════
+
+// Small icon button for card-level quick actions
+function LockedPostCard({ post }: { post: IGPost }) {
+    const { showPlanUnlockModal } = usePaywall()
+    return (
+        <div
+            onClick={() => showPlanUnlockModal()}
+            className="p-3 cursor-pointer flex flex-col flex-1"
+        >
+            {/* Blurred image placeholder */}
+            <div className="w-full h-56 rounded-sm bg-[#0f0f0f]/50 border border-white/5 flex flex-col items-center justify-center mb-4 gap-2 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-white/[0.01]" />
+                <span className="text-3xl opacity-30">🔒</span>
+                <span className="text-white/30 font-bold uppercase tracking-widest text-[9px]">Zamčený obsah</span>
+            </div>
+
+            <div className="flex-1 px-3 pb-3 flex flex-col">
+                <div className="flex items-start justify-between gap-2 mb-4">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{post.ig_post_types?.display_name || "Příspěvek"}</span>
+                        {post.content_pillar && <PillarBadge pillar={post.content_pillar} />}
+                    </div>
+                    <span className="text-sm bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-sm">🔒</span>
+                </div>
+
+                {/* Blurred caption snippet */}
+                <p className="text-sm text-white/30 line-clamp-2 leading-relaxed mb-4 font-medium select-none" style={{ filter: "blur(3px)" }}>
+                    {post.caption?.slice(0, 80) || "Obsah příspěvku je zamčený..."}
+                </p>
+
+                <div className="mt-auto pt-3 border-t border-white/10">
+                    <button className="w-full py-2 bg-gradient-to-r from-aisummit-cinnabar/20 to-orange-600/20 border border-aisummit-cinnabar/20 rounded-sm text-[9px] font-black uppercase tracking-widest text-aisummit-cinnabar hover:from-aisummit-cinnabar/30 hover:to-orange-600/30 transition-all">
+                        🔓 Odemknout za 490 Kč
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function InlineAction({ label, title, onClick, accent }: { label: string; title: string; onClick: () => void; accent?: "blue" | "emerald" }) {
+    const accentClass = accent === "blue"
+        ? "hover:bg-blue-500/20 hover:border-blue-500/30"
+        : accent === "emerald"
+        ? "hover:bg-emerald-500/20 hover:border-emerald-500/30"
+        : "hover:bg-white/10 hover:border-white/20"
+    return (
+        <button
+            onClick={onClick}
+            title={title}
+            className={`w-8 h-8 flex items-center justify-center rounded-sm border border-white/10 bg-white/5 text-sm transition-all ${accentClass}`}
+        >
+            {label}
+        </button>
+    )
+}
 
 function PostDetailModal({
     post,
@@ -490,21 +595,7 @@ function PostDetailModal({
                                 </div>
                             </div>
 
-                            {/* Quality Score */}
-                            {post.quality_score && (
-                                <div className="flex items-center gap-4 p-3 bg-[#1e293b]/30 rounded-xl">
-                                    <div>
-                                        <span className="text-xs text-gray-500">Kvalita</span>
-                                        <p className="text-lg font-bold text-blue-400">{post.quality_score}/100</p>
-                                    </div>
-                                    <div className="flex-1 h-2 bg-[#0a0e1a] rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-gradient-to-r from-blue-600 to-purple-600 rounded-full transition-all"
-                                            style={{ width: `${post.quality_score}%` }}
-                                        />
-                                    </div>
-                                </div>
-                            )}
+
 
                             {/* Metrics Input — only for posted posts */}
                             {post.status === "posted" && (
@@ -591,7 +682,7 @@ function PostDetailModal({
                                 onClick={() => onStatusChange(post.id, "ready")}
                                 className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all border border-blue-500/20"
                             >
-                                → Označit jako Ready
+                                → Označit jako Připraveno
                             </button>
                             <button
                                 onClick={() => onStatusChange(post.id, "posted")}
@@ -607,7 +698,7 @@ function PostDetailModal({
                                 onClick={() => onStatusChange(post.id, "draft")}
                                 className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-all border border-amber-500/20"
                             >
-                                ← Zpět na Draft
+                                ← Zpět na Koncept
                             </button>
                             <button
                                 onClick={() => onStatusChange(post.id, "posted")}
