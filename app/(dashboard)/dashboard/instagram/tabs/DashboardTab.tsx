@@ -57,25 +57,124 @@ interface DashboardStats {
 }
 
 // ═══════════════════════════════════════════════════════════
-// HELPERS
+// STATUS LOGIC — "Is everything OK?"
 // ═══════════════════════════════════════════════════════════
 
-function timeAgo(dateStr: string): string {
-    const diff = Date.now() - new Date(dateStr).getTime()
-    const mins = Math.floor(diff / 60000)
-    if (mins < 1) return "právě teď"
-    if (mins < 60) return `před ${mins}m`
-    const hours = Math.floor(mins / 60)
-    if (hours < 24) return `před ${hours}h`
-    const days = Math.floor(hours / 24)
-    if (days === 1) return "včera"
-    return `před ${days}d`
+type StatusLevel = "ok" | "warning" | "critical"
+
+interface DashboardStatus {
+    level: StatusLevel
+    message: string
+    action?: { label: string; section: string }
 }
 
-function formatDuration(ms: number): string {
-    const s = Math.round(ms / 1000)
-    if (s < 60) return `${s}s`
-    return `${Math.floor(s / 60)}m ${s % 60}s`
+function computeStatus(stats: DashboardStats): DashboardStatus {
+    // Critical: nothing to publish and nothing in draft
+    if (stats.ready === 0 && stats.drafts === 0 && stats.totalPosts > 0) {
+        return {
+            level: "critical",
+            message: "Žádný obsah k publikování — vygenerujte nové příspěvky",
+            action: { label: "Generovat", section: "generate" },
+        }
+    }
+
+    // Warning: no ready posts but some drafts exist
+    if (stats.ready === 0 && stats.drafts > 0) {
+        return {
+            level: "warning",
+            message: `${stats.drafts} ${stats.drafts === 1 ? "koncept čeká" : stats.drafts < 5 ? "koncepty čekají" : "konceptů čeká"} na schválení`,
+            action: { label: "Schválit", section: "posts" },
+        }
+    }
+
+    // OK: ready posts exist
+    if (stats.ready > 0) {
+        return {
+            level: "ok",
+            message: `${stats.ready} ${stats.ready === 1 ? "příspěvek připraven" : stats.ready < 5 ? "příspěvky připraveny" : "příspěvků připraveno"} k publikování`,
+        }
+    }
+
+    // New user
+    return {
+        level: "warning",
+        message: "Začněte tvořit obsah",
+        action: { label: "Vytvořit první", section: "generate" },
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ACTION ITEMS — what should the user do next?
+// ═══════════════════════════════════════════════════════════
+
+interface ActionItem {
+    emoji: string
+    label: string
+    detail: string
+    section: string
+    priority: number
+}
+
+function computeActionItems(stats: DashboardStats): ActionItem[] {
+    const items: ActionItem[] = []
+
+    if (stats.drafts > 0) {
+        items.push({
+            emoji: "📝",
+            label: `${stats.drafts} ${stats.drafts === 1 ? "koncept" : stats.drafts < 5 ? "koncepty" : "konceptů"} ke schválení`,
+            detail: "Zkontrolujte a schvalte",
+            section: "posts",
+            priority: 1,
+        })
+    }
+
+    if (stats.ready > 0) {
+        items.push({
+            emoji: "📤",
+            label: `${stats.ready} ${stats.ready === 1 ? "příspěvek" : stats.ready < 5 ? "příspěvky" : "příspěvků"} k publikování`,
+            detail: "Připraveno na Instagram",
+            section: "posts",
+            priority: 2,
+        })
+    }
+
+    // Find underused post types
+    const allTypes = Object.entries(stats.typeCounts)
+    if (allTypes.length > 2) {
+        const sorted = [...allTypes].sort((a, b) => a[1].count - b[1].count)
+        const least = sorted[0]
+        items.push({
+            emoji: least[1].emoji,
+            label: `Chybí ${least[1].display_name}`,
+            detail: `Jen ${least[1].count}× — oživte mix`,
+            section: "generate",
+            priority: 3,
+        })
+    }
+
+    // No posts this week
+    if (stats.postsThisWeek === 0 && stats.totalPosts > 0) {
+        items.push({
+            emoji: "📅",
+            label: "Tento týden žádný post",
+            detail: "Naplánujte obsah",
+            section: "generate",
+            priority: 0,
+        })
+    }
+
+    // Performance metrics missing
+    if (stats.quickMetrics === null && stats.posted > 5) {
+        items.push({
+            emoji: "📊",
+            label: "Chybí metriky",
+            detail: "Zadejte likes/saves pro lepší AI",
+            section: "performance",
+            priority: 4,
+        })
+    }
+
+    return items.sort((a, b) => a.priority - b.priority).slice(0, 4)
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -83,52 +182,38 @@ function formatDuration(ms: number): string {
 // ═══════════════════════════════════════════════════════════
 
 export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string; onOpenTutorial?: () => void }) {
-    const { setActiveSection, subscription } = useStudio()
+    const { setActiveSection } = useStudio()
     const [stats, setStats] = useState<DashboardStats | null>(null)
     const [loading, setLoading] = useState(true)
+    const [error, setError] = useState(false)
 
     useEffect(() => {
         if (!projectId) return
         setLoading(true)
-        getDashboardStats(projectId).then(data => {
-            setStats(data as DashboardStats)
-            setLoading(false)
-        })
+        setError(false)
+        getDashboardStats(projectId)
+            .then(data => {
+                setStats(data as DashboardStats)
+                setLoading(false)
+            })
+            .catch(() => {
+                setError(true)
+                setLoading(false)
+            })
     }, [projectId])
 
-    // Smart suggestions based on what's missing
-    const suggestions = useMemo(() => {
-        if (!stats) return []
-        const items: { label: string; type: string; emoji: string }[] = []
-        // Suggest types not used recently
-        const allTypes = Object.entries(stats.typeCounts)
-        const sortedByCount = [...allTypes].sort((a, b) => a[1].count - b[1].count)
+    const status = useMemo(() => stats ? computeStatus(stats) : null, [stats])
+    const actionItems = useMemo(() => stats ? computeActionItems(stats) : [], [stats])
 
-        if (stats.drafts === 0 && stats.ready === 0) {
-            items.push({ label: "Vygeneruj první post", type: "", emoji: "🚀" })
-        }
-        if (sortedByCount.length > 0) {
-            const least = sortedByCount[0]
-            items.push({ label: least[1].display_name, type: least[0], emoji: least[1].emoji })
-        }
-        if (sortedByCount.length > 1) {
-            const second = sortedByCount[1]
-            items.push({ label: second[1].display_name, type: second[0], emoji: second[1].emoji })
-        }
-        // Always suggest carousel
-        items.push({ label: "Carousel", type: "", emoji: "📸" })
-        return items.slice(0, 3)
-    }, [stats])
-
+    // ─── Loading skeleton ───
     if (loading) {
         return (
-            <div className="space-y-6">
-                {/* Skeleton */}
-                <div className="h-24 bg-[#0a0a0a] border border-white/5 rounded-sm animate-pulse" />
-                <div className="grid grid-cols-3 gap-3">
-                    {[1, 2, 3].map(i => <div key={i} className="h-28 bg-[#0a0a0a] border border-white/5 rounded-sm animate-pulse" />)}
+            <div className="space-y-4">
+                <div className="h-16 bg-[#0a0a0a] border border-white/5 rounded-sm animate-pulse" />
+                <div className="grid grid-cols-2 gap-3">
+                    {[1, 2].map(i => <div key={i} className="h-24 bg-[#0a0a0a] border border-white/5 rounded-sm animate-pulse" />)}
                 </div>
-                <div className="h-20 bg-[#0a0a0a] border border-white/5 rounded-sm animate-pulse" />
+                <div className="h-28 bg-[#0a0a0a] border border-white/5 rounded-sm animate-pulse" />
                 <div className="grid grid-cols-3 gap-3">
                     {[1, 2, 3].map(i => <div key={i} className="h-48 bg-[#0a0a0a] border border-white/5 rounded-sm animate-pulse" />)}
                 </div>
@@ -136,50 +221,102 @@ export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string;
         )
     }
 
-    if (!stats) return null
+    // ─── Error state ───
+    if (error || !stats) {
+        return (
+            <div className="text-center py-20 border border-dashed border-white/10 rounded-sm">
+                <p className="text-3xl mb-3">⚠️</p>
+                <p className="text-white/60 font-black uppercase tracking-tight text-sm mb-2">Nepodařilo se načíst data</p>
+                <p className="text-white/30 text-xs font-medium mb-6">Zkontrolujte připojení a zkuste to znovu</p>
+                <button
+                    onClick={() => {
+                        setLoading(true)
+                        setError(false)
+                        getDashboardStats(projectId)
+                            .then(data => { setStats(data as DashboardStats); setLoading(false) })
+                            .catch(() => { setError(true); setLoading(false) })
+                    }}
+                    className="px-6 py-2.5 bg-white/10 border border-white/20 text-white rounded-sm text-[10px] font-black uppercase tracking-widest hover:bg-white/15 transition-all"
+                >
+                    🔄 Zkusit znovu
+                </button>
+            </div>
+        )
+    }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-5">
 
-            {/* ──── CONTENT PIPELINE ──── */}
-            <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-5"
-            >
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40">Přehled obsahu</h2>
-                    <div className="flex items-center gap-3 text-[9px] text-white/30 font-bold uppercase tracking-widest">
-                        <span>Tento týden: <span className="text-white/60">{stats.postsThisWeek}</span></span>
-                        <span className="text-white/10">|</span>
-                        <span>Tento měsíc: <span className="text-white/60">{stats.postsThisMonth}</span></span>
+            {/* ──── STATUS BANNER ──── */}
+            {status && stats.totalPosts > 0 && (
+                <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex items-center justify-between px-5 py-3.5 rounded-sm border ${
+                        status.level === "critical"
+                            ? "bg-red-500/5 border-red-500/20"
+                            : status.level === "warning"
+                                ? "bg-amber-500/5 border-amber-500/20"
+                                : "bg-emerald-500/5 border-emerald-500/20"
+                    }`}
+                >
+                    <div className="flex items-center gap-3">
+                        <span className="text-lg">
+                            {status.level === "critical" ? "🔴" : status.level === "warning" ? "🟡" : "✅"}
+                        </span>
+                        <span className={`text-xs font-bold ${
+                            status.level === "critical"
+                                ? "text-red-400"
+                                : status.level === "warning"
+                                    ? "text-amber-400"
+                                    : "text-emerald-400"
+                        }`}>
+                            {status.message}
+                        </span>
                     </div>
-                </div>
+                    {status.action && (
+                        <button
+                            onClick={() => setActiveSection(status.action!.section as any)}
+                            className={`px-4 py-1.5 rounded-sm text-[9px] font-black uppercase tracking-widest transition-all ${
+                                status.level === "critical"
+                                    ? "bg-red-500/20 text-red-300 hover:bg-red-500/30 border border-red-500/20"
+                                    : "bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/20"
+                            }`}
+                        >
+                            {status.action.label} →
+                        </button>
+                    )}
+                </motion.div>
+            )}
 
-                <div className="grid grid-cols-4 gap-0 relative">
-                    {/* Connecting line */}
-                    <div className="absolute top-1/2 left-[12.5%] right-[12.5%] h-px bg-gradient-to-r from-amber-500/20 via-blue-500/20 to-emerald-500/20 -translate-y-1/2 z-0" />
+            {/* ──── PRIMARY PIPELINE (2 action cards) ──── */}
+            <div className="grid grid-cols-2 gap-3">
+                <ActionCard
+                    icon="📝" label="Koncepty" count={stats.drafts}
+                    color="amber" actionLabel="Schválit"
+                    onClick={() => setActiveSection("posts")}
+                />
+                <ActionCard
+                    icon="✅" label="Připravené" count={stats.ready}
+                    color="blue" actionLabel="Publikovat"
+                    onClick={() => setActiveSection("posts")}
+                />
+            </div>
 
-                    <PipelineStep
-                        icon="📝" label="Koncepty" count={stats.drafts}
-                        color="amber" onClick={() => setActiveSection("posts")}
-                    />
-                    <PipelineStep
-                        icon="✅" label="Připravené" count={stats.ready}
-                        color="blue" onClick={() => setActiveSection("posts")}
-                    />
-                    <PipelineStep
-                        icon="📤" label="Publikované" count={stats.posted}
-                        color="emerald" onClick={() => setActiveSection("posts")}
-                    />
-                    <PipelineStep
-                        icon="💡" label="Nápady" count={stats.ideas}
-                        color="violet" onClick={() => setActiveSection("ideas")}
-                    />
-                </div>
-            </motion.div>
+            {/* ──── Secondary counts (compact, not primary) ──── */}
+            <div className="flex items-center gap-6 px-1">
+                <SecondaryCount emoji="📤" label="Publikováno" count={stats.posted} />
+                <SecondaryCount emoji="💡" label="Nápady" count={stats.ideas} onClick={() => setActiveSection("ideas")} />
+                {stats.quickMetrics && (
+                    <>
+                        <div className="w-px h-4 bg-white/10" />
+                        <SecondaryCount emoji="❤️" label="Ø Lajky" count={stats.quickMetrics.avgLikes} onClick={() => setActiveSection("performance")} />
+                        <SecondaryCount emoji="🔖" label="Ø Uložení" count={stats.quickMetrics.avgSaves} onClick={() => setActiveSection("performance")} />
+                    </>
+                )}
+            </div>
 
-            {/* ──── WEEK STRIP + QUICK GENERATE ──── */}
+            {/* ──── WEEK STRIP + ACTION ITEMS ──── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
                 {/* Week strip — 2/3 */}
@@ -250,29 +387,40 @@ export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string;
                     </div>
                 </motion.div>
 
-                {/* Quick Generate — 1/3 */}
+                {/* Action Items — 1/3 */}
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.15 }}
                     className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-5 flex flex-col"
                 >
-                    <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-4">Rychlá tvorba</h2>
-                    <div className="flex-1 flex flex-col gap-2">
-                        {suggestions.map((s, i) => (
-                            <button
-                                key={i}
-                                onClick={() => setActiveSection("generate")}
-                                className="group flex items-center gap-3 p-3 rounded-sm border border-white/5 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/15 transition-all text-left"
-                            >
-                                <span className="text-lg group-hover:scale-110 transition-transform">{s.emoji}</span>
-                                <div className="flex-1 min-w-0">
-                                    <span className="text-xs text-white/60 font-bold block truncate group-hover:text-white/80 transition-colors">{s.label}</span>
-                                </div>
-                                <span className="text-white/10 group-hover:text-white/30 group-hover:translate-x-0.5 transition-all text-sm">→</span>
-                            </button>
-                        ))}
-                    </div>
+                    <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-4">Co teď</h2>
+
+                    {actionItems.length > 0 ? (
+                        <div className="flex-1 flex flex-col gap-2">
+                            {actionItems.map((item, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => setActiveSection(item.section as any)}
+                                    className="group flex items-center gap-3 p-3 rounded-sm border border-white/5 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/15 transition-all text-left"
+                                >
+                                    <span className="text-lg group-hover:scale-110 transition-transform">{item.emoji}</span>
+                                    <div className="flex-1 min-w-0">
+                                        <span className="text-xs text-white/60 font-bold block truncate group-hover:text-white/80 transition-colors">{item.label}</span>
+                                        <span className="text-[9px] text-white/25 font-medium block truncate">{item.detail}</span>
+                                    </div>
+                                    <span className="text-white/10 group-hover:text-white/30 group-hover:translate-x-0.5 transition-all text-sm">→</span>
+                                </button>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex-1 flex items-center justify-center">
+                            <div className="text-center">
+                                <p className="text-2xl mb-2 opacity-20">✨</p>
+                                <p className="text-[9px] text-white/25 font-bold uppercase tracking-widest">Vše hotovo</p>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Main CTA */}
                     <button
@@ -284,113 +432,67 @@ export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string;
                 </motion.div>
             </div>
 
-            {/* ──── RECENT POSTS + ACTIVITY ──── */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-                {/* Recent posts — 2/3 */}
-                {stats.recentPosts.length > 0 && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.2 }}
-                        className="lg:col-span-2"
-                    >
-                        <div className="flex items-center justify-between mb-3">
-                            <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40">Poslední příspěvky</h2>
-                            <button
-                                onClick={() => setActiveSection("posts")}
-                                className="text-[9px] font-bold uppercase tracking-widest text-white/25 hover:text-white/50 transition-colors"
-                            >
-                                Vše →
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                            {stats.recentPosts.map(post => (
-                                <button
-                                    key={post.id}
-                                    onClick={() => setActiveSection("posts")}
-                                    className="group bg-[#0a0a0a]/80 border border-white/10 rounded-sm overflow-hidden text-left hover:border-white/20 transition-all"
-                                >
-                                    {post.image_url ? (
-                                        <div className="w-full aspect-square overflow-hidden relative">
-                                            <img
-                                                src={post.image_url.split("|")[0]}
-                                                alt=""
-                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                            />
-                                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                                            {/* Status dot */}
-                                            <span className={`absolute top-2 right-2 w-2 h-2 rounded-full shadow-lg ${
-                                                post.status === "posted" ? "bg-emerald-500" : post.status === "ready" ? "bg-blue-500" : "bg-amber-500"
-                                            }`} />
-                                            {/* Carousel badge */}
-                                            {post.image_url.includes("|") && (
-                                                <span className="absolute top-2 left-2 bg-black/60 text-white/70 text-[8px] font-bold px-1.5 py-0.5 rounded-sm">
-                                                    📸 {post.image_url.split("|").length}
-                                                </span>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <div className="w-full aspect-square bg-white/[0.02] flex items-center justify-center">
-                                            <span className="text-2xl opacity-20">{post.type_emoji}</span>
-                                        </div>
-                                    )}
-                                    <div className="p-2.5">
-                                        <div className="flex items-center gap-1.5 mb-1">
-                                            <span className="text-[10px]">{post.type_emoji}</span>
-                                            <span className="text-[8px] font-bold uppercase tracking-widest text-white/30 truncate">{post.type_name}</span>
-                                        </div>
-                                        <p className="text-[10px] text-white/40 line-clamp-1 font-medium">{post.caption}</p>
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    </motion.div>
-                )}
-
-                {/* Activity timeline — 1/3 */}
+            {/* ──── RECENT POSTS ──── */}
+            {stats.recentPosts.length > 0 && (
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.25 }}
-                    className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-5"
+                    transition={{ delay: 0.2 }}
                 >
-                    <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-4">Nedávná aktivita</h2>
-
-                    {stats.activity.length > 0 ? (
-                        <div className="space-y-0">
-                            {stats.activity.map((item, i) => (
-                                <div key={item.id} className="flex gap-3 relative">
-                                    {/* Timeline line */}
-                                    {i < stats.activity.length - 1 && (
-                                        <div className="absolute left-[5px] top-[14px] bottom-0 w-px bg-white/5" />
-                                    )}
-                                    {/* Dot */}
-                                    <div className="w-[11px] h-[11px] rounded-full bg-emerald-500/20 border border-emerald-500/40 flex-shrink-0 mt-[3px] relative z-10" />
-                                    {/* Content */}
-                                    <div className="flex-1 pb-4 min-w-0">
-                                        <div className="flex items-baseline gap-2">
-                                            <span className="text-[9px] font-bold text-white/50">🤖 Vygenerováno</span>
-                                            <span className="text-[8px] text-white/20 font-mono">{timeAgo(item.created_at)}</span>
-                                        </div>
-                                        <p className="text-[10px] text-white/35 truncate mt-0.5">{item.caption}</p>
-                                        {item.timeMs > 0 && (
-                                            <span className="text-[8px] text-white/15 font-mono">{formatDuration(item.timeMs)}</span>
+                    <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40">Poslední příspěvky</h2>
+                        <button
+                            onClick={() => setActiveSection("posts")}
+                            className="text-[9px] font-bold uppercase tracking-widest text-white/25 hover:text-white/50 transition-colors"
+                        >
+                            Vše →
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {stats.recentPosts.map(post => (
+                            <button
+                                key={post.id}
+                                onClick={() => setActiveSection("posts")}
+                                className="group bg-[#0a0a0a]/80 border border-white/10 rounded-sm overflow-hidden text-left hover:border-white/20 transition-all"
+                            >
+                                {post.image_url ? (
+                                    <div className="w-full aspect-square overflow-hidden relative">
+                                        <img
+                                            src={post.image_url.split("|")[0]}
+                                            alt=""
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                        />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        {/* Status dot */}
+                                        <span className={`absolute top-2 right-2 w-2 h-2 rounded-full shadow-lg ${
+                                            post.status === "posted" ? "bg-emerald-500" : post.status === "ready" ? "bg-blue-500" : "bg-amber-500"
+                                        }`} />
+                                        {/* Carousel badge */}
+                                        {post.image_url.includes("|") && (
+                                            <span className="absolute top-2 left-2 bg-black/60 text-white/70 text-[8px] font-bold px-1.5 py-0.5 rounded-sm">
+                                                📸 {post.image_url.split("|").length}
+                                            </span>
                                         )}
                                     </div>
+                                ) : (
+                                    <div className="w-full aspect-square bg-white/[0.02] flex items-center justify-center">
+                                        <span className="text-2xl opacity-20">{post.type_emoji}</span>
+                                    </div>
+                                )}
+                                <div className="p-2.5">
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                        <span className="text-[10px]">{post.type_emoji}</span>
+                                        <span className="text-[8px] font-bold uppercase tracking-widest text-white/30 truncate">{post.type_name}</span>
+                                    </div>
+                                    <p className="text-[10px] text-white/40 line-clamp-1 font-medium">{post.caption}</p>
                                 </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-8">
-                            <p className="text-2xl opacity-20 mb-2">📭</p>
-                            <p className="text-[9px] text-white/25 font-bold uppercase tracking-widest">Zatím žádná aktivita</p>
-                        </div>
-                    )}
+                            </button>
+                        ))}
+                    </div>
                 </motion.div>
-            </div>
+            )}
 
-            {/* ──── PERFORMANCE SUMMARY ──── */}
+            {/* ──── PERFORMANCE SUMMARY (only if metrics exist) ──── */}
             {stats.quickMetrics && (
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
@@ -418,119 +520,6 @@ export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string;
                             Z {stats.quickMetrics.postsWithMetrics} příspěvků s metrikami
                         </span>
                     </div>
-                </motion.div>
-            )}
-
-            {/* ──── CONTENT MIX ──── */}
-            {stats.totalPosts >= 10 && Object.keys(stats.typeCounts).length > 0 && (
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                    className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-5"
-                >
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40">Mix obsahu</h2>
-                        <span className="text-[9px] text-white/20 font-bold">{stats.totalPosts} celkem</span>
-                    </div>
-                    <div className="flex gap-1 h-3 rounded-full overflow-hidden mb-3">
-                        {Object.entries(stats.typeCounts)
-                            .sort((a, b) => b[1].count - a[1].count)
-                            .map(([name, data]) => {
-                                const pct = stats.totalPosts > 0 ? (data.count / stats.totalPosts) * 100 : 0
-                                return (
-                                    <div
-                                        key={name}
-                                        className="h-full transition-all hover:opacity-80"
-                                        style={{
-                                            width: `${Math.max(pct, 2)}%`,
-                                            backgroundColor: `hsl(${hashCode(name) % 360}, 60%, 50%)`,
-                                        }}
-                                        title={`${data.display_name}: ${data.count}`}
-                                    />
-                                )
-                            })}
-                    </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1">
-                        {Object.entries(stats.typeCounts)
-                            .sort((a, b) => b[1].count - a[1].count)
-                            .slice(0, 8)
-                            .map(([name, data]) => (
-                                <div key={name} className="flex items-center gap-1.5">
-                                    <div
-                                        className="w-2 h-2 rounded-full"
-                                        style={{ backgroundColor: `hsl(${hashCode(name) % 360}, 60%, 50%)` }}
-                                    />
-                                    <span className="text-[9px] text-white/40 font-medium">{data.emoji} {data.display_name}</span>
-                                    <span className="text-[9px] text-white/20 font-mono">{data.count}</span>
-                                </div>
-                            ))}
-                    </div>
-                </motion.div>
-            )}
-
-            {/* ──── PLAN STATUS ──── */}
-            {subscription && (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.35 }}
-                    className={`border rounded-sm p-4 ${
-                        subscription.isTrial
-                            ? "bg-gradient-to-r from-aisummit-cinnabar/5 to-orange-600/5 border-aisummit-cinnabar/20"
-                            : "bg-[#0a0a0a]/60 border-white/5"
-                    }`}
-                >
-                    {subscription.isTrial ? (
-                        /* Trial: show content-gated CTA */
-                        <div className="flex items-center gap-4">
-                            <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1.5">
-                                    <span className="text-[9px] text-amber-400 font-bold uppercase tracking-widest">Trial</span>
-                                    <span className="text-[9px] text-white/30 font-bold">
-                                        {subscription.planPostsUnlocked}/{subscription.planPostsTotal} příspěvků odemčeno
-                                    </span>
-                                </div>
-                                <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mb-2">
-                                    <div
-                                        className="h-full rounded-full bg-amber-500 transition-all duration-500"
-                                        style={{ width: `${subscription.planPostsTotal > 0 ? (subscription.planPostsUnlocked / subscription.planPostsTotal) * 100 : 0}%` }}
-                                    />
-                                </div>
-                                <p className="text-[10px] text-white/40 font-medium">
-                                    Odemkněte všech {subscription.planPostsTotal} příspěvků + 30 kreditů na tvorbu navíc
-                                </p>
-                            </div>
-                            <button
-                                onClick={() => setActiveSection("settings")}
-                                className="px-4 py-2.5 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm text-[9px] font-black uppercase tracking-widest hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(229,83,63,0.2)] whitespace-nowrap"
-                            >
-                                Aktivovat za 490 Kč
-                            </button>
-                        </div>
-                    ) : (
-                        /* Paid: show credits */
-                        <div className="flex-1">
-                            <div className="flex items-center justify-between mb-1.5">
-                                <span className="text-[9px] text-white/40 font-bold uppercase tracking-widest">
-                                    {subscription.planName}
-                                </span>
-                                <span className="text-[9px] text-white/30 font-bold">
-                                    {subscription.creditsRemaining} kreditů na tvorbu navíc
-                                </span>
-                            </div>
-                            <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                <div
-                                    className={`h-full rounded-full transition-all duration-500 ${
-                                        subscription.creditsTotal > 0 && (subscription.creditsUsed / subscription.creditsTotal) > 0.8
-                                            ? "bg-aisummit-cinnabar"
-                                            : "bg-emerald-500"
-                                    }`}
-                                    style={{ width: `${subscription.creditsTotal > 0 ? Math.min(100, (subscription.creditsUsed / subscription.creditsTotal) * 100) : 0}%` }}
-                                />
-                            </div>
-                        </div>
-                    )}
                 </motion.div>
             )}
 
@@ -563,6 +552,52 @@ export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string;
 // SUB-COMPONENTS
 // ═══════════════════════════════════════════════════════════
 
+function ActionCard({ icon, label, count, color, actionLabel, onClick }: {
+    icon: string; label: string; count: number; color: string; actionLabel: string; onClick: () => void
+}) {
+    const colorMap: Record<string, { bg: string; border: string; text: string; countColor: string }> = {
+        amber: { bg: "bg-amber-500/5", border: "border-amber-500/20", text: "text-amber-400", countColor: "text-amber-400" },
+        blue: { bg: "bg-blue-500/5", border: "border-blue-500/20", text: "text-blue-400", countColor: "text-blue-400" },
+    }
+    const c = colorMap[color] || colorMap.blue
+
+    return (
+        <motion.button
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            onClick={onClick}
+            className={`relative flex items-center gap-4 p-4 rounded-sm border ${c.bg} ${c.border} hover:bg-white/[0.04] transition-all group cursor-pointer text-left`}
+        >
+            <span className="text-2xl group-hover:scale-110 transition-transform">{icon}</span>
+            <div className="flex-1 min-w-0">
+                <span className={`text-3xl font-black ${c.countColor}`}>{count}</span>
+                <span className="text-[9px] font-bold uppercase tracking-widest text-white/30 block mt-0.5">{label}</span>
+            </div>
+            {count > 0 && (
+                <span className="text-[9px] font-bold uppercase tracking-widest text-white/20 group-hover:text-white/40 transition-colors">
+                    {actionLabel} →
+                </span>
+            )}
+        </motion.button>
+    )
+}
+
+function SecondaryCount({ emoji, label, count, onClick }: {
+    emoji: string; label: string; count: number; onClick?: () => void
+}) {
+    const Tag = onClick ? "button" : "div"
+    return (
+        <Tag
+            onClick={onClick}
+            className={`flex items-center gap-2 ${onClick ? "hover:opacity-80 transition-opacity cursor-pointer" : ""}`}
+        >
+            <span className="text-sm">{emoji}</span>
+            <span className="text-[9px] text-white/25 font-bold uppercase tracking-widest">{label}</span>
+            <span className="text-xs text-white/50 font-black">{count.toLocaleString("cs-CZ")}</span>
+        </Tag>
+    )
+}
+
 function MetricCard({ emoji, label, value }: { emoji: string; label: string; value: number }) {
     return (
         <div className="bg-white/[0.02] border border-white/5 rounded-sm p-3 text-center">
@@ -571,36 +606,4 @@ function MetricCard({ emoji, label, value }: { emoji: string; label: string; val
             <p className="text-[8px] font-bold uppercase tracking-widest text-white/30 mt-0.5">{label}</p>
         </div>
     )
-}
-
-function PipelineStep({ icon, label, count, color, onClick }: {
-    icon: string; label: string; count: number; color: string; onClick: () => void
-}) {
-    const colorMap: Record<string, { bg: string; border: string; text: string; glow: string }> = {
-        amber: { bg: "bg-amber-500/10", border: "border-amber-500/20", text: "text-amber-400", glow: "shadow-amber-500/10" },
-        blue: { bg: "bg-blue-500/10", border: "border-blue-500/20", text: "text-blue-400", glow: "shadow-blue-500/10" },
-        emerald: { bg: "bg-emerald-500/10", border: "border-emerald-500/20", text: "text-emerald-400", glow: "shadow-emerald-500/10" },
-        violet: { bg: "bg-violet-500/10", border: "border-violet-500/20", text: "text-violet-400", glow: "shadow-violet-500/10" },
-    }
-    const c = colorMap[color] || colorMap.blue
-
-    return (
-        <button
-            onClick={onClick}
-            className={`relative z-10 flex flex-col items-center gap-2 p-3 rounded-sm border ${c.bg} ${c.border} hover:shadow-lg ${c.glow} transition-all group cursor-pointer`}
-        >
-            <span className="text-xl group-hover:scale-110 transition-transform">{icon}</span>
-            <span className={`text-2xl font-black ${c.text}`}>{count}</span>
-            <span className="text-[8px] font-bold uppercase tracking-widest text-white/30">{label}</span>
-        </button>
-    )
-}
-
-// Stable hash for consistent colors per type name
-function hashCode(str: string): number {
-    let hash = 0
-    for (let i = 0; i < str.length; i++) {
-        hash = str.charCodeAt(i) + ((hash << 5) - hash)
-    }
-    return Math.abs(hash)
 }
