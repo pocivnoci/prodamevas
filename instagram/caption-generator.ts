@@ -26,9 +26,10 @@ export const COSTS = {
     contextAgent: 0.025,     // 1× Gemini Flash for industry + local pulse
     imageGeneration: 0.06,
     videoPerSecond: 0.15,
+    ttsVoiceover: 0.02,      // Gemini 3.1 Flash TTS (~$0.02 per request)
     perPost: 0.165,      // 3× text ($0.075) + 1× context ($0.025) + 1× image ($0.06) + overhead
     perCarousel: 0.375,  // 3× text + 1× context + 4× image ($0.24) + overhead
-    perReel: 1.325,      // 3× text + 1× context + Veo 3.1 Fast 8s ($1.20)
+    perReel: 1.41,       // 3× text + 1× context + Veo 3.1 Fast 8s ($1.20) + TTS ($0.02) + cover ($0.06)
 }
 
 // ============================================
@@ -102,7 +103,24 @@ export function selectOverlayVariant(
     return selected
 }
 
-export const getReelDuration = (_typeName: string) => 8
+/**
+ * Determine reel duration from config or convention.
+ * Veo 3.1 supports 5-8s at 1080p.
+ */
+export function getReelDuration(typeName: string, config?: ClientConfig): number {
+    // 1. Explicit per-type config
+    const typeFormat = config?.postFormats?.[typeName]
+    if (typeFormat?.reelDuration) return Math.min(8, Math.max(5, typeFormat.reelDuration))
+
+    // 2. Default format config
+    if (config?.defaultFormat?.reelDuration) return Math.min(8, Math.max(5, config.defaultFormat.reelDuration))
+
+    // 3. Convention-based
+    if (typeName.includes("short") || typeName.includes("quick")) return 5
+    if (typeName.includes("long") || typeName.includes("tutorial")) return 8
+
+    return 8
+}
 
 export const IDEA_COOLDOWN_DAYS = 90
 
@@ -197,9 +215,35 @@ export function buildVideoSchema(config: ClientConfig) {
                 type: Type.STRING,
                 description: "Opening problem/question (2-4 words, punchy, Czech). NO EMOJI.",
             },
+            scenes: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        timeRange: {
+                            type: Type.STRING,
+                            description: "Time range for this scene (e.g. '0-2s', '2-5s', '5-8s')",
+                        },
+                        visual: {
+                            type: Type.STRING,
+                            description: "What happens visually — detailed description of the scene content, subjects, actions, environment",
+                        },
+                        camera: {
+                            type: Type.STRING,
+                            description: "Camera movement (e.g. 'slow dolly in', 'handheld tracking shot', 'static close-up', 'smooth pan left', 'aerial descending')",
+                        },
+                        mood: {
+                            type: Type.STRING,
+                            description: "Mood and lighting (e.g. 'warm golden hour, soft bokeh', 'dramatic side lighting, moody', 'bright natural daylight, energetic')",
+                        },
+                    },
+                    required: ["timeRange", "visual", "camera", "mood"],
+                },
+                description: "3-4 detailed scenes for Veo 3.1 video generation. Each scene must specify what happens, camera movement, and mood.",
+            },
             videoScript: {
                 type: Type.STRING,
-                description: `Scene-by-scene description for Veo 3.1. MUST have 3 scenes: Scene 1 (0-2s): Hook visual. Scene 2 (2-7s): Main content. Scene 3 (7-10s): CTA with ${config.website}.`,
+                description: "Fallback: single-string summary of all scenes for Veo 3.1 (used if scenes parsing fails)",
             },
             caption: {
                 type: Type.STRING,
@@ -215,7 +259,7 @@ export function buildVideoSchema(config: ClientConfig) {
                 description: "8-10 relevant hashtags",
             },
         },
-        required: ["hook", "videoScript", "caption", "cta", "hashtags"],
+        required: ["hook", "scenes", "caption", "cta", "hashtags"],
     }
 }
 
@@ -524,18 +568,56 @@ ${recentCaptions.map((c, i) => {
 - Pokud existující posty pokrývají určitá témata, přijď s ÚPLNĚ jiným úhlem pohledu
 
 ${postFormat.medium === "reel" ? `
-## 🎬 REELS VIDEO
-Toto je Instagram Reel (krátké video, 7-10 sekund).
+## 🎬 INSTAGRAM REEL — FULL VIDEO PRODUCTION
+Toto je Instagram Reel (krátké video, ${postFormat.reelDuration || 8} sekund).
+Video bude generováno AI (Veo 3.1) s nativním zvukem + český voiceover z narrace.
 
-### STRUKTURA (POVINNÁ):
-1. **Scene 1 (0-2s): HOOK**
-2. **Scene 2 (2-7s): VALUE**
-3. **Scene 3 (7-10s): CTA** — "${config.website}"
+### PRAVIDLA PRO REELS:
+- **HOOK** musí být v prvních 1.5 sekundách — vizuálně i textově zaujmout
+- **PACING** musí být dynamický — žádné statické záběry delší než 3s
+- Každá scéna MUSÍ mít narration text (bude přečtený česky jako voiceover)
+- Camera movements musí být plynulé a profesionální
+- Poslední scéna MUSÍ obsahovat CTA s ${config.website}
+
+### STRUKTURA SCÉN (${postFormat.reelDuration || 8}s video):
+${(postFormat.reelDuration || 8) <= 5 ? `
+- Scene 1 (0-1.5s): HOOK — dramatický vizuál, narration = problém/otázka
+- Scene 2 (1.5-3.5s): VALUE — řešení/produkt v akci
+- Scene 3 (3.5-5s): CTA — result + ${config.website}
+` : `
+- Scene 1 (0-2s): HOOK — dramatický vizuál, narration = problém/otázka
+- Scene 2 (2-${(postFormat.reelDuration || 8) - 3}s): VALUE — hlavní obsah, důkaz, ukázka
+- Scene 3 (${(postFormat.reelDuration || 8) - 3}-${postFormat.reelDuration || 8}s): CTA — výsledek + ${config.website}
+`}
+
+### CAMERA MOVEMENTS (vybírej z těchto):
+dolly in, dolly out, slow pan left/right, tracking shot, static close-up, 
+overhead/bird's eye, low angle hero shot, smooth orbit, rack focus, handheld natural
+
+### MOOD/LIGHTING (vybírej z těchto):
+golden hour warmth, dramatic side-lighting, bright natural daylight, moody cinematic,
+neon glow, studio softbox, high-contrast editorial, morning mist, backlit silhouette
+
+### SOUND EFFECTS (pro Veo 3.1 nativní audio):
+Do každé scény přidej zvukový efekt/atmosféru — např. "city ambience", "door opening",
+"coffee pouring", "keyboard typing", "wind in trees", "footsteps on gravel"
+
+${config.videoFocus ? `### BRAND VIDEO STYLE:\n${config.videoFocus}\n` : ""}
 
 ## VÝSTUP — vrať POUZE validní JSON:
 {
   "hook": "Opening problem/question (2-4 slova, punchy, česky). ŽÁDNÉ EMOJI.",
-  "videoScript": "Scene-by-scene popis pro Veo 3.1.",
+  "scenes": [
+    {
+      "timeRange": "0-2s",
+      "visual": "Detailed English description of what happens visually",
+      "camera": "camera movement type",
+      "mood": "lighting and mood description", 
+      "narration": "Český text pro voiceover (1-2 věty, přirozená řeč)",
+      "soundEffect": "ambient sound or effect for this scene"
+    }
+  ],
+  "videoScript": "Fallback: single summary of all scenes in English",
   "caption": "Instagram caption pro Reel (max 100 slov, česky).",
   "cta": "MUSÍ obsahovat ${config.website}",
   "hashtags": ["8-10", "relevantních", "hashtagů"]

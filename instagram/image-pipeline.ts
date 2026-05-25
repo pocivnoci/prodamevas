@@ -253,36 +253,69 @@ Each prompt should be 2-3 sentences and end with "NO TEXT in image."
 // VIDEO PROMPT REFINEMENT
 // ============================================
 
+interface VideoScene {
+    timeRange: string
+    visual: string
+    camera: string
+    mood: string
+    narration?: string
+    soundEffect?: string
+}
+
 export async function refineVideoPrompt(
     config: ClientConfig,
-    videoData: { hook: string; videoScript: string },
+    videoData: {
+        hook: string
+        scenes?: VideoScene[]
+        videoScript?: string   // legacy fallback
+    },
     postType: string,
     duration: number
 ): Promise<string> {
     const memSection = await getVisualMemoriesSection()
 
+    // Build scene breakdown for the prompt
+    const scenesText = videoData.scenes?.length
+        ? videoData.scenes.map((s, i) =>
+            `Scene ${i + 1} (${s.timeRange}):
+  - Visual: ${s.visual}
+  - Camera: ${s.camera}
+  - Mood/Lighting: ${s.mood}
+  - Audio: ${s.soundEffect || "ambient"}
+  - Narration hint: "${s.narration || ""}"`
+        ).join("\n\n")
+        : `Raw script: "${videoData.videoScript || ""}"`
+
     const refinementPrompt = `
-You are a professional video director for Instagram Reels.
-Transform this raw script into a DETAILED Veo 3.1 video generation prompt.
+You are a world-class video director creating an Instagram Reel.
+Transform these scene descriptions into a SINGLE, DETAILED Veo 3.1 video generation prompt.
 ${memSection}
-Raw script: "${videoData.videoScript}"
-Hook text: "${videoData.hook}"
-Duration: ${duration} seconds
-Post type: ${postType}
 
-## REQUIREMENTS:
-- 9:16 vertical format
-- 1080p resolution
-- ${config.videoFocus || 'Professional content with smooth camera movements'}
-- Final 2-3 seconds MUST show ${config.website} branding
+## INPUT SCENES:
+${scenesText}
 
-## STRUCTURE:
-Scene 1 (0-2s): Hook visual
-Scene 2 (2-${duration - 3}s): Solution
-Scene 3 (${duration - 3}-${duration}s): Result + CTA
+## HOOK TEXT: "${videoData.hook}"
+## DURATION: ${duration} seconds
+## POST TYPE: ${postType}
+
+## CRITICAL REQUIREMENTS:
+- 9:16 vertical format, 1080p resolution
+- ${config.videoFocus || "Professional content with smooth, cinematic camera movements"}
+- EVERY camera transition must be SMOOTH — no jump cuts unless for dramatic effect
+- Lighting must be consistent within scenes, with natural transitions between them
+- Final 2-3 seconds MUST include ${config.website} branding (text on screen or product placement)
+- Audio: include ambient sounds and effects described in scenes (${videoData.scenes?.map(s => s.soundEffect).filter(Boolean).join(", ") || "natural ambient"})
+
+## CAMERA CHOREOGRAPHY:
+Describe camera movement as a CONTINUOUS FLOW through the scenes:
+- Start with the hook (${videoData.scenes?.[0]?.camera || "dramatic opening"})
+- Transition smoothly through middle scenes
+- End with a clear, stable shot for CTA
 
 ## OUTPUT:
-Return a single detailed English video generation prompt (2-4 sentences).
+Return a SINGLE detailed English video generation prompt (4-6 sentences).
+Include specific camera movements, lighting setup, subject actions, and audio cues.
+The prompt must read like a professional shot list compressed into prose.
 `
 
     const response = await ai.models.generateContent({
@@ -294,6 +327,6 @@ Return a single detailed English video generation prompt (2-4 sentences).
     const textPart = parts.find((p: any) => p.text)
     const refined = textPart?.text
 
-    if (!refined) return videoData.videoScript
+    if (!refined) return videoData.videoScript || videoData.scenes?.map(s => s.visual).join(". ") || ""
     return refined.replace(/^["']|["']$/g, "").trim()
 }

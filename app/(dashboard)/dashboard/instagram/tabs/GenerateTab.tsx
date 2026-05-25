@@ -605,8 +605,8 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                             </div>
                                             <div>
                                                 <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">🎞️ Typ</label>
-                                                <div className="grid grid-cols-3 gap-2">
-                                                    {[{ value: "", label: "Auto", emoji: "🎲" }, { value: "image", label: "Obrázek", emoji: "🖼️" }, { value: "carousel", label: "Carousel", emoji: "📸" }].map(opt => (
+                                                <div className="grid grid-cols-4 gap-2">
+                                                    {[{ value: "", label: "Auto", emoji: "🎲" }, { value: "image", label: "Obrázek", emoji: "🖼️" }, { value: "carousel", label: "Carousel", emoji: "📸" }, { value: "reel", label: "Reel", emoji: "🎬" }].map(opt => (
                                                         <button key={opt.value} onClick={() => setMedium(opt.value)}
                                                             className={`py-2.5 rounded-sm text-center transition-all border text-xs font-bold ${medium === opt.value
                                                                 ? "bg-white/10 border-white/30 text-white" : "bg-[#050505] border-white/10 text-white/40 hover:text-white"}`}>

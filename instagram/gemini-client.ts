@@ -343,24 +343,34 @@ export async function generateVideo(
         duration?: number        // seconds (4-8 for 1080p)
         aspectRatio?: "9:16" | "16:9" | "1:1"
         fast?: boolean          // true = Veo 3.1 Fast ($0.15/s), false = Standard ($0.40/s)
+        referenceImages?: { buffer: Buffer; mimeType?: string }[]  // up to 3 reference images
     } = {}
 ): Promise<Buffer> {
-    const { duration = 8, aspectRatio = "9:16", fast = true } = options
+    const { duration = 8, aspectRatio = "9:16", fast = true, referenceImages } = options
 
     const model = fast
         ? "veo-3.1-fast-generate-001"
         : "veo-3.1-generate-001"
 
+    // Build reference images for Veo (brand photos, product shots, spaces)
+    const refImages = referenceImages?.slice(0, 3).map(ref => ({
+        image: {
+            imageBytes: ref.buffer.toString("base64"),
+            mimeType: ref.mimeType || "image/jpeg",
+        },
+    }))
+
     let operation = await ai.models.generateVideos({
         model,
         prompt,
+        ...(refImages?.length ? { referenceImages: refImages } : {}),
         config: {
             durationSeconds: duration,
             aspectRatio,
             resolution: "1080p",
             numberOfVideos: 1,
         },
-    })
+    } as any)
 
     // Poll operation until complete (Veo takes 2-5 minutes)
     console.log("   ⏳ Veo 3.1 generating video (this takes 2-5 min)...")
@@ -397,6 +407,49 @@ export async function generateVideo(
     const arrayBuffer = await videoResponse.arrayBuffer()
 
     return Buffer.from(arrayBuffer)
+}
+
+// ============================================
+// VOICEOVER — Gemini 3.1 Flash TTS (Czech)
+// ============================================
+
+export async function generateVoiceover(
+    narrationText: string,
+    options: {
+        voice?: string    // Preset voice name (default: "Kore")
+        mood?: string     // e.g. "professional", "excited", "calm"
+    } = {}
+): Promise<Buffer> {
+    const { voice = "Kore", mood } = options
+
+    // Prepend mood as audio tag if provided
+    const textWithMood = mood
+        ? `[${mood}] ${narrationText}`
+        : narrationText
+
+    const response = await ai.models.generateContent({
+        model: "gemini-3.1-flash-tts-preview",
+        contents: textWithMood,
+        config: {
+            responseModalities: ["AUDIO"] as any,
+            speechConfig: {
+                voiceConfig: {
+                    prebuiltVoiceConfig: {
+                        voiceName: voice,
+                    },
+                },
+            },
+        } as any,
+    })
+
+    const audioPart = response.candidates?.[0]?.content?.parts?.[0]
+    const inlineData = (audioPart as any)?.inlineData
+
+    if (!inlineData?.data) {
+        throw new Error("TTS returned no audio data")
+    }
+
+    return Buffer.from(inlineData.data, "base64")
 }
 
 export { ai }

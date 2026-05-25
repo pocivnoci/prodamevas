@@ -115,6 +115,8 @@ export interface PostFormat {
     medium: PostMedium
     /** Text overlay style */
     overlayStyle: OverlayStyle
+    /** Reel duration in seconds (default: 8, range: 5-8 for 1080p Veo 3.1) */
+    reelDuration?: number
 }
 
 // ─── Audience Persona ───────────────────────────────────────
@@ -199,6 +201,9 @@ export interface ClientConfig {
 
     /** Video script instructions (what to show, visual focus) */
     videoFocus?: string
+
+    /** TTS voice preset for voiceover (Gemini TTS voice name, e.g. "Kore", "Puck", "Charon") */
+    ttsVoice?: string
 
     /** Per-post-type format overrides (aspect ratio, medium, overlay style) */
     postFormats?: Record<string, PostFormat>
