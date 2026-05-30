@@ -65,6 +65,8 @@ import {
 import { refineImagePrompt, refineCarouselPrompts, refineVideoPrompt } from "./image-pipeline"
 import { processReelVideo, scenesToSubtitles } from "./video-processor"
 import { getBrandMemories, formatMemoriesForPrompt } from "./memory-agent"
+import { reviewPost, reviewContentPlan } from "./editorial-board"
+import type { EditorialMessage } from "./types"
 
 // Active client config (set from --config flag or ensureConfig)
 let CLIENT_CONFIG: ClientConfig | null = null
@@ -122,7 +124,7 @@ export async function generateOnePost(options: {
     /** Explicit product ID from ig_products — overrides random product selection */
     productId?: string
     campaignContext?: { postNumber: number; totalPosts: number; previousPosts: { hook: string; topic: string }[] }
-    onProgress?: (stage: string, progress: number, message: string) => Promise<void>
+    onProgress?: (stage: string, progress: number, message: string, editorialLog?: EditorialMessage[]) => Promise<void>
 }): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number }> {
     const report = options.onProgress || (async () => { }) // no-op if not provided
     const clientUuid = await ensureConfig(options.configName)
@@ -411,9 +413,9 @@ export async function generateOnePost(options: {
         }
     }
 
-    // 6b. Quality gate — auto-score before proceeding
+    // 6b. Quality gate — Critic + Chief Editor multi-round review
     await report("critic", 45, "🔍 Kritik hodnotí kvalitu obsahu...")
-    console.log("🔍 Quality gate (Gemini 3.5 Flash scoring)...")
+    console.log("🔍 Quality gate (Critic + Šéfredaktor review)...")
     const { score, feedback, detail } = await scorePost(
         config,
         captionData as { hook: string; body?: string; cta: string; hashtags: string[]; slides?: { headline: string; subtext: string }[] },
@@ -428,34 +430,21 @@ export async function generateOnePost(options: {
         if (detail.feedback.fix.length > 0) console.log(`   🔧 Opravit: ${detail.feedback.fix.join(", ")}`)
     }
 
-    if (score < 7 && detail?.feedback.fix.length) {
-        await report("critic", 50, `🔧 Copywriter opravuje: ${detail.feedback.fix[0]}...`)
-        console.log("   ⚠️ Low quality — cílená oprava (dialog Kritik → Copywriter)...")
+    // Editorial Board — multi-round review by Chief Editor
+    const editorialResult = await reviewPost(
+        config,
+        captionData,
+        selectedType.name,
+        { score, feedback, detail },
+        megaPrompt,
+        report,
+    )
+    captionData = editorialResult.captionData
+    cost += editorialResult.totalTokenCost
+    if (isReel && captionData.caption) captionData.body = captionData.caption
 
-        // Targeted repair: tell Copywriter exactly what to keep and what to fix
-        const keepInstructions = detail.feedback.keep.length > 0
-            ? `\n## ✅ ZACHOVEJ BEZE ZMĚNY (Kritik schválil):\n${detail.feedback.keep.map(k => `- ${k}`).join("\n")}\n- Hook: "${captionData.hook}"${detail.hookScore >= 2 ? " ← NESMÍŠ MĚNIT" : ""}\n- ${detail.bodyScore >= 2 ? `Body zachovej nebo jen mírně uprav` : ""}`
-            : ""
-
-        const fixInstructions = `\n## 🔧 OPRAV POUZE TOTO (Kritik odmítl):\n${detail.feedback.fix.map(f => `- ${f}`).join("\n")}\n${detail.ctaScore < 1 ? `- CTA MUSÍ obsahovat ${config.website}` : ""}`
-
-        const improvePrompt = megaPrompt + `\n\n${keepInstructions}\n${fixInstructions}\n\nVrať kompletní JSON se VŠEMI poli (i těmi co se nemění).`
-        const improvedText = await generateText(improvePrompt, { responseSchema: schema })
-        cost += COSTS.textGeneration
-        try {
-            const jsonMatch = improvedText.match(/\{[\s\S]*\}/)
-            const improved = JSON.parse(jsonMatch?.[0] || improvedText)
-            if (isReel && improved.caption) improved.body = improved.caption
-            captionData = improved
-
-            const { score: newScore, feedback: newFeedback } = await scorePost(config, captionData as { hook: string; body?: string; cta: string; hashtags: string[] })
-            cost += COSTS.textGeneration
-            const newEmoji = newScore >= 8 ? "🟢" : newScore >= 6 ? "🟡" : "🔴"
-            console.log(`   ${newEmoji} Re-score: ${newScore}/10 — ${newFeedback}`)
-        } catch {
-            console.log("   ⚠️ Targeted repair failed — pokračuji s originálem")
-        }
-    }
+    const editorialRounds = editorialResult.rounds.length
+    console.log(`   🎖️ Editorial: ${editorialResult.approved ? "✅ schváleno" : "⏰ max kol"} po ${editorialRounds} ${editorialRounds === 1 ? "kole" : "kolech"} ($${editorialResult.totalTokenCost.toFixed(3)})`)
 
     // Use client-specific hashtags
     let finalHashtags: string[]
@@ -1206,11 +1195,11 @@ export async function generateBatch(options: {
     const estimatedCost = count * COSTS.perPost
 
     console.log("\n" + "═".repeat(60))
-    console.log("📅 AUTOPILOT — BATCH GENEROVÁNÍ")
+    console.log("📅 AUTOPILOT — BATCH GENEROVÁNÍ (s Editorial Review)")
     console.log("═".repeat(60))
     console.log(`   📊 Postů: ${count}`)
     const USD_TO_CZK = 23
-    console.log(`   💰 Odhadovaná cena: ~$${estimatedCost.toFixed(2)} (${(estimatedCost * USD_TO_CZK).toFixed(0)} Kč)`)
+    console.log(`   💰 Odhadovaná cena: ~$${estimatedCost.toFixed(2)} (${(estimatedCost * USD_TO_CZK).toFixed(0)} Kč) + editorial review`)
     console.log(`   ${dryRun ? "🔍 MODE: DRY-RUN" : "🚀 MODE: PRODUKCE"}`)
     console.log("═".repeat(60))
 
@@ -1225,7 +1214,61 @@ export async function generateBatch(options: {
 
     const results: Array<{ type: string; success: boolean; id?: string; cost: number }> = []
     let totalCost = 0
-    const typesToUse = buildSmartWeekPlan(config, performance, options.count)
+    let typesToUse = buildSmartWeekPlan(config, performance, options.count)
+
+    // ═══════════════════════════════════════════════════════
+    // EDITORIAL REVIEW — Chief Editor reviews the content plan
+    // ═══════════════════════════════════════════════════════
+    console.log("\n🎖️ ŠÉFREDAKTOR — Review content plánu...")
+    console.log("─".repeat(60))
+
+    // Build a plan structure for editorial review
+    const startDate = new Date()
+    const planSlots = typesToUse.map((type, i) => {
+        const postDate = new Date(startDate)
+        postDate.setDate(postDate.getDate() + Math.floor(i * 7 / typesToUse.length))
+        const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+        return {
+            day: dayNames[postDate.getDay()],
+            date: postDate.toISOString().split("T")[0],
+            time: "17:00",
+            postType: type,
+            topic: options.topic || `Auto-generated ${type} post`,
+            reason: "Algoritmicky vybraný typ",
+            weatherContext: null,
+            calendarContext: null,
+            source: "planned" as const,
+        }
+    })
+
+    try {
+        const editorialPlanResult = await reviewContentPlan(config, planSlots)
+        totalCost += editorialPlanResult.totalTokenCost
+
+        if (editorialPlanResult.approved) {
+            console.log(`\n   ✅ Content plan schválen po ${editorialPlanResult.rounds.length} kolech`)
+        } else {
+            console.log(`\n   ⏰ Content plan po max kolech — používám poslední verzi`)
+        }
+
+        // Extract post types from approved plan
+        const approvedPlan = editorialPlanResult.plan
+        if (Array.isArray(approvedPlan) && approvedPlan.length > 0) {
+            typesToUse = approvedPlan.map((s: any) => s.postType).filter(Boolean)
+            // If editorial changed the count, respect it
+            if (typesToUse.length === 0) {
+                typesToUse = buildSmartWeekPlan(config, performance, options.count)
+            }
+        }
+
+        console.log(`   📋 Final plan: ${typesToUse.join(", ")}`)
+        console.log(`   💰 Editorial review cost: $${editorialPlanResult.totalTokenCost.toFixed(3)}`)
+    } catch (editorialErr: any) {
+        console.warn(`   ⚠️ Editorial review failed: ${editorialErr?.message?.substring(0, 100)}`)
+        console.log(`   📋 Using original plan: ${typesToUse.join(", ")}`)
+    }
+
+    console.log("─".repeat(60))
 
     for (let i = 0; i < typesToUse.length; i++) {
         const type = typesToUse[i]

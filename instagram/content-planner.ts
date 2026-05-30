@@ -49,6 +49,8 @@ export async function planWeek(
     performance: PerformanceInsight,
     postsPerWeek: number = 5,
     city?: string,
+    /** Revision notes from Chief Editor — if provided, planner must address them */
+    revisionContext?: string,
 ): Promise<WeekPlan> {
     // Collect signals
     const calendarContext = getWeekContext(startDate)
@@ -137,7 +139,14 @@ ${perfSection}
 ${memorySection}${contextSection}
 ## DOSTUPNÉ TYPY POSTŮ:
 ${availableTypes.map(t => `- ${t}`).join("\n")}
+${revisionContext ? `
+## 🎖️ POZNÁMKY ŠÉFREDAKTORA (MUSÍŠ REAGOVAT!)
+${revisionContext}
 
+Předchozí verze plánu byla vrácena k přepracování. Adresuj KAŽDOU poznámku:
+- Implementuj požadovanou změnu, NEBO
+- Vysvětli proč nesouhlasíš (s argumenty)
+` : ""}
 ## INSTRUKCE:
 Vytvoř strategický plán na tento týden. Potřebuji přesně ${postsPerWeek} postů.
 

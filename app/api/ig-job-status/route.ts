@@ -22,7 +22,7 @@ export async function GET(req: Request) {
 
     const { data: job, error } = await supabaseAdmin
         .from("ig_jobs")
-        .select("id, status, progress, agent_message, result, error, created_at, updated_at")
+        .select("id, status, progress, agent_message, result, error, editorial_log, created_at, updated_at")
         .eq("id", jobId)
         .single()
 
@@ -37,6 +37,7 @@ export async function GET(req: Request) {
         agentMessage: job.agent_message,
         result: job.result,
         error: job.error,
+        editorialLog: job.editorial_log || [],
         elapsed: Math.round((Date.now() - new Date(job.created_at).getTime()) / 1000),
     })
 }

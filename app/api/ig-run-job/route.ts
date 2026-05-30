@@ -49,8 +49,17 @@ export async function POST(req: Request) {
             customImageUrl: config.customImageUrl,
             productId: config.productId,
             campaignContext: config.campaignContext,
-            onProgress: async (stage: string, progress: number, message: string) => {
-                await updateJob({ status: stage, progress, agent_message: message })
+            onProgress: async (stage: string, progress: number, message: string, editorialLog?: any[]) => {
+                const update: Record<string, any> = { status: stage, progress, agent_message: message }
+                if (editorialLog && editorialLog.length > 0) {
+                    // Store editorial conversation for UI display
+                    update.editorial_log = editorialLog.map(m => ({
+                        role: m.role,
+                        action: m.action,
+                        summary: m.summary || m.content?.substring(0, 150),
+                    }))
+                }
+                await updateJob(update)
             },
         })
 

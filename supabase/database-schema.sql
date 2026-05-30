@@ -153,9 +153,16 @@ CREATE TABLE ig_brand_memory (
 CREATE TABLE ig_jobs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   client_id uuid REFERENCES clients(id) ON DELETE CASCADE,
-  status text DEFAULT 'pending', -- 'pending', 'running', 'done', 'error'
-  job_type text DEFAULT 'generate',
-  params jsonb DEFAULT '{}'::jsonb,
+  config jsonb NOT NULL DEFAULT '{}',
+  status text NOT NULL DEFAULT 'pending'
+    CHECK (status IN (
+      'pending', 'researcher', 'copywriter', 'critic', 'art_director',
+      'rendering', 'uploading', 'done', 'failed',
+      'chief_editor', 'strategist', 'video'
+    )),
+  progress integer NOT NULL DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
+  agent_message text,
+  editorial_log jsonb DEFAULT '[]', -- Editorial board conversation log
   result jsonb,
   error text,
   created_at timestamptz DEFAULT now(),

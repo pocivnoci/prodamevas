@@ -82,3 +82,47 @@ export interface BrandVoiceConfig {
     /** Tone modifiers per post type */
     toneByPostType: Record<string, ToneModifier>
 }
+
+// ============================================
+// EDITORIAL BOARD — Multi-Agent Review System
+// ============================================
+
+export type EditorialRole = "strategist" | "copywriter" | "critic" | "chief_editor"
+export type EditorialAction = "propose" | "approve" | "revise" | "reject" | "pushback" | "fix"
+
+export interface EditorialMessage {
+    role: EditorialRole
+    content: string
+    action: EditorialAction
+    /** Short human-readable summary for UI display */
+    summary?: string
+}
+
+export interface EditorialRound {
+    round: number
+    messages: EditorialMessage[]
+    verdict: "approved" | "revise" | "rejected"
+}
+
+export interface EditorialPlanResult {
+    plan: any // WeekPlan or PlannedSlot[]
+    rounds: EditorialRound[]
+    totalTokenCost: number
+    approved: boolean
+}
+
+export interface EditorialPostResult {
+    captionData: any
+    rounds: EditorialRound[]
+    totalTokenCost: number
+    approved: boolean
+    finalScore: number
+}
+
+/** Progress callback that includes editorial conversation log */
+export type EditorialProgressCallback = (
+    stage: string,
+    progress: number,
+    message: string,
+    editorialLog?: EditorialMessage[],
+) => Promise<void>

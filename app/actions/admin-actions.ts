@@ -1493,6 +1493,57 @@ Vrať POUZE JSON pole (${weakIndices.length} položek):
             }
         }
 
+        // Ensure we have exactly `count` concepts — AI sometimes returns fewer
+        if (concepts.length < count) {
+            console.warn(`   ⚠️ AI vrátila ${concepts.length}/${count} položek — doplňuji...`)
+
+            // Retry for missing items
+            const missing = count - concepts.length
+            const missingTypes = typeSequence.slice(concepts.length, count)
+            const existingHooks = concepts.map(c => c.hookPreview)
+
+            const fillPrompt = `Jsi content planner pro "${config.name}". Potřebuji ${missing} dalších postů.
+
+${topHooksSection}
+## EXISTUJÍCÍ HOOKY (neduplikuj):
+${existingHooks.map(h => `- "${h}"`).join("\n")}
+
+## TYPY POSTŮ:
+${missingTypes.map((t, i) => {
+    const pt = ptMap.get(t)
+    const pillar = getPillarForType(config, t)
+    return `${i + 1}. Typ: "${t}" (${pt?.display_name || t}) | Pilíř: ${pillar}`
+}).join("\n")}
+
+Vrať POUZE JSON pole (${missing} položek):
+[{ "hookPreview": "...", "angle": "...", "topic": "...", "qualityScore": 8 }]`
+
+            try {
+                const fillRaw = await generateText(fillPrompt, { model: "gemini-3.5-flash" })
+                const fillMatch = fillRaw.match(/\[[\s\S]*\]/)
+                if (fillMatch) {
+                    const fillConcepts = JSON.parse(fillMatch[0])
+                    concepts.push(...fillConcepts)
+                    console.log(`   ✅ Doplněno ${fillConcepts.length} položek (celkem ${concepts.length}/${count})`)
+                }
+            } catch {
+                console.warn("   ⚠️ Fill retry failed — doplňuji generické")
+            }
+
+            // Final fallback: pad with generic items if still short
+            while (concepts.length < count) {
+                const idx = concepts.length
+                const typeName = typeSequence[idx % typeSequence.length]
+                const pt = ptMap.get(typeName)
+                concepts.push({
+                    hookPreview: pt?.display_name || typeName,
+                    angle: "Automaticky doplněný post",
+                    topic: typeName,
+                    qualityScore: 5,
+                })
+            }
+        }
+
         // Build plan items with metadata
         const plan: ContentPlanItem[] = typeSequence.slice(0, count).map((typeName, i) => {
             const pt = ptMap.get(typeName)

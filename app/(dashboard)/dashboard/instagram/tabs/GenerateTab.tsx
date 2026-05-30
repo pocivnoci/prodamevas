@@ -36,6 +36,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const [customImageFile, setCustomImageFile] = useState<File | null>(null)
     const [generating, setGenerating] = useState(false)
     const [agentStatus, setAgentStatus] = useState<{ stage: string; progress: number; message: string } | null>(null)
+    const [editorialLog, setEditorialLog] = useState<{ role: string; action: string; summary: string }[]>([])
     const [result, setResult] = useState<GenerateResult | null>(null)
     const [batchCount, setBatchCount] = useState(3)
     const [batchMode, setBatchMode] = useState(false)
@@ -141,6 +142,10 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                             message: status.agentMessage,
                         })
                     }
+                    // Capture editorial conversation log
+                    if (status.editorialLog?.length > 0) {
+                        setEditorialLog(status.editorialLog)
+                    }
                 } catch { /* ignore polling errors */ }
 
                 await new Promise(r => setTimeout(r, 2000))
@@ -172,6 +177,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         setBatchResult(null)
         setBatchProgress(null)
         setCreditError(null)
+        setEditorialLog([])
 
         const maxClientRetries = 1
 
@@ -968,6 +974,32 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         <p className="text-[11px] text-white/70 font-bold tracking-wide text-center">
                                             {agentStatus.message}
                                         </p>
+                                    </div>
+                                )}
+                                {/* Editorial conversation log */}
+                                {editorialLog.length > 0 && (
+                                    <div className="relative z-10 w-full max-w-md mt-4">
+                                        <div className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2 text-center">Konverzace agentů</div>
+                                        <div className="bg-[#050505] border border-white/10 rounded-sm p-3 max-h-40 overflow-y-auto space-y-1.5">
+                                            {editorialLog.map((msg, i) => {
+                                                const roleEmoji = { strategist: "📊", copywriter: "✍️", critic: "🔍", chief_editor: "🎖️" }[msg.role] || "💬"
+                                                const roleLabel = { strategist: "Stratég", copywriter: "Copywriter", critic: "Kritik", chief_editor: "Šéfredaktor" }[msg.role] || msg.role
+                                                const actionColor = msg.action === "approve" ? "text-emerald-400"
+                                                    : msg.action === "revise" ? "text-amber-400"
+                                                    : msg.action === "pushback" ? "text-purple-400"
+                                                    : msg.action === "reject" ? "text-red-400"
+                                                    : "text-white/50"
+                                                return (
+                                                    <div key={i} className="flex items-start gap-2">
+                                                        <span className="text-xs flex-shrink-0">{roleEmoji}</span>
+                                                        <div className="min-w-0">
+                                                            <span className={`text-[9px] font-bold uppercase tracking-widest ${actionColor}`}>{roleLabel}</span>
+                                                            <p className="text-[10px] text-white/60 leading-snug truncate">{msg.summary}</p>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
                                     </div>
                                 )}
                                 {batchProgress && (
