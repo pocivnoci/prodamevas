@@ -162,6 +162,19 @@ export function GenerateTab({ projectId }: { projectId: string }) {
             if (!result.ok || !data.success) {
                 return { success: false, error: data.error || "Generování selhalo" }
             }
+
+            // Final fetch of editorial log — ensures we always have it
+            // (polling might miss it if editorial review was fast)
+            if (jobIdRef.current) {
+                try {
+                    const finalStatus = await fetch(`/api/ig-job-status?id=${jobIdRef.current}`)
+                    const finalData = await finalStatus.json()
+                    if (finalData.editorialLog?.length > 0) {
+                        setEditorialLog(finalData.editorialLog)
+                    }
+                } catch { /* non-fatal */ }
+            }
+
             return data
 
         } catch (err: any) {
@@ -1066,7 +1079,48 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                             </div>
                                         )}
 
-                                        {/* Action buttons */}
+                                        {/* Editorial Review Log — "omáčka" for the client */}
+                                        {editorialLog.length > 0 && (
+                                            <div className="mt-6 pt-5 border-t border-white/5">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest">Kontrola kvality</span>
+                                                    <span className="text-[8px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400/70 rounded-sm font-bold uppercase tracking-widest border border-emerald-500/10">
+                                                        {editorialLog.some(m => m.action === "approve") ? "Schváleno" : "Dokončeno"}
+                                                    </span>
+                                                </div>
+                                                <div className="bg-[#080808] border border-white/5 rounded-sm p-3 space-y-2">
+                                                    {editorialLog.map((msg, i) => {
+                                                        const roleEmoji = { strategist: "📊", copywriter: "✍️", critic: "🔍", chief_editor: "🎖️" }[msg.role] || "💬"
+                                                        const roleLabel = { strategist: "Stratég", copywriter: "Copywriter", critic: "Kritik", chief_editor: "Šéfredaktor" }[msg.role] || msg.role
+                                                        const actionColor = msg.action === "approve" ? "text-emerald-400"
+                                                            : msg.action === "revise" ? "text-amber-400"
+                                                            : msg.action === "pushback" ? "text-purple-400"
+                                                            : msg.action === "reject" ? "text-red-400"
+                                                            : msg.action === "fix" ? "text-sky-400"
+                                                            : "text-white/40"
+                                                        const actionLabel = msg.action === "approve" ? "schválil"
+                                                            : msg.action === "revise" ? "vrátil k úpravě"
+                                                            : msg.action === "pushback" ? "nesouhlasí"
+                                                            : msg.action === "reject" ? "zamítl"
+                                                            : msg.action === "fix" ? "opravil"
+                                                            : msg.action === "propose" ? "navrhl"
+                                                            : msg.action
+                                                        return (
+                                                            <div key={i} className="flex items-start gap-2 py-1">
+                                                                <span className="text-xs flex-shrink-0 mt-0.5">{roleEmoji}</span>
+                                                                <div className="min-w-0 flex-1">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="text-[9px] font-bold uppercase tracking-widest text-white/50">{roleLabel}</span>
+                                                                        <span className={`text-[8px] font-bold uppercase tracking-widest ${actionColor}`}>{actionLabel}</span>
+                                                                    </div>
+                                                                    <p className="text-[10px] text-white/40 leading-snug mt-0.5">{msg.summary}</p>
+                                                                </div>
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
                                         <div className="flex items-center justify-center gap-3 pt-6 mt-6 border-t border-white/10">
                                             <button
                                                 onClick={() => setActiveSection("posts")}

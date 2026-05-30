@@ -1,7 +1,7 @@
 "use server"
 
 import supabaseAdmin from "@/supabase/admin"
-import { requireAuth } from "@/lib/auth-guard"
+import { requireAuth, requireProjectAccess } from "@/lib/auth-guard"
 
 // ─── Plan Week ──────────────────────────────────────────
 
@@ -16,10 +16,9 @@ export async function planWeekAction(
     error?: string
 }> {
     try {
-        await requireAuth()
-        const { resolveClientId, loadConfig } = await import("@/instagram/configs")
+        const { clientId } = await requireProjectAccess(projectSlug)
+        const { loadConfig } = await import("@/instagram/configs")
         const config = await loadConfig(projectSlug)
-        const clientId = await resolveClientId(projectSlug)
 
         const { setActiveProject } = await import("@/instagram/service")
         setActiveProject(clientId)
@@ -108,9 +107,7 @@ export async function getWeekPosts(
     }[]
 }> {
     try {
-        await requireAuth()
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         const startDate = new Date(weekStartISO)
         const endDate = new Date(startDate)

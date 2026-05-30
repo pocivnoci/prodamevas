@@ -1,7 +1,7 @@
 "use server"
 
 import supabaseAdmin from "@/supabase/admin"
-import { requireAuth } from "@/lib/auth-guard"
+import { requireProjectAccess } from "@/lib/auth-guard"
 import {
     generateProductIdeas,
     generateDesignConcept,
@@ -10,7 +10,7 @@ import {
     type ProductIdea,
     type DesignConcept
 } from "@/instagram/product-generator"
-import { loadConfig, resolveClientId } from "@/instagram/configs"
+import { loadConfig } from "@/instagram/configs"
 import { setActiveProject } from "@/instagram/service"
 
 export { type ProductIdea, type DesignConcept }
@@ -28,8 +28,8 @@ export async function triggerProductIdeas(options: {
     theme?: string
 }): Promise<{ success: boolean; ideas?: ProductIdea[]; error?: string }> {
     try {
+        const { clientId } = await requireProjectAccess(options.configName)
         const config = await loadConfig(options.configName)
-        const clientId = await resolveClientId(options.configName)
 
         // Credit check
         const guard = await creditGuard(options.configName, "product_ideas")
@@ -68,8 +68,8 @@ export async function triggerDesignGeneration(options: {
         const guard = await creditGuard(options.configName, "product_design")
         if (!guard.ok) return { success: false, error: guard.error }
 
+        const { clientId } = await requireProjectAccess(options.configName)
         const config = await loadConfig(options.configName)
-        const clientId = await resolveClientId(options.configName)
         setActiveProject(clientId)
         const result = await withRetry(
             () => generateDesignConcept(config, options.theme, options.productType || "triko", {
@@ -117,8 +117,8 @@ export async function triggerMockupGeneration(options: {
         const guard = await creditGuard(options.configName, "product_mockup")
         if (!guard.ok) return { success: false, error: guard.error }
 
+        const { clientId } = await requireProjectAccess(options.configName)
         const config = await loadConfig(options.configName)
-        const clientId = await resolveClientId(options.configName)
         setActiveProject(clientId)
         const result = await withRetry(
             () => generateProductMockup(
@@ -166,8 +166,8 @@ export async function triggerProductDesign(options: {
         const guard = await creditGuard(options.configName, "product_design")
         if (!guard.ok) return { success: false, error: guard.error }
 
+        const { clientId } = await requireProjectAccess(options.configName)
         const config = await loadConfig(options.configName)
-        const clientId = await resolveClientId(options.configName)
         setActiveProject(clientId)
         const result = await withRetry(
             () => generateProductDesign(config, options.idea, options.referenceImageUrl),
@@ -208,8 +208,8 @@ export async function triggerCustomProductDesign(options: {
         const guard = await creditGuard(options.configName, "product_design")
         if (!guard.ok) return { success: false, error: guard.error }
 
+        const { clientId } = await requireProjectAccess(options.configName)
         const config = await loadConfig(options.configName)
-        const clientId = await resolveClientId(options.configName)
         setActiveProject(clientId)
 
         const customIdea: ProductIdea = {
@@ -255,7 +255,7 @@ export async function triggerCustomProductDesign(options: {
 
 export async function saveProductIdea(configName: string, idea: Omit<ProductIdea, "id" | "client_id" | "created_at">, designUrl?: string): Promise<{ success: boolean; error?: string }> {
     try {
-        const clientId = await resolveClientId(configName)
+        const { clientId } = await requireProjectAccess(configName)
 
         const { error } = await supabaseAdmin
             .from("ig_product_ideas")
@@ -290,7 +290,7 @@ export async function saveProductIdea(configName: string, idea: Omit<ProductIdea
 
 export async function rejectProductIdea(configName: string, idea: Omit<ProductIdea, "id" | "client_id" | "created_at">): Promise<{ success: boolean; error?: string }> {
     try {
-        const clientId = await resolveClientId(configName)
+        const { clientId } = await requireProjectAccess(configName)
 
         const { error } = await supabaseAdmin
             .from("ig_product_ideas")
@@ -366,8 +366,7 @@ export async function uploadProductReference(
 
 export async function getSavedProductIdeas(projectId: string): Promise<ProductIdea[]> {
     try {
-        await requireAuth()
-        const clientId = await resolveClientId(projectId)
+        const { clientId } = await requireProjectAccess(projectId)
 
         const { data, error } = await supabaseAdmin
             .from("ig_product_ideas")

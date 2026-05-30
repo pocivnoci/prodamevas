@@ -22,6 +22,20 @@ export type StudioSection =
     | "brain"
     | "faq"
 
+const VALID_SECTIONS: StudioSection[] = [
+    "dashboard", "posts", "calendar", "feed", "plan", "generate",
+    "ideas", "reviews", "inspiration", "brand", "products",
+    "performance", "settings", "onboard", "waitlist", "brain", "faq",
+]
+
+function getInitialSection(): StudioSection {
+    if (typeof window === "undefined") return "dashboard"
+    const hash = window.location.hash.slice(1)
+    return VALID_SECTIONS.includes(hash as StudioSection)
+        ? (hash as StudioSection)
+        : "dashboard"
+}
+
 export interface SubscriptionState {
     planId: string
     planName: string
@@ -63,14 +77,27 @@ const StudioContext = createContext<StudioState>({
 })
 
 export function StudioProvider({ children }: { children: ReactNode }) {
-    const [activeSection, setActiveSectionRaw] = useState<StudioSection>("dashboard")
+    const [activeSection, setActiveSectionRaw] = useState<StudioSection>(getInitialSection)
     const setActiveSection = useCallback((s: StudioSection) => {
         setActiveSectionRaw(s)
+        window.history.pushState(null, "", `#${s}`)
         trackEvent('tab_viewed', { tab_name: s })
     }, [])
     const [projectId, setProjectId] = useState("")
     const [subscription, setSubscription] = useState<SubscriptionState | null>(null)
     const [subscriptionLoading, setSubscriptionLoading] = useState(true)
+
+    // Browser back/forward navigation
+    useEffect(() => {
+        const handler = () => {
+            const hash = window.location.hash.slice(1)
+            if (VALID_SECTIONS.includes(hash as StudioSection)) {
+                setActiveSectionRaw(hash as StudioSection)
+            }
+        }
+        window.addEventListener("popstate", handler)
+        return () => window.removeEventListener("popstate", handler)
+    }, [])
 
     const refreshSubscription = useCallback(async () => {
         if (!projectId) return

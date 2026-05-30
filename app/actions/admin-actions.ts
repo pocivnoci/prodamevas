@@ -1,6 +1,7 @@
 "use server"
 
 import supabaseAdmin from "@/supabase/admin"
+import { requireProjectAccess } from "@/lib/auth-guard"
 
 // ─── Instagram Actions ───────────────────────────────────────────────
 
@@ -30,8 +31,7 @@ function computeQuickMetrics(posts: any[]) {
 
 export async function getDashboardStats(projectSlug: string) {
     try {
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         // Post counts by status (last 200 for accurate totals)
         const { data: posts } = await supabaseAdmin
@@ -163,8 +163,7 @@ export async function getIGPostsList(
     pageSize: number = 15
 ): Promise<{ posts: any[]; total: number; hasMore: boolean }> {
     try {
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         // Count total for pagination
         let countQuery = supabaseAdmin
@@ -214,8 +213,7 @@ export async function getIGPostsList(
 
 export async function getIGIdeasList(projectSlug: string = "mobilnamiru"): Promise<any[]> {
     try {
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         const { data, error } = await supabaseAdmin
             .from("ig_post_ideas")
@@ -236,8 +234,7 @@ export async function getIGIdeasList(projectSlug: string = "mobilnamiru"): Promi
 
 export async function getIGReviewsList(projectSlug: string = "mobilnamiru"): Promise<any[]> {
     try {
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         const { data, error } = await supabaseAdmin
             .from("ig_reviews")
@@ -349,8 +346,7 @@ export async function getIGCategories(configName: string): Promise<{ id: string;
 
 export async function getIGGenerationLogs(limit = 50, projectSlug: string = "mobilnamiru"): Promise<any[]> {
     try {
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         const { data, error } = await supabaseAdmin
             .from("ig_generation_log")
@@ -501,9 +497,9 @@ export async function updateIGPostMetrics(
 
 export async function getPerformanceInsights(projectSlug: string = "mobilnamiru") {
     try {
-        const { resolveClientId, loadConfig } = await import("@/instagram/configs")
+        const { clientId } = await requireProjectAccess(projectSlug)
+        const { loadConfig } = await import("@/instagram/configs")
         const config = await loadConfig(projectSlug)
-        const clientId = await resolveClientId(projectSlug)
 
         // Set active project for performance.ts queries
         const { setActiveProject } = await import("@/instagram/service")
@@ -564,6 +560,7 @@ export async function getPerformanceInsights(projectSlug: string = "mobilnamiru"
 
 export async function getClientConfig(projectSlug: string): Promise<any> {
     try {
+        await requireProjectAccess(projectSlug)
         const { loadConfig } = await import("@/instagram/configs")
         // Always fetch fresh from DB — Settings tab must show latest data
         const config = await loadConfig(projectSlug, true)
@@ -578,8 +575,7 @@ export async function getClientConfig(projectSlug: string): Promise<any> {
 
 export async function updateClientConfig(projectSlug: string, partialConfig: any): Promise<{ success: boolean; error?: string }> {
     try {
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         // Fetch current config from DB directly
         const { data: client, error: fetchErr } = await supabaseAdmin
@@ -644,8 +640,7 @@ export async function uploadClientLogo(
     formData: FormData
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         const file = formData.get("file") as File
         if (!file || !file.type.startsWith("image/")) {
@@ -702,8 +697,7 @@ export async function rescanClientWebsite(
     projectSlug: string
 ): Promise<{ success: boolean; newImages: number; existingImages: number; foundUrls: number; error?: string }> {
     try {
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         // Get current config
         const { data: client } = await supabaseAdmin
@@ -889,8 +883,7 @@ export async function deleteIGPost(
     projectSlug: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         // Get post to find image URL for cleanup
         const { data: post } = await supabaseAdmin
@@ -938,8 +931,7 @@ export async function deleteIGPosts(
 ): Promise<{ success: boolean; deleted: number; error?: string }> {
     try {
         if (!postIds.length) return { success: true, deleted: 0 }
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         // Get posts for image cleanup
         const { data: posts } = await supabaseAdmin
@@ -987,8 +979,7 @@ export async function deleteClient(
     projectSlug: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         // 1. Delete all IG posts for this client
         await supabaseAdmin
@@ -1049,9 +1040,8 @@ export async function revisePost(
         if (fetchErr || !original) throw new Error("Post nenalezen")
 
         // 2. Load client config for brand voice
-        const { resolveClientId } = await import("@/instagram/configs")
+        const { clientId } = await requireProjectAccess(projectSlug)
         const { ai } = await import("@/instagram/gemini-client")
-        const clientId = await resolveClientId(projectSlug)
 
         const { data: clientData } = await supabaseAdmin
             .from("clients")
@@ -1274,8 +1264,7 @@ PRAVIDLA PRO VARIANTU:
         // 4. Generate via autopilot
         const { generateOnePost } = await import("@/instagram/autopilot")
         const { setActiveProject } = await import("@/instagram/service")
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
         setActiveProject(clientId)
 
         const result = await generateOnePost({
@@ -1329,14 +1318,13 @@ export async function generateContentPlan(
     category?: string
 ): Promise<{ success: boolean; plan?: ContentPlanItem[]; error?: string }> {
     try {
-        const { resolveClientId } = await import("@/instagram/configs")
+        const { clientId } = await requireProjectAccess(projectSlug)
         const { loadConfig } = await import("@/instagram/configs")
         const { buildSmartWeekPlan } = await import("@/instagram/caption-generator")
         const { analyzePerformance } = await import("@/instagram/performance")
         const { setActiveProject, createPillarMapper, getPillarForType } = await import("@/instagram/service")
 
         const config = await loadConfig(projectSlug)
-        const clientId = await resolveClientId(projectSlug)
         setActiveProject(clientId)
 
         // Get strategic post type sequence
@@ -1681,8 +1669,7 @@ Vrať POUZE validní JSON:
 
 export async function getProducts(projectSlug: string): Promise<any[]> {
     try {
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         const { data, error } = await supabaseAdmin
             .from("ig_products")
@@ -1706,8 +1693,7 @@ export async function createProduct(
     product: { name: string; type?: string; slug: string; price?: string; description?: string; variants?: number }
 ): Promise<{ success: boolean; product?: any; error?: string }> {
     try {
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         const { data, error } = await supabaseAdmin
             .from("ig_products")
@@ -1738,8 +1724,7 @@ export async function updateProduct(
     updates: { name?: string; type?: string; slug?: string; price?: string; description?: string; variants?: number }
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         const { error } = await supabaseAdmin
             .from("ig_products")
@@ -1763,8 +1748,7 @@ export async function deleteProduct(
     projectSlug: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         // Delete product images from storage
         const { data: product } = await supabaseAdmin
@@ -1805,8 +1789,7 @@ export async function deleteProducts(
 ): Promise<{ success: boolean; deleted: number; error?: string }> {
     try {
         if (!productIds.length) return { success: true, deleted: 0 }
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         // Get slugs for storage cleanup
         const { data: products } = await supabaseAdmin
@@ -1852,8 +1835,7 @@ export async function uploadProductImage(
     formData: FormData
 ): Promise<{ success: boolean; publicUrl?: string; error?: string }> {
     try {
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         const file = formData.get("file") as File
         if (!file || !file.type.startsWith("image/")) {
@@ -1984,8 +1966,7 @@ export async function scrapeProductsFromWebsite(
     projectSlug: string
 ): Promise<{ success: boolean; found: number; inserted: number; images: number; error?: string }> {
     try {
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         // Get website URL from config
         const config = await getClientConfig(projectSlug)
@@ -2281,8 +2262,7 @@ export async function getBrandMemoriesList(projectSlug: string): Promise<{
     memories: { id: string; memory_type: string; content: string; confidence: number; times_confirmed: number; source_post_ids: string[]; created_at: string; updated_at?: string }[]
 }> {
     try {
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         const { data, error } = await supabaseAdmin
             .from("ig_brand_memory")
@@ -2303,8 +2283,7 @@ export async function createBrandMemory(
     data: { memory_type: string; content: string; confidence: number }
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         const { error } = await supabaseAdmin
             .from("ig_brand_memory")

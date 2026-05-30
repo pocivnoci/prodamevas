@@ -11,8 +11,8 @@
 
 import { generateOnePost, generateBatch } from "@/instagram/autopilot"
 import supabaseAdmin from "@/supabase/admin"
-import { loadConfig, resolveClientId } from "@/instagram/configs"
-import { requireAuth } from "@/lib/auth-guard"
+import { loadConfig } from "@/instagram/configs"
+import { requireAuth, requireProjectAccess } from "@/lib/auth-guard"
 
 
 
@@ -108,9 +108,7 @@ export async function addNewIdea(data: {
     projectId: string
 }): Promise<{ success: boolean; error?: string }> {
     try {
-        await requireAuth()
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(data.projectId)
+        const { clientId } = await requireProjectAccess(data.projectId)
 
         const { error } = await supabaseAdmin.from("ig_post_ideas").insert({
             title: data.title,
@@ -134,9 +132,7 @@ export async function addNewReview(data: {
     projectId: string
 }): Promise<{ success: boolean; error?: string }> {
     try {
-        await requireAuth()
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(data.projectId)
+        const { clientId } = await requireProjectAccess(data.projectId)
 
         const { error } = await supabaseAdmin.from("ig_reviews").insert({
             quote: data.quote,
@@ -238,9 +234,8 @@ export async function createPromoPost(options: {
     designUrl: string
 }): Promise<{ success: boolean; postId?: string; caption?: string; error?: string }> {
     try {
-        await requireAuth()
+        const { clientId } = await requireProjectAccess(options.configName)
         const config = await loadConfig(options.configName)
-        const clientId = await resolveClientId(options.configName)
         setActiveProject(clientId)
 
         // 1. Gemini generates a promo caption
@@ -410,9 +405,8 @@ export async function generateMonthlyPlan(options: {
     projectId: string
 }): Promise<{ success: boolean; postsCreated: number; error?: string }> {
     try {
-        await requireAuth()
+        const { clientId } = await requireProjectAccess(options.configName)
         const config = await loadConfig(options.configName)
-        const clientId = await resolveClientId(options.configName)
 
         // Check if plan was already generated this month
         const { data: sub } = await supabaseAdmin

@@ -64,6 +64,42 @@ const ADMIN_GROUP: NavGroup = {
     ],
 }
 
+// Extracted to eliminate 3x copy-paste
+function NavButton({ item, active, onSelect }: {
+    item: NavItem
+    active: boolean
+    onSelect: () => void
+}) {
+    return (
+        <button
+            key={item.id}
+            onClick={onSelect}
+            className={`group relative flex items-center gap-3 w-full px-3 py-2.5 rounded-sm text-[11px] font-bold uppercase tracking-wider transition-all duration-200 overflow-hidden ${
+                active
+                    ? "text-white"
+                    : "text-white/40 hover:text-white/70"
+            }`}
+        >
+            {active && (
+                <motion.div
+                    layoutId="sidebarActive"
+                    className="absolute inset-0 bg-white/8 border border-white/10 rounded-sm"
+                    initial={false}
+                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                />
+            )}
+            {!active && (
+                <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-sm" />
+            )}
+            <span className={`relative z-10 text-base transition-transform duration-200 ${active ? "scale-110" : "group-hover:scale-105 opacity-60 group-hover:opacity-100"}`}>{item.icon}</span>
+            <span className="relative z-10">{item.label}</span>
+            {active && (
+                <div className="relative z-10 ml-auto w-1.5 h-1.5 bg-aisummit-cinnabar rounded-full shadow-[0_0_6px_rgba(229,83,63,0.6)]" />
+            )}
+        </button>
+    )
+}
+
 export function AdminSidebar() {
     const pathname = usePathname()
     const [open, setOpen] = useState(false)
@@ -173,40 +209,14 @@ export function AdminSidebar() {
                                 <p className="text-[8px] text-white/25 font-bold uppercase tracking-[0.25em] px-3 mb-1.5">{group.label}</p>
                             )}
                             <div className="space-y-0.5">
-                                {group.items.map(item => {
-                                    const active = activeSection === item.id
-                                    return (
-                                        <button
-                                            key={item.id}
-                                            onClick={() => {
-                                                setActiveSection(item.id)
-                                                setOpen(false)
-                                            }}
-                                            className={`group relative flex items-center gap-3 w-full px-3 py-2.5 rounded-sm text-[11px] font-bold uppercase tracking-wider transition-all duration-200 overflow-hidden ${
-                                                active
-                                                    ? "text-white"
-                                                    : "text-white/40 hover:text-white/70"
-                                            }`}
-                                        >
-                                            {active && (
-                                                <motion.div
-                                                    layoutId="sidebarActive"
-                                                    className="absolute inset-0 bg-white/8 border border-white/10 rounded-sm"
-                                                    initial={false}
-                                                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                                                />
-                                            )}
-                                            {!active && (
-                                                <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-sm" />
-                                            )}
-                                            <span className={`relative z-10 text-base transition-transform duration-200 ${active ? "scale-110" : "group-hover:scale-105 opacity-60 group-hover:opacity-100"}`}>{item.icon}</span>
-                                            <span className="relative z-10">{item.label}</span>
-                                            {active && (
-                                                <div className="relative z-10 ml-auto w-1.5 h-1.5 bg-aisummit-cinnabar rounded-full shadow-[0_0_6px_rgba(229,83,63,0.6)]" />
-                                            )}
-                                        </button>
-                                    )
-                                })}
+                                {group.items.map(item => (
+                                    <NavButton
+                                        key={item.id}
+                                        item={item}
+                                        active={activeSection === item.id}
+                                        onSelect={() => { setActiveSection(item.id); setOpen(false) }}
+                                    />
+                                ))}
                             </div>
                         </div>
                     ))}
@@ -215,40 +225,14 @@ export function AdminSidebar() {
                     <div>
                         <p className="text-[8px] text-white/25 font-bold uppercase tracking-[0.25em] px-3 mb-1.5">{ADMIN_GROUP.label}</p>
                         <div className="space-y-0.5">
-                            {ADMIN_GROUP.items.map(item => {
-                                const active = activeSection === item.id
-                                return (
-                                    <button
-                                        key={item.id}
-                                        onClick={() => {
-                                            setActiveSection(item.id)
-                                            setOpen(false)
-                                        }}
-                                        className={`group relative flex items-center gap-3 w-full px-3 py-2.5 rounded-sm text-[11px] font-bold uppercase tracking-wider transition-all duration-200 overflow-hidden ${
-                                            active
-                                                ? "text-white"
-                                                : "text-white/40 hover:text-white/70"
-                                        }`}
-                                    >
-                                        {active && (
-                                            <motion.div
-                                                layoutId="sidebarActive"
-                                                className="absolute inset-0 bg-white/8 border border-white/10 rounded-sm"
-                                                initial={false}
-                                                transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                                            />
-                                        )}
-                                        {!active && (
-                                            <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-sm" />
-                                        )}
-                                        <span className={`relative z-10 text-base transition-transform duration-200 ${active ? "scale-110" : "group-hover:scale-105 opacity-60 group-hover:opacity-100"}`}>{item.icon}</span>
-                                        <span className="relative z-10">{item.label}</span>
-                                        {active && (
-                                            <div className="relative z-10 ml-auto w-1.5 h-1.5 bg-aisummit-cinnabar rounded-full shadow-[0_0_6px_rgba(229,83,63,0.6)]" />
-                                        )}
-                                    </button>
-                                )
-                            })}
+                            {ADMIN_GROUP.items.map(item => (
+                                <NavButton
+                                    key={item.id}
+                                    item={item}
+                                    active={activeSection === item.id}
+                                    onSelect={() => { setActiveSection(item.id); setOpen(false) }}
+                                />
+                            ))}
                         </div>
                     </div>
                 </nav>
@@ -322,28 +306,11 @@ export function AdminSidebar() {
 
                 {/* Bottom: Settings + Logout */}
                 <div className="px-3 py-3 border-t border-white/5 space-y-0.5">
-                    <button
-                        onClick={() => {
-                            setActiveSection("settings")
-                            setOpen(false)
-                        }}
-                        className={`group relative flex items-center gap-3 w-full px-3 py-2.5 rounded-sm text-[11px] font-bold uppercase tracking-wider transition-all ${
-                            activeSection === "settings"
-                                ? "text-white"
-                                : "text-white/40 hover:text-white/70"
-                        }`}
-                    >
-                        {activeSection === "settings" && (
-                            <motion.div
-                                layoutId="sidebarActive"
-                                className="absolute inset-0 bg-white/8 border border-white/10 rounded-sm"
-                                initial={false}
-                                transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                            />
-                        )}
-                        <span className="relative z-10 text-base">⚙️</span>
-                        <span className="relative z-10">Nastavení</span>
-                    </button>
+                    <NavButton
+                        item={{ id: "settings", label: "Nastavení", icon: "⚙️" }}
+                        active={activeSection === "settings"}
+                        onSelect={() => { setActiveSection("settings"); setOpen(false) }}
+                    />
 
                     <button
                         onClick={() => window.location.reload()}
