@@ -65,7 +65,7 @@ import {
 import { refineImagePrompt, refineCarouselPrompts, refineVideoPrompt } from "./image-pipeline"
 import { processReelVideo, scenesToSubtitles } from "./video-processor"
 import { getBrandMemories, formatMemoriesForPrompt } from "./memory-agent"
-import { reviewPost, reviewContentPlan } from "./editorial-board"
+import { reviewPost, reviewContentPlan, reviewOverlayComposition } from "./editorial-board"
 import type { EditorialMessage } from "./types"
 
 // Active client config (set from --config flag or ensureConfig)
@@ -727,6 +727,37 @@ export async function generateOnePost(options: {
                                 accentWords: i === 0 ? captionData.accentWords : undefined,
                             })
                             console.log(`   ✓ Text overlay ${i + 1}`)
+
+                            // Vision check on COVER slide only (saves cost)
+                            if (i === 0) {
+                                const coverCheck = await reviewOverlayComposition(finalImage, "cover", slide.headline)
+                                cost += COSTS.textGeneration
+                                if (!coverCheck.ok && coverCheck.issues.length > 0) {
+                                    console.log(`   ⚠️ Cover overlay: ${coverCheck.issues.join(", ")}`)
+                                    try {
+                                        const fixHint = coverCheck.compositionHint ? `\nCOMPOSITION: ${coverCheck.compositionHint}. Leave BOTTOM area clear for text.` : ""
+                                        const coverRetry = await generateImage((refinedPrompts[0] || slide.imagePrompt) + fixHint + " NO TEXT.", { aspectRatio: format.aspectRatio as any })
+                                        cost += COSTS.imageGeneration
+                                        finalImage = await overlayText(coverRetry, {
+                                            headline: slide.headline, subtext: slide.subtext,
+                                            slideInfo: { current: 1, total: allSlides.length },
+                                            variant: "cover",
+                                            textAlign: config.feedAesthetic?.textAlign,
+                                            headlineScale: config.feedAesthetic?.headlineScale,
+                                            gradientColors: config.overlayGradient,
+                                            logoFile: config.logoFile,
+                                            fontFamily: config.feedAesthetic?.fontOverride,
+                                            accentColor: config.feedAesthetic?.accentColor,
+                                            accentWords: captionData.accentWords,
+                                        })
+                                        console.log(`   ✓ Cover retry OK`)
+                                    } catch (retryErr: any) {
+                                        console.warn(`   ⚠️ Cover retry failed: ${retryErr?.message?.substring(0, 60)}`)
+                                    }
+                                } else {
+                                    console.log(`   ✅ Cover kompozice OK`)
+                                }
+                            }
                         }
 
                         console.log("🗜️ Komprimuji obrázek před uploadem (PNG -> WebP)...")
@@ -788,7 +819,9 @@ export async function generateOnePost(options: {
                 config,
                 captionData as { imagePrompt: string; hook: string; imageSubtext?: string },
                 selectedType.name,
-                bodySnippet
+                bodySnippet,
+                undefined,
+                format.overlayStyle, // overlay variant → Art Director composes for negative space
             )
             cost += COSTS.promptRefinement
             // Hard enforce: Imagen/Gemini must NEVER render text in the background image
@@ -1075,6 +1108,52 @@ CRITICAL RULES:
                         accentWords: captionData.accentWords,
                     })
                     console.log(`   ✓ Text overlay (${(finalImage.length / 1024).toFixed(0)} KB)`)
+
+                    // Step 3b: Vision check — does text cover face/product?
+                    await report("chief_editor", 75, "👁️ Šéfredaktor kontroluje kompozici obrázku...")
+                    console.log("👁️ Vision check — kontrola overlay kompozice...")
+                    const overlayCheck = await reviewOverlayComposition(
+                        finalImage,
+                        format.overlayStyle || "default",
+                        captionData.hook,
+                    )
+                    cost += COSTS.textGeneration // vision check cost
+
+                    if (!overlayCheck.ok && overlayCheck.issues.length > 0) {
+                        console.log(`   ⚠️ Overlay problém: ${overlayCheck.issues.join(", ")}`)
+                        console.log(`   🔄 Regeneruji obrázek s lepší kompozicí...`)
+
+                        // Retry: add composition hint to prompt and regenerate
+                        const compositionFix = overlayCheck.compositionHint
+                            ? `\nCOMPOSITION FIX: ${overlayCheck.compositionHint}. Leave the ${format.overlayStyle === "top" || format.overlayStyle === "editorial" ? "top" : "bottom"} area COMPLETELY CLEAR for text overlay.`
+                            : ""
+                        const fixedPrompt = refinedPrompt + compositionFix
+
+                        try {
+                            const retryBuffer = await generateImage(fixedPrompt, { aspectRatio: format.aspectRatio as any })
+                            cost += COSTS.imageGeneration
+                            console.log(`   ✓ Retry obrázek (${(retryBuffer.length / 1024).toFixed(0)} KB)`)
+
+                            // Re-apply overlay on new image
+                            finalImage = await overlayText(retryBuffer, {
+                                headline: captionData.hook,
+                                subtext: captionData.imageSubtext,
+                                variant: (format.overlayStyle || "default") as any,
+                                textAlign: config.feedAesthetic?.textAlign,
+                                headlineScale: config.feedAesthetic?.headlineScale,
+                                gradientColors: config.overlayGradient,
+                                logoFile: config.logoFile,
+                                fontFamily: config.feedAesthetic?.fontOverride,
+                                accentColor: config.feedAesthetic?.accentColor,
+                                accentWords: captionData.accentWords,
+                            })
+                            console.log(`   ✓ Retry overlay (${(finalImage.length / 1024).toFixed(0)} KB)`)
+                        } catch (retryErr: any) {
+                            console.warn(`   ⚠️ Retry failed: ${retryErr?.message?.substring(0, 80)} — using original`)
+                        }
+                    } else {
+                        console.log(`   ✅ Overlay kompozice OK`)
+                    }
                 }
 
                 console.log("🗜️ Komprimuji obrázek před uploadem (PNG -> WebP)...")

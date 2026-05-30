@@ -85,7 +85,8 @@ export async function refineImagePrompt(
     captionData: { imagePrompt: string; hook: string; imageSubtext?: string },
     postType: string,
     bodyContext?: string,
-    visualMemoriesSection?: string
+    visualMemoriesSection?: string,
+    overlayVariant?: string,
 ): Promise<string> {
     // MEME EXCEPTION
     if (postType === "meme") {
@@ -149,6 +150,13 @@ Return ONLY a single detailed English image generation prompt (NO JSON).
 - When people appear: show authentic expression, gesture, interaction
 - When no people: make the composition visually striking and unexpected
 
+🖼️ COMPOSITION FOR TEXT OVERLAY — CRITICAL:
+Text will be overlaid on this image programmatically. The image must have CLEAR NEGATIVE SPACE (empty/uniform area) where the text will go.
+${overlayVariant === "top" || overlayVariant === "editorial" ? "- Text will be placed at the TOP of the image → keep the TOP 35% of the image relatively clean/blurred/dark — put the main subject in the LOWER HALF" : overlayVariant === "centered" || overlayVariant === "full-typo" ? "- Text will be placed in the CENTER of the image → composition should frame around the edges, with the CENTER area relatively empty or with a subtle, uniform background" : overlayVariant === "split" ? "- Text will be placed in the UPPER-CENTER and BOTTOM of the image → keep those areas with uniform/dark backgrounds — put the main subject to the LEFT or RIGHT side" : "- Text will be placed at the BOTTOM of the image → keep the BOTTOM 35% of the image relatively clean/blurred/dark — put the main subject in the UPPER HALF"}
+- NEVER place a face, product logo, or important detail where the text will go — it will be covered and unreadable
+- Use depth of field to blur the text area naturally
+- A dark gradient will be applied over the text area, so slightly darker tones there help readability
+
 The prompt should be 2-3 sentences.
 `
 
@@ -206,6 +214,12 @@ ${slideSummary}
 - ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY in any slide
 - NO signs, NO labels, NO overlays, NO captions, NO watermarks
 - Each image is a pure BACKGROUND PHOTO — text is added programmatically via overlay
+
+## 🖼️ COMPOSITION FOR TEXT OVERLAY:
+- Text will be overlaid at the BOTTOM of each slide. The BOTTOM 35% must have CLEAR NEGATIVE SPACE.
+- NEVER place faces, products, or important details in the bottom third — they will be covered by text.
+- Put the main subject in the UPPER HALF of the frame. Use depth of field to blur the bottom area naturally.
+- The COVER slide (first) has the largest text — it needs the MOST negative space at the bottom.
 
 ## OUTPUT:
 Return a JSON array of exactly ${allSlides.length} strings, each a detailed image prompt.

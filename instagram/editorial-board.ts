@@ -623,14 +623,34 @@ export async function reviewPost(
             postTypeName,
             allMessages,
         )
-        const revisionRaw = await generateText(revisionPrompt, { model: "gemini-3.5-flash" })
+        const copywriterRevisionSchema = {
+            type: "object",
+            properties: {
+                action: { type: "string", description: "fix or pushback" },
+                explanation: { type: "string", description: "What changed and why (max 2 sentences)" },
+                hook: { type: "string" },
+                body: { type: "string" },
+                cta: { type: "string" },
+                hashtags: { type: "array", items: { type: "string" } },
+                imagePrompt: { type: "string" },
+                imageSubtext: { type: "string" },
+            },
+            required: ["action", "explanation", "hook", "body", "cta", "hashtags"],
+        }
+        const revisionRaw = await generateText(revisionPrompt, {
+            model: "gemini-3.5-flash",
+            responseSchema: copywriterRevisionSchema,
+        })
         totalCost += COSTS.textGeneration
 
         let revision: any
         try {
+            // generateText with responseSchema returns clean JSON
             const jsonMatch = revisionRaw.match(/\{[\s\S]*\}/)
             revision = JSON.parse(jsonMatch?.[0] || revisionRaw)
-        } catch {
+        } catch (parseErr: any) {
+            console.warn(`   ⚠️ Copywriter revision parse error: ${parseErr?.message?.substring(0, 80)}`)
+            console.warn(`   ⚠️ Raw response (first 200 chars): ${revisionRaw.substring(0, 200)}`)
             revision = { action: "fix", explanation: "Parse failed — keeping current", ...currentCaption }
         }
 
@@ -674,5 +694,84 @@ export async function reviewPost(
         totalTokenCost: totalCost,
         approved: rounds[rounds.length - 1]?.verdict === "approved",
         finalScore: lastScore,
+    }
+}
+
+// ============================================
+// OVERLAY COMPOSITION CHECK — Vision-based
+// ============================================
+
+import { ai } from "./gemini-client"
+
+export interface OverlayCheckResult {
+    ok: boolean
+    issues: string[]
+    compositionHint?: string // instruction for image prompt if regeneration needed
+}
+
+/**
+ * Use Gemini Vision to check if the text overlay covers important elements.
+ * Returns ok:true if composition is acceptable, or issues + compositionHint for regen.
+ * Cost: ~$0.025 per check (flash vision is cheap).
+ */
+export async function reviewOverlayComposition(
+    finalImageBuffer: Buffer,
+    overlayVariant: string,
+    hookText: string,
+): Promise<OverlayCheckResult> {
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-3.5-flash",
+            contents: [
+                {
+                    role: "user",
+                    parts: [
+                        {
+                            inlineData: {
+                                mimeType: "image/png",
+                                data: finalImageBuffer.toString("base64"),
+                            },
+                        },
+                        {
+                            text: `You are a visual quality inspector for Instagram posts.
+
+This image has TEXT OVERLAY added on top. The overlay text says: "${hookText}"
+
+Check these CRITICAL issues:
+1. Does the text overlay COVER a human FACE? (partially or fully)
+2. Does the text overlay COVER a PRODUCT or brand logo that should be visible?
+3. Is the text UNREADABLE because the background behind it is too busy/light/similar color?
+4. Does the text cover any other important visual element that ruins the image?
+
+IMPORTANT: A gradient darkens the area behind the text — this is INTENTIONAL and OK.
+The text being at the ${overlayVariant === "top" || overlayVariant === "editorial" ? "top" : overlayVariant === "centered" ? "center" : "bottom"} of the image is INTENTIONAL.
+
+Return ONLY valid JSON:
+{
+  "ok": true/false,
+  "issues": ["list of specific problems, empty if ok"],
+  "compositionHint": "if NOT ok — describe where the main subject should be placed instead (e.g. 'put face/product in upper half, leave bottom clean') — empty string if ok"
+}`,
+                        },
+                    ],
+                },
+            ],
+            config: {
+                responseMimeType: "application/json",
+            } as any,
+        })
+
+        const text = response.candidates?.[0]?.content?.parts?.[0]?.text
+        if (!text) return { ok: true, issues: [] }
+
+        const parsed = JSON.parse(text.replace(/```(?:json)?/g, "").trim())
+        return {
+            ok: !!parsed.ok,
+            issues: parsed.issues || [],
+            compositionHint: parsed.compositionHint || undefined,
+        }
+    } catch (err: any) {
+        console.warn(`   ⚠️ Overlay vision check failed: ${err?.message?.substring(0, 80)}`)
+        return { ok: true, issues: [] } // Fail open — don't block on vision errors
     }
 }
