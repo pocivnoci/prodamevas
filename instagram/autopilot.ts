@@ -830,7 +830,7 @@ export async function generateOnePost(options: {
             console.log(`   ✓ Prompt refined`)
 
             try {
-                let imageBuffer: Buffer
+                let imageBuffer: Buffer | undefined = undefined
 
                 // Load reference images
                 const refImages: { buffer: Buffer; mimeType?: string; label?: string }[] = []
@@ -1023,15 +1023,65 @@ export async function generateOnePost(options: {
                     }
 
                     if (productImageLoaded) {
-                        refinedPrompt = `CRITICAL INSTRUCTION: One of the attached reference images shows the EXACT product "${randomProduct.name}". You MUST reproduce this product's design FAITHFULLY — same colors, same logo placement, same print/pattern. Do NOT invent new designs. The product must look IDENTICAL to the reference photo. ABSOLUTELY NEVER misspell, abbreviate, or distort any text visible on the product. If the product says "Zero Fucks Given", it MUST say exactly "Zero Fucks Given" — not "ZFKG", not "Zgarj", not any creative reinterpretation. Treat every letter on the reference as sacred ground truth. Show this exact product in the scene described below.\n\n${refinedPrompt}`
-                        console.log(`   📌 Product constraint: "${randomProduct.name}" — exact design enforced`)
+                        // Product has real photo → edit it INTO a scene (place on table, in hands, etc.)
+                        // but PRESERVE the exact product appearance
+                        const productRef = refImages.find(r => r.label?.includes("EXACT product photo"))
+                        if (productRef) {
+                            try {
+                                await report("rendering", 65, `🛍️ Umisťuji produkt do scény...`)
+                                const productEditPrompt = `You are given a photo of a real product: "${randomProduct.name}".
+
+YOUR TASK: Place this EXACT product into an attractive lifestyle scene based on this creative direction:
+${refinedPrompt}
+
+ABSOLUTE RULES:
+- The product in the output MUST look IDENTICAL to the input photo — same shape, same colors, same textures, same labels, same everything.
+- DO NOT regenerate, reimagine, or approximate the product. Copy it EXACTLY as it appears.
+- Place the product naturally into the scene: on a table, held by a hand, on a kitchen counter, in a café setting, etc.
+- Add beautiful environment around it: lighting, background, props, surfaces.
+- The result should look like a professional product photography shoot.
+- ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS anywhere in the image.
+- Photorealistic quality, editorial lighting, shallow depth of field.`
+
+                                const { editExistingImage } = await import("./gemini-client")
+                                imageBuffer = await editExistingImage(
+                                    productRef.buffer,
+                                    productEditPrompt,
+                                    {
+                                        mimeType: productRef.mimeType,
+                                        aspectRatio: format.aspectRatio,
+                                        resolution: "2K",
+                                    }
+                                )
+                                // Remove product ref so brand photo editing doesn't re-use it
+                                refImages.splice(refImages.indexOf(productRef), 1)
+                                console.log(`   📸 Product placed in scene via AI edit (${(imageBuffer.length / 1024).toFixed(0)} KB)`)
+                            } catch (editErr: any) {
+                                console.warn(`   ⚠️ Product scene edit failed: ${editErr.message?.substring(0, 100)}`)
+                                // Fallback: use product photo directly (resize only)
+                                const aspectMap: Record<string, { w: number; h: number }> = {
+                                    "1:1": { w: 1080, h: 1080 }, "4:5": { w: 1080, h: 1350 },
+                                    "3:4": { w: 1080, h: 1440 }, "9:16": { w: 1080, h: 1920 },
+                                }
+                                const target = aspectMap[format.aspectRatio] || { w: 1080, h: 1440 }
+                                imageBuffer = await sharp(productRef.buffer)
+                                    .resize(target.w, target.h, { fit: "cover", position: "centre" })
+                                    .jpeg({ quality: 95 })
+                                    .toBuffer()
+                                refImages.splice(refImages.indexOf(productRef), 1)
+                                console.log(`   📸 Fallback: using raw product photo (${target.w}×${target.h})`)
+                            }
+                        } else {
+                            refinedPrompt = `CRITICAL INSTRUCTION: One of the attached reference images shows the EXACT product "${randomProduct.name}". You MUST reproduce this product's design FAITHFULLY — same colors, same logo placement, same print/pattern. Do NOT invent new designs. The product must look IDENTICAL to the reference photo.\n\n${refinedPrompt}`
+                        }
+                        console.log(`   📌 Product: "${randomProduct.name}" — scene placement mode`)
                     }
                 }
                 // ─── IMAGE STRATEGY: Real photos first, generation as fallback ───
                 // If brand has reference photos → ALWAYS edit a real one
                 // Never generate fake scenes when real photos exist
 
-                if (refImages.length > 0) {
+                if (!imageBuffer && refImages.length > 0) {
                     try {
                         // Pick the best matching real photo (already smart-selected above)
                         const bestRef = refImages[0]
@@ -1081,7 +1131,7 @@ CRITICAL RULES:
                     }
                 }
                 // No reference photos at all → pure generation (only fallback)
-                else {
+                if (!imageBuffer) {
                     console.log("🎨 No brand photos available → Nano Banana Pro (2K)...")
                     imageBuffer = await generateImage(refinedPrompt, { aspectRatio: format.aspectRatio as any })
                 }
