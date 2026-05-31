@@ -32,6 +32,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const [aspectRatio, setAspectRatio] = useState("")
     const [medium, setMedium] = useState("")
     const [category, setCategory] = useState("")
+    const [selectedProductId, setSelectedProductId] = useState<string>("")
     const [creditError, setCreditError] = useState<string | null>(null)
     const [customImageFile, setCustomImageFile] = useState<File | null>(null)
     const [generating, setGenerating] = useState(false)
@@ -300,6 +301,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                     aspectRatio: aspectRatio || undefined,
                     medium: medium || undefined,
                     customImageUrl: finalImageUrl,
+                    productId: selectedProductId || undefined,
                 })
                 // Auto-retry once on failure
                 if (!res.success && maxClientRetries > 0) {
@@ -312,6 +314,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         aspectRatio: aspectRatio || undefined,
                         medium: medium || undefined,
                         customImageUrl: finalImageUrl,
+                        productId: selectedProductId || undefined,
                     })
                 }
                 setResult(res)
@@ -590,6 +593,20 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         ))}
                                     </div>
                                 </div>
+
+                                {/* Product selector */}
+                                {catalogProducts.length > 0 && (
+                                    <div>
+                                        <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">📦 Produkt (volitelné)</label>
+                                        <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)}
+                                            className="w-full px-5 py-3.5 bg-[#050505] border border-white/10 rounded-sm text-white text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all">
+                                            <option value="">🎲 AI vybere automaticky</option>
+                                            {catalogProducts.map((p: any) => (
+                                                <option key={p.id} value={p.id}>{p.name}{p.price ? ` — ${p.price}` : ''}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
 
                                 {/* Format selector */}
                                 <div>
