@@ -1029,19 +1029,19 @@ export async function generateOnePost(options: {
                         if (productRef) {
                             try {
                                 await report("rendering", 65, `🛍️ Umisťuji produkt do scény...`)
-                                const productEditPrompt = `You are given a photo of a real product: "${randomProduct.name}".
-
-YOUR TASK: Place this EXACT product into an attractive lifestyle scene based on this creative direction:
-${refinedPrompt}
-
-ABSOLUTE RULES:
-- The product in the output MUST look IDENTICAL to the input photo — same shape, same colors, same textures, same labels, same everything.
-- DO NOT regenerate, reimagine, or approximate the product. Copy it EXACTLY as it appears.
-- Place the product naturally into the scene: on a table, held by a hand, on a kitchen counter, in a café setting, etc.
-- Add beautiful environment around it: lighting, background, props, surfaces.
-- The result should look like a professional product photography shoot.
-- ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS anywhere in the image.
-- Photorealistic quality, editorial lighting, shallow depth of field.`
+                                // Dynamic scene based on product type
+                                const productType = (randomProduct.type || "").toLowerCase()
+                                let sceneHint = "a stylish surface with beautiful props around it"
+                                if (productType.includes("food") || productType.includes("drink") || productType.includes("dessert") || productType.includes("jogurt")) {
+                                    sceneHint = "a wooden table, a kitchen counter, a café setting, or a hand holding it. Food photography style"
+                                } else if (productType.includes("cloth") || productType.includes("shirt") || productType.includes("fashion") || productType.includes("wear")) {
+                                    sceneHint = "a flat lay on a clean surface, worn by a person, or hanging in a stylish setting. Fashion photography style"
+                                } else if (productType.includes("apart") || productType.includes("real") || productType.includes("hotel") || productType.includes("room")) {
+                                    sceneHint = "a wider interior view showing the space in context. Architectural photography style"
+                                } else if (productType.includes("cosmetic") || productType.includes("beauty") || productType.includes("skin")) {
+                                    sceneHint = "a marble surface with botanical elements, or held by elegant hands. Beauty photography style"
+                                }
+                                const productEditPrompt = `Take this product photo and place the product into a beautiful lifestyle scene. The product must remain EXACTLY as it is — do not change its appearance, colors, shape, or any details. Just add an environment around it: ${sceneHint}, beautiful lighting, shallow depth of field. No text or words in the image.`
 
                                 const { editExistingImage } = await import("./gemini-client")
                                 imageBuffer = await editExistingImage(
