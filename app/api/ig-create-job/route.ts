@@ -20,6 +20,30 @@ export async function POST(req: Request) {
         const { resolveClientId } = await import("@/instagram/configs")
         const clientId = await resolveClientId(body.configName || "mobilnamiru")
 
+        // Rate limit: max 10 jobs per hour per client (admin bypass)
+        const RATE_LIMIT_PER_HOUR = 10
+        const { createClient } = await import("@/supabase/server")
+        const supabaseUser = await createClient()
+        const { data: { user } } = await supabaseUser.auth.getUser()
+        const adminEmails = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean)
+        const isAdmin = adminEmails.includes(user?.email || "")
+
+        if (!isAdmin) {
+            const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+            const { count } = await supabaseAdmin
+                .from("ig_jobs")
+                .select("id", { count: "exact", head: true })
+                .eq("client_id", clientId)
+                .gte("created_at", oneHourAgo)
+
+            if ((count ?? 0) >= RATE_LIMIT_PER_HOUR) {
+                return NextResponse.json(
+                    { success: false, error: `Dosáhli jste limitu ${RATE_LIMIT_PER_HOUR} generování za hodinu. Zkuste to později.` },
+                    { status: 429 }
+                )
+            }
+        }
+
         // Credit check before creating job — don't waste resources if no credits
         if (!body.dryRun) {
             const { creditGuard } = await import("@/app/actions/credit-guard")

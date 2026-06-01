@@ -49,9 +49,42 @@ export async function loadConfig(name: string = "mobilnamiru", forceRefresh = fa
         throw new Error(`Failed to load config "${name}" from Supabase: ${error?.message || "Not found"}`)
     }
 
-    const config = data.config as ClientConfig
+    const config = validateConfig(data.config as ClientConfig, name)
     configCache.set(name, config)
     return config
+}
+
+/** Fill safe defaults for missing required fields to prevent runtime crashes */
+function validateConfig(config: ClientConfig, slug: string): ClientConfig {
+    return {
+        ...config,
+        id: config.id || slug,
+        name: config.name || slug,
+        website: config.website || "",
+        instagram: config.instagram || "",
+        brandVoice: config.brandVoice || {
+            persona: "Přátelský poradce",
+            hookTemplates: [],
+            ctaVariations: [],
+            voiceTraits: ["přátelský"],
+            values: [],
+            antiPatterns: [],
+            toneByPostType: {},
+        },
+        contentPillars: config.contentPillars || {},
+        ctaStrategies: config.ctaStrategies || { soft: [], medium: [], hard: [], none: [] },
+        feedAesthetic: config.feedAesthetic || {
+            colorPalette: "Neutrální",
+            overlayOpacity: "30%",
+            textPosition: "BOTTOM",
+            font: "Inter",
+            feel: "Moderní a čistý",
+            phoneModel: "iPhone 16 Pro",
+        },
+        weekPlan: config.weekPlan || [],
+        hashtagPools: config.hashtagPools || { core: [], niche: [], broad: [], trending: [], czech: [] },
+        contentFocus: config.contentFocus || config.name || slug,
+    }
 }
 
 /**

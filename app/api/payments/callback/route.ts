@@ -33,27 +33,32 @@ export async function POST(req: NextRequest) {
             })
         }
 
-        // Verify payment status directly with Comgate (don't trust callback alone)
-        const verified = await getPaymentStatus(transId)
+        // Verify payment status (skip for mock payments)
+        let confirmedStatus: string
+        if (process.env.COMGATE_MOCK === "true") {
+            confirmedStatus = status // Trust mock callback
+            console.log(`💳 [MOCK] Callback: transId=${transId}, status=${confirmedStatus}`)
+        } else {
+            const verified = await getPaymentStatus(transId)
 
-        if (verified.code !== 0) {
-            console.error("Comgate status verification failed:", verified)
-            return new Response("code=0&message=OK", {
-                status: 200,
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            })
+            if (verified.code !== 0) {
+                console.error("Comgate status verification failed:", verified)
+                return new Response("code=0&message=OK", {
+                    status: 200,
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                })
+            }
+
+            confirmedStatus = verified.status || status
         }
-
-        const confirmedStatus = verified.status || status
 
         // Update payment record
         const { data: payment } = await supabaseAdmin
             .from("payments")
             .update({
                 status: confirmedStatus,
-                payment_method: method || verified.method,
+                payment_method: method || undefined,
                 paid_at: confirmedStatus === "PAID" ? new Date().toISOString() : null,
-                comgate_response: verified,
                 updated_at: new Date().toISOString(),
             })
             .eq("comgate_trans_id", transId)

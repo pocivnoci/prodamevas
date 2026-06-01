@@ -68,20 +68,37 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Plan not found" }, { status: 404 })
         }
 
-        // 3. Create payment via Comgate
-        const refId = generateRefId(clientSlug)
+        // 3. Create payment (mock or real Comgate)
+        const refId = generateRefId(client.slug)
         const label = `${plan.name} — ${client.name}`
 
-        const comgateResult = await createPayment({
-            refId,
-            price: plan.price_czk,
-            curr: "CZK",
-            label: label.substring(0, 40), // Comgate label max ~40 chars
-            email: payerEmail || "noreply@chrlit.cz",
-        })
+        const isMock = process.env.COMGATE_MOCK === "true"
 
-        if (!comgateResult.transId || !comgateResult.redirect) {
-            throw new Error("Comgate didn't return transId or redirect URL")
+        let transId: string
+        let redirectUrl: string
+
+        if (isMock) {
+            // Mock mode: skip Comgate, redirect to mock payment page
+            transId = `MOCK-${Date.now()}`
+            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://chrlit.cz"
+            redirectUrl = `${baseUrl}/mock-payment?transId=${transId}&amount=${plan.price_czk}&label=${encodeURIComponent(label.substring(0, 40))}&clientId=${client.id}`
+            console.log(`💳 [MOCK] Payment created: ${transId} for ${client.name}`)
+        } else {
+            const comgateResult = await createPayment({
+                refId,
+                price: plan.price_czk,
+                curr: "CZK",
+                label: label.substring(0, 40),
+                email: payerEmail || "noreply@chrlit.cz",
+            })
+
+            if (!comgateResult.transId || !comgateResult.redirect) {
+                throw new Error("Comgate didn't return transId or redirect URL")
+            }
+
+            transId = comgateResult.transId
+            redirectUrl = comgateResult.redirect
+            console.log(`💳 Payment created: ${transId} for ${client.name} (${plan.name})`)
         }
 
         // 4. Create subscription (pending)
@@ -101,23 +118,20 @@ export async function POST(req: NextRequest) {
             .insert({
                 client_id: client.id,
                 subscription_id: subscription?.id,
-                comgate_trans_id: comgateResult.transId,
+                comgate_trans_id: transId,
                 ref_id: refId,
                 amount: plan.price_czk,
                 currency: "CZK",
                 status: "PENDING",
                 label,
                 payer_email: payerEmail,
-                comgate_response: comgateResult,
             })
-
-        console.log(`💳 Payment created: ${comgateResult.transId} for ${client.name} (${plan.name})`)
 
         return NextResponse.json({
             success: true,
-            transId: comgateResult.transId,
-            redirect: comgateResult.redirect,
-            redirectUrl: comgateResult.redirect, // alias for frontend
+            transId,
+            redirect: redirectUrl,
+            redirectUrl,
         })
     } catch (err: any) {
         console.error("Payment create error:", err?.message || err)

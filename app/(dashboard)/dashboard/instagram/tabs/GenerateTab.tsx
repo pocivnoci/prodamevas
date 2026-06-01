@@ -1063,6 +1063,14 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         {result.success ? "Prezentace návrhu" : "Něco se pokazilo"}
                                     </h2>
                                     {result.error && <p className="text-aisummit-cinnabar font-bold uppercase tracking-widest text-[10px]">{result.error}</p>}
+                                    {!result.success && (
+                                        <button
+                                            onClick={() => { setResult(null); setStep(1); setTimeout(() => handleGenerate(), 100) }}
+                                            className="mt-4 px-6 py-3 rounded-sm text-[10px] font-black uppercase tracking-widest bg-aisummit-cinnabar text-white shadow-[0_0_15px_rgba(229,83,63,0.3)] hover:shadow-[0_0_20px_rgba(229,83,63,0.5)] transition-all"
+                                        >
+                                            🔄 Zkusit znovu
+                                        </button>
+                                    )}
                                 </div>
 
                                 {/* Detailed Presentation View */}
@@ -1171,13 +1179,21 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         <p className="text-[10px] font-bold tracking-widest uppercase text-aisummit-cinnabar/50">Selhání</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center justify-center gap-3 mt-8">
+                                <div className="flex items-center justify-center gap-3 mt-8 flex-wrap">
                                     <button
                                         onClick={() => setActiveSection("posts")}
                                         className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
                                     >
                                         📋 Otevřít v Příspěvcích
                                     </button>
+                                    {batchResult.errors > 0 && (
+                                        <button
+                                            onClick={() => { setBatchResult(null); setStep(1) }}
+                                            className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-aisummit-cinnabar/10 text-aisummit-cinnabar border border-aisummit-cinnabar/20 hover:bg-aisummit-cinnabar/20 transition-all"
+                                        >
+                                            🔄 Zkusit selhané znovu
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => { setStep(1); setContentPlan([]) }}
                                         className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-white/5 text-white/60 border border-white/10 hover:text-white hover:bg-white/10 transition-all"
