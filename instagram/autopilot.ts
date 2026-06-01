@@ -336,6 +336,39 @@ export async function generateOnePost(options: {
         // Non-fatal — continue without memories
     }
 
+    // Inject critic score feedback from recent generation logs
+    try {
+        const { data: recentLogs } = await supabaseAdmin
+            .from("ig_generation_log")
+            .select("critic_score, critic_keep, critic_fix")
+            .eq("client_id", clientUuid)
+            .not("critic_score", "is", null)
+            .order("created_at", { ascending: false })
+            .limit(5)
+
+        if (recentLogs && recentLogs.length >= 2) {
+            const avgScore = recentLogs.reduce((s, l) => s + (l.critic_score || 0), 0) / recentLogs.length
+            const allKeep = recentLogs.flatMap(l => l.critic_keep || []).filter(Boolean)
+            const allFix = recentLogs.flatMap(l => l.critic_fix || []).filter(Boolean)
+            // Deduplicate
+            const keepUnique = [...new Set(allKeep)].slice(0, 5)
+            const fixUnique = [...new Set(allFix)].slice(0, 5)
+
+            if (keepUnique.length > 0 || fixUnique.length > 0) {
+                megaPrompt += `\n\n## 📋 ZPĚTNÁ VAZBA Z PŘEDCHOZÍCH POSTŮ (Critic Score)\nPrůměrné skóre posledních ${recentLogs.length} postů: **${avgScore.toFixed(1)}/10**\n`
+                if (keepUnique.length > 0) {
+                    megaPrompt += `\n**Co funguje (zachovej):** ${keepUnique.join(", ")}`
+                }
+                if (fixUnique.length > 0) {
+                    megaPrompt += `\n**Co zlepšit (oprav):** ${fixUnique.join(", ")}`
+                }
+                console.log(`   📋 Critic feedback: avg ${avgScore.toFixed(1)}/10 (${keepUnique.length} keep, ${fixUnique.length} fix)`)
+            }
+        }
+    } catch {
+        // Non-fatal
+    }
+
     // Inject real-world context (season, industry trends, local relevance)
     await report("copywriter", 30, "🌍 Context Agent sbírá sezónní a oborový kontext...")
     try {

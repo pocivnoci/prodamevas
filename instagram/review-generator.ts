@@ -13,6 +13,41 @@ export async function generateAIReviews(config: ClientConfig, count: number = 5)
         ? `\n## TYPY ZÁKAZNÍKŮ (každá recenze by měla být od jiného segmentu)\n${config.audiencePersonas.map(p => `- ${p.label} (${p.ageRange} let) — ${p.ctaStyle === "hard" ? "kupuje hned" : p.ctaStyle === "medium" ? "porovnává" : "jen se dívá"}`).join("\n")}\n`
         : ""
 
+    // Inject brand memory so reviews align with what historically works
+    let memorySection = ""
+    try {
+        const { getBrandMemories, formatMemoriesForPrompt } = await import("./memory-agent")
+        const memories = await getBrandMemories(5)
+        if (memories.length > 0) {
+            memorySection = formatMemoriesForPrompt(memories)
+            console.log(`   🧠 Brand memory: ${memories.length} vzorců injected into review generation`)
+        }
+    } catch {
+        // Non-fatal
+    }
+
+    // Inject top-performing review patterns
+    let topReviewsSection = ""
+    try {
+        const clientId = await resolveClientId(config.id)
+        const { data: topReviews } = await supabaseAdmin
+            .from("ig_reviews")
+            .select("quote, performance_score")
+            .eq("client_id", clientId)
+            .not("performance_score", "is", null)
+            .gt("performance_score", 0)
+            .order("performance_score", { ascending: false })
+            .limit(3)
+
+        if (topReviews && topReviews.length > 0) {
+            topReviewsSection = `\n## 🏆 NEJÚSPĚŠNĚJŠÍ RECENZE (inspiruj se jejich stylem)\n${topReviews.map(r => `- "${r.quote.substring(0, 100)}..." (score: ${r.performance_score})`).join("\n")}\n`
+            console.log(`   📊 Top reviews: ${topReviews.length} high-performers injected`)
+        }
+    } catch {
+        // Non-fatal
+    }
+
+
     const prompt = `
 Jsi copywriter pro značku "${config.name}" (${config.website || ""}).
 Tvým úkolem je vymyslet vysoce uvěřitelné a autenticky znějící zákaznické recenze, které přesně odrážejí styl, slang a komunitu této značky.
@@ -21,7 +56,7 @@ Tvým úkolem je vymyslet vysoce uvěřitelné a autenticky znějící zákaznic
 ${config.brandVoice?.persona || ""}
 Hodnoty: ${config.brandVoice?.values?.join(", ") || ""}
 Tón: ${config.brandVoice?.voiceTraits?.slice(0, 3).join(", ") || ""}
-${productsSection}${personaSection}
+${productsSection}${personaSection}${topReviewsSection}${memorySection}
 ## TYPICKÁ CÍLOVÁ SKUPINA A PRODUKTY:
 - Zaměř se na recenze ohledně KONKRÉTNÍCH produktů/služeb z katalogu výše
 - Tón a slang recenzí MUSÍ odpovídat brand voice — pokud je značka neformální, recenze budou hovorové

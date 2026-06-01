@@ -476,6 +476,14 @@ export async function updateIGPostMetrics(
                     link_clicks: p.link_clicks || 0,
                 }))
 
+                // Also propagate metrics to idea/review performance scores
+                const { propagateMetricsToSources } = await import("@/instagram/service")
+                propagateMetricsToSources().then(({ ideasUpdated, reviewsUpdated }) => {
+                    if (ideasUpdated > 0 || reviewsUpdated > 0) {
+                        console.log(`📊 Metrics propagated: ${ideasUpdated} ideas, ${reviewsUpdated} reviews`)
+                    }
+                }).catch(() => { /* non-fatal */ })
+
                 analyzeAndLearn(learnData).then(result => {
                     if (result.memoriesCreated > 0 || result.memoriesUpdated > 0) {
                         console.log(`🧠 Learning triggered: ${result.memoriesCreated} new memories, ${result.memoriesUpdated} updated`)
