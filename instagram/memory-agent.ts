@@ -457,3 +457,122 @@ Vrať POUZE validní JSON pole:
 
     return { memoriesCreated: created, memoriesUpdated: updated }
 }
+
+// ============================================
+// VARIANT SELECTION LEARNING
+// ============================================
+
+/**
+ * Learn from A/B variant selection — compare winner vs losers
+ * to extract user preference patterns (hook style, tone, CTA, visual).
+ * Called from selectVariantWinner() in admin-actions.ts.
+ */
+export async function learnFromVariantSelection(
+    winnerId: string,
+    loserIds: string[]
+): Promise<{ memoriesCreated: number }> {
+    const clientId = getActiveProject()
+    const allIds = [winnerId, ...loserIds]
+
+    const { data: posts } = await supabaseAdmin
+        .from("ig_posts")
+        .select("id, caption, image_prompt, image_style")
+        .in("id", allIds)
+
+    if (!posts || posts.length < 2) return { memoriesCreated: 0 }
+
+    const winner = posts.find(p => p.id === winnerId)
+    const losers = posts.filter(p => p.id !== winnerId)
+
+    if (!winner) return { memoriesCreated: 0 }
+
+    const winnerHook = (winner.caption || "").split("\n")[0] || ""
+    const winnerBody = (winner.caption || "").split("\n").slice(1, 4).join(" ").substring(0, 200)
+
+    const loserSummaries = losers.map((l, i) => {
+        const hook = (l.caption || "").split("\n")[0] || ""
+        const body = (l.caption || "").split("\n").slice(1, 4).join(" ").substring(0, 200)
+        return `ZAMÍTNUTÁ ${i + 1}:\n  Hook: "${hook}"\n  Body: "${body.substring(0, 100)}..."`
+    }).join("\n\n")
+
+    const prompt = `
+Jsi analytik A/B testování pro Instagram. Uživatel vybral VÍTĚZE z variant.
+
+## VÍTĚZ (uživatel preferoval):
+Hook: "${winnerHook}"
+Body: "${winnerBody}"
+
+## ZAMÍTNUTÉ VARIANTY:
+${loserSummaries}
+
+Analyzuj PROČ uživatel vybral vítěze. Porovnej:
+1. Styl hooku (otázka vs. tvrzení vs. číslo vs. provokace)
+2. Tón (humor vs. edukace vs. urgence vs. empatie)
+3. CTA styl (měkké vs. tvrdé)
+4. Délku a strukturu
+
+Extrahuj 1-2 konkrétní preference (ne obecné). Např.:
+- "Uživatel preferuje otázkové hooky před tvrzeními"
+- "Kratší body text (do 50 slov) je preferován před dlouhým vysvětlováním"
+
+Vrať POUZE validní JSON pole:
+[
+  { "content": "preference česky", "confidence": 0.6 }
+]
+`
+
+    try {
+        const raw = await ai.models.generateContent({
+            model: "gemini-3.5-flash",
+            contents: prompt,
+            config: { responseMimeType: "application/json" },
+        })
+
+        const text = raw.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || ""
+        const jsonMatch = text.match(/\[[\s\S]*\]/)
+        const learnings = JSON.parse(jsonMatch?.[0] || "[]") as { content: string; confidence: number }[]
+
+        let created = 0
+
+        for (const learning of learnings) {
+            if (!learning.content) continue
+
+            // Check for duplicates
+            const { data: existing } = await supabaseAdmin
+                .from("ig_brand_memory")
+                .select("id, content, confidence, times_confirmed")
+                .eq("client_id", clientId)
+                .eq("memory_type", "preference")
+
+            const match = (existing || []).find(m => isSimilarMemory(m.content, learning.content))
+
+            if (match) {
+                await supabaseAdmin
+                    .from("ig_brand_memory")
+                    .update({
+                        confidence: Math.min(1, match.confidence + 0.15),
+                        times_confirmed: match.times_confirmed + 1,
+                    })
+                    .eq("id", match.id)
+                console.log(`   🔀 Variant preference reinforced: "${learning.content}"`)
+            } else {
+                await supabaseAdmin
+                    .from("ig_brand_memory")
+                    .insert({
+                        client_id: clientId,
+                        memory_type: "preference",
+                        content: learning.content,
+                        confidence: Math.min(0.8, Math.max(0.5, learning.confidence || 0.6)),
+                        source_post_ids: allIds,
+                    })
+                created++
+                console.log(`   🔀 New variant preference: "${learning.content}"`)
+            }
+        }
+
+        return { memoriesCreated: created }
+    } catch (err: any) {
+        console.warn(`⚠️ Variant learning failed: ${err?.message?.substring(0, 80)}`)
+        return { memoriesCreated: 0 }
+    }
+}

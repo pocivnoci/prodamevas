@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { motion } from "framer-motion"
-import { getIGPostsList, updateIGPostStatus, deleteIGPost, deleteIGPosts, revisePost, generatePostVariant, getEditorialLog } from "@/app/actions/admin-actions"
+import { getIGPostsList, updateIGPostStatus, deleteIGPost, deleteIGPosts, revisePost, generateMultipleVariants, selectVariantWinner, getVariantGroup, getEditorialLog } from "@/app/actions/admin-actions"
 import { LoadingSpinner, StatusBadge, PillarBadge, CopyButton, MetricsInputForm } from "./shared"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPost } from "./types"
@@ -389,8 +389,10 @@ function PostDetailModal({
     const [feedbackText, setFeedbackText] = useState("")
     const [revising, setRevising] = useState(false)
     const [revisionResult, setRevisionResult] = useState<{ success: boolean; newPostId?: string; error?: string } | null>(null)
-    const [generatingVariant, setGeneratingVariant] = useState(false)
-    const [variantResult, setVariantResult] = useState<{ success: boolean; newPostId?: string; error?: string } | null>(null)
+    const [generatingVariants, setGeneratingVariants] = useState(false)
+    const [variantIds, setVariantIds] = useState<string[]>([])
+    const [showVariantComparison, setShowVariantComparison] = useState(false)
+    const [variantError, setVariantError] = useState<string | null>(null)
     const [carouselIndex, setCarouselIndex] = useState(0)
     const [editorialLog, setEditorialLog] = useState<{ role: string; action: string; summary: string }[]>([])
     const [editorialOpen, setEditorialOpen] = useState(false)
@@ -760,28 +762,55 @@ function PostDetailModal({
                         </button>
                     )}
 
-                    {/* Generate Variant */}
+                    {/* A/B Variant System */}
                     <button
                         onClick={async () => {
-                            setGeneratingVariant(true)
-                            setVariantResult(null)
-                            const result = await generatePostVariant(post.id, projectId)
-                            setVariantResult(result)
-                            setGeneratingVariant(false)
+                            setGeneratingVariants(true)
+                            setVariantError(null)
+                            setVariantIds([])
+                            const result = await generateMultipleVariants(post.id, projectId, 2)
+                            if (result.success && result.variantIds.length > 0) {
+                                setVariantIds(result.variantIds)
+                                setShowVariantComparison(true)
+                            } else {
+                                setVariantError(result.error || "Generování selhalo")
+                            }
+                            setGeneratingVariants(false)
                         }}
-                        disabled={generatingVariant}
+                        disabled={generatingVariants}
                         className={`px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all border ${
-                            generatingVariant
+                            generatingVariants
                                 ? "bg-violet-500/10 text-violet-300 border-violet-500/20 animate-pulse cursor-not-allowed"
-                                : variantResult?.success
-                                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                : variantIds.length > 0
+                                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 cursor-pointer"
                                     : "bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 border-violet-500/20"
                         }`}
                     >
-                        {generatingVariant ? "⏳ Generuji..." : variantResult?.success ? "✅ Varianta vytvořena" : "🔄 Varianta"}
+                        {generatingVariants ? "⏳ Generuji 2 varianty (~60s)..." : variantIds.length > 0 ? "🔀 Zobrazit varianty" : "🔀 A/B Test"}
                     </button>
-                    {variantResult?.error && (
-                        <span className="text-[9px] text-red-400">{variantResult.error.substring(0, 60)}</span>
+                    {variantIds.length > 0 && !generatingVariants && (
+                        <button
+                            onClick={() => setShowVariantComparison(true)}
+                            className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 border border-violet-500/20 transition-all"
+                        >
+                            📊 Srovnat
+                        </button>
+                    )}
+                    {variantError && (
+                        <span className="text-[9px] text-red-400">{variantError.substring(0, 60)}</span>
+                    )}
+
+                    {/* Variant Comparison Modal */}
+                    {showVariantComparison && (
+                        <VariantComparisonModal
+                            originalPostId={post.id}
+                            projectId={projectId}
+                            onClose={() => setShowVariantComparison(false)}
+                            onWinnerSelected={() => {
+                                setShowVariantComparison(false)
+                                onClose()
+                            }}
+                        />
                     )}
 
                     {/* Delete */}
@@ -801,6 +830,189 @@ function PostDetailModal({
                         </button>
                     )}
                 </div>
+            </div>
+        </div>,
+        document.body
+    )
+}
+
+// ═══════════════════════════════════════════════════════════
+// VARIANT COMPARISON MODAL — A/B side-by-side
+// ═══════════════════════════════════════════════════════════
+
+function VariantComparisonModal({
+    originalPostId,
+    projectId,
+    onClose,
+    onWinnerSelected,
+}: {
+    originalPostId: string
+    projectId: string
+    onClose: () => void
+    onWinnerSelected: () => void
+}) {
+    const [variants, setVariants] = useState<any[]>([])
+    const [originalId, setOriginalId] = useState(originalPostId)
+    const [loading, setLoading] = useState(true)
+    const [selecting, setSelecting] = useState<string | null>(null)
+    const [done, setDone] = useState(false)
+
+    useEffect(() => {
+        (async () => {
+            const result = await getVariantGroup(originalPostId, projectId)
+            setVariants(result.posts)
+            setOriginalId(result.originalId)
+            setLoading(false)
+        })()
+    }, [originalPostId, projectId])
+
+    const handleSelectWinner = async (winnerId: string) => {
+        setSelecting(winnerId)
+        const loserIds = variants.filter(v => v.id !== winnerId).map(v => v.id)
+        await selectVariantWinner(winnerId, loserIds, projectId)
+        setDone(true)
+        setTimeout(() => onWinnerSelected(), 1500)
+    }
+
+    useEffect(() => {
+        const mainEl = document.querySelector("main")
+        const orig = document.body.style.overflow
+        const origMain = mainEl?.style.overflow || ""
+        document.body.style.overflow = "hidden"
+        if (mainEl) mainEl.style.overflow = "hidden"
+        return () => {
+            document.body.style.overflow = orig
+            if (mainEl) mainEl.style.overflow = origMain
+        }
+    }, [])
+
+    return createPortal(
+        <div
+            className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4"
+            style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
+            onClick={onClose}
+        >
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-md" />
+
+            <div
+                className="relative w-full max-w-6xl max-h-[90vh] bg-[#0a0a0a] border border-white/10 rounded-sm overflow-hidden flex flex-col shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+                    <div className="flex items-center gap-3">
+                        <span className="text-lg">🔀</span>
+                        <div>
+                            <h3 className="text-white font-black uppercase tracking-tighter">A/B Srovnání variant</h3>
+                            <p className="text-[10px] text-white/40 font-mono tracking-widest uppercase">
+                                {done ? "✅ Vítěz vybrán — systém se učí z tvé preference" : "Vyber nejlepší variantu"}
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 rounded-sm transition-colors border border-transparent hover:border-white/10"
+                    >
+                        ✕
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+                    {loading ? (
+                        <div className="flex items-center justify-center py-20">
+                            <div className="text-center">
+                                <div className="animate-spin w-8 h-8 border-2 border-violet-500/30 border-t-violet-500 rounded-full mx-auto mb-4" />
+                                <p className="text-xs text-white/40 font-bold uppercase tracking-widest">Načítám varianty...</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className={`grid gap-4 ${variants.length === 2 ? 'grid-cols-1 sm:grid-cols-2' : variants.length >= 3 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'}`}>
+                            {variants.map((variant, index) => {
+                                const isOriginal = variant.id === originalId
+                                const isWinner = selecting === variant.id && done
+                                const isLoser = selecting && selecting !== variant.id && done
+                                const hook = (variant.caption || "").split("\n")[0] || "—"
+                                const body = (variant.caption || "").split("\n").slice(1).join("\n").substring(0, 200)
+                                const firstImage = variant.image_url?.split("|")[0]
+
+                                return (
+                                    <motion.div
+                                        key={variant.id}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{
+                                            opacity: isLoser ? 0.3 : 1,
+                                            y: 0,
+                                            scale: isWinner ? 1.02 : isLoser ? 0.98 : 1,
+                                        }}
+                                        transition={{ duration: 0.4, delay: index * 0.1 }}
+                                        className={`bg-[#0f0f0f] border rounded-sm overflow-hidden flex flex-col transition-all ${
+                                            isWinner ? 'border-emerald-500/50 ring-1 ring-emerald-500/20' :
+                                            isLoser ? 'border-white/5 grayscale' :
+                                            'border-white/10 hover:border-white/20'
+                                        }`}
+                                    >
+                                        {/* Label */}
+                                        <div className="px-4 py-2 border-b border-white/5 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-sm border ${
+                                                    isOriginal
+                                                        ? 'text-blue-400 bg-blue-500/10 border-blue-500/20'
+                                                        : 'text-violet-400 bg-violet-500/10 border-violet-500/20'
+                                                }`}>
+                                                    {isOriginal ? "Originál" : `Varianta ${index}`}
+                                                </span>
+                                                {isWinner && (
+                                                    <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400 animate-pulse">🏆 Vítěz</span>
+                                                )}
+                                            </div>
+                                            <span className="text-[9px] text-white/30 font-mono">{variant.ig_post_types?.emoji || "📸"}</span>
+                                        </div>
+
+                                        {/* Image */}
+                                        {firstImage ? (
+                                            <div className="w-full aspect-[4/5] bg-black overflow-hidden">
+                                                <img src={firstImage} alt="" className="w-full h-full object-cover" />
+                                            </div>
+                                        ) : (
+                                            <div className="w-full aspect-[4/5] bg-[#050505] flex items-center justify-center">
+                                                <span className="text-white/20 text-3xl">🖼️</span>
+                                            </div>
+                                        )}
+
+                                        {/* Caption preview */}
+                                        <div className="p-4 flex-1 flex flex-col">
+                                            <p className="text-sm text-white font-bold leading-snug mb-2 line-clamp-2">{hook}</p>
+                                            <p className="text-xs text-white/40 leading-relaxed line-clamp-3 flex-1">{body || "—"}</p>
+
+                                            {!done && (
+                                                <button
+                                                    onClick={() => handleSelectWinner(variant.id)}
+                                                    disabled={!!selecting}
+                                                    className={`mt-4 w-full py-3 text-[10px] font-black uppercase tracking-widest rounded-sm transition-all border ${
+                                                        selecting === variant.id
+                                                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 animate-pulse'
+                                                            : 'bg-white/5 text-white/60 border-white/10 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/20'
+                                                    } disabled:opacity-40 disabled:cursor-not-allowed`}
+                                                >
+                                                    {selecting === variant.id ? "⏳ Vybírám..." : "✓ Vybrat jako vítěze"}
+                                                </button>
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                )
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {done && (
+                    <div className="px-6 py-3 border-t border-emerald-500/20 bg-emerald-500/5 flex items-center justify-center gap-2">
+                        <span className="text-xs text-emerald-400 font-bold uppercase tracking-widest">
+                            🧠 Preference uložena — AI se učí z tvého výběru
+                        </span>
+                    </div>
+                )}
             </div>
         </div>,
         document.body

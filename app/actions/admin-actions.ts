@@ -1313,6 +1313,129 @@ PRAVIDLA PRO VARIANTU:
     }
 }
 
+// ─── A/B Variant System ──────────────────────────────────────
+
+/**
+ * Generate multiple variants of a post for A/B comparison.
+ * Sequentially generates N variants (default 2) with rate limiting pauses.
+ */
+export async function generateMultipleVariants(
+    postId: string,
+    projectSlug: string,
+    count: number = 2
+): Promise<{ success: boolean; variantIds: string[]; error?: string }> {
+    try {
+        const clampedCount = Math.min(Math.max(count, 2), 3)
+        const variantIds: string[] = []
+
+        for (let i = 0; i < clampedCount; i++) {
+            console.log(`🔀 Generating variant ${i + 1}/${clampedCount}...`)
+            const result = await generatePostVariant(postId, projectSlug)
+
+            if (result.success && result.newPostId) {
+                variantIds.push(result.newPostId)
+            } else {
+                console.warn(`⚠️ Variant ${i + 1} failed: ${result.error}`)
+            }
+
+            // Rate limit pause between variants (skip after last)
+            if (i < clampedCount - 1) {
+                await new Promise(r => setTimeout(r, 15000))
+            }
+        }
+
+        if (variantIds.length === 0) {
+            return { success: false, variantIds: [], error: "Nepodařilo se vygenerovat žádnou variantu" }
+        }
+
+        console.log(`✅ ${variantIds.length}/${clampedCount} variant vygenerováno`)
+        return { success: true, variantIds }
+    } catch (err: any) {
+        console.error("generateMultipleVariants error:", err?.message || err)
+        return { success: false, variantIds: [], error: err?.message || String(err) }
+    }
+}
+
+/**
+ * Select a winning variant — sets winner to draft, losers to rejected.
+ * Triggers memory agent learning from the user's preference.
+ */
+export async function selectVariantWinner(
+    winnerId: string,
+    loserIds: string[],
+    projectSlug: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        await requireProjectAccess(projectSlug)
+
+        // Winner → draft
+        await supabaseAdmin
+            .from("ig_posts")
+            .update({ status: "draft" })
+            .eq("id", winnerId)
+
+        // Losers → rejected
+        if (loserIds.length > 0) {
+            await supabaseAdmin
+                .from("ig_posts")
+                .update({ status: "rejected" })
+                .in("id", loserIds)
+        }
+
+        // Memory learning — analyze winner vs losers asynchronously
+        try {
+            const { learnFromVariantSelection } = await import("@/instagram/memory-agent")
+            const { setActiveProject } = await import("@/instagram/service")
+            const { resolveClientId } = await import("@/instagram/configs")
+            const clientId = await resolveClientId(projectSlug)
+            setActiveProject(clientId)
+            await learnFromVariantSelection(winnerId, loserIds)
+        } catch (memErr: any) {
+            // Non-fatal — selection still works without memory learning
+            console.warn(`⚠️ Memory learning skipped: ${memErr?.message?.substring(0, 80)}`)
+        }
+
+        console.log(`🏆 Winner: ${winnerId}, rejected: ${loserIds.join(", ")}`)
+        return { success: true }
+    } catch (err: any) {
+        console.error("selectVariantWinner error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}
+
+/**
+ * Get all variants of a post (original + all linked via revision_of).
+ */
+export async function getVariantGroup(
+    postId: string,
+    projectSlug: string
+): Promise<{ posts: any[]; originalId: string }> {
+    try {
+        await requireProjectAccess(projectSlug)
+
+        // First check if this post IS a variant (has revision_of)
+        const { data: post } = await supabaseAdmin
+            .from("ig_posts")
+            .select("id, revision_of")
+            .eq("id", postId)
+            .single()
+
+        const originalId = post?.revision_of || postId
+
+        // Get original + all variants
+        const { data: variants } = await supabaseAdmin
+            .from("ig_posts")
+            .select("id, caption, image_url, image_style, status, created_at, revision_of, ig_post_types(name, display_name, emoji)")
+            .or(`id.eq.${originalId},revision_of.eq.${originalId}`)
+            .order("created_at", { ascending: true })
+
+        return { posts: variants || [], originalId }
+    } catch (err: any) {
+        console.error("getVariantGroup error:", err?.message || err)
+        return { posts: [], originalId: postId }
+    }
+}
+
 // ─── Content Plan Preview (cheap text-only plan before expensive generation) ──
 
 export interface ContentPlanItem {
