@@ -3,7 +3,9 @@
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, getProducts, createProduct, updateProduct, deleteProduct, deleteProducts, uploadProductImage, syncConfigProductsToDb, scrapeProductsFromWebsite, generateCategoryPrompt } from "@/app/actions/admin-actions"
+import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo } from "@/app/actions/config-actions"
+import { getProducts, createProduct, updateProduct, deleteProduct, deleteProducts, uploadProductImage, syncConfigProductsToDb, scrapeProductsFromWebsite } from "@/app/actions/product-actions"
+import { generateCategoryPrompt } from "@/app/actions/content-plan-actions"
 import { SubscriptionSection } from "./SubscriptionSection"
 
 // ═══════════════════════════════════════════════════════════

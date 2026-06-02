@@ -66,7 +66,7 @@ function OnboardingContent() {
         if (!reonboardSlug) return
         async function loadExisting() {
             try {
-                const { getClientConfig } = await import('@/app/actions/admin-actions')
+                const { getClientConfig } = await import('@/app/actions/config-actions')
                 const config = await getClientConfig(reonboardSlug!)
                 if (config?.website) setUrl(config.website)
                 if (config?.instagramHandle) setIgHandle(config.instagramHandle)

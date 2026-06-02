@@ -8,11 +8,9 @@ import {
     getIGCategories,
     getIGIdeasList,
     getIGReviewsList,
-    generateContentPlan,
-    regeneratePlanItem,
-    getProducts,
-    type ContentPlanItem,
 } from "@/app/actions/admin-actions"
+import { generateContentPlan, regeneratePlanItem, type ContentPlanItem } from "@/app/actions/content-plan-actions"
+import { getProducts } from "@/app/actions/product-actions"
 import { uploadCustomImage, type GenerateResult } from "@/app/actions/ig-generate-action"
 import { canGenerate } from "@/app/actions/credit-guard"
 import { useStudio } from "@/app/(dashboard)/StudioContext"

@@ -7,7 +7,7 @@ import {
     createBrandMemory,
     updateBrandMemory,
     deleteBrandMemory,
-} from "@/app/actions/admin-actions"
+} from "@/app/actions/memory-actions"
 
 interface BrandMemory {
     id: string
