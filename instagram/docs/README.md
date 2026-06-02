@@ -1,99 +1,43 @@
-# Instagram Content Engine — Dokumentace
+# Instagram Engine — Stručná dokumentace
+
+> Hlavní technická dokumentace je v `/docs/SYSTEM_KNOWLEDGE_BASE.md` a `/docs/AI_AGENT_KNOWLEDGE_BASE.md`.
+> Toto je stručný přehled pro quick reference.
+
+**Updated:** 2026-06-02
 
 ## Přehled
 
-Config-driven AI engine pro generování Instagram obsahu. Každý klient má vlastní konfigurační soubor — engine je univerzální.
+Config-driven AI engine pro generování Instagram obsahu. Config je v Supabase DB (`clients.config` JSONB) — v kódu jsou POUZE typy a loader.
 
-## Architektura
+## Pipeline
 
 ```
-instagram/
-├── autopilot.ts          # Hlavní generační engine (config-driven)
-├── gemini-client.ts      # Gemini API wrapper
-├── text-overlay.ts       # Text overlay na obrázky (config-driven)
-├── service.ts            # Supabase CRUD operace
-├── product-generator.ts  # Generátor z produktového katalogu
-├── types.ts              # TypeScript typy (BrandVoice, Hooks, Tones)
-├── index.ts              # Re-exporty
-├── fonts/                # Fonty + logo watermarky per klient
-│   ├── Inter-Bold.ttf
-│   ├── logo-watermark.png      # Mobilnamiru logo
-│   └── logo-hanzfans.png       # HanzFans logo
-├── configs/
-│   ├── types.ts          # ClientConfig interface
-│   ├── index.ts          # Config loader (loadConfig)
-│   ├── mobilnamiru.ts    # Config: Mobil na míru
-│   └── hanzfans.ts       # Config: HanzFans
-└── docs/
-    ├── README.md          # Tato dokumentace
-    └── new-client-guide.md # Návod na přidání nového klienta
+loadConfig() → validateConfig() → Context Agent → Brand Memory → buildMegaPrompt()
+→ Gemini 3.5 Flash → JSON output → Critic (1–10) → Editorial Board (max 3 kola)
+→ Art Director + Visual Memory → Nano Banana Pro (2K)
+→ Satori text overlay + logo → Supabase Storage upload → ig_posts INSERT
 ```
 
-## Jak to funguje
+## Klíčové soubory
 
-```mermaid
-graph LR
-    A[CLI: --config=hanzfans] --> B[loadConfig]
-    B --> C[CLIENT_CONFIG]
-    C --> D[buildMegaPrompt]
-    C --> E[buildCaptionSchema]
-    C --> F[overlayText]
-    C --> G[service.ts]
-    D --> H[Gemini 3 Pro]
-    H --> I[Caption + Image Prompt]
-    I --> J[Imagen 4 Ultra]
-    J --> F
-    F --> K[Upload Supabase]
-```
+| Soubor | LOC | Role |
+|--------|-----|------|
+| `autopilot.ts` | 1849 | Orchestrátor — `generateOnePost()`, `generateBatch()` |
+| `caption-generator.ts` | 791 | Mega prompt, quality gate, overlay variant selection |
+| `editorial-board.ts` | 777 | 6 AI agentů review (max 3 kola) |
+| `text-overlay.ts` | 683 | Satori SVG → Sharp PNG overlay |
+| `product-generator.ts` | 643 | Product ideas + design concepts |
+| `service.ts` | 617 | DB access, weighted selection, feedback loop |
+| `memory-agent.ts` | 459 | Brand memory, learning, postTypeBoosts |
+| `gemini-client.ts` | 455 | AI gateway (text, image, edit, video, vision, TTS) |
+| `image-pipeline.ts` | 346 | Art Director prompt refinement |
+| `configs/index.ts` | — | `loadConfig()` → `validateConfig()` → safe defaults |
 
-1. CLI načte config podle `--config=nazev`
-2. Engine čte VŠECHNO z `CLIENT_CONFIG` — žádné hardcoded hodnoty
-3. AI generuje obsah na základě brand voice, content pillars, feed aesthetic
-4. Obrázky dostanou gradient overlay a text v barvách klienta
-5. Hotový post se uloží do Supabase s `project_id = config.id`
+## Dashboard Integration
 
-## CLI příkazy
+Engine je volaný přes API routes (ne CLI):
+1. `POST /api/ig-create-job` — rate limit (10/h) → `ig_jobs` → `jobId`
+2. `POST /api/ig-run-job` — spustí pipeline (300s max)
+3. `GET /api/ig-job-status` — UI polluje progress
 
-```bash
-# Generovat 1 post (mobilnamiru = default)
-npx tsx instagram/autopilot.ts
-
-# Generovat 3 posty pro HanzFans
-npx tsx instagram/autopilot.ts --config=hanzfans --count=3
-
-# Dry run (negeneruje obrázek, neukládá do DB)
-npx tsx instagram/autopilot.ts --config=hanzfans --dry-run
-
-# Konkrétní typ postu
-npx tsx instagram/autopilot.ts --config=hanzfans --type=product_drop
-
-# S konkrétním tématem
-npx tsx instagram/autopilot.ts --config=mobilnamiru --topic="iOS 20 Focus Mode"
-
-# Produktový generátor (pro eshop klienty)
-npx tsx instagram/product-generator.ts --config=hanzfans --count=3
-```
-
-## Environment Variables
-
-```env
-GEMINI_API_KEY=            # Google AI Studio API key
-NEXT_PUBLIC_SUPABASE_URL=  # Supabase project URL
-SUPABASE_SERVICE_ROLE_KEY= # Supabase service role key (bypasses RLS)
-```
-
-## Databázové tabulky
-
-| Tabulka | Účel |
-|---------|------|
-| `ig_posts` | Vygenerované posty (caption, image_url, score, project_id) |
-| `ig_post_ideas` | Banka nápadů per klient |
-| `ig_post_types` | Definice typů postů (název, pilíř) |
-| `ig_reviews` | AI recenze vygenerovaných postů |
-| `ig_content_calendar` | Plánovací kalendář |
-
-Všechny tabulky mají `project_id` sloupec pro multi-tenant filtrování.
-
-## Přidání nového klienta
-
-→ Kompletní návod: [new-client-guide.md](./new-client-guide.md)
+→ Hlavní docs: [`/docs/SYSTEM_KNOWLEDGE_BASE.md`](../docs/SYSTEM_KNOWLEDGE_BASE.md)

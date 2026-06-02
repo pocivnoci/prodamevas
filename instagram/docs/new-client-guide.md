@@ -1,373 +1,184 @@
 # Návod: Přidání nového klienta
 
-Kompletní step-by-step guide na přidání nového klienta do Instagram engine.
+Kompletní step-by-step guide na přidání nového klienta do Chrlit Studio.
+
+**Updated:** 2026-06-02
 
 ---
 
-## Krok 1: Vytvořit konfigurační soubor
-
-Vytvoř nový soubor `instagram/configs/{nazev-klienta}.ts`:
-
-```typescript
-import type { ClientConfig } from "./types"
-
-export const config: ClientConfig = {
-    // ... viz šablona níže
-}
-```
-
-## Krok 2: Registrovat v loaderu
-
-Přidej řádek do `instagram/configs/index.ts`:
-
-```diff
- const CONFIGS: Record<string, () => Promise<{ config: ClientConfig }>> = {
-     mobilnamiru: () => import("./mobilnamiru"),
-     hanzfans: () => import("./hanzfans"),
-+    novyklient: () => import("./novyklient"),
- }
-```
-
-## Krok 3: Přidat post typy do DB
-
-Pokud klient používá vlastní post typy, přidej je do tabulky `ig_post_types`:
+## Krok 1: Vytvořit klienta v Supabase
 
 ```sql
-INSERT INTO ig_post_types (name, label, description, emoji, pillar)
-VALUES 
-    ('product_drop', 'Product Drop', 'New product announcement', '🔥', 'convert'),
-    ('outfit_inspo', 'Outfit Inspo', 'Styling inspiration', '👕', 'reach');
+-- 1. Vytvořit klienta
+INSERT INTO clients (slug, name, config) 
+VALUES ('novyklient', 'Název Značky', '{}'::jsonb);
+
+-- 2. Přiřadit uživatele
+INSERT INTO user_clients (user_id, client_id, role)
+SELECT 'USER_UUID', id, 'admin' FROM clients WHERE slug = 'novyklient';
 ```
 
-## Krok 4: Logo watermark (optional)
+Nebo použij script: `npx tsx scripts/setup-user.ts`
 
-Pokud klient chce logo watermark na obrázcích:
-1. Přidej PNG soubor do `instagram/fonts/logo-{klient}.png`
-2. Nastav `logoFile: "logo-{klient}.png"` v configu
-3. Doporučené: průhledné pozadí, bílý/světlý text, ~300×72px
+## Krok 2: Nastavit config
 
-## Krok 5: Otestovat
+Config je JSONB v `clients.config`. Edituje se v dashboard UI (**Settings tab**) nebo přímo v Supabase.
 
-```bash
-# Dry run — ověří že config funguje
-npx tsx instagram/autopilot.ts --config=novyklient --dry-run
+`validateConfig()` automaticky doplní safe defaults pro neúplný config — nový klient necrashne.
 
-# Plný test s generováním obrázku
-npx tsx instagram/autopilot.ts --config=novyklient --count=1
-```
-
----
-
-## Kompletní šablona konfigurace
-
-Každý klient MUSÍ mít všechna povinná pole. Optional pole jsou označena `?`.
-
-### Základní identifikace
+### Povinná pole (TypeScript: `ClientConfig` v `instagram/configs/types.ts`)
 
 ```typescript
-export const config: ClientConfig = {
-    // ─── POVINNÉ ────────────────────────────────────────
-    id: "novyklient",                    // Unikátní ID (= project_id v DB)
-    name: "Název Značky",               // Zobrazovaný název
-    website: "https://novyklient.cz",    // Web — používá se v CTA
-    instagram: "@novyklient",            // IG handle
-```
-
-### Brand Voice (POVINNÉ)
-
-Definuje jak AI píše za značku.
-
-```typescript
+{
     brandVoice: {
-        // Kdo je značka — AI prompt (čím detailnější, tím lepší výstup)
-        persona: `
-Popis značky, její hodnoty, tón komunikace, cílová skupina.
-Konkrétní příklady stylu psaní. Co dělá značku unikátní.
-Jak se liší od konkurence.
-        `.trim(),
-
-        // Základní hodnoty značky
-        values: [
-            "Hodnota 1 — popis",
-            "Hodnota 2 — popis",
-        ],
-
-        // Jak značka mluví
-        voiceTraits: [
-            "Tykáme / Vykáme",
-            "Styl jazyka (hovorový / formální / vtipný)",
-            "Délka vět",
-            "Emoji strategie",
-        ],
-
-        // Co nikdy nedělat
-        antiPatterns: [
-            "Žádné clickbaity bez hodnoty",
-            "Neprodávat agresivně",
-            "Nepoužívat generické fráze",
-        ],
-
-        // Šablony hooků (min 3-5)
+        persona: "Popis značky, hodnoty, tón komunikace, cílová skupina...",
+        values: ["Hodnota 1", "Hodnota 2"],
+        voiceTraits: ["Tykáme", "Hovorový styl", "Krátké věty"],
+        antiPatterns: ["Žádné clickbaity", "Neprodávat agresivně"],
         hookTemplates: [
             {
                 pattern: "{{číslo}} lidí dělá {{chybu}}",
                 example: "80% lidí dělá tuhle chybu s WiFi",
-                bestFor: ["tip_nastaveni", "statistika"],
-                trigger: "curiosity",  // curiosity | fear | hope | humor | urgency | empathy
-            },
-            {
-                pattern: "Tohle ti {{nikdo/nikdy}} neřekl o {{téma}}",
-                example: "Tohle ti nikdo neřekl o screen time",
-                bestFor: ["edukace"],
-                trigger: "curiosity",
-            },
+                bestFor: ["tip"],
+                trigger: "curiosity"  // curiosity | fear | hope | humor | urgency | empathy
+            }
         ],
-
-        // CTA variace
-        ctaVariations: [
-            "Odkaz v bio ☝️",
-            "Koukni na web.cz",
-            "DM pro víc info",
-        ],
-
-        // Tón per post type — stupnice 1-5
+        ctaVariations: ["Odkaz v bio ☝️", "Koukni na web.cz"],
         toneByPostType: {
-            tip: {
-                humorLevel: 2,        // 1=seriózní, 5=hodně vtipný
-                urgencyLevel: 3,      // 1=klidný, 5=urgentní
-                intimacyLevel: 4,     // 1=formální, 5=osobní
-                educationalLevel: 5,  // 1=zábava, 5=hluboká edukace
-            },
-            meme: {
-                humorLevel: 5,
-                urgencyLevel: 1,
-                intimacyLevel: 5,
-                educationalLevel: 1,
-            },
-        },
+            tip: { humorLevel: 2, urgencyLevel: 3, intimacyLevel: 4, educationalLevel: 5 },
+            meme: { humorLevel: 5, urgencyLevel: 1, intimacyLevel: 5, educationalLevel: 1 },
+        }
     },
-```
 
-### Content Pillars (POVINNÉ)
-
-Pilíře obsahu — poměry MUSÍ dávat dohromady 1.0.
-
-```typescript
     contentPillars: {
-        reach: {
-            emoji: "📈",
-            label: "Dosah",
-            description: "Obsah pro maximální reach a nové sledující",
-            postTypes: ["meme", "trending"],      // Jaké post typy patří pod pilíř
-            ratio: 0.30,                            // 30% obsahu
-            ctaStrategy: "soft",                    // soft | medium | hard | none
-            kpi: ["reach", "shares"],
-            ideaPrompt: "Volitelný prompt pro generování nápadů v tomto pilíři",
-        },
-        value: {
-            emoji: "🎓",
-            label: "Hodnota",
-            description: "Edukační obsah a tipy",
-            postTypes: ["tip", "edukace", "carousel_tips"],
-            ratio: 0.30,
-            ctaStrategy: "medium",
-            kpi: ["saves", "shares"],
-        },
-        convert: {
-            emoji: "🛒",
-            label: "Konverze",
-            description: "Obsah s CTA na web/prodej",
-            postTypes: ["product_drop", "before_after"],
-            ratio: 0.20,
-            ctaStrategy: "hard",
-            kpi: ["clicks", "conversions"],
-        },
-        connect: {
-            emoji: "💬",
-            label: "Komunita",
-            description: "Engagement a interakce",
-            postTypes: ["anketa", "behind_scenes"],
-            ratio: 0.20,
-            ctaStrategy: "none",
-            kpi: ["comments", "DMs"],
-        },
+        reach:   { emoji: "📈", label: "Dosah",    ratio: 0.30, ctaStrategy: "soft",   postTypes: ["meme", "trending"],   kpi: ["reach", "shares"] },
+        value:   { emoji: "🎓", label: "Hodnota",  ratio: 0.30, ctaStrategy: "medium", postTypes: ["tip", "edukace"],     kpi: ["saves", "shares"] },
+        convert: { emoji: "🛒", label: "Konverze", ratio: 0.20, ctaStrategy: "hard",   postTypes: ["product_drop"],       kpi: ["clicks"] },
+        connect: { emoji: "💬", label: "Komunita", ratio: 0.20, ctaStrategy: "none",   postTypes: ["anketa"],             kpi: ["comments"] },
     },
-```
 
-> **Důležité:** `ratio` všech pilířů musí dávat dohromady `1.0`. Názvy pilířů mohou být libovolné (reach/value/convert je jen konvence).
-
-### CTA Strategies (POVINNÉ)
-
-Texty pro call-to-action podle intenzity:
-
-```typescript
     ctaStrategies: {
-        soft: [
-            "Odkaz v bio ☝️",
-            "Víc na webu 👆",
-        ],
-        medium: [
-            "Mrkni na novyklient.cz 🔗",
-            "Všechno najdeš na novyklient.cz",
-        ],
-        hard: [
-            "🔥 Objednej teď na novyklient.cz!",
-            "⚡ Poslední kusy — novyklient.cz",
-        ],
-        none: [
-            "Co si o tom myslíš? 👇",
-            "Jak to máte vy?",
-        ],
+        soft:   ["Odkaz v bio ☝️", "Víc na webu 👆"],
+        medium: ["Mrkni na novyklient.cz 🔗"],
+        hard:   ["🔥 Objednej teď na novyklient.cz!"],
+        none:   ["Co si o tom myslíš? 👇"],
     },
-```
 
-### Feed Aesthetic (POVINNÉ)
-
-Vizuální identita pro konzistentní feed:
-
-```typescript
     feedAesthetic: {
-        colorPalette: "Popis barevné palety, např. 'Dark black (#0a0a0a) to neon purple (#7b2fff) gradient'",
+        colorPalette: "Dark black (#0a0a0a) to neon purple (#7b2fff) gradient",
         overlayOpacity: "30-40%",
         textPosition: "BOTTOM",
-        font: "Popis fontu, např. 'Bold sans-serif (Impact, Oswald)'",
-        feel: "Celkový vizuální pocit, např. 'Dark, edgy, streetwear aesthetic'",
-        phoneModel: "iPhone 17 Pro Max",  // Pro konzistenci v obrázcích
-
-        // Detailní instrukce pro Imagen prompt (optional)
-        customInstructions: `
-- Fotorealistická kvalita
-- Ostré zaostření
-- Moderní estetika
-- Specifické instrukce pro značku...
-        `.trim(),
+        font: "Bold sans-serif",
+        feel: "Dark, edgy aesthetic",
     },
-```
 
-### Week Plan (POVINNÉ)
-
-Statický týdenní plán — pole názvů post typů (2 per den, Po-Ne = 14 slotů):
-
-```typescript
-    weekPlan: [
-        // Pondělí
-        "tip", "meme",
-        // Úterý
-        "edukace", "product_drop",
-        // Středa
-        "meme", "carousel_tips",
-        // Čtvrtek
-        "before_after", "anketa",
-        // Pátek
-        "trending", "behind_scenes",
-        // Sobota
-        "product_drop", "tip",
-        // Neděle
-        "meme", "anketa",
-    ],
-```
-
-### Hashtag Pools (POVINNÉ)
-
-Engine automaticky míchá hashtagy z těchto poolů:
-
-```typescript
     hashtagPools: {
-        core: ["#novyklient"],                               // Brand hashtag (vždy přidaný)
-        niche: ["#oborovy1", "#oborovy2", "#oborovy3"],      // Oborové hashtagy
-        broad: ["#streetwear", "#fashion", "#lifestyle"],     // Široké hashtagy
-        trending: ["#2026vibes", "#trending"],                // Aktuální trendy (občas obnovit)
-        czech: ["#ceskyinstagram", "#ceskybrand"],            // České komunity
+        core: ["#novyklient"],
+        niche: ["#oborovy1", "#oborovy2"],
+        broad: ["#lifestyle"],
+        trending: ["#2026vibes"],
+        czech: ["#ceskyinstagram"],
     },
-```
 
-### Content Focus (POVINNÉ)
+    weekPlan: ["tip", "meme", "edukace", "product_drop", "meme", "carousel_tips", "before_after", "anketa", "trending", "behind_scenes", "product_drop", "tip", "meme", "anketa"],
 
-Jednořádkový popis ČEMU se obsah věnuje — AI to vidí v promptech:
-
-```typescript
+    // Jednořádkový popis čemu se obsah věnuje (povinné)
     contentFocus: "O PRODUKTECH, streetwearu a lifestyle. Tipy = styling, outfit inspirace.",
+}
 ```
 
-### Post Types (OPTIONAL)
+### Volitelná pole
 
-Jaké typy postů klient používá. Pokud chybí, engine použije defaultní sadu:
+| Pole | Typ | Účel |
+|------|-----|------|
+| `industry` | `string` | Obor pro context agent (např. "gastronomie", "e-commerce") |
+| `city` | `string` | Město pro počasí + lokální kontext (např. "Praha") |
+| `overlayGradient` | `{topColor, midColor, bottomColor}` | Barvy gradientu přes obrázky (hex) |
+| `logoFile` | `string` | Logo watermark (soubor v `instagram/assets/`) |
+| `imageInstructions` | `Record<string, string>` | Per-post-type instrukce pro obrázek (`_default` = fallback) |
+| `videoFocus` | `string` | Vizuální zaměření pro reels |
+| `products` | `ProductInfo[]` | Produktový katalog (@deprecated → preferuj `ig_products` tabulku) |
+| `productCooldownDays` | `number` | Cooldown v dnech pro produkt (default: 14) |
+| `audiencePersonas` | `AudiencePersona[]` | Persony cílové skupiny |
+| `storageBucket` | `string` | Název Supabase bucketu (fallback: "audit-screenshots") |
+| `postTypes` | `string[]` | Povolené post typy (pokud chybí → default sada) |
+| `postFormats` | `Record<string, PostFormat>` | Per-type format (aspect ratio, medium, overlay style) |
+| `defaultFormat` | `PostFormat` | Default formát když není per-type override |
+| `characterDescription` | `string` | Popis osoby pro konzistentní generování v obrázcích |
+| `brandReferenceImages` | `(string \| BrandImage)[]` | Brand reference fotky (z onboardingu nebo upload) |
+| `ttsVoice` | `string` | Hlas pro TTS voiceover (default: "Kore") |
+| `fontOverride` | v `feedAesthetic` | Override fontu pro overlay ("Inter" / "BebasNeue") |
+| `accentColor` | v `feedAesthetic` | Accent barva pro zvýrazněné slova v overlay (hex) |
+| `textAlign` | v `feedAesthetic` | Zarovnání textu ("left"/"center"/"right") |
+| `headlineScale` | v `feedAesthetic` | Velikost headline multiplikátor (default: 1.0) |
 
-```typescript
-    postTypes: ["meme", "product_drop", "tip", "behind_scenes", "carousel_tips", "anketa"],
+> **Poznámka:** Pilíře (`contentPillars`) mohou mít vnořené `categories: PillarCategory[]` — sub-kategorie s vlastním `weight`, `medium`, `overlayStyle`, `aspectRatio`.
+
+## Krok 3: Post typy v DB
+
+Pokud klient používá vlastní post typy:
+
+```sql
+INSERT INTO ig_post_types (client_id, name, display_name, emoji, pillar, frequency)
+SELECT id, 'product_drop', 'Product Drop', '🔥', 'convert', 0.15
+FROM clients WHERE slug = 'novyklient';
 ```
 
-> **Důležité:** Všechny post typy MUSÍ existovat v tabulce `ig_post_types` v Supabase!
+## Krok 4: Logo watermark (optional)
 
-### Overlay Gradient (OPTIONAL)
+1. Přidej PNG do `instagram/assets/logo-{klient}.png`
+2. Nastav `logoFile: "logo-{klient}.png"` v config JSONB
+3. Doporučení: průhledné pozadí, bílý text, ~300×72px
 
-Barvy gradientu přes obrázky. Pokud chybí, použije se neutrální `#111111`:
+## Krok 5: Storage bucket
 
-```typescript
-    overlayGradient: {
-        topColor: "#0a0a0a",    // Horní barva (hex)
-        midColor: "#1a0a2e",    // Střední barva (hex)
-        bottomColor: "#0a0a0a", // Spodní barva (hex)
-    },
+```bash
+npx tsx scripts/create-client-buckets.ts
 ```
 
-### Logo File (OPTIONAL)
+Nebo ručně v Supabase: vytvořit bucket `ig-{slug}` (public).
 
-Watermark logo. Pokud chybí, logo se nepřidává:
+## Krok 6: Onboarding
 
-```typescript
-    logoFile: "logo-novyklient.png",  // Soubor v instagram/fonts/
-```
+Nový klient může projít onboarding wizardem:
+1. `/onboarding` — zadá web URL
+2. AI analyzuje web → vygeneruje config
+3. Showcase: vygeneruje 3 ukázkové posty (90s timeout per post)
+4. Config se uloží do `clients.config`
 
-### Image Instructions (OPTIONAL)
+## Krok 7: Ověření
 
-Per-post-type instrukce pro obrázek. `_default` se použije jako fallback:
-
-```typescript
-    imageInstructions: {
-        _default: "Pozadí: relevantní lifestyle fotka.\nText dole: headline.",
-        meme: "MEME — VÝJIMKA: Žádný gradient. Raw meme format.",
-        product_drop: "PRODUCT DROP: Produkt na tmavém pozadí, neon světla.",
-    },
-```
-
-### Video Focus (OPTIONAL)
-
-Popis vizuálního zaměření pro video Reels:
-
-```typescript
-    videoFocus: "Streetwear lifestyle content (outfit reveals, product unboxing)",
-```
-
-### Products (OPTIONAL)
-
-Produktový katalog — pro eshop klienty, používá `product-generator.ts`:
-
-```typescript
-    products: [
-        {
-            name: "Triko Classic",
-            type: "triko",
-            variants: 3,                // Počet barevných variant
-            price: "499 Kč",
-            description: "Základní branded tričko v černé, bílé a šedé.",
-        },
-    ],
-```
+V dashboard:
+1. Přepni projekt v sidebar dropdownu
+2. Jdi do **Settings** → ověř config
+3. Jdi do **Generate** → vygeneruj 1 testovací post
+4. Ověř vizuál + caption + hashtagy
 
 ---
 
-## Checklist pro nového klienta
+## Config validace
 
-```
-[ ] 1. Vytvořit configs/{klient}.ts s VŠEMI povinnými poli
-[ ] 2. Registrovat v configs/index.ts
-[ ] 3. Přidat custom post typy do DB (pokud má vlastní)
-[ ] 4. Logo watermark PNG do fonts/ (pokud chce)
-[ ] 5. Dry-run test: npx tsx instagram/autopilot.ts --config={klient} --dry-run
-[ ] 6. Plný test: vygenerovat 1 post a ověřit vizuál + caption
-[ ] 7. Ověřit že posty mají správné project_id v Supabase
-```
+`loadConfig()` automaticky volá `validateConfig()` — safe defaults:
+
+| Pole | Default pokud chybí |
+|------|---------------------|
+| `id` | Slug klienta |
+| `name` | Slug klienta |
+| `website` | Prázdný string |
+| `instagram` | Prázdný string |
+| `brandVoice` | `{ persona: "Přátelský poradce", hookTemplates: [], ...}` |
+| `contentPillars` | Prázdný objekt `{}` |
+| `ctaStrategies` | `{ soft: [], medium: [], hard: [], none: [] }` |
+| `feedAesthetic` | `{ colorPalette: "Neutrální", font: "Inter", feel: "Moderní a čistý", phoneModel: "iPhone 16 Pro" }` |
+| `weekPlan` | Prázdné pole `[]` |
+| `hashtagPools` | `{ core: [], niche: [], broad: [], trending: [], czech: [] }` |
+| `contentFocus` | `config.name \|\| slug` |
+
+> **Pozor:** Optional pole (`imageInstructions`, `overlayGradient`, `audiencePersonas`, `postFormats`, ...) NEMAJÍ default v `validateConfig()` — zůstanou `undefined`. Engine je zpracuje s graceful fallbacky.
+
+Nový klient s prázdným `{}` configem **necrashne** — ale výstupy budou generické.
+
+---
 
 ## FAQ
 
@@ -375,13 +186,13 @@ Produktový katalog — pro eshop klienty, používá `product-generator.ts`:
 A: Ano, názvy jsou libovolné. Engine je čte dynamicky z configu.
 
 **Q: Co když klient nemá produkty?**
-A: Pole `products` je optional. Engine bude generovat lifestyle obsah bez produktových referencí.
+A: `products` je optional. Engine generuje lifestyle obsah bez produktových referencí.
 
-**Q: Jak mění barvy gradientu?**
-A: Nastav `overlayGradient` v configu. Barvy jsou hex hodnoty pro horní/střed/spodní gradient.
+**Q: Jak změnit barvy gradientu?**
+A: Nastav `overlayGradient` v Settings tabu nebo přímo v DB.
 
 **Q: Kolik post typů může klient mít?**
-A: Neomezeně. Každý post type musí existovat v DB tabulce `ig_post_types`.
+A: Neomezeně. Musí existovat v DB `ig_post_types` s odpovídajícím `client_id`.
 
-**Q: Co znamená `contentFocus`?**
-A: Jednořádkový text který AI vidí v promptu. Říká AI *čemu* se obsah věnuje — "O TELEFONECH" vs "O MERCHI" vs "O FITNESS".
+**Q: Co je `contentFocus`?**
+A: Jednořádkový popis čemu se obsah věnuje — "O TELEFONECH" / "O MERCHI" / "O FITNESS". AI to vidí v promptu.

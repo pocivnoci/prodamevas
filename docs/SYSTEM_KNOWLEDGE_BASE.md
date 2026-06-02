@@ -1,11 +1,8 @@
-# 🧠 System Knowledge Base — Instagram Autopilot SaaS
+# 🧠 System Knowledge Base — Chrlit Studio
 
 > **Codename:** ProdameVas  
-> **Stack:** Next.js 16 (App Router) · Supabase (Postgres + Auth + Storage) · Google Gemini 3.1 Pro Preview · Nano Banana Pro · Imagen 4 Ultra · Veo 3.1  
-> **Last Updated:** 2026-05-14
-
-> [!CAUTION]
-> **AI AGENTE: Tento dokument MUSÍŠ aktualizovat po každé změně kódu.** Viz `docs/AI_RULES.md` pro checklist co a kde updatovat. Zastaralá dokumentace = technický dluh.
+> **Stack:** Next.js 16 (App Router) · Supabase (Postgres + Auth + Storage) · Google Gemini 3.5 Flash · Nano Banana Pro · Veo 3.1  
+> **Last Updated:** 2026-06-02
 
 ---
 
@@ -15,38 +12,43 @@
 graph TB
     subgraph "Frontend - Next.js App Router"
         LP["Landing Page<br/>app/page.tsx"]
-        DASH["Dashboard Studio<br/>9 Tab Components"]
-        LOGIN["Auth Gate<br/>app/login/page.tsx"]
+        DASH["Dashboard Studio<br/>20 Tab Components"]
+        LOGIN["Auth Gate<br/>login + register (invite code)"]
+        OB["Onboarding Wizard<br/>web scan → config → showcase"]
     end
 
-    subgraph "API Routes - Generation"
-        CJ["ig-create-job<br/>fast, returns jobId"]
-        RJ["ig-run-job<br/>300s, runs pipeline"]
-        JS["ig-job-status<br/>polling endpoint"]
-        LN["ig-learn<br/>feedback loop trigger"]
+    subgraph "API Routes"
+        CJ["ig-create-job<br/>auth ✅ + rate limit 10/h"]
+        RJ["ig-run-job<br/>auth ✅, 300s max"]
+        JS["ig-job-status<br/>auth ✅, polling"]
+        IG["ig-generate<br/>auth ✅, direct"]
+        LN["ig-learn<br/>auth ✅, feedback"]
+        PC["payments/create<br/>auth ✅ + COMGATE_MOCK"]
+        PCB["payments/callback<br/>Comgate webhook"]
+        SUB["subscription<br/>auth ✅"]
     end
 
     subgraph "Engine - instagram/"
-        AP["autopilot.ts<br/>Core Orchestrator"]
+        AP["autopilot.ts<br/>1849 LOC Orchestrator"]
         CG["caption-generator.ts<br/>Mega Prompt + Quality Gate"]
+        EB["editorial-board.ts<br/>6 AI Agent Review"]
         SVC["service.ts<br/>DB Access + Feedback Loop"]
         GC["gemini-client.ts<br/>AI Model Gateway"]
         MA["memory-agent.ts<br/>Brand Memory + Learning"]
-        PERF["performance.ts<br/>Neural Brand Engine"]
+        CA["context-agent.ts<br/>Calendar + Weather + Trends"]
         IP["image-pipeline.ts<br/>Prompt Refinement"]
-        TO["text-overlay.ts<br/>Image Post-Processing"]
-        PG["product-generator.ts<br/>Merch Design AI"]
+        TO["text-overlay.ts<br/>Satori → Sharp"]
+        VP["video-processor.ts<br/>Veo 3.1 Reels"]
     end
 
-    subgraph "Database - Supabase"
-        CL[("clients")]
+    subgraph "Database - Supabase (16 tables)"
+        CL[("clients + config JSONB")]
         IPO[("ig_posts")]
         II[("ig_post_ideas<br/>+performance_score")]
         IR[("ig_reviews<br/>+performance_score")]
-        IPT[("ig_post_types")]
         IGL[("ig_generation_log<br/>+critic_score/keep/fix")]
         BM[("ig_brand_memory<br/>pattern/preference/avoid/visual")]
-        IJ[("ig_jobs<br/>progress tracking")]
+        IJ[("ig_jobs<br/>+editorial_log")]
     end
 
     DASH -->|"1. create job"| CJ
@@ -55,12 +57,13 @@ graph TB
     CJ --> IJ
     RJ --> AP
     AP --> CG
+    AP --> EB
     AP --> SVC
     AP --> GC
     AP --> MA
+    AP --> CA
     AP --> IP
     AP --> TO
-    GC --> PERF
     LN -->|"triggers"| SVC
     LN -->|"triggers"| MA
     SVC --> II
@@ -74,17 +77,17 @@ graph TB
 ## 2. Multi-Tenancy Model
 
 > [!IMPORTANT]
-> **Every `ig_*` table uses `client_id uuid` FK to `clients.id`.** The dashboard passes a human-readable **slug** (e.g. `"mobilnamiru"`), which is resolved to a uuid via `resolveClientId(slug)` at the API boundary.
+> **Every `ig_*` table uses `client_id uuid` FK to `clients.id`.** The dashboard passes a **projectId** (UUID), which maps to a client record. Config is stored as JSONB in `clients.config`.
 
-| Layer | Identifier | Type | Example |
-|---|---|---|---|
-| UI Dropdown | `projectId` | slug string | `"mobilnamiru"` |
-| API Routes | `resolveClientId(slug)` | translator | slug → `"9a3f-..."` |
-| DB Queries | `client_id` | uuid FK | `WHERE client_id = '9a3f-...'` |
-| Autopilot Engine | `getActiveProject()` | uuid string | Set once per run via `ensureConfig` |
+| Layer | Identifier | Type |
+|---|---|---|
+| UI (StudioContext) | `projectId` | UUID string |
+| API Routes | `clientId` from body/params | UUID |
+| DB Queries | `client_id` | uuid FK |
+| Config loader | `loadConfig(slug)` → `validateConfig()` | slug → ClientConfig |
 
 > [!WARNING]
-> Config is stored as JSONB in the `clients.config` column in Supabase DB. There are NO config files in the codebase — only `configs/types.ts` (TypeScript interface) and `configs/index.ts` (DB loader with caching).
+> Config lives ONLY in DB (`clients.config` JSONB). No config files in codebase — only `configs/types.ts` (TypeScript interface) and `configs/index.ts` (DB loader with caching + runtime validation).
 
 ---
 
@@ -100,6 +103,7 @@ sequenceDiagram
     participant DB as Supabase
 
     UI->>CJ: POST {configName, type, topic}
+    Note over CJ: Rate limit check (10/h)
     CJ->>DB: INSERT ig_jobs → returns jobId
     CJ-->>UI: { jobId }
     UI->>RJ: POST { jobId } (fire)
@@ -108,7 +112,7 @@ sequenceDiagram
     AP->>DB: onProgress() → UPDATE ig_jobs status/progress
     JS-->>UI: { status, progress, agentMessage }
     AP-->>RJ: { id, caption, imageUrl, cost }
-    RJ->>DB: UPDATE ig_jobs status=done
+    RJ->>DB: UPDATE ig_jobs status=done, editorial_log
     RJ-->>UI: { success, postId, caption, imageUrl }
 ```
 
@@ -118,26 +122,25 @@ sequenceDiagram
 |------|-------|-------|----------|
 | 1. Post type selection | Researcher | — | 5% |
 | 2. Idea/Review selection | Researcher (weighted) | — | 15% |
-| 3. Dedup check | Researcher | — | 20% |
-| 4. Performance analysis | Researcher | — | 20% |
-| 5. Caption generation | Copywriter | `gemini-3.1-pro-preview` | 25% |
-| 6. Quality gate scoring | Critic | `gemini-3.1-pro-preview` | 45% |
-| 6b. Targeted repair | Copywriter + Critic dialog | `gemini-3.1-pro-preview` | 50% |
-| 7. Image prompt refinement | Art Director | `gemini-3.1-pro-preview` | 60% |
-| 8. Image generation | Renderer | `gemini-3-pro-image-preview` / `imagen-4.0-ultra` | 75% |
-| 9. Text overlay | Renderer | Satori + resvg-js | 90% |
+| 3. Dedup check (Levenshtein) | Researcher | — | 20% |
+| 4. Context gathering | Context Agent | `gemini-3.5-flash` | 20% |
+| 5. Caption generation | Copywriter | `gemini-3.5-flash` | 25% |
+| 6. Quality gate scoring | Critic | `gemini-3.5-flash` | 45% |
+| 6b. Editorial Board review | Chief Editor + Copywriter | `gemini-3.5-flash` | 50% |
+| 7. Image prompt refinement | Art Director | `gemini-3.5-flash` | 60% |
+| 8. Image generation | Renderer | Nano Banana Pro / Nano Banana 2 | 75% |
+| 9. Text overlay | Renderer | Satori + Sharp | 90% |
 | 10. Upload + save | Uploader | Supabase Storage | 95% |
 
 ---
 
 ## 4. Feedback Loop Architecture
 
-The system is **self-improving**. Every generation feeds back into future generations:
+The system is **self-improving**. Metrics propagate back into future generations:
 
 ```
-ig_posts (with metrics)
-    ↓
-POST /api/ig-learn
+User enters metrics (likes, comments, saves) → updateIGPostMetrics()
+    ↓ AUTO-TRIGGER (fire & forget)
     ├── propagateMetricsToSources()
     │       ├── ig_post_ideas.performance_score  (Idea Ranker)
     │       └── ig_reviews.performance_score     (Review Ranker)
@@ -145,107 +148,130 @@ POST /api/ig-learn
             └── ig_brand_memory (new pattern/avoid/visual rules)
 
 ig_generation_log
-    └── critic_score, critic_keep[], critic_fix[]  (Critic → Memory)
+    └── critic_score, critic_keep[], critic_fix[]
+        → autopilot reads last 5 scores → injects keep/fix into mega prompt
 
 buildSmartWeekPlan()
     └── pillar ratios ×1.5 (top) / ×0.5 (under) based on real engagement
 ```
 
-### Activating the Feedback Loop
-After entering post metrics (likes, saves, comments), call:
-```
-POST /api/ig-learn { configName: "mobilnamiru" }
-```
-Returns: `{ ideasUpdated, reviewsUpdated, memoriesCreated, memoriesUpdated }`
+> [!NOTE]
+> Feedback loop is **automatic** — triggered when user saves metrics via `updateIGPostMetrics()`. Manual trigger: `POST /api/ig-learn { configName }`.
 
 ---
 
 ## 5. AI Model Registry
 
-| Role | Model | Notes |
-|------|-------|-------|
-| **Text gen (Copywriter, Critic, Art Dir)** | `gemini-3.1-pro-preview` | Flagship, reasoning, agentic |
-| **Fallback (503/429)** | `gemini-2.5-flash-lite` | Fast, stable, cheap |
-| **Image gen with references** | `gemini-3-pro-image-preview` | Nano Banana Pro — 4K, reasoning core |
-| **Image gen without references** | `imagen-4.0-ultra-generate-001` | Best text-to-image |
-| **Vision (logo placement)** | `gemini-2.5-pro` | Vision tasks |
-| **Video gen** | `veo-3.1-generate-preview` | Reels, 9:16 |
+| Role | Model | Fallback | Notes |
+|------|-------|----------|-------|
+| **Text gen** (all agents) | `gemini-3.5-flash` | `gemini-2.5-flash-lite` | On 503/429 |
+| **Image gen** (primary) | `gemini-3-pro-image-preview` | `gemini-3.1-flash-image-preview` | Nano Banana Pro → Nano Banana 2 |
+| **Image edit** (product→scene) | `gemini-3-pro-image-preview` | — | editExistingImage() |
+| **Image with refs** | `gemini-3-pro-image-preview` | — | generateImageWithReferences() |
+| **Vision** (logo placement) | `gemini-3.5-flash` | — | detectLogoPlacementArea() |
+| **Video** (reels) | `veo-3.1-fast-generate-001` | `veo-3.1-generate-001` | fast=$0.15/s, std=$0.40/s |
+| **TTS** (voiceover) | `gemini-3.1-flash-tts-preview` | — | Czech narration, voice: Kore |
 
 > [!CAUTION]
-> `gemini-2.0-flash` is **DEPRECATED** — do NOT use it. Fallback is `gemini-2.5-flash-lite`.
+> `gemini-2.0-flash` is **DEPRECATED**. `imagen-4.0-ultra` was **sunset June 2026** — replaced by Nano Banana Pro. `gemini-3.1-pro-preview` was replaced by `gemini-3.5-flash`.
 
 ---
 
-## 6. Database Schema
+## 6. Database Schema (16 tables)
 
 | Table | Key Columns | Notes |
 |---|---|---|
 | `clients` | `id` (uuid PK), `slug` (unique), `config` (jsonb) | Multi-tenant root |
 | `user_clients` | `user_id`, `client_id`, `role` | RBAC |
-| `ig_post_types` | `name`, `display_name`, `emoji`, `frequency` | — |
-| `ig_post_ideas` | `title`, `content`, `cooldown_days`, **`performance_score`**, `times_used_with_metrics` | Idea Ranker |
-| `ig_reviews` | `quote`, `is_approved`, `used_at`, **`performance_score`**, `times_used_with_metrics` | Review Ranker |
-| `ig_posts` | `caption`, `image_url`, `status`, `idea_id`, `review_id`, `likes`, `saves`, `reach` | FK to ideas/reviews |
-| `ig_generation_log` | `prompt_used`, `model_used`, **`critic_score`**, **`critic_keep`**, **`critic_fix`** | Critic feedback |
-| `ig_brand_memory` | `memory_type` (pattern/preference/avoid/**visual**), `content`, `confidence` | Long-term learning |
-| `ig_jobs` | `status`, `progress`, `agent_message`, `config`, `result` | Progress tracking |
+| `ig_post_types` | `name`, `display_name`, `emoji`, `frequency` | Per-client post types |
+| `ig_post_ideas` | `title`, `content`, `performance_score`, `times_used_with_metrics` | Idea Ranker (weighted) |
+| `ig_reviews` | `quote`, `is_approved`, `performance_score`, `times_used_with_metrics` | Review Ranker (weighted) |
+| `ig_products` | `name`, `type`, `slug`, `price`, `image_urls[]` | Products + photos |
+| `ig_product_ideas` | `name`, `concept`, `design_url` | AI product design concepts |
+| `ig_product_categories` | `name`, `client_id` | Product categories |
+| `ig_posts` | `caption`, `image_url`, `status`, `idea_id`, `review_id`, `product_id`, `likes`, `saves`, `reach` | FK to ideas/reviews/products |
+| `ig_content_calendar` | `date`, `post_id`, `time_slot` | Calendar scheduling |
+| `ig_generation_log` | `prompt_used`, `model_used`, `critic_score`, `critic_keep[]`, `critic_fix[]` | Critic feedback for learning |
+| `ig_brand_memory` | `memory_type` (pattern/preference/avoid/visual), `content`, `confidence` | Long-term learning |
+| `ig_jobs` | `status`, `progress`, `agent_message`, `editorial_log` (jsonb), `result` (jsonb) | Progress + editorial board log |
+| `subscription_plans` | `id`, `name`, `price_czk`, `features` | Plan definitions |
+| `subscriptions` | `client_id`, `plan_id`, `status`, `plan_posts_unlocked` | Active subscriptions |
+| `payments` | `comgate_trans_id`, `amount`, `status` | Comgate payments |
 
 ---
 
 ## 7. File Reference
 
-| File | Role | Key Notes |
+### AI Engine (`instagram/`)
+
+| File | LOC | Role |
 |---|---|---|
-| `autopilot.ts` | **Core orchestrator** | Uses weighted idea/review selection; stores critic data |
-| `caption-generator.ts` | **Text engine** — mega prompt, schemas, quality gate | `buildMegaPrompt()` + aggressive `buildSmartWeekPlan()` |
-| `service.ts` | **DB access + feedback loop** | `getWeightedIdeas()`, `getWeightedReviews()`, `propagateMetricsToSources()` |
-| `gemini-client.ts` | **AI gateway** | Primary: 3.1-pro-preview; Fallback: 2.5-flash-lite |
-| `memory-agent.ts` | **Brand Memory** | `getBrandMemories()`, `analyzeAndLearn()`, ilike search |
-| `performance.ts` | **Analytics** | Per-pillar engagement, conversion rate, top patterns |
-| `image-pipeline.ts` | **Prompt refinement** | Feed aesthetic, carousel visual cohesion |
-| `text-overlay.ts` | **Image post-processing** | Satori + resvg-js; fonts in `fonts/`, logos in `assets/` |
+| `autopilot.ts` | 1849 | **Core orchestrator** — generateOnePost(), generateBatch() |
+| `caption-generator.ts` | 791 | Mega prompt builder, caption schemas, scorePost(), selectOverlayVariant() |
+| `editorial-board.ts` | 777 | reviewPost(), reviewContentPlan(), reviewOverlayComposition() |
+| `text-overlay.ts` | 683 | Satori SVG → Sharp PNG overlay + logo watermark |
+| `product-generator.ts` | 643 | Product ideas, design concepts, mockups |
+| `service.ts` | 617 | DB access — getWeightedIdeas(), createPost(), propagateMetrics() |
+| `memory-agent.ts` | 459 | getBrandMemories(), analyzeAndLearn(), getPostTypeBoosts() |
+| `gemini-client.ts` | 455 | AI gateway — generateText(), generateImage(), editExistingImage(), generateVideo(), generateVoiceover() |
+| `image-pipeline.ts` | 346 | refineImagePrompt(), refineCarouselPrompts(), getVisualMemoriesSection() |
+| `video-processor.ts` | 247 | processReelVideo(), scenesToSubtitles() |
+| `context-agent.ts` | 232 | gatherContext() — svátek, počasí, trendy |
+| `content-planner.ts` | 223 | planWeek() — AI content planning |
+| `performance.ts` | 186 | Per-pillar engagement analytics |
+| `idea-generator.ts` | 145 | generateAIIdeas() with brand memory |
+| `review-generator.ts` | 142 | generateAIReviews() with brand memory |
+| `brand-tagger.ts` | 128 | tagBrandImages() — vision auto-tagging |
+| `configs/index.ts` | — | loadConfig(), validateConfig(), resolveClientId(), invalidateConfigCache() |
+| `configs/types.ts` | — | ClientConfig interface (brandVoice, contentPillars, feedAesthetic, imageInstructions, ...) |
 
 ### API Routes
 
-| Route | Duration | Purpose |
-|-------|----------|---------|
-| `POST /api/ig-create-job` | 10s | Create job record, return jobId |
-| `POST /api/ig-run-job` | 300s | Run full generation pipeline |
-| `GET /api/ig-job-status` | 10s | Poll job progress |
-| `POST /api/ig-learn` | 60s | Trigger feedback loop |
+| Route | Auth | Duration | Purpose |
+|-------|------|----------|---------|
+| `POST /api/ig-create-job` | ✅ + rate limit | 10s | Create job record, return jobId |
+| `POST /api/ig-run-job` | ✅ | 300s | Run full generation pipeline |
+| `GET /api/ig-job-status` | ✅ | 10s | Poll job progress |
+| `POST /api/ig-generate` | ✅ | 300s | Direct generation (no job) |
+| `POST /api/ig-learn` | ✅ | 60s | Trigger feedback loop |
+| `POST /api/payments/create` | ✅ | 10s | Create Comgate payment (or mock) |
+| `POST /api/payments/callback` | ❌ (webhook) | 10s | Comgate status callback |
+| `GET /api/payments/return` | ❌ (redirect) | 10s | Post-payment redirect |
+| `GET /api/subscription` | ✅ | 10s | Client subscription info |
+
+### Server Actions (`app/actions/`)
+
+| File | LOC | Key Exports |
+|---|---|---|
+| `admin-actions.ts` | 2366 | getDashboardStats(), getIGPostsList(), updateIGPostMetrics(), revisePost(), generatePostVariant(), generateContentPlan(), getEditorialLog(), updateClientConfig() |
+| `product-actions.ts` | 537 | getProducts(), saveProduct(), deleteProduct() |
+| `ig-generate-action.ts` | 519 | triggerBatchGeneration(), triggerIdeaGeneration(), triggerReviewGeneration() |
+| `credit-guard.ts` | 197 | creditGuard(), creditGuardBatch() |
+| `calendar-actions.ts` | 180 | planWeekCalendar() |
+| `product-brief-actions.ts` | 154 | generateProductBrief() → DOCX |
 
 ---
 
-## 8. AI Agent Rules — MUST READ
+## 8. Security
 
-> [!CAUTION]
-> **Every change has cascading effects.** Follow these rules strictly.
+| Layer | Protection |
+|---|---|
+| **Middleware** | Redirects unauthenticated to `/login` for `/dashboard/*`, `/onboarding` |
+| **API Routes** | `requireAuth()` on all routes (except payment webhooks) |
+| **Rate Limiting** | 10 jobs/hour per client (DB-based, admin bypass) on `ig-create-job` |
+| **Supabase RLS** | Enabled on all tables |
+| **Service Role** | `supabase/admin.ts` — bypasses RLS for engine operations |
+| **Invite Codes** | Registration requires valid invite code (`invite_codes` table) |
+| **Mock Payments** | `COMGATE_MOCK=true` → fake payment page, no real charges |
+| **Config Validation** | `validateConfig()` fills safe defaults for 11+ required fields |
 
-### Rule 1: Tenant Isolation is Sacred
-- **NEVER** query an `ig_*` table without a `client_id` filter
-- New tables **MUST** have `client_id uuid REFERENCES clients(id) ON DELETE CASCADE`
+### Supabase Clients
 
-### Rule 2: Config Lives in DB Only
-- Config is JSONB in `clients.config` — **no config files in codebase**
-- New per-client behavior → add field to `ClientConfig` in `configs/types.ts`
-
-### Rule 3: The MegaPrompt is the Heart
-- `buildMegaPrompt()` in `caption-generator.ts` — new data sources must be wired here
-- Brand memories injected via `formatMemoriesForPrompt()` after `buildMegaPrompt()`
-
-### Rule 4: Server-Side Only
-- Backend: `supabase/admin` (service role) — never `supabase/client`
-- API routes: `resolveClientId(slug)` at the boundary, never inside engine
-
-### Rule 5: No Hardcoding
-- Admin emails → `SUPER_ADMIN_EMAILS` env var
-- Storage buckets → `config.storageBucket`
-- Retry logic → `utils/retry.ts` (single source of truth)
-
-### Rule 6: Feedback Loop Integrity
-- When adding new data sources: add `performance_score` column + weighted selection
-- When adding new agent steps: log results into `ig_generation_log` or `ig_brand_memory`
-- **Never** short-circuit the feedback chain
+| Client | File | When to Use |
+|--------|------|-------------|
+| **Browser** | `supabase/client.ts` | ONLY frontend `"use client"` components |
+| **Server** | `supabase/server.ts` | Server actions — has auth context (cookies) |
+| **Admin** | `supabase/admin.ts` | Engine backend — service role, bypasses RLS |
 
 ---
 
@@ -257,7 +283,11 @@ Returns: `{ ideasUpdated, reviewsUpdated, memoriesCreated, memoriesUpdated }`
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Frontend, middleware |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server actions, engine |
 | `GEMINI_API_KEY` | Yes for gen | gemini-client.ts |
-| `SUPER_ADMIN_EMAILS` | Yes | configs/index.ts |
+| `SUPER_ADMIN_EMAILS` | Yes | auth-guard.ts, subscription.ts |
+| `COMGATE_MERCHANT` | Yes for payments | lib/comgate.ts |
+| `COMGATE_SECRET` | Yes for payments | lib/comgate.ts |
+| `COMGATE_MOCK` | Optional | payments/create, payments/callback |
+| `NEXT_PUBLIC_SITE_URL` | Yes | auth callback, payments |
 
 ---
 
@@ -265,10 +295,10 @@ Returns: `{ ideasUpdated, reviewsUpdated, memoriesCreated, memoriesUpdated }`
 
 | Operation | Model | Cost |
 |---|---|---|
-| Caption + Critic + ArtDir | gemini-3.1-pro-preview | ~$0.03 |
-| Image gen (with refs) | gemini-3-pro-image-preview | ~$0.05 |
-| Image gen (no refs) | imagen-4.0-ultra | ~$0.06 |
+| Caption + Critic + Art Dir | gemini-3.5-flash | ~$0.02 |
+| Image gen (Nano Banana Pro) | gemini-3-pro-image-preview | ~$0.05 |
+| Image edit (product scene) | gemini-3-pro-image-preview | ~$0.05 |
 | Video 8s | veo-3.1-fast | ~$1.20 |
 | **Total per image post** | — | **~$0.10** |
 | **Total per reel** | — | **~$1.25** |
-| **Total per carousel** | — | **~$0.37** |
+| **Total per carousel (5 slides)** | — | **~$0.37** |
