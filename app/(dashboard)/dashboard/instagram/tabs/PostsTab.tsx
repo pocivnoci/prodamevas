@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { motion } from "framer-motion"
-import { getIGPostsList, updateIGPostStatus, deleteIGPost, deleteIGPosts, revisePost, generatePostVariant } from "@/app/actions/admin-actions"
+import { getIGPostsList, updateIGPostStatus, deleteIGPost, deleteIGPosts, revisePost, generatePostVariant, getEditorialLog } from "@/app/actions/admin-actions"
 import { LoadingSpinner, StatusBadge, PillarBadge, CopyButton, MetricsInputForm } from "./shared"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPost } from "./types"
@@ -392,6 +392,13 @@ function PostDetailModal({
     const [generatingVariant, setGeneratingVariant] = useState(false)
     const [variantResult, setVariantResult] = useState<{ success: boolean; newPostId?: string; error?: string } | null>(null)
     const [carouselIndex, setCarouselIndex] = useState(0)
+    const [editorialLog, setEditorialLog] = useState<{ role: string; action: string; summary: string }[]>([])
+    const [editorialOpen, setEditorialOpen] = useState(false)
+
+    // Fetch editorial log on mount
+    useEffect(() => {
+        getEditorialLog(post.id).then(setEditorialLog)
+    }, [post.id])
 
     const imageUrls = post.image_url ? post.image_url.split("|").filter(Boolean) : []
     const isCarousel = imageUrls.length > 1
@@ -580,6 +587,42 @@ function PostDetailModal({
                                     <p className="text-[10px] font-mono text-white/40 bg-[#0f0f0f] border border-white/5 rounded-sm p-3 shadow-inner">
                                         {post.image_prompt}
                                     </p>
+                                </div>
+                            )}
+
+                            {/* Editorial Board Log */}
+                            {editorialLog.length > 0 && (
+                                <div>
+                                    <button
+                                        onClick={() => setEditorialOpen(!editorialOpen)}
+                                        className="flex items-center justify-between w-full mb-2 group"
+                                    >
+                                        <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">🧠 Editorial Board ({editorialLog.length})</span>
+                                        <span className="text-[10px] text-white/30 group-hover:text-white/50 transition-colors">{editorialOpen ? '▲' : '▼'}</span>
+                                    </button>
+                                    {editorialOpen && (
+                                        <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-3 space-y-2 max-h-48 overflow-y-auto shadow-inner">
+                                            {editorialLog.map((msg, i) => {
+                                                const roleColors: Record<string, string> = {
+                                                    strategist: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
+                                                    copywriter: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+                                                    critic: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+                                                    chief_editor: 'text-violet-400 bg-violet-500/10 border-violet-500/20',
+                                                }
+                                                const color = roleColors[msg.role] || 'text-white/40 bg-white/5 border-white/10'
+                                                return (
+                                                    <div key={i} className="flex items-start gap-2">
+                                                        <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-sm border flex-shrink-0 ${color}`}>
+                                                            {msg.role?.replace('_', ' ')}
+                                                        </span>
+                                                        <span className="text-[10px] text-white/50 leading-snug flex-1">
+                                                            {msg.summary || msg.action}
+                                                        </span>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             )}
 

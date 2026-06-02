@@ -929,6 +929,48 @@ function VisualSection({ config, updateField, setGradientKey, handleLogoUpload, 
                         rows={2} placeholder="Vždy zahrnout zelené rostliny, dřevěné textury..." className={textareaClass} />
                 </div>
 
+                {/* Per-post-type Image Instructions */}
+                <div>
+                    <FieldLabel hint="Specifické instrukce pro obrázky dle typu postu — AI je použije v mega promptu">Instrukce pro obrázky (per typ)</FieldLabel>
+                    <div className="space-y-2">
+                        {Object.entries(config.imageInstructions || {}).map(([typeName, instruction]) => (
+                            <div key={typeName} className="flex items-start gap-2 bg-[#050505] border border-white/5 rounded-sm p-2">
+                                <input value={typeName} readOnly
+                                    className="w-32 px-2 py-1.5 bg-transparent border border-white/10 rounded-sm text-[9px] font-mono text-white/50" />
+                                <textarea
+                                    value={(instruction as string) || ""}
+                                    onChange={(e) => setConfig((prev: any) => ({
+                                        ...prev,
+                                        imageInstructions: { ...(prev.imageInstructions || {}), [typeName]: e.target.value }
+                                    }))}
+                                    rows={2}
+                                    placeholder="Popis scény, co má být na obrázku..."
+                                    className={`flex-1 ${textareaClass}`} />
+                                <button onClick={() => setConfig((prev: any) => {
+                                    const next = { ...(prev.imageInstructions || {}) }
+                                    delete next[typeName]
+                                    return { ...prev, imageInstructions: next }
+                                })} className="text-[9px] text-red-400/40 hover:text-red-400 transition-colors mt-1 flex-shrink-0">✕</button>
+                            </div>
+                        ))}
+                        <button
+                            onClick={() => {
+                                const newKey = `typ_${Date.now()}`
+                                setConfig((prev: any) => ({
+                                    ...prev,
+                                    imageInstructions: { ...(prev.imageInstructions || {}), [newKey]: "" }
+                                }))
+                            }}
+                            className="w-full py-2 border border-dashed border-white/10 rounded-sm text-[9px] text-white/30 font-bold uppercase tracking-widest hover:text-white/50 hover:border-white/20 transition-all"
+                        >
+                            + Přidat instrukci pro typ
+                        </button>
+                    </div>
+                    {Object.keys(config.imageInstructions || {}).length === 0 && (
+                        <p className="text-[9px] text-white/20 mt-1">Žádné instrukce — AI použije defaultní popis scény. Tip: přidej _default pro globální instrukci.</p>
+                    )}
+                </div>
+
                 <div>
                     <FieldLabel hint="Instrukce pro video obsah">Zaměření videí</FieldLabel>
                     <textarea value={config.videoFocus || ""} onChange={(e) => updateField(["videoFocus"], e.target.value)}

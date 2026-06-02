@@ -12,6 +12,9 @@ import supabaseAdmin from "@/supabase/admin"
 import { createPayment, generateRefId } from "@/lib/comgate"
 
 export async function POST(req: NextRequest) {
+    const { requireAuth } = await import("@/lib/auth-guard")
+    try { await requireAuth() } catch { return NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
+
     try {
         const body = await req.json()
         const { clientSlug, clientId, planId, email } = body

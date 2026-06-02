@@ -214,12 +214,18 @@ function OnboardingContent() {
                 console.warn('Plan generation failed (non-fatal):', planErr)
             }
 
-            // Phase 2: Generate 3 full showcase posts (sequential, each ~30-60s)
+            // Phase 2: Generate 3 full showcase posts (sequential, each ~30-60s, 90s timeout)
             for (let i = 0; i < 3; i++) {
                 setGeneratingProgress({ phase: 'showcase', current: i + 1, total: 3 })
                 try {
                     const { generateShowcasePost } = await import('@/app/actions/ig-generate-action')
-                    await generateShowcasePost({ configName: clientSlug })
+                    const timeout = new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Timeout: showcase post exceeded 90s')), 90_000)
+                    )
+                    await Promise.race([
+                        generateShowcasePost({ configName: clientSlug }),
+                        timeout,
+                    ])
                 } catch (showcaseErr) {
                     console.warn(`Showcase post ${i + 1} failed (non-fatal):`, showcaseErr)
                 }

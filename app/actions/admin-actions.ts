@@ -211,6 +211,22 @@ export async function getIGPostsList(
     }
 }
 
+/** Fetch editorial board conversation log for a post (stored in ig_jobs) */
+export async function getEditorialLog(postId: string): Promise<{ role: string; action: string; summary: string }[]> {
+    try {
+        const { data } = await supabaseAdmin
+            .from("ig_jobs")
+            .select("editorial_log")
+            .filter("result->>postId", "eq", postId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single()
+        return (data?.editorial_log as any[]) || []
+    } catch {
+        return []
+    }
+}
+
 export async function getIGIdeasList(projectSlug: string = "mobilnamiru"): Promise<any[]> {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
