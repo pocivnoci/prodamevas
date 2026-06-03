@@ -7,6 +7,8 @@ import {
     deleteBrandImage,
     getBrandImages,
 } from "@/app/actions/brand-images-action"
+import { getClientConfig } from "@/app/actions/settings-actions"
+import type { ImageBriefItem } from "@/instagram/configs/types"
 import { LoadingSpinner } from "./shared"
 
 export function BrandTab({ projectId }: { projectId: string }) {
@@ -15,12 +17,18 @@ export function BrandTab({ projectId }: { projectId: string }) {
     const [uploading, setUploading] = useState(false)
     const [dragOver, setDragOver] = useState(false)
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+    const [imageBrief, setImageBrief] = useState<ImageBriefItem[]>([])
+    const [briefCollapsed, setBriefCollapsed] = useState(false)
 
     const loadImages = useCallback(async () => {
         if (!projectId) return
         setLoading(true)
-        const urls = await getBrandImages(projectId)
+        const [urls, config] = await Promise.all([
+            getBrandImages(projectId),
+            getClientConfig(projectId),
+        ])
         setImages(urls)
+        if (config?.imageBrief?.length) setImageBrief(config.imageBrief)
         setLoading(false)
     }, [projectId])
 
@@ -76,6 +84,49 @@ export function BrandTab({ projectId }: { projectId: string }) {
                     Čím více kvalitních fotek, tím realističtější výstup.
                 </p>
             </div>
+
+            {/* Shot list — "Co ještě chybí" */}
+            {imageBrief.length > 0 && (
+                <div className="bg-[#0a0a0a]/90 border border-blue-500/20 rounded-sm overflow-hidden">
+                    <button
+                        onClick={() => setBriefCollapsed(!briefCollapsed)}
+                        className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 transition-colors"
+                    >
+                        <div className="flex items-center gap-2">
+                            <span className="text-lg">📸</span>
+                            <span className="text-sm font-bold text-white">Co ještě chybí</span>
+                            <span className="text-[10px] text-blue-400/60 font-mono">
+                                {imageBrief.reduce((sum, cat) => sum + cat.items.length, 0)} položek
+                            </span>
+                        </div>
+                        <span className="text-white/30 text-xs">{briefCollapsed ? '▼' : '▲'}</span>
+                    </button>
+                    {!briefCollapsed && (
+                        <div className="px-4 pb-4 space-y-3">
+                            {imageBrief.map((cat, i) => (
+                                <div key={i}>
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                        <span className="text-sm">{cat.emoji}</span>
+                                        <span className="text-xs font-bold text-white/70">{cat.category}</span>
+                                        <span className="text-[9px] text-white/30">({cat.count})</span>
+                                        {cat.priority === 'must' && (
+                                            <span className="text-[8px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400/80 border border-amber-500/15 font-bold uppercase tracking-wider">Důležité</span>
+                                        )}
+                                    </div>
+                                    <div className="space-y-1 ml-5">
+                                        {cat.items.map((item, j) => (
+                                            <div key={j} className="flex items-start gap-2 text-[11px] text-white/40">
+                                                <span className="text-white/15 mt-0.5">□</span>
+                                                <span>{item}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Status Message */}
             {message && (

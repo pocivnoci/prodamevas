@@ -310,6 +310,13 @@ export interface ManualBusinessInfo {
     products: string
     tone: string
     igHandle: string
+    // Enhanced fields (all optional)
+    targetAudience?: string
+    competitors?: string
+    visualStyle?: string
+    followerCount?: number
+    topLocations?: string
+    audienceGender?: 'mostly_female' | 'mostly_male' | 'mixed' | 'unknown'
 }
 
 const CATEGORY_DEFAULTS: Record<string, { industry: string; postTypes: string[]; audience: string }> = {
@@ -346,6 +353,15 @@ export async function buildManualAnalysis(info: ManualBusinessInfo): Promise<{
         }))
 
         // Build analysis from manual input + AI enrichment
+        const extraContext = [
+            info.targetAudience ? `CÍLOVÁ SKUPINA: ${info.targetAudience}` : '',
+            info.competitors ? `INSPIRACE / KONKURENCE (IG účty): ${info.competitors}` : '',
+            info.visualStyle ? `PREFEROVANÝ VIZUÁLNÍ STYL: ${info.visualStyle}` : '',
+            info.followerCount ? `POČET FOLLOWERŮ: ${info.followerCount}` : '',
+            info.topLocations ? `TOP LOKACE FOLLOWERŮ: ${info.topLocations}` : '',
+            info.audienceGender ? `PUBLIKUM: ${({ mostly_female: 'Převážně ženy', mostly_male: 'Převážně muži', mixed: 'Mix', unknown: 'Neznámé' })[info.audienceGender]}` : '',
+        ].filter(Boolean).join('\n')
+
         const enrichPrompt = `Na základě těchto informací o firmě vygeneruj doplňující data pro Instagram marketing.
 
 FIRMA: ${info.businessName}
@@ -353,7 +369,7 @@ KATEGORIE: ${info.category}
 POPIS: ${info.description}
 PRODUKTY/SLUŽBY: ${info.products}
 TÓN KOMUNIKACE: ${info.tone}
-
+${extraContext ? `\n${extraContext}\n` : ''}
 ## PŘÍKLADY BAREV PODLE ODVĚTVÍ (inspiruj se, ale přizpůsob):
 - Restaurace/café: teplé tóny (burgundy #722F37, golden #C9A96E, olive #5C6B3C)
 - Tech/SaaS: moderní (deep blue #1A237E, electric #00BCD4, slate #334155)
@@ -368,6 +384,8 @@ TÓN KOMUNIKACE: ${info.tone}
 - Font: "BebasNeue" pro drzé/bold brandy, "Inter" pro elegantní/profesionální
 - VisualFeel: konkrétní (ne "moderní a čistý", ale "tmavý industriální s neon akcenty")
 - BrandTone: přesný popis (ne "přátelský", ale "drzý, hravý s dávkou sarkasmu")
+${info.visualStyle ? `- VIZUÁLNÍ STYL: klient preferuje "${info.visualStyle}" — přizpůsob barvy, gradient i visualFeel tomuto stylu` : ''}
+${info.competitors ? `- INSPIRACE: podívej se na styl účtů ${info.competitors} a přizpůsob brandTone a visualFeel` : ''}
 
 Vrať JSON:
 {
@@ -421,7 +439,7 @@ Vrať POUZE platný JSON.`
             products,
             brandTone: enriched.brandTone || info.tone,
             colors: enriched.colors,
-            targetAudience: categoryDefaults.audience,
+            targetAudience: info.targetAudience || categoryDefaults.audience,
             uniqueSellingPoints: enriched.uniqueSellingPoints,
             existingContent: [],
             recommendedFont: enriched.recommendedFont,
@@ -433,6 +451,78 @@ Vrať POUZE platný JSON.`
     } catch (error) {
         console.error('Manual analysis error:', error)
         return { success: false, error: humanizeError(error) }
+    }
+}
+
+// ============================================
+// IMAGE BRIEF (SHOT LIST) GENERATOR
+// ============================================
+
+import type { ImageBriefItem } from '@/instagram/configs/types'
+
+export async function generateImageBrief(
+    config: ClientConfig
+): Promise<{ success: boolean; brief?: ImageBriefItem[]; error?: string }> {
+    try {
+        const productNames = (config.products || []).map(p => p.name).join(', ')
+        const pillarKeys = Object.keys(config.contentPillars || {})
+        const hasBehindScenes = pillarKeys.includes('behind_scenes') || pillarKeys.includes('backstage')
+        const hasProducts = (config.products?.length || 0) > 0
+
+        const prompt = `Jsi expert na Instagram marketing. Na základě konfigurace značky vygeneruj SHOT LIST — konkrétní seznam fotek, které by klient měl dodat pro nejlepší výsledky.
+
+## ZNAČKA
+Název: ${config.name}
+Odvětví: ${config.industry || 'neznámé'}
+Web: ${config.website}
+${hasProducts ? `Produkty: ${productNames}` : ''}
+Content pillars: ${pillarKeys.join(', ')}
+Vizuální styl: ${config.feedAesthetic?.feel || 'moderní'}
+
+## PRAVIDLA
+- Každá kategorie má 2-5 konkrétních položek
+- Položky musí být SPECIFICKÉ pro tuto značku (ne generické "fotka produktu")
+- Pokud má produkty, pojmenuj je konkrétně
+- Přidej tip na světlo/kompozici kde to dává smysl
+- Priority: "must" pro essentials, "nice" pro bonus
+- Max 4-5 kategorií
+
+Vrať JSON pole:
+[
+  {
+    "category": "Produkty",
+    "emoji": "☕",
+    "count": "3-5 fotek",
+    "priority": "must",
+    "items": ["Espresso v šálku na dřevěném stole, přirozené světlo", "..."]
+  }
+]
+
+Vrať POUZE platný JSON pole.`
+
+        const briefSchema = {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    category: { type: "string" },
+                    emoji: { type: "string" },
+                    count: { type: "string" },
+                    priority: { type: "string", enum: ["must", "nice"] },
+                    items: { type: "array", items: { type: "string" } },
+                },
+                required: ["category", "emoji", "count", "priority", "items"],
+            },
+        }
+
+        const raw = await generateText(prompt, { responseSchema: briefSchema })
+        const jsonMatch = raw.match(/\[[\s\S]*\]/)
+        const brief: ImageBriefItem[] = JSON.parse(jsonMatch?.[0] || raw)
+
+        return { success: true, brief }
+    } catch (error) {
+        console.error('generateImageBrief error:', error)
+        return { success: false, error: (error as Error).message }
     }
 }
 

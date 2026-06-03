@@ -134,6 +134,20 @@ export interface AudiencePersona {
     ctaStyle: "soft" | "medium" | "hard"
 }
 
+// ─── Image Brief (Shot List) ───────────────────────────────
+
+/** AI-generated shot list item — tells client what photos to provide */
+export interface ImageBriefItem {
+    /** Category label, e.g. "Prostředí", "Produkty", "Tým" */
+    category: string
+    emoji: string
+    /** How many photos recommended, e.g. "3-5 fotek" */
+    count: string
+    priority: 'must' | 'nice'
+    /** Specific photo descriptions */
+    items: string[]
+}
+
 // ─── Client Config ──────────────────────────────────────────
 
 export interface ClientConfig {
@@ -228,6 +242,10 @@ export interface ClientConfig {
      *  Supports both legacy flat URLs and new tagged objects.
      *  Up to 30 images stored in Supabase storage. */
     brandReferenceImages?: (string | BrandImage)[]
+
+    /** AI-generated shot list — what photos the client should provide.
+     *  Generated during onboarding, displayed in BrandTab as "what’s missing". */
+    imageBrief?: ImageBriefItem[]
 }
 
 // ─── Brand Image Type ────────────────────────────────────────────────
