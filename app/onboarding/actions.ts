@@ -9,6 +9,36 @@ import type { ClientConfig } from '@/instagram/configs/types'
 // TYPES
 // ============================================
 
+export interface IgProfileData {
+    username: string
+    fullName: string
+    biography: string
+    followerCount: number
+    followingCount: number
+    mediaCount: number
+    isBusinessAccount: boolean
+    businessCategory?: string
+    externalUrl?: string
+    profilePicUrl?: string
+    recentPosts: {
+        caption: string
+        likeCount: number
+        commentCount: number
+        timestamp: string
+        mediaUrl?: string
+        mediaType: 'image' | 'video' | 'carousel'
+    }[]
+}
+
+export interface IgInsights {
+    topHashtags: string[]
+    avgEngagementRate: number
+    contentMix: Record<string, number>
+    brandToneHint: string
+    visualStyleHint: string
+    bestPostingTimes?: string[]
+}
+
 export interface WebsiteAnalysis {
     companyName: string
     description: string
@@ -31,6 +61,10 @@ export interface WebsiteAnalysis {
     visualFeel?: string
     /** Brand image URLs scraped from the website */
     brandImageUrls?: string[]
+    /** Scraped Instagram profile data (via HikerAPI) */
+    igProfile?: IgProfileData
+    /** AI-analyzed insights from IG feed */
+    igInsights?: IgInsights
 }
 
 export interface OnboardingQuestion {
@@ -292,6 +326,22 @@ Vrať POUZE platný JSON, bez dalšího textu.`
             }
         }
 
+        // Enrich with Instagram profile data if handle provided
+        if (igHandle) {
+            try {
+                const igData = await fetchInstagramProfile(igHandle)
+                if (igData) {
+                    analysis.igProfile = igData
+                    analysis.instagramBio = igData.biography
+                    const igInsights = await analyzeInstagramFeed(igData)
+                    if (igInsights) analysis.igInsights = igInsights
+                    console.log(`📸 IG enrichment: ${igData.followerCount} followers, ${igData.recentPosts.length} posts analyzed`)
+                }
+            } catch (igErr) {
+                console.warn('⚠️ IG enrichment failed (non-blocking):', (igErr as Error).message)
+            }
+        }
+
         return { success: true, analysis }
     } catch (error) {
         console.error('Website analysis error:', error)
@@ -447,10 +497,181 @@ Vrať POUZE platný JSON.`
             visualFeel: enriched.visualFeel,
         }
 
+        // Enrich with Instagram profile data if handle provided
+        if (info.igHandle) {
+            try {
+                const igData = await fetchInstagramProfile(info.igHandle)
+                if (igData) {
+                    analysis.igProfile = igData
+                    analysis.instagramBio = igData.biography
+                    if (igData.followerCount > 0 && !info.followerCount) {
+                        // Use real follower count from IG
+                    }
+                    const igInsights = await analyzeInstagramFeed(igData)
+                    if (igInsights) {
+                        analysis.igInsights = igInsights
+                        // Enrich brand tone if IG analysis gives a hint
+                        if (igInsights.brandToneHint && analysis.brandTone === info.tone) {
+                            analysis.brandTone = igInsights.brandToneHint
+                        }
+                    }
+                    console.log(`📸 IG enrichment (manual): ${igData.followerCount} followers, ${igData.recentPosts.length} posts`)
+                }
+            } catch (igErr) {
+                console.warn('⚠️ IG enrichment failed (non-blocking):', (igErr as Error).message)
+            }
+        }
+
         return { success: true, analysis }
     } catch (error) {
         console.error('Manual analysis error:', error)
         return { success: false, error: humanizeError(error) }
+    }
+}
+
+// ============================================
+// ============================================
+// INSTAGRAM PROFILE SCRAPING (HikerAPI)
+// ============================================
+
+const HIKERAPI_KEY = process.env.HIKERAPI_KEY || ''
+const HIKERAPI_BASE = 'https://api.hikerapi.com'
+const HIKERAPI_TIMEOUT = 15_000
+
+async function fetchInstagramProfile(handle: string): Promise<IgProfileData | null> {
+    if (!HIKERAPI_KEY) {
+        console.warn('⚠️ HIKERAPI_KEY not set — skipping IG scraping')
+        return null
+    }
+
+    // Normalize handle: remove @ prefix
+    const username = handle.replace(/^@/, '').trim().toLowerCase()
+    if (!username) return null
+
+    try {
+        // 1. Fetch profile
+        const profileRes = await fetch(
+            `${HIKERAPI_BASE}/v1/user/by/username?username=${encodeURIComponent(username)}`,
+            {
+                headers: { 'x-access-key': HIKERAPI_KEY, 'accept': 'application/json' },
+                signal: AbortSignal.timeout(HIKERAPI_TIMEOUT),
+            }
+        )
+
+        if (!profileRes.ok) {
+            const errBody = await profileRes.text().catch(() => '')
+            console.warn(`⚠️ HikerAPI profile ${profileRes.status}: ${errBody.slice(0, 200)}`)
+            return null
+        }
+
+        const profile = await profileRes.json()
+        if (!profile.pk && !profile.username) {
+            console.warn('⚠️ HikerAPI: empty profile response')
+            return null
+        }
+
+        const userId = profile.pk || profile.id
+
+        // 2. Fetch recent posts (gql endpoint, up to 12)
+        let recentPosts: IgProfileData['recentPosts'] = []
+        if (userId) {
+            try {
+                const mediasRes = await fetch(
+                    `${HIKERAPI_BASE}/gql/user/medias?user_id=${userId}&flat=true`,
+                    {
+                        headers: { 'x-access-key': HIKERAPI_KEY, 'accept': 'application/json' },
+                        signal: AbortSignal.timeout(HIKERAPI_TIMEOUT),
+                    }
+                )
+
+                if (mediasRes.ok) {
+                    const mediasData = await mediasRes.json()
+                    // Flatten — response can be { items: [...] } or direct array
+                    const items = Array.isArray(mediasData) ? mediasData : (mediasData.items || mediasData.edges || [])
+
+                    recentPosts = items.slice(0, 12).map((item: any) => {
+                        const node = item.node || item
+                        const captionText = typeof node.caption === 'string' ? node.caption
+                            : node.caption?.text
+                            || node.edge_media_to_caption?.edges?.[0]?.node?.text || ''
+                        // HikerAPI uses '1ltaken_at' (unix seconds) or taken_at_timestamp
+                        const ts = node['1ltaken_at'] || node.taken_at_timestamp || node.taken_at
+                        return {
+                            caption: captionText,
+                            likeCount: node.like_count || node.edge_liked_by?.count || 0,
+                            commentCount: node.comment_count || node.edge_media_to_comment?.count || 0,
+                            timestamp: typeof ts === 'number'
+                                ? new Date(ts * 1000).toISOString()
+                                : (ts || ''),
+                            mediaUrl: node.display_url || node.image_versions2?.candidates?.[0]?.url || undefined,
+                            mediaType: node.media_type === 8 || node.__typename === 'GraphSidecar' ? 'carousel'
+                                : node.media_type === 2 || node.__typename === 'GraphVideo' ? 'video'
+                                    : 'image' as const,
+                        }
+                    })
+                }
+            } catch (mediaErr) {
+                console.warn('⚠️ HikerAPI medias fetch failed:', (mediaErr as Error).message)
+            }
+        }
+
+        return {
+            username: profile.username || username,
+            fullName: profile.full_name || '',
+            biography: profile.biography || '',
+            followerCount: profile.follower_count || 0,
+            followingCount: profile.following_count || 0,
+            mediaCount: profile.media_count || 0,
+            isBusinessAccount: profile.is_business || false,
+            businessCategory: profile.business_category_name || profile.category_name || undefined,
+            externalUrl: profile.external_url || undefined,
+            profilePicUrl: profile.profile_pic_url_hd || profile.profile_pic_url || undefined,
+            recentPosts,
+        }
+    } catch (error) {
+        console.warn('⚠️ fetchInstagramProfile error:', (error as Error).message)
+        return null
+    }
+}
+
+async function analyzeInstagramFeed(igData: IgProfileData): Promise<IgInsights | null> {
+    if (igData.recentPosts.length === 0) return null
+
+    const postsContext = igData.recentPosts.map((p, i) => {
+        const caption = p.caption.slice(0, 300)
+        return `Post ${i + 1}: [${p.mediaType}] ❤️${p.likeCount} 💬${p.commentCount} | "${caption}"`
+    }).join('\n')
+
+    const prompt = `Analyzuj Instagram profil a jeho posty. Extrahuj insights pro nastavení autopilota.
+
+## PROFIL
+Username: @${igData.username}
+Bio: ${igData.biography}
+Followers: ${igData.followerCount} | Following: ${igData.followingCount} | Posts: ${igData.mediaCount}
+Business: ${igData.isBusinessAccount ? `Ano (${igData.businessCategory || 'bez kategorie'})` : 'Ne'}
+
+## POSLEDNÍCH ${igData.recentPosts.length} PŘÍSPĚVKŮ
+${postsContext}
+
+## ÚKOL
+Vrať JSON s těmito poli:
+- topHashtags: pole 10-15 nejpoužívanějších hashtagů z captionů (bez #)
+- avgEngagementRate: průměrný engagement rate (likes+comments / followers), číslo 0-1
+- contentMix: objekt s poměrem typů obsahu, např. {"produkt": 0.4, "behind_scenes": 0.2, "edukace": 0.3, "lifestyle": 0.1}
+- brandToneHint: 1-2 slova popisující detekovaný tón komunikace (česky)
+- visualStyleHint: 1 věta popisující vizuální styl feedu (česky)
+- bestPostingTimes: pole 2-3 optimálních časů pro posting (odhad z timestamps), formát "Po 18:00"
+
+Vrať POUZE platný JSON.`
+
+    try {
+        const raw = await generateText(prompt)
+        const jsonMatch = raw.match(/\{[\s\S]*\}/)
+        if (!jsonMatch) return null
+        return JSON.parse(jsonMatch[0]) as IgInsights
+    } catch (err) {
+        console.warn('⚠️ analyzeInstagramFeed error:', (err as Error).message)
+        return null
     }
 }
 
@@ -612,6 +833,22 @@ export async function generateConfigPreview(
 ): Promise<{ success: boolean; config?: ClientConfig; error?: string }> {
     try {
         // Build the config via AI
+        const igContext = analysis.igProfile ? `
+## INSTAGRAM DATA (${analysis.igProfile.followerCount} followers)
+Bio: ${analysis.igProfile.biography}
+Business category: ${analysis.igProfile.businessCategory || 'N/A'}
+Median posts: ${analysis.igProfile.mediaCount}
+${analysis.igInsights ? `
+### AI ANALÝZA IG FEEDU
+Top hashtags: ${analysis.igInsights.topHashtags.slice(0, 15).join(', ')}
+Engagement rate: ${(analysis.igInsights.avgEngagementRate * 100).toFixed(2)}%
+Content mix: ${JSON.stringify(analysis.igInsights.contentMix)}
+Brand tone hint: ${analysis.igInsights.brandToneHint}
+Visual style hint: ${analysis.igInsights.visualStyleHint}
+${analysis.igInsights.bestPostingTimes ? `Best times: ${analysis.igInsights.bestPostingTimes.join(', ')}` : ''}
+` : ''}
+` : ''
+
         const configPrompt = `Vytvořme kompletní Instagram autopilot konfiguraci pro firmu "${analysis.companyName}".
 
 ## ANALÝZA WEBU
@@ -623,6 +860,7 @@ ${JSON.stringify(answers, null, 2)}
 ## WEBSITE & IG
 Web: ${websiteUrl}
 Instagram: ${igHandle}
+${igContext}
 
 ## ÚKOL
 Vygeneruj kompletní ClientConfig JSON. Buď kreativní ale přesný.
