@@ -64,17 +64,7 @@ export async function POST(req: Request) {
             },
         })
 
-        // Deduct credit AFTER successful generation (not before)
-        if (!config.dryRun && result.id) {
-            try {
-                const { deductCredits } = await import("@/lib/subscription")
-                await deductCredits(job.client_id, "post", `Post: ${result.caption?.split("\n")?.[0]?.substring(0, 60) || "vygenerováno"}`, result.id)
-            } catch (creditErr: any) {
-                // Non-fatal — post already created, log but don't fail
-                console.warn("Credit deduction failed (post created):", creditErr?.message)
-            }
-        }
-
+        // Credit was already charged in ig-create-job (referenced by jobId).
         await updateJob({
             status: "done",
             progress: 100,
@@ -105,6 +95,29 @@ export async function POST(req: Request) {
             agent_message: "❌ Generování selhalo",
             error: msg,
         })
+
+        // Refund the charge made at job creation (idempotent via unique index on action+reference_id)
+        if (config.charged === "plan") {
+            try {
+                const { decrementPlanPostCount } = await import("@/lib/subscription")
+                await decrementPlanPostCount(job.client_id)
+            } catch (refundErr: any) {
+                console.error("Plan post refund failed:", refundErr?.message)
+            }
+        } else if (config.charged === "credits") {
+            try {
+                const { ACTION_CREDITS } = await import("@/lib/subscription")
+                await supabaseAdmin.from("credit_transactions").insert({
+                    client_id: job.client_id,
+                    action: "post_refund",
+                    credits: -ACTION_CREDITS.post,
+                    description: "Refund: generování selhalo",
+                    reference_id: jobId,
+                })
+            } catch (refundErr: any) {
+                console.error("Credit refund failed:", refundErr?.message)
+            }
+        }
 
         return NextResponse.json({ success: false, error: msg }, { status: 500 })
     }

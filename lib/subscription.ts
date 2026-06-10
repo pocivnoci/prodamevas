@@ -201,6 +201,8 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
 
 /**
  * Count credits used by a client in the current calendar month.
+ * Sums deductions (positive) AND refunds (negative) so a refunded
+ * failed generation frees the credit again.
  */
 export async function getCreditsUsedThisMonth(clientId: string): Promise<number> {
     const now = new Date()
@@ -211,10 +213,9 @@ export async function getCreditsUsedThisMonth(clientId: string): Promise<number>
         .select("credits")
         .eq("client_id", clientId)
         .gte("created_at", monthStart)
-        .gt("credits", 0) // only deductions
 
     if (!data || data.length === 0) return 0
-    return data.reduce((sum, row) => sum + row.credits, 0)
+    return Math.max(0, data.reduce((sum, row) => sum + row.credits, 0))
 }
 
 /**
@@ -342,6 +343,31 @@ export async function incrementPlanPostCount(clientId: string): Promise<void> {
         .from("subscriptions")
         .update({
             plan_posts_unlocked: (sub.plan_posts_unlocked || 0) + 1,
+            updated_at: new Date().toISOString(),
+        })
+        .eq("id", sub.id)
+}
+
+/**
+ * Decrement plan_posts_unlocked counter — inverse of incrementPlanPostCount.
+ * Used to refund a plan post when its generation job fails after the charge.
+ */
+export async function decrementPlanPostCount(clientId: string): Promise<void> {
+    const { data: sub } = await supabaseAdmin
+        .from("subscriptions")
+        .select("id, plan_posts_unlocked")
+        .eq("client_id", clientId)
+        .in("status", ["active", "trialing"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single()
+
+    if (!sub) return
+
+    await supabaseAdmin
+        .from("subscriptions")
+        .update({
+            plan_posts_unlocked: Math.max(0, (sub.plan_posts_unlocked || 0) - 1),
             updated_at: new Date().toISOString(),
         })
         .eq("id", sub.id)

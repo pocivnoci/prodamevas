@@ -21,10 +21,14 @@ function isSuperAdmin(email: string | undefined): boolean {
 }
 
 // ─── Caches ──────────────────────────────────────────────────────────
-// Avoid repeated lookups in the same process lifecycle.
+// Short TTL: invalidateConfigCache() only clears THIS lambda instance —
+// other warm serverless instances must expire on their own, otherwise
+// they serve stale config indefinitely after a settings change.
 
-const configCache = new Map<string, ClientConfig>()
-const clientIdCache = new Map<string, string>() // slug → uuid
+const CONFIG_CACHE_TTL_MS = 60_000
+
+const configCache = new Map<string, { config: ClientConfig; expiresAt: number }>()
+const clientIdCache = new Map<string, string>() // slug → uuid (immutable mapping, no TTL needed)
 
 // ─── Public API ──────────────────────────────────────────────────────
 
@@ -39,7 +43,7 @@ export async function loadConfig(name: string, forceRefresh = false): Promise<Cl
     }
     if (!forceRefresh) {
         const cached = configCache.get(name)
-        if (cached) return cached
+        if (cached && cached.expiresAt > Date.now()) return cached.config
     }
 
     const { data, error } = await supabaseAdmin
@@ -53,7 +57,7 @@ export async function loadConfig(name: string, forceRefresh = false): Promise<Cl
     }
 
     const config = validateConfig(data.config as ClientConfig, name)
-    configCache.set(name, config)
+    configCache.set(name, { config, expiresAt: Date.now() + CONFIG_CACHE_TTL_MS })
     return config
 }
 

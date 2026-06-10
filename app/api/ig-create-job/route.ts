@@ -38,10 +38,13 @@ export async function POST(req: Request) {
             }
         }
 
-        // Credit check before creating job — don't waste resources if no credits
+        // Credit check + charge happen at job creation (not after generation) so two
+        // parallel jobs can't both pass the check and spend the same credit.
+        // ig-run-job refunds the charge if generation fails.
+        let guard: Awaited<ReturnType<typeof import("@/app/actions/credit-guard").creditGuard>> | null = null
         if (!body.dryRun) {
             const { creditGuard } = await import("@/app/actions/credit-guard")
-            const guard = await creditGuard(body.configName, "post")
+            guard = await creditGuard(body.configName, "post")
             if (!guard.ok) {
                 return NextResponse.json(
                     { success: false, error: guard.error || "Nedostatek kreditů" },
@@ -49,6 +52,8 @@ export async function POST(req: Request) {
                 )
             }
         }
+
+        const charged = body.dryRun ? "none" : (guard?.isPlanPost ? "plan" : "credits")
 
         const { data: job, error } = await supabaseAdmin
             .from("ig_jobs")
@@ -65,6 +70,7 @@ export async function POST(req: Request) {
                     category: body.category,
                     campaignContext: body.campaignContext,
                     productId: body.productId,
+                    charged,
                 },
                 status: "researcher",
                 progress: 5,
@@ -75,6 +81,20 @@ export async function POST(req: Request) {
 
         if (error || !job) {
             throw new Error(`Failed to create job: ${error?.message}`)
+        }
+
+        // Charge now (plan counter or credits), referenced by jobId for idempotency
+        if (guard) {
+            try {
+                await guard.commit(`Post (job ${job.id})`, job.id)
+            } catch (chargeErr: any) {
+                await supabaseAdmin.from("ig_jobs").delete().eq("id", job.id)
+                console.error("ig-create-job charge failed:", chargeErr?.message)
+                return NextResponse.json(
+                    { success: false, error: "Nepodařilo se odečíst kredit. Zkuste to znovu." },
+                    { status: 500 }
+                )
+            }
         }
 
         return NextResponse.json({ success: true, jobId: job.id })
