@@ -800,3 +800,89 @@ Hashtags: ${captionData.hashtags.join(", ")}
         return { score: 7, feedback: "Scoring failed - passing through" }
     }
 }
+
+// ============================================
+// CAPTION REVISION (user-feedback rewrite)
+// ============================================
+
+export interface ReviseCaptionInput {
+    originalCaption: string
+    originalHashtags: string[]
+    postTypeDisplayName: string
+    feedback: string
+    product?: { name: string; slug: string; price?: string | null; description?: string | null } | null
+}
+
+export interface RevisedCaption {
+    caption: string
+    hashtags: string[]
+    hook?: string
+    imagePrompt?: string
+    imageSubtext?: string
+}
+
+/**
+ * Rewrite an existing caption according to user feedback, preserving brand voice.
+ * Lives in the engine so revisions share the same validated ClientConfig
+ * (brandVoice, hashtagPools) as regular generation.
+ */
+export async function reviseCaption(config: ClientConfig, input: ReviseCaptionInput): Promise<RevisedCaption> {
+    const bv = config.brandVoice
+    const productSection = input.product
+        ? `\n## PRODUKT V PŘÍSPĚVKU\nNázev: ${input.product.name}\nCena: ${input.product.price || "neuvedena"}\nPopis: ${input.product.description || ""}\nURL: ${config.website}/p/${input.product.slug}\n⚠️ Pokud feedback nemění produkt, zachovej odkaz na ${config.website}/p/${input.product.slug} v CTA.\n`
+        : ""
+    const hashtagSection = config.hashtagPools
+        ? `\n## HASHTAG POOLS (vyber z těchto):\n- Core: ${config.hashtagPools.core?.join(", ") || ""}\n- Niche: ${config.hashtagPools.niche?.slice(0, 5).join(", ") || ""}\n- Broad: ${config.hashtagPools.broad?.slice(0, 4).join(", ") || ""}\nPoužij 8-10 hashtagů, mix core + niche + relevantní z originálu.\n`
+        : ""
+
+    const prompt = `Jsi senior copywriter pro značku "${config.name}" (${config.website || ""}).
+
+## BRAND PERSONA
+${bv?.persona || "Profesionální a přátelský tón."}
+
+## VOICE TRAITS
+${(bv?.voiceTraits || []).map((t: string) => `- ${t}`).join("\n") || "- Autentický a přirozený"}
+
+## ZAKÁZÁNO (NIKDY NEPOUŽÍVEJ)
+${(bv?.antiPatterns || []).map((p: string) => `- ${p}`).join("\n") || "- Generické fráze, emoji spam"}
+
+## TYP PŘÍSPĚVKU: ${input.postTypeDisplayName}
+${productSection}
+## PŮVODNÍ CAPTION:
+${input.originalCaption}
+
+## PŮVODNÍ HASHTAGY: ${input.originalHashtags.join(" ")}
+${hashtagSection}
+## FEEDBACK OD KLIENTA:
+"${input.feedback}"
+
+## INSTRUKCE:
+1. Přepiš caption PŘESNĚ podle feedbacku — ale zachovej brand voice a styl
+2. Hook (první řádek) musí stále zastavit scrollování — max 15 slov, bez emoji
+3. CTA musí směřovat na ${config.website || "web značky"}
+4. Zachovej strukturu: hook → body → CTA → hashtags
+5. Pokud feedback říká "zkrátit" — zkrať. Pokud "přidat humor" — přidej. Buď DOSLOVNÝ.
+6. NIKDY nepřekládej anglické názvy produktů/kolekcí do češtiny
+
+## VÝSTUP — vrať POUZE validní JSON:
+{
+  "caption": "kompletní nový text příspěvku (hook + body + CTA)",
+  "hashtags": ["#hashtag1", "#hashtag2", "..."],
+  "hook": "první řádek captiony — hook text pro overlay na obrázku (max 15 slov, bez emoji)",
+  "imagePrompt": "English prompt for AI image generation — describe the background photo. NO TEXT in image. Photorealistic, editorial quality.",
+  "imageSubtext": "krátký podtext pod hook na obrázku (max 8 slov, česky)"
+}`
+
+    const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: prompt,
+        config: { responseMimeType: "application/json" },
+    })
+
+    const text = response.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || ""
+    try {
+        return JSON.parse(text.replace(/```json|```/g, "").trim())
+    } catch {
+        throw new Error("AI vrátilo neplatný JSON")
+    }
+}

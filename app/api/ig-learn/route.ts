@@ -26,7 +26,7 @@ export async function POST(req: Request) {
         setActiveProject(clientId)
 
         // Step 1: Propagate metrics to ideas/reviews (Idea Ranker + Review Ranker)
-        const { ideasUpdated, reviewsUpdated } = await propagateMetricsToSources()
+        const { ideasUpdated, reviewsUpdated } = await propagateMetricsToSources(clientId)
         console.log(`📊 Metrics propagated: ${ideasUpdated} ideas, ${reviewsUpdated} reviews`)
 
         // Step 2: Get posts with metrics for Memory Agent
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
                 link_clicks: p.link_clicks || 0,
             }))
 
-            const result = await analyzeAndLearn(postsForLearning)
+            const result = await analyzeAndLearn(postsForLearning, clientId)
             memoriesCreated = result.memoriesCreated
             memoriesUpdated = result.memoriesUpdated
         }

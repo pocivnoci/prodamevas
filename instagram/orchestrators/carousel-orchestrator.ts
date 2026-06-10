@@ -12,6 +12,7 @@ import { overlayText } from "../text-overlay"
 import { refineCarouselPrompts } from "../image-pipeline"
 import { reviewOverlayComposition } from "../editorial-board"
 import { COSTS } from "../caption-generator"
+import { withRetry } from "../../utils/retry"
 import type { RenderContext, RenderResult } from "./types"
 
 export async function renderCarousel(ctx: RenderContext): Promise<RenderResult> {
@@ -46,13 +47,7 @@ export async function renderCarousel(ctx: RenderContext): Promise<RenderResult> 
         const label = i === 0 ? "COVER" : `Slide ${i}`
         console.log(`\n   📄 ${label}: "${slide.headline}"`)
 
-        for (let attempt = 0; attempt < 2; attempt++) {
-            try {
-                if (attempt > 0) {
-                    console.log(`   🔄 Retry ${label} (attempt ${attempt + 1})...`)
-                    await new Promise(r => setTimeout(r, 3000))
-                }
-
+        const processSlide = async () => {
                 const refinedPrompt = refinedPrompts[i] || slide.imagePrompt
                 const noTextPrompt = refinedPrompt.trim() + " IMPORTANT: NO TEXT, NO WORDS, NO LETTERS, NO SIGNS anywhere in the image. Pure background photo only."
 
@@ -135,13 +130,12 @@ export async function renderCarousel(ctx: RenderContext): Promise<RenderResult> 
                     uploadedUrls.push(publicUrlData.publicUrl)
                     console.log(`   ✓ Uploaded`)
                 }
-                break
-            } catch (slideErr: any) {
-                console.error(`   ⚠️ ${label} failed (attempt ${attempt + 1}):`, slideErr?.message?.substring(0, 150))
-                if (attempt === 1) {
-                    console.error(`   ❌ ${label} SKIPPED after 2 attempts`)
-                }
-            }
+        }
+
+        try {
+            await withRetry(processSlide, 1, label)
+        } catch (slideErr: any) {
+            console.error(`   ❌ ${label} SKIPPED:`, slideErr?.message?.substring(0, 150))
         }
 
         // Rate limit protection

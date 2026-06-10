@@ -16,101 +16,41 @@ export async function revisePost(
     projectSlug: string
 ): Promise<{ success: boolean; newPostId?: string; error?: string }> {
     try {
-        // 1. Load original post
+        const { clientId } = await requireProjectAccess(projectSlug)
+
+        // 1. Load original post (must belong to this client)
         const { data: original, error: fetchErr } = await supabaseAdmin
             .from("ig_posts")
             .select("*, ig_post_types(name, display_name)")
             .eq("id", postId)
+            .eq("client_id", clientId)
             .single()
 
         if (fetchErr || !original) throw new Error("Post nenalezen")
 
-        // 2. Load client config for brand voice
-        const { clientId } = await requireProjectAccess(projectSlug)
-        const { ai } = await import("@/instagram/gemini-client")
-
-        const { data: clientData } = await supabaseAdmin
-            .from("clients")
-            .select("config")
-            .eq("id", clientId)
-            .single()
-
-        const config = clientData?.config || {}
-        const bv = config.brandVoice || {}
-        const brandName = config.name || projectSlug
-        const postTypeName = original.ig_post_types?.display_name || "Instagram příspěvek"
+        // 2. Validated config + engine revision (shared brand-voice logic)
+        const { loadConfig } = await import("@/instagram/configs")
+        const { reviseCaption } = await import("@/instagram/caption-generator")
+        const fullConfig = await loadConfig(projectSlug)
         const postTypeSlug = original.ig_post_types?.name || ""
 
-        // Resolve linked product if any
-        let productSection = ""
+        let product: { name: string; slug: string; price?: string | null; description?: string | null } | null = null
         if (original.product_id) {
-            const { data: product } = await supabaseAdmin
+            const { data } = await supabaseAdmin
                 .from("ig_products")
                 .select("name, slug, price, description")
                 .eq("id", original.product_id)
                 .single()
-            if (product) {
-                productSection = `\n## PRODUKT V PŘÍSPĚVKU\nNázev: ${product.name}\nCena: ${product.price || "neuvedena"}\nPopis: ${product.description || ""}\nURL: ${config.website}/p/${product.slug}\n⚠️ Pokud feedback nemění produkt, zachovej odkaz na ${config.website}/p/${product.slug} v CTA.\n`
-            }
+            product = data
         }
 
-        // Hashtag pool instructions
-        const hashtagSection = config.hashtagPools
-            ? `\n## HASHTAG POOLS (vyber z těchto):\n- Core: ${config.hashtagPools.core?.join(", ") || ""}\n- Niche: ${config.hashtagPools.niche?.slice(0, 5).join(", ") || ""}\n- Broad: ${config.hashtagPools.broad?.slice(0, 4).join(", ") || ""}\nPoužij 8-10 hashtagů, mix core + niche + relevantní z originálu.\n`
-            : ""
-
-        // 3. Build revision prompt
-        const prompt = `Jsi senior copywriter pro značku "${brandName}" (${config.website || ""}).
-
-## BRAND PERSONA
-${bv.persona || "Profesionální a přátelský tón."}
-
-## VOICE TRAITS
-${(bv.voiceTraits || []).map((t: string) => `- ${t}`).join("\n") || "- Autentický a přirozený"}
-
-## ZAKÁZÁNO (NIKDY NEPOUŽÍVEJ)
-${(bv.antiPatterns || []).map((p: string) => `- ${p}`).join("\n") || "- Generické fráze, emoji spam"}
-
-## TYP PŘÍSPĚVKU: ${postTypeName}
-${productSection}
-## PŮVODNÍ CAPTION:
-${original.caption}
-
-## PŮVODNÍ HASHTAGY: ${(original.hashtags || []).join(" ")}
-${hashtagSection}
-## FEEDBACK OD KLIENTA:
-"${feedback}"
-
-## INSTRUKCE:
-1. Přepiš caption PŘESNĚ podle feedbacku — ale zachovej brand voice a styl
-2. Hook (první řádek) musí stále zastavit scrollování — max 15 slov, bez emoji
-3. CTA musí směřovat na ${config.website || "web značky"}
-4. Zachovej strukturu: hook → body → CTA → hashtags
-5. Pokud feedback říká "zkrátit" — zkrať. Pokud "přidat humor" — přidej. Buď DOSLOVNÝ.
-6. NIKDY nepřekládej anglické názvy produktů/kolekcí do češtiny
-
-## VÝSTUP — vrať POUZE validní JSON:
-{
-  "caption": "kompletní nový text příspěvku (hook + body + CTA)",
-  "hashtags": ["#hashtag1", "#hashtag2", "..."],
-  "hook": "první řádek captiony — hook text pro overlay na obrázku (max 15 slov, bez emoji)",
-  "imagePrompt": "English prompt for AI image generation — describe the background photo. NO TEXT in image. Photorealistic, editorial quality.",
-  "imageSubtext": "krátký podtext pod hook na obrázku (max 8 slov, česky)"
-}`
-
-        const response = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
-            contents: prompt,
-            config: { responseMimeType: "application/json" },
+        const parsed = await reviseCaption(fullConfig, {
+            originalCaption: original.caption || "",
+            originalHashtags: original.hashtags || [],
+            postTypeDisplayName: original.ig_post_types?.display_name || "Instagram příspěvek",
+            feedback,
+            product,
         })
-
-        const text = response.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || ""
-        let parsed: { caption: string; hashtags: string[]; hook?: string; imagePrompt?: string; imageSubtext?: string }
-        try {
-            parsed = JSON.parse(text.replace(/```json|```/g, "").trim())
-        } catch {
-            throw new Error("AI vrátilo neplatný JSON")
-        }
 
         // 4. Regenerate image if we have an image prompt
         let imageUrl = original.image_url
@@ -119,12 +59,10 @@ ${hashtagSection}
 
         if (parsed.imagePrompt) {
             try {
-                const { loadConfig } = await import("@/instagram/configs")
                 const { refineImagePrompt } = await import("@/instagram/image-pipeline")
                 const { generateImage } = await import("@/instagram/gemini-client")
                 const { overlayText } = await import("@/instagram/text-overlay")
 
-                const fullConfig = await loadConfig(projectSlug)
                 const refinedPrompt = await refineImagePrompt(
                     fullConfig,
                     { imagePrompt: parsed.imagePrompt, hook: parsed.hook || parsed.caption.split("\n")[0], imageSubtext: parsed.imageSubtext },
@@ -193,6 +131,7 @@ ${hashtagSection}
                 status: "draft",
                 feedback: feedback,
                 revision_of: postId,
+                link_type: "revision",
             })
             .select("id")
             .single()
@@ -217,11 +156,14 @@ export async function generatePostVariant(
     projectSlug: string
 ): Promise<{ success: boolean; newPostId?: string; error?: string }> {
     try {
-        // 1. Load original post
+        const { clientId } = await requireProjectAccess(projectSlug)
+
+        // 1. Load original post (must belong to this client)
         const { data: original, error: fetchErr } = await supabaseAdmin
             .from("ig_posts")
             .select("*, ig_post_types(name, display_name)")
             .eq("id", postId)
+            .eq("client_id", clientId)
             .single()
 
         if (fetchErr || !original) throw new Error("Post nenalezen")
@@ -250,7 +192,6 @@ PRAVIDLA PRO VARIANTU:
         // 4. Generate via autopilot
         const { generateOnePost } = await import("@/instagram/autopilot")
         const { setActiveProject } = await import("@/instagram/service")
-        const { clientId } = await requireProjectAccess(projectSlug)
         setActiveProject(clientId)
 
         const result = await generateOnePost({
@@ -263,7 +204,7 @@ PRAVIDLA PRO VARIANTU:
             // Mark as variant
             await supabaseAdmin
                 .from("ig_posts")
-                .update({ revision_of: postId })
+                .update({ revision_of: postId, link_type: "variant" })
                 .eq("id", result.id)
         }
 
@@ -328,13 +269,14 @@ export async function selectVariantWinner(
     projectSlug: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        await requireProjectAccess(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
-        // Winner → draft
+        // Winner → draft (scoped to this client)
         await supabaseAdmin
             .from("ig_posts")
             .update({ status: "draft" })
             .eq("id", winnerId)
+            .eq("client_id", clientId)
 
         // Losers → rejected
         if (loserIds.length > 0) {
@@ -342,16 +284,13 @@ export async function selectVariantWinner(
                 .from("ig_posts")
                 .update({ status: "rejected" })
                 .in("id", loserIds)
+                .eq("client_id", clientId)
         }
 
         // Memory learning — analyze winner vs losers asynchronously
         try {
             const { learnFromVariantSelection } = await import("@/instagram/memory-agent")
-            const { setActiveProject } = await import("@/instagram/service")
-            const { resolveClientId } = await import("@/instagram/configs")
-            const clientId = await resolveClientId(projectSlug)
-            setActiveProject(clientId)
-            await learnFromVariantSelection(winnerId, loserIds)
+            await learnFromVariantSelection(winnerId, loserIds, clientId)
         } catch (memErr: any) {
             // Non-fatal — selection still works without memory learning
             console.warn(`⚠️ Memory learning skipped: ${memErr?.message?.substring(0, 80)}`)
@@ -366,29 +305,32 @@ export async function selectVariantWinner(
 }
 
 /**
- * Get all variants of a post (original + all linked via revision_of).
+ * Get all A/B variants of a post (original + posts linked via revision_of
+ * with link_type='variant' — user revisions are excluded from comparison).
  */
 export async function getVariantGroup(
     postId: string,
     projectSlug: string
 ): Promise<{ posts: any[]; originalId: string }> {
     try {
-        await requireProjectAccess(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
 
         // First check if this post IS a variant (has revision_of)
         const { data: post } = await supabaseAdmin
             .from("ig_posts")
             .select("id, revision_of")
             .eq("id", postId)
+            .eq("client_id", clientId)
             .single()
 
         const originalId = post?.revision_of || postId
 
-        // Get original + all variants
+        // Get original + all A/B variants (not revisions)
         const { data: variants } = await supabaseAdmin
             .from("ig_posts")
-            .select("id, caption, image_url, image_style, status, created_at, revision_of, ig_post_types(name, display_name, emoji)")
-            .or(`id.eq.${originalId},revision_of.eq.${originalId}`)
+            .select("id, caption, image_url, image_style, status, created_at, revision_of, link_type, ig_post_types(name, display_name, emoji)")
+            .or(`id.eq.${originalId},and(revision_of.eq.${originalId},link_type.eq.variant)`)
+            .eq("client_id", clientId)
             .order("created_at", { ascending: true })
 
         return { posts: variants || [], originalId }

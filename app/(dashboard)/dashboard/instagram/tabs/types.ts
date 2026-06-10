@@ -7,42 +7,11 @@
 // DATABASE ENTITY TYPES
 // ═══════════════════════════════════════════════════════════
 
-/** Instagram post from ig_posts table (with joined post type) */
-export interface IGPost {
-    id: string
-    caption: string | null
-    hashtags: string[] | null
-    image_url: string | null
-    image_prompt: string | null
-    status: "draft" | "plan_draft" | "plan_locked" | "ready" | "posted" | "archived"
-    content_pillar: string | null
-    quality_score: number | null
-    created_at: string
-    likes: number | null
-    comments: number | null
-    shares: number | null
-    saves: number | null
-    reach: number | null
-    profile_visits: number | null
-    link_clicks: number | null
-    feedback: string | null
-    revision_of: string | null
-    ig_post_types?: {
-        display_name: string
-        emoji: string
-    } | null
-}
-
-
-/** Post type definition from ig_post_types */
-export interface IGPostType {
-    id: string
-    name: string
-    display_name: string
-    emoji: string
-    is_active: boolean
-    pillarId?: string
-}
+// Shared entity types — single source of truth in lib/types/database.ts
+export type { IGPost } from "@/lib/types/database"
+import type { IGPostType as DBPostType } from "@/lib/types/database"
+/** Post type definition from ig_post_types (+ resolved pillar for UI) */
+export type IGPostType = DBPostType & { pillarId?: string | null }
 
 /** Post format settings per type */
 export interface IGPostFormat {

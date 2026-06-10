@@ -14,7 +14,7 @@ export type IGPostStatus = "draft" | "ready" | "posted" | "plan_locked"
 export interface IGPost {
     id: string
     client_id: string
-    caption: string
+    caption: string | null
     hashtags: string[] | null
     call_to_action: string | null
     image_prompt: string | null
@@ -32,10 +32,15 @@ export interface IGPost {
     shares: number | null
     profile_visits: number | null
     link_clicks: number | null
+    quality_score?: number | null
+    feedback?: string | null
+    revision_of?: string | null
+    link_type?: "revision" | "variant" | null
+    posted_at?: string | null
     created_at: string
-    updated_at: string
+    updated_at?: string
     // Joined relations
-    ig_post_types?: { name: string; display_name: string; emoji: string } | null
+    ig_post_types?: { name?: string; display_name: string; emoji: string } | null
 }
 
 // ─── IG Post Type ────────────────────────────────────────────

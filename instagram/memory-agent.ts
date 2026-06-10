@@ -327,14 +327,15 @@ export async function analyzeAndLearn(
         reach: number
         shares: number
         link_clicks: number
-    }[]
+    }[],
+    explicitClientId?: string
 ): Promise<{ memoriesCreated: number; memoriesUpdated: number }> {
     if (posts.length < 3) {
         console.log("   ℹ️ Need at least 3 posts with metrics to learn")
         return { memoriesCreated: 0, memoriesUpdated: 0 }
     }
 
-    const clientId = getActiveProject()
+    const clientId = explicitClientId || getActiveProject()
 
     // Calculate engagement scores
     const scored = posts.map(p => ({
@@ -469,9 +470,10 @@ Vrať POUZE validní JSON pole:
  */
 export async function learnFromVariantSelection(
     winnerId: string,
-    loserIds: string[]
+    loserIds: string[],
+    explicitClientId?: string
 ): Promise<{ memoriesCreated: number }> {
-    const clientId = getActiveProject()
+    const clientId = explicitClientId || getActiveProject()
     const allIds = [winnerId, ...loserIds]
 
     const { data: posts } = await supabaseAdmin

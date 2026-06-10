@@ -5,7 +5,7 @@ import { getIGPostsList } from "@/app/actions/admin-actions"
 
 interface FeedPost {
     id: string
-    caption: string
+    caption: string | null
     image_url: string | null
     status: string
     created_at: string

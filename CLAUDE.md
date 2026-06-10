@@ -59,6 +59,10 @@ UI calls `/api/ig-create-job` (fast, rate-limited 10 jobs/h per client, returns 
 
 ## Hard rules
 
+- **Identifier convention:** the tenant *slug* lives at the UI boundary (`projectId` in `StudioContext` is actually the slug); resolve it to the client UUID exactly once via `requireProjectAccess(slug)` (or `requireClientAccess(uuid)` when you already have a row's `client_id`) and pass the UUID everywhere inside. Never default a missing identifier to a real tenant — throw.
+- **`setActiveProject()` is module-global mutable tenant state** in `instagram/service.ts` — with concurrent requests per lambda it can cross-contaminate tenants. New engine code must take `clientId` as an explicit parameter (see `propagateMetricsToSources`, `analyzeAndLearn`); don't add new `getActiveProject()` callers.
+- **`ig_posts.link_type`** distinguishes `'revision'` (user-feedback rewrite via `revisePost`) from `'variant'` (A/B variant) — both link via `revision_of`. Always set it when linking posts; A/B comparison and variant learning filter on `link_type='variant'`.
+
 - **Auth:** every new API route needs `requireAuth()` from `lib/auth-guard.ts` (only payment webhooks are exempt). Middleware protects `/dashboard/*` + `/onboarding`.
 - **Retry logic:** import from `utils/retry.ts`, never copy it.
 - **No hardcoding** of DB IDs, buckets, or admin emails — use `ClientConfig` or env vars (`SUPER_ADMIN_EMAILS`).

@@ -2,6 +2,7 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess, requireClientAccess } from "@/lib/auth-guard"
+import type { IGPost, IGIdea, IGReview, IGPostType, IGGenerationLog } from "@/lib/types/database"
 
 // ─── Instagram Actions ───────────────────────────────────────────────
 
@@ -161,7 +162,7 @@ export async function getIGPostsList(
     projectSlug: string,
     page: number = 0,
     pageSize: number = 15
-): Promise<{ posts: any[]; total: number; hasMore: boolean }> {
+): Promise<{ posts: IGPost[]; total: number; hasMore: boolean }> {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -203,7 +204,7 @@ export async function getIGPostsList(
             console.error("getIGPostsList error:", error.message)
             return { posts: [], total: 0, hasMore: false }
         }
-        const posts = data || []
+        const posts = (data || []) as unknown as IGPost[]
         return { posts, total, hasMore: from + posts.length < total }
     } catch (err: any) {
         console.error("getIGPostsList exception:", err?.message || err)
@@ -229,7 +230,7 @@ export async function getEditorialLog(postId: string): Promise<{ role: string; a
     }
 }
 
-export async function getIGIdeasList(projectSlug: string): Promise<any[]> {
+export async function getIGIdeasList(projectSlug: string): Promise<IGIdea[]> {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -250,7 +251,7 @@ export async function getIGIdeasList(projectSlug: string): Promise<any[]> {
     }
 }
 
-export async function getIGReviewsList(projectSlug: string): Promise<any[]> {
+export async function getIGReviewsList(projectSlug: string): Promise<IGReview[]> {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -291,7 +292,7 @@ export async function updateIGReviewApproval(id: string, approved: boolean): Pro
     }
 }
 
-export async function getIGPostTypes(configName?: string): Promise<any[]> {
+export async function getIGPostTypes(configName?: string): Promise<(IGPostType & { pillarId?: string | null })[]> {
     if (configName) {
         try { await requireProjectAccess(configName) } catch { return [] }
     } else {
@@ -395,7 +396,7 @@ export async function getIGCategories(configName: string): Promise<{ id: string;
 
 
 
-export async function getIGGenerationLogs(limit = 50, projectSlug: string): Promise<any[]> {
+export async function getIGGenerationLogs(limit = 50, projectSlug: string): Promise<IGGenerationLog[]> {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -412,7 +413,8 @@ export async function getIGGenerationLogs(limit = 50, projectSlug: string): Prom
             console.error("getIGGenerationLogs error:", error.message)
             return []
         }
-        return data || []
+        // Partial select — client_id/post_id intentionally omitted
+        return (data || []) as unknown as IGGenerationLog[]
     } catch (err: any) {
         console.error("getIGGenerationLogs exception:", err?.message || err)
         return []
@@ -508,9 +510,7 @@ export async function updateIGPostMetrics(
 
             if (postsWithMetrics && postsWithMetrics.length >= 3) {
                 // Fire and forget — don't block the metrics save response
-                const { setActiveProject } = await import("@/instagram/service")
                 const { analyzeAndLearn } = await import("@/instagram/memory-agent")
-                setActiveProject(post.client_id)
 
                 const learnData = postsWithMetrics.map(p => ({
                     id: p.id,
@@ -528,13 +528,13 @@ export async function updateIGPostMetrics(
                 // waitUntil keeps the lambda alive for these after the response returns.
                 const { waitUntil } = await import("@vercel/functions")
                 const { propagateMetricsToSources } = await import("@/instagram/service")
-                waitUntil(propagateMetricsToSources().then(({ ideasUpdated, reviewsUpdated }) => {
+                waitUntil(propagateMetricsToSources(post.client_id).then(({ ideasUpdated, reviewsUpdated }) => {
                     if (ideasUpdated > 0 || reviewsUpdated > 0) {
                         console.log(`📊 Metrics propagated: ${ideasUpdated} ideas, ${reviewsUpdated} reviews`)
                     }
                 }).catch(() => { /* non-fatal */ }))
 
-                waitUntil(analyzeAndLearn(learnData).then(result => {
+                waitUntil(analyzeAndLearn(learnData, post.client_id).then(result => {
                     if (result.memoriesCreated > 0 || result.memoriesUpdated > 0) {
                         console.log(`🧠 Learning triggered: ${result.memoriesCreated} new memories, ${result.memoriesUpdated} updated`)
                     }

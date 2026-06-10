@@ -296,8 +296,8 @@ export async function logGeneration(log: {
  * Called when metrics are entered for published posts.
  * This is the key feedback loop: Metrics → Ideas/Reviews → Future selection.
  */
-export async function propagateMetricsToSources(): Promise<{ ideasUpdated: number; reviewsUpdated: number }> {
-    const clientId = getActiveProject()
+export async function propagateMetricsToSources(explicitClientId?: string): Promise<{ ideasUpdated: number; reviewsUpdated: number }> {
+    const clientId = explicitClientId || getActiveProject()
 
     // Get posts that have metrics AND linked ideas/reviews
     const { data: posts } = await supabaseAdmin
