@@ -90,6 +90,11 @@ export async function POST(req: Request) {
         const msg = err?.message?.substring(0, 500) || "Unknown error"
         console.error("ig-run-job error:", msg)
 
+        try {
+            const Sentry = await import("@sentry/nextjs")
+            Sentry.captureException(err, { tags: { jobId, route: "ig-run-job" } })
+        } catch { /* Sentry optional */ }
+
         await updateJob({
             status: "failed",
             agent_message: "❌ Generování selhalo",
@@ -97,26 +102,11 @@ export async function POST(req: Request) {
         })
 
         // Refund the charge made at job creation (idempotent via unique index on action+reference_id)
-        if (config.charged === "plan") {
-            try {
-                const { decrementPlanPostCount } = await import("@/lib/subscription")
-                await decrementPlanPostCount(job.client_id)
-            } catch (refundErr: any) {
-                console.error("Plan post refund failed:", refundErr?.message)
-            }
-        } else if (config.charged === "credits") {
-            try {
-                const { ACTION_CREDITS } = await import("@/lib/subscription")
-                await supabaseAdmin.from("credit_transactions").insert({
-                    client_id: job.client_id,
-                    action: "post_refund",
-                    credits: -ACTION_CREDITS.post,
-                    description: "Refund: generování selhalo",
-                    reference_id: jobId,
-                })
-            } catch (refundErr: any) {
-                console.error("Credit refund failed:", refundErr?.message)
-            }
+        try {
+            const { refundJobCharge } = await import("@/lib/subscription")
+            await refundJobCharge(job.client_id, jobId, config.charged)
+        } catch (refundErr: any) {
+            console.error("Job charge refund failed:", refundErr?.message)
         }
 
         return NextResponse.json({ success: false, error: msg }, { status: 500 })

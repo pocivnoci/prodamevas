@@ -374,6 +374,29 @@ export async function decrementPlanPostCount(clientId: string): Promise<void> {
 }
 
 /**
+ * Refund the charge made at job creation when the job fails or times out.
+ * Idempotent: credit refunds are blocked from duplication by the unique
+ * index on credit_transactions(action, reference_id).
+ */
+export async function refundJobCharge(
+    clientId: string,
+    jobId: string,
+    charged: "plan" | "credits" | "none" | undefined,
+): Promise<void> {
+    if (charged === "plan") {
+        await decrementPlanPostCount(clientId)
+    } else if (charged === "credits") {
+        await supabaseAdmin.from("credit_transactions").insert({
+            client_id: clientId,
+            action: "post_refund",
+            credits: -ACTION_CREDITS.post,
+            description: "Refund: generování selhalo",
+            reference_id: jobId,
+        })
+    }
+}
+
+/**
  * Check if a client can perform a batch of actions (e.g. 7 posts at once).
  * Validates total credits needed upfront to avoid partial failures.
  */
