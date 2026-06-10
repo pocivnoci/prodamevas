@@ -1,9 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import {
-    checkIsAdmin,
-} from '@/app/actions/admin-onboard-actions'
+import { checkIsAdmin } from '@/app/actions/admin-actions'
 import {
     analyzeWebsite,
     generateQuestions,

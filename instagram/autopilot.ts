@@ -67,7 +67,10 @@ let CLIENT_CONFIG: ClientConfig | null = null
  * No-op if config is already loaded for the same client.
  */
 async function ensureConfig(configName?: string): Promise<string> {
-    const name = configName || "mobilnamiru"
+    if (!configName) {
+        throw new Error("ensureConfig: chybí configName — tenant musí být vždy explicitní")
+    }
+    const name = configName
     if (CLIENT_CONFIG && CLIENT_CONFIG.id === name) {
         return getActiveProject() // already loaded, return current clientId
     }

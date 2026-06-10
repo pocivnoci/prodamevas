@@ -12,23 +12,17 @@ export const maxDuration = 10 // Fast — just creates a job record
  */
 export async function POST(req: Request) {
     try {
-        const { requireAuth } = await import("@/lib/auth-guard")
-        await requireAuth()
-
         const body = await req.json()
+        if (!body.configName) {
+            return NextResponse.json({ success: false, error: "Missing configName" }, { status: 400 })
+        }
 
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(body.configName || "mobilnamiru")
+        const { requireProjectAccess } = await import("@/lib/auth-guard")
+        const { clientId, isSuperAdmin } = await requireProjectAccess(body.configName)
 
         // Rate limit: max 10 jobs per hour per client (admin bypass)
         const RATE_LIMIT_PER_HOUR = 10
-        const { createClient } = await import("@/supabase/server")
-        const supabaseUser = await createClient()
-        const { data: { user } } = await supabaseUser.auth.getUser()
-        const adminEmails = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean)
-        const isAdmin = adminEmails.includes(user?.email || "")
-
-        if (!isAdmin) {
+        if (!isSuperAdmin) {
             const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
             const { count } = await supabaseAdmin
                 .from("ig_jobs")
@@ -47,7 +41,7 @@ export async function POST(req: Request) {
         // Credit check before creating job — don't waste resources if no credits
         if (!body.dryRun) {
             const { creditGuard } = await import("@/app/actions/credit-guard")
-            const guard = await creditGuard(body.configName || "mobilnamiru", "post")
+            const guard = await creditGuard(body.configName, "post")
             if (!guard.ok) {
                 return NextResponse.json(
                     { success: false, error: guard.error || "Nedostatek kreditů" },

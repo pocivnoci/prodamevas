@@ -21,7 +21,6 @@
  *   await guard.commitCount(successCount, "Batch: 5/7 postů")
  */
 
-import { resolveClientId } from "@/instagram/configs"
 import {
     canPerformAction,
     canPerformBatchAction,
@@ -32,7 +31,7 @@ import {
     ACTION_LABELS,
 } from "@/lib/subscription"
 import supabaseAdmin from "@/supabase/admin"
-import { requireAuth } from "@/lib/auth-guard"
+import { requireProjectAccess } from "@/lib/auth-guard"
 
 export interface CreditGuardResult {
     ok: boolean
@@ -62,9 +61,7 @@ export async function creditGuard(
     isExtraPost?: boolean,
 ): Promise<CreditGuardResult> {
     try {
-        await requireAuth()
-        
-        const clientId = await resolveClientId(projectId)
+        const { clientId } = await requireProjectAccess(projectId)
         const check = await canPerformAction(clientId, action, isExtraPost)
 
         if (!check.allowed) {
@@ -123,9 +120,7 @@ export async function creditGuardBatch(
     count: number,
 ): Promise<CreditGuardBatchResult> {
     try {
-        await requireAuth()
-        
-        const clientId = await resolveClientId(projectId)
+        const { clientId } = await requireProjectAccess(projectId)
         const check = await canPerformBatchAction(clientId, action, count)
 
         if (!check.allowed) {
@@ -176,8 +171,7 @@ export async function canGenerate(
     count: number = 1,
 ): Promise<{ ok: boolean; error?: string }> {
     try {
-        await requireAuth()
-        const clientId = await resolveClientId(projectId)
+        const { clientId } = await requireProjectAccess(projectId)
 
         if (count <= 1) {
             const check = await canPerformAction(clientId, "post")

@@ -321,6 +321,7 @@ export async function generateCategoryPrompt(
     pillarDescription: string
 ): Promise<{ success: boolean; prompt?: string; error?: string }> {
     try {
+        await requireProjectAccess(projectSlug)
         const { loadConfig } = await import("@/instagram/configs")
         const { generateText } = await import("@/instagram/gemini-client")
         const config = await loadConfig(projectSlug)
@@ -357,6 +358,7 @@ export async function regeneratePlanItem(
     userTopic?: string
 ): Promise<{ success: boolean; item?: { hookPreview: string; angle: string; topic: string }; error?: string }> {
     try {
+        await requireProjectAccess(projectSlug)
         const { loadConfig } = await import("@/instagram/configs")
         const { getPillarForType } = await import("@/instagram/service")
         const config = await loadConfig(projectSlug)

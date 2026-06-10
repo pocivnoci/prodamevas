@@ -16,14 +16,13 @@ export const maxDuration = 60
  */
 export async function POST(req: Request) {
     try {
-        const { requireAuth } = await import("@/lib/auth-guard")
-        await requireAuth()
-
         const body = await req.json()
-        const configName = body.configName || "mobilnamiru"
+        if (!body.configName) {
+            return NextResponse.json({ success: false, error: "Missing configName" }, { status: 400 })
+        }
 
-        const { resolveClientId } = await import("@/instagram/configs")
-        const clientId = await resolveClientId(configName)
+        const { requireProjectAccess } = await import("@/lib/auth-guard")
+        const { clientId } = await requireProjectAccess(body.configName)
         setActiveProject(clientId)
 
         // Step 1: Propagate metrics to ideas/reviews (Idea Ranker + Review Ranker)

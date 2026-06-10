@@ -2,6 +2,7 @@
 
 import { createClient } from '@/supabase/server'
 import supabaseAdmin from '@/supabase/admin'
+import { requireAuth } from '@/lib/auth-guard'
 import { generateText } from '@/instagram/gemini-client'
 import type { ClientConfig } from '@/instagram/configs/types'
 
@@ -165,6 +166,7 @@ export async function analyzeWebsite(url: string, igHandle: string): Promise<{
     error?: string
 }> {
     try {
+        await requireAuth()
         // Normalize URL
         const baseUrl = url.startsWith('http') ? url : `https://${url}`
 
@@ -387,6 +389,7 @@ export async function buildManualAnalysis(info: ManualBusinessInfo): Promise<{
     error?: string
 }> {
     try {
+        await requireAuth()
         const categoryDefaults = CATEGORY_DEFAULTS[info.category] || CATEGORY_DEFAULTS['jine']
 
         // Parse products from free text (comma or newline separated)
@@ -685,6 +688,7 @@ export async function generateImageBrief(
     config: ClientConfig
 ): Promise<{ success: boolean; brief?: ImageBriefItem[]; error?: string }> {
     try {
+        await requireAuth()
         const productNames = (config.products || []).map(p => p.name).join(', ')
         const pillarKeys = Object.keys(config.contentPillars || {})
         const hasBehindScenes = pillarKeys.includes('behind_scenes') || pillarKeys.includes('backstage')
@@ -752,6 +756,7 @@ export async function generateQuestions(_analysis: WebsiteAnalysis): Promise<{
     questions?: OnboardingQuestion[]
     error?: string
 }> {
+    await requireAuth()
     // Fixed questions — each maps directly to a ClientConfig field.
     // No AI call needed, instant response.
     const questions: OnboardingQuestion[] = [
@@ -832,6 +837,7 @@ export async function generateConfigPreview(
     igHandle: string
 ): Promise<{ success: boolean; config?: ClientConfig; error?: string }> {
     try {
+        await requireAuth()
         // Build the config via AI
         const igContext = analysis.igProfile ? `
 ## INSTAGRAM DATA (${analysis.igProfile.followerCount} followers)
@@ -1067,6 +1073,7 @@ export async function refineConfigSection(
     analysis: WebsiteAnalysis
 ): Promise<{ success: boolean; config?: ClientConfig; error?: string }> {
     try {
+        await requireAuth()
         const sectionData = extractSectionData(config, section)
         const prompt = `Uživatel kontroluje konfiguraci Instagram autopilota pro "${config.name}" (${analysis.industry}).
 
@@ -1281,6 +1288,7 @@ export async function buildAndSaveConfig(
     websiteUrl: string,
     igHandle: string
 ): Promise<{ success: boolean; clientSlug?: string; error?: string }> {
+    await requireAuth()
     const preview = await generateConfigPreview(analysis, answers, websiteUrl, igHandle)
     if (!preview.success || !preview.config) {
         return { success: false, error: preview.error || 'Config generation failed' }

@@ -8,6 +8,8 @@ import {
     type ProductCategory,
 } from "@/instagram/service"
 import { resolveClientId } from "@/instagram/configs"
+import { requireAuth, requireClientAccess, requireSuperAdmin } from "@/lib/auth-guard"
+import supabaseAdmin from "@/supabase/admin"
 
 // ─── Helper: slug → UUID ──────────────────────────────────
 
@@ -21,6 +23,21 @@ async function toUUID(projectId: string): Promise<string | null> {
     }
 }
 
+/** Ownership check for a category row: per-client rows need membership, global rows (client_id null) need super admin. */
+async function requireCategoryAccess(id: string): Promise<void> {
+    const { data: category } = await supabaseAdmin
+        .from("ig_product_categories")
+        .select("client_id")
+        .eq("id", id)
+        .single()
+    if (!category) throw new Error("Kategorie nenalezena")
+    if (category.client_id) {
+        await requireClientAccess(category.client_id)
+    } else {
+        await requireSuperAdmin()
+    }
+}
+
 // ─── Read ─────────────────────────────────────────────────
 
 export async function fetchProductCategories(
@@ -28,6 +45,11 @@ export async function fetchProductCategories(
 ): Promise<{ categories: ProductCategory[]; isCustom: boolean }> {
     try {
         const clientUUID = await toUUID(projectId)
+        if (clientUUID) {
+            await requireClientAccess(clientUUID)
+        } else {
+            await requireAuth()
+        }
         // Pass UUID or undefined — service falls back to global if null/undefined
         const categories = await getCategories(clientUUID ?? undefined)
         const isCustom = categories.length > 0 && categories[0].client_id !== null
@@ -55,6 +77,7 @@ export async function addProductCategory(
     try {
         const clientUUID = await toUUID(projectId)
         if (!clientUUID) return { success: false, error: `Klient "${projectId}" nenalezen` }
+        await requireClientAccess(clientUUID)
         const category = await createCategory(clientUUID, data)
         return { success: true, category }
     } catch (err: any) {
@@ -76,6 +99,7 @@ export async function editProductCategory(
     }>
 ): Promise<{ success: boolean; error?: string }> {
     try {
+        await requireCategoryAccess(id)
         await updateCategory(id, data)
         return { success: true }
     } catch (err: any) {
@@ -89,6 +113,7 @@ export async function removeProductCategory(
     id: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
+        await requireCategoryAccess(id)
         await deleteCategory(id)
         return { success: true }
     } catch (err: any) {

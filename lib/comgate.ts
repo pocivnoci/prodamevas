@@ -29,6 +29,20 @@
 
 const COMGATE_API = "https://payments.comgate.cz/v1.0"
 
+/**
+ * Mock payment mode — allowed only OUTSIDE production.
+ * Prevents COMGATE_MOCK=true accidentally left on prod from letting
+ * anyone approve their own payments via a forged callback.
+ */
+export function isMockPaymentMode(): boolean {
+    const wantsMock = process.env.COMGATE_MOCK === "true"
+    if (wantsMock && process.env.VERCEL_ENV === "production") {
+        console.error("⛔ COMGATE_MOCK=true ignored on production — using real gateway")
+        return false
+    }
+    return wantsMock
+}
+
 // Environment config
 function getConfig() {
     const merchant = process.env.COMGATE_MERCHANT_ID

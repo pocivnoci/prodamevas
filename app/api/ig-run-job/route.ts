@@ -12,9 +12,6 @@ export const maxDuration = 300 // Full 5 min for generation
  * Blocks synchronously, updates job progress in DB throughout.
  */
 export async function POST(req: Request) {
-    const { requireAuth } = await import("@/lib/auth-guard")
-    try { await requireAuth() } catch { return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 }) }
-
     const { jobId } = await req.json()
 
     if (!jobId) {
@@ -24,13 +21,17 @@ export async function POST(req: Request) {
     // Fetch job config from DB
     const { data: job } = await supabaseAdmin
         .from("ig_jobs")
-        .select("config")
+        .select("config, client_id")
         .eq("id", jobId)
         .single()
 
     if (!job) {
         return NextResponse.json({ success: false, error: "Job not found" }, { status: 404 })
     }
+
+    // Ownership check: caller must have access to the client this job belongs to
+    const { requireClientAccess } = await import("@/lib/auth-guard")
+    try { await requireClientAccess(job.client_id) } catch { return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 }) }
 
     const updateJob = async (update: Record<string, any>) => {
         await supabaseAdmin.from("ig_jobs").update(update).eq("id", jobId)
@@ -67,9 +68,7 @@ export async function POST(req: Request) {
         if (!config.dryRun && result.id) {
             try {
                 const { deductCredits } = await import("@/lib/subscription")
-                const { resolveClientId } = await import("@/instagram/configs")
-                const clientId = await resolveClientId(config.configName || "mobilnamiru")
-                await deductCredits(clientId, "post", `Post: ${result.caption?.split("\n")?.[0]?.substring(0, 60) || "vygenerováno"}`, result.id)
+                await deductCredits(job.client_id, "post", `Post: ${result.caption?.split("\n")?.[0]?.substring(0, 60) || "vygenerováno"}`, result.id)
             } catch (creditErr: any) {
                 // Non-fatal — post already created, log but don't fail
                 console.warn("Credit deduction failed (post created):", creditErr?.message)

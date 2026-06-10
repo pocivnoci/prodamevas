@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
-import { createPayment, generateRefId } from "@/lib/comgate"
+import { createPayment, generateRefId, isMockPaymentMode } from "@/lib/comgate"
 
 export async function POST(req: NextRequest) {
     const { requireAuth } = await import("@/lib/auth-guard")
@@ -43,6 +43,10 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Client not found" }, { status: 404 })
         }
 
+        // Caller must be a member of the client they are paying for
+        const { requireClientAccess } = await import("@/lib/auth-guard")
+        try { await requireClientAccess(client.id) } catch { return NextResponse.json({ error: "Unauthorized" }, { status: 403 }) }
+
         // Get payer email from user_clients → auth.users if not provided
         let payerEmail = email
         if (!payerEmail) {
@@ -75,7 +79,7 @@ export async function POST(req: NextRequest) {
         const refId = generateRefId(client.slug)
         const label = `${plan.name} — ${client.name}`
 
-        const isMock = process.env.COMGATE_MOCK === "true"
+        const isMock = isMockPaymentMode()
 
         let transId: string
         let redirectUrl: string

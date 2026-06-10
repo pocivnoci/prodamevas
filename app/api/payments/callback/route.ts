@@ -14,7 +14,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
-import { getPaymentStatus } from "@/lib/comgate"
+import { getPaymentStatus, isMockPaymentMode } from "@/lib/comgate"
 
 export async function POST(req: NextRequest) {
     try {
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
 
         // Verify payment status (skip for mock payments)
         let confirmedStatus: string
-        if (process.env.COMGATE_MOCK === "true") {
+        if (isMockPaymentMode()) {
             confirmedStatus = status // Trust mock callback
             console.log(`💳 [MOCK] Callback: transId=${transId}, status=${confirmedStatus}`)
         } else {

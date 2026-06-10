@@ -1,7 +1,7 @@
 "use server"
 
 import supabaseAdmin from "@/supabase/admin"
-import { requireProjectAccess } from "@/lib/auth-guard"
+import { requireProjectAccess, requireClientAccess } from "@/lib/auth-guard"
 
 // ─── Instagram Actions ───────────────────────────────────────────────
 
@@ -157,8 +157,8 @@ export async function getDashboardStats(projectSlug: string) {
 }
 
 export async function getIGPostsList(
-    statusFilter?: string,
-    projectSlug: string = "mobilnamiru",
+    statusFilter: string | undefined,
+    projectSlug: string,
     page: number = 0,
     pageSize: number = 15
 ): Promise<{ posts: any[]; total: number; hasMore: boolean }> {
@@ -216,18 +216,20 @@ export async function getEditorialLog(postId: string): Promise<{ role: string; a
     try {
         const { data } = await supabaseAdmin
             .from("ig_jobs")
-            .select("editorial_log")
+            .select("editorial_log, client_id")
             .filter("result->>postId", "eq", postId)
             .order("created_at", { ascending: false })
             .limit(1)
             .single()
-        return (data?.editorial_log as any[]) || []
+        if (!data) return []
+        await requireClientAccess(data.client_id)
+        return (data.editorial_log as any[]) || []
     } catch {
         return []
     }
 }
 
-export async function getIGIdeasList(projectSlug: string = "mobilnamiru"): Promise<any[]> {
+export async function getIGIdeasList(projectSlug: string): Promise<any[]> {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -248,7 +250,7 @@ export async function getIGIdeasList(projectSlug: string = "mobilnamiru"): Promi
     }
 }
 
-export async function getIGReviewsList(projectSlug: string = "mobilnamiru"): Promise<any[]> {
+export async function getIGReviewsList(projectSlug: string): Promise<any[]> {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -270,14 +272,32 @@ export async function getIGReviewsList(projectSlug: string = "mobilnamiru"): Pro
 }
 
 export async function updateIGReviewApproval(id: string, approved: boolean): Promise<{ success: boolean }> {
-    const { error } = await supabaseAdmin
-        .from("ig_reviews")
-        .update({ is_approved: approved })
-        .eq("id", id)
-    return { success: !error }
+    try {
+        const { data: review } = await supabaseAdmin
+            .from("ig_reviews")
+            .select("client_id")
+            .eq("id", id)
+            .single()
+        if (!review) return { success: false }
+        await requireClientAccess(review.client_id)
+
+        const { error } = await supabaseAdmin
+            .from("ig_reviews")
+            .update({ is_approved: approved })
+            .eq("id", id)
+        return { success: !error }
+    } catch {
+        return { success: false }
+    }
 }
 
 export async function getIGPostTypes(configName?: string): Promise<any[]> {
+    if (configName) {
+        try { await requireProjectAccess(configName) } catch { return [] }
+    } else {
+        const { requireAuth } = await import("@/lib/auth-guard")
+        try { await requireAuth() } catch { return [] }
+    }
     const { data } = await supabaseAdmin
         .from("ig_post_types")
         .select("*")
@@ -308,6 +328,19 @@ export async function getIGPostTypes(configName?: string): Promise<any[]> {
 }
 
 /**
+ * Check if the current user is a super admin (SUPER_ADMIN_EMAILS).
+ */
+export async function checkIsAdmin(): Promise<boolean> {
+    try {
+        const { requireSuperAdmin } = await import("@/lib/auth-guard")
+        await requireSuperAdmin()
+        return true
+    } catch {
+        return false
+    }
+}
+
+/**
  * Get available clients from config registry (for dashboard project selector)
  */
 export async function getAvailableIGClients(): Promise<{ id: string; name: string; icon: string; description: string }[]> {
@@ -320,6 +353,7 @@ export async function getAvailableIGClients(): Promise<{ id: string; name: strin
  */
 export async function getIGPostFormats(configName: string): Promise<Record<string, { aspectRatio: string; medium: string; overlayStyle: string }>> {
     try {
+        await requireProjectAccess(configName)
         const { loadConfig } = await import("@/instagram/configs")
         const { getPostFormat } = await import("@/instagram/caption-generator")
         const config = await loadConfig(configName)
@@ -339,6 +373,7 @@ export async function getIGPostFormats(configName: string): Promise<Record<strin
  */
 export async function getIGCategories(configName: string): Promise<{ id: string; emoji: string; label: string; categories?: { id: string; emoji: string; label: string }[] }[]> {
     try {
+        await requireProjectAccess(configName)
         const { loadConfig } = await import("@/instagram/configs")
         const config = await loadConfig(configName)
         if (!config.contentPillars) return []
@@ -360,7 +395,7 @@ export async function getIGCategories(configName: string): Promise<{ id: string;
 
 
 
-export async function getIGGenerationLogs(limit = 50, projectSlug: string = "mobilnamiru"): Promise<any[]> {
+export async function getIGGenerationLogs(limit = 50, projectSlug: string): Promise<any[]> {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -384,27 +419,16 @@ export async function getIGGenerationLogs(limit = 50, projectSlug: string = "mob
     }
 }
 
-export async function getIGCalendar(startDate: string, endDate: string): Promise<any[]> {
-    try {
-        const { data } = await supabaseAdmin
-            .from("ig_content_calendar")
-            .select(`
-                id, date, time_slot, notes, created_at,
-                ig_posts ( id, caption, status, image_url ),
-                ig_post_types ( name, display_name, emoji )
-            `)
-            .gte("date", startDate)
-            .lte("date", endDate)
-            .order("date", { ascending: true })
-        return data || []
-    } catch (err: any) {
-        console.error("getIGCalendar error:", err?.message)
-        return []
-    }
-}
-
 export async function updateIGPostStatus(postId: string, status: string): Promise<{ success: boolean }> {
     try {
+        const { data: post } = await supabaseAdmin
+            .from("ig_posts")
+            .select("client_id")
+            .eq("id", postId)
+            .single()
+        if (!post) return { success: false }
+        await requireClientAccess(post.client_id)
+
         const { error } = await supabaseAdmin
             .from("ig_posts")
             .update({
@@ -432,6 +456,21 @@ export async function updateIGPostMetrics(
         link_clicks: number
     }
 ): Promise<{ success: boolean }> {
+    // Read client_id + previous metrics BEFORE the update — needed for the
+    // ownership check and so the significance deltas compare old vs new values.
+    const { data: post } = await supabaseAdmin
+        .from("ig_posts")
+        .select("client_id, likes, saves, comments")
+        .eq("id", postId)
+        .single()
+
+    if (!post) return { success: false }
+    try {
+        await requireClientAccess(post.client_id)
+    } catch {
+        return { success: false }
+    }
+
     const { error } = await supabaseAdmin
         .from("ig_posts")
         .update({
@@ -446,13 +485,6 @@ export async function updateIGPostMetrics(
     // After saving metrics, check if metrics changed significantly before triggering learning.
     // This prevents pointless re-analysis on trivial metric updates.
     try {
-        // Get client_id + previous metrics from the post we just updated
-        const { data: post } = await supabaseAdmin
-            .from("ig_posts")
-            .select("client_id, likes, saves, comments")
-            .eq("id", postId)
-            .single()
-
         // Only learn if metrics changed significantly
         const prevLikes = post?.likes || 0
         const prevSaves = post?.saves || 0
@@ -492,21 +524,23 @@ export async function updateIGPostMetrics(
                     link_clicks: p.link_clicks || 0,
                 }))
 
-                // Also propagate metrics to idea/review performance scores
+                // Also propagate metrics to idea/review performance scores.
+                // waitUntil keeps the lambda alive for these after the response returns.
+                const { waitUntil } = await import("@vercel/functions")
                 const { propagateMetricsToSources } = await import("@/instagram/service")
-                propagateMetricsToSources().then(({ ideasUpdated, reviewsUpdated }) => {
+                waitUntil(propagateMetricsToSources().then(({ ideasUpdated, reviewsUpdated }) => {
                     if (ideasUpdated > 0 || reviewsUpdated > 0) {
                         console.log(`📊 Metrics propagated: ${ideasUpdated} ideas, ${reviewsUpdated} reviews`)
                     }
-                }).catch(() => { /* non-fatal */ })
+                }).catch(() => { /* non-fatal */ }))
 
-                analyzeAndLearn(learnData).then(result => {
+                waitUntil(analyzeAndLearn(learnData).then(result => {
                     if (result.memoriesCreated > 0 || result.memoriesUpdated > 0) {
                         console.log(`🧠 Learning triggered: ${result.memoriesCreated} new memories, ${result.memoriesUpdated} updated`)
                     }
                 }).catch(err => {
                     console.warn("⚠️ Learning trigger failed (non-fatal):", err?.message)
-                })
+                }))
             }
         }
     } catch (learnErr: any) {
@@ -519,7 +553,7 @@ export async function updateIGPostMetrics(
 
 // ─── Performance Insights (Neural Brand Engine MVP) ──────────────────
 
-export async function getPerformanceInsights(projectSlug: string = "mobilnamiru") {
+export async function getPerformanceInsights(projectSlug: string) {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
         const { loadConfig } = await import("@/instagram/configs")

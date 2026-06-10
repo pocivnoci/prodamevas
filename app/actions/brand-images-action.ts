@@ -1,7 +1,7 @@
 'use server'
 
 import supabaseAdmin from '@/supabase/admin'
-import { createClient } from '@/supabase/server'
+import { requireProjectAccess } from '@/lib/auth-guard'
 import { getConfigBrandImages } from '@/instagram/configs/types'
 
 /**
@@ -14,15 +14,13 @@ export async function uploadBrandImage(formData: FormData): Promise<{
     error?: string
 }> {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return { success: false, error: 'Nepřihlášený uživatel' }
-
         const file = formData.get('file') as File
         if (!file) return { success: false, error: 'Nebyl vybrán žádný soubor' }
 
         const clientSlug = formData.get('clientSlug') as string
         if (!clientSlug) return { success: false, error: 'Chybí identifikace klienta' }
+
+        await requireProjectAccess(clientSlug)
 
         const category = (formData.get('category') as string) || 'brand'
 
@@ -109,9 +107,7 @@ export async function deleteBrandImage(
     imageUrl: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return { success: false, error: 'Nepřihlášený uživatel' }
+        await requireProjectAccess(clientSlug)
 
         // Remove from config
         const { data: client } = await supabaseAdmin
@@ -158,6 +154,8 @@ export async function deleteBrandImage(
  */
 export async function getBrandImages(clientSlug: string): Promise<string[]> {
     try {
+        await requireProjectAccess(clientSlug)
+
         const { data: client } = await supabaseAdmin
             .from('clients')
             .select('config')

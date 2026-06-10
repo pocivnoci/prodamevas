@@ -33,7 +33,10 @@ const clientIdCache = new Map<string, string>() // slug → uuid
  * @param name - Config slug (e.g. mobilnamiru, or a UUID)
  * @param forceRefresh - Skip cache and fetch from DB
  */
-export async function loadConfig(name: string = "mobilnamiru", forceRefresh = false): Promise<ClientConfig> {
+export async function loadConfig(name: string, forceRefresh = false): Promise<ClientConfig> {
+    if (!name) {
+        throw new Error("loadConfig: chybí slug klienta — tenant musí být vždy explicitní")
+    }
     if (!forceRefresh) {
         const cached = configCache.get(name)
         if (cached) return cached

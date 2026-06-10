@@ -1,7 +1,7 @@
 "use server"
 
 import supabaseAdmin from "@/supabase/admin"
-import { requireProjectAccess } from "@/lib/auth-guard"
+import { requireProjectAccess, requireClientAccess } from "@/lib/auth-guard"
 
 // ─── Brand Memory Management ────────────────────────────────────────
 
@@ -55,6 +55,14 @@ export async function updateBrandMemory(
     updates: { content?: string; confidence?: number; memory_type?: string }
 ): Promise<{ success: boolean; error?: string }> {
     try {
+        const { data: memory } = await supabaseAdmin
+            .from("ig_brand_memory")
+            .select("client_id")
+            .eq("id", id)
+            .single()
+        if (!memory) return { success: false, error: "Paměť nenalezena" }
+        await requireClientAccess(memory.client_id)
+
         const updateData: Record<string, any> = {}
         if (updates.content !== undefined) updateData.content = updates.content
         if (updates.confidence !== undefined) updateData.confidence = Math.min(1, Math.max(0.1, updates.confidence))
@@ -75,6 +83,14 @@ export async function updateBrandMemory(
 
 export async function deleteBrandMemory(id: string): Promise<{ success: boolean; error?: string }> {
     try {
+        const { data: memory } = await supabaseAdmin
+            .from("ig_brand_memory")
+            .select("client_id")
+            .eq("id", id)
+            .single()
+        if (!memory) return { success: false, error: "Paměť nenalezena" }
+        await requireClientAccess(memory.client_id)
+
         const { error } = await supabaseAdmin
             .from("ig_brand_memory")
             .delete()

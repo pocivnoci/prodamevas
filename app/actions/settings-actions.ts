@@ -3,11 +3,11 @@
 import supabaseAdmin from "@/supabase/admin"
 import { revalidatePath } from "next/cache"
 import type { ClientConfig } from "@/instagram/configs/types"
-import { requireAuth } from "@/lib/auth-guard"
+import { requireProjectAccess } from "@/lib/auth-guard"
 
 export async function getClientConfig(projectId: string): Promise<ClientConfig | null> {
     try {
-        await requireAuth()
+        await requireProjectAccess(projectId)
         const { data, error } = await supabaseAdmin
             .from("clients")
             .select("config")
@@ -28,7 +28,7 @@ export async function getClientConfig(projectId: string): Promise<ClientConfig |
 
 export async function updateClientConfig(projectId: string, newConfig: any): Promise<{ success: boolean; error?: string }> {
     try {
-        await requireAuth()
+        await requireProjectAccess(projectId)
         // Validation - verify the config is valid JSON and has minimum required fields
         if (!newConfig || typeof newConfig !== "object") {
             return { success: false, error: "Neplatný formát konfigurace (musí být JSON objekt)." }
@@ -50,8 +50,7 @@ export async function updateClientConfig(projectId: string, newConfig: any): Pro
 
         // Revalidate the app to reflect changes
         revalidatePath("/dashboard")
-        revalidatePath("/api/ig-generate")
-        
+
         return { success: true }
     } catch (err: any) {
         console.error("Exception checking config:", err)

@@ -18,18 +18,32 @@ export async function requireAuth(): Promise<{ email: string; userId: string }> 
 
 /**
  * Ověří přihlášení + přístup k projektu přes user_clients tabulku.
- * Vrací { userId, clientId } — nahrazuje ruční resolveClientId() volání.
+ * Vrací { userId, clientId, email, isSuperAdmin } — nahrazuje ruční resolveClientId() volání.
  * Použij na KAŽDÉ server action, která přijímá projectSlug.
  */
-export async function requireProjectAccess(projectSlug: string): Promise<{ userId: string; clientId: string }> {
-    const { userId, email } = await requireAuth()
+export async function requireProjectAccess(projectSlug: string): Promise<{ userId: string; clientId: string; email: string; isSuperAdmin: boolean }> {
+    if (!projectSlug) {
+        throw new Error('Chybí identifikace projektu.')
+    }
     const { resolveClientId } = await import('@/instagram/configs')
     const clientId = await resolveClientId(projectSlug)
+    return requireClientAccess(clientId)
+}
+
+/**
+ * Ověří přihlášení + přístup ke klientovi podle UUID (`clients.id`).
+ * Použij pro ownership check řádků, které už nesou client_id (ig_jobs, ig_posts, ig_brand_memory…).
+ */
+export async function requireClientAccess(clientId: string): Promise<{ userId: string; clientId: string; email: string; isSuperAdmin: boolean }> {
+    const { userId, email } = await requireAuth()
+    if (!clientId) {
+        throw new Error('Chybí identifikace klienta.')
+    }
 
     // Super admins bypass user_clients check
     const admins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean)
     if (admins.includes(email)) {
-        return { userId, clientId }
+        return { userId, clientId, email, isSuperAdmin: true }
     }
 
     const { data } = await supabaseAdmin
@@ -43,7 +57,7 @@ export async function requireProjectAccess(projectSlug: string): Promise<{ userI
         throw new Error('Nemáte přístup k tomuto projektu.')
     }
 
-    return { userId, clientId }
+    return { userId, clientId, email, isSuperAdmin: false }
 }
 
 /**
