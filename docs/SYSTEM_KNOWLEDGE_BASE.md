@@ -155,7 +155,21 @@ ig_generation_log
 
 buildSmartWeekPlan()
     └── pillar ratios ×1.5 (top) / ×0.5 (under) based on real engagement
+
+A/B Variant Loop (variant-actions.ts)
+    generateMultipleVariants() → N draft variant postů (revision_of + link_type='variant')
+        → uživatel vybere vítěze: selectVariantWinner()
+            ├── winner → draft, losers → rejected
+            └── learnFromVariantSelection(winner, losers, clientId)
+                    → ig_brand_memory (preference)
+    Pozn.: revisePost() linkuje přes revision_of + link_type='revision' —
+    revize se do A/B srovnání ani učení NEpočítají.
 ```
+
+> [!IMPORTANT]
+> Learning trigger v `updateIGPostMetrics()` čte předchozí metriky PŘED updatem
+> (jinak jsou delty vždy 0 a učení se nikdy nespustí) a běží přes `waitUntil()`
+> z `@vercel/functions`, aby ho serverless neukončil s odpovědí.
 
 > [!NOTE]
 > Feedback loop is **automatic** — triggered when user saves metrics via `updateIGPostMetrics()`. Manual trigger: `POST /api/ig-learn { configName }`.
@@ -191,7 +205,7 @@ buildSmartWeekPlan()
 | `ig_products` | `name`, `type`, `slug`, `price`, `image_urls[]` | Products + photos |
 | `ig_product_ideas` | `name`, `concept`, `design_url` | AI product design concepts |
 | `ig_product_categories` | `name`, `client_id` | Product categories |
-| `ig_posts` | `caption`, `image_url`, `status`, `idea_id`, `review_id`, `product_id`, `likes`, `saves`, `reach` | FK to ideas/reviews/products |
+| `ig_posts` | `caption`, `image_url`, `status`, `idea_id`, `review_id`, `product_id`, `likes`, `saves`, `reach`, `feedback`, `revision_of`, `link_type` | `revision_of` + `link_type` ('revision'/'variant') link revisions & A/B variants to original |
 | `ig_content_calendar` | `date`, `post_id`, `time_slot` | Calendar scheduling |
 | `ig_generation_log` | `prompt_used`, `model_used`, `critic_score`, `critic_keep[]`, `critic_fix[]` | Critic feedback for learning |
 | `ig_brand_memory` | `memory_type` (pattern/preference/avoid/visual), `content`, `confidence` | Long-term learning |
@@ -208,8 +222,12 @@ buildSmartWeekPlan()
 
 | File | LOC | Role |
 |---|---|---|
-| `autopilot.ts` | 1849 | **Core orchestrator** — generateOnePost(), generateBatch() |
-| `caption-generator.ts` | 791 | Mega prompt builder, caption schemas, scorePost(), selectOverlayVariant() |
+| `autopilot.ts` | ~730 | **Core orchestrator** — generateOnePost(), generateBatch() |
+| `orchestrators/image-orchestrator.ts` | ~430 | Image rendering pipeline (extracted from autopilot) |
+| `orchestrators/carousel-orchestrator.ts` | ~165 | Multi-slide carousel rendering |
+| `orchestrators/reel-orchestrator.ts` | ~200 | Veo reel rendering |
+| `cli.ts` | ~410 | Dev/management CLI (--stats, --feedback, --generate-ideas…) |
+| `caption-generator.ts` | ~890 | Mega prompt builder, caption schemas, scorePost(), reviseCaption() |
 | `editorial-board.ts` | 777 | reviewPost(), reviewContentPlan(), reviewOverlayComposition() |
 | `text-overlay.ts` | 683 | Satori SVG → Sharp PNG overlay + logo watermark |
 | `product-generator.ts` | 643 | Product ideas, design concepts, mockups |
@@ -231,26 +249,32 @@ buildSmartWeekPlan()
 
 | Route | Auth | Duration | Purpose |
 |-------|------|----------|---------|
-| `POST /api/ig-create-job` | ✅ + rate limit | 10s | Create job record, return jobId |
-| `POST /api/ig-run-job` | ✅ | 300s | Run full generation pipeline |
-| `GET /api/ig-job-status` | ✅ | 10s | Poll job progress |
-| `POST /api/ig-generate` | ✅ | 300s | Direct generation (no job) |
-| `POST /api/ig-learn` | ✅ | 60s | Trigger feedback loop |
-| `POST /api/payments/create` | ✅ | 10s | Create Comgate payment (or mock) |
-| `POST /api/payments/callback` | ❌ (webhook) | 10s | Comgate status callback |
+| `POST /api/ig-create-job` | ✅ membership + rate limit | 10s | Create job, **charge credit/plan counter** (refunded on failure), return jobId |
+| `POST /api/ig-run-job` | ✅ job ownership | 300s | Run full generation pipeline |
+| `GET /api/ig-job-status` | ✅ job ownership | 5s | Poll progress + **stuck-job reaper** (>8 min silent → failed + refund) |
+| `POST /api/ig-learn` | ✅ membership | 60s | Trigger feedback loop |
+| `POST /api/payments/create` | ✅ client membership | 10s | Create Comgate payment (mock disabled on prod) |
+| `POST /api/payments/callback` | ❌ (webhook) | 10s | Comgate status callback (server-side verification) |
 | `GET /api/payments/return` | ❌ (redirect) | 10s | Post-payment redirect |
 | `GET /api/subscription` | ✅ | 10s | Client subscription info |
 
-### Server Actions (`app/actions/`)
+> `POST /api/ig-generate` byl odstraněn (v4.1) — obcházel rate limit i kredity a UI ho nepoužívalo.
+
+### Server Actions (`app/actions/`) — decomposed by domain (v4.1)
 
 | File | LOC | Key Exports |
 |---|---|---|
-| `admin-actions.ts` | 2366 | getDashboardStats(), getIGPostsList(), updateIGPostMetrics(), revisePost(), generatePostVariant(), generateContentPlan(), getEditorialLog(), updateClientConfig() |
-| `product-actions.ts` | 537 | getProducts(), saveProduct(), deleteProduct() |
-| `ig-generate-action.ts` | 519 | triggerBatchGeneration(), triggerIdeaGeneration(), triggerReviewGeneration() |
-| `credit-guard.ts` | 197 | creditGuard(), creditGuardBatch() |
-| `calendar-actions.ts` | 180 | planWeekCalendar() |
-| `product-brief-actions.ts` | 154 | generateProductBrief() → DOCX |
+| `product-actions.ts` | ~1130 | getProducts(), saveProduct(), deleteProduct(), product ideas |
+| `admin-actions.ts` | ~640 | getDashboardStats(), getIGPostsList(), updateIGPostMetrics() (+ learning trigger), getEditorialLog(), checkIsAdmin() |
+| `ig-generate-action.ts` | ~520 | triggerBatchGeneration(), triggerIdeaGeneration(), triggerReviewGeneration() |
+| `content-plan-actions.ts` | ~420 | generateContentPlan() — levný textový plán před generováním (PlanTab) |
+| `variant-actions.ts` | ~400 | revisePost(), generatePostVariant(), generateMultipleVariants(), selectVariantWinner(), getVariantGroup() |
+| `config-actions.ts` | ~370 | getClientConfig(), updateClientConfig(), uploadClientLogo(), rescanClientWebsite(), deleteClient() |
+| `credit-guard.ts` | ~200 | creditGuard(), creditGuardBatch(), canGenerate() — vše s membership checkem |
+| `calendar-actions.ts` | ~180 | planWeekCalendar() |
+| `product-brief-actions.ts` | ~155 | analyzeProductForBrief() → DOCX |
+| `memory-actions.ts` / `post-actions.ts` | ~100 | brand memory CRUD / post delete |
+| `app/onboarding/actions.ts` | ~1850 | analyzeWebsite() (web + HikerAPI IG scraping), generateConfigPreview(), refineConfigSection(), saveReviewedConfig() |
 
 ---
 
@@ -259,13 +283,17 @@ buildSmartWeekPlan()
 | Layer | Protection |
 |---|---|
 | **Middleware** | Redirects unauthenticated to `/login` for `/dashboard/*`, `/onboarding` |
-| **API Routes** | `requireAuth()` on all routes (except payment webhooks) |
+| **API Routes** | `requireProjectAccess()` (membership, ne jen login) na generovacích routes; job routes ověřují vlastnictví přes `requireClientAccess(job.client_id)` |
+| **Server Actions** | Každá akce s `projectSlug` → `requireProjectAccess()`; akce s row id → fetch `client_id` + `requireClientAccess()`. Tenant fallbacky odstraněny — chybějící identifikátor = throw |
 | **Rate Limiting** | 10 jobs/hour per client (DB-based, admin bypass) on `ig-create-job` |
-| **Supabase RLS** | Enabled on all tables |
+| **Credits** | Charge při vytvoření jobu + refund při selhání; idempotence přes unique index `credit_transactions(action, reference_id)` |
+| **Supabase RLS** | Enabled on all tables. `subscriptions`/`payments`/`subscription_plans` nemají policies = default-deny — záměr, frontend k nim přistupuje jen přes server (`/api/subscription`) |
 | **Service Role** | `supabase/admin.ts` — bypasses RLS for engine operations |
 | **Invite Codes** | Registration requires valid invite code (`invite_codes` table) |
-| **Mock Payments** | `COMGATE_MOCK=true` → fake payment page, no real charges |
-| **Config Validation** | `validateConfig()` fills safe defaults for 11+ required fields |
+| **Mock Payments** | `isMockPaymentMode()` — `COMGATE_MOCK=true` funguje, ale na `VERCEL_ENV=production` je ignorován (kill switch) |
+| **Config Validation** | `validateConfig()` fills safe defaults; config cache má 60s TTL (invalidace platí jen pro lokální lambdu) |
+| **Env Validation** | `lib/env.ts` přes `instrumentation.ts` — deploy spadne hned při chybějících povinných vars |
+| **Monitoring** | `@sentry/nextjs` (aktivní jen s `SENTRY_DSN`) — captureException v ig-run-job |
 
 ### Supabase Clients
 
@@ -288,8 +316,10 @@ buildSmartWeekPlan()
 | `SUPER_ADMIN_EMAILS` | Yes | auth-guard.ts, subscription.ts |
 | `COMGATE_MERCHANT` | Yes for payments | lib/comgate.ts |
 | `COMGATE_SECRET` | Yes for payments | lib/comgate.ts |
-| `COMGATE_MOCK` | Optional | payments/create, payments/callback |
+| `COMGATE_MOCK` | Optional (ignored on prod) | lib/comgate.ts — isMockPaymentMode() |
 | `NEXT_PUBLIC_SITE_URL` | Yes | auth callback, payments |
+| `HIKERAPI_KEY` | Optional | onboarding IG scraping (graceful skip) |
+| `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Optional | error monitoring (server / client) |
 
 ---
 

@@ -81,13 +81,13 @@ test("2.3 mock-payment has DEMO badge", () => {
 
 test("2.4 payments/create has COMGATE_MOCK branch", () => {
     const content = fileContent("app/api/payments/create/route.ts")
-    assert(content.includes('COMGATE_MOCK'), "Should check COMGATE_MOCK env var")
+    assert(content.includes('isMockPaymentMode'), "Should use isMockPaymentMode() (COMGATE_MOCK + prod kill switch)")
     assert(content.includes("mock-payment"), "Should redirect to mock-payment page")
 })
 
 test("2.5 payments/callback has COMGATE_MOCK bypass", () => {
     const content = fileContent("app/api/payments/callback/route.ts")
-    assert(content.includes('COMGATE_MOCK'), "Should check COMGATE_MOCK env var")
+    assert(content.includes('isMockPaymentMode'), "Should use isMockPaymentMode() (COMGATE_MOCK + prod kill switch)")
 })
 
 test("2.6 mock-payment sends callback to /api/payments/callback", () => {
@@ -385,7 +385,7 @@ test("11.2 All API routes have auth guards", () => {
 
     const runJob = fileContent("app/api/ig-run-job/route.ts")
     assert(
-        runJob.includes("requireAuth") || runJob.includes("requireProjectAccess"),
+        runJob.includes("requireAuth") || runJob.includes("requireProjectAccess") || runJob.includes("requireClientAccess"),
         "ig-run-job should have auth guard"
     )
 

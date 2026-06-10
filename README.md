@@ -27,7 +27,9 @@ Open [http://localhost:3000](http://localhost:3000)
 | `SUPABASE_SERVICE_ROLE_KEY` | Admin operace (bypass RLS) |
 | `GEMINI_API_KEY` | Gemini 3.5 Flash, Nano Banana Pro, Veo 3.1, TTS |
 | `COMGATE_MERCHANT` / `COMGATE_SECRET` | Platební brána (CZK) |
-| `COMGATE_MOCK=true` | Testovací platby bez reálné brány |
+| `COMGATE_MOCK=true` | Testovací platby bez reálné brány (na produkci ignorováno) |
+| `HIKERAPI_KEY` | IG scraping v onboardingu (volitelné) |
+| `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Error monitoring (volitelné) |
 | `SUPER_ADMIN_EMAILS` | Comma-separated admin emaily |
 | `NEXT_PUBLIC_SITE_URL` | URL pro auth callback + redirecty |
 
@@ -68,12 +70,11 @@ app/
 │   ├── settings-actions.ts           # 60 LOC
 │   ├── waitlist-admin.ts + waitlist.ts
 │   └── admin-onboard-actions.ts
-├── api/                              # 9 API routes
-│   ├── ig-create-job/                # Auth ✅ + Rate limit (10/h)
-│   ├── ig-run-job/                   # Auth ✅ — 300s serverless
-│   ├── ig-job-status/                # Auth ✅ — polling
-│   ├── ig-generate/                  # Auth ✅ — direct generate
-│   ├── ig-learn/                     # Auth ✅ — feedback loop
+├── api/                              # 8 API routes
+│   ├── ig-create-job/                # Membership ✅ + rate limit (10/h) + charge kreditu
+│   ├── ig-run-job/                   # Job ownership ✅ — 300s, refund při selhání
+│   ├── ig-job-status/                # Ownership ✅ — polling + stuck-job reaper
+│   ├── ig-learn/                     # Membership ✅ — feedback loop
 │   ├── payments/create/              # Auth ✅ + COMGATE_MOCK
 │   ├── payments/callback/            # Comgate webhook (no auth — intentional)
 │   ├── payments/return/              # Payment redirect (no auth — intentional)
@@ -193,7 +194,8 @@ middleware.ts                         # Auth redirect guard
 
 ## Bezpečnost
 
-- **Auth:** Všechny API routes mají `requireAuth()` (kromě payments/callback a /return — webhooky)
+- **Auth:** API routes ověřují členství v projektu (`requireProjectAccess`/`requireClientAccess`), ne jen přihlášení (kromě payment webhooků)
+- **Kredity:** charge při vytvoření jobu, refund při selhání, idempotentní (unique index)
 - **Middleware:** Chrání `/dashboard/*` + `/onboarding`
 - **RLS:** Enabled na všech Supabase tabulkách
 - **Rate limiting:** 10 jobů/hodinu per klient (admin bypass) v `ig-create-job`
@@ -206,9 +208,10 @@ middleware.ts                         # Auth redirect guard
 ## Testy
 
 ```bash
-npx tsx test-beta-e2e.ts      # 57 testů — ověření beta fixů
+npx tsx test-beta-e2e.ts      # 57 statických kontrol — ověření beta/production fixů
 npm run build                  # TypeScript + production build
 npx tsx scripts/verify-beta-fixes.ts  # Dodatečná verifikace
+npx tsx scripts/test-seq.ts    # buildSmartWeekPlan edge-cases (offline)
 ```
 
 ---

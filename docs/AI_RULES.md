@@ -65,5 +65,6 @@ Kdykoli uděláš změnu v kódu, **MUSÍŠ** aktualizovat relevantní dokumenta
 | 2026-05-14 | v3.0 | 2-step API, feedback loops, weighted selection, Memory Agent, model upgrade |
 | 2026-05-14 | v3.1 | Visual Memory, analyzeVisualPatterns(), Art Director injection |
 | 2026-06-02 | v4.0 | **Beta Launch:** rate limiting (10/h), auth na všech routes, config validace, editorial log UI, imageInstructions UI, mock platby, error recovery, onboarding timeout, model upgrade gemini-3.5-flash, 16 DB tabulek |
+| 2026-06-10 | v4.1 | **Production Hardening:** tenant isolation (requireProjectAccess/requireClientAccess všude, žádné tenant fallbacky), oprava mrtvého learning triggeru (delta bug), kredit charge při create-job + refund + idempotence, config cache TTL 60s, stuck-job reaper, Sentry + env validace, mock-payment kill switch, link_type (revize vs A/B varianty), reviseCaption() v enginu, smazán /api/ig-generate, dekompozice typů (lib/types/database.ts jako zdroj pravdy) |
 
 *Při dalším updatu přidej řádek sem.*

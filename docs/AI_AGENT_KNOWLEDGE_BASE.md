@@ -2,7 +2,7 @@
 
 **POZOR PRO VŠECHNY AI AGENTY**: Tento dokument slouží jako zdroj pravdy pro architektonická a technická rozhodnutí. Přečtěte si ho jako první.
 
-*Last Updated: 2026-06-02 — v4.0 Beta Launch*
+*Last Updated: 2026-06-10 — v4.1 Production Hardening*
 
 ---
 
@@ -117,6 +117,12 @@ buildSmartWeekPlan()  // pillar ratio × 1.5 (top) / × 0.5 (under), normalizov�
 > [!CAUTION]
 > **NIKDY nepoužívat `supabase/client` v backendu.** Retry logika: importovat z `utils/retry.ts`, nikdy nekopírovat.
 
+### Tenant isolation (v4.1)
+- Server action s `projectSlug` → `requireProjectAccess(slug)` (membership check, vrací `clientId`)
+- Akce s row id (post, memory, job…) → fetch `client_id` z řádku + `requireClientAccess(uuid)`
+- Žádné defaulty na konkrétního klienta — chybějící identifikátor = throw
+- `setActiveProject()` je globální mutable stav — nový kód předává `clientId` explicitně
+
 ---
 
 ## 🗃️ 6. Databázová Struktura (16 tabulek)
@@ -174,57 +180,66 @@ buildSmartWeekPlan()  // pillar ratio × 1.5 (top) / × 0.5 (under), normalizov�
 12. **imageInstructions**: Per-post-type image instructions v `ClientConfig` — editor v SettingsTab, consumováno v `buildMegaPrompt()`.
 13. **Onboarding timeout**: 90s `Promise.race` per showcase post — non-fatal, přeskočí se.
 14. **Mock platby**: `COMGATE_MOCK=true` → mock-payment stránka, callback bypass.
-15. **Feedback auto-trigger**: `updateIGPostMetrics()` automaticky spustí `propagateMetrics()` + `analyzeAndLearn()` (fire & forget).
+15. **Feedback auto-trigger**: `updateIGPostMetrics()` spustí `propagateMetrics()` + `analyzeAndLearn()` přes `waitUntil()`. POZOR: předchozí metriky se čtou PŘED updatem — jinak jsou delty 0 a učení se nikdy nespustí (bug opravený v4.1).
+16. **Kredity**: charge při `ig-create-job` (ne po generování), refund při selhání v `ig-run-job` / stuck-job reaperu. Idempotence: unique index `credit_transactions(action, reference_id)`. `config.charged` v `ig_jobs` říká co vrátit ('plan'/'credits'/'none').
+17. **Stuck-job reaper**: `ig-job-status` označí job bez aktivity >8 min jako failed + refunduje. Žádný cron.
+18. **link_type**: `revision_of` linkuje revize i A/B varianty — `link_type` ('revision'/'variant') je rozlišuje. A/B srovnání a `learnFromVariantSelection` filtrují na 'variant'.
+19. **Config cache TTL 60s**: `invalidateConfigCache()` čistí jen lokální lambdu — ostatní instance expirují přes TTL. Nikdy nespoléhat na okamžitou propagaci configu.
+20. **Mock platby na produkci**: `isMockPaymentMode()` ignoruje `COMGATE_MOCK=true` když `VERCEL_ENV=production`.
+21. **reviseCaption()**: revize captionu žije v `caption-generator.ts` (engine) — NIKDY nestavět copywriter prompt v `app/actions`.
 
 ---
 
 ## 📁 9. Adresářová Struktura
 
 ```
-instagram/                            # AI Engine (8101 LOC)
-├── autopilot.ts                      # 1849 LOC — orchestrátor
-├── caption-generator.ts              # 791 LOC — mega prompt, schemas, quality gate
+instagram/                            # AI Engine
+├── autopilot.ts                      # ~730 LOC — orchestrátor (generateOnePost, generateBatch)
+├── orchestrators/                    # rendering pipelines (extrahováno z autopilot.ts)
+│   ├── image-orchestrator.ts         # ~430 LOC
+│   ├── carousel-orchestrator.ts      # ~165 LOC (retry přes utils/retry)
+│   ├── reel-orchestrator.ts          # ~200 LOC
+│   └── types.ts                      # RenderContext, CaptionData, ProgressReporter
+├── cli.ts                            # ~410 LOC — dev CLI (--stats, --feedback, ...)
+├── caption-generator.ts              # ~890 LOC — mega prompt, schemas, quality gate, reviseCaption()
 ├── editorial-board.ts                # 777 LOC — 6 AI agentů review
 ├── text-overlay.ts                   # 683 LOC — Satori → Sharp
 ├── product-generator.ts              # 643 LOC — product ideas, design concepts
 ├── service.ts                        # 617 LOC — DB access, weighted selection, feedback
-├── memory-agent.ts                   # 459 LOC — brand memory, learning
+├── memory-agent.ts                   # ~590 LOC — brand memory, learning, variant learning
 ├── gemini-client.ts                  # 455 LOC — AI gateway (text, image, video, TTS)
 ├── image-pipeline.ts                 # 346 LOC — prompt refinement, visual memory
 ├── video-processor.ts                # 247 LOC — Veo 3.1 reels
 ├── context-agent.ts                  # 232 LOC — svátek, počasí, trendy
+├── signals/                          # calendar.ts, weather.ts — context zdroje
 ├── content-planner.ts                # 223 LOC — AI week planning
 ├── performance.ts                    # 186 LOC — per-pillar analytics
-├── idea-generator.ts                 # 145 LOC — AI ideas (with memory)
-├── review-generator.ts               # 142 LOC — AI reviews (with memory)
-├── brand-tagger.ts                   # 128 LOC — vision auto-tagging
-├── logo-loader.ts                    # 50 LOC — logo assets
-├── types.ts                          # 128 LOC — pipeline types
+├── idea-generator.ts / review-generator.ts / brand-tagger.ts / logo-loader.ts
+├── types.ts                          # pipeline types
 └── configs/
-    ├── index.ts                      # loadConfig(), validateConfig(), resolveClientId()
-    └── types.ts                      # ClientConfig interface
+    ├── index.ts                      # loadConfig() (60s TTL cache), validateConfig(), resolveClientId()
+    └── types.ts                      # ClientConfig interface (+ imageBrief)
 
 app/api/
-├── ig-create-job/route.ts            # Auth ✅ + rate limit (10/h)
-├── ig-run-job/route.ts               # Auth ✅ — 300s
-├── ig-job-status/route.ts            # Auth ✅ — polling
-├── ig-generate/route.ts              # Auth ✅ — direct generate
-├── ig-learn/route.ts                 # Auth ✅ — feedback
-├── payments/create/route.ts          # Auth ✅ + COMGATE_MOCK
-├── payments/callback/route.ts        # Comgate webhook (no auth)
-├── payments/return/route.ts          # Payment redirect
-└── subscription/route.ts             # Auth ✅
+├── ig-create-job/route.ts            # membership + rate limit + CHARGE kreditu
+├── ig-run-job/route.ts               # job ownership — 300s, refund při selhání
+├── ig-job-status/route.ts            # ownership + stuck-job reaper (>8 min)
+├── ig-learn/route.ts                 # membership — feedback loop
+├── payments/create|callback|return   # mock kill switch na produkci
+└── subscription/route.ts
 
-app/actions/                          # 12 server action files (4387 LOC)
-├── admin-actions.ts                  # 2366 LOC — 27+ akcí (CRUD, stats, editorial log)
-├── product-actions.ts                # 537 LOC
-├── ig-generate-action.ts             # 519 LOC
-├── credit-guard.ts                   # 197 LOC
-├── calendar-actions.ts               # 180 LOC
-├── product-brief-actions.ts          # 154 LOC — DOCX brief
-├── brand-images-action.ts            # 174 LOC
-├── product-category-actions.ts       # 98 LOC
-├── settings-actions.ts               # 60 LOC
-├── waitlist-admin.ts + waitlist.ts
-└── admin-onboard-actions.ts
+app/actions/                          # server actions dekomponované podle domén
+├── admin-actions.ts                  # ~640 LOC — stats, listy, metriky (+ learning trigger), checkIsAdmin
+├── product-actions.ts                # ~1130 LOC
+├── ig-generate-action.ts             # ~520 LOC
+├── content-plan-actions.ts           # ~420 LOC — text-only plán (PlanTab)
+├── variant-actions.ts                # ~400 LOC — revize + A/B varianty (link_type)
+├── config-actions.ts                 # ~370 LOC — ClientConfig CRUD
+├── credit-guard.ts                   # ~200 LOC — vše s membership checkem
+├── calendar-actions.ts / memory-actions.ts / post-actions.ts / brand-images-action.ts
+├── product-brief-actions.ts / product-category-actions.ts / settings-actions.ts
+└── waitlist.ts + waitlist-admin.ts
+
+app/onboarding/actions.ts             # ~1850 LOC — web scan + HikerAPI IG scraping → config wizard
+lib/env.ts + instrumentation.ts       # startup env validace + Sentry init
 ```
