@@ -2,7 +2,7 @@
 
 > **Codename:** ProdameVas  
 > **Stack:** Next.js 16 (App Router) · Supabase (Postgres + Auth + Storage) · Google Gemini 3.5 Flash · Nano Banana Pro · Veo 3.1  
-> **Last Updated:** 2026-06-02
+> **Last Updated:** 2026-06-10 (v4.1 — A/B varianty, dekompozice god files, onboarding + IG scraping)
 
 ---
 
@@ -12,9 +12,9 @@
 graph TB
     subgraph "Frontend - Next.js App Router"
         LP["Landing Page<br/>app/page.tsx"]
-        DASH["Dashboard Studio<br/>20 Tab Components"]
+        DASH["Dashboard Studio<br/>17 Tab Components"]
         LOGIN["Auth Gate<br/>login + register (invite code)"]
-        OB["Onboarding Wizard<br/>web scan → config → showcase"]
+        OB["Onboarding Wizard<br/>web scan + IG scraping → config → showcase"]
     end
 
     subgraph "API Routes"
@@ -29,7 +29,8 @@ graph TB
     end
 
     subgraph "Engine - instagram/"
-        AP["autopilot.ts<br/>1849 LOC Orchestrator"]
+        AP["autopilot.ts<br/>726 LOC Orchestrator"]
+        OR["orchestrators/<br/>image · carousel · reel"]
         CG["caption-generator.ts<br/>Mega Prompt + Quality Gate"]
         EB["editorial-board.ts<br/>6 AI Agent Review"]
         SVC["service.ts<br/>DB Access + Feedback Loop"]
@@ -56,6 +57,7 @@ graph TB
     DASH -->|"3. poll status"| JS
     CJ --> IJ
     RJ --> AP
+    AP --> OR
     AP --> CG
     AP --> EB
     AP --> SVC
