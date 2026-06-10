@@ -25,6 +25,9 @@ export async function requireProjectAccess(projectSlug: string): Promise<{ userI
     if (!projectSlug) {
         throw new Error('Chybí identifikace projektu.')
     }
+    // Auth BEFORE slug resolution — unauthenticated callers must not be able
+    // to probe which tenant slugs exist via error-message differences.
+    await requireAuth()
     const { resolveClientId } = await import('@/instagram/configs')
     const clientId = await resolveClientId(projectSlug)
     return requireClientAccess(clientId)
