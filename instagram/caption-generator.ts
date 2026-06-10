@@ -333,7 +333,7 @@ export function buildSmartWeekPlan(config: ClientConfig, performance: Performanc
     }
 
     const ratios: Record<string, number> = {}
-    for (const [key, pillar] of Object.entries(config.contentPillars)) {
+    for (const [key, pillar] of Object.entries(config.contentPillars || {})) {
         ratios[key] = pillar.ratio
     }
 
@@ -380,23 +380,34 @@ export function buildSmartWeekPlan(config: ClientConfig, performance: Performanc
     }
 
     const _getPillarForType = createPillarMapper(config)
-    const byPillar: Record<string, string[]> = Object.fromEntries(Object.keys(config.contentPillars).map(k => [k, []]))
+    const byPillar: Record<string, string[]> = Object.fromEntries(Object.keys(config.contentPillars || {}).map(k => [k, []]))
     for (const type of plan) {
         const pillar = _getPillarForType(type)
+        if (!byPillar[pillar]) {
+            byPillar[pillar] = []
+        }
         byPillar[pillar].push(type)
     }
 
     const interleaved: string[] = []
-    const pillarKeys = Object.keys(config.contentPillars)
-    const pillarOrder = pillarKeys.flatMap(k => {
-        const r = config.contentPillars[k].ratio
+    const pillarKeys = Object.keys(config.contentPillars || {})
+    let pillarOrder = pillarKeys.flatMap(k => {
+        const r = config.contentPillars[k]?.ratio || 0
         return Array(Math.max(1, Math.round(r * 10))).fill(k)
     })
+    
+    // Fallback if pillarOrder is empty
+    if (pillarOrder.length === 0) {
+        pillarOrder = Object.keys(byPillar)
+    }
+
     let pillarIdx = 0
     while (interleaved.length < count) {
-        const p = pillarOrder[pillarIdx % pillarOrder.length]
-        if (byPillar[p].length > 0) {
-            interleaved.push(byPillar[p].shift()!)
+        if (pillarOrder.length > 0) {
+            const p = pillarOrder[pillarIdx % pillarOrder.length]
+            if (byPillar[p] && byPillar[p].length > 0) {
+                interleaved.push(byPillar[p].shift()!)
+            }
         }
         pillarIdx++
         if (pillarIdx > count * 10) break

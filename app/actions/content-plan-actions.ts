@@ -141,7 +141,22 @@ Vrať POUZE validní JSON pole:
 Pole musí mít PŘESNĚ ${count} položek.`
 
         const { generateText } = await import("@/instagram/gemini-client")
-        const raw = await generateText(prompt, { model: "gemini-3.5-flash" })
+        const { Type } = await import("@google/genai")
+        const planSchema = {
+            type: Type.ARRAY,
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    hookPreview: { type: Type.STRING },
+                    angle: { type: Type.STRING },
+                    topic: { type: Type.STRING },
+                    qualityScore: { type: Type.INTEGER }
+                },
+                required: ["hookPreview", "angle", "topic", "qualityScore"]
+            }
+        }
+        
+        const raw = await generateText(prompt, { model: "gemini-3.5-flash", responseSchema: planSchema })
 
         // Parse response
         const jsonMatch = raw.match(/\[[\s\S]*\]/)
@@ -162,27 +177,34 @@ Pole musí mít PŘESNĚ ${count} položek.`
             const existingHooks = concepts.map(c => c.hookPreview)
 
             const retryPrompt = `Jsi content planner pro "${config.name}". Tyto hooky byly příliš slabé — přepiš je.
+Nové hooky musí mít qualityScore ≥ 8 a musí být zcela odlišné. ZAKÁZANÁ SLOVA: "Dnes vám", "Zjistěte", "Víte že".
 
-${topHooksSection}
-## ŠPATNÉ HOOKY (přepiš do VÝRAZNĚ lepší verze):
-${weakIndices.map(i => `${i + 1}. [${weakTypes[weakIndices.indexOf(i)]}] "${concepts[i].hookPreview}" — qualityScore: ${concepts[i].qualityScore}`).join("\n")}
+## PŘEDCHOZÍ (ZAMÍTNUTÉ) HOOKY:
+${weakIndices.map(i => `- "${concepts[i].hookPreview}" (skóre: ${concepts[i].qualityScore})`).join("\n")}
 
-## EXISTUJÍCÍ HOOKY V PLÁNU (nesmíš duplikovat):
-${existingHooks.filter((_, i) => !weakIndices.includes(i)).map(h => `- "${h}"`).join("\n")}
+## EXISTUJÍCÍ HOOKY V PLÁNU (neduplikuj):
+${existingHooks.map(h => `- "${h}"`).join("\n")}
 
-## PRAVIDLA
-- Kvalita ≥ 7 — provokativní, specifické, zastavující scroll
-- Zachovej stejný typ postu a přístup
-- Piš česky
+## TYPY POSTŮ PRO PŘEPSÁNÍ:
+${weakTypes.map((t, i) => {
+    const pt = ptMap.get(t)
+    const pillar = getPillarForType(config, t)
+    return `${i + 1}. Typ: "${t}" (${pt?.display_name || t}) | Pilíř: ${pillar}`
+}).join("\n")}
 
-Vrať POUZE JSON pole (${weakIndices.length} položek):
-[{ "hookPreview": "...", "angle": "...", "topic": "...", "qualityScore": 8 }]`
+Vrať POUZE validní JSON pole obsahující PŘESNĚ ${weakIndices.length} položek s klíči: hookPreview, angle, topic, qualityScore.`
 
             try {
-                const retryRaw = await generateText(retryPrompt, { model: "gemini-3.5-flash" })
+                const retryRaw = await generateText(retryPrompt, { model: "gemini-3.5-flash", responseSchema: planSchema })
                 const retryMatch = retryRaw.match(/\[[\s\S]*\]/)
+                let retryConcepts: any[] = []
                 if (retryMatch) {
-                    const retryConcepts: { hookPreview: string; angle: string; topic: string; qualityScore?: number }[] = JSON.parse(retryMatch[0])
+                    retryConcepts = JSON.parse(retryMatch[0])
+                } else {
+                    retryConcepts = JSON.parse(retryRaw)
+                }
+                
+                if (Array.isArray(retryConcepts) && retryConcepts.length > 0) {
                     weakIndices.forEach((origIdx, retryIdx) => {
                         if (retryConcepts[retryIdx]) {
                             concepts[origIdx] = retryConcepts[retryIdx]
@@ -196,43 +218,56 @@ Vrať POUZE JSON pole (${weakIndices.length} položek):
         }
 
         // Ensure we have exactly `count` concepts — AI sometimes returns fewer
-        if (concepts.length < count) {
-            console.warn(`   ⚠️ AI vrátila ${concepts.length}/${count} položek — doplňuji...`)
+        let retries = 0
+        while (concepts.length < count && retries < 3) {
+            console.warn(`   ⚠️ AI vrátila ${concepts.length}/${count} položek — doplňuji (pokus ${retries + 1})...`)
 
             // Retry for missing items
             const missing = count - concepts.length
             const missingTypes = typeSequence.slice(concepts.length, count)
             const existingHooks = concepts.map(c => c.hookPreview)
 
-            const fillPrompt = `Jsi content planner pro "${config.name}". Potřebuji ${missing} dalších postů.
+            const fillPrompt = `Jsi content planner pro "${config.name}". Potřebuji přesně ${missing} dalších postů do obsahového plánu.
 
 ${topHooksSection}
 ## EXISTUJÍCÍ HOOKY (neduplikuj):
 ${existingHooks.map(h => `- "${h}"`).join("\n")}
 
-## TYPY POSTŮ:
+## CHYBĚJÍCÍ TYPY POSTŮ:
 ${missingTypes.map((t, i) => {
     const pt = ptMap.get(t)
     const pillar = getPillarForType(config, t)
     return `${i + 1}. Typ: "${t}" (${pt?.display_name || t}) | Pilíř: ${pillar}`
 }).join("\n")}
 
-Vrať POUZE JSON pole (${missing} položek):
-[{ "hookPreview": "...", "angle": "...", "topic": "...", "qualityScore": 8 }]`
+Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klíči: hookPreview, angle, topic, qualityScore.`
 
             try {
-                const fillRaw = await generateText(fillPrompt, { model: "gemini-3.5-flash" })
+                const fillRaw = await generateText(fillPrompt, { model: "gemini-3.5-flash", responseSchema: planSchema })
                 const fillMatch = fillRaw.match(/\[[\s\S]*\]/)
                 if (fillMatch) {
                     const fillConcepts = JSON.parse(fillMatch[0])
-                    concepts.push(...fillConcepts)
-                    console.log(`   ✅ Doplněno ${fillConcepts.length} položek (celkem ${concepts.length}/${count})`)
+                    if (Array.isArray(fillConcepts) && fillConcepts.length > 0) {
+                        concepts.push(...fillConcepts)
+                        console.log(`   ✅ Doplněno ${fillConcepts.length} položek (celkem ${concepts.length}/${count})`)
+                    }
+                } else {
+                    // Try parsing as array directly if regex failed
+                    const fillConcepts = JSON.parse(fillRaw)
+                    if (Array.isArray(fillConcepts) && fillConcepts.length > 0) {
+                        concepts.push(...fillConcepts)
+                        console.log(`   ✅ Doplněno ${fillConcepts.length} položek (celkem ${concepts.length}/${count})`)
+                    }
                 }
-            } catch {
-                console.warn("   ⚠️ Fill retry failed — doplňuji generické")
+            } catch (e) {
+                console.warn(`   ⚠️ Fill retry failed: ${e}`)
             }
+            retries++
+        }
 
-            // Final fallback: pad with generic items if still short
+        // Final fallback: pad with generic items if still short after retries
+        if (concepts.length < count) {
+            console.warn(`   ⚠️ Doplňuji ${count - concepts.length} generických položek...`)
             while (concepts.length < count) {
                 const idx = concepts.length
                 const typeName = typeSequence[idx % typeSequence.length]
