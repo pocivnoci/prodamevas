@@ -45,5 +45,6 @@ instagram/output/
 instagram/product-images/
 instagram/reference-images/
 
-# Obsidian
-.obsidian/
+# Obsidian — version vault config, ignore per-device state
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
