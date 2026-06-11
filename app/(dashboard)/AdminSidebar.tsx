@@ -46,6 +46,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Inspirace",
         items: [
             { id: "inspiration", label: "Nápady & Recenze", icon: "💡" },
+            { id: "brand", label: "Fotky značky", icon: "🖼️" },
         ],
     },
     {
