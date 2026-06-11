@@ -5,6 +5,7 @@
 
 import type { ClientConfig, PostFormat } from "../configs/types"
 import type { PostType } from "../types"
+import type { DesignBrief } from "../image-pipeline"
 
 export type ProgressReporter = (stage: string, progress: number, message: string) => Promise<void>
 
@@ -41,9 +42,17 @@ export interface RenderContext {
     selectedProduct?: SelectedProduct
     linkedProductId?: string
     clientUuid: string
+    /** Concept strings of recent posts' design briefs — anti-repetition input for the AI Designer */
+    recentBriefs?: string[]
 }
 
 export interface RenderResult {
     imageUrl?: string
     cost: number
+    /** e.g. "native:<concept-slug>" or "overlay:<variant>" — stored as ig_posts.image_style */
+    imageStyle?: string
+    /** Full design brief (native engine) — stored as ig_posts.design_brief */
+    designBrief?: DesignBrief
+    /** Native QA outcome: pass | retry_pass | fallback | overlay */
+    qaStatus?: string
 }

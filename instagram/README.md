@@ -37,16 +37,17 @@ instagram/                            # 8101 LOC — server-only
 
 ## AI Models Used
 
-| Role | Model | Fallback |
+| Action | Model | Fallback |
 |------|-------|----------|
-| **Text gen** (caption, critic, art dir, editorial board) | `gemini-3.5-flash` | `gemini-2.5-flash-lite` (503/429) |
-| **Image gen** | `gemini-3-pro-image-preview` (Nano Banana Pro, 2K) | `gemini-3.1-flash-image-preview` (Nano Banana 2) |
-| **Image edit** (product→scene) | `gemini-3-pro-image-preview` | — |
-| **Vision** (logo placement detection) | `gemini-3.5-flash` | — |
-| **Video** (reels, 9:16) | `veo-3.1-fast-generate-001` | `veo-3.1-generate-001` |
-| **TTS** (voiceover, Czech) | `gemini-3.1-flash-tts-preview` (voice: Kore) | — |
+| **Text gen** (caption, critic, editorial board) | `gemini-3.5-flash` | `gemini-2.5-flash-lite` (503/429) |
+| **AI Designer** (design briefs, native engine) | `gemini-3.1-pro` | `gemini-3.5-flash` |
+| **Image gen** (incl. edit + refs) | `gemini-3-pro-image` (Nano Banana Pro GA, 2K) | `gemini-3.1-flash-image` (Nano Banana 2 GA) |
+| **Vision** (QA, logo placement, tagging) | `gemini-3.5-flash` | — |
+| **Video** (reels, 9:16, tier via `videoTier`) | `veo-3.1-lite` / `veo-3.1-fast-generate-001` / `veo-3.1-generate-001` | — |
+| **TTS** (voiceover, Czech) | `gemini-3.1-flash-tts-preview` (voice: Kore) | `gemini-2.5-flash-tts` |
 
-> ⚠️ `imagen-4.0-ultra` was sunset June 2026. `gemini-2.0-flash` and `gemini-3.1-pro-preview` are deprecated.
+> Single source of truth: `instagram/models.ts` (`getModel()`, env override `GEMINI_MODEL_<ACTION>[_FALLBACK]`).
+> ⚠️ `imagen-4.0-ultra` was sunset June 2026. `gemini-2.0-flash`, `gemini-3.1-pro-preview`, `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview` (shutdown June 25, 2026) are deprecated.
 
 ## Generation Pipeline
 

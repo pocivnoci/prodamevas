@@ -156,16 +156,17 @@ middleware.ts                         # Auth redirect guard
 
 ## AI Model Registry (aktuální)
 
-| Role | Model | Fallback |
+| Akce | Model | Fallback |
 |------|-------|----------|
-| **Text gen** (caption, critic, art dir) | `gemini-3.5-flash` | `gemini-2.5-flash-lite` |
-| **Image gen** (primary) | `gemini-3-pro-image-preview` (Nano Banana Pro) | `gemini-3.1-flash-image-preview` (Nano Banana 2) |
-| **Image edit** (product→scene) | `gemini-3-pro-image-preview` | — |
-| **Vision** (logo placement) | `gemini-3.5-flash` | — |
-| **Video** (reels) | `veo-3.1-fast-generate-001` / `veo-3.1-generate-001` | — |
-| **TTS** (voiceover) | `gemini-3.1-flash-tts-preview` | — |
+| **Text gen** (caption, critic, editorial) | `gemini-3.5-flash` | `gemini-2.5-flash-lite` |
+| **AI Designer** (design briefy, native engine) | `gemini-3.1-pro` | `gemini-3.5-flash` |
+| **Image gen** (vč. edit + refs) | `gemini-3-pro-image` (Nano Banana Pro GA) | `gemini-3.1-flash-image` (Nano Banana 2 GA) |
+| **Vision** (QA, logo placement, tagging) | `gemini-3.5-flash` | — |
+| **Video** (reels, tier dle `videoTier`) | `veo-3.1-lite` / `veo-3.1-fast-generate-001` / `veo-3.1-generate-001` | — |
+| **TTS** (voiceover) | `gemini-3.1-flash-tts-preview` | `gemini-2.5-flash-tts` |
 
-> ⚠️ `gemini-2.0-flash` je **DEPRECATED**. `imagen-4.0-ultra` byl **sunset June 2026** — nahrazen Nano Banana Pro.
+> Jediný zdroj pravdy: `instagram/models.ts` (`getModel()`, env override `GEMINI_MODEL_<ACTION>[_FALLBACK]`).
+> ⚠️ `gemini-2.0-flash` je **DEPRECATED**. `imagen-4.0-ultra` byl **sunset June 2026**. `gemini-3-pro-image-preview` / `gemini-3.1-flash-image-preview` mají **shutdown 25. 6. 2026** — nahrazeny GA ID.
 
 ---
 

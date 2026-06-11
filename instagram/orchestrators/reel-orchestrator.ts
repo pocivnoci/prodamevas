@@ -83,17 +83,18 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
     }
 
     // Step 3: Generate raw video (Veo 3.1 with native audio + reference images)
+    const videoTier = config.videoTier || "fast"
     await report("video", 50, `🎬 Veo 3.1 generuje ${duration}s video...`)
-    console.log(`🎬 Generuji video (Veo 3.1 Fast, ${duration}s, 9:16)...`)
+    console.log(`🎬 Generuji video (Veo 3.1 ${videoTier}, ${duration}s, 9:16)...`)
     let videoBuffer: Buffer | undefined
     try {
         videoBuffer = await generateVideo(refinedVideoPrompt, {
             duration,
             aspectRatio: "9:16",
-            fast: true,
+            tier: videoTier,
             referenceImages: videoRefImages.length > 0 ? videoRefImages : undefined,
         })
-        cost += COSTS.videoPerSecond * duration
+        cost += COSTS.videoPerSecondByTier[videoTier] * duration
         console.log(`   ✓ Raw video (${(videoBuffer.length / 1024 / 1024).toFixed(1)} MB, ${duration}s)`)
     } catch (vidErr) {
         console.error("   ⚠️ Video generation failed:", vidErr)
@@ -110,9 +111,14 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
         console.log(`🎙️ Generuji voiceover (${narrationTexts.length} scén, Gemini TTS)...`)
         try {
             const fullNarration = narrationTexts.join(". ")
+            // Expressive delivery: derive audio tags from scene moods (Gemini 3.1 TTS supports 200+)
+            const sceneMoods = [...new Set(
+                (captionData.scenes || []).map(s => s.mood).filter(Boolean).slice(0, 2)
+            )]
             voiceoverBuffer = await generateVoiceover(fullNarration, {
                 voice: config.ttsVoice || "Kore",
                 mood: "professional",
+                audioTags: sceneMoods,
             })
             cost += COSTS.ttsVoiceover
             console.log(`   ✓ Voiceover (${(voiceoverBuffer.length / 1024).toFixed(0)} KB)`)
@@ -169,8 +175,22 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
         console.log("🖼️ Generuji cover image pro feed...")
         try {
             const coverScene = captionData.scenes?.[0]?.visual || captionData.hook
-            const coverPrompt = `Instagram Reel cover image, 9:16 vertical. Scene: ${coverScene}. Style: ${config.feedAesthetic?.feel || "modern, professional"}. NO TEXT in image.`
-            const coverBuffer = await generateImage(coverPrompt, { aspectRatio: "9:16" })
+            let coverBuffer: Buffer | undefined
+
+            // Native engine: designed cover with the hook rendered in the image + logo
+            if (config.visualEngine !== "overlay") {
+                try {
+                    coverBuffer = await renderNativeReelCover(ctx, coverScene)
+                    cost += COSTS.designerBrief + COSTS.imageQA
+                } catch (nativeErr: any) {
+                    console.warn(`   ⚠️ Native cover failed: ${nativeErr?.message?.substring(0, 80)} — fallback na text-free cover`)
+                }
+            }
+
+            if (!coverBuffer) {
+                const coverPrompt = `Instagram Reel cover image, 9:16 vertical. Scene: ${coverScene}. Style: ${config.feedAesthetic?.feel || "modern, professional"}. NO TEXT in image.`
+                coverBuffer = await generateImage(coverPrompt, { aspectRatio: "9:16" })
+            }
 
             if (coverBuffer) {
                 const coverFilename = `ig-reels/${timestamp}-cover.webp`
@@ -195,4 +215,75 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
     }
 
     return { imageUrl, cost }
+}
+
+/**
+ * Native reel cover: AI Designer mini-brief → Nano Banana Pro renders the cover
+ * with the Czech hook + logo → one vision QA pass + one corrective edit.
+ * Throws / returns undefined on failure — caller falls back to the text-free cover.
+ */
+async function renderNativeReelCover(ctx: RenderContext, coverScene: string): Promise<Buffer | undefined> {
+    const { config, captionData, selectedType } = ctx
+    const {
+        generateDesignBrief,
+        buildNativeImagePrompt,
+        verifyNativeImage,
+    } = await import("../image-pipeline")
+    const { generateImageWithReferences, editExistingImage } = await import("../gemini-client")
+    const { loadLogo } = await import("../logo-loader")
+
+    console.log("🎨 AI Designer — native reel cover...")
+    const brief = await generateDesignBrief({
+        config,
+        clientId: ctx.clientUuid,
+        captionData: {
+            hook: captionData.hook,
+            imagePrompt: coverScene,
+        },
+        postType: selectedType.name,
+        recentBriefs: ctx.recentBriefs ?? [],
+    })
+
+    const prompt = `${buildNativeImagePrompt(brief, config)}
+
+## FORMAT:
+This is an Instagram REEL COVER — 9:16 vertical, bold and readable even as a small feed thumbnail.`
+
+    const refs: { buffer: Buffer; mimeType?: string; label?: string }[] = []
+    if (config.logoFile) {
+        const logo = await loadLogo(config.logoFile)
+        if (logo) {
+            refs.push({
+                buffer: logo,
+                mimeType: "image/png",
+                label: "brand logo — reproduce faithfully with exact shapes and colors, do not redraw",
+            })
+        }
+    }
+
+    let coverBuffer = await generateImageWithReferences(prompt, refs, { aspectRatio: "9:16", resolution: "2K" })
+
+    const qaExpectation = {
+        headline: captionData.hook,
+        logoExpected: refs.length > 0,
+    }
+    const qa = await verifyNativeImage(coverBuffer, qaExpectation)
+    if (!qa.ok) {
+        console.log(`   ⚠️ Cover QA: ${qa.issues.join("; ")} → korektivní edit`)
+        const fixed = await editExistingImage(coverBuffer, `Fix ONLY the text and logo problems — keep composition, photo, style and layout EXACTLY the same.
+Render the headline as this EXACT Czech text, character-for-character including diacritics: "${captionData.hook}"
+${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`, {
+            mimeType: "image/png",
+            aspectRatio: "9:16",
+            resolution: "2K",
+        })
+        const qa2 = await verifyNativeImage(fixed, qaExpectation)
+        if (!qa2.ok) {
+            console.log(`   ❌ Cover neprošel QA ani po opravě`)
+            return undefined
+        }
+        coverBuffer = fixed
+    }
+    console.log(`   ✅ Native cover OK (${(coverBuffer.length / 1024).toFixed(0)} KB)`)
+    return coverBuffer
 }

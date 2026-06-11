@@ -4,7 +4,8 @@
  * Art Director now receives Visual Memory from past top-performing posts.
  */
 
-import { ai } from "./gemini-client"
+import { Type } from "@google/genai"
+import { ai, generateText } from "./gemini-client"
 import { getModel } from "./models"
 import { getBrandMemories } from "./memory-agent"
 import type { ClientConfig } from "./configs/types"
@@ -17,15 +18,17 @@ import type { ClientConfig } from "./configs/types"
  * Load and format visual memories for Art Director injection.
  * Returns an empty string if no visual memories exist yet.
  */
-export async function getVisualMemoriesSection(): Promise<string> {
-    try {
-        const { getActiveProject } = await import("./service")
-        getActiveProject() // will throw if not set — safe to catch
-    } catch {
-        return ""
+export async function getVisualMemoriesSection(clientId?: string): Promise<string> {
+    if (!clientId) {
+        try {
+            const { getActiveProject } = await import("./service")
+            getActiveProject() // will throw if not set — safe to catch
+        } catch {
+            return ""
+        }
     }
 
-    const memories = await getBrandMemories(5)
+    const memories = await getBrandMemories(5, clientId)
     const visual = memories.filter(m => m.memory_type === "visual")
 
     if (visual.length === 0) return ""
@@ -172,6 +175,322 @@ The prompt should be 2-3 sentences.
 
     if (!refined) return captionData.imagePrompt
     return refined.replace(/^["']|["']$/g, "").trim()
+}
+
+// ============================================
+// AI DESIGNER — Native design engine
+// (Nano Banana Pro renders the FULL post incl. Czech typography + logo;
+//  this agent produces the structured design brief that drives it.)
+// ============================================
+
+export interface DesignBrief {
+    /** Short creative concept name + 1-sentence idea — stored on the post for anti-repetition */
+    concept: string
+    /** Full scene description in English: subject, environment, camera, lighting, depth */
+    composition: string
+    typography: {
+        /** EXACT Czech hook text to render — copied verbatim, never paraphrased */
+        headlineText: string
+        /** EXACT Czech subtext (optional) */
+        subtextText?: string
+        /** e.g. "ultra-bold condensed sans, tight tracking, uppercase" */
+        styleDescription: string
+        /** e.g. "lower third, left-aligned, ~60% width" */
+        placement: string
+        /** Color/treatment incl. brand accent for key words */
+        color: string
+    }
+    /** Palette + grading tied to brand colors */
+    colorTreatment: string
+    /** e.g. "top-right corner, ~12% width, subtle white version" */
+    logoPlacement: string
+    /** Where the image breathes so the text stays readable */
+    negativeSpace: string
+    /** Explicitly how this design differs from the recent briefs provided */
+    divergenceNote: string
+}
+
+const DESIGN_BRIEF_SCHEMA = {
+    type: Type.OBJECT,
+    properties: {
+        concept: { type: Type.STRING },
+        composition: { type: Type.STRING },
+        typography: {
+            type: Type.OBJECT,
+            properties: {
+                headlineText: { type: Type.STRING },
+                subtextText: { type: Type.STRING },
+                styleDescription: { type: Type.STRING },
+                placement: { type: Type.STRING },
+                color: { type: Type.STRING },
+            },
+            required: ["headlineText", "styleDescription", "placement", "color"],
+        },
+        colorTreatment: { type: Type.STRING },
+        logoPlacement: { type: Type.STRING },
+        negativeSpace: { type: Type.STRING },
+        divergenceNote: { type: Type.STRING },
+    },
+    required: ["concept", "composition", "typography", "colorTreatment", "logoPlacement", "negativeSpace", "divergenceNote"],
+}
+
+export async function generateDesignBrief(params: {
+    config: ClientConfig
+    clientId: string
+    captionData: { hook: string; imageSubtext?: string; imagePrompt?: string; body?: string; accentWords?: string[] }
+    postType: string
+    /** Concept strings of the last ~6 posts — the designer must diverge from ALL of them */
+    recentBriefs: string[]
+    visualMemoriesSection?: string
+}): Promise<DesignBrief> {
+    const { config, clientId, captionData, postType, recentBriefs } = params
+    const fa = config.feedAesthetic
+    const memSection = params.visualMemoriesSection ?? await getVisualMemoriesSection(clientId)
+
+    const designerPrompt = `
+You are a world-class Instagram art director designing a COMPLETE post visual.
+The image model (Nano Banana Pro) will render the ENTIRE composition from your brief —
+photo, typography AND logo — in one pass. Design like a human designer in Figma would.
+
+## BRAND KIT:
+- Color palette: ${fa.colorPalette}
+- Brand accent color: ${fa.accentColor || "none — pick a tasteful accent from the palette"}
+- Overall feel: ${fa.feel}
+- Typography vibe: ${fa.typographyStyle || `inspired by ${fa.font} — but you may choose any typography style that fits the brand`}
+- Logo placement preference: ${fa.logoPlacement && fa.logoPlacement !== "auto" ? fa.logoPlacement : "your choice — vary it between posts"}
+${fa.customInstructions || ""}
+${config.characterDescription ? `- Brand character: ${config.characterDescription}` : ""}
+${memSection}
+
+## THIS POST:
+- Post type: ${postType}
+- Headline (Czech, render EXACTLY as written): "${captionData.hook}"
+${captionData.imageSubtext ? `- Subtext (Czech, render EXACTLY as written): "${captionData.imageSubtext}"` : ""}
+${captionData.accentWords?.length ? `- Accent words (highlight these within the headline): ${captionData.accentWords.join(", ")}` : ""}
+${captionData.imagePrompt ? `- Copywriter's raw visual idea: "${captionData.imagePrompt}"` : ""}
+${captionData.body ? `- Post body context: "${captionData.body.substring(0, 300)}"` : ""}
+
+## RECENT POST DESIGNS — YOU MUST DIVERGE FROM ALL OF THEM:
+${recentBriefs.length ? recentBriefs.map((b, i) => `${i + 1}. ${b}`).join("\n") : "(no history yet — total creative freedom)"}
+⚠️ HARD RULE: do NOT repeat the layout, text placement, typography style, or visual concept
+of any recent design above. Same shit different day is FORBIDDEN. Rotate aggressively between:
+editorial magazine layouts, poster-style typography, split layouts, full-bleed photography with
+minimal text, type-driven designs, product hero shots, candid lifestyle, graphic/color-block styles.
+
+## DESIGN RULES:
+- typography.headlineText and typography.subtextText must be the EXACT Czech strings above,
+  character-for-character including diacritics (ě š č ř ž ý á í é ů ú). NEVER translate or rephrase.
+- Typography is a DESIGN ELEMENT — vary scale, weight, placement, alignment between posts.
+- The composition must leave negative space where the text goes; describe it in negativeSpace.
+- Logo: small, tasteful, never dominating. Vary corners/positions unless brand preference is fixed.
+- Photography quality: editorial, cinematic lighting, real depth — no stock-photo vibes.
+
+Return ONLY the JSON design brief.`
+
+    const raw = await generateText(designerPrompt, {
+        model: getModel("designer"),
+        responseSchema: DESIGN_BRIEF_SCHEMA,
+        temperature: 1.0,
+    })
+
+    const brief = JSON.parse(raw) as DesignBrief
+    if (!brief?.concept || !brief?.composition || !brief?.typography?.headlineText) {
+        throw new Error("AI Designer returned incomplete design brief")
+    }
+    return brief
+}
+
+/**
+ * Convert a DesignBrief into the final Nano Banana Pro image prompt.
+ */
+export function buildNativeImagePrompt(brief: DesignBrief, config: ClientConfig): string {
+    const t = brief.typography
+    const hasLogo = Boolean(config.logoFile)
+
+    return `Design a complete, finished Instagram post image — a professional brand visual with typography composited into the design (like a finished poster from a top design studio).
+
+## SCENE / COMPOSITION:
+${brief.composition}
+
+## NEGATIVE SPACE:
+${brief.negativeSpace}
+
+## TYPOGRAPHY (render INSIDE the image):
+- Headline text — render this EXACT Czech text, character-for-character, including all diacritics (ě š č ř ž ý á í é ů ú): "${t.headlineText}"
+${t.subtextText ? `- Subtext — render this EXACT Czech text verbatim: "${t.subtextText}"` : ""}
+- Type style: ${t.styleDescription}
+- Placement: ${t.placement}
+- Color treatment: ${t.color}
+⚠️ The Czech text must be reproduced with PERFECT spelling — every háček and čárka exactly as written. Do not add any other text, words, watermarks or labels anywhere in the image.
+
+## COLOR / GRADING:
+${brief.colorTreatment}
+
+${hasLogo ? `## LOGO:
+Reproduce the attached brand logo image faithfully (exact shapes and colors, no redrawing) at: ${brief.logoPlacement}. Keep it small and subtle.` : ""}
+
+## QUALITY:
+Editorial photography quality, cinematic lighting, real depth of field. The final result must look like a finished, art-directed brand post — not a photo with text slapped on it.`
+}
+
+/**
+ * One designer call for a whole carousel: a shared design system
+ * (typography / palette / logo treatment stay constant, only framing varies)
+ * + one DesignBrief per slide. Mirrors refineCarouselPrompts for the native engine.
+ */
+export async function generateCarouselDesignBriefs(params: {
+    config: ClientConfig
+    clientId: string
+    allSlides: { headline: string; subtext: string; imagePrompt: string }[]
+    visualTheme: string
+    postType: string
+    recentBriefs: string[]
+    accentWords?: string[]
+}): Promise<{ designSystem: string; briefs: DesignBrief[] }> {
+    const { config, clientId, allSlides, visualTheme, postType, recentBriefs } = params
+    const fa = config.feedAesthetic
+    const memSection = await getVisualMemoriesSection(clientId)
+
+    const slideSummary = allSlides.map((s, i) =>
+        `Slide ${i === 0 ? "COVER" : String(i)}: headline="${s.headline}", subtext="${s.subtext}", visual idea="${s.imagePrompt}"`
+    ).join("\n")
+
+    const prompt = `
+You are a world-class Instagram art director designing a COMPLETE carousel (${allSlides.length} slides).
+The image model (Nano Banana Pro) renders each slide ENTIRELY from your briefs — photo, Czech typography AND logo.
+
+## BRAND KIT:
+- Color palette: ${fa.colorPalette}
+- Brand accent color: ${fa.accentColor || "pick a tasteful accent from the palette"}
+- Overall feel: ${fa.feel}
+- Typography vibe: ${fa.typographyStyle || `inspired by ${fa.font}`}
+${fa.customInstructions || ""}
+${memSection}
+
+## CAROUSEL:
+Visual theme: "${visualTheme}"
+Post type: ${postType}
+${slideSummary}
+
+## RECENT POST DESIGNS — THE CAROUSEL MUST DIVERGE FROM ALL OF THEM:
+${recentBriefs.length ? recentBriefs.map((b, i) => `${i + 1}. ${b}`).join("\n") : "(no history yet)"}
+
+## RULES:
+1. First define ONE design system: same typography style, same palette/grading, same logo treatment
+   across ALL slides — the carousel must feel like one cohesive editorial piece.
+2. Same environment/lighting across slides; ONLY camera angle and framing changes (wide → medium → close-up).
+3. Each slide's typography.headlineText / subtextText must be the EXACT Czech strings above,
+   character-for-character including diacritics (ě š č ř ž ý á í é ů ú). NEVER translate or rephrase.
+4. The COVER has the boldest typography; inner slides are calmer and consistent.
+5. Diverge hard from the recent designs (layout, type placement, concept).
+
+Return JSON: { "designSystem": "one paragraph describing the shared system", "briefs": [one design brief per slide, in order] }`
+
+    const raw = await generateText(prompt, {
+        model: getModel("designer"),
+        responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+                designSystem: { type: Type.STRING },
+                briefs: { type: Type.ARRAY, items: DESIGN_BRIEF_SCHEMA },
+            },
+            required: ["designSystem", "briefs"],
+        },
+        temperature: 1.0,
+    })
+
+    const parsed = JSON.parse(raw) as { designSystem: string; briefs: DesignBrief[] }
+    if (!parsed?.designSystem || !Array.isArray(parsed.briefs) || parsed.briefs.length !== allSlides.length) {
+        throw new Error(`Carousel designer returned ${parsed?.briefs?.length ?? 0} briefs, expected ${allSlides.length}`)
+    }
+    return parsed
+}
+
+// ============================================
+// NATIVE IMAGE QA — vision verification
+// ============================================
+
+export interface NativeImageQA {
+    ok: boolean
+    /** rendered text == expected, diacritics included */
+    textAccurate: boolean
+    /** what the model actually reads in the image */
+    renderedText?: string
+    logoPresent: boolean
+    issues: string[]
+    /** corrective instruction for the retry edit */
+    fixHint?: string
+}
+
+/**
+ * Verify a natively-designed image: exact Czech text + logo presence.
+ * Fail-open: a QA infrastructure error never blocks generation.
+ */
+export async function verifyNativeImage(
+    imageBuffer: Buffer,
+    expected: { headline: string; subtext?: string; logoExpected: boolean },
+): Promise<NativeImageQA> {
+    try {
+        const response = await ai.models.generateContent({
+            model: getModel("vision"),
+            contents: [
+                {
+                    role: "user",
+                    parts: [
+                        {
+                            inlineData: {
+                                mimeType: "image/png",
+                                data: imageBuffer.toString("base64"),
+                            },
+                        },
+                        {
+                            text: `You are a strict QA inspector for AI-designed Instagram posts in CZECH.
+
+Expected headline text (must match EXACTLY, including Czech diacritics ě š č ř ž ý á í é ů ú):
+"${expected.headline}"
+${expected.subtext ? `Expected subtext (must match EXACTLY):\n"${expected.subtext}"` : ""}
+${expected.logoExpected ? "A brand logo MUST be present somewhere in the image." : ""}
+
+Check:
+1. Read ALL text rendered in the image. Does the headline match the expected text character-for-character? Watch for: missing/wrong diacritics, swapped letters, duplicated words, gibberish, extra unwanted text.
+${expected.subtext ? "2. Does the subtext match exactly?" : ""}
+${expected.logoExpected ? "3. Is the brand logo present and not deformed?" : ""}
+4. Is all text clearly readable (contrast, not cut off at edges)?
+
+Return ONLY valid JSON:
+{
+  "ok": true/false,
+  "textAccurate": true/false,
+  "renderedText": "the text you actually read in the image",
+  "logoPresent": true/false,
+  "issues": ["specific problems, empty if ok"],
+  "fixHint": "if NOT ok — one concrete instruction for an image-edit model to fix it (e.g. 'correct the headline to ... keeping the same style and position') — empty string if ok"
+}`,
+                        },
+                    ],
+                },
+            ],
+            config: {
+                responseMimeType: "application/json",
+            } as any,
+        })
+
+        const text = response.candidates?.[0]?.content?.parts?.[0]?.text
+        if (!text) return { ok: true, textAccurate: true, logoPresent: true, issues: [] }
+
+        const parsed = JSON.parse(text.replace(/```(?:json)?/g, "").trim())
+        return {
+            ok: !!parsed.ok,
+            textAccurate: !!parsed.textAccurate,
+            renderedText: parsed.renderedText || undefined,
+            logoPresent: !!parsed.logoPresent,
+            issues: parsed.issues || [],
+            fixHint: parsed.fixHint || undefined,
+        }
+    } catch (err: any) {
+        console.warn(`   ⚠️ Native image QA failed (fail-open): ${err?.message?.substring(0, 80)}`)
+        return { ok: true, textAccurate: true, logoPresent: true, issues: [] }
+    }
 }
 
 // ============================================

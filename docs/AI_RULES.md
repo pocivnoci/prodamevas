@@ -53,7 +53,8 @@ Kdykoli uděláš změnu v kódu, **MUSÍŠ** aktualizovat relevantní dokumenta
 6. **Feedback loop** — nový datový zdroj → přidat `performance_score` + weighted selection
 7. **Auth guard** — každý nový API route musí mít `requireAuth()` (kromě webhooků)
 8. **Rate limiting** — nové generovací endpointy → zvážit přidání rate limitu
-9. **Deprecated modely** — `gemini-2.0-flash`, `gemini-3.1-pro-preview`, `imagen-4.0-ultra` → NEPOUŽÍVAT
+9. **Deprecated modely** — `gemini-2.0-flash`, `gemini-3.1-pro-preview`, `imagen-4.0-ultra`, `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview` (shutdown 25.6.2026) → NEPOUŽÍVAT
+10. **Model ID** — vždy přes `getModel()` z `instagram/models.ts`, nikdy hardcoded string
 
 ---
 
@@ -66,5 +67,7 @@ Kdykoli uděláš změnu v kódu, **MUSÍŠ** aktualizovat relevantní dokumenta
 | 2026-05-14 | v3.1 | Visual Memory, analyzeVisualPatterns(), Art Director injection |
 | 2026-06-02 | v4.0 | **Beta Launch:** rate limiting (10/h), auth na všech routes, config validace, editorial log UI, imageInstructions UI, mock platby, error recovery, onboarding timeout, model upgrade gemini-3.5-flash, 16 DB tabulek |
 | 2026-06-10 | v4.1 | **Production Hardening:** tenant isolation (requireProjectAccess/requireClientAccess všude, žádné tenant fallbacky), oprava mrtvého learning triggeru (delta bug), kredit charge při create-job + refund + idempotence, config cache TTL 60s, stuck-job reaper, Sentry + env validace, mock-payment kill switch, link_type (revize vs A/B varianty), reviseCaption() v enginu, smazán /api/ig-generate, dekompozice typů (lib/types/database.ts jako zdroj pravdy) |
+
+| 2026-06-11 | v4.2 | **Native Design Engine:** centrální model registry (`instagram/models.ts`, env overrides `GEMINI_MODEL_*`), migrace image modelů na GA ID (preview shutdown 25.6.), AI Designer (`gemini-3.1-pro`) generuje design briefy, Nano Banana Pro renderuje celý post vč. české typografie + loga (vision QA + korektivní edit + Satori fallback), `ClientConfig.visualEngine`/`videoTier`, `ig_posts.design_brief`, `ig_generation_log.qa_status`, Veo tiers (lite/fast/premium), TTS fallback + audio tags |
 
 *Při dalším updatu přidej řádek sem.*

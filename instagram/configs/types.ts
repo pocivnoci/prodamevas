@@ -89,6 +89,11 @@ export interface FeedAesthetic {
     textAlign?: "left" | "center" | "right"
     /** Default headline scale multiplier (default: 1.0) */
     headlineScale?: number
+    /** Typography vibe for the native design engine — style guidance, not a font file.
+     * E.g. "bold condensed grotesque, uppercase" or "elegant high-contrast serif" */
+    typographyStyle?: string
+    /** Logo placement preference for the native design engine (default "auto" — AI Designer decides per post) */
+    logoPlacement?: "auto" | "top-left" | "top-right" | "bottom-left" | "bottom-right"
 }
 
 // ─── Overlay Gradient ───────────────────────────────────────
@@ -203,6 +208,15 @@ export interface ClientConfig {
 
     /** Logo watermark filename inside instagram/fonts/ dir, e.g. "logo-mobilnamiru.png" */
     logoFile?: string
+
+    /** Visual rendering engine (default "native"):
+     *  "native"  — Nano Banana Pro composes the full post incl. Czech typography + logo,
+     *              verified by vision QA with corrective retry
+     *  "overlay" — legacy: text-free AI background + Satori/Sharp text overlay */
+    visualEngine?: "native" | "overlay"
+
+    /** Veo tier for reel video generation (default "fast") */
+    videoTier?: "lite" | "fast" | "premium"
 
     /** Gradient colors for text-overlay.ts (replaces hardcoded blue/purple) */
     overlayGradient?: OverlayGradient

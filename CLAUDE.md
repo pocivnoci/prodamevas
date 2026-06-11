@@ -66,8 +66,8 @@ UI calls `/api/ig-create-job` (fast, rate-limited 10 jobs/h per client, returns 
 - **Auth:** every new API route needs `requireAuth()` from `lib/auth-guard.ts` (only payment webhooks are exempt). Middleware protects `/dashboard/*` + `/onboarding`.
 - **Retry logic:** import from `utils/retry.ts`, never copy it.
 - **No hardcoding** of DB IDs, buckets, or admin emails — use `ClientConfig` or env vars (`SUPER_ADMIN_EMAILS`).
-- **AI models:** the current registry is in README / `docs/AI_AGENT_KNOWLEDGE_BASE.md` §7. `gemini-2.0-flash`, `gemini-3.1-pro-preview`, `imagen-4.0-ultra` are deprecated — never use them.
-- **Text in images:** image models must not render text; all text overlays go through Satori → Sharp (`instagram/text-overlay.ts`).
+- **AI models:** all model IDs live in `instagram/models.ts` — always use `getModel()`, never hardcode a model string (env override: `GEMINI_MODEL_<ACTION>[_FALLBACK]`). Deprecated, never use: `gemini-2.0-flash`, `gemini-3.1-pro-preview`, `imagen-4.0-ultra`, `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview` (preview image IDs shut down June 25, 2026).
+- **Visual engines:** `ClientConfig.visualEngine` selects the renderer. Default `"native"`: AI Designer (`generateDesignBrief` in `image-pipeline.ts`) produces a design brief → Nano Banana Pro renders the complete post **including Czech typography + logo** (logo passed as labeled reference image) → `verifyNativeImage` vision QA → one corrective edit → Satori fallback. Legacy `"overlay"`: image prompts on this path must stay **text-free** (the old hard rule) — text is stamped via Satori → Sharp (`instagram/text-overlay.ts`). Both paths log `qa_status` to `ig_generation_log`.
 - **Fonts/assets on Vercel** must be listed in `outputFileTracingIncludes` in `next.config.ts`.
 
 ## UI conventions

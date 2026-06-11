@@ -129,9 +129,11 @@ sequenceDiagram
 | 5. Caption generation | Copywriter | `gemini-3.5-flash` | 25% |
 | 6. Quality gate scoring | Critic | `gemini-3.5-flash` | 45% |
 | 6b. Editorial Board review | Chief Editor + Copywriter | `gemini-3.5-flash` | 50% |
-| 7. Image prompt refinement | Art Director | `gemini-3.5-flash` | 60% |
-| 8. Image generation | Renderer | Nano Banana Pro / Nano Banana 2 | 75% |
-| 9. Text overlay | Renderer | Satori + Sharp | 90% |
+| 7a. Design brief (native engine, default) | AI Designer | `gemini-3.1-pro` | 55% |
+| 7b. Image prompt refinement (overlay engine / fallback) | Art Director | `gemini-3.5-flash` | 60% |
+| 8. Image generation | Renderer | Nano Banana Pro (native: incl. Czech typography + logo) | 75% |
+| 9a. Vision QA + corrective edit (native) | Renderer | `gemini-3.5-flash` vision → `gemini-3-pro-image` edit | 78% |
+| 9b. Text overlay (overlay engine / fallback) | Renderer | Satori + Sharp | 90% |
 | 10. Upload + save | Uploader | Supabase Storage | 95% |
 
 ---
@@ -178,18 +180,20 @@ A/B Variant Loop (variant-actions.ts)
 
 ## 5. AI Model Registry
 
-| Role | Model | Fallback | Notes |
+**Single source of truth: `instagram/models.ts`** (`MODELS` constant + `getModel()`). Per-env override without deploy: `GEMINI_MODEL_<ACTION>` / `GEMINI_MODEL_<ACTION>_FALLBACK`.
+
+| Action | Model | Fallback | Notes |
 |------|-------|----------|-------|
-| **Text gen** (all agents) | `gemini-3.5-flash` | `gemini-2.5-flash-lite` | On 503/429 |
-| **Image gen** (primary) | `gemini-3-pro-image-preview` | `gemini-3.1-flash-image-preview` | Nano Banana Pro → Nano Banana 2 |
-| **Image edit** (product→scene) | `gemini-3-pro-image-preview` | — | editExistingImage() |
-| **Image with refs** | `gemini-3-pro-image-preview` | — | generateImageWithReferences() |
-| **Vision** (logo placement) | `gemini-3.5-flash` | — | detectLogoPlacementArea() |
-| **Video** (reels) | `veo-3.1-fast-generate-001` | `veo-3.1-generate-001` | fast=$0.15/s, std=$0.40/s |
-| **TTS** (voiceover) | `gemini-3.1-flash-tts-preview` | — | Czech narration, voice: Kore |
+| `text` (all agents) | `gemini-3.5-flash` | `gemini-2.5-flash-lite` | On 503/429 |
+| `designer` (AI Designer) | `gemini-3.1-pro` | `gemini-3.5-flash` | Design briefs (native engine) |
+| `image` | `gemini-3-pro-image` | `gemini-3.1-flash-image` | Nano Banana Pro GA → Nano Banana 2 GA; also editExistingImage() + generateImageWithReferences() |
+| `imageCheap` | `gemini-3.1-flash-image` | — | 512px tier |
+| `vision` (QA, logo placement, tagging) | `gemini-3.5-flash` | — | detectLogoPlacementArea(), verifyNativeImage(), brand-tagger |
+| `videoLite`/`videoFast`/`videoPremium` | `veo-3.1-lite` / `veo-3.1-fast-generate-001` / `veo-3.1-generate-001` | — | ~$0.06 / $0.15 / $0.40 per second; tier via `ClientConfig.videoTier` |
+| `tts` (voiceover) | `gemini-3.1-flash-tts-preview` | `gemini-2.5-flash-tts` | Czech narration, voice: Kore, expressive audio tags |
 
 > [!CAUTION]
-> `gemini-2.0-flash` is **DEPRECATED**. `imagen-4.0-ultra` was **sunset June 2026** — replaced by Nano Banana Pro. `gemini-3.1-pro-preview` was replaced by `gemini-3.5-flash`.
+> `gemini-2.0-flash` is **DEPRECATED**. `imagen-4.0-ultra` was **sunset June 2026**. `gemini-3-pro-image-preview` / `gemini-3.1-flash-image-preview` **shut down June 25, 2026** — replaced by GA IDs. `gemini-3.1-pro-preview` was replaced by `gemini-3.5-flash`.
 
 ---
 
@@ -205,9 +209,9 @@ A/B Variant Loop (variant-actions.ts)
 | `ig_products` | `name`, `type`, `slug`, `price`, `image_urls[]` | Products + photos |
 | `ig_product_ideas` | `name`, `concept`, `design_url` | AI product design concepts |
 | `ig_product_categories` | `name`, `client_id` | Product categories |
-| `ig_posts` | `caption`, `image_url`, `status`, `idea_id`, `review_id`, `product_id`, `likes`, `saves`, `reach`, `feedback`, `revision_of`, `link_type` | `revision_of` + `link_type` ('revision'/'variant') link revisions & A/B variants to original |
+| `ig_posts` | `caption`, `image_url`, `status`, `idea_id`, `review_id`, `product_id`, `likes`, `saves`, `reach`, `feedback`, `revision_of`, `link_type`, `design_brief` (jsonb) | `revision_of` + `link_type` ('revision'/'variant') link revisions & A/B variants; `design_brief` = AI Designer output (anti-repetition source) |
 | `ig_content_calendar` | `date`, `post_id`, `time_slot` | Calendar scheduling |
-| `ig_generation_log` | `prompt_used`, `model_used`, `critic_score`, `critic_keep[]`, `critic_fix[]` | Critic feedback for learning |
+| `ig_generation_log` | `prompt_used`, `model_used`, `critic_score`, `critic_keep[]`, `critic_fix[]`, `qa_status` | Critic feedback for learning; `qa_status` = native QA outcome (pass/retry_pass/fallback/overlay) |
 | `ig_brand_memory` | `memory_type` (pattern/preference/avoid/visual), `content`, `confidence` | Long-term learning |
 | `ig_jobs` | `status`, `progress`, `agent_message`, `editorial_log` (jsonb), `result` (jsonb) | Progress + editorial board log |
 | `subscription_plans` | `id`, `name`, `price_czk`, `features` | Plan definitions |
@@ -313,6 +317,7 @@ A/B Variant Loop (variant-actions.ts)
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Frontend, middleware |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server actions, engine |
 | `GEMINI_API_KEY` | Yes for gen | gemini-client.ts |
+| `GEMINI_MODEL_<ACTION>` / `_FALLBACK` | Optional | instagram/models.ts — per-action model override (e.g. `GEMINI_MODEL_DESIGNER`) |
 | `SUPER_ADMIN_EMAILS` | Yes | auth-guard.ts, subscription.ts |
 | `COMGATE_MERCHANT` | Yes for payments | lib/comgate.ts |
 | `COMGATE_SECRET` | Yes for payments | lib/comgate.ts |
@@ -327,10 +332,12 @@ A/B Variant Loop (variant-actions.ts)
 
 | Operation | Model | Cost |
 |---|---|---|
-| Caption + Critic + Art Dir | gemini-3.5-flash | ~$0.02 |
-| Image gen (Nano Banana Pro) | gemini-3-pro-image-preview | ~$0.05 |
-| Image edit (product scene) | gemini-3-pro-image-preview | ~$0.05 |
-| Video 8s | veo-3.1-fast | ~$1.20 |
-| **Total per image post** | — | **~$0.10** |
-| **Total per reel** | — | **~$1.25** |
-| **Total per carousel (5 slides)** | — | **~$0.37** |
+| Caption + Critic + Editorial | gemini-3.5-flash | ~$0.08 |
+| Design brief (AI Designer) | gemini-3.1-pro | ~$0.03 |
+| Image gen 2K (Nano Banana Pro) | gemini-3-pro-image | ~$0.13 |
+| Vision QA per image | gemini-3.5-flash | ~$0.01 |
+| Corrective edit (worst case 1×) | gemini-3-pro-image | ~$0.13 |
+| Video 8s | veo-3.1 (lite/fast/premium) | ~$0.48 / $1.20 / $3.20 |
+| **Total per image post** | — | **~$0.27** |
+| **Total per reel (fast)** | — | **~$1.45** |
+| **Total per carousel (5 slides)** | — | **~$0.75** |

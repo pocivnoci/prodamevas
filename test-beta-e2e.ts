@@ -7,6 +7,7 @@
 
 import { readFileSync, existsSync } from "fs"
 import { resolve } from "path"
+import { execSync } from "child_process"
 
 const ROOT = resolve(__dirname)
 let passed = 0
@@ -428,6 +429,60 @@ test("CROSS.3 Error boundaries — GenerateTab catches all errors", () => {
     const content = fileContent("app/(dashboard)/dashboard/instagram/tabs/GenerateTab.tsx")
     assert(content.includes("catch"), "GenerateTab should have error handling")
     assert(content.includes("error") || content.includes("Error"), "Should display error messages")
+})
+
+// ═══════════════════════════════════════════════════════════
+// 12. Model Registry + Native Design Engine (v4.2)
+// ═══════════════════════════════════════════════════════════
+
+test("12.1 models.ts exports MODELS + getModel", () => {
+    const content = fileContent("instagram/models.ts")
+    assert(content.includes("export const MODELS"), "Should export MODELS")
+    assert(content.includes("export function getModel"), "Should export getModel")
+})
+
+test("12.2 no deprecated preview image model IDs in code", () => {
+    const out = execSync(
+        `grep -rln "image-preview" instagram/ app/ lib/ utils/ --include="*.ts" --include="*.tsx" | grep -v "instagram/models.ts" || true`,
+        { cwd: ROOT, encoding: "utf-8" }
+    ).trim()
+    assert(out === "", `Deprecated preview image IDs still referenced in: ${out}`)
+})
+
+test("12.3 no hardcoded gemini model strings outside models.ts", () => {
+    const out = execSync(
+        `grep -rln 'model: "gemini' instagram/ app/ --include="*.ts" | grep -v "instagram/models.ts" || true`,
+        { cwd: ROOT, encoding: "utf-8" }
+    ).trim()
+    assert(out === "", `Hardcoded model strings in: ${out}`)
+})
+
+test("12.4 validateConfig fills visualEngine + videoTier defaults", () => {
+    const content = fileContent("instagram/configs/index.ts")
+    assert(content.includes('visualEngine: config.visualEngine || "native"'), "visualEngine default missing")
+    assert(content.includes('videoTier: config.videoTier || "fast"'), "videoTier default missing")
+})
+
+test("12.5 AI Designer + QA exported from image-pipeline", () => {
+    const content = fileContent("instagram/image-pipeline.ts")
+    assert(content.includes("export async function generateDesignBrief"), "generateDesignBrief missing")
+    assert(content.includes("export function buildNativeImagePrompt"), "buildNativeImagePrompt missing")
+    assert(content.includes("export async function verifyNativeImage"), "verifyNativeImage missing")
+    assert(content.includes("export async function generateCarouselDesignBriefs"), "generateCarouselDesignBriefs missing")
+})
+
+test("12.6 native design DB migration exists", () => {
+    assert(fileExists("supabase/migrations/20260611_native_design.sql"), "Migration file missing")
+    const content = fileContent("supabase/migrations/20260611_native_design.sql")
+    assert(content.includes("design_brief"), "design_brief column missing")
+    assert(content.includes("qa_status"), "qa_status column missing")
+})
+
+test("12.7 autopilot stores design_brief + qa_status", () => {
+    const content = fileContent("instagram/autopilot.ts")
+    assert(content.includes("design_brief: renderResult?.designBrief"), "design_brief not stored on post")
+    assert(content.includes("qaStatus: renderResult?.qaStatus"), "qaStatus not logged")
+    assert(content.includes("recentBriefs"), "recentBriefs anti-repetition not wired")
 })
 
 // ═══════════════════════════════════════════════════════════

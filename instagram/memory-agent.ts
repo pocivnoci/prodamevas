@@ -42,11 +42,11 @@ export interface BrandMemory {
  * Get the most confident brand memories for a client.
  * These are injected into the Copywriter's mega prompt as context.
  */
-export async function getBrandMemories(limit = 10): Promise<BrandMemory[]> {
+export async function getBrandMemories(limit = 10, clientId?: string): Promise<BrandMemory[]> {
     const { data, error } = await supabaseAdmin
         .from("ig_brand_memory")
         .select("*")
-        .eq("client_id", getActiveProject())
+        .eq("client_id", clientId ?? getActiveProject())
         .gte("confidence", 0.4) // Only include reasonably confident memories
         .order("confidence", { ascending: false })
         .limit(limit)

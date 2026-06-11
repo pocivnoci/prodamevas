@@ -270,6 +270,8 @@ export async function logGeneration(log: {
     criticScore?: number;
     criticKeep?: string[];
     criticFix?: string[];
+    /** Native visual engine QA outcome: pass | retry_pass | fallback | overlay */
+    qaStatus?: string;
 }): Promise<void> {
     await supabaseAdmin
         .from("ig_generation_log")
@@ -284,6 +286,7 @@ export async function logGeneration(log: {
             critic_score: log.criticScore,
             critic_keep: log.criticKeep,
             critic_fix: log.criticFix,
+            qa_status: log.qaStatus,
         });
 }
 

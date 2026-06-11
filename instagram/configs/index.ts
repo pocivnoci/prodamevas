@@ -91,6 +91,8 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         weekPlan: config.weekPlan || [],
         hashtagPools: config.hashtagPools || { core: [], niche: [], broad: [], trending: [], czech: [] },
         contentFocus: config.contentFocus || config.name || slug,
+        visualEngine: config.visualEngine || "native",
+        videoTier: config.videoTier || "fast",
     }
 }
 

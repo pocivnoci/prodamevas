@@ -57,7 +57,7 @@ import type { EditorialMessage } from "./types"
 import { renderReel } from "./orchestrators/reel-orchestrator"
 import { renderCarousel } from "./orchestrators/carousel-orchestrator"
 import { renderImage } from "./orchestrators/image-orchestrator"
-import type { CaptionData, SelectedProduct } from "./orchestrators/types"
+import type { CaptionData, SelectedProduct, RenderResult } from "./orchestrators/types"
 
 // Active client config (set from --config flag or ensureConfig)
 let CLIENT_CONFIG: ClientConfig | null = null
@@ -199,6 +199,12 @@ export async function generateOnePost(options: {
             return body ? `${hook} — ${body}` : hook
         })
         .filter(Boolean)
+
+    // 3b. Recent design-brief concepts — anti-repetition input for the AI Designer
+    const recentBriefs = recentPosts
+        .map(p => (p as any).design_brief?.concept as string | undefined)
+        .filter((c): c is string => Boolean(c))
+        .slice(0, 6)
 
     // 4. Get performance data
     const _getPillarForType = createPillarMapper(config)
@@ -502,36 +508,37 @@ export async function generateOnePost(options: {
 
     // 7. Generate media — delegate to orchestrators
     let imageUrl: string | undefined
+    let renderResult: RenderResult | undefined
 
     if (!options.dryRun) {
         if (isReel && (captionData.scenes?.length || captionData.videoScript)) {
-            const result = await renderReel({
+            renderResult = await renderReel({
                 config, captionData: captionData as CaptionData, format, selectedType, report,
                 selectedProduct: selectedProduct as SelectedProduct | undefined,
-                linkedProductId, clientUuid,
+                linkedProductId, clientUuid, recentBriefs,
             })
-            imageUrl = result.imageUrl
-            cost += result.cost
+            imageUrl = renderResult.imageUrl
+            cost += renderResult.cost
         } else if (options.customImageUrl) {
             console.log("📸 Používám vlastní obrázek od uživatele...")
             imageUrl = options.customImageUrl
             console.log(`   ✓ URL: ${imageUrl}`)
         } else if (isCarousel && captionData.slides) {
-            const result = await renderCarousel({
+            renderResult = await renderCarousel({
                 config, captionData: captionData as CaptionData, format, selectedType, report,
                 selectedProduct: selectedProduct as SelectedProduct | undefined,
-                linkedProductId, clientUuid,
+                linkedProductId, clientUuid, recentBriefs,
             })
-            imageUrl = result.imageUrl
-            cost += result.cost
+            imageUrl = renderResult.imageUrl
+            cost += renderResult.cost
         } else {
-            const result = await renderImage({
+            renderResult = await renderImage({
                 config, captionData: captionData as CaptionData, format, selectedType, report,
                 selectedProduct: selectedProduct as SelectedProduct | undefined,
-                linkedProductId, clientUuid,
+                linkedProductId, clientUuid, recentBriefs,
             })
-            imageUrl = result.imageUrl
-            cost += result.cost
+            imageUrl = renderResult.imageUrl
+            cost += renderResult.cost
         }
     } else {
         console.log(`🎨 [DRY-RUN] Přeskakuji ${isReel ? "video" : isCarousel ? "carousel" : "obrázek"}`)
@@ -554,7 +561,8 @@ export async function generateOnePost(options: {
             call_to_action: captionData.cta,
             image_prompt: captionData.imagePrompt,
             image_url: imageUrl,
-            image_style: isReel ? "veo-3.1" : `overlay:${format.overlayStyle || "default"}`,
+            image_style: renderResult?.imageStyle ?? (isReel ? "veo-3.1" : `overlay:${format.overlayStyle || "default"}`),
+            design_brief: renderResult?.designBrief ?? null,
             status: "draft",
         })
 
@@ -582,6 +590,7 @@ export async function generateOnePost(options: {
             criticScore: score,
             criticKeep: detail?.feedback.keep,
             criticFix: detail?.feedback.fix,
+            qaStatus: renderResult?.qaStatus,
         })
 
         console.log(`   ✓ ID: ${post.id}`)

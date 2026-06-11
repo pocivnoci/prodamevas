@@ -39,8 +39,9 @@ Context Agent (svátek, počasí) ──→ buildMegaPrompt()
 | **Copywriter** | Generuje caption/script/carousel z mega promptu | `gemini-3.5-flash` |
 | **Critic** | Hodnotí 1–10, vrací `keep[]` a `fix[]` | `gemini-3.5-flash` |
 | **Editorial Board** | Šéfredaktor + copywriter revize (max 3 kola) | `gemini-3.5-flash` |
-| **Art Director** | Vylepšuje image prompt, injektuje vizuální pravidla z memory | `gemini-3.5-flash` |
-| **Renderer** | Generuje obrázek/video, přidává text overlay | Nano Banana Pro / Veo 3.1 |
+| **AI Designer** (native engine, default) | Navrhuje kompletní design brief: kompozice, česká typografie, logo placement, anti-repetition vůči posledním 6 briefům (`generateDesignBrief` v `image-pipeline.ts`) | `gemini-3.1-pro` |
+| **Art Director** (overlay engine, legacy/fallback) | Vylepšuje text-free image prompt, injektuje vizuální pravidla z memory | `gemini-3.5-flash` |
+| **Renderer** | Native: Nano Banana Pro renderuje celý post vč. českého textu a loga → vision QA (`verifyNativeImage`) → 1 korektivní edit → Satori fallback. Overlay: text-free obrázek + Satori overlay | `gemini-3-pro-image` / Veo 3.1 |
 | **Memory Agent** | Analyzuje vzorce z postů, zapisuje/updatuje `ig_brand_memory` | `gemini-3.5-flash` |
 
 ---
@@ -148,19 +149,22 @@ buildSmartWeekPlan()  // pillar ratio × 1.5 (top) / × 0.5 (under), normalizov�
 
 ---
 
-## 🤖 7. AI Modely (aktuální stav k 2.6.2026)
+## 🤖 7. AI Modely (aktuální stav k 11.6.2026)
 
-| Role | Model | Fallback |
+**Centrální registr: `instagram/models.ts`** — jediný zdroj pravdy pro model ID. Per-env override bez deploye: `GEMINI_MODEL_<ACTION>` / `GEMINI_MODEL_<ACTION>_FALLBACK` (např. `GEMINI_MODEL_DESIGNER=gemini-3.5-flash`).
+
+| Akce (registr) | Model | Fallback |
 |------|-------|----------|
-| Text gen (primary) | `gemini-3.5-flash` | `gemini-2.5-flash-lite` (na 503/429) |
-| Image gen | `gemini-3-pro-image-preview` (Nano Banana Pro) | `gemini-3.1-flash-image-preview` (Nano Banana 2) |
-| Image edit | `gemini-3-pro-image-preview` | — |
-| Vision | `gemini-3.5-flash` | — |
-| Video | `veo-3.1-fast-generate-001` / `veo-3.1-generate-001` | — |
-| TTS | `gemini-3.1-flash-tts-preview` | — |
+| `text` | `gemini-3.5-flash` | `gemini-2.5-flash-lite` (na 503/429) |
+| `designer` (AI Designer) | `gemini-3.1-pro` | `gemini-3.5-flash` |
+| `vision` (QA, tagging, logo placement) | `gemini-3.5-flash` | — |
+| `image` | `gemini-3-pro-image` (Nano Banana Pro GA) | `gemini-3.1-flash-image` (Nano Banana 2 GA) |
+| `imageCheap` | `gemini-3.1-flash-image` (512px tier) | — |
+| `videoLite` / `videoFast` / `videoPremium` | `veo-3.1-lite` / `veo-3.1-fast-generate-001` / `veo-3.1-generate-001` | — |
+| `tts` | `gemini-3.1-flash-tts-preview` | `gemini-2.5-flash-tts` |
 
 > [!CAUTION]
-> **DEPRECATED:** `gemini-2.0-flash`, `gemini-3.1-pro-preview`, `imagen-4.0-ultra` — NEPOUŽÍVAT!
+> **DEPRECATED:** `gemini-2.0-flash`, `gemini-3.1-pro-preview`, `imagen-4.0-ultra`, `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview` (shutdown 25.6.2026) — NEPOUŽÍVAT!
 
 ---
 

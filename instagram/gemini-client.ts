@@ -183,24 +183,26 @@ export async function generateImageWithReferences(
 ): Promise<Buffer> {
     const { aspectRatio = "3:4", resolution = "2K" } = options
 
-    return withRetry(async () => {
-        // Build contents array: text prompt + reference images as inlineData
-        const contents: any[] = [
-            { text: prompt },
-        ]
+    // Build contents array: text prompt + labeled reference images.
+    // Labels must be interleaved as text parts — the model can't see
+    // what a reference means otherwise (e.g. "brand logo" vs "product").
+    const contents: any[] = [
+        { text: prompt },
+    ]
 
-        for (const ref of referenceImages) {
-            const mimeType = ref.mimeType || "image/jpeg"
-            contents.push({
-                inlineData: {
-                    mimeType,
-                    data: ref.buffer.toString("base64"),
-                },
-            })
-        }
+    referenceImages.forEach((ref, i) => {
+        contents.push({ text: `Reference image ${i + 1} (${ref.label || "reference"}):` })
+        contents.push({
+            inlineData: {
+                mimeType: ref.mimeType || "image/jpeg",
+                data: ref.buffer.toString("base64"),
+            },
+        })
+    })
 
+    const callModel = async (model: string): Promise<Buffer> => {
         const response = await ai.models.generateContent({
-            model: getModel("image"),
+            model,
             contents,
             config: {
                 responseModalities: ["IMAGE"],
@@ -211,17 +213,25 @@ export async function generateImageWithReferences(
             } as any,
         })
 
-        // Extract image from response parts
         const parts = response.candidates?.[0]?.content?.parts || []
-
         for (const part of parts) {
             if ((part as any).inlineData?.data) {
                 return Buffer.from((part as any).inlineData.data, "base64")
             }
         }
+        throw new Error("Image generation with references returned no image data")
+    }
 
-        throw new Error("Gemini 3 Pro Image returned no image data")
-    })
+    try {
+        return await withRetry(() => callModel(getModel("image")), 1)
+    } catch (err: any) {
+        const msg = String(err?.message || "")
+        if (msg.includes("503") || msg.includes("UNAVAILABLE") || msg.includes("overloaded") || msg.includes("no image data")) {
+            console.log("⚠️ Nano Banana Pro (references) unavailable — falling back to Nano Banana 2...")
+            return withRetry(() => callModel(getModel("image", "fallback")), 1)
+        }
+        throw err
+    }
 }
 
 // ============================================
@@ -250,9 +260,9 @@ export async function editExistingImage(
 ): Promise<Buffer> {
     const { mimeType = "image/jpeg", aspectRatio = "1:1", resolution = "2K" } = options
 
-    return withRetry(async () => {
+    const callModel = async (model: string): Promise<Buffer> => {
         const response = await ai.models.generateContent({
-            model: getModel("image"),
+            model,
             contents: [
                 {
                     role: "user",
@@ -284,9 +294,19 @@ export async function editExistingImage(
                 return Buffer.from((part as any).inlineData.data, "base64")
             }
         }
-
         throw new Error("Image editing returned no image data")
-    })
+    }
+
+    try {
+        return await withRetry(() => callModel(getModel("image")), 1)
+    } catch (err: any) {
+        const msg = String(err?.message || "")
+        if (msg.includes("503") || msg.includes("UNAVAILABLE") || msg.includes("overloaded") || msg.includes("no image data")) {
+            console.log("⚠️ Nano Banana Pro (edit) unavailable — falling back to Nano Banana 2...")
+            return withRetry(() => callModel(getModel("image", "fallback")), 1)
+        }
+        throw err
+    }
 }
 
 // ============================================
@@ -334,20 +354,24 @@ export async function detectLogoPlacementArea(imageBuffer: Buffer): Promise<{ x:
 // VIDEO GENERATION — Veo 3.1 (Reels)
 // ============================================
 
+export type VideoTier = "lite" | "fast" | "premium"
+
 export async function generateVideo(
     prompt: string,
     options: {
         duration?: number        // seconds (4-8 for 1080p)
         aspectRatio?: "9:16" | "16:9" | "1:1"
-        fast?: boolean          // true = Veo 3.1 Fast ($0.15/s), false = Standard ($0.40/s)
+        tier?: VideoTier        // lite = Veo 3.1 Lite (cheapest), fast = Veo 3.1 Fast, premium = Veo 3.1 Standard
         referenceImages?: { buffer: Buffer; mimeType?: string }[]  // up to 3 reference images
     } = {}
 ): Promise<Buffer> {
-    const { duration = 8, aspectRatio = "9:16", fast = true, referenceImages } = options
+    const { duration = 8, aspectRatio = "9:16", tier = "fast", referenceImages } = options
 
-    const model = fast
-        ? getModel("videoFast")
-        : getModel("videoPremium")
+    const model = tier === "lite"
+        ? getModel("videoLite")
+        : tier === "premium"
+            ? getModel("videoPremium")
+            : getModel("videoFast")
 
     // Build reference images for Veo (brand photos, product shots, spaces)
     const refImages = referenceImages?.slice(0, 3).map(ref => ({
@@ -413,40 +437,51 @@ export async function generateVideo(
 export async function generateVoiceover(
     narrationText: string,
     options: {
-        voice?: string    // Preset voice name (default: "Kore")
-        mood?: string     // e.g. "professional", "excited", "calm"
+        voice?: string        // Preset voice name (default: "Kore")
+        mood?: string         // e.g. "professional", "excited", "calm"
+        audioTags?: string[]  // expressive delivery tags, e.g. ["warm pace", "smiling"] (Gemini 3.1 TTS supports 200+)
     } = {}
 ): Promise<Buffer> {
-    const { voice = "Kore", mood } = options
+    const { voice = "Kore", mood, audioTags } = options
 
-    // Prepend mood as audio tag if provided
-    const textWithMood = mood
-        ? `[${mood}] ${narrationText}`
+    // Prepend mood + audio tags for expressive delivery
+    const tags = [mood, ...(audioTags || [])].filter(Boolean)
+    const textWithMood = tags.length
+        ? `${tags.map(t => `[${t}]`).join("")} ${narrationText}`
         : narrationText
 
-    const response = await ai.models.generateContent({
-        model: getModel("tts"),
-        contents: textWithMood,
-        config: {
-            responseModalities: ["AUDIO"] as any,
-            speechConfig: {
-                voiceConfig: {
-                    prebuiltVoiceConfig: {
-                        voiceName: voice,
+    const callModel = async (model: string): Promise<Buffer> => {
+        const response = await ai.models.generateContent({
+            model,
+            contents: textWithMood,
+            config: {
+                responseModalities: ["AUDIO"] as any,
+                speechConfig: {
+                    voiceConfig: {
+                        prebuiltVoiceConfig: {
+                            voiceName: voice,
+                        },
                     },
                 },
-            },
-        } as any,
-    })
+            } as any,
+        })
 
-    const audioPart = response.candidates?.[0]?.content?.parts?.[0]
-    const inlineData = (audioPart as any)?.inlineData
+        const audioPart = response.candidates?.[0]?.content?.parts?.[0]
+        const inlineData = (audioPart as any)?.inlineData
 
-    if (!inlineData?.data) {
-        throw new Error("TTS returned no audio data")
+        if (!inlineData?.data) {
+            throw new Error("TTS returned no audio data")
+        }
+
+        return Buffer.from(inlineData.data, "base64")
     }
 
-    return Buffer.from(inlineData.data, "base64")
+    try {
+        return await callModel(getModel("tts"))
+    } catch (err) {
+        console.warn(`⚠️ ${getModel("tts")} failed — falling back to ${getModel("tts", "fallback")}...`, err)
+        return callModel(getModel("tts", "fallback"))
+    }
 }
 
 export { ai }

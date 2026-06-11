@@ -16,21 +16,25 @@ import { getPillarForType, createPillarMapper } from "./service"
 // COSTS
 // ============================================
 
-// Pricing as of May 2026:
+// Pricing as of June 2026 (verify against ai.google.dev/pricing on model changes):
 // - Gemini 3.5 Flash: primary model for caption generation
-// - Gemini 3.1 Pro: $2.00/M input + $12/M output (~$0.03 per request)
-// - Nano Banana Pro (gemini-3-pro-image): primary image gen — see instagram/models.ts
-// - Veo 3.1 Fast: $0.15/second
+// - Gemini 3.1 Pro (AI Designer): $2.00/M input + $12/M output (~$0.03 per request)
+// - Nano Banana Pro (gemini-3-pro-image, 2K): ~$0.134 per image — see instagram/models.ts
+// - Veo 3.1: Lite ~$0.06/s · Fast $0.15/s · Standard $0.40/s
 export const COSTS = {
     textGeneration: 0.025,
     promptRefinement: 0.025,
-    contextAgent: 0.025,     // 1× Gemini Flash for industry + local pulse
-    imageGeneration: 0.06,
-    videoPerSecond: 0.15,
-    ttsVoiceover: 0.02,      // Gemini 3.1 Flash TTS (~$0.02 per request)
-    perPost: 0.165,      // 3× text ($0.075) + 1× context ($0.025) + 1× image ($0.06) + overhead
-    perCarousel: 0.375,  // 3× text + 1× context + 4× image ($0.24) + overhead
-    perReel: 1.41,       // 3× text + 1× context + Veo 3.1 Fast 8s ($1.20) + TTS ($0.02) + cover ($0.06)
+    designerBrief: 0.03,         // AI Designer (gemini-3.1-pro) structured design brief
+    contextAgent: 0.025,         // 1× Gemini Flash for industry + local pulse
+    imageGeneration: 0.134,      // Nano Banana Pro GA 2K
+    imageQA: 0.01,               // flash vision verify (native engine)
+    imageCorrectiveEdit: 0.134,  // corrective text/logo edit retry (native engine, worst case 1×)
+    videoPerSecond: 0.15,        // @deprecated — use videoPerSecondByTier
+    videoPerSecondByTier: { lite: 0.06, fast: 0.15, premium: 0.40 } as Record<"lite" | "fast" | "premium", number>,
+    ttsVoiceover: 0.02,          // Gemini 3.1 Flash TTS (~$0.02 per request)
+    perPost: 0.27,       // 3× text ($0.075) + context ($0.025) + designer ($0.03) + image ($0.134) + QA ($0.01)
+    perCarousel: 0.75,   // 3× text + context + designer + 4× image ($0.536) + 4× QA + overhead
+    perReel: 1.45,       // 3× text + context + Veo 3.1 Fast 8s ($1.20) + TTS ($0.02) + cover ($0.134) + QA
 }
 
 // ============================================
