@@ -11,6 +11,7 @@ import {
     type DesignConcept
 } from "@/instagram/product-generator"
 import { loadConfig } from "@/instagram/configs"
+import { getModel } from "@/instagram/models"
 import { setActiveProject } from "@/instagram/service"
 
 export { type ProductIdea, type DesignConcept }
@@ -490,7 +491,7 @@ Zpráva pro dodavatele: ${original.supplier_message}
 }`
 
         const response = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
+            model: getModel("text"),
             contents: prompt,
             config: { responseMimeType: "application/json" },
         })
@@ -982,7 +983,7 @@ Vrať POUZE platný JSON pole objektů.`
             required: ["products"],
         }
 
-        const raw = await generateText(prompt, { model: "gemini-3.5-flash", responseSchema: productSchema })
+        const raw = await generateText(prompt, { model: getModel("text"), responseSchema: productSchema })
         let products: any[] = []
 
         // Parse — handle both {products: [...]} and bare [...]

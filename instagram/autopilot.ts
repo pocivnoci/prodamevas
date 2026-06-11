@@ -15,6 +15,7 @@
 
 import supabaseAdmin from "../supabase/admin"
 import { generateText } from "./gemini-client"
+import { getModel } from "./models"
 import {
     getActivePostTypes,
     getRecentPosts,
@@ -384,7 +385,7 @@ export async function generateOnePost(options: {
     }
 
     const schema = isReel ? buildVideoSchema(config) : isCarousel ? buildCarouselSchema(config) : buildCaptionSchema(config)
-    const rawText = await generateText(megaPrompt, { responseSchema: schema, model: "gemini-3.5-flash" })
+    const rawText = await generateText(megaPrompt, { responseSchema: schema })
     cost += COSTS.textGeneration
 
     let captionData: {
@@ -576,7 +577,7 @@ export async function generateOnePost(options: {
         await logGeneration({
             postId: post.id,
             promptUsed: megaPrompt.substring(0, 500),
-            modelUsed: "gemini-3.5-flash + gemini-3-pro-image-preview",
+            modelUsed: `${getModel("text")} + ${getModel("image")}`,
             generationTimeMs: Date.now() - startTime,
             criticScore: score,
             criticKeep: detail?.feedback.keep,

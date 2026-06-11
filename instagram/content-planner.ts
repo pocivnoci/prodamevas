@@ -7,6 +7,7 @@
  */
 
 import { ai } from "./gemini-client"
+import { getModel } from "./models"
 import { getWeekContext, type DayContext } from "./signals/calendar"
 import { getWeatherForecast, formatForecastForAI, type WeekForecast } from "./signals/weather"
 import { analyzePerformance, type PerformanceInsight } from "./performance"
@@ -182,7 +183,7 @@ Vrať POUZE validní JSON pole:
 
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
+            model: getModel("text"),
             contents: planPrompt,
             config: { responseMimeType: "application/json" },
         })

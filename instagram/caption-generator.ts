@@ -5,6 +5,7 @@
 
 import { Type } from "@google/genai"
 import { ai } from "./gemini-client"
+import { getModel } from "./models"
 import type { ClientConfig, PostFormat } from "./configs/types"
 import type { PostType, PostIdea, Review } from "./types"
 import type { HookTemplate } from "./types"
@@ -18,7 +19,7 @@ import { getPillarForType, createPillarMapper } from "./service"
 // Pricing as of May 2026:
 // - Gemini 3.5 Flash: primary model for caption generation
 // - Gemini 3.1 Pro: $2.00/M input + $12/M output (~$0.03 per request)
-// - Nano Banana Pro (gemini-3-pro-image-preview): primary image gen
+// - Nano Banana Pro (gemini-3-pro-image): primary image gen — see instagram/models.ts
 // - Veo 3.1 Fast: $0.15/second
 export const COSTS = {
     textGeneration: 0.025,
@@ -764,7 +765,7 @@ Hashtags: ${captionData.hashtags.join(", ")}
 
     try {
         const raw = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
+            model: getModel("text"),
             contents: scorePrompt,
             config: { responseMimeType: "application/json" },
         })
@@ -874,7 +875,7 @@ ${hashtagSection}
 }`
 
     const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: getModel("text"),
         contents: prompt,
         config: { responseMimeType: "application/json" },
     })

@@ -5,6 +5,7 @@
  */
 
 import { ai } from "./gemini-client"
+import { getModel } from "./models"
 import { getBrandMemories } from "./memory-agent"
 import type { ClientConfig } from "./configs/types"
 
@@ -107,7 +108,7 @@ Visual mood: funny, relatable, meme-style
 OUTPUT: Single detailed English image prompt (2-3 sentences). NO TEXT IN IMAGE.
 `
         const response = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
+            model: getModel("text"),
             contents: memePrompt,
         })
         const parts = response.candidates?.[0]?.content?.parts || []
@@ -161,7 +162,7 @@ The prompt should be 2-3 sentences.
 `
 
     const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: getModel("text"),
         contents: refinementPrompt,
     })
 
@@ -228,7 +229,7 @@ Each prompt should be 2-3 sentences and end with "NO TEXT in image."
 
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
+            model: getModel("text"),
             contents: refinementPrompt,
             config: { responseMimeType: "application/json" },
         })
@@ -333,7 +334,7 @@ The prompt must read like a professional shot list compressed into prose.
 `
 
     const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: getModel("text"),
         contents: refinementPrompt,
     })
 

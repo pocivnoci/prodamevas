@@ -156,7 +156,7 @@ Pole musí mít PŘESNĚ ${count} položek.`
             }
         }
         
-        const raw = await generateText(prompt, { model: "gemini-3.5-flash", responseSchema: planSchema })
+        const raw = await generateText(prompt, { responseSchema: planSchema })
 
         // Parse response
         const jsonMatch = raw.match(/\[[\s\S]*\]/)
@@ -195,7 +195,7 @@ ${weakTypes.map((t, i) => {
 Vrať POUZE validní JSON pole obsahující PŘESNĚ ${weakIndices.length} položek s klíči: hookPreview, angle, topic, qualityScore.`
 
             try {
-                const retryRaw = await generateText(retryPrompt, { model: "gemini-3.5-flash", responseSchema: planSchema })
+                const retryRaw = await generateText(retryPrompt, { responseSchema: planSchema })
                 const retryMatch = retryRaw.match(/\[[\s\S]*\]/)
                 let retryConcepts: any[] = []
                 if (retryMatch) {
@@ -243,7 +243,7 @@ ${missingTypes.map((t, i) => {
 Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klíči: hookPreview, angle, topic, qualityScore.`
 
             try {
-                const fillRaw = await generateText(fillPrompt, { model: "gemini-3.5-flash", responseSchema: planSchema })
+                const fillRaw = await generateText(fillPrompt, { responseSchema: planSchema })
                 const fillMatch = fillRaw.match(/\[[\s\S]*\]/)
                 if (fillMatch) {
                     const fillConcepts = JSON.parse(fillMatch[0])
@@ -343,7 +343,7 @@ Prompt hint říká AI generátoru obsahu JAKÝ typ příspěvků a Z JAKÉHO Ú
 - Vrať POUZE text promptu, nic jiného
 
 Příklad pro kategorii "Tipy" v pilíři "Edukace":
-"Praktické tipy a návody krok za krokem. Používej čísla v hooku, konkrétní příklady a řešení reálných problémů zákazníků."`, { model: "gemini-3.5-flash" })
+"Praktické tipy a návody krok za krokem. Používej čísla v hooku, konkrétní příklady a řešení reálných problémů zákazníků."`)
 
         return { success: true, prompt: raw.trim().replace(/^["']|["']$/g, "") }
     } catch (err: any) {
@@ -405,7 +405,7 @@ Vrať POUZE validní JSON:
 { "hookPreview": "český hook max 12 slov BEZ emoji", "angle": "1 věta o přístupu", "topic": "3-5 slov" }`
 
         const { generateText } = await import("@/instagram/gemini-client")
-        const raw = await generateText(prompt, { model: "gemini-3.5-flash" })
+        const raw = await generateText(prompt)
         const jsonMatch = raw.match(/\{[\s\S]*\}/)
         if (!jsonMatch) throw new Error("Invalid JSON response")
         const item = JSON.parse(jsonMatch[0])

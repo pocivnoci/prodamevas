@@ -400,7 +400,7 @@ export async function generateProductDesign(
         let imageBuffer: Buffer
 
         if (logoBuffer) {
-            // Generování přes Nano Banana 2 (gemini-3.1-flash-image-preview) 
+            // Generování přes Nano Banana 2 (gemini-3.1-flash-image)
             // Model vloží referenční logo přímo do 3D prostoru fotky!
             const imagePrompt = `${basePrompt}
 DESIGN RULES:

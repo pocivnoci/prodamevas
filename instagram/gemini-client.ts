@@ -1,14 +1,12 @@
 /**
  * Gemini API Client
  * =================
- * PRIMARY:  gemini-3.5-flash         — fastest frontier, agentic, reasoning
- * FALLBACK: gemini-2.5-flash-lite    — cheap stable fallback
- * IMAGE:    gemini-3-pro-image-preview (Nano Banana Pro) — primary image gen
- *           gemini-3.1-flash-image-preview (Nano Banana 2) — fallback image gen
- * VIDEO:    veo-3.1-fast-generate-001 / veo-3.1-generate-001
+ * All model IDs live in the central registry: instagram/models.ts
+ * (env-overridable via GEMINI_MODEL_<ACTION>[_FALLBACK]).
  */
 
 import { GoogleGenAI } from "@google/genai"
+import { getModel } from "./models"
 import dotenv from "dotenv"
 
 // Load env vars for CLI usage
@@ -57,7 +55,7 @@ export async function generateText(
     prompt: string,
     options?: { responseSchema?: any; temperature?: number; model?: string }
 ): Promise<string> {
-    const defaultModel = options?.model || "gemini-3.5-flash"
+    const defaultModel = options?.model || getModel("text")
     try {
         return await withRetry(async () => {
             const response = await ai.models.generateContent({
@@ -80,10 +78,10 @@ export async function generateText(
     } catch (err: any) {
         // Fallback to gemini-2.5-flash-lite on 503/429 errors
         if (err.status === 503 || err.status === 429 || err.message?.includes("503") || err.message?.includes("429") || err.message?.includes("quota") || err.message?.includes("high demand") || err.message?.includes("overloaded")) {
-            console.warn(`⚠️ ${defaultModel} unavailable (${err.status}). Falling back to gemini-2.5-flash-lite...`)
+            console.warn(`⚠️ ${defaultModel} unavailable (${err.status}). Falling back to ${getModel("text", "fallback")}...`)
             return await withRetry(async () => {
                 const response = await ai.models.generateContent({
-                    model: "gemini-2.5-flash-lite",
+                    model: getModel("text", "fallback"),
                     contents: prompt,
                     config: {
                         responseMimeType: "application/json",
@@ -119,7 +117,7 @@ export async function generateImage(
     try {
         return await withRetry(async () => {
             const response = await ai.models.generateContent({
-                model: "gemini-3-pro-image-preview",
+                model: getModel("image"),
                 contents: [{ text: prompt }],
                 config: {
                     responseModalities: ["IMAGE"],
@@ -145,7 +143,7 @@ export async function generateImage(
             console.log("⚠️ Nano Banana Pro unavailable — falling back to Nano Banana 2...")
             return await withRetry(async () => {
                 const response = await ai.models.generateContent({
-                    model: "gemini-3.1-flash-image-preview",
+                    model: getModel("image", "fallback"),
                     contents: [{ text: prompt }],
                     config: {
                         responseModalities: ["IMAGE"],
@@ -202,7 +200,7 @@ export async function generateImageWithReferences(
         }
 
         const response = await ai.models.generateContent({
-            model: "gemini-3-pro-image-preview",
+            model: getModel("image"),
             contents,
             config: {
                 responseModalities: ["IMAGE"],
@@ -254,7 +252,7 @@ export async function editExistingImage(
 
     return withRetry(async () => {
         const response = await ai.models.generateContent({
-            model: "gemini-3-pro-image-preview",
+            model: getModel("image"),
             contents: [
                 {
                     role: "user",
@@ -298,8 +296,7 @@ export async function editExistingImage(
 export async function detectLogoPlacementArea(imageBuffer: Buffer): Promise<{ x: number; y: number; w: number; h: number } | null> {
     return withRetry(async () => {
         const response = await ai.models.generateContent({
-            // Nejchytřejší Vision model pro absolutní detail
-            model: "gemini-3.5-flash",
+            model: getModel("vision"),
             contents: [
                 {
                     inlineData: {
@@ -349,8 +346,8 @@ export async function generateVideo(
     const { duration = 8, aspectRatio = "9:16", fast = true, referenceImages } = options
 
     const model = fast
-        ? "veo-3.1-fast-generate-001"
-        : "veo-3.1-generate-001"
+        ? getModel("videoFast")
+        : getModel("videoPremium")
 
     // Build reference images for Veo (brand photos, product shots, spaces)
     const refImages = referenceImages?.slice(0, 3).map(ref => ({
@@ -428,7 +425,7 @@ export async function generateVoiceover(
         : narrationText
 
     const response = await ai.models.generateContent({
-        model: "gemini-3.1-flash-tts-preview",
+        model: getModel("tts"),
         contents: textWithMood,
         config: {
             responseModalities: ["AUDIO"] as any,

@@ -183,7 +183,7 @@ Vrať POUZE validní JSON:
 { "pulse": ["bod 1", "bod 2", "bod 3", "bod 4"] }
 `
 
-    const raw = await generateText(prompt, { model: "gemini-3.5-flash" })
+    const raw = await generateText(prompt)
 
     try {
         const jsonMatch = raw.match(/\{[\s\S]*\}/)

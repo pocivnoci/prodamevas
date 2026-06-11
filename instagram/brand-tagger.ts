@@ -11,6 +11,7 @@
 
 import { GoogleGenAI } from "@google/genai"
 import type { BrandImage } from "./configs/types"
+import { getModel } from "./models"
 
 const VALID_TAGS = [
     "exterior", "interior", "bedroom", "bathroom", "kitchen", "living",
@@ -63,7 +64,7 @@ POPIS: [popis]
 TAGY: [tag1, tag2]`
 
         const response = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
+            model: getModel("vision"),
             contents: [{
                 role: "user",
                 parts: [

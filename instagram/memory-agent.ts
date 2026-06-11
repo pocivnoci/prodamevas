@@ -16,6 +16,7 @@
 
 import supabaseAdmin from "../supabase/admin"
 import { ai } from "./gemini-client"
+import { getModel } from "./models"
 import { getActiveProject } from "./service"
 
 // ============================================
@@ -248,7 +249,7 @@ Vrať POUZE validní JSON pole:
 
     try {
         const raw = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
+            model: getModel("text"),
             contents: visualPrompt,
             config: { responseMimeType: "application/json" },
         })
@@ -382,7 +383,7 @@ Vrať POUZE validní JSON pole:
 
     try {
         const raw = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
+            model: getModel("text"),
             contents: analysisPrompt,
             config: { responseMimeType: "application/json" },
         })
@@ -525,7 +526,7 @@ Vrať POUZE validní JSON pole:
 
     try {
         const raw = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
+            model: getModel("text"),
             contents: prompt,
             config: { responseMimeType: "application/json" },
         })
