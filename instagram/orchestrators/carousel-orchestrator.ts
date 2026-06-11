@@ -71,6 +71,7 @@ async function renderCarouselNative(ctx: RenderContext): Promise<RenderResult | 
         visualTheme: captionData.visualTheme || "",
         postType: selectedType.name,
         recentBriefs: ctx.recentBriefs ?? [],
+        bannedArchetypes: ctx.recentArchetypes ?? [],
         accentWords: captionData.accentWords,
     })
     cost += COSTS.designerBrief

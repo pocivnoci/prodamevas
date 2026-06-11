@@ -200,11 +200,31 @@ export async function generateOnePost(options: {
         })
         .filter(Boolean)
 
-    // 3b. Recent design-brief concepts — anti-repetition input for the AI Designer
-    const recentBriefs = recentPosts
-        .map(p => (p as any).design_brief?.concept as string | undefined)
-        .filter((c): c is string => Boolean(c))
+    // 3b. Recent design fingerprints — anti-repetition input for the AI Designer.
+    // Concept alone lets the model "diverge" in words while rendering the same layout,
+    // so feed the structural attributes too and hard-ban the latest layout archetypes.
+    const recentDesigns = recentPosts
+        .map(p => (p as any).design_brief)
+        .filter(Boolean)
         .slice(0, 6)
+    const recentBriefs = recentDesigns
+        .map((d: any) => {
+            const parts = [
+                d.concept,
+                d.layoutArchetype && `layout: ${d.layoutArchetype}`,
+                d.typography?.placement && `text: ${d.typography.placement}`,
+                d.typography?.styleDescription && `type: ${d.typography.styleDescription}`,
+                d.colorTreatment && `color: ${String(d.colorTreatment).substring(0, 80)}`,
+            ]
+            return parts.filter(Boolean).join(" | ")
+        })
+        .filter(Boolean)
+    const recentArchetypes = [...new Set(
+        recentDesigns
+            .slice(0, 3)
+            .map((d: any) => d.layoutArchetype as string | undefined)
+            .filter((a: any): a is string => Boolean(a))
+    )]
 
     // 4. Get performance data
     const _getPillarForType = createPillarMapper(config)
@@ -515,7 +535,7 @@ export async function generateOnePost(options: {
             renderResult = await renderReel({
                 config, captionData: captionData as CaptionData, format, selectedType, report,
                 selectedProduct: selectedProduct as SelectedProduct | undefined,
-                linkedProductId, clientUuid, recentBriefs,
+                linkedProductId, clientUuid, recentBriefs, recentArchetypes,
             })
             imageUrl = renderResult.imageUrl
             cost += renderResult.cost
@@ -527,7 +547,7 @@ export async function generateOnePost(options: {
             renderResult = await renderCarousel({
                 config, captionData: captionData as CaptionData, format, selectedType, report,
                 selectedProduct: selectedProduct as SelectedProduct | undefined,
-                linkedProductId, clientUuid, recentBriefs,
+                linkedProductId, clientUuid, recentBriefs, recentArchetypes,
             })
             imageUrl = renderResult.imageUrl
             cost += renderResult.cost
@@ -535,7 +555,7 @@ export async function generateOnePost(options: {
             renderResult = await renderImage({
                 config, captionData: captionData as CaptionData, format, selectedType, report,
                 selectedProduct: selectedProduct as SelectedProduct | undefined,
-                linkedProductId, clientUuid, recentBriefs,
+                linkedProductId, clientUuid, recentBriefs, recentArchetypes,
             })
             imageUrl = renderResult.imageUrl
             cost += renderResult.cost

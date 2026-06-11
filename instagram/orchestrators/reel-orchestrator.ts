@@ -242,6 +242,7 @@ async function renderNativeReelCover(ctx: RenderContext, coverScene: string): Pr
         },
         postType: selectedType.name,
         recentBriefs: ctx.recentBriefs ?? [],
+        bannedArchetypes: ctx.recentArchetypes ?? [],
     })
 
     const prompt = `${buildNativeImagePrompt(brief, config)}

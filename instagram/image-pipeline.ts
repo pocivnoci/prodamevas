@@ -183,9 +183,23 @@ The prompt should be 2-3 sentences.
 //  this agent produces the structured design brief that drives it.)
 // ============================================
 
+/** Structural layout families the AI Designer rotates through — the enforced anti-repetition axis */
+export const LAYOUT_ARCHETYPES = [
+    "editorial-magazine",
+    "poster-typography",
+    "split-layout",
+    "full-bleed-photo",
+    "type-driven",
+    "product-hero",
+    "candid-lifestyle",
+    "color-block-graphic",
+] as const
+
 export interface DesignBrief {
     /** Short creative concept name + 1-sentence idea — stored on the post for anti-repetition */
     concept: string
+    /** One of LAYOUT_ARCHETYPES — recent archetypes are banned for the next post */
+    layoutArchetype: string
     /** Full scene description in English: subject, environment, camera, lighting, depth */
     composition: string
     typography: {
@@ -214,6 +228,7 @@ const DESIGN_BRIEF_SCHEMA = {
     type: Type.OBJECT,
     properties: {
         concept: { type: Type.STRING },
+        layoutArchetype: { type: Type.STRING, enum: [...LAYOUT_ARCHETYPES] },
         composition: { type: Type.STRING },
         typography: {
             type: Type.OBJECT,
@@ -231,7 +246,7 @@ const DESIGN_BRIEF_SCHEMA = {
         negativeSpace: { type: Type.STRING },
         divergenceNote: { type: Type.STRING },
     },
-    required: ["concept", "composition", "typography", "colorTreatment", "logoPlacement", "negativeSpace", "divergenceNote"],
+    required: ["concept", "layoutArchetype", "composition", "typography", "colorTreatment", "logoPlacement", "negativeSpace", "divergenceNote"],
 }
 
 export async function generateDesignBrief(params: {
@@ -239,11 +254,15 @@ export async function generateDesignBrief(params: {
     clientId: string
     captionData: { hook: string; imageSubtext?: string; imagePrompt?: string; body?: string; accentWords?: string[] }
     postType: string
-    /** Concept strings of the last ~6 posts — the designer must diverge from ALL of them */
+    /** Style fingerprints of the last ~6 posts (concept | layout | text placement | color) — the designer must diverge from ALL of them */
     recentBriefs: string[]
+    /** Layout archetypes used by the most recent posts — hard-banned for this one */
+    bannedArchetypes?: string[]
     visualMemoriesSection?: string
 }): Promise<DesignBrief> {
     const { config, clientId, captionData, postType, recentBriefs } = params
+    const banned = (params.bannedArchetypes ?? []).filter(a => (LAYOUT_ARCHETYPES as readonly string[]).includes(a))
+    const allowedArchetypes = (LAYOUT_ARCHETYPES as readonly string[]).filter(a => !banned.includes(a))
     const fa = config.feedAesthetic
     const memSection = params.visualMemoriesSection ?? await getVisualMemoriesSection(clientId)
 
@@ -273,9 +292,14 @@ ${captionData.body ? `- Post body context: "${captionData.body.substring(0, 300)
 ## RECENT POST DESIGNS — YOU MUST DIVERGE FROM ALL OF THEM:
 ${recentBriefs.length ? recentBriefs.map((b, i) => `${i + 1}. ${b}`).join("\n") : "(no history yet — total creative freedom)"}
 ⚠️ HARD RULE: do NOT repeat the layout, text placement, typography style, or visual concept
-of any recent design above. Same shit different day is FORBIDDEN. Rotate aggressively between:
-editorial magazine layouts, poster-style typography, split layouts, full-bleed photography with
-minimal text, type-driven designs, product hero shots, candid lifestyle, graphic/color-block styles.
+of any recent design above. Same shit different day is FORBIDDEN.
+
+## LAYOUT ARCHETYPE (rotation is ENFORCED in code — violations get rejected):
+Set layoutArchetype to ONE of: ${allowedArchetypes.join(", ")}.
+${banned.length ? `🚫 FORBIDDEN for this post (used by the latest posts): ${banned.join(", ")}.` : ""}
+The feed must stay ON-BRAND (same palette, mood, typography family) while each post
+changes the STRUCTURE — layout, text scale/placement, photo vs. graphic balance.
+Cohesive vibe, different skeleton.
 
 ## DESIGN RULES:
 - typography.headlineText and typography.subtextText must be the EXACT Czech strings above,
@@ -293,9 +317,27 @@ Return ONLY the JSON design brief.`
         temperature: 1.0,
     })
 
-    const brief = JSON.parse(raw) as DesignBrief
+    let brief = JSON.parse(raw) as DesignBrief
     if (!brief?.concept || !brief?.composition || !brief?.typography?.headlineText) {
         throw new Error("AI Designer returned incomplete design brief")
+    }
+
+    // Enforce the archetype rotation — the prompt alone is not enough, the model
+    // happily writes a new concept sentence on top of the same layout.
+    if (brief.layoutArchetype && banned.includes(brief.layoutArchetype)) {
+        console.warn(`   ⚠️ Designer reused banned archetype "${brief.layoutArchetype}" — regenerating`)
+        const retryRaw = await generateText(
+            designerPrompt + `\n\n⚠️ REJECTED: your previous brief used layoutArchetype "${brief.layoutArchetype}", which is FORBIDDEN. Produce a NEW brief with layoutArchetype strictly from: ${allowedArchetypes.join(", ")} — and a composition that actually matches it.`,
+            { model: getModel("designer"), responseSchema: DESIGN_BRIEF_SCHEMA, temperature: 1.0 }
+        )
+        try {
+            const retry = JSON.parse(retryRaw) as DesignBrief
+            if (retry?.concept && retry?.composition && retry?.typography?.headlineText) {
+                brief = retry
+            }
+        } catch {
+            // keep the original brief — a repeated archetype beats a failed generation
+        }
     }
     return brief
 }
@@ -345,9 +387,12 @@ export async function generateCarouselDesignBriefs(params: {
     visualTheme: string
     postType: string
     recentBriefs: string[]
+    bannedArchetypes?: string[]
     accentWords?: string[]
 }): Promise<{ designSystem: string; briefs: DesignBrief[] }> {
     const { config, clientId, allSlides, visualTheme, postType, recentBriefs } = params
+    const banned = (params.bannedArchetypes ?? []).filter(a => (LAYOUT_ARCHETYPES as readonly string[]).includes(a))
+    const allowedArchetypes = (LAYOUT_ARCHETYPES as readonly string[]).filter(a => !banned.includes(a))
     const fa = config.feedAesthetic
     const memSection = await getVisualMemoriesSection(clientId)
 
@@ -383,6 +428,9 @@ ${recentBriefs.length ? recentBriefs.map((b, i) => `${i + 1}. ${b}`).join("\n") 
    character-for-character including diacritics (ě š č ř ž ý á í é ů ú). NEVER translate or rephrase.
 4. The COVER has the boldest typography; inner slides are calmer and consistent.
 5. Diverge hard from the recent designs (layout, type placement, concept).
+6. Set ONE layoutArchetype for the whole carousel (same value on every brief), chosen from:
+   ${allowedArchetypes.join(", ")}.${banned.length ? `\n   🚫 FORBIDDEN (used by the latest posts): ${banned.join(", ")}.` : ""}
+   Stay on-brand (palette, mood, type family) — change the STRUCTURE, not the brand.
 
 Return JSON: { "designSystem": "one paragraph describing the shared system", "briefs": [one design brief per slide, in order] }`
 

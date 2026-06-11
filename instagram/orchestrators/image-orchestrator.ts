@@ -66,9 +66,10 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
         },
         postType: selectedType.name,
         recentBriefs: ctx.recentBriefs ?? [],
+        bannedArchetypes: ctx.recentArchetypes ?? [],
     })
     cost += COSTS.designerBrief
-    console.log(`   ✓ Koncept: "${brief.concept}"`)
+    console.log(`   ✓ Koncept: "${brief.concept}" [${brief.layoutArchetype || "no archetype"}]`)
     console.log(`   ✓ Divergence: ${brief.divergenceNote?.substring(0, 100)}`)
 
     const prompt = buildNativeImagePrompt(brief, config)

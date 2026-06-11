@@ -42,8 +42,10 @@ export interface RenderContext {
     selectedProduct?: SelectedProduct
     linkedProductId?: string
     clientUuid: string
-    /** Concept strings of recent posts' design briefs — anti-repetition input for the AI Designer */
+    /** Style fingerprints of recent posts' design briefs — anti-repetition input for the AI Designer */
     recentBriefs?: string[]
+    /** Layout archetypes of the most recent posts — hard-banned for the next design brief */
+    recentArchetypes?: string[]
 }
 
 export interface RenderResult {
