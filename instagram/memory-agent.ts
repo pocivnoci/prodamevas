@@ -307,6 +307,49 @@ Vrať POUZE validní JSON pole:
 }
 
 // ============================================
+// ONBOARDING SEED (warm start from scraped IG feed)
+// ============================================
+
+/**
+ * Seed brand memories from the onboarding IG scrape so a new tenant
+ * doesn't start cold. Confidence 0.45 — above the 0.4 floor in
+ * getBrandMemories() so the seeds are used, but low enough that real
+ * post-performance learning (analyzeAndLearn) quickly outranks them.
+ *
+ * Only seeds when the client has NO memories yet (idempotent on re-save).
+ */
+export async function seedOnboardingMemories(
+    clientId: string,
+    seeds: { type: "pattern" | "visual"; content: string }[]
+): Promise<number> {
+    const valid = seeds.filter(s => s.content?.trim() && (s.type === "pattern" || s.type === "visual"))
+    if (valid.length === 0) return 0
+
+    const { count } = await supabaseAdmin
+        .from("ig_brand_memory")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", clientId)
+
+    if (count && count > 0) {
+        console.log(`   🧠 Seed skipped — client already has ${count} memories`)
+        return 0
+    }
+
+    const rows = valid.slice(0, 8).map(s => ({
+        client_id: clientId,
+        memory_type: s.type,
+        content: s.content.startsWith("Z původního IG feedu") ? s.content : `Z původního IG feedu: ${s.content}`,
+        confidence: 0.45,
+        source_post_ids: [],
+    }))
+
+    const { error } = await supabaseAdmin.from("ig_brand_memory").insert(rows)
+    if (error) throw error
+    console.log(`   🧠 Seeded ${rows.length} onboarding memories (${rows.filter(r => r.memory_type === "visual").length} visual, ${rows.filter(r => r.memory_type === "pattern").length} pattern)`)
+    return rows.length
+}
+
+// ============================================
 // ANALYZE & LEARN (post-performance)
 // ============================================
 

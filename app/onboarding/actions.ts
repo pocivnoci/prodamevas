@@ -38,6 +38,15 @@ export interface IgInsights {
     brandToneHint: string
     visualStyleHint: string
     bestPostingTimes?: string[]
+    /** Structured brand-voice observations from the real captions — basis for config brandVoice */
+    voiceProfile?: {
+        voiceTraits: string[]
+        hookExamples: string[]
+        captionStyle: string
+        ctaHabits: string
+    }
+    /** 2–4 Czech observations of what demonstrably works — seeds 'pattern' brand memories */
+    provenPatterns?: string[]
 }
 
 export interface WebsiteAnalysis {
@@ -66,6 +75,8 @@ export interface WebsiteAnalysis {
     igProfile?: IgProfileData
     /** AI-analyzed insights from IG feed */
     igInsights?: IgInsights
+    /** Gemini vision analysis of the actual feed images (typography, colors, archetypes) */
+    feedVisuals?: import('@/instagram/feed-vision').FeedVisualProfile
 }
 
 export interface OnboardingQuestion {
@@ -330,24 +341,38 @@ Vrať POUZE platný JSON, bez dalšího textu.`
 
         // Enrich with Instagram profile data if handle provided
         if (igHandle) {
-            try {
-                const igData = await fetchInstagramProfile(igHandle)
-                if (igData) {
-                    analysis.igProfile = igData
-                    analysis.instagramBio = igData.biography
-                    const igInsights = await analyzeInstagramFeed(igData)
-                    if (igInsights) analysis.igInsights = igInsights
-                    console.log(`📸 IG enrichment: ${igData.followerCount} followers, ${igData.recentPosts.length} posts analyzed`)
-                }
-            } catch (igErr) {
-                console.warn('⚠️ IG enrichment failed (non-blocking):', (igErr as Error).message)
-            }
+            await enrichWithInstagram(analysis, igHandle)
         }
 
         return { success: true, analysis }
     } catch (error) {
         console.error('Website analysis error:', error)
         return { success: false, error: humanizeError(error) }
+    }
+}
+
+/**
+ * Shared IG enrichment: scrape profile, then in parallel analyze captions
+ * (text insights + voice profile) and the actual feed images (vision).
+ * Non-blocking — any failure leaves the analysis as-is.
+ */
+async function enrichWithInstagram(analysis: WebsiteAnalysis, igHandle: string): Promise<void> {
+    try {
+        const igData = await fetchInstagramProfile(igHandle)
+        if (!igData) return
+        analysis.igProfile = igData
+        analysis.instagramBio = igData.biography
+
+        const { analyzeFeedVisuals } = await import('@/instagram/feed-vision')
+        const [igInsights, feedVisuals] = await Promise.all([
+            analyzeInstagramFeed(igData),
+            analyzeFeedVisuals(igData.recentPosts, analysis.companyName),
+        ])
+        if (igInsights) analysis.igInsights = igInsights
+        if (feedVisuals) analysis.feedVisuals = feedVisuals
+        console.log(`📸 IG enrichment: ${igData.followerCount} followers, ${igData.recentPosts.length} posts${feedVisuals ? ', vision ✓' : ''}`)
+    } catch (igErr) {
+        console.warn('⚠️ IG enrichment failed (non-blocking):', (igErr as Error).message)
     }
 }
 
@@ -502,26 +527,10 @@ Vrať POUZE platný JSON.`
 
         // Enrich with Instagram profile data if handle provided
         if (info.igHandle) {
-            try {
-                const igData = await fetchInstagramProfile(info.igHandle)
-                if (igData) {
-                    analysis.igProfile = igData
-                    analysis.instagramBio = igData.biography
-                    if (igData.followerCount > 0 && !info.followerCount) {
-                        // Use real follower count from IG
-                    }
-                    const igInsights = await analyzeInstagramFeed(igData)
-                    if (igInsights) {
-                        analysis.igInsights = igInsights
-                        // Enrich brand tone if IG analysis gives a hint
-                        if (igInsights.brandToneHint && analysis.brandTone === info.tone) {
-                            analysis.brandTone = igInsights.brandToneHint
-                        }
-                    }
-                    console.log(`📸 IG enrichment (manual): ${igData.followerCount} followers, ${igData.recentPosts.length} posts`)
-                }
-            } catch (igErr) {
-                console.warn('⚠️ IG enrichment failed (non-blocking):', (igErr as Error).message)
+            await enrichWithInstagram(analysis, info.igHandle)
+            // Enrich brand tone if IG analysis gives a hint
+            if (analysis.igInsights?.brandToneHint && analysis.brandTone === info.tone) {
+                analysis.brandTone = analysis.igInsights.brandToneHint
             }
         }
 
@@ -664,6 +673,12 @@ Vrať JSON s těmito poli:
 - brandToneHint: 1-2 slova popisující detekovaný tón komunikace (česky)
 - visualStyleHint: 1 věta popisující vizuální styl feedu (česky)
 - bestPostingTimes: pole 2-3 optimálních časů pro posting (odhad z timestamps), formát "Po 18:00"
+- voiceProfile: objekt popisující, JAK značka v captionech skutečně mluví:
+  - voiceTraits: 3-5 pozorovaných charakteristik hlasu (česky, např. "hravý", "tyká followerům")
+  - hookExamples: 2-4 skutečné první věty z postů s NEJVYŠŠÍM engagementem (zkrať na max 60 znaků)
+  - captionStyle: 1-2 věty o stylu captionů — délka, emoji, formátování, oslovení (česky)
+  - ctaHabits: 1 věta o tom, jaké CTA reálně používají (česky)
+- provenPatterns: 2-4 pozorování co PROKAZATELNĚ funguje (z porovnání engagement vysoký vs. nízký), česky, každé max 1 věta
 
 Vrať POUZE platný JSON.`
 
@@ -852,7 +867,23 @@ Content mix: ${JSON.stringify(analysis.igInsights.contentMix)}
 Brand tone hint: ${analysis.igInsights.brandToneHint}
 Visual style hint: ${analysis.igInsights.visualStyleHint}
 ${analysis.igInsights.bestPostingTimes ? `Best times: ${analysis.igInsights.bestPostingTimes.join(', ')}` : ''}
+${analysis.igInsights.voiceProfile ? `
+### HLAS ZNAČKY POZOROVANÝ NA REÁLNÉM FEEDU — brandVoice na něm MUSÍ stavět!
+Pozorované charakteristiky hlasu: ${analysis.igInsights.voiceProfile.voiceTraits.join(', ')}
+Skutečné hooky z nejvýkonnějších postů (inspirace pro hookTemplates): ${analysis.igInsights.voiceProfile.hookExamples.map(h => `"${h}"`).join(' | ')}
+Styl captionů: ${analysis.igInsights.voiceProfile.captionStyle}
+CTA návyky: ${analysis.igInsights.voiceProfile.ctaHabits}
+Web dodává oficiální tón značky; toto je, jak značka na IG SKUTEČNĚ mluví — voiceTraits, persona a ctaVariations z toho musí vycházet.` : ''}
+${analysis.igInsights.provenPatterns?.length ? `Prokazatelně funguje: ${analysis.igInsights.provenPatterns.join(' | ')}` : ''}
 ` : ''}
+${analysis.feedVisuals ? `
+### VIZUÁLNÍ ANALÝZA REÁLNÉHO FEEDU (Gemini vision nad skutečnými obrázky postů)
+Vizuální styl: ${analysis.feedVisuals.visualStyleSummary}
+Typografie na feedu: ${analysis.feedVisuals.typographyStyle}
+${analysis.feedVisuals.accentColorHex ? `Pozorovaná akcentová barva: ${analysis.feedVisuals.accentColorHex}` : ''}
+${analysis.feedVisuals.dominantArchetypes.length ? `Používané layout archetypy: ${analysis.feedVisuals.dominantArchetypes.join(', ')}` : ''}
+Co vizuálně funguje: ${analysis.feedVisuals.visualStrengths.join(' | ')}
+Doporučení: ${analysis.feedVisuals.visualRecommendations.join(' | ')}` : ''}
 ` : ''
 
         const configPrompt = `Vytvořme kompletní Instagram autopilot konfiguraci pro firmu "${analysis.companyName}".
@@ -924,7 +955,10 @@ Vygeneruj kompletní ClientConfig JSON. Buď kreativní ale přesný.
      "overlayOpacity": "35-45%",
      "textPosition": "BOTTOM",
      "font": "Inter, Helvetica Neue",
-     "feel": "... (popis vizuálního pocitu)"
+     "feel": "... (popis vizuálního pocitu)",
+     "accentColor": "... (#hex akcentová barva značky)",
+     "typographyStyle": "... (typografický styl pro nativní design engine, anglicky, např. 'bold condensed grotesque, uppercase')",
+     "logoPlacement": "auto"
    },
   "weekPlan": ["tip", "meme", "carousel", "product", "behind_scenes", "tip", "meme"],
   "hashtagPools": {
@@ -974,6 +1008,38 @@ DŮLEŽITÉ:
         }
         if (analysis.visualFeel && config.feedAesthetic) {
             config.feedAesthetic.feel = analysis.visualFeel
+        }
+        // Native-engine fields: scraped accent color + feed vision results beat AI guesses
+        if (config.feedAesthetic) {
+            const HEX_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+            const webAccent = analysis.colors?.accent?.trim()
+            const accentColor = (webAccent && HEX_RE.test(webAccent) ? webAccent : undefined)
+                ?? analysis.feedVisuals?.accentColorHex
+            if (accentColor) config.feedAesthetic.accentColor = accentColor
+
+            if (analysis.feedVisuals) {
+                config.feedAesthetic.typographyStyle = analysis.feedVisuals.typographyStyle
+                config.feedAesthetic.logoPlacement = analysis.feedVisuals.logoPlacementHabit ?? 'auto'
+                const visualNotes = [
+                    analysis.feedVisuals.visualStyleSummary,
+                    analysis.feedVisuals.visualRecommendations.length
+                        ? `Vizuální doporučení z analýzy původního feedu: ${analysis.feedVisuals.visualRecommendations.join('; ')}`
+                        : '',
+                ].filter(Boolean).join('\n')
+                config.feedAesthetic.customInstructions = [config.feedAesthetic.customInstructions, visualNotes]
+                    .filter(Boolean).join('\n')
+            }
+        }
+        // Persist the scrape snapshot — cold-start baseline for planWeek & performance context
+        if (analysis.igProfile && analysis.igInsights) {
+            config.igBaseline = {
+                followerCount: analysis.igProfile.followerCount,
+                avgEngagementRate: analysis.igInsights.avgEngagementRate,
+                topHashtags: analysis.igInsights.topHashtags.slice(0, 15),
+                contentMix: analysis.igInsights.contentMix,
+                bestPostingTimes: analysis.igInsights.bestPostingTimes,
+                scrapedAt: new Date().toISOString(),
+            }
         }
         // Set logo file if it was downloaded
         if (analysis.logoDownloaded) {
@@ -1224,6 +1290,8 @@ export async function saveReviewedConfig(
                 }
             }
 
+            await seedMemoriesFromAnalysis(clientId, analysis)
+
             console.log(`✅ Re-onboarding complete: ${existingClientSlug} (${clientId})`)
             // Invalidate config cache so Settings tab picks up new data
             const { invalidateConfigCache } = await import('@/instagram/configs')
@@ -1233,6 +1301,9 @@ export async function saveReviewedConfig(
 
         // ── NEW CLIENT: Insert ──
         const insertedClientId = await insertClient(clientSlug, config)
+
+        // Warm-start brand memory from the scraped feed (guarded — only when empty)
+        await seedMemoriesFromAnalysis(insertedClientId, analysis)
 
         // Sync products → ig_products
         if (config.products && config.products.length > 0) {
@@ -1275,6 +1346,21 @@ export async function saveReviewedConfig(
     } catch (error) {
         console.error('Save config error:', error)
         return { success: false, error: humanizeError(error) }
+    }
+}
+
+/** Seed ig_brand_memory from onboarding observations — fire & forget, non-fatal */
+async function seedMemoriesFromAnalysis(clientId: string, analysis: WebsiteAnalysis): Promise<void> {
+    try {
+        const seeds = [
+            ...(analysis.feedVisuals?.visualStrengths || []).map(c => ({ type: 'visual' as const, content: c })),
+            ...(analysis.igInsights?.provenPatterns || []).map(c => ({ type: 'pattern' as const, content: c })),
+        ]
+        if (seeds.length === 0) return
+        const { seedOnboardingMemories } = await import('@/instagram/memory-agent')
+        await seedOnboardingMemories(clientId, seeds)
+    } catch (err) {
+        console.warn('⚠️ Memory seeding failed (non-fatal):', (err as Error).message)
     }
 }
 

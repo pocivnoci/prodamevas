@@ -69,8 +69,17 @@ export async function planWeek(
         return `${d.dayOfWeekCz} ${d.date}${holidays}${nameday} [${d.seasonContext}]`
     }).join("\n")
 
-    // Performance context
+    // Performance context — cold start falls back to the onboarding IG scrape baseline
     let perfSection = "Žádná historická data — prvotní plánování."
+    if (performance.avgEngagement <= 0 && config.igBaseline) {
+        const ib = config.igBaseline
+        perfSection = [
+            `Žádná interní data, ale baseline z původního IG feedu (scrape ${ib.scrapedAt.substring(0, 10)}):`,
+            `Followers: ${ib.followerCount} | Engagement rate: ${(ib.avgEngagementRate * 100).toFixed(2)}%`,
+            ib.bestPostingTimes?.length ? `Ověřené časy z původního feedu: ${ib.bestPostingTimes.join(", ")} — preferuj je při plánování` : "",
+            Object.keys(ib.contentMix || {}).length ? `Content mix původního feedu: ${JSON.stringify(ib.contentMix)}` : "",
+        ].filter(Boolean).join("\n")
+    }
     if (performance.avgEngagement > 0) {
         const bestTimes = performance.bestTimeSlots.length > 0
             ? `Nejlepší časy: ${performance.bestTimeSlots.join(", ")}`

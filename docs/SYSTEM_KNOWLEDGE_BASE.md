@@ -91,6 +91,8 @@ graph TB
 > [!WARNING]
 > Config lives ONLY in DB (`clients.config` JSONB). No config files in codebase — only `configs/types.ts` (TypeScript interface) and `configs/index.ts` (DB loader with caching + runtime validation).
 
+> `ClientConfig.igBaseline` (optional) = snapshot z onboarding IG scrapu (followerCount, avgEngagementRate, topHashtags, contentMix, bestPostingTimes, scrapedAt). Cold-start fallback: `planWeek()` ho použije pro časy postování, dokud nejsou interní performance data.
+
 ---
 
 ## 3. Generation Pipeline (2-Step API)
@@ -209,7 +211,7 @@ A/B Variant Loop (variant-actions.ts)
 | `ig_products` | `name`, `type`, `slug`, `price`, `image_urls[]` | Products + photos |
 | `ig_product_ideas` | `name`, `concept`, `design_url` | AI product design concepts |
 | `ig_product_categories` | `name`, `client_id` | Product categories |
-| `ig_posts` | `caption`, `image_url`, `status`, `idea_id`, `review_id`, `product_id`, `likes`, `saves`, `reach`, `feedback`, `revision_of`, `link_type`, `design_brief` (jsonb) | `revision_of` + `link_type` ('revision'/'variant') link revisions & A/B variants; `design_brief` = AI Designer output (anti-repetition source) |
+| `ig_posts` | `caption`, `image_url`, `status`, `idea_id`, `review_id`, `product_id`, `likes`, `saves`, `reach`, `feedback`, `revision_of`, `link_type`, `design_brief` (jsonb) | `revision_of` + `link_type` ('revision'/'variant') link revisions & A/B variants; `design_brief` = AI Designer output (anti-repetition source: concept + `layoutArchetype` + typografie + color fingerprint; archetypy posledních 3 postů jsou pro další post hard-banned) |
 | `ig_content_calendar` | `date`, `post_id`, `time_slot` | Calendar scheduling |
 | `ig_generation_log` | `prompt_used`, `model_used`, `critic_score`, `critic_keep[]`, `critic_fix[]`, `qa_status` | Critic feedback for learning; `qa_status` = native QA outcome (pass/retry_pass/fallback/overlay) |
 | `ig_brand_memory` | `memory_type` (pattern/preference/avoid/visual), `content`, `confidence` | Long-term learning |
@@ -278,7 +280,8 @@ A/B Variant Loop (variant-actions.ts)
 | `calendar-actions.ts` | ~180 | planWeekCalendar() |
 | `product-brief-actions.ts` | ~155 | analyzeProductForBrief() → DOCX |
 | `memory-actions.ts` / `post-actions.ts` | ~100 | brand memory CRUD / post delete |
-| `app/onboarding/actions.ts` | ~1850 | analyzeWebsite() (web + HikerAPI IG scraping), generateConfigPreview(), refineConfigSection(), saveReviewedConfig() |
+| `app/onboarding/actions.ts` | ~1900 | analyzeWebsite() (web + HikerAPI IG scraping + vision analýza feedu přes `instagram/feed-vision.ts`), generateConfigPreview() (plní native feedAesthetic pole + `config.igBaseline`), refineConfigSection(), saveReviewedConfig() (+ seed `ig_brand_memory` z onboardingu, confidence 0.45) |
+| `instagram/feed-vision.ts` | ~150 | analyzeFeedVisuals() — Gemini vision nad max 8 obrázky scrapnutého feedu → FeedVisualProfile (typographyStyle, accentColorHex, logoPlacementHabit, dominantArchetypes, visualStrengths/Recommendations); fail-open |
 
 ---
 

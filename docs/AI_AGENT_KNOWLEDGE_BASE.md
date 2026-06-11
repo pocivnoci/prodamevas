@@ -39,7 +39,7 @@ Context Agent (svátek, počasí) ──→ buildMegaPrompt()
 | **Copywriter** | Generuje caption/script/carousel z mega promptu | `gemini-3.5-flash` |
 | **Critic** | Hodnotí 1–10, vrací `keep[]` a `fix[]` | `gemini-3.5-flash` |
 | **Editorial Board** | Šéfredaktor + copywriter revize (max 3 kola) | `gemini-3.5-flash` |
-| **AI Designer** (native engine, default) | Navrhuje kompletní design brief: kompozice, česká typografie, logo placement, anti-repetition vůči posledním 6 briefům (`generateDesignBrief` v `image-pipeline.ts`) | `gemini-3.1-pro` |
+| **AI Designer** (native engine, default) | Navrhuje kompletní design brief: kompozice, česká typografie, logo placement, anti-repetition vůči posledním 6 briefům (`generateDesignBrief` v `image-pipeline.ts`). Brief obsahuje `layoutArchetype` (8 hodnot v `LAYOUT_ARCHETYPES`); fingerprinty posledních postů (concept + layout + text placement + color) jdou do promptu a archetypy posledních 3 postů jsou **hard-banned** — porušení se detekuje v kódu a brief se regeneruje (1 retry). Cíl: stejný brand vibe, jiná struktura ("same shit different day" guard) | `gemini-3.1-pro` |
 | **Art Director** (overlay engine, legacy/fallback) | Vylepšuje text-free image prompt, injektuje vizuální pravidla z memory | `gemini-3.5-flash` |
 | **Renderer** | Native: Nano Banana Pro renderuje celý post vč. českého textu a loga → vision QA (`verifyNativeImage`) → 1 korektivní edit → Satori fallback. Overlay: text-free obrázek + Satori overlay | `gemini-3-pro-image` / Veo 3.1 |
 | **Memory Agent** | Analyzuje vzorce z postů, zapisuje/updatuje `ig_brand_memory` | `gemini-3.5-flash` |
@@ -244,6 +244,15 @@ app/actions/                          # server actions dekomponované podle dom�
 ├── product-brief-actions.ts / product-category-actions.ts / settings-actions.ts
 └── waitlist.ts + waitlist-admin.ts
 
-app/onboarding/actions.ts             # ~1850 LOC — web scan + HikerAPI IG scraping → config wizard
+app/onboarding/actions.ts             # ~1900 LOC — web scan + HikerAPI IG scraping → config wizard
+                                      #   enrichWithInstagram(): captiony (IgInsights vč. voiceProfile/provenPatterns)
+                                      #   + vision analýza reálných obrázků feedu (instagram/feed-vision.ts →
+                                      #   FeedVisualProfile: typographyStyle, accentColorHex, logoPlacementHabit,
+                                      #   dominantArchetypes z LAYOUT_ARCHETYPES, visualStrengths/Recommendations).
+                                      #   generateConfigPreview() z toho plní native pole feedAesthetic
+                                      #   (accentColor/typographyStyle/logoPlacement/customInstructions) + config.igBaseline;
+                                      #   saveReviewedConfig() seeduje ig_brand_memory (seedOnboardingMemories,
+                                      #   confidence 0.45, jen když je memory prázdná)
+instagram/feed-vision.ts              # vision audit scrapnutého IG feedu (max 8 obrázků, 1 multimodální call, fail-open)
 lib/env.ts + instrumentation.ts       # startup env validace + Sentry init
 ```

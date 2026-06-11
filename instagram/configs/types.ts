@@ -260,6 +260,19 @@ export interface ClientConfig {
     /** AI-generated shot list — what photos the client should provide.
      *  Generated during onboarding, displayed in BrandTab as "what’s missing". */
     imageBrief?: ImageBriefItem[]
+
+    /** Snapshot from the onboarding IG scrape — cold-start baseline for
+     *  planning (bestPostingTimes → planWeek) and performance context
+     *  until the engine has its own metrics. */
+    igBaseline?: {
+        followerCount: number
+        avgEngagementRate: number
+        topHashtags: string[]
+        contentMix: Record<string, number>
+        bestPostingTimes?: string[]
+        /** ISO timestamp of the scrape */
+        scrapedAt: string
+    }
 }
 
 // ─── Brand Image Type ────────────────────────────────────────────────

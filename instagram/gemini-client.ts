@@ -351,6 +351,50 @@ export async function detectLogoPlacementArea(imageBuffer: Buffer): Promise<{ x:
 }
 
 // ============================================
+// MULTI-IMAGE VISION ANALYSIS
+// ============================================
+
+/**
+ * Send multiple images + a text prompt to the vision model, get JSON text back.
+ * Used e.g. by feed-vision.ts to analyze a scraped Instagram feed during onboarding.
+ */
+export async function analyzeImagesWithText(
+    images: { buffer: Buffer; mimeType?: string; label?: string }[],
+    prompt: string,
+    options?: { responseSchema?: any; temperature?: number }
+): Promise<string> {
+    if (images.length === 0) throw new Error("analyzeImagesWithText: no images provided")
+
+    const parts: any[] = []
+    for (const img of images) {
+        if (img.label) parts.push({ text: img.label })
+        parts.push({
+            inlineData: {
+                mimeType: img.mimeType || "image/jpeg",
+                data: img.buffer.toString("base64"),
+            },
+        })
+    }
+    parts.push({ text: prompt })
+
+    return withRetry(async () => {
+        const response = await ai.models.generateContent({
+            model: getModel("vision"),
+            contents: [{ role: "user", parts }],
+            config: {
+                responseMimeType: "application/json",
+                ...(options?.responseSchema && { responseSchema: options.responseSchema }),
+                ...(options?.temperature !== undefined && { temperature: options.temperature }),
+            },
+        })
+
+        const text = response.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text
+        if (!text) throw new Error("Gemini vision returned no text")
+        return text
+    })
+}
+
+// ============================================
 // VIDEO GENERATION — Veo 3.1 (Reels)
 // ============================================
 

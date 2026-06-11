@@ -93,6 +93,9 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         contentFocus: config.contentFocus || config.name || slug,
         visualEngine: config.visualEngine || "native",
         videoTier: config.videoTier || "fast",
+        // igBaseline is optional with no default — undefined means "no scrape
+        // data available" and all consumers (planWeek) must handle that.
+        igBaseline: config.igBaseline,
     }
 }
 
