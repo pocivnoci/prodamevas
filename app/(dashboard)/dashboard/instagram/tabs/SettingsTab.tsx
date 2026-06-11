@@ -882,34 +882,70 @@ function VisualSection({ config, updateField, setGradientKey, handleLogoUpload, 
     projectId: string
     setConfig: (fn: any) => void
 }) {
+    const isNative = (config.visualEngine || "native") !== "overlay"
+
     return (
         <div className="space-y-6">
-            <SectionCard title="Vizuální Identita" description="Jak vypadají obrázky, overlay texty a feed">
+            <SectionCard title="Vizuální Engine" description="Jak se renderují obrázky postů">
+                <div className="grid grid-cols-2 gap-2">
+                    {[
+                        { value: "native", label: "AI Designer (nativní)", hint: "AI navrhne celý post vč. typografie a loga — každý post jiný design" },
+                        { value: "overlay", label: "Overlay (klasický)", hint: "AI fotka + programový text — stejný layout, 100% přesný text" },
+                    ].map(opt => (
+                        <button key={opt.value}
+                            onClick={() => updateField(["visualEngine"], opt.value)}
+                            className={`p-3 rounded-sm border text-left transition-all ${
+                                (config.visualEngine || "native") === opt.value
+                                    ? "border-emerald-500/40 bg-emerald-500/10"
+                                    : "border-white/10 bg-[#050505] hover:border-white/25"
+                            }`}>
+                            <span className={`block text-[10px] font-bold uppercase tracking-widest ${(config.visualEngine || "native") === opt.value ? "text-emerald-400" : "text-white/60"}`}>{opt.label}</span>
+                            <span className="block text-[9px] text-white/30 mt-1 font-medium">{opt.hint}</span>
+                        </button>
+                    ))}
+                </div>
+
+                {isNative && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <FieldLabel hint="Volný popis stylu písma — AI Designer se jím řídí (nejde o soubor fontu)">Styl typografie</FieldLabel>
+                            <input value={config.feedAesthetic?.typographyStyle || ""}
+                                onChange={(e) => updateField(["feedAesthetic", "typographyStyle"], e.target.value)}
+                                placeholder="Bold condensed grotesk, uppercase / elegantní serif s vysokým kontrastem" className={inputClass} />
+                        </div>
+                        <div>
+                            <FieldLabel hint="Auto = AI volí pozici a střídá ji mezi posty">Pozice loga</FieldLabel>
+                            <select value={config.feedAesthetic?.logoPlacement || "auto"}
+                                onChange={(e) => updateField(["feedAesthetic", "logoPlacement"], e.target.value)}
+                                className={inputClass}>
+                                <option value="auto">Auto — AI rozhodne (doporučeno)</option>
+                                <option value="top-left">Vlevo nahoře</option>
+                                <option value="top-right">Vpravo nahoře</option>
+                                <option value="bottom-left">Vlevo dole</option>
+                                <option value="bottom-right">Vpravo dole</option>
+                            </select>
+                        </div>
+                    </div>
+                )}
+
+                <div>
+                    <FieldLabel hint="Kvalita/cena videa pro reels — Lite ~$0.06/s, Fast $0.15/s, Premium $0.40/s">Video kvalita (reels)</FieldLabel>
+                    <select value={config.videoTier || "fast"}
+                        onChange={(e) => updateField(["videoTier"], e.target.value)}
+                        className={inputClass}>
+                        <option value="lite">Lite — nejlevnější</option>
+                        <option value="fast">Fast — doporučeno</option>
+                        <option value="premium">Premium — nejvyšší kvalita</option>
+                    </select>
+                </div>
+            </SectionCard>
+
+            <SectionCard title="Vizuální Identita" description="Brand vstupy pro AI generování obrázků">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <FieldLabel hint="Popis atmosféry pro AI generování obrázků">Atmosféra & Styl fotek</FieldLabel>
                         <input value={config.feedAesthetic?.feel || ""} onChange={(e) => updateField(["feedAesthetic", "feel"], e.target.value)}
                             placeholder="Přírodní, hřejivý, denní světlo, rustikální" className={inputClass} />
-                    </div>
-                    <div>
-                        <FieldLabel>Font přes obrázky</FieldLabel>
-                        <select value={config.feedAesthetic?.fontOverride || "Inter"}
-                            onChange={(e) => updateField(["feedAesthetic", "fontOverride"], e.target.value)}
-                            className={inputClass}>
-                            <option value="Inter">Inter — moderní, čistý</option>
-                            <option value="BebasNeue">Bebas Neue — streetwear, bold</option>
-                        </select>
-                    </div>
-                    <div>
-                        <FieldLabel>Styl textu na obrázku</FieldLabel>
-                        <select value={config.defaultFormat?.overlayStyle || "default"}
-                            onChange={(e) => setConfig((prev: any) => ({ ...prev, defaultFormat: { ...(prev.defaultFormat || {}), overlayStyle: e.target.value } }))}
-                            className={inputClass}>
-                            <option value="default">Klasický — text dole</option>
-                            <option value="cover">Přes celý — velký text, silnější gradient</option>
-                            <option value="minimal">Minimální — žádný gradient</option>
-                            <option value="none">Bez textu — čistý obrázek</option>
-                        </select>
                     </div>
                     <div>
                         <FieldLabel hint="Hex barva pro zvýrazněná klíčová slova v textu">Barva zvýraznění</FieldLabel>
@@ -1005,8 +1041,36 @@ function VisualSection({ config, updateField, setGradientKey, handleLogoUpload, 
                 <p className="text-[9px] text-white/20">Max 5 MB. Doporučujeme PNG s průhledným pozadím.</p>
             </SectionCard>
 
-            {/* Gradient */}
-            <SectionCard title="Barvy gradientu" description="Pozadí textu na obrázcích">
+            {/* Legacy overlay engine — used for visualEngine "overlay" and as QA fallback */}
+            <SectionCard
+                title="Overlay Engine (záloha)"
+                description={isNative
+                    ? "Tyto volby se použijí jen když AI Designer selže QA kontrolu (záložní render) — nebo když přepneš engine na Overlay"
+                    : "Nastavení programového textu přes obrázky (Satori)"}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <FieldLabel>Font přes obrázky</FieldLabel>
+                        <select value={config.feedAesthetic?.fontOverride || "Inter"}
+                            onChange={(e) => updateField(["feedAesthetic", "fontOverride"], e.target.value)}
+                            className={inputClass}>
+                            <option value="Inter">Inter — moderní, čistý</option>
+                            <option value="BebasNeue">Bebas Neue — streetwear, bold</option>
+                        </select>
+                    </div>
+                    <div>
+                        <FieldLabel>Styl textu na obrázku</FieldLabel>
+                        <select value={config.defaultFormat?.overlayStyle || "default"}
+                            onChange={(e) => setConfig((prev: any) => ({ ...prev, defaultFormat: { ...(prev.defaultFormat || {}), overlayStyle: e.target.value } }))}
+                            className={inputClass}>
+                            <option value="default">Klasický — text dole</option>
+                            <option value="cover">Přes celý — velký text, silnější gradient</option>
+                            <option value="minimal">Minimální — žádný gradient</option>
+                            <option value="none">Bez textu — čistý obrázek</option>
+                        </select>
+                    </div>
+                </div>
+
+                <FieldLabel hint="Pozadí textu na obrázcích (overlay render)">Barvy gradientu</FieldLabel>
                 <div className="grid grid-cols-3 gap-3">
                     {[
                         { key: "topColor", label: "Vrchní" },
