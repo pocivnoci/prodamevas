@@ -118,6 +118,8 @@ export async function generateOnePost(options: {
     /** Explicit product ID from ig_products — overrides random product selection */
     productId?: string
     campaignContext?: { postNumber: number; totalPosts: number; previousPosts: { hook: string; topic: string }[] }
+    /** Media allowed by the subscription plan (undefined = everything; legacy plans). Disallowed medium gets clamped to carousel. */
+    allowedMedia?: string[]
     onProgress?: (stage: string, progress: number, message: string, editorialLog?: EditorialMessage[]) => Promise<void>
 }): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number }> {
     const report = options.onProgress || (async () => { }) // no-op if not provided
@@ -323,6 +325,17 @@ export async function generateOnePost(options: {
             format.overlayStyle = "cover"
         }
         console.log(`   📐 Médium přepsáno uživatelem: ${options.medium}`)
+    }
+
+    // Plan media gating: config/category may still ask for a medium the
+    // subscription doesn't include (e.g. reel on the Start tier) — clamp it.
+    if (options.allowedMedia && !options.allowedMedia.includes(format.medium)) {
+        const original = format.medium
+        format.medium = options.allowedMedia.includes("carousel") ? "carousel" : "image"
+        if (format.medium === "carousel" && format.overlayStyle === "none") {
+            format.overlayStyle = "cover"
+        }
+        console.log(`   🔒 Médium "${original}" není v balíčku — fallback na ${format.medium}`)
     }
 
     // Smart overlay rotation — for image posts only, auto-select layout variant

@@ -216,9 +216,10 @@ A/B Variant Loop (variant-actions.ts)
 | `ig_generation_log` | `prompt_used`, `model_used`, `critic_score`, `critic_keep[]`, `critic_fix[]`, `qa_status` | Critic feedback for learning; `qa_status` = native QA outcome (pass/retry_pass/fallback/overlay) |
 | `ig_brand_memory` | `memory_type` (pattern/preference/avoid/visual), `content`, `confidence` | Long-term learning |
 | `ig_jobs` | `status`, `progress`, `agent_message`, `editorial_log` (jsonb), `result` (jsonb) | Progress + editorial board log |
-| `subscription_plans` | `id`, `name`, `price_czk`, `features` | Plan definitions |
-| `subscriptions` | `client_id`, `plan_id`, `status`, `plan_posts_unlocked` | Active subscriptions |
+| `subscription_plans` | `id`, `name`, `price_czk`, `features` | Plan definitions — v3 growth tiery: `chrlit_start` (490 Kč/15 kr), `chrlit_rust` (990 Kč/40 kr, +post_variant +reel +growth_tracking), `chrlit_dominance` (1990 Kč/100 kr, +product studio +priority). Features JSON nově: `allowed_media[]` (chybí = vše povoleno, legacy), `growth_tracking` bool. Staré `chrlit` deaktivováno (grandfathered) |
+| `subscriptions` | `client_id`, `plan_id`, `status`, `plan_posts_unlocked` | Active subscriptions — `activatePaidPlan(clientId, planId, subId?)` aktivuje zaplacený plán (z pending sub) a cancelne ostatní live subs klienta |
 | `payments` | `comgate_trans_id`, `amount`, `status` | Comgate payments |
+| `ig_growth_snapshots` | `client_id`, `follower_count`, `following_count`, `media_count`, `captured_at` | Týdenní follower snapshoty (cron po 6:00 UTC) pro plány s `growth_tracking` — growth dashboard v PerformanceTab |
 
 ---
 
@@ -262,7 +263,9 @@ A/B Variant Loop (variant-actions.ts)
 | `POST /api/payments/create` | ✅ client membership | 10s | Create Comgate payment (mock disabled on prod) |
 | `POST /api/payments/callback` | ❌ (webhook) | 10s | Comgate status callback (server-side verification) |
 | `GET /api/payments/return` | ❌ (redirect) | 10s | Post-payment redirect |
-| `GET /api/subscription` | ✅ | 10s | Client subscription info |
+| `GET /api/subscription` | ✅ | 10s | Client subscription info (+ `allowedMedia`, `growthTracking`) |
+| `GET /api/plans` | ✅ | 10s | Aktivní plány pro pricing UI (bez trial_v2) |
+| `GET /api/cron/growth-snapshot` | ❌ (CRON_SECRET bearer) | 300s | Týdenní follower snapshot pro growth_tracking plány (vercel.json cron `0 6 * * 1`) |
 
 > `POST /api/ig-generate` byl odstraněn (v4.1) — obcházel rate limit i kredity a UI ho nepoužívalo.
 
@@ -326,7 +329,8 @@ A/B Variant Loop (variant-actions.ts)
 | `COMGATE_SECRET` | Yes for payments | lib/comgate.ts |
 | `COMGATE_MOCK` | Optional (ignored on prod) | lib/comgate.ts — isMockPaymentMode() |
 | `NEXT_PUBLIC_SITE_URL` | Yes | auth callback, payments |
-| `HIKERAPI_KEY` | Optional | onboarding IG scraping (graceful skip) |
+| `HIKERAPI_KEY` | Optional | IG scraping — onboarding + growth cron (graceful skip), `lib/ig-scraper.ts` |
+| `CRON_SECRET` | Optional | auth pro `/api/cron/growth-snapshot` (Vercel cron posílá Bearer automaticky) |
 | `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Optional | error monitoring (server / client) |
 
 ---

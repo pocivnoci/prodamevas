@@ -2,37 +2,67 @@
 
 import { useStudio, type SubscriptionState } from "@/app/(dashboard)/StudioContext"
 import { CheckCircle2 } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
-const PLAN = {
-    id: "chrlit",
-    name: "Chrlit",
-    price: 490,
-    credits: 30,
-    extraCreditPrice: 15,
-    features: [
-        "AI posty s unikátními obrázky",
-        "Captiony + hashtagy ve vašem stylu",
-        "Carousel posty",
-        "Varianty příspěvků",
-        "AI nápady na obsah",
-        "Produktové vizualizace",
-        "Analytika výkonu",
-        "Neomezené projekty",
-    ],
+interface PlanRow {
+    id: string
+    name: string
+    description: string | null
+    price_czk: number
+    features: {
+        credits_per_month: number
+        allowed_actions: string[]
+        allowed_media?: string[]
+        growth_tracking?: boolean
+        analytics: "basic" | "full"
+        priority: boolean
+        highlight: boolean
+        extra_credit_price: number
+    }
+}
+
+/** Marketing one-liners per tier */
+const PLAN_TAGLINES: Record<string, string> = {
+    chrlit_start: "Nakopni profil",
+    chrlit_rust: "Rosteme spolu",
+    chrlit_dominance: "Ovládni svůj trh",
+}
+
+function planFeatureList(p: PlanRow): string[] {
+    const f = p.features
+    const items = [
+        `${f.credits_per_month} kreditů měsíčně`,
+        "AI posty — obrázky a carousely",
+    ]
+    if (!f.allowed_media || f.allowed_media.includes("reel")) items.push("Reels (AI video)")
+    if (f.allowed_actions.includes("post_variant")) items.push("A/B varianty příspěvků")
+    if (f.allowed_actions.includes("idea_generate")) items.push("AI nápady na obsah")
+    if (f.growth_tracking) items.push("Růstový dashboard — sledování followerů")
+    if (f.allowed_actions.some(a => a.startsWith("product_"))) items.push("Product studio — vizualizace & mockupy")
+    items.push(f.analytics === "full" ? "Plná analytika výkonu" : "Základní analytika")
+    if (f.priority) items.push("Prioritní generování")
+    return items
 }
 
 export function SubscriptionSection({ projectId }: { projectId: string }) {
     const { subscription, subscriptionLoading, refreshSubscription } = useStudio()
-    const [upgrading, setUpgrading] = useState(false)
+    const [plans, setPlans] = useState<PlanRow[]>([])
+    const [upgradingPlanId, setUpgradingPlanId] = useState<string | null>(null)
 
-    const handleUpgrade = async () => {
-        setUpgrading(true)
+    useEffect(() => {
+        fetch("/api/plans")
+            .then(r => r.ok ? r.json() : { plans: [] })
+            .then(d => setPlans(d.plans || []))
+            .catch(() => setPlans([]))
+    }, [])
+
+    const handleUpgrade = async (planId: string) => {
+        setUpgradingPlanId(planId)
         try {
             const resp = await fetch("/api/payments/create", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ planId: PLAN.id, clientId: projectId }),
+                body: JSON.stringify({ planId, clientId: projectId }),
             })
             const data = await resp.json()
             if (data.redirectUrl) {
@@ -43,7 +73,7 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
         } catch (err) {
             alert("Nepodařilo se vytvořit platbu.")
         } finally {
-            setUpgrading(false)
+            setUpgradingPlanId(null)
         }
     }
 
@@ -55,8 +85,6 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
             </div>
         )
     }
-
-    const isCurrent = subscription?.planId === PLAN.id || subscription?.status === "active"
 
     return (
         <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-6 space-y-6">
@@ -73,36 +101,65 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                 </div>
             )}
 
-            {/* Single plan card */}
-            {!isCurrent && (
-                <div className="max-w-md mx-auto rounded-sm border-2 border-aisummit-cinnabar/40 bg-aisummit-cinnabar/5 p-6">
-                    <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-xs font-black uppercase tracking-widest text-white">{PLAN.name}</h4>
-                    </div>
-                    <div className="mb-2">
-                        <span className="text-3xl font-black text-white">{PLAN.price}</span>
-                        <span className="text-white/40 text-[10px] font-bold ml-1">Kč/měs</span>
-                    </div>
-                    <div className="bg-aisummit-cinnabar/10 rounded-sm px-3 py-2 mb-4 border border-aisummit-cinnabar/20">
-                        <span className="text-white font-black text-xs">{PLAN.credits}</span>
-                        <span className="text-white/40 text-[9px] font-bold ml-1">kreditů v ceně</span>
-                        <span className="text-white/30 text-[9px] block">Dobíjecí za {PLAN.extraCreditPrice} Kč/ks</span>
-                    </div>
-                    <ul className="space-y-1.5 mb-4">
-                        {PLAN.features.map((f, i) => (
-                            <li key={i} className="flex items-center gap-1.5 text-[10px] text-white/50">
-                                <CheckCircle2 className="w-3 h-3 text-aisummit-cinnabar/60 shrink-0" />
-                                {f}
-                            </li>
-                        ))}
-                    </ul>
-                    <button
-                        onClick={handleUpgrade}
-                        disabled={upgrading}
-                        className={`w-full py-2.5 rounded-sm text-[9px] font-bold uppercase tracking-widest transition-all bg-aisummit-cinnabar text-white hover:bg-aisummit-cinnabar/90 ${upgrading ? 'opacity-50' : ''}`}
-                    >
-                        {upgrading ? "Zpracování..." : "Předplatit"}
-                    </button>
+            {/* Growth tier cards */}
+            {plans.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {plans.map(plan => {
+                        const isCurrent = subscription?.planId === plan.id && subscription?.status === "active"
+                        const highlight = plan.features.highlight
+                        return (
+                            <div
+                                key={plan.id}
+                                className={`rounded-sm p-5 flex flex-col border-2 ${
+                                    isCurrent
+                                        ? "border-emerald-500/40 bg-emerald-500/5"
+                                        : highlight
+                                            ? "border-aisummit-cinnabar/40 bg-aisummit-cinnabar/5"
+                                            : "border-white/10 bg-[#080808]"
+                                }`}
+                            >
+                                <div className="flex items-center justify-between mb-1">
+                                    <h4 className="text-xs font-black uppercase tracking-widest text-white">{plan.name}</h4>
+                                    {highlight && !isCurrent && (
+                                        <span className="text-[8px] bg-aisummit-cinnabar/20 text-aisummit-cinnabar px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
+                                            Doporučeno
+                                        </span>
+                                    )}
+                                    {isCurrent && (
+                                        <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
+                                            Váš plán
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-[9px] text-white/30 font-bold uppercase tracking-widest mb-3">
+                                    {PLAN_TAGLINES[plan.id] || plan.description || ""}
+                                </p>
+                                <div className="mb-3">
+                                    <span className="text-3xl font-black text-white">{Math.round(plan.price_czk / 100)}</span>
+                                    <span className="text-white/40 text-[10px] font-bold ml-1">Kč/měs</span>
+                                </div>
+                                <ul className="space-y-1.5 mb-4 flex-1">
+                                    {planFeatureList(plan).map((f, i) => (
+                                        <li key={i} className="flex items-center gap-1.5 text-[10px] text-white/50">
+                                            <CheckCircle2 className="w-3 h-3 text-aisummit-cinnabar/60 shrink-0" />
+                                            {f}
+                                        </li>
+                                    ))}
+                                </ul>
+                                <button
+                                    onClick={() => handleUpgrade(plan.id)}
+                                    disabled={isCurrent || upgradingPlanId !== null}
+                                    className={`w-full py-2.5 rounded-sm text-[9px] font-bold uppercase tracking-widest transition-all ${
+                                        isCurrent
+                                            ? "bg-white/5 text-white/30 cursor-default"
+                                            : "bg-aisummit-cinnabar text-white hover:bg-aisummit-cinnabar/90"
+                                    } ${upgradingPlanId === plan.id ? "opacity-50" : ""}`}
+                                >
+                                    {isCurrent ? "Aktivní" : upgradingPlanId === plan.id ? "Zpracování..." : `Přejít na ${plan.name}`}
+                                </button>
+                            </div>
+                        )
+                    })}
                 </div>
             )}
         </div>

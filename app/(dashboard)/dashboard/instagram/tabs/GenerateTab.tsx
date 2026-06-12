@@ -20,7 +20,8 @@ import type { IGPostType, IGCategory, IGPostFormat } from "./types"
 import { trackEvent } from "@/lib/analytics"
 
 export function GenerateTab({ projectId }: { projectId: string }) {
-    const { refreshSubscription, setActiveSection } = useStudio()
+    const { refreshSubscription, setActiveSection, subscription } = useStudio()
+    const reelAllowed = subscription?.allowedMedia?.includes("reel") ?? true
     const { showPlanUnlockModal } = usePaywall()
     const [postTypes, setPostTypes] = useState<IGPostType[]>([])
     const [postFormats, setPostFormats] = useState<Record<string, IGPostFormat>>({})
@@ -640,13 +641,21 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                             <div>
                                                 <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">🎞️ Typ</label>
                                                 <div className="grid grid-cols-4 gap-2">
-                                                    {[{ value: "", label: "Auto", emoji: "🎲" }, { value: "image", label: "Obrázek", emoji: "🖼️" }, { value: "carousel", label: "Carousel", emoji: "📸" }, { value: "reel", label: "Reel", emoji: "🎬" }].map(opt => (
-                                                        <button key={opt.value} onClick={() => setMedium(opt.value)}
-                                                            className={`py-2.5 rounded-sm text-center transition-all border text-xs font-bold ${medium === opt.value
-                                                                ? "bg-white/10 border-white/30 text-white" : "bg-[#050505] border-white/10 text-white/40 hover:text-white"}`}>
-                                                            {opt.emoji} {opt.label}
-                                                        </button>
-                                                    ))}
+                                                    {[{ value: "", label: "Auto", emoji: "🎲" }, { value: "image", label: "Obrázek", emoji: "🖼️" }, { value: "carousel", label: "Carousel", emoji: "📸" }, { value: "reel", label: "Reel", emoji: "🎬" }].map(opt => {
+                                                        const locked = opt.value === "reel" && !reelAllowed
+                                                        return (
+                                                            <button key={opt.value} onClick={() => !locked && setMedium(opt.value)}
+                                                                disabled={locked}
+                                                                title={locked ? "Reels jsou dostupné od balíčku Růst" : undefined}
+                                                                className={`py-2.5 rounded-sm text-center transition-all border text-xs font-bold ${locked
+                                                                    ? "bg-[#050505] border-white/5 text-white/20 cursor-not-allowed"
+                                                                    : medium === opt.value
+                                                                        ? "bg-white/10 border-white/30 text-white" : "bg-[#050505] border-white/10 text-white/40 hover:text-white"}`}>
+                                                                {locked ? "🔒" : opt.emoji} {opt.label}
+                                                                {locked && <span className="block text-[8px] text-white/25 font-bold uppercase tracking-widest mt-0.5">Od Růst</span>}
+                                                            </button>
+                                                        )
+                                                    })}
                                                 </div>
                                             </div>
                                             <div>

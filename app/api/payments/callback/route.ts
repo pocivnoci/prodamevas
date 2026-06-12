@@ -73,15 +73,26 @@ export async function POST(req: NextRequest) {
             })
         }
 
-        // If PAID → upgrade subscription (trial → paid) + unlock plan posts
+        // If PAID → activate the purchased plan (trial → paid, or tier change) + unlock plan posts
         if (confirmedStatus === "PAID" && payment.client_id) {
+            // The purchased plan lives on the pending subscription created at payment init
+            let purchasedPlanId = "chrlit" // legacy fallback
+            if (payment.subscription_id) {
+                const { data: pendingSub } = await supabaseAdmin
+                    .from("subscriptions")
+                    .select("plan_id")
+                    .eq("id", payment.subscription_id)
+                    .single()
+                if (pendingSub?.plan_id) purchasedPlanId = pendingSub.plan_id
+            }
+
             try {
-                const { upgradeTrialToPaid } = await import("@/lib/subscription")
-                await upgradeTrialToPaid(payment.client_id)
-                console.log(`✅ Subscription upgraded for client ${payment.client_id} — all plan posts unlocked`)
+                const { activatePaidPlan } = await import("@/lib/subscription")
+                await activatePaidPlan(payment.client_id, purchasedPlanId, payment.subscription_id || undefined)
+                console.log(`✅ Plan "${purchasedPlanId}" activated for client ${payment.client_id} — all plan posts unlocked`)
             } catch (upgradeErr) {
                 // Fallback: manual upgrade if the function fails
-                console.error("upgradeTrialToPaid failed, falling back:", upgradeErr)
+                console.error("activatePaidPlan failed, falling back:", upgradeErr)
                 if (payment.subscription_id) {
                     const now = new Date()
                     const periodEnd = new Date(now)
@@ -90,7 +101,7 @@ export async function POST(req: NextRequest) {
                     await supabaseAdmin
                         .from("subscriptions")
                         .update({
-                            plan_id: "chrlit",
+                            plan_id: purchasedPlanId,
                             status: "active",
                             current_period_start: now.toISOString(),
                             current_period_end: periodEnd.toISOString(),

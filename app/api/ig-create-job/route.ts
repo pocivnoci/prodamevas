@@ -38,6 +38,20 @@ export async function POST(req: Request) {
             }
         }
 
+        // Media gating: reels only from the Růst tier up (admin bypass)
+        let allowedMedia: string[] | undefined
+        if (!isSuperAdmin) {
+            const { getClientSubscription, canUseMedium } = await import("@/lib/subscription")
+            const sub = await getClientSubscription(clientId)
+            allowedMedia = sub?.features?.allowed_media
+            if (body.medium === "reel" && !canUseMedium(sub?.features, "reel")) {
+                return NextResponse.json(
+                    { success: false, error: "Reels jsou dostupné od balíčku Růst.", featureBlocked: true, planRequired: "Růst" },
+                    { status: 403 }
+                )
+            }
+        }
+
         // Credit check + charge happen at job creation (not after generation) so two
         // parallel jobs can't both pass the check and spend the same credit.
         // ig-run-job refunds the charge if generation fails.
@@ -71,6 +85,7 @@ export async function POST(req: Request) {
                     campaignContext: body.campaignContext,
                     productId: body.productId,
                     charged,
+                    allowedMedia,
                 },
                 status: "researcher",
                 progress: 5,

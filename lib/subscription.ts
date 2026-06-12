@@ -68,6 +68,8 @@ export const ACTION_LABELS: Record<ActionType, string> = {
     product_brief: "Business Brief",
 }
 
+export type MediumType = "image" | "carousel" | "reel"
+
 export interface PlanFeatures {
     credits_per_month: number
     max_projects: number
@@ -80,6 +82,15 @@ export interface PlanFeatures {
     // v2: plan post limits
     plan_posts_limit?: number  // how many plan posts are unlocked (3 for trial, 30 for paid)
     plan_posts_total?: number  // total plan posts generated (always 30)
+    // v3 growth tiers
+    allowed_media?: MediumType[]   // missing = all media allowed (legacy plans)
+    growth_tracking?: boolean      // weekly follower snapshots + growth dashboard
+}
+
+/** Media gating: plans without allowed_media (trial_v2, legacy chrlit) allow everything. */
+export function canUseMedium(features: PlanFeatures | null | undefined, medium: MediumType): boolean {
+    if (!features?.allowed_media) return true
+    return features.allowed_media.includes(medium)
 }
 
 export interface SubscriptionInfo {
@@ -115,30 +126,37 @@ export interface CanPerformResult {
  * Get the active subscription + usage for a client.
  * Returns null if no subscription exists.
  */
+/** active beats trialing beats pending — a freshly initiated (unpaid) upgrade
+ *  must never mask the customer's live plan. */
+function pickLiveSubscription<T extends { status: string }>(rows: T[] | null): T | null {
+    if (!rows || rows.length === 0) return null
+    const priority: Record<string, number> = { active: 0, trialing: 1, pending: 2 }
+    return [...rows].sort((a, b) => (priority[a.status] ?? 9) - (priority[b.status] ?? 9))[0]
+}
+
 export async function getClientSubscription(clientId: string): Promise<SubscriptionInfo | null> {
     // 1. Get active/trialing subscription (with v2 columns, fallback to legacy)
     let sub: any = null
-    const { data: subV2, error: v2Error } = await supabaseAdmin
+    const { data: subsV2, error: v2Error } = await supabaseAdmin
         .from("subscriptions")
         .select("id, plan_id, status, trial_ends_at, current_period_start, current_period_end, created_at, plan_generated_at, plan_posts_unlocked")
         .eq("client_id", clientId)
         .in("status", ["active", "trialing", "pending"])
         .order("created_at", { ascending: false })
-        .limit(1)
-        .single()
+        .limit(5)
 
-    if (subV2 && !v2Error) {
-        sub = subV2
+    if (subsV2 && !v2Error) {
+        sub = pickLiveSubscription(subsV2)
     } else {
         // Fallback: v2 columns don't exist yet (migration not run)
-        const { data: subLegacy } = await supabaseAdmin
+        const { data: subsLegacy } = await supabaseAdmin
             .from("subscriptions")
             .select("id, plan_id, status, trial_ends_at, current_period_start, current_period_end, created_at")
             .eq("client_id", clientId)
             .in("status", ["active", "trialing", "pending"])
             .order("created_at", { ascending: false })
-            .limit(1)
-            .single()
+            .limit(5)
+        const subLegacy = pickLiveSubscription(subsLegacy)
         sub = subLegacy ? { ...subLegacy, plan_generated_at: null, plan_posts_unlocked: 0 } : null
     }
 
@@ -477,30 +495,36 @@ export async function createTrialSubscription(clientId: string): Promise<void> {
 }
 
 /**
- * Upgrade a trial subscription to paid (after successful payment).
- * Called by payment callback.
+ * Activate a paid plan after a successful payment (payment callback).
+ * Works for trial → paid AND tier changes (Start → Růst → Dominance):
+ * activates the paid subscription on the given plan and cancels any other
+ * non-cancelled subscription of the client, so exactly one stays active.
  */
-export async function upgradeTrialToPaid(clientId: string): Promise<void> {
+export async function activatePaidPlan(clientId: string, planId: string, subscriptionId?: string): Promise<void> {
     const now = new Date()
     const periodEnd = new Date(now)
     periodEnd.setMonth(periodEnd.getMonth() + 1)
 
-    // Find active trial
-    const { data: sub } = await supabaseAdmin
-        .from("subscriptions")
-        .select("id")
-        .eq("client_id", clientId)
-        .in("status", ["trialing", "pending"])
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single()
+    // The subscription to activate: the one linked to the payment, or the
+    // latest live one (pending created at payment init / trial)
+    let sub: { id: string } | null = subscriptionId ? { id: subscriptionId } : null
+    if (!sub) {
+        const { data } = await supabaseAdmin
+            .from("subscriptions")
+            .select("id")
+            .eq("client_id", clientId)
+            .in("status", ["trialing", "pending", "active"])
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single()
+        sub = data
+    }
 
     if (sub) {
-        // Upgrade existing trial
         await supabaseAdmin
             .from("subscriptions")
             .update({
-                plan_id: "chrlit",
+                plan_id: planId,
                 status: "active",
                 current_period_start: now.toISOString(),
                 current_period_end: periodEnd.toISOString(),
@@ -508,6 +532,14 @@ export async function upgradeTrialToPaid(clientId: string): Promise<void> {
                 updated_at: now.toISOString(),
             })
             .eq("id", sub.id)
+
+        // Exactly one live subscription per client
+        await supabaseAdmin
+            .from("subscriptions")
+            .update({ status: "cancelled", cancelled_at: now.toISOString(), updated_at: now.toISOString() })
+            .eq("client_id", clientId)
+            .neq("id", sub.id)
+            .in("status", ["trialing", "pending", "active"])
     }
 
     // Unlock all plan_locked posts for this client
@@ -518,8 +550,16 @@ export async function upgradeTrialToPaid(clientId: string): Promise<void> {
         .eq("status", "plan_locked")
 }
 
+/** @deprecated Use activatePaidPlan(clientId, planId) — kept for old call sites */
+export async function upgradeTrialToPaid(clientId: string): Promise<void> {
+    return activatePaidPlan(clientId, "chrlit")
+}
+
 // ─── Helpers ─────────────────────────────────────────────────
 
+/** Which tier unlocks a given action — used in upgrade-nudge messages */
 function getPlanForAction(action: ActionType): string {
-    return "Chrlit"
+    if (action.startsWith("product_")) return "Dominance"
+    if (action === "post_variant") return "Růst"
+    return "Start"
 }

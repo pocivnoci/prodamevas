@@ -38,6 +38,9 @@ export async function GET(req: NextRequest) {
             allowedActions: sub.features.allowed_actions,
             analytics: sub.features.analytics,
             maxProjects: sub.features.max_projects,
+            // v3 growth tiers: missing allowed_media = all media (legacy plans)
+            allowedMedia: sub.features.allowed_media ?? ["image", "carousel", "reel"],
+            growthTracking: sub.features.growth_tracking ?? false,
             // v2: plan tracking
             planPostsUnlocked: sub.planPostsUnlocked,
             planPostsLimit: sub.features.plan_posts_limit || 0,

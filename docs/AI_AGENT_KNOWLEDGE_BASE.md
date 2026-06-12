@@ -190,6 +190,8 @@ buildSmartWeekPlan()  // pillar ratio × 1.5 (top) / × 0.5 (under), normalizov�
 18. **link_type**: `revision_of` linkuje revize i A/B varianty — `link_type` ('revision'/'variant') je rozlišuje. A/B srovnání a `learnFromVariantSelection` filtrují na 'variant'.
 19. **Config cache TTL 60s**: `invalidateConfigCache()` čistí jen lokální lambdu — ostatní instance expirují přes TTL. Nikdy nespoléhat na okamžitou propagaci configu.
 20. **Mock platby na produkci**: `isMockPaymentMode()` ignoruje `COMGATE_MOCK=true` když `VERCEL_ENV=production`.
+21. **Media gating (v3 tiery)**: reel je povolen od plánu Růst. Enforcement 2×: `ig-create-job` vrací 403 `featureBlocked` při explicitním `medium:"reel"`, a `generateOnePost({ allowedMedia })` clampne medium z configu/kategorie na carousel/image. Plány bez `features.allowed_media` (trial_v2, legacy chrlit) = vše povoleno (`canUseMedium` v `lib/subscription.ts`).
+22. **Aktivace plánu po platbě**: `activatePaidPlan(clientId, planId, subscriptionId?)` — planId se čte z pending subscription vytvořené při `payments/create`; ostatní live subs klienta se cancelnou. Nikdy nehardcodovat plan id v callbacku.
 21. **reviseCaption()**: revize captionu žije v `caption-generator.ts` (engine) — NIKDY nestavět copywriter prompt v `app/actions`.
 
 ---

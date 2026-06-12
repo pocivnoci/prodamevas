@@ -50,6 +50,7 @@ export async function POST(req: Request) {
             customImageUrl: config.customImageUrl,
             productId: config.productId,
             campaignContext: config.campaignContext,
+            allowedMedia: config.allowedMedia,
             onProgress: async (stage: string, progress: number, message: string, editorialLog?: any[]) => {
                 const update: Record<string, any> = { status: stage, progress, agent_message: message }
                 if (editorialLog && editorialLog.length > 0) {

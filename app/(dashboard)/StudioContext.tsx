@@ -54,6 +54,9 @@ export interface SubscriptionState {
     planPostsTotal: number
     planGeneratedAt: string | null
     isTrial: boolean
+    // v3: growth tiers
+    allowedMedia: string[]
+    growthTracking: boolean
 }
 
 interface StudioState {
@@ -114,6 +117,8 @@ export function StudioProvider({ children }: { children: ReactNode }) {
                     planPostsTotal: data.planPostsTotal ?? 0,
                     planGeneratedAt: data.planGeneratedAt ?? null,
                     isTrial: data.isTrial ?? false,
+                    allowedMedia: data.allowedMedia ?? ["image", "carousel", "reel"],
+                    growthTracking: data.growthTracking ?? false,
                 } : null)
             } else {
                 setSubscription(null)

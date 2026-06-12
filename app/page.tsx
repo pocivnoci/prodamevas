@@ -380,64 +380,119 @@ export default function Home() {
         <div className="absolute top-0 left-1/2 w-[800px] h-[400px] bg-aisummit-cinnabar/5 blur-[150px] rounded-full pointer-events-none" style={{ transform: 'translateX(-50%)' }} />
         <div className="max-w-7xl mx-auto px-6 relative z-10">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Jedna cena.<br /><span className="text-aisummit-cinnabar">Žádné překvapení.</span></h2>
-            <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Žádné balíčky, žádné zmatky. Jeden plán se vším, co potřebujete. Potřebujete víc? Dobijte si kredity.</p>
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Vyberte si fázi<br /><span className="text-aisummit-cinnabar">růstu profilu.</span></h2>
+            <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Nekupujete funkce — kupujete tempo růstu. Tři balíčky podle toho, jak rychle chcete růst. Potřebujete víc? Dobijte si kredity.</p>
             <div className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-sm border border-emerald-500/30 bg-emerald-500/10 backdrop-blur-sm">
               <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>
               <span className="text-emerald-400 text-sm font-black">Kreditový systém — platíte jen za to, co skutečně použijete</span>
             </div>
           </div>
 
-          {/* Single plan card — centered */}
-          <div className="max-w-lg mx-auto">
-            <div className="rounded-sm border-2 border-aisummit-cinnabar bg-[#0a0a0a] p-8 md:p-10 relative overflow-hidden group shadow-[0_0_80px_rgba(230,57,70,0.12)]">
-              <div className="absolute inset-0 bg-gradient-to-b from-aisummit-cinnabar/5 via-transparent to-transparent pointer-events-none" />
-              
-              <div className="relative z-10 text-center mb-8">
-                <h3 className="text-2xl font-black uppercase tracking-widest text-white mb-2">Chrlit</h3>
-                <p className="text-white/40 text-[10px] font-medium">Vše v jednom — pro živnostníky i firmy</p>
-              </div>
-
-              <div className="relative z-10 text-center mb-2">
-                <span className="text-6xl font-black text-white">490</span>
-                <span className="text-white/40 text-xl font-black ml-2">Kč</span>
-              </div>
-              <p className="text-center text-white/30 text-[10px] font-bold mb-8">měsíčně · bez závazku · zrušit kdykoliv</p>
-
-              <div className="relative z-10 bg-aisummit-cinnabar/10 rounded-sm px-4 py-3 mb-8 border border-aisummit-cinnabar/20 text-center">
-                <span className="text-white font-black text-lg">30</span>
-                <span className="text-white/60 text-sm font-bold ml-2">kreditů v ceně</span>
-                <span className="text-white/30 text-[9px] block mt-1">1 kredit ≈ 1 příspěvek na Instagram</span>
-              </div>
-
-              <ul className="space-y-3 mb-10 relative z-10">
-                {[
+          {/* Growth tier cards */}
+          <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+            {[
+              {
+                name: "Start",
+                tagline: "Nakopni profil",
+                price: 490,
+                credits: 15,
+                highlight: false,
+                features: [
+                  "15 kreditů měsíčně (~4 posty týdně)",
                   "AI posty s unikátními obrázky",
-                  "Captiony + hashtagy ve vašem stylu",
                   "Carousel posty",
-                  "Varianty příspěvků",
                   "AI nápady na obsah",
-                  "Produktové vizualizace",
-                  "Analytika výkonu",
-                  "Neomezené projekty",
-                ].map((f, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm text-white/70">
-                    <CheckCircle2 className="w-4 h-4 text-aisummit-cinnabar shrink-0" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
+                  "Základní analytika",
+                ],
+              },
+              {
+                name: "Růst",
+                tagline: "Rosteme spolu",
+                price: 990,
+                credits: 40,
+                highlight: true,
+                features: [
+                  "40 kreditů měsíčně (~obsah na každý den)",
+                  "Vše ze Start",
+                  "Reels — AI video",
+                  "A/B varianty příspěvků",
+                  "Růstový dashboard — sledování followerů",
+                  "Plná analytika výkonu",
+                ],
+              },
+              {
+                name: "Dominance",
+                tagline: "Ovládni svůj trh",
+                price: 1990,
+                credits: 100,
+                highlight: false,
+                features: [
+                  "100 kreditů měsíčně",
+                  "Vše z Růst",
+                  "Product studio — vizualizace & mockupy",
+                  "Business Brief",
+                  "Prioritní generování",
+                ],
+              },
+            ].map((plan) => (
+              <div
+                key={plan.name}
+                className={`rounded-sm bg-[#0a0a0a] p-8 relative overflow-hidden flex flex-col ${
+                  plan.highlight
+                    ? "border-2 border-aisummit-cinnabar shadow-[0_0_80px_rgba(230,57,70,0.12)]"
+                    : "border border-white/10"
+                }`}
+              >
+                {plan.highlight && (
+                  <>
+                    <div className="absolute inset-0 bg-gradient-to-b from-aisummit-cinnabar/5 via-transparent to-transparent pointer-events-none" />
+                    <span className="absolute top-4 right-4 text-[8px] bg-aisummit-cinnabar text-white px-2.5 py-1 rounded-full font-black uppercase tracking-widest">Nejoblíbenější</span>
+                  </>
+                )}
 
-              <Link href="#waitlist" className="relative z-10 block text-center py-4 px-6 rounded-sm bg-aisummit-cinnabar text-white font-bold text-xs uppercase tracking-widest hover:bg-aisummit-cinnabar/90 transition-all shadow-[0_0_30px_rgba(230,57,70,0.4)]">
-                Připojit se na Waitlist
-              </Link>
+                <div className="relative z-10 mb-6">
+                  <h3 className="text-xl font-black uppercase tracking-widest text-white mb-1">{plan.name}</h3>
+                  <p className="text-aisummit-cinnabar/80 text-[10px] font-black uppercase tracking-widest">{plan.tagline}</p>
+                </div>
 
-              <div className="relative z-10 mt-8 pt-6 border-t border-white/10 text-center">
-                <p className="text-white/40 text-xs font-bold mb-1">Potřebujete víc?</p>
-                <p className="text-white/60 text-sm font-black">Dobijte si kredity za <span className="text-aisummit-cinnabar">15 Kč/ks</span></p>
-                <p className="text-white/25 text-[9px] font-medium mt-1">Kredity neexpirují · Kupujte kdykoliv · Žádný minimální odběr</p>
+                <div className="relative z-10 mb-1">
+                  <span className="text-5xl font-black text-white">{plan.price.toLocaleString("cs")}</span>
+                  <span className="text-white/40 text-lg font-black ml-2">Kč</span>
+                </div>
+                <p className="text-white/30 text-[10px] font-bold mb-6">měsíčně · bez závazku · zrušit kdykoliv</p>
+
+                <div className="relative z-10 bg-aisummit-cinnabar/10 rounded-sm px-4 py-2.5 mb-6 border border-aisummit-cinnabar/20 text-center">
+                  <span className="text-white font-black text-base">{plan.credits}</span>
+                  <span className="text-white/60 text-xs font-bold ml-2">kreditů v ceně</span>
+                </div>
+
+                <ul className="space-y-2.5 mb-8 relative z-10 flex-1">
+                  {plan.features.map((f, i) => (
+                    <li key={i} className="flex items-center gap-2.5 text-xs text-white/70">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-aisummit-cinnabar shrink-0" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+
+                <Link
+                  href="#waitlist"
+                  className={`relative z-10 block text-center py-3.5 px-6 rounded-sm font-bold text-xs uppercase tracking-widest transition-all ${
+                    plan.highlight
+                      ? "bg-aisummit-cinnabar text-white hover:bg-aisummit-cinnabar/90 shadow-[0_0_30px_rgba(230,57,70,0.4)]"
+                      : "bg-white/5 text-white/80 border border-white/10 hover:bg-white/10"
+                  }`}
+                >
+                  Připojit se na Waitlist
+                </Link>
               </div>
-            </div>
+            ))}
+          </div>
+
+          <div className="mt-10 text-center">
+            <p className="text-white/40 text-xs font-bold mb-1">Potřebujete víc?</p>
+            <p className="text-white/60 text-sm font-black">Dobijte si kredity za <span className="text-aisummit-cinnabar">15 Kč/ks</span></p>
+            <p className="text-white/25 text-[9px] font-medium mt-1">Kredity neexpirují · Kupujte kdykoliv · Žádný minimální odběr</p>
           </div>
 
 
@@ -467,7 +522,7 @@ export default function Home() {
           </div>
 
           {/* Trust line */}
-          <p className="text-center mt-12 text-[9px] text-white/25 font-bold uppercase tracking-widest">7 dní zdarma · Bez kreditky · Zrušit jedním klikem</p>
+          <p className="text-center mt-12 text-[9px] text-white/25 font-bold uppercase tracking-widest">3 posty zdarma na zkoušku · Bez kreditky · Zrušit jedním klikem</p>
         </div>
       </section>
 
