@@ -39,7 +39,7 @@ Context Agent (svátek, počasí) ──→ buildMegaPrompt()
 | **Copywriter** | Generuje caption/script/carousel z mega promptu | `gemini-3.5-flash` |
 | **Critic** | Hodnotí 1–10, vrací `keep[]` a `fix[]` | `gemini-3.5-flash` |
 | **Editorial Board** | Šéfredaktor + copywriter revize (max 3 kola) | `gemini-3.5-flash` |
-| **AI Designer** (native engine, default) | Navrhuje kompletní design brief: kompozice, česká typografie, logo placement, anti-repetition vůči posledním 6 briefům (`generateDesignBrief` v `image-pipeline.ts`). Brief obsahuje `layoutArchetype` (8 hodnot v `LAYOUT_ARCHETYPES`); fingerprinty posledních postů (concept + layout + text placement + color) jdou do promptu a archetypy posledních 3 postů jsou **hard-banned** — porušení se detekuje v kódu a brief se regeneruje (1 retry). Cíl: stejný brand vibe, jiná struktura ("same shit different day" guard) | `gemini-3.1-pro` |
+| **AI Designer** (native engine, default) | Navrhuje kompletní design brief: kompozice, česká typografie, logo placement, anti-repetition vůči posledním 6 briefům (`generateDesignBrief` v `image-pipeline.ts`). Brief obsahuje `layoutArchetype` (8 hodnot v `LAYOUT_ARCHETYPES`); fingerprinty posledních postů (concept + layout + text placement + color) jdou do promptu a archetypy posledních 3 postů jsou **hard-banned** — porušení se detekuje v kódu a brief se regeneruje (1 retry). Cíl: stejný brand vibe, jiná struktura ("same shit different day" guard) | `gemini-3.5-flash` |
 | **Art Director** (overlay engine, legacy/fallback) | Vylepšuje text-free image prompt, injektuje vizuální pravidla z memory | `gemini-3.5-flash` |
 | **Renderer** | Native: Nano Banana Pro renderuje celý post vč. českého textu a loga → vision QA (`verifyNativeImage`) → 1 korektivní edit → Satori fallback. Overlay: text-free obrázek + Satori overlay | `gemini-3-pro-image` / Veo 3.1 |
 | **Memory Agent** | Analyzuje vzorce z postů, zapisuje/updatuje `ig_brand_memory` | `gemini-3.5-flash` |
@@ -156,7 +156,7 @@ buildSmartWeekPlan()  // pillar ratio × 1.5 (top) / × 0.5 (under), normalizov�
 | Akce (registr) | Model | Fallback |
 |------|-------|----------|
 | `text` | `gemini-3.5-flash` | `gemini-2.5-flash-lite` (na 503/429) |
-| `designer` (AI Designer) | `gemini-3.1-pro` | `gemini-3.5-flash` |
+| `designer` (AI Designer) | `gemini-3.5-flash` | `gemini-2.5-flash-lite` (`gemini-3.1-pro` vrací 404 — viz gotcha) |
 | `vision` (QA, tagging, logo placement) | `gemini-3.5-flash` | — |
 | `image` | `gemini-3-pro-image` (Nano Banana Pro GA) | `gemini-3.1-flash-image` (Nano Banana 2 GA) |
 | `imageCheap` | `gemini-3.1-flash-image` (512px tier) | — |
@@ -196,6 +196,7 @@ buildSmartWeekPlan()  // pillar ratio × 1.5 (top) / × 0.5 (under), normalizov�
 22. **Onboarding gate = jen `user_clients`**: `checkOnboardingStatus()` rozhoduje o onboardingu výhradně podle členství v `user_clients` (super-admin výjimka výš). `clients.user_id` se NIKDY neplní (onboarding linkuje jen přes `user_clients`, role `owner` — `insertClient` user_id nenastavuje). Žádný „fallback na první aktivní klient" — to přilepovalo nové účty k cizímu tenantovi (role `member`) a přeskočilo onboarding. `role='member'` proto = legacy bug artefakt; čisticí skript `scripts/cleanup-orphan-links.ts`. Chybějící link = onboarding, nikdy default tenant.
 23. **Onboarding slug-kolize propagace**: `insertClient` (DVĚ kopie — `core.ts` export + `actions.ts` private, edituj obě) při kolizi slugu vytvoří suffixovaný slug (`-xxxx`) a MUSÍ vrátit `{id, slug}`. Dřív vracel jen UUID → `saveReviewedConfig`/`saveConfigCore` vracely původní (nesuffixovaný) slug → post-save generování (`generateMonthlyPlan`, `generateShowcasePost`) běželo proti KOLIZNÍMU (cizímu) klientovi a uživatelův nový klient zůstal prázdný. Navíc `generateShowcasePost` měl jen `requireAuth()` místo `requireProjectAccess()` → cross-tenant zápis showcase postů prošel místo aby selhal. Obojí opraveno (v5.1).
 24. **Slug vs UUID na API hranici**: `projectId` ve `StudioContext` = SLUG, ne UUID. Server actions to řeší (`requireProjectAccess`→`resolveClientId`), ale dvě API routes braly identifikátor jako UUID: `/api/payments/create` (`clients.id=<slug>` → „Client not found") a `/api/subscription` (`subscriptions.client_id=<slug>` → tiše null → „Žádný plán" i s aktivním trialem). Fix: klienti posílají `clientSlug` (payments/create route umí slug i UUID); `/api/subscription` resolvuje přes `requireProjectAccess(param)` (+ membership). Nové fetch volání s `projectId` MUSÍ posílat slug jako `clientSlug` nebo route nechat resolvovat (v5.2).
+25. **Model 404 = fallback, ne crash**: `generateText` fallbackoval jen na 503/429 — neexistující/nedostupné model ID (404 „not found") propadlo a shodilo celý native pipeline („Native engine failed"). `designer` měl `gemini-3.1-pro`, který vrací 404 (není v v1beta / na tomto klíči). Fix: designer běží na `gemini-3.5-flash` (env override `GEMINI_MODEL_DESIGNER` až bude Pro model potvrzen); `generateText` fallbackuje i na 404/`not found`/`NOT_FOUND`. Pozor: image/video fallbacky (`generateImage`…) řeší jen 503/UNAVAILABLE — 404 image modelu by stále crashlo, řešit stejně až nastane.
 
 ---
 

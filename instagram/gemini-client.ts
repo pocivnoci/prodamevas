@@ -76,8 +76,10 @@ export async function generateText(
             return text
         })
     } catch (err: any) {
-        // Fallback to gemini-2.5-flash-lite on 503/429 errors
-        if (err.status === 503 || err.status === 429 || err.message?.includes("503") || err.message?.includes("429") || err.message?.includes("quota") || err.message?.includes("high demand") || err.message?.includes("overloaded")) {
+        // Fallback on overload (503/429) AND on 404/not-found — an invalid or
+        // unavailable model ID must degrade gracefully, not crash the pipeline.
+        const m = err.message || ""
+        if (err.status === 503 || err.status === 429 || err.status === 404 || m.includes("503") || m.includes("429") || m.includes("404") || m.includes("not found") || m.includes("NOT_FOUND") || m.includes("quota") || m.includes("high demand") || m.includes("overloaded")) {
             console.warn(`⚠️ ${defaultModel} unavailable (${err.status}). Falling back to ${getModel("text", "fallback")}...`)
             return await withRetry(async () => {
                 const response = await ai.models.generateContent({

@@ -13,8 +13,10 @@
 export const MODELS = {
     /** General text agents: captions, ideas, critic, analysis, onboarding */
     text: { primary: "gemini-3.5-flash", fallback: "gemini-2.5-flash-lite" },
-    /** AI Designer — full visual design briefs (low volume, high creative leverage) */
-    designer: { primary: "gemini-3.1-pro", fallback: "gemini-3.5-flash" },
+    /** AI Designer — full visual design briefs. NOTE: gemini-3.1-pro returns 404
+     *  (not available on this API key / v1beta), so the designer runs on
+     *  gemini-3.5-flash. Set GEMINI_MODEL_DESIGNER to a Pro model once confirmed. */
+    designer: { primary: "gemini-3.5-flash", fallback: "gemini-2.5-flash-lite" },
     /** Vision: QA checks, logo placement, brand asset tagging, overlay review */
     vision: { primary: "gemini-3.5-flash" },
     /** Image generation — Nano Banana Pro GA (renders typography natively) */
