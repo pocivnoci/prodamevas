@@ -214,7 +214,8 @@ function PlanUnlockModal({ onClose }: { onClose: () => void }) {
             const resp = await fetch("/api/payments/create", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ clientId: projectId, planId: "chrlit" }),
+                // projectId is the tenant SLUG — send as clientSlug (see API).
+                body: JSON.stringify({ clientSlug: projectId, planId: "chrlit" }),
             })
             const data = await resp.json()
             if (data.redirectUrl) {

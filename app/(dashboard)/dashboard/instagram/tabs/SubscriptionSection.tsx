@@ -62,7 +62,10 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
             const resp = await fetch("/api/payments/create", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ planId, clientId: projectId }),
+                // projectId is the tenant SLUG — send as clientSlug (the API
+                // resolves it). Sending it as clientId queried clients.id=<slug>
+                // → "Client not found".
+                body: JSON.stringify({ planId, clientSlug: projectId }),
             })
             const data = await resp.json()
             if (data.redirectUrl) {

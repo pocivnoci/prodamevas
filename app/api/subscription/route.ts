@@ -9,17 +9,24 @@ import { NextRequest, NextResponse } from "next/server"
 import { getClientSubscription, type SubscriptionInfo } from "@/lib/subscription"
 
 export async function GET(req: NextRequest) {
-    const { requireAuth } = await import("@/lib/auth-guard")
-    try { await requireAuth() } catch { return NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-
-    const clientId = req.nextUrl.searchParams.get("clientId")
-
-    if (!clientId) {
+    // The UI passes projectId = tenant SLUG. Resolve it to the real client UUID
+    // and enforce membership in one step (getClientSubscription needs the UUID;
+    // passing the slug as client_id silently matched nothing → no plan shown).
+    const param = req.nextUrl.searchParams.get("clientId")
+    if (!param) {
         return NextResponse.json({ error: "Missing clientId" }, { status: 400 })
     }
 
+    let clientUuid: string
     try {
-        const sub = await getClientSubscription(clientId)
+        const { requireProjectAccess } = await import("@/lib/auth-guard")
+        clientUuid = (await requireProjectAccess(param)).clientId
+    } catch {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+    }
+
+    try {
+        const sub = await getClientSubscription(clientUuid)
 
         if (!sub) {
             return NextResponse.json(null, { status: 200 })
