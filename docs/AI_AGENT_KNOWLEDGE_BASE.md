@@ -193,6 +193,7 @@ buildSmartWeekPlan()  // pillar ratio × 1.5 (top) / × 0.5 (under), normalizov�
 21. **Media gating (v3 tiery)**: reel je povolen od plánu Růst. Enforcement 2×: `ig-create-job` vrací 403 `featureBlocked` při explicitním `medium:"reel"`, a `generateOnePost({ allowedMedia })` clampne medium z configu/kategorie na carousel/image. Plány bez `features.allowed_media` (trial_v2, legacy chrlit) = vše povoleno (`canUseMedium` v `lib/subscription.ts`).
 22. **Aktivace plánu po platbě**: `activatePaidPlan(clientId, planId, subscriptionId?)` — planId se čte z pending subscription vytvořené při `payments/create`; ostatní live subs klienta se cancelnou. Nikdy nehardcodovat plan id v callbacku.
 21. **reviseCaption()**: revize captionu žije v `caption-generator.ts` (engine) — NIKDY nestavět copywriter prompt v `app/actions`.
+22. **Onboarding gate = jen `user_clients`**: `checkOnboardingStatus()` rozhoduje o onboardingu výhradně podle členství v `user_clients` (super-admin výjimka výš). `clients.user_id` se NIKDY neplní (onboarding linkuje jen přes `user_clients`, role `owner` — `insertClient` user_id nenastavuje). Žádný „fallback na první aktivní klient" — to přilepovalo nové účty k cizímu tenantovi (role `member`) a přeskočilo onboarding. `role='member'` proto = legacy bug artefakt; čisticí skript `scripts/cleanup-orphan-links.ts`. Chybějící link = onboarding, nikdy default tenant.
 
 ---
 

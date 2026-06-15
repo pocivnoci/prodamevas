@@ -10,7 +10,12 @@ import { createClient } from '@/supabase/server'
 export async function GET(request: Request) {
     const { searchParams, origin } = new URL(request.url)
     const code = searchParams.get('code')
-    const next = searchParams.get('next') ?? '/dashboard/instagram'
+
+    // Only allow internal relative paths — guard against open-redirect via `next`.
+    const rawNext = searchParams.get('next')
+    const next = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//')
+        ? rawNext
+        : '/dashboard/instagram'
 
     if (code) {
         const supabase = await createClient()
@@ -20,6 +25,10 @@ export async function GET(request: Request) {
         }
     }
 
-    // Auth code exchange failed — redirect to login with error
-    return NextResponse.redirect(`${origin}/login?error=invalid_credentials`)
+    // Exchange failed — expired/invalid link. Password-recovery links go back
+    // to the recovery flow; everything else to login.
+    const failurePath = next.startsWith('/reset-password')
+        ? '/forgot-password?error=link_expired'
+        : '/login?error=invalid_credentials'
+    return NextResponse.redirect(`${origin}${failurePath}`)
 }

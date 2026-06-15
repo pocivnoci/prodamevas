@@ -52,7 +52,12 @@ export default async function LoginPage(props: {
                     </div>
 
                     <div>
-                        <label htmlFor="password" className="block text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5">Heslo</label>
+                        <div className="flex items-center justify-between mb-1.5">
+                            <label htmlFor="password" className="block text-[9px] font-bold uppercase tracking-widest text-white/40">Heslo</label>
+                            <Link href="/forgot-password" className="text-[9px] font-bold uppercase tracking-widest text-white/40 hover:text-aisummit-cinnabar transition-colors">
+                                Zapomněl jsi heslo?
+                            </Link>
+                        </div>
                         <input
                             id="password"
                             name="password"

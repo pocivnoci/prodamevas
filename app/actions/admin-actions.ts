@@ -350,6 +350,19 @@ export async function getAvailableIGClients(): Promise<{ id: string; name: strin
 }
 
 /**
+ * Whether the logged-in user is a super admin (SUPER_ADMIN_EMAILS).
+ * Used to gate admin-only UI (onboarding/waitlist nav). Defaults to false.
+ */
+export async function isCurrentUserSuperAdmin(): Promise<boolean> {
+    const { createClient } = await import("@/supabase/server")
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user?.email) return false
+    const admins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean)
+    return admins.includes(user.email)
+}
+
+/**
  * Get post format specs for a client (aspect ratio, medium, overlay style per post type)
  */
 export async function getIGPostFormats(configName: string): Promise<Record<string, { aspectRatio: string; medium: string; overlayStyle: string }>> {

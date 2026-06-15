@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { logout } from "@/app/login/actions"
 import { LogoPV } from "@/components/LogoPV"
 import { useStudio, type StudioSection } from "./StudioContext"
-import { getAvailableIGClients } from "@/app/actions/admin-actions"
+import { getAvailableIGClients, isCurrentUserSuperAdmin } from "@/app/actions/admin-actions"
 
 type ClientInfo = { id: string; name: string; icon: string; description: string }
 
@@ -107,6 +107,7 @@ export function AdminSidebar() {
     const [open, setOpen] = useState(false)
     const { activeSection, setActiveSection, projectId, setProjectId, subscription, subscriptionLoading } = useStudio()
     const [clients, setClients] = useState<ClientInfo[]>([])
+    const [isAdmin, setIsAdmin] = useState(false)
 
     // Load clients
     useEffect(() => {
@@ -116,6 +117,7 @@ export function AdminSidebar() {
                 setProjectId(data[0].id)
             }
         })
+        isCurrentUserSuperAdmin().then(setIsAdmin)
     }, [])
 
     // Close on Escape
@@ -223,20 +225,22 @@ export function AdminSidebar() {
                         </div>
                     ))}
 
-                    {/* Admin group — always visible for now (can add role check later) */}
-                    <div>
-                        <p className="text-[8px] text-white/25 font-bold uppercase tracking-[0.25em] px-3 mb-1.5">{ADMIN_GROUP.label}</p>
-                        <div className="space-y-0.5">
-                            {ADMIN_GROUP.items.map(item => (
-                                <NavButton
-                                    key={item.id}
-                                    item={item}
-                                    active={activeSection === item.id}
-                                    onSelect={() => { setActiveSection(item.id); setOpen(false) }}
-                                />
-                            ))}
+                    {/* Admin group — super admins only (SUPER_ADMIN_EMAILS) */}
+                    {isAdmin && (
+                        <div>
+                            <p className="text-[8px] text-white/25 font-bold uppercase tracking-[0.25em] px-3 mb-1.5">{ADMIN_GROUP.label}</p>
+                            <div className="space-y-0.5">
+                                {ADMIN_GROUP.items.map(item => (
+                                    <NavButton
+                                        key={item.id}
+                                        item={item}
+                                        active={activeSection === item.id}
+                                        onSelect={() => { setActiveSection(item.id); setOpen(false) }}
+                                    />
+                                ))}
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </nav>
 
                 {/* Subscription Widget */}

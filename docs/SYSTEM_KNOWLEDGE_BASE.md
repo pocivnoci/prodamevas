@@ -300,6 +300,7 @@ A/B Variant Loop (variant-actions.ts)
 | **Supabase RLS** | Enabled on all tables. `subscriptions`/`payments`/`subscription_plans` nemají policies = default-deny — záměr, frontend k nim přistupuje jen přes server (`/api/subscription`) |
 | **Service Role** | `supabase/admin.ts` — bypasses RLS for engine operations |
 | **Invite Codes** | Registration requires valid invite code (`invite_codes` table) |
+| **Obnova hesla** | Self-serve flow: `/forgot-password` (`resetPasswordForEmail` → e-mail, neutrální hláška = žádná enumerace, 429 = rate limit) → `/auth/callback` (exchange code → recovery session, `next` sanitizován proti open-redirectu) → `/reset-password` (`updateUser({ password })`, vyžaduje relaci). Admin override pro zaseknuté účty: `npx tsx scripts/reset-password.ts <email> <heslo>` (přímý set přes service role) |
 | **Mock Payments** | `isMockPaymentMode()` — `COMGATE_MOCK=true` funguje, ale na `VERCEL_ENV=production` je ignorován (kill switch) |
 | **Config Validation** | `validateConfig()` fills safe defaults; config cache má 60s TTL (invalidace platí jen pro lokální lambdu) |
 | **Env Validation** | `lib/env.ts` přes `instrumentation.ts` — deploy spadne hned při chybějících povinných vars |

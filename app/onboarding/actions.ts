@@ -1312,48 +1312,26 @@ export async function checkOnboardingStatus(): Promise<{
         return { needsOnboarding: false }
     }
 
-    // Check via user_clients join (RBAC-consistent)
+    // Membership is the ONLY ownership signal — `clients.user_id` is never
+    // populated (onboarding links exclusively through user_clients, role owner).
     const { data: link } = await supabaseAdmin
         .from('user_clients')
         .select('client_id, clients!inner(slug)')
         .eq('user_id', user.id)
         .limit(1)
-        .single()
+        .maybeSingle()
 
     if (link) {
         return { needsOnboarding: false, clientSlug: (link.clients as any).slug }
     }
 
-    // Fallback: check if any client exists at all (legacy data without user_clients link)
-    const { data: anyClient } = await supabaseAdmin
-        .from('clients')
-        .select('slug')
-        .eq('is_active', true)
-        .limit(1)
-        .single()
-
-    if (anyClient) {
-        // Legacy client exists but no user_clients link — auto-link as member
-        const { data: clientRecord } = await supabaseAdmin
-            .from('clients')
-            .select('id')
-            .eq('slug', anyClient.slug)
-            .single()
-
-        if (clientRecord) {
-            await supabaseAdmin
-                .from('user_clients')
-                .upsert({
-                    user_id: user.id,
-                    client_id: clientRecord.id,
-                    role: 'member',
-                }, { onConflict: 'user_id,client_id' })
-            console.log(`✅ Auto-linked user ${user.email} to legacy client ${anyClient.slug}`)
-        }
-
-        return { needsOnboarding: false, clientSlug: anyClient.slug }
-    }
-
+    // No membership → brand-new user → onboarding.
+    //
+    // ⚠️ Do NOT "fall back" to the first active client here. That auto-linked
+    // every new account to another tenant's brand (cross-tenant leak) and
+    // skipped onboarding entirely. A missing link means onboarding, never a
+    // default tenant — see CLAUDE.md "Never default a missing identifier to a
+    // real tenant".
     return { needsOnboarding: true }
 }
 
