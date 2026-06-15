@@ -5,6 +5,37 @@ import { revalidatePath } from "next/cache"
 import type { ClientConfig } from "@/instagram/configs/types"
 import { requireProjectAccess } from "@/lib/auth-guard"
 
+/**
+ * Activate a FREE plan (e.g. Beta Trial) directly — no payment gateway.
+ * Paid plans must go through /api/payments/create; this refuses them so a
+ * paid tier can never be self-activated for free.
+ */
+export async function activateFreePlan(
+    projectSlug: string,
+    planId: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { clientId } = await requireProjectAccess(projectSlug)
+
+        const { data: plan } = await supabaseAdmin
+            .from("subscription_plans")
+            .select("id, price_czk, is_active")
+            .eq("id", planId)
+            .single()
+
+        if (!plan || !plan.is_active) return { success: false, error: "Plán nenalezen." }
+        if (plan.price_czk !== 0) return { success: false, error: "Tento plán vyžaduje platbu." }
+
+        const { activatePaidPlan } = await import("@/lib/subscription")
+        await activatePaidPlan(clientId, planId)
+
+        return { success: true }
+    } catch (err: any) {
+        console.error("activateFreePlan error:", err?.message || err)
+        return { success: false, error: err?.message || "Aktivace plánu selhala." }
+    }
+}
+
 export async function getClientConfig(projectId: string): Promise<ClientConfig | null> {
     try {
         await requireProjectAccess(projectId)

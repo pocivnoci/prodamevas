@@ -1,6 +1,7 @@
 "use client"
 
 import { useStudio, type SubscriptionState } from "@/app/(dashboard)/StudioContext"
+import { activateFreePlan } from "@/app/actions/settings-actions"
 import { CheckCircle2 } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -59,6 +60,18 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
     const handleUpgrade = async (planId: string) => {
         setUpgradingPlanId(planId)
         try {
+            // Free plans (e.g. Beta Trial) activate directly — no payment gateway.
+            const plan = plans.find(p => p.id === planId)
+            if (plan && plan.price_czk === 0) {
+                const res = await activateFreePlan(projectId, planId)
+                if (res.success) {
+                    refreshSubscription()
+                } else {
+                    alert(res.error || "Aktivace plánu selhala.")
+                }
+                return
+            }
+
             const resp = await fetch("/api/payments/create", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
