@@ -27,6 +27,21 @@ import type { RenderContext, RenderResult } from "./types"
 
 type RefImage = { buffer: Buffer; mimeType?: string; label?: string }
 
+// Reference-image labels driven by each photo's OWN tags (not a narrow industry
+// regex). A "product"/"food" photo must be reproduced faithfully; a place photo
+// must be used as the exact location. This is what makes Nano Banana actually USE
+// the brand's real photos instead of treating them as loose style inspiration.
+const REF_PLACE_TAGS = ["exterior", "interior", "bedroom", "bathroom", "kitchen", "living", "pool", "restaurant", "lobby", "garden", "shop", "store", "location", "room", "space", "venue"]
+const REF_PRODUCT_TAGS = ["product", "food", "drink", "dish", "merch", "bouquet", "kytice", "flower", "outfit"]
+function brandRefLabel(tags: string[] = []): string {
+    const t = tags.map(x => x.toLowerCase())
+    if (t.some(x => REF_PRODUCT_TAGS.includes(x)))
+        return "EXACT product/subject reference — reproduce this real item faithfully (same colors, shape, details); do NOT invent a different one"
+    if (t.some(x => REF_PLACE_TAGS.includes(x)))
+        return "real location reference — depict this EXACT place, interior and atmosphere; do NOT invent a different location"
+    return "brand visual reference — match this exact style, colors and aesthetic"
+}
+
 export async function renderImage(ctx: RenderContext): Promise<RenderResult> {
     // "none" overlay style = intentionally text-free post → legacy path renders raw image
     if (ctx.config.visualEngine !== "overlay" && ctx.format.overlayStyle !== "none") {
@@ -175,16 +190,7 @@ async function loadReferenceImages(ctx: RenderContext): Promise<RefImage[]> {
     const brandRefObjects = getConfigBrandImageObjects(config)
 
     if (brandRefObjects.length > 0) {
-        const industry = config.industry || ''
-        const isLocation = /ubytov|hotel|penzion|apartm|restaurac|kavárn|bar\b|wellness|spa/i.test(industry)
-            || /ubytov|hotel|penzion|apartm/i.test(config.name || '')
-        const isProduct = /e-?shop|obchod|product|merch|fashion|oblečen/i.test(industry)
-
-        const refLabel = isLocation
-            ? "brand environment reference — use this EXACT location, interior, and atmosphere in your image"
-            : isProduct
-                ? "brand product reference — maintain this exact visual style, colors, and product aesthetic"
-                : "brand visual reference — maintain this exact visual style, colors, and aesthetic atmosphere"
+        // Per-image labels are computed from each photo's tags (see brandRefLabel).
 
         // Smart selection: match photos to post context using tags
         let selectedRefs: { url: string; tags: string[]; description: string }[]
@@ -236,9 +242,10 @@ async function loadReferenceImages(ctx: RenderContext): Promise<RefImage[]> {
                 const resp = await fetch(ref.url)
                 if (resp.ok) {
                     const arrayBuf = await resp.arrayBuffer()
+                    const baseLabel = brandRefLabel(ref.tags)
                     const contextLabel = ref.description
-                        ? `${refLabel} — ${ref.description}`
-                        : refLabel
+                        ? `${baseLabel} — ${ref.description}`
+                        : baseLabel
                     refImages.push({
                         buffer: Buffer.from(arrayBuf),
                         mimeType: ref.url.endsWith(".png") ? "image/png" : "image/jpeg",
