@@ -124,6 +124,26 @@ export interface PostFormat {
     reelDuration?: number
 }
 
+/** A brand-specific post format generated at onboarding. Richer than a bare
+ *  `postTypes` name: carries the display name + a description (shown in the
+ *  Generate-tab picker and fed to the copywriter) so formats are meaningful
+ *  per-brand, not the generic "carousel/meme/challenge" set. Persisted to
+ *  `ig_post_types` via ensurePostTypes(). */
+export interface PostTypeDef {
+    /** snake_case slug, no diacritics — the pipeline key (config.postTypes, ig_post_types.name) */
+    name: string
+    display_name: string
+    emoji: string
+    /** Brand-specific: what the post shows + why it works for this brand */
+    description: string
+    /** Content pillar key this format belongs to */
+    pillar: string
+    medium: PostMedium
+    aspectRatio: AspectRatio
+    /** true = the post is built around a specific product (pulls from ig_products) */
+    uses_product: boolean
+}
+
 // ─── Audience Persona ───────────────────────────────────────
 
 export interface AudiencePersona {
@@ -200,8 +220,13 @@ export interface ClientConfig {
     /** Cooldown in days before a product can be featured again (default: 14) */
     productCooldownDays?: number
 
-    /** Post types this client uses */
+    /** Post types this client uses (names — pipeline contract) */
     postTypes?: string[]
+
+    /** Brand-specific post formats (richer than `postTypes`): display name +
+     *  description per format. Generated at onboarding, persisted to ig_post_types,
+     *  shown in the Generate-tab format picker. Empty = legacy generic behaviour. */
+    postTypeDefs?: PostTypeDef[]
 
     /** What the brand is about — used in AI prompt instructions, e.g. "O TELEFONECH a screen time" or "O MERCHI a streetwearu" */
     contentFocus: string

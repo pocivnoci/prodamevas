@@ -20,7 +20,8 @@
 
 import supabaseAdmin from '@/supabase/admin'
 import { generateText } from '@/instagram/gemini-client'
-import type { ClientConfig } from '@/instagram/configs/types'
+import { ensurePostTypes } from '@/instagram/service'
+import type { ClientConfig, PostTypeDef } from '@/instagram/configs/types'
 import type { WebsiteAnalysis } from './actions'
 
 // ============================================
@@ -641,7 +642,98 @@ Pravidla: buď konkrétní, ne generický. Žádné prázdné fráze typu 'buďt
         console.warn(`⚠️ Communication style generation failed: ${(styleErr as Error).message}`)
     }
 
+    // Generate brand-specific post formats (best-effort) — replaces the generic
+    // "tip/meme/carousel" set with formats tailored to this brand, each described.
+    await generateCustomFormats(analysis, config)
+
     return config
+}
+
+/**
+ * Generate brand-specific post formats and apply them to the config in place.
+ * Best-effort (never throws). Shared by both onboarding twins (core.ts UI-free
+ * path AND actions.ts). Sets postTypeDefs/postTypes/postFormats/weekPlan and
+ * re-maps contentPillars; ensurePostTypes() later persists them to ig_post_types.
+ */
+export async function generateCustomFormats(analysis: WebsiteAnalysis, config: ClientConfig): Promise<void> {
+    try {
+        const pillarKeys = Object.keys(config.contentPillars || {})
+        if (pillarKeys.length === 0) return
+
+        const productNames = (config.products || []).map(p => p.name).filter(Boolean).slice(0, 8).join(", ")
+        const prompt = `Jsi Instagram stratég. Pro tuhle KONKRÉTNÍ firmu navrhni 7 jedinečných formátů příspěvků — ne obecné "tip/meme/carousel", ale formáty šité na míru téhle značce, jejím produktům a publiku.
+
+Firma: ${analysis.companyName} (${analysis.industry})
+Popis: ${analysis.description}
+Publikum: ${analysis.targetAudience || 'obecné'}
+Produkty/služby: ${productNames || '—'}
+Pilíře obsahu (povolené klíče): ${pillarKeys.join(', ')}
+
+Vrať POUZE JSON pole 7 objektů:
+[{
+  "name": "snake_case slug bez diakritiky (např. sezonni_kytice)",
+  "display_name": "krátký název formátu, česky (např. Sezónní kytice)",
+  "emoji": "1 emoji",
+  "description": "1-2 věty česky: CO příspěvek ukazuje a PROČ funguje právě pro tuhle značku",
+  "pillar": "jeden z povolených klíčů pilířů výše",
+  "medium": "image | carousel | reel",
+  "aspectRatio": "1:1 | 4:5 | 9:16",
+  "uses_product": true/false
+}]
+
+Pravidla: konkrétní pro tenhle obor (ne generické). Mix mediumů. Pokud firma má produkty, aspoň 2 formáty s uses_product=true. name unikátní, snake_case, bez diakritiky.`
+
+        const raw = await generateText(prompt, { temperature: 0.8 })
+        const match = raw.match(/\[[\s\S]*\]/)
+        if (!match) return
+        const parsed = JSON.parse(match[0])
+        if (!Array.isArray(parsed) || parsed.length === 0) return
+
+        const MEDIA = ["image", "carousel", "reel"]
+        const RATIOS = ["1:1", "4:5", "3:4", "4:3", "9:16", "16:9"]
+        const seen = new Set<string>()
+        const defs: PostTypeDef[] = []
+        for (const d of parsed) {
+            const name = String(d?.name || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+                .replace(/[^a-z0-9_]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")
+            if (!name || seen.has(name) || !d?.display_name || !d?.description) continue
+            seen.add(name)
+            defs.push({
+                name,
+                display_name: String(d.display_name).slice(0, 60),
+                emoji: d.emoji || "📝",
+                description: String(d.description).slice(0, 400),
+                pillar: pillarKeys.includes(d.pillar) ? d.pillar : pillarKeys[0],
+                medium: (MEDIA.includes(d.medium) ? d.medium : "image") as PostTypeDef["medium"],
+                aspectRatio: (RATIOS.includes(d.aspectRatio) ? d.aspectRatio : "4:5") as PostTypeDef["aspectRatio"],
+                uses_product: Boolean(d.uses_product),
+            })
+        }
+        if (defs.length === 0) return
+
+        config.postTypeDefs = defs
+        config.postTypes = defs.map(d => d.name)
+        config.postFormats = config.postFormats || {}
+        for (const d of defs) {
+            config.postFormats[d.name] = {
+                aspectRatio: d.aspectRatio,
+                medium: d.medium,
+                overlayStyle: d.medium === "carousel" ? "cover" : d.medium === "reel" ? "none" : "default",
+            }
+        }
+        // Re-map each pillar to the custom formats assigned to it
+        for (const key of pillarKeys) {
+            if (config.contentPillars[key]) {
+                config.contentPillars[key].postTypes = defs.filter(d => d.pillar === key).map(d => d.name)
+            }
+        }
+        // Keep weekPlan consistent with the new format names (7-day cycle)
+        config.weekPlan = Array.from({ length: 7 }, (_, i) => defs[i % defs.length].name)
+
+        console.log(`   ✅ Generated ${defs.length} brand-specific post formats: ${defs.map(d => d.name).join(", ")}`)
+    } catch (err) {
+        console.warn(`⚠️ Custom format generation failed: ${(err as Error).message}`)
+    }
 }
 
 // ============================================
@@ -711,6 +803,7 @@ export async function saveConfigCore(
         }
 
         await seedMemoriesFromAnalysis(clientId, analysis)
+        await ensurePostTypes(config, clientId)
 
         console.log(`✅ Re-onboarding complete: ${existingClientSlug} (${clientId})`)
         // Invalidate config cache so Settings tab picks up new data
@@ -724,6 +817,10 @@ export async function saveConfigCore(
 
     // Warm-start brand memory from the scraped feed (guarded — only when empty)
     await seedMemoriesFromAnalysis(insertedClientId, analysis)
+
+    // Persist brand-specific post formats so the Generate tab shows them
+    // immediately (before the first generation also calls ensurePostTypes).
+    await ensurePostTypes(config, insertedClientId)
 
     // Sync products → ig_products
     if (config.products && config.products.length > 0) {

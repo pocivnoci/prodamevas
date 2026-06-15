@@ -6,8 +6,10 @@ export const maxDuration = 5 // Ultra-lightweight polling
 /** Job statuses that mean the job is finished (no reaping needed) */
 const TERMINAL_STATUSES = ["done", "failed"]
 
-/** A running job silent for this long is considered dead (run-job maxDuration is 300s) */
-const STUCK_AFTER_MS = 8 * 60 * 1000
+/** A running job silent for this long is considered dead. Kept above the
+ *  run-job maxDuration (800s) so the slower all-Pro pipeline is never reaped
+ *  while a lambda is still legitimately working. */
+const STUCK_AFTER_MS = 14 * 60 * 1000
 
 /**
  * GET /api/ig-job-status?id=<jobId>

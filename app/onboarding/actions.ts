@@ -4,6 +4,8 @@ import { createClient } from '@/supabase/server'
 import supabaseAdmin from '@/supabase/admin'
 import { requireAuth } from '@/lib/auth-guard'
 import { generateText } from '@/instagram/gemini-client'
+import { ensurePostTypes } from '@/instagram/service'
+import { generateCustomFormats } from '@/app/onboarding/core'
 import type { ClientConfig } from '@/instagram/configs/types'
 import { fetchInstagramProfile, type IgProfileData } from '@/lib/ig-scraper'
 
@@ -1026,6 +1028,9 @@ Pravidla: buď konkrétní, ne generický. Žádné prázdné fráze typu 'buďt
             console.warn(`⚠️ Communication style generation failed: ${(styleErr as Error).message}`)
         }
 
+        // Brand-specific post formats (best-effort) — shared with the core twin.
+        await generateCustomFormats(analysis, config)
+
         return { success: true, config }
     } catch (error) {
         console.error('Config preview error:', error)
@@ -1204,6 +1209,7 @@ export async function saveReviewedConfig(
             }
 
             await seedMemoriesFromAnalysis(clientId, analysis)
+            await ensurePostTypes(config, clientId)
 
             console.log(`✅ Re-onboarding complete: ${existingClientSlug} (${clientId})`)
             // Invalidate config cache so Settings tab picks up new data
@@ -1217,6 +1223,7 @@ export async function saveReviewedConfig(
 
         // Warm-start brand memory from the scraped feed (guarded — only when empty)
         await seedMemoriesFromAnalysis(insertedClientId, analysis)
+        await ensurePostTypes(config, insertedClientId)
 
         // Sync products → ig_products
         if (config.products && config.products.length > 0) {

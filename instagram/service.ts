@@ -75,6 +75,7 @@ export async function ensurePostTypes(
         postTypes?: string[]
         contentPillars?: Record<string, { emoji: string; label: string; description: string; postTypes: string[] }>
         brandVoice?: { toneByPostType?: Record<string, unknown> }
+        postTypeDefs?: { name: string; display_name: string; emoji: string; description: string; uses_product?: boolean }[]
     },
     clientId: string
 ): Promise<void> {
@@ -107,8 +108,22 @@ export async function ensurePostTypes(
         }
     }
 
-    // Auto-generate display names and emojis from pillar data
+    // Prefer brand-specific metadata from postTypeDefs; fall back to pillar-derived.
+    const defMap = new Map((config.postTypeDefs ?? []).map(d => [d.name, d]))
     const rows = missing.map(name => {
+        const def = defMap.get(name)
+        if (def) {
+            return {
+                client_id: clientId,
+                name,
+                display_name: def.emoji ? `${def.emoji} ${def.display_name}` : def.display_name,
+                emoji: def.emoji || "📝",
+                description: def.description || null,
+                frequency: "weekly" as const,
+                is_active: true,
+                uses_product: def.uses_product ?? false,
+            }
+        }
         const pillar = pillarLookup.get(name)
         const displayName = name
             .split("_")

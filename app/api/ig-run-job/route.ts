@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
 import { generateOnePost } from "@/instagram/autopilot"
 
-export const maxDuration = 300 // Full 5 min for generation
+export const maxDuration = 800 // All-Pro text pipeline + editorial board; needs Vercel plan allowing >300s
 
 /**
  * POST /api/ig-run-job

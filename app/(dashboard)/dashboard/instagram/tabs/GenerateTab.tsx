@@ -616,6 +616,12 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         {postTypes.filter(pt => pt.is_active).filter(pt => category === "auto" || category === "" || pt.pillarId === category)
                                             .map(pt => (<option key={pt.id} value={pt.name}>{pt.display_name}</option>))}
                                     </select>
+                                    {(() => {
+                                        const sel = postTypes.find(pt => pt.name === selectedType)
+                                        return sel?.description ? (
+                                            <p className="mt-2 text-[11px] text-white/40 leading-relaxed">{sel.description}</p>
+                                        ) : null
+                                    })()}
                                 </div>
 
                                 {/* Advanced */}

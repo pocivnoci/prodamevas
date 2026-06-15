@@ -89,6 +89,7 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
             phoneModel: "iPhone 16 Pro",
         },
         weekPlan: config.weekPlan || [],
+        postTypeDefs: config.postTypeDefs || [],
         hashtagPools: config.hashtagPools || { core: [], niche: [], broad: [], trending: [], czech: [] },
         contentFocus: config.contentFocus || config.name || slug,
         visualEngine: config.visualEngine || "native",

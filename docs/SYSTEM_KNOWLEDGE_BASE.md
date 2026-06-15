@@ -186,7 +186,7 @@ A/B Variant Loop (variant-actions.ts)
 
 | Action | Model | Fallback | Notes |
 |------|-------|----------|-------|
-| `text` (all agents) | `gemini-3.5-flash` | `gemini-2.5-flash-lite` | On 503/429 |
+| `text` (all agents) | `gemini-2.5-pro` | `gemini-3.5-flash` | Best quality (timeout raised to 800s); fallback on 503/429/404 |
 | `designer` (AI Designer) | `gemini-2.5-pro` | `gemini-3.5-flash` | Design briefs — mature GA Pro (spolehlivější než `gemini-pro-latest`, které 503'lo); fallback FAST flash udrží native render |
 | `image` | `gemini-3-pro-image` | `gemini-3.1-flash-image` | Nano Banana Pro GA → Nano Banana 2 GA; also editExistingImage() + generateImageWithReferences() |
 | `imageCheap` | `gemini-3.1-flash-image` | — | 512px tier |

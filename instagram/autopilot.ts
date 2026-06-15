@@ -174,7 +174,9 @@ export async function generateOnePost(options: {
     let idea: PostIdea | null = null
     let review: Review | null = null
 
-    if (selectedType.name === "recenze") {
+    // Review-type detection by name pattern — works for canonical "recenze" AND
+    // brand-specific custom formats (e.g. "recenze_zakazniku", "spokojeny_klient").
+    if (/recenz|review|testimonial|spokojen/i.test(selectedType.name)) {
         const reviews = await getWeightedReviews(3)
         if (reviews.length > 0) {
             review = reviews[0]

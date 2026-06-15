@@ -293,39 +293,43 @@ export async function updateIGReviewApproval(id: string, approved: boolean): Pro
 }
 
 export async function getIGPostTypes(configName?: string): Promise<(IGPostType & { pillarId?: string | null })[]> {
-    if (configName) {
-        try { await requireProjectAccess(configName) } catch { return [] }
-    } else {
+    const dedupeByName = (rows: any[]) =>
+        rows.filter((pt, i, self) => self.findIndex(t => t.name === pt.name) === i)
+
+    // Admin/global view (no project): keep the deduped global set
+    if (!configName) {
         const { requireAuth } = await import("@/lib/auth-guard")
         try { await requireAuth() } catch { return [] }
+        const { data } = await supabaseAdmin.from("ig_post_types").select("*").order("name")
+        return dedupeByName(data || [])
     }
-    const { data } = await supabaseAdmin
-        .from("ig_post_types")
-        .select("*")
-        .order("name")
-    const allTypes = (data || []).filter(
-        (pt: any, index: number, self: any[]) => self.findIndex((t: any) => t.name === pt.name) === index
-    )
 
-    // Filter by client's postTypes if config specified
-    if (configName) {
-        try {
-            const { loadConfig, getPillarForPostType } = await import("@/instagram/configs")
-            const config = await loadConfig(configName)
-            if (config.postTypes && config.postTypes.length > 0) {
-                return allTypes
-                    .filter(pt => config.postTypes!.includes(pt.name))
-                    .map(pt => ({
-                        ...pt,
-                        pillarId: getPillarForPostType(config, pt.name)
-                    }))
-            }
-        } catch (e) {
-            console.error("Failed to load config for post type filtering:", e)
+    let clientId: string
+    try { ({ clientId } = await requireProjectAccess(configName)) } catch { return [] }
+
+    // Client-scoped rows = this brand's own (custom) formats. Filtering by
+    // client_id stops cross-tenant bleed and surfaces brand-specific descriptions.
+    const { data: clientRows } = await supabaseAdmin
+        .from("ig_post_types").select("*").eq("client_id", clientId).order("name")
+
+    let rows = clientRows || []
+    if (rows.length === 0) {
+        // Legacy fallback: clients seeded before per-client post types existed.
+        const { data: globalRows } = await supabaseAdmin.from("ig_post_types").select("*").order("name")
+        rows = dedupeByName(globalRows || [])
+    }
+
+    try {
+        const { loadConfig, getPillarForPostType } = await import("@/instagram/configs")
+        const config = await loadConfig(configName)
+        if (config.postTypes && config.postTypes.length > 0) {
+            rows = rows.filter(pt => config.postTypes!.includes(pt.name))
         }
+        return rows.map(pt => ({ ...pt, pillarId: getPillarForPostType(config, pt.name) }))
+    } catch (e) {
+        console.error("Failed to load config for post type filtering:", e)
+        return rows
     }
-
-    return allTypes
 }
 
 /**

@@ -11,8 +11,10 @@
  */
 
 export const MODELS = {
-    /** General text agents: captions, ideas, critic, analysis, onboarding */
-    text: { primary: "gemini-3.5-flash", fallback: "gemini-2.5-flash-lite" },
+    /** General text agents: captions, ideas, critic, editorial board, context,
+     *  content plan, onboarding analysis. On Pro for best quality (timeout raised
+     *  on Vercel). Fast gemini-3.5-flash fallback keeps things working on Pro 503. */
+    text: { primary: "gemini-2.5-pro", fallback: "gemini-3.5-flash" },
     /** AI Designer — full visual design briefs (low volume, high creative leverage).
      *  Primary gemini-2.5-pro = mature GA Pro: more provisioned capacity / lower latency
      *  than the bleeding-edge gemini-pro-latest alias (which 503'd "deadline expired"
