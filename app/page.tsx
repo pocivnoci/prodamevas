@@ -2,37 +2,65 @@
 
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
-import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion"
-import { Bot, PenTool, ArrowRight, CheckCircle2, Layers, Cpu, ChevronDown } from "lucide-react"
-import { LiveDemoWidget } from "@/components/LiveDemoWidget"
+import { motion, AnimatePresence } from "framer-motion"
+import { ArrowRight, CheckCircle2, ChevronDown, Cpu, Camera, TrendingUp } from "lucide-react"
+import { HeroPlayground, type PlaygroundPost } from "@/components/HeroPlayground"
+import { SeedToFlower } from "@/components/SeedToFlower"
+import { References } from "@/components/References"
 import { WaitlistForm } from "@/components/WaitlistForm"
+import { REFERENCE_BRANDS } from "@/lib/reference-data"
 
-const SHOWCASE_POSTS = [
+const PLACEHOLDER_SHOWCASE: PlaygroundPost[] = [
   {
     src: "/showcase-1.png",
-    alt: "Chrlit AI post — Challenge pro CEO",
-    caption: "🎯 CHALLENGE: Změř si, kolik času ti tento týden reálně sežere tvorba obsahu. Výsledek tě překvapí. Získej zpět svůj čas jako CEO — nech AI pracovat za tebe.",
-    hashtags: "#chrlit #aiobsah #ceo #productivita #marketing #autopilot #challenge",
+    alt: "Příspěvek vygenerovaný v Chrlit pro kavárnu",
+    industry: "☕ Kavárna",
+    domain: "kavarna-uroh.cz",
+    caption: "Pondělí se dá zvládnout dvěma způsoby. My doporučujeme ten s čerstvě praženou etiopskou. ☕ Do 10:00 ke každému cappuccinu domácí skořicový šnek za polovinu. Přijďte si pro lepší start týdne.",
+    hashtags: "#kavarna #specialitycoffee #cappuccino #snidane #kavaspolu #domacipece #dobrerano",
   },
   {
     src: "/showcase-2.png",
-    alt: "Chrlit AI post — Kreativní peklo",
-    caption: "😱 Tvoje tvář, když klient pošle feedback 'Můžeme to udělat víc… pop?' Konec kreativního pekla. Chrlit generuje obsah, který sedí od první verze.",
-    hashtags: "#chrlit #kreativnipeklo #socialmanager #aiobsah #meme #marketing",
+    alt: "Příspěvek vygenerovaný v Chrlit pro kadeřnictví",
+    industry: "✂️ Kadeřnictví",
+    domain: "salon-lenka.cz",
+    caption: "Proměna, ze které máme radost celý den. ✂️ Z dlouhých vlasů odvážný bob — a paní Lence neskutečně sluší. Chystáte změnu i vy? Na příští týden zbývají poslední tři volné termíny.",
+    hashtags: "#kadernictvi #promena #novyucs #bob #vlasy #salon #objednejtese",
   },
   {
     src: "/showcase-3.png",
-    alt: "Chrlit AI post — Lepší vstup",
-    caption: "🤖 Tvoje AI plive generické bláboly? Problém není v ní. Lepší vstup = lepší výstup. Chrlit analyzuje tvůj brand a generuje obsah, který mluví tvým jazykem.",
-    hashtags: "#chrlit #ai #marketing #brandvoice #content #kvalitniobsah",
+    alt: "Příspěvek vygenerovaný v Chrlit pro vinařství",
+    industry: "🍷 Vinařství",
+    domain: "vinarstvi-morava.cz",
+    caption: "Ryzlink z loňské sklizně právě dozrál v lahvích. 🍷 Suchý, svěží, s tóny zeleného jablka — přesně takový, jaký z naší trati má být. V sobotu otevíráme sklep. Přijďte ochutnat jako první.",
+    hashtags: "#vinarstvi #ryzlink #morava #vino #degustace #otevrenesklepy #ceskevino",
   },
 ]
 
+// Hero playground uses REAL generated reference posts when available (written by
+// scripts/export-references.ts), and falls back to the placeholders otherwise.
+function hostFromUrl(u: string): string {
+  try { return new URL(u).hostname.replace(/^www\./, "") } catch { return u.replace(/^https?:\/\//, "") }
+}
+
+const SHOWCASE_POSTS: PlaygroundPost[] = (() => {
+  const withPosts = REFERENCE_BRANDS.filter((b) => b.posts.length > 0).slice(0, 4)
+  if (withPosts.length === 0) return PLACEHOLDER_SHOWCASE
+  return withPosts.map((b) => {
+    const p = b.posts[0]
+    return {
+      src: p.imageUrl,
+      alt: `Příspěvek vygenerovaný v Chrlit pro ${b.company}`,
+      industry: `${b.emoji} ${b.industry.split("/").pop()?.trim() || b.industry}`,
+      domain: hostFromUrl(b.website),
+      caption: p.caption,
+      hashtags: p.hashtags,
+    }
+  })
+})()
+
 export default function Home() {
   const [scrolled, setScrolled] = useState(false)
-  const [selectedShowcase, setSelectedShowcase] = useState<number | null>(null)
-  const { scrollYProgress } = useScroll()
-  const opacity = useTransform(scrollYProgress, [0, 0.05], [1, 0])
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20)
@@ -42,7 +70,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-aisummit-bg text-aisummit-text selection:bg-aisummit-cinnabar/30 selection:text-white overflow-hidden font-sans">
-      
+
       {/* BACKGROUND EFFECTS */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden transform-gpu">
         <div className="hidden md:block absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-aisummit-glow/10 rounded-full blur-[120px] opacity-40 animate-pulse" style={{ animationDuration: '8s' }}></div>
@@ -51,7 +79,7 @@ export default function Home() {
       </div>
 
       {/* HEADER */}
-      <motion.header 
+      <motion.header
         className={`fixed top-0 inset-x-0 z-50 transition-all duration-500 ${scrolled ? 'bg-[#050505]/80 backdrop-blur-xl border-b border-white/5' : 'bg-transparent pt-6'}`}
         initial={{ y: -100 }}
         animate={{ y: 0 }}
@@ -61,16 +89,13 @@ export default function Home() {
           <Link href="/" className="flex items-center gap-2">
             <img src="/chrlit-logo-transparent.svg" alt="Chrlit" className="h-8" />
           </Link>
-          
+
           <div className="flex items-center gap-6">
-            <Link href="#demo" className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors hidden sm:block">
-              Demo
+            <Link href="#reference" className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors hidden sm:block">
+              Ukázky
             </Link>
             <Link href="#pricing" className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors hidden sm:block">
               Ceník
-            </Link>
-            <Link href="#faq" className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors hidden sm:block">
-              FAQ
             </Link>
             <Link href="/login" className="text-[10px] font-bold uppercase tracking-widest text-white/50 hover:text-white transition-colors hidden sm:block">
               Přihlásit se
@@ -83,354 +108,185 @@ export default function Home() {
         </div>
       </motion.header>
 
-      {/* HERO SECTION */}
-      <section className="relative z-10 pt-40 pb-20 md:pt-52 md:pb-32 min-h-[90vh] flex items-center">
+      {/* HERO — the promise + the playable magic moment */}
+      <section className="relative z-10 pt-32 pb-16 md:pt-44 md:pb-24 min-h-[92vh] flex items-center">
         <div className="max-w-7xl mx-auto px-6 w-full">
-          <div className="flex flex-col lg:flex-row items-center gap-16">
-            
-            {/* COPY */}
-            <motion.div 
-              className="lg:w-1/2 flex flex-col items-start"
+          <div className="grid lg:grid-cols-2 items-center gap-12 lg:gap-16">
+
+            {/* LEFT — the promise + waitlist */}
+            <motion.div
+              className="flex flex-col items-start"
               initial={{ opacity: 0, x: -30 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8, delay: 0.1 }}
             >
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-emerald-500/20 text-emerald-400 text-[9px] font-bold uppercase tracking-widest mb-8 bg-emerald-500/5 backdrop-blur-sm">
                 <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>
-                Váš Instagram na autopilotu
+                Brzy spouštíme · Waitlist otevřený
               </div>
 
-              <h1 className="text-6xl md:text-[5.5rem] font-black tracking-tighter mb-6 text-white leading-[0.9] uppercase">
-                CHRLÍME<br />
+              <h1 className="text-5xl md:text-6xl xl:text-7xl font-black tracking-tighter mb-6 text-white leading-[0.92] uppercase">
+                Hotový Instagram.<br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-aisummit-cinnabar to-amber-500">
-                  OBSAH.
+                  Aniž hnete prstem.
                 </span>
-                <br />
-                <span className="text-white/30 text-4xl md:text-5xl tracking-wide">Ale kvalitní.</span>
               </h1>
-              
-              <p className="text-lg text-white/40 font-medium mb-10 max-w-lg leading-relaxed">
-                Vložíte web, AI pochopí váš byznys a začne chrlít posty — texty, obrázky, hashtagy. Měsíc obsahu připravený za odpoledne. Žádný grafik, žádný copywriter.
+
+              <p className="text-lg text-white/45 font-medium mb-8 max-w-md leading-relaxed">
+                Profesionální příspěvky — fotky, texty i hashtagy. Hotové. Vy je jen zveřejníte.
               </p>
 
-              <div id="waitlist" className="w-full sm:w-auto mt-6 mb-8 relative z-20">
+              <div id="waitlist" className="w-full sm:max-w-md mt-2 relative z-20">
                 <WaitlistForm />
               </div>
+
+              <p className="mt-5 text-[9px] uppercase tracking-widest font-bold text-white/25">
+                3 posty zdarma na zkoušku · Bez kreditky · Zrušit kdykoliv
+              </p>
             </motion.div>
-            {/* SHOWCASE — real Chrlit-generated posts */}
-            <motion.div 
-              className="lg:w-1/2 relative w-full"
+
+            {/* RIGHT — the playable proof */}
+            <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.3 }}
             >
-              <div className="relative">
-                {/* Label */}
-                <div className="text-center mb-4">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/20">Reálné výstupy z Chrlit · klikni pro detail</span>
-                </div>
-
-                {/* Instagram-style grid */}
-                <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-                  {SHOWCASE_POSTS.map((post, i) => (
-                    <motion.div
-                      key={i}
-                      className="aspect-square rounded-sm overflow-hidden border border-white/5 group cursor-pointer relative"
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.4 + i * 0.3, duration: 0.5 }}
-                      onClick={() => setSelectedShowcase(i)}
-                    >
-                      <img 
-                        src={post.src} 
-                        alt={post.alt}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-300 flex items-center justify-center">
-                        <span className="text-white/0 group-hover:text-white/80 text-[10px] font-black uppercase tracking-widest transition-all">Detail</span>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
+              <HeroPlayground posts={SHOWCASE_POSTS} />
             </motion.div>
           </div>
         </div>
       </section>
 
-      {/* Showcase Modal */}
-      <AnimatePresence>
-        {selectedShowcase !== null && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-            onClick={() => setSelectedShowcase(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-[#0a0a0a] border border-white/10 rounded-sm max-w-lg w-full overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <img 
-                src={SHOWCASE_POSTS[selectedShowcase].src}
-                alt={SHOWCASE_POSTS[selectedShowcase].alt}
-                className="w-full aspect-square object-cover"
-              />
-              <div className="p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <img src="/chrlit-logo-transparent.svg" alt="Chrlit" className="h-4" />
-                  <span className="text-white/60 text-[10px] font-bold">chrlit.cz</span>
-                  <span className="text-white/20 text-[9px] ml-auto">Vygenerováno AI</span>
-                </div>
-                <p className="text-white/60 text-sm leading-relaxed">{SHOWCASE_POSTS[selectedShowcase].caption}</p>
-                <p className="text-aisummit-cinnabar/50 text-[10px] font-bold mt-3">{SHOWCASE_POSTS[selectedShowcase].hashtags}</p>
-              </div>
-              <div className="px-5 py-3 border-t border-white/5">
-                <button onClick={() => setSelectedShowcase(null)} className="text-[9px] font-black uppercase tracking-widest text-white/30 hover:text-white transition-colors">
-                  ✕ Zavřít
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* PROOF GALLERY — real generated posts, grouped by brand */}
+      <References />
 
-      {/* SOCIAL PROOF STRIP */}
-      <section className="relative z-10 py-16 border-t border-white/5">
-        <div className="max-w-5xl mx-auto px-6">
-          <p className="text-center text-[9px] font-bold uppercase tracking-[0.3em] text-white/20 mb-8">Používají živnostníci a firmy z celého Česka</p>
-          <div className="flex flex-wrap justify-center gap-x-8 gap-y-3">
-            {["🏨 Hotely", "🍷 Vinařství", "💇 Salóny", "🚚 Stěhování", "🎪 Zábava", "🏗️ Stavby", "☕ Kavárny", "🛒 E-shopy", "🏋️ Fitness", "📸 Fotografie"].map((item, i) => (
-              <span key={i} className="text-white/25 text-xs font-bold tracking-wider hover:text-white/50 transition-colors">{item}</span>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* TIME SAVED COMPARISON */}
-      <section className="relative z-10 py-32 border-t border-white/5 bg-[#050505]">
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Před Chrlit<br /><span className="text-aisummit-cinnabar">vs. po Chrlit.</span></h2>
-            <p className="text-white/50 font-medium text-lg max-w-2xl mx-auto">Čas, peníze, nervy. Tady je reálné srovnání — na úkolech, které řešíte každý týden.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-            {/* Traditional */}
-            <div className="bg-[#0a0a0a] border border-white/5 rounded-sm p-8">
-              <div className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-6">❌ Klasický přístup</div>
-              <div className="space-y-4">
-                {[
-                  { task: "Vymyslet téma příspěvku", time: "30 min" },
-                  { task: "Napsat caption + CTA", time: "45 min" },
-                  { task: "Vytvořit vizuál (Canva/grafik)", time: "60 min" },
-                  { task: "Vybrat hashtagy", time: "15 min" },
-                  { task: "Naplánovat na měsíc (20 postů)", time: "~30 hodin" },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center justify-between border-b border-white/5 pb-3">
-                    <span className="text-white/40 text-xs">{item.task}</span>
-                    <span className="text-white/60 text-xs font-black">{item.time}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-6 pt-4 border-t border-white/10">
-                <span className="text-white/30 text-[10px] font-bold uppercase tracking-widest">Celkem na měsíc</span>
-                <div className="text-3xl font-black text-white/80 mt-1">~30 hodin</div>
-              </div>
-            </div>
-
-            {/* Chrlit */}
-            <div className="bg-[#0a0a0a] border-2 border-aisummit-cinnabar/30 rounded-sm p-8 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-aisummit-cinnabar/5 blur-[80px] rounded-full pointer-events-none" />
-              <div className="relative z-10">
-                <div className="text-[10px] font-black uppercase tracking-widest text-aisummit-cinnabar mb-6">✓ S Chrlitem</div>
-                <div className="space-y-4">
-                  {[
-                    { task: "AI navrhne témata z vašeho webu", time: "0 min" },
-                    { task: "AI napíše caption ve vašem stylu", time: "0 min" },
-                    { task: "AI vytvoří vizuál s vašimi barvami", time: "0 min" },
-                    { task: "AI vybere hashtagy podle oboru", time: "0 min" },
-                    { task: "20 postů na měsíc", time: "~15 min" },
-                  ].map((item, i) => (
-                    <div key={i} className="flex items-center justify-between border-b border-white/5 pb-3">
-                      <span className="text-white/50 text-xs">{item.task}</span>
-                      <span className="text-emerald-400 text-xs font-black">{item.time}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-6 pt-4 border-t border-aisummit-cinnabar/20">
-                  <span className="text-aisummit-cinnabar/50 text-[10px] font-bold uppercase tracking-widest">Celkem na měsíc</span>
-                  <div className="text-3xl font-black text-aisummit-cinnabar mt-1">~15 minut</div>
-                  <div className="text-emerald-400 text-[10px] font-black uppercase tracking-widest mt-1">Ušetříte 29+ hodin měsíčně</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <p className="text-center text-white/20 text-[10px] font-bold uppercase tracking-widest">Čas je odhadován na základě průměrného social media manažera · 20 příspěvků/měsíc</p>
-        </div>
-      </section>
-
-      {/* BENTO GRID */}
-      <section id="features" className="relative z-10 max-w-7xl mx-auto px-6 py-32">
-        <div className="mb-20 text-center max-w-3xl mx-auto">
-          <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-6 text-white uppercase">Co dostanete<br /><span className="text-white/30">za pár kliků.</span></h2>
-          <p className="text-white/50 font-medium text-lg">Žádné složité nástroje. Řeknete nám o svém podnikání a Chrlit vám dodá hotový obsah — texty, obrázky, hashtagy. Vypadá to profesionálně, ne jako od robota.</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:auto-rows-[320px]">
-          
-          {/* Box 1: Kognitivní Autopilot */}
-          <div className="md:col-span-2 group relative overflow-hidden rounded-sm bg-[#0a0a0a] border border-white/10 p-10 flex flex-col justify-end transition-colors hover:border-white/30">
-            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-aisummit-cinnabar/5 rounded-full blur-[80px] group-hover:bg-aisummit-cinnabar/10 transition-colors duration-700 pointer-events-none" />
-            <Bot className="absolute top-10 right-10 w-24 h-24 text-white/5 group-hover:scale-110 group-hover:text-aisummit-cinnabar/20 transition-all duration-700" />
-            
-            <div className="relative z-10">
-              <div className="w-12 h-12 rounded-sm bg-white/5 flex items-center justify-center mb-6 border border-white/10 group-hover:bg-aisummit-cinnabar/20 group-hover:border-aisummit-cinnabar/30 transition-colors">
-                <Cpu className="w-5 h-5 text-white group-hover:text-aisummit-cinnabar" />
-              </div>
-              <h3 className="text-2xl font-black uppercase tracking-widest mb-3 text-white">Celý měsíc obsahu za vás</h3>
-              <p className="text-white/40 text-sm font-medium max-w-md leading-relaxed">AI se naučí váš styl komunikace, vaše barvy, vaši cílovku — a pak vygeneruje desítky hotových postů. Texty, obrázky, hashtagy. Stačí publikovat.</p>
-            </div>
-          </div>
-
-          {/* Box 2: Design & Mockupy */}
-          <div className="md:col-span-1 group relative overflow-hidden rounded-sm bg-[#0a0a0a] border border-white/10 p-10 transition-colors hover:border-white/30 flex flex-col justify-end">
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
-            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1618365908648-e71bc5716c11?q=80&w=800&auto=format&fit=crop')] bg-cover bg-center opacity-20 group-hover:opacity-40 group-hover:scale-105 transition-all duration-700" />
-            
-            <div className="relative z-20">
-              <PenTool className="w-6 h-6 text-emerald-400 mb-4" />
-              <h3 className="text-xl font-black uppercase tracking-widest text-white mb-2">Produktové vizualizace</h3>
-              <p className="text-white/60 text-xs font-medium">Máte nápad na produkt? AI navrhne design a ukáže vám realistický mockup — tričko, hrnek, krabičku. Bez grafika.</p>
-            </div>
-          </div>
-
-          {/* Box 3: Multi-tenant */}
-          <div className="md:col-span-1 group relative overflow-hidden rounded-sm bg-[#0a0a0a] border border-white/10 p-10 transition-colors hover:border-white/30">
-            <Layers className="w-6 h-6 text-amber-500 mb-6" />
-            <h3 className="text-xl font-black uppercase tracking-widest text-white mb-3">Víc značek? Žádný problém</h3>
-            <p className="text-white/40 text-xs font-medium leading-relaxed">Spravujete obsah pro více firem nebo klientů? Každý projekt má vlastní nastavení, loga a styl. Přepínáte jedním klikem.</p>
-          </div>
-
-          {/* Box 4: Performance */}
-          <div className="md:col-span-2 group relative overflow-hidden rounded-sm bg-aisummit-cinnabar border border-aisummit-cinnabar p-10 transition-colors flex items-center justify-between">
-            <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors" />
-            
-            <div className="relative z-10">
-              <h3 className="text-3xl font-black uppercase tracking-widest text-white mb-2">Ví, co funguje</h3>
-              <p className="text-white/80 text-sm font-medium max-w-sm">Chrlit sleduje, které posty zaujaly vaše publikum — a příští obsah podle toho přizpůsobí. Čím víc ho používáte, tím lepší výsledky.</p>
-            </div>
-
-            <div className="relative z-10 text-right">
-              <div className="text-6xl font-black text-white">24/7</div>
-              <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/60 mt-2">Nepřetržitý provoz</div>
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section id="how-it-works" className="relative py-32 border-t border-white/5 bg-[#050505]">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex flex-col md:flex-row items-center gap-16">
-            <div className="md:w-1/3">
-              <h2 className="text-3xl font-black uppercase tracking-tighter text-white mb-4">Tři kroky.<br/>Hotový Instagram.</h2>
-              <p className="text-white/40 text-sm">Žádné promptování, žádné složité nastavování. Prostě zadáte web, počkáte minutu a máte obsah.</p>
-            </div>
-            
-            <div className="md:w-2/3 grid grid-cols-1 sm:grid-cols-3 gap-6">
-              {[
-                { step: "01", title: "Zadejte web", desc: "AI prozkoumá váš web, pochopí čím se zabýváte, jaké máte barvy a styl." },
-                { step: "02", title: "Vyberte, co chcete", desc: "Posty na Instagram? Produktové nápady? Vizualizace? Vyberte si a nechte AI pracovat." },
-                { step: "03", title: "Hotovo", desc: "Za pár minut máte hotové posty s obrázky, texty a hashtagy. Stačí publikovat." }
-              ].map((item, i) => (
-                <div key={i} className="bg-[#0a0a0a] border border-white/5 p-6 rounded-sm relative">
-                  <div className="text-4xl font-black text-white/5 absolute top-4 right-4">{item.step}</div>
-                  <div className="w-8 h-8 rounded-sm bg-white/5 text-white flex items-center justify-center font-bold text-xs mb-6 border border-white/10">{item.step}</div>
-                  <h4 className="text-sm font-black uppercase tracking-widest text-white mb-2">{item.title}</h4>
-                  <p className="text-xs text-white/40 leading-relaxed">{item.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* INTERACTIVE DEMO */}
-      <section id="demo" className="relative py-32 border-t border-white/5 bg-[#0a0a0a] overflow-hidden">
+      {/* THE WOW — your brand, in everything, forever */}
+      <section id="demo" className="relative py-28 border-t border-white/5 bg-[#0a0a0a] overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(192,57,43,0.05),transparent_70%)] pointer-events-none" />
         <div className="max-w-7xl mx-auto px-6 relative z-10">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Čím víc tvoříte,<br /><span className="text-aisummit-cinnabar">tím lepší obsah dostáváte.</span></h2>
-            <p className="text-white/50 font-medium text-lg max-w-2xl mx-auto">Chrlit se učí z vašich výsledků. Každý like, každý uložený příspěvek — to vše pomáhá AI lépe pochopit vaše publikum. Spusťte ukázku a sledujte celý cyklus.</p>
+          <div className="text-center mb-14">
+            <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/20 mb-4">Co vás odlišuje</p>
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Z jednoho semínka<br /><span className="text-aisummit-cinnabar">celý váš Instagram.</span></h2>
+            <p className="text-white/50 font-medium text-lg max-w-2xl mx-auto">Vaše značka je semínko. Všechno, co z něj vyroste, vypadá jako vy — ne jako generická AI.</p>
           </div>
-          <LiveDemoWidget />
+          <SeedToFlower />
         </div>
       </section>
 
+      {/* WHAT YOU GET — three benefit cards (compact, value-framed) */}
+      <section className="relative z-10 py-28 border-t border-white/5 bg-[#050505]">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-14 max-w-2xl mx-auto">
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Co dostanete</h2>
+            <p className="text-white/50 font-medium text-lg">Žádný program k učení. Jen hotový obsah, který vypadá profesionálně.</p>
+          </div>
 
-      {/* PRICING SECTION */}
-      <section id="pricing" className="relative py-32 border-t border-white/5 bg-[#050505]">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {[
+              { Icon: Cpu, title: "Měsíc obsahu dopředu", desc: "Desítky hotových příspěvků připravených k publikaci. Vy už jen klikáte." },
+              { Icon: Camera, title: "Fotky produktů bez focení", desc: "Realistické vizuály vašich produktů. Bez fotografa, bez ateliéru." },
+              { Icon: TrendingUp, title: "Učí se, co vaše lidi baví", desc: "Sleduje, co funguje — a každý další příspěvek je o kus lepší." },
+            ].map(({ Icon, title, desc }, i) => (
+              <motion.div
+                key={i}
+                className="group bg-[#0a0a0a] border border-white/10 rounded-sm p-8 hover:border-aisummit-cinnabar/30 transition-colors"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1, duration: 0.5 }}
+              >
+                <div className="w-11 h-11 rounded-sm bg-white/5 flex items-center justify-center mb-6 border border-white/10 group-hover:bg-aisummit-cinnabar/20 group-hover:border-aisummit-cinnabar/30 transition-colors">
+                  <Icon className="w-5 h-5 text-white group-hover:text-aisummit-cinnabar transition-colors" />
+                </div>
+                <h3 className="text-base font-black uppercase tracking-widest text-white mb-2">{title}</h3>
+                <p className="text-white/40 text-sm leading-relaxed">{desc}</p>
+              </motion.div>
+            ))}
+          </div>
+
+          <p className="text-center mt-12 text-[9px] font-bold uppercase tracking-[0.3em] text-white/20">
+            Funguje pro kavárny · hotely · e-shopy · salóny · vinařství · fitness · řemeslníky
+          </p>
+        </div>
+      </section>
+
+      {/* STAKES + ANCHOR — loss aversion, one clean price anchor */}
+      <section className="relative z-10 py-28 border-t border-white/5 bg-[#050505] overflow-hidden">
+        <div className="absolute top-0 left-1/2 w-[700px] h-[400px] bg-aisummit-cinnabar/5 blur-[140px] rounded-full pointer-events-none" style={{ transform: 'translateX(-50%)' }} />
+        <div className="max-w-4xl mx-auto px-6 text-center relative z-10">
+          <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/20 mb-5">Zatímco váháte</p>
+          <h2 className="text-4xl md:text-6xl font-black tracking-tighter text-white uppercase leading-[0.95] mb-6">
+            Vaši zákazníci scrollují.<br /><span className="text-aisummit-cinnabar">Konkurence postuje.</span>
+          </h2>
+          <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">
+            Jediný, kdo na Instagramu mlčí, jste vy. Ne protože nechcete — protože na to není čas. Chrlit ten čas vrací.
+          </p>
+
+          {/* the anchor */}
+          <div className="mt-14 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
+            <div className="bg-[#0a0a0a] border border-white/5 rounded-sm p-8">
+              <div className="text-[10px] font-black uppercase tracking-widest text-white/25 mb-3">Agentura</div>
+              <div className="text-3xl md:text-4xl font-black text-white/40 line-through decoration-white/20">15–20 000 Kč</div>
+              <div className="text-white/25 text-[10px] font-bold uppercase tracking-widest mt-2">měsíčně</div>
+            </div>
+            <div className="bg-[#0a0a0a] border-2 border-aisummit-cinnabar/30 rounded-sm p-8 relative overflow-hidden shadow-[0_0_60px_rgba(230,57,70,0.12)]">
+              <div className="absolute top-0 right-0 w-[200px] h-[200px] bg-aisummit-cinnabar/10 blur-[60px] rounded-full pointer-events-none" />
+              <div className="relative z-10">
+                <div className="text-[10px] font-black uppercase tracking-widest text-aisummit-cinnabar mb-3">Chrlit</div>
+                <div className="text-3xl md:text-4xl font-black text-white">od 490 Kč</div>
+                <div className="text-aisummit-cinnabar/60 text-[10px] font-bold uppercase tracking-widest mt-2">měsíčně</div>
+              </div>
+            </div>
+          </div>
+          <p className="mt-6 text-white/30 text-sm font-bold">Za cenu jednoho oběda měsíčně.</p>
+        </div>
+      </section>
+
+      {/* PRICING — three tiers, no mechanism */}
+      <section id="pricing" className="relative py-28 border-t border-white/5 bg-[#050505]">
         <div className="absolute top-0 left-1/2 w-[800px] h-[400px] bg-aisummit-cinnabar/5 blur-[150px] rounded-full pointer-events-none" style={{ transform: 'translateX(-50%)' }} />
         <div className="max-w-7xl mx-auto px-6 relative z-10">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Vyberte si fázi<br /><span className="text-aisummit-cinnabar">růstu profilu.</span></h2>
-            <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Nekupujete funkce — kupujete tempo růstu. Tři balíčky podle toho, jak rychle chcete růst. Potřebujete víc? Dobijte si kredity.</p>
-            <div className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-sm border border-emerald-500/30 bg-emerald-500/10 backdrop-blur-sm">
-              <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>
-              <span className="text-emerald-400 text-sm font-black">Kreditový systém — platíte jen za to, co skutečně použijete</span>
-            </div>
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Kolik to stojí?<br /><span className="text-aisummit-cinnabar">Míň, než si myslíte.</span></h2>
+            <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Vyberte si podle toho, jak často chcete postovat. Bez smluv, bez závazků.</p>
           </div>
 
-          {/* Growth tier cards */}
           <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
             {[
               {
                 name: "Start",
                 tagline: "Nakopni profil",
                 price: 490,
-                credits: 15,
                 highlight: false,
                 features: [
-                  "15 kreditů měsíčně (~4 posty týdně)",
-                  "AI posty s unikátními obrázky",
+                  "~4 příspěvky týdně",
+                  "Unikátní AI obrázky",
                   "Carousel posty",
-                  "AI nápady na obsah",
-                  "Základní analytika",
+                  "Nápady na obsah",
                 ],
               },
               {
                 name: "Růst",
                 tagline: "Rosteme spolu",
                 price: 990,
-                credits: 40,
                 highlight: true,
                 features: [
-                  "40 kreditů měsíčně (~obsah na každý den)",
+                  "Obsah na každý den",
                   "Vše ze Start",
                   "Reels — AI video",
                   "A/B varianty příspěvků",
-                  "Růstový dashboard — sledování followerů",
-                  "Plná analytika výkonu",
+                  "Sledování růstu followerů",
                 ],
               },
               {
                 name: "Dominance",
                 tagline: "Ovládni svůj trh",
                 price: 1990,
-                credits: 100,
                 highlight: false,
                 features: [
-                  "100 kreditů měsíčně",
+                  "Maximum obsahu",
                   "Vše z Růst",
-                  "Product studio — vizualizace & mockupy",
-                  "Business Brief",
+                  "Produktové vizualizace",
                   "Prioritní generování",
                 ],
               },
@@ -459,12 +315,7 @@ export default function Home() {
                   <span className="text-5xl font-black text-white">{plan.price.toLocaleString("cs")}</span>
                   <span className="text-white/40 text-lg font-black ml-2">Kč</span>
                 </div>
-                <p className="text-white/30 text-[10px] font-bold mb-6">měsíčně · bez závazku · zrušit kdykoliv</p>
-
-                <div className="relative z-10 bg-aisummit-cinnabar/10 rounded-sm px-4 py-2.5 mb-6 border border-aisummit-cinnabar/20 text-center">
-                  <span className="text-white font-black text-base">{plan.credits}</span>
-                  <span className="text-white/60 text-xs font-bold ml-2">kreditů v ceně</span>
-                </div>
+                <p className="text-white/30 text-[10px] font-bold mb-8">měsíčně · bez závazku · zrušit kdykoliv</p>
 
                 <ul className="space-y-2.5 mb-8 relative z-10 flex-1">
                   {plan.features.map((f, i) => (
@@ -489,69 +340,34 @@ export default function Home() {
             ))}
           </div>
 
-          <div className="mt-10 text-center">
-            <p className="text-white/40 text-xs font-bold mb-1">Potřebujete víc?</p>
-            <p className="text-white/60 text-sm font-black">Dobijte si kredity za <span className="text-aisummit-cinnabar">15 Kč/ks</span></p>
-            <p className="text-white/25 text-[9px] font-medium mt-1">Kredity neexpirují · Kupujte kdykoliv · Žádný minimální odběr</p>
-          </div>
-
-
-          {/* Credit costs table */}
-          <div className="mt-16 max-w-3xl mx-auto">
-            <h3 className="text-center text-sm font-black uppercase tracking-widest text-white/40 mb-6">Kolik stojí jednotlivé AI akce</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                { icon: "📸", label: "Instagram příspěvek", credits: "1 kredit" },
-                { icon: "🎠", label: "Carousel post", credits: "2 kredity" },
-                { icon: "🔄", label: "Další verze postu", credits: "1 kredit" },
-                { icon: "💡", label: "AI nápady na obsah", credits: "1 kredit" },
-                { icon: "🎨", label: "Produktová vizualizace", credits: "2 kredity" },
-                { icon: "📦", label: "Mockup produktu", credits: "2 kredity" },
-                { icon: "👕", label: "Design na míru", credits: "3 kredity" },
-                { icon: "📄", label: "Business Brief", credits: "5 kreditů" },
-              ].map((a, i) => (
-                <div key={i} className="bg-[#0a0a0a] border border-white/5 rounded-sm px-3 py-2.5 flex items-center gap-2.5">
-                  <span className="text-base">{a.icon}</span>
-                  <div>
-                    <span className="text-[10px] text-white/50 font-bold block">{a.label}</span>
-                    <span className="text-[10px] text-aisummit-cinnabar font-black">{a.credits}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Trust line */}
           <p className="text-center mt-12 text-[9px] text-white/25 font-bold uppercase tracking-widest">3 posty zdarma na zkoušku · Bez kreditky · Zrušit jedním klikem</p>
         </div>
       </section>
 
-      {/* FAQ SECTION */}
-      <section id="faq" className="relative py-32 border-t border-white/5 bg-[#0a0a0a]">
+      {/* FAQ — only buying objections */}
+      <section id="faq" className="relative py-28 border-t border-white/5 bg-[#0a0a0a]">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(192,57,43,0.04),transparent_60%)] pointer-events-none" />
         <div className="max-w-3xl mx-auto px-6 relative z-10">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Časté<br /><span className="text-aisummit-cinnabar">dotazy</span></h2>
-            <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Všechno, co potřebujete vědět, než začnete.</p>
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Než se rozhodnete</h2>
           </div>
-
           <FaqAccordion />
         </div>
       </section>
 
-      {/* CTA SECTION */}
-      <section className="relative py-40 overflow-hidden z-10 border-t border-white/5 bg-[#050505]">
+      {/* CTA */}
+      <section className="relative py-36 overflow-hidden z-10 border-t border-white/5 bg-[#050505]">
         <div className="absolute top-1/2 left-1/2 w-[600px] h-[600px] bg-aisummit-cinnabar/10 blur-[120px] rounded-full pointer-events-none" style={{ transform: 'translate(-50%, -50%)' }} />
-        
+
         <div className="relative z-10 max-w-3xl mx-auto px-6 text-center">
-          <h2 className="text-5xl md:text-7xl font-black tracking-tighter mb-6 text-white uppercase leading-[0.9]">Váš Instagram<br /> <span className="text-aisummit-cinnabar">si zaslouží víc.</span></h2>
-          <p className="text-base text-white/40 font-medium mb-12 max-w-xl mx-auto">Přestaňte přemýšlet co postovat. Zadejte web a nechte AI pracovat — vy se věnujte tomu, na čem záleží.</p>
+          <h2 className="text-5xl md:text-7xl font-black tracking-tighter mb-6 text-white uppercase leading-[0.9]">Váš web už máte.<br /> <span className="text-aisummit-cinnabar">Zbytek uděláme my.</span></h2>
+          <p className="text-base text-white/40 font-medium mb-12 max-w-xl mx-auto">Vaši zákazníci jsou na Instagramu. Dostaneme vás tam — bez práce.</p>
 
           <Link href="#waitlist" className="group relative inline-flex items-center justify-center px-10 py-5 bg-white text-black rounded-sm font-black text-sm hover:bg-white/90 transition-all uppercase tracking-widest shadow-[0_0_40px_rgba(255,255,255,0.2)]">
             Připojit se na Waitlist <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
           </Link>
-          
-          <p className="mt-6 text-[9px] uppercase tracking-widest font-bold text-white/30">7 dní zdarma. Žádná kreditka. Zrušit kdykoliv.</p>
+
+          <p className="mt-6 text-[9px] uppercase tracking-widest font-bold text-white/30">3 posty zdarma na zkoušku. Žádná kreditka. Zrušit kdykoliv.</p>
         </div>
       </section>
 
@@ -562,12 +378,12 @@ export default function Home() {
             <div className="flex items-center gap-2 mb-6">
               <img src="/chrlit-logo-transparent.svg" alt="Chrlit" className="h-6" />
             </div>
-            <p className="text-white/30 text-xs font-medium max-w-sm leading-relaxed">Obsah na sociální sítě, který vypadá profesionálně — bez grafika, bez copywritera, bez stresu.</p>
+            <p className="text-white/30 text-xs font-medium max-w-sm leading-relaxed">Hotový Instagram bez grafika, bez agentury, bez stresu. Vy zveřejníte, my uděláme zbytek.</p>
           </div>
           <div>
             <h4 className="font-bold mb-5 text-white/70 tracking-widest uppercase text-[10px]">Produkt</h4>
             <ul className="space-y-3 text-[10px] tracking-wider uppercase text-white/30 font-bold">
-              <li><Link href="#features" className="hover:text-white transition-colors">Platforma</Link></li>
+              <li><Link href="#reference" className="hover:text-white transition-colors">Ukázky</Link></li>
               <li><Link href="#pricing" className="hover:text-white transition-colors">Ceník</Link></li>
               <li><Link href="#faq" className="hover:text-white transition-colors">FAQ</Link></li>
               <li><Link href="/login" className="hover:text-white transition-colors text-white/60">Přihlášení</Link></li>
@@ -583,7 +399,7 @@ export default function Home() {
         </div>
         <div className="max-w-7xl mx-auto px-6 pt-10 mt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center text-[9px] text-white/20 font-bold tracking-[0.2em] uppercase">
           <p>© {new Date().getFullYear()} Chrlit.cz</p>
-          <div className="mt-2 md:mt-0">Testováno na 10+ firmách z různých oborů</div>
+          <div className="mt-2 md:mt-0">Hotový Instagram z vašeho webu</div>
         </div>
       </footer>
     </main>
@@ -591,47 +407,25 @@ export default function Home() {
 }
 
 // ─── FAQ Accordion ──────────────────────────────────────────
+// Only buying-objection questions — the "how it works" detail intentionally lives
+// inside the product, not on the landing page.
 
 const FAQ_ITEMS = [
   {
-    q: "Co přesně Chrlit dělá?",
-    a: "Chrlit je AI platforma, která generuje hotový Instagram obsah — texty, obrázky, hashtagy — přizpůsobený vaší značce. Zadáte web, AI pochopí váš styl, a vy dostanete měsíc obsahu připraveného k publikaci.",
+    q: "Nepozná se, že to dělá AI?",
+    a: "Ne. Každý příspěvek dostane unikátní obrázek ve vašich barvách a text psaný vaším tónem. Vypadá jako od profesionálního social media manažera, ne jako generický AI obsah.",
   },
   {
-    q: "Musím něco umět? Jak to funguje?",
-    a: "Ne. Zadáte URL svého webu (nebo vyplníte pár otázek), AI analyzuje vaši značku — barvy, tón, produkty — a automaticky vygeneruje konfiguraci. Pak jedním klikem generujete posty. Žádné promptování, žádné složité nastavování.",
+    q: "Musím něco umět?",
+    a: "Vůbec ne. Zadáte adresu svého webu, Chrlit si ji přečte a o zbytek se postará. Žádné psaní zadání, žádné složité nastavování.",
   },
   {
-    q: "Jak vypadá výstup? Nepozná se, že to dělá AI?",
-    a: "Každý post obsahuje unikátní AI-generovaný obrázek s vaším brand gradientem a textem, caption psaný vaším tónem komunikace, a ručně vybrané hashtagy pro váš obor. Výstup vypadá jako od profesionálního social media manažera, ne jako generický AI obsah.",
-  },
-  {
-    q: "Kolik postů dostanu za měsíc?",
-    a: "S balíčkem dostanete 30 kreditů měsíčně — to je cca 30 příspěvků. Jeden post stojí 1 kredit, carousel 2 kredity. Potřebujete víc? Dobijte si kredity za 15 Kč/ks, kdykoliv.",
-  },
-  {
-    q: "Co jsou kredity a jak fungují?",
-    a: "Kredity jsou měna v Chrlitu. Každá AI akce stojí kredity — post 1 kredit, carousel 2 kredity, produktová vizualizace 2 kredity. Každý měsíc dostanete 30 kreditů v ceně. Potřebujete víc? Dobijte si je za 15 Kč/ks.",
+    q: "Potřebuje to přístup k mému Instagramu?",
+    a: "Ne. Chrlit nepotřebuje přístup k vašemu účtu. Obsah si stáhnete nebo zkopírujete a zveřejníte sami. Vaše data jsou v bezpečí.",
   },
   {
     q: "Můžu to zrušit kdykoliv?",
-    a: "Ano. Žádné smlouvy, žádné závazky. Měsíční předplatné zrušíte jedním klikem a doběhne do konce zaplaceného období. Trial je 7 dní zdarma bez kreditky.",
-  },
-  {
-    q: "Pro jaké obory to funguje?",
-    a: "Používají ho živnostníci a firmy z 10+ oborů — e-shopy, kavárny, hotely, fitness, salóny, řemeslníci, fotografové, poradci. AI se přizpůsobí jakémukoliv odvětví díky analýze vašeho webu.",
-  },
-  {
-    q: "Můžu upravit vygenerovaný obsah?",
-    a: "Samozřejmě. Každý post můžete před publikací upravit — změnit text, přegenerovat obrázek, upravit hashtagy. Chrlit vám dá základ, vy ho doladíte podle sebe.",
-  },
-  {
-    q: "Potřebuju dávat Chrlitu přístup k Instagramu?",
-    a: "Ne. Chrlit nepotřebuje přístup k vašemu Instagram účtu. Generuje obsah, který si stáhnete nebo zkopírujete a publikujete sami. Vaše data jsou v bezpečí.",
-  },
-  {
-    q: "Jak se liší od ChatGPT nebo Canvy?",
-    a: "ChatGPT generuje text, Canva dělá design — ale obojí vyžaduje vaše promptování a manuální práci. Chrlit kombinuje obojí do jednoho kliknutí: pochopí váš brand, vygeneruje text i obrázek ve vašem stylu, a učí se z výsledků. Je to autopilot, ne nástroj.",
+    a: "Ano. Žádné smlouvy, žádné závazky — zrušíte jedním klikem. Na vyzkoušení máte 3 posty zdarma, bez kreditky.",
   },
 ]
 

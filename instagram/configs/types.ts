@@ -248,6 +248,20 @@ export interface ClientConfig {
      *  Generated during onboarding based on business type and target audience. */
     audiencePersonas?: AudiencePersona[]
 
+    /** Psycholog — vrství prodejní psychologii (persuaze, emoce, CTA) do copywriterova
+     *  promptu. Deterministické, žádné AI volání. Default true; nastav false pro vypnutí. */
+    psychologist?: boolean
+
+    /** AI-doporučený styl komunikace pro tohoto KONKRÉTNÍHO klienta — vygenerováno na
+     *  konci onboardingu (generateConfigCore), zobrazeno v review kroku a uloženo do
+     *  configu. Zatím display/reference pro klienta; engine ho přímo nečte. */
+    communicationStyle?: {
+        headline: string
+        rationale: string
+        dos: string[]
+        donts: string[]
+    }
+
     /** @deprecated Use brandReferenceImages instead */
     characterReferenceImages?: string[]
 
@@ -273,6 +287,11 @@ export interface ClientConfig {
         /** ISO timestamp of the scrape */
         scrapedAt: string
     }
+
+    /** Marks a fictional demo/reference brand (seeded via scripts/seed-reference-clients.ts).
+     *  Its generated posts are surfaced as case-study references on the marketing site.
+     *  Not a real paying customer. */
+    isReference?: boolean
 }
 
 // ─── Brand Image Type ────────────────────────────────────────────────

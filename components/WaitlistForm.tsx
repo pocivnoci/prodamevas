@@ -22,7 +22,7 @@ export function WaitlistForm() {
 
     if (status === 'success') {
         return (
-            <div className="flex flex-col items-center justify-center p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl backdrop-blur-xl">
+            <div className="flex flex-col items-center justify-center p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-sm backdrop-blur-xl">
                 <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center mb-4">
                     <svg className="w-6 h-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -50,14 +50,14 @@ export function WaitlistForm() {
                         name="email"
                         required
                         placeholder="tvuj@email.cz"
-                        className="w-full px-5 py-4 bg-black/60 border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/50 transition-all text-sm"
+                        className="w-full px-5 py-4 bg-black/60 border border-white/10 rounded-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/50 transition-all text-sm"
                         disabled={status === 'loading'}
                     />
                 </div>
                 <button 
                     type="submit"
                     disabled={status === 'loading'}
-                    className="w-full relative group overflow-hidden rounded-xl bg-aisummit-cinnabar px-5 py-4 text-sm font-bold text-white shadow-[0_0_25px_rgba(230,57,70,0.3)] transition-all hover:bg-aisummit-cinnabar/90 disabled:opacity-70 uppercase tracking-widest"
+                    className="w-full relative group overflow-hidden rounded-sm bg-aisummit-cinnabar px-5 py-4 text-sm font-bold text-white shadow-[0_0_25px_rgba(230,57,70,0.3)] transition-all hover:bg-aisummit-cinnabar/90 disabled:opacity-70 uppercase tracking-widest"
                 >
                     <span className="relative z-10 flex items-center justify-center gap-2">
                         {status === 'loading' ? 'Odesílám...' : 'Připojit se na Waitlist'}

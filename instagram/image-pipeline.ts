@@ -9,6 +9,7 @@ import { ai, generateText } from "./gemini-client"
 import { getModel } from "./models"
 import { getBrandMemories } from "./memory-agent"
 import type { ClientConfig } from "./configs/types"
+import { buildPhotoFidelitySection } from "./photo-fidelity"
 
 // ============================================
 // VISUAL MEMORY FORMATTER
@@ -265,6 +266,7 @@ export async function generateDesignBrief(params: {
     const allowedArchetypes = (LAYOUT_ARCHETYPES as readonly string[]).filter(a => !banned.includes(a))
     const fa = config.feedAesthetic
     const memSection = params.visualMemoriesSection ?? await getVisualMemoriesSection(clientId)
+    const fidelitySection = buildPhotoFidelitySection(config)
 
     const designerPrompt = `
 You are a world-class Instagram art director designing a COMPLETE post visual.
@@ -308,6 +310,7 @@ Cohesive vibe, different skeleton.
 - The composition must leave negative space where the text goes; describe it in negativeSpace.
 - Logo: small, tasteful, never dominating. Vary corners/positions unless brand preference is fixed.
 - Photography quality: editorial, cinematic lighting, real depth — no stock-photo vibes.
+${fidelitySection}
 
 Return ONLY the JSON design brief.`
 

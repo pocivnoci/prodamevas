@@ -581,6 +581,36 @@ function OnboardingContent() {
 
                         {error && <ErrorBanner message={error} />}
 
+                        {configPreview.communicationStyle && (
+                            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-5 mb-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <span className="text-lg">💬</span>
+                                    <h3 className="font-bold text-white">Doporučený styl komunikace</h3>
+                                    <span className="ml-auto text-[10px] uppercase tracking-wider font-bold text-emerald-400/70 bg-emerald-500/10 px-2 py-0.5 rounded">AI na míru</span>
+                                </div>
+                                <p className="text-sm font-semibold text-white mb-1">{configPreview.communicationStyle.headline}</p>
+                                <p className="text-xs text-gray-400 mb-4">{configPreview.communicationStyle.rationale}</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <span className="block text-[10px] uppercase font-bold tracking-wider text-emerald-400/70 mb-1.5">✓ Dělat</span>
+                                        <ul className="space-y-1">
+                                            {(configPreview.communicationStyle.dos || []).map((d: string, i: number) => (
+                                                <li key={i} className="text-xs text-gray-300 flex gap-1.5"><span className="text-emerald-400">·</span>{d}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                    <div>
+                                        <span className="block text-[10px] uppercase font-bold tracking-wider text-rose-400/70 mb-1.5">✕ Vyhnout se</span>
+                                        <ul className="space-y-1">
+                                            {(configPreview.communicationStyle.donts || []).map((d: string, i: number) => (
+                                                <li key={i} className="text-xs text-gray-300 flex gap-1.5"><span className="text-rose-400">·</span>{d}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="space-y-4">
                             <ReviewCard section="brand_voice" icon="🎤" title="Brand Voice & Persona"
                                 status={sectionStatuses.brand_voice} feedback={sectionFeedback.brand_voice || ''}

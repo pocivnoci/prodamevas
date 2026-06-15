@@ -994,6 +994,37 @@ Pravidla:
             console.warn(`⚠️ Persona generation failed: ${(personaErr as Error).message}`)
         }
 
+        // Recommend a communication style tailored to THIS specific client (best-effort,
+        // optional). Shown at the end of onboarding (review step) and saved into the config.
+        // NOTE: kept in sync with the twin in app/onboarding/core.ts (generateConfigCore).
+        try {
+            const stylePrompt = `Jsi stratég značky. Pro tuhle KONKRÉTNÍ firmu navrhni doporučený styl komunikace na Instagramu — ne obecné rady, ale to, co dává smysl právě pro tenhle případ.
+
+Firma: ${analysis.companyName} (${analysis.industry})
+Popis: ${analysis.description}
+Cílová skupina: ${analysis.targetAudience || 'obecná'}
+Hlas značky (persona): ${config.brandVoice?.persona || '—'}
+Tón: ${(config.brandVoice?.voiceTraits || []).join(', ') || '—'}
+
+Vrať POUZE platný JSON objekt:
+{
+  "headline": "krátký název stylu, 3-6 slov česky (např. 'Přátelský expert s lidským tónem')",
+  "rationale": "2-3 věty PROČ tenhle styl sedí právě téhle firmě a jejím zákazníkům",
+  "dos": ["3-4 konkrétní věci, které dělat (specifické pro tenhle obor a publikum)"],
+  "donts": ["3-4 konkrétní věci, kterým se vyhnout"]
+}
+
+Pravidla: buď konkrétní, ne generický. Žádné prázdné fráze typu 'buďte autentičtí'. Mluv přímo k téhle firmě.`
+
+            const rawStyle = await generateText(stylePrompt, { temperature: 0.7 })
+            const styleMatch = rawStyle.match(/\{[\s\S]*\}/)
+            if (styleMatch) {
+                config.communicationStyle = JSON.parse(styleMatch[0])
+            }
+        } catch (styleErr) {
+            console.warn(`⚠️ Communication style generation failed: ${(styleErr as Error).message}`)
+        }
+
         return { success: true, config }
     } catch (error) {
         console.error('Config preview error:', error)

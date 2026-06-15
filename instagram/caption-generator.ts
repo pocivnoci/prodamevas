@@ -11,6 +11,7 @@ import type { PostType, PostIdea, Review } from "./types"
 import type { HookTemplate } from "./types"
 import type { PerformanceInsight } from "./performance"
 import { getPillarForType, createPillarMapper } from "./service"
+import { buildPsychologistSection } from "./psychologist"
 
 // ============================================
 // COSTS
@@ -447,9 +448,12 @@ export function buildMegaPrompt(
     const ctaOptions = getRandomCTAs(config, 6)
 
     // Audience persona targeting — pick one at random for this post
+    const selectedPersona = config.audiencePersonas && config.audiencePersonas.length > 0
+        ? config.audiencePersonas[Math.floor(Math.random() * config.audiencePersonas.length)]
+        : undefined
     let personaSection = ""
-    if (config.audiencePersonas && config.audiencePersonas.length > 0) {
-        const persona = config.audiencePersonas[Math.floor(Math.random() * config.audiencePersonas.length)]
+    if (selectedPersona) {
+        const persona = selectedPersona
         personaSection = `
 ## 🎯 CÍLOVÁ PERSONA PRO TENTO POST
 **Segment:** ${persona.label} (${persona.ageRange} let)
@@ -463,6 +467,10 @@ export function buildMegaPrompt(
 - CTA musí odpovídat jejich stylu (${persona.ctaStyle})
 `
     }
+
+    // Psycholog — prodejní psychologie do copywritingu (deterministická vrstva, žádné AI volání).
+    // Vypnutelné přes config.psychologist === false. Viz instagram/psychologist.ts.
+    const psychologySection = config.psychologist !== false ? buildPsychologistSection(selectedPersona) : ""
 
     let learningSection = ""
     if (performance.topPatterns.length > 0 || performance.bestHooks.length > 0) {
@@ -548,6 +556,7 @@ ${review ? `## RECENZE K VYUŽITÍ
 ` : ""}
 ${learningSection}
 ${personaSection}
+${psychologySection}
 ## INSPIRACE PRO HOOKY
 ${hookTemplates.map(h => `- Vzor: "${h.pattern}" → Příklad: "${h.example}" (trigger: ${h.trigger})`).join("\n")}
 

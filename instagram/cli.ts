@@ -394,11 +394,12 @@ Dostupné konfigurace: mobilnamiru (a klientské UUIDs z DB)
 
     if (isWeek || count) {
         await generateBatch({
+            configName,
             count: count || CLI_CONFIG!.weekPlan.length,
             dryRun,
         })
     } else {
-        await generateOnePost({ type, dryRun })
+        await generateOnePost({ configName, type, dryRun })
     }
 }
 
