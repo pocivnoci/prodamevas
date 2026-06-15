@@ -53,9 +53,10 @@ import { withRetry } from "../utils/retry"
 
 export async function generateText(
     prompt: string,
-    options?: { responseSchema?: any; temperature?: number; model?: string }
+    options?: { responseSchema?: any; temperature?: number; model?: string; fallbackModel?: string }
 ): Promise<string> {
     const defaultModel = options?.model || getModel("text")
+    const fallbackModel = options?.fallbackModel || getModel("text", "fallback")
     try {
         return await withRetry(async () => {
             const response = await ai.models.generateContent({
@@ -80,10 +81,10 @@ export async function generateText(
         // unavailable model ID must degrade gracefully, not crash the pipeline.
         const m = err.message || ""
         if (err.status === 503 || err.status === 429 || err.status === 404 || m.includes("503") || m.includes("429") || m.includes("404") || m.includes("not found") || m.includes("NOT_FOUND") || m.includes("quota") || m.includes("high demand") || m.includes("overloaded")) {
-            console.warn(`⚠️ ${defaultModel} unavailable (${err.status}). Falling back to ${getModel("text", "fallback")}...`)
+            console.warn(`⚠️ ${defaultModel} unavailable (${err.status}). Falling back to ${fallbackModel}...`)
             return await withRetry(async () => {
                 const response = await ai.models.generateContent({
-                    model: getModel("text", "fallback"),
+                    model: fallbackModel,
                     contents: prompt,
                     config: {
                         responseMimeType: "application/json",

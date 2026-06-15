@@ -316,6 +316,7 @@ Return ONLY the JSON design brief.`
 
     const raw = await generateText(designerPrompt, {
         model: getModel("designer"),
+        fallbackModel: getModel("designer", "fallback"),
         responseSchema: DESIGN_BRIEF_SCHEMA,
         temperature: 1.0,
     })
@@ -331,7 +332,7 @@ Return ONLY the JSON design brief.`
         console.warn(`   ⚠️ Designer reused banned archetype "${brief.layoutArchetype}" — regenerating`)
         const retryRaw = await generateText(
             designerPrompt + `\n\n⚠️ REJECTED: your previous brief used layoutArchetype "${brief.layoutArchetype}", which is FORBIDDEN. Produce a NEW brief with layoutArchetype strictly from: ${allowedArchetypes.join(", ")} — and a composition that actually matches it.`,
-            { model: getModel("designer"), responseSchema: DESIGN_BRIEF_SCHEMA, temperature: 1.0 }
+            { model: getModel("designer"), fallbackModel: getModel("designer", "fallback"), responseSchema: DESIGN_BRIEF_SCHEMA, temperature: 1.0 }
         )
         try {
             const retry = JSON.parse(retryRaw) as DesignBrief
@@ -439,6 +440,7 @@ Return JSON: { "designSystem": "one paragraph describing the shared system", "br
 
     const raw = await generateText(prompt, {
         model: getModel("designer"),
+        fallbackModel: getModel("designer", "fallback"),
         responseSchema: {
             type: Type.OBJECT,
             properties: {

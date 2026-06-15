@@ -13,10 +13,11 @@
 export const MODELS = {
     /** General text agents: captions, ideas, critic, analysis, onboarding */
     text: { primary: "gemini-3.5-flash", fallback: "gemini-2.5-flash-lite" },
-    /** AI Designer — full visual design briefs. NOTE: gemini-3.1-pro returns 404
-     *  (not available on this API key / v1beta), so the designer runs on
-     *  gemini-3.5-flash. Set GEMINI_MODEL_DESIGNER to a Pro model once confirmed. */
-    designer: { primary: "gemini-3.5-flash", fallback: "gemini-2.5-flash-lite" },
+    /** AI Designer — full visual design briefs (low volume, high creative leverage).
+     *  gemini-pro-latest = best available Pro (alias auto-tracks the latest Pro, so
+     *  it survives preview rotation). gemini-3.1-pro never existed; gemini-3-pro-preview
+     *  is already dead; gemini-3.1-pro-preview is deprecated (shutdown June 25, 2026). */
+    designer: { primary: "gemini-pro-latest", fallback: "gemini-2.5-pro" },
     /** Vision: QA checks, logo placement, brand asset tagging, overlay review */
     vision: { primary: "gemini-3.5-flash" },
     /** Image generation — Nano Banana Pro GA (renders typography natively) */
@@ -24,11 +25,11 @@ export const MODELS = {
     /** Cheap image tier — Nano Banana 2 GA (supports 512px) */
     imageCheap: { primary: "gemini-3.1-flash-image" },
     /** Video tiers for reels */
-    videoLite: { primary: "veo-3.1-lite" },
-    videoFast: { primary: "veo-3.1-fast-generate-001" },
-    videoPremium: { primary: "veo-3.1-generate-001" },
+    videoLite: { primary: "veo-3.1-lite-generate-preview" },
+    videoFast: { primary: "veo-3.1-fast-generate-preview" },
+    videoPremium: { primary: "veo-3.1-generate-preview" },
     /** Czech voiceover */
-    tts: { primary: "gemini-3.1-flash-tts-preview", fallback: "gemini-2.5-flash-tts" },
+    tts: { primary: "gemini-3.1-flash-tts-preview", fallback: "gemini-2.5-flash-preview-tts" },
 } as const
 
 export type ModelAction = keyof typeof MODELS
