@@ -92,4 +92,6 @@ Kdykoli uděláš změnu v kódu, **MUSÍŠ** aktualizovat relevantní dokumenta
 
 | 2026-06-16 | v5.6 | **Designer 503/deadline → fast fallback (ne overlay):** Pro designer (`gemini-pro-latest`) občas vrací 503 „Deadline expired" (throttling Pro modelu na free Gemini tieru / overload). `withRetry` ho zkouší 3×, pak `generateText` fallbackoval na `gemini-2.5-pro` = taky pomalý Pro → taky timeout → `renderImage` spadl na legacy overlay engine (degradace vizuálu). Fix: designer fallback `gemini-2.5-pro` → `gemini-3.5-flash` (rychlý, dokončí do deadline → native Nano-Banana render pokračuje). **Skutečný fix kapacity = zapnout placený (pay-as-you-go) tier na Gemini API** (Google AI Studio/Cloud projektu za `GEMINI_API_KEY`) — free tier Pro modely silně throttluje. Není to Comgate subscription appky. Bez DB schema změn |
 
+| 2026-06-16 | v5.7 | **Designer primary `gemini-pro-latest` → `gemini-2.5-pro`:** i na placeném Gemini tieru `gemini-pro-latest` (alias na nejnovější Pro) občas vrací 503 „Deadline expired" (transient congestion nejžhavějšího modelu). `gemini-2.5-pro` = zralý GA Pro s větší kapacitou/nižší latencí → spolehlivější, stále Pro kvalita (volba uživatele). Fallback zůstává FAST `gemini-3.5-flash`. Override `GEMINI_MODEL_DESIGNER` pořád možný. Bez DB schema změn |
+
 *Při dalším updatu přidej řádek sem.*

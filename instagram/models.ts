@@ -14,11 +14,11 @@ export const MODELS = {
     /** General text agents: captions, ideas, critic, analysis, onboarding */
     text: { primary: "gemini-3.5-flash", fallback: "gemini-2.5-flash-lite" },
     /** AI Designer — full visual design briefs (low volume, high creative leverage).
-     *  Primary gemini-pro-latest = best Pro (alias auto-tracks latest, survives preview
-     *  rotation). Fallback is FAST gemini-3.5-flash (NOT another Pro): when Pro 503s /
-     *  "deadline expired" under load, flash still returns a brief so the native render
-     *  continues — a second slow Pro would just time out too and drop us to overlay. */
-    designer: { primary: "gemini-pro-latest", fallback: "gemini-3.5-flash" },
+     *  Primary gemini-2.5-pro = mature GA Pro: more provisioned capacity / lower latency
+     *  than the bleeding-edge gemini-pro-latest alias (which 503'd "deadline expired"
+     *  under load). Fallback is FAST gemini-3.5-flash: if Pro 503s, flash still returns a
+     *  brief so the native render continues instead of dropping to the overlay engine. */
+    designer: { primary: "gemini-2.5-pro", fallback: "gemini-3.5-flash" },
     /** Vision: QA checks, logo placement, brand asset tagging, overlay review */
     vision: { primary: "gemini-3.5-flash" },
     /** Image generation — Nano Banana Pro GA (renders typography natively) */

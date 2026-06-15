@@ -39,7 +39,7 @@ Context Agent (svátek, počasí) ──→ buildMegaPrompt()
 | **Copywriter** | Generuje caption/script/carousel z mega promptu | `gemini-3.5-flash` |
 | **Critic** | Hodnotí 1–10, vrací `keep[]` a `fix[]` | `gemini-3.5-flash` |
 | **Editorial Board** | Šéfredaktor + copywriter revize (max 3 kola) | `gemini-3.5-flash` |
-| **AI Designer** (native engine, default) | Navrhuje kompletní design brief: kompozice, česká typografie, logo placement, anti-repetition vůči posledním 6 briefům (`generateDesignBrief` v `image-pipeline.ts`). Brief obsahuje `layoutArchetype` (8 hodnot v `LAYOUT_ARCHETYPES`); fingerprinty posledních postů (concept + layout + text placement + color) jdou do promptu a archetypy posledních 3 postů jsou **hard-banned** — porušení se detekuje v kódu a brief se regeneruje (1 retry). Cíl: stejný brand vibe, jiná struktura ("same shit different day" guard) | `gemini-pro-latest` |
+| **AI Designer** (native engine, default) | Navrhuje kompletní design brief: kompozice, česká typografie, logo placement, anti-repetition vůči posledním 6 briefům (`generateDesignBrief` v `image-pipeline.ts`). Brief obsahuje `layoutArchetype` (8 hodnot v `LAYOUT_ARCHETYPES`); fingerprinty posledních postů (concept + layout + text placement + color) jdou do promptu a archetypy posledních 3 postů jsou **hard-banned** — porušení se detekuje v kódu a brief se regeneruje (1 retry). Cíl: stejný brand vibe, jiná struktura ("same shit different day" guard) | `gemini-2.5-pro` |
 | **Art Director** (overlay engine, legacy/fallback) | Vylepšuje text-free image prompt, injektuje vizuální pravidla z memory | `gemini-3.5-flash` |
 | **Renderer** | Native: Nano Banana Pro renderuje celý post vč. českého textu a loga → vision QA (`verifyNativeImage`) → 1 korektivní edit → Satori fallback. Overlay: text-free obrázek + Satori overlay | `gemini-3-pro-image` / Veo 3.1 |
 | **Memory Agent** | Analyzuje vzorce z postů, zapisuje/updatuje `ig_brand_memory` | `gemini-3.5-flash` |
@@ -156,7 +156,7 @@ buildSmartWeekPlan()  // pillar ratio × 1.5 (top) / × 0.5 (under), normalizov�
 | Akce (registr) | Model | Fallback |
 |------|-------|----------|
 | `text` | `gemini-3.5-flash` | `gemini-2.5-flash-lite` (na 503/429) |
-| `designer` (AI Designer) | `gemini-pro-latest` | `gemini-3.5-flash` (fast — Pro 503/deadline pak nepadne na overlay) |
+| `designer` (AI Designer) | `gemini-2.5-pro` | `gemini-3.5-flash` (fast — Pro 503/deadline pak nepadne na overlay) |
 | `vision` (QA, tagging, logo placement) | `gemini-3.5-flash` | — |
 | `image` | `gemini-3-pro-image` (Nano Banana Pro GA) | `gemini-3.1-flash-image` (Nano Banana 2 GA) |
 | `imageCheap` | `gemini-3.1-flash-image` (512px tier) | — |

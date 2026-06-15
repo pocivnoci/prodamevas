@@ -131,7 +131,7 @@ sequenceDiagram
 | 5. Caption generation | Copywriter | `gemini-3.5-flash` | 25% |
 | 6. Quality gate scoring | Critic | `gemini-3.5-flash` | 45% |
 | 6b. Editorial Board review | Chief Editor + Copywriter | `gemini-3.5-flash` | 50% |
-| 7a. Design brief (native engine, default) | AI Designer | `gemini-pro-latest` | 55% |
+| 7a. Design brief (native engine, default) | AI Designer | `gemini-2.5-pro` | 55% |
 | 7b. Image prompt refinement (overlay engine / fallback) | Art Director | `gemini-3.5-flash` | 60% |
 | 8. Image generation | Renderer | Nano Banana Pro (native: incl. Czech typography + logo) | 75% |
 | 9a. Vision QA + corrective edit (native) | Renderer | `gemini-3.5-flash` vision → `gemini-3-pro-image` edit | 78% |
@@ -187,7 +187,7 @@ A/B Variant Loop (variant-actions.ts)
 | Action | Model | Fallback | Notes |
 |------|-------|----------|-------|
 | `text` (all agents) | `gemini-3.5-flash` | `gemini-2.5-flash-lite` | On 503/429 |
-| `designer` (AI Designer) | `gemini-pro-latest` | `gemini-3.5-flash` | Design briefs — best Pro (alias); fallback je FAST flash, aby Pro 503/deadline udržel native render |
+| `designer` (AI Designer) | `gemini-2.5-pro` | `gemini-3.5-flash` | Design briefs — mature GA Pro (spolehlivější než `gemini-pro-latest`, které 503'lo); fallback FAST flash udrží native render |
 | `image` | `gemini-3-pro-image` | `gemini-3.1-flash-image` | Nano Banana Pro GA → Nano Banana 2 GA; also editExistingImage() + generateImageWithReferences() |
 | `imageCheap` | `gemini-3.1-flash-image` | — | 512px tier |
 | `vision` (QA, logo placement, tagging) | `gemini-3.5-flash` | — | detectLogoPlacementArea(), verifyNativeImage(), brand-tagger |
@@ -341,7 +341,7 @@ A/B Variant Loop (variant-actions.ts)
 | Operation | Model | Cost |
 |---|---|---|
 | Caption + Critic + Editorial | gemini-3.5-flash | ~$0.08 |
-| Design brief (AI Designer) | gemini-pro-latest | ~$0.04 |
+| Design brief (AI Designer) | gemini-2.5-pro | ~$0.03 |
 | Image gen 2K (Nano Banana Pro) | gemini-3-pro-image | ~$0.13 |
 | Vision QA per image | gemini-3.5-flash | ~$0.01 |
 | Corrective edit (worst case 1×) | gemini-3-pro-image | ~$0.13 |
