@@ -14,10 +14,11 @@ export const MODELS = {
     /** General text agents: captions, ideas, critic, analysis, onboarding */
     text: { primary: "gemini-3.5-flash", fallback: "gemini-2.5-flash-lite" },
     /** AI Designer — full visual design briefs (low volume, high creative leverage).
-     *  gemini-pro-latest = best available Pro (alias auto-tracks the latest Pro, so
-     *  it survives preview rotation). gemini-3.1-pro never existed; gemini-3-pro-preview
-     *  is already dead; gemini-3.1-pro-preview is deprecated (shutdown June 25, 2026). */
-    designer: { primary: "gemini-pro-latest", fallback: "gemini-2.5-pro" },
+     *  Primary gemini-pro-latest = best Pro (alias auto-tracks latest, survives preview
+     *  rotation). Fallback is FAST gemini-3.5-flash (NOT another Pro): when Pro 503s /
+     *  "deadline expired" under load, flash still returns a brief so the native render
+     *  continues — a second slow Pro would just time out too and drop us to overlay. */
+    designer: { primary: "gemini-pro-latest", fallback: "gemini-3.5-flash" },
     /** Vision: QA checks, logo placement, brand asset tagging, overlay review */
     vision: { primary: "gemini-3.5-flash" },
     /** Image generation — Nano Banana Pro GA (renders typography natively) */

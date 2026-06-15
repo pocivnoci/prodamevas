@@ -156,7 +156,7 @@ buildSmartWeekPlan()  // pillar ratio × 1.5 (top) / × 0.5 (under), normalizov�
 | Akce (registr) | Model | Fallback |
 |------|-------|----------|
 | `text` | `gemini-3.5-flash` | `gemini-2.5-flash-lite` (na 503/429) |
-| `designer` (AI Designer) | `gemini-pro-latest` | `gemini-2.5-pro` |
+| `designer` (AI Designer) | `gemini-pro-latest` | `gemini-3.5-flash` (fast — Pro 503/deadline pak nepadne na overlay) |
 | `vision` (QA, tagging, logo placement) | `gemini-3.5-flash` | — |
 | `image` | `gemini-3-pro-image` (Nano Banana Pro GA) | `gemini-3.1-flash-image` (Nano Banana 2 GA) |
 | `imageCheap` | `gemini-3.1-flash-image` (512px tier) | — |
