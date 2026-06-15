@@ -115,7 +115,7 @@ function humanizeError(error: unknown): string {
  * Insert a new client record and return its UUID.
  * Handles slug duplicates by appending a short suffix.
  */
-async function insertClient(slug: string, config: ClientConfig): Promise<string> {
+async function insertClient(slug: string, config: ClientConfig): Promise<{ id: string; slug: string }> {
     const payload = {
         slug,
         name: config.name,
@@ -132,7 +132,8 @@ async function insertClient(slug: string, config: ClientConfig): Promise<string>
 
     if (error) {
         if (error.message.includes('duplicate') || error.message.includes('unique')) {
-            // Slug collision — retry with suffix
+            // Slug collision — retry with suffix. MUST return the suffixed slug
+            // so callers generate against the right client, not the colliding one.
             const newSlug = `${slug}-${Date.now().toString(36).slice(-4)}`
             config.id = newSlug
             const { data: retryData, error: retryError } = await supabaseAdmin
@@ -141,11 +142,11 @@ async function insertClient(slug: string, config: ClientConfig): Promise<string>
                 .select('id')
                 .single()
             if (retryError) throw retryError
-            return retryData!.id
+            return { id: retryData!.id, slug: newSlug }
         }
         throw error
     }
-    return data!.id
+    return { id: data!.id, slug }
 }
 
 // ============================================
@@ -1212,7 +1213,7 @@ export async function saveReviewedConfig(
         }
 
         // ── NEW CLIENT: Insert ──
-        const insertedClientId = await insertClient(clientSlug, config)
+        const { id: insertedClientId, slug: insertedSlug } = await insertClient(clientSlug, config)
 
         // Warm-start brand memory from the scraped feed (guarded — only when empty)
         await seedMemoriesFromAnalysis(insertedClientId, analysis)
@@ -1254,7 +1255,7 @@ export async function saveReviewedConfig(
             console.error('⚠️ Trial creation failed:', (trialErr as Error).message)
         }
 
-        return { success: true, clientSlug }
+        return { success: true, clientSlug: insertedSlug }
     } catch (error) {
         console.error('Save config error:', error)
         return { success: false, error: humanizeError(error) }

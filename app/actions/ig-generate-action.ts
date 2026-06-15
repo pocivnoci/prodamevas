@@ -498,7 +498,9 @@ export async function generateShowcasePost(options: {
     configName: string
 }): Promise<{ success: boolean; postId?: string; error?: string }> {
     try {
-        await requireAuth()
+        // Membership check — must own the target client, not just be logged in.
+        // (Without this, a stale/colliding slug wrote posts into another tenant.)
+        await requireProjectAccess(options.configName)
         const { generateOnePost } = await import("@/instagram/autopilot")
 
         const result = await generateOnePost({ configName: options.configName })
