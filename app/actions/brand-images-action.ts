@@ -2,7 +2,7 @@
 
 import supabaseAdmin from '@/supabase/admin'
 import { requireProjectAccess } from '@/lib/auth-guard'
-import { getConfigBrandImages } from '@/instagram/configs/types'
+import { getConfigBrandImages, type BrandImage } from '@/instagram/configs/types'
 
 /**
  * Upload a brand/reference image from the dashboard.
@@ -168,5 +168,74 @@ export async function getBrandImages(clientSlug: string): Promise<string[]> {
         return getConfigBrandImages(config)
     } catch {
         return []
+    }
+}
+
+/**
+ * Get brand images as full objects (url + AI tags + description) for the UI,
+ * so the dashboard can show how each photo was auto-labelled.
+ */
+export async function getBrandImageObjects(clientSlug: string): Promise<BrandImage[]> {
+    try {
+        await requireProjectAccess(clientSlug)
+        const { data: client } = await supabaseAdmin
+            .from('clients').select('config').eq('slug', clientSlug).single()
+        if (!client) return []
+        const { getConfigBrandImageObjects } = await import('@/instagram/configs/types')
+        return getConfigBrandImageObjects(client.config as any)
+    } catch {
+        return []
+    }
+}
+
+/**
+ * Re-tag ALL of a client's brand photos with vision AI. Downloads each photo,
+ * runs tagBrandImage(), and writes refreshed tags + description back to config.
+ * For photos uploaded before tagging existed, or to refresh labels after changes.
+ */
+export async function retagBrandImages(
+    clientSlug: string
+): Promise<{ success: boolean; count: number; error?: string }> {
+    try {
+        const { clientId } = await requireProjectAccess(clientSlug)
+        const { data: client } = await supabaseAdmin
+            .from('clients').select('config, name').eq('id', clientId).single()
+        if (!client) return { success: false, count: 0, error: 'Klient nenalezen.' }
+
+        const config = client.config as any
+        const { getConfigBrandImageObjects } = await import('@/instagram/configs/types')
+        const imgs = getConfigBrandImageObjects(config)
+        if (imgs.length === 0) return { success: true, count: 0 }
+
+        const { tagBrandImage } = await import('@/instagram/brand-tagger')
+        const retagged: BrandImage[] = []
+        let count = 0
+        for (const img of imgs) {
+            try {
+                const resp = await fetch(img.url)
+                if (!resp.ok) { retagged.push(img); continue }
+                const buf = Buffer.from(await resp.arrayBuffer())
+                const mime = img.url.endsWith('.png') ? 'image/png' : 'image/jpeg'
+                const { tags, description } = await tagBrandImage(buf, mime, client.name)
+                retagged.push({
+                    url: img.url,
+                    tags: tags.length ? tags : img.tags,
+                    description: description || img.description,
+                })
+                if (tags.length) count++
+            } catch {
+                retagged.push(img)
+            }
+        }
+
+        await supabaseAdmin
+            .from('clients')
+            .update({ config: { ...config, brandReferenceImages: retagged } })
+            .eq('id', clientId)
+        const { invalidateConfigCache } = await import('@/instagram/configs')
+        invalidateConfigCache(clientSlug)
+        return { success: true, count }
+    } catch (err) {
+        return { success: false, count: 0, error: (err as Error).message }
     }
 }
