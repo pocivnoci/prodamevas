@@ -100,4 +100,6 @@ Kdykoli uděláš změnu v kódu, **MUSÍŠ** aktualizovat relevantní dokumenta
 
 | 2026-06-16 | v5.10 | **Viditelné + opravitelné AI štítky fotek.** Auto-tagging (`tagBrandImage`, controlled vocab `VALID_TAGS`) už běžel na uploadu, rescanu i onboarding scrapu — ale štítky byly v UI neviditelné (`getBrandImages` vracel jen URL). Nově: `getBrandImageObjects()` vrací `BrandImage[]` (url+tags+description); BrandTab zobrazuje štítky pod každou fotkou (+ „bez štítku" warning) a má tlačítko **Přeznačit AI** → `retagBrandImages(slug)` stáhne a znovu oštítkuje všechny fotky klienta (pro legacy/neoznačené). Štítky pohání referenční labely (v5.9) i photo-fidelity. Bez DB schema změn |
 
+| 2026-06-16 | v5.11 | **Normalizace nahraných fotek (PC i mobil).** `uploadBrandImage` ukládalo raw soubor bez úprav → telefonní fotky (rotace z EXIF, >10 MB, raw iPhone HEIC) se nezobrazovaly / nešly otagovat / nešly použít jako reference. Nově každý upload projde `sharp`: auto-rotate (EXIF), resize max 2048 (fit inside), re-encode JPEG q85; limit zvednut 10→25 MB; ukládá se vždy jako `.jpg` (`image/jpeg`) a tak se i taguje. sharp 0.34 dekóduje AVIF, ale NE HEIC (HEVC licensing) — raw HEIC (vzácné, iOS Safari ho při web uploadu obvykle převede na JPEG sám) → jasná chybová hláška s návodem. Bez nové závislosti. Bez DB schema změn |
+
 *Při dalším updatu přidej řádek sem.*

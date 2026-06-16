@@ -26,23 +26,38 @@ export async function uploadBrandImage(formData: FormData): Promise<{
 
         // Validate file
         if (!file.type.startsWith('image/')) {
-            return { success: false, error: 'Podporovány jsou pouze obrázky (JPG, PNG, WebP)' }
+            return { success: false, error: 'Podporovány jsou pouze obrázky (JPG, PNG, WebP, HEIC z iPhonu).' }
         }
-        if (file.size > 10_000_000) {
-            return { success: false, error: 'Obrázek je příliš velký (max 10 MB)' }
+        if (file.size > 25_000_000) {
+            return { success: false, error: 'Obrázek je příliš velký (max 25 MB).' }
         }
 
-        // Read file to buffer
-        const buffer = Buffer.from(await file.arrayBuffer())
-        const ext = file.type.includes('png') ? 'png' : file.type.includes('webp') ? 'webp' : 'jpg'
+        // Normalize EVERY upload (PC or phone): auto-rotate from EXIF, downscale,
+        // and re-encode to JPEG. Guarantees a browser-displayable, AI-taggable,
+        // reference-usable image regardless of source format / orientation / size.
+        const rawBuffer = Buffer.from(await file.arrayBuffer())
+        let buffer: Buffer
+        try {
+            const sharp = (await import('sharp')).default
+            buffer = await sharp(rawBuffer, { failOn: 'none' })
+                .rotate() // apply EXIF orientation (phone photos are often rotated)
+                .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
+                .jpeg({ quality: 85 })
+                .toBuffer()
+        } catch {
+            // Unsupported codec — almost always a raw iPhone HEIC the browser
+            // didn't auto-convert. sharp's prebuilt libvips can't decode HEVC.
+            return { success: false, error: 'Tuhle fotku nejde zpracovat (nejspíš HEIC z iPhonu). Pošli ji jako JPG, nebo na iPhonu zapni Nastavení → Fotoaparát → Formáty → „Nejkompatibilnější".' }
+        }
+
         const timestamp = Date.now()
-        const filename = `client-assets/${clientSlug}/${category}-${timestamp}.${ext}`
+        const filename = `client-assets/${clientSlug}/${category}-${timestamp}.jpg`
 
-        // Upload to Supabase storage
+        // Upload to Supabase storage (always JPEG after normalization)
         const { error: uploadError } = await supabaseAdmin.storage
             .from('audit-screenshots')
             .upload(filename, buffer, {
-                contentType: file.type,
+                contentType: 'image/jpeg',
                 cacheControl: '31536000',
                 upsert: true,
             })
@@ -63,7 +78,7 @@ export async function uploadBrandImage(formData: FormData): Promise<{
         let brandImageObj: any = imageUrl  // fallback: just the URL string
         try {
             const { tagBrandImage } = await import('@/instagram/brand-tagger')
-            const { tags, description } = await tagBrandImage(buffer, file.type)
+            const { tags, description } = await tagBrandImage(buffer, 'image/jpeg')
             if (tags.length > 0 || description) {
                 brandImageObj = { url: imageUrl, tags, description }
             }
