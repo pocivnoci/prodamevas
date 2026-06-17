@@ -139,6 +139,29 @@ export async function revisePost(
         if (insertErr) throw insertErr
 
         console.log(`✅ Post revised: ${postId} → ${newPost.id}`)
+
+        // ─── REJECTION LEARNING ───────────────────────────
+        // The user told us exactly what was wrong — the highest-quality signal
+        // in the system. Extract a lasting preference/avoid memory. Fire & forget
+        // so the response isn't blocked; waitUntil keeps the lambda alive.
+        if (feedback?.trim()) {
+            try {
+                const { waitUntil } = await import("@vercel/functions")
+                const { learnFromRevision } = await import("@/instagram/memory-agent")
+                waitUntil(
+                    learnFromRevision(
+                        original.caption || "",
+                        feedback,
+                        parsed.caption || "",
+                        [postId, newPost.id],
+                        clientId
+                    ).then(({ memoriesCreated }) => {
+                        if (memoriesCreated > 0) console.log(`🧠 Revision learning: ${memoriesCreated} new memories`)
+                    }).catch(() => { /* non-fatal */ })
+                )
+            } catch { /* non-fatal — revision already saved */ }
+        }
+
         return { success: true, newPostId: newPost.id }
     } catch (err: any) {
         console.error("revisePost error:", err?.message || err)

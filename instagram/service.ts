@@ -380,6 +380,20 @@ export async function propagateMetricsToSources(explicitClientId?: string): Prom
  * High-performing ideas are 3x more likely to be selected.
  * Ideas with no metrics yet get a fair chance too.
  */
+/**
+ * Recency-decayed performance score. A win from last season counts less than a
+ * fresh one — without this, old top performers dominate selection forever and
+ * the feed converges to a stale local optimum. ~120-day half-life.
+ */
+function decayedScore(score: number, lastSignalAt: string | null | undefined): number {
+    if (!score) return 0
+    if (!lastSignalAt) return score
+    const ageDays = (Date.now() - new Date(lastSignalAt).getTime()) / 86_400_000
+    if (!Number.isFinite(ageDays) || ageDays <= 0) return score
+    const HALF_LIFE_DAYS = 120
+    return score * Math.pow(0.5, ageDays / HALF_LIFE_DAYS)
+}
+
 export async function getWeightedIdeas(limit = 5): Promise<PostIdea[]> {
     const clientId = getActiveProject()
 
@@ -398,13 +412,23 @@ export async function getWeightedIdeas(limit = 5): Promise<PostIdea[]> {
 
     if (!ideas || ideas.length === 0) return []
 
-    // Weighted random selection: top performers get 3x weight
-    const avgScore = ideas.reduce((s, i) => s + (i.performance_score || 0), 0) / ideas.length
-    const weighted = ideas.flatMap(idea => {
-        const score = idea.performance_score || 0
-        if (score > avgScore * 1.5) return [idea, idea, idea] // 3x weight
-        if (score > avgScore) return [idea, idea]              // 2x weight
-        return [idea]                                          // 1x weight (default/no data)
+    // Effective score = recency-decayed performance. Compare against the average
+    // of decayed scores so the threshold tracks the freshly-relevant winners.
+    const scored = ideas.map(idea => ({
+        idea,
+        eff: decayedScore(idea.performance_score || 0, idea.last_used_at),
+        unproven: !idea.times_used_with_metrics, // never measured = exploration candidate
+    }))
+    const avgScore = scored.reduce((s, x) => s + x.eff, 0) / scored.length
+
+    // Weighted random selection with explicit exploration (optimism under
+    // uncertainty): untested ideas get a guaranteed 2x shot instead of being
+    // buried with proven low performers — that's what keeps the loop exploring.
+    const weighted = scored.flatMap(({ idea, eff, unproven }) => {
+        if (unproven) return [idea, idea]                  // exploration boost
+        if (eff > avgScore * 1.5) return [idea, idea, idea] // 3x weight
+        if (eff > avgScore) return [idea, idea]             // 2x weight
+        return [idea]                                       // 1x weight (proven low)
     })
 
     // Shuffle and pick
@@ -429,11 +453,16 @@ export async function getWeightedReviews(limit = 3): Promise<Review[]> {
 
     if (!reviews || reviews.length === 0) return []
 
-    const avgScore = reviews.reduce((s, r) => s + (r.performance_score || 0), 0) / reviews.length
-    const weighted = reviews.flatMap(review => {
-        const score = review.performance_score || 0
-        if (score > avgScore * 1.5) return [review, review, review]
-        if (score > avgScore) return [review, review]
+    const scored = reviews.map(review => ({
+        review,
+        eff: decayedScore(review.performance_score || 0, review.used_at),
+        unproven: !review.times_used_with_metrics,
+    }))
+    const avgScore = scored.reduce((s, x) => s + x.eff, 0) / scored.length
+    const weighted = scored.flatMap(({ review, eff, unproven }) => {
+        if (unproven) return [review, review]
+        if (eff > avgScore * 1.5) return [review, review, review]
+        if (eff > avgScore) return [review, review]
         return [review]
     })
 

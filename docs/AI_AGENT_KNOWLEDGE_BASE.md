@@ -84,17 +84,29 @@ Po zadání metrik přes `updateIGPostMetrics()` se **automaticky** spustí:
 - Gemini extrahuje max 3 pravidla (pattern / preference / avoid)
 - Ukládá/updatuje `ig_brand_memory` (dedup přes ilike match)
 
+**C) `learnFromRevision()`** — Revize uživatele → Brand Memory (v5.9)
+- Spouští se z `revisePost()` (fire-&-forget přes `waitUntil`), když uživatel přepíše post s feedbackem
+- Feedback uživatele = nejsilnější signál (řekl přesně, co bylo špatně)
+- Gemini z (původní caption + feedback + přepsaná verze) extrahuje 1–2 `avoid`/`preference` memories
+- Stejný dedup/confidence pattern jako `learnFromVariantSelection`
+
 ### Critic → Prompt Feedback
 - `logGeneration()` ukládá `critic_score`, `critic_keep[]`, `critic_fix[]`
 - Autopilot čte posledních 5 critic scores a injektuje keep/fix do mega promptu
 - Umožňuje systému se učit z vlastních chyb
 
-### Weighted Selection
+### Weighted Selection (v5.9 — recency decay + exploration)
 ```typescript
-getWeightedIdeas(3)   // score > avg*1.5 → 3x výběr, score > avg → 2x, ostatní 1x
+getWeightedIdeas(3)   // decayedScore > avg*1.5 → 3x, > avg → 2x, ostatní 1x
 getWeightedReviews(3) // stejný pattern
 buildSmartWeekPlan()  // pillar ratio × 1.5 (top) / × 0.5 (under), normalizováno
 ```
+- **`decayedScore()`** (`service.ts`): `performance_score` slábne s ~120denním poločasem rozpadu
+  (decay podle `last_used_at` / `used_at`) — staré hity nedominují výběr navždy, feed se
+  nezasekne v lokálním optimu.
+- **Exploration boost**: nezměřené zdroje (`!times_used_with_metrics`) dostanou garantovaně **2x**
+  váhu (optimism under uncertainty) místo zahrabání mezi prokazatelně slabé — drží smyčku ve
+  zkoumání nového.
 
 ---
 
@@ -187,7 +199,7 @@ buildSmartWeekPlan()  // pillar ratio × 1.5 (top) / × 0.5 (under), normalizov�
 15. **Feedback auto-trigger**: `updateIGPostMetrics()` spustí `propagateMetrics()` + `analyzeAndLearn()` přes `waitUntil()`. POZOR: předchozí metriky se čtou PŘED updatem — jinak jsou delty 0 a učení se nikdy nespustí (bug opravený v4.1).
 16. **Kredity**: charge při `ig-create-job` (ne po generování), refund při selhání v `ig-run-job` / stuck-job reaperu. Idempotence: unique index `credit_transactions(action, reference_id)`. `config.charged` v `ig_jobs` říká co vrátit ('plan'/'credits'/'none').
 17. **Stuck-job reaper**: `ig-job-status` označí job bez aktivity >8 min jako failed + refunduje. Žádný cron.
-18. **link_type**: `revision_of` linkuje revize i A/B varianty — `link_type` ('revision'/'variant') je rozlišuje. A/B srovnání a `learnFromVariantSelection` filtrují na 'variant'.
+18. **link_type**: `revision_of` linkuje revize i A/B varianty — `link_type` ('revision'/'variant') je rozlišuje. A/B srovnání a `learnFromVariantSelection` filtrují na 'variant'. Revize ('revision') spouští `learnFromRevision()` (v5.9) — feedback uživatele → `avoid`/`preference` memory.
 19. **Config cache TTL 60s**: `invalidateConfigCache()` čistí jen lokální lambdu — ostatní instance expirují přes TTL. Nikdy nespoléhat na okamžitou propagaci configu.
 20. **Mock platby na produkci**: `isMockPaymentMode()` ignoruje `COMGATE_MOCK=true` když `VERCEL_ENV=production`.
 21. **Media gating (v3 tiery)**: reel je povolen od plánu Růst. Enforcement 2×: `ig-create-job` vrací 403 `featureBlocked` při explicitním `medium:"reel"`, a `generateOnePost({ allowedMedia })` clampne medium z configu/kategorie na carousel/image. Plány bez `features.allowed_media` (trial_v2, legacy chrlit) = vše povoleno (`canUseMedium` v `lib/subscription.ts`).
@@ -216,8 +228,8 @@ instagram/                            # AI Engine
 ├── editorial-board.ts                # 777 LOC — 6 AI agentů review
 ├── text-overlay.ts                   # 683 LOC — Satori → Sharp
 ├── product-generator.ts              # 643 LOC — product ideas, design concepts
-├── service.ts                        # 617 LOC — DB access, weighted selection, feedback
-├── memory-agent.ts                   # ~590 LOC — brand memory, learning, variant learning
+├── service.ts                        # ~640 LOC — DB access, weighted selection (decay+explore), feedback
+├── memory-agent.ts                   # ~700 LOC — brand memory, learning, variant + revision learning
 ├── gemini-client.ts                  # 455 LOC — AI gateway (text, image, video, TTS)
 ├── image-pipeline.ts                 # 346 LOC — prompt refinement, visual memory
 ├── video-processor.ts                # 247 LOC — Veo 3.1 reels

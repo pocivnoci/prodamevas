@@ -622,3 +622,102 @@ Vrať POUZE validní JSON pole:
         return { memoriesCreated: 0 }
     }
 }
+
+/**
+ * Learn from a user revision. When a user rewrites a post with explicit feedback,
+ * that feedback is the highest-quality signal in the system — they told us exactly
+ * what was wrong. The original caption is the rejected version; the feedback says
+ * why. Extract an "avoid" or "preference" memory so the copywriter stops repeating
+ * the mistake. Mirrors learnFromVariantSelection's dedup/confidence handling.
+ */
+export async function learnFromRevision(
+    originalCaption: string,
+    feedback: string,
+    revisedCaption: string,
+    sourcePostIds: string[],
+    explicitClientId?: string
+): Promise<{ memoriesCreated: number }> {
+    const clientId = explicitClientId || getActiveProject()
+    if (!feedback?.trim()) return { memoriesCreated: 0 }
+
+    const origHook = (originalCaption || "").split("\n")[0] || ""
+    const newHook = (revisedCaption || "").split("\n")[0] || ""
+
+    const prompt = `
+Jsi analytik značky pro Instagram. Uživatel ZAMÍTL původní verzi postu a dal KONKRÉTNÍ zpětnou vazbu, podle které jsme ho přepsali. Zpětná vazba uživatele je nejcennější signál — řekl nám přesně, co bylo špatně.
+
+## PŮVODNÍ (zamítnutá) verze:
+Hook: "${origHook}"
+Text: "${(originalCaption || "").substring(0, 300)}"
+
+## ZPĚTNÁ VAZBA UŽIVATELE (proč to bylo špatně):
+"${feedback.substring(0, 400)}"
+
+## PŘEPSANÁ (preferovaná) verze:
+Hook: "${newHook}"
+
+Extrahuj 1-2 konkrétní, trvalá ponaučení pro budoucí psaní — co se má DĚLAT (preference) nebo čemu se VYHNOUT (avoid). Buď konkrétní, ne obecný. Např.:
+- avoid: "Nepoužívej klišé jako 'v dnešní uspěchané době'"
+- preference: "Uživatel chce konkrétní čísla místo vágních tvrzení"
+
+Vrať POUZE validní JSON pole:
+[
+  { "type": "avoid" | "preference", "content": "ponaučení česky", "confidence": 0.7 }
+]
+`
+
+    try {
+        const raw = await ai.models.generateContent({
+            model: getModel("text"),
+            contents: prompt,
+            config: { responseMimeType: "application/json" },
+        })
+
+        const text = raw.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || ""
+        const jsonMatch = text.match(/\[[\s\S]*\]/)
+        const learnings = JSON.parse(jsonMatch?.[0] || "[]") as { type: string; content: string; confidence: number }[]
+
+        let created = 0
+
+        for (const learning of learnings) {
+            if (!learning.content) continue
+            const memoryType = learning.type === "avoid" ? "avoid" : "preference"
+
+            const { data: existing } = await supabaseAdmin
+                .from("ig_brand_memory")
+                .select("id, content, confidence, times_confirmed")
+                .eq("client_id", clientId)
+                .eq("memory_type", memoryType)
+
+            const match = (existing || []).find(m => isSimilarMemory(m.content, learning.content))
+
+            if (match) {
+                await supabaseAdmin
+                    .from("ig_brand_memory")
+                    .update({
+                        confidence: Math.min(1, match.confidence + 0.15),
+                        times_confirmed: match.times_confirmed + 1,
+                    })
+                    .eq("id", match.id)
+                console.log(`   ✍️ Revision ${memoryType} reinforced: "${learning.content}"`)
+            } else {
+                await supabaseAdmin
+                    .from("ig_brand_memory")
+                    .insert({
+                        client_id: clientId,
+                        memory_type: memoryType,
+                        content: learning.content,
+                        confidence: Math.min(0.8, Math.max(0.5, learning.confidence || 0.65)),
+                        source_post_ids: sourcePostIds,
+                    })
+                created++
+                console.log(`   ✍️ New revision ${memoryType}: "${learning.content}"`)
+            }
+        }
+
+        return { memoriesCreated: created }
+    } catch (err: any) {
+        console.warn(`⚠️ Revision learning failed: ${err?.message?.substring(0, 80)}`)
+        return { memoriesCreated: 0 }
+    }
+}
