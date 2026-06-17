@@ -345,6 +345,16 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         refreshSubscription()
     }
 
+    // Content Plan: changing the post count invalidates any existing plan, so the
+    // generated/approved plan can never desync from the selected count (the batch loop
+    // runs contentPlan.length, not batchCount — a stale 3-item plan would ignore a new 7).
+    const handleCountChange = (newCount: number) => {
+        if (newCount !== batchCount && contentPlan.length > 0) {
+            setContentPlan([])
+        }
+        setBatchCount(newCount)
+    }
+
     // Content Plan: generate plan preview
     const handleGeneratePlan = async () => {
         setPlanGenerating(true)
@@ -697,7 +707,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Kolik příspěvků?</label>
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                         {[{ count: 3, label: "3", desc: "Zkouška" }, { count: 7, label: "7", desc: "Týden" }, { count: 14, label: "14", desc: "Dva týdny" }, { count: 30, label: "30", desc: "Měsíc" }].map(opt => (
-                                            <button key={opt.count} onClick={() => setBatchCount(opt.count)}
+                                            <button key={opt.count} onClick={() => handleCountChange(opt.count)}
                                                 className={`py-4 rounded-sm transition-all border text-center ${batchCount === opt.count
                                                     ? "bg-aisummit-cinnabar/20 border-aisummit-cinnabar/30 text-aisummit-cinnabar" : "bg-[#050505] border-white/10 text-white/40 hover:text-white hover:border-white/30"}`}>
                                                 <span className="text-2xl font-black block">{opt.label}</span>

@@ -39,10 +39,11 @@ instagram/                            # 8101 LOC — server-only
 
 | Action | Model | Fallback |
 |------|-------|----------|
-| **Text gen** (caption, critic, editorial board) | `gemini-3.5-flash` | `gemini-2.5-flash-lite` (503/429) |
-| **AI Designer** (design briefs, native engine) | `gemini-3.1-pro` | `gemini-3.5-flash` |
+| **Text gen** (caption, critic, editorial board) | `gemini-3-pro-preview` | `gemini-3.5-flash` (503/429/404) |
+| **AI Designer** (design briefs, native engine) | `gemini-3-pro-preview` | `gemini-3.5-flash` |
 | **Image gen** (incl. edit + refs) | `gemini-3-pro-image` (Nano Banana Pro GA, 2K) | `gemini-3.1-flash-image` (Nano Banana 2 GA) |
-| **Vision** (QA, logo placement, tagging) | `gemini-3.5-flash` | — |
+| **Vision** (logo placement, tagging, overlay review) | `gemini-3.5-flash` | — |
+| **Vision QA** (`verifyNativeImage` native gate) | `gemini-3-pro-preview` | `gemini-3.5-flash` (then fail-open) |
 | **Video** (reels, 9:16, tier via `videoTier`) | `veo-3.1-lite` / `veo-3.1-fast-generate-001` / `veo-3.1-generate-001` | — |
 | **TTS** (voiceover, Czech) | `gemini-3.1-flash-tts-preview` (voice: Kore) | `gemini-2.5-flash-tts` |
 

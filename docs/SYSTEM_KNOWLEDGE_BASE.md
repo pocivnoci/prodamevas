@@ -186,11 +186,12 @@ A/B Variant Loop (variant-actions.ts)
 
 | Action | Model | Fallback | Notes |
 |------|-------|----------|-------|
-| `text` (all agents) | `gemini-2.5-pro` | `gemini-3.5-flash` | Best quality (timeout raised to 800s); fallback on 503/429/404 |
-| `designer` (AI Designer) | `gemini-2.5-pro` | `gemini-3.5-flash` | Design briefs — mature GA Pro (spolehlivější než `gemini-pro-latest`, které 503'lo); fallback FAST flash udrží native render |
+| `text` (all agents) | `gemini-3-pro-preview` | `gemini-3.5-flash` | Newest gen-3 Pro (timeout raised to 800s); fallback on 503/429/404 |
+| `designer` (AI Designer) | `gemini-3-pro-preview` | `gemini-3.5-flash` | Design briefs — gen-3 Pro pro nejlepší structured-creative reasoning; fallback FAST flash udrží native render |
 | `image` | `gemini-3-pro-image` | `gemini-3.1-flash-image` | Nano Banana Pro GA → Nano Banana 2 GA; also editExistingImage() + generateImageWithReferences() |
 | `imageCheap` | `gemini-3.1-flash-image` | — | 512px tier |
-| `vision` (QA, logo placement, tagging) | `gemini-3.5-flash` | — | detectLogoPlacementArea(), verifyNativeImage(), brand-tagger |
+| `vision` (logo placement, tagging, overlay review) | `gemini-3.5-flash` | — | detectLogoPlacementArea(), reviewOverlayComposition(), brand-tagger |
+| `visionQA` (native QA gate) | `gemini-3-pro-preview` | `gemini-3.5-flash` | verifyNativeImage() — gen-3 Pro judge zachytí jemné CZ typo/logo defekty; flash fallback, pak fail-open |
 | `videoLite`/`videoFast`/`videoPremium` | `veo-3.1-lite-generate-preview` / `veo-3.1-fast-generate-preview` / `veo-3.1-generate-preview` | — | ~$0.06 / $0.15 / $0.40 per second; tier via `ClientConfig.videoTier` (default `fast`; `premium` = best). Veo 3.1 jen jako `-preview` |
 | `tts` (voiceover) | `gemini-3.1-flash-tts-preview` | `gemini-2.5-flash-preview-tts` | Czech narration, voice: Kore, expressive audio tags |
 

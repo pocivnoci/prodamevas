@@ -6,7 +6,7 @@
 
 import { Type } from "@google/genai"
 import { ai, generateText } from "./gemini-client"
-import { getModel } from "./models"
+import { getModel, hasFallback } from "./models"
 import { getBrandMemories } from "./memory-agent"
 import type { ClientConfig } from "./configs/types"
 import { buildPhotoFidelitySection } from "./photo-fidelity"
@@ -483,9 +483,15 @@ export async function verifyNativeImage(
     imageBuffer: Buffer,
     expected: { headline: string; subtext?: string; logoExpected: boolean },
 ): Promise<NativeImageQA> {
-    try {
+    // Try the Pro QA judge first, then the fast fallback, then fail open. A Pro 503 must
+    // never silently skip QA — degrade to flash before giving up.
+    const qaModels = [getModel("visionQA")]
+    if (hasFallback("visionQA")) qaModels.push(getModel("visionQA", "fallback"))
+
+    for (let m = 0; m < qaModels.length; m++) {
+      try {
         const response = await ai.models.generateContent({
-            model: getModel("vision"),
+            model: qaModels[m],
             contents: [
                 {
                     role: "user",
@@ -540,10 +546,13 @@ Return ONLY valid JSON:
             issues: parsed.issues || [],
             fixHint: parsed.fixHint || undefined,
         }
-    } catch (err: any) {
-        console.warn(`   ⚠️ Native image QA failed (fail-open): ${err?.message?.substring(0, 80)}`)
-        return { ok: true, textAccurate: true, logoPresent: true, issues: [] }
+      } catch (err: any) {
+        const isLast = m === qaModels.length - 1
+        console.warn(`   ⚠️ Native image QA (${qaModels[m]}) failed${isLast ? " (fail-open)" : " — trying fallback"}: ${err?.message?.substring(0, 80)}`)
+        if (isLast) return { ok: true, textAccurate: true, logoPresent: true, issues: [] }
+      }
     }
+    return { ok: true, textAccurate: true, logoPresent: true, issues: [] }
 }
 
 // ============================================

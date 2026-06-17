@@ -167,9 +167,10 @@ buildSmartWeekPlan()  // pillar ratio × 1.5 (top) / × 0.5 (under), normalizov�
 
 | Akce (registr) | Model | Fallback |
 |------|-------|----------|
-| `text` (všichni text agenti) | `gemini-2.5-pro` | `gemini-3.5-flash` (na 503/429/404) |
-| `designer` (AI Designer) | `gemini-2.5-pro` | `gemini-3.5-flash` (fast — Pro 503/deadline pak nepadne na overlay) |
-| `vision` (QA, tagging, logo placement) | `gemini-3.5-flash` | — |
+| `text` (všichni text agenti) | `gemini-3-pro-preview` (gen-3 Pro) | `gemini-3.5-flash` (na 503/429/404) |
+| `designer` (AI Designer) | `gemini-3-pro-preview` | `gemini-3.5-flash` (fast — Pro 503/deadline pak nepadne na overlay) |
+| `vision` (tagging, logo placement, overlay review) | `gemini-3.5-flash` | — |
+| `visionQA` (`verifyNativeImage` — QA gate native engine) | `gemini-3-pro-preview` | `gemini-3.5-flash` (Pro 503 → flash, pak fail-open) |
 | `image` | `gemini-3-pro-image` (Nano Banana Pro GA) | `gemini-3.1-flash-image` (Nano Banana 2 GA) |
 | `imageCheap` | `gemini-3.1-flash-image` (512px tier) | — |
 | `videoLite` / `videoFast` / `videoPremium` | `veo-3.1-lite-generate-preview` / `veo-3.1-fast-generate-preview` / `veo-3.1-generate-preview` | — |
