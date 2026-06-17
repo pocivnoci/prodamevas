@@ -167,7 +167,8 @@ buildSmartWeekPlan()  // pillar ratio × 1.5 (top) / × 0.5 (under), normalizov�
 
 | Akce (registr) | Model | Fallback |
 |------|-------|----------|
-| `text` (všichni text agenti) | `gemini-3-pro-preview` (gen-3 Pro) | `gemini-3.5-flash` (na 503/429/404) |
+| `text` (interaktivní: plán preview, onboarding, produkty, ideas, context, memory) | `gemini-3.5-flash` (FAST — UI responzivní) | `gemini-2.5-flash` |
+| `textPro` (copywriter — caption, jen v generation jobu) | `gemini-3-pro-preview` (gen-3 Pro) | `gemini-3.5-flash` |
 | `designer` (AI Designer) | `gemini-3-pro-preview` | `gemini-3.5-flash` (fast — Pro 503/deadline pak nepadne na overlay) |
 | `vision` (tagging, logo placement, overlay review) | `gemini-3.5-flash` | — |
 | `visionQA` (`verifyNativeImage` — QA gate native engine) | `gemini-3-pro-preview` | `gemini-3.5-flash` (Pro 503 → flash, pak fail-open) |

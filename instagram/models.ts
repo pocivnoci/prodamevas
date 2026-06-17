@@ -11,13 +11,17 @@
  */
 
 export const MODELS = {
-    /** General text agents: captions, ideas, critic, editorial board, context,
-     *  content plan, onboarding analysis — the whole brain. Primary = gemini-3-pro-preview
-     *  (newest GA-track Pro on the key; gen-3, far stronger than the old gen-2.5 Pro).
-     *  Confirmed live (NOT the deprecated gemini-3.1-pro-preview). Timeout raised to 800s
-     *  on Vercel gives Pro room to finish. Fast gemini-3.5-flash fallback (newer gen than
-     *  the old primary, so no quality cliff) keeps things working on Pro 503/429/404. */
-    text: { primary: "gemini-3-pro-preview", fallback: "gemini-3.5-flash" },
+    /** General text agents — the FAST tier for everything interactive/latency-sensitive:
+     *  content-plan preview (fires several sequential calls), onboarding analysis, product
+     *  copy, context, ideas, memory, art-director. gemini-3.5-flash = newest-gen flash
+     *  (still newer generation than the old gemini-2.5-pro), snappy UI. Pro here made the
+     *  whole dashboard lazy (multi-call previews on a slow Pro preview model). Use `textPro`
+     *  only for deep in-job quality work where latency is hidden by the 800s budget. */
+    text: { primary: "gemini-3.5-flash", fallback: "gemini-2.5-flash" },
+    /** Deep quality tier — gen-3 Pro for the copywriter (the caption = 80% of text quality).
+     *  Runs INSIDE the generation job (800s budget) so its latency never touches browsing.
+     *  Fast gemini-3.5-flash fallback on Pro 503/deadline. */
+    textPro: { primary: "gemini-3-pro-preview", fallback: "gemini-3.5-flash" },
     /** AI Designer — full visual design briefs (low volume, high creative leverage).
      *  Primary gemini-3-pro-preview: best structured-creative reasoning → richer briefs →
      *  better native renders. Fallback is FAST gemini-3.5-flash: if Pro 503s, flash still

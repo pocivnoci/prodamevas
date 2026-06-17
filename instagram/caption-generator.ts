@@ -5,7 +5,7 @@
 
 import { Type } from "@google/genai"
 import { ai } from "./gemini-client"
-import { getModel } from "./models"
+import { getModel, hasFallback } from "./models"
 import type { ClientConfig, PostFormat } from "./configs/types"
 import type { PostType, PostIdea, Review } from "./types"
 import type { HookTemplate } from "./types"
@@ -887,13 +887,28 @@ ${hashtagSection}
   "imageSubtext": "krátký podtext pod hook na obrázku (max 8 slov, česky)"
 }`
 
-    const response = await ai.models.generateContent({
-        model: getModel("text"),
-        contents: prompt,
-        config: { responseMimeType: "application/json" },
-    })
+    // Copywriter runs on the Pro tier (best caption quality), with a fast fallback so a
+    // Pro 503/deadline degrades to flash instead of throwing. In-job, so latency is hidden.
+    const copyModels = [getModel("textPro")]
+    if (hasFallback("textPro")) copyModels.push(getModel("textPro", "fallback"))
 
-    const text = response.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || ""
+    let text = ""
+    for (let m = 0; m < copyModels.length; m++) {
+        try {
+            const response = await ai.models.generateContent({
+                model: copyModels[m],
+                contents: prompt,
+                config: { responseMimeType: "application/json" },
+            })
+            text = response.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || ""
+            break
+        } catch (err: any) {
+            const isLast = m === copyModels.length - 1
+            console.warn(`   ⚠️ Copywriter (${copyModels[m]}) failed${isLast ? "" : " — trying fallback"}: ${err?.message?.substring(0, 80)}`)
+            if (isLast) throw err
+        }
+    }
+
     try {
         return JSON.parse(text.replace(/```json|```/g, "").trim())
     } catch {

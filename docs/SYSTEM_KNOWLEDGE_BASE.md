@@ -186,7 +186,8 @@ A/B Variant Loop (variant-actions.ts)
 
 | Action | Model | Fallback | Notes |
 |------|-------|----------|-------|
-| `text` (all agents) | `gemini-3-pro-preview` | `gemini-3.5-flash` | Newest gen-3 Pro (timeout raised to 800s); fallback on 503/429/404 |
+| `text` (interactive: plan preview, onboarding, product, ideas, context, memory) | `gemini-3.5-flash` | `gemini-2.5-flash` | FAST tier — keeps the dashboard responsive (Pro here made multi-call previews lazy) |
+| `textPro` (copywriter — caption only, in-job) | `gemini-3-pro-preview` | `gemini-3.5-flash` | gen-3 Pro for caption quality; latency hidden by 800s job budget |
 | `designer` (AI Designer) | `gemini-3-pro-preview` | `gemini-3.5-flash` | Design briefs — gen-3 Pro pro nejlepší structured-creative reasoning; fallback FAST flash udrží native render |
 | `image` | `gemini-3-pro-image` | `gemini-3.1-flash-image` | Nano Banana Pro GA → Nano Banana 2 GA; also editExistingImage() + generateImageWithReferences() |
 | `imageCheap` | `gemini-3.1-flash-image` | — | 512px tier |
