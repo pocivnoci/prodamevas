@@ -31,8 +31,36 @@ export async function generateContentPlan(
     userTopic?: string,
     category?: string
 ): Promise<{ success: boolean; plan?: ContentPlanItem[]; error?: string }> {
+    // ─── Durable observability: a breadcrumb row in ig_jobs proves the action started and
+    // shows where it stops/fails. Instrumentation must NEVER break generation (all wrapped). ──
+    const t0 = Date.now()
+    let planJobId: string | null = null
+    const planBreadcrumb = async (update: Record<string, any>) => {
+        if (!planJobId) return
+        try { await supabaseAdmin.from("ig_jobs").update(update).eq("id", planJobId) }
+        catch (e: any) { console.warn(`📋 [content-plan] breadcrumb update failed: ${e?.message}`) }
+    }
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
+        const { getModel } = await import("@/instagram/models")
+        const planModel = getModel("text")
+        console.log(`📋 [content-plan] START client=${clientId} count=${count} topic="${userTopic || "-"}" cat="${category || "-"}" model=${planModel}`)
+        try {
+            const { data: jobRow } = await supabaseAdmin
+                .from("ig_jobs")
+                .insert({
+                    client_id: clientId,
+                    config: { kind: "content_plan", count, topic: userTopic || null, category: category || null, model: planModel },
+                    status: "running",
+                    progress: 0,
+                    agent_message: "📋 Plánuji obsah…",
+                })
+                .select("id")
+                .single()
+            planJobId = jobRow?.id || null
+        } catch (e: any) {
+            console.warn(`📋 [content-plan] breadcrumb insert failed: ${e?.message}`)
+        }
         const { loadConfig } = await import("@/instagram/configs")
         const { buildSmartWeekPlan } = await import("@/instagram/caption-generator")
         const { analyzePerformance } = await import("@/instagram/performance")
@@ -156,6 +184,7 @@ Pole musí mít PŘESNĚ ${count} položek.`
             }
         }
         
+        await planBreadcrumb({ progress: 20, agent_message: "🤖 Volám AI (hlavní plán)…" })
         const raw = await generateText(prompt, { responseSchema: planSchema })
 
         // Parse response
@@ -164,6 +193,7 @@ Pole musí mít PŘESNĚ ${count} položek.`
             throw new Error("AI nevrátila validní JSON pole")
         }
         const concepts: { hookPreview: string; angle: string; topic: string; qualityScore?: number }[] = JSON.parse(jsonMatch[0])
+        await planBreadcrumb({ progress: 45, agent_message: `📝 Hlavní plán: ${concepts.length}/${count}` })
 
         // Auto-retry weak hooks (qualityScore < 6)
         const weakIndices = concepts
@@ -304,10 +334,19 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
             }
         })
 
+        await planBreadcrumb({ status: "done", progress: 100, agent_message: "✅ Plán hotový", result: { planLength: plan.length } })
         return { success: true, plan }
     } catch (err: any) {
-        console.error("generateContentPlan error:", err?.message || err)
+        const msg = (err?.message || String(err)).substring(0, 500)
+        console.error("generateContentPlan error:", msg)
+        await planBreadcrumb({ status: "failed", agent_message: "❌ Plánování selhalo", error: msg })
+        try {
+            const Sentry = await import("@sentry/nextjs")
+            Sentry.captureException(err, { tags: { route: "content-plan", planJobId: planJobId || "none" } })
+        } catch { /* Sentry optional */ }
         return { success: false, error: err?.message || String(err) }
+    } finally {
+        console.log(`📋 [content-plan] END job=${planJobId || "none"} ${Date.now() - t0}ms`)
     }
 }
 
