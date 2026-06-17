@@ -5,7 +5,7 @@ import { ErrorBoundary } from "./ErrorBoundary"
 import { PaywallProvider } from "./PaywallProvider"
 import { checkOnboardingStatus } from "@/app/onboarding/actions"
 
-export const maxDuration = 300 // 5 minutes Vercel Serverless Function timeout
+export const maxDuration = 800 // Vercel Pro cap (Fluid Compute)
 
 export default async function DashboardLayout({
     children,

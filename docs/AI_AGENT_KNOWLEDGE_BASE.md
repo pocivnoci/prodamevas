@@ -50,7 +50,7 @@ Context Agent (svátek, počasí) ──→ buildMegaPrompt()
 
 1. **UI volá `/api/ig-create-job`** → rate limit check (10/h) → vytvoří `ig_jobs`, vrátí `jobId`
 2. **UI začne pollovat `/api/ig-job-status?id=...`** každé 2s
-3. **UI volá `/api/ig-run-job`** s `{ jobId }` — blokuje až 300s
+3. **UI volá `/api/ig-run-job`** s `{ jobId }` — blokuje až 800s
 4. **Uvnitř `generateOnePost()`:**
    - Config: `loadConfig()` → `validateConfig()` (safe defaults pro neúplný config)
    - Researcher: vybere typ, nápad (`getWeightedIdeas()`), recenzi (`getWeightedReviews()`)
@@ -182,14 +182,14 @@ buildSmartWeekPlan()  // pillar ratio × 1.5 (top) / × 0.5 (under), normalizov�
 
 ## 🧩 8. Záludnosti při úpravách
 
-1. **2-step API**: `ig-create-job` (fast, vrátí jobId) → `ig-run-job` (300s). UI polluje od prvního requestu.
+1. **2-step API**: `ig-create-job` (fast, vrátí jobId) → `ig-run-job` (800s). UI polluje od prvního requestu.
 2. **Rate limit**: 10/h per klient v `ig-create-job`. Admin bypass přes `SUPER_ADMIN_EMAILS`.
 3. **Config validace**: `loadConfig()` volá `validateConfig()` — safe defaults pro 11+ polí. Nový klient necrashne.
 4. **Weighted selection**: Nové datové zdroje musí mít `performance_score` + weighted selection funkci.
 5. **Critic → Prompt**: Autopilot čte posledních 5 critic_score z `ig_generation_log` → injektuje do promptu.
 6. **Editorial Board**: `reviewPost()` — max 3 kola revizí. Log se ukládá do `ig_jobs.editorial_log`.
 7. **Editorial log UI**: `getEditorialLog(postId)` → PostDetailModal zobrazuje celou konverzaci s role-specific barvami.
-8. **Vercel timeouty**: `ig-create-job` = 10s, `ig-run-job` = 300s, `ig-learn` = 60s.
+8. **Vercel timeouty**: `ig-create-job` = 10s, `ig-run-job` = 800s (Vercel Pro / Fluid Compute), `ig-learn` = 60s.
 9. **Fonty/assets na Vercelu**: Musí být v `outputFileTracingIncludes` v `next.config.ts`.
 10. **Text v obrázcích**: Imagen NESMÍ generovat text — vždy přes Satori (`text-overlay.ts`).
 11. **Memory Agent ilike**: `ig_brand_memory` nemá FTS index — používat `.ilike("content", ...)`.
@@ -245,7 +245,7 @@ instagram/                            # AI Engine
 
 app/api/
 ├── ig-create-job/route.ts            # membership + rate limit + CHARGE kreditu
-├── ig-run-job/route.ts               # job ownership — 300s, refund při selhání
+├── ig-run-job/route.ts               # job ownership — 800s, refund při selhání
 ├── ig-job-status/route.ts            # ownership + stuck-job reaper (>8 min)
 ├── ig-learn/route.ts                 # membership — feedback loop
 ├── payments/create|callback|return   # mock kill switch na produkci

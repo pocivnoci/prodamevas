@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Chrlit Studio (codename "prodamevas") — multi-tenant AI Instagram content engine. User enters a website → AI learns the brand → generates complete posts (captions, images, reels). Stack: Next.js 16 (App Router) · React 19 · TypeScript 5 · Tailwind 4 · Supabase · Google Gemini · Comgate payments. Deployed on Vercel serverless (300s max function timeout). UI and docs are in Czech.
+Chrlit Studio (codename "prodamevas") — multi-tenant AI Instagram content engine. User enters a website → AI learns the brand → generates complete posts (captions, images, reels). Stack: Next.js 16 (App Router) · React 19 · TypeScript 5 · Tailwind 4 · Supabase · Google Gemini · Comgate payments. Deployed on Vercel Pro serverless / Fluid Compute (800s max function timeout). UI and docs are in Czech.
 
 **Read first:** `docs/AI_AGENT_KNOWLEDGE_BASE.md` (agent pipeline, gotchas), `docs/SYSTEM_KNOWLEDGE_BASE.md` (architecture, DB, env vars), `docs/AI_RULES.md` (doc-update checklist). Per `AI_RULES.md`, code changes **must** be reflected in those docs — it contains the map of which section to update.
 
@@ -49,7 +49,7 @@ Three layers, all multi-tenant:
 
 ### Generation flow (2-step API)
 
-UI calls `/api/ig-create-job` (fast, rate-limited 10 jobs/h per client, returns `jobId`) → `/api/ig-run-job` (blocks up to 300s, runs `generateOnePost()`) while polling `/api/ig-job-status` every 2s. Job progress, editorial-board log, and result are stored in `ig_jobs`.
+UI calls `/api/ig-create-job` (fast, rate-limited 10 jobs/h per client, returns `jobId`) → `/api/ig-run-job` (blocks up to 800s, runs `generateOnePost()`) while polling `/api/ig-job-status` every 2s. Job progress, editorial-board log, and result are stored in `ig_jobs`.
 
 ### Feedback loops (sacred — don't break them)
 

@@ -6,9 +6,9 @@ export const maxDuration = 5 // Ultra-lightweight polling
 /** Job statuses that mean the job is finished (no reaping needed) */
 const TERMINAL_STATUSES = ["done", "failed"]
 
-/** A running job silent for this long is considered dead (run-job maxDuration
- *  is 300s until the Vercel plan is raised). */
-const STUCK_AFTER_MS = 8 * 60 * 1000
+/** A running job silent for this long is considered dead. Must exceed run-job
+ *  maxDuration (800s on Vercel Pro) so a slow-but-alive job isn't falsely reaped. */
+const STUCK_AFTER_MS = 15 * 60 * 1000
 
 /**
  * GET /api/ig-job-status?id=<jobId>

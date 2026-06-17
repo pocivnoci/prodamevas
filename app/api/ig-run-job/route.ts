@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
 import { generateOnePost } from "@/instagram/autopilot"
 
-export const maxDuration = 300 // Vercel cap without a raised plan. All-Pro pipeline wants 800 — bump once the Vercel plan allows >300s.
+export const maxDuration = 800 // Vercel Pro cap (Fluid Compute). Full budget for the all-Pro generation pipeline.
 
 /**
  * POST /api/ig-run-job

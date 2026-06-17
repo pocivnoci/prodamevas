@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
 import { fetchInstagramProfile } from "@/lib/ig-scraper"
 
-export const maxDuration = 300
+export const maxDuration = 800 // Vercel Pro cap (Fluid Compute)
 
 /**
  * GET /api/cron/growth-snapshot

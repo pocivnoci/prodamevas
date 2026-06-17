@@ -19,7 +19,7 @@ graph TB
 
     subgraph "API Routes"
         CJ["ig-create-job<br/>auth ✅ + rate limit 10/h"]
-        RJ["ig-run-job<br/>auth ✅, 300s max"]
+        RJ["ig-run-job<br/>auth ✅, 800s max"]
         JS["ig-job-status<br/>auth ✅, polling"]
         IG["ig-generate<br/>auth ✅, direct"]
         LN["ig-learn<br/>auth ✅, feedback"]
@@ -257,7 +257,7 @@ A/B Variant Loop (variant-actions.ts)
 | Route | Auth | Duration | Purpose |
 |-------|------|----------|---------|
 | `POST /api/ig-create-job` | ✅ membership + rate limit | 10s | Create job, **charge credit/plan counter** (refunded on failure), return jobId |
-| `POST /api/ig-run-job` | ✅ job ownership | 300s | Run full generation pipeline |
+| `POST /api/ig-run-job` | ✅ job ownership | 800s | Run full generation pipeline |
 | `GET /api/ig-job-status` | ✅ job ownership | 5s | Poll progress + **stuck-job reaper** (>8 min silent → failed + refund) |
 | `POST /api/ig-learn` | ✅ membership | 60s | Trigger feedback loop |
 | `POST /api/payments/create` | ✅ client membership | 10s | Create Comgate payment (mock disabled on prod) |
@@ -265,7 +265,7 @@ A/B Variant Loop (variant-actions.ts)
 | `GET /api/payments/return` | ❌ (redirect) | 10s | Post-payment redirect |
 | `GET /api/subscription` | ✅ | 10s | Client subscription info (+ `allowedMedia`, `growthTracking`) |
 | `GET /api/plans` | ✅ | 10s | Aktivní plány pro pricing UI (bez trial_v2) |
-| `GET /api/cron/growth-snapshot` | ❌ (CRON_SECRET bearer) | 300s | Týdenní follower snapshot pro growth_tracking plány (vercel.json cron `0 6 * * 1`) |
+| `GET /api/cron/growth-snapshot` | ❌ (CRON_SECRET bearer) | 800s | Týdenní follower snapshot pro growth_tracking plány (vercel.json cron `0 6 * * 1`) |
 
 > `POST /api/ig-generate` byl odstraněn (v4.1) — obcházel rate limit i kredity a UI ho nepoužívalo.
 
