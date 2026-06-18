@@ -6,8 +6,14 @@
  *   GEMINI_MODEL_<ACTION>            — primary model (e.g. GEMINI_MODEL_DESIGNER=gemini-3.5-flash)
  *   GEMINI_MODEL_<ACTION>_FALLBACK   — fallback model
  *
- * ⚠️ Deprecated, never use: gemini-2.0-flash, gemini-3.1-pro-preview, imagen-4.0-ultra,
- *    gemini-3-pro-image-preview, gemini-3.1-flash-image-preview (shutdown June 25, 2026).
+ * ⚠️ Deprecated, never use: gemini-2.0-flash, gemini-3-pro-preview (404'd "no longer
+ *    available" 2026-06-18), imagen-4.0-ultra, gemini-3-pro-image-preview,
+ *    gemini-3.1-flash-image-preview (shutdown June 25, 2026).
+ *
+ * The deep-quality Pro tier uses the `gemini-pro-latest` ALIAS (not a pinned preview ID):
+ * Google auto-rotates it to the current GA Pro model, so a future shutdown won't 404 us
+ * the way a pinned gemini-3-pro-preview just did. It currently resolves to
+ * gemini-3.1-pro-preview.
  */
 
 export const MODELS = {
@@ -21,19 +27,19 @@ export const MODELS = {
     /** Deep quality tier — gen-3 Pro for the copywriter (the caption = 80% of text quality).
      *  Runs INSIDE the generation job (800s budget) so its latency never touches browsing.
      *  Fast gemini-3.5-flash fallback on Pro 503/deadline. */
-    textPro: { primary: "gemini-3-pro-preview", fallback: "gemini-3.5-flash" },
+    textPro: { primary: "gemini-pro-latest", fallback: "gemini-3.5-flash" },
     /** AI Designer — full visual design briefs (low volume, high creative leverage).
-     *  Primary gemini-3-pro-preview: best structured-creative reasoning → richer briefs →
-     *  better native renders. Fallback is FAST gemini-3.5-flash: if Pro 503s, flash still
-     *  returns a brief so the native render continues instead of dropping to overlay. */
-    designer: { primary: "gemini-3-pro-preview", fallback: "gemini-3.5-flash" },
+     *  Primary gemini-pro-latest (current GA Pro alias): best structured-creative reasoning →
+     *  richer briefs → better native renders. Fallback is FAST gemini-3.5-flash: if Pro 503s,
+     *  flash still returns a brief so the native render continues instead of dropping to overlay. */
+    designer: { primary: "gemini-pro-latest", fallback: "gemini-3.5-flash" },
     /** Vision: logo placement, brand asset tagging, overlay review — high-volume / cheap. */
     vision: { primary: "gemini-3.5-flash" },
     /** Vision QA judge — verifyNativeImage gate on the default native engine. Runs up to 2×
      *  per image on the render path; its judgment decides whether a malformed render (Czech
      *  typography / logo defects) gets a corrective edit or ships. gen-3 Pro catches subtle
      *  defects flash misses. FAST gemini-3.5-flash fallback so a Pro 503 never stalls render. */
-    visionQA: { primary: "gemini-3-pro-preview", fallback: "gemini-3.5-flash" },
+    visionQA: { primary: "gemini-pro-latest", fallback: "gemini-3.5-flash" },
     /** Image generation — Nano Banana Pro GA (renders typography natively) */
     image: { primary: "gemini-3-pro-image", fallback: "gemini-3.1-flash-image" },
     /** Cheap image tier — Nano Banana 2 GA (supports 512px) */

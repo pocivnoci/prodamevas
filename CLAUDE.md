@@ -49,7 +49,11 @@ Three layers, all multi-tenant:
 
 ### Generation flow (2-step API)
 
-UI calls `/api/ig-create-job` (fast, rate-limited 10 jobs/h per client, returns `jobId`) → `/api/ig-run-job` (blocks up to 800s, runs `generateOnePost()`) while polling `/api/ig-job-status` every 2s. Job progress, editorial-board log, and result are stored in `ig_jobs`.
+UI calls `/api/ig-create-job` (fast, rate-limited 10 jobs/h per client, returns `jobId`) → `/api/ig-run-job` (blocks up to 800s, runs `generateOnePost()`) while polling `/api/ig-job-status` every 2s. Job progress, editorial-board log, and result are stored in `ig_jobs`. This is the **single-post** path.
+
+### Multi-post campaigns (durable, server-side)
+
+Content-plan batches do **not** loop in the browser (that loop died with the tab → "asked for 7, got 4"). Instead the approved plan is persisted as an `ig_campaigns` row by `startCampaign()` (`app/actions/campaign-actions.ts`), and a once-a-minute Vercel cron (`app/api/cron/campaign-worker`, `vercel.json`) drains it: it claims one campaign via a `worker_lease` (heartbeated through `onProgress` so a live campaign can't be stolen), generates each post inside the 800s budget exactly like `ig-run-job`, and advances `ig_campaigns.cursor` after each post so a timeout/crash **resumes from the cursor** on the next tick. The worker has no user session, so it charges credits via the `clientId`-based primitives (`canPerformAction`/`deductCredits`/`incrementPlanPostCount`/`refundJobCharge`), **not** `creditGuard`/`requireProjectAccess`. Each post's `ig_jobs` row carries `config.campaignId`. UI polls `getCampaignStatus()` and reconnects to an in-flight campaign on mount via `localStorage` — the tab can close freely. Run the `supabase/migrations/20260618_ig_campaigns.sql` migration before this works.
 
 ### Feedback loops (sacred — don't break them)
 
@@ -66,7 +70,7 @@ UI calls `/api/ig-create-job` (fast, rate-limited 10 jobs/h per client, returns 
 - **Auth:** every new API route needs `requireAuth()` from `lib/auth-guard.ts` (only payment webhooks are exempt). Middleware protects `/dashboard/*` + `/onboarding`.
 - **Retry logic:** import from `utils/retry.ts`, never copy it.
 - **No hardcoding** of DB IDs, buckets, or admin emails — use `ClientConfig` or env vars (`SUPER_ADMIN_EMAILS`).
-- **AI models:** all model IDs live in `instagram/models.ts` — always use `getModel()`, never hardcode a model string (env override: `GEMINI_MODEL_<ACTION>[_FALLBACK]`). Deprecated, never use: `gemini-2.0-flash`, `gemini-3.1-pro-preview`, `imagen-4.0-ultra`, `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview` (preview image IDs shut down June 25, 2026).
+- **AI models:** all model IDs live in `instagram/models.ts` — always use `getModel()`, never hardcode a model string (env override: `GEMINI_MODEL_<ACTION>[_FALLBACK]`). Deprecated, never use: `gemini-2.0-flash`, `gemini-3-pro-preview` (404'd "no longer available" 2026-06-18), `imagen-4.0-ultra`, `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview` (preview image IDs shut down June 25, 2026). The deep-quality Pro tier (`textPro`/`designer`/`visionQA`) uses the **`gemini-pro-latest` alias** — never pin a Pro preview ID, the alias auto-rotates to the current GA Pro so a shutdown can't 404 us (it currently resolves to `gemini-3.1-pro-preview`; don't hardcode that ID directly).
 - **Visual engines:** `ClientConfig.visualEngine` selects the renderer. Default `"native"`: AI Designer (`generateDesignBrief` in `image-pipeline.ts`) produces a design brief → Nano Banana Pro renders the complete post **including Czech typography + logo** (logo passed as labeled reference image) → `verifyNativeImage` vision QA → one corrective edit → Satori fallback. Legacy `"overlay"`: image prompts on this path must stay **text-free** (the old hard rule) — text is stamped via Satori → Sharp (`instagram/text-overlay.ts`). Both paths log `qa_status` to `ig_generation_log`.
 - **Fonts/assets on Vercel** must be listed in `outputFileTracingIncludes` in `next.config.ts`.
 

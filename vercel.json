@@ -3,6 +3,10 @@
         {
             "path": "/api/cron/growth-snapshot",
             "schedule": "0 6 * * 1"
+        },
+        {
+            "path": "/api/cron/campaign-worker",
+            "schedule": "* * * * *"
         }
     ]
 }

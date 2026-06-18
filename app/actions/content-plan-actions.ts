@@ -49,9 +49,12 @@ export async function generateContentPlan(
             const { data: jobRow } = await supabaseAdmin
                 .from("ig_jobs")
                 .insert({
+                    // status must be one of the ig_jobs CHECK values — "running" violates the
+                    // constraint and silently killed every content_plan breadcrumb insert
+                    // (0/179 rows existed), so plan-stage failures were invisible.
                     client_id: clientId,
                     config: { kind: "content_plan", count, topic: userTopic || null, category: category || null, model: planModel },
-                    status: "running",
+                    status: "pending",
                     progress: 0,
                     agent_message: "📋 Plánuji obsah…",
                 })

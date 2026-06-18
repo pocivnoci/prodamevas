@@ -10,6 +10,7 @@ import {
     getIGReviewsList,
 } from "@/app/actions/admin-actions"
 import { generateContentPlan, regeneratePlanItem, type ContentPlanItem } from "@/app/actions/content-plan-actions"
+import { startCampaign, getCampaignStatus } from "@/app/actions/campaign-actions"
 import { getProducts } from "@/app/actions/product-actions"
 import { uploadCustomImage, type GenerateResult } from "@/app/actions/ig-generate-action"
 import { canGenerate } from "@/app/actions/credit-guard"
@@ -52,6 +53,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const [regeneratingItem, setRegeneratingItem] = useState<string | null>(null)
     const [showAdvanced, setShowAdvanced] = useState(false)
     const [pendingGenerate, setPendingGenerate] = useState(false)
+    const [campaignId, setCampaignId] = useState<string | null>(null)
 
     // Ideas & Reviews for topic pre-fill
     const [savedIdeas, setSavedIdeas] = useState<any[]>([])
@@ -184,6 +186,75 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         }
     }
 
+    // Poll a server-side campaign until it reaches a terminal state. The campaign
+    // runs server-side, so closing the tab mid-poll does NOT stop generation — the
+    // mount effect below reconnects the UI on return.
+    const pollCampaign = async (cid: string) => {
+        let misses = 0
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+            const res = await getCampaignStatus(projectId, cid)
+            if (!res.success || !res.campaign) {
+                if (++misses > 5) { // give up the UI poll; the worker keeps going regardless
+                    setBatchResult({ generated: 0, errors: 0, message: res.error || "Ztracen kontakt s kampaní (běží dál na pozadí)", success: false } as any)
+                    setCampaignId(null)
+                    return
+                }
+                await new Promise(r => setTimeout(r, 4000))
+                continue
+            }
+            misses = 0
+            const c = res.campaign
+            setBatchProgress({ current: c.cursor, total: c.total, successes: c.successes, failures: c.failures })
+
+            if (c.status === "done" || c.status === "partial" || c.status === "failed") {
+                setBatchResult({
+                    generated: c.successes,
+                    errors: c.failures,
+                    message: c.status === "done"
+                        ? `Úspěšně vygenerováno ${c.successes} z ${c.total} postů`
+                        : c.status === "failed"
+                            ? (c.error || `Všech ${c.total} postů selhalo`)
+                            : `Vygenerováno ${c.successes} z ${c.total}${c.error ? ` — ${c.error}` : ""}`,
+                    success: c.successes > 0,
+                } as any)
+                setCampaignId(null)
+                try { localStorage.removeItem(`ig_campaign_${projectId}`) } catch { /* ignore */ }
+                refreshSubscription()
+                return
+            }
+            await new Promise(r => setTimeout(r, 3000))
+        }
+    }
+
+    // Reconnect to an in-flight campaign on mount (e.g. user closed the tab during
+    // a long batch and came back) — durability's payoff.
+    useEffect(() => {
+        let cid: string | null = null
+        try { cid = localStorage.getItem(`ig_campaign_${projectId}`) } catch { /* ignore */ }
+        if (!cid) return
+        let cancelled = false
+        getCampaignStatus(projectId, cid).then(res => {
+            if (cancelled || !res.success || !res.campaign) {
+                if (!res?.success) { try { localStorage.removeItem(`ig_campaign_${projectId}`) } catch { /* ignore */ } }
+                return
+            }
+            const c = res.campaign
+            if (c.status === "pending" || c.status === "running") {
+                setBatchMode(true)
+                setCampaignId(cid)
+                setGenerating(true)
+                setStep(3)
+                setBatchProgress({ current: c.cursor, total: c.total, successes: c.successes, failures: c.failures })
+                pollCampaign(cid!).finally(() => { setBatchProgress(null); setGenerating(false) })
+            } else {
+                try { localStorage.removeItem(`ig_campaign_${projectId}`) } catch { /* ignore */ }
+            }
+        })
+        return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [projectId])
+
     const handleGenerate = async () => {
         setGenerating(true)
         setResult(null)
@@ -205,78 +276,33 @@ export function GenerateTab({ projectId }: { projectId: string }) {
             }
 
             if (batchMode) {
-                // === SEQUENTIAL CAMPAIGN using approved plan ===
+                // === DURABLE SERVER-SIDE CAMPAIGN ===
+                // Persist the approved plan as an ig_campaigns row; a server worker
+                // generates every post independent of this browser tab. The old
+                // in-browser loop truncated when the tab closed ("asked for 7, got 4").
                 const planToExecute = contentPlan.length > 0 ? contentPlan : []
                 const totalPosts = planToExecute.length || batchCount
-                let successes = 0
-                let failures = 0
-                const campaignPosts: { hook: string; topic: string }[] = []
                 setBatchProgress({ current: 0, total: totalPosts, successes: 0, failures: 0 })
 
-                for (let i = 0; i < totalPosts; i++) {
-                    setBatchProgress({ current: i + 1, total: totalPosts, successes, failures })
+                const startRes = await startCampaign(projectId, planToExecute, {
+                    aspectRatio: aspectRatio || undefined,
+                    medium: medium || undefined,
+                    category: category !== "auto" ? category : undefined,
+                    topic: topic || undefined,
+                })
 
-                    const planItem = planToExecute[i]
-                    const campaignContext = campaignPosts.length > 0
-                        ? { postNumber: i + 1, totalPosts, previousPosts: campaignPosts }
-                        : undefined
-
-                    // Use plan item's type and topic if available
-                    const postType = planItem?.postType || undefined
-                    const postTopic = planItem?.topic ? `${planItem.topic}: ${planItem.hookPreview}` : (topic || undefined)
-
-                    try {
-                        let res = await triggerPostGeneration({
-                            configName: projectId,
-                            type: postType,
-                            topic: postTopic,
-                            category: category !== "auto" ? category : undefined,
-                                                        aspectRatio: aspectRatio || undefined,
-                            medium: medium || undefined,
-                            productId: planItem?.productId || undefined,
-                            campaignContext,
-                        })
-                        // Auto-retry once on failure
-                        if (!res.success && maxClientRetries > 0) {
-                            await new Promise(r => setTimeout(r, 3000))
-                            res = await triggerPostGeneration({
-                                configName: projectId,
-                                type: postType,
-                                topic: postTopic,
-                                category: category !== "auto" ? category : undefined,
-                                                                aspectRatio: aspectRatio || undefined,
-                                medium: medium || undefined,
-                                productId: planItem?.productId || undefined,
-                                campaignContext,
-                            })
-                        }
-                        if (res.success) {
-                            successes++
-                            const hook = res.caption?.split("\n")?.[0] || ""
-                            campaignPosts.push({ hook, topic: postTopic || "auto" })
-                            setGenerationHistory(prev => [res, ...prev].slice(0, 10))
-                        } else {
-                            failures++
-                        }
-                    } catch {
-                        failures++
-                    }
-
-                    setBatchProgress({ current: i + 1, total: totalPosts, successes, failures })
-
-                    if (i < totalPosts - 1) {
-                        await new Promise(r => setTimeout(r, 2000))
-                    }
+                if (!startRes.success || !startRes.campaignId) {
+                    setBatchResult({
+                        generated: 0,
+                        errors: totalPosts,
+                        message: startRes.error || "Nepodařilo se spustit kampaň",
+                        success: false,
+                    } as any)
+                } else {
+                    setCampaignId(startRes.campaignId)
+                    try { localStorage.setItem(`ig_campaign_${projectId}`, startRes.campaignId) } catch { /* ignore */ }
+                    await pollCampaign(startRes.campaignId)
                 }
-
-                setBatchResult({
-                    generated: successes,
-                    errors: failures,
-                    message: successes > 0
-                        ? `Úspěšně vygenerováno ${successes} z ${totalPosts} postů`
-                        : `Všech ${totalPosts} postů selhalo`,
-                    success: successes > 0,
-                } as any)
             } else {
                 let finalImageUrl = undefined;
                 if (customImageFile) {
@@ -1062,6 +1088,11 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                             style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
                                         />
                                     </div>
+                                )}
+                                {batchProgress && campaignId && (
+                                    <p className="text-[9px] text-emerald-400/70 font-bold uppercase tracking-widest mb-4 relative z-10 text-center max-w-xs">
+                                        Kampaň běží na serveru — okno můžete klidně zavřít, generování pokračuje.
+                                    </p>
                                 )}
                                 <div className="h-6 overflow-hidden relative z-10">
                                     <motion.div
