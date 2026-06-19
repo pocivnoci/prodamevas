@@ -4,7 +4,7 @@
  */
 
 import { Type } from "@google/genai"
-import { ai, generateTextQuality } from "./gemini-client"
+import { generateTextQuality } from "./gemini-client"
 import { getModel, hasFallback } from "./models"
 import type { ClientConfig, PostFormat } from "./configs/types"
 import type { PostType, PostIdea, Review } from "./types"
@@ -777,14 +777,13 @@ Hashtags: ${captionData.hashtags.join(", ")}
 `
 
     try {
-        const raw = await ai.models.generateContent({
-            model: getModel("text"),
-            contents: scorePrompt,
-            config: { responseMimeType: "application/json" },
-        })
-        const parts = raw.candidates?.[0]?.content?.parts || []
-        const textPart = parts.find((p: any) => p.text)
-        const text = textPart?.text || ""
+        // Critic is a quality GATE — it judges Pro-written captions, so it runs on the
+        // same Pro ladder (a flash judge waves through weak posts). If both Pro tiers are
+        // down it throws → the catch below passes the post through (don't block a
+        // Pro-written caption just because the judge is briefly unavailable).
+        const criticModels = [getModel("textPro")]
+        if (hasFallback("textPro")) criticModels.push(getModel("textPro", "fallback"))
+        const text = await generateTextQuality(scorePrompt, { models: criticModels, label: "critic" })
         const jsonMatch = text.match(/\{[\s\S]*\}/)
         const result = JSON.parse(jsonMatch?.[0] || text)
 

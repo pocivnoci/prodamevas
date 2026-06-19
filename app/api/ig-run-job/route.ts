@@ -104,8 +104,8 @@ export async function POST(req: Request) {
 
         await updateJob({
             status: "failed",
-            agent_message: quality ? "⏸️ Pro enginy přetížené — zkuste to za chvíli" : "❌ Generování selhalo",
-            error: quality ? "Pro enginy (gemini-pro-latest / gemini-2.5-pro) jsou momentálně přetížené. Kvalitní post se nevygeneroval — zkuste to prosím za pár minut." : msg,
+            agent_message: quality ? "⏸️ Velký provoz — zkuste to prosím za chvíli" : "❌ Generování selhalo",
+            error: quality ? "Právě je velký provoz a kvalitní post se nepodařilo dokončit. Zkuste to prosím za pár minut — kvalita má přednost před rychlostí." : msg,
         })
 
         // Refund the charge made at job creation (idempotent via unique index on action+reference_id)

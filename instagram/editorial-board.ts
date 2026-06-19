@@ -18,8 +18,17 @@
  *   - reviewPost()         — multi-round review of a single post
  */
 
-import { generateText } from "./gemini-client"
-import { getModel } from "./models"
+import { generateTextQuality } from "./gemini-client"
+import { getModel, hasFallback } from "./models"
+
+// Editorial Board (Chief Editor reviews + revisions) is quality reasoning → it runs
+// the Pro ladder (textPro: gemini-pro-latest → gemini-2.5-pro, never flash), retried
+// hard on transient overload. A flash editor produces flash-grade edits.
+function editorialLadder(): string[] {
+    const m = [getModel("textPro")]
+    if (hasFallback("textPro")) m.push(getModel("textPro", "fallback"))
+    return m
+}
 import { COSTS } from "./caption-generator"
 import type { ClientConfig } from "./configs/types"
 import type {
@@ -209,7 +218,7 @@ export async function reviewContentPlan(
         // Chief Editor reviews
         console.log(`\n🎖️ [Editorial] Content Plan — Kolo ${round}/${MAX_PLAN_ROUNDS}`)
         const reviewPrompt = buildPlanReviewPrompt(config, currentPlan, allMessages, round)
-        const reviewRaw = await generateText(reviewPrompt)
+        const reviewRaw = await generateTextQuality(reviewPrompt, { models: editorialLadder(), label: "editorial-plan-review" })
         totalCost += COSTS.textGeneration
 
         let review: { verdict: string; feedback: string; issues?: any[]; strengths?: string[] }
@@ -282,7 +291,7 @@ export async function reviewContentPlan(
             editorMessage.content,
             allMessages,
         )
-        const revisionRaw = await generateText(revisionPrompt)
+        const revisionRaw = await generateTextQuality(revisionPrompt, { models: editorialLadder(), label: "editorial-plan-revision" })
         totalCost += COSTS.textGeneration
 
         let revision: { action: string; explanation: string; plan: any[] }
@@ -549,7 +558,7 @@ export async function reviewPost(
             allMessages,
             round,
         )
-        const reviewRaw = await generateText(reviewPrompt)
+        const reviewRaw = await generateTextQuality(reviewPrompt, { models: editorialLadder(), label: "editorial-post-review" })
         totalCost += COSTS.textGeneration
 
         let review: { verdict: string; feedback: string; keepElements?: string[]; fixInstructions?: string[] }
@@ -638,8 +647,10 @@ export async function reviewPost(
             },
             required: ["action", "explanation", "hook", "body", "cta", "hashtags"],
         }
-        const revisionRaw = await generateText(revisionPrompt, {
+        const revisionRaw = await generateTextQuality(revisionPrompt, {
+            models: editorialLadder(),
             responseSchema: copywriterRevisionSchema,
+            label: "editorial-post-revision",
         })
         totalCost += COSTS.textGeneration
 

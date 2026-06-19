@@ -509,21 +509,28 @@ export async function generateOnePost(options: {
         if (detail.feedback.fix.length > 0) console.log(`   🔧 Opravit: ${detail.feedback.fix.join(", ")}`)
     }
 
-    // Editorial Board — multi-round review by Chief Editor
-    const editorialResult = await reviewPost(
-        config,
-        captionData,
-        selectedType.name,
-        { score, feedback, detail },
-        megaPrompt,
-        report,
-    )
-    captionData = editorialResult.captionData
-    cost += editorialResult.totalTokenCost
-    if (isReel && captionData.caption) captionData.body = captionData.caption
+    // Editorial Board — multi-round review by Chief Editor (runs the Pro ladder).
+    // Non-fatal: this polishes a caption that ALREADY passed the copywriter on Pro, so
+    // if the Pro tiers are momentarily exhausted mid-editorial we keep the existing Pro
+    // caption and ship it rather than defer/fail the whole post over a polish step.
+    try {
+        const editorialResult = await reviewPost(
+            config,
+            captionData,
+            selectedType.name,
+            { score, feedback, detail },
+            megaPrompt,
+            report,
+        )
+        captionData = editorialResult.captionData
+        cost += editorialResult.totalTokenCost
+        if (isReel && captionData.caption) captionData.body = captionData.caption
 
-    const editorialRounds = editorialResult.rounds.length
-    console.log(`   🎖️ Editorial: ${editorialResult.approved ? "✅ schváleno" : "⏰ max kol"} po ${editorialRounds} ${editorialRounds === 1 ? "kole" : "kolech"} ($${editorialResult.totalTokenCost.toFixed(3)})`)
+        const editorialRounds = editorialResult.rounds.length
+        console.log(`   🎖️ Editorial: ${editorialResult.approved ? "✅ schváleno" : "⏰ max kol"} po ${editorialRounds} ${editorialRounds === 1 ? "kole" : "kolech"} ($${editorialResult.totalTokenCost.toFixed(3)})`)
+    } catch (editorialErr: any) {
+        console.warn(`   ⚠️ Editorial board failed/busy — keeping the Pro caption as-is: ${editorialErr?.message?.substring(0, 100)}`)
+    }
 
     // Use client-specific hashtags
     let finalHashtags: string[]

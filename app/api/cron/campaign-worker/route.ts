@@ -203,7 +203,7 @@ export async function GET(req: Request) {
                     break
                 }
                 // Tried for hours — give up on this item as a failure and move on.
-                await supabaseAdmin.from("ig_jobs").update({ status: "failed", agent_message: "❌ Pro enginy dlouhodobě nedostupné", error: msg }).eq("id", job.id)
+                await supabaseAdmin.from("ig_jobs").update({ status: "failed", agent_message: "❌ Nepodařilo se dokončit — velký provoz", error: msg }).eq("id", job.id)
                 console.warn(`   ❌ campaign ${campaign.id} item #${cursor + 1}: Pro exhausted past max age — failing item`)
                 failures++
             } else {
