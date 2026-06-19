@@ -201,8 +201,9 @@ export async function generateImage(
                 contents: [{ text: prompt }],
                 config: {
                     responseModalities: ["IMAGE"],
+                    // ⚠️ Do NOT set imageConfig.imageSize ("2K"/"4K") — it makes gemini-3-pro-image
+                    // return a blurry, defocused blob (verified). aspectRatio alone → sharp renders.
                     imageConfig: {
-                        imageSize: "2K",
                         aspectRatio,
                     },
                 } as any,
@@ -228,8 +229,7 @@ export async function generateImage(
                     config: {
                         responseModalities: ["IMAGE"],
                         imageConfig: {
-                            imageSize: "2K",
-                            aspectRatio,
+                            aspectRatio, // no imageSize — "2K" blurs the output
                         },
                     } as any,
                 })
@@ -261,7 +261,7 @@ export async function generateImageWithReferences(
         resolution?: "1K" | "2K" | "4K"
     } = {}
 ): Promise<Buffer> {
-    const { aspectRatio = "3:4", resolution = "2K" } = options
+    const { aspectRatio = "3:4" } = options // resolution intentionally unused — imageSize blurs output
 
     // Build contents array: text prompt + labeled reference images.
     // Labels must be interleaved as text parts — the model can't see
@@ -287,8 +287,7 @@ export async function generateImageWithReferences(
             config: {
                 responseModalities: ["IMAGE"],
                 imageConfig: {
-                    imageSize: resolution,
-                    aspectRatio: aspectRatio,
+                    aspectRatio: aspectRatio, // no imageSize — "2K"/"4K" blurs gemini-3-pro-image
                 },
             } as any,
         })
@@ -338,7 +337,7 @@ export async function editExistingImage(
         resolution?: "1K" | "2K" | "4K"
     } = {}
 ): Promise<Buffer> {
-    const { mimeType = "image/jpeg", aspectRatio = "1:1", resolution = "2K" } = options
+    const { mimeType = "image/jpeg", aspectRatio = "1:1" } = options // resolution unused — imageSize blurs output
 
     const callModel = async (model: string): Promise<Buffer> => {
         const response = await ai.models.generateContent({
@@ -362,8 +361,7 @@ export async function editExistingImage(
             config: {
                 responseModalities: ["IMAGE"],
                 imageConfig: {
-                    imageSize: resolution,
-                    aspectRatio,
+                    aspectRatio, // no imageSize — "2K"/"4K" blurs gemini-3-pro-image
                 },
             } as any,
         })
