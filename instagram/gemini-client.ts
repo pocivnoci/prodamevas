@@ -122,8 +122,9 @@ export async function generateText(
  */
 export async function generateTextQuality(
     prompt: string,
-    options: { models: string[]; responseSchema?: any; temperature?: number; label?: string; images?: { buffer: Buffer; mimeType?: string; label?: string }[]; onModelUsed?: (model: string) => void }
+    options: { models: string[]; responseSchema?: any; temperature?: number; label?: string; images?: { buffer: Buffer; mimeType?: string; label?: string }[]; onModelUsed?: (model: string) => void; json?: boolean }
 ): Promise<string> {
+    const wantJson = options.json !== false // default: JSON output
     const models = options.models.filter(Boolean)
     if (models.length === 0) throw new Error("generateTextQuality: no models provided")
     const label = options.label || "quality-text"
@@ -147,7 +148,7 @@ export async function generateTextQuality(
             model,
             contents,
             config: {
-                responseMimeType: "application/json",
+                ...(wantJson && { responseMimeType: "application/json" }),
                 ...(options.responseSchema && { responseSchema: options.responseSchema }),
                 ...(options.temperature !== undefined && { temperature: options.temperature }),
             },

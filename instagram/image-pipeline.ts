@@ -119,14 +119,12 @@ Visual mood: funny, relatable, meme-style
 
 OUTPUT: Single detailed English image prompt (2-3 sentences). NO TEXT IN IMAGE.
 `
-        const response = await ai.models.generateContent({
-            model: getModel("text"),
-            contents: memePrompt,
-        })
-        const parts = response.candidates?.[0]?.content?.parts || []
-        const textPart = parts.find((p: any) => p.text)
-        const refined = textPart?.text
-        return refined || captionData.imagePrompt
+        // Pro ladder for the image-prompt (drives the image model); best-effort —
+        // fall back to the raw prompt if the Pro tiers are exhausted.
+        try {
+            const refined = await generateTextQuality(memePrompt, { models: designerLadder(), label: "image-prompt-meme", json: false })
+            return refined || captionData.imagePrompt
+        } catch { return captionData.imagePrompt }
     }
 
     // Load visual memories if not provided
@@ -173,14 +171,12 @@ ${overlayVariant === "top" || overlayVariant === "editorial" ? "- Text will be p
 The prompt should be 2-3 sentences.
 `
 
-    const response = await ai.models.generateContent({
-        model: getModel("text"),
-        contents: refinementPrompt,
-    })
-
-    const parts = response.candidates?.[0]?.content?.parts || []
-    const textPart = parts.find((p: any) => p.text)
-    const refined = textPart?.text
+    // Pro ladder for the image-prompt (the prompt that drives the image model →
+    // directly affects render quality). Best-effort: fall back to the raw prompt.
+    let refined: string | undefined
+    try {
+        refined = await generateTextQuality(refinementPrompt, { models: designerLadder(), label: "image-prompt", json: false })
+    } catch { refined = undefined }
 
     if (!refined) return captionData.imagePrompt
     return refined.replace(/^["']|["']$/g, "").trim()
@@ -315,7 +311,12 @@ Cohesive vibe, different skeleton.
 - typography.headlineText and typography.subtextText must be the EXACT Czech strings above,
   character-for-character including diacritics (ě š č ř ž ý á í é ů ú). NEVER translate or rephrase.
 - Typography is a DESIGN ELEMENT — vary scale, weight, placement, alignment between posts.
-- The composition must leave negative space where the text goes; describe it in negativeSpace.
+- 📸 PHOTO-FIRST: the image MUST be dominated by a real, rich photographic scene with a clear
+  subject (people, products, places, action). The photo is the hero — NOT a backdrop.
+- ⛔ NO EMPTY VOIDS: do NOT design large flat/solid color blocks, "deep charcoal voids", or
+  mostly-empty dark canvases. Negative space for text = a CLEAN/DARKENED REGION OF THE PHOTO
+  ITSELF (e.g. blurred or shadowed part of the scene), never a separate empty panel. Reserve at
+  most ~one-third of the frame for text; the rest must show the photograph.
 - Logo: small, tasteful, never dominating. Vary corners/positions unless brand preference is fixed.
 - Photography quality: editorial, cinematic lighting, real depth — no stock-photo vibes.
 ${fidelitySection}
