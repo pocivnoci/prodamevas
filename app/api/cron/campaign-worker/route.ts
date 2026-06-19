@@ -44,16 +44,25 @@ export async function GET(req: Request) {
         .order("created_at", { ascending: true })
         .limit(5)
 
-    let campaign: any = null
-    for (const c of candidates || []) {
-        const { data: claimed } = await supabaseAdmin
+    // Atomic claim. NOTE: PostgREST rejects `.or()` on UPDATE ("column ... does not
+    // exist") — it silently claims nothing, so the worker would loop forever as idle.
+    // Express "lease is null OR stale" as TWO sequential conditional updates; each is a
+    // valid atomic filter and at most one matches. Errors are surfaced, never swallowed.
+    const tryClaim = async (id: string, leaseNull: boolean) => {
+        let q = supabaseAdmin
             .from("ig_campaigns")
             .update({ status: "running", worker_lease: nowIso() })
-            .eq("id", c.id)
+            .eq("id", id)
             .in("status", ["pending", "running"])
-            .or(`worker_lease.is.null,worker_lease.lt.${staleBefore}`)
-            .select("*")
-            .maybeSingle()
+        q = leaseNull ? q.is("worker_lease", null) : q.lt("worker_lease", staleBefore)
+        const { data, error } = await q.select("*").maybeSingle()
+        if (error) console.warn(`⚠️ campaign-worker claim error (${id}): ${error.message}`)
+        return data
+    }
+
+    let campaign: any = null
+    for (const c of candidates || []) {
+        const claimed = (await tryClaim(c.id, true)) || (await tryClaim(c.id, false))
         if (claimed) { campaign = claimed; break }
     }
 
@@ -118,10 +127,14 @@ export async function GET(req: Request) {
             : (opts.topic || undefined)
 
         // ── Per-post credit check (clientId-based; no session in a worker) ──
-        const check = await canPerformAction(clientId, "post")
+        // Admin/internal bypass: CAMPAIGN_ADMIN_BYPASS=1 skips the credit gate AND the
+        // charge (charged="none" → refundJobCharge is a no-op), for running internal/own-brand
+        // campaigns without billing. Default OFF — production is unaffected.
+        const ADMIN_BYPASS = process.env.CAMPAIGN_ADMIN_BYPASS === "1"
+        const check = ADMIN_BYPASS ? { allowed: true, isPlanPost: false } : await canPerformAction(clientId, "post")
         if (!check.allowed) { stopReason = "no_credits"; break }
         const isPlanPost = !!check.isPlanPost
-        const charged: "plan" | "credits" = isPlanPost ? "plan" : "credits"
+        const charged: "plan" | "credits" | "none" = ADMIN_BYPASS ? "none" : (isPlanPost ? "plan" : "credits")
 
         const campaignContext = previousPosts.length > 0
             ? { postNumber: cursor + 1, totalPosts: total, previousPosts: [...previousPosts] }
@@ -151,7 +164,8 @@ export async function GET(req: Request) {
 
         // Charge now (idempotent via reference_id = job.id), refund on failure.
         try {
-            if (isPlanPost) await incrementPlanPostCount(clientId)
+            if (ADMIN_BYPASS) { /* no charge under admin bypass */ }
+            else if (isPlanPost) await incrementPlanPostCount(clientId)
             else await deductCredits(clientId, "post", `Post (kampaň ${campaign.id})`, job.id)
         } catch {
             await supabaseAdmin.from("ig_jobs").delete().eq("id", job.id)

@@ -357,7 +357,7 @@ export async function generateOnePost(options: {
     const isCarousel = format.medium === "carousel"
     const postFormat = isReel ? "video script" : isCarousel ? "carousel" : "caption"
     await report("copywriter", 25, `✍️ Copywriter generuje ${postFormat}...`)
-    console.log(`✍️  Generuji ${postFormat} (Gemini 3.5 Flash)...`)
+    console.log(`✍️  Generuji ${postFormat} (Pro copywriter ladder)...`)
     let megaPrompt = buildMegaPrompt(config, selectedType, idea, review, recentHooks, performance, options.topic, selectedProduct, format)
 
     // Inject brand memories (long-term learning from past performance)
@@ -434,7 +434,8 @@ export async function generateOnePost(options: {
     // → the campaign worker defers and the single-post route fails cleanly (never flash).
     const captionLadder = [getModel("textPro")]
     if (hasFallback("textPro")) captionLadder.push(getModel("textPro", "fallback"))
-    const rawText = await generateTextQuality(megaPrompt, { models: captionLadder, responseSchema: schema, label: "copywriter" })
+    let captionModel = captionLadder[0] // actual winning model, for truthful model_used logging
+    const rawText = await generateTextQuality(megaPrompt, { models: captionLadder, responseSchema: schema, label: "copywriter", onModelUsed: m => { captionModel = m } })
     cost += COSTS.textGeneration
 
     let captionData: {
@@ -638,7 +639,7 @@ export async function generateOnePost(options: {
         await logGeneration({
             postId: post.id,
             promptUsed: megaPrompt.substring(0, 500),
-            modelUsed: `${getModel("text")} + ${getModel("image")}`,
+            modelUsed: `${captionModel} + ${getModel("image")}`,
             generationTimeMs: Date.now() - startTime,
             criticScore: score,
             criticKeep: detail?.feedback.keep,

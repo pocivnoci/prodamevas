@@ -122,7 +122,7 @@ export async function generateText(
  */
 export async function generateTextQuality(
     prompt: string,
-    options: { models: string[]; responseSchema?: any; temperature?: number; label?: string; images?: { buffer: Buffer; mimeType?: string; label?: string }[] }
+    options: { models: string[]; responseSchema?: any; temperature?: number; label?: string; images?: { buffer: Buffer; mimeType?: string; label?: string }[]; onModelUsed?: (model: string) => void }
 ): Promise<string> {
     const models = options.models.filter(Boolean)
     if (models.length === 0) throw new Error("generateTextQuality: no models provided")
@@ -162,7 +162,12 @@ export async function generateTextQuality(
         const model = models[i]
         const isLastTier = i === models.length - 1
         try {
-            return await withQualityRetry(() => callModel(model), { label: `${label}:${model}` })
+            const out = await withQualityRetry(() => callModel(model), { label: `${label}:${model}` })
+            // Log the WINNING model so observability reflects reality (the model_used DB
+            // field used to hardcode the flash tier even when a Pro model ran).
+            console.log(`   🧠 ${label}: ${model}${i > 0 ? ` (tier ${i + 1})` : ""}`)
+            options.onModelUsed?.(model)
+            return out
         } catch (err: any) {
             lastError = err
             if (isPermanentModelError(err)) {

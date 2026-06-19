@@ -18,7 +18,7 @@ import { buildPsychologistSection } from "./psychologist"
 // ============================================
 
 // Pricing as of June 2026 (verify against ai.google.dev/pricing on model changes):
-// - Gemini 3.5 Flash: primary model for caption generation
+// - Caption/critic/editorial run the Pro quality ladder (gemini-pro-latest → gemini-2.5-pro)
 // - Gemini 3.1 Pro (AI Designer): $2.00/M input + $12/M output (~$0.03 per request)
 // - Nano Banana Pro (gemini-3-pro-image, 2K): ~$0.134 per image — see instagram/models.ts
 // - Veo 3.1: Lite ~$0.06/s · Fast $0.15/s · Standard $0.40/s
