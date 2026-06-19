@@ -1094,6 +1094,12 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         Kampaň běží na serveru — okno můžete klidně zavřít, generování pokračuje.
                                     </p>
                                 )}
+                                {/* Quality-over-speed explainer — generation now runs the Pro engines
+                                    (with hard retries under load) instead of degrading to a fast/cheap
+                                    model, so it can take noticeably longer. Tell the user why. */}
+                                <p className="text-[10px] text-white/45 mb-5 relative z-10 text-center max-w-sm leading-relaxed normal-case">
+                                    ⚡ Tvořím v <span className="text-white/75 font-bold">nejvyšší kvalitě</span> (Pro AI enginy). Při vytížení to může chvíli trvat — <span className="text-white/75 font-bold">kvalita má přednost před rychlostí</span>. Žádné odbyté posty z náhradního modelu.
+                                </p>
                                 <div className="h-6 overflow-hidden relative z-10">
                                     <motion.div
                                         animate={{ y: [0, -24, -48, -72, -96] }}

@@ -5,8 +5,16 @@
  */
 
 import { Type } from "@google/genai"
-import { ai, generateText } from "./gemini-client"
+import { ai, generateTextQuality } from "./gemini-client"
 import { getModel, hasFallback } from "./models"
+import { isQualityUnavailable } from "../utils/retry"
+
+// Designer's quality ladder: [top Pro, GA Pro], never flash. Built once per call.
+function designerLadder(): string[] {
+    const models = [getModel("designer")]
+    if (hasFallback("designer")) models.push(getModel("designer", "fallback"))
+    return models
+}
 import { getBrandMemories } from "./memory-agent"
 import type { ClientConfig } from "./configs/types"
 import { buildPhotoFidelitySection } from "./photo-fidelity"
@@ -314,11 +322,11 @@ ${fidelitySection}
 
 Return ONLY the JSON design brief.`
 
-    const raw = await generateText(designerPrompt, {
-        model: getModel("designer"),
-        fallbackModel: getModel("designer", "fallback"),
+    const raw = await generateTextQuality(designerPrompt, {
+        models: designerLadder(),
         responseSchema: DESIGN_BRIEF_SCHEMA,
         temperature: 1.0,
+        label: "designer",
     })
 
     let brief = JSON.parse(raw) as DesignBrief
@@ -330,9 +338,9 @@ Return ONLY the JSON design brief.`
     // happily writes a new concept sentence on top of the same layout.
     if (brief.layoutArchetype && banned.includes(brief.layoutArchetype)) {
         console.warn(`   ⚠️ Designer reused banned archetype "${brief.layoutArchetype}" — regenerating`)
-        const retryRaw = await generateText(
+        const retryRaw = await generateTextQuality(
             designerPrompt + `\n\n⚠️ REJECTED: your previous brief used layoutArchetype "${brief.layoutArchetype}", which is FORBIDDEN. Produce a NEW brief with layoutArchetype strictly from: ${allowedArchetypes.join(", ")} — and a composition that actually matches it.`,
-            { model: getModel("designer"), fallbackModel: getModel("designer", "fallback"), responseSchema: DESIGN_BRIEF_SCHEMA, temperature: 1.0 }
+            { models: designerLadder(), responseSchema: DESIGN_BRIEF_SCHEMA, temperature: 1.0, label: "designer-rearchetype" }
         )
         try {
             const retry = JSON.parse(retryRaw) as DesignBrief
@@ -438,9 +446,8 @@ ${recentBriefs.length ? recentBriefs.map((b, i) => `${i + 1}. ${b}`).join("\n") 
 
 Return JSON: { "designSystem": "one paragraph describing the shared system", "briefs": [one design brief per slide, in order] }`
 
-    const raw = await generateText(prompt, {
-        model: getModel("designer"),
-        fallbackModel: getModel("designer", "fallback"),
+    const raw = await generateTextQuality(prompt, {
+        models: designerLadder(),
         responseSchema: {
             type: Type.OBJECT,
             properties: {
@@ -450,6 +457,7 @@ Return JSON: { "designSystem": "one paragraph describing the shared system", "br
             required: ["designSystem", "briefs"],
         },
         temperature: 1.0,
+        label: "carousel-designer",
     })
 
     const parsed = JSON.parse(raw) as { designSystem: string; briefs: DesignBrief[] }
@@ -488,22 +496,7 @@ export async function verifyNativeImage(
     const qaModels = [getModel("visionQA")]
     if (hasFallback("visionQA")) qaModels.push(getModel("visionQA", "fallback"))
 
-    for (let m = 0; m < qaModels.length; m++) {
-      try {
-        const response = await ai.models.generateContent({
-            model: qaModels[m],
-            contents: [
-                {
-                    role: "user",
-                    parts: [
-                        {
-                            inlineData: {
-                                mimeType: "image/png",
-                                data: imageBuffer.toString("base64"),
-                            },
-                        },
-                        {
-                            text: `You are a strict QA inspector for AI-designed Instagram posts in CZECH.
+    const qaPrompt = `You are a strict QA inspector for AI-designed Instagram posts in CZECH.
 
 Expected headline text (must match EXACTLY, including Czech diacritics ě š č ř ž ý á í é ů ú):
 "${expected.headline}"
@@ -524,19 +517,28 @@ Return ONLY valid JSON:
   "logoPresent": true/false,
   "issues": ["specific problems, empty if ok"],
   "fixHint": "if NOT ok — one concrete instruction for an image-edit model to fix it (e.g. 'correct the headline to ... keeping the same style and position') — empty string if ok"
-}`,
-                        },
-                    ],
-                },
-            ],
-            config: {
-                responseMimeType: "application/json",
-            } as any,
+}`
+
+    // Quality ladder: Pro QA judge → GA Pro, each retried hard on transient. If BOTH
+    // Pro tiers are exhausted, QA fails OPEN (skipped) — never flash-judges. Skipping QA
+    // beats blocking a render or trusting a weaker model's verdict on Czech typography.
+    let text: string
+    try {
+        text = await generateTextQuality(qaPrompt, {
+            models: qaModels,
+            images: [{ buffer: imageBuffer, mimeType: "image/png" }],
+            label: "vision-qa",
         })
+    } catch (err: any) {
+        if (isQualityUnavailable(err)) {
+            console.warn("   ⚠️ Native image QA: both Pro tiers exhausted — fail-open (QA skipped)")
+        } else {
+            console.warn(`   ⚠️ Native image QA failed (fail-open): ${String(err?.message || err).substring(0, 80)}`)
+        }
+        return { ok: true, textAccurate: true, logoPresent: true, issues: [] }
+    }
 
-        const text = response.candidates?.[0]?.content?.parts?.[0]?.text
-        if (!text) return { ok: true, textAccurate: true, logoPresent: true, issues: [] }
-
+    try {
         const parsed = JSON.parse(text.replace(/```(?:json)?/g, "").trim())
         return {
             ok: !!parsed.ok,
@@ -546,13 +548,9 @@ Return ONLY valid JSON:
             issues: parsed.issues || [],
             fixHint: parsed.fixHint || undefined,
         }
-      } catch (err: any) {
-        const isLast = m === qaModels.length - 1
-        console.warn(`   ⚠️ Native image QA (${qaModels[m]}) failed${isLast ? " (fail-open)" : " — trying fallback"}: ${err?.message?.substring(0, 80)}`)
-        if (isLast) return { ok: true, textAccurate: true, logoPresent: true, issues: [] }
-      }
+    } catch {
+        return { ok: true, textAccurate: true, logoPresent: true, issues: [] }
     }
-    return { ok: true, textAccurate: true, logoPresent: true, issues: [] }
 }
 
 // ============================================

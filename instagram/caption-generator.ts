@@ -4,7 +4,7 @@
  */
 
 import { Type } from "@google/genai"
-import { ai } from "./gemini-client"
+import { ai, generateTextQuality } from "./gemini-client"
 import { getModel, hasFallback } from "./models"
 import type { ClientConfig, PostFormat } from "./configs/types"
 import type { PostType, PostIdea, Review } from "./types"
@@ -887,27 +887,15 @@ ${hashtagSection}
   "imageSubtext": "krátký podtext pod hook na obrázku (max 8 slov, česky)"
 }`
 
-    // Copywriter runs on the Pro tier (best caption quality), with a fast fallback so a
-    // Pro 503/deadline degrades to flash instead of throwing. In-job, so latency is hidden.
+    // Copywriter = ~80% of text quality, so it runs the QUALITY LADDER: top Pro
+    // (gemini-pro-latest) retried HARD on transient 503/429 for minutes, then the GA
+    // Pro (gemini-2.5-pro) — NEVER flash. If both Pro tiers are truly exhausted it
+    // throws QualityUnavailableError so the caller defers/fails instead of shipping a
+    // flash-quality caption. In-job (800s budget), so the latency is hidden from the UI.
     const copyModels = [getModel("textPro")]
     if (hasFallback("textPro")) copyModels.push(getModel("textPro", "fallback"))
 
-    let text = ""
-    for (let m = 0; m < copyModels.length; m++) {
-        try {
-            const response = await ai.models.generateContent({
-                model: copyModels[m],
-                contents: prompt,
-                config: { responseMimeType: "application/json" },
-            })
-            text = response.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || ""
-            break
-        } catch (err: any) {
-            const isLast = m === copyModels.length - 1
-            console.warn(`   ⚠️ Copywriter (${copyModels[m]}) failed${isLast ? "" : " — trying fallback"}: ${err?.message?.substring(0, 80)}`)
-            if (isLast) throw err
-        }
-    }
+    const text = await generateTextQuality(prompt, { models: copyModels, label: "copywriter" })
 
     try {
         return JSON.parse(text.replace(/```json|```/g, "").trim())

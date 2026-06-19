@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
 import { generateOnePost } from "@/instagram/autopilot"
+import { isQualityUnavailable } from "@/utils/retry"
 
 export const maxDuration = 800 // Vercel Pro cap (Fluid Compute) — full budget to drain a campaign.
 
@@ -19,6 +20,9 @@ export const maxDuration = 800 // Vercel Pro cap (Fluid Compute) — full budget
 
 const LEASE_MS = 5 * 60 * 1000 // a stale lease (worker died) is reclaimable after this
 const BUDGET_MS = 700 * 1000   // stop taking new posts past this, leaving margin under 800s
+// How long we keep deferring a post whose Pro engines stay overloaded before giving up
+// on it as a failure. "Quality over speed" — but not forever.
+const MAX_CAMPAIGN_AGE_MS = Number(process.env.CAMPAIGN_MAX_AGE_MS || 6 * 60 * 60 * 1000)
 
 export async function GET(req: Request) {
     const secret = process.env.CRON_SECRET
@@ -96,7 +100,7 @@ export async function GET(req: Request) {
 
     const allowedMedia = (await getClientSubscription(clientId))?.features?.allowed_media
 
-    let stopReason: "complete" | "budget" | "no_credits" = "complete"
+    let stopReason: "complete" | "budget" | "no_credits" | "deferred" = "complete"
 
     const persist = async () => {
         await supabaseAdmin.from("ig_campaigns")
@@ -184,9 +188,29 @@ export async function GET(req: Request) {
             previousPosts.push({ hook: (result.caption || "").split("\n")[0] || "", topic: postTopic || "auto" })
         } catch (err: any) {
             const msg = (err?.message || String(err)).substring(0, 500)
-            await supabaseAdmin.from("ig_jobs").update({ status: "failed", agent_message: "❌ Generování selhalo", error: msg }).eq("id", job.id)
-            try { await refundJobCharge(clientId, job.id, charged) } catch { /* best-effort */ }
-            failures++
+
+            // QualityUnavailable = both Pro tiers are overloaded right now. We refuse to
+            // ship a flash-quality post, so DEFER: refund, drop the stub job, leave the
+            // cursor put, and break — the next cron tick retries this same item when Pro
+            // frees up. Capped by MAX_CAMPAIGN_AGE_MS so it can't defer forever.
+            if (isQualityUnavailable(err)) {
+                try { await refundJobCharge(clientId, job.id, charged) } catch { /* best-effort */ }
+                const ageMs = Date.now() - new Date(campaign.created_at).getTime()
+                if (ageMs <= MAX_CAMPAIGN_AGE_MS) {
+                    await supabaseAdmin.from("ig_jobs").delete().eq("id", job.id)
+                    console.warn(`   ⏸️ campaign ${campaign.id} item #${cursor + 1}: Pro engines busy — deferring to next tick`)
+                    stopReason = "deferred"
+                    break
+                }
+                // Tried for hours — give up on this item as a failure and move on.
+                await supabaseAdmin.from("ig_jobs").update({ status: "failed", agent_message: "❌ Pro enginy dlouhodobě nedostupné", error: msg }).eq("id", job.id)
+                console.warn(`   ❌ campaign ${campaign.id} item #${cursor + 1}: Pro exhausted past max age — failing item`)
+                failures++
+            } else {
+                await supabaseAdmin.from("ig_jobs").update({ status: "failed", agent_message: "❌ Generování selhalo", error: msg }).eq("id", job.id)
+                try { await refundJobCharge(clientId, job.id, charged) } catch { /* best-effort */ }
+                failures++
+            }
         }
 
         cursor++
@@ -211,10 +235,11 @@ export async function GET(req: Request) {
         return NextResponse.json({ success: true, campaignId: campaign.id, status: "partial", stopped: "no_credits" })
     }
 
-    // Budget exhausted with work remaining: release the lease so the next cron tick
-    // (or our immediate kick) resumes from `cursor`. status stays 'running'.
+    // Work remaining — either the 800s budget ran out or the current item was deferred
+    // (Pro overloaded). Release the lease so the next cron tick resumes from `cursor`.
+    // status stays 'running'; for a deferral the SAME item is retried until Pro frees up.
     await supabaseAdmin.from("ig_campaigns")
         .update({ cursor, successes, failures, worker_lease: null, status: "running" })
         .eq("id", campaign.id)
-    return NextResponse.json({ success: true, campaignId: campaign.id, status: "running", resumeFrom: cursor })
+    return NextResponse.json({ success: true, campaignId: campaign.id, status: "running", reason: stopReason, resumeFrom: cursor })
 }

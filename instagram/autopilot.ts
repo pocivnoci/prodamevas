@@ -14,8 +14,8 @@
  */
 
 import supabaseAdmin from "../supabase/admin"
-import { generateText } from "./gemini-client"
-import { getModel } from "./models"
+import { generateTextQuality } from "./gemini-client"
+import { getModel, hasFallback } from "./models"
 import {
     getActivePostTypes,
     getRecentPosts,
@@ -426,7 +426,15 @@ export async function generateOnePost(options: {
     }
 
     const schema = isReel ? buildVideoSchema(config) : isCarousel ? buildCarouselSchema(config) : buildCaptionSchema(config)
-    const rawText = await generateText(megaPrompt, { responseSchema: schema })
+    // The MAIN caption is "80% of text quality" → it runs the Pro QUALITY LADDER
+    // (textPro: gemini-pro-latest → gemini-2.5-pro, never flash), retried hard on
+    // transient 503/429. This is in-job (800s budget) so latency is hidden. Previously
+    // this used the fast flash `text` tier — captions shipped at flash quality every post.
+    // If both Pro tiers are exhausted, generateTextQuality throws QualityUnavailableError
+    // → the campaign worker defers and the single-post route fails cleanly (never flash).
+    const captionLadder = [getModel("textPro")]
+    if (hasFallback("textPro")) captionLadder.push(getModel("textPro", "fallback"))
+    const rawText = await generateTextQuality(megaPrompt, { models: captionLadder, responseSchema: schema, label: "copywriter" })
     cost += COSTS.textGeneration
 
     let captionData: {
@@ -469,15 +477,18 @@ export async function generateOnePost(options: {
         const reason = hookDuplicate ? "hook" : "téma/body"
         console.log(`   ⚠️ Duplicitní ${reason} detekován — regeneruji...`)
         const retryPrompt = megaPrompt + `\n\nDŮLEŽITÉ: Předchozí verze měla duplicitní ${reason}!\nOdmítnutý hook: "${captionData.hook}"\n${bodyDuplicate ? `Odmítnuté body: "${captionData.body?.substring(0, 100)}..."\n` : ""}Vymysli ÚPLNĚ jiný úhel pohledu, jiný hook, jiné argumenty.`
-        const retryText = await generateText(retryPrompt, { responseSchema: schema })
-        cost += COSTS.textGeneration
+        // Dedup regeneration is best-effort: we already hold a valid Pro caption, so if
+        // the Pro ladder is busy (QualityUnavailable) or the JSON is bad, keep the original
+        // rather than fail the post.
         try {
+            const retryText = await generateTextQuality(retryPrompt, { models: captionLadder, responseSchema: schema, label: "copywriter-dedup" })
+            cost += COSTS.textGeneration
             const jsonMatch = retryText.match(/\{[\s\S]*\}/)
             captionData = JSON.parse(jsonMatch?.[0] || retryText)
             if (isReel && captionData.caption) captionData.body = captionData.caption
             console.log(`   ✓ Nový hook: "${captionData.hook.substring(0, 50)}..."`)
         } catch {
-            console.log("   ⚠️ Regeneration parse failed — pokračuji s originálem")
+            console.log("   ⚠️ Dedup regeneration failed/busy — pokračuji s originálem")
         }
     }
 

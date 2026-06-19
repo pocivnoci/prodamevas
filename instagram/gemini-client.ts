@@ -45,7 +45,7 @@ const ai = new Proxy({} as GoogleGenAI, {
 // RETRY LOGIC — from shared utility
 // ============================================
 
-import { withRetry } from "../utils/retry"
+import { withRetry, withQualityRetry, QualityUnavailableError, isPermanentModelError } from "../utils/retry"
 
 // ============================================
 // TEXT GENERATION (Gemini 3.5 Flash)
@@ -103,6 +103,78 @@ export async function generateText(
         }
         throw err
     }
+}
+
+// ============================================
+// QUALITY LADDER (text) — for quality-critical paths only
+// ============================================
+
+/**
+ * Run a prompt down an ordered ladder of QUALITY models (e.g. [gemini-pro-latest,
+ * gemini-2.5-pro]). For each model it retries HARD on transient overload (503/429)
+ * for minutes before moving on — because a busy Pro model is still the right model.
+ * A dead model (404) is logged loudly and skipped (never silently masked). If EVERY
+ * model is exhausted it throws QualityUnavailableError — callers must then defer
+ * (campaigns) or fail (single posts), NEVER degrade to flash.
+ *
+ * This is the deliberate opposite of generateText(), whose fast tier may fall back
+ * to flash. Use this for copywriter / designer / vision-QA.
+ */
+export async function generateTextQuality(
+    prompt: string,
+    options: { models: string[]; responseSchema?: any; temperature?: number; label?: string; images?: { buffer: Buffer; mimeType?: string; label?: string }[] }
+): Promise<string> {
+    const models = options.models.filter(Boolean)
+    if (models.length === 0) throw new Error("generateTextQuality: no models provided")
+    const label = options.label || "quality-text"
+
+    // Build contents: optional images (for vision-QA) then the prompt.
+    const contents: any = options.images?.length
+        ? [{
+            role: "user",
+            parts: [
+                ...options.images.flatMap(img => [
+                    ...(img.label ? [{ text: img.label }] : []),
+                    { inlineData: { mimeType: img.mimeType || "image/png", data: img.buffer.toString("base64") } },
+                ]),
+                { text: prompt },
+            ],
+        }]
+        : prompt
+
+    const callModel = async (model: string): Promise<string> => {
+        const response = await ai.models.generateContent({
+            model,
+            contents,
+            config: {
+                responseMimeType: "application/json",
+                ...(options.responseSchema && { responseSchema: options.responseSchema }),
+                ...(options.temperature !== undefined && { temperature: options.temperature }),
+            },
+        })
+        const text = response.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text
+        if (!text) throw new Error("Gemini returned no text")
+        return text
+    }
+
+    let lastError: unknown = null
+    for (let i = 0; i < models.length; i++) {
+        const model = models[i]
+        const isLastTier = i === models.length - 1
+        try {
+            return await withQualityRetry(() => callModel(model), { label: `${label}:${model}` })
+        } catch (err: any) {
+            lastError = err
+            if (isPermanentModelError(err)) {
+                // Dead/invalid model ID — surface loudly so it gets fixed (this is exactly
+                // how gemini-3-pro-preview silently rotted behind a flash fallback before).
+                console.error(`🚨 ${label}: model "${model}" is permanently unavailable (${String(err?.message || err).substring(0, 100)}) — check instagram/models.ts`)
+            } else {
+                console.warn(`⚠️ ${label}: "${model}" exhausted transient retries${isLastTier ? "" : " — dropping to next Pro tier"}`)
+            }
+        }
+    }
+    throw new QualityUnavailableError(`${label}: all Pro tiers exhausted [${models.join(", ")}]: ${String((lastError as any)?.message || lastError).substring(0, 120)}`)
 }
 
 // ============================================

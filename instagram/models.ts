@@ -26,20 +26,24 @@ export const MODELS = {
     text: { primary: "gemini-3.5-flash", fallback: "gemini-2.5-flash" },
     /** Deep quality tier — gen-3 Pro for the copywriter (the caption = 80% of text quality).
      *  Runs INSIDE the generation job (800s budget) so its latency never touches browsing.
-     *  Fast gemini-3.5-flash fallback on Pro 503/deadline. */
-    textPro: { primary: "gemini-pro-latest", fallback: "gemini-3.5-flash" },
+     *  ⚠️ Fallback is a SECOND Pro (gemini-2.5-pro GA), NOT flash: these paths run through
+     *  the quality ladder (generateTextQuality), which retries the top Pro hard on transient
+     *  503/429 before ever dropping a tier — and the drop is still Pro-grade. Flash is banned
+     *  here on purpose (flash captions = "shit posts"). See utils/retry.ts QualityUnavailableError. */
+    textPro: { primary: "gemini-pro-latest", fallback: "gemini-2.5-pro" },
     /** AI Designer — full visual design briefs (low volume, high creative leverage).
-     *  Primary gemini-pro-latest (current GA Pro alias): best structured-creative reasoning →
-     *  richer briefs → better native renders. Fallback is FAST gemini-3.5-flash: if Pro 503s,
-     *  flash still returns a brief so the native render continues instead of dropping to overlay. */
-    designer: { primary: "gemini-pro-latest", fallback: "gemini-3.5-flash" },
+     *  Primary gemini-pro-latest (newest Pro alias): best structured-creative reasoning →
+     *  richer briefs → better native renders. Fallback is the GA Pro gemini-2.5-pro (never
+     *  flash) — a degraded brief still has to be Pro-grade. Runs via the quality ladder. */
+    designer: { primary: "gemini-pro-latest", fallback: "gemini-2.5-pro" },
     /** Vision: logo placement, brand asset tagging, overlay review — high-volume / cheap. */
     vision: { primary: "gemini-3.5-flash" },
     /** Vision QA judge — verifyNativeImage gate on the default native engine. Runs up to 2×
      *  per image on the render path; its judgment decides whether a malformed render (Czech
      *  typography / logo defects) gets a corrective edit or ships. gen-3 Pro catches subtle
-     *  defects flash misses. FAST gemini-3.5-flash fallback so a Pro 503 never stalls render. */
-    visionQA: { primary: "gemini-pro-latest", fallback: "gemini-3.5-flash" },
+     *  defects flash misses. Fallback is the GA Pro gemini-2.5-pro (never flash) via the quality
+     *  ladder; only if BOTH Pro tiers are exhausted does QA fail-open (skip), never flash-judge. */
+    visionQA: { primary: "gemini-pro-latest", fallback: "gemini-2.5-pro" },
     /** Image generation — Nano Banana Pro GA (renders typography natively) */
     image: { primary: "gemini-3-pro-image", fallback: "gemini-3.1-flash-image" },
     /** Cheap image tier — Nano Banana 2 GA (supports 512px) */

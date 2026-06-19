@@ -91,15 +91,21 @@ export async function POST(req: Request) {
         const msg = err?.message?.substring(0, 500) || "Unknown error"
         console.error("ig-run-job error:", msg)
 
+        // Quality-unavailable = both Pro tiers overloaded. We deliberately did NOT degrade
+        // to flash, so the post failed clean. Surface a retry-friendly message (no silent
+        // low-quality post); the user can re-run when Pro frees up.
+        const { isQualityUnavailable } = await import("@/utils/retry")
+        const quality = isQualityUnavailable(err)
+
         try {
             const Sentry = await import("@sentry/nextjs")
-            Sentry.captureException(err, { tags: { jobId, route: "ig-run-job" } })
+            Sentry.captureException(err, { tags: { jobId, route: "ig-run-job", quality: String(quality) } })
         } catch { /* Sentry optional */ }
 
         await updateJob({
             status: "failed",
-            agent_message: "❌ Generování selhalo",
-            error: msg,
+            agent_message: quality ? "⏸️ Pro enginy přetížené — zkuste to za chvíli" : "❌ Generování selhalo",
+            error: quality ? "Pro enginy (gemini-pro-latest / gemini-2.5-pro) jsou momentálně přetížené. Kvalitní post se nevygeneroval — zkuste to prosím za pár minut." : msg,
         })
 
         // Refund the charge made at job creation (idempotent via unique index on action+reference_id)
