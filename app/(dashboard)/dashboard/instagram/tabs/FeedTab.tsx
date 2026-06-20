@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { getIGPostsList } from "@/app/actions/admin-actions"
+import { getIGPostsList, getProfilePreview } from "@/app/actions/admin-actions"
 
 interface FeedPost {
     id: string
@@ -9,26 +9,39 @@ interface FeedPost {
     image_url: string | null
     status: string
     created_at: string
+    scheduled_for: string | null
+    time_slot: string | null
     post_type?: { name: string; display_name: string; emoji: string }
+}
+
+interface ProfilePreview {
+    handle: string | null
+    avatarUrl: string | null
+    followerCount: number | null
+    postCount: number
 }
 
 export function FeedTab({ projectId }: { projectId: string }) {
     const [posts, setPosts] = useState<FeedPost[]>([])
+    const [profile, setProfile] = useState<ProfilePreview | null>(null)
     const [loading, setLoading] = useState(true)
     const [selectedPost, setSelectedPost] = useState<FeedPost | null>(null)
 
     useEffect(() => {
         if (!projectId) return
         setLoading(true)
+        getProfilePreview(projectId).then(setProfile).catch(() => setProfile(null))
         getIGPostsList(undefined, projectId, 0, 100).then(result => {
-            // Show only posts with images, prioritize posted > ready > draft
+            // "Future profile" order: scheduled posts first, newest-scheduled on top
+            // (like IG shows newest first), then unscheduled by creation date.
             const withImages = (result.posts || [])
                 .filter((p: any) => p.image_url)
                 .sort((a: any, b: any) => {
-                    const statusOrder: Record<string, number> = { posted: 0, ready: 1, draft: 2 }
-                    const sa = statusOrder[a.status] ?? 3
-                    const sb = statusOrder[b.status] ?? 3
-                    if (sa !== sb) return sa - sb
+                    const ka = a.scheduled_for ? new Date(a.scheduled_for).getTime() : null
+                    const kb = b.scheduled_for ? new Date(b.scheduled_for).getTime() : null
+                    if (ka !== null && kb !== null) return kb - ka
+                    if (ka !== null) return -1 // scheduled before unscheduled
+                    if (kb !== null) return 1
                     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
                 })
             setPosts(withImages)
@@ -64,20 +77,32 @@ export function FeedTab({ projectId }: { projectId: string }) {
             {/* IG Profile Header */}
             <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-6">
                 <div className="flex items-center gap-6">
-                    {/* Profile pic placeholder (first post image) */}
+                    {/* Avatar: brand logo, falls back to the first post image on 404 */}
                     <div className="w-20 h-20 rounded-full border-2 border-white/20 overflow-hidden flex-shrink-0 bg-white/5">
-                        {posts[0]?.image_url && (
-                            <img src={posts[0].image_url.split("|")[0]} alt="" className="w-full h-full object-cover" />
+                        {(profile?.avatarUrl || posts[0]?.image_url) && (
+                            <img
+                                src={profile?.avatarUrl || posts[0]!.image_url!.split("|")[0]}
+                                alt=""
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                    const fallback = posts[0]?.image_url?.split("|")[0]
+                                    if (fallback && e.currentTarget.src !== fallback) e.currentTarget.src = fallback
+                                }}
+                            />
                         )}
                     </div>
                     <div className="flex-1">
                         <div className="flex items-center gap-4 mb-3">
-                            <span className="text-white font-bold text-sm">@brand</span>
+                            <span className="text-white font-bold text-sm">@{profile?.handle || "brand"}</span>
                         </div>
                         <div className="flex gap-8">
                             <div className="text-center">
-                                <p className="text-white font-black text-lg">{posts.length}</p>
+                                <p className="text-white font-black text-lg">{profile?.postCount ?? posts.length}</p>
                                 <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">příspěvků</p>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-white font-black text-lg">{profile?.followerCount != null ? profile.followerCount.toLocaleString("cs-CZ") : "—"}</p>
+                                <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">sledujících</p>
                             </div>
                             <div className="text-center">
                                 <p className="text-emerald-400 font-black text-lg">{posted}</p>
@@ -85,7 +110,7 @@ export function FeedTab({ projectId }: { projectId: string }) {
                             </div>
                             <div className="text-center">
                                 <p className="text-blue-400 font-black text-lg">{ready}</p>
-                                <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">ke schválení</p>
+                                <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">naplánováno</p>
                             </div>
                             <div className="text-center">
                                 <p className="text-amber-400 font-black text-lg">{drafts}</p>
@@ -127,6 +152,13 @@ export function FeedTab({ projectId }: { projectId: string }) {
                             )}
                             {/* Status dot */}
                             <div className={`absolute top-2 right-2 w-2 h-2 rounded-full ${statusDot[post.status] || "bg-white/30"} shadow-lg`} />
+                            {/* Scheduled date — so the grid reads as a future plan */}
+                            {post.scheduled_for && (
+                                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1 text-[9px] font-bold text-white/90 text-left">
+                                    📅 {new Date(post.scheduled_for).toLocaleDateString("cs-CZ", { day: "numeric", month: "numeric" })}
+                                    {post.time_slot ? ` · ${post.time_slot}` : ""}
+                                </div>
+                            )}
                         </button>
                     )
                 })}
@@ -140,7 +172,7 @@ export function FeedTab({ projectId }: { projectId: string }) {
                 </div>
                 <div className="flex items-center gap-1.5">
                     <div className="w-2 h-2 rounded-full bg-blue-500" />
-                    <span className="text-[9px] text-white/40 uppercase tracking-widest font-bold">Ke schválení</span>
+                    <span className="text-[9px] text-white/40 uppercase tracking-widest font-bold">Naplánováno</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                     <div className="w-2 h-2 rounded-full bg-amber-500" />

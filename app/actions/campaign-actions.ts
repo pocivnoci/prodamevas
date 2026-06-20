@@ -65,11 +65,18 @@ export async function startCampaign(
         }
 
         // Persist only the fields the worker needs to generate each post.
+        // scheduledFor/timeSlot (from the planner) let the worker stamp the post's
+        // posting time + calendar entry once it's generated.
+        const { toScheduledFor } = await import("@/lib/schedule-planner")
         const planRows = items.map(it => ({
             postType: it.postType,
             hookPreview: it.hookPreview,
             topic: it.topic,
             productId: it.productId || null,
+            scheduledFor: it.scheduledDate && it.scheduledTime
+                ? toScheduledFor(it.scheduledDate, it.scheduledTime)
+                : null,
+            timeSlot: it.scheduledTime || null,
         }))
 
         const { data: campaign, error } = await supabaseAdmin

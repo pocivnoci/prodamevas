@@ -23,6 +23,9 @@ export interface ContentPlanItem {
     productId?: string
     productName?: string
     productImage?: string
+    /** Planner: when this post should publish. Set at plan approval, editable. */
+    scheduledDate?: string // "YYYY-MM-DD"
+    scheduledTime?: string // "HH:MM"
 }
 
 export async function generateContentPlan(
