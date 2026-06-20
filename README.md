@@ -32,6 +32,9 @@ Open [http://localhost:3000](http://localhost:3000)
 | `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Error monitoring (volitelné) |
 | `SUPER_ADMIN_EMAILS` | Comma-separated admin emaily |
 | `NEXT_PUBLIC_SITE_URL` | URL pro auth callback + redirecty |
+| `CRON_SECRET` | Bearer token pro `/api/cron/*` (Vercel posílá automaticky) |
+| `META_APP_ID` / `META_APP_SECRET` | Instagram OAuth (propojení účtu); bez nich je IG connect skrytý |
+| `IG_TOKEN_ENCRYPTION_KEY` | AES-256-GCM klíč pro šifrování IG tokenů — `openssl rand -hex 32` |
 
 ---
 

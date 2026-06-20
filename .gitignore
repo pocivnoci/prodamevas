@@ -48,3 +48,9 @@ instagram/reference-images/
 # Obsidian — version vault config, ignore per-device state
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
+
+# Obsidian vault / local scratch (not part of the app)
+.obsidian/
+*.canvas
+gemini-logs.csv
+/2026-*.md

@@ -39,18 +39,24 @@
 
 This is the dev work; it proves the flow to reviewers and ships value immediately.
 
-- [ ] **App-side OAuth connect flow** — `/api/ig-connect/start` + `/api/ig-connect/callback` (each `requireAuth()`). Exchange code → short-lived → **long-lived (60-day) token**.
-- [ ] **Encrypted token storage** — new `ig_connections` table (`client_id`, `ig_user_id`, `access_token` encrypted, `token_expires_at`, `status`). Accessed **only** via `supabase/admin.ts`, never the browser client. Tokens are credentials — not in `clients.config` JSONB.
-- [ ] **Token refresh cron** — long-lived tokens don't auto-refresh; add a job to `vercel.json` `crons` (pattern already used for `/api/cron/growth-snapshot`) that refreshes every connected tenant ~every 50 days.
-- [ ] **`syncPostMetrics(clientId)`** — for each posted `ig_posts` with a media id, GET media insights → map to `{likes, comments, saves, reach, ...}` → call the **existing** `updateIGPostMetrics()` (do NOT rebuild the learning cascade). Reconcile media id at publish time or by matching recent media to our posts by permalink/timestamp.
-- [ ] **Test against your own IG business account** (added as a role on the app) end-to-end under Standard Access. Confirm real numbers land and `analyzeAndLearn`/`propagateMetricsToSources` fire.
+> **Status (2026-06-19, "Keystone" step):** OAuth connect flow, encrypted token storage and
+> refresh cron are **built**. `syncPostMetrics` stays deferred to roadmap step 3 (metrics→learning);
+> Keystone only proves the connection. Test end-to-end on the deployed Vercel URL (IG requires an
+> HTTPS redirect URI — localhost won't complete the exchange).
+
+- [x] **App-side OAuth connect flow** — `/api/ig-connect/start` (`requireProjectAccess`) + `/api/ig-connect/callback` (validates a signed `state` instead of a cookie). Exchange code → short-lived → **long-lived (60-day) token** in `instagram/ig-connection.ts`.
+- [x] **Encrypted token storage** — `ig_connections` table (`supabase/migrations/20260619_ig_connections.sql`): `client_id`, `ig_user_id`, `ig_username`, `access_token` (AES-256-GCM via `lib/ig-token-crypto.ts`), `token_expires_at`, `status`. RLS deny-all → service-role only. Not in `clients.config`.
+- [x] **Token refresh cron** — `/api/cron/ig-token-refresh` (daily in `vercel.json`), mirrors `growth-snapshot`; refreshes connections expiring within 7 days, marks `expired` on failure.
+- [x] **Settings "Připojit Instagram" UI** — connection card in `SettingsTab.tsx` (Správa) + `app/actions/ig-connection-actions.ts` (`getConnectionStatus`/`disconnectInstagram`).
+- [ ] **`syncPostMetrics(clientId)`** — *(roadmap step 3, not Keystone)* for each posted `ig_posts` with a media id, GET media insights → map to `{likes, comments, saves, reach, ...}` → call the **existing** `updateIGPostMetrics()` (do NOT rebuild the learning cascade). Reconcile media id at publish time or by matching recent media to our posts by permalink/timestamp.
+- [ ] **Test against your own IG business account** (added as a role on the app) end-to-end under Standard Access. Confirm the connection + token storage works; metrics land once step 3 ships.
 
 ## Phase D — App Review submission prerequisites
 
 Reviewers will reject instantly if these are missing:
 
-- [ ] **Privacy Policy URL** (public) describing IG data use.
-- [ ] **Data Deletion** — callback URL or documented instructions.
+- [x] **Privacy Policy URL** (public) describing IG data use — `app/privacy/page.tsx` §10 "Propojení s Instagramem (Meta)".
+- [x] **Data Deletion** — callback URL `POST /api/data-deletion` (verifies Meta `signed_request`, deletes the `ig_connections` row, returns `{ url, confirmation_code }`); GET serves instructions.
 - [ ] App **icon, name, category**, and business email.
 - [ ] **Test Instagram business account** + **app login credentials** + a step-by-step script so a reviewer can reproduce the connect → sync flow.
 - [ ] **Screencast per permission** showing the permission used in the *real* app UI: user connects IG → metrics appear in PostsTab/PerformanceTab. For `instagram_business_manage_insights`, show insight numbers populating from the API.
