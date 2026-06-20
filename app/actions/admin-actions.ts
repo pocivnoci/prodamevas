@@ -575,9 +575,7 @@ export async function updateIGPostMetrics(
                 .limit(30)
 
             if (postsWithMetrics && postsWithMetrics.length >= 3) {
-                // Fire and forget — don't block the metrics save response
-                const { analyzeAndLearn } = await import("@/instagram/memory-agent")
-
+                // Fire and forget — don't block the metrics save response.
                 const learnData = postsWithMetrics.map(p => ({
                     id: p.id,
                     caption: p.caption || "",
@@ -590,23 +588,19 @@ export async function updateIGPostMetrics(
                     link_clicks: p.link_clicks || 0,
                 }))
 
-                // Also propagate metrics to idea/review performance scores.
-                // waitUntil keeps the lambda alive for these after the response returns.
+                // Emit the metrics.updated domain event — its subscriber runs the
+                // SAME propagate + learn the metrics path used to call directly
+                // (Fáze 4 event seam). Importing subscribers guarantees the handler
+                // is registered before emit; waitUntil keeps the lambda alive for it.
                 const { waitUntil } = await import("@vercel/functions")
-                const { propagateMetricsToSources } = await import("@/instagram/service")
-                waitUntil(propagateMetricsToSources(post.client_id).then(({ ideasUpdated, reviewsUpdated }) => {
-                    if (ideasUpdated > 0 || reviewsUpdated > 0) {
-                        console.log(`📊 Metrics propagated: ${ideasUpdated} ideas, ${reviewsUpdated} reviews`)
-                    }
-                }).catch(() => { /* non-fatal */ }))
-
-                waitUntil(analyzeAndLearn(learnData, post.client_id).then(result => {
-                    if (result.memoriesCreated > 0 || result.memoriesUpdated > 0) {
-                        console.log(`🧠 Learning triggered: ${result.memoriesCreated} new memories, ${result.memoriesUpdated} updated`)
-                    }
-                }).catch(err => {
-                    console.warn("⚠️ Learning trigger failed (non-fatal):", err?.message)
-                }))
+                await import("@/lib/events/subscribers")
+                const { emit } = await import("@/lib/events")
+                waitUntil(
+                    emit("metrics.updated", {
+                        clientId: post.client_id,
+                        payload: { learnData },
+                    }).catch(err => console.warn("⚠️ metrics.updated emit failed (non-fatal):", err?.message)),
+                )
             }
         }
     } catch (learnErr: any) {
