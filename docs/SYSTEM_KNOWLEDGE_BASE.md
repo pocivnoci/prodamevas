@@ -214,7 +214,7 @@ A/B Variant Loop (variant-actions.ts)
 | `ig_product_ideas` | `name`, `concept`, `design_url` | AI product design concepts |
 | `ig_product_categories` | `name`, `client_id` | Product categories |
 | `ig_posts` | `caption`, `image_url`, `status`, `idea_id`, `review_id`, `product_id`, `likes`, `saves`, `reach`, `feedback`, `revision_of`, `link_type`, `design_brief` (jsonb) | `revision_of` + `link_type` ('revision'/'variant') link revisions & A/B variants; `design_brief` = AI Designer output (anti-repetition source: concept + `layoutArchetype` + typografie + color fingerprint; archetypy posledních 3 postů jsou pro další post hard-banned) |
-| `ig_content_calendar` | `date`, `post_id`, `time_slot` | Calendar scheduling |
+| `ig_content_calendar` | `date`, `post_id`, `time_slot` | Calendar scheduling. **Planner:** content-plan posts get `scheduled_for`/`time_slot` stamped by the campaign worker from each plan item's slot (auto-distributed at approval via `lib/schedule-planner.ts` `distributeSchedule`, editable per post). Single posts via `schedulePostAction` (calendar-actions); fine-tune by drag (`movePost`). Posting itself stays manual until the `instagram_business_content_publish` App Review clears — `scheduled_for` is the feed for that future publish cron. |
 | `ig_generation_log` | `prompt_used`, `model_used`, `critic_score`, `critic_keep[]`, `critic_fix[]`, `qa_status` | Critic feedback for learning; `qa_status` = native QA outcome (pass/retry_pass/fallback/overlay) |
 | `ig_brand_memory` | `memory_type` (pattern/preference/avoid/visual), `content`, `confidence` | Long-term learning |
 | `ig_jobs` | `status`, `progress`, `agent_message`, `editorial_log` (jsonb), `result` (jsonb) | Progress + editorial board log |
@@ -222,6 +222,7 @@ A/B Variant Loop (variant-actions.ts)
 | `subscriptions` | `client_id`, `plan_id`, `status`, `plan_posts_unlocked` | Active subscriptions — `activatePaidPlan(clientId, planId, subId?)` aktivuje zaplacený plán (z pending sub) a cancelne ostatní live subs klienta |
 | `payments` | `comgate_trans_id`, `amount`, `status` | Comgate payments |
 | `ig_growth_snapshots` | `client_id`, `follower_count`, `following_count`, `media_count`, `captured_at` | Týdenní follower snapshoty (cron po 6:00 UTC) pro plány s `growth_tracking` — growth dashboard v PerformanceTab |
+| `ig_connections` | `client_id`, `provider`, unique `(client_id, provider)`, `ig_user_id`, `ig_username`, `access_token` (AES-256-GCM ciphertext), `refresh_token`, `scopes[]`, `token_expires_at`, `status`, `metadata` jsonb | Per-tenant OAuth credential vault. **Multi-provider** (`provider ∈ instagram/linkedin/facebook/email`) — one row per (tenant, provider); core-hardening Fáze 1. IG module (`instagram/ig-connection.ts`) tags rows `'instagram'`. **RLS deny-all** → jen service-role; token nikdy nejde do prohlížeče ani do `clients.config`. Šifrování `lib/ig-token-crypto.ts` |
 
 ---
 
@@ -268,6 +269,10 @@ A/B Variant Loop (variant-actions.ts)
 | `GET /api/subscription` | ✅ | 10s | Client subscription info (+ `allowedMedia`, `growthTracking`) |
 | `GET /api/plans` | ✅ | 10s | Aktivní plány pro pricing UI (bez trial_v2) |
 | `GET /api/cron/growth-snapshot` | ❌ (CRON_SECRET bearer) | 800s | Týdenní follower snapshot pro growth_tracking plány (vercel.json cron `0 6 * * 1`) |
+| `GET /api/cron/ig-token-refresh` | ❌ (CRON_SECRET bearer) | 800s | Denní obnova IG long-lived tokenů blížících se expiraci (vercel.json cron `0 5 * * *`) |
+| `GET /api/ig-connect/start` | ✅ requireProjectAccess | 10s | Začátek IG OAuth — podepíše `state` a redirectne na Instagram authorize |
+| `GET /api/ig-connect/callback` | ❌ (signed state) | 30s | IG OAuth callback — code→long-lived token, uloží šifrované do `ig_connections` |
+| `POST /api/data-deletion` | ❌ (Meta signed_request) | 10s | Meta data deletion callback — smaže `ig_connections` daného ig_user_id |
 
 > `POST /api/ig-generate` byl odstraněn (v4.1) — obcházel rate limit i kredity a UI ho nepoužívalo.
 
@@ -333,7 +338,9 @@ A/B Variant Loop (variant-actions.ts)
 | `COMGATE_MOCK` | Optional (ignored on prod) | lib/comgate.ts — isMockPaymentMode() |
 | `NEXT_PUBLIC_SITE_URL` | Yes | auth callback, payments |
 | `HIKERAPI_KEY` | Optional | IG scraping — onboarding + growth cron (graceful skip), `lib/ig-scraper.ts` |
-| `CRON_SECRET` | Optional | auth pro `/api/cron/growth-snapshot` (Vercel cron posílá Bearer automaticky) |
+| `CRON_SECRET` | Optional | auth pro `/api/cron/*` (growth-snapshot, ig-token-refresh; Vercel cron posílá Bearer automaticky) |
+| `META_APP_ID` / `META_APP_SECRET` | Optional (gate IG connect) | Instagram OAuth — `/api/ig-connect/*`, `instagram/ig-connection.ts`; bez nich je „Připojit Instagram" v UI skryté |
+| `IG_TOKEN_ENCRYPTION_KEY` | Optional (gate IG connect) | AES-256-GCM klíč pro šifrování IG tokenů v `ig_connections` (`lib/ig-token-crypto.ts`) — `openssl rand -hex 32` |
 | `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Optional | error monitoring (server / client) |
 
 ---

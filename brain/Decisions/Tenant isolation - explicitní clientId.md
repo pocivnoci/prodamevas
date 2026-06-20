@@ -32,3 +32,9 @@ area: tenant-isolation
 - [[Glossary]] — slug vs client_id
 - [[AI_AGENT_KNOWLEDGE_BASE]] §5 (Tenant isolation v4.1)
 - `lib/auth-guard.ts`, `instagram/service.ts`
+
+## Update 2026-06-20 — Fáze 0 (core hardening)
+
+`setActiveProject()` už **není** modul-globální `let`. Teď zapisuje do request-scoped `AsyncLocalStorage` (`clientStorage.enterWith(clientId)`), `_fallbackClientId` odstraněn. Tím je zkřížení tenantů při concurrency v jedné lambdě **fyzicky vyloučené** i pro starší call-sites — ne jen pro nový kód. Pravidla výše platí dál; preferovaný vzor pro nový kód zůstává `withActiveProject(clientId, fn)` (explicitní `.run()` scoping).
+
+Navazuje na → [[Core hardening - bezpečný základ pro agenty]] (Fáze 0).

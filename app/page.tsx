@@ -141,7 +141,7 @@ export default function Home() {
               </div>
 
               <p className="mt-5 text-[9px] uppercase tracking-widest font-bold text-white/25">
-                3 posty zdarma na zkoušku · Bez kreditky · Zrušit kdykoliv
+                3 posty zdarma · Bez kreditky · Bez časového limitu
               </p>
             </motion.div>
 
@@ -183,9 +183,9 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {[
-              { Icon: Cpu, title: "Měsíc obsahu dopředu", desc: "Desítky hotových příspěvků připravených k publikaci. Vy už jen klikáte." },
+              { Icon: Cpu, title: "Měsíc obsahu dopředu", desc: "Desítky hotových příspěvků připravených ke zveřejnění. Stáhnete a zveřejníte sami — máte poslední slovo." },
               { Icon: Camera, title: "Fotky produktů bez focení", desc: "Realistické vizuály vašich produktů. Bez fotografa, bez ateliéru." },
-              { Icon: TrendingUp, title: "Učí se, co vaše lidi baví", desc: "Sleduje, co funguje — a každý další příspěvek je o kus lepší." },
+              { Icon: TrendingUp, title: "Učí se, co vaše lidi baví", desc: "Označíte, co fungovalo — a další příspěvky tím směrem ladí. Čím víc mu řeknete, tím přesnější je." },
             ].map(({ Icon, title, desc }, i) => (
               <motion.div
                 key={i}
@@ -340,7 +340,7 @@ export default function Home() {
             ))}
           </div>
 
-          <p className="text-center mt-12 text-[9px] text-white/25 font-bold uppercase tracking-widest">3 posty zdarma na zkoušku · Bez kreditky · Zrušit jedním klikem</p>
+          <p className="text-center mt-12 text-[9px] text-white/25 font-bold uppercase tracking-widest">3 posty zdarma · Bez kreditky · Bez časového limitu</p>
         </div>
       </section>
 
@@ -367,7 +367,7 @@ export default function Home() {
             Připojit se na Waitlist <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
           </Link>
 
-          <p className="mt-6 text-[9px] uppercase tracking-widest font-bold text-white/30">3 posty zdarma na zkoušku. Žádná kreditka. Zrušit kdykoliv.</p>
+          <p className="mt-6 text-[9px] uppercase tracking-widest font-bold text-white/30">3 posty zdarma. Žádná kreditka. Bez časového limitu.</p>
         </div>
       </section>
 
@@ -385,6 +385,7 @@ export default function Home() {
             <ul className="space-y-3 text-[10px] tracking-wider uppercase text-white/30 font-bold">
               <li><Link href="#reference" className="hover:text-white transition-colors">Ukázky</Link></li>
               <li><Link href="#pricing" className="hover:text-white transition-colors">Ceník</Link></li>
+              <li><Link href="/blog" className="hover:text-white transition-colors">Blog</Link></li>
               <li><Link href="#faq" className="hover:text-white transition-colors">FAQ</Link></li>
               <li><Link href="/login" className="hover:text-white transition-colors text-white/60">Přihlášení</Link></li>
             </ul>
@@ -421,11 +422,11 @@ const FAQ_ITEMS = [
   },
   {
     q: "Potřebuje to přístup k mému Instagramu?",
-    a: "Ne. Chrlit nepotřebuje přístup k vašemu účtu. Obsah si stáhnete nebo zkopírujete a zveřejníte sami. Vaše data jsou v bezpečí.",
+    a: "Ne, k tvorbě obsahu ne. Posty si stáhnete nebo zkopírujete a zveřejníte sami — Chrlit za vás nepostuje, máte poslední slovo. Účet jde volitelně propojit jen kvůli statistikám, nikdy ne kvůli publikování bez vašeho svolení.",
   },
   {
     q: "Můžu to zrušit kdykoliv?",
-    a: "Ano. Žádné smlouvy, žádné závazky — zrušíte jedním klikem. Na vyzkoušení máte 3 posty zdarma, bez kreditky.",
+    a: "Ano. Žádné smlouvy, žádné závazky — zrušíte jedním klikem. Na vyzkoušení máte 3 posty zdarma, bez kreditky a bez časového limitu.",
   },
 ]
 

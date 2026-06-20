@@ -63,6 +63,7 @@ export default function PrivacyPage() {
                                     <tr className="border-b border-white/5"><td className="p-3">Supabase</td><td className="p-3">Databáze, autentizace, úložiště</td><td className="p-3">USA (EU hosting)</td></tr>
                                     <tr className="border-b border-white/5"><td className="p-3">Google Cloud (Gemini AI)</td><td className="p-3">AI generování obsahu</td><td className="p-3">USA / EU</td></tr>
                                     <tr className="border-b border-white/5"><td className="p-3">Vercel</td><td className="p-3">Hosting aplikace</td><td className="p-3">USA (EU edge)</td></tr>
+                                    <tr className="border-b border-white/5"><td className="p-3">Meta Platforms (Instagram)</td><td className="p-3">Propojení Instagram účtu, statistiky příspěvků, publikování</td><td className="p-3">Irsko / USA</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -94,6 +95,19 @@ export default function PrivacyPage() {
                     <section>
                         <h2 className="text-lg font-black uppercase tracking-widest text-white mb-4">9. Cookies</h2>
                         <p>Platforma využívá pouze technicky nezbytné cookies pro autentizaci uživatele (Supabase Auth session). Nepoužíváme žádné marketingové ani analytické cookies třetích stran.</p>
+                    </section>
+
+                    <section>
+                        <h2 className="text-lg font-black uppercase tracking-widest text-white mb-4">10. Propojení s Instagramem (Meta)</h2>
+                        <p>Pokud propojíte svůj Instagram Business účet, využíváme rozhraní Instagram API with Instagram Login společnosti Meta. Připojení je dobrovolné a probíhá výhradně na základě vašeho souhlasu uděleného na přihlašovací obrazovce Instagramu.</p>
+                        <p className="mt-3">V rámci propojení zpracováváme:</p>
+                        <ul className="list-disc list-inside space-y-2 mt-3 text-white/60">
+                            <li><strong className="text-white/80">Identifikační údaje účtu:</strong> ID Instagram účtu a uživatelské jméno (@handle)</li>
+                            <li><strong className="text-white/80">Statistiky příspěvků:</strong> dosah, zhlédnutí, lajky, komentáře a uložení — slouží k vyhodnocení výkonu obsahu a jeho zlepšování</li>
+                            <li><strong className="text-white/80">Přístupový token:</strong> uchováváme jej v šifrované podobě (AES-256-GCM) a používáme výhradně pro výše uvedené účely</li>
+                        </ul>
+                        <p className="mt-3">Tyto údaje nesdílíme s dalšími třetími stranami nad rámec uvedených zpracovatelů a nepoužíváme je k profilování ani cílené reklamě.</p>
+                        <p className="mt-3"><strong className="text-white/80">Odpojení a výmaz:</strong> propojení můžete kdykoli zrušit v Nastavení projektu. Tím dojde k odstranění uloženého tokenu. O výmaz dat získaných z Instagramu můžete rovněž požádat prostřednictvím <Link href="/api/data-deletion" className="text-white/80 underline">našeho data deletion endpointu</Link> nebo na e-mailu info@chrlit.cz.</p>
                     </section>
                 </div>
 

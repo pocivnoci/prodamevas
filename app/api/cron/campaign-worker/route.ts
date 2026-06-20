@@ -198,6 +198,23 @@ export async function GET(req: Request) {
                 result: { success: true, postId: result.id, caption: result.caption, imageUrl: result.imageUrl, cost: result.cost },
             }).eq("id", job.id)
 
+            // Planner: stamp the chosen posting time + calendar entry on the new post.
+            // Best-effort — a calendar hiccup must never fail an already-generated post.
+            if (result.id && item?.scheduledFor) {
+                try {
+                    await supabaseAdmin.from("ig_posts").update({
+                        scheduled_for: item.scheduledFor,
+                        time_slot: item.timeSlot || null,
+                        status: "ready",
+                    }).eq("id", result.id)
+                    const { schedulePost } = await import("@/instagram/service")
+                    const date = String(item.scheduledFor).split("T")[0]
+                    await schedulePost(date, result.id, item.timeSlot || "afternoon")
+                } catch (schedErr) {
+                    console.warn(`   ⚠️ schedule stamp failed for ${result.id}: ${(schedErr as Error)?.message?.substring(0, 80)}`)
+                }
+            }
+
             successes++
             previousPosts.push({ hook: (result.caption || "").split("\n")[0] || "", topic: postTopic || "auto" })
         } catch (err: any) {

@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo } from "@/app/actions/config-actions"
 import { getProducts, createProduct, updateProduct, deleteProduct, deleteProducts, uploadProductImage, syncConfigProductsToDb, scrapeProductsFromWebsite } from "@/app/actions/product-actions"
 import { generateCategoryPrompt } from "@/app/actions/content-plan-actions"
+import { getConnectionStatus, disconnectInstagram, type ConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { SubscriptionSection } from "./SubscriptionSection"
 
 // ═══════════════════════════════════════════════════════════
@@ -286,7 +287,10 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                         <CTASection config={config} setConfig={setConfig} />
                     )}
                     {activeSection === "manage" && (
-                        <ClientManagementSection projectId={projectId} config={config} setConfig={setConfig} onReload={loadData} />
+                        <>
+                            <InstagramConnectionSection projectId={projectId} />
+                            <ClientManagementSection projectId={projectId} config={config} setConfig={setConfig} onReload={loadData} />
+                        </>
                     )}
                 </motion.div>
             </AnimatePresence>
@@ -1209,6 +1213,97 @@ function CTASection({ config, setConfig }: { config: any; setConfig: (fn: any) =
 // ═══════════════════════════════════════════════════════════
 // 8. CLIENT MANAGEMENT (Rescan + Delete)
 // ═══════════════════════════════════════════════════════════
+
+function InstagramConnectionSection({ projectId }: { projectId: string }) {
+    const [status, setStatus] = useState<ConnectionStatus | null>(null)
+    const [loading, setLoading] = useState(true)
+    const [disconnecting, setDisconnecting] = useState(false)
+    // OAuth callback redirects back with ?ig=connected|denied|error — show a banner.
+    const [flash, setFlash] = useState<string | null>(null)
+
+    const load = useCallback(async () => {
+        setLoading(true)
+        try {
+            setStatus(await getConnectionStatus(projectId))
+        } catch {
+            setStatus(null)
+        }
+        setLoading(false)
+    }, [projectId])
+
+    useEffect(() => {
+        load()
+        if (typeof window !== "undefined") {
+            const ig = new URLSearchParams(window.location.search).get("ig")
+            if (ig === "connected") setFlash("✅ Instagram úspěšně připojen")
+            else if (ig === "denied") setFlash("⚠️ Připojení zrušeno na straně Instagramu")
+            else if (ig === "error") setFlash("❌ Připojení se nezdařilo, zkus to znovu")
+        }
+    }, [load])
+
+    const handleDisconnect = async () => {
+        setDisconnecting(true)
+        await disconnectInstagram(projectId)
+        await load()
+        setDisconnecting(false)
+    }
+
+    const expiry = status?.expiresAt ? new Date(status.expiresAt).toLocaleDateString("cs-CZ") : null
+
+    return (
+        <SectionCard title="Instagram účet">
+            {flash && (
+                <p className="text-[10px] text-white/60 bg-white/5 rounded-sm px-3 py-2 mb-3">{flash}</p>
+            )}
+
+            {loading ? (
+                <p className="text-[10px] text-white/30">Načítám…</p>
+            ) : status?.connected ? (
+                <div className="flex items-center justify-between gap-4">
+                    <div>
+                        <p className="text-xs text-white/60 font-bold">
+                            Připojeno {status.username ? `· @${status.username}` : ""}
+                        </p>
+                        <p className="text-[9px] text-white/30 mt-0.5">
+                            Token platí do {expiry || "—"} · obnovuje se automaticky
+                        </p>
+                    </div>
+                    <button
+                        onClick={handleDisconnect}
+                        disabled={disconnecting}
+                        className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-all border border-red-500/10 hover:border-red-500/20 whitespace-nowrap disabled:opacity-50"
+                    >
+                        {disconnecting ? "Odpojuji…" : "Odpojit"}
+                    </button>
+                </div>
+            ) : (
+                <div className="flex items-center justify-between gap-4">
+                    <div>
+                        <p className="text-xs text-white/60 font-bold">
+                            {status?.status === "expired" ? "Připojení vypršelo" : "Připojit Instagram"}
+                        </p>
+                        <p className="text-[9px] text-white/30 mt-0.5">
+                            {status?.configured
+                                ? "Propojí tvůj Instagram Business účet pro metriky a publikování"
+                                : "Instagram propojení zatím není v této instalaci nakonfigurováno"}
+                        </p>
+                    </div>
+                    <a
+                        href={status?.configured ? `/api/ig-connect/start?slug=${encodeURIComponent(projectId)}` : undefined}
+                        aria-disabled={!status?.configured}
+                        className={`px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all border whitespace-nowrap ${
+                            status?.configured
+                                ? "bg-pink-500/10 text-pink-400 hover:bg-pink-500/20 border-pink-500/20"
+                                : "bg-white/5 text-white/20 border-white/5 pointer-events-none"
+                        }`}
+                    >
+                        📸 Připojit
+                    </a>
+                </div>
+            )}
+        </SectionCard>
+    )
+}
 
 function ClientManagementSection({ projectId, config, setConfig, onReload }: {
     projectId: string

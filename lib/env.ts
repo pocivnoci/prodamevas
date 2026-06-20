@@ -17,6 +17,9 @@ const OPTIONAL = [
     "COMGATE_MERCHANT_ID", // payments — unset during beta
     "COMGATE_SECRET",
     "SENTRY_DSN",
+    "META_APP_ID",        // Instagram OAuth — IG connect disabled until set
+    "META_APP_SECRET",
+    "IG_TOKEN_ENCRYPTION_KEY", // AES-256-GCM key for IG token storage (openssl rand -hex 32)
 ] as const
 
 export function validateEnv(): void {

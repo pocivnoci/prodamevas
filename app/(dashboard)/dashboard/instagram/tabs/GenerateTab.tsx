@@ -11,6 +11,8 @@ import {
 } from "@/app/actions/admin-actions"
 import { generateContentPlan, regeneratePlanItem, type ContentPlanItem } from "@/app/actions/content-plan-actions"
 import { startCampaign, getCampaignStatus } from "@/app/actions/campaign-actions"
+import { schedulePostAction } from "@/app/actions/calendar-actions"
+import { distributeSchedule } from "@/lib/schedule-planner"
 import { getProducts } from "@/app/actions/product-actions"
 import { uploadCustomImage, type GenerateResult } from "@/app/actions/ig-generate-action"
 import { canGenerate } from "@/app/actions/credit-guard"
@@ -54,6 +56,20 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const [showAdvanced, setShowAdvanced] = useState(false)
     const [pendingGenerate, setPendingGenerate] = useState(false)
     const [campaignId, setCampaignId] = useState<string | null>(null)
+
+    // Planner: when the content-plan batch should publish. Defaults to spreading
+    // from tomorrow, 1/day; auto-distributed but every post is editable below.
+    const [scheduleStart, setScheduleStart] = useState<string>(() => {
+        const d = new Date(); d.setDate(d.getDate() + 1)
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    })
+    const [postsPerDay, setPostsPerDay] = useState(1)
+
+    // Single-post scheduling (on the generation result card)
+    const [singleSchedDate, setSingleSchedDate] = useState("")
+    const [singleSchedTime, setSingleSchedTime] = useState("09:00")
+    const [singleScheduled, setSingleScheduled] = useState<string | null>(null)
+    const [singleScheduling, setSingleScheduling] = useState(false)
 
     // Ideas & Reviews for topic pre-fill
     const [savedIdeas, setSavedIdeas] = useState<any[]>([])
@@ -381,6 +397,37 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         setBatchCount(newCount)
     }
 
+    // Planner: assign posting slots to every plan item from the schedule bar.
+    // Overwrites all items (predictable re-distribution); per-item edits below
+    // override a single slot afterward.
+    const autoDistribute = (plan: ContentPlanItem[], start: string, perDay: number): ContentPlanItem[] => {
+        const slots = distributeSchedule(plan.length, { startDate: new Date(start), postsPerDay: perDay })
+        return plan.map((p, i) => ({ ...p, scheduledDate: slots[i]?.date, scheduledTime: slots[i]?.time }))
+    }
+
+    // Re-distribute when the schedule bar changes.
+    const handleScheduleChange = (start: string, perDay: number) => {
+        setScheduleStart(start)
+        setPostsPerDay(perDay)
+        setContentPlan(prev => autoDistribute(prev, start, perDay))
+    }
+
+    // Per-item manual override of a single post's date/time.
+    const handleUpdatePlanSchedule = (itemId: string, date: string, time: string) => {
+        setContentPlan(prev => prev.map(p => p.id === itemId ? { ...p, scheduledDate: date, scheduledTime: time } : p))
+    }
+
+    // Single post: schedule the just-generated post onto the calendar.
+    const handleScheduleSingle = async () => {
+        if (!result?.postId) return
+        const date = singleSchedDate || scheduleStart
+        setSingleScheduling(true)
+        const r = await schedulePostAction(projectId, result.postId, date, singleSchedTime)
+        setSingleScheduling(false)
+        if (r.success) setSingleScheduled(`${date} ${singleSchedTime}`)
+        else alert(r.error || "Plánování selhalo")
+    }
+
     // Content Plan: generate plan preview
     const handleGeneratePlan = async () => {
         setPlanGenerating(true)
@@ -391,7 +438,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
             category !== "auto" ? category : undefined
         )
         if (result.success && result.plan) {
-            setContentPlan(result.plan)
+            setContentPlan(autoDistribute(result.plan, scheduleStart, postsPerDay))
             setStep(2)
         } else {
             alert(result.error || "Generování plánu selhalo")
@@ -418,9 +465,12 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         setRegeneratingItem(null)
     }
 
-    // Content Plan: remove item
+    // Content Plan: remove item (re-distribute remaining slots)
     const handleRemovePlanItem = (itemId: string) => {
-        setContentPlan(prev => prev.filter(p => p.id !== itemId).map((p, i) => ({ ...p, day: i + 1 })))
+        setContentPlan(prev => autoDistribute(
+            prev.filter(p => p.id !== itemId).map((p, i) => ({ ...p, day: i + 1 })),
+            scheduleStart, postsPerDay,
+        ))
     }
 
     // Content Plan: update item topic inline
@@ -444,7 +494,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
             day: contentPlan.length + 1,
             week: contentPlan.length >= 14 ? Math.floor(contentPlan.length / 7) + 1 : undefined,
         }
-        setContentPlan(prev => [...prev, newItem])
+        setContentPlan(prev => autoDistribute([...prev, newItem], scheduleStart, postsPerDay))
     }
 
     // Content Plan: start generation from approved plan
@@ -816,6 +866,32 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                             )
                         })()}
 
+                        {/* Schedule bar — auto-distributes posting times; editable per post below */}
+                        <div className="max-w-2xl mx-auto mb-6 bg-[#0a0a0a] border border-white/10 rounded-sm p-4 flex flex-wrap items-end gap-4">
+                            <div>
+                                <label className="block text-[8px] text-white/40 font-bold uppercase tracking-widest mb-1.5">📅 Začít od</label>
+                                <input
+                                    type="date"
+                                    value={scheduleStart}
+                                    onChange={(e) => handleScheduleChange(e.target.value, postsPerDay)}
+                                    className="px-3 py-1.5 bg-[#050505] border border-white/20 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[8px] text-white/40 font-bold uppercase tracking-widest mb-1.5">Postů denně</label>
+                                <select
+                                    value={postsPerDay}
+                                    onChange={(e) => handleScheduleChange(scheduleStart, Number(e.target.value))}
+                                    className="px-3 py-1.5 bg-[#050505] border border-white/20 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                                >
+                                    {[1, 2, 3].map(n => <option key={n} value={n}>{n}</option>)}
+                                </select>
+                            </div>
+                            <p className="text-[9px] text-white/30 flex-1 min-w-[140px] leading-relaxed">
+                                Časy se rozloží automaticky. Každý post lze upravit níže.
+                            </p>
+                        </div>
+
                         {/* Plan items */}
                         <div className="space-y-3 max-w-2xl mx-auto">
                             {(() => {
@@ -882,6 +958,23 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                                 <span className="text-[9px] text-emerald-400/60 font-mono">📌 {item.topic}</span>
                                                             </div>
                                                         )}
+
+                                                        {/* Per-post schedule (overrides auto-distribute) */}
+                                                        <div className="mt-2 flex items-center gap-2">
+                                                            <span className="text-[9px] text-white/30">🗓️</span>
+                                                            <input
+                                                                type="date"
+                                                                value={item.scheduledDate || ""}
+                                                                onChange={(e) => handleUpdatePlanSchedule(item.id, e.target.value, item.scheduledTime || "09:00")}
+                                                                className="px-2 py-1 bg-[#050505] border border-white/10 rounded-sm text-white/70 text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
+                                                            />
+                                                            <input
+                                                                type="time"
+                                                                value={item.scheduledTime || ""}
+                                                                onChange={(e) => handleUpdatePlanSchedule(item.id, item.scheduledDate || scheduleStart, e.target.value)}
+                                                                className="px-2 py-1 bg-[#050505] border border-white/10 rounded-sm text-white/70 text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
+                                                            />
+                                                        </div>
 
                                                         {/* Product @ mention */}
                                                         <div className="mt-2 relative">
@@ -1206,6 +1299,38 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                 </div>
                                             </div>
                                         )}
+                                        {/* Schedule this post */}
+                                        {result.success && result.postId && (
+                                            <div className="pt-6 mt-6 border-t border-white/10">
+                                                <span className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3">📅 Naplánovat na Instagram</span>
+                                                {singleScheduled ? (
+                                                    <p className="text-[11px] text-emerald-400 font-bold">✅ Naplánováno na {singleScheduled} — uvidíš to v Plánovači</p>
+                                                ) : (
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <input
+                                                            type="date"
+                                                            value={singleSchedDate || scheduleStart}
+                                                            onChange={(e) => setSingleSchedDate(e.target.value)}
+                                                            className="px-3 py-2 bg-[#050505] border border-white/15 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                                                        />
+                                                        <input
+                                                            type="time"
+                                                            value={singleSchedTime}
+                                                            onChange={(e) => setSingleSchedTime(e.target.value)}
+                                                            className="px-3 py-2 bg-[#050505] border border-white/15 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                                                        />
+                                                        <button
+                                                            onClick={handleScheduleSingle}
+                                                            disabled={singleScheduling}
+                                                            className="px-5 py-2 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all disabled:opacity-50"
+                                                        >
+                                                            {singleScheduling ? "Plánuji…" : "📅 Naplánovat"}
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
                                         <div className="flex items-center justify-center gap-3 pt-6 mt-6 border-t border-white/10">
                                             <button
                                                 onClick={() => setActiveSection("posts")}
@@ -1214,7 +1339,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                 📋 Otevřít v Příspěvcích
                                             </button>
                                             <button
-                                                onClick={() => { setResult(null); setStep(1) }}
+                                                onClick={() => { setResult(null); setStep(1); setSingleScheduled(null); setSingleSchedDate("") }}
                                                 className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-white/5 text-white/60 border border-white/10 hover:text-white hover:bg-white/10 transition-all"
                                             >
                                                 ✨ Generovat další

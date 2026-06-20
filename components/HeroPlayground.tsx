@@ -220,8 +220,11 @@ export function HeroPlayground({ posts }: { posts: PlaygroundPost[] }) {
 
       {/* SAMPLE CHIPS — the clicking */}
       <div className="mt-5">
-        <p className="text-center text-[8px] font-black uppercase tracking-[0.3em] text-white/20 mb-3">
-          Klikněte na obor — sledujte, co vznikne
+        <p className="text-center text-[8px] font-black uppercase tracking-[0.3em] text-white/20 mb-1">
+          Klikněte na obor — ukázka hotového příspěvku
+        </p>
+        <p className="text-center text-[8px] font-medium tracking-wide text-white/15 mb-3 normal-case">
+          Skutečné výstupy. Tvorba zabere pár minut práce stroje — ne váš večer.
         </p>
         <div className="flex flex-wrap justify-center gap-2">
           {posts.map((p, i) => (

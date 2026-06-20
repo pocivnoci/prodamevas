@@ -261,7 +261,7 @@ function PlanUnlockModal({ onClose }: { onClose: () => void }) {
                         <div className="flex items-center gap-3">
                             <span className="text-base">⚡</span>
                             <div>
-                                <p className="text-[10px] text-white/70 font-bold">30 kreditů na tvorbu navíc</p>
+                                <p className="text-[10px] text-white/70 font-bold">Kredity na tvorbu navíc každý měsíc</p>
                                 <p className="text-[9px] text-white/30">Extra posty, varianty, nápady, produkty</p>
                             </div>
                         </div>

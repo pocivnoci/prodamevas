@@ -212,6 +212,55 @@ export async function getIGPostsList(
     }
 }
 
+/**
+ * Profile chrome for the Instagram preview (FeedTab): real @handle, logo avatar,
+ * and follower count, so the grid reads like the actual IG profile.
+ */
+export async function getProfilePreview(projectSlug: string): Promise<{
+    handle: string | null
+    avatarUrl: string | null
+    followerCount: number | null
+    postCount: number
+}> {
+    try {
+        const { clientId } = await requireProjectAccess(projectSlug)
+
+        // Handle: prefer the connected IG account, fall back to the configured handle.
+        const { getConnectionMeta } = await import("@/instagram/ig-connection")
+        const conn = await getConnectionMeta(clientId).catch(() => null)
+        const { loadConfig } = await import("@/instagram/configs")
+        const config = await loadConfig(projectSlug).catch(() => null)
+        const handle = conn?.igUsername || config?.instagram || null
+
+        // Avatar: brand logo in storage (FeedTab falls back to a post image on 404).
+        const { data: logo } = supabaseAdmin.storage
+            .from("audit-screenshots")
+            .getPublicUrl(`client-assets/${projectSlug}/logo.png`)
+        const avatarUrl = logo?.publicUrl || null
+
+        // Follower count: latest growth snapshot, else onboarding baseline.
+        const { data: snap } = await supabaseAdmin
+            .from("ig_growth_snapshots")
+            .select("follower_count")
+            .eq("client_id", clientId)
+            .order("captured_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        const followerCount = snap?.follower_count ?? config?.igBaseline?.followerCount ?? null
+
+        const { count } = await supabaseAdmin
+            .from("ig_posts")
+            .select("id", { count: "exact", head: true })
+            .eq("client_id", clientId)
+            .not("image_url", "is", null)
+
+        return { handle, avatarUrl, followerCount, postCount: count || 0 }
+    } catch (err) {
+        console.error("getProfilePreview error:", (err as Error)?.message || err)
+        return { handle: null, avatarUrl: null, followerCount: null, postCount: 0 }
+    }
+}
+
 /** Fetch editorial board conversation log for a post (stored in ig_jobs) */
 export async function getEditorialLog(postId: string): Promise<{ role: string; action: string; summary: string }[]> {
     try {
