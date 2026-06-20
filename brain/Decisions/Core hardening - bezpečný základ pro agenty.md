@@ -62,3 +62,19 @@ Migrovat ~13 entry pointů `setActiveProject(x)` → `withActiveProject(x, () =>
 - **Zbývá (Fáze 1 plně):** přejmenovat `lib/ig-token-crypto.ts` → `lib/token-crypto.ts`, `instagram/ig-connection.ts` → `lib/connections.ts`, generalizovat na `provider` parametr pro ne-IG providery. Schéma je ale připravené — kosmetika kódu může počkat.
 
 **Aplikovat migraci:** Supabase SQL Editor → `20260620_connections_provider.sql` (jako u ostatních migrací).
+
+## Update 2026-06-20 — Fáze 2–5 HOTOVÉ a naživo
+
+> [!check] Celý core-hardening arc (Fáze 0–5) je nasazený na produkci
+> Všech 6 fází postaveno, otestováno a mergnuto do `main` (PR #2–#5) za jeden den. Migrace na prod, deploye ověřené (READY).
+
+- **Fáze 2 — durable agent-task runner:** `agent_tasks` + `lib/agent-runner.ts` (`registerHandler`/`enqueueTask`/`drainTasks`, lease/heartbeat/retry, PostgREST-safe claim) + `/api/cron/agent-worker` (každou minutu). Ověřeno: noop task zařazen → zpracován → done.
+- **Fáze 3 — safety rails:** `agent_actions` audit log + `lib/agent-safety.ts` (`requestAction` gate dle risk tieru; reversible/internal auto, outbound/spending/irreversible → human approval) + dashboard tab **Schválení**. Ověřeno: utrácející akce zadržena, po schválení proběhla. Default-deny peníze/zákazník.
+- **Fáze 4 — event seam:** `domain_events` + `lib/events.ts` (`emit`/`on`); metrics→učení přepojeno na `metrics.updated` event (stejné chování). Ověřeno.
+- **Fáze 5 — channel adapter seam:** `lib/channels/*` (`ChannelAdapter` + IG impl + registry) + `ig_posts.channel`. IG publish/metrics stubnuté (`ChannelNotEnabledError`) do 2. App Review. Generační pipeline záměrně nepřepojena (follow-up).
+
+**Tok reálné akce agenta:** `requestAction()` → audit → (auto / čeká na schválení) → `enqueueTask()` → `agent-worker` spustí handler.
+
+**Co teď chybí k prvnímu reálnému ops-agentovi:** nic z infrastruktury — stačí napsat handler + zvolit risk tier. Externí gate: Meta aplikace (`META_APP_ID/SECRET`) + 2. App Review pro publish/insights.
+
+Detaily v `docs/SYSTEM_KNOWLEDGE_BASE.md` §4b (Agent Infrastructure). Provozní přístup: [[supabase-cli-access]], [[vercel-deployment-setup]], [[prod-action-guardrails]].

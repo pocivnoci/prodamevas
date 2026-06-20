@@ -180,6 +180,28 @@ A/B Variant Loop (variant-actions.ts)
 
 ---
 
+## 4b. Agent Infrastructure (core hardening, Fáze 0–5)
+
+Shared substrate beneath both content channels (IG/LinkedIn/FB) and future business-ops
+agents (email, ads, daně…). Built 2026-06-20, all live. Principle: additive, never rewrites —
+the content path (`ig_jobs`/`ig_campaigns`) is untouched; new agents ride this substrate.
+
+| Pilíř | Kde | Co |
+|---|---|---|
+| **Identita** (Fáze 0) | `instagram/service.ts` | `setActiveProject` zapisuje do request-scoped `AsyncLocalStorage` (`enterWith`), ne modul-globálu → konec křížení tenantů. Preferuj `withActiveProject(clientId, fn)` |
+| **Connections** (Fáze 1) | `ig_connections`, `instagram/ig-connection.ts`, `lib/ig-token-crypto.ts` | Multi-provider šifrovaný credential vault |
+| **Task runner** (Fáze 2) | `agent_tasks`, `lib/agent-runner.ts`, `/api/cron/agent-worker`, `lib/agents/handlers.ts` | Durable fronta: `registerHandler(type,fn)` + `enqueueTask` + `drainTasks` (lease/heartbeat/retry) |
+| **Safety rails** (Fáze 3) | `agent_actions`, `lib/agent-safety.ts`, `approval-actions.ts`, dashboard **Schválení** tab | `requestAction()` gate-uje dle risk tieru; high-risk čeká na human approval; default-deny peníze/zákazník |
+| **Events** (Fáze 4) | `domain_events`, `lib/events.ts`, `lib/events/subscribers.ts` | `emit`/`on` pub-sub; metrics→učení přepojeno na `metrics.updated` event |
+| **Channel adapter** (Fáze 5) | `lib/channels/*`, `ig_posts.channel` | `ChannelAdapter` interface + IG impl; nový kanál = implementovat interface |
+
+**Tok reálné akce agenta:** `requestAction()` → (audit do `agent_actions`) → low-risk auto / high-risk
+čeká na schválení → po schválení `enqueueTask()` → `agent-worker` spustí handler. Publikování/metriky
+IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Review). Plný plán:
+`~/.claude/plans` + brain `[[Core hardening - bezpečný základ pro agenty]]`.
+
+---
+
 ## 5. AI Model Registry
 
 **Single source of truth: `instagram/models.ts`** (`MODELS` constant + `getModel()`). Per-env override without deploy: `GEMINI_MODEL_<ACTION>` / `GEMINI_MODEL_<ACTION>_FALLBACK`.
@@ -201,7 +223,7 @@ A/B Variant Loop (variant-actions.ts)
 
 ---
 
-## 6. Database Schema (16 tables)
+## 6. Database Schema (20 tables)
 
 | Table | Key Columns | Notes |
 |---|---|---|
@@ -213,7 +235,7 @@ A/B Variant Loop (variant-actions.ts)
 | `ig_products` | `name`, `type`, `slug`, `price`, `image_urls[]` | Products + photos |
 | `ig_product_ideas` | `name`, `concept`, `design_url` | AI product design concepts |
 | `ig_product_categories` | `name`, `client_id` | Product categories |
-| `ig_posts` | `caption`, `image_url`, `status`, `idea_id`, `review_id`, `product_id`, `likes`, `saves`, `reach`, `feedback`, `revision_of`, `link_type`, `design_brief` (jsonb) | `revision_of` + `link_type` ('revision'/'variant') link revisions & A/B variants; `design_brief` = AI Designer output (anti-repetition source: concept + `layoutArchetype` + typografie + color fingerprint; archetypy posledních 3 postů jsou pro další post hard-banned) |
+| `ig_posts` | `caption`, `image_url`, `status`, `channel`, `idea_id`, `review_id`, `product_id`, `likes`, `saves`, `reach`, `feedback`, `revision_of`, `link_type`, `design_brief` (jsonb) | `channel` (default `'instagram'`) = channel-adapter discriminator (Fáze 5). `revision_of` + `link_type` ('revision'/'variant') link revisions & A/B variants; `design_brief` = AI Designer output (anti-repetition source: concept + `layoutArchetype` + typografie + color fingerprint; archetypy posledních 3 postů jsou pro další post hard-banned) |
 | `ig_content_calendar` | `date`, `post_id`, `time_slot` | Calendar scheduling. **Planner:** content-plan posts get `scheduled_for`/`time_slot` stamped by the campaign worker from each plan item's slot (auto-distributed at approval via `lib/schedule-planner.ts` `distributeSchedule`, editable per post). Single posts via `schedulePostAction` (calendar-actions); fine-tune by drag (`movePost`). Posting itself stays manual until the `instagram_business_content_publish` App Review clears — `scheduled_for` is the feed for that future publish cron. |
 | `ig_generation_log` | `prompt_used`, `model_used`, `critic_score`, `critic_keep[]`, `critic_fix[]`, `qa_status` | Critic feedback for learning; `qa_status` = native QA outcome (pass/retry_pass/fallback/overlay) |
 | `ig_brand_memory` | `memory_type` (pattern/preference/avoid/visual), `content`, `confidence` | Long-term learning |
@@ -223,6 +245,9 @@ A/B Variant Loop (variant-actions.ts)
 | `payments` | `comgate_trans_id`, `amount`, `status` | Comgate payments |
 | `ig_growth_snapshots` | `client_id`, `follower_count`, `following_count`, `media_count`, `captured_at` | Týdenní follower snapshoty (cron po 6:00 UTC) pro plány s `growth_tracking` — growth dashboard v PerformanceTab |
 | `ig_connections` | `client_id`, `provider`, unique `(client_id, provider)`, `ig_user_id`, `ig_username`, `access_token` (AES-256-GCM ciphertext), `refresh_token`, `scopes[]`, `token_expires_at`, `status`, `metadata` jsonb | Per-tenant OAuth credential vault. **Multi-provider** (`provider ∈ instagram/linkedin/facebook/email`) — one row per (tenant, provider); core-hardening Fáze 1. IG module (`instagram/ig-connection.ts`) tags rows `'instagram'`. **RLS deny-all** → jen service-role; token nikdy nejde do prohlížeče ani do `clients.config`. Šifrování `lib/ig-token-crypto.ts` |
+| `agent_tasks` | `client_id` (nullable), `type`, `payload` jsonb, `status` (pending/running/done/failed), `priority`, `attempts`/`max_attempts`, `scheduled_for`, `lease`, `result`, `error` | **Fáze 2** durable task queue. Generic runner `lib/agent-runner.ts` (`registerHandler`/`enqueueTask`/`drainTasks`, PostgREST-safe two-update lease claim) drained by `/api/cron/agent-worker`. Any new agent = registered `type`. RLS deny-all |
+| `agent_actions` | `client_id` (nullable), `agent_type`, `action`, `risk_tier` (reversible/internal/outbound/spending/irreversible), `status` (proposed/approved/executed/rejected/failed), `task_type`, `payload`, `actor`, `result` | **Fáze 3** audit log + approval gate. `lib/agent-safety.ts` `requestAction()` records + gates by tier: reversible/internal auto-dispatch, rest → `proposed`, wait for human (dashboard **Schválení** tab → `approval-actions.ts`). Approved → dispatch via agent_tasks. Default-deny money/customer. RLS deny-all |
+| `domain_events` | `name`, `client_id`, `payload` jsonb, `created_at` | **Fáze 4** append-only event log. `lib/events.ts` (`emit`/`on` in-process pub-sub); subscribers in `lib/events/subscribers.ts`. `metrics.updated` is the first event (metrics→learning runs as a subscriber, identical behavior). RLS deny-all |
 
 ---
 
@@ -270,6 +295,7 @@ A/B Variant Loop (variant-actions.ts)
 | `GET /api/plans` | ✅ | 10s | Aktivní plány pro pricing UI (bez trial_v2) |
 | `GET /api/cron/growth-snapshot` | ❌ (CRON_SECRET bearer) | 800s | Týdenní follower snapshot pro growth_tracking plány (vercel.json cron `0 6 * * 1`) |
 | `GET /api/cron/ig-token-refresh` | ❌ (CRON_SECRET bearer) | 800s | Denní obnova IG long-lived tokenů blížících se expiraci (vercel.json cron `0 5 * * *`) |
+| `GET /api/cron/agent-worker` | ❌ (CRON_SECRET bearer) | 800s | **Fáze 2** drainer fronty `agent_tasks` přes `drainTasks()` (vercel.json cron `* * * * *`) — registrované handlery `lib/agents/handlers.ts` |
 | `GET /api/ig-connect/start` | ✅ requireProjectAccess | 10s | Začátek IG OAuth — podepíše `state` a redirectne na Instagram authorize |
 | `GET /api/ig-connect/callback` | ❌ (signed state) | 30s | IG OAuth callback — code→long-lived token, uloží šifrované do `ig_connections` |
 | `POST /api/data-deletion` | ❌ (Meta signed_request) | 10s | Meta data deletion callback — smaže `ig_connections` daného ig_user_id |
