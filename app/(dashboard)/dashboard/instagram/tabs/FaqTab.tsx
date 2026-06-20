@@ -69,15 +69,15 @@ const FAQ_CATEGORIES: FaqCategory[] = [
             },
             {
                 q: "Převádí se nevyčerpané kredity do dalšího měsíce?",
-                a: "Ne. Každý měsíc dostanete 30 kreditů v ceně předplatného. Nevyčerpané kredity propadnou. Pokud potřebujete víc, dobijte si je za 15 Kč/ks.",
+                a: "Ne. Každý měsíc dostanete kredity podle svého plánu (Start 15, Růst 40, Dominance 100). Nevyčerpané kredity propadnou. Pokud potřebujete víc, dobijte si je za 15 Kč/ks.",
             },
             {
                 q: "Jak funguje trial?",
-                a: "7 dní zdarma, bez kreditky. Dostanete plný přístup ke všem funkcím s omezeným počtem kreditů. Po skončení trialu se nic nesmaže — jen nemůžete generovat nový obsah, dokud si nevyberete plán.",
+                a: "3 posty zdarma, bez kreditky a bez časového limitu. Z plánu obsahu máte 3 příspěvky plně odemčené k vyzkoušení; zbytek se odemkne po výběru plánu. Nic se nesmaže — vygenerované posty vám zůstanou.",
             },
             {
-                q: "Jak si dobiju kredity?",
-                a: "Chrlit má jeden balíček za 490 Kč/měsíc se všemi funkcemi. Pokud potřebujete víc kreditů, jednoduše si je dobijte za 15 Kč/ks v Nastavení → Předplatné.",
+                q: "Jaké jsou plány a jak si dobiju kredity?",
+                a: "Tři plány: Start (490 Kč, 15 kreditů — obrázky a carousely), Růst (990 Kč, 40 kreditů — navíc A/B varianty, reels a růstový dashboard) a Dominance (1 990 Kč, 100 kreditů — navíc product studio a prioritní generování). Když kredity dojdou, dobijete si je za 15 Kč/ks v Nastavení → Předplatné.",
             },
         ],
     },

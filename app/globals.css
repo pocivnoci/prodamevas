@@ -62,3 +62,22 @@
       linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
   }
 }
+
+/* ─── Blog article (rendered Markdown) ─────────────────────────── */
+.blog-article { color: rgba(255,255,255,0.72); font-size: 1rem; line-height: 1.8; }
+.blog-article h1 { font-size: 2.25rem; line-height: 1.05; font-weight: 900; letter-spacing: -0.02em; text-transform: uppercase; color: #fff; margin: 0 0 1.5rem; }
+.blog-article h2 { font-size: 1.25rem; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; margin: 2.5rem 0 0.75rem; }
+.blog-article h3 { font-size: 1rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: rgba(255,255,255,0.9); margin: 2rem 0 0.5rem; }
+.blog-article p { margin: 0 0 1.15rem; }
+.blog-article ul, .blog-article ol { margin: 0 0 1.15rem; padding-left: 1.4rem; }
+.blog-article li { margin: 0.4rem 0; }
+.blog-article ul { list-style: disc; }
+.blog-article ol { list-style: decimal; }
+.blog-article strong { color: #fff; font-weight: 700; }
+.blog-article a { color: #e63946; text-decoration: none; }
+.blog-article a:hover { text-decoration: underline; }
+.blog-article blockquote { border-left: 3px solid rgba(230,57,70,0.4); padding: 0.5rem 0 0.5rem 1.25rem; margin: 1.5rem 0; color: rgba(255,255,255,0.82); }
+.blog-article table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; font-size: 0.875rem; }
+.blog-article th, .blog-article td { border: 1px solid rgba(255,255,255,0.08); padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
+.blog-article th { background: rgba(255,255,255,0.04); color: #fff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.7rem; }
+.blog-article td { color: rgba(255,255,255,0.7); }
