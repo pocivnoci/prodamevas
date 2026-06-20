@@ -21,11 +21,12 @@ export type StudioSection =
     | "waitlist"
     | "brain"
     | "faq"
+    | "approvals"
 
 const VALID_SECTIONS: StudioSection[] = [
     "dashboard", "posts", "calendar", "feed", "plan", "generate",
     "ideas", "reviews", "inspiration", "brand", "products",
-    "performance", "settings", "onboard", "waitlist", "brain", "faq",
+    "performance", "settings", "onboard", "waitlist", "brain", "faq", "approvals",
 ]
 
 function getInitialSection(): StudioSection {
