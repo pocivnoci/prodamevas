@@ -14,23 +14,29 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 const clientStorage = new AsyncLocalStorage<string>()
 
-/** Fallback for code paths that don't use withActiveProject yet */
-let _fallbackClientId: string | null = null
-
-/** Set the active client uuid for all subsequent queries in this request */
+/**
+ * Set the active client uuid for the current request.
+ *
+ * Writes into AsyncLocalStorage scoped to THIS request's async-execution context
+ * (via enterWith) — NOT a module-global. That is what prevents cross-tenant
+ * contamination when Fluid Compute runs concurrent requests in one instance: a
+ * module-level `let` would let tenant A's continuation read tenant B's value.
+ *
+ * Prefer withActiveProject() for new code — explicit .run() scoping is the
+ * gold standard; this remains for entry points not yet wrapped.
+ */
 export function setActiveProject(clientId: string) {
-    _fallbackClientId = clientId
+    clientStorage.enterWith(clientId)
 }
 
-/** Get the current active client uuid (prefers AsyncLocalStorage, falls back to module-level) */
+/** Get the current request's active client uuid (request-scoped via AsyncLocalStorage). */
 export function getActiveProject(): string {
     const fromStorage = clientStorage.getStore()
     if (fromStorage) return fromStorage
-    if (_fallbackClientId) return _fallbackClientId
-    throw new Error("No active client set. Call setActiveProject(clientId) first.")
+    throw new Error("No active client set. Wrap work in withActiveProject(clientId, fn) or call setActiveProject(clientId) first.")
 }
 
-/** Run a function with a request-scoped clientId (race-condition safe) */
+/** Run a function with a request-scoped clientId (race-condition safe). Preferred. */
 export function withActiveProject<T>(clientId: string, fn: () => T): T {
     return clientStorage.run(clientId, fn)
 }
