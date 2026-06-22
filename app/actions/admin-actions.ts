@@ -359,19 +359,26 @@ export async function getIGPostTypes(configName?: string): Promise<(IGPostType &
 
     // Client-scoped rows = this brand's own (custom) formats. Filtering by
     // client_id stops cross-tenant bleed and surfaces brand-specific descriptions.
-    const { data: clientRows } = await supabaseAdmin
-        .from("ig_post_types").select("*").eq("client_id", clientId).order("name")
+    const fetchClientRows = async () =>
+        (await supabaseAdmin
+            .from("ig_post_types").select("*").eq("client_id", clientId).order("name")).data || []
 
-    let rows = clientRows || []
-    if (rows.length === 0) {
-        // Legacy fallback: clients seeded before per-client post types existed.
-        const { data: globalRows } = await supabaseAdmin.from("ig_post_types").select("*").order("name")
-        rows = dedupeByName(globalRows || [])
-    }
+    let rows = await fetchClientRows()
 
     try {
         const { loadConfig, getPillarForPostType } = await import("@/instagram/configs")
         const config = await loadConfig(configName)
+
+        if (rows.length === 0) {
+            // Self-heal per-client from config — the SAME primitive the engine runs at
+            // generation time (autopilot → ensurePostTypes). Never fall back to an
+            // unfiltered/global ig_post_types query: that leaked other tenants' formats
+            // into this brand's selector ("every client shows the same formats").
+            const { ensurePostTypes } = await import("@/instagram/service")
+            await ensurePostTypes(config, clientId)
+            rows = await fetchClientRows()
+        }
+
         if (config.postTypes && config.postTypes.length > 0) {
             rows = rows.filter(pt => config.postTypes!.includes(pt.name))
         }

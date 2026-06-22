@@ -89,6 +89,10 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
             phoneModel: "iPhone 16 Pro",
         },
         weekPlan: config.weekPlan || [],
+        // Keep the three per-client format sources defaulted (never undefined) so
+        // ensurePostTypes/getIGPostTypes can't silently no-op on a half-filled config.
+        postTypes: config.postTypes || [],
+        postFormats: config.postFormats || {},
         postTypeDefs: config.postTypeDefs || [],
         hashtagPools: config.hashtagPools || { core: [], niche: [], broad: [], trending: [], czech: [] },
         contentFocus: config.contentFocus || config.name || slug,

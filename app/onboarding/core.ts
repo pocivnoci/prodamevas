@@ -54,6 +54,7 @@ export const CATEGORY_DEFAULTS: Record<string, { industry: string; postTypes: st
     'remeslnik': { industry: 'Řemeslo / Služby', postTypes: ['before_after', 'tip', 'behind_scenes', 'recenze'], audience: 'Majitelé domů a bytů, lidé plánující rekonstrukci, 30-60 let' },
     'poradce': { industry: 'Poradenství / Koučink', postTypes: ['tip', 'carousel', 'meme', 'behind_scenes'], audience: 'Podnikatelé, manažeři, lidé hledající osobní rozvoj, 25-50 let' },
     'fotograf': { industry: 'Fotografie / Kreativa', postTypes: ['behind_scenes', 'tip', 'product_drop', 'carousel'], audience: 'Páry, rodiny, firmy hledající profesionální foto, 25-45 let' },
+    'app': { industry: 'Aplikace / SaaS', postTypes: ['product_drop', 'tip', 'carousel', 'behind_scenes'], audience: 'Tech-savvy uživatelé, freelanceři, startupy a malé týmy, 22-45 let' },
     'jine': { industry: 'Služby', postTypes: ['tip', 'behind_scenes', 'product_drop', 'meme'], audience: 'Lokální komunita, potenciální zákazníci v okolí' },
 }
 
@@ -658,7 +659,10 @@ Pravidla: buď konkrétní, ne generický. Žádné prázdné fráze typu 'buďt
 export async function generateCustomFormats(analysis: WebsiteAnalysis, config: ClientConfig): Promise<void> {
     try {
         const pillarKeys = Object.keys(config.contentPillars || {})
-        if (pillarKeys.length === 0) return
+        if (pillarKeys.length === 0) {
+            console.warn(`⚠️ generateCustomFormats: ${analysis.companyName} nemá contentPillars — generický fallback`)
+            return
+        }
 
         const productNames = (config.products || []).map(p => p.name).filter(Boolean).slice(0, 8).join(", ")
         const prompt = `Jsi Instagram stratég. Pro tuhle KONKRÉTNÍ firmu navrhni 7 jedinečných formátů příspěvků — ne obecné "tip/meme/carousel", ale formáty šité na míru téhle značce, jejím produktům a publiku.
@@ -683,11 +687,25 @@ Vrať POUZE JSON pole 7 objektů:
 
 Pravidla: konkrétní pro tenhle obor (ne generické). Mix mediumů. Pokud firma má produkty, aspoň 2 formáty s uses_product=true. name unikátní, snake_case, bez diakritiky.`
 
-        const raw = await generateText(prompt, { temperature: 0.8 })
-        const match = raw.match(/\[[\s\S]*\]/)
-        if (!match) return
-        const parsed = JSON.parse(match[0])
-        if (!Array.isArray(parsed) || parsed.length === 0) return
+        // Retry twice — a transient AI/JSON failure here used to silently leave the
+        // client on the GENERIC fallback formats (the "every client looks the same" bug).
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let parsed: any[] | null = null
+        for (let attempt = 1; attempt <= 2 && !parsed; attempt++) {
+            try {
+                const raw = await generateText(prompt, { temperature: 0.8 })
+                const match = raw.match(/\[[\s\S]*\]/)
+                const arr = match ? JSON.parse(match[0]) : null
+                if (Array.isArray(arr) && arr.length > 0) parsed = arr
+                else console.warn(`⚠️ generateCustomFormats: prázdný/nevalidní výstup (pokus ${attempt}/2)`)
+            } catch (e) {
+                console.warn(`⚠️ generateCustomFormats parse selhal (pokus ${attempt}/2): ${(e as Error).message}`)
+            }
+        }
+        if (!parsed) {
+            console.warn(`⚠️ generateCustomFormats: GENERICKÝ fallback pro ${analysis.companyName} — formáty NEJSOU brand-specific!`)
+            return
+        }
 
         const MEDIA = ["image", "carousel", "reel"]
         const RATIOS = ["1:1", "4:5", "3:4", "4:3", "9:16", "16:9"]
