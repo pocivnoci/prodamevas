@@ -6,6 +6,7 @@ import { motion } from "framer-motion"
 import { getIGPostsList, updateIGPostStatus, getEditorialLog } from "@/app/actions/admin-actions"
 import { deleteIGPost, deleteIGPosts } from "@/app/actions/post-actions"
 import { revisePost, generateMultipleVariants, selectVariantWinner, getVariantGroup } from "@/app/actions/variant-actions"
+import { retryPublishAction } from "@/app/actions/calendar-actions"
 import { LoadingSpinner, StatusBadge, PillarBadge, CopyButton, MetricsInputForm } from "./shared"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPost } from "./types"
@@ -86,7 +87,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
         <div className="space-y-6 pt-2">
             {/* Filters */}
             <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                {["all", "draft", "ready", "posted", "plan_locked"].map(status => (
+                {["all", "draft", "ready", "scheduled", "posted", "failed", "plan_locked"].map(status => (
                     <button
                         key={status}
                         onClick={() => setStatusFilter(status)}
@@ -95,7 +96,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                             : "text-white/50 bg-[#0f0f0f] border-white/10 hover:text-white hover:bg-white/5"
                             }`}
                     >
-                        {status === "all" ? "Všechny" : status === "draft" ? "Koncepty" : status === "ready" ? "Připravené" : status === "posted" ? "Publikované" : "🔒 Plán"}
+                        {status === "all" ? "Všechny" : status === "draft" ? "Koncepty" : status === "ready" ? "Připravené" : status === "scheduled" ? "Naplánované" : status === "posted" ? "Publikované" : status === "failed" ? "⚠ Selhalé" : "🔒 Plán"}
                     </button>
                 ))}
                 <span className="text-xs font-mono uppercase tracking-widest text-white/40 ml-auto whitespace-nowrap pl-4">{posts.length} z {total} příspěvků</span>
@@ -307,6 +308,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                         onClose={() => setSelectedPost(null)}
                         onStatusChange={handleStatusChange}
                         onDelete={handleDelete}
+                        onRefresh={() => { setSelectedPost(null); loadPosts(0) }}
                     />
                 )}
         </div >
@@ -379,12 +381,14 @@ function PostDetailModal({
     onClose,
     onStatusChange,
     onDelete,
+    onRefresh,
 }: {
     post: IGPost
     projectId: string
     onClose: () => void
     onStatusChange: (postId: string, status: string) => void
     onDelete: (postId: string) => void
+    onRefresh: () => void
 }) {
     const { copiedField, copyToClipboard } = useCopyToClipboard()
     const [confirmDelete, setConfirmDelete] = useState(false)
@@ -398,6 +402,15 @@ function PostDetailModal({
     const [carouselIndex, setCarouselIndex] = useState(0)
     const [editorialLog, setEditorialLog] = useState<{ role: string; action: string; summary: string }[]>([])
     const [editorialOpen, setEditorialOpen] = useState(false)
+    const [retrying, setRetrying] = useState(false)
+
+    const handleRetryPublish = async () => {
+        setRetrying(true)
+        const result = await retryPublishAction(projectId, post.id)
+        setRetrying(false)
+        if (result.success) onRefresh()
+        else alert(result.error || "Akce selhala")
+    }
 
     // Fetch editorial log on mount
     useEffect(() => {
@@ -699,6 +712,15 @@ function PostDetailModal({
                     )}
                 </div>
 
+                {/* Publish failure reason */}
+                {post.status === "failed" && post.publish_error && (
+                    <div className="px-4 sm:px-6 pb-2">
+                        <p className="text-[10px] text-red-400 leading-relaxed">
+                            ⚠ Publikování selhalo: {post.publish_error}
+                        </p>
+                    </div>
+                )}
+
                 {/* Footer Actions */}
                 <div className="px-4 sm:px-6 py-3 sm:py-4 bg-[#050505] border-t border-white/10 flex flex-wrap items-center gap-2 sm:gap-3">
                     {/* Download Image */}
@@ -756,11 +778,32 @@ function PostDetailModal({
                         </>
                     )}
                     {post.status === "posted" && (
+                        <>
+                            {post.permalink && (
+                                <a
+                                    href={post.permalink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all border border-emerald-500/20"
+                                >
+                                    ↗ Zobrazit na Instagramu
+                                </a>
+                            )}
+                            <button
+                                onClick={() => onStatusChange(post.id, "archived")}
+                                className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-white/5 text-white/40 hover:bg-white/10 transition-all border border-white/10"
+                            >
+                                📦 Archivovat
+                            </button>
+                        </>
+                    )}
+                    {post.status === "failed" && (
                         <button
-                            onClick={() => onStatusChange(post.id, "archived")}
-                            className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-white/5 text-white/40 hover:bg-white/10 transition-all border border-white/10"
+                            onClick={handleRetryPublish}
+                            disabled={retrying}
+                            className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all border border-red-500/20 disabled:opacity-50"
                         >
-                            📦 Archivovat
+                            {retrying ? "Plánuji…" : "↻ Zkusit publikovat znovu"}
                         </button>
                     )}
 

@@ -615,6 +615,9 @@ export async function generateOnePost(options: {
             call_to_action: captionData.cta,
             image_prompt: captionData.imagePrompt,
             image_url: imageUrl,
+            // 'image' | 'carousel' | 'reel' — drives how the publisher cron pushes media.
+            // (Carousel slide URLs stay pipe-joined in image_url per the orchestrator convention.)
+            media_type: format.medium,
             image_style: renderResult?.imageStyle ?? (isReel ? "veo-3.1" : `overlay:${format.overlayStyle || "default"}`),
             design_brief: renderResult?.designBrief ?? null,
             status: "draft",
@@ -741,7 +744,19 @@ export async function generateBatch(options: {
         // Extract post types from approved plan
         const approvedPlan = editorialPlanResult.plan
         if (Array.isArray(approvedPlan) && approvedPlan.length > 0) {
-            typesToUse = approvedPlan.map((s: any) => s.postType).filter(Boolean)
+            const extracted = approvedPlan.map((s: any) => s.postType).filter(Boolean) as string[]
+            // The editorial LLM sometimes returns pillar labels (e.g. "Dosah",
+            // "Zapojení", "Prodej") instead of registered post-type keys, which would
+            // crash the per-post lookup. Validate against the active post types and
+            // recover any unknown slot from the algorithmic plan (preserves count + variety).
+            const validNames = new Set((await getActivePostTypes(config.postTypes)).map(t => t.name))
+            const fallbackPlan = buildSmartWeekPlan(config, performance, extracted.length || options.count)
+            const recovered = extracted.map((t, i) => validNames.has(t) ? t : fallbackPlan[i % fallbackPlan.length])
+            const invalidCount = recovered.filter((t, i) => t !== extracted[i]).length
+            if (invalidCount > 0) {
+                console.log(`   ⚠️ ${invalidCount} neplatných typů z editorial plánu nahrazeno algoritmickým výběrem`)
+            }
+            typesToUse = recovered.filter(Boolean)
             // If editorial changed the count, respect it
             if (typesToUse.length === 0) {
                 typesToUse = buildSmartWeekPlan(config, performance, options.count)

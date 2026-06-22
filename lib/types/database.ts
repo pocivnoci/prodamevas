@@ -7,7 +7,7 @@
 
 // ─── Post Status ─────────────────────────────────────────────
 
-export type IGPostStatus = "draft" | "ready" | "posted" | "plan_locked"
+export type IGPostStatus = "draft" | "ready" | "scheduled" | "posting" | "posted" | "failed" | "plan_locked"
 
 // ─── IG Post ─────────────────────────────────────────────────
 
@@ -37,6 +37,12 @@ export interface IGPost {
     revision_of?: string | null
     link_type?: "revision" | "variant" | null
     posted_at?: string | null
+    // Publishing (ig-publisher cron)
+    media_type?: string | null
+    ig_media_id?: string | null
+    permalink?: string | null
+    publish_error?: string | null
+    publish_attempts?: number | null
     created_at: string
     updated_at?: string
     // Joined relations

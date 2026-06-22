@@ -24,7 +24,10 @@ export function StatusBadge({ status }: { status: string }) {
         plan_draft: { text: "PLÁN", class: "bg-violet-500/10 text-violet-400 border-violet-500/20" },
         plan_locked: { text: "🔒 ZAMČENO", class: "bg-amber-500/10 text-amber-500/60 border-amber-500/15" },
         ready: { text: "PŘIPRAVENO", class: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
+        scheduled: { text: "NAPLÁNOVÁNO", class: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20" },
+        posting: { text: "PUBLIKUJE SE…", class: "bg-cyan-500/10 text-cyan-300 border-cyan-500/20 animate-pulse" },
         posted: { text: "PUBLIKOVÁNO", class: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
+        failed: { text: "⚠ SELHALO", class: "bg-red-500/10 text-red-400 border-red-500/20" },
         archived: { text: "ARCHIVOVÁNO", class: "bg-white/5 text-white/40 border-white/10" },
     }
     const badge = config[status] || config.draft

@@ -194,6 +194,41 @@ export async function approvePost(postId: string): Promise<{ success: boolean }>
     return { success: !error }
 }
 
+// ─── Retry a failed publish ──────────────────────────────────────────────────
+
+/**
+ * Re-arm a post that failed to publish: back to 'scheduled' due now, so the next
+ * ig-publisher tick retries it. Resets the attempt counter. Requires a live
+ * Instagram connection (same guard as scheduling).
+ */
+export async function retryPublishAction(
+    projectSlug: string,
+    postId: string,
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const clientId = await gatePostAccess(postId)
+        const { getConnectionMeta } = await import("@/instagram/ig-connection")
+        const conn = await getConnectionMeta(clientId)
+        if (!conn || conn.status !== "connected") {
+            return { success: false, error: "Nejdřív připojte Instagram účet v Nastavení." }
+        }
+        const { error } = await supabaseAdmin
+            .from("ig_posts")
+            .update({
+                status: "scheduled",
+                scheduled_for: new Date().toISOString(),
+                publish_error: null,
+                publish_attempts: 0,
+                updated_at: new Date().toISOString(),
+            })
+            .eq("id", postId)
+        if (error) return { success: false, error: error.message }
+        return { success: true }
+    } catch (err) {
+        return { success: false, error: (err as Error)?.message || "Akce selhala" }
+    }
+}
+
 // ─── Schedule a single post (from the generate result or posts list) ─────────
 
 /**
@@ -218,13 +253,24 @@ export async function schedulePostAction(
             return { success: false, error: "Příspěvek nepatří tomuto projektu." }
         }
 
+        // Arming a post for auto-publish requires a live Instagram connection — the
+        // publisher cron (status='scheduled') would otherwise just fail the post.
+        const { getConnectionMeta } = await import("@/instagram/ig-connection")
+        const conn = await getConnectionMeta(clientId)
+        if (!conn || conn.status !== "connected") {
+            return { success: false, error: "Nejdřív připojte Instagram účet v Nastavení." }
+        }
+
         const { toScheduledFor } = await import("@/lib/schedule-planner")
         const { error } = await supabaseAdmin
             .from("ig_posts")
             .update({
                 scheduled_for: toScheduledFor(date, time),
                 time_slot: time,
-                status: "ready",
+                // 'scheduled' = approved + armed → picked up by the ig-publisher cron.
+                status: "scheduled",
+                publish_error: null,
+                publish_attempts: 0,
                 updated_at: new Date().toISOString(),
             })
             .eq("id", postId)

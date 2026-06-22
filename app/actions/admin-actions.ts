@@ -188,6 +188,7 @@ export async function getIGPostsList(
                 scheduled_for, time_slot, status, posted_at, likes, comments, saves,
                 reach, shares, profile_visits, link_clicks, content_pillar,
                 created_at, updated_at, client_id,
+                media_type, ig_media_id, permalink, publish_error,
                 feedback, revision_of,
                 ig_post_types ( name, display_name, emoji )
             `)

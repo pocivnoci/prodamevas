@@ -13,6 +13,10 @@
             "schedule": "0 5 * * *"
         },
         {
+            "path": "/api/cron/ig-publisher",
+            "schedule": "* * * * *"
+        },
+        {
             "path": "/api/cron/agent-worker",
             "schedule": "* * * * *"
         },
