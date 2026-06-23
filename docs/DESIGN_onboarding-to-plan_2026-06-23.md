@@ -79,7 +79,30 @@ insights already live in `clients.config`.
 
 ---
 
-## #2 — Pro tier + critic pass on the onboarding config
+## #2 — Pro tier + critic pass on the onboarding config ✅ (a) DONE / ⏸️ (b) DEFERRED (2026-06-24)
+
+**Implemented (a) — Pro tier on the brand DNA:**
+The foundation calls now run on `textPro` (`gemini-pro-latest`, fallback `gemini-2.5-pro`
+— **both Pro, never flash**, honoring the quality-over-fallback rule). Done in BOTH twins:
+- `core.ts` config gen (`generateConfigCore`) + personas
+- `actions.ts` config gen (`generateConfigPreview`) + personas
+- `actions.ts` `refineConfigSection` (user-triggered section refine)
+Cheap/structural calls (website analysis, IG enrichment, custom formats, style hint) stay
+on flash — they're extraction/aesthetic, partly overridden by scraped vision data.
+Lowest-risk path: just `model`/`fallbackModel` overrides on the existing `generateText`
+(which already forces JSON output) — identical parsing, zero behavior change beyond the model.
+
+**Deferred (b) — automated critic pass. Rationale (deliberate, not forgotten):**
+A separate Pro call that *rewrites* the structured config JSON carries real corruption risk
+(dropping pillars / ratios / toneByPostType / postTypes). Its value is now largely covered by:
+(1) generation is already Pro, (2) the user reviews every section before save, (3) section
+refine is now Pro too. So the marginal gain doesn't justify the corruption surface + added
+latency on every onboarding. If we want it later, scope it to the free-text brandVoice fields
+only (persona / voiceTraits / antiPatterns), merge back without touching structural fields.
+
+---
+
+### Original plan (kept for reference)
 
 **Why:** brand voice / personas / pillars are the foundation every post inherits.
 They're generated on the **flash** tier today (`models.ts:26` — onboarding = fast tier)

@@ -20,6 +20,7 @@
 
 import supabaseAdmin from '@/supabase/admin'
 import { generateText } from '@/instagram/gemini-client'
+import { getModel } from '@/instagram/models'
 import { ensurePostTypes } from '@/instagram/service'
 import type { ClientConfig, PostTypeDef } from '@/instagram/configs/types'
 import type { WebsiteAnalysis } from './actions'
@@ -486,7 +487,10 @@ DŮLEŽITÉ:
 - overlayGradient MUSÍ přesně odpovídat: ${JSON.stringify(analysis.overlayGradient || { topColor: analysis.colors.primary, midColor: analysis.colors.secondary, bottomColor: analysis.colors.primary })}
 - Vrať POUZE platný JSON, bez obalujícího textu`
 
-    const rawConfig = await generateText(configPrompt, { temperature: 0.7 })
+    // Brand DNA (voice + pillars) is the foundation every post inherits — generate it on the
+    // Pro tier (fallback is a second Pro, never flash). Onboarding is one-time, so the latency
+    // is acceptable. The cheap/structural calls (analysis, formats, style) stay on flash.
+    const rawConfig = await generateText(configPrompt, { temperature: 0.7, model: getModel("textPro"), fallbackModel: getModel("textPro", "fallback") })
     const jsonMatch = rawConfig.match(/\{[\s\S]*\}/)
     if (!jsonMatch) throw new Error('AI nevygenerovalo platný JSON config')
 
@@ -604,7 +608,7 @@ Pravidla:
 - Pain points a triggers MUSÍ být specifické pro ${analysis.industry}
 - Vrať POUZE platný JSON pole.`
 
-        const rawPersonas = await generateText(personaPrompt, { temperature: 0.8 })
+        const rawPersonas = await generateText(personaPrompt, { temperature: 0.8, model: getModel("textPro"), fallbackModel: getModel("textPro", "fallback") })
         const personaMatch = rawPersonas.match(/\[[\s\S]*\]/)
         if (personaMatch) {
             config.audiencePersonas = JSON.parse(personaMatch[0])
