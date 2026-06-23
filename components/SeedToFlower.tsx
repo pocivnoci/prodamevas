@@ -14,7 +14,7 @@
  * mathematical definition of the figure). 1 + 6 + 12 = 19 circles.
  */
 
-import { motion, AnimatePresence } from "framer-motion"
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion"
 import { useState, useEffect, useRef } from "react"
 
 const VB = 440
@@ -122,14 +122,20 @@ function infoFor(c: Circle): { title: string; desc: string } {
 }
 
 export function SeedToFlower() {
+  const reduce = useReducedMotion()
   const [phase, setPhase] = useState<Phase>("pre")
   const [hovered, setHovered] = useState<string | null>(null)
-  const [fruit, setFruit] = useState(0)
   const [runId, setRunId] = useState(0) // bump to replay
   const sectionRef = useRef<HTMLDivElement>(null)
 
+  // Reduced motion → skip the bloom entirely, show the final flower at once.
+  useEffect(() => {
+    if (reduce) setPhase("alive")
+  }, [reduce])
+
   // Autoplay when scrolled into view (first time only)
   useEffect(() => {
+    if (reduce) return
     const el = sectionRef.current
     if (!el) return
     const observer = new IntersectionObserver(
@@ -143,27 +149,19 @@ export function SeedToFlower() {
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [])
+  }, [reduce])
 
-  // Drive the bloom: seed → dna → flower → alive
+  // Drive the bloom: seed → dna → flower → alive (one-time, the only meaningful motion here)
   useEffect(() => {
-    if (phase === "pre" || phase === "alive") return
+    if (reduce || phase === "pre" || phase === "alive") return
     const next: Record<string, Phase> = { seed: "dna", dna: "flower", flower: "alive" }
     const dur: Record<string, number> = { seed: 1500, dna: 2700, flower: 3000 }
     const t = setTimeout(() => setPhase(next[phase]), dur[phase])
     return () => clearTimeout(t)
-  }, [phase, runId])
-
-  // Cycle the fruits once alive
-  useEffect(() => {
-    if (phase !== "alive") return
-    const i = setInterval(() => setFruit((f) => (f + 1) % FRUITS.length), 2400)
-    return () => clearInterval(i)
-  }, [phase])
+  }, [phase, runId, reduce])
 
   const replay = () => {
     setHovered(null)
-    setFruit(0)
     setPhase("seed")
     setRunId((n) => n + 1)
   }
@@ -199,35 +197,24 @@ export function SeedToFlower() {
             </filter>
           </defs>
 
-          {/* ambient glow — breathes once alive */}
+          {/* ambient glow — static (no decorative breathing loop) */}
           <motion.circle
             cx={CX} cy={CY} r="210" fill="url(#stf-glow)"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: phase === "pre" ? 0.25 : 1, scale: phase === "alive" ? [1, 1.04, 1] : 1 }}
-            transition={{ opacity: { duration: 1.5 }, scale: { duration: 9, repeat: Infinity, ease: "easeInOut" } }}
-            style={{ transformOrigin: `${CX}px ${CY}px` }}
+            initial={reduce ? false : { opacity: 0 }}
+            animate={{ opacity: phase === "pre" ? 0.25 : 1 }}
+            transition={{ duration: 1.5 }}
           />
 
           {/* classic bounding rings */}
           <circle cx={CX} cy={CY} r={3 * R} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
           <circle cx={CX} cy={CY} r={3 * R + 8} fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
 
-          {/* rotating cosmic ring once the system is alive */}
+          {/* static decorative dashed ring once the system is alive (no rotation loop) */}
           {phase === "alive" && (
-            <>
-              <motion.circle
-                cx={CX} cy={CY} r={3 * R - 2}
-                fill="none" stroke="rgba(230,57,70,0.10)" strokeWidth="1" strokeDasharray="4 10"
-                animate={{ rotate: 360 }} transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
-                style={{ transformOrigin: `${CX}px ${CY}px` }}
-              />
-              <motion.circle
-                cx={CX} cy={CY} r={2.1 * R}
-                fill="none" stroke="rgba(245,158,11,0.08)" strokeWidth="1" strokeDasharray="2 12"
-                animate={{ rotate: -360 }} transition={{ duration: 90, repeat: Infinity, ease: "linear" }}
-                style={{ transformOrigin: `${CX}px ${CY}px` }}
-              />
-            </>
+            <circle
+              cx={CX} cy={CY} r={3 * R - 2}
+              fill="none" stroke="rgba(230,57,70,0.10)" strokeWidth="1" strokeDasharray="4 10"
+            />
           )}
 
           {/* GHOST layer — the latent pattern, always faintly present */}
@@ -243,10 +230,10 @@ export function SeedToFlower() {
                 cx={c.x} cy={c.y} r={R}
                 fill={hovered === c.key ? "rgba(230,57,70,0.12)" : "rgba(230,57,70,0.045)"}
                 stroke="none"
-                initial={{ opacity: 0 }}
+                initial={reduce ? false : { opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.7, delay: c.bloomIndex * 0.08 }}
+                transition={{ duration: 0.7, delay: reduce ? 0 : c.bloomIndex * 0.08 }}
               />
             ))}
           </AnimatePresence>
@@ -265,10 +252,10 @@ export function SeedToFlower() {
                   strokeWidth={isHover ? 2.6 : baseStroke}
                   strokeOpacity={c.ring === 2 && !isHover ? 0.55 : 1}
                   filter={isHover ? "url(#stf-soft)" : undefined}
-                  initial={{ pathLength: 0, opacity: 0, scale: 0.5 }}
+                  initial={reduce ? false : { pathLength: 0, opacity: 0, scale: 0.5 }}
                   animate={{ pathLength: 1, opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.5 }}
-                  transition={{ duration: 0.95, delay: c.bloomIndex * 0.08, ease: [0.16, 1, 0.3, 1] }}
+                  transition={{ duration: 0.95, delay: reduce ? 0 : c.bloomIndex * 0.08, ease: [0.16, 1, 0.3, 1] }}
                   style={{ transformOrigin: `${c.x}px ${c.y}px` }}
                 />
               )
@@ -284,6 +271,7 @@ export function SeedToFlower() {
                 style={{ cursor: "pointer" }}
                 onMouseEnter={() => setHovered(c.key)}
                 onMouseLeave={() => setHovered((h) => (h === c.key ? null : h))}
+                onClick={() => setHovered((h) => (h === c.key ? null : c.key))}
               />
               <AnimatePresence>
                 {hovered === c.key && (
@@ -302,24 +290,9 @@ export function SeedToFlower() {
             </g>
           ))}
 
-          {/* CENTER core + heartbeat */}
+          {/* CENTER core — static (no heartbeat / radial pulse loop) */}
           {phase !== "pre" && (
-            <>
-              <motion.circle
-                cx={CX} cy={CY} r="6" fill="#e63946"
-                animate={{ opacity: phase === "alive" ? [0.6, 1, 0.6] : 1 }}
-                transition={{ duration: 2, repeat: Infinity }}
-              />
-              {phase === "alive" && (
-                <motion.circle
-                  cx={CX} cy={CY} r="6" fill="none" stroke="#e63946" strokeWidth="1"
-                  initial={{ opacity: 0.5, scale: 1 }}
-                  animate={{ opacity: 0, scale: 7 }}
-                  transition={{ duration: 2.6, repeat: Infinity, ease: "easeOut" }}
-                  style={{ transformOrigin: `${CX}px ${CY}px` }}
-                />
-              )}
-            </>
+            <circle cx={CX} cy={CY} r="6" fill="#e63946" />
           )}
         </svg>
 
@@ -332,7 +305,7 @@ export function SeedToFlower() {
             >
               <div className="text-center mt-1">
                 <div className="text-aisummit-cinnabar text-[10px] font-black uppercase tracking-[0.3em]">∞ Vaše DNA</div>
-                <div className="text-white/25 text-[8px] font-bold uppercase tracking-widest mt-0.5">najeď na kruh</div>
+                <div className="text-white/25 text-[8px] font-bold uppercase tracking-widest mt-0.5">vyber kruh</div>
               </div>
             </motion.div>
           )}
@@ -363,20 +336,13 @@ export function SeedToFlower() {
               <p className="text-sm text-white/50 leading-relaxed max-w-md mx-auto">{panel.desc}</p>
 
               {phase === "alive" && !hoveredCircle && (
-                <div className="mt-5 h-8 flex items-center justify-center gap-3">
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={fruit}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
-                      transition={{ duration: 0.3 }}
-                      className="flex items-center gap-3"
-                    >
-                      <span className="text-2xl font-black text-aisummit-cinnabar tracking-widest">{FRUITS[fruit].word}</span>
-                      <span className="text-white/30 text-xs font-bold">{FRUITS[fruit].sub}</span>
-                    </motion.div>
-                  </AnimatePresence>
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+                  {FRUITS.map((f) => (
+                    <div key={f.word} className="flex items-baseline gap-1.5">
+                      <span className="text-base font-black text-aisummit-cinnabar tracking-widest">{f.word}</span>
+                      <span className="text-white/30 text-[10px] font-bold">{f.sub}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </motion.div>

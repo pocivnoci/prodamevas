@@ -37,6 +37,10 @@ To, co `docs/` neřekne — *proč* zrovna takhle a co jsme zavrhli:
 > [!tip] Nové rozhodnutí
 > Zkopíruj [[_template]], pojmenuj `Decisions/YYYY-MM-DD krátký název`. Drž to krátké — 5 řádků stačí. Po nějaké době tě graf sám propojí.
 
+## 🎯 Go-to-market
+
+- [[00 GTM přehled]] — jednostránková GTM strategie (ICP, pozicování, ceník, kanály, launch plán, metriky)
+
 ## 📚 Referenční
 
 - [[Glossary]] — slovník pojmů (slug vs client_id, link_type, performance_score…)

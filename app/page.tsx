@@ -2,65 +2,60 @@
 
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
-import { motion, AnimatePresence } from "framer-motion"
-import { ArrowRight, CheckCircle2, ChevronDown, Cpu, Camera, TrendingUp } from "lucide-react"
-import { HeroPlayground, type PlaygroundPost } from "@/components/HeroPlayground"
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion"
+import { ArrowRight, CheckCircle2, ChevronDown, Cpu, Camera, TrendingUp, Menu, X } from "lucide-react"
+import { PostWall, type WallPost } from "@/components/PostWall"
 import { SeedToFlower } from "@/components/SeedToFlower"
-import { References } from "@/components/References"
 import { WaitlistForm } from "@/components/WaitlistForm"
+import { Reveal } from "@/components/Reveal"
+import { fadeUp, SPRING, EASE_OUT } from "@/lib/motion"
 import { REFERENCE_BRANDS } from "@/lib/reference-data"
 
-const PLACEHOLDER_SHOWCASE: PlaygroundPost[] = [
-  {
-    src: "/showcase-1.png",
-    alt: "Příspěvek vygenerovaný v Chrlit pro kavárnu",
-    industry: "☕ Kavárna",
-    domain: "kavarna-uroh.cz",
-    caption: "Pondělí se dá zvládnout dvěma způsoby. My doporučujeme ten s čerstvě praženou etiopskou. ☕ Do 10:00 ke každému cappuccinu domácí skořicový šnek za polovinu. Přijďte si pro lepší start týdne.",
-    hashtags: "#kavarna #specialitycoffee #cappuccino #snidane #kavaspolu #domacipece #dobrerano",
-  },
-  {
-    src: "/showcase-2.png",
-    alt: "Příspěvek vygenerovaný v Chrlit pro kadeřnictví",
-    industry: "✂️ Kadeřnictví",
-    domain: "salon-lenka.cz",
-    caption: "Proměna, ze které máme radost celý den. ✂️ Z dlouhých vlasů odvážný bob — a paní Lence neskutečně sluší. Chystáte změnu i vy? Na příští týden zbývají poslední tři volné termíny.",
-    hashtags: "#kadernictvi #promena #novyucs #bob #vlasy #salon #objednejtese",
-  },
-  {
-    src: "/showcase-3.png",
-    alt: "Příspěvek vygenerovaný v Chrlit pro vinařství",
-    industry: "🍷 Vinařství",
-    domain: "vinarstvi-morava.cz",
-    caption: "Ryzlink z loňské sklizně právě dozrál v lahvích. 🍷 Suchý, svěží, s tóny zeleného jablka — přesně takový, jaký z naší trati má být. V sobotu otevíráme sklep. Přijďte ochutnat jako první.",
-    hashtags: "#vinarstvi #ryzlink #morava #vino #degustace #otevrenesklepy #ceskevino",
-  },
-]
-
-// Hero playground uses REAL generated reference posts when available (written by
-// scripts/export-references.ts), and falls back to the placeholders otherwise.
 function hostFromUrl(u: string): string {
   try { return new URL(u).hostname.replace(/^www\./, "") } catch { return u.replace(/^https?:\/\//, "") }
 }
 
-const SHOWCASE_POSTS: PlaygroundPost[] = (() => {
-  const withPosts = REFERENCE_BRANDS.filter((b) => b.posts.length > 0).slice(0, 4)
-  if (withPosts.length === 0) return PLACEHOLDER_SHOWCASE
-  return withPosts.map((b) => {
-    const p = b.posts[0]
-    return {
-      src: p.imageUrl,
-      alt: `Příspěvek vygenerovaný v Chrlit pro ${b.company}`,
-      industry: `${b.emoji} ${b.industry.split("/").pop()?.trim() || b.industry}`,
-      domain: hostFromUrl(b.website),
-      caption: p.caption,
-      hashtags: p.hashtags,
-    }
-  })
+// Featured mix on the landing: 2 strongest local-SMB demos + 2 modern startup/app
+// demos — proof that speaks to both audiences. Falls back gracefully if a featured
+// brand has no posts yet (e.g. startups not generated).
+const FEATURED_SLUGS = ["kavarna-zrno", "vinarstvi-pod-strani", "flowtask", "brevia"]
+
+const FEATURED_BRANDS = (() => {
+  const withPosts = REFERENCE_BRANDS.filter((b) => b.posts.length > 0)
+  const curated = FEATURED_SLUGS
+    .map((s) => withPosts.find((b) => b.slug === s))
+    .filter((b): b is (typeof withPosts)[number] => Boolean(b))
+  return curated.length > 0 ? curated : withPosts.slice(0, 4)
+})()
+
+// The post wall shows REAL posts the Chrlit engine generated for Chrlit's OWN
+// brand (dogfood). Falls back to the featured demo brands if that data is missing.
+const toWall = (b: (typeof REFERENCE_BRANDS)[number]): WallPost[] =>
+  b.posts.map((p) => ({
+    imageUrl: p.imageUrl,
+    caption: p.caption,
+    hashtags: p.hashtags,
+    company: b.company,
+    emoji: b.emoji,
+    handle: hostFromUrl(b.website).split(".")[0],
+  }))
+
+const WALL_POSTS: WallPost[] = (() => {
+  const own = REFERENCE_BRANDS.find((b) => b.slug === "chrlit")
+  if (own && own.posts.length > 0) return toWall(own)
+  // fallback: round-robin across featured demo brands
+  const perBrand = FEATURED_BRANDS.map(toWall)
+  const out: WallPost[] = []
+  for (let i = 0; out.length < perBrand.reduce((n, a) => n + a.length, 0); i++) {
+    for (const arr of perBrand) if (arr[i]) out.push(arr[i])
+  }
+  return out
 })()
 
 export default function Home() {
   const [scrolled, setScrolled] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const reduce = useReducedMotion()
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20)
@@ -73,24 +68,24 @@ export default function Home() {
 
       {/* BACKGROUND EFFECTS */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden transform-gpu">
-        <div className="hidden md:block absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-aisummit-glow/10 rounded-full blur-[120px] opacity-40 animate-pulse" style={{ animationDuration: '8s' }}></div>
-        <div className="hidden md:block absolute top-[20%] right-[-10%] w-[40%] h-[60%] bg-emerald-500/5 rounded-full blur-[120px] opacity-30 animate-pulse" style={{ animationDuration: '12s' }}></div>
+        <div className="hidden md:block absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-aisummit-glow/10 rounded-full blur-[120px] opacity-40"></div>
+        <div className="hidden md:block absolute top-[20%] right-[-10%] w-[40%] h-[60%] bg-emerald-500/5 rounded-full blur-[120px] opacity-30"></div>
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:3rem_3rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
       </div>
 
       {/* HEADER */}
       <motion.header
         className={`fixed top-0 inset-x-0 z-50 transition-all duration-500 ${scrolled ? 'bg-[#050505]/80 backdrop-blur-xl border-b border-white/5' : 'bg-transparent pt-6'}`}
-        initial={{ y: -100 }}
+        initial={reduce ? false : { y: -100 }}
         animate={{ y: 0 }}
-        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+        transition={{ duration: 0.6, ease: EASE_OUT }}
       >
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <img src="/chrlit-logo-transparent.svg" alt="Chrlit" className="h-8" />
           </Link>
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2 sm:gap-6">
             <Link href="#reference" className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors hidden sm:block">
               Ukázky
             </Link>
@@ -100,65 +95,90 @@ export default function Home() {
             <Link href="/login" className="text-[10px] font-bold uppercase tracking-widest text-white/50 hover:text-white transition-colors hidden sm:block">
               Přihlásit se
             </Link>
-            <Link href="#waitlist" className="group relative inline-flex items-center gap-2 text-[10px] font-bold px-6 py-2.5 bg-white/10 hover:bg-white text-white hover:text-black rounded-sm transition-all uppercase tracking-widest">
+            <Link href="#waitlist" className="group relative inline-flex items-center gap-2 text-[10px] font-bold px-5 py-2.5 bg-white/10 hover:bg-white text-white hover:text-black rounded-sm transition-all uppercase tracking-widest">
               Připojit se
               <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
             </Link>
+            <button
+              onClick={() => setMenuOpen((o) => !o)}
+              aria-label={menuOpen ? "Zavřít menu" : "Otevřít menu"}
+              aria-expanded={menuOpen}
+              className="sm:hidden inline-flex items-center justify-center w-11 h-11 -mr-2 text-white/70 hover:text-white transition-colors"
+            >
+              {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
           </div>
         </div>
+
+        {/* Mobile menu */}
+        <AnimatePresence>
+          {menuOpen && (
+            <motion.div
+              initial={reduce ? false : { opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={reduce ? undefined : { opacity: 0, height: 0 }}
+              transition={{ duration: 0.25, ease: EASE_OUT }}
+              className="sm:hidden overflow-hidden bg-[#050505]/95 backdrop-blur-xl border-b border-white/5"
+            >
+              <nav className="max-w-7xl mx-auto px-6 py-3 flex flex-col">
+                {[
+                  { href: "#reference", label: "Ukázky" },
+                  { href: "#pricing", label: "Ceník" },
+                  { href: "/login", label: "Přihlásit se" },
+                ].map((l) => (
+                  <Link
+                    key={l.href}
+                    href={l.href}
+                    onClick={() => setMenuOpen(false)}
+                    className="py-3 text-[11px] font-bold uppercase tracking-widest text-white/50 hover:text-white transition-colors border-b border-white/5 last:border-0"
+                  >
+                    {l.label}
+                  </Link>
+                ))}
+              </nav>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.header>
 
-      {/* HERO — the promise + the playable magic moment */}
-      <section className="relative z-10 pt-32 pb-16 md:pt-44 md:pb-24 min-h-[92vh] flex items-center">
-        <div className="max-w-7xl mx-auto px-6 w-full">
-          <div className="grid lg:grid-cols-2 items-center gap-12 lg:gap-16">
+      {/* HERO — the promise + waitlist, centered */}
+      <section className="relative z-10 pt-32 pb-16 md:pt-40 md:pb-20 min-h-[78dvh] flex items-center">
+        <div className="max-w-3xl mx-auto px-6 w-full">
+          <motion.div
+            className="flex flex-col items-center text-center"
+            initial={reduce ? false : { opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1, ease: EASE_OUT }}
+          >
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-emerald-500/20 text-emerald-400 text-[9px] font-bold uppercase tracking-widest mb-8 bg-emerald-500/5 backdrop-blur-sm">
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]"></span>
+              Brzy spouštíme · Waitlist otevřený
+            </div>
 
-            {/* LEFT — the promise + waitlist */}
-            <motion.div
-              className="flex flex-col items-start"
-              initial={{ opacity: 0, x: -30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, delay: 0.1 }}
-            >
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-emerald-500/20 text-emerald-400 text-[9px] font-bold uppercase tracking-widest mb-8 bg-emerald-500/5 backdrop-blur-sm">
-                <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>
-                Brzy spouštíme · Waitlist otevřený
-              </div>
+            <h1 className="text-5xl md:text-6xl xl:text-7xl font-black tracking-tighter mb-6 text-white leading-[0.92] uppercase">
+              Hotový Instagram.<br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-aisummit-cinnabar to-amber-500">
+                Bez práce.
+              </span>
+            </h1>
 
-              <h1 className="text-5xl md:text-6xl xl:text-7xl font-black tracking-tighter mb-6 text-white leading-[0.92] uppercase">
-                Hotový Instagram.<br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-aisummit-cinnabar to-amber-500">
-                  Aniž hnete prstem.
-                </span>
-              </h1>
+            <p className="text-lg text-white/45 font-medium mb-8 max-w-md leading-relaxed">
+              Profesionální příspěvky — fotky, texty i hashtagy. Hotové. Vy je jen zveřejníte.
+            </p>
 
-              <p className="text-lg text-white/45 font-medium mb-8 max-w-md leading-relaxed">
-                Profesionální příspěvky — fotky, texty i hashtagy. Hotové. Vy je jen zveřejníte.
-              </p>
+            <div id="waitlist" className="w-full sm:max-w-md mt-2 relative z-20">
+              <WaitlistForm />
+            </div>
 
-              <div id="waitlist" className="w-full sm:max-w-md mt-2 relative z-20">
-                <WaitlistForm />
-              </div>
-
-              <p className="mt-5 text-[9px] uppercase tracking-widest font-bold text-white/25">
-                3 posty zdarma · Bez kreditky · Bez časového limitu
-              </p>
-            </motion.div>
-
-            {/* RIGHT — the playable proof */}
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.3 }}
-            >
-              <HeroPlayground posts={SHOWCASE_POSTS} />
-            </motion.div>
-          </div>
+            <p className="mt-5 text-[9px] uppercase tracking-widest font-bold text-white/25">
+              3 posty zdarma · Bez kreditky · Bez časového limitu
+            </p>
+          </motion.div>
         </div>
       </section>
 
-      {/* PROOF GALLERY — real generated posts, grouped by brand */}
-      <References />
+      {/* PROOF — full-width wall of real generated posts (click to open) */}
+      <PostWall posts={WALL_POSTS} />
 
       {/* THE WOW — your brand, in everything, forever */}
       <section id="demo" className="relative py-28 border-t border-white/5 bg-[#0a0a0a] overflow-hidden">
@@ -181,7 +201,7 @@ export default function Home() {
             <p className="text-white/50 font-medium text-lg">Žádný program k učení. Jen hotový obsah, který vypadá profesionálně.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <Reveal stagger className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {[
               { Icon: Cpu, title: "Měsíc obsahu dopředu", desc: "Desítky hotových příspěvků připravených ke zveřejnění. Stáhnete a zveřejníte sami — máte poslední slovo." },
               { Icon: Camera, title: "Fotky produktů bez focení", desc: "Realistické vizuály vašich produktů. Bez fotografa, bez ateliéru." },
@@ -190,10 +210,10 @@ export default function Home() {
               <motion.div
                 key={i}
                 className="group bg-[#0a0a0a] border border-white/10 rounded-sm p-8 hover:border-aisummit-cinnabar/30 transition-colors"
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1, duration: 0.5 }}
+                variants={fadeUp}
+                whileHover={reduce ? undefined : { y: -3 }}
+                whileTap={reduce ? undefined : { scale: 0.99 }}
+                transition={SPRING}
               >
                 <div className="w-11 h-11 rounded-sm bg-white/5 flex items-center justify-center mb-6 border border-white/10 group-hover:bg-aisummit-cinnabar/20 group-hover:border-aisummit-cinnabar/30 transition-colors">
                   <Icon className="w-5 h-5 text-white group-hover:text-aisummit-cinnabar transition-colors" />
@@ -202,10 +222,10 @@ export default function Home() {
                 <p className="text-white/40 text-sm leading-relaxed">{desc}</p>
               </motion.div>
             ))}
-          </div>
+          </Reveal>
 
           <p className="text-center mt-12 text-[9px] font-bold uppercase tracking-[0.3em] text-white/20">
-            Funguje pro kavárny · hotely · e-shopy · salóny · vinařství · fitness · řemeslníky
+            Funguje pro kavárny · hotely · e-shopy · salóny · vinařství · fitness · aplikace · startupy
           </p>
         </div>
       </section>

@@ -85,6 +85,32 @@ const BRANDS: Brand[] = [
         website: "https://forma-fitness.cz",
         city: "Ostrava",
     },
+    {
+        info: {
+            businessName: "Flowtask",
+            category: "app",
+            description: "Česká aplikace na řízení úkolů a projektů pro freelancery a malé týmy. Přehledné plánování, sdílené nástěnky a chytré připomínky — bez zbytečné složitosti. Vše na jednom místě, ať máte čas na práci, ne na organizování práce.",
+            products: "Správa úkolů, Sdílené projekty, Kanban nástěnky, Časové plánování, Týmová spolupráce, Mobilní appka",
+            tone: "moderní, svižný, přátelský, sebevědomý",
+            igHandle: "flowtask.app",
+            targetAudience: "Freelanceři, zakladatelé startupů, malé týmy a produktoví lidé 22-40 let",
+        },
+        website: "https://flowtask.app",
+        city: "Praha",
+    },
+    {
+        info: {
+            businessName: "Brevia",
+            category: "app",
+            description: "AI asistent, který za vás shrne dlouhé dokumenty, e-maily a poznámky do pár vět. Ušetří hodiny čtení a pomůže se rozhodovat rychleji. Postaveno pro lidi, kteří mají víc informací než času.",
+            products: "AI shrnutí dokumentů, Shrnutí e-mailů, Přepis a souhrn schůzek, Chytré poznámky, Prohledávání znalostí",
+            tone: "chytrý, úsporný, profesionální, lidský",
+            igHandle: "brevia.ai",
+            targetAudience: "Manažeři, konzultanti, studenti a knowledge workeři 24-45 let",
+        },
+        website: "https://brevia.ai",
+        city: "Brno",
+    },
 ]
 
 // ─── Helpers ─────────────────────────────────────────────────────────
