@@ -10,6 +10,8 @@ export interface ContentPlanItem {
     postType: string
     postTypeEmoji: string
     postTypeLabel: string
+    /** Effective medium for this post (reel kill-switch already applied) — UI shows single vs carousel */
+    medium: "image" | "carousel" | "reel"
     pillar: string
     pillarEmoji: string
     hookPreview: string
@@ -68,7 +70,7 @@ export async function generateContentPlan(
             console.warn(`📋 [content-plan] breadcrumb insert failed: ${e?.message}`)
         }
         const { loadConfig } = await import("@/instagram/configs")
-        const { buildSmartWeekPlan } = await import("@/instagram/caption-generator")
+        const { buildSmartWeekPlan, getPostFormat } = await import("@/instagram/caption-generator")
         const { analyzePerformance } = await import("@/instagram/performance")
         const { setActiveProject, createPillarMapper, getPillarForType } = await import("@/instagram/service")
 
@@ -324,11 +326,16 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
             const pillarCfg = config.contentPillars[pillar]
             const concept = concepts[i] || { hookPreview: "", angle: "", topic: "" }
 
+            // Effective medium — mirror generateOnePost: type-level format, then reel kill-switch
+            let medium = getPostFormat(config, typeName).medium
+            if (process.env.REELS_ENABLED !== "1" && medium === "reel") medium = "carousel"
+
             return {
                 id: `plan_${Date.now()}_${i}`,
                 postType: typeName,
                 postTypeEmoji: pt?.emoji || "📝",
                 postTypeLabel: pt?.display_name || typeName,
+                medium,
                 pillar,
                 pillarEmoji: pillarCfg?.emoji || "📋",
                 hookPreview: concept.hookPreview,

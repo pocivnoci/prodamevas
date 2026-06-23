@@ -486,6 +486,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
             postType: lastItem?.postType || "auto",
             postTypeEmoji: lastItem?.postTypeEmoji || "📝",
             postTypeLabel: lastItem?.postTypeLabel || "Auto",
+            medium: lastItem?.medium || "image",
             pillar: lastItem?.pillar || "content",
             pillarEmoji: lastItem?.pillarEmoji || "📋",
             hookPreview: "Nový post — klikni 🔄 pro vygenerování konceptu",
@@ -923,6 +924,16 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                         <div className="flex items-center gap-2 mb-1">
                                                             <span className="text-[8px] text-white/30 font-bold uppercase tracking-widest">#{idx + 1}</span>
                                                             <span className="text-[8px] px-1.5 py-0.5 bg-white/5 border border-white/10 rounded-sm text-white/40 font-bold uppercase tracking-wider">{item.postTypeLabel}</span>
+                                                            {(() => {
+                                                                const m = item.medium === "carousel"
+                                                                    ? { emoji: "📸", label: "Carousel", cls: "text-sky-300/70 border-sky-400/20 bg-sky-400/5" }
+                                                                    : item.medium === "reel"
+                                                                    ? { emoji: "🎬", label: "Reel", cls: "text-fuchsia-300/70 border-fuchsia-400/20 bg-fuchsia-400/5" }
+                                                                    : { emoji: "🖼️", label: "1 obrázek", cls: "text-emerald-300/70 border-emerald-400/20 bg-emerald-400/5" }
+                                                                return (
+                                                                    <span className={`text-[8px] px-1.5 py-0.5 border rounded-sm font-bold uppercase tracking-wider ${m.cls}`}>{m.emoji} {m.label}</span>
+                                                                )
+                                                            })()}
                                                             <span className="text-[8px] text-white/20">{item.pillarEmoji} {item.pillar}</span>
                                                         </div>
 
