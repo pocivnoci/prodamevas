@@ -477,7 +477,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         if (!item) return
 
         const existingHooks = contentPlan.map(p => p.hookPreview)
-        const result = await regeneratePlanItem(projectId, item.postType, existingHooks, topic || undefined)
+        const result = await regeneratePlanItem(projectId, item.postType, existingHooks, topic || undefined, item.medium)
 
         if (result.success && result.item) {
             setContentPlan(prev => prev.map(p =>
@@ -500,6 +500,16 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     // Content Plan: update item topic inline
     const handleUpdatePlanTopic = (itemId: string, newTopic: string) => {
         setContentPlan(prev => prev.map(p => p.id === itemId ? { ...p, topic: newTopic } : p))
+    }
+
+    // Toggle a plan item's format: single image ⇄ carousel. Reel is excluded from the manual
+    // toggle while reels are globally clamped to carousel — flipping to "reel" would just be
+    // re-clamped at generation, so we don't offer a misleading option.
+    const handleTogglePlanMedium = (itemId: string) => {
+        setContentPlan(prev => prev.map(p => {
+            if (p.id !== itemId || p.medium === "reel") return p
+            return { ...p, medium: p.medium === "carousel" ? "image" : "carousel" }
+        }))
     }
 
     // Content Plan: add a blank post slot
@@ -954,8 +964,15 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                                     : item.medium === "reel"
                                                                     ? { emoji: "🎬", label: "Reel", cls: "text-fuchsia-300/70 border-fuchsia-400/20 bg-fuchsia-400/5" }
                                                                     : { emoji: "🖼️", label: "1 obrázek", cls: "text-emerald-300/70 border-emerald-400/20 bg-emerald-400/5" }
+                                                                const editable = item.medium !== "reel"
                                                                 return (
-                                                                    <span className={`text-[8px] px-1.5 py-0.5 border rounded-sm font-bold uppercase tracking-wider ${m.cls}`}>{m.emoji} {m.label}</span>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => editable && handleTogglePlanMedium(item.id)}
+                                                                        disabled={!editable}
+                                                                        title={editable ? "Přepnout formát: 1 obrázek ⇄ carousel" : "Reel"}
+                                                                        className={`text-[8px] px-1.5 py-0.5 border rounded-sm font-bold uppercase tracking-wider transition-all ${m.cls} ${editable ? "cursor-pointer hover:brightness-150" : "cursor-default"}`}
+                                                                    >{m.emoji} {m.label}{editable ? " ⇄" : ""}</button>
                                                                 )
                                                             })()}
                                                             <span className="text-[8px] text-white/20">{item.pillarEmoji} {item.pillar}</span>

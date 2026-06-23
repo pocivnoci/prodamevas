@@ -73,6 +73,7 @@ export async function startCampaign(
             hookPreview: it.hookPreview,
             topic: it.topic,
             angle: it.angle || null,
+            medium: it.medium || null,
             productId: it.productId || null,
             scheduledFor: it.scheduledDate && it.scheduledTime
                 ? toScheduledFor(it.scheduledDate, it.scheduledTime)

@@ -115,12 +115,19 @@ export async function generateContentPlan(
             .map(p => p.caption?.split("\n")[0]?.substring(0, 60))
             .filter(Boolean)
 
-        // Build context for Gemini
+        // Build context for Gemini — include the EFFECTIVE medium per post (reel kill-switch
+        // applied) so the planner writes copy that matches the format and never promises a
+        // "video"/"Reel" for something that will actually render as a carousel or single image.
         const typeList = typeSequence.map((typeName, i) => {
             const pt = ptMap.get(typeName)
             const pillar = getPillarForType(config, typeName)
             const pillarCfg = config.contentPillars[pillar]
-            return `${i + 1}. Typ: "${typeName}" (${pt?.display_name || typeName}) | Pilíř: ${pillarCfg?.label || pillar} | Popis: ${pt?.description || pillarCfg?.description || ""}`
+            let medium = getPostFormat(config, typeName).medium
+            if (process.env.REELS_ENABLED !== "1" && medium === "reel") medium = "carousel"
+            const formatLabel = medium === "carousel" ? "KARUSEL (statické obrázky/slidy — ŽÁDNÉ video)"
+                : medium === "reel" ? "REEL (krátké video)"
+                : "JEDEN STATICKÝ OBRÁZEK (ŽÁDNÉ video)"
+            return `${i + 1}. Typ: "${typeName}" (${pt?.display_name || typeName}) | Formát: ${formatLabel} | Pilíř: ${pillarCfg?.label || pillar} | Popis: ${pt?.description || pillarCfg?.description || ""}`
         }).join("\n")
 
         const topicInstruction = userTopic
@@ -193,6 +200,7 @@ ${typeList}
 - Posty v sérii na sebe NAVAZUJÍ — budují příběh, ne náhodné izolované posty
 - ${count > 14 ? "Rozděl do týdnů — každý týden má vlastní mini-téma" : "Posty by měly mít logický flow"}
 - Pro product posty: hook MUSÍ zmínit konkrétní produkt/službu
+- ⚠️ FORMÁT: hook a angle MUSÍ odpovídat formátu postu (viz "Formát:" u každého typu). Pokud je formát KARUSEL nebo JEDEN OBRÁZEK, je ZAKÁZÁNO slibovat "video", "Reel", "scénář", "za 60 sekund ti ukážu" apod. — mluv o tom, co bude na obrázcích/slidech.
 - Piš česky, moderní hovorovou češtinou
 
 ## VÝSTUP
@@ -434,7 +442,8 @@ export async function regeneratePlanItem(
     projectSlug: string,
     postType: string,
     existingHooks: string[],
-    userTopic?: string
+    userTopic?: string,
+    medium?: "image" | "carousel" | "reel"
 ): Promise<{ success: boolean; item?: { hookPreview: string; angle: string; topic: string }; error?: string }> {
     try {
         await requireProjectAccess(projectSlug)
@@ -469,6 +478,7 @@ ${pillarSection}
 ## ÚKOL
 Vygeneruj JEDEN nový koncept pro post typu "${postType}".
 ${userTopic ? `Téma kampaně: "${userTopic}" — hook MUSÍ souviset s tímto tématem.` : ""}
+${medium ? `\n## FORMÁT POSTU: ${medium === "carousel" ? "KARUSEL (statické obrázky/slidy — ŽÁDNÉ video)" : medium === "reel" ? "REEL (krátké video)" : "JEDEN STATICKÝ OBRÁZEK (ŽÁDNÉ video)"}\n` : ""}
 
 ## NESMÍŠ OPAKOVAT tyto hooky:
 ${existingHooks.map(h => `- "${h}"`).join("\n")}
@@ -479,6 +489,7 @@ ${existingHooks.map(h => `- "${h}"`).join("\n")}
 - Hook max 12 slov, česky
 - Angle musí být konkrétní — ne "zajímavý pohled" ale "srovnání cen s konkurencí"
 - Topic: 3-5 slov shrnující o čem post bude
+${medium && medium !== "reel" ? `- ⚠️ Tohle je ${medium === "carousel" ? "KARUSEL" : "JEDEN OBRÁZEK"} — hook ani angle NESMÍ slibovat "video", "Reel", "scénář" ani "za 60 sekund ti ukážu". Mluv o tom, co bude na obrázcích.` : ""}
 
 Vrať POUZE validní JSON:
 { "hookPreview": "český hook max 12 slov BEZ emoji", "angle": "1 věta o přístupu", "topic": "3-5 slov" }`

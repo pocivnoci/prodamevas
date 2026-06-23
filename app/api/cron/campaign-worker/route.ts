@@ -133,6 +133,9 @@ export async function GET(req: Request) {
             ? `${baseTopic || ""}${baseTopic ? " — " : ""}úhel: ${item.angle}`.trim()
             : baseTopic
         const approvedHook = item?.hookPreview?.trim() || undefined
+        // Per-item medium chosen in the plan (image/carousel) overrides the campaign-wide
+        // default. generateOnePost still applies the reel kill-switch + feed-safe clamp.
+        const itemMedium = item?.medium || opts.medium || undefined
 
         // ── Per-post credit check (clientId-based; no session in a worker) ──
         // Admin/internal bypass: CAMPAIGN_ADMIN_BYPASS=1 (global) OR options.adminBypass
@@ -162,7 +165,7 @@ export async function GET(req: Request) {
                 config: {
                     configName, type: postType, topic: postTopic, approvedHook,
                     aspectRatio: opts.aspectRatio || undefined,
-                    medium: opts.medium || undefined,
+                    medium: itemMedium,
                     category: opts.category || undefined,
                     productId: item?.productId || undefined,
                     campaignContext, campaignId: campaign.id, charged, allowedMedia,
@@ -190,7 +193,7 @@ export async function GET(req: Request) {
             const result = await generateOnePost({
                 configName, type: postType, topic: postTopic, approvedHook,
                 aspectRatio: opts.aspectRatio || undefined,
-                medium: opts.medium || undefined,
+                medium: itemMedium,
                 productId: item?.productId || undefined,
                 campaignContext, allowedMedia,
                 onProgress: async (stage: string, progress: number, message: string, editorialLog?: any[]) => {
