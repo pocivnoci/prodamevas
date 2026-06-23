@@ -72,14 +72,20 @@ async function ensureConfig(configName?: string): Promise<string> {
         throw new Error("ensureConfig: chybí configName — tenant musí být vždy explicitní")
     }
     const name = configName
+
+    // Resolve slug → uuid DETERMINISTICALLY (cached), never via the ambient
+    // AsyncLocalStorage store. ensureConfig runs BEFORE generateOnePost enters its
+    // withActiveProject scope, so the store isn't set here — and when CLIENT_CONFIG is
+    // already cached (2nd+ post of a worker run), the old `return getActiveProject()`
+    // threw "No active client set", killing every post after the first in a campaign.
+    const { resolveClientId } = await import("./configs")
+    const clientUuid = await resolveClientId(name)
+
     if (CLIENT_CONFIG && CLIENT_CONFIG.id === name) {
-        return getActiveProject() // already loaded, return current clientId
+        return clientUuid // config already loaded for this tenant
     }
     CLIENT_CONFIG = await loadConfig(name)
 
-    // Resolve slug → uuid and set the active client for all service queries
-    const { resolveClientId } = await import("./configs")
-    const clientUuid = await resolveClientId(name)
     setActiveProject(clientUuid) // fallback for legacy code paths
     console.log(`🏢 Config loaded: ${CLIENT_CONFIG.name} (${name} → ${clientUuid.substring(0, 8)}...)`)
 
