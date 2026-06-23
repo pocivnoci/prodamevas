@@ -231,6 +231,20 @@ function OnboardingContent() {
                 }
             }
 
+            // Phase 3: generate a real, editable first content plan (insight-grounded from
+            // the client's scraped IG) and hand it to the dashboard via localStorage, so the
+            // user lands on a ready week in the Generate tab instead of a blank slate.
+            setGeneratingProgress({ phase: 'firstplan', current: 1, total: 1 })
+            try {
+                const { generateContentPlan } = await import('@/app/actions/content-plan-actions')
+                const planRes = await generateContentPlan(clientSlug, 7)
+                if (planRes.success && planRes.plan?.length) {
+                    try { localStorage.setItem(`ig_draft_plan_${clientSlug}`, JSON.stringify(planRes.plan)) } catch { /* ignore */ }
+                }
+            } catch (planErr) {
+                console.warn('First plan generation failed (non-fatal):', planErr)
+            }
+
             setStep('done')
             trackEvent('onboarding_completed', { method: mode || 'unknown' })
         } catch (err) {
@@ -759,22 +773,28 @@ function OnboardingContent() {
                             <div className="w-10 h-10 border-2 border-violet-400/30 border-t-violet-400 rounded-full animate-spin" />
                         </div>
                         <h2 className="text-2xl font-bold mb-4">
-                            Generuji ukázkový příspěvek {generatingProgress.current}/3
+                            {generatingProgress.phase === 'firstplan'
+                                ? 'Připravuji tvůj první plán obsahu...'
+                                : `Generuji ukázkový příspěvek ${generatingProgress.current}/3`}
                         </h2>
                         <p className="text-gray-400 mb-8">
-                            Copywriter píše text, Art Director tvoří obrázek, Kritik kontroluje kvalitu...
+                            {generatingProgress.phase === 'firstplan'
+                                ? 'Skládám témata a hooky na míru tvé značce — podle toho, co ti na Instagramu už funguje.'
+                                : 'Copywriter píše text, Art Director tvoří obrázek, Kritik kontroluje kvalitu...'}
                         </p>
                         {/* Progress bar */}
                         <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden mb-3">
                             <div
                                 className="h-full rounded-full bg-violet-500 transition-all duration-1000 ease-out"
-                                style={{ width: `${(generatingProgress.current / 3) * 100}%` }}
+                                style={{ width: generatingProgress.phase === 'firstplan' ? '100%' : `${(generatingProgress.current / 3) * 100}%` }}
                             />
                         </div>
                         <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">
-                            {generatingProgress.current === 0
-                                ? 'Připravuji měsíční plán...'
-                                : `Příspěvek ${generatingProgress.current} ze 3 — plný obsah se vším`
+                            {generatingProgress.phase === 'firstplan'
+                                ? 'Tvůj týdenní plán bude čekat v dashboardu'
+                                : generatingProgress.current === 0
+                                    ? 'Připravuji měsíční plán...'
+                                    : `Příspěvek ${generatingProgress.current} ze 3 — plný obsah se vším`
                             }
                         </p>
                     </div>

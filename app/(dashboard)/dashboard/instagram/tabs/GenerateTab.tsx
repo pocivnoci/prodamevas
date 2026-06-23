@@ -271,6 +271,30 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [projectId])
 
+    // First-visit handoff: onboarding stashed a ready content plan in localStorage so the
+    // user lands on an editable week instead of a blank tab. Consume it once. Declared after
+    // the reset/reconnect effects so its setStep(2) wins on mount; skipped when a campaign is
+    // already in flight (that reconnect takes precedence).
+    useEffect(() => {
+        let inFlight: string | null = null
+        let raw: string | null = null
+        try {
+            inFlight = localStorage.getItem(`ig_campaign_${projectId}`)
+            raw = localStorage.getItem(`ig_draft_plan_${projectId}`)
+        } catch { /* ignore */ }
+        if (!raw || inFlight) return
+        try {
+            const draft = JSON.parse(raw) as ContentPlanItem[]
+            if (Array.isArray(draft) && draft.length > 0) {
+                setContentPlan(draft)
+                setBatchMode(true)
+                setStep(2)
+            }
+        } catch { /* malformed — ignore */ }
+        try { localStorage.removeItem(`ig_draft_plan_${projectId}`) } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [projectId])
+
     const handleGenerate = async () => {
         setGenerating(true)
         setResult(null)

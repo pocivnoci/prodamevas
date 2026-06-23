@@ -106,7 +106,26 @@ Mitigate: only the foundation sections go Pro, not every field.
 
 ---
 
-## #3 — Generate the first plan as the last onboarding step
+## #3 — Generate the first plan as the last onboarding step ✅ DONE (2026-06-23)
+
+**Implemented:**
+- `app/onboarding/page.tsx` — after the showcase posts, a new "Phase 3" calls
+  `generateContentPlan(clientSlug, 7)` (insight-grounded via #1) and stashes the result in
+  `localStorage['ig_draft_plan_<slug>']`. The "generating" screen is phase-aware (shows a
+  first-plan message). Non-fatal on failure.
+- `GenerateTab.tsx` — a mount effect consumes `ig_draft_plan_<projectId>` once: loads it
+  into `contentPlan`, flips `batchMode`, jumps to step 2 (plan review). Declared after the
+  reset/reconnect effects so its `setStep(2)` wins; skipped if a campaign is already
+  in-flight. Self-clears after consuming.
+
+**Note (not blocking):** the onboarding "done" CTA could deep-link straight to the Generate
+tab for the full magic moment; today the plan simply waits there until the user opens it.
+This is the **discoverability teaser** mechanism's sibling — the 27 `plan_locked` posts
+(`generateMonthlyPlan`) are a separate blurred paywall, unrelated to this editable plan.
+
+---
+
+### Original plan (kept for reference)
 
 **Why:** onboarding ends at a blank dashboard (`page.tsx` step machine ends at `done`).
 Hand the user a ready, brand-true week instead of a cold start.
