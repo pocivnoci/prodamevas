@@ -346,6 +346,15 @@ export async function generateOnePost(options: {
         console.log(`   🔒 Médium "${original}" není v balíčku — fallback na ${format.medium}`)
     }
 
+    // Global reel kill-switch — Veo video generation is OFF for now. Clamp any reel
+    // (from config/category/user) to carousel so no Veo call is ever made. Flip back on
+    // with REELS_ENABLED=1 (env) when ready — no redeploy needed.
+    if (process.env.REELS_ENABLED !== "1" && format.medium === "reel") {
+        format.medium = "carousel"
+        if (format.overlayStyle === "none") format.overlayStyle = "cover"
+        console.log("   🚫 Reels dočasně vypnuté (Veo off) — fallback na carousel")
+    }
+
     // Smart overlay rotation — for image posts only, auto-select layout variant
     if (format.medium === "image" && format.overlayStyle === "default") {
         // Extract recent overlay styles from recent posts' image_style field
