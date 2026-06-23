@@ -125,9 +125,14 @@ export async function GET(req: Request) {
 
         const item = plan[cursor]
         const postType: string | undefined = item?.postType || undefined
-        const postTopic = item?.topic
-            ? `${item.topic}: ${item.hookPreview || ""}`.trim()
-            : (opts.topic || undefined)
+        // Topic = the theme (kept short); the approved hook is passed separately so the Pro
+        // copywriter refines THE HOOK THE USER APPROVED instead of a mashed-together string it
+        // would silently rewrite. What you approve in the plan ≈ what ships.
+        const baseTopic = item?.topic || opts.topic || undefined
+        const postTopic = item?.angle
+            ? `${baseTopic || ""}${baseTopic ? " — " : ""}úhel: ${item.angle}`.trim()
+            : baseTopic
+        const approvedHook = item?.hookPreview?.trim() || undefined
 
         // ── Per-post credit check (clientId-based; no session in a worker) ──
         // Admin/internal bypass: CAMPAIGN_ADMIN_BYPASS=1 (global) OR options.adminBypass
@@ -155,7 +160,7 @@ export async function GET(req: Request) {
             .insert({
                 client_id: clientId,
                 config: {
-                    configName, type: postType, topic: postTopic,
+                    configName, type: postType, topic: postTopic, approvedHook,
                     aspectRatio: opts.aspectRatio || undefined,
                     medium: opts.medium || undefined,
                     category: opts.category || undefined,
@@ -183,7 +188,7 @@ export async function GET(req: Request) {
 
         try {
             const result = await generateOnePost({
-                configName, type: postType, topic: postTopic,
+                configName, type: postType, topic: postTopic, approvedHook,
                 aspectRatio: opts.aspectRatio || undefined,
                 medium: opts.medium || undefined,
                 productId: item?.productId || undefined,

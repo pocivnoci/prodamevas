@@ -440,7 +440,10 @@ export function buildMegaPrompt(
     performance: PerformanceInsight,
     userTopic?: string,
     selectedProduct?: { name: string; type: string; slug: string; price?: string; description?: string },
-    formatOverride?: PostFormat
+    formatOverride?: PostFormat,
+    /** Hook the user approved in the content plan. Binds the copywriter: keep its angle/promise,
+     *  sharpen the wording — don't silently invent a different hook. */
+    approvedHook?: string
 ): string {
     const bv = config.brandVoice
     const toneDesc = getToneDescription(config, postType.name)
@@ -550,6 +553,14 @@ ${categoryContext}
 })() : ""}
 ${userTopic ? `## 🎯 ZADANÉ TÉMA OD UŽIVATELE (NEJVYŠŠÍ PRIORITA!)
 **Post MUSÍ být PŘESNĚ o tomto tématu:** ${userTopic}
+` : ""}
+${approvedHook ? `## ✅ SCHVÁLENÝ HOOK Z PLÁNU (uživatel ho schválil — VYCHÁZEJ Z NĚJ, NEPŘEPISUJ od nuly!)
+**Schválený hook:** "${approvedHook}"
+
+⚠️ ZÁVAZNÉ:
+- Tohle je směr, který uživatel SCHVÁLIL. Zachovej jeho jádro: stejný úhel, stejný příslib, stejnou konkrétnost (čísla, jména, fakta).
+- Smíš ho vypilovat na Pro úroveň — rytmus, údernost, formulaci, diakritiku — ale uživatel MUSÍ svůj schválený nápad ve finálním hooku poznat.
+- NEVYMÝŠLEJ jiné téma ani jiný úhel. Když je hook slabý, ZESIL ho, nenahrazuj jiným nápadem.
 ` : ""}
 ${review ? `## RECENZE K VYUŽITÍ
 "${review.quote}" — ${review.customer_initials || "Zákazník"}

@@ -116,6 +116,8 @@ export async function generateOnePost(options: {
     configName?: string
     type?: string
     topic?: string
+    /** Hook approved in the content plan — binds the copywriter (refine, don't replace). */
+    approvedHook?: string
     dryRun?: boolean
     performance?: PerformanceInsight
     aspectRatio?: string
@@ -384,7 +386,7 @@ export async function generateOnePost(options: {
     const postFormat = isReel ? "video script" : isCarousel ? "carousel" : "caption"
     await report("copywriter", 25, `✍️ Copywriter generuje ${postFormat}...`)
     console.log(`✍️  Generuji ${postFormat} (Pro copywriter ladder)...`)
-    let megaPrompt = buildMegaPrompt(config, selectedType, idea, review, recentHooks, performance, options.topic, selectedProduct, format)
+    let megaPrompt = buildMegaPrompt(config, selectedType, idea, review, recentHooks, performance, options.topic, selectedProduct, format, options.approvedHook)
 
     // Inject brand memories (long-term learning from past performance)
     try {
