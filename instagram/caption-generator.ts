@@ -331,9 +331,15 @@ export function buildCarouselSchema(config: ClientConfig) {
 
 export function buildSmartWeekPlan(config: ClientConfig, performance: PerformanceInsight, count: number = 14): string[] {
     if (performance.avgEngagement === 0) {
+        const wp = config.weekPlan
+        if (!wp || wp.length === 0) return []
+        // Cold start (no performance data yet): rotate the starting offset so two plans
+        // don't open with the identical type rhythm every time. The weekPlan's intended
+        // sequence/proportions are preserved — only the entry point shifts.
+        const offset = Math.floor(Math.random() * wp.length)
         const staticPlan: string[] = []
         for (let i = 0; i < count; i++) {
-            staticPlan.push(config.weekPlan[i % config.weekPlan.length])
+            staticPlan.push(wp[(i + offset) % wp.length])
         }
         return staticPlan
     }

@@ -135,6 +135,33 @@ export async function generateContentPlan(
             ? `\n## 🚫 NEDÁVNÉ HOOKY (NEPOUŽÍVEJ podobné vzorce ani témata!):\n${recentHooks.map(h => `- "${h}"`).join("\n")}\n`
             : ""
 
+        // ─── Brand grounding: pipe in what onboarding learned from the client's REAL Instagram.
+        // Crucial at cold start — a brand-new client has no posts of OURS yet (topHooks empty),
+        // so without this the planner writes generic hooks blind to the brand's proven winners.
+        // Proven patterns live in ig_brand_memory (seeded from igInsights.provenPatterns at
+        // onboarding, confidence 0.45); the scraped baseline (content mix, hashtags) is on config. ──
+        let brandGroundingSection = ""
+        try {
+            const { getBrandMemories, formatMemoriesForPrompt } = await import("@/instagram/memory-agent")
+            const brandMemories = await getBrandMemories(15, clientId)
+            const memorySection = formatMemoriesForPrompt(brandMemories)
+
+            const baseline = config.igBaseline
+            const baselineSection = baseline
+                ? `\n## 📲 BASELINE Z REÁLNÉHO IG ÚČTU ZNAČKY (co už publikovali — stav na tom)\n${
+                    baseline.contentMix && Object.keys(baseline.contentMix).length
+                        ? `Ověřený mix obsahu: ${Object.entries(baseline.contentMix).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${(v * 100).toFixed(0)}%`).join(", ")}\n`
+                        : ""
+                }${
+                    baseline.topHashtags?.length ? `Top hashtagy: ${baseline.topHashtags.slice(0, 10).join(" ")}\n` : ""
+                }`
+                : ""
+
+            brandGroundingSection = `${memorySection}${baselineSection}`
+        } catch (e: any) {
+            console.warn(`📋 [content-plan] brand grounding skipped: ${e?.message}`)
+        }
+
         const prompt = `Jsi strategický content planner pro značku "${config.name}" (${config.website}).
 
 ## ÚKOL
@@ -153,7 +180,7 @@ ${config.brandVoice.antiPatterns?.join(", ")}
 
 ${config.products?.length ? `## PRODUKTY ZNAČKY (${config.products.length})\n${config.products.slice(0, 10).map(p => `- **${p.name}** (${p.type})${p.price ? ` — ${p.price}` : ""}${p.description ? `: ${p.description.substring(0, 60)}` : ""}`).join("\n")}\n⚠️ Pro posty typu product_drop/produkt MUSÍŠ zmínit KONKRÉTNÍ produkt z tohoto seznamu v hooku!\n` : ""}
 ${config.audiencePersonas?.length ? `## CÍLOVÉ PERSONY\n${config.audiencePersonas.map(p => `- **${p.label}** (${p.ageRange} let): Pain points: ${p.painPoints.slice(0, 2).join(", ")}`).join("\n")}\n` : ""}
-${topHooksSection}${deduplicationSection}${topicInstruction}
+${brandGroundingSection}${topHooksSection}${deduplicationSection}${topicInstruction}
 
 ## SEKVENCE POSTŮ (strategicky sestavená):
 ${typeList}
