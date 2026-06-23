@@ -351,8 +351,19 @@ export async function generateOnePost(options: {
     // with REELS_ENABLED=1 (env) when ready — no redeploy needed.
     if (process.env.REELS_ENABLED !== "1" && format.medium === "reel") {
         format.medium = "carousel"
+        format.aspectRatio = "4:5" // 9:16 (reel) není feed-legální pro carousel — IG by ho ořízl
         if (format.overlayStyle === "none") format.overlayStyle = "cover"
-        console.log("   🚫 Reels dočasně vypnuté (Veo off) — fallback na carousel")
+        console.log("   🚫 Reels dočasně vypnuté (Veo off) — fallback na carousel (4:5)")
+    }
+
+    // Feed-safety clamp — carousel/image must use a feed-legal aspect ratio. A 9:16
+    // (or landscape 16:9/4:3) on a non-reel medium gets cropped hard by Instagram, no
+    // matter where it leaked in from (config / category / onboarding / user override).
+    const CAROUSEL_SAFE_RATIOS = ["1:1", "4:5", "3:4"] as const
+    if (format.medium !== "reel" && !CAROUSEL_SAFE_RATIOS.includes(format.aspectRatio as any)) {
+        const original = format.aspectRatio
+        format.aspectRatio = "4:5"
+        console.log(`   📐 Poměr "${original}" není feed-legální pro ${format.medium} — clamp na 4:5`)
     }
 
     // Smart overlay rotation — for image posts only, auto-select layout variant

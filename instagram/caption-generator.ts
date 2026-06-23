@@ -42,7 +42,7 @@ export const COSTS = {
 // FORMAT HELPERS
 // ============================================
 
-const DEFAULT_FORMAT: PostFormat = { aspectRatio: "3:4", medium: "image", overlayStyle: "default" }
+const DEFAULT_FORMAT: PostFormat = { aspectRatio: "4:5", medium: "image", overlayStyle: "default" }
 
 export function getPostFormat(config: ClientConfig, typeName: string): PostFormat {
     // 1. Explicit per-type override (highest priority)

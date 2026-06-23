@@ -709,6 +709,12 @@ Pravidla: konkrétní pro tenhle obor (ne generické). Mix mediumů. Pokud firma
 
         const MEDIA = ["image", "carousel", "reel"]
         const RATIOS = ["1:1", "4:5", "3:4", "4:3", "9:16", "16:9"]
+        // Feed carousels/images only support 1:1 / 4:5 / 3:4; 9:16 is reels-only and
+        // 16:9 / 4:3 get cropped. Force a feed-legal pairing of medium ↔ aspectRatio.
+        const normalizeRatio = (medium: string, ratio: string): PostTypeDef["aspectRatio"] => {
+            if (medium === "reel") return "9:16"
+            return (["1:1", "4:5", "3:4"].includes(ratio) ? ratio : "4:5") as PostTypeDef["aspectRatio"]
+        }
         const seen = new Set<string>()
         const defs: PostTypeDef[] = []
         for (const d of parsed) {
@@ -716,14 +722,15 @@ Pravidla: konkrétní pro tenhle obor (ne generické). Mix mediumů. Pokud firma
                 .replace(/[^a-z0-9_]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")
             if (!name || seen.has(name) || !d?.display_name || !d?.description) continue
             seen.add(name)
+            const medium = (MEDIA.includes(d.medium) ? d.medium : "image") as PostTypeDef["medium"]
             defs.push({
                 name,
                 display_name: String(d.display_name).slice(0, 60),
                 emoji: d.emoji || "📝",
                 description: String(d.description).slice(0, 400),
                 pillar: pillarKeys.includes(d.pillar) ? d.pillar : pillarKeys[0],
-                medium: (MEDIA.includes(d.medium) ? d.medium : "image") as PostTypeDef["medium"],
-                aspectRatio: (RATIOS.includes(d.aspectRatio) ? d.aspectRatio : "4:5") as PostTypeDef["aspectRatio"],
+                medium,
+                aspectRatio: normalizeRatio(medium, (RATIOS.includes(d.aspectRatio) ? d.aspectRatio : "4:5")),
                 uses_product: Boolean(d.uses_product),
             })
         }
