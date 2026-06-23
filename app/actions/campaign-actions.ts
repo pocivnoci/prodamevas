@@ -93,6 +93,10 @@ export async function startCampaign(
                     medium: options.medium || null,
                     category: options.category || null,
                     topic: options.topic || null,
+                    // Carry the super-admin's billing bypass to the session-less worker, so a
+                    // campaign that passed the bypassed up-front check isn't then killed at
+                    // post 0 by the worker's real credit gate (the silent-death mismatch).
+                    adminBypass: isSuperAdmin || undefined,
                 },
                 total: planRows.length,
             })

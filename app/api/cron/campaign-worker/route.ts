@@ -110,6 +110,9 @@ export async function GET(req: Request) {
     const allowedMedia = (await getClientSubscription(clientId))?.features?.allowed_media
 
     let stopReason: "complete" | "budget" | "no_credits" | "deferred" = "complete"
+    // The TRUE reason the gate stopped us (e.g. "subscription expired"), so the campaign
+    // error isn't always the misleading "Došly kredity" when it's really something else.
+    let stopDetail: string | null = null
 
     const persist = async () => {
         await supabaseAdmin.from("ig_campaigns")
@@ -127,12 +130,18 @@ export async function GET(req: Request) {
             : (opts.topic || undefined)
 
         // ── Per-post credit check (clientId-based; no session in a worker) ──
-        // Admin/internal bypass: CAMPAIGN_ADMIN_BYPASS=1 skips the credit gate AND the
-        // charge (charged="none" → refundJobCharge is a no-op), for running internal/own-brand
-        // campaigns without billing. Default OFF — production is unaffected.
-        const ADMIN_BYPASS = process.env.CAMPAIGN_ADMIN_BYPASS === "1"
+        // Admin/internal bypass: CAMPAIGN_ADMIN_BYPASS=1 (global) OR options.adminBypass
+        // (per-campaign, set by startCampaign when a super-admin starts it) skips the credit
+        // gate AND the charge (charged="none"). The per-campaign flag closes the mismatch where
+        // a super-admin's session bypassed the up-front check but this session-less worker
+        // could not — so the campaign was created then silently died at post 0. Default OFF.
+        const ADMIN_BYPASS = process.env.CAMPAIGN_ADMIN_BYPASS === "1" || opts.adminBypass === true
         const check = ADMIN_BYPASS ? { allowed: true, isPlanPost: false } : await canPerformAction(clientId, "post")
-        if (!check.allowed) { stopReason = "no_credits"; break }
+        if (!check.allowed) {
+            stopReason = "no_credits"
+            stopDetail = (check as { reason?: string }).reason || "Nedostatek kreditů pro pokračování."
+            break
+        }
         const isPlanPost = !!check.isPlanPost
         const charged: "plan" | "credits" | "none" = ADMIN_BYPASS ? "none" : (isPlanPost ? "plan" : "credits")
 
@@ -253,7 +262,7 @@ export async function GET(req: Request) {
         const finalStatus = failures === 0 ? "done" : (successes === 0 ? "failed" : "partial")
         await supabaseAdmin.from("ig_campaigns").update({
             status: finalStatus, cursor, successes, failures, worker_lease: null,
-            error: stopReason === "no_credits" ? "Došly kredity v průběhu kampaně." : null,
+            error: stopReason === "no_credits" ? (stopDetail || "Došly kredity v průběhu kampaně.") : null,
         }).eq("id", campaign.id)
         return NextResponse.json({ success: true, campaignId: campaign.id, status: finalStatus, successes, failures })
     }
@@ -261,7 +270,7 @@ export async function GET(req: Request) {
     if (stopReason === "no_credits") {
         await supabaseAdmin.from("ig_campaigns").update({
             status: "partial", cursor, successes, failures, worker_lease: null,
-            error: "Došly kredity — kampaň zastavena.",
+            error: stopDetail || "Došly kredity — kampaň zastavena.",
         }).eq("id", campaign.id)
         return NextResponse.json({ success: true, campaignId: campaign.id, status: "partial", stopped: "no_credits" })
     }
