@@ -18,6 +18,138 @@ export interface ReferenceBrand {
 
 export const REFERENCE_BRANDS: ReferenceBrand[] = [
   {
+    "slug": "flowtask",
+    "company": "Flowtask",
+    "industry": "Aplikace / SaaS",
+    "emoji": "🚀",
+    "website": "https://flowtask.app",
+    "posts": [
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-flowtask/ig-carousel/1782012837953-slide0.webp",
+        "caption": "Jak zrušit status meetingy a neztratit přehled\n\nSlunce venku pálí, blíží se červencové svátky a tvůj tým ztrácí přehled, co má kdo dodělat. Místo toho, abys lidi dusil na dalším hodinovém status meetingu, ukaž jim to vizuálně.\n\nKanban nástěnky ve Flowtasku rozjedeš doslova za šedesát vteřin. Stačí importovat staré resty z Asany nebo Trella, vizuálně úkoly rozházet do sloupců a okamžitě víš, kde to drhne. Tým nepotřebuje žádné zdlouhavé školení. Všichni rovnou vidí, co mají dělat.\n\nUšetříš každý den 30 minut zbytečného povídání a získáš zpátky kontrolu nad projekty. Dnes je nejdelší den v roce, tak ho neproseď u složitých zahraničních tabulek, které stejně nikdo nechápe.\n\nImportuj svůj projekt za 60 sekund a vyzkoušej Kanban nástěnky na https://flowtask.app/p/kanban-nastenky\n\n#flowtask #flowtaskapp #flowtaskcz #rizeniprojektu #kanbannastenky #projektovymanagement #efektivita #freelancecesko #produktivita #organizace",
+        "hashtags": "#flowtask #flowtaskapp #flowtaskcz #rizeniprojektu #kanbannastenky #projektovymanagement #efektivita #freelancecesko #produktivita #organizace"
+      },
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-flowtask/ig-posts/1782012684234.webp",
+        "caption": "Práce od moře je sen do prvního zrnka písku v klávesnici.\n\nMýtus: Pracuješ s kokosem v ruce, nohy ve vodě a klienti jen spokojeně platí. Realita: Slunce ti tak pere do displeje, že nevidíš ani kurzor. Písek křupe pod klávesami, notebook vaří a hotelová Wi-Fi padá přesně ve chvíli, kdy klient tlačí na finální schválení před červencovými prázdninami. Venku je nejdelší den v roce a ty místo užívání léta potíš krev nad neodeslaným zadáním. Vykašli se na iluze o dokonalém nomádství. Dej si radši do kupy úkoly v nástroji, který bez složitého zaškolování nasadíš za pět minut. Ať máš na to reálné volno konečně čistou hlavu.\n\nHoď si všechny úkoly do kupy na https://flowtask.app a užij si léto s čistou hlavou. Sdílej tohle s kolegou, co plánoval pracovat z pláže, a napiš nám do komentářů, kde se ti v létě pracovalo úplně nejhůř.\n\n#flowtask #flowtaskapp #flowtaskcz #rizeniprojektu #flowtaskfreelancecz #produktivita #digitalninomadi #bezstresu #kanbannastenka #ceskysoftware",
+        "hashtags": "#flowtask #flowtaskapp #flowtaskcz #rizeniprojektu #flowtaskfreelancecz #produktivita #digitalninomadi #bezstresu #kanbannastenka #ceskysoftware"
+      },
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1782012157613-cover.webp",
+        "caption": "Organizuješ nebo pracuješ?\n\nProkrastitasking. Znáš to? Ten pocit, kdy hodinu přebarvuješ štítky a tvoříš dokonalou strukturu složek, ale reálná práce stojí. Multitasking je mýtus. Snažit se dělat tři věci naráz znamená dělat je špatně a pomalu. Vyber si jeden úkol. Dotáhni ho do konce. Zbytek nechej v jednoduchém systému a běž ven. Dnes je nejdelší den v roce, tak ho neprozraď předstíráním práce. Umíš o víkendu úplně vypnout, nebo už v neděli myslíš na pondělí? Dej vědět do komentářů.\n\nUšetři čas na práci, ne na organizování na https://flowtask.app\n\n#flowtask #flowtaskapp #flowtaskcz #rizeniprojektu #freelancer #produktivita #efektivita #freelancecesko #tymovaspoluprace #organizace",
+        "hashtags": "#flowtask #flowtaskapp #flowtaskcz #rizeniprojektu #freelancer #produktivita #efektivita #freelancecesko #tymovaspoluprace #organizace"
+      },
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1782012389547-cover.webp",
+        "caption": "Zahoď ranní maily\n\nNeotvírej maily hned po probuzení. Jeden cizí dotaz a tvoje plány na dopoledne jsou v háji. Vyřeš ranní operativu cestou v metru. Zapni Flowtask, nahoď Sdílené projekty a rozdej úkoly týmu na dvě kliknutí. Žádné zdlouhavé nastavování procesů a vše kompletně v češtině. Získáš absolutní přehled dřív, než dojedeš do kanclu. Je první letní den, tak nebuď v práci do tmy kvůli složitému mikromanagementu. Vyzkoušej to zdarma na 14 dní bez kreditky a užij si dlouhý večer venku.\n\nRozjeď Sdílené projekty zdarma a bez zadávání karty na https://flowtask.app/p/sdilene-projekty\n\n#flowtask #flowtaskapp #flowtaskcz #rizeniprojektu #sdileneprojekty #produktivita #timemanagement #organizacecasu #kanbannastenka #ceskysoftware",
+        "hashtags": "#flowtask #flowtaskapp #flowtaskcz #rizeniprojektu #sdileneprojekty #produktivita #timemanagement #organizacecasu #kanbannastenka #ceskysoftware"
+      }
+    ]
+  },
+  {
+    "slug": "brevia",
+    "company": "Brevia",
+    "industry": "Aplikace / SaaS",
+    "emoji": "🚀",
+    "website": "https://brevia.ai",
+    "posts": [
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-brevia/ig-posts/1782014445964.webp",
+        "caption": "Bojíš se svěřit interní analýzu umělé inteligenci kvůli úniku dat?\n\nVenku je nejdelší den v roce a ty trčíš nad desítkami otevřených PDF. Zpracovat dvousetstránkovou studii potrvá hodiny. Zrychlit to přes veřejnou AI? Nesmysl. Tvoje obava o bezpečnost je naprosto namístě. Brevia analyzuje a shrne dokumenty za pár sekund. Z chaotických textů vytáhne přesná fakta a logickou strukturu. Tvá data navíc šifrujeme podle nejpřísnějších standardů EU a nikdy je nepoužíváme k trénování jiných modelů. Získej zpět pět hodin času týdně a ušetřený večer běž radši strávit s přáteli na Jakubák.\n\nZpracuj své dokumenty rychle a bezpečně na https://brevia.ai/p/ai-shrnuti-dokumentu\n\n#brevia #breviaai #breviaapp #breviaefektivita #bezpecnostdat #produktivita #datovaanalytika #umelainteligence #aisummary #workefficiency",
+        "hashtags": "#brevia #breviaai #breviaapp #breviaefektivita #bezpecnostdat #produktivita #datovaanalytika #umelainteligence #aisummary #workefficiency"
+      },
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-brevia/ig-carousel/1782014631617-slide0.webp",
+        "caption": "Nenič si oči. Přečti reporty za tři sekundy.\n\nTvůj čas je moc drahý na to, abys v neděli večer pálil oči u svítícího monitoru. Seniorní lidé ve tvém týmu tráví hodiny administrativním čtením, které nikam nevede. Změň to. Nový tmavý režim v aplikaci Brevia šetří zrak a pravidlo tří sekund ti naservíruje čistá fakta z jakéhokoliv dlouhého dokumentu. Méně omáčky, rychlejší rozhodování.\n\nOtestuj si Brevii hned zítra ráno na svém nejdelším reportu. Získej fakta bez omáčky na https://brevia.ai\n\n#brevia #breviaai #breviaapp #breviaefektivita #produktivita #umelainteligence #worksmart #saasstartup #workefficiency #technology",
+        "hashtags": "#brevia #breviaai #breviaapp #breviaefektivita #produktivita #umelainteligence #worksmart #saasstartup #workefficiency #technology"
+      },
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-brevia/ig-carousel/1782013678967-slide0.webp",
+        "caption": "Přečti padesátistránkové PDF za pět minut\n\nMáš zítra ráno prezentovat data z pěti různých reportů a bojíš se, že ti unikne klíčový detail. Zase jsi uvízl u obrazovky s desítkami otevřených tabů a mhouříš oči do PDFka. Tohle přehlcení textem nedává smysl. Pomocí funkce Chytré poznámky v Brevia můžeš okamžitě zredukovat dlouhé studie do čistých faktů. Přestaneš scrollovat, začneš analyzovat. Zpracuj víkendový backlog za pár minut rovnou s ranní kávou a získej zpět pět hodin týdně.\n\nZjednoduš si rešerši a ušetři hodiny práce s Chytrými poznámkami: https://brevia.ai/p/chytre-poznamky\n\n#brevia #breviaai #breviaapp #breviaefektivita #produktivita #chytrepoznamky #usetricas #technology #workefficiency #futureofwork",
+        "hashtags": "#brevia #breviaai #breviaapp #breviaefektivita #produktivita #chytrepoznamky #usetricas #technology #workefficiency #futureofwork"
+      },
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1782014047525-cover.webp",
+        "caption": "Zase nedělní přesčas?\n\nNejdelší den v roce a ty pálíš drahý manažerský čas nad stohy dat. Prokousat se 150 stránkami před pondělní poradou znamená obětovat víkend. To je čistá ztráta. Náš uživatel Tomáš nechal Brevii vytáhnout klíčové body. Výsledek? Za 3 minuty měl hotovo a šel ven. Návratnost investice (ROI) do AI uvidíš na vlastních úsporách okamžitě. Nečti omáčku, dělej rozhodnutí. Získej 30% slevu na firemní Team Plan.\n\nZískej okamžité shrnutí a 30% slevu na Team Plan na https://brevia.ai\n\n#brevia #breviaai #breviaapp #breviaefektivita # #produktivita # #umetelainteligence # #management #smartnotes #technology #productivity",
+        "hashtags": "#brevia #breviaai #breviaapp #breviaefektivita # #produktivita # #umetelainteligence # #management #smartnotes #technology #productivity"
+      },
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1782014270910-cover.webp",
+        "caption": "Rychločtení je mýtus.\n\nRychločtení u dlouhého zápisu ze schůzky nefunguje. Ztratíš kontext i detaily, které tě zítra u klienta potopí.\n\nNečti nekonečná vlákna a nestrachuj se o compliance. Přepis a souhrn schůzek od Brevia zanalyzuje stostránkový text a vytáhne to podstatné za tři sekundy. Vše bezpečně a bez úniku citlivých klientských dat do veřejných AI modelů.\n\nDnes je nejdelší den v roce. Zavři notebook a běž ven. AI odře tenhle víkendový přesčas za tebe.\n\nZjednoduš si práci na https://brevia.ai/p/prepis-a-souhrn-schuzek\n\n#brevia #breviaai #breviaapp #breviaefektivita #produktivita #bezpecnostdat #konzultant #efektivita #productivity #artificialintelligence",
+        "hashtags": "#brevia #breviaai #breviaapp #breviaefektivita #produktivita #bezpecnostdat #konzultant #efektivita #productivity #artificialintelligence"
+      }
+    ]
+  },
+  {
+    "slug": "chrlit",
+    "company": "Chrlit",
+    "industry": "",
+    "emoji": "⚡",
+    "website": "https://chrlit.cz/",
+    "posts": [
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-chrlit/ig-posts/1781883342238.webp",
+        "caption": "ChatGPT tvůj salon nezná, proto bez složitých promptů zní jako nudný robot.\n\nZkoušela jsi ChatGPT. Vypadl z něj bezduchý text, co vůbec nezní jako ty. Proč? Protože obecná AI tvůj byznys nezná. Abys z ní dostala použitelný obsah, musela bys trávit hodiny laděním složitých promptů. A na to v plném salonu fakt nemáš čas. Chrlit je AI platforma, která automaticky analyzuje tvůj web a bez složitého psaní promptů okamžitě generuje kompletní instagramové příspěvky včetně grafiky, textů a hashtagů. Nasaje tvou vibe, pochopí tvůj brand a rovnou maká. Nech Claude psát složitý kód a ty běž radši užít páteční slunce na zahrádku.\n\nVykašli se na ladění promptů a nech dřít nás. Zadej svůj web na https://chrlit.cz/ a začni chrlit posty bez stresu.\n\n#chrlit #chrlitcz #chrlitai #autopilotobsahu #marketingprosalony #bezpromtovani #umeleinteligence #socialmediasummer #marketingovetipy #automatizaceobsahu",
+        "hashtags": "#chrlit #chrlitcz #chrlitai #autopilotobsahu #marketingprosalony #bezpromtovani #umeleinteligence #socialmediasummer #marketingovetipy #automatizaceobsahu"
+      },
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-chrlit/ig-posts/1781864148199.webp",
+        "caption": "Tvoje sítě odteď jedou na autopilota, ale zní na 100 % jako ty. Chrlit je oficiálně venku.\n\nStačí zadat odkaz na web tvého salonu nebo prodejny a systém okamžitě nasaje tvůj tón, barvy i služby. Žádné složité prompty a žádný robotický balast. Jen čistá, osobitá tvář tvého byznysu hotová na pár kliknutí. Venku začíná léto a ty máš po šichtě před sebou celý víkend. Vykašli se na večerní potení v Canvě.\n\nZahoď Canvu, zkus to na 7 dní zdarma na https://chrlit.cz/p/7-dni-trial-zdarma a běž radši k vodě.\n\n#chrlit #chrlitcz #chrlitai #autopilotobsahu #socialnisite #podnikani #usetricas #marketingovetipy #automatizaceobsahu #tvorbaobsahu",
+        "hashtags": "#chrlit #chrlitcz #chrlitai #autopilotobsahu #socialnisite #podnikani #usetricas #marketingovetipy #automatizaceobsahu #tvorbaobsahu"
+      },
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-chrlit/ig-posts/1781863962449.webp",
+        "caption": "Nahlédni do strojovny, kde z klientského webu vyždímáme obsah na celý měsíc.\n\nZajímá tě, jak přesně to děláme? Žádná magie, jen surová výpočetní síla. Vložíš URL klientského webu a náš systém ho okamžitě rozebere na součástky. Nasaje brand manuál, barvy a pochopí tón komunikace. Kašle na složité prompty. Sám vytáhne produkty a napasuje je do profi grafiky se zabijáckým copy. Právě teď nám v kanclu doslova hoří servery, protože freelanceři hromadně generují letní feedy před odjezdem na chatu. Místo hodin zírání do prázdné šablony a dolování nápadů z nudných textů za tebe odmakáme tu největší špínu. Ty jen zkontroluješ výsledek a pošleš ho klientovi.\n\nPřestaň ztrácet čas prokrastinací a hoď tu nejotravnější klientskou rutinu na naše servery hned teď. Běž na https://chrlit.cz/ a vyzkoušej to na vlastní kůži.\n\n#chrlit #chrlitcz #chrlitai #autopilotobsahu #umelainteligence #marketing #copywriting #aigenerator #umeleinteligence #tvorbaobsahu",
+        "hashtags": "#chrlit #chrlitcz #chrlitai #autopilotobsahu #umelainteligence #marketing #copywriting #aigenerator #umeleinteligence #tvorbaobsahu"
+      },
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-chrlit/ig-posts/1781863791130.webp",
+        "caption": "Tenhle drsný AI hack ti vygeneruje měsíční feed pro klienta za třicet sekund.\n\nVenku pětadvacet ve stínu, pátek odpoledne a ty pořád hniješ u monitoru nad prázdnou Canvou? Složitá správa klientských účtů tě stojí nervy a spoustu peněz za externí grafiky. Vykašli se na to. Zadej URL adresu klienta a Chrlit z ní okamžitě vysaje brand identitu, tón i produkty. Zapomeň na složité vymýšlení promptů. AI ti rovnou vyplivne kompletní posty s grafikou a texty. Zatímco konkurence dál platí copywritery a potí krev u klávesnice, ty máš měsíční plány pro pět klientů vyřešené dřív, než ti zteplá drink na stole. Čistá efektivita bez korporátních keců.\n\nVyzkoušej to zdarma na https://chrlit.cz/ a odpal na víkend s čistou hlavou.\n\n#chrlit #chrlitcz #chrlitai #autopilotobsahu #freelancemarketing #socialsitě #aihack #tvorbaobsahu #socialmediasummer #umeleinteligence",
+        "hashtags": "#chrlit #chrlitcz #chrlitai #autopilotobsahu #freelancemarketing #socialsitě #aihack #tvorbaobsahu #socialmediasummer #umeleinteligence"
+      },
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-chrlit/ig-posts/1781861712569.webp",
+        "caption": "Bojíš se robotické AI? Ukaž jí svůj web a běž radši na koupaliště.\n\nPátek odpoledne. V salonu masakr a ty máš večer vymýšlet letní posty. Rveš si vlasy v Canvě, protože máš hrůzu z toho, že umělá inteligence zní jak terminátor a zničí tvůj brand. Blbost. Chrlit kašle na složité prompty. Prostě mu předhodíš URL svého webu a on si sám vytáhne tvoje barvy, fonty i přesný tón komunikace. Během vteřiny ti vyplivne komplet hotové posty s dokonalou grafikou a texty, které zní, jako bys je psala ty sama. Získáš desítky hodin volného času a čistou hlavu na víkend. Žádná nudná robotičina, jen stoprocentní ty. Ušetři si nervy a běž radši sbalit tašku na koupaliště.\n\nNech letní stres za hlavou. Hoď svůj web na https://chrlit.cz/ a nech ho makat za tebe.\n\n#chrlit #chrlitcz #chrlitai #autopilotobsahu #socialnisite #podnikani #umelainteligence #aimarketing #automatizaceobsahu #umeleinteligence",
+        "hashtags": "#chrlit #chrlitcz #chrlitai #autopilotobsahu #socialnisite #podnikani #umelainteligence #aimarketing #automatizaceobsahu #umeleinteligence"
+      },
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-chrlit/ig-posts/1781848290937.webp",
+        "caption": "Tvůj salon zažívá předletní nápor, ale Instagram pomalu umírá.\n\nLéto je tady, zákaznice v salonu se perou o termíny a ty nemáš čas přidat ani storíčko. Pátek klepe na dveře, jenže algoritmus výpadky neodpouští. Jak zachránit dosah a nevyhořet? Žádný složitý prompty. Hoď mi odkaz na svůj web a já ti do pár vteřin vyplivnu hotový posty včetně grafiky a textů. Nasaju tvoji identitu, takže to nesmrdí robotem. Získáš stoprocentně autentický obsah, který tě stojí nula minut času. Sbal se a odjeď na chatu. Sítě jedou za tebe.\n\nHoď záchranu svého víkendu na autopilota. Otestuj si to zdarma na https://chrlit.cz/\n\n#chrlit #chrlitcz #chrlitai #autopilotobsahu #saascz #aimarketing #marketingovetipy #marketing #podnikani #automatizaceobsahu",
+        "hashtags": "#chrlit #chrlitcz #chrlitai #autopilotobsahu #saascz #aimarketing #marketingovetipy #marketing #podnikani #automatizaceobsahu"
+      },
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-chrlit/ig-posts/1781757267480.webp",
+        "caption": "Nová verze tarifu Creator ti vygeneruje sedmdesát postů za vteřinu.\n\nSpravuješ sítě pro deset klientů a nový tarif Creator ti chrlí sedmdesát postů za vteřinu? Boží. Ale co když ti uprostřed sezóny dojdou limity? Žádný stres. Nemusíš upgradovat celý plán. Prostě si dokup Dodatečné kredity. Jeden tě vyjde na patnáct kaček, nikdy neexpirují a zachrání ti krk, když klient na poslední chvíli vymyslí letní kampaň. Žádné měsíční závazky, prostě platíš jen za to, co reálně vychrlíš. Srovnej si to: ruční práce v Canvě vs. bleskové vygenerování na jedno kliknutí. Ušetři desítky hodin a nech AI makat za tebe.\n\nDokup si Dodatečné kredity za patnáct kaček na https://chrlit.cz/p/dodatecne-kredity a tvoř bez limitů!\n\n#chrlit #chrlitcz #chrlitai #autopilotobsahu #stopcanve #rychlyposty #bezlimitu #aigenerator #automatizaceobsahu #marketing",
+        "hashtags": "#chrlit #chrlitcz #chrlitai #autopilotobsahu #stopcanve #rychlyposty #bezlimitu #aigenerator #automatizaceobsahu #marketing"
+      },
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-chrlit/ig-posts/1781757139003.webp",
+        "caption": "Sobota strávená v Canvě? To si radši provrtám koleno.\n\nZase plánuješ strávit sobotu u Canvy, abys měla co dát na Instagram svého salonu? Vykašli se na to. Nová aplikace Chrlit má v rukávu tři zbraně, které udělají práci za tebe, zatímco ty budeš chytat bronz. Za prvé: Brandový skener. Naťukáš svůj web a Chrlit okamžitě pochopí tvůj styl i barvy. Žádný robotický generik. Za druhé: Chytrý carouselátor. Vyplivne ti hotovou sérii grafik, které na sebe dokonale navazují. Za třetí: Filtr lidskosti. Texty budou znít přesně jako ty – drze, lidsky a bez korporátního bullshitu.\n\nKlikni na https://chrlit.cz/ a zachraň si víkend dřív, než začne sobota.\n\n#chrlit #chrlitcz #chrlitai #autopilotobsahu #socialnisite #bezbullshitu #automatizaceobsahu #marketing #tvorbaobsahu #socialmediasummer",
+        "hashtags": "#chrlit #chrlitcz #chrlitai #autopilotobsahu #socialnisite #bezbullshitu #automatizaceobsahu #marketing #tvorbaobsahu #socialmediasummer"
+      },
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-chrlit/ig-posts/1781757004296.webp",
+        "caption": "Ten moment, kdy tvůj copywriter zjistí, že Chrlit píše mnohem líp.\n\nUž žádné hodiny strávené vymýšlením, co sakra napsat na sítě. Chrlit ti vygeneruje hotové instagramové posty s grafikou, textem i hashtagy na jeden klik. Žádný robotický balast, prostě tvůj vlastní tón značky. Tvůj copywriter sice možná tiše pláče v rohu, ale ty máš ušetřené desítky hodin měsíčně.\n\nPřestaň psát popisky ručně a zkus to hned na https://chrlit.cz/\n\n#chrlit #chrlitcz #chrlitai #autopilotobsahu #socialnimedia #aimarketing #kopirajting #umeleinteligence #aigenerator #podnikani",
+        "hashtags": "#chrlit #chrlitcz #chrlitai #autopilotobsahu #socialnimedia #aimarketing #kopirajting #umeleinteligence #aigenerator #podnikani"
+      },
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-chrlit/ig-posts/1781756895229.webp",
+        "caption": "Chrlit má novou aplikaci a ty dál smolíš klientské posty ručně?\n\nPusť tu klávesnici. Naše nová, o dost chytřejší aplikace právě přistála a ty pořád ještě potíš kreativní popisky pro pět klientů najednou? Chrlit teď funguje na jedno kliknutí. Hodíš tam URL klientského webu a sleduješ, jak ti pod rukama roste kompletní, vizuálně sladěný instagramový feed. Bez psaní promptů. Bez nekonečného nastavování šablon v Canvě. Zatímco tvoje konkurence pálí noci nad klientským schvalováním, ty už můžeš mít sbaleno na víkend u vody. Chrlit zanalyzuje brand a vyplivne hotovou práci za třicet vteřin. Ušetříš desítky hodin, které můžeš fakturovat jinde. Nebo prostě konečně vypnout.\n\nOtestuj novou aplikaci zdarma na https://chrlit.cz/ a začni konečně chrlit.\n\n#chrlit #chrlitcz #chrlitai #autopilotobsahu #freelancemarketing #socialnimedie #socialnimarketing #socialmediasummer #marketing #podnikani",
+        "hashtags": "#chrlit #chrlitcz #chrlitai #autopilotobsahu #freelancemarketing #socialnimedie #socialnimarketing #socialmediasummer #marketing #podnikani"
+      },
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-chrlit/ig-posts/1781160918412.webp",
+        "caption": "Srovnané tužky v penálu ti klientský feed samy nenavrhnou.\n\nUž hodinu leštíš monitor a rovnáš kabely do pravého úhlu, jen abys nemusel vymýšlet posty? Prokrastinační úklid je sice fajn, ale tvoje marže kvůli němu krvácejí. Chrlit zanalyzuje weby tvých klientů a vygeneruje kompletní příspěvky včetně grafiky a textů za tebe. Zatímco ty čistíš kávovar, AI odmaká tu nejtěžší část. Ušetři si drahocenný čas na věci, které tě reálně živí.\n\nPřestaň prokrastinovat a hoď práci na AI na https://chrlit.cz/ (nebo tohle nasdílej kolegovi, který dneska zase radši leští stůl).\n\n#chrlit #chrlitcz #chrlitai #autopilotobsahu #socialnimedia #ai #produktivita #saascz #marketing #aigenerator",
+        "hashtags": "#chrlit #chrlitcz #chrlitai #autopilotobsahu #socialnimedia #ai #produktivita #saascz #marketing #aigenerator"
+      },
+      {
+        "imageUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-chrlit/ig-posts/1781160810548.webp",
+        "caption": "Proč ještě pořád trápíš svůj mozek vymýšlením popisků na Instagram?\n\nKdyž je v salonu nebo na prodejně zrovna totální masakr, klienti blázní a ty máš po dvanáctihodinové šichtě ještě sedět u mobilu a potit kreativní popisky? Tvůj mozek není generátor textů na povel. Když ho nutíš tvořit pod tlakem, dopadne to buď vyhořením, nebo trapným tichem na profilu. Nemusíš se učit složité prompty ani se bát, že AI zní jako chladný robot. Chrlit prostě vezme tvůj web, pochopí tvůj styl a okamžitě vygeneruje kompletní instagramové příspěvky včetně grafiky a textů. Deleguj tenhle stres na AI a běž domů s čistou hlavou.\n\nBěž na chrlit.cz, zaregistruj se zdarma a začni chrlit posty bez námahy ještě dnes!\n\n#chrlit #chrlitcz #chrlitai #autopilotobsahu #marketing #socialnimedia #umeleinteligent #automatizaceobsahu #tvorbaobsahu #marketingovetipy",
+        "hashtags": "#chrlit #chrlitcz #chrlitai #autopilotobsahu #marketing #socialnimedia #umeleinteligent #automatizaceobsahu #tvorbaobsahu #marketingovetipy"
+      }
+    ]
+  },
+  {
     "slug": "kavarna-zrno",
     "company": "Kavárna Zrno",
     "industry": "Gastronomie / Kavárna",
