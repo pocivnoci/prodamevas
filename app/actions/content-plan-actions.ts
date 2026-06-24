@@ -82,17 +82,30 @@ export async function generateContentPlan(
         const performance = await analyzePerformance(config, _getPillarForType)
         const typeSequence = buildSmartWeekPlan(config, performance, count)
 
-        // Effective medium per post. Reels are globally off, so every reel type would otherwise
-        // collapse into a carousel — flooding the plan with carousels. Spread the clamped reels:
-        // bias to single image, keep only ~1 in 3 as carousel. Deterministic by position so the
-        // badge (item.medium) and the planner prompt always agree on the same value.
-        const effectiveMedium = (typeName: string, i: number): "image" | "carousel" | "reel" => {
-            let m = getPostFormat(config, typeName).medium
-            if (process.env.REELS_ENABLED !== "1" && m === "reel") {
-                m = i % 3 === 0 ? "carousel" : "image"
-            }
-            return m
-        }
+        // Effective medium per post, precomputed once so the badge (item.medium) and the planner
+        // prompt always read the exact same value. Two passes:
+        //  1) Base format, with the reels kill-switch spreading clamped reels (~2/3 image, ~1/3
+        //     carousel) so reels-off doesn't flood the plan with carousels.
+        //  2) Hard cap: at most ¼ of the plan may be carousels. Walk in order, keep carousels until
+        //     the cap is hit, then demote every further carousel to a single image. Reels (when
+        //     enabled) and images are untouched.
+        const carouselCap = Math.floor(count / 4)
+        const effectiveMediums: ("image" | "carousel" | "reel")[] = (() => {
+            let carouselsKept = 0
+            return typeSequence.map((typeName, i) => {
+                let m = getPostFormat(config, typeName).medium
+                if (process.env.REELS_ENABLED !== "1" && m === "reel") {
+                    m = i % 3 === 0 ? "carousel" : "image"
+                }
+                if (m === "carousel") {
+                    if (carouselsKept >= carouselCap) m = "image"
+                    else carouselsKept++
+                }
+                return m
+            })
+        })()
+        const effectiveMedium = (_typeName: string, i: number): "image" | "carousel" | "reel" =>
+            effectiveMediums[i] ?? "image"
 
         // Get post type metadata from DB
         const { data: dbPostTypes } = await supabaseAdmin
