@@ -82,6 +82,18 @@ export async function generateContentPlan(
         const performance = await analyzePerformance(config, _getPillarForType)
         const typeSequence = buildSmartWeekPlan(config, performance, count)
 
+        // Effective medium per post. Reels are globally off, so every reel type would otherwise
+        // collapse into a carousel — flooding the plan with carousels. Spread the clamped reels:
+        // bias to single image, keep only ~1 in 3 as carousel. Deterministic by position so the
+        // badge (item.medium) and the planner prompt always agree on the same value.
+        const effectiveMedium = (typeName: string, i: number): "image" | "carousel" | "reel" => {
+            let m = getPostFormat(config, typeName).medium
+            if (process.env.REELS_ENABLED !== "1" && m === "reel") {
+                m = i % 3 === 0 ? "carousel" : "image"
+            }
+            return m
+        }
+
         // Get post type metadata from DB
         const { data: dbPostTypes } = await supabaseAdmin
             .from("ig_post_types")
@@ -122,8 +134,7 @@ export async function generateContentPlan(
             const pt = ptMap.get(typeName)
             const pillar = getPillarForType(config, typeName)
             const pillarCfg = config.contentPillars[pillar]
-            let medium = getPostFormat(config, typeName).medium
-            if (process.env.REELS_ENABLED !== "1" && medium === "reel") medium = "carousel"
+            const medium = effectiveMedium(typeName, i)
             const formatLabel = medium === "carousel" ? "KARUSEL (statické obrázky/slidy — ŽÁDNÉ video)"
                 : medium === "reel" ? "REEL (krátké video)"
                 : "JEDEN STATICKÝ OBRÁZEK (ŽÁDNÉ video)"
@@ -361,9 +372,8 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
             const pillarCfg = config.contentPillars[pillar]
             const concept = concepts[i] || { hookPreview: "", angle: "", topic: "" }
 
-            // Effective medium — mirror generateOnePost: type-level format, then reel kill-switch
-            let medium = getPostFormat(config, typeName).medium
-            if (process.env.REELS_ENABLED !== "1" && medium === "reel") medium = "carousel"
+            // Effective medium (reels-off split applied — see effectiveMedium above)
+            const medium = effectiveMedium(typeName, i)
 
             return {
                 id: `plan_${Date.now()}_${i}`,
