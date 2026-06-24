@@ -43,8 +43,15 @@ function brandRefLabel(tags: string[] = []): string {
 }
 
 export async function renderImage(ctx: RenderContext): Promise<RenderResult> {
-    // "none" overlay style = intentionally text-free post → legacy path renders raw image
-    if (ctx.config.visualEngine !== "overlay" && ctx.format.overlayStyle !== "none") {
+    // overlayStyle "none" = intentionally text-free, and is ONLY valid for reels. But this is the
+    // IMAGE orchestrator — a static post always needs its Czech headline/logo. A reel-format type
+    // whose reel got clamped to an image (reels off) still arrives with overlayStyle "none", which
+    // would otherwise render a bare text-free photo (the "post without text" bug). Coerce it to a
+    // real overlay. Copy the format — never mutate the cached config.postFormats reference.
+    if (ctx.format.overlayStyle === "none") {
+        ctx = { ...ctx, format: { ...ctx.format, overlayStyle: "default" } }
+    }
+    if (ctx.config.visualEngine !== "overlay") {
         try {
             const native = await renderImageNative(ctx)
             if (native) return native
