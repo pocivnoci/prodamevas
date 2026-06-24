@@ -205,6 +205,12 @@ export interface ClientConfig {
     /** Static week plan — array of post type names (Mon→Sun, 2 per day) */
     weekPlan: string[]
 
+    /** Real posting cadence (posts per week). Seeded at onboarding from the brand's actual
+     *  IG history (median gap between recent posts, clamped 2–7); defaults to 4 when unknown.
+     *  Content-plan length derives from this (duration × postsPerWeek) — a "week" is this many
+     *  posts, NOT 7. See validateConfig() for the safe default. */
+    postsPerWeek?: number
+
     /** Hashtag pools */
     hashtagPools: {
         core: string[]

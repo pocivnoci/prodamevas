@@ -9,7 +9,7 @@ import {
     getIGIdeasList,
     getIGReviewsList,
 } from "@/app/actions/admin-actions"
-import { generateContentPlan, regeneratePlanItem, type ContentPlanItem } from "@/app/actions/content-plan-actions"
+import { generateContentPlan, regeneratePlanItem, getPlanCadence, type ContentPlanItem } from "@/app/actions/content-plan-actions"
 import { startCampaign, getCampaignStatus } from "@/app/actions/campaign-actions"
 import { schedulePostAction } from "@/app/actions/calendar-actions"
 import { distributeSchedule } from "@/lib/schedule-planner"
@@ -42,6 +42,10 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const [editorialLog, setEditorialLog] = useState<{ role: string; action: string; summary: string }[]>([])
     const [result, setResult] = useState<GenerateResult | null>(null)
     const [batchCount, setBatchCount] = useState(3)
+    // Plan length is chosen as a DURATION; the real post count derives from the brand's actual
+    // posting cadence (postsPerWeek, seeded at onboarding). A "week" is postsPerWeek posts, not 7.
+    const [postsPerWeek, setPostsPerWeek] = useState(4)
+    const [planDuration, setPlanDuration] = useState<"trial" | "1w" | "2w" | "month">("trial")
     const [batchMode, setBatchMode] = useState(false)
     const [batchResult, setBatchResult] = useState<{ generated: number; errors: number; message: string } | null>(null)
     const [batchProgress, setBatchProgress] = useState<{ current: number; total: number; successes: number; failures: number } | null>(null)
@@ -87,6 +91,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         if (!projectId) return
         getIGPostTypes(projectId).then(setPostTypes)
         getIGPostFormats(projectId).then(setPostFormats)
+        getPlanCadence(projectId).then(setPostsPerWeek)
         getIGCategories(projectId).then(setCategories)
         getIGIdeasList(projectId).then(setSavedIdeas)
         getIGReviewsList(projectId).then(reviews => setApprovedReviews(reviews.filter((r: any) => r.is_approved)))
@@ -420,6 +425,30 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         }
         setBatchCount(newCount)
     }
+
+    // Duration-based plan length. A "week" is the brand's real cadence (postsPerWeek), not 7 days —
+    // so the post count (and credit cost, and carousel cap denominator) all track reality. Trial is
+    // a fixed small taste regardless of cadence.
+    const PLAN_DURATIONS = [
+        { key: "trial", label: "Zkouška", weeks: 0 },
+        { key: "1w", label: "Týden", weeks: 1 },
+        { key: "2w", label: "Dva týdny", weeks: 2 },
+        { key: "month", label: "Měsíc", weeks: 4 },
+    ] as const
+    const durationToCount = (key: typeof planDuration): number => {
+        if (key === "trial") return 3
+        const weeks = PLAN_DURATIONS.find(d => d.key === key)?.weeks ?? 1
+        return Math.max(1, Math.round(weeks * postsPerWeek))
+    }
+    const handleDurationChange = (key: typeof planDuration) => {
+        setPlanDuration(key)
+        handleCountChange(durationToCount(key))
+    }
+    // Cadence loads async after mount — re-derive the count for the active duration once it arrives.
+    useEffect(() => {
+        setBatchCount(durationToCount(planDuration))
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [postsPerWeek])
 
     // Planner: assign posting slots to every plan item from the schedule bar.
     // Overwrites all items (predictable re-distribution); per-item edits below
@@ -813,20 +842,23 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     <p className="text-white/40 text-sm">AI navrhne sérii příspěvků. Vy schválíte a spustíte.</p>
                                 </div>
 
-                                {/* Count */}
+                                {/* Duration → derives post count from the brand's real cadence */}
                                 <div>
-                                    <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Kolik příspěvků?</label>
+                                    <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Jak dlouhý plán?</label>
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                        {[{ count: 3, label: "3", desc: "Zkouška" }, { count: 7, label: "7", desc: "Týden" }, { count: 14, label: "14", desc: "Dva týdny" }, { count: 30, label: "30", desc: "Měsíc" }].map(opt => (
-                                            <button key={opt.count} onClick={() => handleCountChange(opt.count)}
-                                                className={`py-4 rounded-sm transition-all border text-center ${batchCount === opt.count
-                                                    ? "bg-aisummit-cinnabar/20 border-aisummit-cinnabar/30 text-aisummit-cinnabar" : "bg-[#050505] border-white/10 text-white/40 hover:text-white hover:border-white/30"}`}>
-                                                <span className="text-2xl font-black block">{opt.label}</span>
-                                                <span className="text-[9px] font-bold uppercase tracking-widest opacity-60">{opt.desc}</span>
-                                            </button>
-                                        ))}
+                                        {PLAN_DURATIONS.map(opt => {
+                                            const c = durationToCount(opt.key)
+                                            return (
+                                                <button key={opt.key} onClick={() => handleDurationChange(opt.key)}
+                                                    className={`py-4 rounded-sm transition-all border text-center ${planDuration === opt.key
+                                                        ? "bg-aisummit-cinnabar/20 border-aisummit-cinnabar/30 text-aisummit-cinnabar" : "bg-[#050505] border-white/10 text-white/40 hover:text-white hover:border-white/30"}`}>
+                                                    <span className="text-2xl font-black block">{c}</span>
+                                                    <span className="text-[9px] font-bold uppercase tracking-widest opacity-60">{opt.label}</span>
+                                                </button>
+                                            )
+                                        })}
                                     </div>
-                                    <p className="text-[10px] text-white/20 mt-2 text-right font-bold uppercase tracking-widest">Spotřeba: {batchCount} kreditů</p>
+                                    <p className="text-[10px] text-white/20 mt-2 text-right font-bold uppercase tracking-widest">Spotřeba: {batchCount} kreditů · {postsPerWeek} příspěvků/týden</p>
                                 </div>
 
                                 {/* Topic */}

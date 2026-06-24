@@ -89,6 +89,10 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
             phoneModel: "iPhone 16 Pro",
         },
         weekPlan: config.weekPlan || [],
+        // Real posting cadence drives content-plan length (duration × postsPerWeek). Clamp to a
+        // sane 1–7 and default to 4 — never let a missing/garbage value inflate the plan back to
+        // the old "1 post per day" assumption.
+        postsPerWeek: Math.min(7, Math.max(1, Math.round(config.postsPerWeek || 4))),
         // Keep the three per-client format sources defaulted (never undefined) so
         // ensurePostTypes/getIGPostTypes can't silently no-op on a half-filled config.
         postTypes: config.postTypes || [],

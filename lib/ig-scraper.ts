@@ -128,3 +128,28 @@ export async function fetchInstagramProfile(
         return null
     }
 }
+
+/**
+ * Estimate a brand's real posting cadence (posts per week) from the timestamps of its recent
+ * posts. Used at onboarding to seed `ClientConfig.postsPerWeek`, so the content plan reflects how
+ * often the brand actually posts instead of assuming one post per day.
+ *
+ * Rate = posts ÷ span, computed over the window of valid timestamps. Clamped to 2–7 (below 2 the
+ * plan is too thin to be useful; Instagram rarely rewards more than daily). Returns null when
+ * there isn't enough signal (<2 dated posts, or all posts share one instant) so the caller can
+ * fall back to the default.
+ */
+export function estimatePostsPerWeek(timestamps: (string | undefined | null)[]): number | null {
+    const ms = (timestamps || [])
+        .map(t => (t ? Date.parse(t) : NaN))
+        .filter(n => Number.isFinite(n))
+        .sort((a, b) => b - a)
+    if (ms.length < 2) return null
+
+    const spanDays = (ms[0] - ms[ms.length - 1]) / 86_400_000
+    if (spanDays <= 0) return null
+
+    // (n−1) gaps span `spanDays` → posts/week = 7 × gaps ÷ span.
+    const perWeek = (7 * (ms.length - 1)) / spanDays
+    return Math.min(7, Math.max(2, Math.round(perWeek)))
+}

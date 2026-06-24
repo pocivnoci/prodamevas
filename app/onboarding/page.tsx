@@ -236,8 +236,10 @@ function OnboardingContent() {
             // user lands on a ready week in the Generate tab instead of a blank slate.
             setGeneratingProgress({ phase: 'firstplan', current: 1, total: 1 })
             try {
-                const { generateContentPlan } = await import('@/app/actions/content-plan-actions')
-                const planRes = await generateContentPlan(clientSlug, 7)
+                const { generateContentPlan, getPlanCadence } = await import('@/app/actions/content-plan-actions')
+                // One real week at the brand's actual cadence (seeded from their IG), not a flat 7.
+                const weekCount = await getPlanCadence(clientSlug)
+                const planRes = await generateContentPlan(clientSlug, weekCount)
                 if (planRes.success && planRes.plan?.length) {
                     try { localStorage.setItem(`ig_draft_plan_${clientSlug}`, JSON.stringify(planRes.plan)) } catch { /* ignore */ }
                 }

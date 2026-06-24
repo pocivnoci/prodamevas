@@ -30,6 +30,22 @@ export interface ContentPlanItem {
     scheduledTime?: string // "HH:MM"
 }
 
+/**
+ * The brand's real posting cadence (posts per week), used by the planner UI to turn a chosen
+ * duration (1 week / 2 weeks / month) into an honest post count. Seeded at onboarding from the
+ * client's actual IG history; validateConfig guarantees a clamped 1–7 default of 4.
+ */
+export async function getPlanCadence(projectSlug: string): Promise<number> {
+    try {
+        await requireProjectAccess(projectSlug)
+        const { loadConfig } = await import("@/instagram/configs")
+        const config = await loadConfig(projectSlug)
+        return config.postsPerWeek || 4
+    } catch {
+        return 4
+    }
+}
+
 export async function generateContentPlan(
     projectSlug: string,
     count: number,

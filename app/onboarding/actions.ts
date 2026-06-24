@@ -8,7 +8,7 @@ import { getModel } from '@/instagram/models'
 import { ensurePostTypes } from '@/instagram/service'
 import { generateCustomFormats } from '@/app/onboarding/core'
 import type { ClientConfig } from '@/instagram/configs/types'
-import { fetchInstagramProfile, type IgProfileData } from '@/lib/ig-scraper'
+import { fetchInstagramProfile, estimatePostsPerWeek, type IgProfileData } from '@/lib/ig-scraper'
 
 // ============================================
 // TYPES
@@ -928,6 +928,11 @@ DŮLEŽITÉ:
                 bestPostingTimes: analysis.igInsights.bestPostingTimes,
                 scrapedAt: new Date().toISOString(),
             }
+            // Seed real posting cadence from the scrape so the content plan matches how often the
+            // brand actually posts (a "week" = this many posts, not 7). Falls back to 4 when the
+            // recent posts don't carry enough dated signal. validateConfig clamps it 1–7.
+            const perWeek = estimatePostsPerWeek(analysis.igProfile.recentPosts.map(p => p.timestamp))
+            if (perWeek) config.postsPerWeek = perWeek
         }
         // Set logo file if it was downloaded
         if (analysis.logoDownloaded) {
