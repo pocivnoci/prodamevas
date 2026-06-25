@@ -8,6 +8,7 @@ import { deleteIGPost, deleteIGPosts } from "@/app/actions/post-actions"
 import { revisePost, generateMultipleVariants, selectVariantWinner, getVariantGroup } from "@/app/actions/variant-actions"
 import { retryPublishAction } from "@/app/actions/calendar-actions"
 import { LoadingSpinner, StatusBadge, PillarBadge, CopyButton, MetricsInputForm } from "./shared"
+import { PublishHandoffModal } from "./PublishHandoffModal"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPost } from "./types"
 import { trackEvent } from "@/lib/analytics"
@@ -24,6 +25,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
     const [error, setError] = useState<string | null>(null)
     const [statusFilter, setStatusFilter] = useState("all")
     const [selectedPost, setSelectedPost] = useState<IGPost | null>(null)
+    const [handoffPost, setHandoffPost] = useState<IGPost | null>(null)
     const [page, setPage] = useState(0)
     const [total, setTotal] = useState(0)
     const [hasMore, setHasMore] = useState(false)
@@ -64,6 +66,14 @@ export function PostsTab({ projectId }: { projectId: string }) {
         await updateIGPostStatus(postId, newStatus)
         if (newStatus === "posted") trackEvent('post_published')
         setSelectedPost(null)
+        loadPosts(0)
+    }
+
+    // Mark posted from the handoff modal (after the user shares to the IG app).
+    const handleHandoffMarkPosted = async (postId: string) => {
+        await updateIGPostStatus(postId, "posted")
+        trackEvent('post_published')
+        setHandoffPost(null)
         loadPosts(0)
     }
 
@@ -244,6 +254,13 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                         }}
                                     />
                                 )}
+                                {post.image_url && (
+                                    <InlineAction
+                                        label="📲"
+                                        title="Publikovat na Instagram"
+                                        onClick={() => setHandoffPost(post)}
+                                    />
+                                )}
                                 {post.status === "draft" && (
                                     <InlineAction
                                         label="✅"
@@ -309,8 +326,18 @@ export function PostsTab({ projectId }: { projectId: string }) {
                         onStatusChange={handleStatusChange}
                         onDelete={handleDelete}
                         onRefresh={() => { setSelectedPost(null); loadPosts(0) }}
+                        onPublish={(p) => { setSelectedPost(null); setHandoffPost(p) }}
                     />
                 )}
+
+            {/* Publish Handoff Modal — mobile one-tap share to Instagram */}
+            {handoffPost && (
+                <PublishHandoffModal
+                    post={handoffPost}
+                    onClose={() => setHandoffPost(null)}
+                    onMarkedPosted={handleHandoffMarkPosted}
+                />
+            )}
         </div >
     )
 }
@@ -382,6 +409,7 @@ function PostDetailModal({
     onStatusChange,
     onDelete,
     onRefresh,
+    onPublish,
 }: {
     post: IGPost
     projectId: string
@@ -389,6 +417,7 @@ function PostDetailModal({
     onStatusChange: (postId: string, status: string) => void
     onDelete: (postId: string) => void
     onRefresh: () => void
+    onPublish: (post: IGPost) => void
 }) {
     const { copiedField, copyToClipboard } = useCopyToClipboard()
     const [confirmDelete, setConfirmDelete] = useState(false)
@@ -740,6 +769,16 @@ function PostDetailModal({
                     >
                         {copiedField === "full-btn" ? "✅ Zkopírováno!" : "📋 Kopírovat text"}
                     </button>
+
+                    {/* Publish to Instagram (mobile handoff) */}
+                    {imageUrls.length > 0 && (
+                        <button
+                            onClick={() => onPublish(post)}
+                            className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-gradient-to-r from-aisummit-cinnabar/20 to-orange-600/20 text-aisummit-cinnabar hover:from-aisummit-cinnabar/30 hover:to-orange-600/30 transition-all flex items-center gap-2 border border-aisummit-cinnabar/30"
+                        >
+                            📲 Publikovat na Instagram
+                        </button>
+                    )}
 
                     {/* Spacer */}
                     <div className="flex-1" />
