@@ -532,14 +532,14 @@ export async function updateIGPostMetrics(
         link_clicks: number
     }
 ): Promise<{ success: boolean }> {
-    // Read client_id + previous metrics BEFORE the update — needed for the
-    // ownership check and so the significance deltas compare old vs new values.
+    // Ownership check needs the post's client_id; the write + the (sacred) learning
+    // trigger live in the session-less core, shared with the metrics-sync cron so
+    // both the UI and the automatic sync fire the identical loop.
     const { data: post } = await supabaseAdmin
         .from("ig_posts")
-        .select("client_id, likes, saves, comments")
+        .select("client_id")
         .eq("id", postId)
         .single()
-
     if (!post) return { success: false }
     try {
         await requireClientAccess(post.client_id)
@@ -547,76 +547,28 @@ export async function updateIGPostMetrics(
         return { success: false }
     }
 
-    const { error } = await supabaseAdmin
-        .from("ig_posts")
-        .update({
-            ...metrics,
-            updated_at: new Date().toISOString(),
-        })
-        .eq("id", postId)
+    const { writeIGPostMetrics, fireMetricsLearning } = await import("@/instagram/metrics-sync")
+    const w = await writeIGPostMetrics(postId, metrics)
+    if (w.significant && w.clientId) await fireMetricsLearning(w.clientId)
+    return { success: w.ok }
+}
 
-    if (error) return { success: false }
-
-    // ─── LEARNING TRIGGER ─────────────────────────────
-    // After saving metrics, check if metrics changed significantly before triggering learning.
-    // This prevents pointless re-analysis on trivial metric updates.
+/**
+ * On-demand: pull fresh metrics from the connected Instagram account for this
+ * project and feed the learning loop. Session entry point with ownership check;
+ * the daily cron calls syncPostMetrics(clientId) directly instead.
+ */
+export async function syncMetricsAction(
+    projectSlug: string,
+): Promise<{ success: boolean; synced?: number; matched?: number; error?: string }> {
     try {
-        // Only learn if metrics changed significantly
-        const prevLikes = post?.likes || 0
-        const prevSaves = post?.saves || 0
-        const prevComments = post?.comments || 0
-        const likesDelta = Math.abs(metrics.likes - prevLikes)
-        const savesDelta = Math.abs(metrics.saves - prevSaves)
-        const commentsDelta = Math.abs(metrics.comments - prevComments)
-        const isSignificant = likesDelta >= 5 || savesDelta >= 2 || commentsDelta >= 3
-
-        if (post?.client_id && isSignificant) {
-            // Fetch all posted posts with metrics for this client
-            const { data: postsWithMetrics } = await supabaseAdmin
-                .from("ig_posts")
-                .select("id, caption, likes, comments, saves, reach, shares, link_clicks, post_type_id, ig_post_types(name)")
-                .eq("client_id", post.client_id)
-                .eq("status", "posted")
-                .not("likes", "is", null)
-                .gt("likes", 0)
-                .order("created_at", { ascending: false })
-                .limit(30)
-
-            if (postsWithMetrics && postsWithMetrics.length >= 3) {
-                // Fire and forget — don't block the metrics save response.
-                const learnData = postsWithMetrics.map(p => ({
-                    id: p.id,
-                    caption: p.caption || "",
-                    post_type_name: (p.ig_post_types as any)?.name,
-                    likes: p.likes || 0,
-                    comments: p.comments || 0,
-                    saves: p.saves || 0,
-                    reach: p.reach || 0,
-                    shares: p.shares || 0,
-                    link_clicks: p.link_clicks || 0,
-                }))
-
-                // Emit the metrics.updated domain event — its subscriber runs the
-                // SAME propagate + learn the metrics path used to call directly
-                // (Fáze 4 event seam). Importing subscribers guarantees the handler
-                // is registered before emit; waitUntil keeps the lambda alive for it.
-                const { waitUntil } = await import("@vercel/functions")
-                await import("@/lib/events/subscribers")
-                const { emit } = await import("@/lib/events")
-                waitUntil(
-                    emit("metrics.updated", {
-                        clientId: post.client_id,
-                        payload: { learnData },
-                    }).catch(err => console.warn("⚠️ metrics.updated emit failed (non-fatal):", err?.message)),
-                )
-            }
-        }
-    } catch (learnErr: any) {
-        // Non-fatal — metrics were already saved successfully
-        console.warn("⚠️ Learning check failed:", learnErr?.message)
+        const { clientId } = await requireProjectAccess(projectSlug)
+        const { syncPostMetrics } = await import("@/instagram/metrics-sync")
+        const r = await syncPostMetrics(clientId)
+        return { success: true, synced: r.synced, matched: r.matched }
+    } catch (err: any) {
+        return { success: false, error: err?.message || "Synchronizace metrik selhala" }
     }
-
-    return { success: true }
 }
 
 // ─── Performance Insights (Neural Brand Engine MVP) ──────────────────

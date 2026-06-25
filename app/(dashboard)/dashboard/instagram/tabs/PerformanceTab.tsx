@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { getPerformanceInsights, updateIGPostMetrics } from "@/app/actions/admin-actions"
+import { getPerformanceInsights, updateIGPostMetrics, syncMetricsAction } from "@/app/actions/admin-actions"
+import { getConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { getGrowthData, type GrowthData } from "@/app/actions/growth-actions"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 
@@ -13,10 +14,13 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
     const [editingMetrics, setEditingMetrics] = useState<Record<string, any>>({})
     const [savingId, setSavingId] = useState<string | null>(null)
     const [savedId, setSavedId] = useState<string | null>(null)
+    const [connected, setConnected] = useState(false)
+    const [syncing, setSyncing] = useState(false)
+    const [syncMsg, setSyncMsg] = useState<string | null>(null)
 
-    const loadData = useCallback(async () => {
+    const loadData = useCallback(async (spinner = true) => {
         if (!projectId) return
-        setLoading(true)
+        if (spinner) setLoading(true)
         const data = await getPerformanceInsights(projectId)
         setPosts(data.posts)
         setInsights(data.insights)
@@ -39,6 +43,24 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
     }, [projectId])
 
     useEffect(() => { loadData() }, [loadData])
+
+    useEffect(() => {
+        if (!projectId) return
+        getConnectionStatus(projectId).then(s => setConnected(s.connected)).catch(() => setConnected(false))
+    }, [projectId])
+
+    const handleSync = async () => {
+        setSyncing(true)
+        setSyncMsg(null)
+        const r = await syncMetricsAction(projectId)
+        if (r.success) {
+            setSyncMsg(`✅ Načteno ${r.synced ?? 0} příspěvků z Instagramu${r.matched ? `, nově propojeno ${r.matched}` : ""}.`)
+            await loadData(false)
+        } else {
+            setSyncMsg(`⚠️ ${r.error || "Synchronizace selhala"}`)
+        }
+        setSyncing(false)
+    }
 
     const handleMetricChange = (postId: string, field: string, value: string) => {
         setEditingMetrics(prev => ({
@@ -87,10 +109,23 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
 
             {/* ── Statistiky výkonu ──────────────────────────── */}
             <div>
-                <h2 className="text-lg font-black uppercase tracking-tight text-white mb-4 flex items-center gap-2">
-                    📊 Statistiky výkonu
-                    {!hasData && <span className="text-[10px] font-normal normal-case tracking-normal text-white/30">— zatím žádná data, zadej metriky níže</span>}
-                </h2>
+                <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
+                    <h2 className="text-lg font-black uppercase tracking-tight text-white flex items-center gap-2">
+                        📊 Statistiky výkonu
+                        {!hasData && <span className="text-[10px] font-normal normal-case tracking-normal text-white/30">— zatím žádná data, zadej metriky níže</span>}
+                    </h2>
+                    {connected && (
+                        <button
+                            onClick={handleSync}
+                            disabled={syncing}
+                            title="Stáhne aktuální metriky z propojeného Instagramu"
+                            className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-[#0f0f0f] border border-white/10 text-white/70 hover:bg-white/10 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            {syncing ? "⏳ Načítám…" : "🔄 Načíst metriky z Instagramu"}
+                        </button>
+                    )}
+                </div>
+                {syncMsg && <p className="text-[11px] text-white/50 mb-4">{syncMsg}</p>}
 
                 {hasData ? (
                     <>

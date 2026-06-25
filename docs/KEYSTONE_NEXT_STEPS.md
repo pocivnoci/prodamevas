@@ -66,8 +66,7 @@ none of it is code. Do these in order.
 
 ## NOT in this step (next roadmap items)
 - **Step 2 — Publishing:** media container → publish + scheduling cron.
-- **Step 3 — Metrics → learning:** `syncPostMetrics(clientId)` → existing `updateIGPostMetrics()`.
-  This is what makes the insights screencast (step 6) trivial — consider doing it before submitting.
+- **Step 3 — Metrics → learning:** ✅ **SHIPPED** — `syncPostMetrics(clientId)` (`instagram/metrics-sync.ts`) pulls media insights, matches them to posts (caption-match backfill of `ig_media_id` for handoff posts), and feeds the existing learning cascade via session-less `writeIGPostMetrics`/`fireMetricsLearning` (extracted from `updateIGPostMetrics`, fired once per sync). Daily cron `/api/cron/ig-metrics-sync` + on-demand `syncMetricsAction` button in PerformanceTab. Works now under Standard Access for the owner's own account; makes the insights screencast (step 6) trivial.
 
 References: `docs/META_APP_REVIEW_PLAN.md` (full gate plan), `~/.claude/plans/1-keystone-clever-honey.md`
 (the implementation plan), memory `ig-golive-roadmap`.

@@ -54,6 +54,10 @@ export interface ChannelMetrics {
     saves?: number
     reach?: number
     impressions?: number
+    /** Profile visits attributed to the post (available for some media types). */
+    profile_visits?: number
+    /** Reel/video views (impressions was renamed to views on newer IG API versions). */
+    views?: number
 }
 
 /** Minimal shape of a stored connection (lib/connections / ig-connection). */

@@ -295,6 +295,7 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 | `GET /api/plans` | ✅ | 10s | Aktivní plány pro pricing UI (bez trial_v2) |
 | `GET /api/cron/growth-snapshot` | ❌ (CRON_SECRET bearer) | 800s | Týdenní follower snapshot pro growth_tracking plány (vercel.json cron `0 6 * * 1`) |
 | `GET /api/cron/ig-token-refresh` | ❌ (CRON_SECRET bearer) | 800s | Denní obnova IG long-lived tokenů blížících se expiraci (vercel.json cron `0 5 * * *`) |
+| `GET /api/cron/ig-metrics-sync` | ❌ (CRON_SECRET bearer) | 800s | Denní sync IG insights → metriky postů → learning loop (roadmap step 3); caption-match backfill `ig_media_id` pro handoff posty; `instagram/metrics-sync.ts` (vercel.json cron `0 7 * * *`) |
 | `GET /api/cron/agent-worker` | ❌ (CRON_SECRET bearer) | 800s | **Fáze 2** drainer fronty `agent_tasks` přes `drainTasks()` (vercel.json cron `* * * * *`) — registrované handlery `lib/agents/handlers.ts` |
 | `GET /api/ig-connect/start` | ✅ requireProjectAccess | 10s | Začátek IG OAuth — podepíše `state` a redirectne na Instagram authorize |
 | `GET /api/ig-connect/callback` | ❌ (signed state) | 30s | IG OAuth callback — code→long-lived token, uloží šifrované do `ig_connections` |

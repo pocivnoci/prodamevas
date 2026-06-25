@@ -13,6 +13,10 @@
             "schedule": "0 5 * * *"
         },
         {
+            "path": "/api/cron/ig-metrics-sync",
+            "schedule": "0 7 * * *"
+        },
+        {
             "path": "/api/cron/ig-publisher",
             "schedule": "* * * * *"
         },

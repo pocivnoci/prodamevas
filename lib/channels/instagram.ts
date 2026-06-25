@@ -16,6 +16,7 @@ import {
     type ContentDraft,
     type FormattedContent,
     type ChannelConnection,
+    type ChannelMetrics,
     type PublishResult,
     ChannelNotEnabledError,
 } from "./types"
@@ -28,6 +29,11 @@ const IG_GRAPH_BASE = "https://graph.instagram.com"
 // publishable. Poll status_code up to this many times before giving up.
 const CONTAINER_POLL_ATTEMPTS = 10
 const CONTAINER_POLL_DELAY_MS = 3000
+
+// Per-media insights we try to read (likes/comments come from direct fields below).
+// IG 400s the WHOLE request if any one metric is invalid for the media type / API
+// version, so fetchMetrics batches first then falls back per-metric (see below).
+const MEDIA_INSIGHT_METRICS = ["reach", "saved", "shares", "profile_visits"] as const
 
 /** POST to a Graph edge with form-encoded params; throws on non-2xx (retried by caller). */
 async function graphPost(path: string, params: Record<string, string>): Promise<any> {
@@ -162,8 +168,46 @@ export const instagramAdapter: ChannelAdapter = {
         return { externalId: mediaId, permalink }
     },
 
-    async fetchMetrics(_connection: ChannelConnection, _externalId: string) {
-        // Needs instagram_business_manage_insights + media insights call (roadmap step 3).
-        throw new ChannelNotEnabledError("instagram", "metrics")
+    async fetchMetrics(connection: ChannelConnection, externalId: string): Promise<ChannelMetrics> {
+        const accessToken = connection.accessToken
+        const metrics: ChannelMetrics = {}
+
+        // 1) Public counts are direct fields (cheap, no insights permission needed).
+        try {
+            const f = await graphGet(`${externalId}?fields=like_count,comments_count`, accessToken)
+            if (typeof f?.like_count === "number") metrics.likes = f.like_count
+            if (typeof f?.comments_count === "number") metrics.comments = f.comments_count
+        } catch {
+            /* counts are best-effort; the insights below carry the engagement signal */
+        }
+
+        // 2) Insights (reach/saved/shares/profile_visits) — need manage_insights scope.
+        const applyInsights = (data: any[]) => {
+            for (const row of data || []) {
+                const val = row?.values?.[0]?.value
+                if (typeof val !== "number") continue
+                if (row.name === "saved") metrics.saves = val
+                else if (row.name === "reach") metrics.reach = val
+                else if (row.name === "shares") metrics.shares = val
+                else if (row.name === "profile_visits") metrics.profile_visits = val
+            }
+        }
+        try {
+            const ins = await graphGet(`${externalId}/insights?metric=${MEDIA_INSIGHT_METRICS.join(",")}`, accessToken)
+            applyInsights(ins?.data)
+        } catch {
+            // Batch failed (a metric is unsupported for this media type). Retry each on
+            // its own so one bad metric never costs us the others.
+            for (const metric of MEDIA_INSIGHT_METRICS) {
+                try {
+                    const ins = await graphGet(`${externalId}/insights?metric=${metric}`, accessToken)
+                    applyInsights(ins?.data)
+                } catch {
+                    /* unsupported for this media — skip */
+                }
+            }
+        }
+
+        return metrics
     },
 }

@@ -9,8 +9,12 @@ import { signState } from "@/lib/ig-oauth-state"
  * owns the project, signs the tenant into a short-lived `state`, and redirects the
  * browser to Instagram's authorize page. The callback finishes the exchange.
  *
- * Scopes (least-privilege first App Review submission): instagram_business_basic
- * + instagram_business_manage_insights. Publish/comments are deferred.
+ * Scopes: instagram_business_basic + instagram_business_manage_insights +
+ * instagram_business_content_publish (auto-publish). In dev mode / Standard Access
+ * only app-role accounts can connect at all, so requesting publish is safe for the
+ * chrlit dogfood account; tenant publishing still needs content_publish approved in
+ * a 2nd App Review before the app goes Live for non-role accounts
+ * (docs/META_APP_REVIEW_PLAN.md). Comments are deferred.
  */
 export async function GET(request: Request) {
     const { searchParams, origin } = new URL(request.url)
@@ -40,7 +44,10 @@ export async function GET(request: Request) {
     authorize.searchParams.set("client_id", appId)
     authorize.searchParams.set("redirect_uri", redirectUri)
     authorize.searchParams.set("response_type", "code")
-    authorize.searchParams.set("scope", "instagram_business_basic,instagram_business_manage_insights")
+    authorize.searchParams.set(
+        "scope",
+        "instagram_business_basic,instagram_business_manage_insights,instagram_business_content_publish",
+    )
     authorize.searchParams.set("state", state)
 
     return NextResponse.redirect(authorize.toString())
