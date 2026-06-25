@@ -4,6 +4,8 @@ Praktický návod, jak dostat vygenerovaný post na Instagram **bez copy-paste p
 
 > **Proč to není plně automatické?** Auto-publish engine v aplikaci **existuje** (`/api/cron/ig-publisher` umí image + carousel), ale publikování na **cizí** účty potřebuje Meta App Review pro scope `instagram_business_content_publish` — to je běh na týdny (viz `docs/META_APP_REVIEW_PLAN.md`). Do schválení funguje auto-publish jen na našem testovacím účtu. **Tahle „handoff" cesta funguje hned, pro libovolný účet, a zvládne i reels.**
 
+> **Když je účet propojený** (viz `docs/INSTAGRAM_SETUP_GUIDE.md`): v okně publikace navíc svítí **⚡ Publikovat hned** — zveřejní image/carousel **rovnou přes API, bez otevírání Instagramu** (do ~minuty). Pro reels použij dál ruční sdílení. Telefon — Publikovat hned vs. iOS Zkratka: `docs/IOS_SHORTCUT_HANDOFF.md`.
+
 ---
 
 ## TL;DR — nejrychlejší cesta (z telefonu)

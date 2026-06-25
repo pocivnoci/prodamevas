@@ -9,6 +9,7 @@ import { revisePost, generateMultipleVariants, selectVariantWinner, getVariantGr
 import { retryPublishAction } from "@/app/actions/calendar-actions"
 import { LoadingSpinner, StatusBadge, PillarBadge, CopyButton, MetricsInputForm } from "./shared"
 import { PublishHandoffModal } from "./PublishHandoffModal"
+import { getConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPost } from "./types"
 import { trackEvent } from "@/lib/analytics"
@@ -26,6 +27,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
     const [statusFilter, setStatusFilter] = useState("all")
     const [selectedPost, setSelectedPost] = useState<IGPost | null>(null)
     const [handoffPost, setHandoffPost] = useState<IGPost | null>(null)
+    const [igConnected, setIgConnected] = useState(false)
     const [page, setPage] = useState(0)
     const [total, setTotal] = useState(0)
     const [hasMore, setHasMore] = useState(false)
@@ -61,6 +63,11 @@ export function PostsTab({ projectId }: { projectId: string }) {
     const loadMore = () => loadPosts(page + 1, true)
 
     useEffect(() => { loadPosts(0) }, [statusFilter, projectId])
+
+    useEffect(() => {
+        if (!projectId) return
+        getConnectionStatus(projectId).then(s => setIgConnected(s.connected)).catch(() => setIgConnected(false))
+    }, [projectId])
 
     const handleStatusChange = async (postId: string, newStatus: string) => {
         await updateIGPostStatus(postId, newStatus)
@@ -330,11 +337,12 @@ export function PostsTab({ projectId }: { projectId: string }) {
                     />
                 )}
 
-            {/* Publish Handoff Modal — mobile one-tap share to Instagram */}
+            {/* Publish Handoff Modal — post to Instagram (Publikovat hned / manual share) */}
             {handoffPost && (
                 <PublishHandoffModal
                     post={handoffPost}
-                    onClose={() => setHandoffPost(null)}
+                    connected={igConnected}
+                    onClose={() => { setHandoffPost(null); loadPosts(0) }}
                     onMarkedPosted={handleHandoffMarkPosted}
                 />
             )}

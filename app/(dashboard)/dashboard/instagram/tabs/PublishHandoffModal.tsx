@@ -1,21 +1,21 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import type { IGPost } from "./types"
 import { useCopyToClipboard } from "./hooks"
+import { publishNowAction, getPostPublishStatus } from "@/app/actions/calendar-actions"
 
 // ═══════════════════════════════════════════════════════════
 // PUBLISH HANDOFF MODAL — "one-tap" hand-off to the Instagram app
 // ═══════════════════════════════════════════════════════════
 //
-// We can't auto-publish to tenant accounts yet (needs the
-// instagram_business_content_publish scope → a second Meta App Review,
-// see docs/META_APP_REVIEW_PLAN.md). This modal is the "functional now"
-// path: on a phone it uses the Web Share API to push the image(s) straight
-// into the Instagram app via the native share sheet, and copies the caption
-// to the clipboard so it's ready to paste. ~3 taps instead of desktop
-// copy-paste hell. Falls back to copy/save on desktop.
+// Per-post "post it" surface with two paths. When the account is connected it
+// offers ⚡ Publikovat hned — a real server-side Graph publish via the ig-publisher
+// cron (no Instagram app; image/carousel). The manual "handoff" is always available
+// as the fallback (and the only route for reels / unconnected accounts): the Web
+// Share API pushes the image(s) into the Instagram app and copies the caption to
+// the clipboard so it's ready to paste.
 
 // Build a test File once to feature-detect Web Share file support.
 function canShareFiles(files: File[]): boolean {
@@ -28,10 +28,12 @@ function canShareFiles(files: File[]): boolean {
 
 export function PublishHandoffModal({
     post,
+    connected,
     onClose,
     onMarkedPosted,
 }: {
     post: IGPost
+    connected: boolean
     onClose: () => void
     onMarkedPosted: (postId: string) => void
 }) {
@@ -41,6 +43,10 @@ export function PublishHandoffModal({
     const [shared, setShared] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [shareSupported, setShareSupported] = useState(false)
+    const [pubState, setPubState] = useState<"idle" | "publishing" | "posted" | "failed">("idle")
+    const [pubMsg, setPubMsg] = useState<string | null>(null)
+    const [permalink, setPermalink] = useState<string | null>(null)
+    const mounted = useRef(true)
 
     const imageUrls = (post.image_url || "").split("|").map(s => s.trim()).filter(Boolean)
     const isCarousel = imageUrls.length > 1
@@ -48,6 +54,9 @@ export function PublishHandoffModal({
     const hashtags = Array.isArray(post.hashtags) ? post.hashtags : []
     const hashtagsText = hashtags.join(" ")
     const fullText = [post.caption, hashtagsText].filter(Boolean).join("\n\n")
+    // ⚡ Publikovat hned is offered when the account is connected and the post is a
+    // static image/carousel (auto-publish has no reel path).
+    const canAutoPublish = connected && imageUrls.length > 0 && post.media_type !== "reel"
 
     // Feature-detect Web Share (files) on the client — true on most phones, false on desktop.
     useEffect(() => {
@@ -65,6 +74,9 @@ export function PublishHandoffModal({
         document.body.style.overflow = "hidden"
         return () => { document.body.style.overflow = original }
     }, [])
+
+    // Guard async polling against unmount.
+    useEffect(() => () => { mounted.current = false }, [])
 
     async function urlsToFiles(urls: string[]): Promise<File[]> {
         const files: File[] = []
@@ -127,6 +139,38 @@ export function PublishHandoffModal({
             }
         }
     }, [imageUrls, isCarousel, post.id])
+
+    // ⚡ Publikovat hned: arm for immediate Graph publish, then poll until it lands.
+    const publishNow = useCallback(async () => {
+        setPubState("publishing")
+        setPubMsg(null)
+        const r = await publishNowAction(post.id)
+        if (!mounted.current) return
+        if (!r.success) {
+            setPubState("failed")
+            setPubMsg(r.error || "Publikace selhala.")
+            return
+        }
+        // Armed for the next ig-publisher tick (≤60s). Poll until posted/failed.
+        const deadline = Date.now() + 150000
+        const tick = async () => {
+            const s = await getPostPublishStatus(post.id)
+            if (!mounted.current) return
+            if (s?.status === "posted") {
+                setPubState("posted")
+                setPermalink(s.permalink)
+            } else if (s?.status === "failed") {
+                setPubState("failed")
+                setPubMsg(s.error || "Publikace selhala.")
+            } else if (Date.now() < deadline) {
+                setTimeout(tick, 4000)
+            } else {
+                setPubState("idle")
+                setPubMsg("Publikuje se na pozadí — za chvíli se objeví ve stavu Publikované.")
+            }
+        }
+        setTimeout(tick, 4000)
+    }, [post.id])
 
     const btnBase = "px-4 py-3 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all flex items-center justify-center gap-2 border"
     const btnGhost = `${btnBase} bg-[#0f0f0f] text-white/70 hover:bg-white/10 hover:text-white border-white/10`
@@ -195,19 +239,45 @@ export function PublishHandoffModal({
                         </div>
                     )}
 
-                    {/* Primary CTA — phone only (Web Share files) */}
-                    {shareSupported && imageUrls.length > 0 && (
+                    {/* ⚡ Publikovat hned — real Graph publish, no app (connected + image/carousel) */}
+                    {canAutoPublish && (
+                        pubState === "posted" ? (
+                            <div className="w-full px-4 py-3.5 text-xs font-black uppercase tracking-widest rounded-sm bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center gap-2">
+                                ✅ Publikováno!
+                                {permalink && (
+                                    <a href={permalink} target="_blank" rel="noopener noreferrer" className="underline hover:text-emerald-300 normal-case tracking-normal">otevřít ↗</a>
+                                )}
+                            </div>
+                        ) : (
+                            <button
+                                onClick={publishNow}
+                                disabled={pubState === "publishing"}
+                                className="w-full px-4 py-3.5 text-xs font-black uppercase tracking-widest rounded-sm bg-gradient-to-r from-aisummit-cinnabar/30 to-orange-600/30 text-aisummit-cinnabar border border-aisummit-cinnabar/30 hover:from-aisummit-cinnabar/40 hover:to-orange-600/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {pubState === "publishing" ? "⏳ Publikuje se… (do minuty)" : "⚡ Publikovat hned"}
+                            </button>
+                        )
+                    )}
+                    {canAutoPublish && pubMsg && (
+                        <p className={`text-[11px] text-center ${pubState === "failed" ? "text-red-400" : "text-white/50"}`}>{pubMsg}</p>
+                    )}
+                    {canAutoPublish && shareSupported && imageUrls.length > 0 && pubState !== "posted" && (
+                        <p className="text-[10px] text-white/25 text-center uppercase tracking-widest">nebo sdílej ručně</p>
+                    )}
+
+                    {/* Manual share CTA — phone only (Web Share files). Primary when not connected. */}
+                    {shareSupported && imageUrls.length > 0 && pubState !== "posted" && (
                         <button
                             onClick={shareToInstagram}
                             disabled={sharing}
-                            className="w-full px-4 py-3.5 text-xs font-black uppercase tracking-widest rounded-sm bg-gradient-to-r from-aisummit-cinnabar/30 to-orange-600/30 text-aisummit-cinnabar border border-aisummit-cinnabar/30 hover:from-aisummit-cinnabar/40 hover:to-orange-600/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            className={`w-full px-4 py-3.5 text-xs font-black uppercase tracking-widest rounded-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${canAutoPublish ? "bg-[#0f0f0f] text-white/70 border border-white/10 hover:bg-white/10 hover:text-white" : "bg-gradient-to-r from-aisummit-cinnabar/30 to-orange-600/30 text-aisummit-cinnabar border border-aisummit-cinnabar/30 hover:from-aisummit-cinnabar/40 hover:to-orange-600/40"}`}
                         >
                             {sharing ? "⏳ Připravuji…" : shared ? "✅ Sdíleno — popisek je v schránce" : "📲 Sdílet do Instagramu"}
                         </button>
                     )}
 
-                    {/* Desktop hint — no file-share support */}
-                    {!shareSupported && (
+                    {/* Desktop hint — no file-share support (and can't publish-now) */}
+                    {!shareSupported && !canAutoPublish && (
                         <div className="rounded-sm border border-white/10 bg-[#0f0f0f] p-3 text-center">
                             <p className="text-[11px] text-white/60 leading-relaxed">
                                 📱 Pro přímé sdílení do Instagramu otevři tuto stránku <strong className="text-white/80">na telefonu</strong>.

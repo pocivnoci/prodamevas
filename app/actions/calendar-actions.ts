@@ -229,6 +229,72 @@ export async function retryPublishAction(
     }
 }
 
+// ─── Publish a post immediately ("Publikovat hned" — one tap, no app) ────────
+
+/**
+ * Arm a post for immediate auto-publish: status 'scheduled' due now, so the next
+ * ig-publisher tick (≤60s) posts it to Instagram via the Graph API — no app, no
+ * manual step. We deliberately DON'T call the Graph publish synchronously here, so
+ * a slow carousel (container polling) can't time out a server action — the cron
+ * owns that with its 800s budget. Requires a live connection; reels are rejected
+ * (auto-publish has no video path — those go through the manual handoff).
+ */
+export async function publishNowAction(
+    postId: string,
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const clientId = await gatePostAccess(postId)
+        const { getConnectionMeta } = await import("@/instagram/ig-connection")
+        const conn = await getConnectionMeta(clientId)
+        if (!conn || conn.status !== "connected") {
+            return { success: false, error: "Nejdřív připojte Instagram účet v Nastavení." }
+        }
+
+        const { data: post } = await supabaseAdmin
+            .from("ig_posts")
+            .select("media_type, image_url")
+            .eq("id", postId)
+            .single()
+        const mediaType = post?.media_type || ((post?.image_url || "").includes("|") ? "carousel" : "image")
+        if (mediaType === "reel") {
+            return { success: false, error: "Reels zatím nejdou publikovat automaticky — použij ruční sdílení." }
+        }
+
+        const { error } = await supabaseAdmin
+            .from("ig_posts")
+            .update({
+                status: "scheduled",
+                scheduled_for: new Date().toISOString(),
+                publish_error: null,
+                publish_attempts: 0,
+                updated_at: new Date().toISOString(),
+            })
+            .eq("id", postId)
+        if (error) return { success: false, error: error.message }
+        return { success: true }
+    } catch (err) {
+        return { success: false, error: (err as Error)?.message || "Publikace selhala" }
+    }
+}
+
+/** Lightweight status read for polling a just-armed "Publikovat hned" post. */
+export async function getPostPublishStatus(
+    postId: string,
+): Promise<{ status: string; permalink: string | null; error: string | null } | null> {
+    try {
+        await gatePostAccess(postId)
+        const { data } = await supabaseAdmin
+            .from("ig_posts")
+            .select("status, permalink, publish_error")
+            .eq("id", postId)
+            .single()
+        if (!data) return null
+        return { status: data.status, permalink: data.permalink, error: data.publish_error }
+    } catch {
+        return null
+    }
+}
+
 // ─── Schedule a single post (from the generate result or posts list) ─────────
 
 /**
