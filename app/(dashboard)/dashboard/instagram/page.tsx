@@ -23,6 +23,7 @@ import { WaitlistTab } from "./tabs/WaitlistTab"
 import { BrainTab } from "./tabs/BrainTab"
 import { FaqTab } from "./tabs/FaqTab"
 import { ApprovalsTab } from "./tabs/ApprovalsTab"
+import { MailingTab } from "./tabs/MailingTab"
 import { TutorialOverlay, useTutorialState } from "./tabs/TutorialOverlay"
 
 // Section labels for header
@@ -45,6 +46,7 @@ const SECTION_LABELS: Record<string, { title: string; description: string }> = {
     brain: { title: "Paměť", description: "Naučené vzorce z reálného výkonu" },
     faq: { title: "FAQ", description: "Časté dotazy a nápověda" },
     approvals: { title: "Schválení", description: "Akce agentů čekající na vaše schválení" },
+    mailing: { title: "Mailing", description: "Rozeslání e-mailu na segment (waitlist, klienti)" },
 }
 
 export default function InstagramPage() {
@@ -92,6 +94,7 @@ export default function InstagramPage() {
                     {activeSection === "brain" && <BrainTab projectId={projectId} />}
                     {activeSection === "faq" && <FaqTab />}
                     {activeSection === "approvals" && <ApprovalsTab projectId={projectId} />}
+                    {activeSection === "mailing" && <MailingTab />}
                 </motion.div>
             </AnimatePresence>
 

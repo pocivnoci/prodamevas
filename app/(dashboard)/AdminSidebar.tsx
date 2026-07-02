@@ -64,6 +64,7 @@ const ADMIN_GROUP: NavGroup = {
         { id: "approvals", label: "Schválení", icon: "✅" },
         { id: "onboard", label: "Onboarding", icon: "➕" },
         { id: "waitlist", label: "Waitlist", icon: "🔑" },
+        { id: "mailing", label: "Mailing", icon: "✉️" },
     ],
 }
 
@@ -106,7 +107,7 @@ function NavButton({ item, active, onSelect }: {
 export function AdminSidebar() {
     const pathname = usePathname()
     const [open, setOpen] = useState(false)
-    const { activeSection, setActiveSection, projectId, setProjectId, subscription, subscriptionLoading } = useStudio()
+    const { activeSection, setActiveSection, projectId, setProjectId, subscription, subscriptionLoading, setGenerateIntent } = useStudio()
     const [clients, setClients] = useState<ClientInfo[]>([])
     const [isAdmin, setIsAdmin] = useState(false)
 
@@ -197,12 +198,13 @@ export function AdminSidebar() {
                 <div className="px-4 py-3 border-b border-white/5">
                     <button
                         onClick={() => {
+                            setGenerateIntent({ mode: "plan", duration: "month" })
                             setActiveSection("generate")
                             setOpen(false)
                         }}
                         className="w-full py-3 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all shadow-[0_0_20px_rgba(229,83,63,0.25)] flex items-center justify-center gap-2"
                     >
-                        <span>✨</span> Vytvořit příspěvek
+                        <span>📅</span> Obsah na měsíc
                     </button>
                 </div>
 

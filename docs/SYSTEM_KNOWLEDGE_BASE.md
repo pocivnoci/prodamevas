@@ -247,6 +247,8 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 | `subscription_plans` | `id`, `name`, `price_czk`, `features` | Plan definitions — v4 media-weighted re-budget (`20260702_media_weighted_credits.sql`): `chrlit_start` (490 Kč/**20** kr, image+carousel), `chrlit_rust` (990 Kč/**45** kr, +post_variant +reel +growth_tracking), `chrlit_dominance` (1990 Kč/**110** kr, +product studio +priority); `trial_v2` má nově `allowed_media: image+carousel`. Kredit ≈ $0.30 COGS: image 1 / carousel 3 / reel 5 (`lib/credits.ts`). Features JSON: `allowed_media[]` (chybí = vše povoleno, legacy), `growth_tracking` bool. Staré `chrlit` deaktivováno (grandfathered) |
 | `subscriptions` | `client_id`, `plan_id`, `status`, `plan_posts_unlocked`, `recurring_trans_id`, `billing_failures` | Active subscriptions — `activatePaidPlan(clientId, planId, subId?)` aktivuje zaplacený plán (z pending sub) a cancelne ostatní live subs klienta. `recurring_trans_id` = Comgate INIT token pro auto-renewal (billing-worker), `billing_failures` = dunning counter (migrace `20260702_recurring_billing.sql`) |
 | `payments` | `comgate_trans_id`, `amount`, `status` | Comgate payments |
+| `waitlist` | `email`, `created_at` | Zájemci z landing page; segment pro admin Mailing panel |
+| `email_optouts` | `email` (PK), `created_at` | Globální unsubscribe (per email) — Mailing broadcasty je filtrují; plní public `/api/email/unsubscribe` (`20260703_email_optouts.sql`) |
 | `ig_growth_snapshots` | `client_id`, `follower_count`, `following_count`, `media_count`, `captured_at` | Týdenní follower snapshoty (cron po 6:00 UTC) pro plány s `growth_tracking` — growth dashboard v PerformanceTab |
 | `ig_connections` | `client_id`, `provider`, unique `(client_id, provider)`, `ig_user_id`, `ig_username`, `access_token` (AES-256-GCM ciphertext), `refresh_token`, `scopes[]`, `token_expires_at`, `status`, `metadata` jsonb | Per-tenant OAuth credential vault. **Multi-provider** (`provider ∈ instagram/linkedin/facebook/email`) — one row per (tenant, provider); core-hardening Fáze 1. IG module (`instagram/ig-connection.ts`) tags rows `'instagram'`. **RLS deny-all** → jen service-role; token nikdy nejde do prohlížeče ani do `clients.config`. Šifrování `lib/ig-token-crypto.ts` |
 | `agent_tasks` | `client_id` (nullable), `type`, `payload` jsonb, `status` (pending/running/done/failed), `priority`, `attempts`/`max_attempts`, `scheduled_for`, `lease`, `result`, `error` | **Fáze 2** durable task queue. Generic runner `lib/agent-runner.ts` (`registerHandler`/`enqueueTask`/`drainTasks`, PostgREST-safe two-update lease claim) drained by `/api/cron/agent-worker`. Any new agent = registered `type`. RLS deny-all |
@@ -307,6 +309,7 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 | `GET /api/ig-connect/start` | ✅ requireProjectAccess | 10s | Začátek IG OAuth — podepíše `state` a redirectne na Instagram authorize |
 | `GET /api/ig-connect/callback` | ❌ (signed state) | 30s | IG OAuth callback — code→long-lived token, uloží šifrované do `ig_connections` |
 | `POST /api/data-deletion` | ❌ (Meta signed_request) | 10s | Meta data deletion callback — smaže `ig_connections` daného ig_user_id |
+| `GET /api/email/unsubscribe` | ❌ (HMAC podpis emailu) | 10s | Public one-click unsubscribe — ověří podpis (`lib/email-sign.ts`), zapíše `email_optouts`, vrátí CZ potvrzení |
 
 > `POST /api/ig-generate` byl odstraněn (v4.1) — obcházel rate limit i kredity a UI ho nepoužívalo.
 
@@ -374,7 +377,8 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 | `COMGATE_SECRET` | Yes for payments | lib/comgate.ts |
 | `COMGATE_MOCK` | Optional (ignored on prod) | lib/comgate.ts — isMockPaymentMode() |
 | `COMGATE_RECURRING` | Optional (gate auto-renewal) | `=1` zapne `initRecurring` na prvních platbách + recurring charge v billing-workeru. NEZAPÍNAT dřív, než Comgate smluvně povolí „opakované platby" — jinak selže vytvoření platby |
-| `RESEND_API_KEY` / `REPORT_FROM_EMAIL` | Optional | `lib/email.ts` — billing e-maily (reminder / failed charge / expiry) + weekly report; chybí = e-maily se tiše přeskočí |
+| `RESEND_API_KEY` / `REPORT_FROM_EMAIL` | Optional | `lib/email.ts` — billing e-maily (reminder / failed charge / expiry) + weekly report + **admin Mailing broadcasty**; chybí = e-maily se tiše přeskočí. Free tier: 100/den, 3 000/měs (Mailing capuje běh na 100 a reportuje zbytek) |
+| `EMAIL_SECRET` | Optional | HMAC klíč pro podpis unsubscribe odkazů (`lib/email-sign.ts`); fallback `CRON_SECRET` → `SUPABASE_SERVICE_ROLE_KEY` |
 | `REELS_ENABLED` | Optional (default OFF) | `=1` zapne Veo reels (kill-switch čtou `autopilot.ts`, `content-plan-actions.ts`, billing charge odhady). Zapnout až PO nasazení media-weighted kreditů |
 | `PIPELINE_BESTOF2` | Optional (default OFF) | `=1` zapne best-of-2 caption path (2 paralelní drafty → ranking judge → ≤1 opravné kolo). Měřeno přes `ig_generation_log.strategy` + týdenní report; default flip = lidské rozhodnutí |
 | `NEXT_PUBLIC_SITE_URL` | Yes | auth callback, payments |

@@ -182,7 +182,12 @@ function computeActionItems(stats: DashboardStats): ActionItem[] {
 // ═══════════════════════════════════════════════════════════
 
 export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string; onOpenTutorial?: () => void }) {
-    const { setActiveSection } = useStudio()
+    const { setActiveSection, setGenerateIntent } = useStudio()
+    // Deep-link into GenerateTab pre-configured (hero + secondary CTAs).
+    const goGenerate = (intent: { mode: "plan" | "single"; duration?: "1w" | "2w" | "month" }) => {
+        setGenerateIntent(intent)
+        setActiveSection("generate")
+    }
     const [stats, setStats] = useState<DashboardStats | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(false)
@@ -246,6 +251,46 @@ export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string;
 
     return (
         <div className="space-y-5">
+
+            {/* ──── HERO: OBSAH NA MĚSÍC (the money action) ──── */}
+            <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="relative overflow-hidden rounded-sm border border-aisummit-cinnabar/25 bg-gradient-to-br from-aisummit-cinnabar/10 via-[#0a0a0a] to-[#0a0a0a] p-6 sm:p-7"
+            >
+                <div className="absolute inset-0 bg-gradient-to-r from-aisummit-cinnabar/[0.06] to-transparent pointer-events-none" />
+                <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
+                    <div className="flex items-start gap-4">
+                        <span className="text-3xl sm:text-4xl leading-none">📅</span>
+                        <div>
+                            <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white">Obsah na měsíc</h2>
+                            <p className="text-white/50 text-xs sm:text-sm font-medium mt-1 max-w-md">
+                                AI vytvoří celý měsíc příspěvků. Vy je schválíte, my je zveřejníme.
+                            </p>
+                            <div className="flex items-center gap-4 mt-3">
+                                <button
+                                    onClick={() => goGenerate({ mode: "plan", duration: "1w" })}
+                                    className="text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
+                                >
+                                    nebo: Týden →
+                                </button>
+                                <button
+                                    onClick={() => goGenerate({ mode: "single" })}
+                                    className="text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
+                                >
+                                    Jeden příspěvek →
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => goGenerate({ mode: "plan", duration: "month" })}
+                        className="shrink-0 w-full sm:w-auto px-8 py-3.5 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm text-xs font-black uppercase tracking-widest hover:opacity-90 transition-all shadow-[0_0_30px_rgba(229,83,63,0.3)]"
+                    >
+                        Spustit →
+                    </button>
+                </div>
+            </motion.div>
 
             {/* ──── STATUS BANNER ──── */}
             {status && stats.totalPosts > 0 && (
@@ -424,10 +469,10 @@ export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string;
 
                     {/* Main CTA */}
                     <button
-                        onClick={() => setActiveSection("generate")}
+                        onClick={() => goGenerate({ mode: "plan", duration: "month" })}
                         className="mt-4 w-full py-3 bg-gradient-to-r from-aisummit-cinnabar/80 to-orange-600/60 border border-aisummit-cinnabar/30 text-white rounded-sm text-[10px] font-black uppercase tracking-widest hover:from-aisummit-cinnabar hover:to-orange-600 transition-all shadow-[0_0_20px_rgba(229,83,63,0.15)] hover:shadow-[0_0_30px_rgba(229,83,63,0.3)]"
                     >
-                        🚀 Vytvořit příspěvek
+                        📅 Obsah na měsíc
                     </button>
                 </motion.div>
             </div>
@@ -534,13 +579,13 @@ export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string;
                     <p className="text-4xl mb-4">✨</p>
                     <p className="text-white/60 font-black uppercase tracking-tight text-lg mb-2">Začněte tvořit</p>
                     <p className="text-white/30 text-xs font-medium mb-6 max-w-sm mx-auto">
-                        Ještě nemáte žádné příspěvky. Klikněte na tlačítko níže a nechte AI vytvořit váš první post.
+                        Ještě nemáte žádné příspěvky. Nechte AI připravit obsah na celý měsíc — schválíte a zveřejníte.
                     </p>
                     <button
-                        onClick={() => setActiveSection("generate")}
+                        onClick={() => goGenerate({ mode: "plan", duration: "month" })}
                         className="px-8 py-3 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm text-xs font-black uppercase tracking-widest hover:opacity-90 transition-opacity shadow-[0_0_30px_rgba(229,83,63,0.3)]"
                     >
-                        🚀 Vytvořit první příspěvek
+                        📅 Vytvořit obsah na měsíc
                     </button>
                 </motion.div>
             )}

@@ -24,7 +24,7 @@ import { creditsForMedia } from "@/lib/credits"
 import { trackEvent } from "@/lib/analytics"
 
 export function GenerateTab({ projectId }: { projectId: string }) {
-    const { refreshSubscription, setActiveSection, subscription } = useStudio()
+    const { refreshSubscription, setActiveSection, subscription, generateIntent, setGenerateIntent } = useStudio()
     const reelAllowed = subscription?.allowedMedia?.includes("reel") ?? true
     const { showPlanUnlockModal } = usePaywall()
     const [postTypes, setPostTypes] = useState<IGPostType[]>([])
@@ -450,6 +450,21 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         setBatchCount(durationToCount(planDuration))
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [postsPerWeek])
+
+    // Deep-link intent from a dashboard/sidebar CTA (e.g. "Obsah na měsíc" → plan mode, Měsíc
+    // preset). Applied once on arrival, then cleared so it doesn't re-fire on re-render.
+    useEffect(() => {
+        if (!generateIntent) return
+        if (generateIntent.mode === "plan") {
+            setBatchMode(true)
+            handleDurationChange(generateIntent.duration ?? "month")
+        } else {
+            setBatchMode(false)
+        }
+        setStep(1)
+        setGenerateIntent(null)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [generateIntent])
 
     // Planner: assign posting slots to every plan item from the schedule bar.
     // Overwrites all items (predictable re-distribution); per-item edits below

@@ -22,12 +22,21 @@ export type StudioSection =
     | "brain"
     | "faq"
     | "approvals"
+    | "mailing"
 
 const VALID_SECTIONS: StudioSection[] = [
     "dashboard", "posts", "calendar", "feed", "plan", "generate",
     "ideas", "reviews", "inspiration", "brand", "products",
-    "performance", "settings", "onboard", "waitlist", "brain", "faq", "approvals",
+    "performance", "settings", "onboard", "waitlist", "brain", "faq", "approvals", "mailing",
 ]
+
+/** One-shot intent handed from a CTA (dashboard hero / sidebar) to GenerateTab so it
+ *  opens pre-configured — e.g. "Obsah na měsíc" opens plan mode with month preset.
+ *  GenerateTab applies it once on arrival, then clears it. */
+export interface GenerateIntent {
+    mode: "plan" | "single"
+    duration?: "1w" | "2w" | "month"
+}
 
 function getInitialSection(): StudioSection {
     if (typeof window === "undefined") return "dashboard"
@@ -68,6 +77,8 @@ interface StudioState {
     subscription: SubscriptionState | null
     subscriptionLoading: boolean
     refreshSubscription: () => void
+    generateIntent: GenerateIntent | null
+    setGenerateIntent: (i: GenerateIntent | null) => void
 }
 
 const StudioContext = createContext<StudioState>({
@@ -78,6 +89,8 @@ const StudioContext = createContext<StudioState>({
     subscription: null,
     subscriptionLoading: true,
     refreshSubscription: () => {},
+    generateIntent: null,
+    setGenerateIntent: () => {},
 })
 
 export function StudioProvider({ children }: { children: ReactNode }) {
@@ -90,6 +103,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     const [projectId, setProjectId] = useState("")
     const [subscription, setSubscription] = useState<SubscriptionState | null>(null)
     const [subscriptionLoading, setSubscriptionLoading] = useState(true)
+    const [generateIntent, setGenerateIntent] = useState<GenerateIntent | null>(null)
 
     // Browser back/forward navigation
     useEffect(() => {
@@ -141,6 +155,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             activeSection, setActiveSection,
             projectId, setProjectId,
             subscription, subscriptionLoading, refreshSubscription,
+            generateIntent, setGenerateIntent,
         }}>
             {children}
         </StudioContext.Provider>
