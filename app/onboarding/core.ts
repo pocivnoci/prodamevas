@@ -216,6 +216,31 @@ export async function seedMemoriesFromAnalysis(clientId: string, analysis: Websi
     }
 }
 
+/**
+ * Seed the brand-voice few-shot anchor (config.brandVoiceExamples) from the account's OWN
+ * best posts scraped at onboarding. Real high-engagement captions are the truest "this is
+ * how we sound" signal — the cold-start source for the voice-consistency anchor injected by
+ * caption-generator's buildGoldExamplesSection. Top-N by engagement (comments weighted),
+ * skipping trivially short captions. No-op if examples were already curated.
+ */
+export function seedVoiceExamplesFromIG(
+    config: ClientConfig,
+    recentPosts: { caption: string; likeCount: number; commentCount: number }[],
+    max = 4,
+): void {
+    if (config.brandVoiceExamples && config.brandVoiceExamples.length > 0) return
+    const ranked = (recentPosts || [])
+        .filter(p => (p.caption?.trim().length || 0) >= 40)
+        .map(p => ({ caption: p.caption.trim(), score: (p.likeCount || 0) + (p.commentCount || 0) * 3 }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, max)
+    if (ranked.length === 0) return
+    config.brandVoiceExamples = ranked.map(r => ({
+        caption: r.caption,
+        note: 'reálný top-post značky (vysoký engagement)',
+    }))
+}
+
 // ============================================
 // STEP 1B: MANUAL ANALYSIS CORE (no website, no IG)
 // ============================================
@@ -645,6 +670,12 @@ Pravidla: buď konkrétní, ne generický. Žádné prázdné fráze typu 'buďt
         }
     } catch (styleErr) {
         console.warn(`⚠️ Communication style generation failed: ${(styleErr as Error).message}`)
+    }
+
+    // Voice anchor: seed few-shot examples from the brand's own best posts (few-shot beats
+    // abstract trait lists for voice consistency). Non-fatal, skipped if no IG scrape.
+    if (analysis.igProfile?.recentPosts?.length) {
+        seedVoiceExamplesFromIG(config, analysis.igProfile.recentPosts)
     }
 
     // Generate brand-specific post formats (best-effort) — replaces the generic

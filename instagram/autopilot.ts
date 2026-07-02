@@ -15,7 +15,7 @@
 
 import supabaseAdmin from "../supabase/admin"
 import { generateTextQuality } from "./gemini-client"
-import { getModel, hasFallback } from "./models"
+import { getModel, hasFallback, getTemperature } from "./models"
 import {
     getActivePostTypes,
     getRecentPosts,
@@ -49,7 +49,7 @@ import {
     buildMegaPrompt,
     scorePost,
 } from "./caption-generator"
-import { getBrandMemories, formatMemoriesForPrompt } from "./memory-agent"
+import { getBrandMemories, formatMemoriesForPrompt, learnFromCriticInsights } from "./memory-agent"
 import { reviewPost, reviewContentPlan } from "./editorial-board"
 import type { EditorialMessage } from "./types"
 
@@ -390,7 +390,7 @@ export async function generateOnePost(options: {
 
     // Inject brand memories (long-term learning from past performance)
     try {
-        const memories = await getBrandMemories(8)
+        const memories = await getBrandMemories(8, clientUuid, _getPillarForType(selectedType.name))
         if (memories.length > 0) {
             megaPrompt += formatMemoriesForPrompt(memories)
             console.log(`   🧠 Brand memory: ${memories.length} vzorců načteno`)
@@ -463,7 +463,7 @@ export async function generateOnePost(options: {
     const captionLadder = [getModel("textPro")]
     if (hasFallback("textPro")) captionLadder.push(getModel("textPro", "fallback"))
     let captionModel = captionLadder[0] // actual winning model, for truthful model_used logging
-    const rawText = await generateTextQuality(megaPrompt, { models: captionLadder, responseSchema: schema, label: "copywriter", onModelUsed: m => { captionModel = m } })
+    const rawText = await generateTextQuality(megaPrompt, { models: captionLadder, responseSchema: schema, label: "copywriter", temperature: getTemperature("copywriter"), onModelUsed: m => { captionModel = m } })
     cost += COSTS.textGeneration
 
     let captionData: {
@@ -510,7 +510,7 @@ export async function generateOnePost(options: {
         // the Pro ladder is busy (QualityUnavailable) or the JSON is bad, keep the original
         // rather than fail the post.
         try {
-            const retryText = await generateTextQuality(retryPrompt, { models: captionLadder, responseSchema: schema, label: "copywriter-dedup" })
+            const retryText = await generateTextQuality(retryPrompt, { models: captionLadder, responseSchema: schema, label: "copywriter-dedup", temperature: getTemperature("copywriter") })
             cost += COSTS.textGeneration
             const jsonMatch = retryText.match(/\{[\s\S]*\}/)
             captionData = JSON.parse(jsonMatch?.[0] || retryText)
@@ -677,6 +677,12 @@ export async function generateOnePost(options: {
             criticFix: detail?.feedback.fix,
             qaStatus: renderResult?.qaStatus,
         })
+
+        // Close the loop: persist recurring critic "fix" notes into brand memory so they
+        // become standing "avoid" rules instead of expiring after 5 posts. Fire-and-forget.
+        if (detail?.feedback?.fix?.length) {
+            learnFromCriticInsights(clientUuid, detail.feedback.fix, post.id, _getPillarForType(selectedType.name)).catch(() => {})
+        }
 
         console.log(`   ✓ ID: ${post.id}`)
     }

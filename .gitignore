@@ -54,3 +54,6 @@ instagram/reference-images/
 *.canvas
 gemini-logs.csv
 /2026-*.md
+
+# supabase local CLI state (not source)
+supabase/.temp/

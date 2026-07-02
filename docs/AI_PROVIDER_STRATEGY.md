@@ -1,0 +1,172 @@
+# AI Provider Strategy & Consistency Audit
+
+> **Status:** Strategy / audit — written 2026-06-30. Drives the multi-phase consistency program tracked in this repo.
+> **Scope:** Every AI API call in the engine, the multi-agent relationships, why posts drift in voice/style, and the per-agent verdict on Gemini vs. Claude vs. OpenAI.
+
+---
+
+## 0. TL;DR
+
+The engine is **100% Google Gemini** today, through one gateway (`instagram/gemini-client.ts`) and one model registry (`instagram/models.ts`). The architecture is already strong — multi-agent pipeline, learning loops, an A/B variant system.
+
+**The inconsistency is mostly structural/tuning, not a model-provider deficiency.** Two facts dominate:
+
+1. **No temperature is set on any text agent** → the Copywriter *and the Critic/Chief-Editor judges* run at Gemini's default (~1.0), the most random setting. An unstable judge can't enforce consistency.
+2. **The audience persona is picked at random every post** (`Math.random()`), so the brand's tone, pain-points and CTA intensity whiplash post-to-post — plus 4 random hook templates and 6 random CTAs per post.
+
+**Provider verdict:** keep **all visual/audio + high-volume text on Gemini** (Nano Banana Pro and Veo are best-in-class and the native-typography render depends on them). Add **exactly one** new provider — **Claude** — at the **judge layer** (Critic + Chief Editor) for *adversarial cross-family review*, and as a *measured A/B arm* for the copywriter. Net new dependency: one.
+
+**Honest expectation:** provider-swapping alone = modest. The big jump is the **combination**: explicit temperatures + deterministic identity + few-shot voice anchors + a reliable cross-family judge + measurement.
+
+---
+
+## 1. Full AI call inventory (the audit)
+
+All calls route through `instagram/gemini-client.ts`. Model IDs come from `instagram/models.ts` via `getModel(action[, "fallback"])`, env-overridable with `GEMINI_MODEL_<ACTION>[_FALLBACK]`.
+
+### 1.1 Gateway functions (`gemini-client.ts`)
+
+| Function | Tier | Primary → fallback | Notes |
+|---|---|---|---|
+| `generateText` | fast | `gemini-3.5-flash` → `gemini-2.5-flash` | JSON via native `responseSchema`. Falls back on 503/429/404. |
+| `generateTextQuality` | quality ladder | `gemini-pro-latest` → `gemini-2.5-pro` | **Never degrades to flash.** Retries top Pro hard on 503/429; throws `QualityUnavailableError` if exhausted. |
+| `generateImage` / `generateImageWithReferences` / `editExistingImage` | image | `gemini-3-pro-image` → `gemini-3.1-flash-image` | Nano Banana Pro; renders Czech typography + logo from up to 4 labeled reference images. |
+| `generateVideo` | video | `veo-3.1-{lite,fast,premium}` (no cross-tier fallback) | Async op polling every 10s. |
+| `generateVoiceover` | tts | `gemini-3.1-flash-tts-preview` → `gemini-2.5-flash-preview-tts` | Czech, mood + expressive tags. |
+| `detectLogoPlacementArea` / `analyzeImagesWithText` | vision | `gemini-3.5-flash` | Multimodal JSON. |
+
+### 1.2 Registry actions (`models.ts`) — 11 total
+
+`text`, `textPro`, `designer`, `vision`, `visionQA`, `image`, `imageCheap`, `videoLite`, `videoFast`, `videoPremium`, `tts`. The Pro tier uses the **`gemini-pro-latest` alias** (auto-rotates to current GA Pro; currently `gemini-3.1-pro-preview`) so a shutdown can't 404 a pinned ID.
+
+### 1.3 Call sites by purpose (~28 distinct)
+
+| Purpose | Function | Action / model | Temp | File |
+|---|---|---|---|---|
+| Post ideas | `generateText` | `text` (flash) | default | `idea-generator.ts:98` |
+| Synthetic reviews | `generateText` | `text` (flash) | default | `review-generator.ts:99` |
+| Context pulse | `generateText` | `text` (flash) | default | `context-agent.ts:186` |
+| Weekly content plan | `ai.models.generateContent` | `text` (flash) | default | `content-planner.ts:194` |
+| **Copywriter (caption)** | `generateTextQuality` | `textPro` (Pro) | **default ~1.0** | `caption-generator.ts` |
+| **Critic score (1-10)** | `generateTextQuality` | `textPro` (Pro) | **default ~1.0** | `caption-generator.ts:~801` |
+| Caption revision | `generateTextQuality` | `textPro` (Pro) | default | `caption-generator.ts:~914` |
+| **Chief Editor plan/post review** | `generateTextQuality` | `textPro` (Pro) | **default ~1.0** | `editorial-board.ts:221,561` |
+| Strategist / copywriter revision | `generateTextQuality` | `textPro` (Pro) | default | `editorial-board.ts:294,650` |
+| Overlay composition check | `ai.models.generateContent` | `vision` (flash) | default | `editorial-board.ts:736` |
+| Memory: text/visual/variant/revision learning | `ai.models.generateContent` | `text` (flash) | default | `memory-agent.ts` |
+| AI Designer brief | `generateTextQuality` | `designer` (Pro) | high | `image-pipeline.ts` |
+| Image prompt / video prompt refine | `generateTextQuality` | `designer` (Pro) | default | `image-pipeline.ts` |
+| Image render + corrective edit | `generateImageWithReferences` / `editExistingImage` | `image` | n/a | `orchestrators/*` |
+| Vision QA (`verifyNativeImage`) | quality vision | `visionQA` (Pro) | n/a | `image-pipeline.ts` |
+| Video render | `generateVideo` | `video*` | n/a | `reel-orchestrator.ts` |
+| Voiceover | `generateVoiceover` | `tts` | n/a | `reel-orchestrator.ts` |
+| Brand image tagging | `ai.models.generateContent` | `vision` (flash) | 0.2 | `brand-tagger.ts` |
+| Feed visual profile | `analyzeImagesWithText` | `vision` (flash) | default | `feed-vision.ts` |
+| Product ideas / design concepts / mockups | `generateText` / image | `text` / `image` | default | `product-generator.ts` |
+
+**Cost reference (`caption-generator.ts` COSTS):** flash text $0.025 · designer brief $0.03 · Nano Banana Pro image $0.134 · image QA $0.01 · Veo $0.06–0.40/s · TTS $0.02. Per-post ≈ $0.27 image / $0.75 carousel / $1.45 reel.
+
+> **Audit note:** `temperature` is only sent when a caller explicitly passes it (`gemini-client.ts:68,92`). Almost no text caller does → Gemini default applies. `brand-tagger.ts` (0.2) is the lone exception.
+
+---
+
+## 2. Agent relationship map
+
+`autopilot.ts:generateOnePost()` runs this chain (each stage's output feeds the next):
+
+```
+Researcher ─ weighted-random post TYPE (memory-boosted)         autopilot.ts:142-177
+           └ weighted-random IDEA/REVIEW (perf-decay + explore) service.ts:403-477
+Context Agent ─ calendar signals + 1 Gemini-Flash "pulse"       context-agent.ts (6h cache)
+Copywriter ─ buildMegaPrompt (Pro) → caption JSON               caption-generator.ts:440-719
+Critic ─ scorePost 1-10 + keep[]/fix[] (Pro)                    caption-generator.ts:737-832
+Editorial Board ─ Chief Editor ⇄ Copywriter, ≤3 rounds (Pro)    editorial-board.ts:493-709
+Art Director ─ generateDesignBrief (Pro, high temp)            image-pipeline.ts:257-356
+Renderer ─ Nano Banana Pro + refs → Vision QA → corrective edit orchestrators/*
+Save ─ ig_posts + ig_generation_log                            autopilot.ts:636-682
+```
+
+**What each agent can see:**
+- **Copywriter** sees: brand voice, tone-by-type, selected idea/product, **1 random persona**, 4 random hook templates, 6 random CTAs, performance patterns, **top-8 brand memories**, last-5 critic keep/fix, context pulse, recent captions (dedup).
+- **Critic** sees only the generated caption + brand voice (not the source idea).
+- **Chief Editor** sees caption + critic feedback + conversation history across rounds; **Copywriter can "pushback."**
+- **Art Director** sees caption + brand kit + visual memories + recent design fingerprints (must diverge); **does not see** the critic/editor.
+
+**Learning loops (feedback):**
+- Post metrics → `propagateMetricsToSources()` → `performance_score` on ideas/reviews → weighted selection (`service.ts:323-477`).
+- Critic scores → `ig_generation_log` → last-5 injected into next prompt (`autopilot.ts:402-433`).
+- `memory-agent.ts` learns patterns/preferences/avoids/visual into `ig_brand_memory`; A/B winner + user revision feed it.
+
+---
+
+## 3. Where randomness enters (the consistency-vs-creativity tension)
+
+| # | Stage | Mechanism | File |
+|---|---|---|---|
+| 1 | Post type | weighted `Math.random()` | `autopilot.ts:175` |
+| 2 | Idea/review | weighted shuffle | `service.ts:441` |
+| 3 | **Audience persona** | **1 random of N per post** | `caption-generator.ts:460-462` |
+| 4 | Hook templates | 4 random | `caption-generator.ts:456` |
+| 5 | CTA variations | 6 random | `caption-generator.ts:457` |
+| 6 | Overlay variant | random, avoids last 2 | `caption-generator.ts` |
+| 7 | Hashtag fill | random shuffle | `autopilot.ts:574` |
+| 8 | Product | random of top-3 LRU | `autopilot.ts:284` |
+| 9 | **Copywriter output** | **temp ~1.0** | `caption-generator.ts` |
+| 10 | **Art Director brief** | **high temp + forced divergence** | `image-pipeline.ts` |
+| 11 | Image model | inherent stochasticity | Nano Banana Pro |
+
+Items **3, 4, 5, 9, 10** are the structural inconsistency drivers. The pipeline also *deliberately* forces divergence on the visual side (overlay rotation, hard-banned layout archetypes, "diverge from recent briefs") — good against sameness, but currently overshoots into an incoherent feed.
+
+---
+
+## 4. Diagnosis — why posts drift (ranked by leverage)
+
+1. **Default temperature (~1.0) everywhere.** Over-creative writer; *unreliable judges* that pass off-brand posts. A judge re-scoring the same caption can swing several points.
+2. **Per-post random brand identity** (persona/hooks/CTAs) → tone whiplash.
+3. **No canonical voice anchor.** Voice is abstract free-text traits, re-interpreted each call. **No few-shot gold examples** of "this is exactly how we sound" — the single biggest text-consistency lever LLMs respond to.
+4. **Visual anti-repetition over-tuned.** Forces a different *vibe* per post, not just a different *layout*.
+5. **Open/lossy learning.** Critic/Editor insights never persist (expire after 5 posts); memory retrieval is top-8 with no post-type scoping; config-vs-memory conflicts unresolved.
+6. **Same-family judging.** Writer + judges all Gemini Pro → self-preference bias; blind to that family's failure modes.
+
+---
+
+## 5. Provider strategy — per-agent verdict (the "what's best")
+
+**Principle:** *the writer and its judge must be different model families* — "adversarial cross-family review" — so the gate catches what the writer's family can't see.
+
+| Agent / call | Now | Verdict | Why |
+|---|---|---|---|
+| **Image** (Nano Banana Pro) | Gemini | **STAY** | Native Czech typography + logo/product fidelity from reference images. No competitor matches the multi-ref workflow the render depends on. |
+| **Video** (Veo 3.1) | Gemini | **STAY** | Best-in-class; reference-image conditioning keeps reels on-brand. |
+| **TTS** | Gemini | **STAY** | Czech + expressive tags, cheap; ~zero leverage to change. |
+| **Fast text** (ideas, reviews, context, plan, memory, tagging) | Gemini Flash | **STAY** | High-volume, latency-sensitive, cheap; divergence here is desirable. |
+| **Vision QA** (`verifyNativeImage`) | Gemini Pro | **STAY** | Reading rendered Czech diacritics is multimodal + render-coupled, not a taste call. |
+| **Copywriter** (caption ≈ 80% of text quality) | Gemini Pro | **STAY now + Claude A/B arm** | Biggest wins are temp + few-shot, not provider. Route a Claude variant through the **existing A/B system** and let winners + engagement decide. Keeps writer ≠ judge family. |
+| **Critic** (1-10 score) | Gemini Pro | **→ Claude** | Cross-family judge removes self-preference; strong evaluative reasoning; **low temp = reliable gate**, which is what enforces consistency. |
+| **Chief Editor** (board) | Gemini Pro | **→ Claude** | The nuanced-judgment layer Claude is strongest at. |
+| **Embeddings** (NEW: consistency score + semantic dedup) | none | **ADD — Gemini embeddings** | Keeps net-new providers to exactly one (Claude). OpenAI `text-embedding-3` is a drop-in alt. |
+
+**Claude models:** Sonnet 4.6 (`claude-sonnet-4-6`) for judges (fast, strong, cost-sensible across ≤3 rounds); Opus 4.8 (`claude-opus-4-8`) as the high tier + Claude copywriter A/B arm. Confirm exact IDs + pricing via the `claude-api` reference. Claude IDs live in `models.ts` behind `getModel()` (repo hard rule).
+
+**Why not OpenAI as a core agent:** for Czech voice *taste/judgment* the real contest is Gemini vs. Claude; a third family adds sprawl without a distinct edge. Its one niche (embeddings) is covered by Gemini. Keep GPT documented as a fallback, not a dependency.
+
+---
+
+## 6. The complex solution — phased program
+
+**Phase 1 — Tuning & determinism (Gemini-only, low-risk):** explicit temperatures (judges 0.2-0.3, copywriter ~0.75, ideas ~0.9); deterministic pillar→persona mapping; proven-biased hook/CTA selection; stable visual "house-style spine" (lock type family + grading + logo, rotate only layout skeleton).
+
+**Phase 2 — Voice anchoring & closed loops:** few-shot gold-example set injected into `buildMegaPrompt` (seeded at onboarding, auto-promoted from A/B winners + top posts, user-curatable); persist Critic/Editor insights into `ig_brand_memory`; pillar-scoped memory retrieval + explicit config-vs-memory priority.
+
+**Phase 3 — Cross-family judge:** `provider` field on `models.ts`; `instagram/anthropic-client.ts` mirroring `generateTextQuality` (+ `QualityUnavailableError`); dispatcher routes only judge call sites; Critic + Chief Editor → Claude Sonnet 4.6 (low temp); Claude copywriter A/B arm via the variant system.
+
+**Phase 4 — Measurement:** `instagram/consistency.ts` — embed captions (Gemini) → cosine vs gold set → 0-100 brand-consistency score in `ig_generation_log`; semantic dedup replacing word-overlap. Optional: consolidate text layer onto the Vercel AI SDK + AI Gateway for unified observability/fallback (image/video/TTS stay on `@google/genai`).
+
+---
+
+## 7. Expected impact & cost
+
+- **Phases 1-2 (Gemini-only)** likely deliver the *majority* of the felt consistency improvement at zero new infra.
+- **Phase 3** raises the ceiling and makes the quality gate *trustworthy* (the reliable judge is what actually enforces brand consistency).
+- **Cost:** Claude judges add modest per-post cost (≤3 rounds, Sonnet 4.6), gated behind the registry so it's tunable. All visual/audio costs unchanged.
+- **Balance:** Phases 1-2 reduce *random* variance, not *intentional* creative variance — topic/idea divergence and layout-skeleton rotation stay. Target = **consistent voice, varied execution.**

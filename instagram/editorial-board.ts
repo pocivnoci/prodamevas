@@ -19,7 +19,8 @@
  */
 
 import { generateTextQuality } from "./gemini-client"
-import { getModel, hasFallback } from "./models"
+import { getModel, hasFallback, getTemperature } from "./models"
+import { judgeText } from "./judge"
 
 // Editorial Board (Chief Editor reviews + revisions) is quality reasoning → it runs
 // the Pro ladder (textPro: gemini-pro-latest → gemini-2.5-pro, never flash), retried
@@ -218,7 +219,8 @@ export async function reviewContentPlan(
         // Chief Editor reviews
         console.log(`\n🎖️ [Editorial] Content Plan — Kolo ${round}/${MAX_PLAN_ROUNDS}`)
         const reviewPrompt = buildPlanReviewPrompt(config, currentPlan, allMessages, round)
-        const reviewRaw = await generateTextQuality(reviewPrompt, { models: editorialLadder(), label: "editorial-plan-review" })
+        // Chief Editor = judge → cross-family (Claude Sonnet 5) when enabled, else Gemini Pro judge.
+        const reviewRaw = await judgeText(reviewPrompt, { label: "editorial-plan-review" })
         totalCost += COSTS.textGeneration
 
         let review: { verdict: string; feedback: string; issues?: any[]; strengths?: string[] }
@@ -291,7 +293,7 @@ export async function reviewContentPlan(
             editorMessage.content,
             allMessages,
         )
-        const revisionRaw = await generateTextQuality(revisionPrompt, { models: editorialLadder(), label: "editorial-plan-revision" })
+        const revisionRaw = await generateTextQuality(revisionPrompt, { models: editorialLadder(), label: "editorial-plan-revision", temperature: getTemperature("copywriter") })
         totalCost += COSTS.textGeneration
 
         let revision: { action: string; explanation: string; plan: any[] }
@@ -558,7 +560,8 @@ export async function reviewPost(
             allMessages,
             round,
         )
-        const reviewRaw = await generateTextQuality(reviewPrompt, { models: editorialLadder(), label: "editorial-post-review" })
+        // Chief Editor = judge → cross-family (Claude Sonnet 5) when enabled, else Gemini Pro judge.
+        const reviewRaw = await judgeText(reviewPrompt, { label: "editorial-post-review" })
         totalCost += COSTS.textGeneration
 
         let review: { verdict: string; feedback: string; keepElements?: string[]; fixInstructions?: string[] }
@@ -651,6 +654,7 @@ export async function reviewPost(
             models: editorialLadder(),
             responseSchema: copywriterRevisionSchema,
             label: "editorial-post-revision",
+            temperature: getTemperature("copywriter"),
         })
         totalCost += COSTS.textGeneration
 

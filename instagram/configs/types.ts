@@ -60,6 +60,10 @@ export interface ContentPillar {
     ideaPrompt?: string
     /** Sub-categories — specific content angles within this pillar */
     categories?: PillarCategory[]
+    /** Audience persona (by `label`) this pillar speaks to. Pins the target segment so the
+     *  brand voice is coherent within a pillar instead of randomly switching personas per
+     *  post. Falls back to a stable per-post-type persona when unset. See selectPersonaForPost. */
+    targetPersona?: string
 }
 
 // ─── Feed Aesthetic ─────────────────────────────────────────
@@ -159,6 +163,20 @@ export interface AudiencePersona {
     ctaStyle: "soft" | "medium" | "hard"
 }
 
+/** A canonical "this is exactly how we sound" caption — the brand-voice anchor.
+ *  Few-shot examples steer voice far more reliably than abstract trait lists. Seeded at
+ *  onboarding from the brand's real top posts and grown by promoting A/B winners / top
+ *  performers (human-curated). Injected into the copywriter prompt — see
+ *  buildGoldExamplesSection in caption-generator.ts. */
+export interface BrandVoiceExample {
+    /** The exemplar caption text (real, approved). */
+    caption: string
+    /** Optional: why it's exemplary / when it applies — helps the model generalize. */
+    note?: string
+    /** Optional: the post type this exemplifies (used to prefer relevant examples). */
+    postType?: string
+}
+
 // ─── Image Brief (Shot List) ───────────────────────────────
 
 /** AI-generated shot list item — tells client what photos to provide */
@@ -192,6 +210,11 @@ export interface ClientConfig {
 
     /** Brand voice configuration (persona, hooks, tones, anti-patterns) */
     brandVoice: BrandVoiceConfig
+
+    /** Canonical voice examples ("this is exactly how we sound") — few-shot anchor injected
+     *  into every caption prompt. The strongest lever for post-to-post voice consistency.
+     *  Empty = cold start (section skipped gracefully). See validateConfig() default. */
+    brandVoiceExamples?: BrandVoiceExample[]
 
     /** Content pillars for Growth Engine */
     contentPillars: Record<string, ContentPillar>

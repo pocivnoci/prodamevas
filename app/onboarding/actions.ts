@@ -6,7 +6,7 @@ import { requireAuth } from '@/lib/auth-guard'
 import { generateText } from '@/instagram/gemini-client'
 import { getModel } from '@/instagram/models'
 import { ensurePostTypes } from '@/instagram/service'
-import { generateCustomFormats } from '@/app/onboarding/core'
+import { generateCustomFormats, seedVoiceExamplesFromIG } from '@/app/onboarding/core'
 import type { ClientConfig } from '@/instagram/configs/types'
 import { fetchInstagramProfile, estimatePostsPerWeek, type IgProfileData } from '@/lib/ig-scraper'
 
@@ -933,6 +933,11 @@ DŮLEŽITÉ:
             // recent posts don't carry enough dated signal. validateConfig clamps it 1–7.
             const perWeek = estimatePostsPerWeek(analysis.igProfile.recentPosts.map(p => p.timestamp))
             if (perWeek) config.postsPerWeek = perWeek
+        }
+        // Voice anchor: seed few-shot "this is how we sound" examples from the brand's own
+        // top posts — the cold-start source for post-to-post voice consistency.
+        if (analysis.igProfile?.recentPosts?.length) {
+            seedVoiceExamplesFromIG(config, analysis.igProfile.recentPosts)
         }
         // Set logo file if it was downloaded
         if (analysis.logoDownloaded) {

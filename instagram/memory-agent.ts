@@ -42,12 +42,18 @@ export interface BrandMemory {
  * Get the most confident brand memories for a client.
  * These are injected into the Copywriter's mega prompt as context.
  */
-export async function getBrandMemories(limit = 10, clientId?: string): Promise<BrandMemory[]> {
-    const { data, error } = await supabaseAdmin
+export async function getBrandMemories(limit = 10, clientId?: string, pillar?: string): Promise<BrandMemory[]> {
+    let query = supabaseAdmin
         .from("ig_brand_memory")
         .select("*")
         .eq("client_id", clientId ?? getActiveProject())
         .gte("confidence", 0.4) // Only include reasonably confident memories
+    // Pillar scoping: include global (NULL) memories PLUS any tagged for THIS pillar, so a
+    // lesson learned in one pillar doesn't bleed into another. Existing memories are all NULL
+    // → behaviour is unchanged until memories start getting tagged. Regex-guarded (pillar keys
+    // are internal config slugs) so a stray value can't break the .or() filter.
+    if (pillar && /^[\w-]+$/.test(pillar)) query = query.or(`pillar.is.null,pillar.eq.${pillar}`)
+    const { data, error } = await query
         .order("confidence", { ascending: false })
         .limit(limit)
 
@@ -90,6 +96,93 @@ export function formatMemoriesForPrompt(memories: BrandMemory[]): string {
     section += `\n\n⚠️ INSTRUKCE: Využij tyto vzorce jako základ. Nejsou dogma — kreativně je aplikuj.`
 
     return section
+}
+
+// ============================================
+// GENERATION-TIME LEARNING (upsert + critic insights)
+// ============================================
+
+/**
+ * Upsert-or-reinforce a single brand memory — the same dedup + confidence pattern
+ * analyzeAndLearn uses: if a semantically-similar memory of the same type exists, bump its
+ * confidence (+0.1) and times_confirmed; otherwise insert a new one. Factored out so
+ * generation-time learners (below) reuse it without touching the metrics-driven loop.
+ * Takes clientId explicitly (no getActiveProject) per the engine convention.
+ */
+export async function upsertMemory(
+    clientId: string,
+    memory: { type: "pattern" | "preference" | "avoid" | "visual"; content: string; confidence: number; sourcePostIds?: string[]; pillar?: string | null },
+): Promise<void> {
+    const content = memory.content.trim()
+    if (!content) return
+
+    const { data: sameType } = await supabaseAdmin
+        .from("ig_brand_memory")
+        .select("id, content, confidence, times_confirmed, source_post_ids, pillar")
+        .eq("client_id", clientId)
+        .eq("memory_type", memory.type)
+
+    const srcIds = memory.sourcePostIds || []
+    // Dedup WITHIN the same pillar scope — the same insight in two pillars stays two memories.
+    const wantPillar = memory.pillar ?? null
+    const match = (sameType || []).find(m => (m.pillar ?? null) === wantPillar && isSimilarMemory(m.content, content))
+
+    if (match) {
+        const newConfidence = Math.min(1, match.confidence + 0.1)
+        const mergedSources = [...new Set([...(match.source_post_ids || []), ...srcIds])].slice(-20)
+        await supabaseAdmin.from("ig_brand_memory").update({
+            confidence: newConfidence,
+            times_confirmed: (match.times_confirmed || 0) + 1,
+            source_post_ids: mergedSources,
+        }).eq("id", match.id)
+    } else {
+        await supabaseAdmin.from("ig_brand_memory").insert({
+            client_id: clientId,
+            memory_type: memory.type,
+            content,
+            confidence: Math.min(1, Math.max(0.2, memory.confidence)),
+            source_post_ids: srcIds.slice(-10),
+            pillar: wantPillar,
+        })
+    }
+}
+
+/**
+ * Persist the Critic's recurring "fix" notes as low-confidence "avoid" memories so they
+ * become standing rules instead of expiring after 5 posts (the open loop the audit found).
+ * Seeded at 0.3 — BELOW the getBrandMemories retrieval threshold (0.4) — so a one-off fix
+ * stays dormant; only a fix that RECURS across posts is reinforced (+0.1) until it crosses
+ * 0.4 and gets injected into future copywriter prompts. Stale fixes decay back out on their
+ * own. Non-fatal, fire-and-forget from the generation pipeline. Explicit clientId.
+ */
+export async function learnFromCriticInsights(
+    clientId: string,
+    fixItems: string[] | undefined,
+    sourcePostId?: string,
+    pillar?: string | null,
+    max = 3,
+): Promise<void> {
+    try {
+        const items = [...new Set(
+            (fixItems || [])
+                .map(f => (f || "").trim())
+                .filter(f => f.length > 8 && !/^v[šs]e\s*ok/i.test(f)) // skip the "Vše OK" sentinel + noise
+        )].slice(0, max)
+        if (items.length === 0) return
+
+        for (const content of items) {
+            await upsertMemory(clientId, {
+                type: "avoid",
+                content,
+                confidence: 0.3,
+                sourcePostIds: sourcePostId ? [sourcePostId] : [],
+                pillar: pillar ?? null,
+            })
+        }
+        console.log(`   🧠 Persisted ${items.length} critic insight(s) → avoid memory (reinforced on recurrence)`)
+    } catch (err: any) {
+        console.warn("   ⚠️ learnFromCriticInsights failed (non-fatal):", err?.message)
+    }
 }
 
 // ============================================

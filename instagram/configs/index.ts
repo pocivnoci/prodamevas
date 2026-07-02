@@ -79,6 +79,9 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
             toneByPostType: {},
         },
         contentPillars: config.contentPillars || {},
+        // Voice anchor (few-shot). Optional feature — default to empty so the copywriter
+        // prompt simply omits the section until the brand has curated/auto-promoted examples.
+        brandVoiceExamples: config.brandVoiceExamples || [],
         ctaStrategies: config.ctaStrategies || { soft: [], medium: [], hard: [], none: [] },
         feedAesthetic: config.feedAesthetic || {
             colorPalette: "Neutrální",

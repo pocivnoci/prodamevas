@@ -54,6 +54,13 @@ export const MODELS = {
     videoPremium: { primary: "veo-3.1-generate-preview" },
     /** Czech voiceover */
     tts: { primary: "gemini-3.1-flash-tts-preview", fallback: "gemini-2.5-flash-preview-tts" },
+    /** Cross-family JUDGE — Anthropic Claude for the Critic + Chief Editor (the design rule:
+     *  writer family ≠ judge family). A different family from the Gemini copywriter removes
+     *  self-preference bias and makes the quality gate a genuine second opinion. `claude-sonnet-5`
+     *  = current Sonnet (intro pricing $2/$10 per MTok through 2026-08-31). Env override:
+     *  GEMINI_MODEL_JUDGE. Only used when ANTHROPIC_API_KEY is set — otherwise the judge falls
+     *  back to the Gemini `textPro` Pro ladder (unchanged behaviour). See instagram/judge.ts. */
+    judge: { primary: "claude-sonnet-5" },
 } as const
 
 export type ModelAction = keyof typeof MODELS
@@ -73,4 +80,39 @@ export function getModel(action: ModelAction, tier: "primary" | "fallback" = "pr
 
 export function hasFallback(action: ModelAction): boolean {
     return Boolean(process.env[`GEMINI_MODEL_${action.toUpperCase()}_FALLBACK`] || (MODELS[action] as { fallback?: string }).fallback)
+}
+
+/**
+ * Temperature policy — the creativity↔consistency dial, separated by ROLE.
+ * =======================================================================
+ * Set EXPLICITLY because Gemini's default (~1.0, the most random setting) is wrong for
+ * two of our roles:
+ *  - JUDGES (Critic, Chief Editor, plan review) must be near-deterministic — the SAME
+ *    caption has to earn the SAME score, or the quality gate can't enforce brand
+ *    consistency (a noisy judge waves through off-brand posts on a lucky roll).
+ *  - The COPYWRITER was running at ~1.0 → over-random voice post-to-post. Bounded
+ *    creativity (0.75) keeps it lively without whiplash.
+ * Idea/review brainstorming KEEPS high entropy (divergence is the point there).
+ * Override per-environment without a deploy via GEMINI_TEMP_<ROLE> (e.g. GEMINI_TEMP_JUDGE=0.1).
+ */
+export const TEMPERATURES = {
+    /** Critic, Chief Editor, plan/post review — reliability over creativity. */
+    judge: 0.25,
+    /** Copywriter + feedback revision — creative but bounded (was the ~1.0 default). */
+    copywriter: 0.75,
+    /** Ideas / reviews / context pulse — divergence is desirable. */
+    creative: 0.9,
+    /** AI Designer brief — art-directed but coherent: rotate the layout, not the brand vibe. */
+    designer: 0.6,
+} as const
+
+export type TemperatureRole = keyof typeof TEMPERATURES
+
+export function getTemperature(role: TemperatureRole): number {
+    const override = process.env[`GEMINI_TEMP_${role.toUpperCase()}`]
+    if (override !== undefined && override !== "") {
+        const n = Number(override)
+        if (!Number.isNaN(n)) return n
+    }
+    return TEMPERATURES[role]
 }

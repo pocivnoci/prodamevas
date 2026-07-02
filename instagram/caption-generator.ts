@@ -5,8 +5,9 @@
 
 import { Type } from "@google/genai"
 import { generateTextQuality } from "./gemini-client"
-import { getModel, hasFallback } from "./models"
-import type { ClientConfig, PostFormat } from "./configs/types"
+import { judgeText } from "./judge"
+import { getModel, hasFallback, getTemperature } from "./models"
+import type { ClientConfig, PostFormat, AudiencePersona, BrandVoiceExample } from "./configs/types"
 import type { PostType, PostIdea, Review } from "./types"
 import type { HookTemplate } from "./types"
 import type { PerformanceInsight } from "./performance"
@@ -168,6 +169,67 @@ export function getRandomCTAs(config: ClientConfig, count: number = 3): string[]
     return [...config.brandVoice.ctaVariations]
         .sort(() => Math.random() - 0.5)
         .slice(0, count)
+}
+
+/**
+ * Choose the audience persona for a post DETERMINISTICALLY (was random every post).
+ * Random per-post selection made the brand "speak to" a different segment each time —
+ * pain points, triggers and CTA intensity whiplashed, so the feed read as incoherent.
+ * Now:
+ *   1. a post's content pillar can pin a target persona (ContentPillar.targetPersona → label);
+ *   2. otherwise the SAME post type always addresses the SAME persona (stable hash),
+ * so a viewer sees one consistent voice. Variety still comes from the pillar/topic mix,
+ * not from randomly re-segmenting the audience. Pass an explicit override to force one.
+ */
+export function selectPersonaForPost(config: ClientConfig, postTypeName: string): AudiencePersona | undefined {
+    const personas = config.audiencePersonas
+    if (!personas || personas.length === 0) return undefined
+
+    // 1. Explicit pillar → persona pin
+    const pillarKey = getPillarForType(config, postTypeName)
+    const targetLabel = config.contentPillars?.[pillarKey]?.targetPersona
+    if (targetLabel) {
+        const pinned = personas.find(p => p.label === targetLabel)
+        if (pinned) return pinned
+    }
+
+    // 2. Stable fallback — same post type → same persona (deterministic, no per-post RNG)
+    let hash = 0
+    for (let i = 0; i < postTypeName.length; i++) hash = (hash * 31 + postTypeName.charCodeAt(i)) >>> 0
+    return personas[hash % personas.length]
+}
+
+/**
+ * Few-shot VOICE ANCHOR — the strongest single lever for voice consistency.
+ * Abstract trait lists ("friendly, authentic") drift post-to-post; concrete "this is exactly
+ * how we sound" examples don't. Prefers examples tagged with the current post type, then fills
+ * with general ones, and truncates each so the prompt stays bounded. Returns "" when the brand
+ * has no curated examples yet, so cold-start brands degrade gracefully.
+ */
+export function buildGoldExamplesSection(config: ClientConfig, postTypeName: string, max = 4): string {
+    const examples: BrandVoiceExample[] = config.brandVoiceExamples || []
+    if (examples.length === 0) return ""
+
+    // Relevance-first: same post type before general
+    const matching = examples.filter(e => e.postType === postTypeName)
+    const rest = examples.filter(e => e.postType !== postTypeName)
+    const chosen = [...matching, ...rest].slice(0, max).filter(e => e.caption?.trim())
+    if (chosen.length === 0) return ""
+
+    const lines = chosen.map((e, i) => {
+        const text = e.caption.length > 400 ? e.caption.slice(0, 400) + "…" : e.caption
+        return `${i + 1}. "${text}"${e.note ? `\n   → ${e.note}` : ""}`
+    }).join("\n")
+
+    return `
+## ✍️ ZLATÝ STANDARD — TAKHLE ZNÍ NAŠE ZNAČKA (VOICE ANCHOR)
+Tohle jsou schválené ukázky, které PŘESNĚ vystihují náš hlas, rytmus a energii. Napodob jejich
+TÓN, stavbu vět a tempo — NE jejich téma ani konkrétní obsah.
+
+${lines}
+
+⚠️ Nový post musí znít, jako by ho psal stejný autor jako tyhle ukázky: stejný hlas, jiné téma.
+`
 }
 
 // ============================================
@@ -456,10 +518,9 @@ export function buildMegaPrompt(
     const hookTemplates = getHookTemplates(config, postType.name, 4)
     const ctaOptions = getRandomCTAs(config, 6)
 
-    // Audience persona targeting — pick one at random for this post
-    const selectedPersona = config.audiencePersonas && config.audiencePersonas.length > 0
-        ? config.audiencePersonas[Math.floor(Math.random() * config.audiencePersonas.length)]
-        : undefined
+    // Audience persona targeting — DETERMINISTIC per post type/pillar (not random), so the
+    // brand voice stays coherent post-to-post instead of re-segmenting the audience each time.
+    const selectedPersona = selectPersonaForPost(config, postType.name)
     let personaSection = ""
     if (selectedPersona) {
         const persona = selectedPersona
@@ -480,6 +541,9 @@ export function buildMegaPrompt(
     // Psycholog — prodejní psychologie do copywritingu (deterministická vrstva, žádné AI volání).
     // Vypnutelné přes config.psychologist === false. Viz instagram/psychologist.ts.
     const psychologySection = config.psychologist !== false ? buildPsychologistSection(selectedPersona) : ""
+
+    // Canonical voice examples — the few-shot anchor that keeps the brand sounding like itself.
+    const goldExamplesSection = buildGoldExamplesSection(config, postType.name)
 
     let learningSection = ""
     if (performance.topPatterns.length > 0 || performance.bestHooks.length > 0) {
@@ -571,6 +635,7 @@ ${approvedHook ? `## ✅ SCHVÁLENÝ HOOK Z PLÁNU (uživatel ho schválil — V
 ${review ? `## RECENZE K VYUŽITÍ
 "${review.quote}" — ${review.customer_initials || "Zákazník"}
 ` : ""}
+${goldExamplesSection}
 ${learningSection}
 ${personaSection}
 ${psychologySection}
@@ -798,9 +863,10 @@ Hashtags: ${captionData.hashtags.join(", ")}
         // same Pro ladder (a flash judge waves through weak posts). If both Pro tiers are
         // down it throws → the catch below passes the post through (don't block a
         // Pro-written caption just because the judge is briefly unavailable).
-        const criticModels = [getModel("textPro")]
-        if (hasFallback("textPro")) criticModels.push(getModel("textPro", "fallback"))
-        const text = await generateTextQuality(scorePrompt, { models: criticModels, label: "critic" })
+        // Cross-family judge: routes to Claude (Sonnet 5) when ANTHROPIC_API_KEY is set — a
+        // different model family from the Gemini writer removes self-preference bias and makes the
+        // gate a real second opinion; otherwise the Gemini Pro judge at low temperature (unchanged).
+        const text = await judgeText(scorePrompt, { label: "critic" })
         const jsonMatch = text.match(/\{[\s\S]*\}/)
         const result = JSON.parse(jsonMatch?.[0] || text)
 
@@ -911,7 +977,7 @@ ${hashtagSection}
     const copyModels = [getModel("textPro")]
     if (hasFallback("textPro")) copyModels.push(getModel("textPro", "fallback"))
 
-    const text = await generateTextQuality(prompt, { models: copyModels, label: "copywriter" })
+    const text = await generateTextQuality(prompt, { models: copyModels, label: "copywriter", temperature: getTemperature("copywriter") })
 
     try {
         return JSON.parse(text.replace(/```json|```/g, "").trim())

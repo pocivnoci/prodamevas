@@ -6,7 +6,7 @@
 
 import { Type } from "@google/genai"
 import { ai, generateTextQuality } from "./gemini-client"
-import { getModel, hasFallback } from "./models"
+import { getModel, hasFallback, getTemperature } from "./models"
 import { isQualityUnavailable } from "../utils/retry"
 
 // Designer's quality ladder: [top Pro, GA Pro], never flash. Built once per call.
@@ -122,7 +122,7 @@ OUTPUT: Single detailed English image prompt (2-3 sentences). NO TEXT IN IMAGE.
         // Pro ladder for the image-prompt (drives the image model); best-effort —
         // fall back to the raw prompt if the Pro tiers are exhausted.
         try {
-            const refined = await generateTextQuality(memePrompt, { models: designerLadder(), label: "image-prompt-meme", json: false })
+            const refined = await generateTextQuality(memePrompt, { models: designerLadder(), label: "image-prompt-meme", json: false, temperature: getTemperature("designer") })
             return refined || captionData.imagePrompt
         } catch { return captionData.imagePrompt }
     }
@@ -175,7 +175,7 @@ The prompt should be 2-3 sentences.
     // directly affects render quality). Best-effort: fall back to the raw prompt.
     let refined: string | undefined
     try {
-        refined = await generateTextQuality(refinementPrompt, { models: designerLadder(), label: "image-prompt", json: false })
+        refined = await generateTextQuality(refinementPrompt, { models: designerLadder(), label: "image-prompt", json: false, temperature: getTemperature("designer") })
     } catch { refined = undefined }
 
     if (!refined) return captionData.imagePrompt
@@ -326,7 +326,7 @@ Return ONLY the JSON design brief.`
     const raw = await generateTextQuality(designerPrompt, {
         models: designerLadder(),
         responseSchema: DESIGN_BRIEF_SCHEMA,
-        temperature: 1.0,
+        temperature: getTemperature("designer"),
         label: "designer",
     })
 
@@ -341,7 +341,7 @@ Return ONLY the JSON design brief.`
         console.warn(`   ⚠️ Designer reused banned archetype "${brief.layoutArchetype}" — regenerating`)
         const retryRaw = await generateTextQuality(
             designerPrompt + `\n\n⚠️ REJECTED: your previous brief used layoutArchetype "${brief.layoutArchetype}", which is FORBIDDEN. Produce a NEW brief with layoutArchetype strictly from: ${allowedArchetypes.join(", ")} — and a composition that actually matches it.`,
-            { models: designerLadder(), responseSchema: DESIGN_BRIEF_SCHEMA, temperature: 1.0, label: "designer-rearchetype" }
+            { models: designerLadder(), responseSchema: DESIGN_BRIEF_SCHEMA, temperature: getTemperature("designer"), label: "designer-rearchetype" }
         )
         try {
             const retry = JSON.parse(retryRaw) as DesignBrief
@@ -457,7 +457,7 @@ Return JSON: { "designSystem": "one paragraph describing the shared system", "br
             },
             required: ["designSystem", "briefs"],
         },
-        temperature: 1.0,
+        temperature: getTemperature("designer"),
         label: "carousel-designer",
     })
 
@@ -529,6 +529,7 @@ Return ONLY valid JSON:
             models: qaModels,
             images: [{ buffer: imageBuffer, mimeType: "image/png" }],
             label: "vision-qa",
+            temperature: getTemperature("judge"),
         })
     } catch (err: any) {
         if (isQualityUnavailable(err)) {
