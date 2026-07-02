@@ -23,6 +23,7 @@ import {
     markIdeaAsUsed,
     markReviewAsUsed,
     logGeneration,
+    scoreConsistencyAndEmbed,
     setActiveProject,
     getActiveProject,
     withActiveProject,
@@ -31,7 +32,7 @@ import {
     getWeightedReviews,
 } from "./service"
 import { loadConfig } from "./configs"
-import type { ClientConfig } from "./configs/types"
+import type { ClientConfig, PostFormat } from "./configs/types"
 import type { PostType, PostIdea, Review } from "./types"
 
 // Module imports (refactored from monolith)
@@ -48,6 +49,7 @@ import {
     buildSmartWeekPlan,
     buildMegaPrompt,
     scorePost,
+    rankDrafts,
 } from "./caption-generator"
 import { getBrandMemories, formatMemoriesForPrompt, learnFromCriticInsights } from "./memory-agent"
 import { reviewPost, reviewContentPlan } from "./editorial-board"
@@ -112,6 +114,32 @@ async function getUsedIdeaIds(): Promise<Set<string>> {
 // SINGLE POST GENERATION
 // ============================================
 
+/**
+ * Intra-post checkpoint persisted to ig_jobs.result after the caption phase
+ * (copywriter + critic + editorial ≈ the expensive Pro calls). A retry of a
+ * failed job resumes from here and goes straight to the visual phase — the
+ * cheap deterministic steps (type/product/format resolution) re-run, the AI
+ * text calls are skipped.
+ */
+export interface CaptionCheckpoint {
+    stage: "caption"
+    captionData: CaptionData & { caption?: string }
+    captionModel: string
+    score: number
+    detail?: { hookScore: number; bodyScore: number; ctaScore: number; originalityScore: number; overall: number; feedback: { keep: string[]; fix: string[] } }
+    format: PostFormat
+    selectedTypeName: string
+    ideaId: string | null
+    reviewId: string | null
+    linkedProductId: string | null
+    megaPromptHead: string
+    costSoFar: number
+    /** Attribution carried through resume so ig_generation_log stays truthful */
+    strategy?: "repair" | "bestof2"
+    editorialRounds?: number
+    finalScore?: number
+}
+
 export async function generateOnePost(options: {
     configName?: string
     type?: string
@@ -130,16 +158,43 @@ export async function generateOnePost(options: {
     allowedMedia?: string[]
     /** Medium the job was charged for (media-weighted credits) — the engine never renders a more expensive one. */
     chargedMedium?: "image" | "carousel" | "reel"
+    /** ig_jobs id — enables writing the caption checkpoint for crash-resume. */
+    jobId?: string
+    /** Prior checkpoint from a failed job — skips the caption phase (copywriter/critic/editorial). */
+    resumeFrom?: CaptionCheckpoint
     onProgress?: (stage: string, progress: number, message: string, editorialLog?: EditorialMessage[]) => Promise<void>
 }): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number; mediaType: "image" | "carousel" | "reel" }> {
     const report = options.onProgress || (async () => { }) // no-op if not provided
     const clientUuid = await ensureConfig(options.configName)
+    const ck = options.resumeFrom?.stage === "caption" ? options.resumeFrom : undefined
 
     // Wrap entire generation in request-scoped context to prevent race conditions
     return withActiveProject(clientUuid, async () => {
     const config = CLIENT_CONFIG!
     const startTime = Date.now()
-    let cost = 0
+    let cost = ck?.costSoFar ?? 0
+
+    // 0. Context FIRST (pipeline v2, stage 4) — real-world signals (holiday/season/trends)
+    // now arrive BEFORE the Researcher, so they can bias WHAT gets made (type selection),
+    // not just how it's written. The gathered block is appended to the mega prompt at the
+    // same injection point as before (content unchanged). Skipped on checkpoint resume —
+    // a resumed post's caption already exists.
+    let contextBlock = ""
+    let hasHoliday = false
+    if (!ck) {
+        await report("researcher", 3, "🌍 Context Agent sbírá sezónní a oborový kontext...")
+        try {
+            const { gatherContext, formatContextForPrompt } = await import("./context-agent")
+            const context = await gatherContext(config, "single")
+            contextBlock = formatContextForPrompt(context)
+            hasHoliday = context.holidays.length > 0
+            const holidayInfo = hasHoliday ? ` | 📅 ${context.holidays[0]}` : ""
+            console.log(`   🌍 Context: ${context.season}${holidayInfo} | ${context.pulse.length} signálů`)
+            cost += COSTS.contextAgent
+        } catch (err: any) {
+            console.warn(`   ⚠️ Context agent skipped: ${err?.message?.substring(0, 60)}`)
+        }
+    }
 
     // 1. Select post type
     await report("researcher", 5, "🔍 Researcher vybírá typ postu...")
@@ -150,9 +205,10 @@ export async function generateOnePost(options: {
     }
     let selectedType: PostType
 
-    if (options.type) {
-        const found = postTypes.find(pt => pt.name === options.type)
-        if (!found) throw new Error(`Post type "${options.type}" not found. Available: ${postTypes.map(t => t.name).join(", ")}`)
+    const forcedTypeName = ck?.selectedTypeName || options.type
+    if (forcedTypeName) {
+        const found = postTypes.find(pt => pt.name === forcedTypeName)
+        if (!found) throw new Error(`Post type "${forcedTypeName}" not found. Available: ${postTypes.map(t => t.name).join(", ")}`)
         selectedType = found
     } else {
         // Memory-informed post type weighting
@@ -168,13 +224,20 @@ export async function generateOnePost(options: {
             // Non-fatal — continue with base weights
         }
 
+        // Holiday/seasonal signal → bounded ×1.3 bias toward product/promo formats
+        // (same name-pattern approach as review-type detection). Deterministic, small.
+        const HOLIDAY_BIAS_PATTERN = /product|produkt|drop|limitka|nabidka|promo|akce/i
         const weighted = postTypes.flatMap(type => {
             const baseWeight = type.frequency === "daily" ? 3 : type.frequency === "weekly" ? 2 : 1
             const boost = postTypeBoosts[type.name] || 0
-            const finalWeight = Math.max(1, Math.round(baseWeight * (1 + boost)))
+            let finalWeight = Math.max(1, Math.round(baseWeight * (1 + boost)))
+            if (hasHoliday && HOLIDAY_BIAS_PATTERN.test(type.name)) {
+                finalWeight = Math.max(1, Math.round(finalWeight * 1.3))
+            }
             return Array(finalWeight).fill(type)
         })
         selectedType = weighted[Math.floor(Math.random() * weighted.length)]
+        if (hasHoliday) console.log("   📅 Svátek v kontextu — produktové/promo typy dostaly ×1.3 váhu")
     }
     console.log(`   ✓ ${selectedType.emoji} ${selectedType.display_name}`)
 
@@ -186,7 +249,12 @@ export async function generateOnePost(options: {
 
     // Review-type detection by name pattern — works for canonical "recenze" AND
     // brand-specific custom formats (e.g. "recenze_zakazniku", "spokojeny_klient").
-    if (/recenz|review|testimonial|spokojen/i.test(selectedType.name)) {
+    if (ck) {
+        // Resume: restore the exact sources the checkpointed caption was written from —
+        // only the ids matter downstream (createPost FKs + markAsUsed).
+        idea = ck.ideaId ? ({ id: ck.ideaId } as PostIdea) : null
+        review = ck.reviewId ? ({ id: ck.reviewId } as Review) : null
+    } else if (/recenz|review|testimonial|spokojen/i.test(selectedType.name)) {
         const reviews = await getWeightedReviews(3)
         if (reviews.length > 0) {
             review = reviews[0]
@@ -248,12 +316,15 @@ export async function generateOnePost(options: {
     let selectedProduct: { name: string; type: string; slug: string; price?: string; description?: string; imageUrls?: string[] } | undefined = undefined
     let linkedProductId: string | undefined = undefined
 
-    if (options.productId) {
+    // Resume: re-fetch the exact product the checkpointed caption references
+    // (reuses the explicit-product branch); no product on checkpoint = none now.
+    const explicitProductId = ck ? ck.linkedProductId || undefined : options.productId
+    if (explicitProductId) {
         // Explicit product from ig_products DB table (user picked via @ mention)
         const { data: dbProduct } = await supabaseAdmin
             .from("ig_products")
             .select("id, name, type, slug, price, description, image_urls")
-            .eq("id", options.productId)
+            .eq("id", explicitProductId)
             .single()
         if (dbProduct) {
             selectedProduct = {
@@ -267,7 +338,7 @@ export async function generateOnePost(options: {
             linkedProductId = dbProduct.id
             console.log(`   🛍️ Explicit product (from DB): "${selectedProduct.name}"`)
         }
-    } else if (selectedType.uses_product) {
+    } else if (!ck && selectedType.uses_product) {
         // Smart: cooldown-based selection from ig_products
         const cooldownDays = config.productCooldownDays ?? 14
         const cooldownDate = new Date()
@@ -300,7 +371,7 @@ export async function generateOnePost(options: {
     }
 
     // 5. Generate caption / video script / carousel
-    const format = getPostFormat(config, selectedType.name)
+    let format = getPostFormat(config, selectedType.name)
 
     // Category format override — preferences from pillar category config
     const _pillarKey = _getPillarForType(selectedType.name)
@@ -398,16 +469,65 @@ export async function generateOnePost(options: {
         console.log(`   🎨 Smart overlay: "${smartOverlay}" (${recentStyles.length ? `avoided: ${recentStyles.join(", ")}` : "no history"})`)
     }
 
+    // Resume: the checkpointed caption was written for THIS exact resolved format —
+    // restore it wholesale (it's already post-clamp) so the visual phase matches the text.
+    if (ck) format = { ...ck.format }
+
     const isReel = format.medium === "reel"
     const isCarousel = format.medium === "carousel"
+
+    // Caption-phase state — filled either from the checkpoint (resume) or by the
+    // full caption phase below (copywriter → dedup → critic → editorial).
+    type CaptionPhaseData = {
+        hook: string
+        body?: string
+        cta: string
+        hashtags: string[]
+        imagePrompt?: string
+        imageSubtext?: string
+        accentWords?: string[]
+        videoScript?: string
+        scenes?: { timeRange: string; visual: string; camera: string; mood: string; narration?: string; soundEffect?: string }[]
+        caption?: string
+        slides?: { headline: string; subtext: string; imagePrompt: string }[]
+        visualTheme?: string
+    }
+    let captionData: CaptionPhaseData
+    let megaPrompt = ""
+    let captionModel = getModel("textPro")
+    let score = 7
+    let feedback = ""
+    let detail: Awaited<ReturnType<typeof scorePost>>["detail"]
+    let strategyUsed: "repair" | "bestof2" = "repair"
+    let editorialRoundsUsed = 0
+    let finalScore = 0
+
+    if (ck) {
+        // ♻️ Resume from the caption checkpoint — the expensive Pro text calls
+        // (copywriter, dedup regen, critic, editorial board) already ran and are skipped.
+        captionData = ck.captionData as CaptionPhaseData
+        captionModel = ck.captionModel || captionModel
+        score = ck.score ?? 7
+        detail = ck.detail
+        strategyUsed = ck.strategy === "bestof2" ? "bestof2" : "repair"
+        editorialRoundsUsed = ck.editorialRounds ?? 0
+        finalScore = ck.finalScore ?? ck.score ?? 7
+        megaPrompt = ck.megaPromptHead || "[resumed from checkpoint]"
+        if (isReel && captionData.caption) captionData.body = captionData.caption
+        console.log(`   ♻️ Resume z caption checkpointu — přeskakuji copywriter/critic/editorial (hook: "${captionData.hook.substring(0, 50)}...")`)
+        await report("designer", 52, "♻️ Navazuji z checkpointu — text hotový, jdu rovnou na vizuál...")
+    } else {
+    // (block deliberately not re-indented — same style as the withActiveProject wrapper)
     const postFormat = isReel ? "video script" : isCarousel ? "carousel" : "caption"
     await report("copywriter", 25, `✍️ Copywriter generuje ${postFormat}...`)
     console.log(`✍️  Generuji ${postFormat} (Pro copywriter ladder)...`)
-    let megaPrompt = buildMegaPrompt(config, selectedType, idea, review, recentHooks, performance, options.topic, selectedProduct, format, options.approvedHook)
+    megaPrompt = buildMegaPrompt(config, selectedType, idea, review, recentHooks, performance, options.topic, selectedProduct, format, options.approvedHook)
 
-    // Inject brand memories (long-term learning from past performance)
+    // Inject brand memories (long-term learning from past performance) — retrieved by
+    // relevance to the topic/idea when available (pipeline v2), not just top-confidence.
     try {
-        const memories = await getBrandMemories(8, clientUuid, _getPillarForType(selectedType.name))
+        const memoryTopic = options.topic || idea?.title || undefined
+        const memories = await getBrandMemories(8, clientUuid, _getPillarForType(selectedType.name), memoryTopic)
         if (memories.length > 0) {
             megaPrompt += formatMemoriesForPrompt(memories)
             console.log(`   🧠 Brand memory: ${memories.length} vzorců načteno`)
@@ -449,18 +569,9 @@ export async function generateOnePost(options: {
         // Non-fatal
     }
 
-    // Inject real-world context (season, industry trends, local relevance)
-    await report("copywriter", 30, "🌍 Context Agent sbírá sezónní a oborový kontext...")
-    try {
-        const { gatherContext, formatContextForPrompt } = await import("./context-agent")
-        const context = await gatherContext(config, "single", selectedType.name)
-        megaPrompt += formatContextForPrompt(context)
-        const holidayInfo = context.holidays.length > 0 ? ` | 📅 ${context.holidays[0]}` : ""
-        console.log(`   🌍 Context: ${context.season}${holidayInfo} | ${context.pulse.length} signálů`)
-        cost += COSTS.contextAgent
-    } catch (err: any) {
-        console.warn(`   ⚠️ Context agent skipped: ${err?.message?.substring(0, 60)}`)
-    }
+    // Inject real-world context (season, industry trends, local relevance) — gathered
+    // BEFORE the Researcher (step 0), appended here at the original injection point.
+    megaPrompt += contextBlock
 
     // Inject campaign continuity context
     if (options.campaignContext && options.campaignContext.previousPosts.length > 0) {
@@ -479,43 +590,89 @@ export async function generateOnePost(options: {
     // → the campaign worker defers and the single-post route fails cleanly (never flash).
     const captionLadder = [getModel("textPro")]
     if (hasFallback("textPro")) captionLadder.push(getModel("textPro", "fallback"))
-    let captionModel = captionLadder[0] // actual winning model, for truthful model_used logging
-    const rawText = await generateTextQuality(megaPrompt, { models: captionLadder, responseSchema: schema, label: "copywriter", temperature: getTemperature("copywriter"), onModelUsed: m => { captionModel = m } })
-    cost += COSTS.textGeneration
+    captionModel = captionLadder[0] // actual winning model, for truthful model_used logging
 
-    let captionData: {
-        hook: string
-        body?: string
-        cta: string
-        hashtags: string[]
-        imagePrompt?: string
-        imageSubtext?: string
-        accentWords?: string[]
-        videoScript?: string
-        scenes?: { timeRange: string; visual: string; camera: string; mood: string; narration?: string; soundEffect?: string }[]
-        caption?: string
-        slides?: { headline: string; subtext: string; imagePrompt: string }[]
-        visualTheme?: string
+    const generateDraft = async (label: string): Promise<CaptionPhaseData> => {
+        const raw = await generateTextQuality(megaPrompt, { models: captionLadder, responseSchema: schema, label, temperature: getTemperature("copywriter"), onModelUsed: m => { captionModel = m } })
+        cost += COSTS.textGeneration
+        let parsed: CaptionPhaseData
+        try {
+            const jsonMatch = raw.match(/\{[\s\S]*\}/)
+            parsed = JSON.parse(jsonMatch?.[0] || raw)
+        } catch (e) {
+            console.error("   ⚠️ JSON parse failed, raw:", raw.substring(0, 200))
+            throw new Error(`Caption generation failed: ${e}`)
+        }
+        // For reels: caption field replaces body
+        if (isReel && parsed.caption) parsed.body = parsed.caption
+        return parsed
     }
 
-    try {
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/)
-        captionData = JSON.parse(jsonMatch?.[0] || rawText)
-    } catch (e) {
-        console.error("   ⚠️ JSON parse failed, raw:", rawText.substring(0, 200))
-        throw new Error(`Caption generation failed: ${e}`)
-    }
+    const recentBodies = recentPosts
+        .map(p => p.caption?.split("\n").slice(1).join(" ") || "")
+        .filter(b => b.length > 20)
+    const isDup = (d: CaptionPhaseData) =>
+        recentHooks.some(h => isHookSimilar(d.hook, h, 0.5)) ||
+        (d.body ? isBodySimilar(d.body, recentBodies, 0.4) : false)
 
-    // For reels: caption field replaces body
-    if (isReel && captionData.caption) {
-        captionData.body = captionData.caption
+    // Pipeline v2 (PIPELINE_BESTOF2=1): generate-and-SELECT instead of generate-and-repair.
+    // Two parallel drafts → the judge RANKS them (pairwise beats absolute scoring for LLM
+    // judges) → the winner gets at most ONE repair round. One lost draft degrades to the
+    // legacy single-draft path; both lost = the same QualityUnavailable failure as before.
+    let pendingRank: { a: CaptionPhaseData; b: CaptionPhaseData } | null = null
+    if (process.env.PIPELINE_BESTOF2 === "1") {
+        await report("copywriter", 25, "✍️ Copywriter píše 2 návrhy paralelně (best-of-2)...")
+        const [ra, rb] = await Promise.allSettled([generateDraft("copywriter-a"), generateDraft("copywriter-b")])
+        if (ra.status === "fulfilled" && rb.status === "fulfilled") {
+            pendingRank = { a: ra.value, b: rb.value }
+            captionData = ra.value // provisional — replaced by the ranked winner below
+        } else if (ra.status === "fulfilled" || rb.status === "fulfilled") {
+            captionData = ra.status === "fulfilled" ? ra.value : (rb as PromiseFulfilledResult<CaptionPhaseData>).value
+            console.warn("   ⚠️ Best-of-2: jeden návrh selhal — pokračuji legacy cestou s jedním návrhem")
+        } else {
+            throw ra.reason
+        }
+
+        // Pre-rank dedup: a duplicate draft never wins. Both duplicates → fall through
+        // to the standard dedup regen below with draft A.
+        if (pendingRank) {
+            const dupA = isDup(pendingRank.a)
+            const dupB = isDup(pendingRank.b)
+            if (dupA !== dupB) {
+                captionData = dupA ? pendingRank.b : pendingRank.a
+                pendingRank = null
+                console.log("   ⚠️ Best-of-2: jeden návrh byl duplicitní — vítězí automaticky ten druhý")
+            } else if (dupA && dupB) {
+                captionData = pendingRank.a
+                pendingRank = null
+                console.log("   ⚠️ Best-of-2: oba návrhy duplicitní — jdu přes dedup regeneraci")
+            }
+        }
+
+        // Rank the two clean drafts — one judge call picks the winner + returns its rubric.
+        if (pendingRank) {
+            try {
+                const rank = await rankDrafts(config, pendingRank.a, pendingRank.b, selectedType.name)
+                cost += COSTS.textGeneration
+                captionData = rank.winner === "A" ? pendingRank.a : pendingRank.b
+                score = rank.score
+                detail = rank.detail
+                feedback = `Best-of-2: vítěz ${rank.winner} (${rank.score}/10 vs ${rank.loserScore}/10) — ${rank.reason}`
+                strategyUsed = "bestof2"
+                console.log(`   ⚖️ ${feedback}`)
+                await report("critic", 45, `⚖️ Kritik vybral návrh ${rank.winner} (${rank.score}/10 vs ${rank.loserScore}/10)`)
+            } catch (rankErr: any) {
+                captionData = pendingRank.a
+                console.warn(`   ⚠️ Ranking judge failed — fallback na legacy critic: ${rankErr?.message?.substring(0, 80)}`)
+            }
+            pendingRank = null
+        }
+    } else {
+        captionData = await generateDraft("copywriter")
     }
 
     // 6. Dedup check — hook similarity + body keyword overlap
     const hookDuplicate = recentHooks.some(h => isHookSimilar(captionData.hook, h, 0.5))
-    const recentBodies = recentPosts
-        .map(p => p.caption?.split("\n").slice(1).join(" ") || "")
-        .filter(b => b.length > 20)
     const bodyDuplicate = captionData.body ? isBodySimilar(captionData.body, recentBodies, 0.4) : false
     const isDuplicate = hookDuplicate || bodyDuplicate
 
@@ -538,15 +695,19 @@ export async function generateOnePost(options: {
         }
     }
 
-    // 6b. Quality gate — Critic + Chief Editor multi-round review
-    await report("critic", 45, "🔍 Kritik hodnotí kvalitu obsahu...")
-    console.log("🔍 Quality gate (Critic + Šéfredaktor review)...")
-    const { score, feedback, detail } = await scorePost(
-        config,
-        captionData as { hook: string; body?: string; cta: string; hashtags: string[]; slides?: { headline: string; subtext: string }[] },
-        selectedType.name
-    )
-    cost += COSTS.textGeneration
+    // 6b. Quality gate — Critic + Chief Editor multi-round review.
+    // Best-of-2 already scored the winner via the ranking judge — no second critic call.
+    if (strategyUsed !== "bestof2") {
+        await report("critic", 45, "🔍 Kritik hodnotí kvalitu obsahu...")
+        console.log("🔍 Quality gate (Critic + Šéfredaktor review)...")
+        ;({ score, feedback, detail } = await scorePost(
+            config,
+            captionData as { hook: string; body?: string; cta: string; hashtags: string[]; slides?: { headline: string; subtext: string }[] },
+            selectedType.name
+        ))
+        cost += COSTS.textGeneration
+    }
+    finalScore = score
     const scoreEmoji = score >= 8 ? "🟢" : score >= 6 ? "🟡" : "🔴"
     console.log(`   ${scoreEmoji} Score: ${score}/10 — ${feedback}`)
     if (detail) {
@@ -559,6 +720,7 @@ export async function generateOnePost(options: {
     // Non-fatal: this polishes a caption that ALREADY passed the copywriter on Pro, so
     // if the Pro tiers are momentarily exhausted mid-editorial we keep the existing Pro
     // caption and ship it rather than defer/fail the whole post over a polish step.
+    // Best-of-2: the ranked winner gets at most ONE repair round (select > repair).
     try {
         const editorialResult = await reviewPost(
             config,
@@ -567,15 +729,46 @@ export async function generateOnePost(options: {
             { score, feedback, detail },
             megaPrompt,
             report,
+            strategyUsed === "bestof2" ? 1 : undefined,
         )
         captionData = editorialResult.captionData
         cost += editorialResult.totalTokenCost
         if (isReel && captionData.caption) captionData.body = captionData.caption
 
-        const editorialRounds = editorialResult.rounds.length
-        console.log(`   🎖️ Editorial: ${editorialResult.approved ? "✅ schváleno" : "⏰ max kol"} po ${editorialRounds} ${editorialRounds === 1 ? "kole" : "kolech"} ($${editorialResult.totalTokenCost.toFixed(3)})`)
+        // auto-approve (score ≥ 9) returns a bookkeeping round-0 entry at zero cost = 0 real rounds
+        editorialRoundsUsed = editorialResult.totalTokenCost === 0 ? 0 : editorialResult.rounds.length
+        finalScore = editorialResult.finalScore || score
+        console.log(`   🎖️ Editorial: ${editorialResult.approved ? "✅ schváleno" : "⏰ max kol"} po ${editorialRoundsUsed} ${editorialRoundsUsed === 1 ? "kole" : "kolech"} ($${editorialResult.totalTokenCost.toFixed(3)})`)
     } catch (editorialErr: any) {
         console.warn(`   ⚠️ Editorial board failed/busy — keeping the Pro caption as-is: ${editorialErr?.message?.substring(0, 100)}`)
+    }
+    } // end caption phase (skipped entirely on checkpoint resume)
+
+    // Persist the caption checkpoint — a crash/timeout in the visual phase can resume
+    // from here without re-burning the copywriter/critic/editorial Pro calls. The final
+    // done-write overwrites ig_jobs.result, so a successful job carries no checkpoint.
+    if (options.jobId && !ck && !options.dryRun) {
+        try {
+            const checkpoint: CaptionCheckpoint = {
+                stage: "caption",
+                captionData: captionData as CaptionCheckpoint["captionData"],
+                captionModel,
+                score,
+                detail,
+                format,
+                selectedTypeName: selectedType.name,
+                ideaId: idea?.id ?? null,
+                reviewId: review?.id ?? null,
+                linkedProductId: linkedProductId ?? null,
+                megaPromptHead: megaPrompt.substring(0, 500),
+                costSoFar: cost,
+                strategy: strategyUsed,
+                editorialRounds: editorialRoundsUsed,
+                finalScore,
+            }
+            await supabaseAdmin.from("ig_jobs").update({ result: { checkpoint } }).eq("id", options.jobId)
+            console.log("   💾 Caption checkpoint uložen (resume-ready)")
+        } catch { /* best-effort — never fail the post over a checkpoint */ }
     }
 
     // Use client-specific hashtags
@@ -693,6 +886,9 @@ export async function generateOnePost(options: {
             criticKeep: detail?.feedback.keep,
             criticFix: detail?.feedback.fix,
             qaStatus: renderResult?.qaStatus,
+            strategy: strategyUsed,
+            editorialRounds: editorialRoundsUsed,
+            finalScore: finalScore || score,
         })
 
         // Close the loop: persist recurring critic "fix" notes into brand memory so they
@@ -700,6 +896,10 @@ export async function generateOnePost(options: {
         if (detail?.feedback?.fix?.length) {
             learnFromCriticInsights(clientUuid, detail.feedback.fix, post.id, _getPillarForType(selectedType.name)).catch(() => {})
         }
+
+        // Brand-consistency sensor (pipeline v2): embed the caption + log cosine vs
+        // the gold-voice centroid. Fire-and-forget — never blocks or fails the post.
+        scoreConsistencyAndEmbed(post.id, clientUuid, fullCaption).catch(() => {})
 
         console.log(`   ✓ ID: ${post.id}`)
     }

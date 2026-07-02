@@ -21,13 +21,21 @@ export async function POST(req: Request) {
     // Fetch job config from DB
     const { data: job } = await supabaseAdmin
         .from("ig_jobs")
-        .select("config, client_id")
+        .select("config, client_id, status, result")
         .eq("id", jobId)
         .single()
 
     if (!job) {
         return NextResponse.json({ success: false, error: "Job not found" }, { status: 404 })
     }
+
+    // Checkpoint resume: re-POSTing a FAILED job that saved a caption checkpoint
+    // re-runs only the visual phase (copywriter/critic/editorial are skipped).
+    // The original failure already refunded the charge — no re-charge here.
+    const resumeFrom = job.status === "failed" && (job.result as any)?.checkpoint?.stage === "caption"
+        ? (job.result as any).checkpoint
+        : undefined
+    if (resumeFrom) console.log(`♻️ ig-run-job: resuming failed job ${jobId} from caption checkpoint`)
 
     // Ownership check: caller must have access to the client this job belongs to
     const { requireClientAccess } = await import("@/lib/auth-guard")
@@ -52,6 +60,8 @@ export async function POST(req: Request) {
             campaignContext: config.campaignContext,
             allowedMedia: config.allowedMedia,
             chargedMedium: config.chargedMedium,
+            jobId,
+            resumeFrom,
             onProgress: async (stage: string, progress: number, message: string, editorialLog?: any[]) => {
                 const update: Record<string, any> = { status: stage, progress, agent_message: message }
                 if (editorialLog && editorialLog.length > 0) {

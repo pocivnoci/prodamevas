@@ -39,20 +39,56 @@ export interface BrandMemory {
 // ============================================
 
 /**
- * Get the most confident brand memories for a client.
- * These are injected into the Copywriter's mega prompt as context.
+ * Get brand memories for a client — relevance-first (pipeline v2).
+ * With a `topic`, memories are retrieved by embedding similarity to the topic
+ * (plus the top-3 by confidence, which always ride along — global brand rules
+ * stay standing), so the prompt gets guidance that matches what's being written
+ * instead of the same top-N-by-confidence set every post. Without a topic, or
+ * when embeddings are unavailable, falls back to confidence ordering (legacy).
  */
-export async function getBrandMemories(limit = 10, clientId?: string, pillar?: string): Promise<BrandMemory[]> {
+export async function getBrandMemories(limit = 10, clientId?: string, pillar?: string, topic?: string): Promise<BrandMemory[]> {
+    const cid = clientId ?? getActiveProject()
+    const safePillar = pillar && /^[\w-]+$/.test(pillar) ? pillar : undefined
+
+    if (topic) {
+        try {
+            // Self-heal: memories written since the last retrieval get vectors lazily
+            // (same pattern as ensurePostTypes) — no per-insert-site wiring needed.
+            await embedPendingMemories(cid)
+            const { embedText } = await import("./gemini-client")
+            const topicVec = await embedText(topic.substring(0, 500))
+            const { data: relevant, error } = await supabaseAdmin.rpc("match_brand_memories", {
+                p_client_id: cid,
+                p_embedding: JSON.stringify(topicVec),
+                p_match_count: Math.max(1, limit - 3),
+                p_pillar: safePillar ?? null,
+            })
+            if (!error && relevant && relevant.length > 0) {
+                const confident = await getMemoriesByConfidence(cid, safePillar, 3)
+                const seen = new Set((relevant as BrandMemory[]).map(m => m.id))
+                const merged = [...(relevant as BrandMemory[]), ...confident.filter(m => !seen.has(m.id))]
+                console.log(`   🧲 Memory relevance: ${relevant.length} k tématu + ${merged.length - relevant.length} top-confidence`)
+                return merged.slice(0, limit)
+            }
+        } catch (err: any) {
+            console.warn(`⚠️ Relevance memory retrieval failed — fallback na confidence: ${err?.message?.substring(0, 80)}`)
+        }
+    }
+
+    return getMemoriesByConfidence(cid, safePillar, limit)
+}
+
+/** Legacy retrieval: top-N by confidence, pillar-scoped (global NULL always included). */
+async function getMemoriesByConfidence(clientId: string, safePillar: string | undefined, limit: number): Promise<BrandMemory[]> {
     let query = supabaseAdmin
         .from("ig_brand_memory")
         .select("*")
-        .eq("client_id", clientId ?? getActiveProject())
+        .eq("client_id", clientId)
         .gte("confidence", 0.4) // Only include reasonably confident memories
     // Pillar scoping: include global (NULL) memories PLUS any tagged for THIS pillar, so a
-    // lesson learned in one pillar doesn't bleed into another. Existing memories are all NULL
-    // → behaviour is unchanged until memories start getting tagged. Regex-guarded (pillar keys
-    // are internal config slugs) so a stray value can't break the .or() filter.
-    if (pillar && /^[\w-]+$/.test(pillar)) query = query.or(`pillar.is.null,pillar.eq.${pillar}`)
+    // lesson learned in one pillar doesn't bleed into another. Regex-guarded upstream
+    // (pillar keys are internal config slugs) so a stray value can't break the .or() filter.
+    if (safePillar) query = query.or(`pillar.is.null,pillar.eq.${safePillar}`)
     const { data, error } = await query
         .order("confidence", { ascending: false })
         .limit(limit)
@@ -63,6 +99,29 @@ export async function getBrandMemories(limit = 10, clientId?: string, pillar?: s
     }
 
     return (data || []) as BrandMemory[]
+}
+
+/**
+ * Embed memories that don't have a vector yet (new writes from any learning path
+ * — analyzeAndLearn, revisions, variants, critic insights, onboarding seed).
+ * One batched call, best-effort — memory retrieval must survive embedding outages.
+ */
+export async function embedPendingMemories(clientId: string): Promise<number> {
+    const { data: pending } = await supabaseAdmin
+        .from("ig_brand_memory")
+        .select("id, content")
+        .eq("client_id", clientId)
+        .is("embedding", null)
+        .limit(50)
+    if (!pending || pending.length === 0) return 0
+
+    const { embedTexts } = await import("./gemini-client")
+    const vectors = await embedTexts(pending.map(p => p.content))
+    await Promise.all(pending.map((p, i) =>
+        supabaseAdmin.from("ig_brand_memory").update({ embedding: JSON.stringify(vectors[i]) }).eq("id", p.id)
+    ))
+    console.log(`   🧲 Embedded ${pending.length} nových memories`)
+    return pending.length
 }
 
 /**

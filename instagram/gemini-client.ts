@@ -607,4 +607,52 @@ export async function generateVoiceover(
     }
 }
 
+// ============================================
+// EMBEDDINGS (pipeline v2 — memory relevance + consistency score)
+// ============================================
+
+/**
+ * Embed a batch of texts at EMBEDDING_DIMS (768) — must match the pgvector columns.
+ * Primary/fallback per the model registry. Callers treat embeddings as best-effort:
+ * throw here, fail-open there (a post must never fail over an embedding).
+ */
+export async function embedTexts(texts: string[]): Promise<number[][]> {
+    const { EMBEDDING_DIMS } = await import("./models")
+    const call = async (model: string) => {
+        const res = await ai.models.embedContent({
+            model,
+            contents: texts,
+            config: { outputDimensionality: EMBEDDING_DIMS },
+        })
+        const vectors = (res.embeddings || []).map(e => e.values || [])
+        if (vectors.length !== texts.length || vectors.some(v => v.length !== EMBEDDING_DIMS)) {
+            throw new Error(`embedContent returned ${vectors.length}/${texts.length} vectors`)
+        }
+        return vectors
+    }
+    try {
+        return await call(getModel("embedding"))
+    } catch (err) {
+        console.warn(`⚠️ ${getModel("embedding")} embed failed — falling back to ${getModel("embedding", "fallback")}`, (err as Error)?.message?.substring(0, 80))
+        return call(getModel("embedding", "fallback"))
+    }
+}
+
+export async function embedText(text: string): Promise<number[]> {
+    const [vec] = await embedTexts([text])
+    return vec
+}
+
+/** Cosine similarity — used for the brand-consistency score (both vectors 768d). */
+export function cosineSimilarity(a: number[], b: number[]): number {
+    let dot = 0, na = 0, nb = 0
+    for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i]
+        na += a[i] * a[i]
+        nb += b[i] * b[i]
+    }
+    const denom = Math.sqrt(na) * Math.sqrt(nb)
+    return denom === 0 ? 0 : dot / denom
+}
+
 export { ai }

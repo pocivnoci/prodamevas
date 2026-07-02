@@ -293,6 +293,12 @@ export async function logGeneration(log: {
     criticFix?: string[];
     /** Native visual engine QA outcome: pass | retry_pass | fallback | overlay */
     qaStatus?: string;
+    /** Caption path attribution (pipeline v2): 'repair' (legacy loop) | 'bestof2' */
+    strategy?: string;
+    /** Editor⇄copywriter rounds that actually ran */
+    editorialRounds?: number;
+    /** Post-editorial score (critic_score stays the PRE-editorial one) */
+    finalScore?: number;
 }): Promise<void> {
     await supabaseAdmin
         .from("ig_generation_log")
@@ -308,7 +314,66 @@ export async function logGeneration(log: {
             critic_keep: log.criticKeep,
             critic_fix: log.criticFix,
             qa_status: log.qaStatus,
+            strategy: log.strategy,
+            editorial_rounds: log.editorialRounds,
+            final_score: log.finalScore,
         });
+}
+
+/**
+ * Brand-consistency score (pipeline v2, the L4 drift sensor).
+ * Embeds the new caption (→ ig_posts.caption_embedding, which also grows the gold
+ * pool for future posts), builds the gold-voice centroid from the client's
+ * top-engagement embedded captions, and logs cosine(new, centroid) to
+ * ig_generation_log.consistency_score. Fire-and-forget + fail-open: a post must
+ * never fail (or slow down) over a drift metric.
+ */
+export async function scoreConsistencyAndEmbed(postId: string, clientId: string, caption: string): Promise<void> {
+    try {
+        const { embedText, cosineSimilarity } = await import("./gemini-client");
+        const vec = await embedText(caption.substring(0, 2000));
+        await supabaseAdmin
+            .from("ig_posts")
+            .update({ caption_embedding: JSON.stringify(vec) })
+            .eq("id", postId);
+
+        // Gold set = top-engagement captions with embeddings (A/B winners rise here
+        // naturally — losers are status 'rejected' and never get metrics). Engagement
+        // weighting matches propagateMetricsToSources (comments > saves > likes).
+        const { data: candidates } = await supabaseAdmin
+            .from("ig_posts")
+            .select("caption_embedding, likes, comments, saves")
+            .eq("client_id", clientId)
+            .neq("id", postId)
+            .not("caption_embedding", "is", null)
+            .not("likes", "is", null)
+            .limit(60);
+
+        const scored = (candidates || [])
+            .map(c => {
+                let v: number[] | null = null;
+                try { v = typeof c.caption_embedding === "string" ? JSON.parse(c.caption_embedding) : c.caption_embedding } catch { /* skip */ }
+                return { v, e: (c.likes || 0) + 3 * (c.comments || 0) + 5 * (c.saves || 0) };
+            })
+            .filter((c): c is { v: number[]; e: number } => Array.isArray(c.v) && c.v.length > 0)
+            .sort((a, b) => b.e - a.e)
+            .slice(0, 20);
+
+        if (scored.length < 3) return; // not enough gold voice yet — no score
+
+        const dims = scored[0].v.length;
+        const centroid = new Array(dims).fill(0);
+        for (const s of scored) for (let i = 0; i < dims; i++) centroid[i] += s.v[i] / scored.length;
+
+        const consistency = cosineSimilarity(vec, centroid);
+        await supabaseAdmin
+            .from("ig_generation_log")
+            .update({ consistency_score: consistency })
+            .eq("post_id", postId);
+        console.log(`   🧭 Consistency score: ${consistency.toFixed(3)} (gold set: ${scored.length} postů)`);
+    } catch (err: any) {
+        console.warn(`⚠️ Consistency scoring skipped: ${err?.message?.substring(0, 80)}`);
+    }
 }
 
 // ============================================

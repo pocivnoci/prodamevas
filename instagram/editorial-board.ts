@@ -499,6 +499,8 @@ export async function reviewPost(
     criticResult: { score: number; feedback: string; detail?: any },
     megaPrompt: string,
     onProgress?: EditorialProgressCallback,
+    /** Cap the review⇄rewrite loop (best-of-2 path passes 1 — the ranked winner gets a single repair round). */
+    maxRounds: number = MAX_POST_ROUNDS,
 ): Promise<EditorialPostResult> {
     const report = onProgress || (async () => {})
     const allMessages: EditorialMessage[] = []
@@ -542,16 +544,16 @@ export async function reviewPost(
         }
     }
 
-    for (let round = 1; round <= MAX_POST_ROUNDS; round++) {
+    for (let round = 1; round <= maxRounds; round++) {
         await report(
             "chief_editor",
             45 + round * 5,
-            `🎖️ Šéfredaktor reviewuje post (kolo ${round}/${MAX_POST_ROUNDS})...`,
+            `🎖️ Šéfredaktor reviewuje post (kolo ${round}/${maxRounds})...`,
             [...allMessages],
         )
 
         // Chief Editor reviews
-        console.log(`\n🎖️ [Editorial] Post Review — Kolo ${round}/${MAX_POST_ROUNDS}`)
+        console.log(`\n🎖️ [Editorial] Post Review — Kolo ${round}/${maxRounds}`)
         const reviewPrompt = buildPostReviewPrompt(
             config,
             currentCaption,
@@ -602,7 +604,7 @@ export async function reviewPost(
         }
 
         // If last round, accept what we have
-        if (round === MAX_POST_ROUNDS) {
+        if (round === maxRounds) {
             rounds.push({
                 round,
                 messages: [editorMessage],
@@ -612,7 +614,7 @@ export async function reviewPost(
             await report(
                 "chief_editor",
                 55,
-                `⏰ Max ${MAX_POST_ROUNDS} kol — používám aktuální verzi`,
+                `⏰ Max ${maxRounds} kol — používám aktuální verzi`,
                 [...allMessages],
             )
             break

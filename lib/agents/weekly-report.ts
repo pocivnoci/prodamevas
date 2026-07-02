@@ -73,6 +73,34 @@ export async function buildWeeklyReport(): Promise<WeeklyReport> {
         revenueCzk = Math.round(paid.reduce((s, p) => s + (Number(p.amount) || 0), 0) / 100)
     } catch { revenueCzk = -1 }
 
+    // Pipeline strategy comparison (trailing 30 days): repair loop vs best-of-2
+    // (PIPELINE_BESTOF2). This is the decision gate for flipping the default —
+    // best-of-2 must match/beat repair on final_score before it becomes default.
+    let strategyLine = ""
+    try {
+        const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+        const { data: logs } = await supabaseAdmin
+            .from("ig_generation_log")
+            .select("strategy, final_score, editorial_rounds, consistency_score")
+            .gte("created_at", since30)
+            .not("strategy", "is", null)
+        const byStrategy = new Map<string, { n: number; score: number; rounds: number; cons: number; consN: number }>()
+        for (const l of logs || []) {
+            const key = String(l.strategy)
+            const agg = byStrategy.get(key) || { n: 0, score: 0, rounds: 0, cons: 0, consN: 0 }
+            agg.n++
+            agg.score += Number(l.final_score) || 0
+            agg.rounds += Number(l.editorial_rounds) || 0
+            if (l.consistency_score != null) { agg.cons += Number(l.consistency_score); agg.consN++ }
+            byStrategy.set(key, agg)
+        }
+        if (byStrategy.size > 0) {
+            strategyLine = [...byStrategy.entries()]
+                .map(([k, a]) => `${k}: ${a.n}× · skóre ⌀${(a.score / a.n).toFixed(1)} · kola ⌀${(a.rounds / a.n).toFixed(1)}${a.consN ? ` · konzistence ⌀${(a.cons / a.consN).toFixed(2)}` : ""}`)
+                .join("  |  ")
+        }
+    } catch { /* column not migrated yet — skip the section */ }
+
     const v = (n: number) => (n < 0 ? "—" : String(n))
 
     const rows: [string, string][] = [
@@ -85,6 +113,7 @@ export async function buildWeeklyReport(): Promise<WeeklyReport> {
         ["🤖 Agent tasky (done)", v(doneTasks)],
         ["✅ Čeká na schválení", v(pendingApprovals)],
     ]
+    if (strategyLine) rows.push(["⚖️ Pipeline (30 dní)", strategyLine])
 
     const subject = `📊 Chrlit — týdenní report (${fmtRange})`
     const text = `Chrlit týdenní report — ${fmtRange}\n\n` + rows.map(([k, val]) => `${k}: ${val}`).join("\n")

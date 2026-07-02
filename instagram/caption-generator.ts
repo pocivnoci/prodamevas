@@ -799,6 +799,16 @@ export interface QualityGateResult {
     }
 }
 
+/**
+ * Calibration anchors — pin the judge's absolute scale so a "9" means the same
+ * thing across sessions and model families (Claude/Gemini). Shared by scorePost
+ * and rankDrafts.
+ */
+const SCORE_ANCHORS = `
+## KALIBRACE — kotvy hodnocení (drž svá skóre konzistentní s nimi):
+**Kotva 9/10:** Hook: "Zavřeli jsme náš nejprodávanější produkt. Schválně." — konkrétní, vyvolá zvědavost bez clickbaitu; body vypráví důvod s konkrétním detailem a přizná i nevýhodu; CTA přirozeně zve na web s jasným benefitem.
+**Kotva 6/10:** Hook: "Věděli jste, že kvalita je u nás na prvním místě?" — generická řečnická otázka, nulové napětí; body popisuje místo aby ukázalo, samé obecnosti; CTA "sledujte nás pro víc tipů" bez webu a bez důvodu.`
+
 export async function scorePost(
     config: ClientConfig,
     captionData: {
@@ -841,6 +851,7 @@ Hashtags: ${captionData.hashtags.join(", ")}
 2. **Body (0-3 body):** Dává čtenáři konkrétní hodnotu, sedí k brand voice a personě výše, čte se lehce?${carouselBodyNote}
 3. **CTA (0-2 body):** Jasná výzva k akci? Obsahuje ${config.website}?
 4. **Originalita (0-2 body):** Nepůsobí genericky? Nepoužívá anti-patterns?
+${SCORE_ANCHORS}
 
 ## VÝSTUP — vrať POUZE validní JSON s touto strukturou (overall = součet bodů, korigovaný otázkou "zveřejnil bys to jako brand manager?"):
 {
@@ -890,6 +901,96 @@ Hashtags: ${captionData.hashtags.join(", ")}
         }
     } catch {
         return { score: 7, feedback: "Scoring failed - passing through" }
+    }
+}
+
+/**
+ * Best-of-2 ranking judge (pipeline v2). LLM judges are noisy at absolute scores
+ * but reliable at pairwise comparison — so instead of repairing one draft over
+ * ≤3 editorial rounds, the copywriter produces two drafts and the judge PICKS,
+ * returning the winner's rubric + fix list (≤1 repair round follows if < 9).
+ * One judgeText call (cross-family Claude / Gemini Pro fallback, same as scorePost).
+ * Throws on parse/model failure — the caller falls back to the legacy repair path.
+ */
+export async function rankDrafts(
+    config: ClientConfig,
+    draftA: { hook: string; body?: string; cta: string; hashtags: string[]; slides?: { headline: string; subtext: string }[] },
+    draftB: { hook: string; body?: string; cta: string; hashtags: string[]; slides?: { headline: string; subtext: string }[] },
+    postTypeName?: string,
+): Promise<{ winner: "A" | "B"; score: number; loserScore: number; reason: string; detail: QualityGateResult }> {
+    const renderDraft = (d: typeof draftA) => {
+        const slides = d.slides?.length
+            ? `\nSlides:\n${d.slides.map((s, i) => `  ${i + 1}. "${s.headline}" - ${s.subtext}`).join("\n")}`
+            : ""
+        return `Hook: "${d.hook}"\nBody: "${d.body || ""}"${slides}\nCTA: "${d.cta}"\nHashtags: ${d.hashtags?.join(", ") || ""}`
+    }
+
+    const rankPrompt = `
+Jsi přísný Instagram content reviewer pro značku "${config.name}" (${config.website}).
+Copywriter napsal DVA návrhy stejného postu. Porovnej je a vyber LEPŠÍ.
+
+## BRAND VOICE (post MUSÍ odpovídat):
+${config.brandVoice.persona ? `Persona: ${config.brandVoice.persona.substring(0, 200)}` : ""}
+Tón: ${config.brandVoice.voiceTraits?.slice(0, 4).join(", ") || "autentický"}
+
+## ANTI-PATTERNS (post NESMÍ obsahovat):
+${config.brandVoice.antiPatterns?.slice(0, 5).join(", ") || "generické fráze"}
+
+## NÁVRH A${postTypeName ? ` (typ: ${postTypeName})` : ""}:
+${renderDraft(draftA)}
+
+## NÁVRH B:
+${renderDraft(draftB)}
+
+## KRITÉRIA (celkem max 10 bodů, hodnoť OBA návrhy):
+1. **Hook (0-3 body):** Zastaví scrollování? Krátký (max 15 slov)? Bez emoji?
+2. **Body (0-3 body):** Dává čtenáři konkrétní hodnotu, sedí k brand voice a personě výše, čte se lehce?
+3. **CTA (0-2 body):** Jasná výzva k akci? Obsahuje ${config.website}?
+4. **Originalita (0-2 body):** Nepůsobí genericky? Nepoužívá anti-patterns?
+${SCORE_ANCHORS}
+
+## VÝSTUP — vrať POUZE validní JSON (rubrika a keep/fix se týkají VÍTĚZE):
+{
+  "winner": "A" | "B",
+  "reason": "proč vyhrál, česky, 1 věta",
+  "scoreA": <číslo 1-10>,
+  "scoreB": <číslo 1-10>,
+  "hookScore": <číslo 0-3>,
+  "bodyScore": <číslo 0-3>,
+  "ctaScore": <číslo 0-2>,
+  "originalityScore": <číslo 0-2>,
+  "keep": ["co je na vítězi dobré a NESMÍ se měnit, česky, max 2 položky"],
+  "fix": ["co je na vítězi špatně a MUSÍ se opravit, česky, max 2 položky. Prázdné pole pokud je vše OK."]
+}
+`
+
+    const text = await judgeText(rankPrompt, { label: "critic-rank" })
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    const result = JSON.parse(jsonMatch?.[0] || text)
+
+    const winner: "A" | "B" = result.winner === "B" ? "B" : "A"
+    const scoreA = Math.min(10, Math.max(1, Number(result.scoreA) || 5))
+    const scoreB = Math.min(10, Math.max(1, Number(result.scoreB) || 5))
+    const score = winner === "A" ? scoreA : scoreB
+
+    const detail: QualityGateResult = {
+        overall: score,
+        hookScore: Math.min(3, Math.max(0, Number(result.hookScore) || 1)),
+        bodyScore: Math.min(3, Math.max(0, Number(result.bodyScore) || 1)),
+        ctaScore: Math.min(2, Math.max(0, Number(result.ctaScore) || 0)),
+        originalityScore: Math.min(2, Math.max(0, Number(result.originalityScore) || 1)),
+        feedback: {
+            keep: Array.isArray(result.keep) ? result.keep : [],
+            fix: Array.isArray(result.fix) ? result.fix : [],
+        },
+    }
+
+    return {
+        winner,
+        score,
+        loserScore: winner === "A" ? scoreB : scoreA,
+        reason: String(result.reason || ""),
+        detail,
     }
 }
 

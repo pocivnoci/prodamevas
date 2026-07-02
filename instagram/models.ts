@@ -61,7 +61,15 @@ export const MODELS = {
      *  GEMINI_MODEL_JUDGE. Only used when ANTHROPIC_API_KEY is set — otherwise the judge falls
      *  back to the Gemini `textPro` Pro ladder (unchanged behaviour). See instagram/judge.ts. */
     judge: { primary: "claude-sonnet-5" },
+    /** Text embeddings — brand-memory relevance retrieval + the consistency score
+     *  (pipeline v2, Stage 3). Both IDs live-verified 2026-07-02 via ai.models.list()
+     *  + a real embedContent call; gemini-embedding-2 = current GA, 001 = prior GA.
+     *  Always requested at 768 dims (EMBEDDING_DIMS) — must match the pgvector columns. */
+    embedding: { primary: "gemini-embedding-2", fallback: "gemini-embedding-001" },
 } as const
+
+/** Output dimensionality for all embeddings — MUST match vector(768) columns in Supabase. */
+export const EMBEDDING_DIMS = 768
 
 export type ModelAction = keyof typeof MODELS
 

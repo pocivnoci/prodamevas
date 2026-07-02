@@ -154,51 +154,85 @@ export async function GET(req: Request) {
         // a super-admin's session bypassed the up-front check but this session-less worker
         // could not — so the campaign was created then silently died at post 0. Default OFF.
         const ADMIN_BYPASS = process.env.CAMPAIGN_ADMIN_BYPASS === "1" || opts.adminBypass === true
-        const check = ADMIN_BYPASS ? { allowed: true, isPlanPost: false } : await canPerformAction(clientId, "post", undefined, chargedMedium)
-        if (!check.allowed) {
-            stopReason = "no_credits"
-            stopDetail = (check as { reason?: string }).reason || "Nedostatek kreditů pro pokračování."
-            break
-        }
-        const isPlanPost = !!check.isPlanPost
-        const charged: "plan" | "credits" | "none" = ADMIN_BYPASS ? "none" : (isPlanPost ? "plan" : "credits")
-        const chargedCredits = charged === "credits" ? creditsForMedia(chargedMedium) : 0
 
         const campaignContext = previousPosts.length > 0
             ? { postNumber: cursor + 1, totalPosts: total, previousPosts: [...previousPosts] }
             : undefined
 
-        // Create the job row (mirrors ig-create-job) so the post shows in history/observability.
-        const { data: job } = await supabaseAdmin
-            .from("ig_jobs")
-            .insert({
-                client_id: clientId,
-                config: {
-                    configName, type: postType, topic: postTopic, approvedHook,
-                    aspectRatio: opts.aspectRatio || undefined,
-                    medium: itemMedium,
-                    category: opts.category || undefined,
-                    productId: item?.productId || undefined,
-                    campaignContext, campaignId: campaign.id,
-                    charged, chargedCredits, chargedMedium, allowedMedia,
-                },
-                status: "researcher",
-                progress: 5,
-                agent_message: "🔍 Researcher vybírá zdroje...",
-            })
-            .select("id")
-            .single()
+        // ♻️ Deferred-item reuse: a previous tick hit QualityUnavailable and PARKED this
+        // item's job (charge kept, caption checkpoint kept). Reuse the job — no new
+        // charge, and the checkpoint skips the already-done caption phase.
+        let job: { id: string } | null = null
+        let charged: "plan" | "credits" | "none" = "none"
+        let chargedCredits = 0
+        let resumeFrom: import("@/instagram/autopilot").CaptionCheckpoint | undefined
+        if (item?.jobId) {
+            const { data: parked } = await supabaseAdmin
+                .from("ig_jobs")
+                .select("id, config, result")
+                .eq("id", item.jobId)
+                .maybeSingle()
+            if (parked) {
+                job = { id: parked.id }
+                const pcfg = (parked.config || {}) as Record<string, any>
+                charged = pcfg.charged ?? "none"
+                chargedCredits = pcfg.chargedCredits ?? 0
+                if (pcfg.chargedMedium) chargedMedium = pcfg.chargedMedium
+                resumeFrom = (parked.result as any)?.checkpoint?.stage === "caption"
+                    ? (parked.result as any).checkpoint
+                    : undefined
+                await supabaseAdmin.from("ig_jobs").update({
+                    status: "researcher", progress: 5, error: null,
+                    agent_message: resumeFrom ? "♻️ Navazuji z checkpointu..." : "🔍 Researcher vybírá zdroje...",
+                }).eq("id", parked.id)
+                console.log(`   ♻️ campaign ${campaign.id} item #${cursor + 1}: reusing parked job ${parked.id}${resumeFrom ? " (caption checkpoint)" : ""}`)
+            }
+        }
 
-        if (!job) { failures++; cursor++; await persist(); continue }
+        if (!job) {
+            const check = ADMIN_BYPASS ? { allowed: true, isPlanPost: false } : await canPerformAction(clientId, "post", undefined, chargedMedium)
+            if (!check.allowed) {
+                stopReason = "no_credits"
+                stopDetail = (check as { reason?: string }).reason || "Nedostatek kreditů pro pokračování."
+                break
+            }
+            const isPlanPost = !!check.isPlanPost
+            charged = ADMIN_BYPASS ? "none" : (isPlanPost ? "plan" : "credits")
+            chargedCredits = charged === "credits" ? creditsForMedia(chargedMedium) : 0
 
-        // Charge now (idempotent via reference_id = job.id), refund on failure.
-        try {
-            if (ADMIN_BYPASS) { /* no charge under admin bypass */ }
-            else if (isPlanPost) await incrementPlanPostCount(clientId)
-            else await deductCredits(clientId, "post", `Post (kampaň ${campaign.id})`, job.id, chargedCredits)
-        } catch {
-            await supabaseAdmin.from("ig_jobs").delete().eq("id", job.id)
-            failures++; cursor++; await persist(); continue
+            // Create the job row (mirrors ig-create-job) so the post shows in history/observability.
+            const { data: created } = await supabaseAdmin
+                .from("ig_jobs")
+                .insert({
+                    client_id: clientId,
+                    config: {
+                        configName, type: postType, topic: postTopic, approvedHook,
+                        aspectRatio: opts.aspectRatio || undefined,
+                        medium: itemMedium,
+                        category: opts.category || undefined,
+                        productId: item?.productId || undefined,
+                        campaignContext, campaignId: campaign.id,
+                        charged, chargedCredits, chargedMedium, allowedMedia,
+                    },
+                    status: "researcher",
+                    progress: 5,
+                    agent_message: "🔍 Researcher vybírá zdroje...",
+                })
+                .select("id")
+                .single()
+            job = created
+
+            if (!job) { failures++; cursor++; await persist(); continue }
+
+            // Charge now (idempotent via reference_id = job.id), refund on failure.
+            try {
+                if (ADMIN_BYPASS) { /* no charge under admin bypass */ }
+                else if (isPlanPost) await incrementPlanPostCount(clientId)
+                else await deductCredits(clientId, "post", `Post (kampaň ${campaign.id})`, job.id, chargedCredits)
+            } catch {
+                await supabaseAdmin.from("ig_jobs").delete().eq("id", job.id)
+                failures++; cursor++; await persist(); continue
+            }
         }
 
         try {
@@ -209,6 +243,8 @@ export async function GET(req: Request) {
                 productId: item?.productId || undefined,
                 campaignContext, allowedMedia,
                 chargedMedium: ADMIN_BYPASS ? undefined : chargedMedium,
+                jobId: job.id,
+                resumeFrom,
                 onProgress: async (stage: string, progress: number, message: string, editorialLog?: any[]) => {
                     const upd: Record<string, any> = { status: stage, progress, agent_message: message }
                     if (editorialLog?.length) {
@@ -254,19 +290,27 @@ export async function GET(req: Request) {
             const msg = (err?.message || String(err)).substring(0, 500)
 
             // QualityUnavailable = both Pro tiers are overloaded right now. We refuse to
-            // ship a flash-quality post, so DEFER: refund, drop the stub job, leave the
-            // cursor put, and break — the next cron tick retries this same item when Pro
-            // frees up. Capped by MAX_CAMPAIGN_AGE_MS so it can't defer forever.
+            // ship a flash-quality post, so DEFER: PARK the job (charge kept, caption
+            // checkpoint kept), remember its id on the plan item, leave the cursor put,
+            // and break — the next tick reuses the job and resumes from the checkpoint,
+            // so the already-written caption is never re-generated. Capped by
+            // MAX_CAMPAIGN_AGE_MS so it can't defer forever.
             if (isQualityUnavailable(err)) {
-                try { await refundJobCharge(clientId, job.id, charged, chargedCredits) } catch { /* best-effort */ }
                 const ageMs = Date.now() - new Date(campaign.created_at).getTime()
                 if (ageMs <= MAX_CAMPAIGN_AGE_MS) {
-                    await supabaseAdmin.from("ig_jobs").delete().eq("id", job.id)
-                    console.warn(`   ⏸️ campaign ${campaign.id} item #${cursor + 1}: Pro engines busy — deferring to next tick`)
+                    // status 'failed' = terminal → the stuck-job reaper won't touch it
+                    // (it would refund the charge we're deliberately keeping).
+                    await supabaseAdmin.from("ig_jobs").update({ status: "failed", agent_message: "⏸️ Odloženo — velký provoz, pokračuji v dalším ticku", error: msg }).eq("id", job.id)
+                    if (item) {
+                        item.jobId = job.id
+                        try { await supabaseAdmin.from("ig_campaigns").update({ plan }).eq("id", campaign.id) } catch { /* best-effort */ }
+                    }
+                    console.warn(`   ⏸️ campaign ${campaign.id} item #${cursor + 1}: Pro engines busy — parked job ${job.id}, deferring to next tick`)
                     stopReason = "deferred"
                     break
                 }
-                // Tried for hours — give up on this item as a failure and move on.
+                // Tried for hours — give up on this item as a failure, refund, move on.
+                try { await refundJobCharge(clientId, job.id, charged, chargedCredits) } catch { /* best-effort */ }
                 await supabaseAdmin.from("ig_jobs").update({ status: "failed", agent_message: "❌ Nepodařilo se dokončit — velký provoz", error: msg }).eq("id", job.id)
                 console.warn(`   ❌ campaign ${campaign.id} item #${cursor + 1}: Pro exhausted past max age — failing item`)
                 failures++

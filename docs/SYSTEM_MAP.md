@@ -107,16 +107,18 @@ flowchart TD
 
 The consistency program (temp policy, deterministic persona, cross-family judge) fixed the *variance* problems. What remains are **structural** inefficiencies:
 
+> **STATUS 2026-07-02: ALL SIX SHIPPED (v7.0).** #2 checkpoints (caption stage; the design-brief checkpoint was deliberately dropped — it would cut across all three orchestrators to save one $0.03 call). #1+#4 best-of-2 + anchors behind `PIPELINE_BESTOF2=1` with strategy attribution in `ig_generation_log` + weekly-report comparison (the decision gate for flipping the default). #3+#6 embeddings live (`gemini-embedding-2`, 768d pgvector, `match_brand_memories` RPC, `consistency_score`). #5 context-first with a ×1.3 holiday bias on product/promo types.
+
 | # | Weakness (verified in code) | Why it hurts | Better solution |
 |---|---|---|---|
-| 1 | **Repair-loop editorial board**: judge scores one draft, then up to 3 fix→rewrite→re-judge rounds | Iterative repair converges slowly; LLM judges are unreliable at *absolute* scores (a 6 vs a 9 is noisy) but reliable at *ranking*; worst case = 8 Pro calls | **Generate-and-select (best-of-2)**: 2 parallel copywriter drafts → judge **ranks** them + fixes only the winner (≤1 repair round). Fewer calls, lower latency, provably better selection |
-| 2 | **No intra-post checkpoints**: one 800s monolith; Veo reels are the longest and most crash-prone | A timeout at render re-generates the caption (cost + different result than what was approved); reaper refunds but the work is lost | **Stage checkpoints in `ig_jobs`**: persist `captionData` after the quality gate and the design brief after the Designer; on retry, resume from the last completed stage |
-| 3 | **Memory retrieval = top-8 by confidence** (`getBrandMemories(8)`, ilike only) | The same 8 memories dominate every prompt regardless of topic → stale, topic-irrelevant guidance | **Embedding retrieval**: embed memories once (Gemini embeddings, ~$0), retrieve top-k **by relevance to the selected idea/topic**, keep 2–3 global high-confidence slots |
-| 4 | **Judge has no calibration anchors** | Score drift across sessions/models; threshold 9 means different things on different days | Two **gold anchor examples** (a canonical 9 and a 6) pinned in the critic prompt — cheap, no infra; later: judge-vs-engagement correlation in the weekly report (rails exist: `weekly_report` agent task) |
-| 5 | **Context gathered *after* type/idea selection** | A holiday/weather signal can't influence *what* gets made, only how it's written | Move `gatherContext()` before the Researcher and add a small context bias to type weights (e.g. holiday → product/promo boost) |
-| 6 | **Consistency is not measured** (L4 gap) | "Feels more on-brand" is unfalsifiable; auto-tuning (Phase 4) has no sensor | **Consistency score**: cosine(new caption embedding, gold-voice centroid) logged per post to `ig_generation_log` — shares the embeddings integration with #3 |
+| 1 | **Repair-loop editorial board**: judge scores one draft, then up to 3 fix→rewrite→re-judge rounds | Iterative repair converges slowly; LLM judges are unreliable at *absolute* scores (a 6 vs a 9 is noisy) but reliable at *ranking*; worst case = 8 Pro calls | ✅ **Generate-and-select (best-of-2)**: 2 parallel copywriter drafts → judge **ranks** them (`rankDrafts`) + fixes only the winner (≤1 repair round via `reviewPost(..., maxRounds: 1)`) |
+| 2 | **No intra-post checkpoints**: one 800s monolith; Veo reels are the longest and most crash-prone | A timeout at render re-generates the caption (cost + different result than what was approved); reaper refunds but the work is lost | ✅ **Caption checkpoint in `ig_jobs.result`**: persisted after the quality gate; failed-job retry + campaign QU-defer resume the visual phase without re-burning the Pro text calls |
+| 3 | **Memory retrieval = top-8 by confidence** (`getBrandMemories(8)`, ilike only) | The same 8 memories dominate every prompt regardless of topic → stale, topic-irrelevant guidance | ✅ **Embedding retrieval**: `match_brand_memories` RPC (pgvector 768d) by topic relevance + top-3 confidence always included; lazy self-heal embedding of new memories |
+| 4 | **Judge has no calibration anchors** | Score drift across sessions/models; threshold 9 means different things on different days | ✅ **`SCORE_ANCHORS`** (a canonical 9 and a 6) pinned in both `scorePost` and `rankDrafts`; strategy comparison in the weekly report |
+| 5 | **Context gathered *after* type/idea selection** | A holiday/weather signal can't influence *what* gets made, only how it's written | ✅ `gatherContext()` runs before the Researcher; holiday → ×1.3 weight on product/promo type patterns |
+| 6 | **Consistency is not measured** (L4 gap) | "Feels more on-brand" is unfalsifiable; auto-tuning (Phase 4) has no sensor | ✅ **Consistency score**: cosine(new caption embedding, gold-voice centroid of top-engagement posts) → `ig_generation_log.consistency_score` per post |
 
-### Proposed pipeline v2 (changes highlighted)
+### Pipeline v2 (SHIPPED — best-of-2 gated on `PIPELINE_BESTOF2=1`, rest always-on)
 
 ```mermaid
 flowchart TD
