@@ -279,7 +279,8 @@ export default function Home() {
                 price: 490,
                 highlight: false,
                 features: [
-                  "~4 příspěvky týdně",
+                  "20 kreditů měsíčně",
+                  "Až 20 příspěvků (~4-5 týdně)",
                   "Unikátní AI obrázky",
                   "Carousel posty",
                   "Nápady na obsah",
@@ -291,8 +292,8 @@ export default function Home() {
                 price: 990,
                 highlight: true,
                 features: [
+                  "45 kreditů měsíčně",
                   "Obsah na každý den",
-                  "Vše ze Start",
                   "Reels — AI video",
                   "A/B varianty příspěvků",
                   "Sledování růstu followerů",
@@ -304,8 +305,8 @@ export default function Home() {
                 price: 1990,
                 highlight: false,
                 features: [
-                  "Maximum obsahu",
-                  "Vše z Růst",
+                  "110 kreditů měsíčně",
+                  "Maximum obsahu vč. reels",
                   "Produktové vizualizace",
                   "Prioritní generování",
                 ],

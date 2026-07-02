@@ -243,8 +243,8 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 | `ig_generation_log` | `prompt_used`, `model_used`, `critic_score`, `critic_keep[]`, `critic_fix[]`, `qa_status` | Critic feedback for learning; `qa_status` = native QA outcome (pass/retry_pass/fallback/overlay) |
 | `ig_brand_memory` | `memory_type` (pattern/preference/avoid/visual), `content`, `confidence` | Long-term learning |
 | `ig_jobs` | `status`, `progress`, `agent_message`, `editorial_log` (jsonb), `result` (jsonb) | Progress + editorial board log |
-| `subscription_plans` | `id`, `name`, `price_czk`, `features` | Plan definitions — v3 growth tiery: `chrlit_start` (490 Kč/15 kr), `chrlit_rust` (990 Kč/40 kr, +post_variant +reel +growth_tracking), `chrlit_dominance` (1990 Kč/100 kr, +product studio +priority). Features JSON nově: `allowed_media[]` (chybí = vše povoleno, legacy), `growth_tracking` bool. Staré `chrlit` deaktivováno (grandfathered) |
-| `subscriptions` | `client_id`, `plan_id`, `status`, `plan_posts_unlocked` | Active subscriptions — `activatePaidPlan(clientId, planId, subId?)` aktivuje zaplacený plán (z pending sub) a cancelne ostatní live subs klienta |
+| `subscription_plans` | `id`, `name`, `price_czk`, `features` | Plan definitions — v4 media-weighted re-budget (`20260702_media_weighted_credits.sql`): `chrlit_start` (490 Kč/**20** kr, image+carousel), `chrlit_rust` (990 Kč/**45** kr, +post_variant +reel +growth_tracking), `chrlit_dominance` (1990 Kč/**110** kr, +product studio +priority); `trial_v2` má nově `allowed_media: image+carousel`. Kredit ≈ $0.30 COGS: image 1 / carousel 3 / reel 5 (`lib/credits.ts`). Features JSON: `allowed_media[]` (chybí = vše povoleno, legacy), `growth_tracking` bool. Staré `chrlit` deaktivováno (grandfathered) |
+| `subscriptions` | `client_id`, `plan_id`, `status`, `plan_posts_unlocked`, `recurring_trans_id`, `billing_failures` | Active subscriptions — `activatePaidPlan(clientId, planId, subId?)` aktivuje zaplacený plán (z pending sub) a cancelne ostatní live subs klienta. `recurring_trans_id` = Comgate INIT token pro auto-renewal (billing-worker), `billing_failures` = dunning counter (migrace `20260702_recurring_billing.sql`) |
 | `payments` | `comgate_trans_id`, `amount`, `status` | Comgate payments |
 | `ig_growth_snapshots` | `client_id`, `follower_count`, `following_count`, `media_count`, `captured_at` | Týdenní follower snapshoty (cron po 6:00 UTC) pro plány s `growth_tracking` — growth dashboard v PerformanceTab |
 | `ig_connections` | `client_id`, `provider`, unique `(client_id, provider)`, `ig_user_id`, `ig_username`, `access_token` (AES-256-GCM ciphertext), `refresh_token`, `scopes[]`, `token_expires_at`, `status`, `metadata` jsonb | Per-tenant OAuth credential vault. **Multi-provider** (`provider ∈ instagram/linkedin/facebook/email`) — one row per (tenant, provider); core-hardening Fáze 1. IG module (`instagram/ig-connection.ts`) tags rows `'instagram'`. **RLS deny-all** → jen service-role; token nikdy nejde do prohlížeče ani do `clients.config`. Šifrování `lib/ig-token-crypto.ts` |
@@ -289,12 +289,12 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 
 | Route | Auth | Duration | Purpose |
 |-------|------|----------|---------|
-| `POST /api/ig-create-job` | ✅ membership + rate limit | 10s | Create job, **charge credit/plan counter** (refunded on failure), return jobId |
+| `POST /api/ig-create-job` | ✅ membership + rate limit | 10s | Create job, **charge media-weighted credit/plan counter** (image 1 / carousel 3 / reel 5; `chargedCredits`+`chargedMedium` v job config; refunded on failure, down-clamp dorovnán přes `reconcileJobCharge`), return jobId |
 | `POST /api/ig-run-job` | ✅ job ownership | 800s | Run full generation pipeline |
 | `GET /api/ig-job-status` | ✅ job ownership | 5s | Poll progress + **stuck-job reaper** (>8 min silent → failed + refund) |
 | `POST /api/ig-learn` | ✅ membership | 60s | Trigger feedback loop |
 | `POST /api/payments/create` | ✅ client membership | 10s | Create Comgate payment (mock disabled on prod) |
-| `POST /api/payments/callback` | ❌ (webhook) | 10s | Comgate status callback (server-side verification) |
+| `POST /api/payments/callback` | ❌ (webhook) | 10s | Comgate status callback (server-side verification; **idempotentní** — replay PAID je no-op; ukládá `recurring_trans_id` token; CANCELLED renewal neruší živou sub) |
 | `GET /api/payments/return` | ❌ (redirect) | 10s | Post-payment redirect |
 | `GET /api/subscription` | ✅ | 10s | Client subscription info (+ `allowedMedia`, `growthTracking`) |
 | `GET /api/plans` | ✅ | 10s | Aktivní plány pro pricing UI (bez trial_v2) |
@@ -302,6 +302,7 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 | `GET /api/cron/ig-token-refresh` | ❌ (CRON_SECRET bearer) | 800s | Denní obnova IG long-lived tokenů blížících se expiraci (vercel.json cron `0 5 * * *`) |
 | `GET /api/cron/ig-metrics-sync` | ❌ (CRON_SECRET bearer) | 800s | Denní sync IG insights → metriky postů → learning loop (roadmap step 3); caption-match backfill `ig_media_id` pro handoff posty; `instagram/metrics-sync.ts` (vercel.json cron `0 7 * * *`) |
 | `GET /api/cron/agent-worker` | ❌ (CRON_SECRET bearer) | 800s | **Fáze 2** drainer fronty `agent_tasks` přes `drainTasks()` (vercel.json cron `* * * * *`) — registrované handlery `lib/agents/handlers.ts` |
+| `GET /api/cron/billing-worker` | ❌ (CRON_SECRET bearer) | 300s | Denní renewal + dunning (vercel.json cron `0 8 * * *`): recurring charge přes `chargeRecurring()` (token `subscriptions.recurring_trans_id`), bez tokenu e-mail reminder; po 3 selháních persist `expired` + e-mail. Grace 3 dny (`BILLING_GRACE_DAYS`) |
 | `GET /api/ig-connect/start` | ✅ requireProjectAccess | 10s | Začátek IG OAuth — podepíše `state` a redirectne na Instagram authorize |
 | `GET /api/ig-connect/callback` | ❌ (signed state) | 30s | IG OAuth callback — code→long-lived token, uloží šifrované do `ig_connections` |
 | `POST /api/data-deletion` | ❌ (Meta signed_request) | 10s | Meta data deletion callback — smaže `ig_connections` daného ig_user_id |
@@ -371,6 +372,9 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 | `COMGATE_MERCHANT` | Yes for payments | lib/comgate.ts |
 | `COMGATE_SECRET` | Yes for payments | lib/comgate.ts |
 | `COMGATE_MOCK` | Optional (ignored on prod) | lib/comgate.ts — isMockPaymentMode() |
+| `COMGATE_RECURRING` | Optional (gate auto-renewal) | `=1` zapne `initRecurring` na prvních platbách + recurring charge v billing-workeru. NEZAPÍNAT dřív, než Comgate smluvně povolí „opakované platby" — jinak selže vytvoření platby |
+| `RESEND_API_KEY` / `REPORT_FROM_EMAIL` | Optional | `lib/email.ts` — billing e-maily (reminder / failed charge / expiry) + weekly report; chybí = e-maily se tiše přeskočí |
+| `REELS_ENABLED` | Optional (default OFF) | `=1` zapne Veo reels (kill-switch čtou `autopilot.ts`, `content-plan-actions.ts`, billing charge odhady). Zapnout až PO nasazení media-weighted kreditů |
 | `NEXT_PUBLIC_SITE_URL` | Yes | auth callback, payments |
 | `HIKERAPI_KEY` | Optional | IG scraping — onboarding + growth cron (graceful skip), `lib/ig-scraper.ts` |
 | `CRON_SECRET` | Optional | auth pro `/api/cron/*` (growth-snapshot, ig-token-refresh; Vercel cron posílá Bearer automaticky) |

@@ -51,6 +51,7 @@ export async function POST(req: Request) {
             productId: config.productId,
             campaignContext: config.campaignContext,
             allowedMedia: config.allowedMedia,
+            chargedMedium: config.chargedMedium,
             onProgress: async (stage: string, progress: number, message: string, editorialLog?: any[]) => {
                 const update: Record<string, any> = { status: stage, progress, agent_message: message }
                 if (editorialLog && editorialLog.length > 0) {
@@ -65,7 +66,16 @@ export async function POST(req: Request) {
             },
         })
 
-        // Credit was already charged in ig-create-job (referenced by jobId).
+        // Credit was already charged in ig-create-job (referenced by jobId). If the
+        // engine clamped the medium below what was billed (plan gating / kill-switch),
+        // refund the difference — never bill a reel and deliver a carousel.
+        try {
+            const { reconcileJobCharge } = await import("@/lib/subscription")
+            await reconcileJobCharge(job.client_id, jobId, config.charged, config.chargedCredits, result.mediaType)
+        } catch (reconErr: any) {
+            console.error("Job charge reconcile failed:", reconErr?.message)
+        }
+
         await updateJob({
             status: "done",
             progress: 100,
@@ -111,7 +121,7 @@ export async function POST(req: Request) {
         // Refund the charge made at job creation (idempotent via unique index on action+reference_id)
         try {
             const { refundJobCharge } = await import("@/lib/subscription")
-            await refundJobCharge(job.client_id, jobId, config.charged)
+            await refundJobCharge(job.client_id, jobId, config.charged, config.chargedCredits)
         } catch (refundErr: any) {
             console.error("Job charge refund failed:", refundErr?.message)
         }

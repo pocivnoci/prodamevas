@@ -87,7 +87,8 @@ export async function GET(req: Request) {
     }
 
     const {
-        canPerformAction, incrementPlanPostCount, deductCredits, refundJobCharge, getClientSubscription,
+        canPerformAction, incrementPlanPostCount, deductCredits, refundJobCharge, reconcileJobCharge,
+        getClientSubscription, creditsForMedia,
     } = await import("@/lib/subscription")
 
     // Cross-tick campaign continuity: seed previous hooks from already-done posts.
@@ -137,6 +138,15 @@ export async function GET(req: Request) {
         // default. generateOnePost still applies the reel kill-switch + feed-safe clamp.
         const itemMedium = item?.medium || opts.medium || undefined
 
+        // Billed medium = what will actually render: pre-apply the same clamps the engine
+        // uses (kill-switch, plan gating), so the media-weighted charge matches delivery.
+        let chargedMedium: "image" | "carousel" | "reel" =
+            itemMedium === "reel" || itemMedium === "carousel" ? itemMedium : "image"
+        if (chargedMedium === "reel" && process.env.REELS_ENABLED !== "1") chargedMedium = "carousel"
+        if (chargedMedium === "reel" && allowedMedia && !allowedMedia.includes("reel")) {
+            chargedMedium = allowedMedia.includes("carousel") ? "carousel" : "image"
+        }
+
         // ── Per-post credit check (clientId-based; no session in a worker) ──
         // Admin/internal bypass: CAMPAIGN_ADMIN_BYPASS=1 (global) OR options.adminBypass
         // (per-campaign, set by startCampaign when a super-admin starts it) skips the credit
@@ -144,7 +154,7 @@ export async function GET(req: Request) {
         // a super-admin's session bypassed the up-front check but this session-less worker
         // could not — so the campaign was created then silently died at post 0. Default OFF.
         const ADMIN_BYPASS = process.env.CAMPAIGN_ADMIN_BYPASS === "1" || opts.adminBypass === true
-        const check = ADMIN_BYPASS ? { allowed: true, isPlanPost: false } : await canPerformAction(clientId, "post")
+        const check = ADMIN_BYPASS ? { allowed: true, isPlanPost: false } : await canPerformAction(clientId, "post", undefined, chargedMedium)
         if (!check.allowed) {
             stopReason = "no_credits"
             stopDetail = (check as { reason?: string }).reason || "Nedostatek kreditů pro pokračování."
@@ -152,6 +162,7 @@ export async function GET(req: Request) {
         }
         const isPlanPost = !!check.isPlanPost
         const charged: "plan" | "credits" | "none" = ADMIN_BYPASS ? "none" : (isPlanPost ? "plan" : "credits")
+        const chargedCredits = charged === "credits" ? creditsForMedia(chargedMedium) : 0
 
         const campaignContext = previousPosts.length > 0
             ? { postNumber: cursor + 1, totalPosts: total, previousPosts: [...previousPosts] }
@@ -168,7 +179,8 @@ export async function GET(req: Request) {
                     medium: itemMedium,
                     category: opts.category || undefined,
                     productId: item?.productId || undefined,
-                    campaignContext, campaignId: campaign.id, charged, allowedMedia,
+                    campaignContext, campaignId: campaign.id,
+                    charged, chargedCredits, chargedMedium, allowedMedia,
                 },
                 status: "researcher",
                 progress: 5,
@@ -183,7 +195,7 @@ export async function GET(req: Request) {
         try {
             if (ADMIN_BYPASS) { /* no charge under admin bypass */ }
             else if (isPlanPost) await incrementPlanPostCount(clientId)
-            else await deductCredits(clientId, "post", `Post (kampaň ${campaign.id})`, job.id)
+            else await deductCredits(clientId, "post", `Post (kampaň ${campaign.id})`, job.id, chargedCredits)
         } catch {
             await supabaseAdmin.from("ig_jobs").delete().eq("id", job.id)
             failures++; cursor++; await persist(); continue
@@ -196,6 +208,7 @@ export async function GET(req: Request) {
                 medium: itemMedium,
                 productId: item?.productId || undefined,
                 campaignContext, allowedMedia,
+                chargedMedium: ADMIN_BYPASS ? undefined : chargedMedium,
                 onProgress: async (stage: string, progress: number, message: string, editorialLog?: any[]) => {
                     const upd: Record<string, any> = { status: stage, progress, agent_message: message }
                     if (editorialLog?.length) {
@@ -214,6 +227,9 @@ export async function GET(req: Request) {
                 status: "done", progress: 100, agent_message: "✅ Hotovo!",
                 result: { success: true, postId: result.id, caption: result.caption, imageUrl: result.imageUrl, cost: result.cost },
             }).eq("id", job.id)
+
+            // Engine clamped below the billed medium? Refund the difference.
+            try { await reconcileJobCharge(clientId, job.id, charged, chargedCredits, result.mediaType) } catch { /* best-effort */ }
 
             // Planner: stamp the chosen posting time + calendar entry on the new post.
             // Best-effort — a calendar hiccup must never fail an already-generated post.
@@ -242,7 +258,7 @@ export async function GET(req: Request) {
             // cursor put, and break — the next cron tick retries this same item when Pro
             // frees up. Capped by MAX_CAMPAIGN_AGE_MS so it can't defer forever.
             if (isQualityUnavailable(err)) {
-                try { await refundJobCharge(clientId, job.id, charged) } catch { /* best-effort */ }
+                try { await refundJobCharge(clientId, job.id, charged, chargedCredits) } catch { /* best-effort */ }
                 const ageMs = Date.now() - new Date(campaign.created_at).getTime()
                 if (ageMs <= MAX_CAMPAIGN_AGE_MS) {
                     await supabaseAdmin.from("ig_jobs").delete().eq("id", job.id)
@@ -256,7 +272,7 @@ export async function GET(req: Request) {
                 failures++
             } else {
                 await supabaseAdmin.from("ig_jobs").update({ status: "failed", agent_message: "❌ Generování selhalo", error: msg }).eq("id", job.id)
-                try { await refundJobCharge(clientId, job.id, charged) } catch { /* best-effort */ }
+                try { await refundJobCharge(clientId, job.id, charged, chargedCredits) } catch { /* best-effort */ }
                 failures++
             }
         }

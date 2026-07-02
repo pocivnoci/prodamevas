@@ -38,17 +38,40 @@ export async function POST(req: Request) {
             }
         }
 
+        // Effective medium for billing: explicit request wins; otherwise the post type's
+        // configured format. The engine can only clamp DOWN from this (chargedMedium cap
+        // in generateOnePost), so the charge is always >= the delivered medium's cost —
+        // any downward clamp is refunded via reconcileJobCharge in ig-run-job.
+        let chargedMedium: "image" | "carousel" | "reel" = "image"
+        if (body.medium === "carousel" || body.medium === "reel" || body.medium === "image") {
+            chargedMedium = body.medium
+        } else if (body.type) {
+            try {
+                const { loadConfig } = await import("@/instagram/configs")
+                const { getPostFormat } = await import("@/instagram/caption-generator")
+                const config = await loadConfig(body.configName)
+                chargedMedium = getPostFormat(config, body.type).medium
+            } catch { /* keep image (cheapest) — engine will clamp to it */ }
+        }
+        // Reels kill-switch: never bill a reel the engine is globally forbidden to make
+        if (process.env.REELS_ENABLED !== "1" && chargedMedium === "reel") chargedMedium = "carousel"
+
         // Media gating: reels only from the Růst tier up (admin bypass)
         let allowedMedia: string[] | undefined
         if (!isSuperAdmin) {
             const { getClientSubscription, canUseMedium } = await import("@/lib/subscription")
             const sub = await getClientSubscription(clientId)
             allowedMedia = sub?.features?.allowed_media
-            if (body.medium === "reel" && !canUseMedium(sub?.features, "reel")) {
-                return NextResponse.json(
-                    { success: false, error: "Reels jsou dostupné od balíčku Růst.", featureBlocked: true, planRequired: "Růst" },
-                    { status: 403 }
-                )
+            if ((body.medium === "reel" || chargedMedium === "reel") && !canUseMedium(sub?.features, "reel")) {
+                if (body.medium === "reel") {
+                    return NextResponse.json(
+                        { success: false, error: "Reels jsou dostupné od balíčku Růst.", featureBlocked: true, planRequired: "Růst" },
+                        { status: 403 }
+                    )
+                }
+                // Implicit reel (from post type) on a plan without reels — engine clamps
+                // to carousel, so bill the carousel.
+                chargedMedium = "carousel"
             }
         }
 
@@ -58,7 +81,7 @@ export async function POST(req: Request) {
         let guard: Awaited<ReturnType<typeof import("@/app/actions/credit-guard").creditGuard>> | null = null
         if (!body.dryRun) {
             const { creditGuard } = await import("@/app/actions/credit-guard")
-            guard = await creditGuard(body.configName, "post")
+            guard = await creditGuard(body.configName, "post", undefined, chargedMedium)
             if (!guard.ok) {
                 return NextResponse.json(
                     { success: false, error: guard.error || "Nedostatek kreditů" },
@@ -68,6 +91,7 @@ export async function POST(req: Request) {
         }
 
         const charged = body.dryRun ? "none" : (guard?.isPlanPost ? "plan" : "credits")
+        const chargedCredits = guard?.creditsRequired ?? 0
 
         const { data: job, error } = await supabaseAdmin
             .from("ig_jobs")
@@ -85,6 +109,8 @@ export async function POST(req: Request) {
                     campaignContext: body.campaignContext,
                     productId: body.productId,
                     charged,
+                    chargedCredits,
+                    chargedMedium,
                     allowedMedia,
                 },
                 status: "researcher",

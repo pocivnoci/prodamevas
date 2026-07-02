@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
-import { createPayment, generateRefId, isMockPaymentMode } from "@/lib/comgate"
+import { createPayment, generateRefId, isMockPaymentMode, isRecurringEnabled } from "@/lib/comgate"
 
 export async function POST(req: NextRequest) {
     const { requireAuth } = await import("@/lib/auth-guard")
@@ -97,6 +97,10 @@ export async function POST(req: NextRequest) {
                 curr: "CZK",
                 label: label.substring(0, 40),
                 email: payerEmail || "noreply@chrlit.cz",
+                // Init a recurring series so the billing worker can auto-renew month 2+.
+                // Gated on COMGATE_RECURRING=1 (needs the merchant contract) — without it
+                // the flag would fail payment creation entirely.
+                initRecurring: isRecurringEnabled(),
             })
 
             if (!comgateResult.transId || !comgateResult.redirect) {

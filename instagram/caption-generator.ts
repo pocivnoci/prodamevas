@@ -813,23 +813,21 @@ export async function scorePost(
     const isCarousel = captionData.slides && captionData.slides.length > 0
 
     let slidesSection = ""
-    let carouselCriteria = ""
+    let carouselBodyNote = ""
     if (isCarousel && captionData.slides) {
         slidesSection = `\nSlides:\n${captionData.slides.map((s, i) => `  ${i + 1}. "${s.headline}" - ${s.subtext}`).join("\n")}`
-        carouselCriteria = `
-6. **Carousel flow (0-2 body):** Navazuji kroky logicky na sebe?
-7. **Cover swipe-appeal (0-1 bod):** Primeje cover headline swipnout?`
+        carouselBodyNote = " U karuselu: navazují slidy logicky na sebe a přiměje cover headline swipnout?"
     }
 
     const scorePrompt = `
-Jsi prisny Instagram content reviewer pro znacku "${config.name}" (${config.website}).
+Jsi přísný Instagram content reviewer pro značku "${config.name}" (${config.website}).
 IG handle: ${config.instagram}
 
-## BRAND VOICE (post MUSI odpovidat):
+## BRAND VOICE (post MUSÍ odpovídat):
 ${config.brandVoice.persona ? `Persona: ${config.brandVoice.persona.substring(0, 200)}` : ""}
 Tón: ${config.brandVoice.voiceTraits?.slice(0, 4).join(", ") || "autentický"}
 
-## ANTI-PATTERNS (post NESMI obsahovat):
+## ANTI-PATTERNS (post NESMÍ obsahovat):
 ${config.brandVoice.antiPatterns?.slice(0, 5).join(", ") || "generické fráze"}
 
 ## POST${postTypeName ? ` (typ: ${postTypeName})` : ""}:
@@ -838,23 +836,21 @@ Body: "${captionData.body || ""}"${slidesSection}
 CTA: "${captionData.cta}"
 Hashtags: ${captionData.hashtags.join(", ")}
 
-## KRITERIA:
-1. **Hook (0-3 body):** Zastavi scrollovani? Kratky (max 15 slov)? Bez emoji?
-2. **Relevance (0-2 body):** Odpovida brand voice a persone vyse?
-3. **Originalita (0-2 body):** Nepusobi genericky? Nepouziva anti-patterns?
-4. **CTA (0-1 bod):** Obsahuje ${config.website}?
-5. **Brand compliance (0-1 bod):** Sedi ton k voice traits? Neporusuje anti-patterns?${carouselCriteria}
-6. **Celkovy dojem (0-1 bod):** Zverejnil bys to jako brand manager?
+## KRITÉRIA (celkem max 10 bodů):
+1. **Hook (0-3 body):** Zastaví scrollování? Krátký (max 15 slov)? Bez emoji?
+2. **Body (0-3 body):** Dává čtenáři konkrétní hodnotu, sedí k brand voice a personě výše, čte se lehce?${carouselBodyNote}
+3. **CTA (0-2 body):** Jasná výzva k akci? Obsahuje ${config.website}?
+4. **Originalita (0-2 body):** Nepůsobí genericky? Nepoužívá anti-patterns?
 
-## VYSTUP — vrat POUZE validni JSON s touto strukturou:
+## VÝSTUP — vrať POUZE validní JSON s touto strukturou (overall = součet bodů, korigovaný otázkou "zveřejnil bys to jako brand manager?"):
 {
-  "overall": <cislo 1-10>,
-  "hookScore": <cislo 0-3>,
-  "bodyScore": <cislo 0-3>,
-  "ctaScore": <cislo 0-2>,
-  "originalityScore": <cislo 0-2>,
-  "keep": ["co je dobre a NESMI se menit, cesky, max 2 polozky"],
-  "fix": ["co je spatne a MUSI se opravit, cesky, max 2 polozky. Prazdne pole pokud je vse OK."]
+  "overall": <číslo 1-10>,
+  "hookScore": <číslo 0-3>,
+  "bodyScore": <číslo 0-3>,
+  "ctaScore": <číslo 0-2>,
+  "originalityScore": <číslo 0-2>,
+  "keep": ["co je dobré a NESMÍ se měnit, česky, max 2 položky"],
+  "fix": ["co je špatně a MUSÍ se opravit, česky, max 2 položky. Prázdné pole pokud je vše OK."]
 }
 `
 

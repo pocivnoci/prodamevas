@@ -37,9 +37,14 @@ Volitelné:
 - [ ] Uložit metriky (+10 likes) → log `📊 Metrics propagated` / `🧠 Learning triggered`
 - [ ] Druhý (non-admin) účet: pokus o cizí `projectSlug` → „Nemáte přístup k tomuto projektu."
 
-## 5. Před zapnutím reálných plateb (ODLOŽENO)
+## 5. Před zapnutím reálných plateb
 
-- [ ] Comgate creds (`COMGATE_MERCHANT_ID`, `COMGATE_SECRET`, `COMGATE_TEST=false`)
-- [ ] Callback idempotence: přeskočit zpracování, pokud je platba už `PAID` (jinak replay → opakovaný upgrade)
-- [ ] Ověřit, že callback NIKDY nevěří payloadu — jen server-side `getPaymentStatus()`
-- [ ] Malá testovací platba end-to-end
+- [ ] Comgate creds na Vercelu (`COMGATE_MERCHANT_ID`, `COMGATE_SECRET`, `COMGATE_TEST=false`)
+- [x] Callback idempotence — replay `PAID` callbacku je no-op (podmíněný status-claim UPDATE, v6.9)
+- [x] Callback NIKDY nevěří payloadu — server-side `getPaymentStatus()` (+ mock jen mimo produkci)
+- [x] Media-weighted kredity (image 1 / carousel 3 / reel 5) + plan re-budget 20/45/110 — migrace `20260702_media_weighted_credits.sql` aplikována
+- [x] Recurring billing kód: `initRecurring` token, denní `/api/cron/billing-worker` (renewal + dunning + grace 3 dny), migrace `20260702_recurring_billing.sql` aplikována
+- [ ] **U Comgate smluvně aktivovat „opakované platby"**, pak nastavit `COMGATE_RECURRING=1` (bez toho běží manuální obnova s e-mail remindery)
+- [ ] `RESEND_API_KEY` na Vercelu (billing e-maily: reminder / selhaná platba / expirace)
+- [ ] Malá testovací platba end-to-end (vč. ověření, že se uložil `subscriptions.recurring_trans_id`)
+- [ ] Po nasazení: `REELS_ENABLED=1` (kredity už reels zpoplatňují správně — 5 kreditů)

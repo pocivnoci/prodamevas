@@ -191,6 +191,21 @@ export async function generatePostVariant(
 
         if (fetchErr || !original) throw new Error("Post nenalezen")
 
+        // Credit gate — variants run the full pipeline (Pro copy + render) and were
+        // previously generated for FREE (billing leak). Weighted by the original's
+        // medium: the variant is forced to the same medium for a fair A/B comparison.
+        let variantMedium: "image" | "carousel" | "reel" =
+            original.media_type === "carousel" || original.media_type === "reel"
+                ? original.media_type
+                : "image"
+        // Reels kill-switch: the engine would clamp a reel to carousel anyway — bill the carousel.
+        if (variantMedium === "reel" && process.env.REELS_ENABLED !== "1") variantMedium = "carousel"
+        const { creditGuard } = await import("./credit-guard")
+        const guard = await creditGuard(projectSlug, "post_variant", undefined, variantMedium)
+        if (!guard.ok) {
+            return { success: false, error: guard.error || "Nedostatek kreditů na variantu." }
+        }
+
         // 2. Extract topic from caption (hook + first paragraph)
         const captionLines = (original.caption || "").split("\n").filter(Boolean)
         const hook = captionLines[0] || ""
@@ -221,6 +236,8 @@ PRAVIDLA PRO VARIANTU:
             configName: projectSlug,
             topic: variantTopic,
             type: postTypeName,
+            medium: variantMedium,
+            chargedMedium: variantMedium,
         })
 
         if (result.id) {
@@ -230,6 +247,10 @@ PRAVIDLA PRO VARIANTU:
                 .update({ revision_of: postId, link_type: "variant" })
                 .eq("id", result.id)
         }
+
+        // Deduct only after the variant actually generated (sync server action —
+        // a failure above skips the charge entirely).
+        await guard.commit(`Varianta příspěvku (${variantMedium})`, result.id)
 
         console.log(`✅ Varianta vygenerována: ${postId} → ${result.id}`)
         return { success: true, newPostId: result.id }

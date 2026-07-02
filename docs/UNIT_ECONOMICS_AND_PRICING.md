@@ -1,6 +1,8 @@
 # Unit Economics & Pricing — Actual Costs → Profitable Model
 
 > Written 2026-07-01. Grounds pricing in the engine's real `COSTS` (`instagram/caption-generator.ts`), the credit map (`lib/subscription.ts`), and the live plans (`supabase/migrations/20260612_growth_tiers.sql`). Companion to `docs/AI_PROVIDER_STRATEGY.md`.
+>
+> **✅ SHIPPED 2026-07-02:** the §4 fix is live — media-weighted credits (image 1 / carousel 3 / reel 5, `lib/credits.ts`), plans re-budgeted to 20/45/110 (`20260702_media_weighted_credits.sql`, applied to prod), variants charged (previously free), trial clamped to image+carousel. §3 describes the PRE-fix state, kept for the reasoning.
 
 ## Assumptions (adjust these — they move every margin)
 

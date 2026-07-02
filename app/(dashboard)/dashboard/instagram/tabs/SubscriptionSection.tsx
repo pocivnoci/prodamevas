@@ -33,9 +33,9 @@ function planFeatureList(p: PlanRow): string[] {
     const f = p.features
     const items = [
         `${f.credits_per_month} kreditů měsíčně`,
-        "AI posty — obrázky a carousely",
+        "AI posty — obrázek 1 kredit · carousel 3",
     ]
-    if (!f.allowed_media || f.allowed_media.includes("reel")) items.push("Reels (AI video)")
+    if (!f.allowed_media || f.allowed_media.includes("reel")) items.push("Reels (AI video) — 5 kreditů")
     if (f.allowed_actions.includes("post_variant")) items.push("A/B varianty příspěvků")
     if (f.allowed_actions.includes("idea_generate")) items.push("AI nápady na obsah")
     if (f.growth_tracking) items.push("Růstový dashboard — sledování followerů")
@@ -182,14 +182,13 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
     )
 }
 function CurrentPlanCard({ sub, onRefresh }: { sub: SubscriptionState; onRefresh: () => void }) {
-    // DEBUG: log subscription shape to find React #310 cause
-    console.log("[SubscriptionSection] sub data:", JSON.stringify(sub))
-    
     const pct = (sub.creditsTotal ?? 0) > 0
         ? Math.min(100, ((sub.creditsUsed ?? 0) / (sub.creditsTotal ?? 1)) * 100)
         : 0
     const isLow = pct > 80
     const isTrial = sub.status === "trialing"
+    // The v2 trial is content-gated (3 free posts), NOT time-gated — trialEndsAt is
+    // only set on legacy time-limited trials. Without it, show the content gate.
     const trialDays = isTrial && sub.trialEndsAt
         ? Math.max(0, Math.ceil((new Date(String(sub.trialEndsAt)).getTime() - Date.now()) / 86400000))
         : null
@@ -202,7 +201,7 @@ function CurrentPlanCard({ sub, onRefresh }: { sub: SubscriptionState; onRefresh
                     <span className="text-lg font-black text-white">{String(sub.planName ?? "")}</span>
                     {isTrial && (
                         <span className="text-[9px] bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full font-bold uppercase">
-                            Trial · {trialDays ?? 0}d zbývá
+                            {trialDays !== null ? `Trial · ${trialDays}d zbývá` : "Trial · 3 příspěvky zdarma"}
                         </span>
                     )}
                     {sub.status === "active" && (

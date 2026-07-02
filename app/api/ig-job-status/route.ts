@@ -52,7 +52,7 @@ export async function GET(req: Request) {
 
             try {
                 const { refundJobCharge } = await import("@/lib/subscription")
-                await refundJobCharge(job.client_id, job.id, (job.config as any)?.charged)
+                await refundJobCharge(job.client_id, job.id, (job.config as any)?.charged, (job.config as any)?.chargedCredits)
             } catch (refundErr: any) {
                 console.error("Stuck-job refund failed:", refundErr?.message)
             }

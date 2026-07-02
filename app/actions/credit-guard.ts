@@ -26,6 +26,7 @@ import {
     canPerformBatchAction,
     deductCredits,
     incrementPlanPostCount,
+    creditsForAction,
     type ActionType,
     ACTION_CREDITS,
     ACTION_LABELS,
@@ -39,6 +40,8 @@ export interface CreditGuardResult {
     clientId: string
     /** True if this is a plan post (no credit cost) */
     isPlanPost: boolean
+    /** Credits this action will deduct on commit (media-weighted; 0 for plan posts) */
+    creditsRequired: number
     /** Call after successful AI operation to deduct credits or increment plan counter */
     commit: (description?: string, referenceId?: string) => Promise<void>
 }
@@ -59,10 +62,12 @@ export async function creditGuard(
     action: ActionType,
     /** If true, always treat as extra post (costs credits even if plan has capacity) */
     isExtraPost?: boolean,
+    /** Post medium (image/carousel/reel) — weights the credit cost for post actions */
+    medium?: string | null,
 ): Promise<CreditGuardResult> {
     try {
         const { clientId } = await requireProjectAccess(projectId)
-        const check = await canPerformAction(clientId, action, isExtraPost)
+        const check = await canPerformAction(clientId, action, isExtraPost, medium)
 
         if (!check.allowed) {
             return {
@@ -70,27 +75,31 @@ export async function creditGuard(
                 error: check.reason || "Akce není povolena.",
                 clientId,
                 isPlanPost: false,
+                creditsRequired: check.creditsRequired,
                 commit: async () => {},
             }
         }
 
         const isPlanPost = !!check.isPlanPost
+        const creditsRequired = isPlanPost ? 0 : creditsForAction(action, medium)
 
         return {
             ok: true,
             clientId,
             isPlanPost,
+            creditsRequired,
             commit: async (description?: string, referenceId?: string) => {
                 if (isPlanPost) {
                     // Plan post — increment counter, no credit deduction
                     await incrementPlanPostCount(clientId)
                 } else {
-                    // Extra post — deduct credits
+                    // Extra post — deduct media-weighted credits
                     await deductCredits(
                         clientId,
                         action,
                         description || ACTION_LABELS[action],
                         referenceId,
+                        creditsRequired,
                     )
                 }
             },
@@ -105,6 +114,7 @@ export async function creditGuard(
                 : "Nepodařilo se ověřit kredity. Zkuste to znovu.",
             clientId: projectId,
             isPlanPost: false,
+            creditsRequired: 0,
             commit: async () => {},
         }
     }

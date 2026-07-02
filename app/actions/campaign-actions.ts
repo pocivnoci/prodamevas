@@ -48,8 +48,10 @@ export async function startCampaign(
             return { success: false, error: "Plán je prázdný." }
         }
 
-        // Reel gating once, up-front (same rule as ig-create-job).
-        if (!isSuperAdmin && options.medium === "reel") {
+        // Reel gating once, up-front (same rule as ig-create-job) — campaign-wide
+        // default AND any per-item reel in the plan.
+        const wantsReel = options.medium === "reel" || items.some(it => it.medium === "reel")
+        if (!isSuperAdmin && wantsReel) {
             const { getClientSubscription, canUseMedium } = await import("@/lib/subscription")
             const sub = await getClientSubscription(clientId)
             if (!canUseMedium(sub?.features, "reel")) {
@@ -57,9 +59,11 @@ export async function startCampaign(
             }
         }
 
-        // Up-front capacity check for the whole batch (does NOT charge).
-        const { canPerformBatchAction } = await import("@/lib/subscription")
-        const check = await canPerformBatchAction(clientId, "post", items.length)
+        // Up-front capacity check for the whole batch (does NOT charge) — media-weighted:
+        // a plan of carousels/reels needs more credits than the same count of images.
+        const { canPerformBatchAction, creditsForMedia } = await import("@/lib/subscription")
+        const totalCredits = items.reduce((sum, it) => sum + creditsForMedia(it.medium || options.medium), 0)
+        const check = await canPerformBatchAction(clientId, "post", items.length, totalCredits)
         if (!check.allowed) {
             return { success: false, error: check.reason || "Nedostatek kreditů pro celou kampaň." }
         }

@@ -20,6 +20,7 @@ import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPostType, IGCategory, IGPostFormat } from "./types"
+import { creditsForMedia } from "@/lib/credits"
 import { trackEvent } from "@/lib/analytics"
 
 export function GenerateTab({ projectId }: { projectId: string }) {
@@ -858,7 +859,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                             )
                                         })}
                                     </div>
-                                    <p className="text-[10px] text-white/20 mt-2 text-right font-bold uppercase tracking-widest">Spotřeba: {batchCount} kreditů · {postsPerWeek} příspěvků/týden</p>
+                                    <p className="text-[10px] text-white/20 mt-2 text-right font-bold uppercase tracking-widest">Spotřeba: ~{batchCount + 2 * Math.floor(batchCount / 4)} kreditů · {postsPerWeek} příspěvků/týden</p>
                                 </div>
 
                                 {/* Topic */}
@@ -1183,7 +1184,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                             <div className="flex items-center gap-4 text-[10px] text-white/30 font-bold uppercase tracking-widest">
                                 <span>{contentPlan.length} postů</span>
                                 <span>·</span>
-                                <span>{contentPlan.length} kreditů</span>
+                                <span>{contentPlan.reduce((sum, p) => sum + creditsForMedia(p.medium), 0)} kreditů</span>
                             </div>
 
                             <div className="flex items-center gap-3">

@@ -77,6 +77,17 @@ export interface CreatePaymentParams {
     method?: string
     /** Language of payment page */
     lang?: "cs" | "en" | "sk"
+    /** Mark this payment as the INIT of a recurring series (its transId becomes the token for chargeRecurring) */
+    initRecurring?: boolean
+}
+
+/**
+ * Recurring payments kill switch — initRecurring/chargeRecurring only work after
+ * Comgate enables "opakované platby" on the merchant account (contractual).
+ * Until then requesting initRecurring would fail payment creation, so it's opt-in.
+ */
+export function isRecurringEnabled(): boolean {
+    return process.env.COMGATE_RECURRING === "1"
 }
 
 export interface ComgateCreateResponse {
@@ -123,6 +134,7 @@ export async function createPayment(params: CreatePaymentParams): Promise<Comgat
         lang: params.lang || "cs",
         prepareOnly: "true", // always prepare — we redirect manually
     })
+    if (params.initRecurring) body.set("initRecurring", "true")
 
     const resp = await fetch(`${COMGATE_API}/create`, {
         method: "POST",
@@ -139,6 +151,58 @@ export async function createPayment(params: CreatePaymentParams): Promise<Comgat
     if (parsed.code !== 0) {
         console.error("Comgate create error:", parsed)
         throw new Error(`Comgate error ${parsed.code}: ${parsed.message}`)
+    }
+
+    return parsed as ComgateCreateResponse
+}
+
+/**
+ * Charge a follow-up payment on a recurring series — server-to-server, no payer
+ * interaction/redirect. `initRecurringId` is the transId of the ORIGINAL payment
+ * created with initRecurring=true (always reference the initial one, not the last
+ * renewal). Confirmation arrives via the standard payment callback (and/or
+ * getPaymentStatus polling), exactly like a redirect payment.
+ */
+export async function chargeRecurring(params: {
+    refId: string
+    price: number
+    curr?: "CZK" | "EUR"
+    label: string
+    email: string
+    initRecurringId: string
+}): Promise<ComgateCreateResponse> {
+    const { merchant, secret, isTest } = getConfig()
+
+    const body = new URLSearchParams({
+        merchant,
+        test: isTest ? "true" : "false",
+        country: "CZ",
+        price: String(params.price),
+        curr: params.curr || "CZK",
+        label: params.label,
+        refId: params.refId,
+        email: params.email,
+        method: "ALL",
+        lang: "cs",
+        prepareOnly: "true",
+        initRecurringId: params.initRecurringId,
+    })
+
+    const resp = await fetch(`${COMGATE_API}/create`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Authorization": authHeader(merchant, secret),
+        },
+        body: body.toString(),
+    })
+
+    const text = await resp.text()
+    const parsed = parseComgateResponse(text)
+
+    if (parsed.code !== 0) {
+        console.error("Comgate recurring charge error:", parsed)
+        throw new Error(`Comgate recurring error ${parsed.code}: ${parsed.message}`)
     }
 
     return parsed as ComgateCreateResponse
@@ -197,4 +261,17 @@ function parseComgateResponse(text: string): Record<string, any> {
  */
 export function generateRefId(clientSlug: string): string {
     return `sub-${clientSlug}-${Date.now()}`
+}
+
+/**
+ * refId for an automatic renewal charge. The `renew-` prefix tells the payment
+ * callback this is a renewal: a CANCELLED/declined renewal must NOT cancel the
+ * live subscription (the billing worker retries with dunning instead).
+ */
+export function generateRenewalRefId(clientSlug: string): string {
+    return `renew-${clientSlug}-${Date.now()}`
+}
+
+export function isRenewalRefId(refId?: string | null): boolean {
+    return !!refId?.startsWith("renew-")
 }

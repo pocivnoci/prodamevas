@@ -128,8 +128,10 @@ export async function generateOnePost(options: {
     campaignContext?: { postNumber: number; totalPosts: number; previousPosts: { hook: string; topic: string }[] }
     /** Media allowed by the subscription plan (undefined = everything; legacy plans). Disallowed medium gets clamped to carousel. */
     allowedMedia?: string[]
+    /** Medium the job was charged for (media-weighted credits) — the engine never renders a more expensive one. */
+    chargedMedium?: "image" | "carousel" | "reel"
     onProgress?: (stage: string, progress: number, message: string, editorialLog?: EditorialMessage[]) => Promise<void>
-}): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number }> {
+}): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number; mediaType: "image" | "carousel" | "reel" }> {
     const report = options.onProgress || (async () => { }) // no-op if not provided
     const clientUuid = await ensureConfig(options.configName)
 
@@ -356,6 +358,21 @@ export async function generateOnePost(options: {
         format.aspectRatio = "4:5" // 9:16 (reel) není feed-legální pro carousel — IG by ho ořízl
         if (format.overlayStyle === "none") format.overlayStyle = "cover"
         console.log("   🚫 Reels dočasně vypnuté (Veo off) — fallback na carousel (4:5)")
+    }
+
+    // Billing cap — the medium can never be MORE expensive than what the job was
+    // charged for (credits are media-weighted: image 1 / carousel 3 / reel 5, charged
+    // at job creation). Ideas/categories may still ask for a pricier medium; clamp it
+    // to the paid one. Downward differences are refunded via reconcileJobCharge.
+    if (options.chargedMedium) {
+        const MEDIUM_RANK: Record<string, number> = { image: 0, carousel: 1, reel: 2 }
+        if ((MEDIUM_RANK[format.medium] ?? 0) > (MEDIUM_RANK[options.chargedMedium] ?? 0)) {
+            const original = format.medium
+            format.medium = options.chargedMedium
+            if (format.medium !== "reel" && format.aspectRatio === "9:16") format.aspectRatio = "4:5"
+            if (format.medium === "carousel" && format.overlayStyle === "none") format.overlayStyle = "cover"
+            console.log(`   💳 Médium "${original}" překračuje účtovaný formát — clamp na ${format.medium}`)
+        }
     }
 
     // Feed-safety clamp — carousel/image must use a feed-legal aspect ratio. A 9:16
@@ -699,7 +716,7 @@ export async function generateOnePost(options: {
     console.log(`⏱️  ${elapsed}s | 💰 ~$${cost.toFixed(3)}`)
     console.log("═".repeat(60) + "\n")
 
-    return { id: postId, caption: fullCaption, imageUrl, cost }
+    return { id: postId, caption: fullCaption, imageUrl, cost, mediaType: format.medium }
     }) // end withActiveProject
 }
 

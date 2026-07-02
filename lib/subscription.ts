@@ -46,14 +46,29 @@ export type ActionType =
 
 /** How many credits each action costs (for EXTRA posts, not plan posts) */
 export const ACTION_CREDITS: Record<ActionType, number> = {
-    post: 1,
-    post_variant: 1,
+    post: 1,               // base = image; carousel/reel are weighted via creditsForMedia()
+    post_variant: 1,       // base = image; weighted via creditsForMedia()
     idea_generate: 1,      // batch of ideas
     product_ideas: 2,      // 5 product ideas
     product_visual: 2,     // Imagen render
     product_design: 3,     // concept + render
     product_mockup: 2,     // photorealistic mockup
     product_brief: 5,      // full business analysis
+}
+
+/**
+ * Media-weighted credit costs (COGS-aligned: 1 credit ≈ $0.30 of AI cost).
+ * A reel costs ~4× an image to produce — flat 1-credit-per-post sold reels
+ * below cost. Weighting the charge caps the worst case by construction.
+ * Weights live in lib/credits.ts (client-safe) — re-exported here for the backend.
+ */
+export { MEDIA_CREDITS, creditsForMedia } from "@/lib/credits"
+import { creditsForMedia as _creditsForMedia } from "@/lib/credits"
+
+/** Weighted credit cost for an action: post/post_variant scale with medium, the rest are flat. */
+export function creditsForAction(action: ActionType, medium?: string | null): number {
+    if (action === "post" || action === "post_variant") return _creditsForMedia(medium)
+    return ACTION_CREDITS[action]
 }
 
 /** Human-readable labels for actions */
@@ -126,11 +141,20 @@ export interface CanPerformResult {
  * Get the active subscription + usage for a client.
  * Returns null if no subscription exists.
  */
+/**
+ * Dunning window: after current_period_end passes, the sub stays usable for this
+ * many days while the billing worker retries the renewal charge (one attempt/day).
+ * After the window (or MAX_BILLING_FAILURES attempts) it is persisted as expired.
+ */
+export const BILLING_GRACE_DAYS = 3
+export const MAX_BILLING_FAILURES = 3
+
 /** active beats trialing beats pending — a freshly initiated (unpaid) upgrade
- *  must never mask the customer's live plan. */
+ *  must never mask the customer's live plan. Expired comes last: only shown
+ *  when nothing live exists (drives the "Obnovit plán" UI). */
 function pickLiveSubscription<T extends { status: string }>(rows: T[] | null): T | null {
     if (!rows || rows.length === 0) return null
-    const priority: Record<string, number> = { active: 0, trialing: 1, pending: 2 }
+    const priority: Record<string, number> = { active: 0, trialing: 1, pending: 2, expired: 3 }
     return [...rows].sort((a, b) => (priority[a.status] ?? 9) - (priority[b.status] ?? 9))[0]
 }
 
@@ -141,7 +165,7 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
         .from("subscriptions")
         .select("id, plan_id, status, trial_ends_at, current_period_start, current_period_end, created_at, plan_generated_at, plan_posts_unlocked")
         .eq("client_id", clientId)
-        .in("status", ["active", "trialing", "pending"])
+        .in("status", ["active", "trialing", "pending", "expired"])
         .order("created_at", { ascending: false })
         .limit(5)
 
@@ -153,7 +177,7 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
             .from("subscriptions")
             .select("id, plan_id, status, trial_ends_at, current_period_start, current_period_end, created_at")
             .eq("client_id", clientId)
-            .in("status", ["active", "trialing", "pending"])
+            .in("status", ["active", "trialing", "pending", "expired"])
             .order("created_at", { ascending: false })
             .limit(5)
         const subLegacy = pickLiveSubscription(subsLegacy)
@@ -186,10 +210,19 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
         }
     }
 
-    // 4. Check if paid period ended
+    // 4. Check if paid period ended. Within the grace window the sub stays active
+    // (the billing worker is retrying the renewal charge — dunning). Past it, the
+    // expiry is PERSISTED, not just computed at read time: state must be real for
+    // the renewal UI and the billing worker alike.
     if (status === "active" && sub.current_period_end) {
         const periodEnd = new Date(sub.current_period_end)
-        if (periodEnd < new Date()) {
+        const graceEnd = new Date(periodEnd.getTime() + BILLING_GRACE_DAYS * 24 * 60 * 60 * 1000)
+        if (graceEnd < new Date()) {
+            await supabaseAdmin
+                .from("subscriptions")
+                .update({ status: "expired", updated_at: new Date().toISOString() })
+                .eq("id", sub.id)
+                .eq("status", "active")
             status = "expired"
         }
     }
@@ -245,11 +278,13 @@ export async function canPerformAction(
     action: ActionType,
     /** If true, this is an extra post (not part of monthly plan) — always costs credits */
     isExtraPost?: boolean,
+    /** Post medium (image/carousel/reel) — weights the credit cost for post actions */
+    medium?: string | null,
 ): Promise<CanPerformResult> {
     // Super admin bypasses all checks
     if (await isSuperAdmin()) return ADMIN_BYPASS
 
-    const creditsRequired = ACTION_CREDITS[action]
+    const creditsRequired = creditsForAction(action, medium)
     const sub = await getClientSubscription(clientId)
 
     // No subscription at all
@@ -328,8 +363,10 @@ export async function deductCredits(
     action: ActionType,
     description?: string,
     referenceId?: string,
+    /** Explicit credit amount (media-weighted) — defaults to the flat action cost */
+    credits?: number,
 ): Promise<void> {
-    const credits = ACTION_CREDITS[action]
+    if (credits === undefined) credits = ACTION_CREDITS[action]
 
     await supabaseAdmin.from("credit_transactions").insert({
         client_id: clientId,
@@ -400,6 +437,8 @@ export async function refundJobCharge(
     clientId: string,
     jobId: string,
     charged: "plan" | "credits" | "none" | undefined,
+    /** Exact credits charged at job creation (media-weighted). Legacy jobs without it refund the flat post cost. */
+    chargedCredits?: number,
 ): Promise<void> {
     if (charged === "plan") {
         await decrementPlanPostCount(clientId)
@@ -407,11 +446,37 @@ export async function refundJobCharge(
         await supabaseAdmin.from("credit_transactions").insert({
             client_id: clientId,
             action: "post_refund",
-            credits: -ACTION_CREDITS.post,
+            credits: -(chargedCredits ?? ACTION_CREDITS.post),
             description: "Refund: generování selhalo",
             reference_id: jobId,
         })
     }
+}
+
+/**
+ * Refund the price difference when a post was charged for an expensive medium
+ * but the engine delivered a cheaper one (e.g. requested reel clamped to carousel
+ * by the plan/kill-switch). Never charges extra — only refunds downward.
+ * Idempotent via the unique index on credit_transactions(action, reference_id).
+ */
+export async function reconcileJobCharge(
+    clientId: string,
+    jobId: string,
+    charged: "plan" | "credits" | "none" | undefined,
+    chargedCredits: number | undefined,
+    actualMedium: string | undefined,
+): Promise<void> {
+    if (charged !== "credits" || !chargedCredits || !actualMedium) return
+    const actualCredits = _creditsForMedia(actualMedium)
+    const delta = chargedCredits - actualCredits
+    if (delta <= 0) return
+    await supabaseAdmin.from("credit_transactions").insert({
+        client_id: clientId,
+        action: "post_adjust",
+        credits: -delta,
+        description: `Dorovnání: účtováno ${chargedCredits}, vygenerováno ${actualMedium} (${actualCredits})`,
+        reference_id: jobId,
+    })
 }
 
 /**
@@ -422,11 +487,13 @@ export async function canPerformBatchAction(
     clientId: string,
     action: ActionType,
     count: number,
+    /** Media-weighted total for the batch (Σ creditsForMedia per item) — overrides the flat count × cost */
+    totalCredits?: number,
 ): Promise<CanPerformResult> {
     // Super admin bypasses all checks
     if (await isSuperAdmin()) return ADMIN_BYPASS
 
-    const creditsRequired = ACTION_CREDITS[action] * count
+    const creditsRequired = totalCredits ?? ACTION_CREDITS[action] * count
     const sub = await getClientSubscription(clientId)
 
     if (!sub) {
