@@ -129,8 +129,8 @@ sequenceDiagram
 | 3. Dedup check (Levenshtein) | Researcher | — | 20% |
 | 4. Context gathering | Context Agent | `gemini-3.5-flash` | 20% |
 | 5. Caption generation | Copywriter | `gemini-3.5-flash` | 25% |
-| 6. Quality gate scoring | Critic | `gemini-3.5-flash` | 45% |
-| 6b. Editorial Board review | Chief Editor + Copywriter | `gemini-3.5-flash` | 50% |
+| 6. Quality gate scoring | Critic (via `judgeText`) | **Claude `claude-sonnet-5`** / Gemini `textPro` fb | 45% |
+| 6b. Editorial Board review | Chief Editor (via `judgeText`) + Copywriter | Chief Editor: Claude `claude-sonnet-5` / Gemini `textPro` fb; revize: Gemini `textPro` | 50% |
 | 7a. Design brief (native engine, default) | AI Designer | `gemini-2.5-pro` | 55% |
 | 7b. Image prompt refinement (overlay engine / fallback) | Art Director | `gemini-3.5-flash` | 60% |
 | 8. Image generation | Renderer | Nano Banana Pro (native: incl. Czech typography + logo) | 75% |
@@ -156,6 +156,8 @@ User enters metrics (likes, comments, saves) → updateIGPostMetrics()
 ig_generation_log
     └── critic_score, critic_keep[], critic_fix[]
         → autopilot reads last 5 scores → injects keep/fix into mega prompt
+        → learnFromCriticInsights() (v6.8): recurring critic `fix` → ig_brand_memory
+          (avoid @ confidence 0.3 → reinforces past 0.4 → standing "avoid" rule; pillar-scoped)
 
 buildSmartWeekPlan()
     └── pillar ratios ×1.5 (top) / ×0.5 (under) based on real engagement
@@ -209,17 +211,18 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 | Action | Model | Fallback | Notes |
 |------|-------|----------|-------|
 | `text` (interactive: plan preview, onboarding, product, ideas, context, memory) | `gemini-3.5-flash` | `gemini-2.5-flash` | FAST tier — keeps the dashboard responsive (Pro here made multi-call previews lazy) |
-| `textPro` (copywriter — caption only, in-job) | `gemini-3-pro-preview` | `gemini-3.5-flash` | gen-3 Pro for caption quality; latency hidden by 800s job budget |
-| `designer` (AI Designer) | `gemini-3-pro-preview` | `gemini-3.5-flash` | Design briefs — gen-3 Pro pro nejlepší structured-creative reasoning; fallback FAST flash udrží native render |
+| `textPro` (copywriter — caption only, in-job) | `gemini-pro-latest` (alias → GA Pro) | `gemini-2.5-pro` | Pro for caption quality; latency hidden by 800s job budget; fallback is a 2nd Pro (never flash — quality ladder) |
+| `designer` (AI Designer) | `gemini-pro-latest` | `gemini-2.5-pro` | Design briefs — Pro for best structured-creative reasoning |
+| `judge` (**Critic + Chief Editor**, cross-family — v6.8) | **Claude `claude-sonnet-5`** (only when `ANTHROPIC_API_KEY` set) | Gemini `textPro` ladder @ temp 0.25 | `judgeText()` (`instagram/judge.ts`) — different model family than the Gemini copywriter = no self-preference bias (writer ≠ judge). Sonnet 5 = 5-gen (no `temperature`/`thinking`; `effort:"low"`). Kill switch `CLAUDE_JUDGE=off` |
 | `image` | `gemini-3-pro-image` | `gemini-3.1-flash-image` | Nano Banana Pro GA → Nano Banana 2 GA; also editExistingImage() + generateImageWithReferences() |
 | `imageCheap` | `gemini-3.1-flash-image` | — | 512px tier |
 | `vision` (logo placement, tagging, overlay review) | `gemini-3.5-flash` | — | detectLogoPlacementArea(), reviewOverlayComposition(), brand-tagger |
-| `visionQA` (native QA gate) | `gemini-3-pro-preview` | `gemini-3.5-flash` | verifyNativeImage() — gen-3 Pro judge zachytí jemné CZ typo/logo defekty; flash fallback, pak fail-open |
+| `visionQA` (native QA gate) | `gemini-pro-latest` | `gemini-2.5-pro` | verifyNativeImage() — Pro judge zachytí jemné CZ typo/logo defekty; 2nd-Pro fallback, pak fail-open |
 | `videoLite`/`videoFast`/`videoPremium` | `veo-3.1-lite-generate-preview` / `veo-3.1-fast-generate-preview` / `veo-3.1-generate-preview` | — | ~$0.06 / $0.15 / $0.40 per second; tier via `ClientConfig.videoTier` (default `fast`; `premium` = best). Veo 3.1 jen jako `-preview` |
 | `tts` (voiceover) | `gemini-3.1-flash-tts-preview` | `gemini-2.5-flash-preview-tts` | Czech narration, voice: Kore, expressive audio tags |
 
 > [!CAUTION]
-> `gemini-2.0-flash` is **DEPRECATED**. `imagen-4.0-ultra` was **sunset June 2026**. `gemini-3-pro-image-preview` / `gemini-3.1-flash-image-preview` **shut down June 25, 2026** — replaced by GA IDs. `gemini-3.1-pro-preview` was replaced by `gemini-3.5-flash`.
+> `gemini-2.0-flash` is **DEPRECATED**. `imagen-4.0-ultra` was **sunset June 2026**. `gemini-3-pro-image-preview` / `gemini-3.1-flash-image-preview` **shut down June 25, 2026** — replaced by GA IDs. `gemini-3-pro-preview` **404'd "no longer available" June 18, 2026**; the Pro tier (`textPro`/`designer`/`visionQA`) now uses the **`gemini-pro-latest` alias** (auto-rotates to current GA Pro — never pin a preview ID). `gemini-3.1-pro-preview` deprecated.
 
 ---
 
@@ -267,8 +270,10 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 | `text-overlay.ts` | 683 | Satori SVG → Sharp PNG overlay + logo watermark |
 | `product-generator.ts` | 643 | Product ideas, design concepts, mockups |
 | `service.ts` | 617 | DB access — getWeightedIdeas(), createPost(), propagateMetrics() |
-| `memory-agent.ts` | 459 | getBrandMemories(), analyzeAndLearn(), getPostTypeBoosts() |
+| `memory-agent.ts` | 459 | getBrandMemories(), analyzeAndLearn(), getPostTypeBoosts(), learnFromCriticInsights(), upsertMemory() |
 | `gemini-client.ts` | 455 | AI gateway — generateText(), generateImage(), editExistingImage(), generateVideo(), generateVoiceover() |
+| `judge.ts` | ~30 | Cross-family judge dispatcher — judgeText() routes Critic + Chief Editor to Claude (or Gemini textPro fallback) |
+| `anthropic-client.ts` | ~60 | Claude gateway — judgeWithClaude(), claudeJudgeEnabled() (Sonnet 5, 5-gen API: effort:low, no temperature) |
 | `image-pipeline.ts` | 346 | refineImagePrompt(), refineCarouselPrompts(), getVisualMemoriesSection() |
 | `video-processor.ts` | 247 | processReelVideo(), scenesToSubtitles() |
 | `context-agent.ts` | 232 | gatherContext() — svátek, počasí, trendy |
@@ -359,6 +364,9 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server actions, engine |
 | `GEMINI_API_KEY` | Yes for gen | gemini-client.ts |
 | `GEMINI_MODEL_<ACTION>` / `_FALLBACK` | Optional | instagram/models.ts — per-action model override (e.g. `GEMINI_MODEL_DESIGNER`) |
+| `ANTHROPIC_API_KEY` | Optional (gate cross-family judge) | instagram/anthropic-client.ts — Claude `claude-sonnet-5` judge for Critic + Chief Editor; missing = Gemini `textPro` judge fallback |
+| `CLAUDE_JUDGE` | Optional | Kill switch — `CLAUDE_JUDGE=off` forces the Gemini judge even when `ANTHROPIC_API_KEY` is set |
+| `GEMINI_MODEL_JUDGE` | Optional | Override the judge model (default `claude-sonnet-5`) — via the generic `GEMINI_MODEL_<ACTION>` mechanism |
 | `SUPER_ADMIN_EMAILS` | Yes | auth-guard.ts, subscription.ts |
 | `COMGATE_MERCHANT` | Yes for payments | lib/comgate.ts |
 | `COMGATE_SECRET` | Yes for payments | lib/comgate.ts |

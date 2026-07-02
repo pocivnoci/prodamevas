@@ -2,7 +2,7 @@
 
 **POZOR PRO VŠECHNY AI AGENTY**: Tento dokument slouží jako zdroj pravdy pro architektonická a technická rozhodnutí. Přečtěte si ho jako první.
 
-*Last Updated: 2026-06-10 — v4.1 Production Hardening*
+*Last Updated: 2026-07-02 — v6.8 AI Consistency Program (cross-family Claude judge)*
 
 ---
 
@@ -37,12 +37,14 @@ Context Agent (svátek, počasí) ──→ buildMegaPrompt()
 | **Researcher** | Vybere typ, nápad (weighted), recenzi (weighted), product, dedup check | — |
 | **Context Agent** | Svátek, počasí, trendy → injektuje do promptu | `gemini-3.5-flash` |
 | **Copywriter** | Generuje caption/script/carousel z mega promptu | `gemini-3.5-flash` |
-| **Critic** | Hodnotí 1–10, vrací `keep[]` a `fix[]` | `gemini-3.5-flash` |
-| **Editorial Board** | Šéfredaktor + copywriter revize (max 3 kola) | `gemini-3.5-flash` |
+| **Critic** | Hodnotí 1–10, vrací `keep[]` a `fix[]` — přes `judgeText()` | **Claude `claude-sonnet-5`** (fallback Gemini `textPro` @ temp 0.25) |
+| **Editorial Board** | Šéfredaktor review (přes `judgeText()`) + copywriter revize (max 3 kola) | šéfredaktor: **Claude `claude-sonnet-5`** / fb Gemini `textPro`; revize: Gemini `textPro` |
 | **AI Designer** (native engine, default) | Navrhuje kompletní design brief: kompozice, česká typografie, logo placement, anti-repetition vůči posledním 6 briefům (`generateDesignBrief` v `image-pipeline.ts`). Brief obsahuje `layoutArchetype` (8 hodnot v `LAYOUT_ARCHETYPES`); fingerprinty posledních postů (concept + layout + text placement + color) jdou do promptu a archetypy posledních 3 postů jsou **hard-banned** — porušení se detekuje v kódu a brief se regeneruje (1 retry). Cíl: stejný brand vibe, jiná struktura ("same shit different day" guard) | `gemini-2.5-pro` |
 | **Art Director** (overlay engine, legacy/fallback) | Vylepšuje text-free image prompt, injektuje vizuální pravidla z memory | `gemini-3.5-flash` |
 | **Renderer** | Native: Nano Banana Pro renderuje celý post vč. českého textu a loga → vision QA (`verifyNativeImage`) → 1 korektivní edit → Satori fallback. Overlay: text-free obrázek + Satori overlay | `gemini-3-pro-image` / Veo 3.1 |
 | **Memory Agent** | Analyzuje vzorce z postů, zapisuje/updatuje `ig_brand_memory` | `gemini-3.5-flash` |
+
+**Cross-family judge (v6.8):** Critic + Šéfredaktor nevolají model přímo, ale přes `judgeText()` (`instagram/judge.ts`). Když je nastaven `ANTHROPIC_API_KEY`, běží na **Claude `claude-sonnet-5`** (`instagram/anthropic-client.ts`) — jiná modelová rodina než Gemini copywriter = žádný self-preference bias, quality gate je skutečný druhý názor (pravidlo „writer ≠ judge"). Bez klíče (nebo `CLAUDE_JUDGE=off`) fallback na Gemini `textPro` ladder @ temp 0.25 → beze změny původního chování. Copywriter i editorial revize zůstávají Gemini. Sonnet 5 je „5-gen" model → **žádná `temperature`/`thinking`** (jinak 400), běží na `output_config:{effort:"low"}`.
 
 ---
 
@@ -58,13 +60,13 @@ Context Agent (svátek, počasí) ──→ buildMegaPrompt()
    - Brand Memory: `getBrandMemories(8)` + `getPostTypeBoosts()` + critic_score feedback
    - Copywriter: `generateText(megaPrompt)` → JSON `{hook, body, cta, hashtags, imagePrompt}`
    - Dedup check: hook + body vs. posledních 30 postů (Levenshtein)
-   - Critic: `scorePost()` → score 1–10, `keep[]`, `fix[]`
-   - Pokud score < 9: Editorial Board — šéfredaktor review + copywriter revize (max 3 kola)
+   - Critic: `scorePost()` → `judgeText()` (Claude `claude-sonnet-5` / Gemini `textPro` fb) → score 1–10, `keep[]`, `fix[]`
+   - Pokud score < 9: Editorial Board — šéfredaktor review (`judgeText()`) + copywriter revize (max 3 kola)
    - Art Director: `refineImagePrompt()` → vylepšený prompt (s visual memory)
    - Renderer: `generateImage()` / `editExistingImage()` (product→scene) / `generateVideo()`
    - Text overlay: Satori SVG → Sharp PNG → gradient + hook text + logo watermark
    - Overlay review: `reviewOverlayComposition()` — vision check
-   - Upload: Supabase Storage → `createPost()` → `logGeneration(+ critic data)`
+   - Upload: Supabase Storage → `createPost()` → `logGeneration(+ critic data)` → `learnFromCriticInsights()` (fire-&-forget, v6.8)
 5. **`ig_jobs` se updatuje** `status=done`, `editorial_log` uložen
 
 ---
@@ -94,6 +96,11 @@ Po zadání metrik přes `updateIGPostMetrics()` se **automaticky** spustí:
 - `logGeneration()` ukládá `critic_score`, `critic_keep[]`, `critic_fix[]`
 - Autopilot čte posledních 5 critic scores a injektuje keep/fix do mega promptu
 - Umožňuje systému se učit z vlastních chyb
+
+### Critic → Brand Memory (v6.8 — judge-insight learning)
+- `learnFromCriticInsights()` (`memory-agent.ts`) běží fire-&-forget z `autopilot.ts` hned po `logGeneration`
+- Critic `fix` poznámky se seedují jako `avoid` memory na confidence **0.3** (pod prahem 0.4 v `getBrandMemories`) → jednorázová chyba zůstane dormantní, **opakující se** fix se reinforcuje (+0.1) přes 0.4 a stane se stálým „❌ VYHÝBEJ SE" pravidlem; decay retiruje fixy, které writer přestane dělat
+- Scopováno per pillar (`ig_brand_memory.pillar`, migrace `20260701_brand_memory_pillar.sql`)
 
 ### Weighted Selection (v5.9 — recency decay + exploration)
 ```typescript
@@ -161,24 +168,25 @@ buildSmartWeekPlan()  // pillar ratio × 1.5 (top) / × 0.5 (under), normalizov�
 
 ---
 
-## 🤖 7. AI Modely (aktuální stav k 11.6.2026)
+## 🤖 7. AI Modely (aktuální stav k 2.7.2026)
 
 **Centrální registr: `instagram/models.ts`** — jediný zdroj pravdy pro model ID. Per-env override bez deploye: `GEMINI_MODEL_<ACTION>` / `GEMINI_MODEL_<ACTION>_FALLBACK` (např. `GEMINI_MODEL_DESIGNER=gemini-3.5-flash`).
 
 | Akce (registr) | Model | Fallback |
 |------|-------|----------|
 | `text` (interaktivní: plán preview, onboarding, produkty, ideas, context, memory) | `gemini-3.5-flash` (FAST — UI responzivní) | `gemini-2.5-flash` |
-| `textPro` (copywriter — caption, jen v generation jobu) | `gemini-3-pro-preview` (gen-3 Pro) | `gemini-3.5-flash` |
-| `designer` (AI Designer) | `gemini-3-pro-preview` | `gemini-3.5-flash` (fast — Pro 503/deadline pak nepadne na overlay) |
+| `textPro` (copywriter — caption, jen v generation jobu) | `gemini-pro-latest` (alias na GA Pro) | `gemini-2.5-pro` (druhý Pro, ne flash — quality ladder) |
+| `designer` (AI Designer) | `gemini-pro-latest` | `gemini-2.5-pro` |
+| `judge` (**Critic + Šéfredaktor** — cross-family, v6.8) | **Claude `claude-sonnet-5`** (jen když je `ANTHROPIC_API_KEY`; kill switch `CLAUDE_JUDGE=off`) | Gemini `textPro` ladder @ temp 0.25 (`judgeText` dispatcher) |
 | `vision` (tagging, logo placement, overlay review) | `gemini-3.5-flash` | — |
-| `visionQA` (`verifyNativeImage` — QA gate native engine) | `gemini-3-pro-preview` | `gemini-3.5-flash` (Pro 503 → flash, pak fail-open) |
+| `visionQA` (`verifyNativeImage` — QA gate native engine) | `gemini-pro-latest` | `gemini-2.5-pro` (pak fail-open) |
 | `image` | `gemini-3-pro-image` (Nano Banana Pro GA) | `gemini-3.1-flash-image` (Nano Banana 2 GA) |
 | `imageCheap` | `gemini-3.1-flash-image` (512px tier) | — |
 | `videoLite` / `videoFast` / `videoPremium` | `veo-3.1-lite-generate-preview` / `veo-3.1-fast-generate-preview` / `veo-3.1-generate-preview` | — |
 | `tts` | `gemini-3.1-flash-tts-preview` | `gemini-2.5-flash-preview-tts` |
 
 > [!CAUTION]
-> **DEPRECATED:** `gemini-2.0-flash`, `gemini-3.1-pro-preview`, `imagen-4.0-ultra`, `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview` (shutdown 25.6.2026) — NEPOUŽÍVAT!
+> **DEPRECATED / NEPOUŽÍVAT:** `gemini-2.0-flash`, `gemini-3-pro-preview` (404 „no longer available" 18.6.2026), `gemini-3.1-pro-preview`, `imagen-4.0-ultra`, `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview` (shutdown 25.6.2026). Pro tier běží na aliasu `gemini-pro-latest` (auto-rotace na aktuální GA Pro — **nikdy nepinovat** preview ID). Model ID vždy přes `getModel()`.
 
 ---
 
@@ -240,8 +248,10 @@ instagram/                            # AI Engine
 ├── text-overlay.ts                   # 683 LOC — Satori → Sharp
 ├── product-generator.ts              # 643 LOC — product ideas, design concepts
 ├── service.ts                        # ~640 LOC — DB access, weighted selection (decay+explore), feedback
-├── memory-agent.ts                   # ~700 LOC — brand memory, learning, variant + revision learning
+├── memory-agent.ts                   # ~700 LOC — brand memory, learning, variant + revision + critic-insight learning
 ├── gemini-client.ts                  # 455 LOC — AI gateway (text, image, video, TTS)
+├── judge.ts                          # cross-family judge dispatcher — judgeText() → Claude / Gemini textPro fb
+├── anthropic-client.ts               # Claude gateway — judgeWithClaude(), claudeJudgeEnabled() (Sonnet 5, 5-gen API)
 ├── image-pipeline.ts                 # 346 LOC — prompt refinement, visual memory
 ├── video-processor.ts                # 247 LOC — Veo 3.1 reels
 ├── context-agent.ts                  # 232 LOC — svátek, počasí, trendy
