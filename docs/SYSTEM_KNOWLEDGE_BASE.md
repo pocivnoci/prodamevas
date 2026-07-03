@@ -297,7 +297,7 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 | `GET /api/ig-job-status` | ✅ job ownership | 5s | Poll progress + **stuck-job reaper** (>8 min silent → failed + refund) |
 | `POST /api/ig-learn` | ✅ membership | 60s | Trigger feedback loop |
 | `POST /api/payments/create` | ✅ client membership | 10s | Create Comgate payment (mock disabled on prod) |
-| `POST /api/payments/callback` | ❌ (webhook) | 10s | Comgate status callback (server-side verification; **idempotentní** — replay PAID je no-op; ukládá `recurring_trans_id` token; CANCELLED renewal neruší živou sub) |
+| `POST /api/payments/callback` | ❌ (webhook) | 10s | Comgate status callback (server-side verification; **idempotentní** — replay PAID je no-op; ukládá `recurring_trans_id` token; CANCELLED renewal neruší živou sub). Po úspěšné aktivaci pošle **receipt e-mail** (`after()`, best-effort, `lib/notifications.ts`) |
 | `GET /api/payments/return` | ❌ (redirect) | 10s | Post-payment redirect |
 | `GET /api/subscription` | ✅ | 10s | Client subscription info (+ `allowedMedia`, `growthTracking`) |
 | `GET /api/plans` | ✅ | 10s | Aktivní plány pro pricing UI (bez trial_v2) |
@@ -305,7 +305,8 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 | `GET /api/cron/ig-token-refresh` | ❌ (CRON_SECRET bearer) | 800s | Denní obnova IG long-lived tokenů blížících se expiraci (vercel.json cron `0 5 * * *`) |
 | `GET /api/cron/ig-metrics-sync` | ❌ (CRON_SECRET bearer) | 800s | Denní sync IG insights → metriky postů → learning loop (roadmap step 3); caption-match backfill `ig_media_id` pro handoff posty; `instagram/metrics-sync.ts` (vercel.json cron `0 7 * * *`) |
 | `GET /api/cron/agent-worker` | ❌ (CRON_SECRET bearer) | 800s | **Fáze 2** drainer fronty `agent_tasks` přes `drainTasks()` (vercel.json cron `* * * * *`) — registrované handlery `lib/agents/handlers.ts` |
-| `GET /api/cron/billing-worker` | ❌ (CRON_SECRET bearer) | 300s | Denní renewal + dunning (vercel.json cron `0 8 * * *`): recurring charge přes `chargeRecurring()` (token `subscriptions.recurring_trans_id`), bez tokenu e-mail reminder; po 3 selháních persist `expired` + e-mail. Grace 3 dny (`BILLING_GRACE_DAYS`) |
+| `GET /api/cron/billing-worker` | ❌ (CRON_SECRET bearer) | 300s | Denní renewal + dunning (vercel.json cron `0 8 * * *`): recurring charge přes `chargeRecurring()` (token `subscriptions.recurring_trans_id`), bez tokenu e-mail reminder; po 3 selháních persist `expired` + e-mail (vše přes `lib/notifications.ts`). Grace 3 dny (`BILLING_GRACE_DAYS`) |
+| `GET /api/cron/campaign-worker` | ❌ (CRON_SECRET bearer) | 800s | Durable drainer `ig_campaigns` (vercel.json cron `* * * * *`) — lease + cursor resume. Terminální přechod je **podmíněný claim** (running → done/partial/failed jen jednou); po něm pošle **plan-ready digest e-mail** vlastníkovi (karty s termínem/caption/hashtagy/náhledem + deep link `?project=<id>#calendar`; respektuje `email_optouts`) |
 | `GET /api/ig-connect/start` | ✅ requireProjectAccess | 10s | Začátek IG OAuth — podepíše `state` a redirectne na Instagram authorize |
 | `GET /api/ig-connect/callback` | ❌ (signed state) | 30s | IG OAuth callback — code→long-lived token, uloží šifrované do `ig_connections` |
 | `POST /api/data-deletion` | ❌ (Meta signed_request) | 10s | Meta data deletion callback — smaže `ig_connections` daného ig_user_id |
@@ -377,7 +378,7 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 | `COMGATE_SECRET` | Yes for payments | lib/comgate.ts |
 | `COMGATE_MOCK` | Optional (ignored on prod) | lib/comgate.ts — isMockPaymentMode() |
 | `COMGATE_RECURRING` | Optional (gate auto-renewal) | `=1` zapne `initRecurring` na prvních platbách + recurring charge v billing-workeru. NEZAPÍNAT dřív, než Comgate smluvně povolí „opakované platby" — jinak selže vytvoření platby |
-| `RESEND_API_KEY` / `REPORT_FROM_EMAIL` | Optional | `lib/email.ts` — billing e-maily (reminder / failed charge / expiry) + weekly report + **admin Mailing broadcasty**; chybí = e-maily se tiše přeskočí. Free tier: 100/den, 3 000/měs (Mailing capuje běh na 100 a reportuje zbytek) |
+| `RESEND_API_KEY` / `REPORT_FROM_EMAIL` | Optional | `lib/email.ts` — billing e-maily (reminder / failed charge / expiry) + weekly report + **admin Mailing broadcasty** + **automatické e-maily** (`lib/notifications.ts`): welcome po potvrzení registrace (`auth/callback`, once-only přes `app_metadata.welcome_email_at`), receipt po PAID callbacku, plan-ready digest po dokončení kampaně; chybí = e-maily se tiše přeskočí. Transactional = vždy; notification (digest) respektuje `email_optouts` + unsubscribe footer. Free tier: 100/den, 3 000/měs (Mailing capuje běh na 100 a reportuje zbytek) |
 | `EMAIL_SECRET` | Optional | HMAC klíč pro podpis unsubscribe odkazů (`lib/email-sign.ts`); fallback `CRON_SECRET` → `SUPABASE_SERVICE_ROLE_KEY` |
 | `REELS_ENABLED` | Optional (default OFF) | `=1` zapne Veo reels (kill-switch čtou `autopilot.ts`, `content-plan-actions.ts`, billing charge odhady). Zapnout až PO nasazení media-weighted kreditů |
 | `PIPELINE_BESTOF2` | Optional (default OFF) | `=1` zapne best-of-2 caption path (2 paralelní drafty → ranking judge → ≤1 opravné kolo). Měřeno přes `ig_generation_log.strategy` + týdenní report; default flip = lidské rozhodnutí |

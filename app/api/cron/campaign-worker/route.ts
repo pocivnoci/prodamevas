@@ -326,20 +326,35 @@ export async function GET(req: Request) {
     }
 
     // ── Finalize ────────────────────────────────────────────────────────────
+    // Terminal updates are conditional transition claims (running → terminal):
+    // a stale-lease double-worker reaching finalize claims nothing, so the
+    // plan-ready e-mail can never double-send.
     if (cursor >= total) {
         const finalStatus = failures === 0 ? "done" : (successes === 0 ? "failed" : "partial")
-        await supabaseAdmin.from("ig_campaigns").update({
+        const { data: claimedTerminal } = await supabaseAdmin.from("ig_campaigns").update({
             status: finalStatus, cursor, successes, failures, worker_lease: null,
             error: stopReason === "no_credits" ? (stopDetail || "Došly kredity v průběhu kampaně.") : null,
         }).eq("id", campaign.id)
+            .in("status", ["pending", "running"])
+            .select("id")
+            .maybeSingle()
+        if (claimedTerminal) {
+            await sendPlanReadyEmail(campaign.id, clientId, { finalStatus, successes, failures, total, noCredits: false })
+        }
         return NextResponse.json({ success: true, campaignId: campaign.id, status: finalStatus, successes, failures })
     }
 
     if (stopReason === "no_credits") {
-        await supabaseAdmin.from("ig_campaigns").update({
+        const { data: claimedTerminal } = await supabaseAdmin.from("ig_campaigns").update({
             status: "partial", cursor, successes, failures, worker_lease: null,
             error: stopDetail || "Došly kredity — kampaň zastavena.",
         }).eq("id", campaign.id)
+            .in("status", ["pending", "running"])
+            .select("id")
+            .maybeSingle()
+        if (claimedTerminal) {
+            await sendPlanReadyEmail(campaign.id, clientId, { finalStatus: "partial", successes, failures, total, noCredits: true })
+        }
         return NextResponse.json({ success: true, campaignId: campaign.id, status: "partial", stopped: "no_credits" })
     }
 
@@ -350,4 +365,69 @@ export async function GET(req: Request) {
         .update({ cursor, successes, failures, worker_lease: null, status: "running" })
         .eq("id", campaign.id)
     return NextResponse.json({ success: true, campaignId: campaign.id, status: "running", reason: stopReason, resumeFrom: cursor })
+}
+
+/**
+ * "Obsah je připraven" digest to the client owner — per-post cards (termín,
+ * caption, hashtagy, náhled) + deep link to the calendar. kind "notification"
+ * → respects email_optouts and carries the unsubscribe footer. Best-effort:
+ * never lets an e-mail problem fail the finalize response.
+ */
+async function sendPlanReadyEmail(
+    campaignId: string,
+    clientId: string,
+    info: { finalStatus: string; successes: number; failures: number; total: number; noCredits: boolean },
+): Promise<void> {
+    try {
+        const { getOwnerEmail, getCampaignPosts, renderCampaignDigest, sendNotification, studioDeepLink } =
+            await import("@/lib/notifications")
+        const to = await getOwnerEmail(clientId)
+        if (!to) return
+        const ctaUrl = studioDeepLink(clientId, "calendar")
+
+        if (info.successes === 0) {
+            await sendNotification({
+                to,
+                kind: "notification",
+                subject: "Kampaň se nepodařilo dokončit",
+                body: `Dobrý den,
+
+${info.noCredits
+                        ? "kampaň se zastavila — došly kredity. Po dobití můžete obsah vygenerovat znovu."
+                        : "příspěvky z vaší kampaně se bohužel nepodařilo vygenerovat. Kredity za nezdařené příspěvky byly vráceny — zkuste to prosím znovu."}
+
+<a href="${ctaUrl}">Otevřít studio →</a>
+
+Tým Chrlit`,
+            })
+            return
+        }
+
+        const posts = await getCampaignPosts(campaignId, clientId)
+        const introParts = [
+            "Dobrý den,",
+            info.finalStatus === "done"
+                ? `váš obsah je hotový — všech ${info.total} příspěvků je připraveno ke zveřejnění. Každý má naplánovaný termín, caption i hashtagy:`
+                : `${info.successes} z ${info.total} příspěvků je připraveno ke zveřejnění:`,
+        ]
+        if (info.failures > 0) {
+            introParts.push(`${info.failures} příspěvků se nepodařilo vygenerovat — kredity za ně byly vráceny.`)
+        }
+        if (info.noCredits) {
+            introParts.push("Kampaň se zastavila dřív — došly kredity. Po dobití můžete zbytek vygenerovat znovu.")
+        }
+
+        await sendNotification({
+            to,
+            kind: "notification",
+            subject: `Váš obsah je připraven — ${info.successes} z ${info.total} příspěvků`,
+            html: renderCampaignDigest(posts, {
+                intro: introParts.join("\n\n"),
+                ctaUrl,
+                ctaLabel: "Otevřít kalendář v aplikaci →",
+            }),
+        })
+    } catch (err: any) {
+        console.warn(`campaign-worker: plan-ready e-mail failed (campaign ${campaignId}): ${err?.message}`)
+    }
 }

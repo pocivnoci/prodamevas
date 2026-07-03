@@ -11,16 +11,12 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { requireSuperAdmin } from "@/lib/auth-guard"
-import { signEmail } from "@/lib/email-sign"
+import { renderBrandedEmail } from "@/lib/notifications"
 
 export type MailingSegment = "waitlist" | "activeClients" | "expired"
 
 const DAILY_CAP = 100 // Resend free-tier daily send limit
 const THROTTLE_MS = 550 // ~2 req/sec, safely under Resend's rate limit
-
-function siteUrl(): string {
-    return process.env.NEXT_PUBLIC_SITE_URL || "https://chrlit.cz"
-}
 
 /** Emails that have globally opted out — filtered from every segment. */
 async function getOptOuts(): Promise<Set<string>> {
@@ -78,25 +74,6 @@ export async function getMailingSegments(): Promise<{ waitlist: number; activeCl
     return { waitlist: waitlist.length, activeClients: activeClients.length, expired: expired.length }
 }
 
-/** Wrap plain-text body lines in the branded dark template + unsubscribe footer. */
-function renderEmail(subject: string, body: string, email: string): string {
-    const paragraphs = body
-        .split(/\n{2,}/)
-        .map(p => p.trim())
-        .filter(Boolean)
-        .map(p => `<p style="margin:0 0 16px;line-height:1.6">${p.replace(/\n/g, "<br/>")}</p>`)
-        .join("")
-    const unsubUrl = `${siteUrl()}/api/email/unsubscribe?e=${encodeURIComponent(email)}&s=${signEmail(email)}`
-    return `
-      <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#050505;color:#fff;padding:32px;max-width:560px;margin:0 auto">
-        <h1 style="font-size:20px;text-transform:uppercase;letter-spacing:-0.5px;margin:0 0 20px">${subject}</h1>
-        <div style="color:#ddd;font-size:15px">${paragraphs}</div>
-        <p style="color:#555;font-size:11px;margin-top:28px;border-top:1px solid #1a1a1a;padding-top:16px">
-          Chrlit · <a href="${unsubUrl}" style="color:#777">Odhlásit odběr</a>
-        </p>
-      </div>`
-}
-
 export interface BroadcastResult { sent: number; failed: number; skipped: number; remaining: number; total: number }
 
 /**
@@ -118,7 +95,7 @@ export async function sendBroadcast(input: { segment: MailingSegment; subject: s
     let sent = 0, failed = 0
     for (const email of batch) {
         try {
-            await sendEmail({ to: email, subject, html: renderEmail(subject, body, email) })
+            await sendEmail({ to: email, subject, html: renderBrandedEmail(subject, body, { unsubscribeEmail: email }) })
             sent++
         } catch (err: any) {
             console.warn(`mailing: send to ${email} failed: ${err?.message?.substring(0, 80)}`)

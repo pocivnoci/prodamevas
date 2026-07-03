@@ -13,7 +13,7 @@
  * Idempotent: a replayed PAID callback is a no-op (conditional status-claim update).
  */
 
-import { NextRequest } from "next/server"
+import { NextRequest, after } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
 import { getPaymentStatus, isMockPaymentMode, isRenewalRefId } from "@/lib/comgate"
 
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
             })
             .eq("comgate_trans_id", transId)
             .neq("status", "PAID")
-            .select("id, subscription_id, client_id, ref_id")
+            .select("id, subscription_id, client_id, ref_id, payer_email, amount, currency, label")
             .single()
 
         if (!payment) {
@@ -125,6 +125,47 @@ export async function POST(req: NextRequest) {
                 }
                 await supabaseAdmin.from("subscriptions").update(update).eq("id", payment.subscription_id)
             }
+
+            // Receipt e-mail — only on the first-PAID path (the status claim above)
+            // and only after a successful activation. after() so Comgate gets its
+            // ACK immediately; sendNotification is best-effort and never throws.
+            after(async () => {
+                try {
+                    const { sendNotification, getOwnerEmail, siteUrl } = await import("@/lib/notifications")
+                    const to = payment.payer_email || (await getOwnerEmail(payment.client_id))
+                    if (!to) return
+                    let planName = purchasedPlanId
+                    const { data: planRow } = await supabaseAdmin
+                        .from("subscription_plans")
+                        .select("name")
+                        .eq("id", purchasedPlanId)
+                        .maybeSingle()
+                    if (planRow?.name) planName = planRow.name
+                    const amountStr = typeof payment.amount === "number"
+                        ? `${(payment.amount / 100).toLocaleString("cs-CZ")} ${payment.currency === "CZK" || !payment.currency ? "Kč" : payment.currency}`
+                        : null
+                    await sendNotification({
+                        to,
+                        kind: "transactional",
+                        subject: isRenewal
+                            ? `Předplatné ${planName} obnoveno`
+                            : `Potvrzení platby — plán ${planName} je aktivní`,
+                        body: `Dobrý den,
+
+${amountStr ? `přijali jsme vaši platbu ${amountStr}${payment.label ? ` (${payment.label})` : ""}. ` : ""}${isRenewal
+                            ? `Předplatné <strong>${planName}</strong> bylo úspěšně obnoveno na další období.`
+                            : `Plán <strong>${planName}</strong> je aktivní — generování příspěvků je odemčené.`}
+
+Toto potvrzení není daňový doklad.
+
+<a href="${siteUrl()}/dashboard/instagram">Přejít do studia →</a>
+
+Tým Chrlit`,
+                    })
+                } catch (err: any) {
+                    console.warn(`payments-callback: receipt e-mail failed: ${err?.message}`)
+                }
+            })
         }
 
         // If CANCELLED → mark subscription — but NEVER for a renewal charge: a declined

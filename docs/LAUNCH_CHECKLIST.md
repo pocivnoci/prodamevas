@@ -31,6 +31,7 @@ Volitelné:
 ## 4. Smoke test na preview deployi
 
 - [ ] Registrace s invite kódem → e-mail confirm → onboarding (web scan + IG handle)
+- [ ] Automatické e-maily (s nastaveným `RESEND_API_KEY`): welcome po confirm (jen jednou — `app_metadata.welcome_email_at`), receipt po platbě, plan-ready digest po dokončení kampaně (deep link `?project=` otevře správný projekt + kalendář; unsubscribe odkaz funguje)
 - [ ] Vygenerovat post (sleduj progress + editorial log) → kredit odečten při startu
 - [ ] Vynutit selhání (nesmyslný config) → job failed + kredit vrácen (`credit_transactions`)
 - [ ] A/B varianty → výběr vítěze → `ig_brand_memory` přibude preference
@@ -45,6 +46,8 @@ Volitelné:
 - [x] Media-weighted kredity (image 1 / carousel 3 / reel 5) + plan re-budget 20/45/110 — migrace `20260702_media_weighted_credits.sql` aplikována
 - [x] Recurring billing kód: `initRecurring` token, denní `/api/cron/billing-worker` (renewal + dunning + grace 3 dny), migrace `20260702_recurring_billing.sql` aplikována
 - [ ] **U Comgate smluvně aktivovat „opakované platby"**, pak nastavit `COMGATE_RECURRING=1` (bez toho běží manuální obnova s e-mail remindery)
-- [ ] `RESEND_API_KEY` na Vercelu (billing e-maily: reminder / selhaná platba / expirace)
+- [ ] `RESEND_API_KEY` na Vercelu (billing e-maily + welcome / receipt / plan-ready digest — `lib/notifications.ts`)
+- [ ] **Ověřená doména v Resend** (`onboarding@resend.dev` doručí jen na vlastní adresu účtu!) + `REPORT_FROM_EMAIL` = např. `Chrlit <noreply@chrlit.cz>`
+- [ ] `EMAIL_SECRET` explicitně nastavit (HMAC pro unsubscribe odkazy; jinak fallback na `CRON_SECRET`)
 - [ ] Malá testovací platba end-to-end (vč. ověření, že se uložil `subscriptions.recurring_trans_id`)
 - [ ] Po nasazení: `REELS_ENABLED=1` (kredity už reels zpoplatňují správně — 5 kreditů)

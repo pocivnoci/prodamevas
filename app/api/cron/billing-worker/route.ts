@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
+import { getOwnerEmail, sendNotification } from "@/lib/notifications"
 
 export const maxDuration = 300
 
@@ -82,7 +83,7 @@ export async function GET(req: Request) {
                     .update({ status: "expired", updated_at: new Date().toISOString() })
                     .eq("id", sub.id)
                     .eq("status", "active")
-                await notify(payerEmail, "Vaše předplatné Chrlit vypršelo", expiredEmailHtml(client.name))
+                await notify(payerEmail, "Vaše předplatné Chrlit vypršelo", expiredEmailBody(client.name))
                 expired++
                 console.log(`⛔ billing-worker: sub ${sub.id} (${client.slug}) expired after ${failures} failed attempts`)
                 continue
@@ -130,7 +131,7 @@ export async function GET(req: Request) {
                     await notify(
                         payerEmail,
                         "Platba za Chrlit se nezdařila",
-                        failedChargeEmailHtml(client.name, failures + 1),
+                        failedChargeEmailBody(client.name, failures + 1),
                     )
                     console.warn(`⚠️ billing-worker: recurring charge failed for ${client.slug}: ${chargeErr?.message}`)
                 }
@@ -139,7 +140,7 @@ export async function GET(req: Request) {
 
             // 4. No recurring token → manual renewal reminder (counts toward dunning).
             await bumpFailures(sub.id, failures)
-            await notify(payerEmail, "Obnovte si předplatné Chrlit", manualRenewEmailHtml(client.name))
+            await notify(payerEmail, "Obnovte si předplatné Chrlit", manualRenewEmailBody(client.name))
             reminded++
         } catch (subErr: any) {
             console.warn(`billing-worker: sub ${sub.id} threw:`, subErr?.message)
@@ -157,50 +158,39 @@ async function bumpFailures(subId: string, current: number): Promise<void> {
         .eq("id", subId)
 }
 
-/** Owner e-mail resolution mirrors payments/create: user_clients owner → auth user. */
-async function getOwnerEmail(clientId: string): Promise<string | null> {
-    const { data: link } = await supabaseAdmin
-        .from("user_clients")
-        .select("user_id")
-        .eq("client_id", clientId)
-        .eq("role", "owner")
-        .limit(1)
-        .maybeSingle()
-    if (!link) return null
-    const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(link.user_id)
-    return user?.email || null
-}
-
-/** Best-effort e-mail — billing must never fail because Resend is down/unconfigured. */
-async function notify(to: string | null, subject: string, html: string): Promise<void> {
-    if (!to) return
-    try {
-        const { sendEmail } = await import("@/lib/email")
-        await sendEmail({ to, subject, html })
-    } catch (err: any) {
-        console.warn(`billing-worker: e-mail to ${to} failed: ${err?.message}`)
-    }
+/** Billing e-mails go through sendNotification (transactional → always sent, branded). */
+async function notify(to: string | null, subject: string, body: string): Promise<void> {
+    await sendNotification({ to, subject, body, kind: "transactional" })
 }
 
 const APP_URL = () => process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://chrlit.cz"
 
-function manualRenewEmailHtml(clientName: string): string {
-    return `<p>Dobrý den,</p>
-<p>měsíční předplatné pro <strong>${clientName}</strong> právě doběhlo. Aby generování příspěvků pokračovalo bez přerušení, obnovte si prosím plán jedním kliknutím v aplikaci:</p>
-<p><a href="${APP_URL()}/dashboard/instagram">Obnovit předplatné →</a></p>
-<p>Tým Chrlit</p>`
+function manualRenewEmailBody(clientName: string): string {
+    return `Dobrý den,
+
+měsíční předplatné pro <strong>${clientName}</strong> právě doběhlo. Aby generování příspěvků pokračovalo bez přerušení, obnovte si prosím plán jedním kliknutím v aplikaci:
+
+<a href="${APP_URL()}/dashboard/instagram">Obnovit předplatné →</a>
+
+Tým Chrlit`
 }
 
-function failedChargeEmailHtml(clientName: string, attempt: number): string {
-    return `<p>Dobrý den,</p>
-<p>automatická platba za předplatné <strong>${clientName}</strong> se nezdařila (pokus ${attempt}/3). Zkusíme to znovu zítra — zkontrolujte prosím platební kartu, případně obnovte plán ručně:</p>
-<p><a href="${APP_URL()}/dashboard/instagram">Zkontrolovat předplatné →</a></p>
-<p>Tým Chrlit</p>`
+function failedChargeEmailBody(clientName: string, attempt: number): string {
+    return `Dobrý den,
+
+automatická platba za předplatné <strong>${clientName}</strong> se nezdařila (pokus ${attempt}/3). Zkusíme to znovu zítra — zkontrolujte prosím platební kartu, případně obnovte plán ručně:
+
+<a href="${APP_URL()}/dashboard/instagram">Zkontrolovat předplatné →</a>
+
+Tým Chrlit`
 }
 
-function expiredEmailHtml(clientName: string): string {
-    return `<p>Dobrý den,</p>
-<p>předplatné pro <strong>${clientName}</strong> vypršelo — platbu se nepodařilo dokončit ani po opakovaných pokusech. Vaše data i vygenerovaný obsah zůstávají zachovány; generování se znovu spustí hned po obnovení plánu:</p>
-<p><a href="${APP_URL()}/dashboard/instagram">Obnovit předplatné →</a></p>
-<p>Tým Chrlit</p>`
+function expiredEmailBody(clientName: string): string {
+    return `Dobrý den,
+
+předplatné pro <strong>${clientName}</strong> vypršelo — platbu se nepodařilo dokončit ani po opakovaných pokusech. Vaše data i vygenerovaný obsah zůstávají zachovány; generování se znovu spustí hned po obnovení plánu:
+
+<a href="${APP_URL()}/dashboard/instagram">Obnovit předplatné →</a>
+
+Tým Chrlit`
 }

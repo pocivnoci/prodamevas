@@ -116,7 +116,11 @@ export function AdminSidebar() {
         getAvailableIGClients().then(data => {
             setClients(data)
             if (data.length > 0 && !projectId) {
-                setProjectId(data[0].id)
+                // Deep link (e.g. from the plan-ready e-mail): ?project=<id> selects
+                // the project; anything not in the user's client list falls through.
+                const wanted = new URLSearchParams(window.location.search).get("project")
+                const match = wanted ? data.find(c => c.id === wanted) : undefined
+                setProjectId(match ? match.id : data[0].id)
             }
         })
         isCurrentUserSuperAdmin().then(setIsAdmin)
