@@ -65,6 +65,9 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const [batchMode, setBatchMode] = useState(false)
     const [batchResult, setBatchResult] = useState<{ generated: number; errors: number; message: string } | null>(null)
     const [batchProgress, setBatchProgress] = useState<{ current: number; total: number; successes: number; failures: number } | null>(null)
+    // False while status polls are failing (e.g. transient 503s under load) — drives a
+    // "reconnecting" hint so the UI never looks frozen while the server keeps working.
+    const [pollHealthy, setPollHealthy] = useState(true)
     const [generationHistory, setGenerationHistory] = useState<GenerateResult[]>([])
     const [step, setStep] = useState(1)
 
@@ -230,17 +233,29 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         let misses = 0
         // eslint-disable-next-line no-constant-condition
         while (true) {
-            const res = await getCampaignStatus(projectId, cid)
+            // A 503/network hiccup makes the server action THROW (not return {success:false}).
+            // Catch it so a transient failure under load can't kill the poll loop and freeze
+            // the UI — treat it exactly like a graceful miss: back off and retry.
+            let res: Awaited<ReturnType<typeof getCampaignStatus>>
+            try {
+                res = await getCampaignStatus(projectId, cid)
+            } catch {
+                res = { success: false } as Awaited<ReturnType<typeof getCampaignStatus>>
+            }
             if (!res.success || !res.campaign) {
-                if (++misses > 5) { // give up the UI poll; the worker keeps going regardless
+                misses++
+                setPollHealthy(false)
+                if (misses > 15) { // ~1 min of failed polls — give up the UI poll; the worker keeps going regardless
                     setBatchResult({ generated: 0, errors: 0, message: res.error || "Ztracen kontakt s kampaní (běží dál na pozadí)", success: false } as any)
                     setCampaignId(null)
+                    setPollHealthy(true)
                     return
                 }
-                await new Promise(r => setTimeout(r, 4000))
+                await new Promise(r => setTimeout(r, Math.min(8000, 3000 + misses * 600)))
                 continue
             }
             misses = 0
+            setPollHealthy(true)
             const c = res.campaign
             setBatchProgress({ current: c.cursor, total: c.total, successes: c.successes, failures: c.failures })
 
@@ -1307,9 +1322,24 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         />
                                     </div>
                                 )}
+                                {/* Live success/fail tally — proof the run is advancing even when a
+                                    single post is slow, so the spinner never reads as "frozen" (QA #4). */}
+                                {batchProgress && (batchProgress.successes > 0 || batchProgress.failures > 0) && (
+                                    <p className="text-[9px] font-bold uppercase tracking-widest mb-4 relative z-10 text-center">
+                                        <span className="text-emerald-400/80">✓ {batchProgress.successes} hotovo</span>
+                                        {batchProgress.failures > 0 && (
+                                            <span className="text-amber-400/80"> · {batchProgress.failures} přeskočeno</span>
+                                        )}
+                                    </p>
+                                )}
                                 {batchProgress && campaignId && (
                                     <p className="text-[9px] text-emerald-400/70 font-bold uppercase tracking-widest mb-4 relative z-10 text-center max-w-xs">
                                         Kampaň běží na serveru — okno můžete klidně zavřít, generování pokračuje.
+                                    </p>
+                                )}
+                                {batchProgress && !pollHealthy && (
+                                    <p className="text-[9px] text-amber-400/80 font-bold uppercase tracking-widest mb-4 relative z-10 text-center max-w-xs animate-pulse">
+                                        Obnovuji spojení se serverem… generování běží dál na pozadí.
                                     </p>
                                 )}
                                 {/* Quality-over-speed explainer — generation runs the top engines with
