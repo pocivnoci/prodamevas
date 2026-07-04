@@ -57,6 +57,15 @@ export default function RootLayout({
     <html lang="cs" className={`${inter.variable}`}>
       <head>
         <meta name="theme-color" content="#050505" />
+        {/* Show the branded splash only on the FIRST load of a session. On any later
+            full-document load (e.g. a hard nav back to "/" via a #anchor from the blog),
+            mark it seen synchronously here — before the body paints — so the splash is
+            hidden instantly with no replayed animation (QA #9). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(sessionStorage.getItem('chrlit_splash_seen')){document.documentElement.setAttribute('data-splash','seen')}}catch(e){}`,
+          }}
+        />
       </head>
       <body
         className={`${inter.className} antialiased selection:bg-aisummit-cinnabar/30 selection:text-white bg-aisummit-bg text-aisummit-text`}
@@ -136,6 +145,8 @@ export default function RootLayout({
               background: rgba(230,57,70,0.4); border-radius: 50%;
               animation: splash-dot 3s ease-in-out infinite;
             }
+            /* Already shown this session → never paint it again (set in <head>). */
+            html[data-splash="seen"] #splash { display: none !important; }
           `}} />
           <div id="splash-backdrop" />
           <div id="splash-ring" />
@@ -157,6 +168,7 @@ export default function RootLayout({
             __html: `
 if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js').catch(console.error)})}
 window.addEventListener('load',()=>{
+  try{sessionStorage.setItem('chrlit_splash_seen','1')}catch(e){}
   setTimeout(()=>{
     var s=document.getElementById('splash');
     if(s){

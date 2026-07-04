@@ -1,6 +1,7 @@
 import Link from "next/link"
 import type { Metadata } from "next"
 import { getAllArticleMeta } from "@/lib/blog"
+import { SiteHeader } from "@/components/SiteHeader"
 
 export const metadata: Metadata = {
     title: "Blog — Instagram pro malé firmy | Chrlit",
@@ -28,7 +29,8 @@ export default function BlogIndex() {
 
     return (
         <div className="min-h-screen bg-[#050505] text-white">
-            <div className="max-w-3xl mx-auto px-6 py-24">
+            <SiteHeader />
+            <div className="max-w-3xl mx-auto px-6 pt-32 pb-24">
                 <Link href="/" className="text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white transition-colors mb-12 inline-block">
                     ← Zpět na hlavní stránku
                 </Link>

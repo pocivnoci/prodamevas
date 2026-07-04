@@ -2,6 +2,7 @@ import Link from "next/link"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { getArticle, getArticleSlugs } from "@/lib/blog"
+import { SiteHeader } from "@/components/SiteHeader"
 
 const SITE = "https://chrlit.cz"
 
@@ -63,7 +64,8 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
             {/* JSON-LD Article schema for rich results */}
             <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-            <article className="max-w-3xl mx-auto px-6 py-24">
+            <SiteHeader />
+            <article className="max-w-3xl mx-auto px-6 pt-32 pb-24">
                 <Link href="/blog" className="text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white transition-colors mb-12 inline-block">
                     ← Všechny články
                 </Link>
