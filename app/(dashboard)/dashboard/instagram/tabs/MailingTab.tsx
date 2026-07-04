@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
-import { getMailingSegments, sendBroadcast, type MailingSegment, type BroadcastResult } from "@/app/actions/mailing-actions"
+import { getMailingSegments, getMailingRecipients, sendBroadcast, type MailingSegment, type BroadcastResult } from "@/app/actions/mailing-actions"
 
 const DAILY_CAP = 100
 
@@ -15,6 +15,9 @@ const SEGMENTS: { id: MailingSegment; label: string; hint: string }[] = [
 export function MailingTab() {
     const [counts, setCounts] = useState<{ waitlist: number; activeClients: number; expired: number } | null>(null)
     const [segment, setSegment] = useState<MailingSegment>("waitlist")
+    const [recipients, setRecipients] = useState<string[]>([])
+    const [selected, setSelected] = useState<Set<string>>(new Set())
+    const [loadingRecipients, setLoadingRecipients] = useState(false)
     const [subject, setSubject] = useState("")
     const [body, setBody] = useState("")
     const [confirming, setConfirming] = useState(false)
@@ -26,8 +29,30 @@ export function MailingTab() {
         getMailingSegments().then(setCounts).catch(() => setError("Nepodařilo se načíst segmenty (jen pro super-admina)."))
     }, [])
 
-    const count = counts ? counts[segment] : 0
-    const canSend = subject.trim().length > 0 && body.trim().length > 0 && count > 0 && !sending
+    // Load the individual addresses whenever the segment changes; default all checked.
+    useEffect(() => {
+        let cancelled = false
+        setLoadingRecipients(true)
+        getMailingRecipients(segment)
+            .then(list => {
+                if (cancelled) return
+                setRecipients(list)
+                setSelected(new Set(list))
+            })
+            .catch(() => { if (!cancelled) { setRecipients([]); setSelected(new Set()) } })
+            .finally(() => { if (!cancelled) setLoadingRecipients(false) })
+        return () => { cancelled = true }
+    }, [segment])
+
+    const toggleRecipient = (email: string) =>
+        setSelected(prev => {
+            const next = new Set(prev)
+            if (next.has(email)) next.delete(email); else next.add(email)
+            return next
+        })
+
+    const selectedCount = selected.size
+    const canSend = subject.trim().length > 0 && body.trim().length > 0 && selectedCount > 0 && !sending
 
     const doSend = async () => {
         setConfirming(false)
@@ -35,7 +60,7 @@ export function MailingTab() {
         setError(null)
         setResult(null)
         try {
-            const r = await sendBroadcast({ segment, subject, body })
+            const r = await sendBroadcast({ segment, subject, body, recipients: [...selected] })
             setResult(r)
             getMailingSegments().then(setCounts).catch(() => {})
         } catch (e: any) {
@@ -77,11 +102,56 @@ export function MailingTab() {
                         )
                     })}
                 </div>
-                {count > DAILY_CAP && (
+                {selectedCount > DAILY_CAP && (
                     <p className="text-[10px] text-amber-400/80 font-bold mt-2">
-                        ⚠️ Resend free tier posílá max {DAILY_CAP}/den — odešle se prvních {DAILY_CAP}, zbytek ({count - DAILY_CAP}) další den. Pro víc: placený Resend (~$20/měs → 50k).
+                        ⚠️ Resend free tier posílá max {DAILY_CAP}/den — odešle se prvních {DAILY_CAP}, zbytek ({selectedCount - DAILY_CAP}) další den. Pro víc: placený Resend (~$20/měs → 50k).
                     </p>
                 )}
+            </div>
+
+            {/* Per-recipient selection */}
+            <div>
+                <div className="flex items-baseline justify-between mb-2">
+                    <label className="text-[10px] text-white/40 uppercase tracking-widest font-bold">
+                        Příjemci · {selectedCount}/{recipients.length}
+                    </label>
+                    <div className="flex gap-4">
+                        <button
+                            onClick={() => setSelected(new Set(recipients))}
+                            disabled={recipients.length === 0 || selectedCount === recipients.length}
+                            className="text-[10px] text-white/40 hover:text-white/80 uppercase tracking-widest font-bold transition-colors disabled:opacity-30 disabled:hover:text-white/40"
+                        >
+                            Vybrat vše
+                        </button>
+                        <button
+                            onClick={() => setSelected(new Set())}
+                            disabled={selectedCount === 0}
+                            className="text-[10px] text-white/40 hover:text-white/80 uppercase tracking-widest font-bold transition-colors disabled:opacity-30 disabled:hover:text-white/40"
+                        >
+                            Zrušit výběr
+                        </button>
+                    </div>
+                </div>
+                <div className="bg-[#0a0a0a] border border-white/10 rounded-sm max-h-56 overflow-y-auto divide-y divide-white/5">
+                    {loadingRecipients ? (
+                        <p className="text-xs text-white/30 font-medium p-4">Načítám…</p>
+                    ) : recipients.length === 0 ? (
+                        <p className="text-xs text-white/30 font-medium p-4">V tomto segmentu nikdo není.</p>
+                    ) : recipients.map(email => {
+                        const checked = selected.has(email)
+                        return (
+                            <label key={email} className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-white/[0.02] transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggleRecipient(email)}
+                                    className="accent-aisummit-cinnabar w-3.5 h-3.5 shrink-0"
+                                />
+                                <span className={`text-xs font-medium truncate ${checked ? "text-white/80" : "text-white/35"}`}>{email}</span>
+                            </label>
+                        )
+                    })}
+                </div>
             </div>
 
             {/* Subject */}
@@ -140,7 +210,7 @@ export function MailingTab() {
                     onClick={() => setConfirming(true)}
                     className="px-8 py-3 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all disabled:opacity-40 shadow-[0_0_20px_rgba(229,83,63,0.2)]"
                 >
-                    {sending ? "Odesílám…" : `Odeslat → ${count} příjemců`}
+                    {sending ? "Odesílám…" : `Odeslat → ${selectedCount} příjemců`}
                 </button>
             </div>
 
@@ -155,7 +225,7 @@ export function MailingTab() {
                     >
                         <h3 className="text-sm font-black uppercase tracking-tight text-white mb-2">Opravdu odeslat?</h3>
                         <p className="text-xs text-white/50 leading-relaxed mb-5">
-                            E-mail „{subject}" půjde na <strong className="text-white/80">{Math.min(count, DAILY_CAP)}</strong> {segment === "waitlist" ? "adres z waitlistu" : "klientů"}. Akce je nevratná.
+                            E-mail „{subject}" půjde na <strong className="text-white/80">{Math.min(selectedCount, DAILY_CAP)}</strong> {selectedCount === 1 ? "vybraného příjemce" : "vybraných příjemců"}. Akce je nevratná.
                         </p>
                         <div className="flex gap-2 justify-end">
                             <button onClick={() => setConfirming(false)} className="px-4 py-2 rounded-sm text-[10px] font-bold uppercase tracking-widest text-white/50 bg-white/5 border border-white/10 hover:text-white transition-all">Zrušit</button>

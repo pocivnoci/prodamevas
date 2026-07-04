@@ -74,19 +74,36 @@ export async function getMailingSegments(): Promise<{ waitlist: number; activeCl
     return { waitlist: waitlist.length, activeClients: activeClients.length, expired: expired.length }
 }
 
+/** The actual opt-out-filtered email list for a segment — powers per-recipient selection in the UI. */
+export async function getMailingRecipients(segment: MailingSegment): Promise<string[]> {
+    await requireSuperAdmin()
+    return resolveRecipients(segment)
+}
+
 export interface BroadcastResult { sent: number; failed: number; skipped: number; remaining: number; total: number }
 
 /**
  * Send a broadcast to a segment. Throttled, capped at DAILY_CAP per run.
  * Idempotency is the caller's concern (confirm-before-send in the UI); this always sends.
+ *
+ * `recipients` (optional) narrows the send to specific addresses within the segment.
+ * They are always validated against the freshly resolved + opt-out-filtered segment list,
+ * so the client can never smuggle in an address that isn't actually in the segment.
+ * Omitted → send to the whole segment (backward-compatible).
  */
-export async function sendBroadcast(input: { segment: MailingSegment; subject: string; body: string }): Promise<BroadcastResult> {
+export async function sendBroadcast(input: { segment: MailingSegment; subject: string; body: string; recipients?: string[] }): Promise<BroadcastResult> {
     await requireSuperAdmin()
     const subject = input.subject?.trim()
     const body = input.body?.trim()
     if (!subject || !body) throw new Error("Předmět i text jsou povinné.")
 
-    const recipients = await resolveRecipients(input.segment)
+    const resolved = await resolveRecipients(input.segment)
+    let recipients = resolved
+    if (input.recipients) {
+        const wanted = new Set(input.recipients.map(e => String(e).trim().toLowerCase()).filter(Boolean))
+        recipients = resolved.filter(e => wanted.has(e))
+        if (recipients.length === 0) throw new Error("Žádný z vybraných příjemců není v segmentu.")
+    }
     const total = recipients.length
     const batch = recipients.slice(0, DAILY_CAP)
     const remaining = Math.max(0, total - batch.length)
