@@ -182,11 +182,18 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
     )
 }
 function CurrentPlanCard({ sub, onRefresh }: { sub: SubscriptionState; onRefresh: () => void }) {
-    const pct = (sub.creditsTotal ?? 0) > 0
-        ? Math.min(100, ((sub.creditsUsed ?? 0) / (sub.creditsTotal ?? 1)) * 100)
-        : 0
-    const isLow = pct > 80
     const isTrial = sub.status === "trialing"
+    // The v2 trial has NO monthly credits (credits_per_month=0) — its real quota is
+    // "N free posts" tracked via plan_posts_unlocked/limit. Showing a "0/0 kreditů"
+    // bar for it conflates two different quotas and reads as broken. So for a
+    // content-gated trial we render the free-posts allotment instead of the credit bar.
+    const planLimit = sub.planPostsLimit ?? 0
+    const usePostQuota = isTrial && (sub.creditsTotal ?? 0) === 0 && planLimit > 0
+    const usedUnits = usePostQuota ? (sub.planPostsUnlocked ?? 0) : (sub.creditsUsed ?? 0)
+    const totalUnits = usePostQuota ? planLimit : (sub.creditsTotal ?? 0)
+    const remainingUnits = usePostQuota ? Math.max(0, planLimit - (sub.planPostsUnlocked ?? 0)) : (sub.creditsRemaining ?? 0)
+    const pct = totalUnits > 0 ? Math.min(100, (usedUnits / totalUnits) * 100) : 0
+    const isLow = pct > 80
     // The v2 trial is content-gated (3 free posts), NOT time-gated — trialEndsAt is
     // only set on legacy time-limited trials. Without it, show the content gate.
     const trialDays = isTrial && sub.trialEndsAt
@@ -226,9 +233,11 @@ function CurrentPlanCard({ sub, onRefresh }: { sub: SubscriptionState; onRefresh
             {/* Credit bar */}
             <div className="mb-2">
                 <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] text-white/40 font-bold">Využité kredity</span>
+                    <span className="text-[10px] text-white/40 font-bold">
+                        {usePostQuota ? "Příspěvky zdarma" : "Využité kredity"}
+                    </span>
                     <span className="text-[10px] text-white/60 font-bold">
-                        {sub.creditsUsed ?? 0} / {sub.creditsTotal ?? 0}
+                        {usedUnits} / {totalUnits}
                     </span>
                 </div>
                 <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
@@ -239,7 +248,9 @@ function CurrentPlanCard({ sub, onRefresh }: { sub: SubscriptionState; onRefresh
                 </div>
                 <div className="flex items-center justify-between mt-1">
                     <span className="text-[9px] text-white/20 font-bold">
-                        {sub.creditsRemaining ?? 0} kreditů zbývá
+                        {usePostQuota
+                            ? `${remainingUnits} ${remainingUnits === 1 ? "příspěvek zdarma zbývá" : remainingUnits >= 2 && remainingUnits <= 4 ? "příspěvky zdarma zbývají" : "příspěvků zdarma zbývá"}`
+                            : `${remainingUnits} kreditů zbývá`}
                     </span>
                     {periodEnd && (
                         <span className="text-[9px] text-white/20 font-bold">

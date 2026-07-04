@@ -59,23 +59,24 @@ export default function InstagramPage() {
 
     return (
         <div className="space-y-6">
-            {/* Section Header */}
-            {showHeader && (
-                <div>
-                    <h1 className="text-3xl font-black uppercase tracking-tight text-white">{sectionInfo.title}</h1>
-                    <p className="text-white/40 mt-1 font-medium text-xs">{sectionInfo.description}</p>
-                </div>
-            )}
-
-            {/* Content */}
+            {/* Content — header lives INSIDE the keyed block so the section title and its
+                body switch together. Kept outside, the header updated instantly while the
+                old body animated out, briefly showing the new title over the old content. */}
             <AnimatePresence mode="wait">
                 <motion.div
                     key={activeSection}
+                    className="space-y-6"
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.2, ease: "easeOut" }}
                 >
+                    {showHeader && (
+                        <div>
+                            <h1 className="text-3xl font-black uppercase tracking-tight text-white">{sectionInfo.title}</h1>
+                            <p className="text-white/40 mt-1 font-medium text-xs">{sectionInfo.description}</p>
+                        </div>
+                    )}
                     {activeSection === "dashboard" && <DashboardTab projectId={projectId} onOpenTutorial={openTutorial} />}
                     {activeSection === "posts" && <PostsTab projectId={projectId} />}
                     {activeSection === "plan" && <PlanTab projectId={projectId} />}

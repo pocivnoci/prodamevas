@@ -268,11 +268,16 @@ export function AdminSidebar() {
                             </button>
                         </div>
                     ) : (() => {
-                        const pct = subscription.creditsTotal > 0
-                            ? Math.min(100, (subscription.creditsUsed / subscription.creditsTotal) * 100)
-                            : 0
-                        const isLow = pct > 80
                         const isTrial = subscription.status === "trialing"
+                        // Content-gated trial (credits_per_month=0) shows its "free posts"
+                        // allotment, not a "0/0 kreditů" bar that reads as broken.
+                        const planLimit = subscription.planPostsLimit ?? 0
+                        const usePostQuota = isTrial && subscription.creditsTotal === 0 && planLimit > 0
+                        const usedUnits = usePostQuota ? (subscription.planPostsUnlocked ?? 0) : subscription.creditsUsed
+                        const totalUnits = usePostQuota ? planLimit : subscription.creditsTotal
+                        const remainingUnits = usePostQuota ? Math.max(0, planLimit - (subscription.planPostsUnlocked ?? 0)) : subscription.creditsRemaining
+                        const pct = totalUnits > 0 ? Math.min(100, (usedUnits / totalUnits) * 100) : 0
+                        const isLow = pct > 80
                         const trialDays = isTrial && subscription.trialEndsAt
                             ? Math.max(0, Math.ceil((new Date(subscription.trialEndsAt).getTime() - Date.now()) / 86400000))
                             : null
@@ -298,10 +303,10 @@ export function AdminSidebar() {
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <span className="text-[9px] text-white/30 font-bold">
-                                        {subscription.creditsUsed}/{subscription.creditsTotal} kreditů
+                                        {usedUnits}/{totalUnits} {usePostQuota ? "příspěvků zdarma" : "kreditů"}
                                     </span>
                                     <span className={`text-[9px] font-bold ${isLow ? 'text-aisummit-cinnabar' : 'text-white/20'}`}>
-                                        {subscription.creditsRemaining} zbývá
+                                        {remainingUnits} zbývá
                                     </span>
                                 </div>
                                 {(subscription.status === "expired" || isLow) && (

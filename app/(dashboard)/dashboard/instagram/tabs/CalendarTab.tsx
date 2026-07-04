@@ -307,7 +307,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
             {/* Info */}
             <div className="bg-[#0a0a0a]/60 border border-white/5 rounded-sm p-4 text-[10px] text-white/30 tracking-wide space-y-1">
                 <p>📅 <strong className="text-white/50">Naplánuj týden:</strong> AI analyzuje počasí, svátky a výkon značky, pak strategicky naplánuje posty na celý týden.</p>
-                <p>🌤️ <strong className="text-white/50">Počasí:</strong> Vyžaduje OPENWEATHER_API_KEY v env. Bez něj plánuje na základě kalendáře a performance dat.</p>
+                <p>🌤️ <strong className="text-white/50">Počasí:</strong> Když je dostupná předpověď, plán ji zohlední. Jinak plánuje podle kalendáře, svátků a výkonu značky.</p>
                 <p>📝 <strong className="text-white/50">Workflow:</strong> Naplánuj → zkontroluj drafty → schval → publikuj.</p>
             </div>
         </div>

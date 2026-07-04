@@ -9,9 +9,23 @@ export function WaitlistForm() {
     const [errorMsg, setErrorMsg] = useState('')
 
     async function handleSubmit(formData: FormData) {
+        const email = String(formData.get('email') || '').trim()
+        // Explicit validation with a Czech message — don't rely on native browser
+        // bubbles (they don't fire reliably on empty submit via React form actions).
+        if (!email) {
+            setStatus('error')
+            setErrorMsg('Zadejte e-mailovou adresu.')
+            return
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            setStatus('error')
+            setErrorMsg('Zadejte platnou e-mailovou adresu.')
+            return
+        }
+
         setStatus('loading')
         const result = await joinWaitlist(formData)
-        
+
         if (result.success) {
             setStatus('success')
         } else {

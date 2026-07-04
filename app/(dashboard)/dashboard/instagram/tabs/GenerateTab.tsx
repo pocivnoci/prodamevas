@@ -23,9 +23,24 @@ import type { IGPostType, IGCategory, IGPostFormat } from "./types"
 import { creditsForMedia } from "@/lib/credits"
 import { trackEvent } from "@/lib/analytics"
 
+/**
+ * What a batch actually costs in credits. The first `freeRemaining` posts fall
+ * within the monthly plan allotment (plan posts → 0 credits, exactly like the
+ * worker's gate); only the overflow is charged, weighted by medium. Used for BOTH
+ * the pre-generation estimate and the final plan total so the two never disagree
+ * — and so a trial's "3 free posts" reads as free, not as a phantom credit charge.
+ */
+function batchCreditCost(mediums: (string | null | undefined)[], freeRemaining: number): number {
+    return mediums.reduce((sum, m, i) => sum + (i < freeRemaining ? 0 : creditsForMedia(m)), 0)
+}
+
 export function GenerateTab({ projectId }: { projectId: string }) {
     const { refreshSubscription, setActiveSection, subscription, generateIntent, setGenerateIntent } = useStudio()
     const reelAllowed = subscription?.allowedMedia?.includes("reel") ?? true
+    // Posts still free within this month's plan allotment (plan posts cost 0 credits).
+    const freeRemaining = subscription
+        ? Math.max(0, (subscription.planPostsLimit ?? 0) - (subscription.planPostsUnlocked ?? 0))
+        : 0
     const { showPlanUnlockModal } = usePaywall()
     const [postTypes, setPostTypes] = useState<IGPostType[]>([])
     const [postFormats, setPostFormats] = useState<Record<string, IGPostFormat>>({})
@@ -874,7 +889,14 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                             )
                                         })}
                                     </div>
-                                    <p className="text-[10px] text-white/20 mt-2 text-right font-bold uppercase tracking-widest">Spotřeba: ~{batchCount + 2 * Math.floor(batchCount / 4)} kreditů · {postsPerWeek} příspěvků/týden</p>
+                                    {(() => {
+                                        const est = batchCreditCost(Array.from({ length: batchCount }, () => medium || undefined), freeRemaining)
+                                        return (
+                                            <p className="text-[10px] text-white/20 mt-2 text-right font-bold uppercase tracking-widest">
+                                                {est === 0 ? "Zdarma — v rámci plánu" : `Odhad: ~${est} kreditů`} · {postsPerWeek} příspěvků/týden
+                                            </p>
+                                        )
+                                    })()}
                                 </div>
 
                                 {/* Topic */}
@@ -1199,7 +1221,10 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                             <div className="flex items-center gap-4 text-[10px] text-white/30 font-bold uppercase tracking-widest">
                                 <span>{contentPlan.length} postů</span>
                                 <span>·</span>
-                                <span>{contentPlan.reduce((sum, p) => sum + creditsForMedia(p.medium), 0)} kreditů</span>
+                                {(() => {
+                                    const cost = batchCreditCost(contentPlan.map(p => p.medium), freeRemaining)
+                                    return <span>{cost === 0 ? "Zdarma — v rámci plánu" : `${cost} kreditů`}</span>
+                                })()}
                             </div>
 
                             <div className="flex items-center gap-3">
