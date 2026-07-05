@@ -254,6 +254,31 @@ const DESIGN_BRIEF_SCHEMA = {
     required: ["concept", "layoutArchetype", "composition", "typography", "colorTreatment", "logoPlacement", "negativeSpace", "divergenceNote"],
 }
 
+/** Product context for the AI Designer / native prompt — the post is built around a REAL item. */
+export interface ProductBriefInfo {
+    name: string
+    type?: string
+    description?: string
+    /** true = an exact reference photo of this product is attached to the render call */
+    hasReferencePhoto: boolean
+}
+
+/** Shared product-fidelity block for designer prompts (single image AND carousel). */
+function buildProductSection(product?: ProductBriefInfo): string {
+    if (!product) return ""
+    return `
+
+## 🛍️ REAL PRODUCT — THE HERO OF THIS POST (mandatory):
+This post sells the REAL product "${product.name}"${product.type ? ` (${product.type})` : ""}.
+${product.description ? `Product: ${product.description}` : ""}
+${product.hasReferencePhoto
+    ? `An EXACT photo of this product is attached as a reference image labeled "EXACT product photo".
+- The composition MUST feature THIS exact physical product as a clearly visible subject — worn by a person, flat lay, hanging, held — your choice of staging.
+- The product's print/graphic, colors, cut and material must stay IDENTICAL to the reference photo. NEVER redesign, recolor, restyle or invent a different print.
+- Creative freedom applies to everything AROUND the product (scene, model, lighting, mood, humor) — never to the product itself.`
+    : `No reference photo is available — describe the product ONLY by its verified name/description above; do not invent visual details (print, colors) beyond them.`}`
+}
+
 export async function generateDesignBrief(params: {
     config: ClientConfig
     clientId: string
@@ -264,6 +289,8 @@ export async function generateDesignBrief(params: {
     /** Layout archetypes used by the most recent posts — hard-banned for this one */
     bannedArchetypes?: string[]
     visualMemoriesSection?: string
+    /** The real product this post is built around (uses_product formats) — drives fidelity rules */
+    product?: ProductBriefInfo
 }): Promise<DesignBrief> {
     const { config, clientId, captionData, postType, recentBriefs } = params
     const banned = (params.bannedArchetypes ?? []).filter(a => (LAYOUT_ARCHETYPES as readonly string[]).includes(a))
@@ -294,6 +321,7 @@ ${captionData.imageSubtext ? `- Subtext (Czech, render EXACTLY as written): "${c
 ${captionData.accentWords?.length ? `- Accent words (highlight these within the headline): ${captionData.accentWords.join(", ")}` : ""}
 ${captionData.imagePrompt ? `- Copywriter's raw visual idea: "${captionData.imagePrompt}"` : ""}
 ${captionData.body ? `- Post body context: "${captionData.body.substring(0, 300)}"` : ""}
+${buildProductSection(params.product)}
 
 ## RECENT POST DESIGNS — YOU MUST DIVERGE FROM ALL OF THEM:
 ${recentBriefs.length ? recentBriefs.map((b, i) => `${i + 1}. ${b}`).join("\n") : "(no history yet — total creative freedom)"}
@@ -358,14 +386,23 @@ Return ONLY the JSON design brief.`
 /**
  * Convert a DesignBrief into the final Nano Banana Pro image prompt.
  */
-export function buildNativeImagePrompt(brief: DesignBrief, config: ClientConfig): string {
+export function buildNativeImagePrompt(brief: DesignBrief, config: ClientConfig, product?: ProductBriefInfo): string {
     const t = brief.typography
     const hasLogo = Boolean(config.logoFile)
+
+    const productBlock = product?.hasReferencePhoto ? `
+
+## PRODUCT FIDELITY (highest priority — overrides creative interpretation):
+The attached reference image labeled "EXACT product photo: ${product.name}" shows the REAL product this post sells.
+- Reproduce this product 100% faithfully: identical print/graphic, identical colors, identical cut and material.
+- The product must be clearly visible and recognizable in the final image.
+- Do NOT redesign, recolor, simplify or reinterpret any part of the product. Style the SCENE around it, never the product itself.` : ""
 
     return `Design a complete, finished Instagram post image — a professional brand visual with typography composited into the design (like a finished poster from a top design studio).
 
 ## SCENE / COMPOSITION:
 ${brief.composition}
+${productBlock}
 
 ## NEGATIVE SPACE:
 ${brief.negativeSpace}
@@ -402,6 +439,8 @@ export async function generateCarouselDesignBriefs(params: {
     recentBriefs: string[]
     bannedArchetypes?: string[]
     accentWords?: string[]
+    /** The real product this carousel is built around (uses_product formats) — drives fidelity rules */
+    product?: ProductBriefInfo
 }): Promise<{ designSystem: string; briefs: DesignBrief[] }> {
     const { config, clientId, allSlides, visualTheme, postType, recentBriefs } = params
     const banned = (params.bannedArchetypes ?? []).filter(a => (LAYOUT_ARCHETYPES as readonly string[]).includes(a))
@@ -429,6 +468,7 @@ ${memSection}
 Visual theme: "${visualTheme}"
 Post type: ${postType}
 ${slideSummary}
+${buildProductSection(params.product)}
 
 ## RECENT POST DESIGNS — THE CAROUSEL MUST DIVERGE FROM ALL OF THEM:
 ${recentBriefs.length ? recentBriefs.map((b, i) => `${i + 1}. ${b}`).join("\n") : "(no history yet)"}
@@ -479,23 +519,36 @@ export interface NativeImageQA {
     /** what the model actually reads in the image */
     renderedText?: string
     logoPresent: boolean
+    /** false ONLY when a product reference was provided and the rendered product doesn't match it */
+    productAccurate?: boolean
     issues: string[]
     /** corrective instruction for the retry edit */
     fixHint?: string
 }
 
 /**
- * Verify a natively-designed image: exact Czech text + logo presence.
- * Fail-open: a QA infrastructure error never blocks generation.
+ * Verify a natively-designed image: exact Czech text + logo presence, and — when a
+ * product reference photo is provided — that the rendered product matches it
+ * (print, colors, cut). Fail-open: a QA infrastructure error never blocks generation.
  */
 export async function verifyNativeImage(
     imageBuffer: Buffer,
     expected: { headline: string; subtext?: string; logoExpected: boolean },
+    /** mode "require" (default): the product must appear AND match. Mode "if-present"
+     *  (carousel slides): a slide may legitimately not show the product, but a
+     *  different/invented product design is a FAIL. */
+    productRef?: { buffer: Buffer; mimeType?: string; name: string; mode?: "require" | "if-present" },
 ): Promise<NativeImageQA> {
     // Try the Pro QA judge first, then the fast fallback, then fail open. A Pro 503 must
     // never silently skip QA — degrade to flash before giving up.
     const qaModels = [getModel("visionQA")]
     if (hasFallback("visionQA")) qaModels.push(getModel("visionQA", "fallback"))
+
+    const productCheck = productRef ? `
+PRODUCT FIDELITY: The second attached image is the REAL product photo of "${productRef.name}".
+${productRef.mode === "if-present"
+    ? `IF the generated image depicts this product (or anything resembling it — a t-shirt, garment, item of the same kind), it must be THIS exact product: identical print/graphic, identical colors, identical cut. A stylized, recolored, redesigned or invented product design is a FAIL (productAccurate=false). If no such product appears in the image at all, that is acceptable (productAccurate=true).`
+    : `The generated post (first image) MUST show THIS exact product: identical print/graphic, identical colors, identical cut. A stylized, recolored, redesigned or invented product is a FAIL — and so is a post where the product is completely absent.`}` : ""
 
     const qaPrompt = `You are a strict QA inspector for AI-designed Instagram posts in CZECH.
 
@@ -503,12 +556,14 @@ Expected headline text (must match EXACTLY, including Czech diacritics ě š č 
 "${expected.headline}"
 ${expected.subtext ? `Expected subtext (must match EXACTLY):\n"${expected.subtext}"` : ""}
 ${expected.logoExpected ? "A brand logo MUST be present somewhere in the image." : ""}
+${productCheck}
 
 Check:
-1. Read ALL text rendered in the image. Does the headline match the expected text character-for-character? Watch for: missing/wrong diacritics, swapped letters, duplicated words, gibberish, extra unwanted text.
+1. Read ALL text rendered in the first image. Does the headline match the expected text character-for-character? Watch for: missing/wrong diacritics, swapped letters, duplicated words, gibberish, extra unwanted text.
 ${expected.subtext ? "2. Does the subtext match exactly?" : ""}
 ${expected.logoExpected ? "3. Is the brand logo present and not deformed?" : ""}
 4. Is all text clearly readable (contrast, not cut off at edges)?
+${productRef ? `5. Does the product in the first image faithfully match the reference product photo (second image)? Compare the print/graphic, colors and cut.` : ""}
 
 Return ONLY valid JSON:
 {
@@ -516,18 +571,21 @@ Return ONLY valid JSON:
   "textAccurate": true/false,
   "renderedText": "the text you actually read in the image",
   "logoPresent": true/false,
-  "issues": ["specific problems, empty if ok"],
+  ${productRef ? `"productAccurate": true/false,\n  ` : ""}"issues": ["specific problems, empty if ok"],
   "fixHint": "if NOT ok — one concrete instruction for an image-edit model to fix it (e.g. 'correct the headline to ... keeping the same style and position') — empty string if ok"
 }`
 
     // Quality ladder: Pro QA judge → GA Pro, each retried hard on transient. If BOTH
     // Pro tiers are exhausted, QA fails OPEN (skipped) — never flash-judges. Skipping QA
     // beats blocking a render or trusting a weaker model's verdict on Czech typography.
+    const images = [{ buffer: imageBuffer, mimeType: "image/png" }]
+    if (productRef) images.push({ buffer: productRef.buffer, mimeType: productRef.mimeType || "image/jpeg" })
+
     let text: string
     try {
         text = await generateTextQuality(qaPrompt, {
             models: qaModels,
-            images: [{ buffer: imageBuffer, mimeType: "image/png" }],
+            images,
             label: "vision-qa",
             temperature: getTemperature("judge"),
         })
@@ -547,6 +605,7 @@ Return ONLY valid JSON:
             textAccurate: !!parsed.textAccurate,
             renderedText: parsed.renderedText || undefined,
             logoPresent: !!parsed.logoPresent,
+            productAccurate: productRef ? parsed.productAccurate !== false : undefined,
             issues: parsed.issues || [],
             fixHint: parsed.fixHint || undefined,
         }

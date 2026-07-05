@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo } from "@/app/actions/config-actions"
+import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, upsertPostFormat, removePostFormat, type PostFormatInput } from "@/app/actions/config-actions"
 import { getProducts, createProduct, updateProduct, deleteProduct, deleteProducts, uploadProductImage, syncConfigProductsToDb, scrapeProductsFromWebsite } from "@/app/actions/product-actions"
 import { generateCategoryPrompt } from "@/app/actions/content-plan-actions"
 import { getConnectionStatus, disconnectInstagram, type ConnectionStatus } from "@/app/actions/ig-connection-actions"
@@ -131,6 +131,7 @@ export function SettingsTab({ projectId }: { projectId: string }) {
         { id: "basic", label: "Základní", icon: "📋" },
         { id: "voice", label: "Styl textu", icon: "🎤" },
         { id: "pillars", label: "Témata", icon: "🏛️" },
+        { id: "formats", label: "Formáty", icon: "🧩" },
         { id: "visual", label: "Vizuál", icon: "🎨" },
         { id: "products", label: "Produkty", icon: "🛍️" },
         { id: "manage", label: "Správa", icon: "⚙️" },
@@ -270,6 +271,9 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                     )}
                     {activeSection === "pillars" && (
                         <PillarsSection config={config} setConfig={setConfig} projectId={projectId} />
+                    )}
+                    {activeSection === "formats" && (
+                        <FormatsSection config={config} projectId={projectId} onReload={loadData} />
                     )}
                     {activeSection === "audience" && (
                         <AudienceSection config={config} setConfig={setConfig} />
@@ -769,6 +773,202 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
                 className="w-full py-4 border border-dashed border-white/15 rounded-sm text-[10px] text-white/40 font-bold uppercase tracking-widest hover:text-white/70 hover:border-white/30 transition-all">
                 + Přidat nové téma
             </button>
+        </div>
+    )
+}
+
+// ═══════════════════════════════════════════════════════════
+// 3b. POST FORMATS
+// ═══════════════════════════════════════════════════════════
+//
+// Formats are saved through their OWN server actions (upsertPostFormat /
+// removePostFormat) — never through the global config save. A format lives in
+// four synced places (postTypes, postTypeDefs, postFormats, pillar membership
+// + ig_post_types row); the actions keep them consistent, a raw config write
+// wouldn't. After every mutation the whole config reloads.
+
+const MEDIUM_OPTIONS = [
+    { value: "image", label: "🖼️ Obrázek" },
+    { value: "carousel", label: "🎠 Karusel" },
+    { value: "reel", label: "🎬 Reel" },
+] as const
+const RATIO_OPTIONS = ["1:1", "4:5", "3:4"] as const
+
+function emptyFormatDraft(pillarKeys: string[]): PostFormatInput {
+    return {
+        display_name: "",
+        emoji: "🎁",
+        description: "",
+        pillar: pillarKeys[0] || "",
+        medium: "image",
+        aspectRatio: "4:5",
+        uses_product: false,
+        manualOnly: false,
+    }
+}
+
+function FormatsSection({ config, projectId, onReload }: { config: any; projectId: string; onReload: () => Promise<void> }) {
+    const pillars: Record<string, any> = config.contentPillars || {}
+    const pillarKeys = Object.keys(pillars)
+    const defs: any[] = config.postTypeDefs || []
+
+    const [busy, setBusy] = useState<string | null>(null) // format name being saved/removed
+    const [error, setError] = useState<string | null>(null)
+    const [drafts, setDrafts] = useState<Record<string, PostFormatInput>>({})
+    const [showAdd, setShowAdd] = useState(false)
+    const [addDraft, setAddDraft] = useState<PostFormatInput>(() => emptyFormatDraft(pillarKeys))
+
+    const draftFor = (def: any): PostFormatInput => drafts[def.name] ?? {
+        name: def.name,
+        display_name: def.display_name || "",
+        emoji: def.emoji || "📝",
+        description: def.description || "",
+        pillar: def.pillar || pillarKeys[0] || "",
+        medium: def.medium || "image",
+        aspectRatio: def.aspectRatio || "4:5",
+        uses_product: Boolean(def.uses_product),
+        manualOnly: Boolean(def.manualOnly),
+    }
+
+    const updateDraft = (name: string, def: any, patch: Partial<PostFormatInput>) => {
+        setDrafts(prev => ({ ...prev, [name]: { ...draftFor(def), ...(prev[name] || {}), ...patch } }))
+    }
+
+    const save = async (input: PostFormatInput, key: string) => {
+        setBusy(key); setError(null)
+        const res = await upsertPostFormat(projectId, input)
+        if (!res.success) setError(res.error || "Uložení formátu selhalo")
+        else {
+            setDrafts(prev => { const next = { ...prev }; delete next[key]; return next })
+            if (key === "__add__") { setShowAdd(false); setAddDraft(emptyFormatDraft(pillarKeys)) }
+            await onReload()
+        }
+        setBusy(null)
+    }
+
+    const remove = async (name: string) => {
+        if (!confirm(`Opravdu smazat formát "${name}"? Už vygenerované posty zůstanou.`)) return
+        setBusy(name); setError(null)
+        const res = await removePostFormat(projectId, name)
+        if (!res.success) setError(res.error || "Smazání formátu selhalo")
+        else await onReload()
+        setBusy(null)
+    }
+
+    const FormatFields = ({ value, onChange }: { value: PostFormatInput; onChange: (p: Partial<PostFormatInput>) => void }) => (
+        <div className="space-y-3">
+            <div className="flex items-start gap-3">
+                <input value={value.emoji} onChange={e => onChange({ emoji: e.target.value })}
+                    className="w-12 h-12 text-center text-2xl bg-[#050505] border border-white/10 rounded-sm focus:outline-none focus:ring-1 focus:ring-white/30" />
+                <div className="flex-1">
+                    <FieldLabel>Název formátu</FieldLabel>
+                    <input value={value.display_name} onChange={e => onChange({ display_name: e.target.value })}
+                        placeholder="Soutěž o merch" className={inputClass} />
+                </div>
+            </div>
+            <div>
+                <FieldLabel hint="CO post ukazuje a JAK má vypadat — AI se tím řídí při psaní i vizuálu">Popis (pro AI)</FieldLabel>
+                <textarea value={value.description} onChange={e => onChange({ description: e.target.value })}
+                    rows={3} placeholder="Soutěžní post: 1) dej like, 2) sleduj náš profil, 3) označ kámoše v komentáři — výherce získá produkt zdarma..." className={textareaClass} />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div>
+                    <FieldLabel>Téma</FieldLabel>
+                    <select value={value.pillar} onChange={e => onChange({ pillar: e.target.value })} className={inputClass}>
+                        {pillarKeys.map(k => <option key={k} value={k}>{pillars[k]?.emoji} {pillars[k]?.label || k}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <FieldLabel>Médium</FieldLabel>
+                    <select value={value.medium} onChange={e => onChange({ medium: e.target.value as PostFormatInput["medium"] })} className={inputClass}>
+                        {MEDIUM_OPTIONS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <FieldLabel>Poměr stran</FieldLabel>
+                    <select value={value.medium === "reel" ? "9:16" : value.aspectRatio} disabled={value.medium === "reel"}
+                        onChange={e => onChange({ aspectRatio: e.target.value as PostFormatInput["aspectRatio"] })} className={inputClass}>
+                        {value.medium === "reel"
+                            ? <option value="9:16">9:16</option>
+                            : RATIO_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                </div>
+                <div className="space-y-2 pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={value.uses_product} onChange={e => onChange({ uses_product: e.target.checked })}
+                            className="accent-emerald-500" />
+                        <span className="text-[9px] text-white/50 font-bold uppercase tracking-widest">🛍️ S produktem</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={Boolean(value.manualOnly)} onChange={e => onChange({ manualOnly: e.target.checked })}
+                            className="accent-amber-500" />
+                        <span className="text-[9px] text-white/50 font-bold uppercase tracking-widest">✋ Jen ručně</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    )
+
+    return (
+        <div className="space-y-6">
+            <SectionCard title="Formáty příspěvků" description="Každý formát je jeden typ postu (šablona), který si vybíráte při generování. Formát „s produktem“ automaticky přikládá reálnou fotku produktu. „Jen ručně“ znamená, že ho AI nikdy nezvolí sama (soutěže, limitky) — vyberete ho jen vy v Tvorbě.">
+                {error && (
+                    <p className="text-[10px] text-red-400 font-bold uppercase tracking-widest">{error}</p>
+                )}
+                {defs.length === 0 && (
+                    <p className="text-[10px] text-white/30 text-center py-4">Žádné brand formáty — přidejte první níže.</p>
+                )}
+            </SectionCard>
+
+            {defs.map((def: any) => {
+                const value = draftFor(def)
+                const dirty = Boolean(drafts[def.name])
+                return (
+                    <div key={def.name} className="bg-[#0f0f0f] border border-white/5 rounded-sm p-6 space-y-4">
+                        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                            <div className="flex items-center gap-2">
+                                <span className="text-[8px] text-white/20 font-mono">{def.name}</span>
+                                {def.manualOnly && <span className="text-[8px] px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-sm text-amber-400/80 font-bold uppercase tracking-wider">jen ručně</span>}
+                                {def.uses_product && <span className="text-[8px] px-1.5 py-0.5 bg-white/5 border border-white/10 rounded-sm text-white/40 font-bold uppercase tracking-wider">produkt</span>}
+                            </div>
+                            <div className="flex items-center gap-3">
+                                {dirty && (
+                                    <button onClick={() => save({ ...value, name: def.name }, def.name)} disabled={busy !== null}
+                                        className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 px-4 py-1.5 rounded-sm text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50">
+                                        {busy === def.name ? "Ukládám..." : "💾 Uložit formát"}
+                                    </button>
+                                )}
+                                <button onClick={() => remove(def.name)} disabled={busy !== null}
+                                    className="text-[9px] text-red-400/40 hover:text-red-400 transition-colors font-bold uppercase tracking-widest disabled:opacity-50">
+                                    🗑️ Smazat
+                                </button>
+                            </div>
+                        </div>
+                        <FormatFields value={value} onChange={patch => updateDraft(def.name, def, patch)} />
+                    </div>
+                )
+            })}
+
+            {showAdd ? (
+                <div className="bg-[#0f0f0f] border border-emerald-500/20 rounded-sm p-6 space-y-4">
+                    <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                        <span className="text-[10px] text-emerald-400/80 font-bold uppercase tracking-widest">Nový formát</span>
+                        <button onClick={() => { setShowAdd(false); setError(null) }}
+                            className="text-[9px] text-white/30 hover:text-white/60 transition-colors font-bold uppercase tracking-widest">✕ Zrušit</button>
+                    </div>
+                    <FormatFields value={addDraft} onChange={patch => setAddDraft(prev => ({ ...prev, ...patch }))} />
+                    <button onClick={() => save(addDraft, "__add__")}
+                        disabled={busy !== null || !addDraft.display_name.trim() || !addDraft.description.trim()}
+                        className="w-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 py-3 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40">
+                        {busy === "__add__" ? "Ukládám..." : "💾 Vytvořit formát"}
+                    </button>
+                </div>
+            ) : (
+                <button onClick={() => setShowAdd(true)}
+                    className="w-full py-4 border border-dashed border-white/15 rounded-sm text-[10px] text-white/40 font-bold uppercase tracking-widest hover:text-white/70 hover:border-white/30 transition-all">
+                    + Přidat nový formát
+                </button>
+            )}
         </div>
     )
 }

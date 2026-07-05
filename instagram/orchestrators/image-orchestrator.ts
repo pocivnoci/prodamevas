@@ -71,8 +71,23 @@ export async function renderImage(ctx: RenderContext): Promise<RenderResult> {
 // ============================================
 
 async function renderImageNative(ctx: RenderContext): Promise<RenderResult | null> {
-    const { config, captionData, format, selectedType, report } = ctx
+    const { config, captionData, format, selectedType, report, selectedProduct } = ctx
     let cost = 0
+
+    // Reference images load BEFORE the design brief — the designer must know whether
+    // an exact product photo exists, otherwise it invents a composition (and Nano
+    // Banana then invents the product) even though the real photo is attached.
+    const otherRefs = await loadReferenceImages(ctx)
+    otherRefs.sort((a, b) =>
+        Number(b.label?.startsWith("EXACT product photo") || 0) - Number(a.label?.startsWith("EXACT product photo") || 0)
+    )
+    const productRef = otherRefs.find(r => r.label?.startsWith("EXACT product photo"))
+    const productInfo = selectedProduct ? {
+        name: selectedProduct.name,
+        type: selectedProduct.type,
+        description: selectedProduct.description,
+        hasReferencePhoto: Boolean(productRef),
+    } : undefined
 
     await report("art_director", 55, "🎨 AI Designer navrhuje kompozici...")
     console.log("🎨 AI Designer — generuji design brief...")
@@ -89,12 +104,13 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
         postType: selectedType.name,
         recentBriefs: ctx.recentBriefs ?? [],
         bannedArchetypes: ctx.recentArchetypes ?? [],
+        product: productInfo,
     })
     cost += COSTS.designerBrief
     console.log(`   ✓ Koncept: "${brief.concept}" [${brief.layoutArchetype || "no archetype"}]`)
     console.log(`   ✓ Divergence: ${brief.divergenceNote?.substring(0, 100)}`)
 
-    const prompt = buildNativeImagePrompt(brief, config)
+    const prompt = buildNativeImagePrompt(brief, config, productInfo)
 
     // Reference images: logo FIRST, then product photo, then brand refs (max 4 total)
     const refs: RefImage[] = []
@@ -108,10 +124,6 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
             })
         }
     }
-    const otherRefs = await loadReferenceImages(ctx)
-    otherRefs.sort((a, b) =>
-        Number(b.label?.startsWith("EXACT product photo") || 0) - Number(a.label?.startsWith("EXACT product photo") || 0)
-    )
     refs.push(...otherRefs.slice(0, Math.max(0, 4 - refs.length)))
 
     await report("rendering", 62, "🖼️ Nano Banana Pro generuje finální post...")
@@ -123,20 +135,50 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
     cost += COSTS.imageGeneration
     console.log(`   ✓ Obrázek (${(imageBuffer.length / 1024).toFixed(0)} KB)`)
 
-    // Vision QA: exact Czech text + logo presence
-    await report("chief_editor", 75, "👁️ Kontrola českého textu a loga...")
-    console.log("👁️ QA — kontrola textu (diakritika) a loga...")
+    // Vision QA: exact Czech text + logo presence + product fidelity (vs reference photo)
+    await report("chief_editor", 75, "👁️ Kontrola textu, loga a věrnosti produktu...")
+    console.log(`👁️ QA — text (diakritika), logo${productRef ? ", věrnost produktu" : ""}...`)
     const logoExpected = refs.some(r => r.label?.startsWith("brand logo"))
     const qaExpectation = {
         headline: captionData.hook,
         subtext: captionData.imageSubtext,
         logoExpected,
     }
-    const qa = await verifyNativeImage(imageBuffer, qaExpectation)
+    const qaProductRef = productRef && selectedProduct
+        ? { buffer: productRef.buffer, mimeType: productRef.mimeType, name: selectedProduct.name }
+        : undefined
+    const qa = await verifyNativeImage(imageBuffer, qaExpectation, qaProductRef)
     cost += COSTS.imageQA
     let qaStatus = "pass"
 
-    if (!qa.ok) {
+    if (!qa.ok && qa.productAccurate === false) {
+        // A wrong product can't be fixed by an edit (the edit model never sees the
+        // reference) — regenerate once with the references still attached.
+        console.log(`   ⚠️ QA: produkt neodpovídá referenci: ${qa.issues.join("; ")}`)
+        console.log(`   🔄 Regeneruji s důrazem na věrnost produktu...`)
+        await report("rendering", 78, "🔧 Regeneruji — produkt musí odpovídat fotce...")
+        const retryPrompt = `${prompt}
+
+⚠️ PREVIOUS ATTEMPT WAS REJECTED — the product did not match the reference photo (${qa.issues.join("; ")}).
+Follow the PRODUCT FIDELITY rules exactly: the product must be a faithful reproduction of the attached "EXACT product photo".`
+        const retryBuffer = await generateImageWithReferences(retryPrompt, refs, {
+            aspectRatio: format.aspectRatio,
+            resolution: "2K",
+        })
+        cost += COSTS.imageGeneration
+        const qaRetry = await verifyNativeImage(retryBuffer, qaExpectation, qaProductRef)
+        cost += COSTS.imageQA
+        if (qaRetry.ok) {
+            imageBuffer = retryBuffer
+            qaStatus = "retry_pass"
+            console.log(`   ✓ Regenerace prošla QA`)
+        } else {
+            // Overlay fallback stages the REAL product photo into a scene — for a
+            // product post that's a better outcome than shipping a fake product.
+            console.log(`   ❌ Regenerace neprošla QA: ${qaRetry.issues.join("; ")} — fallback`)
+            return null
+        }
+    } else if (!qa.ok) {
         console.log(`   ⚠️ QA problém: ${qa.issues.join("; ")}`)
         console.log(`   🔄 Korektivní edit...`)
         await report("rendering", 78, "🔧 Opravuji text v obrázku...")
@@ -153,7 +195,7 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
                 resolution: "2K",
             })
             cost += COSTS.imageCorrectiveEdit
-            const qa2 = await verifyNativeImage(fixedBuffer, qaExpectation)
+            const qa2 = await verifyNativeImage(fixedBuffer, qaExpectation, qaProductRef)
             cost += COSTS.imageQA
             if (qa2.ok) {
                 imageBuffer = fixedBuffer
@@ -168,7 +210,7 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
             return null
         }
     } else {
-        console.log(`   ✅ QA OK — text i logo v pořádku`)
+        console.log(`   ✅ QA OK — text${productRef ? ", logo i produkt" : " i logo"} v pořádku`)
     }
 
     const imageUrl = await uploadFinalImage(imageBuffer, ctx)
@@ -185,10 +227,10 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
 }
 
 // ============================================
-// REFERENCE IMAGE LOADING — shared by both engines
+// REFERENCE IMAGE LOADING — shared by both engines (and the carousel orchestrator)
 // ============================================
 
-async function loadReferenceImages(ctx: RenderContext): Promise<RefImage[]> {
+export async function loadReferenceImages(ctx: RenderContext): Promise<RefImage[]> {
     const { config, captionData, selectedType, selectedProduct } = ctx
     const refImages: RefImage[] = []
 
@@ -294,33 +336,37 @@ async function loadReferenceImages(ctx: RenderContext): Promise<RefImage[]> {
             }
         }
 
-        // Priority 1: Supabase storage
+        // Priority 1: Supabase storage — historically keyed by slug (config.id), but
+        // dashboard uploads write under the client UUID; check both layouts.
         if (!productImageLoaded && randomProduct.slug) {
             try {
                 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
                 if (!supabaseUrl) throw new Error('NEXT_PUBLIC_SUPABASE_URL not set')
-                const { data: files } = await supabaseAdmin.storage
-                    .from('product-images')
-                    .list(config.id, { search: randomProduct.slug })
+                for (const dir of [config.id, ctx.clientUuid]) {
+                    if (productImageLoaded || !dir) continue
+                    const { data: files } = await supabaseAdmin.storage
+                        .from('product-images')
+                        .list(dir, { search: randomProduct.slug })
 
-                const matchingFiles = (files || [])
-                    .filter(f => f.name.startsWith(randomProduct.slug) && /\.(jpg|jpeg|png|webp)$/i.test(f.name))
-                    .sort((a, b) => a.name.localeCompare(b.name))
+                    const matchingFiles = (files || [])
+                        .filter(f => f.name.startsWith(randomProduct.slug) && /\.(jpg|jpeg|png|webp)$/i.test(f.name))
+                        .sort((a, b) => a.name.localeCompare(b.name))
 
-                if (matchingFiles.length > 0) {
-                    const mainFile = matchingFiles[0].name
-                    const publicUrl = `${supabaseUrl}/storage/v1/object/public/product-images/${config.id}/${mainFile}`
-                    const resp = await fetch(publicUrl)
-                    if (resp.ok) {
-                        const arrayBuf = await resp.arrayBuffer()
-                        const mimeType = mainFile.endsWith(".png") ? "image/png" : "image/jpeg"
-                        refImages.push({
-                            buffer: Buffer.from(arrayBuf),
-                            mimeType,
-                            label: `EXACT product photo: ${randomProduct.name}`,
-                        })
-                        productImageLoaded = true
-                        console.log(`   🛍️ Loaded product image from Supabase: ${mainFile}`)
+                    if (matchingFiles.length > 0) {
+                        const mainFile = matchingFiles[0].name
+                        const publicUrl = `${supabaseUrl}/storage/v1/object/public/product-images/${dir}/${mainFile}`
+                        const resp = await fetch(publicUrl)
+                        if (resp.ok) {
+                            const arrayBuf = await resp.arrayBuffer()
+                            const mimeType = mainFile.endsWith(".png") ? "image/png" : "image/jpeg"
+                            refImages.push({
+                                buffer: Buffer.from(arrayBuf),
+                                mimeType,
+                                label: `EXACT product photo: ${randomProduct.name}`,
+                            })
+                            productImageLoaded = true
+                            console.log(`   🛍️ Loaded product image from Supabase: ${dir}/${mainFile}`)
+                        }
                     }
                 }
             } catch (err) {

@@ -1,7 +1,13 @@
 /**
- * Upload all product images from instagram/product-images/{clientId}/
- * to Supabase storage bucket "product-images".
- * 
+ * Upload all product images from instagram/product-images/{slug}/
+ * to Supabase storage bucket "product-images" AND sync the public URLs
+ * into ig_products.image_urls (the engine's Priority-0 source — the only
+ * one that works on Vercel, where the local dir doesn't exist).
+ *
+ * File naming contract: {product-slug}-{n}.{jpg|png|webp} — the numeric
+ * suffix is required so a slug that is a prefix of another slug
+ * (triko-x vs triko-x-neon) can't steal the longer slug's photos.
+ *
  * Usage: npx tsx scripts/upload-product-images.ts
  */
 
@@ -83,11 +89,59 @@ async function uploadAll() {
                 uploaded++
             }
         }
+
+        await syncImageUrls(clientId, imageFiles)
     }
 
     console.log(`\n${'═'.repeat(50)}`)
     console.log(`📊 Done: ${uploaded} uploaded, ${skipped} skipped, ${failed} failed`)
     console.log(`${'═'.repeat(50)}`)
+}
+
+/**
+ * Point ig_products.image_urls at the uploaded storage files.
+ * Match rule: file name === `${product.slug}-{number}.{ext}` (exact slug +
+ * numeric suffix). Only fills products whose image_urls is empty — never
+ * overwrites URLs uploaded manually through the dashboard.
+ */
+async function syncImageUrls(slug: string, imageFiles: string[]) {
+    const { data: client } = await supabaseAdmin
+        .from('clients')
+        .select('id')
+        .eq('slug', slug)
+        .single()
+    if (!client) {
+        console.warn(`   ⚠️ No client row for slug "${slug}" — skipping image_urls sync`)
+        return
+    }
+
+    const { data: products } = await supabaseAdmin
+        .from('ig_products')
+        .select('id, name, slug, image_urls')
+        .eq('client_id', client.id)
+
+    let synced = 0
+    for (const product of products || []) {
+        if ((product.image_urls || []).length > 0) continue // manual uploads win
+        const pattern = new RegExp(`^${product.slug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-\\d+\\.(jpg|jpeg|png|webp)$`, 'i')
+        const matches = imageFiles.filter(f => pattern.test(f)).sort()
+        if (matches.length === 0) continue
+
+        const urls = matches.map(f =>
+            supabaseAdmin.storage.from(BUCKET).getPublicUrl(`${slug}/${f}`).data.publicUrl
+        )
+        const { error } = await supabaseAdmin
+            .from('ig_products')
+            .update({ image_urls: urls, updated_at: new Date().toISOString() })
+            .eq('id', product.id)
+        if (error) {
+            console.error(`   ❌ image_urls sync "${product.name}": ${error.message}`)
+        } else {
+            console.log(`   🔗 ${product.name}: ${urls.length} image_urls`)
+            synced++
+        }
+    }
+    console.log(`   📦 image_urls synced for ${synced} products`)
 }
 
 uploadAll().catch(console.error)

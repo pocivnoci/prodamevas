@@ -22,6 +22,7 @@ import {
     refineImagePrompt,
 } from "../image-pipeline"
 import { loadLogo } from "../logo-loader"
+import { loadReferenceImages } from "./image-orchestrator"
 import { reviewOverlayComposition } from "../editorial-board"
 import { COSTS } from "../caption-generator"
 import { withRetry } from "../../utils/retry"
@@ -53,7 +54,7 @@ export async function renderCarousel(ctx: RenderContext): Promise<RenderResult> 
 // ============================================
 
 async function renderCarouselNative(ctx: RenderContext): Promise<RenderResult | null> {
-    const { config, captionData, format, selectedType, report } = ctx
+    const { config, captionData, format, selectedType, report, selectedProduct } = ctx
     let cost = 0
 
     const allSlides = [
@@ -62,6 +63,20 @@ async function renderCarouselNative(ctx: RenderContext): Promise<RenderResult | 
     ]
     const slideCount = allSlides.length
     console.log(`📸 Native carousel (${slideCount} slidů)...`)
+
+    // Product reference photo — loaded BEFORE the briefs so the designer knows the
+    // real product exists, and attached to EVERY slide render so any depiction of
+    // the product stays faithful (previously carousels got only the logo → the
+    // model invented the product on every slide).
+    const productRef = selectedProduct
+        ? (await loadReferenceImages(ctx)).find(r => r.label?.startsWith("EXACT product photo")) || null
+        : null
+    const productInfo = selectedProduct ? {
+        name: selectedProduct.name,
+        type: selectedProduct.type,
+        description: selectedProduct.description,
+        hasReferencePhoto: Boolean(productRef),
+    } : undefined
 
     await report("art_director", 52, "🎨 AI Designer navrhuje design systém carouselu...")
     const { designSystem, briefs } = await generateCarouselDesignBriefs({
@@ -73,6 +88,7 @@ async function renderCarouselNative(ctx: RenderContext): Promise<RenderResult | 
         recentBriefs: ctx.recentBriefs ?? [],
         bannedArchetypes: ctx.recentArchetypes ?? [],
         accentWords: captionData.accentWords,
+        product: productInfo,
     })
     cost += COSTS.designerBrief
     console.log(`   ✓ Design system: ${designSystem.substring(0, 100)}...`)
@@ -104,7 +120,7 @@ async function renderCarouselNative(ctx: RenderContext): Promise<RenderResult | 
         console.log(`\n   📄 ${label}: "${slide.headline}"`)
 
         const processSlide = async () => {
-            const prompt = `${buildNativeImagePrompt(brief, { ...config, logoFile: isCover ? config.logoFile : undefined })}
+            const prompt = `${buildNativeImagePrompt(brief, { ...config, logoFile: isCover ? config.logoFile : undefined }, productInfo)}
 
 ## CAROUSEL DESIGN SYSTEM (identical across all ${slideCount} slides):
 ${designSystem}
@@ -113,22 +129,52 @@ ${designSystem}
 Render a small, subtle "${i + 1}/${slideCount}" indicator consistent with the design system (e.g. corner or edge).`
 
             const refs = isCover && logoRef ? [logoRef] : []
-            let imageBuffer = refs.length
-                ? await generateImageWithReferences(prompt, refs, { aspectRatio: format.aspectRatio, resolution: "2K" })
-                : await generateImageWithReferences(prompt, [], { aspectRatio: format.aspectRatio, resolution: "2K" })
+            if (productRef) refs.push(productRef)
+            let imageBuffer = await generateImageWithReferences(prompt, refs, { aspectRatio: format.aspectRatio, resolution: "2K" })
             cost += COSTS.imageGeneration
             console.log(`   ✓ Obrázek ${i + 1} (${(imageBuffer.length / 1024).toFixed(0)} KB)`)
 
-            // QA every slide; corrective edits limited carousel-wide
+            // QA every slide; corrective edits limited carousel-wide. Product fidelity
+            // is "if-present": a slide may not show the product, but a depicted
+            // product must match the reference photo.
             const qaExpectation = {
                 headline: slide.headline,
                 subtext: slide.subtext || undefined,
                 logoExpected: isCover && !!logoRef,
             }
-            const qa = await verifyNativeImage(imageBuffer, qaExpectation)
+            const qaProductRef = productRef && selectedProduct
+                ? { buffer: productRef.buffer, mimeType: productRef.mimeType, name: selectedProduct.name, mode: "if-present" as const }
+                : undefined
+            const qa = await verifyNativeImage(imageBuffer, qaExpectation, qaProductRef)
             cost += COSTS.imageQA
 
-            if (!qa.ok && editsUsed < MAX_CORRECTIVE_EDITS) {
+            if (!qa.ok && qa.productAccurate === false && editsUsed < MAX_CORRECTIVE_EDITS) {
+                // A wrong product can't be edit-fixed (the edit model never sees the
+                // reference) — regenerate the slide once, refs still attached.
+                editsUsed++
+                anyRetry = true
+                console.log(`   ⚠️ QA ${label}: produkt neodpovídá referenci → regenerace (${editsUsed}/${MAX_CORRECTIVE_EDITS})`)
+                const retryPrompt = `${prompt}
+
+⚠️ PREVIOUS ATTEMPT WAS REJECTED — the depicted product did not match the reference photo (${qa.issues.join("; ")}).
+Follow the PRODUCT FIDELITY rules exactly: any depicted product must be a faithful reproduction of the attached "EXACT product photo".`
+                const retryBuffer = await generateImageWithReferences(retryPrompt, refs, { aspectRatio: format.aspectRatio, resolution: "2K" })
+                cost += COSTS.imageGeneration
+                const qa2 = await verifyNativeImage(retryBuffer, qaExpectation, qaProductRef)
+                cost += COSTS.imageQA
+                if (qa2.ok) {
+                    imageBuffer = retryBuffer
+                    console.log(`   ✓ Regenerace prošla QA`)
+                } else if (isCover) {
+                    console.log(`   ❌ Cover neprošel QA ani po regeneraci — Satori fallback pro cover`)
+                    imageBuffer = await renderCoverViaSatori(ctx, slide, slideCount)
+                    cost += COSTS.promptRefinement + COSTS.imageGeneration
+                    coverFellBack = true
+                } else {
+                    console.log(`   ⚠️ ${label} neprošel QA — best effort`)
+                    imageBuffer = retryBuffer
+                }
+            } else if (!qa.ok && editsUsed < MAX_CORRECTIVE_EDITS) {
                 editsUsed++
                 anyRetry = true
                 console.log(`   ⚠️ QA ${label}: ${qa.issues.join("; ")} → korektivní edit (${editsUsed}/${MAX_CORRECTIVE_EDITS})`)
@@ -144,7 +190,7 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
                         resolution: "2K",
                     })
                     cost += COSTS.imageCorrectiveEdit
-                    const qa2 = await verifyNativeImage(fixed, qaExpectation)
+                    const qa2 = await verifyNativeImage(fixed, qaExpectation, qaProductRef)
                     cost += COSTS.imageQA
                     if (qa2.ok) {
                         imageBuffer = fixed

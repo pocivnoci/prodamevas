@@ -146,6 +146,10 @@ export interface PostTypeDef {
     aspectRatio: AspectRatio
     /** true = the post is built around a specific product (pulls from ig_products) */
     uses_product: boolean
+    /** true = user-triggered only (Generate-tab picker); autopilot's random type
+     *  selection and the content planner must never auto-pick it. Guards formats
+     *  with real-world commitments — giveaways, contests, limited drops. */
+    manualOnly?: boolean
 }
 
 // ─── Audience Persona ───────────────────────────────────────
