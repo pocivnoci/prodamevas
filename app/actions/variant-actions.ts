@@ -50,6 +50,7 @@ export async function revisePost(
             postTypeDisplayName: original.ig_post_types?.display_name || "Instagram příspěvek",
             feedback,
             product,
+            postTypeName: postTypeSlug,
         })
 
         // 4. Regenerate image if we have an image prompt

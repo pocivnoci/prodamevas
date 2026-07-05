@@ -13,6 +13,7 @@ import type { HookTemplate } from "./types"
 import type { PerformanceInsight } from "./performance"
 import { getPillarForType, createPillarMapper } from "./service"
 import { buildPsychologistSection } from "./psychologist"
+import { resolveCtaPolicy, buildCtaPolicySection, buildCtaPolicyJudgeBlock, type CtaPolicy } from "./cta-policy"
 
 // ============================================
 // COSTS
@@ -206,7 +207,7 @@ export function selectPersonaForPost(config: ClientConfig, postTypeName: string)
  * with general ones, and truncates each so the prompt stays bounded. Returns "" when the brand
  * has no curated examples yet, so cold-start brands degrade gracefully.
  */
-export function buildGoldExamplesSection(config: ClientConfig, postTypeName: string, max = 4): string {
+export function buildGoldExamplesSection(config: ClientConfig, postTypeName: string, max = 4, truncateAt = 400): string {
     const examples: BrandVoiceExample[] = config.brandVoiceExamples || []
     if (examples.length === 0) return ""
 
@@ -217,7 +218,7 @@ export function buildGoldExamplesSection(config: ClientConfig, postTypeName: str
     if (chosen.length === 0) return ""
 
     const lines = chosen.map((e, i) => {
-        const text = e.caption.length > 400 ? e.caption.slice(0, 400) + "…" : e.caption
+        const text = e.caption.length > truncateAt ? e.caption.slice(0, truncateAt) + "…" : e.caption
         return `${i + 1}. "${text}"${e.note ? `\n   → ${e.note}` : ""}`
     }).join("\n")
 
@@ -232,6 +233,26 @@ ${lines}
 `
 }
 
+/**
+ * Resolve the CTA policy for one post from config (pillar ctaStrategy + selected
+ * product + audience persona tone). Lives here — not in cta-policy.ts — because it
+ * needs getPillarForType/selectPersonaForPost; cta-policy stays an import leaf.
+ */
+export function resolveCtaPolicyForPost(
+    config: ClientConfig,
+    postTypeName: string,
+    selectedProduct?: { name: string; slug: string } | null,
+): CtaPolicy {
+    const pillarKey = getPillarForType(config, postTypeName)
+    return resolveCtaPolicy({
+        pillarCtaStrategy: config.contentPillars[pillarKey]?.ctaStrategy,
+        pillarKey,
+        selectedProduct,
+        personaCtaStyle: selectPersonaForPost(config, postTypeName)?.ctaStyle,
+        website: config.website,
+    })
+}
+
 // ============================================
 // SCHEMAS
 // ============================================
@@ -240,6 +261,10 @@ export function buildCaptionSchema(config: ClientConfig) {
     return {
         type: Type.OBJECT,
         properties: {
+            angle: {
+                type: Type.STRING,
+                description: "PRVNÍ krok: 1 česká věta — jaký úhel volíš a čím se liší od nedávných postů",
+            },
             hook: {
                 type: Type.STRING,
                 description: "First sentence that stops scrolling — bold, shocking (max 15 words). NO EMOJI in hook.",
@@ -250,7 +275,7 @@ export function buildCaptionSchema(config: ClientConfig) {
             },
             cta: {
                 type: Type.STRING,
-                description: `Call to action — ideally points to ${config.website}`,
+                description: "Call to action — řiď se sekcí CTA POLITIKA v promptu",
             },
             hashtags: {
                 type: Type.ARRAY,
@@ -271,7 +296,8 @@ export function buildCaptionSchema(config: ClientConfig) {
                 description: "2-3 key words/phrases FROM the hook that should be visually highlighted (each 1-2 words, Czech, must be exact substring of hook)",
             },
         },
-        required: ["hook", "body", "cta", "hashtags", "imagePrompt", "imageSubtext", "accentWords"],
+        required: ["angle", "hook", "body", "cta", "hashtags", "imagePrompt", "imageSubtext", "accentWords"],
+        propertyOrdering: ["angle", "hook", "body", "cta", "hashtags", "imagePrompt", "imageSubtext", "accentWords"],
     }
 }
 
@@ -279,6 +305,10 @@ export function buildVideoSchema(config: ClientConfig) {
     return {
         type: Type.OBJECT,
         properties: {
+            angle: {
+                type: Type.STRING,
+                description: "PRVNÍ krok: 1 česká věta — jaký úhel volíš a čím se liší od nedávných postů",
+            },
             hook: {
                 type: Type.STRING,
                 description: "Opening problem/question (2-4 words, punchy, Czech). NO EMOJI.",
@@ -319,7 +349,7 @@ export function buildVideoSchema(config: ClientConfig) {
             },
             cta: {
                 type: Type.STRING,
-                description: `Must mention ${config.website}`,
+                description: "CTA — řiď se sekcí CTA POLITIKA v promptu",
             },
             hashtags: {
                 type: Type.ARRAY,
@@ -327,7 +357,8 @@ export function buildVideoSchema(config: ClientConfig) {
                 description: "8-10 relevant hashtags",
             },
         },
-        required: ["hook", "scenes", "caption", "cta", "hashtags"],
+        required: ["angle", "hook", "scenes", "caption", "cta", "hashtags"],
+        propertyOrdering: ["angle", "hook", "scenes", "videoScript", "caption", "cta", "hashtags"],
     }
 }
 
@@ -335,6 +366,10 @@ export function buildCarouselSchema(config: ClientConfig) {
     return {
         type: Type.OBJECT,
         properties: {
+            angle: {
+                type: Type.STRING,
+                description: "PRVNÍ krok: 1 česká věta — jaký úhel volíš a čím se liší od nedávných postů",
+            },
             hook: {
                 type: Type.STRING,
                 description: "Cover slide headline (max 8 words, Czech, punchy). ZADNE EMOJI.",
@@ -367,7 +402,7 @@ export function buildCarouselSchema(config: ClientConfig) {
             },
             cta: {
                 type: Type.STRING,
-                description: `CTA mentioning ${config.website}`,
+                description: "CTA — řiď se sekcí CTA POLITIKA v promptu",
             },
             hashtags: {
                 type: Type.ARRAY,
@@ -383,7 +418,8 @@ export function buildCarouselSchema(config: ClientConfig) {
                 description: "Shared visual theme for ALL slides in 1 sentence (e.g. 'Dark urban street scene with neon reflections under moody studio lighting'). All slide imagePrompts MUST stay within this theme.",
             },
         },
-        required: ["hook", "imageSubtext", "slides", "body", "cta", "hashtags", "imagePrompt", "visualTheme"],
+        required: ["angle", "hook", "imageSubtext", "slides", "body", "cta", "hashtags", "imagePrompt", "visualTheme"],
+        propertyOrdering: ["angle", "hook", "accentWords", "imageSubtext", "slides", "body", "cta", "hashtags", "imagePrompt", "visualTheme"],
     }
 }
 
@@ -511,12 +547,15 @@ export function buildMegaPrompt(
     formatOverride?: PostFormat,
     /** Hook the user approved in the content plan. Binds the copywriter: keep its angle/promise,
      *  sharpen the wording — don't silently invent a different hook. */
-    approvedHook?: string
+    approvedHook?: string,
+    /** Pre-resolved CTA policy (single source of truth for CTA/website/product-link rules).
+     *  Derived internally when omitted — pass it from the caller to guarantee writer/judge parity. */
+    ctaPolicy?: CtaPolicy
 ): string {
     const bv = config.brandVoice
     const toneDesc = getToneDescription(config, postType.name)
     const hookTemplates = getHookTemplates(config, postType.name, 4)
-    const ctaOptions = getRandomCTAs(config, 6)
+    const policy = ctaPolicy ?? resolveCtaPolicyForPost(config, postType.name, selectedProduct)
 
     // Audience persona targeting — DETERMINISTIC per post type/pillar (not random), so the
     // brand voice stays coherent post-to-post instead of re-segmenting the audience each time.
@@ -529,12 +568,11 @@ export function buildMegaPrompt(
 **Segment:** ${persona.label} (${persona.ageRange} let)
 **Pain points:** ${persona.painPoints.join(", ")}
 **Co na ně funguje:** ${persona.triggers.join(", ")}
-**CTA přístup:** ${persona.ctaStyle === "hard" ? "Přímý, urgentní — tlač na akci" : persona.ctaStyle === "medium" ? "Motivující — ukaž hodnotu" : "Jemný — buduj důvěru, neptej se o nic"}
 
-⚠️ **INSTRUKCE:** Hook, tón body a CTA MUSÍ být přizpůsobeny PŘESNĚ pro tuto personu.
+**INSTRUKCE:** Hook, tón body a CTA MUSÍ být přizpůsobeny PŘESNĚ pro tuto personu.
 - Hook musí rezonovat s jejich pain points
 - Body musí používat jejich triggery
-- CTA musí odpovídat jejich stylu (${persona.ctaStyle})
+- Tón CTA přizpůsob personě (${persona.ctaStyle}) — REŽIM CTA (web vs. engagement) ale určuje výhradně CTA POLITIKA níže
 `
     }
 
@@ -548,14 +586,14 @@ export function buildMegaPrompt(
     let learningSection = ""
     if (performance.topPatterns.length > 0 || performance.bestHooks.length > 0) {
         learningSection = `
-## 📊 🚨 KRITICKÁ DATA Z REÁLNÉHO VÝKONU (NEJVYŠŠÍ PRIORITA) 🚨 📊
-Toto jsou historicky nejúspěšnější formáty pro tuto značku. Tvoje priorita je na nich stavět:
+## 📊 DATA Z REÁLNÉHO VÝKONU (PRIORITA 4)
+Toto jsou historicky nejúspěšnější formáty pro tuto značku. Stavěj na nich:
 
 ${performance.topPatterns.length > 0 ? `**Top Fungující Vzorce:** ${performance.topPatterns.join(", ")}` : ""}
 ${performance.bestHooks.length > 0 ? `**Zlaté Hooky (Nejlepší dosah):**\n${performance.bestHooks.map(h => `- "${h}"`).join("\n")}` : ""}
 ${performance.avgEngagement > 0 ? `**Průměrný Engagement (Benchmarking):** ${performance.avgEngagement.toFixed(0)} bodů` : ""}
 
-⚠️ **INSTRUKCE:** NEKOPÍRUJ tyto přesné fráze doslovně, ale MUSÍŠ použít stejnou psychologii, strukturu a rytmus.
+**INSTRUKCE:** NEKOPÍRUJ tyto přesné fráze doslovně, ale použij stejnou psychologii, strukturu a rytmus.
 `
     }
 
@@ -563,16 +601,18 @@ ${performance.avgEngagement > 0 ? `**Průměrný Engagement (Benchmarking):** ${
     if (selectedProduct) {
         // A specific product was pre-selected — force the AI to use it
         productsSection = `
-## 🎯 VYBRANÝ PRODUKT (POVINNÝ — NEMĚŇ!)
+## 🎯 VYBRANÝ PRODUKT (PRIORITA 2 — NEMĚŇ PRODUKT!)
 **Název:** ${selectedProduct.name}
 **Typ:** ${selectedProduct.type}
 ${selectedProduct.description ? `**Popis:** ${selectedProduct.description}` : ""}
 ${selectedProduct.price ? `**Cena:** ${selectedProduct.price}` : ""}
-**URL:** ${config.website}/p/${selectedProduct.slug}
+${policy.productMention === "link" ? `**URL:** ${policy.productUrl}` : ""}
 
-### ⚠️ ABSOLUTNĚ POVINNÉ:
+### POVINNÉ:
 - Caption MUSÍ být o tomto KONKRÉTNÍM produktu: **${selectedProduct.name}**
-- V CTA MUSÍ být odkaz: ${config.website}/p/${selectedProduct.slug}
+${policy.productMention === "link"
+    ? `- V CTA MUSÍ být odkaz: ${policy.productUrl}`
+    : `- Produkt zmiň přirozeně v textu (příběh, zkušenost) — BEZ odkazu a BEZ webu. CTA řídí CTA POLITIKA níže.`}
 - V imagePrompt MUSÍŠ popsat PŘESNĚ tento produkt (jeho barvu, design, styl)
 - NESMÍŠ zmiňovat žádný jiný produkt!
 `
@@ -590,6 +630,13 @@ Vytvoř kompletní Instagram post typu: **${postType.emoji || "📱"} ${postType
 ${postType.description ? `(${postType.description})` : ""}
 
 Brand: ${config.name} | Web: ${config.website} | IG: ${config.instagram}
+
+## 🧭 PRIORITY (při konfliktu instrukcí VŽDY vyhrává nižší číslo)
+1. Zadané téma od uživatele / schválený hook
+2. Vybraný produkt + CTA politika
+3. Brand voice, persona a zlatý standard
+4. Learning data (reálný výkon, brand memory, feedback kritika)
+5. Kontext a inspirace (hooky, nápady, recenze)
 
 ## BRAND VOICE
 ${bv.voiceTraits.map(t => `- ${t}`).join("\n")}
@@ -621,13 +668,13 @@ ${idea && !userTopic ? (() => {
 ${categoryContext}
 `
 })() : ""}
-${userTopic ? `## 🎯 ZADANÉ TÉMA OD UŽIVATELE (NEJVYŠŠÍ PRIORITA!)
+${userTopic ? `## 🎯 ZADANÉ TÉMA OD UŽIVATELE (PRIORITA 1)
 **Post MUSÍ být PŘESNĚ o tomto tématu:** ${userTopic}
 ` : ""}
-${approvedHook ? `## ✅ SCHVÁLENÝ HOOK Z PLÁNU (uživatel ho schválil — VYCHÁZEJ Z NĚJ, NEPŘEPISUJ od nuly!)
+${approvedHook ? `## ✅ SCHVÁLENÝ HOOK Z PLÁNU (PRIORITA 1 — uživatel ho schválil, VYCHÁZEJ Z NĚJ, NEPŘEPISUJ od nuly!)
 **Schválený hook:** "${approvedHook}"
 
-⚠️ ZÁVAZNÉ:
+ZÁVAZNÉ:
 - Tohle je směr, který uživatel SCHVÁLIL. Zachovej jeho jádro: stejný úhel, stejný příslib, stejnou konkrétnost (čísla, jména, fakta).
 - Smíš ho vypilovat na Pro úroveň — rytmus, údernost, formulaci, diakritiku — ale uživatel MUSÍ svůj schválený nápad ve finálním hooku poznat.
 - NEVYMÝŠLEJ jiné téma ani jiný úhel. Když je hook slabý, ZESIL ho, nenahrazuj jiným nápadem.
@@ -642,26 +689,7 @@ ${psychologySection}
 ## INSPIRACE PRO HOOKY
 ${hookTemplates.map(h => `- Vzor: "${h.pattern}" → Příklad: "${h.example}" (trigger: ${h.trigger})`).join("\n")}
 
-## MOŽNÉ CTA (vyber nebo uprav)
-${ctaOptions.map(c => `- ${c}`).join("\n")}
-
-${(() => {
-            const pillar = getPillarForType(config, postType.name)
-            const pillarCfg = config.contentPillars[pillar]
-            const pillarCTAs = config.ctaStrategies[pillarCfg?.ctaStrategy || "soft"]
-            const ctaInstruction = pillarCfg?.ctaStrategy === "hard"
-                ? `## 🎯 CONVERSION POST — CTA MUSÍ přímo odkázat na ${config.website}.`
-                : pillarCfg?.ctaStrategy === "medium"
-                    ? `## 📚 VALUE POST — CTA může zmínit ${config.website}, ale hlavní focus je na hodnotu.`
-                    : pillarCfg?.ctaStrategy === "soft"
-                        ? `## 🔥 REACH POST — CTA je čistě engagement. NEZMÍNEJ ${config.website}!`
-                        : "## 🤝 CONNECT POST — Žádné CTA na web."
-
-            return `${ctaInstruction}
-**Pilíř:** ${pillar.toUpperCase()} | **Cíl:** ${pillarCfg?.description || ""}
-**Doporučené CTA:**
-${(pillarCTAs || []).map((c: string) => `- ${c}`).join("\n")}`
-        })()}
+${buildCtaPolicySection(policy, config.ctaStrategies[policy.mode] || [], config.contentPillars[policy.pillarLabel]?.description)}
 
 ## ⚠️ NEOPAKUJ SE! Tyto příspěvky (včetně draftů) už existují — NESMÍŠ opakovat stejné TÉMA ani stejný HOOK:
 ${recentCaptions.map((c, i) => {
@@ -674,6 +702,9 @@ ${recentCaptions.map((c, i) => {
 - Pokud existující post používá stejný formát (např. "POV:", "3 důvody proč..."), použij JINÝ formát
 - Pokud existující posty pokrývají určitá témata, přijď s ÚPLNĚ jiným úhlem pohledu
 
+## 🎯 ÚHEL (ANGLE COMMIT — PRVNÍ KROK)
+Než napíšeš první slovo: vyber JEDEN úhel a zapiš ho do pole "angle" (1 česká věta — jaký úhel volíš a čím se liší od postů výše). Celý post pak drž V TOMTO úhlu.
+
 ${postFormat.medium === "reel" ? `
 ## 🎬 INSTAGRAM REEL — FULL VIDEO PRODUCTION
 Toto je Instagram Reel (krátké video, ${postFormat.reelDuration || 8} sekund).
@@ -684,17 +715,17 @@ Video bude generováno AI (Veo 3.1) s nativním zvukem + český voiceover z nar
 - **PACING** musí být dynamický — žádné statické záběry delší než 3s
 - Každá scéna MUSÍ mít narration text (bude přečtený česky jako voiceover)
 - Camera movements musí být plynulé a profesionální
-- Poslední scéna MUSÍ obsahovat CTA s ${config.website}
+- Poslední scéna MUSÍ obsahovat CTA${policy.allowWebsite ? ` s ${config.website}` : " — engagement výzvu (otázka / uložit / sdílet), BEZ webu"}
 
 ### STRUKTURA SCÉN (${postFormat.reelDuration || 8}s video):
 ${(postFormat.reelDuration || 8) <= 5 ? `
 - Scene 1 (0-1.5s): HOOK — dramatický vizuál, narration = problém/otázka
 - Scene 2 (1.5-3.5s): VALUE — řešení/produkt v akci
-- Scene 3 (3.5-5s): CTA — result + ${config.website}
+- Scene 3 (3.5-5s): CTA — ${policy.allowWebsite ? `result + ${config.website}` : "výsledek + engagement výzva (BEZ webu)"}
 ` : `
 - Scene 1 (0-2s): HOOK — dramatický vizuál, narration = problém/otázka
 - Scene 2 (2-${(postFormat.reelDuration || 8) - 3}s): VALUE — hlavní obsah, důkaz, ukázka
-- Scene 3 (${(postFormat.reelDuration || 8) - 3}-${postFormat.reelDuration || 8}s): CTA — výsledek + ${config.website}
+- Scene 3 (${(postFormat.reelDuration || 8) - 3}-${postFormat.reelDuration || 8}s): CTA — ${policy.allowWebsite ? `výsledek + ${config.website}` : "výsledek + engagement výzva (BEZ webu)"}
 `}
 
 ### CAMERA MOVEMENTS (vybírej z těchto):
@@ -713,6 +744,7 @@ ${config.videoFocus ? `### BRAND VIDEO STYLE:\n${config.videoFocus}\n` : ""}
 
 ## VÝSTUP — vrať POUZE validní JSON:
 {
+  "angle": "1 věta — zvolený úhel a čím se liší od nedávných postů",
   "hook": "Opening problem/question (2-4 slova, punchy, česky). ŽÁDNÉ EMOJI.",
   "scenes": [
     {
@@ -726,7 +758,7 @@ ${config.videoFocus ? `### BRAND VIDEO STYLE:\n${config.videoFocus}\n` : ""}
   ],
   "videoScript": "Fallback: single summary of all scenes in English",
   "caption": "Instagram caption pro Reel (max 100 slov, česky).",
-  "cta": "MUSÍ obsahovat ${config.website}",
+  "cta": "${policy.allowWebsite ? `MUSÍ obsahovat ${config.website}` : "engagement CTA — BEZ webu a BEZ URL"}",
   "hashtags": ["8-10", "relevantních", "hashtagů"]
 }
 ` : postFormat.medium === "carousel" ? `
@@ -735,12 +767,13 @@ ${config.videoFocus ? `### BRAND VIDEO STYLE:\n${config.videoFocus}\n` : ""}
 ### STRUKTURA (POVINNÁ):
 1. **Slide 1 (COVER):** Bold hook headline
 2. **Slide 2-4 (KROKY):** Jednotlivé kroky/body
-3. **Poslední slide:** Shrnutí + CTA na ${config.website}
+3. **Poslední slide:** Shrnutí + CTA${policy.allowWebsite ? ` na ${config.website}` : " (engagement — BEZ webu)"}
 
 Použij 3 kroky pro jednoduchá témata, 4-5 kroků pro komplexnější témata. Celkem 4-6 slidů (cover + 3-5 kroků).
 
 ## VÝSTUP — vrať POUZE validní JSON:
 {
+  "angle": "1 věta — zvolený úhel a čím se liší od nedávných postů",
   "hook": "Cover headline (max 8 slov, česky). ŽÁDNÉ EMOJI.",
   "slides": [
     { "headline": "Krok 1: ...", "subtext": "...", "imagePrompt": "English prompt..." },
@@ -748,7 +781,7 @@ Použij 3 kroky pro jednoduchá témata, 4-5 kroků pro komplexnější témata.
     { "headline": "Krok 3: ...", "subtext": "...", "imagePrompt": "English prompt..." }
   ],  // můžeš přidat 4. a 5. krok pokud téma vyžaduje víc detailu
   "body": "Hlavní caption (max 120 slov).",
-  "cta": "CTA směřující na ${config.website}",
+  "cta": "${policy.allowWebsite ? `CTA směřující na ${config.website}` : "engagement CTA — BEZ webu a BEZ URL"}",
   "hashtags": ["8-10", "hashtagů"],
   "imagePrompt": "English prompt for COVER slide background.",
   "visualTheme": "Shared visual theme for ALL slides."
@@ -772,9 +805,10 @@ ${(() => {
 
 ## VÝSTUP — vrať POUZE validní JSON:
 {
+  "angle": "1 věta — zvolený úhel a čím se liší od nedávných postů",
   "hook": "První věta co zastaví scrollování (max 15 slov). ŽÁDNÉ EMOJI.",
   "body": "Hlavní text (max 120 slov). ${config.contentFocus}",
-  "cta": "CTA — ideálně směřuje na ${config.website}",
+  "cta": "CTA podle CTA POLITIKY výše",
   "hashtags": ["8-10", "relevantních", "hashtagů"],
   "imagePrompt": "English prompt for AI image generation. NO TEXT in image! ${config.contentFocus}.",
   "imageSubtext": "Podtext dole pod hookem (max 8 slov, česky)"
@@ -807,7 +841,8 @@ export interface QualityGateResult {
 const SCORE_ANCHORS = `
 ## KALIBRACE — kotvy hodnocení (drž svá skóre konzistentní s nimi):
 **Kotva 9/10:** Hook: "Zavřeli jsme náš nejprodávanější produkt. Schválně." — konkrétní, vyvolá zvědavost bez clickbaitu; body vypráví důvod s konkrétním detailem a přizná i nevýhodu; CTA přirozeně zve na web s jasným benefitem.
-**Kotva 6/10:** Hook: "Věděli jste, že kvalita je u nás na prvním místě?" — generická řečnická otázka, nulové napětí; body popisuje místo aby ukázalo, samé obecnosti; CTA "sledujte nás pro víc tipů" bez webu a bez důvodu.`
+**Kotva 6/10:** Hook: "Věděli jste, že kvalita je u nás na prvním místě?" — generická řečnická otázka, nulové napětí; body popisuje místo aby ukázalo, samé obecnosti; CTA "sledujte nás pro víc tipů" bez webu a bez důvodu.
+**Kotva 3/10:** Hook: "U nás najdete širokou nabídku kvalitních produktů pro každého." — reklamní fráze, nikdo se nezastaví; body je výčet vlastností bez příběhu a bez důkazu; CTA "navštivte náš web" bez jediného důvodu proč.`
 
 export async function scorePost(
     config: ClientConfig,
@@ -817,8 +852,12 @@ export async function scorePost(
         cta: string
         hashtags: string[]
         slides?: { headline: string; subtext: string }[]
+        angle?: string
     },
-    postTypeName?: string
+    postTypeName?: string,
+    /** CTA policy of the post — the judge scores the CTA against it (a REACH post
+     *  must NOT contain the website; a CONVERSION post must). Neutral check when omitted. */
+    ctaPolicy?: CtaPolicy
 ): Promise<{ score: number; feedback: string; detail?: QualityGateResult }> {
     const isCarousel = captionData.slides && captionData.slides.length > 0
 
@@ -829,18 +868,22 @@ export async function scorePost(
         carouselBodyNote = " U karuselu: navazují slidy logicky na sebe a přiměje cover headline swipnout?"
     }
 
+    const goldSection = buildGoldExamplesSection(config, postTypeName ?? "", 2, 250)
+
     const scorePrompt = `
 Jsi přísný Instagram content reviewer pro značku "${config.name}" (${config.website}).
 IG handle: ${config.instagram}
 
 ## BRAND VOICE (post MUSÍ odpovídat):
-${config.brandVoice.persona ? `Persona: ${config.brandVoice.persona.substring(0, 200)}` : ""}
+${config.brandVoice.persona ? `Persona: ${config.brandVoice.persona.substring(0, 700)}` : ""}
 Tón: ${config.brandVoice.voiceTraits?.slice(0, 4).join(", ") || "autentický"}
 
 ## ANTI-PATTERNS (post NESMÍ obsahovat):
-${config.brandVoice.antiPatterns?.slice(0, 5).join(", ") || "generické fráze"}
-
+${config.brandVoice.antiPatterns?.slice(0, 8).join(", ") || "generické fráze"}
+${goldSection ? `\nZlatý standard níže = kalibrace brand voice, NE šablona témat.\n${goldSection}` : ""}
+${ctaPolicy ? `\n${buildCtaPolicyJudgeBlock(ctaPolicy)}\n` : ""}
 ## POST${postTypeName ? ` (typ: ${postTypeName})` : ""}:
+Deklarovaný úhel: "${captionData.angle || "neuveden"}"
 Hook: "${captionData.hook}"
 Body: "${captionData.body || ""}"${slidesSection}
 CTA: "${captionData.cta}"
@@ -849,11 +892,11 @@ Hashtags: ${captionData.hashtags.join(", ")}
 ## KRITÉRIA (celkem max 10 bodů):
 1. **Hook (0-3 body):** Zastaví scrollování? Krátký (max 15 slov)? Bez emoji?
 2. **Body (0-3 body):** Dává čtenáři konkrétní hodnotu, sedí k brand voice a personě výše, čte se lehce?${carouselBodyNote}
-3. **CTA (0-2 body):** Jasná výzva k akci? Obsahuje ${config.website}?
-4. **Originalita (0-2 body):** Nepůsobí genericky? Nepoužívá anti-patterns?
+3. **CTA (0-2 body):** ${ctaPolicy ? "Plní CTA politiku výše a vede k akci?" : "Jasná výzva k akci odpovídající typu postu?"}
+4. **Originalita (0-2 body):** Drží post deklarovaný úhel? Nepůsobí genericky? Nepoužívá anti-patterns?
 ${SCORE_ANCHORS}
 
-## VÝSTUP — vrať POUZE validní JSON s touto strukturou (overall = součet bodů, korigovaný otázkou "zveřejnil bys to jako brand manager?"):
+## VÝSTUP — vrať POUZE validní JSON s touto strukturou (overall = přesný součet bodů za 4 kritéria — nic nepřičítej ani neodečítej):
 {
   "overall": <číslo 1-10>,
   "hookScore": <číslo 0-3>,
@@ -877,12 +920,18 @@ ${SCORE_ANCHORS}
         const jsonMatch = text.match(/\{[\s\S]*\}/)
         const result = JSON.parse(jsonMatch?.[0] || text)
 
+        const hookScore = Math.min(3, Math.max(0, Number(result.hookScore) || 1))
+        const bodyScore = Math.min(3, Math.max(0, Number(result.bodyScore) || 1))
+        const ctaScore = Math.min(2, Math.max(0, Number(result.ctaScore) || 0))
+        const originalityScore = Math.min(2, Math.max(0, Number(result.originalityScore) || 1))
         const detail: QualityGateResult = {
-            overall: Math.min(10, Math.max(1, Number(result.overall) || 5)),
-            hookScore: Math.min(3, Math.max(0, Number(result.hookScore) || 1)),
-            bodyScore: Math.min(3, Math.max(0, Number(result.bodyScore) || 1)),
-            ctaScore: Math.min(2, Math.max(0, Number(result.ctaScore) || 0)),
-            originalityScore: Math.min(2, Math.max(0, Number(result.originalityScore) || 1)),
+            // Enforced in code, not just in the prompt: judges still "vibe-correct" the
+            // overall despite the pure-sum instruction (observed: subscores 10 → overall 8).
+            overall: Math.min(10, Math.max(1, hookScore + bodyScore + ctaScore + originalityScore)),
+            hookScore,
+            bodyScore,
+            ctaScore,
+            originalityScore,
             feedback: {
                 keep: Array.isArray(result.keep) ? result.keep : [],
                 fix: Array.isArray(result.fix) ? result.fix : [],
@@ -914,28 +963,33 @@ ${SCORE_ANCHORS}
  */
 export async function rankDrafts(
     config: ClientConfig,
-    draftA: { hook: string; body?: string; cta: string; hashtags: string[]; slides?: { headline: string; subtext: string }[] },
-    draftB: { hook: string; body?: string; cta: string; hashtags: string[]; slides?: { headline: string; subtext: string }[] },
+    draftA: { hook: string; body?: string; cta: string; hashtags: string[]; slides?: { headline: string; subtext: string }[]; angle?: string },
+    draftB: { hook: string; body?: string; cta: string; hashtags: string[]; slides?: { headline: string; subtext: string }[]; angle?: string },
     postTypeName?: string,
+    /** CTA policy of the post — same policy-aware CTA judging as scorePost. */
+    ctaPolicy?: CtaPolicy,
 ): Promise<{ winner: "A" | "B"; score: number; loserScore: number; reason: string; detail: QualityGateResult }> {
     const renderDraft = (d: typeof draftA) => {
         const slides = d.slides?.length
             ? `\nSlides:\n${d.slides.map((s, i) => `  ${i + 1}. "${s.headline}" - ${s.subtext}`).join("\n")}`
             : ""
-        return `Hook: "${d.hook}"\nBody: "${d.body || ""}"${slides}\nCTA: "${d.cta}"\nHashtags: ${d.hashtags?.join(", ") || ""}`
+        return `Úhel: "${d.angle || "neuveden"}"\nHook: "${d.hook}"\nBody: "${d.body || ""}"${slides}\nCTA: "${d.cta}"\nHashtags: ${d.hashtags?.join(", ") || ""}`
     }
+
+    const goldSection = buildGoldExamplesSection(config, postTypeName ?? "", 2, 250)
 
     const rankPrompt = `
 Jsi přísný Instagram content reviewer pro značku "${config.name}" (${config.website}).
 Copywriter napsal DVA návrhy stejného postu. Porovnej je a vyber LEPŠÍ.
 
 ## BRAND VOICE (post MUSÍ odpovídat):
-${config.brandVoice.persona ? `Persona: ${config.brandVoice.persona.substring(0, 200)}` : ""}
+${config.brandVoice.persona ? `Persona: ${config.brandVoice.persona.substring(0, 700)}` : ""}
 Tón: ${config.brandVoice.voiceTraits?.slice(0, 4).join(", ") || "autentický"}
 
 ## ANTI-PATTERNS (post NESMÍ obsahovat):
-${config.brandVoice.antiPatterns?.slice(0, 5).join(", ") || "generické fráze"}
-
+${config.brandVoice.antiPatterns?.slice(0, 8).join(", ") || "generické fráze"}
+${goldSection ? `\nZlatý standard níže = kalibrace brand voice, NE šablona témat.\n${goldSection}` : ""}
+${ctaPolicy ? `\n${buildCtaPolicyJudgeBlock(ctaPolicy)}\n` : ""}
 ## NÁVRH A${postTypeName ? ` (typ: ${postTypeName})` : ""}:
 ${renderDraft(draftA)}
 
@@ -945,11 +999,11 @@ ${renderDraft(draftB)}
 ## KRITÉRIA (celkem max 10 bodů, hodnoť OBA návrhy):
 1. **Hook (0-3 body):** Zastaví scrollování? Krátký (max 15 slov)? Bez emoji?
 2. **Body (0-3 body):** Dává čtenáři konkrétní hodnotu, sedí k brand voice a personě výše, čte se lehce?
-3. **CTA (0-2 body):** Jasná výzva k akci? Obsahuje ${config.website}?
-4. **Originalita (0-2 body):** Nepůsobí genericky? Nepoužívá anti-patterns?
+3. **CTA (0-2 body):** ${ctaPolicy ? "Plní CTA politiku výše a vede k akci?" : "Jasná výzva k akci odpovídající typu postu?"}
+4. **Originalita (0-2 body):** Drží návrh deklarovaný úhel? Nepůsobí genericky? Nepoužívá anti-patterns?
 ${SCORE_ANCHORS}
 
-## VÝSTUP — vrať POUZE validní JSON (rubrika a keep/fix se týkají VÍTĚZE):
+## VÝSTUP — vrať POUZE validní JSON (rubrika a keep/fix se týkají VÍTĚZE; skóre = přesný součet bodů za 4 kritéria):
 {
   "winner": "A" | "B",
   "reason": "proč vyhrál, česky, 1 věta",
@@ -971,14 +1025,21 @@ ${SCORE_ANCHORS}
     const winner: "A" | "B" = result.winner === "B" ? "B" : "A"
     const scoreA = Math.min(10, Math.max(1, Number(result.scoreA) || 5))
     const scoreB = Math.min(10, Math.max(1, Number(result.scoreB) || 5))
-    const score = winner === "A" ? scoreA : scoreB
+
+    const hookScore = Math.min(3, Math.max(0, Number(result.hookScore) || 1))
+    const bodyScore = Math.min(3, Math.max(0, Number(result.bodyScore) || 1))
+    const ctaScore = Math.min(2, Math.max(0, Number(result.ctaScore) || 0))
+    const originalityScore = Math.min(2, Math.max(0, Number(result.originalityScore) || 1))
+    // Winner's score = pure rubric sum, enforced in code (same rationale as scorePost);
+    // the loser keeps the judge's raw comparative score (no rubric of its own).
+    const score = Math.min(10, Math.max(1, hookScore + bodyScore + ctaScore + originalityScore))
 
     const detail: QualityGateResult = {
         overall: score,
-        hookScore: Math.min(3, Math.max(0, Number(result.hookScore) || 1)),
-        bodyScore: Math.min(3, Math.max(0, Number(result.bodyScore) || 1)),
-        ctaScore: Math.min(2, Math.max(0, Number(result.ctaScore) || 0)),
-        originalityScore: Math.min(2, Math.max(0, Number(result.originalityScore) || 1)),
+        hookScore,
+        bodyScore,
+        ctaScore,
+        originalityScore,
         feedback: {
             keep: Array.isArray(result.keep) ? result.keep : [],
             fix: Array.isArray(result.fix) ? result.fix : [],
@@ -1004,6 +1065,9 @@ export interface ReviseCaptionInput {
     postTypeDisplayName: string
     feedback: string
     product?: { name: string; slug: string; price?: string | null; description?: string | null } | null
+    /** Engine post-type slug (ig_post_types.name). When present, the revision carries the
+     *  post's CTA policy so a rewrite can't re-introduce a forbidden website link. */
+    postTypeName?: string
 }
 
 export interface RevisedCaption {
@@ -1021,8 +1085,11 @@ export interface RevisedCaption {
  */
 export async function reviseCaption(config: ClientConfig, input: ReviseCaptionInput): Promise<RevisedCaption> {
     const bv = config.brandVoice
+    const policy = input.postTypeName ? resolveCtaPolicyForPost(config, input.postTypeName, input.product) : undefined
     const productSection = input.product
-        ? `\n## PRODUKT V PŘÍSPĚVKU\nNázev: ${input.product.name}\nCena: ${input.product.price || "neuvedena"}\nPopis: ${input.product.description || ""}\nURL: ${config.website}/p/${input.product.slug}\n⚠️ Pokud feedback nemění produkt, zachovej odkaz na ${config.website}/p/${input.product.slug} v CTA.\n`
+        ? (policy?.productMention === "natural"
+            ? `\n## PRODUKT V PŘÍSPĚVKU\nNázev: ${input.product.name}\nCena: ${input.product.price || "neuvedena"}\nPopis: ${input.product.description || ""}\n⚠️ Produkt zmiňuj přirozeně BEZ odkazu a BEZ webu — CTA se řídí CTA politikou níže.\n`
+            : `\n## PRODUKT V PŘÍSPĚVKU\nNázev: ${input.product.name}\nCena: ${input.product.price || "neuvedena"}\nPopis: ${input.product.description || ""}\nURL: ${config.website}/p/${input.product.slug}\n⚠️ Pokud feedback nemění produkt, zachovej odkaz na ${config.website}/p/${input.product.slug} v CTA.\n`)
         : ""
     const hashtagSection = config.hashtagPools
         ? `\n## HASHTAG POOLS (vyber z těchto):\n- Core: ${config.hashtagPools.core?.join(", ") || ""}\n- Niche: ${config.hashtagPools.niche?.slice(0, 5).join(", ") || ""}\n- Broad: ${config.hashtagPools.broad?.slice(0, 4).join(", ") || ""}\nPoužij 8-10 hashtagů, mix core + niche + relevantní z originálu.\n`
@@ -1040,7 +1107,7 @@ ${(bv?.voiceTraits || []).map((t: string) => `- ${t}`).join("\n") || "- Autentic
 ${(bv?.antiPatterns || []).map((p: string) => `- ${p}`).join("\n") || "- Generické fráze, emoji spam"}
 
 ## TYP PŘÍSPĚVKU: ${input.postTypeDisplayName}
-${productSection}
+${productSection}${policy ? `\n${buildCtaPolicyJudgeBlock(policy)}\n` : ""}
 ## PŮVODNÍ CAPTION:
 ${input.originalCaption}
 
@@ -1052,7 +1119,7 @@ ${hashtagSection}
 ## INSTRUKCE:
 1. Přepiš caption PŘESNĚ podle feedbacku — ale zachovej brand voice a styl
 2. Hook (první řádek) musí stále zastavit scrollování — max 15 slov, bez emoji
-3. CTA musí směřovat na ${config.website || "web značky"}
+3. ${policy && !policy.allowWebsite ? "CTA zůstává engagement (komentář / uložení / sdílení) — NEPŘIDÁVEJ web ani URL" : `CTA musí směřovat na ${config.website || "web značky"}`}
 4. Zachovej strukturu: hook → body → CTA → hashtags
 5. Pokud feedback říká "zkrátit" — zkrať. Pokud "přidat humor" — přidej. Buď DOSLOVNÝ.
 6. NIKDY nepřekládej anglické názvy produktů/kolekcí do češtiny

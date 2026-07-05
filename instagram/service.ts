@@ -299,6 +299,8 @@ export async function logGeneration(log: {
     editorialRounds?: number;
     /** Post-editorial score (critic_score stays the PRE-editorial one) */
     finalScore?: number;
+    /** Angle the copywriter committed to before writing (1 Czech sentence) */
+    angle?: string;
 }): Promise<void> {
     await supabaseAdmin
         .from("ig_generation_log")
@@ -317,6 +319,7 @@ export async function logGeneration(log: {
             strategy: log.strategy,
             editorial_rounds: log.editorialRounds,
             final_score: log.finalScore,
+            angle: log.angle,
         });
 }
 

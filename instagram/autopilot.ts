@@ -50,6 +50,7 @@ import {
     buildMegaPrompt,
     scorePost,
     rankDrafts,
+    resolveCtaPolicyForPost,
 } from "./caption-generator"
 import { getBrandMemories, formatMemoriesForPrompt, learnFromCriticInsights } from "./memory-agent"
 import { reviewPost, reviewContentPlan } from "./editorial-board"
@@ -479,6 +480,7 @@ export async function generateOnePost(options: {
     // Caption-phase state — filled either from the checkpoint (resume) or by the
     // full caption phase below (copywriter → dedup → critic → editorial).
     type CaptionPhaseData = {
+        angle?: string
         hook: string
         body?: string
         cta: string
@@ -521,7 +523,10 @@ export async function generateOnePost(options: {
     const postFormat = isReel ? "video script" : isCarousel ? "carousel" : "caption"
     await report("copywriter", 25, `✍️ Copywriter generuje ${postFormat}...`)
     console.log(`✍️  Generuji ${postFormat} (Pro copywriter ladder)...`)
-    megaPrompt = buildMegaPrompt(config, selectedType, idea, review, recentHooks, performance, options.topic, selectedProduct, format, options.approvedHook)
+    // Resolve the CTA policy ONCE and pass it to the writer AND every judge (critic,
+    // ranking judge, editorial board) — writer/judge parity on the CTA rules.
+    const ctaPolicy = resolveCtaPolicyForPost(config, selectedType.name, selectedProduct)
+    megaPrompt = buildMegaPrompt(config, selectedType, idea, review, recentHooks, performance, options.topic, selectedProduct, format, options.approvedHook, ctaPolicy)
 
     // Inject brand memories (long-term learning from past performance) — retrieved by
     // relevance to the topic/idea when available (pipeline v2), not just top-confidence.
@@ -579,6 +584,10 @@ export async function generateOnePost(options: {
         const prevSummary = cc.previousPosts.map((p, i) => `  ${i + 1}. Hook: "${p.hook}" | Téma: ${p.topic}`).join("\n")
         megaPrompt += `\n\n## 🎯 KAMPAŇ — NÁVAZNOST PŘÍSPĚVKŮ (KRITICKÉ!)\nToto je příspěvek **${cc.postNumber}/${cc.totalPosts}** v rámci koherentní kampaně.\n\n### Předchozí příspěvky v kampani:\n${prevSummary}\n\n### INSTRUKCE PRO NÁVAZNOST:\n- Tento post MUSÍ tematicky navazovat na předchozí — buduj na nich, prohlubuj téma, přidej nový úhel\n- NEOPAKUJ stejný hook ani stejný argument — posuň příběh dál\n- Zachovej konzistentní tón a vizuální styl napříč celou kampaní\n- Pokud je zadané hlavní téma kampaně, drž se ho ale z jiného úhlu než předchozí posty\n- Série by měla fungovat jako storytelling: každý post přidává novou vrstvu\n`
         console.log(`   🎯 Campaign context: post ${cc.postNumber}/${cc.totalPosts} (${cc.previousPosts.length} previous)`)
+    }
+
+    if (process.env.DEBUG_PROMPT === "1") {
+        console.log(`\n────── MEGA PROMPT ──────\n${megaPrompt}\n─────────────────────────\n`)
     }
 
     const schema = isReel ? buildVideoSchema(config) : isCarousel ? buildCarouselSchema(config) : buildCaptionSchema(config)
@@ -652,7 +661,7 @@ export async function generateOnePost(options: {
         // Rank the two clean drafts — one judge call picks the winner + returns its rubric.
         if (pendingRank) {
             try {
-                const rank = await rankDrafts(config, pendingRank.a, pendingRank.b, selectedType.name)
+                const rank = await rankDrafts(config, pendingRank.a, pendingRank.b, selectedType.name, ctaPolicy)
                 cost += COSTS.textGeneration
                 captionData = rank.winner === "A" ? pendingRank.a : pendingRank.b
                 score = rank.score
@@ -702,8 +711,9 @@ export async function generateOnePost(options: {
         console.log("🔍 Quality gate (Critic + Šéfredaktor review)...")
         ;({ score, feedback, detail } = await scorePost(
             config,
-            captionData as { hook: string; body?: string; cta: string; hashtags: string[]; slides?: { headline: string; subtext: string }[] },
-            selectedType.name
+            captionData as { hook: string; body?: string; cta: string; hashtags: string[]; slides?: { headline: string; subtext: string }[]; angle?: string },
+            selectedType.name,
+            ctaPolicy
         ))
         cost += COSTS.textGeneration
     }
@@ -730,6 +740,7 @@ export async function generateOnePost(options: {
             megaPrompt,
             report,
             strategyUsed === "bestof2" ? 1 : undefined,
+            { ctaPolicy, selectedProduct },
         )
         captionData = editorialResult.captionData
         cost += editorialResult.totalTokenCost
@@ -889,6 +900,7 @@ export async function generateOnePost(options: {
             strategy: strategyUsed,
             editorialRounds: editorialRoundsUsed,
             finalScore: finalScore || score,
+            angle: captionData.angle,
         })
 
         // Close the loop: persist recurring critic "fix" notes into brand memory so they

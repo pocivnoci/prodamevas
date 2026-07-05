@@ -31,6 +31,7 @@ function editorialLadder(): string[] {
     return m
 }
 import { COSTS } from "./caption-generator"
+import { buildCtaPolicyJudgeBlock, type CtaPolicy } from "./cta-policy"
 import type { ClientConfig } from "./configs/types"
 import type {
     EditorialMessage,
@@ -355,6 +356,10 @@ function buildPostReviewPrompt(
     criticFeedback: { score: number; detail?: any },
     conversationHistory: EditorialMessage[],
     round: number,
+    /** CTA policy of the post — gate criterion #1 checks the CTA against it. */
+    ctaPolicy?: CtaPolicy,
+    /** Product data — gate criterion #2 verifies the post's product claims against it. */
+    selectedProduct?: { name: string; slug: string; price?: string | null; description?: string | null } | null,
 ): string {
     const historyBlock = conversationHistory.length > 0
         ? `\n## PŘEDCHOZÍ DISKUZE (${conversationHistory.length} zpráv)\n${conversationHistory.map(m => {
@@ -373,15 +378,22 @@ function buildPostReviewPrompt(
         ? `\nSlidy:\n${captionData.slides.map((s: any, i: number) => `  ${i + 1}. "${s.headline}" — ${s.subtext}`).join("\n")}`
         : ""
 
+    // Deliberately NO gold examples here: the board is a publish/sales gate, not a
+    // voice judge — brand voice is already scored by the critic's rubric.
     return `
 Jsi ŠÉFREDAKTOR (Chief Editor) pro značku "${config.name}" (${config.website}).
 Rozhoduješ, zda se tento příspěvek PUBLIKUJE nebo SE VRÁTÍ k přepracování.
 
 ## BRAND IDENTITA
-${config.brandVoice?.persona?.substring(0, 300) || ""}
+${config.brandVoice?.persona?.substring(0, 600) || ""}
 Tón: ${config.brandVoice?.voiceTraits?.slice(0, 4).join(", ") || ""}
 Anti-patterns: ${config.brandVoice?.antiPatterns?.slice(0, 5).join(", ") || ""}
-
+${ctaPolicy ? `\n${buildCtaPolicyJudgeBlock(ctaPolicy)}\n` : ""}${selectedProduct ? `
+## PRODUKTOVÁ DATA (jediný zdroj pravdy o produktu)
+Název: ${selectedProduct.name} | Cena: ${selectedProduct.price || "neuvedena"}
+${selectedProduct.description ? `Popis: ${selectedProduct.description}` : ""}
+Cokoliv post o produktu tvrdí, MUSÍ sedět s těmito daty.
+` : ""}
 ## POST (typ: ${postTypeName}, kolo ${round}/${MAX_POST_ROUNDS})
 **Hook:** "${captionData.hook}"
 **Body:** "${captionData.body || ""}"${slidesBlock}
@@ -394,12 +406,11 @@ ${criticFeedback.detail ? `Hook: ${criticFeedback.detail.hookScore}/3 | Body: ${
 ${criticFeedback.detail.feedback?.keep?.length ? `✅ Zachovat: ${criticFeedback.detail.feedback.keep.join(", ")}` : ""}
 ${criticFeedback.detail.feedback?.fix?.length ? `🔧 Opravit: ${criticFeedback.detail.feedback.fix.join(", ")}` : ""}` : ""}
 ${historyBlock}
-## TVOJE KRITÉRIA (jako šéfredaktor, ne robot):
-1. **HOOK** — Zastaví scrollování? Je originální? Nepůsobí genericky?
-2. **STORYTELLING** — Má body příběh? Nebo je to jen seznam generic facts?
-3. **BRAND VOICE** — Zní to jako "${config.name}" nebo jako AI?
-4. **CTA** — Je přirozené? Nemá to "odér reklamy"?
-5. **CELKOVÝ DOJEM** — Přidal bys to na profil ${config.instagram}?
+## TVOJE KRITÉRIA (prodejní gate — rozhoduješ o publikaci, číselnou rubriku už udělal Kritik):
+1. **CTA–PILÍŘ SOULAD** — CTA odpovídá CTA politice výše? (REACH post NESMÍ obsahovat web/URL; CONVERSION post MUSÍ mít odkaz + důvod kliknout)
+2. **PRAVDIVOST** — Tvrzení o produktu (cena, vlastnosti, název) sedí s produktovými daty? Žádné vymyšlené sliby ani garance?
+3. **PRODEJNÍ TAH** — Dává post čtenáři konkrétní důvod jednat TEĎ (benefit, zvědavost, urgence bez laciného nátlaku)?
+4. **RED FLAGS** — Nic právně/reputačně rizikového, žádné přehnané sliby, nic co by brand nechtěl mít veřejně?
 
 ## INSTRUKCE
 - Pokud Kritik dal 8+/10 A ty jsi spokojený → "approved"
@@ -431,6 +442,8 @@ function buildCopywriterRevisionPrompt(
     megaPrompt: string,
     postTypeName: string,
     conversationHistory: EditorialMessage[],
+    /** CTA policy — a revision must not re-introduce a forbidden website link. */
+    ctaPolicy?: CtaPolicy,
 ): string {
     const isCarousel = captionData.slides?.length > 0
     const isReel = captionData.scenes?.length > 0
@@ -457,7 +470,7 @@ ${fixInstructions.map(f => `- ${f}`).join("\n")}
 ## BRAND VOICE (připomínka)
 ${config.brandVoice?.persona?.substring(0, 200) || ""}
 Tón: ${config.brandVoice?.voiceTraits?.slice(0, 3).join(", ") || ""}
-
+${ctaPolicy ? `\n${buildCtaPolicyJudgeBlock(ctaPolicy)}\n` : ""}
 ## INSTRUKCE
 Pro KAŽDOU poznámku šéfredaktora buď:
 1. **IMPLEMENTUJ** — přepracuj příslušnou část
@@ -465,6 +478,7 @@ Pro KAŽDOU poznámku šéfredaktora buď:
 
 PRAVIDLA:
 - ZACHOVEJ prvky co šéfredaktor schválil
+- CTA se řídí CTA politikou — NEPŘIDÁVEJ web ani URL, pokud je politika zakazuje
 - Pushback jen pokud máš SILNÝ argument (brand context, cílová skupina, logika)
 - Nikdy nepushbackuj na VŠE
 - Vrať KOMPLETNÍ přepracovaný JSON se VŠEMI poli
@@ -501,6 +515,11 @@ export async function reviewPost(
     onProgress?: EditorialProgressCallback,
     /** Cap the review⇄rewrite loop (best-of-2 path passes 1 — the ranked winner gets a single repair round). */
     maxRounds: number = MAX_POST_ROUNDS,
+    /** Sales-gate context: CTA policy + product data for the Chief Editor's truth/CTA checks. */
+    extras?: {
+        ctaPolicy?: CtaPolicy
+        selectedProduct?: { name: string; slug: string; price?: string | null; description?: string | null } | null
+    },
 ): Promise<EditorialPostResult> {
     const report = onProgress || (async () => {})
     const allMessages: EditorialMessage[] = []
@@ -561,6 +580,8 @@ export async function reviewPost(
             { score: lastScore, detail: criticResult.detail },
             allMessages,
             round,
+            extras?.ctaPolicy,
+            extras?.selectedProduct,
         )
         // Chief Editor = judge → cross-family (Claude Sonnet 5) when enabled, else Gemini Pro judge.
         const reviewRaw = await judgeText(reviewPrompt, { label: "editorial-post-review" })
@@ -637,6 +658,7 @@ export async function reviewPost(
             megaPrompt,
             postTypeName,
             allMessages,
+            extras?.ctaPolicy,
         )
         const copywriterRevisionSchema = {
             type: "object",

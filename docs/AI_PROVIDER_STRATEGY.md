@@ -47,10 +47,11 @@ All calls route through `instagram/gemini-client.ts`. Model IDs come from `insta
 | Synthetic reviews | `generateText` | `text` (flash) | default | `review-generator.ts:99` |
 | Context pulse | `generateText` | `text` (flash) | default | `context-agent.ts:186` |
 | Weekly content plan | `ai.models.generateContent` | `text` (flash) | default | `content-planner.ts:194` |
-| **Copywriter (caption)** | `generateTextQuality` | `textPro` (Pro) | **default ~1.0** | `caption-generator.ts` |
-| **Critic score (1-10)** | `generateTextQuality` | `textPro` (Pro) | **default ~1.0** | `caption-generator.ts:~801` |
-| Caption revision | `generateTextQuality` | `textPro` (Pro) | default | `caption-generator.ts:~914` |
-| **Chief Editor plan/post review** | `generateTextQuality` | `textPro` (Pro) | **default ~1.0** | `editorial-board.ts:221,561` |
+| **Copywriter (caption)** | `generateTextQuality` | `textPro` (Pro) | 0.75 | `caption-generator.ts` (`buildMegaPrompt` → autopilot) |
+| **Critic score (1-10)** | `judgeText` | `judge` = Claude Sonnet 5 (Gemini Pro fallback) | 0.25 / effort low | `caption-generator.ts` (`scorePost`) |
+| **Best-of-2 ranking judge** | `judgeText` | `judge` | 0.25 / effort low | `caption-generator.ts` (`rankDrafts`) |
+| Caption revision | `generateTextQuality` | `textPro` (Pro) | 0.75 | `caption-generator.ts` (`reviseCaption`) |
+| **Chief Editor plan/post review** | `judgeText` | `judge` | 0.25 / effort low | `editorial-board.ts` (`reviewContentPlan`, `reviewPost`) |
 | Strategist / copywriter revision | `generateTextQuality` | `textPro` (Pro) | default | `editorial-board.ts:294,650` |
 | Overlay composition check | `ai.models.generateContent` | `vision` (flash) | default | `editorial-board.ts:736` |
 | Memory: text/visual/variant/revision learning | `ai.models.generateContent` | `text` (flash) | default | `memory-agent.ts` |
@@ -75,26 +76,28 @@ All calls route through `instagram/gemini-client.ts`. Model IDs come from `insta
 `autopilot.ts:generateOnePost()` runs this chain (each stage's output feeds the next):
 
 ```
-Researcher ─ weighted-random post TYPE (memory-boosted)         autopilot.ts:142-177
-           └ weighted-random IDEA/REVIEW (perf-decay + explore) service.ts:403-477
+Researcher ─ weighted-random post TYPE (memory-boosted)         autopilot.ts (generateOnePost, step 1)
+           └ weighted-random IDEA/REVIEW (perf-decay + explore) service.ts (getWeightedIdeas/Reviews)
 Context Agent ─ calendar signals + 1 Gemini-Flash "pulse"       context-agent.ts (6h cache)
-Copywriter ─ buildMegaPrompt (Pro) → caption JSON               caption-generator.ts:440-719
-Critic ─ scorePost 1-10 + keep[]/fix[] (Pro)                    caption-generator.ts:737-832
-Editorial Board ─ Chief Editor ⇄ Copywriter, ≤3 rounds (Pro)    editorial-board.ts:493-709
-Art Director ─ generateDesignBrief (Pro, high temp)            image-pipeline.ts:257-356
+CTA Policy ─ resolveCtaPolicyForPost (deterministic, 1×/post)   cta-policy.ts + caption-generator.ts
+Copywriter ─ buildMegaPrompt (Pro) → caption JSON + "angle"     caption-generator.ts (buildMegaPrompt)
+Critic ─ scorePost 1-10 + keep[]/fix[] (Claude judge)           caption-generator.ts (scorePost)
+   └ best-of-2: rankDrafts picks A/B winner (Claude judge)      caption-generator.ts (rankDrafts)
+Editorial Board ─ Chief Editor = SALES GATE ⇄ Copywriter, ≤3    editorial-board.ts (reviewPost)
+Art Director ─ generateDesignBrief (Pro, high temp)            image-pipeline.ts
 Renderer ─ Nano Banana Pro + refs → Vision QA → corrective edit orchestrators/*
-Save ─ ig_posts + ig_generation_log                            autopilot.ts:636-682
+Save ─ ig_posts + ig_generation_log (incl. angle)              autopilot.ts
 ```
 
 **What each agent can see:**
-- **Copywriter** sees: brand voice, tone-by-type, selected idea/product, **1 random persona**, 4 random hook templates, 6 random CTAs, performance patterns, **top-8 brand memories**, last-5 critic keep/fix, context pulse, recent captions (dedup).
-- **Critic** sees only the generated caption + brand voice (not the source idea).
-- **Chief Editor** sees caption + critic feedback + conversation history across rounds; **Copywriter can "pushback."**
+- **Copywriter** sees: priority ladder (téma > produkt+CTA politika > voice/gold > learning > kontext), brand voice, tone-by-type, selected idea/product, deterministic persona, 4 random hook templates, **CTA policy block** (single source of truth — replaces the old random CTA pool + pillar section), gold examples, performance patterns, **top-8 brand memories**, last-5 critic keep/fix, context pulse, recent captions (dedup) + **angle commit** instruction.
+- **Critic & ranking judge** see: persona (700 chars), 8 anti-patterns, **gold examples (2×250)**, **the same CTA policy as the writer**, the declared angle, and the caption. Overall = pure rubric sum; anchors 9/6/3.
+- **Chief Editor** is a **publish/sales gate** (CTA–pillar fit, product-claim truthfulness vs. product data, reason-to-act-now, red flags) — it no longer re-scores hook/voice (that's the critic's rubric). Sees caption + critic feedback + CTA policy + product data + history; **Copywriter can "pushback."**
 - **Art Director** sees caption + brand kit + visual memories + recent design fingerprints (must diverge); **does not see** the critic/editor.
 
 **Learning loops (feedback):**
-- Post metrics → `propagateMetricsToSources()` → `performance_score` on ideas/reviews → weighted selection (`service.ts:323-477`).
-- Critic scores → `ig_generation_log` → last-5 injected into next prompt (`autopilot.ts:402-433`).
+- Post metrics → `propagateMetricsToSources()` → `performance_score` on ideas/reviews → weighted selection (`service.ts`).
+- Critic scores → `ig_generation_log` → last-5 injected into next prompt (`autopilot.ts`, caption phase).
 - `memory-agent.ts` learns patterns/preferences/avoids/visual into `ig_brand_memory`; A/B winner + user revision feed it.
 
 ---
@@ -105,9 +108,9 @@ Save ─ ig_posts + ig_generation_log                            autopilot.ts:63
 |---|---|---|---|
 | 1 | Post type | weighted `Math.random()` | `autopilot.ts:175` |
 | 2 | Idea/review | weighted shuffle | `service.ts:441` |
-| 3 | **Audience persona** | **1 random of N per post** | `caption-generator.ts:460-462` |
-| 4 | Hook templates | 4 random | `caption-generator.ts:456` |
-| 5 | CTA variations | 6 random | `caption-generator.ts:457` |
+| 3 | Audience persona | deterministic per post type/pillar (fixed in Phase 1) | `caption-generator.ts` (`selectPersonaForPost`) |
+| 4 | Hook templates | 4 random | `caption-generator.ts` (`getHookTemplates`) |
+| 5 | CTA pool | pillar-filtered via CTA policy (random pool removed 2026-07-04) | `cta-policy.ts` (`buildCtaPolicySection`) |
 | 6 | Overlay variant | random, avoids last 2 | `caption-generator.ts` |
 | 7 | Hashtag fill | random shuffle | `autopilot.ts:574` |
 | 8 | Product | random of top-3 LRU | `autopilot.ts:284` |
@@ -170,3 +173,17 @@ Items **3, 4, 5, 9, 10** are the structural inconsistency drivers. The pipeline 
 - **Phase 3** raises the ceiling and makes the quality gate *trustworthy* (the reliable judge is what actually enforces brand consistency).
 - **Cost:** Claude judges add modest per-post cost (≤3 rounds, Sonnet 4.6), gated behind the registry so it's tunable. All visual/audio costs unchanged.
 - **Balance:** Phases 1-2 reduce *random* variance, not *intentional* creative variance — topic/idea divergence and layout-skeleton rotation stay. Target = **consistent voice, varied execution.**
+
+---
+
+## 8. Update 2026-07-04 — prodejní prompt pipeline ("posts that sell")
+
+Shipped on top of the phased program above:
+
+1. **CTA policy = single source of truth** (`instagram/cta-policy.ts`). `resolveCtaPolicyForPost()` derives `{mode, allowWebsite, productMention, productUrl}` from pillar `ctaStrategy` + selected product + persona tone once per post. The mega prompt, product section, reel/carousel/image format blocks, critic, ranking judge, Chief Editor and both revision prompts all render from it. Fixes the old contradiction (product section demanded a web link while a REACH pillar forbade the web) — product on a soft/none pillar → natural mention, no link. **Gotcha: never hardcode the website into CTA instructions again — always go through CtaPolicy.**
+2. **Priority ladder** at the top of `buildMegaPrompt` (téma/hook > produkt+CTA politika > voice/gold > learning > kontext); competing "NEJVYŠŠÍ PRIORITA" claims demoted to `PRIORITA n` labels; decoration noise trimmed.
+3. **Angle commit.** The copywriter must declare `"angle"` (1 Czech sentence, first schema field) before writing; judges score Originalita against it; logged to `ig_generation_log.angle` (migration `20260704_caption_angle.sql`).
+4. **Judge parity.** Critic + ranking judge now see persona 700 chars (was 200), 8 anti-patterns (was 5), gold examples (2×250 chars) and the CTA policy — the judge finally evaluates against the same brand as the writer, and stops punishing REACH posts for lacking the website (old rubric asked "Obsahuje web?"). Token growth ≈ +1–1.5 KB per judge call (gold capped, board gets no gold examples).
+5. **Calibration.** Third anchor (3/10 failure) added to `SCORE_ANCHORS`; `overall` = pure rubric sum (the "brand-manager vibe correction" is gone). Expect a mild downward shift in `critic_score` — monitor avg critic/final score + editorial rounds week-over-week; re-tune anchor wording, not the 8/9 thresholds.
+6. **Chief Editor → sales gate.** The board no longer re-scores hook/storytelling/voice (critic's job); it gates publication on CTA–pillar fit, product-claim truthfulness (against injected product data), reason-to-act-now, and red flags. Loop mechanics (≤3 rounds, auto-approve ≥9, pushback, last-round leniency) unchanged.
+7. **Debug:** `DEBUG_PROMPT=1` dumps the fully assembled mega prompt (autopilot caption phase) — use with `npx tsx instagram/cli.ts --config=<slug> --type=<typ> --dry-run`.

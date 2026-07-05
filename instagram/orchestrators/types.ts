@@ -10,6 +10,8 @@ import type { DesignBrief } from "../image-pipeline"
 export type ProgressReporter = (stage: string, progress: number, message: string) => Promise<void>
 
 export interface CaptionData {
+    /** Angle commit — 1 Czech sentence the copywriter declared before writing (originality anchor). */
+    angle?: string
     hook: string
     body?: string
     cta: string
