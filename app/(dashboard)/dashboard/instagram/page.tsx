@@ -1,7 +1,9 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useStudio } from "../../StudioContext"
+import { isCurrentUserSuperAdmin } from "@/app/actions/admin-actions"
 
 // Tab components
 import { DashboardTab } from "./tabs/DashboardTab"
@@ -12,7 +14,6 @@ import { InspirationTab } from "./tabs/InspirationTab"
 import { ProductsTab } from "./tabs/ProductsTab"
 import { BrandTab } from "./tabs/BrandTab"
 import { PerformanceTab } from "./tabs/PerformanceTab"
-import { LogsTab } from "./tabs/LogsTab"
 import { OnboardTab } from "./tabs/OnboardTab"
 import { SettingsTab } from "./tabs/SettingsTab"
 import { CalendarTab } from "./tabs/CalendarTab"
@@ -44,7 +45,7 @@ const SECTION_LABELS: Record<string, { title: string; description: string }> = {
     onboard: { title: "Onboarding", description: "Onboardujte nového klienta" },
     waitlist: { title: "Waitlist", description: "Správa zájemců a zvacích kódů" },
     brain: { title: "Paměť", description: "Naučené vzorce z reálného výkonu" },
-    faq: { title: "FAQ", description: "Časté dotazy a nápověda" },
+    faq: { title: "Nápověda", description: "Časté dotazy a průvodce studiem" },
     approvals: { title: "Schválení", description: "Akce agentů čekající na vaše schválení" },
     mailing: { title: "Mailing", description: "Rozeslání e-mailu na segment (waitlist, klienti)" },
 }
@@ -53,6 +54,14 @@ export default function InstagramPage() {
     const { activeSection, projectId } = useStudio()
     const sectionInfo = SECTION_LABELS[activeSection] || { title: "", description: "" }
     const { showTutorial, openTutorial, closeTutorial } = useTutorialState()
+
+    // Admin-only sections are gated in render, not just hidden in the sidebar —
+    // otherwise anyone can deep-link them via URL hash (#waitlist, #mailing…).
+    // Defense-in-depth: the server actions behind them keep their own guards.
+    const [isAdmin, setIsAdmin] = useState(false)
+    useEffect(() => {
+        isCurrentUserSuperAdmin().then(setIsAdmin)
+    }, [])
 
     // Dashboard has its own header
     const showHeader = activeSection !== "dashboard"
@@ -77,7 +86,7 @@ export default function InstagramPage() {
                             <p className="text-white/40 mt-1 font-medium text-xs">{sectionInfo.description}</p>
                         </div>
                     )}
-                    {activeSection === "dashboard" && <DashboardTab projectId={projectId} onOpenTutorial={openTutorial} />}
+                    {activeSection === "dashboard" && <DashboardTab projectId={projectId} />}
                     {activeSection === "posts" && <PostsTab projectId={projectId} />}
                     {activeSection === "plan" && <PlanTab projectId={projectId} />}
                     {activeSection === "calendar" && <CalendarTab projectId={projectId} />}
@@ -86,16 +95,16 @@ export default function InstagramPage() {
                     {activeSection === "inspiration" && <InspirationTab projectId={projectId} />}
                     {activeSection === "ideas" && <IdeasTab projectId={projectId} />}
                     {activeSection === "reviews" && <ReviewsTab projectId={projectId} />}
-                    {activeSection === "products" && <ProductsTab projectId={projectId} />}
+                    {activeSection === "products" && isAdmin && <ProductsTab projectId={projectId} />}
                     {activeSection === "brand" && <BrandTab projectId={projectId} />}
                     {activeSection === "performance" && <PerformanceTab projectId={projectId} />}
                     {activeSection === "settings" && <SettingsTab projectId={projectId} />}
-                    {activeSection === "onboard" && <OnboardTab />}
-                    {activeSection === "waitlist" && <WaitlistTab />}
+                    {activeSection === "onboard" && isAdmin && <OnboardTab />}
+                    {activeSection === "waitlist" && isAdmin && <WaitlistTab />}
                     {activeSection === "brain" && <BrainTab projectId={projectId} />}
-                    {activeSection === "faq" && <FaqTab />}
-                    {activeSection === "approvals" && <ApprovalsTab projectId={projectId} />}
-                    {activeSection === "mailing" && <MailingTab />}
+                    {activeSection === "faq" && <FaqTab onReplayTutorial={openTutorial} />}
+                    {activeSection === "approvals" && isAdmin && <ApprovalsTab projectId={projectId} />}
+                    {activeSection === "mailing" && isAdmin && <MailingTab />}
                 </motion.div>
             </AnimatePresence>
 

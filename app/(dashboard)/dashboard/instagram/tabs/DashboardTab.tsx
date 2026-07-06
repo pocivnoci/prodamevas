@@ -30,6 +30,7 @@ interface DashboardStats {
     ready: number
     posted: number
     ideas: number
+    ideasAvailable: number
     recentPosts: {
         id: string
         caption: string
@@ -174,6 +175,17 @@ function computeActionItems(stats: DashboardStats): ActionItem[] {
         })
     }
 
+    // Idea bank running low — the engine falls back to inventing topics
+    if (stats.ideasAvailable < 5 && stats.totalPosts > 0) {
+        items.push({
+            emoji: "💡",
+            label: "Docházejí nápady",
+            detail: "Doplňte zásobník témat",
+            section: "inspiration",
+            priority: 3,
+        })
+    }
+
     return items.sort((a, b) => a.priority - b.priority).slice(0, 4)
 }
 
@@ -181,7 +193,7 @@ function computeActionItems(stats: DashboardStats): ActionItem[] {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════
 
-export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string; onOpenTutorial?: () => void }) {
+export function DashboardTab({ projectId }: { projectId: string }) {
     const { setActiveSection, setGenerateIntent } = useStudio()
     // Deep-link into GenerateTab pre-configured (hero + secondary CTAs).
     const goGenerate = (intent: { mode: "plan" | "single"; duration?: "1w" | "2w" | "month" }) => {
@@ -351,7 +363,7 @@ export function DashboardTab({ projectId, onOpenTutorial }: { projectId: string;
             {/* ──── Secondary counts (compact, not primary) ──── */}
             <div className="flex items-center gap-6 px-1">
                 <SecondaryCount emoji="📤" label="Publikováno" count={stats.posted} />
-                <SecondaryCount emoji="💡" label="Nápady" count={stats.ideas} onClick={() => setActiveSection("ideas")} />
+                <SecondaryCount emoji="💡" label="Nápady" count={stats.ideas} onClick={() => setActiveSection("inspiration")} />
                 {stats.quickMetrics && (
                     <>
                         <div className="w-px h-4 bg-white/10" />

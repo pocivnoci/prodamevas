@@ -47,11 +47,25 @@ export async function getDashboardStats(projectSlug: string) {
         const ready = allPosts.filter(p => p.status === "ready").length
         const posted = allPosts.filter(p => p.status === "posted").length
 
-        // Idea count
+        // Idea count (active only — inactive ideas never enter selection)
         const { count: ideasCount } = await supabaseAdmin
             .from("ig_post_ideas")
             .select("id", { count: "exact", head: true })
             .eq("client_id", clientId)
+            .eq("is_active", true)
+
+        // Ideas actually available to the engine right now — mirrors the
+        // getWeightedIdeas pool (active + out of each idea's cooldown window)
+        const { data: ideaCooldowns } = await supabaseAdmin
+            .from("ig_post_ideas")
+            .select("last_used_at, cooldown_days")
+            .eq("client_id", clientId)
+            .eq("is_active", true)
+        const nowMs = Date.now()
+        const ideasAvailable = (ideaCooldowns || []).filter(i => {
+            if (!i.last_used_at) return true
+            return nowMs - new Date(i.last_used_at).getTime() > (i.cooldown_days ?? 90) * 86_400_000
+        }).length
 
         // Recent 6 posts with images
         const recentPosts = allPosts
@@ -138,6 +152,7 @@ export async function getDashboardStats(projectSlug: string) {
             ready,
             posted,
             ideas: ideasCount || 0,
+            ideasAvailable: ideasAvailable || 0,
             recentPosts,
             weekDays,
             activity,
@@ -149,7 +164,7 @@ export async function getDashboardStats(projectSlug: string) {
     } catch (err: any) {
         console.error("getDashboardStats error:", err?.message || err)
         return {
-            totalPosts: 0, drafts: 0, ready: 0, posted: 0, ideas: 0,
+            totalPosts: 0, drafts: 0, ready: 0, posted: 0, ideas: 0, ideasAvailable: 0,
             recentPosts: [], weekDays: [], activity: [], typeCounts: {},
             postsThisWeek: 0, postsThisMonth: 0,
             quickMetrics: null,

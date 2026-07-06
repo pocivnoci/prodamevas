@@ -115,12 +115,72 @@ export async function addNewIdea(data: {
             content: data.content,
             category: data.category,
             subcategory: data.subcategory || null,
-            times_used: 0,
+            is_active: true,
+            cooldown_days: 60,
             client_id: clientId,
         })
         if (error) throw error
         return { success: true }
     } catch (err: any) {
+        return { success: false, error: err?.message || String(err) }
+    }
+}
+
+export async function deleteIdea(
+    ideaId: string,
+    projectId: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { clientId } = await requireProjectAccess(projectId)
+
+        const { data: idea } = await supabaseAdmin
+            .from("ig_post_ideas")
+            .select("client_id")
+            .eq("id", ideaId)
+            .single()
+
+        if (!idea || idea.client_id !== clientId) {
+            return { success: false, error: "Nápad nenalezen" }
+        }
+
+        const { error } = await supabaseAdmin
+            .from("ig_post_ideas")
+            .delete()
+            .eq("id", ideaId)
+        if (error) throw error
+        return { success: true }
+    } catch (err: any) {
+        console.error("deleteIdea error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}
+
+export async function setIdeaActive(
+    ideaId: string,
+    projectId: string,
+    isActive: boolean
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { clientId } = await requireProjectAccess(projectId)
+
+        const { data: idea } = await supabaseAdmin
+            .from("ig_post_ideas")
+            .select("client_id")
+            .eq("id", ideaId)
+            .single()
+
+        if (!idea || idea.client_id !== clientId) {
+            return { success: false, error: "Nápad nenalezen" }
+        }
+
+        const { error } = await supabaseAdmin
+            .from("ig_post_ideas")
+            .update({ is_active: isActive })
+            .eq("id", ideaId)
+        if (error) throw error
+        return { success: true }
+    } catch (err: any) {
+        console.error("setIdeaActive error:", err?.message || err)
         return { success: false, error: err?.message || String(err) }
     }
 }

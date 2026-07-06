@@ -30,6 +30,7 @@ import {
     ensurePostTypes,
     getWeightedIdeas,
     getWeightedReviews,
+    getIdeaById,
 } from "./service"
 import { loadConfig } from "./configs"
 import type { ClientConfig, PostFormat } from "./configs/types"
@@ -145,6 +146,9 @@ export async function generateOnePost(options: {
     configName?: string
     type?: string
     topic?: string
+    /** Idea explicitly picked by the user (ig_post_ideas id) — used for source
+     *  attribution (idea_id link + markIdeaAsUsed) instead of weighted selection. */
+    ideaId?: string
     /** Hook approved in the content plan — binds the copywriter (refine, don't replace). */
     approvedHook?: string
     dryRun?: boolean
@@ -275,9 +279,9 @@ export async function generateOnePost(options: {
     }
     console.log(`   ✓ ${selectedType.emoji} ${selectedType.display_name}`)
 
-    // 2. Get source material (90-day cooldown deduplikace)
+    // 2. Get source material (per-idea cooldown deduplikace)
     await report("researcher", 15, `🔍 Researcher hledá zdroje pro ${selectedType.display_name}...`)
-    console.log("📚 Hledám zdroje (cooldown: 90 dní)...")
+    console.log("📚 Hledám zdroje (cooldown dle nápadu)...")
     let idea: PostIdea | null = null
     let review: Review | null = null
 
@@ -294,7 +298,11 @@ export async function generateOnePost(options: {
             review = reviews[0]
             console.log(`   ✓ Recenze (weighted): "${review.quote.substring(0, 40)}..." (score: ${review.performance_score || 'N/A'})`)
         }
-    } else {
+    } else if (options.ideaId) {
+        idea = await getIdeaById(options.ideaId)
+        if (!idea) throw new Error("Vybraný nápad nenalezen pro tohoto klienta")
+        console.log(`   ✓ Nápad (vybraný uživatelem): "${idea.title}"`)
+    } else if (!options.topic) {
         const ideas = await getWeightedIdeas(3)
         if (ideas.length > 0) {
             idea = ideas[0]
@@ -302,6 +310,11 @@ export async function generateOnePost(options: {
         } else {
             console.log(`   ℹ️ Všechny nápady v cooldownu — Gemini vymyslí vlastní`)
         }
+    } else {
+        // Explicit topic drives the prompt (buildMegaPrompt ignores the idea when a
+        // topic is set) — skip weighted selection so no idea gets falsely credited,
+        // cooled down, or scored for a post it didn't influence.
+        console.log(`   🎯 Explicitní téma — přeskakuji výběr nápadu (žádná falešná atribuce)`)
     }
 
     // 3. Get recent captions for dedup — include hook + body summary (not just hooks!)

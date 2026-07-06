@@ -98,6 +98,9 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const [savedIdeas, setSavedIdeas] = useState<any[]>([])
     const [approvedReviews, setApprovedReviews] = useState<any[]>([])
     const [showIdeaPicker, setShowIdeaPicker] = useState(false)
+    // Picked idea id — travels with the job so the idea gets marked used + metric feedback.
+    // Cleared when the user edits the topic by hand (edited topic ≠ the idea).
+    const [selectedIdeaId, setSelectedIdeaId] = useState<string | null>(null)
 
     // Product catalog for @ mention picker
     const [catalogProducts, setCatalogProducts] = useState<any[]>([])
@@ -112,11 +115,12 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         getIGPostFormats(projectId).then(setPostFormats)
         getPlanCadence(projectId).then(setPostsPerWeek)
         getIGCategories(projectId).then(setCategories)
-        getIGIdeasList(projectId).then(setSavedIdeas)
+        getIGIdeasList(projectId).then(data => setSavedIdeas(data.filter((i: any) => i.is_active !== false)))
         getIGReviewsList(projectId).then(reviews => setApprovedReviews(reviews.filter((r: any) => r.is_approved)))
         getProducts(projectId).then(setCatalogProducts)
         setSelectedType("") // reset selection on project change
         setCategory("") // reset category on project change
+        setSelectedIdeaId(null)
         setStep(1)
     }, [projectId])
 
@@ -398,6 +402,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                     configName: projectId,
                     type: selectedType || undefined,
                     topic: topic || undefined,
+                    ideaId: selectedIdeaId || undefined,
                     category: category !== "auto" ? category : undefined,
                     aspectRatio: aspectRatio || undefined,
                     medium: medium || undefined,
@@ -411,6 +416,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         configName: projectId,
                         type: selectedType || undefined,
                         topic: topic || undefined,
+                        ideaId: selectedIdeaId || undefined,
                         category: category !== "auto" ? category : undefined,
                         aspectRatio: aspectRatio || undefined,
                         medium: medium || undefined,
@@ -735,7 +741,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                     <span className="text-[9px] font-bold uppercase tracking-widest text-white/30 block mb-1">💡 Nápady</span>
                                                     {savedIdeas.slice(0, 10).map((idea: any) => (
                                                         <button key={idea.id} type="button"
-                                                            onClick={() => { setTopic(`${idea.title}: ${idea.content}`); setShowIdeaPicker(false) }}
+                                                            onClick={() => { setTopic(`${idea.title}: ${idea.content}`); setSelectedIdeaId(idea.id); setShowIdeaPicker(false) }}
                                                             className="w-full text-left px-3 py-2 rounded-sm text-xs text-white/70 hover:bg-white/10 hover:text-white transition-colors truncate">
                                                             <span className="text-[9px] px-1.5 py-0.5 bg-white/5 border border-white/10 rounded-sm text-white/40 mr-2">{idea.category}</span>
                                                             {idea.title}
@@ -750,6 +756,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                         <button key={review.id} type="button"
                                                             onClick={() => {
                                                                 setTopic(`Recenze zákazníka: "${review.quote}" — ${review.customer_initials || "Anonym"}`)
+                                                                setSelectedIdeaId(null)
                                                                 const reviewType = postTypes.find(pt => pt.name === "recenze" || pt.name === "review" || pt.name === "testimonial")
                                                                 if (reviewType) setSelectedType(reviewType.name)
                                                                 setShowIdeaPicker(false)
@@ -765,9 +772,20 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     )}
                                     <textarea
                                         placeholder="Např. Jarní slevy, Nová kolekce, Péče o pleť... nebo nechte prázdné a AI vybere samo."
-                                        value={topic} onChange={(e) => setTopic(e.target.value)} rows={2}
+                                        value={topic} onChange={(e) => { setTopic(e.target.value); setSelectedIdeaId(null) }} rows={2}
                                         className="w-full px-5 py-4 bg-[#050505] border border-white/10 rounded-sm text-white placeholder:text-white/30 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all shadow-sm resize-none"
                                     />
+                                    {selectedIdeaId && (
+                                        <div className="mt-2 flex items-center gap-2">
+                                            <span className="text-[9px] px-2 py-1 rounded-sm bg-emerald-500/10 text-emerald-400/80 uppercase tracking-widest font-bold border border-emerald-500/20">
+                                                💡 Napojeno na nápad — příspěvek se započítá do jeho výkonu
+                                            </span>
+                                            <button type="button" onClick={() => setSelectedIdeaId(null)}
+                                                className="text-[9px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors">
+                                                ✕
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Category pills */}

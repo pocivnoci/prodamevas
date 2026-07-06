@@ -52,6 +52,7 @@ export async function POST(req: Request) {
             configName: config.configName,
             type: config.type,
             topic: config.topic,
+            ideaId: config.ideaId,
             dryRun: config.dryRun,
             aspectRatio: config.aspectRatio,
             medium: config.medium,

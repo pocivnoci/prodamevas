@@ -322,8 +322,13 @@ export function AdminSidebar() {
                     })()}
                 </div>
 
-                {/* Bottom: Settings + Logout */}
+                {/* Bottom: Help + Settings + Logout */}
                 <div className="px-3 py-3 border-t border-white/5 space-y-0.5">
+                    <NavButton
+                        item={{ id: "faq", label: "Nápověda", icon: "❓" }}
+                        active={activeSection === "faq"}
+                        onSelect={() => { setActiveSection("faq"); setOpen(false) }}
+                    />
                     <NavButton
                         item={{ id: "settings", label: "Nastavení", icon: "⚙️" }}
                         active={activeSection === "settings"}

@@ -189,6 +189,19 @@ export async function getAvailableIdeas(category?: string): Promise<PostIdea[]> 
     });
 }
 
+/** Fetch a single idea, scoped to the active client — used when the user explicitly
+ *  picked an idea in the UI. Returns null on cross-tenant/missing id (caller throws). */
+export async function getIdeaById(ideaId: string): Promise<PostIdea | null> {
+    const { data, error } = await supabaseAdmin
+        .from("ig_post_ideas")
+        .select("*")
+        .eq("id", ideaId)
+        .eq("client_id", getActiveProject())
+        .maybeSingle();
+    if (error) throw error;
+    return data;
+}
+
 export async function markIdeaAsUsed(ideaId: string): Promise<void> {
     // Get current count and increment
     const { data } = await supabaseAdmin
@@ -471,20 +484,24 @@ function decayedScore(score: number, lastSignalAt: string | null | undefined): n
 export async function getWeightedIdeas(limit = 5): Promise<PostIdea[]> {
     const clientId = getActiveProject()
 
-    // Get all available ideas (respecting cooldown)
-    const cooldownDate = new Date()
-    cooldownDate.setDate(cooldownDate.getDate() - 90) // 90-day cooldown
-
-    const { data: ideas } = await supabaseAdmin
+    const { data: allIdeas } = await supabaseAdmin
         .from("ig_post_ideas")
         .select("*")
         .eq("client_id", clientId)
         .eq("is_active", true)
-        .or(`last_used_at.is.null,last_used_at.lt.${cooldownDate.toISOString()}`)
         .order("performance_score", { ascending: false })
-        .limit(50)
+        .limit(100)
 
-    if (!ideas || ideas.length === 0) return []
+    // Per-idea cooldown (same rule as getAvailableIdeas) — a hardcoded 90d here
+    // used to silently override each idea's cooldown_days.
+    const now = Date.now()
+    const ideas = (allIdeas ?? []).filter(idea => {
+        if (!idea.last_used_at) return true
+        const cooldownDays = idea.cooldown_days ?? 90
+        return now - new Date(idea.last_used_at).getTime() > cooldownDays * 86_400_000
+    }).slice(0, 50)
+
+    if (ideas.length === 0) return []
 
     // Effective score = recency-decayed performance. Compare against the average
     // of decayed scores so the threshold tracks the freshly-relevant winners.

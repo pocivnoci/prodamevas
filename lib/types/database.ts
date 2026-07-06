@@ -78,6 +78,8 @@ export interface IGIdea {
     last_used_at: string | null
     cooldown_days: number
     is_active: boolean
+    performance_score: number | null
+    times_used_with_metrics: number | null
     created_at: string
 }
 

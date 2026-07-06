@@ -38,6 +38,19 @@ export async function POST(req: Request) {
             }
         }
 
+        // Explicitly picked idea must belong to this client — validated before any
+        // credit charge so a stale/foreign id can't burn a credit.
+        if (body.ideaId) {
+            const { data: idea } = await supabaseAdmin
+                .from("ig_post_ideas")
+                .select("client_id")
+                .eq("id", body.ideaId)
+                .maybeSingle()
+            if (!idea || idea.client_id !== clientId) {
+                return NextResponse.json({ success: false, error: "Nápad nenalezen" }, { status: 400 })
+            }
+        }
+
         // Effective medium for billing: explicit request wins; otherwise the post type's
         // configured format. The engine can only clamp DOWN from this (chargedMedium cap
         // in generateOnePost), so the charge is always >= the delivered medium's cost —
@@ -101,6 +114,7 @@ export async function POST(req: Request) {
                     configName: body.configName,
                     type: body.type,
                     topic: body.topic,
+                    ideaId: body.ideaId,
                     dryRun: body.dryRun,
                     aspectRatio: body.aspectRatio,
                     medium: body.medium,

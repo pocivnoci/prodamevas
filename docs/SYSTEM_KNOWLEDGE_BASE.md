@@ -106,8 +106,8 @@ sequenceDiagram
     participant AP as Autopilot Engine
     participant DB as Supabase
 
-    UI->>CJ: POST {configName, type, topic}
-    Note over CJ: Rate limit check (10/h)
+    UI->>CJ: POST {configName, type, topic, ideaId?}
+    Note over CJ: Rate limit check (10/h) + ideaId ownership check (před charge)
     CJ->>DB: INSERT ig_jobs → returns jobId
     CJ-->>UI: { jobId }
     UI->>RJ: POST { jobId } (fire)
@@ -125,7 +125,7 @@ sequenceDiagram
 | Step | Agent | Model | Progress |
 |------|-------|-------|----------|
 | 1. Post type selection | Researcher | — | 5% |
-| 2. Idea/Review selection | Researcher (weighted) | — | 15% |
+| 2. Idea/Review selection | Researcher (weighted; skip při explicitním `topic`, přímý fetch při `ideaId`) | — | 15% |
 | 3. Dedup check (Levenshtein) | Researcher | — | 20% |
 | 4. Context gathering | Context Agent | `gemini-3.5-flash` | 20% |
 | 5. Caption generation | Copywriter | `gemini-3.5-flash` | 25% |
@@ -179,6 +179,15 @@ A/B Variant Loop (variant-actions.ts)
 
 > [!NOTE]
 > Feedback loop is **automatic** — triggered when user saves metrics via `updateIGPostMetrics()`. Manual trigger: `POST /api/ig-learn { configName }`.
+
+### Pravidla atribuce nápadů (v7.5)
+
+Aby `propagateMetricsToSources` nekreditoval nápad za post, který nedriveoval:
+
+- **Bez `topic` i `ideaId`** → weighted výběr (`getWeightedIdeas`), `idea_id` se linkuje, `markIdeaAsUsed` cooldownuje. (Beze změny.)
+- **Explicitní `topic`, bez `ideaId`** (plán/kalendář/kampaň/ruční zadání) → výběr nápadu se **přeskočí** (`buildMegaPrompt` nápad při `userTopic` stejně ignoruje) — žádný `idea_id` link, žádný cooldown, žádná falešná metrika.
+- **Explicitní `ideaId`** (uživatel vybral v GenerateTab) → `getIdeaById` (client-scoped; miss = throw, nikdy fallback) — nápad je poctivě linkován + marknut jako použitý.
+- Cooldown je per-idea: `cooldown_days ?? 90` (jednotné pravidlo v `getWeightedIdeas` i `getAvailableIdeas`; dashboard `ideasAvailable` počítá stejně).
 
 ---
 

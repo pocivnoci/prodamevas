@@ -44,10 +44,16 @@ export async function generateAIIdeas(config: ClientConfig, pillarId: string, co
         // Non-fatal
     }
 
+    // Pillar-level generation asks the model to assign each idea a real category id,
+    // so ideas always match a filter chip in the UI (never a literal "AI Generated").
+    const pillarCategoryIds = !category && pillar.categories?.length
+        ? pillar.categories.map(c => c.id)
+        : []
+
     const categorySection = category
         ? `\n## 🎯 KATEGORIE: ${category.emoji} ${category.label}\n${category.prompt || ""}\nVšechny nápady MUSÍ spadat do této kategorie.\n`
-        : pillar.categories?.length
-            ? `\n## DOSTUPNÉ KATEGORIE V TOMTO PILÍŘI:\n${pillar.categories.map(c => `- ${c.emoji} ${c.label}${c.prompt ? `: ${c.prompt}` : ""}`).join("\n")}\nRozděl nápady rovnoměrně mezi tyto kategorie.\n`
+        : pillarCategoryIds.length
+            ? `\n## DOSTUPNÉ KATEGORIE V TOMTO PILÍŘI:\n${pillar.categories!.map(c => `- ${c.id}: ${c.emoji} ${c.label}${c.prompt ? ` — ${c.prompt}` : ""}`).join("\n")}\nRozděl nápady rovnoměrně mezi tyto kategorie a ke každému nápadu přiřaď 'categoryId' z: ${pillarCategoryIds.join(", ")}.\n`
             : ""
 
     const prompt = `
@@ -84,6 +90,9 @@ ${categorySection}${productsSection}${personaSection}${memorySection}${contextSe
                         title: { type: "string" },
                         content: { type: "string" },
                         keywords: { type: "array", items: { type: "string" } },
+                        ...(pillarCategoryIds.length
+                            ? { categoryId: { type: "string", enum: pillarCategoryIds } }
+                            : {}),
                     },
                     required: ["title", "content", "keywords"],
                 },
@@ -115,16 +124,15 @@ ${categorySection}${productsSection}${personaSection}${memorySection}${contextSe
         throw new Error("AI vrátila neplatná data (prázdné pole).")
     }
 
-    const { getActiveProject, setActiveProject } = await import("./service")
-
     // 4. Client resolution
     const clientId = await resolveClientId(config.id)
 
-    // 5. Map to DB rows
+    // 5. Map to DB rows — subcategory is always a real category id or null
+    const validCatIds = new Set(pillarCategoryIds)
     const rows = ideasPayload.slice(0, count).map(idea => ({
         client_id: clientId,
         category: pillarId,
-        subcategory: categoryId || "AI Generated",
+        subcategory: categoryId || (validCatIds.has(idea.categoryId) ? idea.categoryId : null),
         title: idea.title,
         content: idea.content,
         keywords: idea.keywords || [],

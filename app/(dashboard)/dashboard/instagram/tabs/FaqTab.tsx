@@ -158,7 +158,11 @@ const FAQ_CATEGORIES: FaqCategory[] = [
             },
             {
                 q: "Jak nejlépe využít Nápady?",
-                a: "Nechte AI vygenerovat dávku nápadů pro konkrétní téma (Dosah, Hodnota, Konverze...). Pak je projděte a ty nejlepší použijte jako základ pro generování postů. Je to rychlejší než vymýšlet témata od nuly.",
+                a: "Nápady jsou zásobník témat, ze kterého si AI sama bere náměty pro nové příspěvky. Nechte AI vygenerovat dávku nápadů pro konkrétní téma (Dosah, Hodnota, Konverze...), projděte je a slabé vypněte nebo smažte. Nápad můžete také ručně vybrat při generování — příspěvek se pak započítá do jeho výkonu.",
+            },
+            {
+                q: "Co se stane s nápadem po použití?",
+                a: "Nic se nemaže. Použitý nápad si dá pauzu (cooldown), aby se váš feed neopakoval, a po ní se vrací do hry. Nápady, které mají dobré výsledky, si AI vybírá častěji — poznáte je podle štítku 🔥 Funguje. Nápad můžete kdykoli vypnout nebo smazat.",
             },
         ],
     },
@@ -166,7 +170,7 @@ const FAQ_CATEGORIES: FaqCategory[] = [
 
 // ─── Component ───────────────────────────────────────────────
 
-export function FaqTab() {
+export function FaqTab({ onReplayTutorial }: { onReplayTutorial?: () => void }) {
     const [activeCategory, setActiveCategory] = useState(FAQ_CATEGORIES[0].id)
     const [openIndex, setOpenIndex] = useState<number | null>(null)
 
@@ -261,6 +265,26 @@ export function FaqTab() {
                     })}
                 </motion.div>
             </AnimatePresence>
+
+            {/* Replay onboarding tour */}
+            {onReplayTutorial && (
+                <div className="border border-white/5 rounded-sm p-5 bg-white/[0.01] flex items-center justify-between gap-4">
+                    <div>
+                        <p className="text-[10px] text-white/25 font-bold uppercase tracking-widest mb-1">
+                            Průvodce studiem
+                        </p>
+                        <p className="text-xs text-white/40">
+                            Znovu si projděte úvodní přehled funkcí.
+                        </p>
+                    </div>
+                    <button
+                        onClick={onReplayTutorial}
+                        className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest bg-white/5 text-white/60 border border-white/10 rounded-sm hover:text-white hover:bg-white/10 transition-colors flex-shrink-0"
+                    >
+                        ▶ Přehrát průvodce
+                    </button>
+                </div>
+            )}
 
             {/* Help footer */}
             <div className="border border-white/5 rounded-sm p-5 bg-white/[0.01] text-center">

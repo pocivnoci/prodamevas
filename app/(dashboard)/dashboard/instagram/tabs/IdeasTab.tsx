@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react"
 import { motion } from "framer-motion"
 import { getIGIdeasList, getIGCategories } from "@/app/actions/admin-actions"
-import { addNewIdea, triggerAIIdeasGeneration } from "@/app/actions/ig-generate-action"
+import { addNewIdea, triggerAIIdeasGeneration, deleteIdea, setIdeaActive } from "@/app/actions/ig-generate-action"
 import { LoadingSpinner } from "./shared"
 
 type PillarWithCategories = {
@@ -59,11 +59,37 @@ export function IdeasTab({ projectId }: { projectId: string }) {
         return map
     }, [allCategories])
 
+    // Pillar label lookup (idea.category holds the pillar id)
+    const pillarLabelMap = useMemo(() => {
+        const map: Record<string, { emoji: string; label: string }> = {}
+        for (const p of pillars) {
+            map[p.id] = { emoji: p.emoji, label: p.label }
+        }
+        return map
+    }, [pillars])
+
+    // Legacy rows carry values like "AI Generated" that match no category — collapse to null
+    const normalizeSub = (sub: string | null | undefined): string | null =>
+        sub && categoryLabelMap[sub] ? sub : null
+
+    const hasUncategorized = useMemo(
+        () => ideas.some(i => normalizeSub(i.subcategory) === null),
+        [ideas, categoryLabelMap]
+    )
+
+    // Client average engagement across measured ideas — powers the 🔥 badge
+    const avgScore = useMemo(() => {
+        const measured = ideas.filter(i => (i.times_used_with_metrics || 0) > 0)
+        if (!measured.length) return 0
+        return measured.reduce((s, i) => s + (i.performance_score || 0), 0) / measured.length
+    }, [ideas])
+
     // Filtered ideas
     const filteredIdeas = useMemo(() => {
         if (filterCategory === "all") return ideas
-        return ideas.filter(i => i.subcategory === filterCategory)
-    }, [ideas, filterCategory])
+        if (filterCategory === "__none__") return ideas.filter(i => normalizeSub(i.subcategory) === null)
+        return ideas.filter(i => normalizeSub(i.subcategory) === filterCategory)
+    }, [ideas, filterCategory, categoryLabelMap])
 
     const handleAddIdea = async () => {
         if (!newIdea.title || !newIdea.content) return
@@ -92,10 +118,38 @@ export function IdeasTab({ projectId }: { projectId: string }) {
         setGeneratingAI(false)
     }
 
+    const handleToggleActive = async (idea: any) => {
+        const res = await setIdeaActive(idea.id, projectId, !(idea.is_active !== false))
+        if (!res.success) {
+            alert("Chyba: " + res.error)
+            return
+        }
+        loadIdeas()
+    }
+
+    const handleDelete = async (idea: any) => {
+        if (!confirm("Opravdu smazat nápad? Tohle nejde vrátit.")) return
+        const res = await deleteIdea(idea.id, projectId)
+        if (!res.success) {
+            alert("Chyba: " + res.error)
+            return
+        }
+        loadIdeas()
+    }
+
     if (loading) return <LoadingSpinner />
 
     return (
         <div className="space-y-4">
+            {/* Explainer — what this bank actually does */}
+            <div className="bg-[#0a0a0a] border border-white/5 rounded-sm p-4">
+                <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest mb-1">💡 Zásobník témat</p>
+                <p className="text-xs text-white/50">
+                    AI si odsud bere témata pro vaše příspěvky — nápady, které fungují, používá častěji.
+                    Po použití se nápad nemaže, jen si dá pauzu, aby se váš feed neopakoval.
+                </p>
+            </div>
+
             <div className="flex items-center justify-between">
                 <span className="text-[10px] text-white/40 tracking-widest uppercase font-bold">
                     {filteredIdeas.length}{filterCategory !== "all" ? ` / ${ideas.length}` : ""} nápadů
@@ -175,6 +229,18 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                             {cat.emoji} {cat.label}
                         </button>
                     ))}
+                    {hasUncategorized && (
+                        <button
+                            onClick={() => setFilterCategory(filterCategory === "__none__" ? "all" : "__none__")}
+                            className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest rounded-sm border transition-all ${
+                                filterCategory === "__none__"
+                                    ? "bg-white/10 text-white border-white/20"
+                                    : "bg-white/3 text-white/40 border-white/5 hover:text-white/60 hover:border-white/10"
+                            }`}
+                        >
+                            Bez kategorie
+                        </button>
+                    )}
                 </div>
             )}
 
@@ -242,7 +308,13 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                 }}
             >
                 {filteredIdeas.map(idea => {
-                    const catInfo = categoryLabelMap[idea.subcategory]
+                    const catInfo = categoryLabelMap[normalizeSub(idea.subcategory) || ""]
+                    const pillarInfo = pillarLabelMap[idea.category]
+                    const isActive = idea.is_active !== false
+                    const usedCount = idea.used_count || 0
+                    const isProven = (idea.times_used_with_metrics || 0) > 0 && (idea.performance_score || 0) > avgScore
+                    const cooldownMs = (idea.cooldown_days ?? 90) * 24 * 60 * 60 * 1000
+                    const isResting = idea.last_used_at && Date.now() - new Date(idea.last_used_at).getTime() < cooldownMs
                     return (
                         <motion.div
                             variants={{
@@ -250,22 +322,61 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                                 visible: { opacity: 1, x: 0 }
                             }}
                             key={idea.id}
-                            className="bg-[#0a0a0a] border border-white/5 rounded-sm p-4 hover:border-white/10 transition-all hover:bg-white/5 shadow-sm"
+                            className={`bg-[#0a0a0a] border border-white/5 rounded-sm p-4 hover:border-white/10 transition-all hover:bg-white/5 shadow-sm ${isActive ? "" : "opacity-40"}`}
                         >
                             <div className="flex items-start justify-between gap-3">
                                 <div>
                                     <h4 className="text-xs font-bold uppercase tracking-wider text-white">{idea.title}</h4>
                                     <p className="text-xs text-white/50 mt-1.5 font-medium">{idea.content}</p>
                                 </div>
-                                <div className="flex items-center gap-2 flex-shrink-0">
+                                <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+                                    {!isActive && (
+                                        <span className="text-[9px] px-2 py-1 rounded-sm bg-amber-500/10 text-amber-400/80 uppercase tracking-widest font-bold border border-amber-500/20">
+                                            Vypnuto
+                                        </span>
+                                    )}
+                                    {isProven && (
+                                        <span className="text-[9px] px-2 py-1 rounded-sm bg-emerald-500/10 text-emerald-400 uppercase tracking-widest font-bold border border-emerald-500/20">
+                                            🔥 Funguje
+                                        </span>
+                                    )}
+                                    {isResting && (
+                                        <span className="text-[9px] px-2 py-1 rounded-sm bg-white/5 text-white/30 uppercase tracking-widest font-bold border border-white/10">
+                                            💤 Odpočívá
+                                        </span>
+                                    )}
+                                    {usedCount === 0 ? (
+                                        <span className="text-[9px] px-2 py-1 rounded-sm bg-white/5 text-white/40 uppercase tracking-widest font-bold border border-white/10">
+                                            Nové
+                                        </span>
+                                    ) : (
+                                        <span className="text-[9px] px-2 py-1 rounded-sm bg-white/5 text-white/40 uppercase tracking-widest font-bold border border-white/10">
+                                            ×{usedCount} použito
+                                        </span>
+                                    )}
                                     {catInfo && (
                                         <span className="text-[9px] px-2 py-1 rounded-sm bg-emerald-500/10 text-emerald-400/80 uppercase tracking-widest font-bold border border-emerald-500/20">
                                             {catInfo.emoji} {catInfo.label}
                                         </span>
                                     )}
-                                    <span className="text-[9px] px-2 py-1 rounded-sm bg-white/5 text-white/50 uppercase tracking-widest font-bold border border-white/10">{idea.category}</span>
-                                    <span className="text-[9px] font-mono text-white/40 uppercase tracking-widest">×{idea.times_used || 0}</span>
+                                    <span className="text-[9px] px-2 py-1 rounded-sm bg-white/5 text-white/50 uppercase tracking-widest font-bold border border-white/10">
+                                        {pillarInfo ? `${pillarInfo.emoji} ${pillarInfo.label}` : idea.category}
+                                    </span>
                                 </div>
+                            </div>
+                            <div className="flex items-center gap-2 mt-3">
+                                <button
+                                    onClick={() => handleToggleActive(idea)}
+                                    className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest rounded-sm bg-white/3 text-white/40 border border-white/5 hover:text-white/70 hover:border-white/10 transition-all"
+                                >
+                                    {isActive ? "⏸ Vypnout" : "▶ Zapnout"}
+                                </button>
+                                <button
+                                    onClick={() => handleDelete(idea)}
+                                    className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest rounded-sm bg-white/3 text-white/40 border border-white/5 hover:text-red-400 hover:border-red-500/20 transition-all"
+                                >
+                                    ✕ Smazat
+                                </button>
                             </div>
                         </motion.div>
                     )
