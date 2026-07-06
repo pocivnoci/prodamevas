@@ -1,27 +1,23 @@
 /**
  * Image Orchestrator — Single image generation pipeline
  *
- * Two engines (config.visualEngine):
- *  - "native" (default): AI Designer brief → Nano Banana Pro renders the FULL post
- *    (Czech typography + logo) → vision QA → corrective edit → Satori fallback
- *  - "overlay" (legacy): brand ref loading → product scene placement →
- *    text-free image gen/edit → Satori text overlay → vision check
+ * Native engine only: AI Designer brief → Nano Banana Pro renders the FULL post
+ * (Czech typography + logo) → vision QA → corrective edit / fresh regen →
+ * ship the best native attempt (never a Satori overlay; see qaScore / "native_forced").
  *
  * Extracted from autopilot.ts for maintainability.
  */
 
 import supabaseAdmin from "../../supabase/admin"
 import sharp from "sharp"
-import { generateImage, generateImageWithReferences } from "../gemini-client"
-import { overlayText } from "../text-overlay"
+import { generateImageWithReferences } from "../gemini-client"
 import {
-    refineImagePrompt,
     generateDesignBrief,
     buildNativeImagePrompt,
     verifyNativeImage,
+    qaScore,
 } from "../image-pipeline"
 import { loadLogo } from "../logo-loader"
-import { reviewOverlayComposition } from "../editorial-board"
 import { COSTS } from "../caption-generator"
 import type { RenderContext, RenderResult } from "./types"
 
@@ -51,19 +47,16 @@ export async function renderImage(ctx: RenderContext): Promise<RenderResult> {
     if (ctx.format.overlayStyle === "none") {
         ctx = { ...ctx, format: { ...ctx.format, overlayStyle: "default" } }
     }
-    if (ctx.config.visualEngine !== "overlay") {
-        try {
-            const native = await renderImageNative(ctx)
-            if (native) return native
-        } catch (err: any) {
-            console.warn(`   ⚠️ Native engine failed: ${err?.message?.substring(0, 100)}`)
-        }
-        console.log("   ↩️ Native design nevyšel — fallback na overlay engine...")
-        const fallback = await renderImageOverlay(ctx)
-        return { ...fallback, qaStatus: "fallback" }
+    // Native-only: Nano Banana Pro designs the full post. On QA trouble it retries and
+    // ships the best native attempt (never a Satori overlay). A null return here means a
+    // true infrastructure failure (generation/upload threw) — the post ships imageless.
+    try {
+        const native = await renderImageNative(ctx)
+        if (native) return native
+    } catch (err: any) {
+        console.warn(`   ⚠️ Native engine failed: ${err?.message?.substring(0, 120)}`)
     }
-    const result = await renderImageOverlay(ctx)
-    return { ...result, qaStatus: "overlay" }
+    return { cost: 0 }
 }
 
 // ============================================
@@ -71,8 +64,23 @@ export async function renderImage(ctx: RenderContext): Promise<RenderResult> {
 // ============================================
 
 async function renderImageNative(ctx: RenderContext): Promise<RenderResult | null> {
-    const { config, captionData, format, selectedType, report } = ctx
+    const { config, captionData, format, selectedType, report, selectedProduct } = ctx
     let cost = 0
+
+    // Reference images load BEFORE the design brief — the designer must know whether
+    // an exact product photo exists, otherwise it invents a composition (and Nano
+    // Banana then invents the product) even though the real photo is attached.
+    const otherRefs = await loadReferenceImages(ctx)
+    otherRefs.sort((a, b) =>
+        Number(b.label?.startsWith("EXACT product photo") || 0) - Number(a.label?.startsWith("EXACT product photo") || 0)
+    )
+    const productRef = otherRefs.find(r => r.label?.startsWith("EXACT product photo"))
+    const productInfo = selectedProduct ? {
+        name: selectedProduct.name,
+        type: selectedProduct.type,
+        description: selectedProduct.description,
+        hasReferencePhoto: Boolean(productRef),
+    } : undefined
 
     await report("art_director", 55, "🎨 AI Designer navrhuje kompozici...")
     console.log("🎨 AI Designer — generuji design brief...")
@@ -89,12 +97,13 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
         postType: selectedType.name,
         recentBriefs: ctx.recentBriefs ?? [],
         bannedArchetypes: ctx.recentArchetypes ?? [],
+        product: productInfo,
     })
     cost += COSTS.designerBrief
     console.log(`   ✓ Koncept: "${brief.concept}" [${brief.layoutArchetype || "no archetype"}]`)
     console.log(`   ✓ Divergence: ${brief.divergenceNote?.substring(0, 100)}`)
 
-    const prompt = buildNativeImagePrompt(brief, config)
+    const prompt = buildNativeImagePrompt(brief, config, productInfo)
 
     // Reference images: logo FIRST, then product photo, then brand refs (max 4 total)
     const refs: RefImage[] = []
@@ -108,10 +117,6 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
             })
         }
     }
-    const otherRefs = await loadReferenceImages(ctx)
-    otherRefs.sort((a, b) =>
-        Number(b.label?.startsWith("EXACT product photo") || 0) - Number(a.label?.startsWith("EXACT product photo") || 0)
-    )
     refs.push(...otherRefs.slice(0, Math.max(0, 4 - refs.length)))
 
     await report("rendering", 62, "🖼️ Nano Banana Pro generuje finální post...")
@@ -123,52 +128,94 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
     cost += COSTS.imageGeneration
     console.log(`   ✓ Obrázek (${(imageBuffer.length / 1024).toFixed(0)} KB)`)
 
-    // Vision QA: exact Czech text + logo presence
-    await report("chief_editor", 75, "👁️ Kontrola českého textu a loga...")
-    console.log("👁️ QA — kontrola textu (diakritika) a loga...")
+    // Vision QA: exact Czech text + logo presence + product fidelity (vs reference photo)
+    await report("chief_editor", 75, "👁️ Kontrola textu, loga a věrnosti produktu...")
+    console.log(`👁️ QA — text (diakritika), logo${productRef ? ", věrnost produktu" : ""}...`)
     const logoExpected = refs.some(r => r.label?.startsWith("brand logo"))
     const qaExpectation = {
         headline: captionData.hook,
         subtext: captionData.imageSubtext,
         logoExpected,
     }
-    const qa = await verifyNativeImage(imageBuffer, qaExpectation)
+    const qaProductRef = productRef && selectedProduct
+        ? { buffer: productRef.buffer, mimeType: productRef.mimeType, name: selectedProduct.name }
+        : undefined
+    const qa = await verifyNativeImage(imageBuffer, qaExpectation, qaProductRef)
     cost += COSTS.imageQA
-    let qaStatus = "pass"
+
+    // Ship-best-native: track every attempt and keep the closest one. On QA trouble we
+    // retry (targeted fix + one fresh regen) but NEVER drop to a Satori overlay — if
+    // nothing passes cleanly we publish the best-scoring native buffer (qaStatus
+    // "native_forced"), which beats both a bare overlay and an empty post.
+    let bestBuffer = imageBuffer
+    let bestScore = qaScore(qa)
+    let passed = qa.ok
+    let qaStatus = qa.ok ? "pass" : "retry_pass"
 
     if (!qa.ok) {
-        console.log(`   ⚠️ QA problém: ${qa.issues.join("; ")}`)
-        console.log(`   🔄 Korektivní edit...`)
-        await report("rendering", 78, "🔧 Opravuji text v obrázku...")
-        try {
-            const { editExistingImage } = await import("../gemini-client")
-            const fixPrompt = `Fix ONLY the text and logo problems in this image — keep the composition, photo, style, colors and layout EXACTLY the same.
+        if (qa.productAccurate === false) {
+            // A wrong product can't be edit-fixed (the edit model never sees the
+            // reference) — regenerate with the references still attached.
+            console.log(`   ⚠️ QA: produkt neodpovídá referenci: ${qa.issues.join("; ")} → regeneruji`)
+            await report("rendering", 78, "🔧 Regeneruji — produkt musí odpovídat fotce...")
+            const retryPrompt = `${prompt}
+
+⚠️ PREVIOUS ATTEMPT WAS REJECTED — the product did not match the reference photo (${qa.issues.join("; ")}).
+Follow the PRODUCT FIDELITY rules exactly: the product must be a faithful reproduction of the attached "EXACT product photo".`
+            try {
+                const retryBuffer = await generateImageWithReferences(retryPrompt, refs, { aspectRatio: format.aspectRatio, resolution: "2K" })
+                cost += COSTS.imageGeneration
+                const qaRetry = await verifyNativeImage(retryBuffer, qaExpectation, qaProductRef)
+                cost += COSTS.imageQA
+                if (qaScore(qaRetry) < bestScore) { bestBuffer = retryBuffer; bestScore = qaScore(qaRetry); passed = qaRetry.ok }
+            } catch (e: any) { console.warn(`   ⚠️ Regenerace selhala: ${e?.message?.substring(0, 80)}`) }
+        } else {
+            console.log(`   ⚠️ QA problém: ${qa.issues.join("; ")} → korektivní edit`)
+            await report("rendering", 78, "🔧 Opravuji text v obrázku...")
+            try {
+                const { editExistingImage } = await import("../gemini-client")
+                const fixPrompt = `Fix ONLY the text and logo problems in this image — keep the composition, photo, style, colors and layout EXACTLY the same.
 Render the headline as this EXACT Czech text, character-for-character including diacritics: "${captionData.hook}"
 ${captionData.imageSubtext ? `Render the subtext as this EXACT Czech text: "${captionData.imageSubtext}"` : ""}
 ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
-
-            const fixedBuffer = await editExistingImage(imageBuffer, fixPrompt, {
-                mimeType: "image/png",
-                aspectRatio: format.aspectRatio,
-                resolution: "2K",
-            })
-            cost += COSTS.imageCorrectiveEdit
-            const qa2 = await verifyNativeImage(fixedBuffer, qaExpectation)
-            cost += COSTS.imageQA
-            if (qa2.ok) {
-                imageBuffer = fixedBuffer
-                qaStatus = "retry_pass"
-                console.log(`   ✓ Oprava prošla QA`)
-            } else {
-                console.log(`   ❌ Oprava neprošla QA: ${qa2.issues.join("; ")}`)
-                return null
+                const fixedBuffer = await editExistingImage(imageBuffer, fixPrompt, {
+                    mimeType: "image/png",
+                    aspectRatio: format.aspectRatio,
+                    resolution: "2K",
+                })
+                cost += COSTS.imageCorrectiveEdit
+                const qa2 = await verifyNativeImage(fixedBuffer, qaExpectation, qaProductRef)
+                cost += COSTS.imageQA
+                if (qaScore(qa2) < bestScore) { bestBuffer = fixedBuffer; bestScore = qaScore(qa2); passed = qa2.ok }
+            } catch (editErr: any) {
+                console.warn(`   ⚠️ Korektivní edit selhal: ${editErr?.message?.substring(0, 80)}`)
             }
-        } catch (editErr: any) {
-            console.warn(`   ⚠️ Korektivní edit selhal: ${editErr?.message?.substring(0, 80)}`)
-            return null
+        }
+
+        // One fresh full regeneration before giving up — a clean second draw often beats
+        // a patched first one.
+        if (!passed) {
+            console.log(`   🔄 Poslední pokus — čerstvá regenerace...`)
+            await report("rendering", 80, "🔧 Poslední pokus o čistý render...")
+            try {
+                const freshBuffer = await generateImageWithReferences(prompt, refs, { aspectRatio: format.aspectRatio, resolution: "2K" })
+                cost += COSTS.imageGeneration
+                const qaFresh = await verifyNativeImage(freshBuffer, qaExpectation, qaProductRef)
+                cost += COSTS.imageQA
+                if (qaScore(qaFresh) < bestScore) { bestBuffer = freshBuffer; bestScore = qaScore(qaFresh); passed = qaFresh.ok }
+            } catch (e: any) { console.warn(`   ⚠️ Regenerace selhala: ${e?.message?.substring(0, 80)}`) }
+        }
+
+        imageBuffer = bestBuffer
+        if (passed) {
+            qaStatus = "retry_pass"
+            console.log(`   ✓ Prošlo QA po opravě`)
+        } else {
+            qaStatus = "native_forced"
+            console.log(`   ⚠️ QA se nepodařilo splnit — publikuji nejlepší nativní pokus (score ${bestScore})`)
         }
     } else {
-        console.log(`   ✅ QA OK — text i logo v pořádku`)
+        console.log(`   ✅ QA OK — text${productRef ? ", logo i produkt" : " i logo"} v pořádku`)
     }
 
     const imageUrl = await uploadFinalImage(imageBuffer, ctx)
@@ -185,10 +232,10 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
 }
 
 // ============================================
-// REFERENCE IMAGE LOADING — shared by both engines
+// REFERENCE IMAGE LOADING — shared by both engines (and the carousel orchestrator)
 // ============================================
 
-async function loadReferenceImages(ctx: RenderContext): Promise<RefImage[]> {
+export async function loadReferenceImages(ctx: RenderContext): Promise<RefImage[]> {
     const { config, captionData, selectedType, selectedProduct } = ctx
     const refImages: RefImage[] = []
 
@@ -294,33 +341,37 @@ async function loadReferenceImages(ctx: RenderContext): Promise<RefImage[]> {
             }
         }
 
-        // Priority 1: Supabase storage
+        // Priority 1: Supabase storage — historically keyed by slug (config.id), but
+        // dashboard uploads write under the client UUID; check both layouts.
         if (!productImageLoaded && randomProduct.slug) {
             try {
                 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
                 if (!supabaseUrl) throw new Error('NEXT_PUBLIC_SUPABASE_URL not set')
-                const { data: files } = await supabaseAdmin.storage
-                    .from('product-images')
-                    .list(config.id, { search: randomProduct.slug })
+                for (const dir of [config.id, ctx.clientUuid]) {
+                    if (productImageLoaded || !dir) continue
+                    const { data: files } = await supabaseAdmin.storage
+                        .from('product-images')
+                        .list(dir, { search: randomProduct.slug })
 
-                const matchingFiles = (files || [])
-                    .filter(f => f.name.startsWith(randomProduct.slug) && /\.(jpg|jpeg|png|webp)$/i.test(f.name))
-                    .sort((a, b) => a.name.localeCompare(b.name))
+                    const matchingFiles = (files || [])
+                        .filter(f => f.name.startsWith(randomProduct.slug) && /\.(jpg|jpeg|png|webp)$/i.test(f.name))
+                        .sort((a, b) => a.name.localeCompare(b.name))
 
-                if (matchingFiles.length > 0) {
-                    const mainFile = matchingFiles[0].name
-                    const publicUrl = `${supabaseUrl}/storage/v1/object/public/product-images/${config.id}/${mainFile}`
-                    const resp = await fetch(publicUrl)
-                    if (resp.ok) {
-                        const arrayBuf = await resp.arrayBuffer()
-                        const mimeType = mainFile.endsWith(".png") ? "image/png" : "image/jpeg"
-                        refImages.push({
-                            buffer: Buffer.from(arrayBuf),
-                            mimeType,
-                            label: `EXACT product photo: ${randomProduct.name}`,
-                        })
-                        productImageLoaded = true
-                        console.log(`   🛍️ Loaded product image from Supabase: ${mainFile}`)
+                    if (matchingFiles.length > 0) {
+                        const mainFile = matchingFiles[0].name
+                        const publicUrl = `${supabaseUrl}/storage/v1/object/public/product-images/${dir}/${mainFile}`
+                        const resp = await fetch(publicUrl)
+                        if (resp.ok) {
+                            const arrayBuf = await resp.arrayBuffer()
+                            const mimeType = mainFile.endsWith(".png") ? "image/png" : "image/jpeg"
+                            refImages.push({
+                                buffer: Buffer.from(arrayBuf),
+                                mimeType,
+                                label: `EXACT product photo: ${randomProduct.name}`,
+                            })
+                            productImageLoaded = true
+                            console.log(`   🛍️ Loaded product image from Supabase: ${dir}/${mainFile}`)
+                        }
                     }
                 }
             } catch (err) {
@@ -400,212 +451,4 @@ async function uploadFinalImage(finalImage: Buffer, ctx: RenderContext): Promise
         .getPublicUrl(filename)
     console.log(`   ✓ URL: ${publicUrlData.publicUrl}`)
     return publicUrlData.publicUrl
-}
-
-// ============================================
-// OVERLAY ENGINE (legacy) — text-free image + Satori overlay
-// ============================================
-
-async function renderImageOverlay(ctx: RenderContext): Promise<RenderResult> {
-    const { config, captionData, format, selectedType, report, selectedProduct } = ctx
-    let cost = 0
-    let imageUrl: string | undefined
-
-    await report("art_director", 55, "🎨 Art Director vylepšuje image prompt...")
-    console.log("🧠 Vylepšuji image prompt (2-step pipeline)...")
-    const bodySnippet = captionData.body ? captionData.body.substring(0, 150) : undefined
-    let refinedPrompt = await refineImagePrompt(
-        config,
-        captionData as { imagePrompt: string; hook: string; imageSubtext?: string },
-        selectedType.name,
-        bodySnippet,
-        undefined,
-        format.overlayStyle,
-    )
-    cost += COSTS.promptRefinement
-    refinedPrompt = refinedPrompt.trim() + " IMPORTANT: NO TEXT, NO WORDS, NO LETTERS, NO SIGNS anywhere in the image. Pure background photo only."
-    console.log(`   ✓ Prompt refined`)
-
-    try {
-        let imageBuffer: Buffer | undefined = undefined
-
-        // Load reference images (brand refs + product photos)
-        const refImages = await loadReferenceImages(ctx)
-
-        // Product scene placement (product photo → AI edit into lifestyle scene)
-        const productRef = refImages.find(r => r.label?.startsWith("EXACT product photo"))
-        if (selectedProduct?.slug && productRef) {
-            const randomProduct = selectedProduct
-            try {
-                await report("rendering", 65, `🛍️ Umisťuji produkt do scény...`)
-                const productType = (randomProduct.type || "").toLowerCase()
-                let sceneHint = "a stylish surface with beautiful props around it"
-                if (productType.includes("food") || productType.includes("drink") || productType.includes("dessert") || productType.includes("jogurt")) {
-                    sceneHint = "a wooden table, a kitchen counter, a café setting, or a hand holding it. Food photography style"
-                } else if (productType.includes("cloth") || productType.includes("shirt") || productType.includes("fashion") || productType.includes("wear")) {
-                    sceneHint = "a flat lay on a clean surface, worn by a person, or hanging in a stylish setting. Fashion photography style"
-                } else if (productType.includes("apart") || productType.includes("real") || productType.includes("hotel") || productType.includes("room")) {
-                    sceneHint = "a wider interior view showing the space in context. Architectural photography style"
-                } else if (productType.includes("cosmetic") || productType.includes("beauty") || productType.includes("skin")) {
-                    sceneHint = "a marble surface with botanical elements, or held by elegant hands. Beauty photography style"
-                }
-                const productEditPrompt = `Take this product photo and place the product into a beautiful lifestyle scene. The product must remain EXACTLY as it is — do not change its appearance, colors, shape, or any details. Just add an environment around it: ${sceneHint}, beautiful lighting, shallow depth of field. No text or words in the image.`
-
-                const { editExistingImage } = await import("../gemini-client")
-                imageBuffer = await editExistingImage(
-                    productRef.buffer,
-                    productEditPrompt,
-                    {
-                        mimeType: productRef.mimeType,
-                        aspectRatio: format.aspectRatio,
-                        resolution: "2K",
-                    }
-                )
-                refImages.splice(refImages.indexOf(productRef), 1)
-                console.log(`   📸 Product placed in scene via AI edit (${(imageBuffer.length / 1024).toFixed(0)} KB)`)
-            } catch (editErr: any) {
-                console.warn(`   ⚠️ Product scene edit failed: ${editErr.message?.substring(0, 100)}`)
-                const aspectMap: Record<string, { w: number; h: number }> = {
-                    "1:1": { w: 1080, h: 1080 }, "4:5": { w: 1080, h: 1350 },
-                    "3:4": { w: 1080, h: 1440 }, "9:16": { w: 1080, h: 1920 },
-                }
-                const target = aspectMap[format.aspectRatio] || { w: 1080, h: 1440 }
-                imageBuffer = await sharp(productRef.buffer)
-                    .resize(target.w, target.h, { fit: "cover", position: "centre" })
-                    .jpeg({ quality: 95 })
-                    .toBuffer()
-                refImages.splice(refImages.indexOf(productRef), 1)
-                console.log(`   📸 Fallback: using raw product photo (${target.w}×${target.h})`)
-            }
-            console.log(`   📌 Product: "${randomProduct.name}" — scene placement mode`)
-        }
-
-        // ─── IMAGE STRATEGY: Real photos first, generation as fallback ───
-        if (!imageBuffer && refImages.length > 0) {
-            try {
-                const bestRef = refImages[0]
-
-                await report("rendering", 65, `🖼️ Edituji reálnou fotku...`)
-                console.log(`📸 Editing REAL brand photo (not generating fake scene)`)
-                console.log(`   📎 Using: ${bestRef.label?.substring(0, 80) || 'brand photo'}`)
-
-                const editPrompt = `Edit this real photograph to match the following creative direction:
-
-${refinedPrompt}
-
-CRITICAL RULES:
-- This is a REAL photograph from the brand. PRESERVE the authentic environment, space, and atmosphere.
-- You may add creative elements (people, animals, objects, mood lighting) but the REAL location/product/food must remain recognizable.
-- Make any additions look natural and photorealistic — as if they were really there when the photo was taken.
-- DO NOT replace the entire scene. The original photo IS the scene.
-- DO NOT change the core subject (the room, the food, the product, the building).
-- ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS anywhere in the image.
-- If the creative direction doesn't require adding anything, simply enhance the photo (better lighting, color grading, professional touch) while keeping it 100% authentic.`
-
-                const { editExistingImage } = await import("../gemini-client")
-                imageBuffer = await editExistingImage(
-                    bestRef.buffer,
-                    editPrompt,
-                    {
-                        mimeType: bestRef.mimeType,
-                        aspectRatio: format.aspectRatio,
-                        resolution: "2K",
-                    }
-                )
-                console.log(`   ✓ Real photo edited (${(imageBuffer.length / 1024).toFixed(0)} KB)`)
-            } catch (editErr: any) {
-                console.warn(`   ⚠️ Photo editing failed: ${editErr.message?.substring(0, 100)}`)
-                console.log(`   🔄 Fallback → generating with references...`)
-                try {
-                    imageBuffer = await generateImageWithReferences(
-                        refinedPrompt, refImages,
-                        { aspectRatio: format.aspectRatio, resolution: "2K" }
-                    )
-                } catch (refErr: any) {
-                    console.warn(`   ⚠️ Ref generation also failed: ${refErr.message?.substring(0, 100)}`)
-                    console.log("🎨 Final fallback → Nano Banana Pro (no refs)...")
-                    imageBuffer = await generateImage(refinedPrompt, { aspectRatio: format.aspectRatio as any })
-                }
-            }
-        }
-        // No reference photos at all → pure generation
-        if (!imageBuffer) {
-            console.log("🎨 No brand photos available → Nano Banana Pro (2K)...")
-            imageBuffer = await generateImage(refinedPrompt, { aspectRatio: format.aspectRatio as any })
-        }
-        cost += COSTS.imageGeneration
-        console.log(`   ✓ Obrázek (${(imageBuffer.length / 1024).toFixed(0)} KB, 2K resolution)`)
-
-        // Text overlay
-        let finalImage: Buffer
-        if (format.overlayStyle === "none") {
-            console.log(`🎭 ${selectedType.name} — overlay: none (raw image)`)
-            finalImage = imageBuffer
-        } else {
-            console.log("✏️  Přidávám text (programaticky — bez chyb)...")
-            finalImage = await overlayText(imageBuffer, {
-                headline: captionData.hook,
-                subtext: captionData.imageSubtext,
-                variant: (format.overlayStyle || "default") as any,
-                textAlign: config.feedAesthetic?.textAlign,
-                headlineScale: config.feedAesthetic?.headlineScale,
-                gradientColors: config.overlayGradient,
-                logoFile: config.logoFile,
-                fontFamily: config.feedAesthetic?.fontOverride,
-                accentColor: config.feedAesthetic?.accentColor,
-                accentWords: captionData.accentWords,
-            })
-            console.log(`   ✓ Text overlay (${(finalImage.length / 1024).toFixed(0)} KB)`)
-
-            // Vision check
-            await report("chief_editor", 75, "👁️ Šéfredaktor kontroluje kompozici obrázku...")
-            console.log("👁️ Vision check — kontrola overlay kompozice...")
-            const overlayCheck = await reviewOverlayComposition(
-                finalImage,
-                format.overlayStyle || "default",
-                captionData.hook,
-            )
-            cost += COSTS.textGeneration
-
-            if (!overlayCheck.ok && overlayCheck.issues.length > 0) {
-                console.log(`   ⚠️ Overlay problém: ${overlayCheck.issues.join(", ")}`)
-                console.log(`   🔄 Regeneruji obrázek s lepší kompozicí...`)
-
-                const compositionFix = overlayCheck.compositionHint
-                    ? `\nCOMPOSITION FIX: ${overlayCheck.compositionHint}. Leave the ${format.overlayStyle === "top" || format.overlayStyle === "editorial" ? "top" : "bottom"} area COMPLETELY CLEAR for text overlay.`
-                    : ""
-                const fixedPrompt = refinedPrompt + compositionFix
-
-                try {
-                    const retryBuffer = await generateImage(fixedPrompt, { aspectRatio: format.aspectRatio as any })
-                    cost += COSTS.imageGeneration
-                    console.log(`   ✓ Retry obrázek (${(retryBuffer.length / 1024).toFixed(0)} KB)`)
-
-                    finalImage = await overlayText(retryBuffer, {
-                        headline: captionData.hook,
-                        subtext: captionData.imageSubtext,
-                        variant: (format.overlayStyle || "default") as any,
-                        textAlign: config.feedAesthetic?.textAlign,
-                        headlineScale: config.feedAesthetic?.headlineScale,
-                        gradientColors: config.overlayGradient,
-                        logoFile: config.logoFile,
-                        fontFamily: config.feedAesthetic?.fontOverride,
-                        accentColor: config.feedAesthetic?.accentColor,
-                        accentWords: captionData.accentWords,
-                    })
-                    console.log(`   ✓ Retry overlay (${(finalImage.length / 1024).toFixed(0)} KB)`)
-                } catch (retryErr: any) {
-                    console.warn(`   ⚠️ Retry failed: ${retryErr?.message?.substring(0, 80)} — using original`)
-                }
-            } else {
-                console.log(`   ✅ Overlay kompozice OK`)
-            }
-        }
-
-        imageUrl = await uploadFinalImage(finalImage, ctx)
-    } catch (imgErr) {
-        console.error("   ⚠️ Image failed:", imgErr)
-    }
-
-    return { imageUrl, cost, imageStyle: `overlay:${format.overlayStyle || "default"}` }
 }

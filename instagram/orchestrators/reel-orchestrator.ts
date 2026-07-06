@@ -177,14 +177,13 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
             const coverScene = captionData.scenes?.[0]?.visual || captionData.hook
             let coverBuffer: Buffer | undefined
 
-            // Native engine: designed cover with the hook rendered in the image + logo
-            if (config.visualEngine !== "overlay") {
-                try {
-                    coverBuffer = await renderNativeReelCover(ctx, coverScene)
-                    cost += COSTS.designerBrief + COSTS.imageQA
-                } catch (nativeErr: any) {
-                    console.warn(`   ⚠️ Native cover failed: ${nativeErr?.message?.substring(0, 80)} — fallback na text-free cover`)
-                }
+            // Native cover: designed cover with the hook rendered in the image + logo.
+            // On a hard failure we fall back to a plain text-free cover (not Satori).
+            try {
+                coverBuffer = await renderNativeReelCover(ctx, coverScene)
+                cost += COSTS.designerBrief + COSTS.imageQA
+            } catch (nativeErr: any) {
+                console.warn(`   ⚠️ Native cover failed: ${nativeErr?.message?.substring(0, 80)} — fallback na text-free cover`)
             }
 
             if (!coverBuffer) {

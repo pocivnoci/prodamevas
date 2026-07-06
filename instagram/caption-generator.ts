@@ -476,10 +476,14 @@ export function buildSmartWeekPlan(config: ClientConfig, performance: Performanc
         }
     }
 
+    // Manual-only formats (giveaways, contests) are user-triggered only — never planned.
+    const manualOnlyNames = new Set((config.postTypeDefs ?? []).filter(d => d.manualOnly).map(d => d.name))
+
     const plan: string[] = []
     for (const [pillar, ratio] of Object.entries(ratios)) {
         const pillarCount = Math.max(1, Math.round(count * ratio))
-        const types = config.contentPillars[pillar]?.postTypes || []
+        const types = (config.contentPillars[pillar]?.postTypes || []).filter(t => !manualOnlyNames.has(t))
+        if (types.length === 0) continue
         for (let i = 0; i < pillarCount && plan.length < count; i++) {
             plan.push(types[i % types.length])
         }

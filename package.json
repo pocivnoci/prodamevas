@@ -11,7 +11,6 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.109.0",
     "@google/genai": "^1.42.0",
-    "@resvg/resvg-js": "^2.6.2",
     "@sentry/nextjs": "^10.57.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.97.0",
@@ -26,7 +25,6 @@
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "satori": "^0.19.2",
     "sharp": "^0.34.5",
     "tailwind-merge": "^3.5.0"
   },

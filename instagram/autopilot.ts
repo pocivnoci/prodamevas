@@ -212,11 +212,17 @@ export async function generateOnePost(options: {
         if (!found) throw new Error(`Post type "${forcedTypeName}" not found. Available: ${postTypes.map(t => t.name).join(", ")}`)
         selectedType = found
     } else {
+        // Manual-only formats (giveaways, contests — real-world commitments) are
+        // NEVER auto-picked; they exist only for the explicit Generate-tab flow.
+        const manualOnlyNames = new Set((config.postTypeDefs ?? []).filter(d => d.manualOnly).map(d => d.name))
+        const autoTypes = postTypes.filter(t => !manualOnlyNames.has(t.name))
+        const selectableTypes = autoTypes.length > 0 ? autoTypes : postTypes
+
         // Memory-informed post type weighting
         let postTypeBoosts: Record<string, number> = {}
         try {
             const { getPostTypeBoosts } = await import("./memory-agent")
-            postTypeBoosts = await getPostTypeBoosts(postTypes.map(t => t.name))
+            postTypeBoosts = await getPostTypeBoosts(selectableTypes.map(t => t.name))
             const boostedTypes = Object.entries(postTypeBoosts).filter(([, v]) => v !== 0)
             if (boostedTypes.length > 0) {
                 console.log(`   🧠 Memory boosts: ${boostedTypes.map(([k, v]) => `${k}=${v > 0 ? "+" : ""}${v.toFixed(2)}`).join(", ")}`)
@@ -228,7 +234,7 @@ export async function generateOnePost(options: {
         // Holiday/seasonal signal → bounded ×1.3 bias toward product/promo formats
         // (same name-pattern approach as review-type detection). Deterministic, small.
         const HOLIDAY_BIAS_PATTERN = /product|produkt|drop|limitka|nabidka|promo|akce/i
-        const weighted = postTypes.flatMap(type => {
+        const weighted = selectableTypes.flatMap(type => {
             const baseWeight = type.frequency === "daily" ? 3 : type.frequency === "weekly" ? 2 : 1
             const boost = postTypeBoosts[type.name] || 0
             let finalWeight = Math.max(1, Math.round(baseWeight * (1 + boost)))
@@ -574,6 +580,31 @@ export async function generateOnePost(options: {
         // Non-fatal
     }
 
+    // Inject feed continuity context — recent published posts for thematic/visual flow
+    const publishedPosts = recentPosts
+        .filter(p => p.status === "posted" || p.status === "approved")
+        .slice(0, 5)
+    if (publishedPosts.length > 0) {
+        const feedSummary = publishedPosts.map((p, i) => {
+            const hook = p.caption?.split("\n")[0]?.substring(0, 60) || "?"
+            const pillar = p.content_pillar || "?"
+            return `  ${i + 1}. "${hook}" [${pillar}]`
+        }).join("\n")
+        megaPrompt += `\n\n## 📱 FEED KONTINUITA — POSLEDNÍ PUBLIKOVANÉ PŘÍSPĚVKY
+Tvůj nový post bude na feedu HNED VEDLE těchto příspěvků. Zajisti návaznost:
+
+${feedSummary}
+
+### INSTRUKCE:
+- NEOPAKUJ stejné hooky, fráze ani argumenty z posledních postů
+- Zvol JINÝ úhel pohledu nebo content pillar než posledních 2-3 postů
+- Vizuální styl by měl být konzistentní s brandem, ale ne identický s posledním postem
+- Pokud poslední posty byly edukační, zvol lehčí formát (meme, behind-the-scenes) — a naopak
+- Feed by měl působit pestře a dynamicky, ne jako kopie jednoho vzoru
+`
+        console.log(`   📱 Feed continuity: ${publishedPosts.length} published postů jako kontext`)
+    }
+
     // Inject real-world context (season, industry trends, local relevance) — gathered
     // BEFORE the Researcher (step 0), appended here at the original injection point.
     megaPrompt += contextBlock
@@ -867,7 +898,7 @@ export async function generateOnePost(options: {
             // 'image' | 'carousel' | 'reel' — drives how the publisher cron pushes media.
             // (Carousel slide URLs stay pipe-joined in image_url per the orchestrator convention.)
             media_type: format.medium,
-            image_style: renderResult?.imageStyle ?? (isReel ? "veo-3.1" : `overlay:${format.overlayStyle || "default"}`),
+            image_style: renderResult?.imageStyle ?? (isReel ? "veo-3.1" : "native"),
             design_brief: renderResult?.designBrief ?? null,
             status: "draft",
         })

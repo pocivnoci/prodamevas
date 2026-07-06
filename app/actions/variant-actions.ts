@@ -53,64 +53,55 @@ export async function revisePost(
             postTypeName: postTypeSlug,
         })
 
-        // 4. Regenerate image if we have an image prompt
+        // 4. Regenerate image (native engine) for single-image posts. Carousels/reels
+        //    keep their original media — only the caption changed on a revision.
         let imageUrl = original.image_url
         let imagePrompt = original.image_prompt
-        const imageStyle = original.image_style
+        let imageStyle = original.image_style
 
-        if (parsed.imagePrompt) {
+        const isSingleImage = original.media_type !== "carousel" && original.media_type !== "reel"
+        if (parsed.imagePrompt && isSingleImage) {
             try {
-                const { refineImagePrompt } = await import("@/instagram/image-pipeline")
-                const { generateImage } = await import("@/instagram/gemini-client")
-                const { overlayText } = await import("@/instagram/text-overlay")
+                const { renderImage } = await import("@/instagram/orchestrators/image-orchestrator")
+                const { getPostFormat } = await import("@/instagram/caption-generator")
 
-                const refinedPrompt = await refineImagePrompt(
-                    fullConfig,
-                    { imagePrompt: parsed.imagePrompt, hook: parsed.hook || parsed.caption.split("\n")[0], imageSubtext: parsed.imageSubtext },
-                    postTypeSlug
-                )
+                // Revisions render a static image — coerce a reel/none format to a real one.
+                const baseFormat = getPostFormat(fullConfig, postTypeSlug)
+                const format = baseFormat.medium === "image"
+                    ? baseFormat
+                    : { aspectRatio: "4:5" as const, medium: "image" as const, overlayStyle: "default" as const }
 
-                const imageBuffer = await generateImage(refinedPrompt, { aspectRatio: "3:4" as any })
-                console.log(`   ✓ Revised image generated (${(imageBuffer.length / 1024).toFixed(0)} KB)`)
+                const selectedProduct = product ? {
+                    name: product.name,
+                    type: "",
+                    slug: product.slug,
+                    price: product.price || undefined,
+                    description: product.description || undefined,
+                } : undefined
 
-                // Apply text overlay
-                const overlayStyle = imageStyle || "default"
-                const finalImage = await overlayText(imageBuffer, {
-                    headline: parsed.hook || parsed.caption.split("\n")[0],
-                    subtext: parsed.imageSubtext,
-                    variant: overlayStyle as any,
-                    textAlign: fullConfig.feedAesthetic?.textAlign,
-                    headlineScale: fullConfig.feedAesthetic?.headlineScale,
-                    gradientColors: fullConfig.overlayGradient,
-                    logoFile: fullConfig.logoFile,
-                    fontFamily: fullConfig.feedAesthetic?.fontOverride,
-                    accentColor: fullConfig.feedAesthetic?.accentColor,
+                const render = await renderImage({
+                    config: fullConfig,
+                    captionData: {
+                        hook: parsed.hook || parsed.caption.split("\n")[0],
+                        imageSubtext: parsed.imageSubtext,
+                        imagePrompt: parsed.imagePrompt,
+                        cta: "",
+                        hashtags: parsed.hashtags || [],
+                    },
+                    format,
+                    selectedType: { id: original.post_type_id, name: postTypeSlug },
+                    report: async () => {},
+                    selectedProduct,
+                    clientUuid: clientId,
                 })
 
-                // Compress and upload
-                const sharp = (await import("sharp")).default
-                const compressed = await sharp(finalImage)
-                    .webp({ quality: 90, effort: 6 })
-                    .toBuffer()
-
-                const bucketName = fullConfig.storageBucket || "audit-screenshots"
-                const filename = `ig-posts/${Date.now()}-revised.webp`
-                const { error: uploadError } = await supabaseAdmin.storage
-                    .from(bucketName)
-                    .upload(filename, compressed, {
-                        contentType: "image/webp",
-                        cacheControl: "31536000",
-                    })
-
-                if (!uploadError) {
-                    const { data: publicUrlData } = supabaseAdmin.storage
-                        .from(bucketName)
-                        .getPublicUrl(filename)
-                    imageUrl = publicUrlData.publicUrl
-                    imagePrompt = refinedPrompt
-                    console.log(`   ✓ Revised image uploaded: ${imageUrl}`)
+                if (render.imageUrl) {
+                    imageUrl = render.imageUrl
+                    imagePrompt = parsed.imagePrompt
+                    imageStyle = render.imageStyle ?? imageStyle
+                    console.log(`   ✓ Revised image (native): ${imageUrl}`)
                 } else {
-                    console.warn(`   ⚠️ Revised image upload failed:`, uploadError.message)
+                    console.warn("   ⚠️ Revised image render produced no URL — keeping original")
                 }
             } catch (imgErr: any) {
                 console.warn(`   ⚠️ Image regeneration failed (keeping original):`, imgErr.message?.substring(0, 100))
@@ -126,7 +117,7 @@ export async function revisePost(
                 hashtags: parsed.hashtags,
                 image_url: imageUrl,
                 image_prompt: imagePrompt,
-                image_style: original.image_style,
+                image_style: imageStyle,
                 post_type_id: original.post_type_id,
                 content_pillar: original.content_pillar,
                 status: "draft",

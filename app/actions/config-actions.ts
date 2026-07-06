@@ -2,6 +2,8 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess } from "@/lib/auth-guard"
+import { reconcileFormats } from "@/instagram/configs/reconcile"
+import type { OverlayStyle } from "@/instagram/configs/types"
 
 export async function getClientConfig(projectSlug: string): Promise<any> {
     try {
@@ -55,9 +57,13 @@ export async function updateClientConfig(projectSlug: string, partialConfig: any
             newConfig.defaultFormat = { ...currentConfig.defaultFormat, ...partialConfig.defaultFormat }
         }
 
+        // Reconcile format projections before persisting so the Témata (pillar)
+        // editor's plain save can never leave a format orphaned by a deleted pillar.
+        const reconciled = reconcileFormats(newConfig)
+
         const { error: updateErr } = await supabaseAdmin
             .from("clients")
-            .update({ config: newConfig })
+            .update({ config: reconciled })
             .eq("id", clientId)
 
         if (updateErr) throw updateErr
@@ -73,6 +79,210 @@ export async function updateClientConfig(projectSlug: string, partialConfig: any
     }
 }
 
+
+// ─── Post Format Management ──────────────────────────────────────────
+//
+// A format lives in FOUR places that must stay in sync (see scripts/
+// audit-formats-pillars.ts): config.postTypes, config.postTypeDefs,
+// config.postFormats + pillar membership, and the ig_post_types row.
+// These actions are the ONLY safe way to add/edit/remove a single format —
+// they update all four sources atomically and never regenerate the set
+// (unlike onboarding's generateCustomFormats, which replaces everything).
+
+export interface PostFormatInput {
+    /** Existing format slug when editing; omit to create (derived from display_name) */
+    name?: string
+    display_name: string
+    emoji: string
+    description: string
+    /** Content pillar key (must exist in config.contentPillars) */
+    pillar: string
+    medium: "image" | "carousel" | "reel"
+    aspectRatio: "1:1" | "4:5" | "3:4" | "9:16"
+    uses_product: boolean
+    /** true = only selectable manually in the Generate tab; excluded from autopilot
+     *  rotation and content planning (giveaways, contests, limited drops) */
+    manualOnly?: boolean
+    /** Text overlay style for the render. Optional — falls back to a medium-derived
+     *  default. Reels are always "none"; static media can never be "none". */
+    overlayStyle?: OverlayStyle
+}
+
+function slugifyFormatName(input: string): string {
+    return input.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+        .replace(/[^a-z0-9_]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")
+}
+
+const STATIC_OVERLAY_STYLES: OverlayStyle[] =
+    ["default", "cover", "top", "centered", "editorial", "split", "minimal", "full-typo", "step"]
+
+/** Resolve the render overlay style, enforcing the hard rule: reels are text-free
+ *  ("none"); a static image/carousel may NEVER be "none". Honors the user's choice
+ *  when valid, else falls back to the medium-derived default. */
+function resolveOverlayStyle(medium: "image" | "carousel" | "reel", chosen?: OverlayStyle): OverlayStyle {
+    if (medium === "reel") return "none"
+    if (chosen && STATIC_OVERLAY_STYLES.includes(chosen)) return chosen
+    return medium === "carousel" ? "cover" : "default"
+}
+
+export async function upsertPostFormat(
+    projectSlug: string,
+    input: PostFormatInput
+): Promise<{ success: boolean; name?: string; error?: string }> {
+    try {
+        const { clientId } = await requireProjectAccess(projectSlug)
+
+        const name = slugifyFormatName(input.name || input.display_name)
+        if (!name) return { success: false, error: "Neplatný název formátu" }
+        if (!input.display_name?.trim() || !input.description?.trim()) {
+            return { success: false, error: "Název a popis formátu jsou povinné" }
+        }
+
+        const { data: client, error: fetchErr } = await supabaseAdmin
+            .from("clients")
+            .select("config")
+            .eq("id", clientId)
+            .single()
+        if (fetchErr || !client) throw new Error(`Failed to fetch client: ${fetchErr?.message}`)
+
+        const config = client.config || {}
+        if (!config.contentPillars?.[input.pillar]) {
+            return { success: false, error: `Téma "${input.pillar}" v konfiguraci neexistuje` }
+        }
+
+        // Reels are 9:16 only; feed media must use a feed-legal ratio.
+        const aspectRatio = input.medium === "reel"
+            ? "9:16"
+            : (["1:1", "4:5", "3:4"].includes(input.aspectRatio) ? input.aspectRatio : "4:5")
+
+        const def = {
+            name,
+            display_name: input.display_name.trim().slice(0, 60),
+            emoji: input.emoji || "📝",
+            description: input.description.trim().slice(0, 400),
+            pillar: input.pillar,
+            medium: input.medium,
+            aspectRatio,
+            uses_product: Boolean(input.uses_product),
+            manualOnly: Boolean(input.manualOnly),
+        }
+
+        // postTypeDefs is the SOURCE OF TRUTH — replace by name or append.
+        const defs: any[] = Array.isArray(config.postTypeDefs) ? [...config.postTypeDefs] : []
+        const defIdx = defs.findIndex(d => d?.name === name)
+        if (defIdx >= 0) defs[defIdx] = def
+        else defs.push(def)
+        config.postTypeDefs = defs
+
+        // Set this format's render entry explicitly (honors the chosen overlayStyle;
+        // reconcile won't overwrite an existing postFormats entry).
+        config.postFormats = config.postFormats || {}
+        config.postFormats[name] = {
+            aspectRatio,
+            medium: input.medium,
+            overlayStyle: resolveOverlayStyle(input.medium, input.overlayStyle),
+        }
+
+        // postTypes + pillar membership are projections — reconcile rebuilds them
+        // from postTypeDefs so the four sources can't drift.
+        const reconciled = reconcileFormats(config)
+
+        const { error: updateErr } = await supabaseAdmin
+            .from("clients")
+            .update({ config: reconciled })
+            .eq("id", clientId)
+        if (updateErr) throw updateErr
+
+        // 5) ig_post_types row — update in place or insert (same shape as ensurePostTypes)
+        const { data: existingRow } = await supabaseAdmin
+            .from("ig_post_types")
+            .select("id")
+            .eq("client_id", clientId)
+            .eq("name", name)
+            .maybeSingle()
+
+        const rowData = {
+            display_name: def.emoji ? `${def.emoji} ${def.display_name}` : def.display_name,
+            emoji: def.emoji,
+            description: def.description,
+            uses_product: def.uses_product,
+            is_active: true,
+        }
+        if (existingRow) {
+            const { error } = await supabaseAdmin
+                .from("ig_post_types").update(rowData).eq("id", existingRow.id)
+            if (error) throw error
+        } else {
+            const { error } = await supabaseAdmin
+                .from("ig_post_types")
+                .insert({ client_id: clientId, name, frequency: "weekly", ...rowData })
+            if (error) throw error
+        }
+
+        const { invalidateConfigCache } = await import("@/instagram/configs")
+        invalidateConfigCache(projectSlug)
+        return { success: true, name }
+    } catch (err: any) {
+        console.error("upsertPostFormat error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}
+
+export async function removePostFormat(
+    projectSlug: string,
+    name: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { clientId } = await requireProjectAccess(projectSlug)
+
+        const { data: client, error: fetchErr } = await supabaseAdmin
+            .from("clients")
+            .select("config")
+            .eq("id", clientId)
+            .single()
+        if (fetchErr || !client) throw new Error(`Failed to fetch client: ${fetchErr?.message}`)
+
+        const config = client.config || {}
+        const postTypes: string[] = Array.isArray(config.postTypes) ? config.postTypes : []
+        if (!postTypes.includes(name)) return { success: false, error: "Formát neexistuje" }
+        if (postTypes.length <= 1) return { success: false, error: "Poslední formát nelze smazat" }
+
+        // Remove from the source of truth (postTypeDefs) + active list + render map.
+        config.postTypes = postTypes.filter(n => n !== name)
+        config.postTypeDefs = (config.postTypeDefs || []).filter((d: any) => d?.name !== name)
+        if (config.postFormats?.[name]) delete config.postFormats[name]
+        // weekPlan must never reference a removed format — refill emptied slots
+        // from the remaining active set so the plan length stays intact.
+        if (Array.isArray(config.weekPlan) && config.weekPlan.includes(name)) {
+            const remaining: string[] = config.postTypes
+            config.weekPlan = config.weekPlan.map((n: string, i: number) =>
+                n === name ? remaining[i % remaining.length] : n)
+        }
+
+        // reconcile drops the removed name from every pillar's membership.
+        const reconciled = reconcileFormats(config)
+
+        const { error: updateErr } = await supabaseAdmin
+            .from("clients")
+            .update({ config: reconciled })
+            .eq("id", clientId)
+        if (updateErr) throw updateErr
+
+        // Deactivate (not delete) the row — historical posts keep their FK + display name.
+        await supabaseAdmin
+            .from("ig_post_types")
+            .update({ is_active: false })
+            .eq("client_id", clientId)
+            .eq("name", name)
+
+        const { invalidateConfigCache } = await import("@/instagram/configs")
+        invalidateConfigCache(projectSlug)
+        return { success: true }
+    } catch (err: any) {
+        console.error("removePostFormat error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}
 
 // ─── Brand Image Management ─────────────────────────────────────────
 

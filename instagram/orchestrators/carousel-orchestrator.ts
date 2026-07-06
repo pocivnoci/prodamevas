@@ -1,28 +1,25 @@
 /**
  * Carousel Orchestrator — Multi-slide image generation pipeline
  *
- * Two engines (config.visualEngine):
- *  - "native" (default): one designer call → shared design system + per-slide briefs →
- *    Nano Banana Pro renders complete slides (Czech typography + logo on cover) →
- *    vision QA with a carousel-wide corrective-edit budget (300s guard)
- *  - "overlay" (legacy): per-slide text-free image gen → Satori overlay → vision check
+ * Native engine only: one designer call → shared design system + per-slide briefs →
+ * Nano Banana Pro renders complete slides (Czech typography + logo on cover) →
+ * vision QA with a carousel-wide corrective-edit budget (300s guard). On QA trouble a
+ * slide keeps its best native attempt (never a Satori overlay; see qaScore).
  *
  * Extracted from autopilot.ts for maintainability.
  */
 
 import supabaseAdmin from "../../supabase/admin"
 import sharp from "sharp"
-import { generateImage, generateImageWithReferences } from "../gemini-client"
-import { overlayText } from "../text-overlay"
+import { generateImageWithReferences } from "../gemini-client"
 import {
-    refineCarouselPrompts,
     generateCarouselDesignBriefs,
     buildNativeImagePrompt,
     verifyNativeImage,
-    refineImagePrompt,
+    qaScore,
 } from "../image-pipeline"
 import { loadLogo } from "../logo-loader"
-import { reviewOverlayComposition } from "../editorial-board"
+import { loadReferenceImages } from "./image-orchestrator"
 import { COSTS } from "../caption-generator"
 import { withRetry } from "../../utils/retry"
 import type { RenderContext, RenderResult } from "./types"
@@ -32,20 +29,16 @@ const MAX_CORRECTIVE_EDITS = 2
 
 export async function renderCarousel(ctx: RenderContext): Promise<RenderResult> {
     if (!ctx.captionData.slides) return { cost: 0 }
-
-    if (ctx.config.visualEngine !== "overlay" && ctx.format.overlayStyle !== "none") {
-        try {
-            const native = await renderCarouselNative(ctx)
-            if (native) return native
-        } catch (err: any) {
-            console.warn(`   ⚠️ Native carousel failed: ${err?.message?.substring(0, 100)}`)
-        }
-        console.log("   ↩️ Native carousel nevyšel — fallback na overlay engine...")
-        const fallback = await renderCarouselOverlay(ctx)
-        return { ...fallback, qaStatus: "fallback" }
+    // Native-only: Nano Banana Pro renders each slide with its Czech text; on QA trouble
+    // it retries and keeps the best native attempt per slide (never a Satori overlay). A
+    // null return means a true infra failure (the cover couldn't be generated at all).
+    try {
+        const native = await renderCarouselNative(ctx)
+        if (native) return native
+    } catch (err: any) {
+        console.warn(`   ⚠️ Native carousel failed: ${err?.message?.substring(0, 120)}`)
     }
-    const result = await renderCarouselOverlay(ctx)
-    return { ...result, qaStatus: "overlay" }
+    return { cost: 0 }
 }
 
 // ============================================
@@ -53,7 +46,7 @@ export async function renderCarousel(ctx: RenderContext): Promise<RenderResult> 
 // ============================================
 
 async function renderCarouselNative(ctx: RenderContext): Promise<RenderResult | null> {
-    const { config, captionData, format, selectedType, report } = ctx
+    const { config, captionData, format, selectedType, report, selectedProduct } = ctx
     let cost = 0
 
     const allSlides = [
@@ -62,6 +55,20 @@ async function renderCarouselNative(ctx: RenderContext): Promise<RenderResult | 
     ]
     const slideCount = allSlides.length
     console.log(`📸 Native carousel (${slideCount} slidů)...`)
+
+    // Product reference photo — loaded BEFORE the briefs so the designer knows the
+    // real product exists, and attached to EVERY slide render so any depiction of
+    // the product stays faithful (previously carousels got only the logo → the
+    // model invented the product on every slide).
+    const productRef = selectedProduct
+        ? (await loadReferenceImages(ctx)).find(r => r.label?.startsWith("EXACT product photo")) || null
+        : null
+    const productInfo = selectedProduct ? {
+        name: selectedProduct.name,
+        type: selectedProduct.type,
+        description: selectedProduct.description,
+        hasReferencePhoto: Boolean(productRef),
+    } : undefined
 
     await report("art_director", 52, "🎨 AI Designer navrhuje design systém carouselu...")
     const { designSystem, briefs } = await generateCarouselDesignBriefs({
@@ -73,6 +80,7 @@ async function renderCarouselNative(ctx: RenderContext): Promise<RenderResult | 
         recentBriefs: ctx.recentBriefs ?? [],
         bannedArchetypes: ctx.recentArchetypes ?? [],
         accentWords: captionData.accentWords,
+        product: productInfo,
     })
     cost += COSTS.designerBrief
     console.log(`   ✓ Design system: ${designSystem.substring(0, 100)}...`)
@@ -94,7 +102,7 @@ async function renderCarouselNative(ctx: RenderContext): Promise<RenderResult | 
     const bucketName = config.storageBucket || "audit-screenshots"
     let editsUsed = 0
     let anyRetry = false
-    let coverFellBack = false
+    let anyForced = false // a slide shipped its best native attempt without passing QA cleanly
 
     for (let i = 0; i < allSlides.length; i++) {
         const slide = allSlides[i]
@@ -104,7 +112,7 @@ async function renderCarouselNative(ctx: RenderContext): Promise<RenderResult | 
         console.log(`\n   📄 ${label}: "${slide.headline}"`)
 
         const processSlide = async () => {
-            const prompt = `${buildNativeImagePrompt(brief, { ...config, logoFile: isCover ? config.logoFile : undefined })}
+            const prompt = `${buildNativeImagePrompt(brief, { ...config, logoFile: isCover ? config.logoFile : undefined }, productInfo)}
 
 ## CAROUSEL DESIGN SYSTEM (identical across all ${slideCount} slides):
 ${designSystem}
@@ -113,69 +121,77 @@ ${designSystem}
 Render a small, subtle "${i + 1}/${slideCount}" indicator consistent with the design system (e.g. corner or edge).`
 
             const refs = isCover && logoRef ? [logoRef] : []
-            let imageBuffer = refs.length
-                ? await generateImageWithReferences(prompt, refs, { aspectRatio: format.aspectRatio, resolution: "2K" })
-                : await generateImageWithReferences(prompt, [], { aspectRatio: format.aspectRatio, resolution: "2K" })
+            if (productRef) refs.push(productRef)
+            let imageBuffer = await generateImageWithReferences(prompt, refs, { aspectRatio: format.aspectRatio, resolution: "2K" })
             cost += COSTS.imageGeneration
             console.log(`   ✓ Obrázek ${i + 1} (${(imageBuffer.length / 1024).toFixed(0)} KB)`)
 
-            // QA every slide; corrective edits limited carousel-wide
+            // QA every slide; corrective edits limited carousel-wide. Product fidelity
+            // is "if-present": a slide may not show the product, but a depicted
+            // product must match the reference photo.
             const qaExpectation = {
                 headline: slide.headline,
                 subtext: slide.subtext || undefined,
                 logoExpected: isCover && !!logoRef,
             }
-            const qa = await verifyNativeImage(imageBuffer, qaExpectation)
+            const qaProductRef = productRef && selectedProduct
+                ? { buffer: productRef.buffer, mimeType: productRef.mimeType, name: selectedProduct.name, mode: "if-present" as const }
+                : undefined
+            const qa = await verifyNativeImage(imageBuffer, qaExpectation, qaProductRef)
             cost += COSTS.imageQA
+
+            // Ship-best-native per slide: retry within the carousel-wide edit budget and
+            // keep the closest attempt. No Satori escape hatch — a slide that can't pass
+            // cleanly publishes its best native buffer (qaScore picks it).
+            let bestBuffer = imageBuffer
+            let bestScore = qaScore(qa)
+            let passed = qa.ok
 
             if (!qa.ok && editsUsed < MAX_CORRECTIVE_EDITS) {
                 editsUsed++
                 anyRetry = true
-                console.log(`   ⚠️ QA ${label}: ${qa.issues.join("; ")} → korektivní edit (${editsUsed}/${MAX_CORRECTIVE_EDITS})`)
-                try {
-                    const { editExistingImage } = await import("../gemini-client")
-                    const fixPrompt = `Fix ONLY the text problems in this image — keep composition, photo, style and layout EXACTLY the same.
+                if (qa.productAccurate === false) {
+                    // A wrong product can't be edit-fixed (the edit model never sees the
+                    // reference) — regenerate the slide once, refs still attached.
+                    console.log(`   ⚠️ QA ${label}: produkt neodpovídá referenci → regenerace (${editsUsed}/${MAX_CORRECTIVE_EDITS})`)
+                    const retryPrompt = `${prompt}
+
+⚠️ PREVIOUS ATTEMPT WAS REJECTED — the depicted product did not match the reference photo (${qa.issues.join("; ")}).
+Follow the PRODUCT FIDELITY rules exactly: any depicted product must be a faithful reproduction of the attached "EXACT product photo".`
+                    try {
+                        const retryBuffer = await generateImageWithReferences(retryPrompt, refs, { aspectRatio: format.aspectRatio, resolution: "2K" })
+                        cost += COSTS.imageGeneration
+                        const qa2 = await verifyNativeImage(retryBuffer, qaExpectation, qaProductRef)
+                        cost += COSTS.imageQA
+                        if (qaScore(qa2) < bestScore) { bestBuffer = retryBuffer; bestScore = qaScore(qa2); passed = qa2.ok }
+                    } catch (e: any) { console.warn(`   ⚠️ Regenerace selhala: ${e?.message?.substring(0, 60)}`) }
+                } else {
+                    console.log(`   ⚠️ QA ${label}: ${qa.issues.join("; ")} → korektivní edit (${editsUsed}/${MAX_CORRECTIVE_EDITS})`)
+                    try {
+                        const { editExistingImage } = await import("../gemini-client")
+                        const fixPrompt = `Fix ONLY the text problems in this image — keep composition, photo, style and layout EXACTLY the same.
 Render the headline as this EXACT Czech text, character-for-character including diacritics: "${slide.headline}"
 ${slide.subtext ? `Render the subtext as this EXACT Czech text: "${slide.subtext}"` : ""}
 ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
-                    const fixed = await editExistingImage(imageBuffer, fixPrompt, {
-                        mimeType: "image/png",
-                        aspectRatio: format.aspectRatio,
-                        resolution: "2K",
-                    })
-                    cost += COSTS.imageCorrectiveEdit
-                    const qa2 = await verifyNativeImage(fixed, qaExpectation)
-                    cost += COSTS.imageQA
-                    if (qa2.ok) {
-                        imageBuffer = fixed
-                        console.log(`   ✓ Oprava prošla QA`)
-                    } else if (isCover) {
-                        // Cover must be right — fall back to legacy text-free + Satori overlay
-                        console.log(`   ❌ Cover neprošel QA ani po opravě — Satori fallback pro cover`)
-                        imageBuffer = await renderCoverViaSatori(ctx, slide, slideCount)
-                        cost += COSTS.promptRefinement + COSTS.imageGeneration
-                        coverFellBack = true
-                    } else {
-                        console.log(`   ⚠️ ${label} neprošel QA — best effort (text může mít vadu)`)
-                        imageBuffer = fixed // edited version is usually still closer than the original
-                    }
-                } catch (editErr: any) {
-                    console.warn(`   ⚠️ Korektivní edit selhal: ${editErr?.message?.substring(0, 80)}`)
-                    if (isCover) {
-                        imageBuffer = await renderCoverViaSatori(ctx, slide, slideCount)
-                        cost += COSTS.promptRefinement + COSTS.imageGeneration
-                        coverFellBack = true
+                        const fixed = await editExistingImage(imageBuffer, fixPrompt, {
+                            mimeType: "image/png",
+                            aspectRatio: format.aspectRatio,
+                            resolution: "2K",
+                        })
+                        cost += COSTS.imageCorrectiveEdit
+                        const qa2 = await verifyNativeImage(fixed, qaExpectation, qaProductRef)
+                        cost += COSTS.imageQA
+                        if (qaScore(qa2) < bestScore) { bestBuffer = fixed; bestScore = qaScore(qa2); passed = qa2.ok }
+                    } catch (editErr: any) {
+                        console.warn(`   ⚠️ Korektivní edit selhal: ${editErr?.message?.substring(0, 80)}`)
                     }
                 }
+                imageBuffer = bestBuffer
+                if (passed) console.log(`   ✓ ${label} prošel QA po opravě`)
+                else { anyForced = true; console.log(`   ⚠️ ${label} — publikuji nejlepší nativní pokus (score ${bestScore})`) }
             } else if (!qa.ok) {
-                if (isCover) {
-                    console.log(`   ❌ Cover QA fail, edit budget vyčerpán — Satori fallback pro cover`)
-                    imageBuffer = await renderCoverViaSatori(ctx, slide, slideCount)
-                    cost += COSTS.promptRefinement + COSTS.imageGeneration
-                    coverFellBack = true
-                } else {
-                    console.log(`   ⚠️ QA ${label} fail, edit budget vyčerpán — best effort`)
-                }
+                anyForced = true
+                console.log(`   ⚠️ QA ${label} fail, edit budget vyčerpán — nejlepší nativní pokus`)
             } else {
                 console.log(`   ✅ QA OK`)
             }
@@ -231,187 +247,6 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
         cost,
         imageStyle: `native:${conceptSlug}`,
         designBrief: briefs[0],
-        qaStatus: coverFellBack ? "fallback" : anyRetry ? "retry_pass" : "pass",
+        qaStatus: anyForced ? "native_forced" : anyRetry ? "retry_pass" : "pass",
     }
-}
-
-/** Legacy cover render: text-free background + Satori "cover" overlay (QA escape hatch) */
-async function renderCoverViaSatori(
-    ctx: RenderContext,
-    slide: { headline: string; subtext: string; imagePrompt: string },
-    slideCount: number,
-): Promise<Buffer> {
-    const { config, captionData, format, selectedType } = ctx
-    const refined = await refineImagePrompt(
-        config,
-        { imagePrompt: slide.imagePrompt, hook: slide.headline, imageSubtext: slide.subtext },
-        selectedType.name,
-        undefined,
-        undefined,
-        "cover",
-    )
-    const imageBuffer = await generateImage(
-        refined.trim() + " IMPORTANT: NO TEXT, NO WORDS, NO LETTERS, NO SIGNS anywhere in the image. Pure background photo only.",
-        { aspectRatio: format.aspectRatio as any },
-    )
-    return overlayText(imageBuffer, {
-        headline: slide.headline,
-        subtext: slide.subtext,
-        slideInfo: { current: 1, total: slideCount },
-        variant: "cover",
-        textAlign: config.feedAesthetic?.textAlign,
-        headlineScale: config.feedAesthetic?.headlineScale,
-        gradientColors: config.overlayGradient,
-        logoFile: config.logoFile,
-        fontFamily: config.feedAesthetic?.fontOverride,
-        accentColor: config.feedAesthetic?.accentColor,
-        accentWords: captionData.accentWords,
-    })
-}
-
-// ============================================
-// OVERLAY ENGINE (legacy)
-// ============================================
-
-async function renderCarouselOverlay(ctx: RenderContext): Promise<RenderResult> {
-    const { config, captionData, format, selectedType, report } = ctx
-    let cost = 0
-    let imageUrl: string | undefined
-
-    if (!captionData.slides) return { imageUrl, cost }
-
-    const slideCount = captionData.slides.length + 1
-    console.log(`📸 Generuji carousel (${slideCount} slidů)...`)
-
-    const allSlides = [
-        { headline: captionData.hook, subtext: captionData.imageSubtext || "", imagePrompt: captionData.imagePrompt || "" },
-        ...captionData.slides,
-    ]
-
-    console.log("🧠 Unified carousel prompt refinement...")
-    const refinedPrompts = await refineCarouselPrompts(
-        config,
-        allSlides,
-        captionData.visualTheme || "",
-        selectedType.name
-    )
-    cost += COSTS.promptRefinement
-
-    const uploadedUrls: string[] = []
-    const bucketName = config.storageBucket || "audit-screenshots"
-
-    for (let i = 0; i < allSlides.length; i++) {
-        const slide = allSlides[i]
-        const label = i === 0 ? "COVER" : `Slide ${i}`
-        console.log(`\n   📄 ${label}: "${slide.headline}"`)
-
-        const processSlide = async () => {
-                const refinedPrompt = refinedPrompts[i] || slide.imagePrompt
-                const noTextPrompt = refinedPrompt.trim() + " IMPORTANT: NO TEXT, NO WORDS, NO LETTERS, NO SIGNS anywhere in the image. Pure background photo only."
-
-                const imageBuffer = await generateImage(noTextPrompt, { aspectRatio: format.aspectRatio as any })
-                cost += COSTS.imageGeneration
-                console.log(`   ✓ Obrázek ${i + 1} (${(imageBuffer.length / 1024).toFixed(0)} KB)`)
-
-                let finalImage: Buffer
-                if (format.overlayStyle === "none") {
-                    finalImage = imageBuffer
-                } else {
-                    finalImage = await overlayText(imageBuffer, {
-                        headline: slide.headline,
-                        subtext: slide.subtext,
-                        slideInfo: { current: i + 1, total: allSlides.length },
-                        variant: i === 0 ? "cover" : "step",
-                        textAlign: config.feedAesthetic?.textAlign,
-                        headlineScale: config.feedAesthetic?.headlineScale,
-                        gradientColors: config.overlayGradient,
-                        logoFile: config.logoFile,
-                        fontFamily: config.feedAesthetic?.fontOverride,
-                        accentColor: config.feedAesthetic?.accentColor,
-                        accentWords: i === 0 ? captionData.accentWords : undefined,
-                    })
-                    console.log(`   ✓ Text overlay ${i + 1}`)
-
-                    // Vision check on COVER slide only
-                    if (i === 0) {
-                        const coverCheck = await reviewOverlayComposition(finalImage, "cover", slide.headline)
-                        cost += COSTS.textGeneration
-                        if (!coverCheck.ok && coverCheck.issues.length > 0) {
-                            console.log(`   ⚠️ Cover overlay: ${coverCheck.issues.join(", ")}`)
-                            try {
-                                const fixHint = coverCheck.compositionHint ? `\nCOMPOSITION: ${coverCheck.compositionHint}. Leave BOTTOM area clear for text.` : ""
-                                const coverRetry = await generateImage((refinedPrompts[0] || slide.imagePrompt) + fixHint + " NO TEXT.", { aspectRatio: format.aspectRatio as any })
-                                cost += COSTS.imageGeneration
-                                finalImage = await overlayText(coverRetry, {
-                                    headline: slide.headline, subtext: slide.subtext,
-                                    slideInfo: { current: 1, total: allSlides.length },
-                                    variant: "cover",
-                                    textAlign: config.feedAesthetic?.textAlign,
-                                    headlineScale: config.feedAesthetic?.headlineScale,
-                                    gradientColors: config.overlayGradient,
-                                    logoFile: config.logoFile,
-                                    fontFamily: config.feedAesthetic?.fontOverride,
-                                    accentColor: config.feedAesthetic?.accentColor,
-                                    accentWords: captionData.accentWords,
-                                })
-                                console.log(`   ✓ Cover retry OK`)
-                            } catch (retryErr: any) {
-                                console.warn(`   ⚠️ Cover retry failed: ${retryErr?.message?.substring(0, 60)}`)
-                            }
-                        } else {
-                            console.log(`   ✅ Cover kompozice OK`)
-                        }
-                    }
-                }
-
-                console.log("🗜️ Komprimuji obrázek před uploadem (PNG -> WebP)...")
-                const compressedImage = await sharp(finalImage)
-                    .webp({ quality: 90, effort: 6 })
-                    .toBuffer()
-
-                const timestamp = Date.now()
-                const filename = `ig-carousel/${timestamp}-slide${i}.webp`
-
-                const { error: uploadError } = await supabaseAdmin.storage
-                    .from(bucketName)
-                    .upload(filename, compressedImage, {
-                        contentType: "image/webp",
-                        cacheControl: "31536000",
-                    })
-
-                if (uploadError) {
-                    console.error(`   ⚠️ Upload slide ${i} failed:`, uploadError.message)
-                } else {
-                    const { data: publicUrlData } = supabaseAdmin.storage
-                        .from(bucketName)
-                        .getPublicUrl(filename)
-                    uploadedUrls.push(publicUrlData.publicUrl)
-                    console.log(`   ✓ Uploaded`)
-                }
-        }
-
-        try {
-            await withRetry(processSlide, 1, label)
-        } catch (slideErr: any) {
-            console.error(`   ❌ ${label} SKIPPED:`, slideErr?.message?.substring(0, 150))
-        }
-
-        // Rate limit protection
-        if (i < allSlides.length - 1) {
-            await new Promise(r => setTimeout(r, 2000))
-        }
-
-        const slideProgress = 55 + Math.round((i + 1) / allSlides.length * 30)
-        await report("rendering", slideProgress, `📄 Slide ${i + 1}/${allSlides.length} hotový`)
-    }
-
-    if (uploadedUrls.length > 0) {
-        imageUrl = uploadedUrls.join("|")
-        console.log(`\n   ✓ Carousel: ${uploadedUrls.length}/${slideCount} slidů nahráno`)
-        if (uploadedUrls.length < slideCount) {
-            console.warn(`   ⚠️ Carousel incomplete: only ${uploadedUrls.length}/${slideCount} slides succeeded`)
-        }
-    }
-
-    return { imageUrl, cost, imageStyle: `overlay:${format.overlayStyle || "cover"}` }
 }

@@ -95,10 +95,13 @@ export async function planWeek(
         ].filter(Boolean).join("\n")
     }
 
-    // Available post types
-    const availableTypes = config.weekPlan.length > 0
+    // Available post types — manual-only formats (giveaways, contests) are never
+    // auto-planned; they exist only for the explicit Generate-tab flow.
+    const manualOnlyNames = new Set((config.postTypeDefs ?? []).filter(d => d.manualOnly).map(d => d.name))
+    const availableTypes = (config.weekPlan.length > 0
         ? [...new Set(config.weekPlan)]
         : Object.values(config.contentPillars).flatMap(p => p.postTypes)
+    ).filter(n => !manualOnlyNames.has(n))
 
     // Inject brand memories into planning context
     let memorySection = ""

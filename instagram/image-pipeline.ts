@@ -90,99 +90,6 @@ When the post is about the brand or lifestyle, include this character in the sce
 }
 
 // ============================================
-// IMAGE PROMPT REFINEMENT
-// ============================================
-
-export async function refineImagePrompt(
-    config: ClientConfig,
-    captionData: { imagePrompt: string; hook: string; imageSubtext?: string },
-    postType: string,
-    bodyContext?: string,
-    visualMemoriesSection?: string,
-    overlayVariant?: string,
-): Promise<string> {
-    // MEME EXCEPTION
-    if (postType === "meme") {
-        const memePrompt = `
-You are creating a MEME image for Instagram.
-
-Raw idea: "${captionData.imagePrompt}"
-Meme text (will be IN the image): "${captionData.hook}"
-
-## YOUR TASK:
-Create a meme-style BACKGROUND IMAGE — NO TEXT, NO WORDS, NO LETTERS in the image.
-The image must be a relatable, funny visual scene that perfectly matches the meme concept below.
-Text will be added programmatically on top — DO NOT render any text in the image.
-
-Meme concept: "${captionData.imagePrompt}"
-Visual mood: funny, relatable, meme-style
-
-OUTPUT: Single detailed English image prompt (2-3 sentences). NO TEXT IN IMAGE.
-`
-        // Pro ladder for the image-prompt (drives the image model); best-effort —
-        // fall back to the raw prompt if the Pro tiers are exhausted.
-        try {
-            const refined = await generateTextQuality(memePrompt, { models: designerLadder(), label: "image-prompt-meme", json: false, temperature: getTemperature("designer") })
-            return refined || captionData.imagePrompt
-        } catch { return captionData.imagePrompt }
-    }
-
-    // Load visual memories if not provided
-    const memSection = visualMemoriesSection ?? await getVisualMemoriesSection()
-
-    // STANDARD POST
-    const refinementPrompt = `
-${buildFeedAesthetic(config)}
-${memSection}
-## YOUR TASK:
-Take this raw image prompt and transform it into a DETAILED, professional image prompt.
-
-Raw prompt: "${captionData.imagePrompt}"
-
-HOOK TEXT: "${captionData.hook}"
-Subtext: "${captionData.imageSubtext || ""}"
-Post type: ${postType}
-${bodyContext ? `Post body context: "${bodyContext}"` : ""}
-
-## OUTPUT:
-Return ONLY a single detailed English image generation prompt (NO JSON).
-
-⚠️ CRITICAL RULES — MUST FOLLOW:
-- ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY in the image
-- NO signs, NO labels, NO overlays, NO captions
-- The image is a pure BACKGROUND PHOTO — text will be added programmatically
-
-🎯 VISUAL QUALITY RULES — WHAT MAKES A GREAT INSTAGRAM FEED:
-- VARIETY is everything — each post should look DIFFERENT from the last
-- Alternate between: people (emotions, candid), product close-ups (texture, detail), environments (mood, atmosphere), creative angles (aerial, macro, motion blur)
-- NEVER generate boring static shots (laptop on desk, coffee cup, flat lay of random objects)
-- Cinematic lighting: golden hour, dramatic shadows, rim light, neon glow
-- Depth: foreground + subject + background layers, shallow DOF
-- When people appear: show authentic expression, gesture, interaction
-- When no people: make the composition visually striking and unexpected
-
-🖼️ COMPOSITION FOR TEXT OVERLAY — CRITICAL:
-Text will be overlaid on this image programmatically. The image must have CLEAR NEGATIVE SPACE (empty/uniform area) where the text will go.
-${overlayVariant === "top" || overlayVariant === "editorial" ? "- Text will be placed at the TOP of the image → keep the TOP 35% of the image relatively clean/blurred/dark — put the main subject in the LOWER HALF" : overlayVariant === "centered" || overlayVariant === "full-typo" ? "- Text will be placed in the CENTER of the image → composition should frame around the edges, with the CENTER area relatively empty or with a subtle, uniform background" : overlayVariant === "split" ? "- Text will be placed in the UPPER-CENTER and BOTTOM of the image → keep those areas with uniform/dark backgrounds — put the main subject to the LEFT or RIGHT side" : "- Text will be placed at the BOTTOM of the image → keep the BOTTOM 35% of the image relatively clean/blurred/dark — put the main subject in the UPPER HALF"}
-- NEVER place a face, product logo, or important detail where the text will go — it will be covered and unreadable
-- Use depth of field to blur the text area naturally
-- A dark gradient will be applied over the text area, so slightly darker tones there help readability
-
-The prompt should be 2-3 sentences.
-`
-
-    // Pro ladder for the image-prompt (the prompt that drives the image model →
-    // directly affects render quality). Best-effort: fall back to the raw prompt.
-    let refined: string | undefined
-    try {
-        refined = await generateTextQuality(refinementPrompt, { models: designerLadder(), label: "image-prompt", json: false, temperature: getTemperature("designer") })
-    } catch { refined = undefined }
-
-    if (!refined) return captionData.imagePrompt
-    return refined.replace(/^["']|["']$/g, "").trim()
-}
-
-// ============================================
 // AI DESIGNER — Native design engine
 // (Nano Banana Pro renders the FULL post incl. Czech typography + logo;
 //  this agent produces the structured design brief that drives it.)
@@ -254,6 +161,31 @@ const DESIGN_BRIEF_SCHEMA = {
     required: ["concept", "layoutArchetype", "composition", "typography", "colorTreatment", "logoPlacement", "negativeSpace", "divergenceNote"],
 }
 
+/** Product context for the AI Designer / native prompt — the post is built around a REAL item. */
+export interface ProductBriefInfo {
+    name: string
+    type?: string
+    description?: string
+    /** true = an exact reference photo of this product is attached to the render call */
+    hasReferencePhoto: boolean
+}
+
+/** Shared product-fidelity block for designer prompts (single image AND carousel). */
+function buildProductSection(product?: ProductBriefInfo): string {
+    if (!product) return ""
+    return `
+
+## 🛍️ REAL PRODUCT — THE HERO OF THIS POST (mandatory):
+This post sells the REAL product "${product.name}"${product.type ? ` (${product.type})` : ""}.
+${product.description ? `Product: ${product.description}` : ""}
+${product.hasReferencePhoto
+    ? `An EXACT photo of this product is attached as a reference image labeled "EXACT product photo".
+- The composition MUST feature THIS exact physical product as a clearly visible subject — worn by a person, flat lay, hanging, held — your choice of staging.
+- The product's print/graphic, colors, cut and material must stay IDENTICAL to the reference photo. NEVER redesign, recolor, restyle or invent a different print.
+- Creative freedom applies to everything AROUND the product (scene, model, lighting, mood, humor) — never to the product itself.`
+    : `No reference photo is available — describe the product ONLY by its verified name/description above; do not invent visual details (print, colors) beyond them.`}`
+}
+
 export async function generateDesignBrief(params: {
     config: ClientConfig
     clientId: string
@@ -264,6 +196,8 @@ export async function generateDesignBrief(params: {
     /** Layout archetypes used by the most recent posts — hard-banned for this one */
     bannedArchetypes?: string[]
     visualMemoriesSection?: string
+    /** The real product this post is built around (uses_product formats) — drives fidelity rules */
+    product?: ProductBriefInfo
 }): Promise<DesignBrief> {
     const { config, clientId, captionData, postType, recentBriefs } = params
     const banned = (params.bannedArchetypes ?? []).filter(a => (LAYOUT_ARCHETYPES as readonly string[]).includes(a))
@@ -294,6 +228,7 @@ ${captionData.imageSubtext ? `- Subtext (Czech, render EXACTLY as written): "${c
 ${captionData.accentWords?.length ? `- Accent words (highlight these within the headline): ${captionData.accentWords.join(", ")}` : ""}
 ${captionData.imagePrompt ? `- Copywriter's raw visual idea: "${captionData.imagePrompt}"` : ""}
 ${captionData.body ? `- Post body context: "${captionData.body.substring(0, 300)}"` : ""}
+${buildProductSection(params.product)}
 
 ## RECENT POST DESIGNS — YOU MUST DIVERGE FROM ALL OF THEM:
 ${recentBriefs.length ? recentBriefs.map((b, i) => `${i + 1}. ${b}`).join("\n") : "(no history yet — total creative freedom)"}
@@ -358,14 +293,23 @@ Return ONLY the JSON design brief.`
 /**
  * Convert a DesignBrief into the final Nano Banana Pro image prompt.
  */
-export function buildNativeImagePrompt(brief: DesignBrief, config: ClientConfig): string {
+export function buildNativeImagePrompt(brief: DesignBrief, config: ClientConfig, product?: ProductBriefInfo): string {
     const t = brief.typography
     const hasLogo = Boolean(config.logoFile)
+
+    const productBlock = product?.hasReferencePhoto ? `
+
+## PRODUCT FIDELITY (highest priority — overrides creative interpretation):
+The attached reference image labeled "EXACT product photo: ${product.name}" shows the REAL product this post sells.
+- Reproduce this product 100% faithfully: identical print/graphic, identical colors, identical cut and material.
+- The product must be clearly visible and recognizable in the final image.
+- Do NOT redesign, recolor, simplify or reinterpret any part of the product. Style the SCENE around it, never the product itself.` : ""
 
     return `Design a complete, finished Instagram post image — a professional brand visual with typography composited into the design (like a finished poster from a top design studio).
 
 ## SCENE / COMPOSITION:
 ${brief.composition}
+${productBlock}
 
 ## NEGATIVE SPACE:
 ${brief.negativeSpace}
@@ -391,7 +335,7 @@ Editorial photography quality, cinematic lighting, real depth of field. The fina
 /**
  * One designer call for a whole carousel: a shared design system
  * (typography / palette / logo treatment stay constant, only framing varies)
- * + one DesignBrief per slide. Mirrors refineCarouselPrompts for the native engine.
+ * + one DesignBrief per slide — the native carousel design agent.
  */
 export async function generateCarouselDesignBriefs(params: {
     config: ClientConfig
@@ -402,6 +346,8 @@ export async function generateCarouselDesignBriefs(params: {
     recentBriefs: string[]
     bannedArchetypes?: string[]
     accentWords?: string[]
+    /** The real product this carousel is built around (uses_product formats) — drives fidelity rules */
+    product?: ProductBriefInfo
 }): Promise<{ designSystem: string; briefs: DesignBrief[] }> {
     const { config, clientId, allSlides, visualTheme, postType, recentBriefs } = params
     const banned = (params.bannedArchetypes ?? []).filter(a => (LAYOUT_ARCHETYPES as readonly string[]).includes(a))
@@ -429,6 +375,7 @@ ${memSection}
 Visual theme: "${visualTheme}"
 Post type: ${postType}
 ${slideSummary}
+${buildProductSection(params.product)}
 
 ## RECENT POST DESIGNS — THE CAROUSEL MUST DIVERGE FROM ALL OF THEM:
 ${recentBriefs.length ? recentBriefs.map((b, i) => `${i + 1}. ${b}`).join("\n") : "(no history yet)"}
@@ -479,23 +426,44 @@ export interface NativeImageQA {
     /** what the model actually reads in the image */
     renderedText?: string
     logoPresent: boolean
+    /** false ONLY when a product reference was provided and the rendered product doesn't match it */
+    productAccurate?: boolean
     issues: string[]
     /** corrective instruction for the retry edit */
     fixHint?: string
 }
 
+/** QA badness score — lower is better. A wrong product is the worst outcome; after that,
+ *  fewer issues wins. Lets the orchestrators pick the best native attempt when none passes
+ *  cleanly (ship-best-native: we never drop to a Satori overlay). */
+export function qaScore(qa: NativeImageQA): number {
+    if (qa.ok) return 0
+    return (qa.productAccurate === false ? 100 : 0) + (qa.issues?.length || 1)
+}
+
 /**
- * Verify a natively-designed image: exact Czech text + logo presence.
- * Fail-open: a QA infrastructure error never blocks generation.
+ * Verify a natively-designed image: exact Czech text + logo presence, and — when a
+ * product reference photo is provided — that the rendered product matches it
+ * (print, colors, cut). Fail-open: a QA infrastructure error never blocks generation.
  */
 export async function verifyNativeImage(
     imageBuffer: Buffer,
     expected: { headline: string; subtext?: string; logoExpected: boolean },
+    /** mode "require" (default): the product must appear AND match. Mode "if-present"
+     *  (carousel slides): a slide may legitimately not show the product, but a
+     *  different/invented product design is a FAIL. */
+    productRef?: { buffer: Buffer; mimeType?: string; name: string; mode?: "require" | "if-present" },
 ): Promise<NativeImageQA> {
     // Try the Pro QA judge first, then the fast fallback, then fail open. A Pro 503 must
     // never silently skip QA — degrade to flash before giving up.
     const qaModels = [getModel("visionQA")]
     if (hasFallback("visionQA")) qaModels.push(getModel("visionQA", "fallback"))
+
+    const productCheck = productRef ? `
+PRODUCT FIDELITY: The second attached image is the REAL product photo of "${productRef.name}".
+${productRef.mode === "if-present"
+    ? `IF the generated image depicts this product (or anything resembling it — a t-shirt, garment, item of the same kind), it must be THIS exact product: identical print/graphic, identical colors, identical cut. A stylized, recolored, redesigned or invented product design is a FAIL (productAccurate=false). If no such product appears in the image at all, that is acceptable (productAccurate=true).`
+    : `The generated post (first image) MUST show THIS exact product: identical print/graphic, identical colors, identical cut. A stylized, recolored, redesigned or invented product is a FAIL — and so is a post where the product is completely absent.`}` : ""
 
     const qaPrompt = `You are a strict QA inspector for AI-designed Instagram posts in CZECH.
 
@@ -503,12 +471,14 @@ Expected headline text (must match EXACTLY, including Czech diacritics ě š č 
 "${expected.headline}"
 ${expected.subtext ? `Expected subtext (must match EXACTLY):\n"${expected.subtext}"` : ""}
 ${expected.logoExpected ? "A brand logo MUST be present somewhere in the image." : ""}
+${productCheck}
 
 Check:
-1. Read ALL text rendered in the image. Does the headline match the expected text character-for-character? Watch for: missing/wrong diacritics, swapped letters, duplicated words, gibberish, extra unwanted text.
+1. Read ALL text rendered in the first image. Does the headline match the expected text character-for-character? Watch for: missing/wrong diacritics, swapped letters, duplicated words, gibberish, extra unwanted text.
 ${expected.subtext ? "2. Does the subtext match exactly?" : ""}
 ${expected.logoExpected ? "3. Is the brand logo present and not deformed?" : ""}
 4. Is all text clearly readable (contrast, not cut off at edges)?
+${productRef ? `5. Does the product in the first image faithfully match the reference product photo (second image)? Compare the print/graphic, colors and cut.` : ""}
 
 Return ONLY valid JSON:
 {
@@ -516,18 +486,21 @@ Return ONLY valid JSON:
   "textAccurate": true/false,
   "renderedText": "the text you actually read in the image",
   "logoPresent": true/false,
-  "issues": ["specific problems, empty if ok"],
+  ${productRef ? `"productAccurate": true/false,\n  ` : ""}"issues": ["specific problems, empty if ok"],
   "fixHint": "if NOT ok — one concrete instruction for an image-edit model to fix it (e.g. 'correct the headline to ... keeping the same style and position') — empty string if ok"
 }`
 
     // Quality ladder: Pro QA judge → GA Pro, each retried hard on transient. If BOTH
     // Pro tiers are exhausted, QA fails OPEN (skipped) — never flash-judges. Skipping QA
     // beats blocking a render or trusting a weaker model's verdict on Czech typography.
+    const images = [{ buffer: imageBuffer, mimeType: "image/png" }]
+    if (productRef) images.push({ buffer: productRef.buffer, mimeType: productRef.mimeType || "image/jpeg" })
+
     let text: string
     try {
         text = await generateTextQuality(qaPrompt, {
             models: qaModels,
-            images: [{ buffer: imageBuffer, mimeType: "image/png" }],
+            images,
             label: "vision-qa",
             temperature: getTemperature("judge"),
         })
@@ -547,102 +520,13 @@ Return ONLY valid JSON:
             textAccurate: !!parsed.textAccurate,
             renderedText: parsed.renderedText || undefined,
             logoPresent: !!parsed.logoPresent,
+            productAccurate: productRef ? parsed.productAccurate !== false : undefined,
             issues: parsed.issues || [],
             fixHint: parsed.fixHint || undefined,
         }
     } catch {
         return { ok: true, textAccurate: true, logoPresent: true, issues: [] }
     }
-}
-
-// ============================================
-// CAROUSEL PROMPT REFINEMENT
-// ============================================
-
-export async function refineCarouselPrompts(
-    config: ClientConfig,
-    allSlides: { headline: string; subtext: string; imagePrompt: string }[],
-    visualTheme: string,
-    postType: string
-): Promise<string[]> {
-    const slideSummary = allSlides.map((s, i) =>
-        `Slide ${i === 0 ? "COVER" : String(i)}: headline="${s.headline}", subtext="${s.subtext}", rawPrompt="${s.imagePrompt}"`
-    ).join("\n")
-
-    // Inject visual memories for carousel cohesion
-    const memSection = await getVisualMemoriesSection()
-
-    const refinementPrompt = `
-${buildFeedAesthetic(config)}
-${memSection}
-## YOUR TASK:
-You are refining image prompts for an Instagram CAROUSEL (${allSlides.length} slides).
-All slides MUST feel like ONE cohesive series — as if photographed in the same session.
-
-Visual theme: "${visualTheme}"
-
-## SLIDES:
-${slideSummary}
-
-## CRITICAL RULES FOR CAROUSEL COHESION:
-1. ALL slides share the SAME environment/location — describe it consistently
-2. ALL slides share the SAME lighting setup and color temperature
-3. ALL slides share the SAME style (e.g. all editorial, all product close-up, all lifestyle)
-4. ONLY camera angle and framing changes between slides (wide → medium → close-up → detail)
-5. Consistent props, products, and brand elements across all slides
-6. Camera progression should feel like moving THROUGH a scene, not jumping between locations
-
-## ⚠️ ABSOLUTE REQUIREMENT — NO TEXT IN IMAGES:
-- ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY in any slide
-- NO signs, NO labels, NO overlays, NO captions, NO watermarks
-- Each image is a pure BACKGROUND PHOTO — text is added programmatically via overlay
-
-## 🖼️ COMPOSITION FOR TEXT OVERLAY:
-- Text will be overlaid at the BOTTOM of each slide. The BOTTOM 35% must have CLEAR NEGATIVE SPACE.
-- NEVER place faces, products, or important details in the bottom third — they will be covered by text.
-- Put the main subject in the UPPER HALF of the frame. Use depth of field to blur the bottom area naturally.
-- The COVER slide (first) has the largest text — it needs the MOST negative space at the bottom.
-
-## OUTPUT:
-Return a JSON array of exactly ${allSlides.length} strings, each a detailed image prompt.
-Each prompt should be 2-3 sentences and end with "NO TEXT in image."
-`
-
-    try {
-        const response = await ai.models.generateContent({
-            model: getModel("text"),
-            contents: refinementPrompt,
-            config: { responseMimeType: "application/json" },
-        })
-
-        const parts = response.candidates?.[0]?.content?.parts || []
-        const textPart = parts.find((p: any) => p.text)
-        const text = textPart?.text || ""
-        const parsed = JSON.parse(text)
-
-        if (Array.isArray(parsed) && parsed.length === allSlides.length) {
-            console.log(`   ✓ Carousel prompts unified (${parsed.length} slides, shared theme)`)
-            return parsed.map((p: string) => p.replace(/^["']|["']$/g, "").trim())
-        }
-
-        console.warn("   ⚠️ Carousel prompt array length mismatch — falling back")
-    } catch (err) {
-        console.warn("   ⚠️ Carousel batch refinement failed — falling back:", err)
-    }
-
-    // Fallback: refine individually (reuse the already-loaded memories)
-    const results: string[] = []
-    for (const slide of allSlides) {
-        const refined = await refineImagePrompt(
-            config,
-            { imagePrompt: slide.imagePrompt, hook: slide.headline, imageSubtext: slide.subtext },
-            postType,
-            undefined,
-            memSection
-        )
-        results.push(refined)
-    }
-    return results
 }
 
 // ============================================

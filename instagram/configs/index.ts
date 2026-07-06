@@ -6,6 +6,7 @@
 
 import supabaseAdmin from "../../supabase/admin"
 import type { ClientConfig } from "./types"
+import { reconcileFormats } from "./reconcile"
 
 export interface ClientMeta {
     id: string
@@ -63,7 +64,9 @@ export async function loadConfig(name: string, forceRefresh = false): Promise<Cl
 
 /** Fill safe defaults for missing required fields to prevent runtime crashes */
 function validateConfig(config: ClientConfig, slug: string): ClientConfig {
-    return {
+    // reconcileFormats self-heals the four format sources on every load — drift
+    // (e.g. a format orphaned by a deleted pillar) never reaches the pipeline.
+    return reconcileFormats({
         ...config,
         id: config.id || slug,
         name: config.name || slug,
@@ -103,13 +106,12 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         postTypeDefs: config.postTypeDefs || [],
         hashtagPools: config.hashtagPools || { core: [], niche: [], broad: [], trending: [], czech: [] },
         contentFocus: config.contentFocus || config.name || slug,
-        visualEngine: config.visualEngine || "native",
         videoTier: config.videoTier || "fast",
         psychologist: config.psychologist ?? true,
         // igBaseline is optional with no default — undefined means "no scrape
         // data available" and all consumers (planWeek) must handle that.
         igBaseline: config.igBaseline,
-    }
+    })
 }
 
 /**
