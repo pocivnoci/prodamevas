@@ -580,6 +580,31 @@ export async function generateOnePost(options: {
         // Non-fatal
     }
 
+    // Inject feed continuity context — recent published posts for thematic/visual flow
+    const publishedPosts = recentPosts
+        .filter(p => p.status === "posted" || p.status === "approved")
+        .slice(0, 5)
+    if (publishedPosts.length > 0) {
+        const feedSummary = publishedPosts.map((p, i) => {
+            const hook = p.caption?.split("\n")[0]?.substring(0, 60) || "?"
+            const pillar = p.content_pillar || "?"
+            return `  ${i + 1}. "${hook}" [${pillar}]`
+        }).join("\n")
+        megaPrompt += `\n\n## 📱 FEED KONTINUITA — POSLEDNÍ PUBLIKOVANÉ PŘÍSPĚVKY
+Tvůj nový post bude na feedu HNED VEDLE těchto příspěvků. Zajisti návaznost:
+
+${feedSummary}
+
+### INSTRUKCE:
+- NEOPAKUJ stejné hooky, fráze ani argumenty z posledních postů
+- Zvol JINÝ úhel pohledu nebo content pillar než posledních 2-3 postů
+- Vizuální styl by měl být konzistentní s brandem, ale ne identický s posledním postem
+- Pokud poslední posty byly edukační, zvol lehčí formát (meme, behind-the-scenes) — a naopak
+- Feed by měl působit pestře a dynamicky, ne jako kopie jednoho vzoru
+`
+        console.log(`   📱 Feed continuity: ${publishedPosts.length} published postů jako kontext`)
+    }
+
     // Inject real-world context (season, industry trends, local relevance) — gathered
     // BEFORE the Researcher (step 0), appended here at the original injection point.
     megaPrompt += contextBlock
