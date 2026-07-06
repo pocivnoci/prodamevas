@@ -151,6 +151,8 @@ export async function generateOnePost(options: {
     performance?: PerformanceInsight
     aspectRatio?: string
     medium?: "image" | "carousel" | "reel"
+    /** User's own uploaded photo — becomes the mandatory VISUAL BASE of the native render
+     *  (designed on/around, never published raw). Ignored for reels. */
     customImageUrl?: string
     /** Explicit product ID from ig_products — overrides random product selection */
     productId?: string
@@ -194,6 +196,31 @@ export async function generateOnePost(options: {
             cost += COSTS.contextAgent
         } catch (err: any) {
             console.warn(`   ⚠️ Context agent skipped: ${err?.message?.substring(0, 60)}`)
+        }
+    }
+
+    // 0.5 User photo analysis — the uploaded photo becomes the VISUAL BASE of the post
+    // (the native engine designs the post ON it, it is never published raw). One vision
+    // call describes it here because both consumers are text-only: the copywriter gets
+    // the description as context (caption must not contradict the visual) and the AI
+    // Designer needs it to write a composition grounded in the real photo. Runs on
+    // checkpoint resume too — a resumed post still renders its media.
+    let userPhotoDescription: string | undefined
+    if (options.customImageUrl) {
+        try {
+            const resp = await fetch(options.customImageUrl)
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+            const photoBuf = Buffer.from(await resp.arrayBuffer())
+            const { analyzeImagesWithText } = await import("./gemini-client")
+            const raw = await analyzeImagesWithText(
+                [{ buffer: photoBuf, mimeType: options.customImageUrl.endsWith(".png") ? "image/png" : "image/jpeg" }],
+                `Describe this photo factually for a designer who cannot see it. Return JSON: {"description": "2-3 English sentences covering subject(s), setting, action, mood, dominant colors and composition"}`,
+            )
+            userPhotoDescription = JSON.parse(raw.replace(/```(?:json)?/g, "").trim())?.description || undefined
+            cost += COSTS.imageQA
+            if (userPhotoDescription) console.log(`   📷 Fotka uživatele: ${userPhotoDescription.substring(0, 100)}…`)
+        } catch (err: any) {
+            console.warn(`   ⚠️ Analýza nahrané fotky přeskočena: ${err?.message?.substring(0, 60)}`)
         }
     }
 
@@ -534,6 +561,20 @@ export async function generateOnePost(options: {
     const ctaPolicy = resolveCtaPolicyForPost(config, selectedType.name, selectedProduct)
     megaPrompt = buildMegaPrompt(config, selectedType, idea, review, recentHooks, performance, options.topic, selectedProduct, format, options.approvedHook, ctaPolicy)
 
+    // The user's uploaded photo will be the post's visual base — the caption must
+    // work WITH it (not describe a different scene), but the photo is NOT the topic.
+    if (options.customImageUrl && userPhotoDescription) {
+        megaPrompt += `\n\n## 📷 KLIENTOVA FOTKA — VIZUÁL TOHOTO POSTU
+Uživatel nahrál vlastní fotku, která bude vizuálním základem příspěvku. Co na ní je: "${userPhotoDescription}"
+
+### INSTRUKCE:
+- Drž se zadaného tématu a formátu — fotka NENÍ téma postu, je to jeho vizuál
+- Hook, text ani imagePrompt nesmí být s fotkou v rozporu (nepopisuj jinou scénu, jiné prostředí, jiné lidi)
+- imagePrompt navrhni tak, aby stavěl na této fotce (její kompozice, nálada a barvy jsou dané)
+`
+        console.log("   📷 Caption kontext: popis nahrané fotky injektován")
+    }
+
     // Inject brand memories (long-term learning from past performance) — retrieved by
     // relevance to the topic/idea when available (pipeline v2), not just top-confidence.
     try {
@@ -853,15 +894,14 @@ ${feedSummary}
             })
             imageUrl = renderResult.imageUrl
             cost += renderResult.cost
-        } else if (options.customImageUrl) {
-            console.log("📸 Používám vlastní obrázek od uživatele...")
-            imageUrl = options.customImageUrl
-            console.log(`   ✓ URL: ${imageUrl}`)
         } else if (isCarousel && captionData.slides) {
+            // options.customImageUrl (user's own photo) is NOT published raw — it flows
+            // into the native engine as the mandatory visual base (cover for carousels).
             renderResult = await renderCarousel({
                 config, captionData: captionData as CaptionData, format, selectedType, report,
                 selectedProduct: selectedProduct as SelectedProduct | undefined,
                 linkedProductId, clientUuid, recentBriefs, recentArchetypes,
+                userPhotoUrl: options.customImageUrl, userPhotoDescription,
             })
             imageUrl = renderResult.imageUrl
             cost += renderResult.cost
@@ -870,6 +910,7 @@ ${feedSummary}
                 config, captionData: captionData as CaptionData, format, selectedType, report,
                 selectedProduct: selectedProduct as SelectedProduct | undefined,
                 linkedProductId, clientUuid, recentBriefs, recentArchetypes,
+                userPhotoUrl: options.customImageUrl, userPhotoDescription,
             })
             imageUrl = renderResult.imageUrl
             cost += renderResult.cost

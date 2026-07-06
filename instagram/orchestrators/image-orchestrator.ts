@@ -38,6 +38,26 @@ function brandRefLabel(tags: string[] = []): string {
     return "brand visual reference — match this exact style, colors and aesthetic"
 }
 
+/** The user's own uploaded photo — the mandatory photographic base of this exact post.
+ *  Shared by the image and carousel orchestrators. */
+export async function loadUserPhoto(url?: string): Promise<RefImage | null> {
+    if (!url) return null
+    try {
+        const resp = await fetch(url)
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+        const arrayBuf = await resp.arrayBuffer()
+        console.log(`   📷 Loaded user photo: ${url.split("/").pop()?.substring(0, 40)}`)
+        return {
+            buffer: Buffer.from(arrayBuf),
+            mimeType: url.endsWith(".png") ? "image/png" : "image/jpeg",
+            label: "CLIENT photo — the mandatory visual base: the final post MUST be built from this exact photo (whole or a deliberate crop), never from an invented scene",
+        }
+    } catch (err: any) {
+        console.warn(`   ⚠️ User photo fetch failed: ${err?.message?.substring(0, 60)}`)
+        return null
+    }
+}
+
 export async function renderImage(ctx: RenderContext): Promise<RenderResult> {
     // overlayStyle "none" = intentionally text-free, and is ONLY valid for reels. But this is the
     // IMAGE orchestrator — a static post always needs its Czech headline/logo. A reel-format type
@@ -82,6 +102,10 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
         hasReferencePhoto: Boolean(productRef),
     } : undefined
 
+    // User's own photo — when present it becomes the mandatory visual base of the post.
+    const userPhotoRef = await loadUserPhoto(ctx.userPhotoUrl)
+    const userPhotoInfo = userPhotoRef ? { description: ctx.userPhotoDescription } : undefined
+
     await report("art_director", 55, "🎨 AI Designer navrhuje kompozici...")
     console.log("🎨 AI Designer — generuji design brief...")
     const brief = await generateDesignBrief({
@@ -98,14 +122,16 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
         recentBriefs: ctx.recentBriefs ?? [],
         bannedArchetypes: ctx.recentArchetypes ?? [],
         product: productInfo,
+        userPhoto: userPhotoInfo,
     })
     cost += COSTS.designerBrief
     console.log(`   ✓ Koncept: "${brief.concept}" [${brief.layoutArchetype || "no archetype"}]`)
     console.log(`   ✓ Divergence: ${brief.divergenceNote?.substring(0, 100)}`)
 
-    const prompt = buildNativeImagePrompt(brief, config, productInfo)
+    const prompt = buildNativeImagePrompt(brief, config, productInfo, userPhotoInfo)
 
-    // Reference images: logo FIRST, then product photo, then brand refs (max 4 total)
+    // Reference images: logo FIRST, then the user's photo (visual base), then product
+    // photo, then brand refs (max 4 total)
     const refs: RefImage[] = []
     if (config.logoFile) {
         const logo = await loadLogo(config.logoFile)
@@ -117,6 +143,7 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
             })
         }
     }
+    if (userPhotoRef) refs.push(userPhotoRef)
     refs.push(...otherRefs.slice(0, Math.max(0, 4 - refs.length)))
 
     await report("rendering", 62, "🖼️ Nano Banana Pro generuje finální post...")
@@ -140,7 +167,10 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
     const qaProductRef = productRef && selectedProduct
         ? { buffer: productRef.buffer, mimeType: productRef.mimeType, name: selectedProduct.name }
         : undefined
-    const qa = await verifyNativeImage(imageBuffer, qaExpectation, qaProductRef)
+    const qaUserPhotoRef = userPhotoRef
+        ? { buffer: userPhotoRef.buffer, mimeType: userPhotoRef.mimeType }
+        : undefined
+    const qa = await verifyNativeImage(imageBuffer, qaExpectation, qaProductRef, qaUserPhotoRef)
     cost += COSTS.imageQA
 
     // Ship-best-native: track every attempt and keep the closest one. On QA trouble we
@@ -153,19 +183,23 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
     let qaStatus = qa.ok ? "pass" : "retry_pass"
 
     if (!qa.ok) {
-        if (qa.productAccurate === false) {
-            // A wrong product can't be edit-fixed (the edit model never sees the
-            // reference) — regenerate with the references still attached.
-            console.log(`   ⚠️ QA: produkt neodpovídá referenci: ${qa.issues.join("; ")} → regeneruji`)
-            await report("rendering", 78, "🔧 Regeneruji — produkt musí odpovídat fotce...")
+        if (qa.productAccurate === false || qa.photoUsed === false) {
+            // A wrong product / an ignored client photo can't be edit-fixed (the edit
+            // model never sees the reference) — regenerate with the references attached.
+            const reason = qa.photoUsed === false ? "post nevychází z klientovy fotky" : "produkt neodpovídá referenci"
+            console.log(`   ⚠️ QA: ${reason}: ${qa.issues.join("; ")} → regeneruji`)
+            await report("rendering", 78, qa.photoUsed === false ? "🔧 Regeneruji — post musí vycházet z vaší fotky..." : "🔧 Regeneruji — produkt musí odpovídat fotce...")
             const retryPrompt = `${prompt}
 
-⚠️ PREVIOUS ATTEMPT WAS REJECTED — the product did not match the reference photo (${qa.issues.join("; ")}).
-Follow the PRODUCT FIDELITY rules exactly: the product must be a faithful reproduction of the attached "EXACT product photo".`
+⚠️ PREVIOUS ATTEMPT WAS REJECTED — ${qa.photoUsed === false
+    ? `the post was NOT visibly built from the attached "CLIENT photo" (${qa.issues.join("; ")}).
+Follow the CLIENT PHOTO FIDELITY rules exactly: the final post must use the client's photo (whole or a deliberate crop) as its photographic base.`
+    : `the product did not match the reference photo (${qa.issues.join("; ")}).
+Follow the PRODUCT FIDELITY rules exactly: the product must be a faithful reproduction of the attached "EXACT product photo".`}`
             try {
                 const retryBuffer = await generateImageWithReferences(retryPrompt, refs, { aspectRatio: format.aspectRatio, resolution: "2K" })
                 cost += COSTS.imageGeneration
-                const qaRetry = await verifyNativeImage(retryBuffer, qaExpectation, qaProductRef)
+                const qaRetry = await verifyNativeImage(retryBuffer, qaExpectation, qaProductRef, qaUserPhotoRef)
                 cost += COSTS.imageQA
                 if (qaScore(qaRetry) < bestScore) { bestBuffer = retryBuffer; bestScore = qaScore(qaRetry); passed = qaRetry.ok }
             } catch (e: any) { console.warn(`   ⚠️ Regenerace selhala: ${e?.message?.substring(0, 80)}`) }
@@ -184,7 +218,7 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
                     resolution: "2K",
                 })
                 cost += COSTS.imageCorrectiveEdit
-                const qa2 = await verifyNativeImage(fixedBuffer, qaExpectation, qaProductRef)
+                const qa2 = await verifyNativeImage(fixedBuffer, qaExpectation, qaProductRef, qaUserPhotoRef)
                 cost += COSTS.imageQA
                 if (qaScore(qa2) < bestScore) { bestBuffer = fixedBuffer; bestScore = qaScore(qa2); passed = qa2.ok }
             } catch (editErr: any) {
@@ -200,7 +234,7 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
             try {
                 const freshBuffer = await generateImageWithReferences(prompt, refs, { aspectRatio: format.aspectRatio, resolution: "2K" })
                 cost += COSTS.imageGeneration
-                const qaFresh = await verifyNativeImage(freshBuffer, qaExpectation, qaProductRef)
+                const qaFresh = await verifyNativeImage(freshBuffer, qaExpectation, qaProductRef, qaUserPhotoRef)
                 cost += COSTS.imageQA
                 if (qaScore(qaFresh) < bestScore) { bestBuffer = freshBuffer; bestScore = qaScore(qaFresh); passed = qaFresh.ok }
             } catch (e: any) { console.warn(`   ⚠️ Regenerace selhala: ${e?.message?.substring(0, 80)}`) }

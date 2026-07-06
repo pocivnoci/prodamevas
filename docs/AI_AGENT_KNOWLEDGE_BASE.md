@@ -60,6 +60,7 @@ Context Agent (svátek, počasí) ──→ buildMegaPrompt()
    - Config: `loadConfig()` → `validateConfig()` (safe defaults pro neúplný config)
    - Researcher: vybere typ, nápad (`getWeightedIdeas()`), recenzi (`getWeightedReviews()`)
    - Context Agent: `gatherContext()` → svátek, počasí, trendy
+   - Vlastní fotka (`options.customImageUrl` z GenerateTabu): NEpublikuje se raw — 1× vision popis (`analyzeImagesWithText`) → popis jde copywriterovi (caption nesmí být s fotkou v rozporu, ale fotka NENÍ téma) a přes `RenderContext.userPhotoUrl/userPhotoDescription` do native enginu, kde je fotka **povinný vizuální základ** (single image; u carouselu cover) — attachnutá jako ref "CLIENT photo", QA hlídá `photoUsed` (fail → regenerace, edit to nespraví). U reels se fotka ignoruje
    - Brand Memory: `getBrandMemories(8)` + `getPostTypeBoosts()` + critic_score feedback
    - CTA politika: `resolveCtaPolicyForPost()` → jedna `CtaPolicy` pro writera i všechny judge (parity)
    - Copywriter: `generateTextQuality(megaPrompt)` → JSON `{angle, hook, body, cta, hashtags, imagePrompt}`
@@ -68,7 +69,7 @@ Context Agent (svátek, počasí) ──→ buildMegaPrompt()
    - Pokud score < 9: Editorial Board — šéfredaktor = prodejní gate (`judgeText()`, dostává `{ctaPolicy, selectedProduct}`) + copywriter revize (max 3 kola)
    - AI Designer: `generateDesignBrief()` → design brief (kompozice, česká typografie, logo, anti-repetition)
    - Renderer: `generateImageWithReferences()` (Nano Banana Pro renderuje celý post vč. textu+loga) / `generateVideo()` (reels)
-   - Vision QA: `verifyNativeImage()` — přesný český text + logo + věrnost produktu; fail → korektivní edit → čerstvá regenerace → ship-best (`qaScore`)
+   - Vision QA: `verifyNativeImage()` — přesný český text + logo + věrnost produktu + použití klientovy fotky (`photoUsed`); fail → korektivní edit (u produktu/fotky regenerace) → čerstvá regenerace → ship-best (`qaScore`; špatný produkt i ignorovaná fotka váží +100)
    - Upload: Supabase Storage → `createPost()` → `logGeneration(+ critic data)` → `learnFromCriticInsights()` (fire-&-forget, v6.8)
 5. **`ig_jobs` se updatuje** `status=done`, `editorial_log` uložen
 

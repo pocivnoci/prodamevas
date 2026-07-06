@@ -861,11 +861,15 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">Vlastní obrázek</label>
+                                                <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">Vlastní fotka</label>
                                                 <input type="file" accept="image/png, image/jpeg, image/webp"
                                                     onChange={(e) => { const file = e.target.files?.[0]; if (file) setCustomImageFile(file); else setCustomImageFile(null) }}
                                                     className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white/70 text-xs focus:outline-none file:mr-3 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-white cursor-pointer"
                                                 />
+                                                <p className="mt-2 text-[10px] text-white/30 leading-relaxed">
+                                                    AI vaši fotku zakomponuje do designu příspěvku — použije ji celou nebo její část jako vizuální základ a doplní typografii, branding a logo. Text příspěvku se řídí zadaným tématem, ne fotkou.
+                                                    {medium === "reel" && <span className="text-amber-400/60"> U reels se fotka nepoužije.</span>}
+                                                </p>
                                             </div>
                                         </div>
                                     )}

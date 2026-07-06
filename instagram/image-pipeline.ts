@@ -170,6 +170,25 @@ export interface ProductBriefInfo {
     hasReferencePhoto: boolean
 }
 
+/** User's own uploaded photo — the mandatory photographic base of this exact post. */
+export interface UserPhotoBriefInfo {
+    /** Vision-generated factual description of the photo (the designer is text-only and never sees it) */
+    description?: string
+}
+
+/** Shared user-photo block for designer prompts (single image AND carousel cover).
+ *  The designer never sees images, so the description is its only window into the photo. */
+function buildUserPhotoSection(userPhoto?: UserPhotoBriefInfo, target: "post" | "cover" = "post"): string {
+    if (!userPhoto) return ""
+    return `
+
+## 📷 CLIENT'S OWN PHOTO — MANDATORY VISUAL BASE OF THIS ${target === "cover" ? "COVER SLIDE" : "POST"}:
+The client uploaded their OWN photo to be used in this exact ${target === "cover" ? "cover" : "post"}. It is attached to the render call as a reference image labeled "CLIENT photo".
+${userPhoto.description ? `What the photo shows: ${userPhoto.description}` : ""}
+- Your composition MUST be built FROM this photo — describe how to use it whole as the base scene, or which part/crop of it to feature. NEVER invent a replacement scene.
+- Creative freedom applies to grading, cropping, typography and graphic elements layered ON the photo — never to replacing its real content (people, place, subject stay as photographed).`
+}
+
 /** Shared product-fidelity block for designer prompts (single image AND carousel). */
 function buildProductSection(product?: ProductBriefInfo): string {
     if (!product) return ""
@@ -198,6 +217,8 @@ export async function generateDesignBrief(params: {
     visualMemoriesSection?: string
     /** The real product this post is built around (uses_product formats) — drives fidelity rules */
     product?: ProductBriefInfo
+    /** The client's own uploaded photo — the composition must be built from it */
+    userPhoto?: UserPhotoBriefInfo
 }): Promise<DesignBrief> {
     const { config, clientId, captionData, postType, recentBriefs } = params
     const banned = (params.bannedArchetypes ?? []).filter(a => (LAYOUT_ARCHETYPES as readonly string[]).includes(a))
@@ -228,7 +249,7 @@ ${captionData.imageSubtext ? `- Subtext (Czech, render EXACTLY as written): "${c
 ${captionData.accentWords?.length ? `- Accent words (highlight these within the headline): ${captionData.accentWords.join(", ")}` : ""}
 ${captionData.imagePrompt ? `- Copywriter's raw visual idea: "${captionData.imagePrompt}"` : ""}
 ${captionData.body ? `- Post body context: "${captionData.body.substring(0, 300)}"` : ""}
-${buildProductSection(params.product)}
+${buildProductSection(params.product)}${buildUserPhotoSection(params.userPhoto)}
 
 ## RECENT POST DESIGNS — YOU MUST DIVERGE FROM ALL OF THEM:
 ${recentBriefs.length ? recentBriefs.map((b, i) => `${i + 1}. ${b}`).join("\n") : "(no history yet — total creative freedom)"}
@@ -293,7 +314,7 @@ Return ONLY the JSON design brief.`
 /**
  * Convert a DesignBrief into the final Nano Banana Pro image prompt.
  */
-export function buildNativeImagePrompt(brief: DesignBrief, config: ClientConfig, product?: ProductBriefInfo): string {
+export function buildNativeImagePrompt(brief: DesignBrief, config: ClientConfig, product?: ProductBriefInfo, userPhoto?: UserPhotoBriefInfo): string {
     const t = brief.typography
     const hasLogo = Boolean(config.logoFile)
 
@@ -305,11 +326,20 @@ The attached reference image labeled "EXACT product photo: ${product.name}" show
 - The product must be clearly visible and recognizable in the final image.
 - Do NOT redesign, recolor, simplify or reinterpret any part of the product. Style the SCENE around it, never the product itself.` : ""
 
+    const userPhotoBlock = userPhoto ? `
+
+## CLIENT PHOTO FIDELITY (highest priority — overrides creative interpretation):
+The attached reference image labeled "CLIENT photo" is the client's REAL photo and MUST be the photographic base of this post.
+- Build the final image FROM this photo: use it whole, or a deliberate crop/part of it, as the dominant visual.
+- Keep its real content faithful — the people, place, subject and details stay as photographed. Do NOT replace the scene with an invented one.
+- Allowed: color grading to match the brand, cropping/reframing, extending the background, and compositing the typography/logo over it.
+- Forbidden: redrawing the photo as an illustration, swapping its subject, or using it only as loose style inspiration.` : ""
+
     return `Design a complete, finished Instagram post image — a professional brand visual with typography composited into the design (like a finished poster from a top design studio).
 
 ## SCENE / COMPOSITION:
 ${brief.composition}
-${productBlock}
+${productBlock}${userPhotoBlock}
 
 ## NEGATIVE SPACE:
 ${brief.negativeSpace}
@@ -348,6 +378,8 @@ export async function generateCarouselDesignBriefs(params: {
     accentWords?: string[]
     /** The real product this carousel is built around (uses_product formats) — drives fidelity rules */
     product?: ProductBriefInfo
+    /** The client's own uploaded photo — the COVER must be built from it */
+    userPhoto?: UserPhotoBriefInfo
 }): Promise<{ designSystem: string; briefs: DesignBrief[] }> {
     const { config, clientId, allSlides, visualTheme, postType, recentBriefs } = params
     const banned = (params.bannedArchetypes ?? []).filter(a => (LAYOUT_ARCHETYPES as readonly string[]).includes(a))
@@ -375,7 +407,7 @@ ${memSection}
 Visual theme: "${visualTheme}"
 Post type: ${postType}
 ${slideSummary}
-${buildProductSection(params.product)}
+${buildProductSection(params.product)}${buildUserPhotoSection(params.userPhoto, "cover")}
 
 ## RECENT POST DESIGNS — THE CAROUSEL MUST DIVERGE FROM ALL OF THEM:
 ${recentBriefs.length ? recentBriefs.map((b, i) => `${i + 1}. ${b}`).join("\n") : "(no history yet)"}
@@ -428,17 +460,19 @@ export interface NativeImageQA {
     logoPresent: boolean
     /** false ONLY when a product reference was provided and the rendered product doesn't match it */
     productAccurate?: boolean
+    /** false ONLY when a client photo was provided and the render is not visibly built from it */
+    photoUsed?: boolean
     issues: string[]
     /** corrective instruction for the retry edit */
     fixHint?: string
 }
 
-/** QA badness score — lower is better. A wrong product is the worst outcome; after that,
- *  fewer issues wins. Lets the orchestrators pick the best native attempt when none passes
- *  cleanly (ship-best-native: we never drop to a Satori overlay). */
+/** QA badness score — lower is better. A wrong product or an ignored client photo is the
+ *  worst outcome; after that, fewer issues wins. Lets the orchestrators pick the best
+ *  native attempt when none passes cleanly (ship-best-native: we never drop to a Satori overlay). */
 export function qaScore(qa: NativeImageQA): number {
     if (qa.ok) return 0
-    return (qa.productAccurate === false ? 100 : 0) + (qa.issues?.length || 1)
+    return (qa.productAccurate === false ? 100 : 0) + (qa.photoUsed === false ? 100 : 0) + (qa.issues?.length || 1)
 }
 
 /**
@@ -453,6 +487,8 @@ export async function verifyNativeImage(
      *  (carousel slides): a slide may legitimately not show the product, but a
      *  different/invented product design is a FAIL. */
     productRef?: { buffer: Buffer; mimeType?: string; name: string; mode?: "require" | "if-present" },
+    /** the client's own uploaded photo — the render must be visibly built from it */
+    userPhotoRef?: { buffer: Buffer; mimeType?: string },
 ): Promise<NativeImageQA> {
     // Try the Pro QA judge first, then the fast fallback, then fail open. A Pro 503 must
     // never silently skip QA — degrade to flash before giving up.
@@ -465,6 +501,10 @@ ${productRef.mode === "if-present"
     ? `IF the generated image depicts this product (or anything resembling it — a t-shirt, garment, item of the same kind), it must be THIS exact product: identical print/graphic, identical colors, identical cut. A stylized, recolored, redesigned or invented product design is a FAIL (productAccurate=false). If no such product appears in the image at all, that is acceptable (productAccurate=true).`
     : `The generated post (first image) MUST show THIS exact product: identical print/graphic, identical colors, identical cut. A stylized, recolored, redesigned or invented product is a FAIL — and so is a post where the product is completely absent.`}` : ""
 
+    const userPhotoCheck = userPhotoRef ? `
+CLIENT PHOTO USAGE: The LAST attached image is the client's own photo that the post MUST be visibly built from.
+The generated post (first image) must use this photo — whole or a recognizable crop/part of it — as its photographic base. Color grading, reframing, background extension and text/logo composited over it are all fine. A completely different or invented scene that merely resembles the photo's style is a FAIL (photoUsed=false).` : ""
+
     const qaPrompt = `You are a strict QA inspector for AI-designed Instagram posts in CZECH.
 
 Expected headline text (must match EXACTLY, including Czech diacritics ě š č ř ž ý á í é ů ú):
@@ -472,6 +512,7 @@ Expected headline text (must match EXACTLY, including Czech diacritics ě š č 
 ${expected.subtext ? `Expected subtext (must match EXACTLY):\n"${expected.subtext}"` : ""}
 ${expected.logoExpected ? "A brand logo MUST be present somewhere in the image." : ""}
 ${productCheck}
+${userPhotoCheck}
 
 Check:
 1. Read ALL text rendered in the first image. Does the headline match the expected text character-for-character? Watch for: missing/wrong diacritics, swapped letters, duplicated words, gibberish, extra unwanted text.
@@ -479,6 +520,7 @@ ${expected.subtext ? "2. Does the subtext match exactly?" : ""}
 ${expected.logoExpected ? "3. Is the brand logo present and not deformed?" : ""}
 4. Is all text clearly readable (contrast, not cut off at edges)?
 ${productRef ? `5. Does the product in the first image faithfully match the reference product photo (second image)? Compare the print/graphic, colors and cut.` : ""}
+${userPhotoRef ? `6. Is the first image visibly built from the client's photo (the LAST attached image) — same real scene/subject, possibly regraded/cropped/extended?` : ""}
 
 Return ONLY valid JSON:
 {
@@ -486,7 +528,7 @@ Return ONLY valid JSON:
   "textAccurate": true/false,
   "renderedText": "the text you actually read in the image",
   "logoPresent": true/false,
-  ${productRef ? `"productAccurate": true/false,\n  ` : ""}"issues": ["specific problems, empty if ok"],
+  ${productRef ? `"productAccurate": true/false,\n  ` : ""}${userPhotoRef ? `"photoUsed": true/false,\n  ` : ""}"issues": ["specific problems, empty if ok"],
   "fixHint": "if NOT ok — one concrete instruction for an image-edit model to fix it (e.g. 'correct the headline to ... keeping the same style and position') — empty string if ok"
 }`
 
@@ -495,6 +537,7 @@ Return ONLY valid JSON:
     // beats blocking a render or trusting a weaker model's verdict on Czech typography.
     const images = [{ buffer: imageBuffer, mimeType: "image/png" }]
     if (productRef) images.push({ buffer: productRef.buffer, mimeType: productRef.mimeType || "image/jpeg" })
+    if (userPhotoRef) images.push({ buffer: userPhotoRef.buffer, mimeType: userPhotoRef.mimeType || "image/jpeg" })
 
     let text: string
     try {
@@ -521,6 +564,7 @@ Return ONLY valid JSON:
             renderedText: parsed.renderedText || undefined,
             logoPresent: !!parsed.logoPresent,
             productAccurate: productRef ? parsed.productAccurate !== false : undefined,
+            photoUsed: userPhotoRef ? parsed.photoUsed !== false : undefined,
             issues: parsed.issues || [],
             fixHint: parsed.fixHint || undefined,
         }

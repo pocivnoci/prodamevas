@@ -48,6 +48,10 @@ export interface RenderContext {
     recentBriefs?: string[]
     /** Layout archetypes of the most recent posts — hard-banned for the next design brief */
     recentArchetypes?: string[]
+    /** User's own uploaded photo (public URL) — the render must be visibly built from it */
+    userPhotoUrl?: string
+    /** Vision description of that photo — the text-only AI Designer's window into it */
+    userPhotoDescription?: string
 }
 
 export interface RenderResult {
