@@ -2,6 +2,8 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess } from "@/lib/auth-guard"
+import { reconcileFormats } from "@/instagram/configs/reconcile"
+import type { OverlayStyle } from "@/instagram/configs/types"
 
 export async function getClientConfig(projectSlug: string): Promise<any> {
     try {
@@ -55,9 +57,13 @@ export async function updateClientConfig(projectSlug: string, partialConfig: any
             newConfig.defaultFormat = { ...currentConfig.defaultFormat, ...partialConfig.defaultFormat }
         }
 
+        // Reconcile format projections before persisting so the Témata (pillar)
+        // editor's plain save can never leave a format orphaned by a deleted pillar.
+        const reconciled = reconcileFormats(newConfig)
+
         const { error: updateErr } = await supabaseAdmin
             .from("clients")
-            .update({ config: newConfig })
+            .update({ config: reconciled })
             .eq("id", clientId)
 
         if (updateErr) throw updateErr
@@ -97,11 +103,26 @@ export interface PostFormatInput {
     /** true = only selectable manually in the Generate tab; excluded from autopilot
      *  rotation and content planning (giveaways, contests, limited drops) */
     manualOnly?: boolean
+    /** Text overlay style for the render. Optional — falls back to a medium-derived
+     *  default. Reels are always "none"; static media can never be "none". */
+    overlayStyle?: OverlayStyle
 }
 
 function slugifyFormatName(input: string): string {
     return input.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
         .replace(/[^a-z0-9_]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")
+}
+
+const STATIC_OVERLAY_STYLES: OverlayStyle[] =
+    ["default", "cover", "top", "centered", "editorial", "split", "minimal", "full-typo", "step"]
+
+/** Resolve the render overlay style, enforcing the hard rule: reels are text-free
+ *  ("none"); a static image/carousel may NEVER be "none". Honors the user's choice
+ *  when valid, else falls back to the medium-derived default. */
+function resolveOverlayStyle(medium: "image" | "carousel" | "reel", chosen?: OverlayStyle): OverlayStyle {
+    if (medium === "reel") return "none"
+    if (chosen && STATIC_OVERLAY_STYLES.includes(chosen)) return chosen
+    return medium === "carousel" ? "cover" : "default"
 }
 
 export async function upsertPostFormat(
@@ -146,37 +167,29 @@ export async function upsertPostFormat(
             manualOnly: Boolean(input.manualOnly),
         }
 
-        // 1) postTypeDefs — replace by name or append
+        // postTypeDefs is the SOURCE OF TRUTH — replace by name or append.
         const defs: any[] = Array.isArray(config.postTypeDefs) ? [...config.postTypeDefs] : []
         const defIdx = defs.findIndex(d => d?.name === name)
         if (defIdx >= 0) defs[defIdx] = def
         else defs.push(def)
         config.postTypeDefs = defs
 
-        // 2) postTypes — add if missing
-        const postTypes: string[] = Array.isArray(config.postTypes) ? [...config.postTypes] : []
-        if (!postTypes.includes(name)) postTypes.push(name)
-        config.postTypes = postTypes
-
-        // 3) postFormats — render format derived from medium
+        // Set this format's render entry explicitly (honors the chosen overlayStyle;
+        // reconcile won't overwrite an existing postFormats entry).
         config.postFormats = config.postFormats || {}
         config.postFormats[name] = {
             aspectRatio,
             medium: input.medium,
-            overlayStyle: input.medium === "carousel" ? "cover" : input.medium === "reel" ? "none" : "default",
+            overlayStyle: resolveOverlayStyle(input.medium, input.overlayStyle),
         }
 
-        // 4) pillar membership — exactly one pillar owns the format
-        for (const [key, pillar] of Object.entries<any>(config.contentPillars)) {
-            const list: string[] = Array.isArray(pillar.postTypes) ? pillar.postTypes : []
-            const inThisPillar = key === input.pillar
-            if (inThisPillar && !list.includes(name)) pillar.postTypes = [...list, name]
-            if (!inThisPillar && list.includes(name)) pillar.postTypes = list.filter(n => n !== name)
-        }
+        // postTypes + pillar membership are projections — reconcile rebuilds them
+        // from postTypeDefs so the four sources can't drift.
+        const reconciled = reconcileFormats(config)
 
         const { error: updateErr } = await supabaseAdmin
             .from("clients")
-            .update({ config })
+            .update({ config: reconciled })
             .eq("id", clientId)
         if (updateErr) throw updateErr
 
@@ -234,14 +247,10 @@ export async function removePostFormat(
         if (!postTypes.includes(name)) return { success: false, error: "Formát neexistuje" }
         if (postTypes.length <= 1) return { success: false, error: "Poslední formát nelze smazat" }
 
+        // Remove from the source of truth (postTypeDefs) + active list + render map.
         config.postTypes = postTypes.filter(n => n !== name)
         config.postTypeDefs = (config.postTypeDefs || []).filter((d: any) => d?.name !== name)
         if (config.postFormats?.[name]) delete config.postFormats[name]
-        for (const pillar of Object.values<any>(config.contentPillars || {})) {
-            if (Array.isArray(pillar.postTypes) && pillar.postTypes.includes(name)) {
-                pillar.postTypes = pillar.postTypes.filter((n: string) => n !== name)
-            }
-        }
         // weekPlan must never reference a removed format — refill emptied slots
         // from the remaining active set so the plan length stays intact.
         if (Array.isArray(config.weekPlan) && config.weekPlan.includes(name)) {
@@ -250,9 +259,12 @@ export async function removePostFormat(
                 n === name ? remaining[i % remaining.length] : n)
         }
 
+        // reconcile drops the removed name from every pillar's membership.
+        const reconciled = reconcileFormats(config)
+
         const { error: updateErr } = await supabaseAdmin
             .from("clients")
-            .update({ config })
+            .update({ config: reconciled })
             .eq("id", clientId)
         if (updateErr) throw updateErr
 

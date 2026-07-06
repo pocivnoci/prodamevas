@@ -83,8 +83,8 @@ export interface FeedAesthetic {
     phoneModel: string
     /** Extra brand-specific visual instructions for the image prompt */
     customInstructions?: string
-    /** Font family override for text overlay — must match font files in fonts/ dir.
-     * Available: "Inter" (default), "BebasNeue" */
+    /** @deprecated Legacy Satori text-overlay font override — the native engine renders its
+     *  own typography (see typographyStyle). No longer read by the render pipeline. */
     fontOverride?: string
     /** Primary brand accent color (hex, e.g. "#e63946") for keyword highlighting in overlay text.
      * When set, AI-selected accentWords in the headline will render in this color instead of white. */
@@ -264,19 +264,15 @@ export interface ClientConfig {
     /** What the brand is about — used in AI prompt instructions, e.g. "O TELEFONECH a screen time" or "O MERCHI a streetwearu" */
     contentFocus: string
 
-    /** Logo watermark filename inside instagram/fonts/ dir, e.g. "logo-mobilnamiru.png" */
+    /** Logo filename, loaded from instagram/assets/ or Supabase storage (see logo-loader.ts),
+     *  e.g. "logo-mobilnamiru.png" */
     logoFile?: string
-
-    /** Visual rendering engine (default "native"):
-     *  "native"  — Nano Banana Pro composes the full post incl. Czech typography + logo,
-     *              verified by vision QA with corrective retry
-     *  "overlay" — legacy: text-free AI background + Satori/Sharp text overlay */
-    visualEngine?: "native" | "overlay"
 
     /** Veo tier for reel video generation (default "fast") */
     videoTier?: "lite" | "fast" | "premium"
 
-    /** Gradient colors for text-overlay.ts (replaces hardcoded blue/purple) */
+    /** @deprecated Legacy Satori text-overlay gradient — the native engine renders its own
+     *  typography. Kept so old configs don't lose data; no longer read by the render pipeline. */
     overlayGradient?: OverlayGradient
 
     /** Název Supabase public bucketu pro ukládání obrázků tohoto klienta (fallback: "audit-screenshots") */

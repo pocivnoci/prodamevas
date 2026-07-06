@@ -457,9 +457,8 @@ test("12.3 no hardcoded gemini model strings outside models.ts", () => {
     assert(out === "", `Hardcoded model strings in: ${out}`)
 })
 
-test("12.4 validateConfig fills visualEngine + videoTier defaults", () => {
+test("12.4 validateConfig fills videoTier default", () => {
     const content = fileContent("instagram/configs/index.ts")
-    assert(content.includes('visualEngine: config.visualEngine || "native"'), "visualEngine default missing")
     assert(content.includes('videoTier: config.videoTier || "fast"'), "videoTier default missing")
 })
 

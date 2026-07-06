@@ -1,9 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-    serverExternalPackages: ["@resvg/resvg-js", "sharp"],
+    serverExternalPackages: ["sharp"],
     outputFileTracingIncludes: {
-        "/**": ["instagram/fonts/**/*"],
         // Blog Markdown is read from the filesystem (lib/blog.ts) — bundle it.
         "/blog/**": ["content/blog/**/*"],
     },

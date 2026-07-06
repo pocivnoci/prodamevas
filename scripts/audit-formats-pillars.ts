@@ -23,6 +23,7 @@
 
 import supabaseAdmin from "../supabase/admin"
 import { loadConfig, getPillarForPostType, invalidateConfigCache } from "../instagram/configs"
+import { reconcileFormats } from "../instagram/configs/reconcile"
 import { ensurePostTypes } from "../instagram/service"
 import type { ClientConfig } from "../instagram/configs/types"
 
@@ -62,7 +63,10 @@ async function audit(): Promise<void> {
 
         const postTypes = config.postTypes ?? []
         const defNames = new Set((config.postTypeDefs ?? []).map(d => d.name))
-        const pillars = config.contentPillars ?? {}
+        // loadConfig() now self-heals (validateConfig → reconcileFormats), which hides
+        // pillar-membership drift. Detect it against the RAW persisted config instead.
+        const raw = (client.config || {}) as ClientConfig
+        const rawPostTypes = raw.postTypes ?? []
 
         const f: Finding = {
             slug, leakProne: false, emptyConfig: false, genericFormats: false,
@@ -90,16 +94,14 @@ async function audit(): Promise<void> {
 
         // Drift checks.
         f.typesNoDef = postTypes.filter(n => !defNames.has(n))
-        f.typesNoPillar = postTypes.filter(n => !getPillarForPostType(config, n))
+        f.typesNoPillar = rawPostTypes.filter(n => !getPillarForPostType(raw, n))
         const allPillarMembers = new Set<string>()
-        for (const p of Object.values(pillars)) for (const n of (p.postTypes || [])) allPillarMembers.add(n)
-        f.deadPillarRefs = [...allPillarMembers].filter(n => !postTypes.includes(n))
+        for (const p of Object.values(raw.contentPillars ?? {})) for (const n of (p.postTypes || [])) allPillarMembers.add(n)
+        f.deadPillarRefs = [...allPillarMembers].filter(n => !rawPostTypes.includes(n))
         f.staleRows = [...activeRowNames].filter(n => !postTypes.includes(n))
 
         // ── Heal (deterministic only) ──────────────────────────────────────────
         if (FIX) {
-            let configDirty = false
-
             // 1) Backfill missing per-client rows from config (same as the engine).
             if (f.leakProne || rows.length < postTypes.length) {
                 await ensurePostTypes(config, clientId)
@@ -113,19 +115,18 @@ async function audit(): Promise<void> {
                     .in("name", f.staleRows)
                 f.healed.push(`deactivate(${f.staleRows.length})`)
             }
-            // 3) Drop dead pillar references in config.
-            if (f.deadPillarRefs.length > 0 && config.contentPillars) {
-                for (const p of Object.values(config.contentPillars)) {
-                    if (p.postTypes?.some(n => f.deadPillarRefs.includes(n))) {
-                        p.postTypes = p.postTypes.filter(n => !f.deadPillarRefs.includes(n))
-                        configDirty = true
-                    }
-                }
-            }
-            if (configDirty) {
-                const { error: upErr } = await supabaseAdmin.from("clients").update({ config }).eq("id", clientId)
+            // 3) Reconcile config projections on the RAW config (re-home orphaned
+            //    formats, drop dead pillar refs, backfill postFormats) and persist so
+            //    non-patched lambdas / direct DB consumers see consistent data.
+            const reconciled = reconcileFormats(raw)
+            const changed =
+                JSON.stringify(reconciled.contentPillars ?? {}) !== JSON.stringify(raw.contentPillars ?? {}) ||
+                JSON.stringify(reconciled.postTypes ?? []) !== JSON.stringify(raw.postTypes ?? []) ||
+                JSON.stringify(reconciled.postFormats ?? {}) !== JSON.stringify(raw.postFormats ?? {})
+            if (changed) {
+                const { error: upErr } = await supabaseAdmin.from("clients").update({ config: reconciled }).eq("id", clientId)
                 if (upErr) console.error(`   ⚠️ ${slug}: config update failed: ${upErr.message}`)
-                else { invalidateConfigCache(slug); f.healed.push("pruneDeadPillarRefs") }
+                else { invalidateConfigCache(slug); f.healed.push("reconcileFormats") }
             }
         }
 

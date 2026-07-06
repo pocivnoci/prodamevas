@@ -90,99 +90,6 @@ When the post is about the brand or lifestyle, include this character in the sce
 }
 
 // ============================================
-// IMAGE PROMPT REFINEMENT
-// ============================================
-
-export async function refineImagePrompt(
-    config: ClientConfig,
-    captionData: { imagePrompt: string; hook: string; imageSubtext?: string },
-    postType: string,
-    bodyContext?: string,
-    visualMemoriesSection?: string,
-    overlayVariant?: string,
-): Promise<string> {
-    // MEME EXCEPTION
-    if (postType === "meme") {
-        const memePrompt = `
-You are creating a MEME image for Instagram.
-
-Raw idea: "${captionData.imagePrompt}"
-Meme text (will be IN the image): "${captionData.hook}"
-
-## YOUR TASK:
-Create a meme-style BACKGROUND IMAGE — NO TEXT, NO WORDS, NO LETTERS in the image.
-The image must be a relatable, funny visual scene that perfectly matches the meme concept below.
-Text will be added programmatically on top — DO NOT render any text in the image.
-
-Meme concept: "${captionData.imagePrompt}"
-Visual mood: funny, relatable, meme-style
-
-OUTPUT: Single detailed English image prompt (2-3 sentences). NO TEXT IN IMAGE.
-`
-        // Pro ladder for the image-prompt (drives the image model); best-effort —
-        // fall back to the raw prompt if the Pro tiers are exhausted.
-        try {
-            const refined = await generateTextQuality(memePrompt, { models: designerLadder(), label: "image-prompt-meme", json: false, temperature: getTemperature("designer") })
-            return refined || captionData.imagePrompt
-        } catch { return captionData.imagePrompt }
-    }
-
-    // Load visual memories if not provided
-    const memSection = visualMemoriesSection ?? await getVisualMemoriesSection()
-
-    // STANDARD POST
-    const refinementPrompt = `
-${buildFeedAesthetic(config)}
-${memSection}
-## YOUR TASK:
-Take this raw image prompt and transform it into a DETAILED, professional image prompt.
-
-Raw prompt: "${captionData.imagePrompt}"
-
-HOOK TEXT: "${captionData.hook}"
-Subtext: "${captionData.imageSubtext || ""}"
-Post type: ${postType}
-${bodyContext ? `Post body context: "${bodyContext}"` : ""}
-
-## OUTPUT:
-Return ONLY a single detailed English image generation prompt (NO JSON).
-
-⚠️ CRITICAL RULES — MUST FOLLOW:
-- ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY in the image
-- NO signs, NO labels, NO overlays, NO captions
-- The image is a pure BACKGROUND PHOTO — text will be added programmatically
-
-🎯 VISUAL QUALITY RULES — WHAT MAKES A GREAT INSTAGRAM FEED:
-- VARIETY is everything — each post should look DIFFERENT from the last
-- Alternate between: people (emotions, candid), product close-ups (texture, detail), environments (mood, atmosphere), creative angles (aerial, macro, motion blur)
-- NEVER generate boring static shots (laptop on desk, coffee cup, flat lay of random objects)
-- Cinematic lighting: golden hour, dramatic shadows, rim light, neon glow
-- Depth: foreground + subject + background layers, shallow DOF
-- When people appear: show authentic expression, gesture, interaction
-- When no people: make the composition visually striking and unexpected
-
-🖼️ COMPOSITION FOR TEXT OVERLAY — CRITICAL:
-Text will be overlaid on this image programmatically. The image must have CLEAR NEGATIVE SPACE (empty/uniform area) where the text will go.
-${overlayVariant === "top" || overlayVariant === "editorial" ? "- Text will be placed at the TOP of the image → keep the TOP 35% of the image relatively clean/blurred/dark — put the main subject in the LOWER HALF" : overlayVariant === "centered" || overlayVariant === "full-typo" ? "- Text will be placed in the CENTER of the image → composition should frame around the edges, with the CENTER area relatively empty or with a subtle, uniform background" : overlayVariant === "split" ? "- Text will be placed in the UPPER-CENTER and BOTTOM of the image → keep those areas with uniform/dark backgrounds — put the main subject to the LEFT or RIGHT side" : "- Text will be placed at the BOTTOM of the image → keep the BOTTOM 35% of the image relatively clean/blurred/dark — put the main subject in the UPPER HALF"}
-- NEVER place a face, product logo, or important detail where the text will go — it will be covered and unreadable
-- Use depth of field to blur the text area naturally
-- A dark gradient will be applied over the text area, so slightly darker tones there help readability
-
-The prompt should be 2-3 sentences.
-`
-
-    // Pro ladder for the image-prompt (the prompt that drives the image model →
-    // directly affects render quality). Best-effort: fall back to the raw prompt.
-    let refined: string | undefined
-    try {
-        refined = await generateTextQuality(refinementPrompt, { models: designerLadder(), label: "image-prompt", json: false, temperature: getTemperature("designer") })
-    } catch { refined = undefined }
-
-    if (!refined) return captionData.imagePrompt
-    return refined.replace(/^["']|["']$/g, "").trim()
-}
-
-// ============================================
 // AI DESIGNER — Native design engine
 // (Nano Banana Pro renders the FULL post incl. Czech typography + logo;
 //  this agent produces the structured design brief that drives it.)
@@ -428,7 +335,7 @@ Editorial photography quality, cinematic lighting, real depth of field. The fina
 /**
  * One designer call for a whole carousel: a shared design system
  * (typography / palette / logo treatment stay constant, only framing varies)
- * + one DesignBrief per slide. Mirrors refineCarouselPrompts for the native engine.
+ * + one DesignBrief per slide — the native carousel design agent.
  */
 export async function generateCarouselDesignBriefs(params: {
     config: ClientConfig
@@ -526,6 +433,14 @@ export interface NativeImageQA {
     fixHint?: string
 }
 
+/** QA badness score — lower is better. A wrong product is the worst outcome; after that,
+ *  fewer issues wins. Lets the orchestrators pick the best native attempt when none passes
+ *  cleanly (ship-best-native: we never drop to a Satori overlay). */
+export function qaScore(qa: NativeImageQA): number {
+    if (qa.ok) return 0
+    return (qa.productAccurate === false ? 100 : 0) + (qa.issues?.length || 1)
+}
+
 /**
  * Verify a natively-designed image: exact Czech text + logo presence, and — when a
  * product reference photo is provided — that the rendered product matches it
@@ -612,96 +527,6 @@ Return ONLY valid JSON:
     } catch {
         return { ok: true, textAccurate: true, logoPresent: true, issues: [] }
     }
-}
-
-// ============================================
-// CAROUSEL PROMPT REFINEMENT
-// ============================================
-
-export async function refineCarouselPrompts(
-    config: ClientConfig,
-    allSlides: { headline: string; subtext: string; imagePrompt: string }[],
-    visualTheme: string,
-    postType: string
-): Promise<string[]> {
-    const slideSummary = allSlides.map((s, i) =>
-        `Slide ${i === 0 ? "COVER" : String(i)}: headline="${s.headline}", subtext="${s.subtext}", rawPrompt="${s.imagePrompt}"`
-    ).join("\n")
-
-    // Inject visual memories for carousel cohesion
-    const memSection = await getVisualMemoriesSection()
-
-    const refinementPrompt = `
-${buildFeedAesthetic(config)}
-${memSection}
-## YOUR TASK:
-You are refining image prompts for an Instagram CAROUSEL (${allSlides.length} slides).
-All slides MUST feel like ONE cohesive series — as if photographed in the same session.
-
-Visual theme: "${visualTheme}"
-
-## SLIDES:
-${slideSummary}
-
-## CRITICAL RULES FOR CAROUSEL COHESION:
-1. ALL slides share the SAME environment/location — describe it consistently
-2. ALL slides share the SAME lighting setup and color temperature
-3. ALL slides share the SAME style (e.g. all editorial, all product close-up, all lifestyle)
-4. ONLY camera angle and framing changes between slides (wide → medium → close-up → detail)
-5. Consistent props, products, and brand elements across all slides
-6. Camera progression should feel like moving THROUGH a scene, not jumping between locations
-
-## ⚠️ ABSOLUTE REQUIREMENT — NO TEXT IN IMAGES:
-- ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY in any slide
-- NO signs, NO labels, NO overlays, NO captions, NO watermarks
-- Each image is a pure BACKGROUND PHOTO — text is added programmatically via overlay
-
-## 🖼️ COMPOSITION FOR TEXT OVERLAY:
-- Text will be overlaid at the BOTTOM of each slide. The BOTTOM 35% must have CLEAR NEGATIVE SPACE.
-- NEVER place faces, products, or important details in the bottom third — they will be covered by text.
-- Put the main subject in the UPPER HALF of the frame. Use depth of field to blur the bottom area naturally.
-- The COVER slide (first) has the largest text — it needs the MOST negative space at the bottom.
-
-## OUTPUT:
-Return a JSON array of exactly ${allSlides.length} strings, each a detailed image prompt.
-Each prompt should be 2-3 sentences and end with "NO TEXT in image."
-`
-
-    try {
-        const response = await ai.models.generateContent({
-            model: getModel("text"),
-            contents: refinementPrompt,
-            config: { responseMimeType: "application/json" },
-        })
-
-        const parts = response.candidates?.[0]?.content?.parts || []
-        const textPart = parts.find((p: any) => p.text)
-        const text = textPart?.text || ""
-        const parsed = JSON.parse(text)
-
-        if (Array.isArray(parsed) && parsed.length === allSlides.length) {
-            console.log(`   ✓ Carousel prompts unified (${parsed.length} slides, shared theme)`)
-            return parsed.map((p: string) => p.replace(/^["']|["']$/g, "").trim())
-        }
-
-        console.warn("   ⚠️ Carousel prompt array length mismatch — falling back")
-    } catch (err) {
-        console.warn("   ⚠️ Carousel batch refinement failed — falling back:", err)
-    }
-
-    // Fallback: refine individually (reuse the already-loaded memories)
-    const results: string[] = []
-    for (const slide of allSlides) {
-        const refined = await refineImagePrompt(
-            config,
-            { imagePrompt: slide.imagePrompt, hook: slide.headline, imageSubtext: slide.subtext },
-            postType,
-            undefined,
-            memSection
-        )
-        results.push(refined)
-    }
-    return results
 }
 
 // ============================================

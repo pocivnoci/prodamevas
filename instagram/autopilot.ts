@@ -873,7 +873,7 @@ export async function generateOnePost(options: {
             // 'image' | 'carousel' | 'reel' — drives how the publisher cron pushes media.
             // (Carousel slide URLs stay pipe-joined in image_url per the orchestrator convention.)
             media_type: format.medium,
-            image_style: renderResult?.imageStyle ?? (isReel ? "veo-3.1" : `overlay:${format.overlayStyle || "default"}`),
+            image_style: renderResult?.imageStyle ?? (isReel ? "veo-3.1" : "native"),
             design_brief: renderResult?.designBrief ?? null,
             status: "draft",
         })
