@@ -43,7 +43,8 @@ export async function getDashboardStats(projectSlug: string) {
             .limit(200)
 
         const allPosts = posts || []
-        const drafts = allPosts.filter(p => p.status === "draft").length
+        // plan_draft = legacy showcase-post status, treated as a normal draft
+        const drafts = allPosts.filter(p => p.status === "draft" || p.status === "plan_draft").length
         const ready = allPosts.filter(p => p.status === "ready").length
         const posted = allPosts.filter(p => p.status === "posted").length
 
@@ -187,7 +188,9 @@ export async function getIGPostsList(
             .select("id", { count: "exact", head: true })
             .eq("client_id", clientId)
         if (statusFilter && statusFilter !== "all") {
-            countQuery = countQuery.eq("status", statusFilter)
+            // Legacy plan_draft rows count as drafts
+            if (statusFilter === "draft") countQuery = countQuery.in("status", ["draft", "plan_draft"])
+            else countQuery = countQuery.eq("status", statusFilter)
         }
         const { count } = await countQuery
         const total = count || 0
@@ -212,7 +215,8 @@ export async function getIGPostsList(
             .range(from, to)
 
         if (statusFilter && statusFilter !== "all") {
-            query = query.eq("status", statusFilter)
+            if (statusFilter === "draft") query = query.in("status", ["draft", "plan_draft"])
+            else query = query.eq("status", statusFilter)
         }
 
         const { data, error } = await query

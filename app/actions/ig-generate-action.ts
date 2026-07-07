@@ -252,6 +252,47 @@ export async function triggerAIIdeasGeneration(options: {
 }
 
 // ============================================
+// IDEA BANK SEEDING (onboarding)
+// ============================================
+
+/**
+ * Seed a fresh client's idea bank (Zásobník témat) from their 2 highest-ratio pillars.
+ * Called once from onboarding (between showcase posts and the first content plan) so the
+ * very first plan can already draw from the bank. Free — an onboarding gift, no creditGuard.
+ * Never throws; every failure is non-fatal.
+ */
+export async function seedIdeaBank(projectSlug: string): Promise<{ success: boolean; seeded: number }> {
+    try {
+        const { clientId } = await requireProjectAccess(projectSlug)
+        const config = await loadConfig(projectSlug)
+        const { withActiveProject } = await import("@/instagram/service")
+        const { generateAIIdeas } = await import("@/instagram/idea-generator")
+
+        const topPillars = Object.entries(config.contentPillars || {})
+            .sort((a, b) => (b[1]?.ratio || 0) - (a[1]?.ratio || 0))
+            .slice(0, 2)
+            .map(([id]) => id)
+
+        let seeded = 0
+        for (const pillarId of topPillars) {
+            try {
+                // withActiveProject lets getBrandMemories() inside the generator see the
+                // memories onboarding just seeded (instead of silently skipping them).
+                const rows = await withActiveProject(clientId, () => generateAIIdeas(config, pillarId, 6))
+                seeded += rows?.length || 0
+            } catch (e: any) {
+                console.warn(`seedIdeaBank: pillar ${pillarId} failed: ${e?.message?.substring(0, 120)}`)
+            }
+        }
+        console.log(`💡 seedIdeaBank: ${seeded} nápadů pro ${projectSlug} (${topPillars.join(", ")})`)
+        return { success: seeded > 0, seeded }
+    } catch (err: any) {
+        console.warn("seedIdeaBank error:", err?.message || err)
+        return { success: false, seeded: 0 }
+    }
+}
+
+// ============================================
 // AI REVIEW GENERATOR
 // ============================================
 
@@ -551,7 +592,10 @@ export async function generateMonthlyPlan(options: {
 
 /**
  * Generate 1 full post via autopilot (caption + image + overlay).
- * Marks result as plan_draft. Called 3 times from onboarding to create showcase posts.
+ * Called 3 times from onboarding to create showcase posts. Posts stay in the
+ * normal "draft" status so they enter the standard approval pipeline (the old
+ * "plan_draft" status had no approve path, no filter chip, and wasn't counted
+ * in dashboard stats — a brand-new account looked empty despite 3 real posts).
  * Each call is a separate server action to avoid timeout issues (~30-60s each).
  */
 export async function generateShowcasePost(options: {
@@ -564,14 +608,6 @@ export async function generateShowcasePost(options: {
         const { generateOnePost } = await import("@/instagram/autopilot")
 
         const result = await generateOnePost({ configName: options.configName })
-
-        // Mark the generated post as plan_draft (autopilot creates it as "draft")
-        if (result.id) {
-            await supabaseAdmin
-                .from("ig_posts")
-                .update({ status: "plan_draft" })
-                .eq("id", result.id)
-        }
 
         return { success: true, postId: result.id }
     } catch (err: any) {

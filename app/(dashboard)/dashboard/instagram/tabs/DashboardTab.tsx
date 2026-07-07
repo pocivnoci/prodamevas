@@ -175,8 +175,10 @@ function computeActionItems(stats: DashboardStats): ActionItem[] {
         })
     }
 
-    // Idea bank running low — the engine falls back to inventing topics
-    if (stats.ideasAvailable < 5 && stats.totalPosts > 0) {
+    // Idea bank running low — the engine falls back to inventing topics.
+    // Gated on "had ideas or is an active poster" so a brand-new account
+    // (0 ideas, 30 plan_locked teasers) isn't nagged on day one.
+    if (stats.ideasAvailable < 5 && (stats.ideas > 0 || stats.posted > 0)) {
         items.push({
             emoji: "💡",
             label: "Docházejí nápady",
@@ -203,6 +205,16 @@ export function DashboardTab({ projectId }: { projectId: string }) {
     const [stats, setStats] = useState<DashboardStats | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(false)
+    // Onboarding stashes the first content plan in localStorage; if the user landed here
+    // without consuming it, surface a banner so the plan doesn't wait invisibly forever.
+    const [draftPlanWaiting, setDraftPlanWaiting] = useState(false)
+
+    useEffect(() => {
+        if (!projectId) return
+        try {
+            setDraftPlanWaiting(!!localStorage.getItem(`ig_draft_plan_${projectId}`))
+        } catch { /* ignore */ }
+    }, [projectId])
 
     useEffect(() => {
         if (!projectId) return
@@ -263,6 +275,31 @@ export function DashboardTab({ projectId }: { projectId: string }) {
 
     return (
         <div className="space-y-5">
+
+            {/* ──── First content plan waiting for review (onboarding handoff) ──── */}
+            {draftPlanWaiting && (
+                <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center justify-between gap-4 rounded-sm border border-violet-400/25 bg-violet-400/5 p-4"
+                >
+                    <div className="flex items-center gap-3">
+                        <span className="text-2xl leading-none">🗓️</span>
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-tight text-white">Váš první plán obsahu čeká na schválení</p>
+                            <p className="text-[10px] text-white/40 font-medium mt-0.5">AI ho připravila při onboardingu — stačí zkontrolovat a spustit.</p>
+                        </div>
+                    </div>
+                    {/* Plain section switch — a generateIntent would reset GenerateTab to step 1
+                        and fight the draft-plan consume effect. */}
+                    <button
+                        onClick={() => setActiveSection("generate")}
+                        className="shrink-0 px-5 py-2.5 bg-violet-500/15 border border-violet-400/30 text-violet-200 rounded-sm text-[10px] font-black uppercase tracking-widest hover:bg-violet-500/25 transition-all"
+                    >
+                        Zkontrolovat →
+                    </button>
+                </motion.div>
+            )}
 
             {/* ──── HERO: OBSAH NA MĚSÍC (the money action) ──── */}
             <motion.div

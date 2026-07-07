@@ -268,7 +268,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                         onClick={() => setHandoffPost(post)}
                                     />
                                 )}
-                                {post.status === "draft" && (
+                                {(post.status === "draft" || post.status === "plan_draft") && (
                                     <InlineAction
                                         label="✅"
                                         title="Označit jako Připraveno"
@@ -792,7 +792,7 @@ function PostDetailModal({
                     <div className="flex-1" />
 
                     {/* Status Actions */}
-                    {post.status === "draft" && (
+                    {(post.status === "draft" || post.status === "plan_draft") && (
                         <>
                             <button
                                 onClick={() => onStatusChange(post.id, "ready")}

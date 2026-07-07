@@ -134,6 +134,20 @@ export async function GET(req: Request) {
             ? `${baseTopic || ""}${baseTopic ? " — " : ""}úhel: ${item.angle}`.trim()
             : baseTopic
         const approvedHook = item?.hookPreview?.trim() || undefined
+        // Idea-bank attribution: the plan item's topic was derived from this idea (bank-sourced
+        // or deposited at startCampaign) — generateOnePost links idea_id + marks it used.
+        // Ownership was validated at startCampaign; re-check mere existence here so an idea
+        // the user deleted mid-campaign drops the attribution instead of failing the post.
+        let itemIdeaId: string | undefined = item?.ideaId || undefined
+        if (itemIdeaId) {
+            const { data: ideaRow } = await supabaseAdmin
+                .from("ig_post_ideas")
+                .select("id")
+                .eq("id", itemIdeaId)
+                .eq("client_id", clientId)
+                .maybeSingle()
+            if (!ideaRow) itemIdeaId = undefined
+        }
         // Per-item medium chosen in the plan (image/carousel) overrides the campaign-wide
         // default. generateOnePost still applies the reel kill-switch + feed-safe clamp.
         const itemMedium = item?.medium || opts.medium || undefined
@@ -207,6 +221,7 @@ export async function GET(req: Request) {
                     client_id: clientId,
                     config: {
                         configName, type: postType, topic: postTopic, approvedHook,
+                        ideaId: itemIdeaId,
                         aspectRatio: opts.aspectRatio || undefined,
                         medium: itemMedium,
                         category: opts.category || undefined,
@@ -238,6 +253,7 @@ export async function GET(req: Request) {
         try {
             const result = await generateOnePost({
                 configName, type: postType, topic: postTopic, approvedHook,
+                ideaId: itemIdeaId,
                 aspectRatio: opts.aspectRatio || undefined,
                 medium: itemMedium,
                 productId: item?.productId || undefined,
@@ -369,9 +385,10 @@ export async function GET(req: Request) {
 
 /**
  * "Obsah je připraven" digest to the client owner — per-post cards (termín,
- * caption, hashtagy, náhled) + deep link to the calendar. kind "notification"
- * → respects email_optouts and carries the unsubscribe footer. Best-effort:
- * never lets an e-mail problem fail the finalize response.
+ * caption, hashtagy, náhled) + deep link to Příspěvky (where approve/publish
+ * actions live; matches the in-app result CTA). kind "notification" → respects
+ * email_optouts and carries the unsubscribe footer. Best-effort: never lets an
+ * e-mail problem fail the finalize response.
  */
 async function sendPlanReadyEmail(
     campaignId: string,
@@ -383,7 +400,7 @@ async function sendPlanReadyEmail(
             await import("@/lib/notifications")
         const to = await getOwnerEmail(clientId)
         if (!to) return
-        const ctaUrl = studioDeepLink(clientId, "calendar")
+        const ctaUrl = studioDeepLink(clientId, "posts")
 
         if (info.successes === 0) {
             await sendNotification({
@@ -407,8 +424,8 @@ Tým Chrlit`,
         const introParts = [
             "Dobrý den,",
             info.finalStatus === "done"
-                ? `váš obsah je hotový — všech ${info.total} příspěvků je připraveno ke zveřejnění. Každý má naplánovaný termín, caption i hashtagy:`
-                : `${info.successes} z ${info.total} příspěvků je připraveno ke zveřejnění:`,
+                ? `váš obsah je hotový — všech ${info.total} příspěvků je připraveno ke kontrole. Každý má navržený termín, caption i hashtagy — zkontrolujte je a schvalte k publikaci:`
+                : `${info.successes} z ${info.total} příspěvků je připraveno ke kontrole:`,
         ]
         if (info.failures > 0) {
             introParts.push(`${info.failures} příspěvků se nepodařilo vygenerovat — kredity za ně byly vráceny.`)
@@ -424,7 +441,7 @@ Tým Chrlit`,
             html: renderCampaignDigest(posts, {
                 intro: introParts.join("\n\n"),
                 ctaUrl,
-                ctaLabel: "Otevřít kalendář v aplikaci →",
+                ctaLabel: "Otevřít příspěvky v aplikaci →",
             }),
         })
     } catch (err: any) {

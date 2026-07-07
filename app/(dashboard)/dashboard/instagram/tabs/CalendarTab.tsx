@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { planWeekAction, getWeekPosts, approvePost, movePost } from "@/app/actions/calendar-actions"
+import { getWeekPosts, approvePost } from "@/app/actions/calendar-actions"
+import { useStudio } from "@/app/(dashboard)/StudioContext"
 
 interface CalendarPost {
     id: string
@@ -31,13 +32,11 @@ function formatDate(d: Date): string {
 }
 
 export function CalendarTab({ projectId }: { projectId: string }) {
+    const { setActiveSection, setGenerateIntent } = useStudio()
     const [weekStart, setWeekStart] = useState(() => getMonday(new Date()))
     const [posts, setPosts] = useState<CalendarPost[]>([])
     const [loading, setLoading] = useState(true)
-    const [planning, setPlanning] = useState(false)
-    const [planningProgress, setPlanningProgress] = useState("")
     const [selectedPost, setSelectedPost] = useState<CalendarPost | null>(null)
-    const [error, setError] = useState<string | null>(null)
 
     const weekStartStr = formatDate(weekStart)
 
@@ -51,23 +50,12 @@ export function CalendarTab({ projectId }: { projectId: string }) {
 
     useEffect(() => { loadPosts() }, [loadPosts])
 
-    const handlePlanWeek = async () => {
-        if (planning) return
-        setPlanning(true)
-        setPlanningProgress("🧠 AI plánuje týden...")
-        setError(null)
-
-        const result = await planWeekAction(projectId, weekStartStr, 5)
-
-        if (result.success) {
-            setPlanningProgress(`✅ Naplánováno ${result.plan?.slots.length || 0} postů`)
-            await loadPosts()
-            setTimeout(() => setPlanningProgress(""), 3000)
-        } else {
-            setError(result.error || "Plánování selhalo")
-            setPlanningProgress("")
-        }
-        setPlanning(false)
+    // Week planning goes through the proper campaign flow (plan preview → credit
+    // gating → durable worker) — the old in-request planWeekAction generated posts
+    // synchronously with NO credit charge and died with the tab.
+    const handlePlanWeek = () => {
+        setGenerateIntent({ mode: "plan", duration: "1w" })
+        setActiveSection("generate")
     }
 
     const handleApprove = async (postId: string) => {
@@ -129,28 +117,14 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                 </div>
             </div>
 
-            {/* Plan button */}
+            {/* Plan button — opens the campaign flow pre-set to one week */}
             <div className="flex items-center gap-4">
                 <button
                     onClick={handlePlanWeek}
-                    disabled={planning}
-                    className="px-6 py-3 bg-gradient-to-r from-emerald-600/20 to-emerald-500/10 border border-emerald-500/30 rounded-sm text-emerald-400 text-xs font-bold uppercase tracking-widest hover:from-emerald-600/30 hover:to-emerald-500/20 transition-all disabled:opacity-50 disabled:cursor-wait shadow-lg shadow-emerald-900/20"
+                    className="px-6 py-3 bg-gradient-to-r from-emerald-600/20 to-emerald-500/10 border border-emerald-500/30 rounded-sm text-emerald-400 text-xs font-bold uppercase tracking-widest hover:from-emerald-600/30 hover:to-emerald-500/20 transition-all shadow-lg shadow-emerald-900/20"
                 >
-                    {planning ? (
-                        <span className="flex items-center gap-2">
-                            <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" /></svg>
-                            Plánuji...
-                        </span>
-                    ) : "📅 Naplánuj týden"}
+                    🪄 Naplánovat týden →
                 </button>
-
-                {planningProgress && (
-                    <span className="text-[10px] text-emerald-400/80 font-medium animate-pulse">{planningProgress}</span>
-                )}
-
-                {error && (
-                    <span className="text-[10px] text-red-400">{error}</span>
-                )}
             </div>
 
             {/* Calendar Grid */}

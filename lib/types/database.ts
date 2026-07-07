@@ -7,7 +7,8 @@
 
 // ─── Post Status ─────────────────────────────────────────────
 
-export type IGPostStatus = "draft" | "ready" | "scheduled" | "posting" | "posted" | "failed" | "plan_locked"
+/** "plan_draft" is legacy — no longer minted (showcase posts are plain "draft" now); old rows are treated as drafts. */
+export type IGPostStatus = "draft" | "ready" | "scheduled" | "posting" | "posted" | "failed" | "plan_locked" | "plan_draft"
 
 // ─── IG Post ─────────────────────────────────────────────────
 

@@ -231,6 +231,16 @@ function OnboardingContent() {
                 }
             }
 
+            // Phase 2.5: seed the idea bank (Zásobník témat) from the top pillars — MUST run
+            // before the first plan so it can already draw topics from the bank.
+            setGeneratingProgress({ phase: 'ideas', current: 1, total: 1 })
+            try {
+                const { seedIdeaBank } = await import('@/app/actions/ig-generate-action')
+                await seedIdeaBank(clientSlug)
+            } catch (seedErr) {
+                console.warn('Idea bank seeding failed (non-fatal):', seedErr)
+            }
+
             // Phase 3: generate a real, editable first content plan (insight-grounded from
             // the client's scraped IG) and hand it to the dashboard via localStorage, so the
             // user lands on a ready week in the Generate tab instead of a blank slate.
@@ -777,26 +787,32 @@ function OnboardingContent() {
                         <h2 className="text-2xl font-bold mb-4">
                             {generatingProgress.phase === 'firstplan'
                                 ? 'Připravuji tvůj první plán obsahu...'
-                                : `Generuji ukázkový příspěvek ${generatingProgress.current}/3`}
+                                : generatingProgress.phase === 'ideas'
+                                    ? 'Plním zásobník témat...'
+                                    : `Generuji ukázkový příspěvek ${generatingProgress.current}/3`}
                         </h2>
                         <p className="text-gray-400 mb-8">
                             {generatingProgress.phase === 'firstplan'
                                 ? 'Skládám témata a hooky na míru tvé značce — podle toho, co ti na Instagramu už funguje.'
-                                : 'Copywriter píše text, Art Director tvoří obrázek, Kritik kontroluje kvalitu...'}
+                                : generatingProgress.phase === 'ideas'
+                                    ? 'Připravuji zásobu nápadů na příspěvky, ze které bude AI čerpat témata.'
+                                    : 'Copywriter píše text, Art Director tvoří obrázek, Kritik kontroluje kvalitu...'}
                         </p>
                         {/* Progress bar */}
                         <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden mb-3">
                             <div
                                 className="h-full rounded-full bg-violet-500 transition-all duration-1000 ease-out"
-                                style={{ width: generatingProgress.phase === 'firstplan' ? '100%' : `${(generatingProgress.current / 3) * 100}%` }}
+                                style={{ width: generatingProgress.phase === 'firstplan' ? '100%' : generatingProgress.phase === 'ideas' ? '80%' : `${(generatingProgress.current / 3) * 100}%` }}
                             />
                         </div>
                         <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">
                             {generatingProgress.phase === 'firstplan'
                                 ? 'Tvůj týdenní plán bude čekat v dashboardu'
-                                : generatingProgress.current === 0
-                                    ? 'Připravuji měsíční plán...'
-                                    : `Příspěvek ${generatingProgress.current} ze 3 — plný obsah se vším`
+                                : generatingProgress.phase === 'ideas'
+                                    ? 'Zásobník témat — základ tvého obsahového plánu'
+                                    : generatingProgress.current === 0
+                                        ? 'Připravuji měsíční plán...'
+                                        : `Příspěvek ${generatingProgress.current} ze 3 — plný obsah se vším`
                             }
                         </p>
                     </div>
@@ -824,11 +840,11 @@ function OnboardingContent() {
                         </div>
 
                         <button
-                            onClick={() => router.push('/dashboard/instagram')}
+                            onClick={() => router.push(reonboardSlug ? '/dashboard/instagram' : '/dashboard/instagram#generate')}
                             className="w-full relative group overflow-hidden rounded-xl bg-emerald-600 px-6 py-4 text-sm font-bold text-white shadow-[0_0_20px_rgba(16,185,129,0.2)] transition-all hover:bg-emerald-500 cursor-pointer text-center"
                         >
                             <span className="relative z-10 flex items-center justify-center gap-2">
-                                {reonboardSlug ? 'Zpět do Dashboardu' : 'Vstoupit do Chrlit Studia'}
+                                {reonboardSlug ? 'Zpět do Dashboardu' : 'Zkontrolovat můj první plán'}
                                 <span className="transition-transform group-hover:translate-x-1">→</span>
                             </span>
                         </button>

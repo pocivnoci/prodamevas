@@ -68,6 +68,61 @@ export async function startCampaign(
             return { success: false, error: check.reason || "Nedostatek kreditů pro celou kampaň." }
         }
 
+        // ─── Idea-bank linkage (Zásobník témat ↔ plán) ───
+        // 1) Validate incoming ideaIds — the plan JSON comes from the browser, so a stale or
+        //    foreign id must be nulled here, not throw mid-campaign in the worker.
+        const claimedIdeaIds = items.map(it => it.ideaId).filter(Boolean) as string[]
+        if (claimedIdeaIds.length > 0) {
+            try {
+                const { data: ownIdeas } = await supabaseAdmin
+                    .from("ig_post_ideas")
+                    .select("id")
+                    .eq("client_id", clientId)
+                    .in("id", claimedIdeaIds)
+                const ownSet = new Set((ownIdeas || []).map(r => r.id))
+                for (const it of items) {
+                    if (it.ideaId && !ownSet.has(it.ideaId)) it.ideaId = undefined
+                }
+            } catch (e: any) {
+                console.warn(`📦 [campaign] ideaId validation failed — dropping links: ${e?.message}`)
+                for (const it of items) it.ideaId = undefined
+            }
+        }
+
+        // 2) Deposit invented topics into the bank — approved plan topics become ideas, so the
+        //    backlog grows and next month's plan can reuse what worked (metrics attach via idea_id).
+        //    Deposit lives ONLY here (once per user click): the worker's cursor-resume/lease-retry
+        //    must never re-insert. If the campaign insert below fails, the deposited ideas remain —
+        //    acceptable orphans (they're valid topics). markIdeaAsUsed happens in the engine when
+        //    each post is actually created.
+        try {
+            const invented = items.filter(it =>
+                !it.ideaId && it.topic && it.hookPreview && !it.hookPreview.startsWith("Nový post")
+            )
+            if (invented.length > 0) {
+                const { data: deposited } = await supabaseAdmin
+                    .from("ig_post_ideas")
+                    .insert(invented.map(it => ({
+                        client_id: clientId,
+                        category: it.pillar,
+                        subcategory: null,
+                        title: it.topic,
+                        content: `${it.hookPreview}${it.angle ? ` — ${it.angle}` : ""}`,
+                        keywords: [],
+                        used_count: 0,
+                        is_active: true,
+                        cooldown_days: 30,
+                    })))
+                    .select("id")
+                if (deposited?.length === invented.length) {
+                    invented.forEach((it, i) => { it.ideaId = deposited[i].id })
+                    console.log(`📦 [campaign] deposited ${deposited.length} plan topics into the idea bank`)
+                }
+            }
+        } catch (e: any) {
+            console.warn(`📦 [campaign] idea deposit skipped (non-fatal): ${e?.message}`)
+        }
+
         // Persist only the fields the worker needs to generate each post.
         // scheduledFor/timeSlot (from the planner) let the worker stamp the post's
         // posting time + calendar entry once it's generated.
@@ -79,6 +134,7 @@ export async function startCampaign(
             angle: it.angle || null,
             medium: it.medium || null,
             productId: it.productId || null,
+            ideaId: it.ideaId || null,
             scheduledFor: it.scheduledDate && it.scheduledTime
                 ? toScheduledFor(it.scheduledDate, it.scheduledTime)
                 : null,

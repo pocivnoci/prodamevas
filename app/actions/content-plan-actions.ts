@@ -28,6 +28,10 @@ export interface ContentPlanItem {
     /** Planner: when this post should publish. Set at plan approval, editable. */
     scheduledDate?: string // "YYYY-MM-DD"
     scheduledTime?: string // "HH:MM"
+    /** ig_post_ideas id when this item was sourced from the idea bank (Zásobník témat). */
+    ideaId?: string
+    /** Idea title for the 💡 badge in the plan preview. */
+    ideaTitle?: string
 }
 
 /**
@@ -97,6 +101,18 @@ export async function generateContentPlan(
         const _getPillarForType = createPillarMapper(config)
         const performance = await analyzePerformance(config, _getPillarForType)
         const typeSequence = buildSmartWeekPlan(config, performance, count)
+
+        // ─── Zásobník témat: the idea bank feeds the plan first — weighted (proven/fresh)
+        // ideas become plan topics with ideaId attribution; the model invents the rest.
+        // Read-only here: the preview must NEVER mutate the bank (deposit + markIdeaAsUsed
+        // happen only at startCampaign / post generation). ──
+        let bankIdeas: { id: string; title: string; content: string; performance_score?: number; times_used_with_metrics?: number }[] = []
+        try {
+            const { getWeightedIdeas } = await import("@/instagram/service")
+            bankIdeas = await getWeightedIdeas(count)
+        } catch (e: any) {
+            console.warn(`📋 [content-plan] idea bank skipped: ${e?.message}`)
+        }
 
         // Effective medium per post, precomputed once so the badge (item.medium) and the planner
         // prompt always read the exact same value. Two passes:
@@ -182,6 +198,14 @@ export async function generateContentPlan(
             ? `\n## 🚫 NEDÁVNÉ HOOKY (NEPOUŽÍVEJ podobné vzorce ani témata!):\n${recentHooks.map(h => `- "${h}"`).join("\n")}\n`
             : ""
 
+        const ideaBankSection = bankIdeas.length > 0
+            ? `\n## 💡 ZÁSOBNÍK TÉMAT ZNAČKY (použij přednostně!)
+Schválené nápady klienta. Kde to dává smysl, postav post na nápadu ze seznamu a vrať jeho číslo jako "ideaIndex".
+Nápad rozveď vlastním hookem a úhlem — jádro tématu ale MUSÍ odpovídat nápadu.
+${bankIdeas.map((idea, i) => `${i + 1}. ${(idea.performance_score || 0) > 0 && (idea.times_used_with_metrics || 0) > 0 ? "[🔥 ověřený] " : ""}"${idea.title}" — ${String(idea.content || "").substring(0, 150)}`).join("\n")}
+PRAVIDLA: Každý nápad použij MAXIMÁLNĚ jednou. Když se žádný nehodí, vymysli vlastní téma a "ideaIndex" vynech.\n`
+            : ""
+
         // ─── Brand grounding: pipe in what onboarding learned from the client's REAL Instagram.
         // Crucial at cold start — a brand-new client has no posts of OURS yet (topHooks empty),
         // so without this the planner writes generic hooks blind to the brand's proven winners.
@@ -227,7 +251,7 @@ ${config.brandVoice.antiPatterns?.join(", ")}
 
 ${config.products?.length ? `## PRODUKTY ZNAČKY (${config.products.length})\n${config.products.slice(0, 10).map(p => `- **${p.name}** (${p.type})${p.price ? ` — ${p.price}` : ""}${p.description ? `: ${p.description.substring(0, 60)}` : ""}`).join("\n")}\n⚠️ Pro posty typu product_drop/produkt MUSÍŠ zmínit KONKRÉTNÍ produkt z tohoto seznamu v hooku!\n` : ""}
 ${config.audiencePersonas?.length ? `## CÍLOVÉ PERSONY\n${config.audiencePersonas.map(p => `- **${p.label}** (${p.ageRange} let): Pain points: ${p.painPoints.slice(0, 2).join(", ")}`).join("\n")}\n` : ""}
-${brandGroundingSection}${topHooksSection}${deduplicationSection}${topicInstruction}
+${brandGroundingSection}${ideaBankSection}${topHooksSection}${deduplicationSection}${topicInstruction}
 
 ## SEKVENCE POSTŮ (strategicky sestavená):
 ${typeList}
@@ -261,7 +285,9 @@ Pole musí mít PŘESNĚ ${count} položek.`
                     hookPreview: { type: Type.STRING },
                     angle: { type: Type.STRING },
                     topic: { type: Type.STRING },
-                    qualityScore: { type: Type.INTEGER }
+                    qualityScore: { type: Type.INTEGER },
+                    // 1-based index into ZÁSOBNÍK TÉMAT when the post builds on a bank idea
+                    ideaIndex: { type: Type.INTEGER }
                 },
                 required: ["hookPreview", "angle", "topic", "qualityScore"]
             }
@@ -275,7 +301,7 @@ Pole musí mít PŘESNĚ ${count} položek.`
         if (!jsonMatch) {
             throw new Error("AI nevrátila validní JSON pole")
         }
-        const concepts: { hookPreview: string; angle: string; topic: string; qualityScore?: number }[] = JSON.parse(jsonMatch[0])
+        const concepts: { hookPreview: string; angle: string; topic: string; qualityScore?: number; ideaIndex?: number }[] = JSON.parse(jsonMatch[0])
         await planBreadcrumb({ progress: 45, agent_message: `📝 Hlavní plán: ${concepts.length}/${count}` })
 
         // Auto-retry weak hooks (qualityScore < 6)
@@ -320,7 +346,11 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${weakIndices.length} polo�
                 if (Array.isArray(retryConcepts) && retryConcepts.length > 0) {
                     weakIndices.forEach((origIdx, retryIdx) => {
                         if (retryConcepts[retryIdx]) {
-                            concepts[origIdx] = retryConcepts[retryIdx]
+                            // Keep the ORIGINAL ideaIndex: the retry rewrites hook wording, not the
+                            // topic substance — and the retry prompt has no bank, so any ideaIndex
+                            // it returns would be a hallucination.
+                            const keepIdeaIndex = concepts[origIdx]?.ideaIndex
+                            concepts[origIdx] = { ...retryConcepts[retryIdx], ideaIndex: keepIdeaIndex }
                             console.log(`   ✅ Hook #${origIdx + 1} regenerated: "${retryConcepts[retryIdx].hookPreview}" (score: ${retryConcepts[retryIdx].qualityScore})`)
                         }
                     })
@@ -358,17 +388,19 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
             try {
                 const fillRaw = await generateText(fillPrompt, { responseSchema: planSchema })
                 const fillMatch = fillRaw.match(/\[[\s\S]*\]/)
+                // Fill prompts have no bank section — strip any hallucinated ideaIndex
+                const stripIdeaIndex = (arr: any[]) => arr.map(c => ({ ...c, ideaIndex: undefined }))
                 if (fillMatch) {
                     const fillConcepts = JSON.parse(fillMatch[0])
                     if (Array.isArray(fillConcepts) && fillConcepts.length > 0) {
-                        concepts.push(...fillConcepts)
+                        concepts.push(...stripIdeaIndex(fillConcepts))
                         console.log(`   ✅ Doplněno ${fillConcepts.length} položek (celkem ${concepts.length}/${count})`)
                     }
                 } else {
                     // Try parsing as array directly if regex failed
                     const fillConcepts = JSON.parse(fillRaw)
                     if (Array.isArray(fillConcepts) && fillConcepts.length > 0) {
-                        concepts.push(...fillConcepts)
+                        concepts.push(...stripIdeaIndex(fillConcepts))
                         console.log(`   ✅ Doplněno ${fillConcepts.length} položek (celkem ${concepts.length}/${count})`)
                     }
                 }
@@ -395,6 +427,7 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
         }
 
         // Build plan items with metadata
+        const usedIdeaIdx = new Set<number>()
         const plan: ContentPlanItem[] = typeSequence.slice(0, count).map((typeName, i) => {
             const pt = ptMap.get(typeName)
             const pillar = getPillarForType(config, typeName)
@@ -403,6 +436,17 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
 
             // Effective medium (reels-off split applied — see effectiveMedium above)
             const medium = effectiveMedium(typeName, i)
+
+            // Map ideaIndex → ideaId with clamping — the model can hallucinate indexes
+            // or reuse one twice; invalid/duplicate indexes silently become "invented".
+            const ix = concept.ideaIndex
+            let ideaId: string | undefined
+            let ideaTitle: string | undefined
+            if (typeof ix === "number" && Number.isInteger(ix) && ix >= 1 && ix <= bankIdeas.length && !usedIdeaIdx.has(ix)) {
+                usedIdeaIdx.add(ix)
+                ideaId = bankIdeas[ix - 1].id
+                ideaTitle = bankIdeas[ix - 1].title
+            }
 
             return {
                 id: `plan_${Date.now()}_${i}`,
@@ -418,6 +462,8 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
                 qualityScore: concept.qualityScore || undefined,
                 week: count > 14 ? Math.floor(i / 7) + 1 : undefined,
                 day: i + 1,
+                ideaId,
+                ideaTitle,
             }
         })
 

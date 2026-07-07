@@ -91,7 +91,7 @@ graph TB
 > [!WARNING]
 > Config lives ONLY in DB (`clients.config` JSONB). No config files in codebase — only `configs/types.ts` (TypeScript interface) and `configs/index.ts` (DB loader with caching + runtime validation).
 
-> `ClientConfig.igBaseline` (optional) = snapshot z onboarding IG scrapu (followerCount, avgEngagementRate, topHashtags, contentMix, bestPostingTimes, scrapedAt). Cold-start fallback: `planWeek()` ho použije pro časy postování, dokud nejsou interní performance data.
+> `ClientConfig.igBaseline` (optional) = snapshot z onboarding IG scrapu (followerCount, avgEngagementRate, topHashtags, contentMix, bestPostingTimes, scrapedAt). Cold-start fallback: `generateContentPlan` ho injektuje jako brand grounding, dokud nejsou interní performance data.
 
 ---
 
@@ -180,14 +180,32 @@ A/B Variant Loop (variant-actions.ts)
 > [!NOTE]
 > Feedback loop is **automatic** — triggered when user saves metrics via `updateIGPostMetrics()`. Manual trigger: `POST /api/ig-learn { configName }`.
 
-### Pravidla atribuce nápadů (v7.5)
+### Pravidla atribuce nápadů (v7.5, rozšířeno v7.6)
 
 Aby `propagateMetricsToSources` nekreditoval nápad za post, který nedriveoval:
 
 - **Bez `topic` i `ideaId`** → weighted výběr (`getWeightedIdeas`), `idea_id` se linkuje, `markIdeaAsUsed` cooldownuje. (Beze změny.)
-- **Explicitní `topic`, bez `ideaId`** (plán/kalendář/kampaň/ruční zadání) → výběr nápadu se **přeskočí** (`buildMegaPrompt` nápad při `userTopic` stejně ignoruje) — žádný `idea_id` link, žádný cooldown, žádná falešná metrika.
-- **Explicitní `ideaId`** (uživatel vybral v GenerateTab) → `getIdeaById` (client-scoped; miss = throw, nikdy fallback) — nápad je poctivě linkován + marknut jako použitý.
+- **Explicitní `topic`, bez `ideaId`** (ruční zadání) → výběr nápadu se **přeskočí** (`buildMegaPrompt` nápad při `userTopic` stejně ignoruje) — žádný `idea_id` link, žádný cooldown, žádná falešná metrika.
+- **Explicitní `ideaId`** (uživatel vybral v GenerateTab, NEBO plánová položka odvozená z nápadu — viz níže) → `getIdeaById` (client-scoped; miss = throw v single-post cestě; campaign worker miss = drop atribuce, ne fail) — nápad je poctivě linkován + marknut jako použitý. `ideaId`+`topic` současně je zde ZÁMĚRNÁ poctivá atribuce (topic z nápadu vznikl).
 - Cooldown je per-idea: `cooldown_days ?? 90` (jednotné pravidlo v `getWeightedIdeas` i `getAvailableIdeas`; dashboard `ideasAvailable` počítá stejně).
+
+### Plán ↔ Zásobník témat (v7.6 — uzavřená strategická smyčka)
+
+```
+Zásobník (ig_post_ideas) ──getWeightedIdeas(count)──▶ generateContentPlan
+    ▲   (prompt sekce "ZÁSOBNÍK TÉMAT", model vrací ideaIndex → clamp → ideaId na ContentPlanItem)
+    │
+    │ deposit-back: startCampaign uloží VYMYŠLENÁ témata schváleného plánu jako nové nápady
+    │ (explicitní client_id, cooldown_days 30; POUZE v startCampaign — worker nikdy, resume nesmí duplikovat)
+    │
+ig_campaigns.plan[*].ideaId ──campaign-worker──▶ generateOnePost({ideaId}) → ig_posts.idea_id + markIdeaAsUsed
+    │
+    └── metriky → propagateMetricsToSources → performance_score → příští getWeightedIdeas → příští plán
+```
+
+- **Preview je bez side-effectů** — `generateContentPlan` banku jen čte; deposit + validace ideaIds (ownership) probíhá až v `startCampaign`.
+- Onboarding seeduje banku (`seedIdeaBank`: 2 nejvyšší pilíře × 6 nápadů, zdarma) PŘED prvním plánem.
+- Editace/regenerace plánové položky v UI čistí její `ideaId` (upravené téma ≠ nápad).
 
 ---
 
@@ -289,7 +307,6 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 | `image-pipeline.ts` | 346 | refineImagePrompt(), refineCarouselPrompts(), getVisualMemoriesSection() |
 | `video-processor.ts` | 247 | processReelVideo(), scenesToSubtitles() |
 | `context-agent.ts` | 232 | gatherContext() — svátek, počasí, trendy |
-| `content-planner.ts` | 223 | planWeek() — AI content planning |
 | `performance.ts` | 186 | Per-pillar engagement analytics |
 | `idea-generator.ts` | 145 | generateAIIdeas() with brand memory |
 | `review-generator.ts` | 142 | generateAIReviews() with brand memory |
@@ -334,7 +351,7 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 | `variant-actions.ts` | ~400 | revisePost(), generatePostVariant(), generateMultipleVariants(), selectVariantWinner(), getVariantGroup() |
 | `config-actions.ts` | ~370 | getClientConfig(), updateClientConfig(), uploadClientLogo(), rescanClientWebsite(), deleteClient() |
 | `credit-guard.ts` | ~200 | creditGuard(), creditGuardBatch(), canGenerate() — vše s membership checkem |
-| `calendar-actions.ts` | ~180 | planWeekCalendar() |
+| `calendar-actions.ts` | ~180 | getWeekPosts/approvePost/movePost/schedulePostAction (planWeekAction odstraněn v7.6 — billing leak; „Naplánovat týden" jde přes campaign flow) |
 | `product-brief-actions.ts` | ~155 | analyzeProductForBrief() → DOCX |
 | `memory-actions.ts` / `post-actions.ts` | ~100 | brand memory CRUD / post delete |
 | `app/onboarding/actions.ts` | ~1900 | analyzeWebsite() (web + HikerAPI IG scraping + vision analýza feedu přes `instagram/feed-vision.ts`), generateConfigPreview() (plní native feedAesthetic pole + `config.igBaseline`), refineConfigSection(), saveReviewedConfig() (+ seed `ig_brand_memory` z onboardingu, confidence 0.45) |

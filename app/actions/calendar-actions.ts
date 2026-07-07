@@ -19,90 +19,9 @@ async function gatePostAccess(postId: string): Promise<string> {
 }
 
 // ─── Plan Week ──────────────────────────────────────────
-
-export async function planWeekAction(
-    projectSlug: string,
-    weekStartISO: string, // "2026-05-19"
-    postsPerWeek: number = 5,
-    city?: string
-): Promise<{
-    success: boolean
-    plan?: { slots: any[]; city: string | null; weatherAvailable: boolean }
-    error?: string
-}> {
-    try {
-        const { clientId } = await requireProjectAccess(projectSlug)
-        const { loadConfig } = await import("@/instagram/configs")
-        const config = await loadConfig(projectSlug)
-
-        const { setActiveProject } = await import("@/instagram/service")
-        setActiveProject(clientId)
-
-        const { analyzePerformance } = await import("@/instagram/performance")
-        const { createPillarMapper } = await import("@/instagram/service")
-        const getPillar = createPillarMapper(config)
-        const performance = await analyzePerformance(config, getPillar)
-
-        const { planWeek } = await import("@/instagram/content-planner")
-        const startDate = new Date(weekStartISO)
-        const plan = await planWeek(config, startDate, performance, postsPerWeek, city)
-
-        if (plan.slots.length === 0) {
-            return { success: false, error: "AI nevygenerovalo žádné sloty" }
-        }
-
-        // For each planned slot, create a post via autopilot and schedule it
-        const { generateOnePost } = await import("@/instagram/autopilot")
-        const { schedulePost } = await import("@/instagram/service")
-
-        let generated = 0
-        for (const slot of plan.slots) {
-            try {
-                // Generate the actual post
-                const result = await generateOnePost({
-                    configName: projectSlug,
-                    type: slot.postType,
-                    topic: slot.topic,
-                })
-
-                if (result.id) {
-                    // Update post with planning metadata
-                    await supabaseAdmin
-                        .from("ig_posts")
-                        .update({
-                            scheduled_for: `${slot.date}T${slot.time}:00`,
-                            time_slot: slot.time,
-                        })
-                        .eq("id", result.id)
-
-                    // Schedule into content calendar
-                    try {
-                        await schedulePost(slot.date, result.id, slot.time)
-                    } catch {
-                        // Calendar entry may fail if table doesn't exist yet — non-fatal
-                    }
-
-                    generated++
-                    console.log(`   ✅ ${slot.day} ${slot.time}: "${slot.topic}" → ${result.id}`)
-                }
-            } catch (slotErr: any) {
-                console.warn(`   ⚠️ Slot ${slot.day} failed: ${slotErr?.message?.substring(0, 80)}`)
-            }
-        }
-
-        return {
-            success: true,
-            plan: {
-                slots: plan.slots,
-                city: plan.city,
-                weatherAvailable: plan.weatherAvailable,
-            },
-        }
-    } catch (err: any) {
-        console.error("planWeekAction error:", err)
-        return { success: false, error: err?.message || "Planning failed" }
-    }
-}
+// planWeekAction was removed (v7.6): it generated posts synchronously in-request
+// with NO credit gating (billing leak) and died with the tab. CalendarTab's
+// "Naplánovat týden" now opens the campaign flow (generateIntent plan/1w).
 
 // ─── Get Week Posts ──────────────────────────────────────
 

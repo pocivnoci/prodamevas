@@ -147,6 +147,7 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                 <p className="text-xs text-white/50">
                     AI si odsud bere témata pro vaše příspěvky — nápady, které fungují, používá častěji.
                     Po použití se nápad nemaže, jen si dá pauzu, aby se váš feed neopakoval.
+                    Měsíční plán si témata přednostně vybírá odsud — a nová schválená témata sem ukládá zpět.
                 </p>
             </div>
 

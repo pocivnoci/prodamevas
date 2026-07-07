@@ -326,7 +326,9 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         try {
             const draft = JSON.parse(raw) as ContentPlanItem[]
             if (Array.isArray(draft) && draft.length > 0) {
-                setContentPlan(draft)
+                // Distribute posting slots like the normal plan path — without this the
+                // onboarding plan had no dates and approval produced unscheduled drafts.
+                setContentPlan(autoDistribute(draft, scheduleStart, postsPerDay))
                 setBatchMode(true)
                 setStep(2)
             }
@@ -563,7 +565,8 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         if (result.success && result.item) {
             setContentPlan(prev => prev.map(p =>
                 p.id === itemId
-                    ? { ...p, hookPreview: result.item!.hookPreview, angle: result.item!.angle, topic: result.item!.topic }
+                    // Regenerated concept no longer represents the bank idea — drop the link
+                    ? { ...p, hookPreview: result.item!.hookPreview, angle: result.item!.angle, topic: result.item!.topic, ideaId: undefined, ideaTitle: undefined }
                     : p
             ))
         }
@@ -578,9 +581,10 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         ))
     }
 
-    // Content Plan: update item topic inline
+    // Content Plan: update item topic inline. An edited topic no longer represents
+    // the bank idea it came from — clear the link (mirrors single-post selectedIdeaId).
     const handleUpdatePlanTopic = (itemId: string, newTopic: string) => {
-        setContentPlan(prev => prev.map(p => p.id === itemId ? { ...p, topic: newTopic } : p))
+        setContentPlan(prev => prev.map(p => p.id === itemId ? { ...p, topic: newTopic, ideaId: undefined, ideaTitle: undefined } : p))
     }
 
     // Toggle a plan item's format: single image ⇄ carousel. Reel is excluded from the manual
@@ -1083,6 +1087,14 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                                 )
                                                             })()}
                                                             <span className="text-[8px] text-white/20">{item.pillarEmoji} {item.pillar}</span>
+                                                            {item.ideaTitle && (
+                                                                <span
+                                                                    title="Ze zásobníku témat"
+                                                                    className="text-[8px] px-1.5 py-0.5 border border-violet-400/20 bg-violet-400/5 text-violet-300/70 rounded-sm font-bold uppercase tracking-wider"
+                                                                >
+                                                                    💡 {item.ideaTitle}
+                                                                </span>
+                                                            )}
                                                         </div>
 
                                                         {/* Hook preview */}
