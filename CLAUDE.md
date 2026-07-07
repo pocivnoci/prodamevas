@@ -31,7 +31,7 @@ Three layers, all multi-tenant:
 1. **`app/`** — UI + server actions + API routes. The dashboard (`app/(dashboard)/dashboard/instagram/`) is SPA-like: one page with ~17 tab components (`tabs/`) switched via `StudioContext.activeSection`, **not** Next.js routing. `StudioContext` holds global state (active section, `projectId`, subscription). Server actions in `app/actions/` are split by domain (post-decomposition — older docs still describe one giant `admin-actions.ts`):
    - `admin-actions.ts` — dashboard stats, list/read queries, post status + metrics updates
    - `config-actions.ts` — `ClientConfig` CRUD, logo upload, website rescan, client deletion
-   - `content-plan-actions.ts` — cheap text-only content-plan preview before expensive generation (PlanTab)
+   - `content-plan-actions.ts` — deep text-only content-plan preview before media generation: `runPlanPipeline` (`instagram/plan-pipeline.ts`) = strategist → concepts → cross-family judge → targeted revision, all on the `planner` Pro ladder (never flash); UI polls `getPlanProgress(planRunId)` for live stage messages (~1–2 min run)
    - `variant-actions.ts` — A/B variant system: `revisePost`, `generatePostVariant`/`generateMultipleVariants`, `selectVariantWinner` (winner feeds memory learning), variant groups shown in PostsTab comparison modal
    - `memory-actions.ts`, `post-actions.ts`, `product-actions.ts`, `calendar-actions.ts`, `credit-guard.ts`, …
    - `app/onboarding/actions.ts` — onboarding wizard backend: `analyzeWebsite()` scrapes the website **and** the Instagram profile (`IgProfileData`, `IgInsights`), then config preview → refine → save flow

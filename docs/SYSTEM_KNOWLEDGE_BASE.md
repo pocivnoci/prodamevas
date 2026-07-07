@@ -347,7 +347,7 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 | `product-actions.ts` | ~1130 | getProducts(), saveProduct(), deleteProduct(), product ideas |
 | `admin-actions.ts` | ~640 | getDashboardStats(), getIGPostsList(), updateIGPostMetrics() (+ learning trigger), getEditorialLog(), checkIsAdmin() |
 | `ig-generate-action.ts` | ~520 | triggerBatchGeneration(), triggerIdeaGeneration(), triggerReviewGeneration() |
-| `content-plan-actions.ts` | ~420 | generateContentPlan() — levný textový plán před generováním (PlanTab) |
+| `content-plan-actions.ts` | ~540 | generateContentPlan() — hloubkový textový plán před generováním (PlanTab): `runPlanPipeline` (stratég → koncepty → cross-family judge → revize, Pro ladder `planner`, nikdy flash); `getPlanProgress(planRunId)` = live polling fází pro UI |
 | `variant-actions.ts` | ~400 | revisePost(), generatePostVariant(), generateMultipleVariants(), selectVariantWinner(), getVariantGroup() |
 | `config-actions.ts` | ~370 | getClientConfig(), updateClientConfig(), uploadClientLogo(), rescanClientWebsite(), deleteClient() |
 | `credit-guard.ts` | ~200 | creditGuard(), creditGuardBatch(), canGenerate() — vše s membership checkem |

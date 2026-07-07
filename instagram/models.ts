@@ -18,12 +18,17 @@
 
 export const MODELS = {
     /** General text agents — the FAST tier for everything interactive/latency-sensitive:
-     *  content-plan preview (fires several sequential calls), onboarding analysis, product
-     *  copy, context, ideas, memory, art-director. gemini-3.5-flash = newest-gen flash
-     *  (still newer generation than the old gemini-2.5-pro), snappy UI. Pro here made the
-     *  whole dashboard lazy (multi-call previews on a slow Pro preview model). Use `textPro`
-     *  only for deep in-job quality work where latency is hidden by the 800s budget. */
+     *  onboarding analysis, product copy, context, ideas, memory, art-director.
+     *  gemini-3.5-flash = newest-gen flash (still newer generation than the old
+     *  gemini-2.5-pro), snappy UI. Use `textPro` only for deep in-job quality work where
+     *  latency is hidden by the 800s budget. (Content-plan moved OFF this tier → `planner`.) */
     text: { primary: "gemini-3.5-flash", fallback: "gemini-2.5-flash" },
+    /** Content-plan pipeline (strategist + concepts + revision) — Pro ladder on purpose.
+     *  The plan used to be one flash call ("hotové za 5 s") and read like it; the plan is
+     *  the strategic backbone of a whole campaign, so it earns Pro latency (~1-2 min with
+     *  visible stage progress in the UI). Fallback is the GA Pro, never flash — same
+     *  quality-ladder rule as textPro. Judged cross-family via judge.ts (Claude). */
+    planner: { primary: "gemini-pro-latest", fallback: "gemini-2.5-pro" },
     /** Deep quality tier — gen-3 Pro for the copywriter (the caption = 80% of text quality).
      *  Runs INSIDE the generation job (800s budget) so its latency never touches browsing.
      *  ⚠️ Fallback is a SECOND Pro (gemini-2.5-pro GA), NOT flash: these paths run through

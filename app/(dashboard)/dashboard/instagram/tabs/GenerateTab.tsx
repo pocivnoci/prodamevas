@@ -9,7 +9,7 @@ import {
     getIGIdeasList,
     getIGReviewsList,
 } from "@/app/actions/admin-actions"
-import { generateContentPlan, regeneratePlanItem, getPlanCadence, type ContentPlanItem } from "@/app/actions/content-plan-actions"
+import { generateContentPlan, regeneratePlanItem, getPlanCadence, getPlanProgress, type ContentPlanItem } from "@/app/actions/content-plan-actions"
 import { startCampaign, getCampaignStatus } from "@/app/actions/campaign-actions"
 import { schedulePostAction } from "@/app/actions/calendar-actions"
 import { distributeSchedule } from "@/lib/schedule-planner"
@@ -74,6 +74,10 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     // Content Plan Preview (batch mode intermediate step)
     const [contentPlan, setContentPlan] = useState<ContentPlanItem[]>([])
     const [planGenerating, setPlanGenerating] = useState(false)
+    // Live stage message from the deep plan pipeline (strategist → concepts → judge → revision).
+    const [planProgress, setPlanProgress] = useState<{ progress: number; message: string } | null>(null)
+    // Campaign arc from the strategist — shown above the plan preview in step 2.
+    const [planStrategy, setPlanStrategy] = useState<string | null>(null)
     const [editingPlanItem, setEditingPlanItem] = useState<string | null>(null)
     const [regeneratingItem, setRegeneratingItem] = useState<string | null>(null)
     const [showAdvanced, setShowAdvanced] = useState(false)
@@ -535,22 +539,38 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         else alert(r.error || "Plánování selhalo")
     }
 
-    // Content Plan: generate plan preview
+    // Content Plan: generate plan preview. The deep pipeline runs ~1-2 min server-side, so we
+    // poll its ig_jobs breadcrumb (via planRunId) and show live stage messages on the button.
     const handleGeneratePlan = async () => {
         setPlanGenerating(true)
-        const result = await generateContentPlan(
-            projectId,
-            batchCount,
-            topic || undefined,
-            category !== "auto" ? category : undefined
-        )
-        if (result.success && result.plan) {
-            setContentPlan(autoDistribute(result.plan, scheduleStart, postsPerDay))
-            setStep(2)
-        } else {
-            alert(result.error || "Generování plánu selhalo")
+        setPlanProgress({ progress: 5, message: "📋 Připravuji kontext značky…" })
+        const runId = crypto.randomUUID()
+        const poll = setInterval(async () => {
+            try {
+                const p = await getPlanProgress(projectId, runId)
+                if (p && p.status !== "done" && p.status !== "failed") setPlanProgress({ progress: p.progress, message: p.message })
+            } catch { /* progress polling must never break the flow */ }
+        }, 2500)
+        try {
+            const result = await generateContentPlan(
+                projectId,
+                batchCount,
+                topic || undefined,
+                category !== "auto" ? category : undefined,
+                runId
+            )
+            if (result.success && result.plan) {
+                setContentPlan(autoDistribute(result.plan, scheduleStart, postsPerDay))
+                setPlanStrategy(result.strategySummary || null)
+                setStep(2)
+            } else {
+                alert(result.error || "Generování plánu selhalo")
+            }
+        } finally {
+            clearInterval(poll)
+            setPlanProgress(null)
+            setPlanGenerating(false)
         }
-        setPlanGenerating(false)
     }
 
     // Content Plan: regenerate single item
@@ -949,14 +969,25 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     />
                                 </div>
 
-                                {/* Generate Plan CTA */}
+                                {/* Generate Plan CTA — during the deep pipeline run it streams stage messages */}
                                 <button onClick={handleGeneratePlan} disabled={planGenerating}
                                     className={`w-full py-5 rounded-sm transition-all flex items-center justify-center gap-3 text-sm font-black tracking-wider uppercase ${planGenerating
                                         ? "bg-white/5 text-white/30 cursor-wait border border-white/10"
                                         : "bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] hover:scale-[1.01] active:scale-[0.99]"}`}>
-                                    {planGenerating ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-transparent rounded-full animate-spin" /> AI plánuje...</>)
+                                    {planGenerating ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-transparent rounded-full animate-spin" /> {planProgress?.message || "AI plánuje…"}</>)
                                         : (<>📋 Vytvořit plán</>)}
                                 </button>
+                                {planGenerating && (
+                                    <div className="space-y-1.5">
+                                        <div className="h-1 bg-white/5 rounded-sm overflow-hidden">
+                                            <div className="h-full bg-emerald-500/60 transition-all duration-700"
+                                                style={{ width: `${planProgress?.progress ?? 5}%` }} />
+                                        </div>
+                                        <p className="text-[9px] text-white/25 font-bold uppercase tracking-widest text-center">
+                                            Hloubkové plánování: stratég → koncepty → nezávislá oponentura → revize (~1–2 min)
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </motion.div>
@@ -979,6 +1010,14 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 AI navrhuje strategický mix {contentPlan.length} postů. Upravte a schvalte.
                             </p>
                         </div>
+
+                        {/* Campaign arc from the strategist stage */}
+                        {planStrategy && (
+                            <div className="mb-6 bg-[#050505] border border-emerald-500/15 rounded-sm p-5">
+                                <p className="text-[9px] text-emerald-400/60 font-bold uppercase tracking-widest mb-2">🧭 Kampaňová linka</p>
+                                <p className="text-sm text-white/70 leading-relaxed">{planStrategy}</p>
+                            </div>
+                        )}
 
                         {/* Pillar ratio bar */}
                         {contentPlan.length > 0 && (() => {

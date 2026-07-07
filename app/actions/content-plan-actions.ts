@@ -54,8 +54,11 @@ export async function generateContentPlan(
     projectSlug: string,
     count: number,
     userTopic?: string,
-    category?: string
-): Promise<{ success: boolean; plan?: ContentPlanItem[]; error?: string }> {
+    category?: string,
+    /** Client-generated UUID: lets the UI poll getPlanProgress() for live stage messages
+     *  while this action runs (the deep pipeline takes ~1-2 min — a mute spinner won't do). */
+    planRunId?: string
+): Promise<{ success: boolean; plan?: ContentPlanItem[]; strategySummary?: string; error?: string }> {
     // ─── Durable observability: a breadcrumb row in ig_jobs proves the action started and
     // shows where it stops/fails. Instrumentation must NEVER break generation (all wrapped). ──
     const t0 = Date.now()
@@ -68,7 +71,7 @@ export async function generateContentPlan(
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
         const { getModel } = await import("@/instagram/models")
-        const planModel = getModel("text")
+        const planModel = getModel("planner")
         console.log(`📋 [content-plan] START client=${clientId} count=${count} topic="${userTopic || "-"}" cat="${category || "-"}" model=${planModel}`)
         try {
             const { data: jobRow } = await supabaseAdmin
@@ -78,7 +81,7 @@ export async function generateContentPlan(
                     // constraint and silently killed every content_plan breadcrumb insert
                     // (0/179 rows existed), so plan-stage failures were invisible.
                     client_id: clientId,
-                    config: { kind: "content_plan", count, topic: userTopic || null, category: category || null, model: planModel },
+                    config: { kind: "content_plan", count, topic: userTopic || null, category: category || null, model: planModel, runId: planRunId || null },
                     status: "pending",
                     progress: 0,
                     agent_message: "📋 Plánuji obsah…",
@@ -233,16 +236,10 @@ PRAVIDLA: Každý nápad použij MAXIMÁLNĚ jednou. Když se žádný nehodí, 
             console.warn(`📋 [content-plan] brand grounding skipped: ${e?.message}`)
         }
 
-        const prompt = `Jsi strategický content planner pro značku "${config.name}" (${config.website}).
-
-## ÚKOL
-Vytvoř content plan na ${count} postů. Pro každý post napiš:
-- hookPreview: český hook (první věta postu, max 12 slov, poutavá, BEZ emoji)
-- angle: 1 věta popisující úhel/přístup k tématu (česky)
-- topic: krátké téma v 3-5 slovech (česky)
-- qualityScore: 1-10 — ohodnoť kvalitu vlastního hooku (10 = zastaví scrollování, 1 = generické)
-
-## BRAND VOICE
+        // ─── Deep plan pipeline (instagram/plan-pipeline.ts): strategist → concepts →
+        // cross-family judge → targeted revision. All brand context is assembled here
+        // (this file owns the DB queries); the pipeline treats it as an opaque block. ──
+        const contextBlock = `## BRAND VOICE
 ${config.brandVoice.persona}
 Tón: ${config.brandVoice.voiceTraits?.join(", ")}
 
@@ -252,113 +249,21 @@ ${config.brandVoice.antiPatterns?.join(", ")}
 ${config.products?.length ? `## PRODUKTY ZNAČKY (${config.products.length})\n${config.products.slice(0, 10).map(p => `- **${p.name}** (${p.type})${p.price ? ` — ${p.price}` : ""}${p.description ? `: ${p.description.substring(0, 60)}` : ""}`).join("\n")}\n⚠️ Pro posty typu product_drop/produkt MUSÍŠ zmínit KONKRÉTNÍ produkt z tohoto seznamu v hooku!\n` : ""}
 ${config.audiencePersonas?.length ? `## CÍLOVÉ PERSONY\n${config.audiencePersonas.map(p => `- **${p.label}** (${p.ageRange} let): Pain points: ${p.painPoints.slice(0, 2).join(", ")}`).join("\n")}\n` : ""}
 ${brandGroundingSection}${ideaBankSection}${topHooksSection}${deduplicationSection}${topicInstruction}
+${count > 14 ? "\n## STRUKTURA\nRozděl do týdnů — každý týden má vlastní mini-téma.\n" : ""}`
 
-## SEKVENCE POSTŮ (strategicky sestavená):
-${typeList}
-
-## PRAVIDLA KVALITY
-- Každý hook MUSÍ mít qualityScore ≥ 7 — pokud nedokážeš vymyslet kvalitní hook, snaž se víc
-- Hook musí zastavit scrollování — provokativní, překvapivý, kontroverzní, nebo extrémně specifický
-- ZAKÁZÁNO: generické fráze ("Víte co...", "Dnes vám ukážu...", "Zajímavý fakt...")
-- POVINNÉ: konkrétní čísla, jména, příklady kde to dává smysl
-- Posty v sérii na sebe NAVAZUJÍ — budují příběh, ne náhodné izolované posty
-- ${count > 14 ? "Rozděl do týdnů — každý týden má vlastní mini-téma" : "Posty by měly mít logický flow"}
-- Pro product posty: hook MUSÍ zmínit konkrétní produkt/službu
-- ⚠️ FORMÁT: hook a angle MUSÍ odpovídat formátu postu (viz "Formát:" u každého typu). Pokud je formát KARUSEL nebo JEDEN OBRÁZEK, je ZAKÁZÁNO slibovat "video", "Reel", "scénář", "za 60 sekund ti ukážu" apod. — mluv o tom, co bude na obrázcích/slidech.
-- Piš česky, moderní hovorovou češtinou
-
-## VÝSTUP
-Vrať POUZE validní JSON pole:
-[
-  { "hookPreview": "...", "angle": "...", "topic": "...", "qualityScore": 8 },
-  ...
-]
-Pole musí mít PŘESNĚ ${count} položek.`
-
-        const { generateText } = await import("@/instagram/gemini-client")
-        const { Type } = await import("@google/genai")
-        const planSchema = {
-            type: Type.ARRAY,
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    hookPreview: { type: Type.STRING },
-                    angle: { type: Type.STRING },
-                    topic: { type: Type.STRING },
-                    qualityScore: { type: Type.INTEGER },
-                    // 1-based index into ZÁSOBNÍK TÉMAT when the post builds on a bank idea
-                    ideaIndex: { type: Type.INTEGER }
-                },
-                required: ["hookPreview", "angle", "topic", "qualityScore"]
-            }
-        }
-        
-        await planBreadcrumb({ progress: 20, agent_message: "🤖 Volám AI (hlavní plán)…" })
-        const raw = await generateText(prompt, { responseSchema: planSchema })
-
-        // Parse response
-        const jsonMatch = raw.match(/\[[\s\S]*\]/)
-        if (!jsonMatch) {
-            throw new Error("AI nevrátila validní JSON pole")
-        }
-        const concepts: { hookPreview: string; angle: string; topic: string; qualityScore?: number; ideaIndex?: number }[] = JSON.parse(jsonMatch[0])
-        await planBreadcrumb({ progress: 45, agent_message: `📝 Hlavní plán: ${concepts.length}/${count}` })
-
-        // Auto-retry weak hooks (qualityScore < 6)
-        const weakIndices = concepts
-            .map((c, i) => ({ idx: i, score: c.qualityScore || 5 }))
-            .filter(c => c.score < 6)
-            .map(c => c.idx)
-
-        if (weakIndices.length > 0 && weakIndices.length <= count) {
-            console.log(`📊 Content plan: ${weakIndices.length} weak hooks detected, regenerating...`)
-            const weakTypes = weakIndices.map(i => typeSequence[i] || "auto")
-            const existingHooks = concepts.map(c => c.hookPreview)
-
-            const retryPrompt = `Jsi content planner pro "${config.name}". Tyto hooky byly příliš slabé — přepiš je.
-Nové hooky musí mít qualityScore ≥ 8 a musí být zcela odlišné. ZAKÁZANÁ SLOVA: "Dnes vám", "Zjistěte", "Víte že".
-
-## PŘEDCHOZÍ (ZAMÍTNUTÉ) HOOKY:
-${weakIndices.map(i => `- "${concepts[i].hookPreview}" (skóre: ${concepts[i].qualityScore})`).join("\n")}
-
-## EXISTUJÍCÍ HOOKY V PLÁNU (neduplikuj):
-${existingHooks.map(h => `- "${h}"`).join("\n")}
-
-## TYPY POSTŮ PRO PŘEPSÁNÍ:
-${weakTypes.map((t, i) => {
-    const pt = ptMap.get(t)
-    const pillar = getPillarForType(config, t)
-    return `${i + 1}. Typ: "${t}" (${pt?.display_name || t}) | Pilíř: ${pillar}`
-}).join("\n")}
-
-Vrať POUZE validní JSON pole obsahující PŘESNĚ ${weakIndices.length} položek s klíči: hookPreview, angle, topic, qualityScore.`
-
-            try {
-                const retryRaw = await generateText(retryPrompt, { responseSchema: planSchema })
-                const retryMatch = retryRaw.match(/\[[\s\S]*\]/)
-                let retryConcepts: any[] = []
-                if (retryMatch) {
-                    retryConcepts = JSON.parse(retryMatch[0])
-                } else {
-                    retryConcepts = JSON.parse(retryRaw)
-                }
-                
-                if (Array.isArray(retryConcepts) && retryConcepts.length > 0) {
-                    weakIndices.forEach((origIdx, retryIdx) => {
-                        if (retryConcepts[retryIdx]) {
-                            // Keep the ORIGINAL ideaIndex: the retry rewrites hook wording, not the
-                            // topic substance — and the retry prompt has no bank, so any ideaIndex
-                            // it returns would be a hallucination.
-                            const keepIdeaIndex = concepts[origIdx]?.ideaIndex
-                            concepts[origIdx] = { ...retryConcepts[retryIdx], ideaIndex: keepIdeaIndex }
-                            console.log(`   ✅ Hook #${origIdx + 1} regenerated: "${retryConcepts[retryIdx].hookPreview}" (score: ${retryConcepts[retryIdx].qualityScore})`)
-                        }
-                    })
-                }
-            } catch {
-                console.warn("   ⚠️ Hook retry failed — using original hooks")
-            }
-        }
+        const { runPlanPipeline } = await import("@/instagram/plan-pipeline")
+        const pipelineResult = await runPlanPipeline({
+            brandName: config.name,
+            website: config.website,
+            count,
+            contextBlock,
+            typeList,
+            recentHooks,
+            onStage: (progress, message) => planBreadcrumb({ progress, agent_message: message }),
+        })
+        const concepts: { hookPreview: string; angle: string; topic: string; qualityScore?: number; ideaIndex?: number }[] = pipelineResult.concepts
+        const strategySummary = pipelineResult.strategySummary || undefined
+        await planBreadcrumb({ progress: 92, agent_message: `📝 Plán: ${concepts.length}/${count}${pipelineResult.judged ? " · oponentura ✓" : ""}` })
 
         // Ensure we have exactly `count` concepts — AI sometimes returns fewer
         let retries = 0
@@ -386,7 +291,16 @@ ${missingTypes.map((t, i) => {
 Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klíči: hookPreview, angle, topic, qualityScore.`
 
             try {
-                const fillRaw = await generateText(fillPrompt, { responseSchema: planSchema })
+                // Same Pro ladder as the pipeline — a fill item is a real plan item, no flash.
+                const { generateTextQuality } = await import("@/instagram/gemini-client")
+                const { conceptSchema, plannerModels } = await import("@/instagram/plan-pipeline")
+                const { getTemperature } = await import("@/instagram/models")
+                const fillRaw = await generateTextQuality(fillPrompt, {
+                    models: plannerModels(),
+                    label: "plan-fill",
+                    temperature: getTemperature("copywriter"),
+                    responseSchema: conceptSchema,
+                })
                 const fillMatch = fillRaw.match(/\[[\s\S]*\]/)
                 // Fill prompts have no bank section — strip any hallucinated ideaIndex
                 const stripIdeaIndex = (arr: any[]) => arr.map(c => ({ ...c, ideaIndex: undefined }))
@@ -467,8 +381,8 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
             }
         })
 
-        await planBreadcrumb({ status: "done", progress: 100, agent_message: "✅ Plán hotový", result: { planLength: plan.length } })
-        return { success: true, plan }
+        await planBreadcrumb({ status: "done", progress: 100, agent_message: "✅ Plán hotový", result: { planLength: plan.length, judged: pipelineResult.judged } })
+        return { success: true, plan, strategySummary }
     } catch (err: any) {
         const msg = (err?.message || String(err)).substring(0, 500)
         console.error("generateContentPlan error:", msg)
@@ -480,6 +394,33 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
         return { success: false, error: err?.message || String(err) }
     } finally {
         console.log(`📋 [content-plan] END job=${planJobId || "none"} ${Date.now() - t0}ms`)
+    }
+}
+
+/**
+ * Live progress for a running generateContentPlan call — the UI polls this (~2s) with the
+ * planRunId it generated, and shows the pipeline's stage messages (strategist / concepts /
+ * judge / revision) instead of a mute spinner. Reads the ig_jobs breadcrumb row.
+ */
+export async function getPlanProgress(
+    projectSlug: string,
+    planRunId: string
+): Promise<{ progress: number; message: string; status: string } | null> {
+    try {
+        const { clientId } = await requireProjectAccess(projectSlug)
+        const { data } = await supabaseAdmin
+            .from("ig_jobs")
+            .select("progress, agent_message, status")
+            .eq("client_id", clientId)
+            .eq("config->>kind", "content_plan")
+            .eq("config->>runId", planRunId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        if (!data) return null
+        return { progress: data.progress || 0, message: data.agent_message || "", status: data.status || "pending" }
+    } catch {
+        return null
     }
 }
 
@@ -579,8 +520,16 @@ ${medium && medium !== "reel" ? `- ⚠️ Tohle je ${medium === "carousel" ? "KA
 Vrať POUZE validní JSON:
 { "hookPreview": "český hook max 12 slov BEZ emoji", "angle": "1 věta o přístupu", "topic": "3-5 slov" }`
 
-        const { generateText } = await import("@/instagram/gemini-client")
-        const raw = await generateText(prompt)
+        // Single-item regen goes through the same Pro ladder as the plan itself —
+        // a regenerated hook must not be weaker than the plan it replaces an item of.
+        const { generateTextQuality } = await import("@/instagram/gemini-client")
+        const { plannerModels } = await import("@/instagram/plan-pipeline")
+        const { getTemperature } = await import("@/instagram/models")
+        const raw = await generateTextQuality(prompt, {
+            models: plannerModels(),
+            label: "plan-regen-item",
+            temperature: getTemperature("copywriter"),
+        })
         const jsonMatch = raw.match(/\{[\s\S]*\}/)
         if (!jsonMatch) throw new Error("Invalid JSON response")
         const item = JSON.parse(jsonMatch[0])
