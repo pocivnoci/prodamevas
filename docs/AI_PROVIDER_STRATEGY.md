@@ -143,7 +143,7 @@ Items **3, 4, 5, 9, 10** are the structural inconsistency drivers. The pipeline 
 | **Video** (Veo 3.1) | Gemini | **STAY** | Best-in-class; reference-image conditioning keeps reels on-brand. |
 | **TTS** | Gemini | **STAY** | Czech + expressive tags, cheap; ~zero leverage to change. |
 | **Fast text** (ideas, reviews, context, plan, memory, tagging) | Gemini Flash | **STAY** | High-volume, latency-sensitive, cheap; divergence here is desirable. |
-| **Vision QA** (`verifyNativeImage`) | Gemini Pro | **STAY** | Reading rendered Czech diacritics is multimodal + render-coupled, not a taste call. |
+| **Vision QA** (`verifyNativeImage`) | Gemini Pro | **→ Claude, behind the SAME `judgeText` kill switch, unmeasured** | See the 2026-07-07 addendum below — the original "STAY" reasoning (OCR accuracy, not a taste call) is still logically sound and wasn't actually falsified by that incident, so treat this as an A/B candidate like the Copywriter arm, not a settled verdict. |
 | **Copywriter** (caption ≈ 80% of text quality) | Gemini Pro | **STAY now + Claude A/B arm** | Biggest wins are temp + few-shot, not provider. Route a Claude variant through the **existing A/B system** and let winners + engagement decide. Keeps writer ≠ judge family. |
 | **Critic** (1-10 score) | Gemini Pro | **→ Claude** | Cross-family judge removes self-preference; strong evaluative reasoning; **low temp = reliable gate**, which is what enforces consistency. |
 | **Chief Editor** (board) | Gemini Pro | **→ Claude** | The nuanced-judgment layer Claude is strongest at. |
@@ -152,6 +152,14 @@ Items **3, 4, 5, 9, 10** are the structural inconsistency drivers. The pipeline 
 **Claude models:** Sonnet 4.6 (`claude-sonnet-4-6`) for judges (fast, strong, cost-sensible across ≤3 rounds); Opus 4.8 (`claude-opus-4-8`) as the high tier + Claude copywriter A/B arm. Confirm exact IDs + pricing via the `claude-api` reference. Claude IDs live in `models.ts` behind `getModel()` (repo hard rule).
 
 **Why not OpenAI as a core agent:** for Czech voice *taste/judgment* the real contest is Gemini vs. Claude; a third family adds sprawl without a distinct edge. Its one niche (embeddings) is covered by Gemini. Keep GPT documented as a fallback, not a dependency.
+
+### Addendum — 2026-07-07: Vision QA moved to `judgeVision`, honestly caveated
+
+A burst of 11 rapid generations on the `chrlit` account produced the first two `qa_status: native_forced` posts in the project's history: one with a missing háček baked into the rendered image ("CINKOU" instead of "ČINKOU"), one with genuinely overlapping/garbled carousel typography. Investigation found:
+
+- **`verifyNativeImage` (Gemini) correctly flagged both as failing** — the retry loop only fires on `!qa.ok`, and it fired. QA was not fooled or lenient; the *rendering* (Nano Banana Pro) kept failing to reproduce clean typography across all 3 retry attempts, most likely because `generateImageWithReferences`/`editExistingImage` silently fall back to the weaker `gemini-3.1-flash-image` tier under 503/overload (see `instagram/gemini-client.ts`) — a burst of concurrent image calls for one client is exactly when that fallback would trigger. There was no visible evidence of Gemini being lenient toward its own render (self-preference bias) in either case.
+- That means the original "STAY" reasoning above — *reading rendered text is OCR-like accuracy, not subjective taste, so writer≠judge self-preference doesn't obviously transfer* — was **not actually contradicted** by this incident. The real fixes were: (1) log the true rendering tier per attempt so a fallback-under-load is visible (`RenderResult.imageModel`), (2) add a `severity` grade (cosmetic vs. severe) so an unreadable/overlapping render gets one more bounded repair attempt instead of shipping as-is, (3) delete the two affected drafts (never posted).
+- **`judgeVision()` was still added** (`instagram/judge.ts`, mirrors `judgeText`) and `verifyNativeImage` now calls it — so Claude Sonnet 5 grades the render when the same `ANTHROPIC_API_KEY`/`CLAUDE_JUDGE` switch is on, falling back to the Gemini `visionQA` ladder on any error, identical fail-open contract to the text judges. This is a legitimate thing to *try* (Claude's raw OCR accuracy on Czech diacritics might simply be better or worse than Gemini's — that's an empirical question the original strategy pass didn't have data for), but it was wired in as a byproduct of fixing today's bug, not because self-preference bias was demonstrated. **Treat it as unproven** until there's a comparison (Claude vs. Gemini QA verdicts on the same renders, ideally against human-labeled ground truth) — same evidentiary bar as the Copywriter Claude A/B arm, not an automatic "cross-family = better" upgrade.
 
 ---
 

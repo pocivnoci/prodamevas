@@ -216,6 +216,14 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                         📸 {post.image_url.split("|").length} slidů
                                     </span>
                                 )}
+                                {post.qa_status === "native_forced" && (
+                                    <span
+                                        title="Vizuální QA neprošla čistě ani po opravách — zkontroluj text a diakritiku v obrázku před publikací"
+                                        className="absolute top-2 left-2 bg-red-950/80 border border-red-500/40 text-red-300 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm backdrop-blur-sm"
+                                    >
+                                        ⚠ Zkontroluj text
+                                    </span>
+                                )}
                             </div>
                         ) : (
                             <div className="w-full h-56 rounded-sm bg-[#0f0f0f]/50 border border-white/5 flex flex-col items-center justify-center mb-4 gap-2">

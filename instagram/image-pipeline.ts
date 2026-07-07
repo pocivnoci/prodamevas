@@ -8,6 +8,7 @@ import { Type } from "@google/genai"
 import { ai, generateTextQuality } from "./gemini-client"
 import { getModel, hasFallback, getTemperature } from "./models"
 import { isQualityUnavailable } from "../utils/retry"
+import { judgeVision } from "./judge"
 
 // Designer's quality ladder: [top Pro, GA Pro], never flash. Built once per call.
 function designerLadder(): string[] {
@@ -465,14 +466,23 @@ export interface NativeImageQA {
     issues: string[]
     /** corrective instruction for the retry edit */
     fixHint?: string
+    /** How bad the failure is (absent/"ok" when qa.ok is true). "cosmetic" = a minor slip
+     *  (e.g. one missing diacritic) that's still fully legible — shippable as a last resort.
+     *  "severe" = overlapping/duplicated/garbled/unreadable text or a wrong logo — must not
+     *  ship silently; the orchestrator spends one more bounded attempt on these. */
+    severity?: "ok" | "cosmetic" | "severe"
 }
 
 /** QA badness score — lower is better. A wrong product or an ignored client photo is the
- *  worst outcome; after that, fewer issues wins. Lets the orchestrators pick the best
- *  native attempt when none passes cleanly (ship-best-native: we never drop to a Satori overlay). */
+ *  worst outcome; a severe rendering failure (garbled/unreadable text) outweighs a merely
+ *  cosmetic one. Lets the orchestrators pick the best native attempt when none passes
+ *  cleanly (ship-best-native: we never drop to a Satori overlay). */
 export function qaScore(qa: NativeImageQA): number {
     if (qa.ok) return 0
-    return (qa.productAccurate === false ? 100 : 0) + (qa.photoUsed === false ? 100 : 0) + (qa.issues?.length || 1)
+    return (qa.productAccurate === false ? 100 : 0)
+        + (qa.photoUsed === false ? 100 : 0)
+        + (qa.severity === "severe" ? 50 : 0)
+        + (qa.issues?.length || 1)
 }
 
 /**
@@ -490,11 +500,6 @@ export async function verifyNativeImage(
     /** the client's own uploaded photo — the render must be visibly built from it */
     userPhotoRef?: { buffer: Buffer; mimeType?: string },
 ): Promise<NativeImageQA> {
-    // Try the Pro QA judge first, then the fast fallback, then fail open. A Pro 503 must
-    // never silently skip QA — degrade to flash before giving up.
-    const qaModels = [getModel("visionQA")]
-    if (hasFallback("visionQA")) qaModels.push(getModel("visionQA", "fallback"))
-
     const productCheck = productRef ? `
 PRODUCT FIDELITY: The second attached image is the REAL product photo of "${productRef.name}".
 ${productRef.mode === "if-present"
@@ -522,6 +527,10 @@ ${expected.logoExpected ? "3. Is the brand logo present and not deformed?" : ""}
 ${productRef ? `5. Does the product in the first image faithfully match the reference product photo (second image)? Compare the print/graphic, colors and cut.` : ""}
 ${userPhotoRef ? `6. Is the first image visibly built from the client's photo (the LAST attached image) — same real scene/subject, possibly regraded/cropped/extended?` : ""}
 
+If NOT ok, also grade how bad it is:
+- "cosmetic" — a minor slip (e.g. one missing/wrong diacritic) but every word is still fully legible and correctly identifiable.
+- "severe" — overlapping or duplicated text, gibberish, unreadable letters, or a deformed/wrong logo. A human could not confidently read the intended words.
+
 Return ONLY valid JSON:
 {
   "ok": true/false,
@@ -529,6 +538,7 @@ Return ONLY valid JSON:
   "renderedText": "the text you actually read in the image",
   "logoPresent": true/false,
   ${productRef ? `"productAccurate": true/false,\n  ` : ""}${userPhotoRef ? `"photoUsed": true/false,\n  ` : ""}"issues": ["specific problems, empty if ok"],
+  "severity": "ok" | "cosmetic" | "severe",
   "fixHint": "if NOT ok — one concrete instruction for an image-edit model to fix it (e.g. 'correct the headline to ... keeping the same style and position') — empty string if ok"
 }`
 
@@ -539,14 +549,13 @@ Return ONLY valid JSON:
     if (productRef) images.push({ buffer: productRef.buffer, mimeType: productRef.mimeType || "image/jpeg" })
     if (userPhotoRef) images.push({ buffer: userPhotoRef.buffer, mimeType: userPhotoRef.mimeType || "image/jpeg" })
 
+    // Cross-family: Claude Sonnet 5 judges Gemini's own render when enabled (closes the
+    // self-preference gap — Gemini grading Gemini's typography is the same bias the text
+    // judge was built to avoid), else the Gemini Pro QA ladder → GA Pro fallback → fail
+    // open. A Pro 503 must never silently skip QA — degrade to GA Pro before giving up.
     let text: string
     try {
-        text = await generateTextQuality(qaPrompt, {
-            models: qaModels,
-            images,
-            label: "vision-qa",
-            temperature: getTemperature("judge"),
-        })
+        text = await judgeVision(qaPrompt, images, { label: "vision-qa" })
     } catch (err: any) {
         if (isQualityUnavailable(err)) {
             console.warn("   ⚠️ Native image QA: both Pro tiers exhausted — fail-open (QA skipped)")
@@ -566,6 +575,7 @@ Return ONLY valid JSON:
             productAccurate: productRef ? parsed.productAccurate !== false : undefined,
             photoUsed: userPhotoRef ? parsed.photoUsed !== false : undefined,
             issues: parsed.issues || [],
+            severity: parsed.ok ? "ok" : (parsed.severity === "severe" ? "severe" : "cosmetic"),
             fixHint: parsed.fixHint || undefined,
         }
     } catch {

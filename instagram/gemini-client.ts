@@ -260,6 +260,9 @@ export async function generateImageWithReferences(
     options: {
         aspectRatio?: string
         resolution?: "1K" | "2K" | "4K"
+        /** Called with the model ID that actually produced the image (primary or fallback) —
+         *  lets callers log the TRUE tier used instead of assuming the static primary model. */
+        onModel?: (model: string) => void
     } = {}
 ): Promise<Buffer> {
     const { aspectRatio = "3:4" } = options // resolution intentionally unused — imageSize blurs output
@@ -296,6 +299,7 @@ export async function generateImageWithReferences(
         const parts = response.candidates?.[0]?.content?.parts || []
         for (const part of parts) {
             if ((part as any).inlineData?.data) {
+                options.onModel?.(model)
                 return Buffer.from((part as any).inlineData.data, "base64")
             }
         }
@@ -336,6 +340,8 @@ export async function editExistingImage(
         mimeType?: string
         aspectRatio?: string
         resolution?: "1K" | "2K" | "4K"
+        /** Called with the model ID that actually produced the edit (primary or fallback). */
+        onModel?: (model: string) => void
     } = {}
 ): Promise<Buffer> {
     const { mimeType = "image/jpeg", aspectRatio = "1:1" } = options // resolution unused — imageSize blurs output
@@ -370,6 +376,7 @@ export async function editExistingImage(
         const parts = response.candidates?.[0]?.content?.parts || []
         for (const part of parts) {
             if ((part as any).inlineData?.data) {
+                options.onModel?.(model)
                 return Buffer.from((part as any).inlineData.data, "base64")
             }
         }

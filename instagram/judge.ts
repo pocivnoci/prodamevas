@@ -27,3 +27,27 @@ export async function judgeText(prompt: string, opts: { label: string; maxTokens
     if (hasFallback("textPro")) models.push(getModel("textPro", "fallback"))
     return generateTextQuality(prompt, { models, label: opts.label, temperature: getTemperature("judge") })
 }
+
+/**
+ * Same cross-family dispatch as judgeText, but for a judge prompt that also needs to SEE images
+ * (the native image QA). Without this, the Gemini image renderer grades its own Gemini render —
+ * exactly the self-preference risk the text judge was built to avoid. Claude Sonnet 5 is
+ * multimodal, so routing vision QA through it closes that gap; a Claude vision hiccup drops to
+ * the Gemini visionQA ladder, same fail-open contract as judgeText.
+ */
+export async function judgeVision(
+    prompt: string,
+    images: { buffer: Buffer; mimeType?: string }[],
+    opts: { label: string; maxTokens?: number },
+): Promise<string> {
+    if (claudeJudgeEnabled()) {
+        try {
+            return await judgeWithClaude(prompt, { ...opts, images })
+        } catch (err: any) {
+            console.warn(`⚠️ Claude vision judge (${opts.label}) failed — falling back to Gemini: ${String(err?.message || err).slice(0, 120)}`)
+        }
+    }
+    const models = [getModel("visionQA")]
+    if (hasFallback("visionQA")) models.push(getModel("visionQA", "fallback"))
+    return generateTextQuality(prompt, { models, images, label: opts.label, temperature: getTemperature("judge") })
+}

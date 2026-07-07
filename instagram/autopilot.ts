@@ -976,7 +976,11 @@ ${feedSummary}
         await logGeneration({
             postId: post.id,
             promptUsed: megaPrompt.substring(0, 500),
-            modelUsed: `${captionModel} + ${getModel("image")}`,
+            // Truthful image tier: renderResult.imageModel reflects what ACTUALLY rendered the
+            // shipped buffer (a mid-generation 503 can silently drop Nano Banana Pro to the
+            // weaker fallback tier) — falls back to the static config only for reels/dry-run,
+            // where no native image render happened.
+            modelUsed: `${captionModel} + ${renderResult?.imageModel || getModel("image")}`,
             generationTimeMs: Date.now() - startTime,
             criticScore: score,
             criticKeep: detail?.feedback.keep,

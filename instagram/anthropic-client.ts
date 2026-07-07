@@ -38,18 +38,32 @@ export function claudeJudgeEnabled(): boolean {
  * 5) — it rejects `temperature`/`top_p`/`top_k`. We instead run at LOW effort with adaptive thinking
  * left off, and lean on the tight scoring rubric already baked into the prompt. Small `max_tokens`
  * (judge output is a score + a couple short lists) keeps it fast and cheap across ≤3 rounds/post.
+ *
+ * `images` lets the SAME cross-family gate judge a rendered picture, not just text — Claude Sonnet
+ * 5 is multimodal, so the vision QA gets "writer ≠ judge" too (Gemini renders, Claude reads).
  */
 export async function judgeWithClaude(
     prompt: string,
-    opts: { label?: string; maxTokens?: number } = {},
+    opts: { label?: string; maxTokens?: number; images?: { buffer: Buffer; mimeType?: string }[] } = {},
 ): Promise<string> {
     const model = getModel("judge")
+    const content: Anthropic.ContentBlockParam[] = [
+        ...(opts.images ?? []).map((img): Anthropic.ImageBlockParam => ({
+            type: "image",
+            source: {
+                type: "base64",
+                media_type: (img.mimeType || "image/png") as "image/png" | "image/jpeg" | "image/webp" | "image/gif",
+                data: img.buffer.toString("base64"),
+            },
+        })),
+        { type: "text", text: prompt },
+    ]
     const resp = await getClient().messages.create({
         model,
         max_tokens: opts.maxTokens ?? 2048,
         // effort is GA (no beta header). Low = fast/cheap, appropriate for an evaluative gate.
         output_config: { effort: "low" },
-        messages: [{ role: "user", content: prompt }],
+        messages: [{ role: "user", content }],
     })
 
     const text = resp.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text

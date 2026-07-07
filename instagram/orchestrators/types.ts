@@ -63,4 +63,8 @@ export interface RenderResult {
     designBrief?: DesignBrief
     /** Native QA outcome: pass | retry_pass | fallback | overlay */
     qaStatus?: string
+    /** The image model tier that actually rendered the SHIPPED buffer (e.g. "gemini-3-pro-image"
+     *  or the fallback "gemini-3.1-flash-image") — truthful even when a mid-generation 503
+     *  silently dropped to the weaker fallback tier. Distinct from the static getModel("image"). */
+    imageModel?: string
 }

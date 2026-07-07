@@ -19,6 +19,7 @@ import {
 } from "../image-pipeline"
 import { loadLogo } from "../logo-loader"
 import { COSTS } from "../caption-generator"
+import { getModel } from "../models"
 import type { RenderContext, RenderResult } from "./types"
 
 type RefImage = { buffer: Buffer; mimeType?: string; label?: string }
@@ -148,12 +149,14 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
 
     await report("rendering", 62, "🖼️ Nano Banana Pro generuje finální post...")
     console.log(`🖼️ Nano Banana Pro — native design (${refs.length} refs, 2K)...`)
+    let imageModel = getModel("image")
     let imageBuffer = await generateImageWithReferences(prompt, refs, {
         aspectRatio: format.aspectRatio,
         resolution: "2K",
+        onModel: m => { imageModel = m },
     })
     cost += COSTS.imageGeneration
-    console.log(`   ✓ Obrázek (${(imageBuffer.length / 1024).toFixed(0)} KB)`)
+    console.log(`   ✓ Obrázek (${(imageBuffer.length / 1024).toFixed(0)} KB, model: ${imageModel})`)
 
     // Vision QA: exact Czech text + logo presence + product fidelity (vs reference photo)
     await report("chief_editor", 75, "👁️ Kontrola textu, loga a věrnosti produktu...")
@@ -178,7 +181,9 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
     // nothing passes cleanly we publish the best-scoring native buffer (qaStatus
     // "native_forced"), which beats both a bare overlay and an empty post.
     let bestBuffer = imageBuffer
+    let bestModel = imageModel
     let bestScore = qaScore(qa)
+    let bestQa = qa
     let passed = qa.ok
     let qaStatus = qa.ok ? "pass" : "retry_pass"
 
@@ -197,11 +202,12 @@ Follow the CLIENT PHOTO FIDELITY rules exactly: the final post must use the clie
     : `the product did not match the reference photo (${qa.issues.join("; ")}).
 Follow the PRODUCT FIDELITY rules exactly: the product must be a faithful reproduction of the attached "EXACT product photo".`}`
             try {
-                const retryBuffer = await generateImageWithReferences(retryPrompt, refs, { aspectRatio: format.aspectRatio, resolution: "2K" })
+                let retryModel = getModel("image")
+                const retryBuffer = await generateImageWithReferences(retryPrompt, refs, { aspectRatio: format.aspectRatio, resolution: "2K", onModel: m => { retryModel = m } })
                 cost += COSTS.imageGeneration
                 const qaRetry = await verifyNativeImage(retryBuffer, qaExpectation, qaProductRef, qaUserPhotoRef)
                 cost += COSTS.imageQA
-                if (qaScore(qaRetry) < bestScore) { bestBuffer = retryBuffer; bestScore = qaScore(qaRetry); passed = qaRetry.ok }
+                if (qaScore(qaRetry) < bestScore) { bestBuffer = retryBuffer; bestModel = retryModel; bestScore = qaScore(qaRetry); bestQa = qaRetry; passed = qaRetry.ok }
             } catch (e: any) { console.warn(`   ⚠️ Regenerace selhala: ${e?.message?.substring(0, 80)}`) }
         } else {
             console.log(`   ⚠️ QA problém: ${qa.issues.join("; ")} → korektivní edit`)
@@ -212,15 +218,17 @@ Follow the PRODUCT FIDELITY rules exactly: the product must be a faithful reprod
 Render the headline as this EXACT Czech text, character-for-character including diacritics: "${captionData.hook}"
 ${captionData.imageSubtext ? `Render the subtext as this EXACT Czech text: "${captionData.imageSubtext}"` : ""}
 ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
+                let editModel = getModel("image")
                 const fixedBuffer = await editExistingImage(imageBuffer, fixPrompt, {
                     mimeType: "image/png",
                     aspectRatio: format.aspectRatio,
                     resolution: "2K",
+                    onModel: m => { editModel = m },
                 })
                 cost += COSTS.imageCorrectiveEdit
                 const qa2 = await verifyNativeImage(fixedBuffer, qaExpectation, qaProductRef, qaUserPhotoRef)
                 cost += COSTS.imageQA
-                if (qaScore(qa2) < bestScore) { bestBuffer = fixedBuffer; bestScore = qaScore(qa2); passed = qa2.ok }
+                if (qaScore(qa2) < bestScore) { bestBuffer = fixedBuffer; bestModel = editModel; bestScore = qaScore(qa2); bestQa = qa2; passed = qa2.ok }
             } catch (editErr: any) {
                 console.warn(`   ⚠️ Korektivní edit selhal: ${editErr?.message?.substring(0, 80)}`)
             }
@@ -232,21 +240,49 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
             console.log(`   🔄 Poslední pokus — čerstvá regenerace...`)
             await report("rendering", 80, "🔧 Poslední pokus o čistý render...")
             try {
-                const freshBuffer = await generateImageWithReferences(prompt, refs, { aspectRatio: format.aspectRatio, resolution: "2K" })
+                let freshModel = getModel("image")
+                const freshBuffer = await generateImageWithReferences(prompt, refs, { aspectRatio: format.aspectRatio, resolution: "2K", onModel: m => { freshModel = m } })
                 cost += COSTS.imageGeneration
                 const qaFresh = await verifyNativeImage(freshBuffer, qaExpectation, qaProductRef, qaUserPhotoRef)
                 cost += COSTS.imageQA
-                if (qaScore(qaFresh) < bestScore) { bestBuffer = freshBuffer; bestScore = qaScore(qaFresh); passed = qaFresh.ok }
+                if (qaScore(qaFresh) < bestScore) { bestBuffer = freshBuffer; bestModel = freshModel; bestScore = qaScore(qaFresh); bestQa = qaFresh; passed = qaFresh.ok }
             } catch (e: any) { console.warn(`   ⚠️ Regenerace selhala: ${e?.message?.substring(0, 80)}`) }
         }
 
+        // A "severe" miss (overlapping/duplicated/garbled/unreadable text, not just a
+        // diacritic slip) gets ONE more bounded attempt before we accept "best native,
+        // still broken" — a cosmetic miss is publishable, an unreadable headline is not.
+        if (!passed && bestQa.severity === "severe") {
+            console.log(`   🚨 Nejlepší pokus je stále "severe" (nečitelný text) — bonusová oprava...`)
+            await report("rendering", 82, "🔧 Text je nečitelný — poslední bonusový pokus...")
+            try {
+                const { editExistingImage } = await import("../gemini-client")
+                const severeFixPrompt = `The typography in this image is overlapping, duplicated or unreadable — this is NOT publishable.
+Redraw ONLY the text cleanly, as flat legible typography — keep the same composition, photo, style, colors and layout.
+Render the headline as this EXACT Czech text, character-for-character including diacritics: "${captionData.hook}"
+${captionData.imageSubtext ? `Render the subtext as this EXACT Czech text: "${captionData.imageSubtext}"` : ""}`
+                let severeModel = getModel("image")
+                const severeBuffer = await editExistingImage(bestBuffer, severeFixPrompt, {
+                    mimeType: "image/png",
+                    aspectRatio: format.aspectRatio,
+                    resolution: "2K",
+                    onModel: m => { severeModel = m },
+                })
+                cost += COSTS.imageCorrectiveEdit
+                const qaSevere = await verifyNativeImage(severeBuffer, qaExpectation, qaProductRef, qaUserPhotoRef)
+                cost += COSTS.imageQA
+                if (qaScore(qaSevere) < bestScore) { bestBuffer = severeBuffer; bestModel = severeModel; bestScore = qaScore(qaSevere); bestQa = qaSevere; passed = qaSevere.ok }
+            } catch (e: any) { console.warn(`   ⚠️ Bonusová oprava selhala: ${e?.message?.substring(0, 80)}`) }
+        }
+
         imageBuffer = bestBuffer
+        imageModel = bestModel
         if (passed) {
             qaStatus = "retry_pass"
             console.log(`   ✓ Prošlo QA po opravě`)
         } else {
             qaStatus = "native_forced"
-            console.log(`   ⚠️ QA se nepodařilo splnit — publikuji nejlepší nativní pokus (score ${bestScore})`)
+            console.log(`   ⚠️ QA se nepodařilo splnit — publikuji nejlepší nativní pokus (score ${bestScore}, severity: ${bestQa.severity ?? "n/a"})`)
         }
     } else {
         console.log(`   ✅ QA OK — text${productRef ? ", logo i produkt" : " i logo"} v pořádku`)
@@ -262,6 +298,7 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
         imageStyle: `native:${conceptSlug}`,
         designBrief: brief,
         qaStatus,
+        imageModel,
     }
 }
 

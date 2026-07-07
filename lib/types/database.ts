@@ -48,6 +48,10 @@ export interface IGPost {
     updated_at?: string
     // Joined relations
     ig_post_types?: { name?: string; display_name: string; emoji: string } | null
+    /** Native image QA outcome from ig_generation_log ("pass" | "retry_pass" | "native_forced")
+     *  — attached by getIGPostsList so the dashboard can flag posts whose image never passed
+     *  vision QA cleanly (diacritics/garbled text) before a human publishes them. */
+    qa_status?: string | null
 }
 
 // ─── IG Post Type ────────────────────────────────────────────

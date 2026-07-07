@@ -225,6 +225,24 @@ export async function getIGPostsList(
             return { posts: [], total: 0, hasMore: false }
         }
         const posts = (data || []) as unknown as IGPost[]
+
+        // Attach the native image QA outcome so the dashboard can flag a post whose image
+        // never passed vision QA cleanly (diacritics/garbled text) before it gets published.
+        // Separate query (not an embed) — ig_generation_log has no unique FK direction
+        // guarantee worth risking on the hot list query; this is a cheap indexed lookup.
+        if (posts.length > 0) {
+            const { data: logs } = await supabaseAdmin
+                .from("ig_generation_log")
+                .select("post_id, qa_status, created_at")
+                .in("post_id", posts.map(p => p.id))
+                .order("created_at", { ascending: false })
+            const qaByPost = new Map<string, string | null>()
+            for (const log of logs || []) {
+                if (!qaByPost.has(log.post_id)) qaByPost.set(log.post_id, log.qa_status)
+            }
+            for (const post of posts) post.qa_status = qaByPost.get(post.id) ?? null
+        }
+
         return { posts, total, hasMore: from + posts.length < total }
     } catch (err: any) {
         console.error("getIGPostsList exception:", err?.message || err)
