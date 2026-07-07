@@ -1,6 +1,6 @@
 ---
 tags: [moc, chrlit]
-updated: 2026-06-10
+updated: 2026-07-07
 ---
 
 # 🧠 Chrlit — Mozek
@@ -30,12 +30,14 @@ To, co `docs/` neřekne — *proč* zrovna takhle a co jsme zavrhli:
 
 - [[Tenant isolation - explicitní clientId]]
 - [[2-step generation API]]
+- [[Content pipeline - durable kampaně a zásobník témat]]
 - [[link_type - revize vs A-B varianta]]
-- [[Text v obrázcích přes Satori]]
+- [[Nativní rendering - text i logo z Nano Banana Pro]]
 - [[Config v DB jako JSONB]]
+- [[Text v obrázcích přes Satori]] — ⚠️ *superseded* (nahrazeno nativním renderingem, ponecháno jako historie)
 
 > [!tip] Nové rozhodnutí
-> Zkopíruj [[_template]], pojmenuj `Decisions/YYYY-MM-DD krátký název`. Drž to krátké — 5 řádků stačí. Po nějaké době tě graf sám propojí.
+> Zkopíruj [[_template]], pojmenuj `Decisions/YYYY-MM-DD krátký název`. Drž to krátké — 5 řádků stačí. Po nějaké době tě graf sám propojí. Když rozhodnutí něco ruší, dej starému `status: superseded` + banner s odkazem (viz Satori), nemaž ho.
 
 ## 🎯 Go-to-market
 

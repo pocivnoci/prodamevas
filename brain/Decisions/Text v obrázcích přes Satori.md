@@ -1,33 +1,30 @@
 ---
 tags: [decision, rendering]
-status: accepted
+status: superseded
 date: 2026-05-14
+superseded_date: 2026-07-01
+superseded_by: "[[Nativní rendering - text i logo z Nano Banana Pro]]"
 area: rendering
 ---
 
 # Text v obrázcích přes Satori
 
-> [!summary] Rozhodnutí
-> Image modely **nesmí renderovat text**. Veškerý text (hook, watermark) se vkládá overlay přes Satori → Sharp v `text-overlay.ts`.
+> [!warning] Superseded (2026-07-01)
+> Tohle už **neplatí.** Overlay engine (Satori → Sharp, `text-overlay.ts`) byl smazán — text i logo teď renderuje nativně Nano Banana Pro. Aktuální rozhodnutí: [[Nativní rendering - text i logo z Nano Banana Pro]]. Ponecháno jako historie *proč* to kdysi bylo takhle.
 
-## Proč
+> [!summary] Rozhodnutí (historické)
+> Image modely **nesměly renderovat text**. Veškerý text (hook, watermark) se vkládal overlay přes Satori → Sharp v `text-overlay.ts`.
 
-Generativní image modely píšou text nespolehlivě — překlepy, zkomolená diakritika, nečitelné fonty. Pro brandové posty s českým textem je to nepoužitelné. Satori (HTML/CSS → SVG) → Sharp (SVG → PNG) dává **pixel-perfect, deterministický** text s vlastními fonty.
+## Proč (tehdy)
 
-## Co jsme zavrhli
+Generativní image modely psaly text nespolehlivě — překlepy, zkomolená diakritika, nečitelné fonty. Satori (HTML/CSS → SVG) → Sharp (SVG → PNG) dával pixel-perfect deterministický text s vlastními fonty. **Co se změnilo:** Nano Banana Pro mezitím dozrál, píše čitelný český text i komponuje logo → overlay vrstva odpadla (viz nástupce).
 
-- **Text přímo z image modelu** — nečitelné, nekonzistentní, neopravitelné.
+## Co jsme zavrhli (tehdy)
+
+- **Text přímo z image modelu** — tehdy nečitelné a neopravitelné. *(Právě tenhle předpoklad nástupce obrátil.)*
 - **Post-process OCR korekce** — křehké a drahé.
-
-## Co z toho plyne (pravidla)
-
-- Image prompt explicitně zakazuje text v obrázku.
-- Hook text, gradient a logo watermark jdou přes `text-overlay.ts`.
-- Fonty (Inter, BebasNeue) musí být na Vercelu v `outputFileTracingIncludes` (`next.config.ts`), jinak overlay spadne.
-- Po overlayi běží vision check `reviewOverlayComposition()`.
 
 ## Odkazy
 
-- [[Glossary]] — Satori → Sharp
-- [[AI_AGENT_KNOWLEDGE_BASE]] §8 (body 9, 10)
-- `instagram/text-overlay.ts`
+- [[Nativní rendering - text i logo z Nano Banana Pro]] — nástupce
+- [[Glossary]] — Satori → Sharp (pojem už jen historický)
