@@ -10,6 +10,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk"
+import sharp from "sharp"
 import { getModel } from "./models"
 import dotenv from "dotenv"
 
@@ -31,6 +32,60 @@ export function claudeJudgeEnabled(): boolean {
 }
 
 /**
+ * Anthropic's three vision limits. Each one is a hard 400 (verified against the live API):
+ *   - `media_type` must match the real bytes: "specified image/png, but appears to be image/jpeg"
+ *   - neither dimension may exceed 8000 px
+ *   - the base64 string may not exceed 10 MB
+ *
+ * Callers hand us whatever the renderer or a tenant upload produced, so we trust neither their
+ * mime label nor their size — we sniff the buffer and only re-encode when a limit is actually
+ * breached. Claude downscales anything past ~2576 px on its own, so clamping the long edge there
+ * costs no readable detail (Czech diacritics survive) while keeping us far under the byte cap.
+ */
+const MAX_BASE64_BYTES = 10 * 1024 * 1024
+const MAX_LONG_EDGE = 2576
+
+type ClaudeMedia = "image/png" | "image/jpeg" | "image/webp" | "image/gif"
+const SUPPORTED: Record<string, ClaudeMedia> = {
+    png: "image/png",
+    jpeg: "image/jpeg",
+    webp: "image/webp",
+    gif: "image/gif",
+}
+
+const base64Bytes = (buf: Buffer) => Math.ceil(buf.length / 3) * 4
+
+async function toImageBlock(img: { buffer: Buffer; mimeType?: string }): Promise<Anthropic.ImageBlockParam> {
+    const block = (data: Buffer, media_type: ClaudeMedia): Anthropic.ImageBlockParam => ({
+        type: "image",
+        source: { type: "base64", media_type, data: data.toString("base64") },
+    })
+
+    const meta = await sharp(img.buffer).metadata()
+    const detected = meta.format ? SUPPORTED[meta.format] : undefined
+    const oversized = Math.max(meta.width ?? 0, meta.height ?? 0) > MAX_LONG_EDGE
+    const tooHeavy = base64Bytes(img.buffer) > MAX_BASE64_BYTES
+
+    // Already legal — ship the original bytes, just labelled with what they actually are.
+    if (detected && !oversized && !tooHeavy) return block(img.buffer, detected)
+
+    const fit = () =>
+        sharp(img.buffer).resize({ width: MAX_LONG_EDGE, height: MAX_LONG_EDGE, fit: "inside", withoutEnlargement: true })
+
+    // PNG stays PNG (crisp typography for the QA read); anything else re-encodes to JPEG.
+    let out = detected === "image/png" ? await fit().png().toBuffer() : await fit().jpeg({ quality: 92 }).toBuffer()
+    let media: ClaudeMedia = detected === "image/png" ? "image/png" : "image/jpeg"
+
+    // A noisy 2576px PNG can still clear 10 MB — step down to JPEG rather than send a doomed request.
+    for (const quality of [85, 70, 55]) {
+        if (base64Bytes(out) <= MAX_BASE64_BYTES) break
+        out = await fit().jpeg({ quality }).toBuffer()
+        media = "image/jpeg"
+    }
+    return block(out, media)
+}
+
+/**
  * Run a judge prompt through Claude and return the raw text. The prompt already instructs a JSON
  * shape, and callers parse it exactly as they parse the Gemini judge output — so this is a drop-in.
  *
@@ -41,6 +96,9 @@ export function claudeJudgeEnabled(): boolean {
  *
  * `images` lets the SAME cross-family gate judge a rendered picture, not just text — Claude Sonnet
  * 5 is multimodal, so the vision QA gets "writer ≠ judge" too (Gemini renders, Claude reads).
+ * Each image is normalized by toImageBlock first: Claude rejects a mislabeled `media_type` outright,
+ * so we derive it from the bytes and ignore `img.mimeType` (which stays on the shape because the
+ * Gemini fallback path in judge.ts still reads it).
  */
 export async function judgeWithClaude(
     prompt: string,
@@ -48,14 +106,7 @@ export async function judgeWithClaude(
 ): Promise<string> {
     const model = getModel("judge")
     const content: Anthropic.ContentBlockParam[] = [
-        ...(opts.images ?? []).map((img): Anthropic.ImageBlockParam => ({
-            type: "image",
-            source: {
-                type: "base64",
-                media_type: (img.mimeType || "image/png") as "image/png" | "image/jpeg" | "image/webp" | "image/gif",
-                data: img.buffer.toString("base64"),
-            },
-        })),
+        ...(await Promise.all((opts.images ?? []).map(toImageBlock))),
         { type: "text", text: prompt },
     ]
     const resp = await getClient().messages.create({
