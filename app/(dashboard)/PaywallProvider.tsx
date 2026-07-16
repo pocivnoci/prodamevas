@@ -276,7 +276,7 @@ function PlanUnlockModal({ onClose }: { onClose: () => void }) {
 
                     {/* Price */}
                     <div className="text-center mb-6">
-                        <span className="text-3xl font-black text-white">490 Kč</span>
+                        <span className="text-3xl font-black text-white">990 Kč</span>
                         <span className="text-white/30 text-sm font-bold ml-1">/ měsíc</span>
                     </div>
 

@@ -65,11 +65,11 @@ const FAQ_CATEGORIES: FaqCategory[] = [
             },
             {
                 q: "Jak funguje dobíjení kreditů?",
-                a: "Kdykoli si můžete dokoupit extra kredity za 15 Kč/ks. Jdete do Nastavení → Předplatné a dobíjete. Kredity se přičtou okamžitě.",
+                a: "Kdykoli si můžete dokoupit extra kredity za 49 Kč/ks. Jdete do Nastavení → Předplatné a dobíjete. Kredity se přičtou okamžitě.",
             },
             {
                 q: "Převádí se nevyčerpané kredity do dalšího měsíce?",
-                a: "Ne. Každý měsíc dostanete kredity podle svého plánu (Start 15, Růst 40, Dominance 100). Nevyčerpané kredity propadnou. Pokud potřebujete víc, dobijte si je za 15 Kč/ks.",
+                a: "Ne. Každý měsíc dostanete kredity podle svého plánu (Start 20, Růst 45, Dominance 100, Impérium 220). Nevyčerpané kredity propadnou. Pokud potřebujete víc, dobijte si je za 49 Kč/ks.",
             },
             {
                 q: "Jak funguje trial?",
@@ -77,7 +77,7 @@ const FAQ_CATEGORIES: FaqCategory[] = [
             },
             {
                 q: "Jaké jsou plány a jak si dobiju kredity?",
-                a: "Tři plány: Start (490 Kč, 15 kreditů — obrázky a carousely), Růst (990 Kč, 40 kreditů — navíc A/B varianty, reels a růstový dashboard) a Dominance (1 990 Kč, 100 kreditů — navíc product studio a prioritní generování). Když kredity dojdou, dobijete si je za 15 Kč/ks v Nastavení → Předplatné.",
+                a: "Čtyři plány: Start (990 Kč, 20 kreditů — obrázky a carousely), Růst (1 990 Kč, 45 kreditů — navíc A/B varianty, reels a růstový dashboard), Dominance (3 990 Kč, 100 kreditů — navíc product studio a prioritní generování) a Impérium (7 990 Kč, 220 kreditů — plný objem pro agentury a e-shopy). Když kredity dojdou, dobijete si je za 49 Kč/ks v Nastavení → Předplatné.",
             },
         ],
     },

@@ -10,7 +10,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Chrlit — Posty na Instagram za pár minut | AI obsah pro firmy",
-  description: "Zadejte web svého podnikání a dostanete měsíc hotového obsahu na Instagram — texty, obrázky, hashtagy. Bez grafika, bez copywritera. Od 490 Kč měsíčně.",
+  description: "Zadejte web svého podnikání a dostanete měsíc hotového obsahu na Instagram — texty, obrázky, hashtagy. Bez grafika, bez copywritera. Od 990 Kč měsíčně.",
   keywords: ["instagram posty", "obsah na sociální sítě", "AI obsah pro firmy", "generování příspěvků", "správa Instagramu", "chrlit", "obsah bez grafika"],
   icons: {
     icon: "/favicon.ico",
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Chrlit — Posty na Instagram za pár minut",
-    description: "Měsíc obsahu bez grafika a copywritera. Od 490 Kč.",
+    description: "Měsíc obsahu bez grafika a copywritera. Od 990 Kč.",
     images: ["/chrlit-logo.png"],
   },
   robots: { index: true, follow: true },

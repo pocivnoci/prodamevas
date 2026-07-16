@@ -1846,7 +1846,7 @@ function ProductCatalogSection({ projectId }: { projectId: string }) {
                                     const name = e.target.value
                                     setForm(f => ({ ...f, name, slug: editingId ? f.slug : autoSlug(name) }))
                                 }}
-                                placeholder="Chrlit 490 Kč"
+                                placeholder="Chrlit 990 Kč"
                                 className={inputClass}
                             />
                         </div>

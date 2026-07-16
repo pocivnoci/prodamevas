@@ -253,7 +253,7 @@ export default function Home() {
               <div className="absolute top-0 right-0 w-[200px] h-[200px] bg-aisummit-cinnabar/10 blur-[60px] rounded-full pointer-events-none" />
               <div className="relative z-10">
                 <div className="text-[10px] font-black uppercase tracking-widest text-aisummit-cinnabar mb-3">Chrlit</div>
-                <div className="text-3xl md:text-4xl font-black text-white">od 490 Kč</div>
+                <div className="text-3xl md:text-4xl font-black text-white">od 990 Kč</div>
                 <div className="text-aisummit-cinnabar/60 text-[10px] font-bold uppercase tracking-widest mt-2">měsíčně</div>
               </div>
             </div>
@@ -271,12 +271,12 @@ export default function Home() {
             <p className="text-white/50 font-medium text-lg max-w-xl mx-auto">Vyberte si podle toho, jak často chcete postovat. Bez smluv, bez závazků.</p>
           </div>
 
-          <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+          <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 items-stretch">
             {[
               {
                 name: "Start",
                 tagline: "Nakopni profil",
-                price: 490,
+                price: 990,
                 highlight: false,
                 features: [
                   "20 kreditů měsíčně",
@@ -289,7 +289,7 @@ export default function Home() {
               {
                 name: "Růst",
                 tagline: "Rosteme spolu",
-                price: 990,
+                price: 1990,
                 highlight: true,
                 features: [
                   "45 kreditů měsíčně",
@@ -302,13 +302,25 @@ export default function Home() {
               {
                 name: "Dominance",
                 tagline: "Ovládni svůj trh",
-                price: 1990,
+                price: 3990,
                 highlight: false,
                 features: [
-                  "110 kreditů měsíčně",
+                  "100 kreditů měsíčně",
                   "Maximum obsahu vč. reels",
                   "Produktové vizualizace",
                   "Prioritní generování",
+                ],
+              },
+              {
+                name: "Impérium",
+                tagline: "Postav impérium",
+                price: 7990,
+                highlight: false,
+                features: [
+                  "220 kreditů měsíčně",
+                  "Plný objem pro agentury a e-shopy",
+                  "Vše z Dominance",
+                  "Nejvyšší priorita ve frontě",
                 ],
               },
             ].map((plan) => (

@@ -393,7 +393,7 @@ function LockedPostCard({ post }: { post: IGPost }) {
 
                 <div className="mt-auto pt-3 border-t border-white/10">
                     <button className="w-full py-2 bg-gradient-to-r from-aisummit-cinnabar/20 to-orange-600/20 border border-aisummit-cinnabar/20 rounded-sm text-[9px] font-black uppercase tracking-widest text-aisummit-cinnabar hover:from-aisummit-cinnabar/30 hover:to-orange-600/30 transition-all">
-                        🔓 Odemknout za 490 Kč
+                        🔓 Odemknout za 990 Kč
                     </button>
                 </div>
             </div>

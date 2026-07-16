@@ -27,6 +27,7 @@ const PLAN_TAGLINES: Record<string, string> = {
     chrlit_start: "Nakopni profil",
     chrlit_rust: "Rosteme spolu",
     chrlit_dominance: "Ovládni svůj trh",
+    chrlit_imperium: "Postav impérium",
 }
 
 function planFeatureList(p: PlanRow): string[] {
@@ -119,7 +120,7 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
 
             {/* Growth tier cards */}
             {plans.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {plans.map(plan => {
                         const isCurrent = subscription?.planId === plan.id && subscription?.status === "active"
                         const highlight = plan.features.highlight

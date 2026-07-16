@@ -340,7 +340,7 @@ export async function canPerformAction(
     if (sub.creditsRemaining < creditsRequired) {
         return {
             allowed: false,
-            reason: `Nedostatek kreditů. Potřebujete ${creditsRequired}, zbývá ${sub.creditsRemaining}. Dobijte si kredity za 15 Kč/ks.`,
+            reason: `Nedostatek kreditů. Potřebujete ${creditsRequired}, zbývá ${sub.creditsRemaining}. Dobijte si kredity za 49 Kč/ks.`,
             creditsRequired,
             creditsRemaining: sub.creditsRemaining,
         }
@@ -531,7 +531,7 @@ export async function canPerformBatchAction(
     if (sub.creditsRemaining < creditsRequired) {
         return {
             allowed: false,
-            reason: `Nedostatek kreditů pro ${count}× ${ACTION_LABELS[action]}. Potřebujete ${creditsRequired}, zbývá ${sub.creditsRemaining}. Dobijte si kredity za 15 Kč/ks.`,
+            reason: `Nedostatek kreditů pro ${count}× ${ACTION_LABELS[action]}. Potřebujete ${creditsRequired}, zbývá ${sub.creditsRemaining}. Dobijte si kredity za 49 Kč/ks.`,
             creditsRequired,
             creditsRemaining: sub.creditsRemaining,
         }

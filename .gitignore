@@ -57,3 +57,7 @@ gemini-logs.csv
 
 # supabase local CLI state (not source)
 supabase/.temp/
+
+# internal financial analysis — confidential (salary, cost structure, margins,
+# break-even). Kept local only; must NOT be pushed to the public repo.
+docs/pricing/
