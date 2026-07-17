@@ -309,6 +309,22 @@ Return ONLY the JSON design brief.`
             // keep the original brief — a repeated archetype beats a failed generation
         }
     }
+
+    // Verbatim typography guard — enforced in code, never trusted to the model. The brief's
+    // strings ARE the render prompt; when the designer paraphrases or drops diacritics here
+    // (observed 2026-07-07: subtextText "Zase jen dalsi fotka s cinkou?"), the fresh-regen
+    // retry reuses the poisoned prompt, so no retry can ever render the right text. QA
+    // compares against captionData — aligning the prompt to the same source makes
+    // "rendered text == expected text" achievable by construction.
+    if (brief.typography.headlineText !== captionData.hook) {
+        console.warn(`   ⚠️ Designer paraphrased headlineText — restoring verbatim hook`)
+        brief.typography.headlineText = captionData.hook
+    }
+    const expectedSubtext = captionData.imageSubtext || undefined
+    if ((brief.typography.subtextText || undefined) !== expectedSubtext) {
+        console.warn(`   ⚠️ Designer altered subtextText — enforcing verbatim copy`)
+        brief.typography.subtextText = expectedSubtext
+    }
     return brief
 }
 
@@ -445,6 +461,21 @@ Return JSON: { "designSystem": "one paragraph describing the shared system", "br
     if (!parsed?.designSystem || !Array.isArray(parsed.briefs) || parsed.briefs.length !== allSlides.length) {
         throw new Error(`Carousel designer returned ${parsed?.briefs?.length ?? 0} briefs, expected ${allSlides.length}`)
     }
+
+    // Same verbatim typography guard as generateDesignBrief, per slide — the briefs drive
+    // every slide's render prompt while QA expects allSlides' strings; enforcing equality
+    // in code closes that loop deterministically.
+    parsed.briefs.forEach((b, i) => {
+        const slide = allSlides[i]
+        if (b.typography.headlineText !== slide.headline) {
+            console.warn(`   ⚠️ Slide ${i}: designer paraphrased headline — restoring verbatim`)
+            b.typography.headlineText = slide.headline
+        }
+        const expectedSub = slide.subtext || undefined
+        if ((b.typography.subtextText || undefined) !== expectedSub) {
+            b.typography.subtextText = expectedSub
+        }
+    })
     return parsed
 }
 
