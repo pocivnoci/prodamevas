@@ -226,7 +226,7 @@ function OnboardingContent() {
                 const { generateContentPlan, getPlanCadence } = await import('@/app/actions/content-plan-actions')
                 // One real week at the brand's actual cadence (seeded from their IG), not a flat 7.
                 const weekCount = await getPlanCadence(clientSlug)
-                const planRes = await generateContentPlan(clientSlug, weekCount)
+                const planRes = await generateContentPlan(clientSlug, { count: weekCount })
                 if (planRes.success && planRes.plan?.length) {
                     try { localStorage.setItem(`ig_draft_plan_${clientSlug}`, JSON.stringify(planRes.plan)) } catch { /* ignore */ }
                 }

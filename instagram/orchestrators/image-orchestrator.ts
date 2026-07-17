@@ -122,6 +122,7 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
         postType: selectedType.name,
         recentBriefs: ctx.recentBriefs ?? [],
         bannedArchetypes: ctx.recentArchetypes ?? [],
+        slotIntent: ctx.slotIntent,
         product: productInfo,
         userPhoto: userPhotoInfo,
     })

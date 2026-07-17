@@ -17,6 +17,16 @@ export interface CampaignOptions {
     category?: string
     /** Campaign-wide topic, prefixed onto each item's hook (matches old per-post behaviour). */
     topic?: string
+    /** The strategist's campaign arc (PlanPipelineResult.strategySummary). Persisted so the
+     *  session-less worker can hand every post the same through-line — it used to die in the
+     *  browser at approval, leaving posts to reconstruct continuity from previous captions. */
+    strategySummary?: string
+    /** When set, approve THIS draft row in place instead of inserting a new campaign — the
+     *  status flip is the single-use token that makes double-submit impossible. */
+    draftId?: string
+    /** What the campaign was planned for. Recorded for observability only — the worker doesn't
+     *  read it, because the approved plan already embodies the goal. */
+    goal?: string
 }
 
 export interface CampaignStatus {
@@ -160,34 +170,67 @@ export async function startCampaign(
                 ? toScheduledFor(it.scheduledDate, it.scheduledTime)
                 : null,
             timeSlot: it.scheduledTime || null,
+            // The feed-pattern cell rides the plan row so every worker tick — including a retry
+            // of a parked post — designs against the same grid the plan was laid out on.
+            slotIntent: it.slotIntent || null,
         }))
 
-        const { data: campaign, error } = await supabaseAdmin
-            .from("ig_campaigns")
-            .insert({
-                client_id: clientId,
-                status: "pending",
-                plan: planRows,
-                options: {
-                    // configName (slug) is needed by the worker for loadConfig/generateOnePost,
-                    // which the cron can't re-derive (no user session to resolve project access).
-                    configName: projectSlug,
-                    aspectRatio: options.aspectRatio || null,
-                    medium: options.medium || null,
-                    category: options.category || null,
-                    topic: options.topic || null,
-                    // Carry the super-admin's billing bypass to the session-less worker, so a
-                    // campaign that passed the bypassed up-front check isn't then killed at
-                    // post 0 by the worker's real credit gate (the silent-death mismatch).
-                    adminBypass: isSuperAdmin || undefined,
-                },
-                total: planRows.length,
-            })
-            .select("id")
-            .single()
+        const campaignOptions = {
+            // configName (slug) is needed by the worker for loadConfig/generateOnePost,
+            // which the cron can't re-derive (no user session to resolve project access).
+            configName: projectSlug,
+            aspectRatio: options.aspectRatio || null,
+            medium: options.medium || null,
+            category: options.category || null,
+            topic: options.topic || null,
+            strategySummary: options.strategySummary || null,
+            goal: options.goal || null,
+            // Carry the super-admin's billing bypass to the session-less worker, so a
+            // campaign that passed the bypassed up-front check isn't then killed at
+            // post 0 by the worker's real credit gate (the silent-death mismatch).
+            adminBypass: isSuperAdmin || undefined,
+        }
 
-        if (error || !campaign) {
-            throw new Error(`Failed to create campaign: ${error?.message}`)
+        let campaignId: string
+        if (options.draftId) {
+            // Approve the draft in place. The status='draft' filter makes this a single-use
+            // claim: a double-click (or a second tab holding the same draft) finds the row
+            // already 'pending' and gets a clean refusal, instead of a second campaign
+            // generating — and charging for — the same plan. There is deliberately NO insert
+            // fallback here; falling back is exactly the double-charge this guards against.
+            const { data: claimed, error: claimErr } = await supabaseAdmin
+                .from("ig_campaigns")
+                .update({
+                    status: "pending",
+                    plan: planRows,
+                    options: campaignOptions,
+                    total: planRows.length,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("id", options.draftId)
+                .eq("client_id", clientId)
+                .eq("status", "draft")
+                .select("id")
+                .maybeSingle()
+            if (claimErr) throw new Error(`Failed to start campaign: ${claimErr.message}`)
+            if (!claimed) return { success: false, error: "Tento plán už byl spuštěn." }
+            campaignId = claimed.id
+        } else {
+            const { data: campaign, error } = await supabaseAdmin
+                .from("ig_campaigns")
+                .insert({
+                    client_id: clientId,
+                    status: "pending",
+                    plan: planRows,
+                    options: campaignOptions,
+                    total: planRows.length,
+                })
+                .select("id")
+                .single()
+            if (error || !campaign) {
+                throw new Error(`Failed to create campaign: ${error?.message}`)
+            }
+            campaignId = campaign.id
         }
 
         // The every-minute cron (vercel.json → /api/cron/campaign-worker) claims and
@@ -195,7 +238,7 @@ export async function startCampaign(
         // worker here: aborting that fetch to return fast could cancel the worker
         // mid-run (Fluid Compute honours request cancellation). Cron is the durable,
         // safe driver — a sub-minute start delay is fine for a multi-minute batch.
-        return { success: true, campaignId: campaign.id }
+        return { success: true, campaignId }
     } catch (err: any) {
         return { success: false, error: err?.message || String(err) }
     }

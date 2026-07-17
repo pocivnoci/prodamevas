@@ -7,6 +7,7 @@
 import supabaseAdmin from "../../supabase/admin"
 import type { ClientConfig } from "./types"
 import { reconcileFormats } from "./reconcile"
+import { isFeedPattern } from "../../lib/feed-pattern"
 
 export interface ClientMeta {
     id: string
@@ -94,6 +95,9 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
             feel: "Moderní a čistý",
             phoneModel: "iPhone 16 Pro",
         },
+        // Grid rhythm. Clamped, not defaulted-through: engine code indexes ARCHETYPE_GROUPS by
+        // the derived visual mode, so a garbage value must never reach it.
+        feedPattern: isFeedPattern(config.feedPattern) ? config.feedPattern : "none",
         weekPlan: config.weekPlan || [],
         // Real posting cadence drives content-plan length (duration × postsPerWeek). Clamp to a
         // sane 1–7 and default to 4 — never let a missing/garbage value inflate the plan back to

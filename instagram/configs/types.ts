@@ -6,6 +6,7 @@
  */
 
 import type { BrandVoiceConfig } from "../types"
+import type { FeedPatternId } from "../../lib/feed-pattern"
 
 // ─── Product ────────────────────────────────────────────────
 
@@ -228,6 +229,13 @@ export interface ClientConfig {
 
     /** Visual identity for feed cohesion */
     feedAesthetic: FeedAesthetic
+
+    /** Visual rhythm of the profile GRID (see lib/feed-pattern.ts). Deliberately top-level and
+     *  not part of feedAesthetic: feedAesthetic describes a single image and is poured into the
+     *  designer prompt verbatim, whereas this decides — per grid position — which family of
+     *  layouts a post may use. Seeded at onboarding from the brand's real feed, user-editable.
+     *  validateConfig clamps unknown values to "none". */
+    feedPattern?: FeedPatternId
 
     /** Static week plan — array of post type names (Mon→Sun, 2 per day) */
     weekPlan: string[]

@@ -919,6 +919,17 @@ DŮLEŽITÉ:
                     .filter(Boolean).join('\n')
             }
         }
+        // Grid rhythm, derived from what the brand's real feed already does. Deterministic —
+        // a photography-led feed gets "none" rather than having typography posts forced on it.
+        // NOTE: intentionally NOT mirrored in core.ts's generateConfigCore, unlike the rest of
+        // the config-gen twin: feedVisuals only exists on this (UI) path, which scrapes the
+        // client's Instagram. The scripts path has no feed to read, and validateConfig's
+        // "none" default covers it. The user can pick a pattern in Settings either way.
+        if (analysis.feedVisuals) {
+            const { recommendPattern } = await import('@/lib/feed-pattern')
+            config.feedPattern = recommendPattern(analysis.feedVisuals)
+            console.log(`🔲 Feed pattern doporučen: ${config.feedPattern}`)
+        }
         // Persist the scrape snapshot — cold-start baseline for planWeek & performance context
         if (analysis.igProfile && analysis.igInsights) {
             config.igBaseline = {
@@ -1289,21 +1300,32 @@ export async function saveReviewedConfig(
         await seedMemoriesFromAnalysis(insertedClientId, analysis)
         await ensurePostTypes(config, insertedClientId)
 
-        // Sync products → ig_products
+        // Sync products → ig_products. Slugs are AI-generated with NO cross-item
+        // uniqueness guarantee and ig_products has UNIQUE(client_id, slug) — a single
+        // collision in a bulk INSERT rolled back the WHOLE statement, leaving the client
+        // with a full config.products but an EMPTY catalog (and only a console.warn).
+        // Dedup within the batch, then upsert (resilient to pre-existing rows too).
         if (config.products && config.products.length > 0) {
             try {
-                const productRows = config.products.map((p: any) => ({
-                    client_id: insertedClientId,
-                    name: p.name,
-                    type: p.type || 'product',
-                    slug: p.slug,
-                    price: p.price || null,
-                    description: p.description || null,
-                    image_urls: [],
-                }))
+                const seenSlugs = new Set<string>()
+                const productRows = config.products.map((p: any) => {
+                    const base = String(p.slug || 'produkt').substring(0, 36) || 'produkt'
+                    let slug = base
+                    for (let n = 2; seenSlugs.has(slug); n++) slug = `${base}-${n}`
+                    seenSlugs.add(slug)
+                    return {
+                        client_id: insertedClientId,
+                        name: p.name,
+                        type: p.type || 'product',
+                        slug,
+                        price: p.price || null,
+                        description: p.description || null,
+                        image_urls: [],
+                    }
+                })
                 const { error: prodError } = await supabaseAdmin
                     .from('ig_products')
-                    .insert(productRows)
+                    .upsert(productRows, { onConflict: 'client_id,slug' })
                 if (prodError) console.warn('⚠️ Product sync failed:', prodError.message)
             } catch (prodErr) {
                 console.warn('⚠️ Product sync exception:', (prodErr as Error).message)

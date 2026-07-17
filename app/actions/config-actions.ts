@@ -348,6 +348,76 @@ export async function uploadClientLogo(
 /**
  * Re-scrape client website for new brand images (without resetting config).
  */
+/**
+ * Look at the brand's REAL Instagram and suggest a feed pattern for it.
+ *
+ * Deliberately READ-ONLY — it returns a recommendation and writes nothing. The caller drops
+ * it into the Settings form and the user saves it through the normal config path. That's not
+ * squeamishness: re-running the onboarding feed-vision and letting it write would also
+ * re-derive typographyStyle / accentColor / customInstructions, silently overwriting tuning
+ * the user has done since onboarding (the same "never replace a real value" rule that the
+ * re-onboarding audit fix exists for). Suggesting one field can't do that.
+ *
+ * Why scrape rather than read our own posts: `ig_posts.design_brief.layoutArchetype` is an
+ * artifact of the designer's own archetype ROTATION (measured: near-uniform across all 8 for
+ * every client), so it describes our randomiser, not the brand. The client's real feed is the
+ * only honest signal for what their identity already looks like.
+ */
+export async function recommendFeedPattern(projectSlug: string): Promise<{
+    success: boolean
+    patternId?: string
+    label?: string
+    /** What the vision pass saw the real feed already doing — shown as the "why". */
+    archetypes?: string[]
+    summary?: string
+    error?: string
+}> {
+    try {
+        const { clientId } = await requireProjectAccess(projectSlug)
+        const { data: client } = await supabaseAdmin
+            .from("clients")
+            .select("config")
+            .eq("id", clientId)
+            .single()
+
+        const cfg = client?.config || {}
+        // Handles are stored with the leading "@" (and a few clients have a bare "@").
+        const handle = String(cfg.instagram || "").replace(/^@+/, "").trim()
+        if (!handle) {
+            return { success: false, error: "Klient nemá vyplněný Instagram účet — doplňte ho v Základních údajích." }
+        }
+
+        const { fetchInstagramProfile } = await import("@/lib/ig-scraper")
+        const profile = await fetchInstagramProfile(handle, { includePosts: true })
+        if (!profile) {
+            return { success: false, error: `Účet @${handle} se nepodařilo načíst (soukromý účet, překlep, nebo je scraper dočasně nedostupný).` }
+        }
+        if (!profile.recentPosts?.length) {
+            return { success: false, error: `Na účtu @${handle} nejsou žádné příspěvky k analýze.` }
+        }
+
+        const { analyzeFeedVisuals } = await import("@/instagram/feed-vision")
+        const visuals = await analyzeFeedVisuals(profile.recentPosts, cfg.name || projectSlug)
+        if (!visuals) {
+            return { success: false, error: "Vizuální analýza feedu selhala — zkuste to prosím znovu." }
+        }
+
+        const { recommendPattern, getPatternDef } = await import("@/lib/feed-pattern")
+        const patternId = recommendPattern(visuals)
+        console.log(`🔲 [recommend-pattern] ${projectSlug} @${handle}: ${visuals.dominantArchetypes.join(", ")} → ${patternId}`)
+
+        return {
+            success: true,
+            patternId,
+            label: getPatternDef(patternId).label,
+            archetypes: visuals.dominantArchetypes,
+            summary: visuals.visualStyleSummary,
+        }
+    } catch (err: any) {
+        return { success: false, error: err?.message || String(err) }
+    }
+}
+
 export async function rescanClientWebsite(
     projectSlug: string
 ): Promise<{ success: boolean; newImages: number; existingImages: number; foundUrls: number; error?: string }> {

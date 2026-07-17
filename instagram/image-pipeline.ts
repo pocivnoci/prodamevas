@@ -19,6 +19,7 @@ function designerLadder(): string[] {
 import { getBrandMemories } from "./memory-agent"
 import type { ClientConfig } from "./configs/types"
 import { buildPhotoFidelitySection } from "./photo-fidelity"
+import { ARCHETYPE_GROUPS, type SlotIntent, type VisualMode } from "../lib/feed-pattern"
 
 // ============================================
 // VISUAL MEMORY FORMATTER
@@ -206,6 +207,64 @@ ${product.hasReferencePhoto
     : `No reference photo is available — describe the product ONLY by its verified name/description above; do not invent visual details (print, colors) beyond them.`}`
 }
 
+/**
+ * The feed-pattern slot directive. Tells the designer that this post occupies a specific cell
+ * in a deliberate grid rhythm — WITHOUT cancelling the divergence rules above it: the pattern
+ * fixes the family, divergence still varies everything inside it.
+ */
+function buildSlotIntentSection(slotIntent: SlotIntent | undefined, fa: ClientConfig["feedAesthetic"]): string {
+    if (!slotIntent) return ""
+    const modeBrief: Record<VisualMode, string> = {
+        photo: "A PHOTOGRAPH-LED post. The photographic scene carries the whole frame; type is an overlay on it.",
+        typography: "A TYPOGRAPHY-LED post. The words ARE the image — big, confident, designed type is the subject, not a caption sitting on a picture. A photo may support it or be absent entirely.",
+        graphic: "A GRAPHIC post. Built from designed shapes, colour fields and type — a designed object, not a photograph with text on it.",
+    }
+    const accentLine = slotIntent.accent
+        ? `\n⭐ This is an ACCENT cell in the rhythm: make the brand accent colour (${fa.accentColor || "the palette's boldest colour"}) the dominant treatment of the frame — it should read as a colour block from across the room.`
+        : ""
+    return `
+## FEED PATTERN SLOT — ${slotIntent.visualMode.toUpperCase()}:
+The brand's profile grid follows a deliberate rhythm, and this post occupies a "${slotIntent.visualMode}" cell.
+${modeBrief[slotIntent.visualMode]}${accentLine}
+⚠️ This constrains the FAMILY of layout, not the design itself: you must still diverge from the
+recent posts above in composition, crop, scale, colour treatment and type handling. Same family,
+different skeleton — two posts in the same family must never look like copies of each other.
+`
+}
+
+/**
+ * Composition rules. The default PHOTO-FIRST / NO-EMPTY-VOIDS rules exist to stop the model
+ * defaulting to lazy text-on-a-dark-rectangle. But a typography or graphic slot is REQUIRED to
+ * be type/shape-dominant — applying the photo rules there would forbid the very thing the slot
+ * asks for, so those slots get their own rules against the same failure mode.
+ */
+function buildCompositionRules(slotIntent: SlotIntent | undefined): string {
+    const mode = slotIntent?.visualMode
+    if (mode === "typography") {
+        return `- 🔤 TYPE IS THE SUBJECT: the headline must own the frame — huge, deliberate, expertly set.
+  Treat it as a designed poster, not a photo with a caption.
+- ⛔ NOT LAZY: a typographic poster is NOT text dumped on a flat dark rectangle. It needs real
+  design — considered scale contrast, structure, texture/grain, colour fields, or a photographic
+  element used as a graphic component. It must look designed by a human, never like a default slide.`
+    }
+    if (mode === "graphic") {
+        return `- 🎨 DESIGNED OBJECT: build the frame from colour fields, shapes and type — a graphic composition
+  with real structure (grid, geometry, layered forms), not a photo with a filter.
+- ⛔ NOT LAZY: flat empty canvases are still forbidden. Colour blocking must be intentional and
+  layered — texture, depth, overlap, tension. It must look art-directed, never like a blank slide.
+- 📐 FILL THE FRAME: every region must be doing work — no large dead corner or empty half where
+  the composition simply ran out. If a big area reads as leftover background rather than a
+  deliberate rest, redesign it: extend a shape through it, crop tighter, or scale the type up.`
+    }
+    // photo slot, or no pattern at all — the original rules, unchanged.
+    return `- 📸 PHOTO-FIRST: the image MUST be dominated by a real, rich photographic scene with a clear
+  subject (people, products, places, action). The photo is the hero — NOT a backdrop.
+- ⛔ NO EMPTY VOIDS: do NOT design large flat/solid color blocks, "deep charcoal voids", or
+  mostly-empty dark canvases. Negative space for text = a CLEAN/DARKENED REGION OF THE PHOTO
+  ITSELF (e.g. blurred or shadowed part of the scene), never a separate empty panel. Reserve at
+  most ~one-third of the frame for text; the rest must show the photograph.`
+}
+
 export async function generateDesignBrief(params: {
     config: ClientConfig
     clientId: string
@@ -220,10 +279,24 @@ export async function generateDesignBrief(params: {
     product?: ProductBriefInfo
     /** The client's own uploaded photo — the composition must be built from it */
     userPhoto?: UserPhotoBriefInfo
+    /** This post's slot in the feed pattern — narrows the archetype set to the slot's family
+     *  (see lib/feed-pattern.ts). Absent (or pattern "none") = full creative freedom. */
+    slotIntent?: SlotIntent
 }): Promise<DesignBrief> {
-    const { config, clientId, captionData, postType, recentBriefs } = params
+    const { config, clientId, captionData, postType, recentBriefs, slotIntent } = params
     const banned = (params.bannedArchetypes ?? []).filter(a => (LAYOUT_ARCHETYPES as readonly string[]).includes(a))
-    const allowedArchetypes = (LAYOUT_ARCHETYPES as readonly string[]).filter(a => !banned.includes(a))
+    // The feed pattern picks the FAMILY of layouts; the rotation ban still keeps this post off
+    // the archetypes its neighbours just used, but only WITHIN that family. If the ban would
+    // empty the family (typography only has two archetypes, so two typo posts in a row does
+    // it), the pattern wins — a broken grid rhythm is more visible than a repeated archetype,
+    // and the recentBriefs divergence rules still force a different composition.
+    const patternGroup = slotIntent ? ARCHETYPE_GROUPS[slotIntent.visualMode] : null
+    const archetypePool = (patternGroup ?? LAYOUT_ARCHETYPES) as readonly string[]
+    const afterBan = archetypePool.filter(a => !banned.includes(a))
+    const allowedArchetypes = afterBan.length > 0 ? afterBan : [...archetypePool]
+    // Only the bans that actually bite: bans outside the slot's family are noise, and when the
+    // ban was dropped to keep the pattern intact, listing it would contradict the allowed set.
+    const effectiveBans = banned.filter(a => archetypePool.includes(a) && !allowedArchetypes.includes(a))
     const fa = config.feedAesthetic
     const memSection = params.visualMemoriesSection ?? await getVisualMemoriesSection(clientId)
     const fidelitySection = buildPhotoFidelitySection(config)
@@ -257,9 +330,10 @@ ${recentBriefs.length ? recentBriefs.map((b, i) => `${i + 1}. ${b}`).join("\n") 
 ⚠️ HARD RULE: do NOT repeat the layout, text placement, typography style, or visual concept
 of any recent design above. Same shit different day is FORBIDDEN.
 
+${buildSlotIntentSection(slotIntent, fa)}
 ## LAYOUT ARCHETYPE (rotation is ENFORCED in code — violations get rejected):
 Set layoutArchetype to ONE of: ${allowedArchetypes.join(", ")}.
-${banned.length ? `🚫 FORBIDDEN for this post (used by the latest posts): ${banned.join(", ")}.` : ""}
+${effectiveBans.length ? `🚫 FORBIDDEN for this post (used by the latest posts): ${effectiveBans.join(", ")}.` : ""}
 The feed must stay ON-BRAND (same palette, mood, typography family) while each post
 changes the STRUCTURE — layout, text scale/placement, photo vs. graphic balance.
 Cohesive vibe, different skeleton.
@@ -268,12 +342,7 @@ Cohesive vibe, different skeleton.
 - typography.headlineText and typography.subtextText must be the EXACT Czech strings above,
   character-for-character including diacritics (ě š č ř ž ý á í é ů ú). NEVER translate or rephrase.
 - Typography is a DESIGN ELEMENT — vary scale, weight, placement, alignment between posts.
-- 📸 PHOTO-FIRST: the image MUST be dominated by a real, rich photographic scene with a clear
-  subject (people, products, places, action). The photo is the hero — NOT a backdrop.
-- ⛔ NO EMPTY VOIDS: do NOT design large flat/solid color blocks, "deep charcoal voids", or
-  mostly-empty dark canvases. Negative space for text = a CLEAN/DARKENED REGION OF THE PHOTO
-  ITSELF (e.g. blurred or shadowed part of the scene), never a separate empty panel. Reserve at
-  most ~one-third of the frame for text; the rest must show the photograph.
+${buildCompositionRules(slotIntent)}
 - Logo: small, tasteful, never dominating. Vary corners/positions unless brand preference is fixed.
 - Photography quality: editorial, cinematic lighting, real depth — no stock-photo vibes.
 ${fidelitySection}
@@ -292,12 +361,15 @@ Return ONLY the JSON design brief.`
         throw new Error("AI Designer returned incomplete design brief")
     }
 
-    // Enforce the archetype rotation — the prompt alone is not enough, the model
-    // happily writes a new concept sentence on top of the same layout.
-    if (brief.layoutArchetype && banned.includes(brief.layoutArchetype)) {
-        console.warn(`   ⚠️ Designer reused banned archetype "${brief.layoutArchetype}" — regenerating`)
+    // Enforce the archetype rotation AND the feed-pattern slot — the prompt alone is not
+    // enough, the model happily writes a new concept sentence on top of the same layout.
+    // Checking membership of allowedArchetypes (rather than the ban list) covers both at once:
+    // a pattern violation is as rejectable as a repeat, and when the ban was dropped to keep
+    // the pattern intact, the "banned" archetype is legitimately allowed and must not trip this.
+    if (brief.layoutArchetype && !allowedArchetypes.includes(brief.layoutArchetype)) {
+        console.warn(`   ⚠️ Designer returned out-of-set archetype "${brief.layoutArchetype}"${slotIntent ? ` (slot: ${slotIntent.visualMode})` : ""} — regenerating`)
         const retryRaw = await generateTextQuality(
-            designerPrompt + `\n\n⚠️ REJECTED: your previous brief used layoutArchetype "${brief.layoutArchetype}", which is FORBIDDEN. Produce a NEW brief with layoutArchetype strictly from: ${allowedArchetypes.join(", ")} — and a composition that actually matches it.`,
+            designerPrompt + `\n\n⚠️ REJECTED: your previous brief used layoutArchetype "${brief.layoutArchetype}", which is NOT ALLOWED for this post. Produce a NEW brief with layoutArchetype strictly from: ${allowedArchetypes.join(", ")} — and a composition that actually matches it.`,
             { models: designerLadder(), responseSchema: DESIGN_BRIEF_SCHEMA, temperature: getTemperature("designer"), label: "designer-rearchetype" }
         )
         try {
@@ -308,6 +380,22 @@ Return ONLY the JSON design brief.`
         } catch {
             // keep the original brief — a repeated archetype beats a failed generation
         }
+    }
+
+    // Verbatim typography guard — enforced in code, never trusted to the model. The brief's
+    // strings ARE the render prompt; when the designer paraphrases or drops diacritics here
+    // (observed 2026-07-07: subtextText "Zase jen dalsi fotka s cinkou?"), the fresh-regen
+    // retry reuses the poisoned prompt, so no retry can ever render the right text. QA
+    // compares against captionData — aligning the prompt to the same source makes
+    // "rendered text == expected text" achievable by construction.
+    if (brief.typography.headlineText !== captionData.hook) {
+        console.warn(`   ⚠️ Designer paraphrased headlineText — restoring verbatim hook`)
+        brief.typography.headlineText = captionData.hook
+    }
+    const expectedSubtext = captionData.imageSubtext || undefined
+    if ((brief.typography.subtextText || undefined) !== expectedSubtext) {
+        console.warn(`   ⚠️ Designer altered subtextText — enforcing verbatim copy`)
+        brief.typography.subtextText = expectedSubtext
     }
     return brief
 }
@@ -381,10 +469,17 @@ export async function generateCarouselDesignBriefs(params: {
     product?: ProductBriefInfo
     /** The client's own uploaded photo — the COVER must be built from it */
     userPhoto?: UserPhotoBriefInfo
+    /** Feed-pattern slot for the COVER — the cover is the cell that shows up in the grid. */
+    slotIntent?: SlotIntent
 }): Promise<{ designSystem: string; briefs: DesignBrief[] }> {
-    const { config, clientId, allSlides, visualTheme, postType, recentBriefs } = params
+    const { config, clientId, allSlides, visualTheme, postType, recentBriefs, slotIntent } = params
     const banned = (params.bannedArchetypes ?? []).filter(a => (LAYOUT_ARCHETYPES as readonly string[]).includes(a))
-    const allowedArchetypes = (LAYOUT_ARCHETYPES as readonly string[]).filter(a => !banned.includes(a))
+    // Same family/ban resolution as the single-image designer (see generateDesignBrief). One
+    // archetype covers the whole carousel, and it's the cover that lands in the profile grid.
+    const patternGroup = slotIntent ? ARCHETYPE_GROUPS[slotIntent.visualMode] : null
+    const archetypePool = (patternGroup ?? LAYOUT_ARCHETYPES) as readonly string[]
+    const afterBan = archetypePool.filter(a => !banned.includes(a))
+    const allowedArchetypes = afterBan.length > 0 ? afterBan : [...archetypePool]
     const fa = config.feedAesthetic
     const memSection = await getVisualMemoriesSection(clientId)
 
@@ -412,7 +507,7 @@ ${buildProductSection(params.product)}${buildUserPhotoSection(params.userPhoto, 
 
 ## RECENT POST DESIGNS — THE CAROUSEL MUST DIVERGE FROM ALL OF THEM:
 ${recentBriefs.length ? recentBriefs.map((b, i) => `${i + 1}. ${b}`).join("\n") : "(no history yet)"}
-
+${buildSlotIntentSection(slotIntent, fa)}
 ## RULES:
 1. First define ONE design system: same typography style, same palette/grading, same logo treatment
    across ALL slides — the carousel must feel like one cohesive editorial piece.
@@ -422,7 +517,7 @@ ${recentBriefs.length ? recentBriefs.map((b, i) => `${i + 1}. ${b}`).join("\n") 
 4. The COVER has the boldest typography; inner slides are calmer and consistent.
 5. Diverge hard from the recent designs (layout, type placement, concept).
 6. Set ONE layoutArchetype for the whole carousel (same value on every brief), chosen from:
-   ${allowedArchetypes.join(", ")}.${banned.length ? `\n   🚫 FORBIDDEN (used by the latest posts): ${banned.join(", ")}.` : ""}
+   ${allowedArchetypes.join(", ")}.${banned.filter(a => archetypePool.includes(a) && !allowedArchetypes.includes(a)).length ? `\n   🚫 FORBIDDEN (used by the latest posts): ${banned.filter(a => archetypePool.includes(a) && !allowedArchetypes.includes(a)).join(", ")}.` : ""}
    Stay on-brand (palette, mood, type family) — change the STRUCTURE, not the brand.
 
 Return JSON: { "designSystem": "one paragraph describing the shared system", "briefs": [one design brief per slide, in order] }`
@@ -445,6 +540,21 @@ Return JSON: { "designSystem": "one paragraph describing the shared system", "br
     if (!parsed?.designSystem || !Array.isArray(parsed.briefs) || parsed.briefs.length !== allSlides.length) {
         throw new Error(`Carousel designer returned ${parsed?.briefs?.length ?? 0} briefs, expected ${allSlides.length}`)
     }
+
+    // Same verbatim typography guard as generateDesignBrief, per slide — the briefs drive
+    // every slide's render prompt while QA expects allSlides' strings; enforcing equality
+    // in code closes that loop deterministically.
+    parsed.briefs.forEach((b, i) => {
+        const slide = allSlides[i]
+        if (b.typography.headlineText !== slide.headline) {
+            console.warn(`   ⚠️ Slide ${i}: designer paraphrased headline — restoring verbatim`)
+            b.typography.headlineText = slide.headline
+        }
+        const expectedSub = slide.subtext || undefined
+        if ((b.typography.subtextText || undefined) !== expectedSub) {
+            b.typography.subtextText = expectedSub
+        }
+    })
     return parsed
 }
 
