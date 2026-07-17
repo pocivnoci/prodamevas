@@ -125,6 +125,105 @@ function resolveOverlayStyle(medium: "image" | "carousel" | "reel", chosen?: Ove
     return medium === "carousel" ? "cover" : "default"
 }
 
+/**
+ * Turn a short keyword the user types ("soutěž", "giveaway", "zákulisí") into a
+ * ready-to-review format draft grounded in THIS brand — so adding a format is
+ * "write a word, tweak, save" instead of filling nine fields by hand. Returns a
+ * PostFormatInput the UI pre-fills; the user still saves through upsertPostFormat
+ * unchanged (nothing is persisted here). Contests / giveaways / limited drops are
+ * forced manualOnly — real brand commitments the autopilot must never invent (the
+ * manualOnly hard rule).
+ */
+export async function suggestPostFormat(
+    projectSlug: string,
+    keyword: string
+): Promise<{ success: boolean; draft?: PostFormatInput; error?: string }> {
+    try {
+        await requireProjectAccess(projectSlug)
+        const kw = (keyword || "").trim()
+        if (!kw) return { success: false, error: "Napiš, jaký formát chceš (např. soutěž)" }
+
+        const { loadConfig } = await import("@/instagram/configs")
+        const config = await loadConfig(projectSlug, true)
+        const pillars: Record<string, any> = config.contentPillars || {}
+        const pillarKeys = Object.keys(pillars)
+        if (pillarKeys.length === 0) return { success: false, error: "Nejdřív vytvoř aspoň jedno téma (pilíř)." }
+
+        const pillarList = pillarKeys
+            .map(k => `- ${k} = ${pillars[k]?.label || k}${pillars[k]?.description ? ` (${pillars[k].description})` : ""}`)
+            .join("\n")
+        const productNames = (config.products || []).map((p: any) => p?.name).filter(Boolean).slice(0, 8).join(", ")
+
+        const prompt = `Jsi Instagram stratég. Uživatel chce PŘIDAT jeden formát příspěvku (šablonu) a napsal jen klíčové slovo. Navrhni ho ušitý na míru téhle značce.
+
+Klíčové slovo od uživatele: "${kw}"
+
+Firma: ${config.name || projectSlug}${config.industry ? ` (${config.industry})` : ""}
+${productNames ? `Produkty/služby: ${productNames}` : "Bez katalogu produktů"}
+Pilíře obsahu (POVOLENÉ klíče — vyber přesně jeden):
+${pillarList}
+
+Vrať POUZE JSON objekt (bez markdownu):
+{
+  "display_name": "krátký název formátu, česky",
+  "emoji": "1 emoji vystihující formát",
+  "description": "2-3 věty česky: CO post ukazuje, JAK má vypadat a co má obsahovat — podle tohohle se AI řídí při psaní textu i vizuálu. U soutěže/giveaway napiš KONKRÉTNÍ mechaniku (dej like, sleduj profil, označ kámoše, co je výhra).",
+  "pillar": "přesně jeden z povolených klíčů pilířů výše",
+  "medium": "image | carousel | reel",
+  "aspectRatio": "1:1 | 4:5 | 3:4 | 9:16",
+  "uses_product": true/false,
+  "manual_only": true/false
+}
+
+Pravidla: konkrétní pro tuhle značku, ne generické. "uses_product" = true jen když formát ukazuje konkrétní produkt. "manual_only" = true pro soutěže, giveawaye, limitky a časově omezené akce (reálné závazky značky — AI je nesmí generovat sama). aspectRatio "9:16" jen pro reel.`
+
+        // Same resilient pattern as onboarding's generateCustomFormats: ask for JSON,
+        // extract the object, retry once on a transient AI/parse failure.
+        let parsed: any = null
+        for (let attempt = 1; attempt <= 2 && !parsed; attempt++) {
+            try {
+                const { generateText } = await import("@/instagram/gemini-client")
+                const { getModel } = await import("@/instagram/models")
+                const raw = await generateText(prompt, {
+                    temperature: 0.7,
+                    model: getModel("textPro"),
+                    fallbackModel: getModel("textPro", "fallback"),
+                })
+                const match = raw.match(/\{[\s\S]*\}/)
+                if (match) parsed = JSON.parse(match[0])
+            } catch (e: any) {
+                console.warn(`suggestPostFormat parse failed (${attempt}/2): ${e?.message}`)
+            }
+        }
+        if (!parsed?.display_name || !parsed?.description) {
+            return { success: false, error: "AI návrh se nepovedl — zkus jiné slovo nebo vyplň ručně." }
+        }
+
+        const medium = (["image", "carousel", "reel"].includes(parsed.medium) ? parsed.medium : "image") as PostFormatInput["medium"]
+        const aspectRatio = (medium === "reel"
+            ? "9:16"
+            : (["1:1", "4:5", "3:4"].includes(parsed.aspectRatio) ? parsed.aspectRatio : "4:5")) as PostFormatInput["aspectRatio"]
+        // Safety net for the manualOnly rule: a giveaway must never fall into autopilot
+        // even if the model forgets the flag or the keyword itself screams "contest".
+        const contestish = /sout[eě]ž|giveaw|contest|limitk|limited|drop/.test(kw.toLowerCase())
+
+        const draft: PostFormatInput = {
+            display_name: String(parsed.display_name).slice(0, 60),
+            emoji: parsed.emoji || "🎁",
+            description: String(parsed.description).slice(0, 400),
+            pillar: pillarKeys.includes(parsed.pillar) ? parsed.pillar : pillarKeys[0],
+            medium,
+            aspectRatio,
+            uses_product: Boolean(parsed.uses_product),
+            manualOnly: Boolean(parsed.manual_only) || contestish,
+        }
+        return { success: true, draft }
+    } catch (err: any) {
+        console.error("suggestPostFormat error:", err?.message || err)
+        return { success: false, error: err?.message || "Nepodařilo se navrhnout formát" }
+    }
+}
+
 export async function upsertPostFormat(
     projectSlug: string,
     input: PostFormatInput

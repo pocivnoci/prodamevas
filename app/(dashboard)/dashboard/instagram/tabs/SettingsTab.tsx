@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, upsertPostFormat, removePostFormat, recommendFeedPattern, type PostFormatInput } from "@/app/actions/config-actions"
+import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, upsertPostFormat, removePostFormat, suggestPostFormat, recommendFeedPattern, type PostFormatInput } from "@/app/actions/config-actions"
 import { getProducts, createProduct, updateProduct, deleteProduct, deleteProducts, uploadProductImage, syncConfigProductsToDb, scrapeProductsFromWebsite } from "@/app/actions/product-actions"
 import { generateCategoryPrompt } from "@/app/actions/content-plan-actions"
 import { getConnectionStatus, disconnectInstagram, type ConnectionStatus } from "@/app/actions/ig-connection-actions"
@@ -833,6 +833,18 @@ function FormatsSection({ config, projectId, onReload }: { config: any; projectI
     const [drafts, setDrafts] = useState<Record<string, PostFormatInput>>({})
     const [showAdd, setShowAdd] = useState(false)
     const [addDraft, setAddDraft] = useState<PostFormatInput>(() => emptyFormatDraft(pillarKeys))
+    // "Write a word → AI fills the whole form" — the fast path for adding a format.
+    const [genKeyword, setGenKeyword] = useState("")
+    const [genBusy, setGenBusy] = useState(false)
+
+    const suggest = async () => {
+        if (!genKeyword.trim()) return
+        setGenBusy(true); setError(null)
+        const res = await suggestPostFormat(projectId, genKeyword.trim())
+        if (res.success && res.draft) setAddDraft(res.draft)
+        else setError(res.error || "AI návrh selhal")
+        setGenBusy(false)
+    }
 
     const draftFor = (def: any): PostFormatInput => drafts[def.name] ?? {
         name: def.name,
@@ -857,7 +869,7 @@ function FormatsSection({ config, projectId, onReload }: { config: any; projectI
         if (!res.success) setError(res.error || "Uložení formátu selhalo")
         else {
             setDrafts(prev => { const next = { ...prev }; delete next[key]; return next })
-            if (key === "__add__") { setShowAdd(false); setAddDraft(emptyFormatDraft(pillarKeys)) }
+            if (key === "__add__") { setShowAdd(false); setAddDraft(emptyFormatDraft(pillarKeys)); setGenKeyword("") }
             await onReload()
         }
         setBusy(null)
@@ -979,9 +991,25 @@ function FormatsSection({ config, projectId, onReload }: { config: any; projectI
                 <div className="bg-[#0f0f0f] border border-emerald-500/20 rounded-sm p-6 space-y-4">
                     <div className="flex items-center justify-between border-b border-white/10 pb-3">
                         <span className="text-[10px] text-emerald-400/80 font-bold uppercase tracking-widest">Nový formát</span>
-                        <button onClick={() => { setShowAdd(false); setError(null) }}
+                        <button onClick={() => { setShowAdd(false); setError(null); setGenKeyword("") }}
                             className="text-[9px] text-white/30 hover:text-white/60 transition-colors font-bold uppercase tracking-widest">✕ Zrušit</button>
                     </div>
+
+                    {/* AI fast path: type a word ("soutěž", "giveaway", "zákulisí") → AI fills every field below. */}
+                    <div className="bg-emerald-500/5 border border-emerald-500/15 rounded-sm p-3 space-y-2">
+                        <FieldLabel hint="Napiš typ postu a AI vyplní zbytek formuláře — pak si ho zkontroluj a ulož">✨ Nech AI vyplnit</FieldLabel>
+                        <div className="flex gap-2">
+                            <input value={genKeyword} onChange={e => setGenKeyword(e.target.value)}
+                                onKeyDown={e => { if (e.key === "Enter" && !genBusy) { e.preventDefault(); suggest() } }}
+                                placeholder="např. soutěž, giveaway, zákulisí, návod…"
+                                className={`${inputClass} flex-1`} />
+                            <button onClick={suggest} disabled={genBusy || !genKeyword.trim()}
+                                className="whitespace-nowrap bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 px-4 py-2 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40">
+                                {genBusy ? "AI přemýšlí…" : "✨ Vyplnit"}
+                            </button>
+                        </div>
+                    </div>
+
                     <FormatFields value={addDraft} onChange={patch => setAddDraft(prev => ({ ...prev, ...patch }))} />
                     <button onClick={() => save(addDraft, "__add__")}
                         disabled={busy !== null || !addDraft.display_name.trim() || !addDraft.description.trim()}
