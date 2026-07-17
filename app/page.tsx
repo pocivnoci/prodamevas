@@ -262,6 +262,82 @@ export default function Home() {
         </div>
       </section>
 
+      {/* QUALIFIER — sits right before pricing on purpose: the price lands on someone who
+          has already decided it's for them, and saying out loud who we're NOT for is what
+          makes the left-hand column believable. Every "nesedne" item is a real product
+          limit, not fake modesty — don't soften them into non-claims. */}
+      <section id="pro-koho" className="relative z-10 py-28 border-t border-white/5 bg-[#0a0a0a]">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="text-center mb-14 max-w-2xl mx-auto">
+            <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/20 mb-5">Upřímně</p>
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Není to pro každého</h2>
+            <p className="text-white/50 font-medium text-lg">Radši vám to řekneme teď než po zaplacení.</p>
+          </div>
+
+          <Reveal stagger className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* FIT */}
+            <motion.div variants={fadeUp} className="bg-[#050505] border border-emerald-400/20 rounded-sm p-8">
+              <div className="flex items-center gap-3 mb-7">
+                <div className="w-9 h-9 rounded-sm bg-emerald-400/10 border border-emerald-400/20 flex items-center justify-center">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                </div>
+                <h3 className="text-base font-black uppercase tracking-widest text-white">Sedne vám, když</h3>
+              </div>
+              <ul className="space-y-5">
+                {[
+                  ["Nemáte čas postovat", "Vedete firmu. Instagram je to, co zbyde — a většinou nezbyde nic."],
+                  ["Váš profil usnul", "Poslední příspěvek před půl rokem. Zákazník to čte jako zavřeno."],
+                  ["Agentura je mimo rozpočet", "15–20 tisíc měsíčně nedává smysl, ale mlčet taky ne."],
+                  ["Nemáte fotografa ani ateliér", "Vizuály produktů vzniknou bez focení. Vlastní fotky můžete přidat."],
+                  ["Chcete mít poslední slovo", "Obsah dostanete hotový. Co vyjde ven, schvalujete vy."],
+                ].map(([t, d]) => (
+                  <li key={t} className="flex gap-3">
+                    <span className="text-emerald-400/60 text-xs mt-0.5 shrink-0">✓</span>
+                    <div>
+                      <p className="text-white text-sm font-bold leading-snug">{t}</p>
+                      <p className="text-white/40 text-sm leading-relaxed mt-1">{d}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-7 pt-6 border-t border-white/5 text-white/30 text-[11px] leading-relaxed">
+                Web ani nepotřebujete — když ho nemáte, projdeme s vámi pár otázek a značku se naučíme z nich.
+              </p>
+            </motion.div>
+
+            {/* NOT A FIT */}
+            <motion.div variants={fadeUp} className="bg-[#050505] border border-white/10 rounded-sm p-8">
+              <div className="flex items-center gap-3 mb-7">
+                <div className="w-9 h-9 rounded-sm bg-white/5 border border-white/10 flex items-center justify-center">
+                  <X className="w-4 h-4 text-white/40" />
+                </div>
+                <h3 className="text-base font-black uppercase tracking-widest text-white/70">Nesedne vám, když</h3>
+              </div>
+              <ul className="space-y-5">
+                {[
+                  ["Chcete se na to už nikdy nepodívat", "Schválení a zveřejnění zůstává na vás. Pár minut týdně to zabere."],
+                  ["Máte grafika a vlastní art direction", "Když máte funkční vizuální systém, budeme si spíš překážet."],
+                  ["Potřebujete reportáž z akce", "Nikdo k vám nepřijede fotit včerejší svatbu ani otevíračku."],
+                  ["Čekáte 10 000 sledujících za měsíc", "Tohle je pravidelnost, ne růstový trik. Účet roste pomalu."],
+                  ["Chcete řídit každý pixel", "Layout navrhuje AI. Můžete ho přegenerovat nebo připomínkovat — ne sázet ručně."],
+                ].map(([t, d]) => (
+                  <li key={t} className="flex gap-3">
+                    <span className="text-white/25 text-xs mt-0.5 shrink-0">✕</span>
+                    <div>
+                      <p className="text-white/70 text-sm font-bold leading-snug">{t}</p>
+                      <p className="text-white/35 text-sm leading-relaxed mt-1">{d}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-7 pt-6 border-t border-white/5 text-white/30 text-[11px] leading-relaxed">
+                Jestli vás tahle strana vystihuje, nekupujte to. Ušetříme oba čas.
+              </p>
+            </motion.div>
+          </Reveal>
+        </div>
+      </section>
+
       {/* PRICING — three tiers, no mechanism */}
       <section id="pricing" className="relative py-28 border-t border-white/5 bg-[#050505]">
         <div className="absolute top-0 left-1/2 w-[800px] h-[400px] bg-aisummit-cinnabar/5 blur-[150px] rounded-full pointer-events-none" style={{ transform: 'translateX(-50%)' }} />
