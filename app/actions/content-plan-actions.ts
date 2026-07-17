@@ -56,6 +56,34 @@ export async function getPlanCadence(projectSlug: string): Promise<number> {
 }
 
 /**
+ * Persist the cadence the user picked in the plan brief, so the next visit starts from their
+ * real rhythm instead of the onboarding seed. Minimal-diff config write (raw row, not the
+ * validateConfig-materialised shape) — same pattern as config-actions updates.
+ */
+export async function savePlanCadence(projectSlug: string, postsPerWeek: number): Promise<{ success: boolean }> {
+    try {
+        const { clientId } = await requireProjectAccess(projectSlug)
+        const clamped = Math.min(7, Math.max(1, Math.round(postsPerWeek)))
+        const { data, error } = await supabaseAdmin
+            .from("clients")
+            .select("config")
+            .eq("id", clientId)
+            .single()
+        if (error || !data) return { success: false }
+        const { error: updateError } = await supabaseAdmin
+            .from("clients")
+            .update({ config: { ...(data.config || {}), postsPerWeek: clamped } })
+            .eq("id", clientId)
+        if (updateError) return { success: false }
+        const { invalidateConfigCache } = await import("@/instagram/configs")
+        invalidateConfigCache(projectSlug)
+        return { success: true }
+    } catch {
+        return { success: false }
+    }
+}
+
+/**
  * Everything the user can dial in before the planner runs. An options object rather than
  * positional args: the brief keeps growing (goal / format mix / product focus) and a 6th
  * optional string in a row is how you silently pass a category as a topic.
@@ -64,8 +92,6 @@ export interface PlanBriefOptions {
     count: number
     /** Campaign-wide topic — every post must relate to it. */
     topic?: string
-    /** Pillar category filter. */
-    category?: string
     /** What the campaign is FOR. Steers the planner prompt always, and (once the brand has
      *  engagement data) biases pillar ratios toward pillars whose CTA strategy serves it. */
     goal?: CampaignGoal
@@ -148,7 +174,7 @@ export async function generateContentPlan(
     feedPattern?: { id: FeedPatternId; seqBase: number }
     error?: string
 }> {
-    const { count, topic: userTopic, category, goal, carouselShare, productIds, planRunId } = brief
+    const { count, topic: userTopic, goal, carouselShare, productIds, planRunId } = brief
     // ─── Durable observability: a breadcrumb row in ig_jobs proves the action started and
     // shows where it stops/fails. Instrumentation must NEVER break generation (all wrapped). ──
     const t0 = Date.now()
@@ -162,7 +188,7 @@ export async function generateContentPlan(
         const { clientId } = await requireProjectAccess(projectSlug)
         const { getModel } = await import("@/instagram/models")
         const planModel = getModel("planner")
-        console.log(`📋 [content-plan] START client=${clientId} count=${count} topic="${userTopic || "-"}" cat="${category || "-"}" goal=${goal || "-"} carousels=${carouselShare || "auto"} model=${planModel}`)
+        console.log(`📋 [content-plan] START client=${clientId} count=${count} topic="${userTopic || "-"}" goal=${goal || "-"} carousels=${carouselShare || "auto"} model=${planModel}`)
         try {
             const { data: jobRow } = await supabaseAdmin
                 .from("ig_jobs")
@@ -171,7 +197,7 @@ export async function generateContentPlan(
                     // constraint and silently killed every content_plan breadcrumb insert
                     // (0/179 rows existed), so plan-stage failures were invisible.
                     client_id: clientId,
-                    config: { kind: "content_plan", count, topic: userTopic || null, category: category || null, goal: goal || null, carouselShare: carouselShare || null, model: planModel, runId: planRunId || null },
+                    config: { kind: "content_plan", count, topic: userTopic || null, goal: goal || null, carouselShare: carouselShare || null, model: planModel, runId: planRunId || null },
                     status: "pending",
                     progress: 0,
                     agent_message: "📋 Plánuji obsah…",

@@ -278,7 +278,6 @@ export async function GET(req: Request) {
                         ideaId: itemIdeaId,
                         aspectRatio: opts.aspectRatio || undefined,
                         medium: itemMedium,
-                        category: opts.category || undefined,
                         productId: item?.productId || undefined,
                         campaignContext, campaignId: campaign.id,
                         charged, chargedCredits, chargedMedium, allowedMedia,

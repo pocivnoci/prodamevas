@@ -1,9 +1,9 @@
 /**
  * Schedule distribution for the content planner.
  * ===============================================
- * Pure, dependency-free (client + server safe) — spreads N posts across upcoming
- * days at preferred time slots so a content-plan batch gets sensible posting times
- * the user can then fine-tune. Never schedules in the past.
+ * Pure, dependency-free (client + server safe) — spreads N posts across weeks at
+ * the brand's weekly cadence, so a "Měsíc" plan actually spans a month instead of
+ * piling onto consecutive days. Never schedules in the past.
  */
 
 export interface ScheduleSlot {
@@ -14,9 +14,9 @@ export interface ScheduleSlot {
 export interface DistributeOptions {
     /** First day to schedule on. Defaults to tomorrow. */
     startDate?: Date
-    /** Posts per day before rolling to the next day. Default 1. */
-    postsPerDay?: number
-    /** Preferred posting times in "HH:MM", used in order per day. */
+    /** Posts per week, spread evenly across each 7-day week. Clamped 1-7. Default 4. */
+    postsPerWeek?: number
+    /** Preferred posting times in "HH:MM", rotated across the days of a week. */
     timeSlots?: string[]
 }
 
@@ -36,9 +36,11 @@ function tomorrow(): Date {
 }
 
 /**
- * Produce `count` schedule slots, `postsPerDay` per day, cycling through
- * `timeSlots`. If a day has more posts than time slots, extra posts fall to the
- * next day so two posts never collide on the same minute.
+ * Produce `count` schedule slots at `postsPerWeek` per week. Within each 7-day
+ * week the posts land on evenly spaced days (offset `floor(j*7/perWeek)`), so
+ * cadence 4 gives Mon/Tue/Thu/Sat-style rhythm and there is never more than one
+ * post per day. Times rotate through `timeSlots` by day-of-week position, stable
+ * week over week.
  */
 export function distributeSchedule(count: number, opts: DistributeOptions = {}): ScheduleSlot[] {
     if (count <= 0) return []
@@ -46,24 +48,22 @@ export function distributeSchedule(count: number, opts: DistributeOptions = {}):
     const slots = (opts.timeSlots && opts.timeSlots.length > 0 ? opts.timeSlots : DEFAULT_TIME_SLOTS)
         .slice()
         .sort() // chronological within a day
-    const perDay = Math.max(1, Math.min(opts.postsPerDay ?? 1, slots.length))
+    // Same 1-7 clamp as validateConfig applies to config.postsPerWeek.
+    const perWeek = Math.min(7, Math.max(1, Math.round(opts.postsPerWeek ?? 4)))
 
     // Start no earlier than tomorrow — guard against a caller passing a past date.
     const minStart = tomorrow()
-    let day = opts.startDate ? new Date(opts.startDate) : minStart
-    day.setHours(0, 0, 0, 0)
-    if (day < minStart) day = minStart
+    let start = opts.startDate ? new Date(opts.startDate) : minStart
+    start.setHours(0, 0, 0, 0)
+    if (start < minStart) start = minStart
 
     const out: ScheduleSlot[] = []
-    let idxInDay = 0
-    while (out.length < count) {
-        out.push({ date: toDateStr(day), time: slots[idxInDay] })
-        idxInDay++
-        if (idxInDay >= perDay) {
-            idxInDay = 0
-            day = new Date(day)
-            day.setDate(day.getDate() + 1)
-        }
+    for (let i = 0; i < count; i++) {
+        const week = Math.floor(i / perWeek)
+        const j = i % perWeek
+        const day = new Date(start)
+        day.setDate(day.getDate() + week * 7 + Math.floor((j * 7) / perWeek))
+        out.push({ date: toDateStr(day), time: slots[j % slots.length] })
     }
     return out
 }

@@ -14,7 +14,6 @@ import type { ContentPlanItem } from "./content-plan-actions"
 export interface CampaignOptions {
     aspectRatio?: string
     medium?: string
-    category?: string
     /** Campaign-wide topic, prefixed onto each item's hook (matches old per-post behaviour). */
     topic?: string
     /** The strategist's campaign arc (PlanPipelineResult.strategySummary). Persisted so the
@@ -181,7 +180,6 @@ export async function startCampaign(
             configName: projectSlug,
             aspectRatio: options.aspectRatio || null,
             medium: options.medium || null,
-            category: options.category || null,
             topic: options.topic || null,
             strategySummary: options.strategySummary || null,
             goal: options.goal || null,

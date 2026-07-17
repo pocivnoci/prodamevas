@@ -9,7 +9,7 @@ import {
     getIGIdeasList,
     getIGReviewsList,
 } from "@/app/actions/admin-actions"
-import { generateContentPlan, regeneratePlanItem, getPlanCadence, getPlanProgress, getPlanDraft, savePlanDraft, discardPlanDraft, type ContentPlanItem, type CampaignGoal, type CarouselShare } from "@/app/actions/content-plan-actions"
+import { generateContentPlan, regeneratePlanItem, getPlanCadence, savePlanCadence, getPlanProgress, getPlanDraft, savePlanDraft, discardPlanDraft, type ContentPlanItem, type CampaignGoal, type CarouselShare } from "@/app/actions/content-plan-actions"
 import { startCampaign, getCampaignStatus } from "@/app/actions/campaign-actions"
 import { schedulePostAction } from "@/app/actions/calendar-actions"
 import { distributeSchedule } from "@/lib/schedule-planner"
@@ -33,6 +33,28 @@ import { trackEvent } from "@/lib/analytics"
  */
 function batchCreditCost(mediums: (string | null | undefined)[], freeRemaining: number): number {
     return mediums.reduce((sum, m, i) => sum + (i < freeRemaining ? 0 : creditsForMedia(m)), 0)
+}
+
+// Weekly cadence chips — the ONE frequency that drives post count, credit estimate
+// AND the calendar spread. (config.postsPerWeek is clamped 1-7; odd values snap to
+// the nearest chip for the default only, fine-tuning in step 2 still allows 1-7.)
+const CADENCE_OPTIONS = [2, 3, 4, 5, 7] as const
+
+function snapToChip(n: number): number {
+    return CADENCE_OPTIONS.reduce((best, c) =>
+        Math.abs(c - n) < Math.abs(best - n) ? c : best, CADENCE_OPTIONS[0] as number)
+}
+
+function pluralPosts(n: number): string {
+    if (n === 1) return "příspěvek"
+    if (n >= 2 && n <= 4) return "příspěvky"
+    return "příspěvků"
+}
+
+/** "2026-07-18" → "18. 7." for the plan summary strip. */
+function shortCzDate(dateStr: string): string {
+    const [, m, d] = dateStr.split("-")
+    return `${Number(d)}. ${Number(m)}.`
 }
 
 export function GenerateTab({ projectId }: { projectId: string }) {
@@ -98,12 +120,16 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const [campaignId, setCampaignId] = useState<string | null>(null)
 
     // Planner: when the content-plan batch should publish. Defaults to spreading
-    // from tomorrow, 1/day; auto-distributed but every post is editable below.
+    // from tomorrow at the weekly cadence; auto-distributed but every post is editable below.
     const [scheduleStart, setScheduleStart] = useState<string>(() => {
         const d = new Date(); d.setDate(d.getDate() + 1)
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
     })
-    const [postsPerDay, setPostsPerDay] = useState(1)
+    // Who last decided the cadence — async writers (config load, subscription-based
+    // recommendation) only apply while the user hasn't clicked a chip themselves.
+    const cadenceSourceRef = useRef<"default" | "config" | "user">("default")
+    // The persisted config cadence, so we only save the user's choice when it differs.
+    const configCadenceRef = useRef(4)
 
     // Single-post scheduling (on the generation result card)
     const [singleSchedDate, setSingleSchedDate] = useState("")
@@ -133,7 +159,16 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         if (!projectId) return
         getIGPostTypes(projectId).then(setPostTypes)
         getIGPostFormats(projectId).then(setPostFormats)
-        getPlanCadence(projectId).then(setPostsPerWeek)
+        cadenceSourceRef.current = "default"
+        configCadenceRef.current = 4
+        getPlanCadence(projectId).then(cadence => {
+            configCadenceRef.current = cadence
+            // Don't stomp a cadence the user already picked by hand.
+            if (cadenceSourceRef.current === "default") {
+                setPostsPerWeek(snapToChip(cadence))
+                cadenceSourceRef.current = "config"
+            }
+        })
         getIGCategories(projectId).then(setCategories)
         getIGIdeasList(projectId).then(data => setSavedIdeas(data.filter((i: any) => i.is_active !== false)))
         getIGReviewsList(projectId).then(reviews => setApprovedReviews(reviews.filter((r: any) => r.is_approved)))
@@ -348,7 +383,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
             if (Array.isArray(draft) && draft.length > 0) {
                 // Distribute posting slots like the normal plan path — without this the
                 // onboarding plan had no dates and approval produced unscheduled drafts.
-                setContentPlan(autoDistribute(draft, scheduleStart, postsPerDay))
+                setContentPlan(autoDistribute(draft, scheduleStart, postsPerWeek))
                 setBatchMode(true)
                 setStep(2)
                 planSeededRef.current = true
@@ -439,7 +474,6 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                 const startRes = await startCampaign(projectId, planToExecute, {
                     aspectRatio: aspectRatio || undefined,
                     medium: medium || undefined,
-                    category: category !== "auto" ? category : undefined,
                     topic: topic || undefined,
                     // Approving the draft in place makes it a single-use claim: a second click
                     // finds it already 'pending' and is refused, instead of billing twice.
@@ -569,20 +603,62 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const toggleFocusProduct = (id: string) => {
         setFocusProductIds(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id])
     }
-    const durationToCount = (key: typeof planDuration): number => {
+    const durationToCount = (key: typeof planDuration, perWeek: number = postsPerWeek): number => {
         if (key === "trial") return 3
         const weeks = PLAN_DURATIONS.find(d => d.key === key)?.weeks ?? 1
-        return Math.max(1, Math.round(weeks * postsPerWeek))
+        return Math.max(1, Math.round(weeks * perWeek))
     }
     const handleDurationChange = (key: typeof planDuration) => {
         setPlanDuration(key)
         handleCountChange(durationToCount(key))
     }
-    // Cadence loads async after mount — re-derive the count for the active duration once it arrives.
+    // Cadence loads async after mount — re-derive the count for the active duration once it
+    // arrives. Deliberately setBatchCount, NOT handleCountChange: a cadence tweak on the step-2
+    // schedule bar must re-spread dates without wiping the generated plan.
     useEffect(() => {
         setBatchCount(durationToCount(planDuration))
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [postsPerWeek])
+
+    // What the currently selected duration would cost at a given cadence. Plan mode's format
+    // mix is governed by carouselShare, so mirror the server's carousel cap (CAROUSEL_DIVISOR
+    // in content-plan-actions.ts — keep in sync). Images listed first so the free plan-post
+    // allotment eats the cheap posts: a conservative estimate that only undershoots in the
+    // user's favor.
+    const planMediums = (count: number): string[] => {
+        const divisor = { low: 6, auto: 4, high: 2 }[carouselShare]
+        const carousels = Math.floor(count / divisor)
+        return [...Array<string>(count - carousels).fill("image"), ...Array<string>(carousels).fill("carousel")]
+    }
+    const planCost = (count: number) => batchCreditCost(planMediums(count), freeRemaining)
+
+    // The cadence the subscription can actually afford for the selected duration: prefer the
+    // largest chip fully covered by the plan allotment (cost 0), else the largest that fits the
+    // remaining credits, else the smallest chip. Null = nothing to recommend (loading/trial).
+    const durationWeeks = PLAN_DURATIONS.find(d => d.key === planDuration)?.weeks ?? 0
+    const recommendedCadence: number | null = (() => {
+        if (!subscription || planDuration === "trial") return null
+        const fullyCovered = [...CADENCE_OPTIONS].reverse().find(c => planCost(durationWeeks * c) === 0)
+        if (fullyCovered) return fullyCovered
+        const affordable = [...CADENCE_OPTIONS].reverse().find(c => planCost(durationWeeks * c) <= (subscription.creditsRemaining ?? 0))
+        return affordable ?? CADENCE_OPTIONS[0]
+    })()
+
+    // Apply the recommendation as a DEFAULT only: it may clamp the config cadence down to what
+    // the tier affords, never push a deliberately slow brand up — and never override the user.
+    // postsPerWeek is a dependency so a config cadence arriving AFTER the subscription still
+    // gets clamped (min is idempotent, so this converges instead of looping).
+    useEffect(() => {
+        if (recommendedCadence == null || cadenceSourceRef.current === "user") return
+        setPostsPerWeek(prev => Math.min(prev, recommendedCadence))
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [recommendedCadence, postsPerWeek])
+
+    const handleCadenceChange = (c: number) => {
+        cadenceSourceRef.current = "user"
+        setPostsPerWeek(c)
+        handleCountChange(durationToCount(planDuration, c))
+    }
 
     // Deep-link intent from a dashboard/sidebar CTA (e.g. "Obsah na měsíc" → plan mode, Měsíc
     // preset). Applied once on arrival, then cleared so it doesn't re-fire on re-render.
@@ -602,16 +678,17 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     // Planner: assign posting slots to every plan item from the schedule bar.
     // Overwrites all items (predictable re-distribution); per-item edits below
     // override a single slot afterward.
-    const autoDistribute = (plan: ContentPlanItem[], start: string, perDay: number): ContentPlanItem[] => {
-        const slots = distributeSchedule(plan.length, { startDate: new Date(start), postsPerDay: perDay })
+    const autoDistribute = (plan: ContentPlanItem[], start: string, perWeek: number): ContentPlanItem[] => {
+        const slots = distributeSchedule(plan.length, { startDate: new Date(start), postsPerWeek: perWeek })
         return plan.map((p, i) => ({ ...p, scheduledDate: slots[i]?.date, scheduledTime: slots[i]?.time }))
     }
 
     // Re-distribute when the schedule bar changes.
-    const handleScheduleChange = (start: string, perDay: number) => {
+    const handleScheduleChange = (start: string, perWeek: number) => {
         setScheduleStart(start)
-        setPostsPerDay(perDay)
-        setContentPlan(prev => autoDistribute(prev, start, perDay))
+        if (perWeek !== postsPerWeek) cadenceSourceRef.current = "user"
+        setPostsPerWeek(perWeek)
+        setContentPlan(prev => autoDistribute(prev, start, perWeek))
     }
 
     // Per-item manual override of a single post's date/time.
@@ -646,14 +723,19 @@ export function GenerateTab({ projectId }: { projectId: string }) {
             const result = await generateContentPlan(projectId, {
                 count: batchCount,
                 topic: topic || undefined,
-                category: category !== "auto" ? category : undefined,
                 goal: goal || undefined,
                 carouselShare,
                 productIds: focusProductIds.length > 0 ? focusProductIds : undefined,
                 planRunId: runId,
             })
             if (result.success && result.plan) {
-                setContentPlan(autoDistribute(result.plan, scheduleStart, postsPerDay))
+                // Persist commitment, not exploration: remember a hand-picked cadence only
+                // once it produced a real plan, so next visit starts where the user left off.
+                if (cadenceSourceRef.current === "user" && postsPerWeek !== configCadenceRef.current) {
+                    configCadenceRef.current = postsPerWeek
+                    savePlanCadence(projectId, postsPerWeek).catch(() => { /* best-effort */ })
+                }
+                setContentPlan(autoDistribute(result.plan, scheduleStart, postsPerWeek))
                 setPlanStrategy(result.strategySummary || null)
                 setDraftId(result.draftId || null)
                 setPlanPattern(result.feedPattern || null)
@@ -701,7 +783,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const handleRemovePlanItem = (itemId: string) => {
         setContentPlan(prev => restampSlots(autoDistribute(
             prev.filter(p => p.id !== itemId).map((p, i) => ({ ...p, day: i + 1 })),
-            scheduleStart, postsPerDay,
+            scheduleStart, postsPerWeek,
         )))
     }
 
@@ -738,7 +820,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
             day: contentPlan.length + 1,
             week: contentPlan.length >= 14 ? Math.floor(contentPlan.length / 7) + 1 : undefined,
         }
-        setContentPlan(prev => restampSlots(autoDistribute([...prev, newItem], scheduleStart, postsPerDay)))
+        setContentPlan(prev => restampSlots(autoDistribute([...prev, newItem], scheduleStart, postsPerWeek)))
     }
 
     // Content Plan: start generation from approved plan
@@ -1068,14 +1150,32 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                             )
                                         })}
                                     </div>
-                                    {(() => {
-                                        const est = batchCreditCost(Array.from({ length: batchCount }, () => medium || undefined), freeRemaining)
-                                        return (
-                                            <p className="text-[10px] text-white/20 mt-2 text-right font-bold uppercase tracking-widest">
-                                                {est === 0 ? "Zdarma — v rámci plánu" : `Odhad: ~${est} kreditů`} · {postsPerWeek} příspěvků/týden
-                                            </p>
-                                        )
-                                    })()}
+                                </div>
+
+                                {/* Weekly cadence — the single frequency behind post count, credit
+                                    estimate AND calendar spread. Recommendation = what the
+                                    subscription affords for the selected duration. */}
+                                <div>
+                                    <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Příspěvků týdně</label>
+                                    <div className="grid grid-cols-5 gap-2">
+                                        {CADENCE_OPTIONS.map(c => {
+                                            const overBudget = planDuration !== "trial" && subscription != null
+                                                && planCost(durationWeeks * c) > (subscription.creditsRemaining ?? 0)
+                                            return (
+                                                <button key={c} onClick={() => handleCadenceChange(c)}
+                                                    className={`px-3 py-2.5 rounded-sm border text-[11px] font-bold transition-all ${postsPerWeek === c
+                                                        ? "border-aisummit-cinnabar/50 bg-aisummit-cinnabar/10 text-aisummit-cinnabar" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
+                                                    {c}×
+                                                    {recommendedCadence === c && (
+                                                        <span className="block text-[8px] font-bold uppercase tracking-widest opacity-50 mt-0.5">Doporučeno</span>
+                                                    )}
+                                                    {overBudget && (
+                                                        <span className="block text-[8px] font-bold uppercase tracking-widest text-amber-500/70 mt-0.5">Nad rámec kreditů</span>
+                                                    )}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
                                 </div>
 
                                 {/* Campaign goal — steers the planner prompt, and (once there's
@@ -1097,27 +1197,6 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         ))}
                                     </div>
                                 </div>
-
-                                {/* Pillar focus */}
-                                {categories.length > 0 && (
-                                    <div>
-                                        <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Zaměření (volitelné)</label>
-                                        <div className="flex flex-wrap gap-2">
-                                            <button onClick={() => setCategory("auto")}
-                                                className={`px-4 py-2.5 rounded-sm border text-xs font-bold transition-all flex items-center gap-2 ${category === "auto" || category === ""
-                                                    ? "border-white/30 bg-white/10 text-white" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
-                                                <span className="grayscale opacity-80">🤖</span> Automaticky
-                                            </button>
-                                            {categories.map(cat => (
-                                                <button key={cat.id} onClick={() => setCategory(cat.id)}
-                                                    className={`px-4 py-2.5 rounded-sm border text-xs font-bold transition-all flex items-center gap-2 ${category === cat.id
-                                                        ? "border-aisummit-cinnabar/50 bg-aisummit-cinnabar/10 text-aisummit-cinnabar" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
-                                                    {cat.emoji} {cat.label}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
 
                                 {/* Format mix — carousels cost more credits, so the share is the user's call */}
                                 <div>
@@ -1169,24 +1248,29 @@ export function GenerateTab({ projectId }: { projectId: string }) {
 
                                 {/* Schedule — set up-front so the generated plan lands on real dates
                                     immediately (still editable per post in the preview). */}
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">📅 Začít od</label>
-                                        <input type="date" value={scheduleStart}
-                                            onChange={(e) => handleScheduleChange(e.target.value, postsPerDay)}
-                                            className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">Postů denně</label>
-                                        <select value={postsPerDay}
-                                            onChange={(e) => handleScheduleChange(scheduleStart, Number(e.target.value))}
-                                            className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30">
-                                            <option value={1}>1 / den</option>
-                                            <option value={2}>2 / den</option>
-                                            <option value={3}>3 / den</option>
-                                        </select>
-                                    </div>
+                                <div>
+                                    <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">📅 Začít od</label>
+                                    <input type="date" value={scheduleStart}
+                                        onChange={(e) => handleScheduleChange(e.target.value, postsPerWeek)}
+                                        className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30" />
                                 </div>
+
+                                {/* Live summary — one sentence that keeps count, cadence, real date
+                                    range and cost visibly coherent before the user commits. */}
+                                {(() => {
+                                    const slots = distributeSchedule(batchCount, { startDate: new Date(scheduleStart), postsPerWeek })
+                                    const range = slots.length > 0
+                                        ? `${shortCzDate(slots[0].date)} – ${shortCzDate(slots[slots.length - 1].date)}`
+                                        : null
+                                    const est = planCost(batchCount)
+                                    return (
+                                        <div className="bg-[#050505] border border-white/10 rounded-sm px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-white/50 text-center">
+                                            {batchCount} {pluralPosts(batchCount)} · {postsPerWeek}× týdně{range ? ` · ${range}` : ""} · {planDuration === "trial"
+                                                ? "ochutnávka"
+                                                : est === 0 ? "Zdarma — v rámci předplatného" : `Odhad: ~${est} kreditů`}
+                                        </div>
+                                    )
+                                })()}
 
                                 {/* Generate Plan CTA — during the deep pipeline run it streams stage messages */}
                                 <button onClick={handleGeneratePlan} disabled={planGenerating}
@@ -1277,18 +1361,18 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 <input
                                     type="date"
                                     value={scheduleStart}
-                                    onChange={(e) => handleScheduleChange(e.target.value, postsPerDay)}
+                                    onChange={(e) => handleScheduleChange(e.target.value, postsPerWeek)}
                                     className="px-3 py-1.5 bg-[#050505] border border-white/20 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
                                 />
                             </div>
                             <div>
-                                <label className="block text-[8px] text-white/40 font-bold uppercase tracking-widest mb-1.5">Postů denně</label>
+                                <label className="block text-[8px] text-white/40 font-bold uppercase tracking-widest mb-1.5">Příspěvků týdně</label>
                                 <select
-                                    value={postsPerDay}
+                                    value={postsPerWeek}
                                     onChange={(e) => handleScheduleChange(scheduleStart, Number(e.target.value))}
                                     className="px-3 py-1.5 bg-[#050505] border border-white/20 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
                                 >
-                                    {[1, 2, 3].map(n => <option key={n} value={n}>{n}</option>)}
+                                    {[1, 2, 3, 4, 5, 6, 7].map(n => <option key={n} value={n}>{n}</option>)}
                                 </select>
                             </div>
                             <p className="text-[9px] text-white/30 flex-1 min-w-[140px] leading-relaxed">
