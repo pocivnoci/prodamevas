@@ -4,9 +4,14 @@ import { resolveClientId } from "./configs"
 import supabaseAdmin from "../supabase/admin"
 
 export async function generateAIReviews(config: ClientConfig, count: number = 5) {
-    // 1. Build prompt
-    const productsSection = config.products?.length
-        ? `\n## PRODUKTY/SLUŽBY (recenze MUSÍ zmiňovat KONKRÉTNÍ produkty)\n${config.products.slice(0, 8).map(p => `- ${p.name} (${p.type})${p.price ? ` — ${p.price}` : ""}`).join("\n")}\n`
+    // 1. Build prompt — products from the LIVE catalog (ig_products), not the frozen
+    // config.products onboarding snapshot: a synthetic review naming a deleted product
+    // would ship straight into customer-facing content.
+    const { getCatalogProducts } = await import("./service")
+    const catalogProducts = await getCatalogProducts(await resolveClientId(config.id), config.products)
+        .catch(() => config.products || [])
+    const productsSection = catalogProducts.length
+        ? `\n## PRODUKTY/SLUŽBY (recenze MUSÍ zmiňovat KONKRÉTNÍ produkty)\n${catalogProducts.slice(0, 8).map(p => `- ${p.name} (${p.type})${p.price ? ` — ${p.price}` : ""}`).join("\n")}\n`
         : ""
 
     const personaSection = config.audiencePersonas?.length

@@ -609,10 +609,15 @@ export async function activatePaidPlan(clientId: string, planId: string, subscri
             .in("status", ["trialing", "pending", "active"])
     }
 
-    // Unlock all plan_locked posts for this client
+    // plan_locked rows are onboarding TEASER PLACEHOLDERS (fake hooks from
+    // PLACEHOLDER_HOOKS, generic body, no image — generateMonthlyPlan is their only
+    // creator; the real content plan never writes ig_posts rows). Converting them to
+    // "draft" dumped 27 garbage captions into the client's real draft pool on every
+    // activation, indistinguishable from genuine drafts. They served their locked-teaser
+    // purpose — delete them.
     await supabaseAdmin
         .from("ig_posts")
-        .update({ status: "draft" })
+        .delete()
         .eq("client_id", clientId)
         .eq("status", "plan_locked")
 }

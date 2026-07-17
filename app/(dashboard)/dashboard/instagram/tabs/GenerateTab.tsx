@@ -352,8 +352,16 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         const maxClientRetries = 1
 
         try {
-            // Credit check before generation
-            const creditCheck = await canGenerate(projectId, batchMode ? (contentPlan.length || batchCount) : 1)
+            // Credit check before generation — media-weighted: pass each post's medium so
+            // the pre-flight matches the server-side charge (a flat check let a carousel/
+            // reel batch start and die on credits mid-campaign).
+            const creditCheck = await canGenerate(
+                projectId,
+                batchMode ? (contentPlan.length || batchCount) : 1,
+                batchMode
+                    ? (contentPlan.length ? contentPlan.map(p => p.medium) : (medium ? [medium] : undefined))
+                    : (medium ? [medium] : undefined),
+            )
             if (!creditCheck.ok) {
                 setCreditError(creditCheck.error || "Nedostatek kreditů")
                 setGenerating(false)

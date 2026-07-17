@@ -11,9 +11,14 @@ export async function generateAIIdeas(config: ClientConfig, pillarId: string, co
     // Resolve category if specified
     const category = categoryId ? pillar.categories?.find(c => c.id === categoryId) : undefined
 
-    // 2. Build prompt
-    const productsSection = config.products?.length
-        ? `\n## PRODUKTY ZNAČKY\n${config.products.slice(0, 8).map(p => `- ${p.name} (${p.type})${p.price ? ` — ${p.price}` : ""}`).join("\n")}\nNápady mohou být propojené s konkrétními produkty.\n`
+    // 2. Build prompt — products from the LIVE catalog (ig_products), not the frozen
+    // config.products onboarding snapshot: ideas naming deleted products would flow
+    // into the bank → plan → posts.
+    const { getCatalogProducts } = await import("./service")
+    const catalogProducts = await getCatalogProducts(await resolveClientId(config.id), config.products)
+        .catch(() => config.products || [])
+    const productsSection = catalogProducts.length
+        ? `\n## PRODUKTY ZNAČKY\n${catalogProducts.slice(0, 8).map(p => `- ${p.name} (${p.type})${p.price ? ` — ${p.price}` : ""}`).join("\n")}\nNápady mohou být propojené s konkrétními produkty.\n`
         : ""
 
     const personaSection = config.audiencePersonas?.length

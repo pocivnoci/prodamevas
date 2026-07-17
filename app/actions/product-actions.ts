@@ -420,15 +420,19 @@ export async function reviseProduct(
     configName: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
+        const { clientId } = await requireProjectAccess(configName)
+
         // Credit check — AI revision costs 1 credit
         const guard = await creditGuard(configName, "idea_generate")
         if (!guard.ok) return { success: false, error: guard.error }
 
-        // 1. Load the existing product idea
+        // 1. Load the existing product idea — client_id filter is mandatory (hard rule):
+        // a bare id lookup let any authenticated user read/rewrite another tenant's idea.
         const { data: original, error: fetchErr } = await supabaseAdmin
             .from("ig_product_ideas")
             .select("*")
             .eq("id", ideaId)
+            .eq("client_id", clientId)
             .single()
 
         if (fetchErr || !original) throw new Error("Produkt nenalezen")
@@ -440,8 +444,12 @@ export async function reviseProduct(
         const brandName = config.name || configName
         const bv = config.brandVoice || {} as any
 
-        // Existing products for naming consistency
-        const existingProducts = config.products?.slice(0, 8)
+        // Existing products for naming consistency — live catalog, not the frozen
+        // config.products onboarding snapshot
+        const { getCatalogProducts } = await import("@/instagram/service")
+        const catalogProducts = await getCatalogProducts(clientId, config.products)
+            .catch(() => config.products || [])
+        const existingProducts = catalogProducts.slice(0, 8)
             .map(p => `- ${p.name} (${p.type})`)
             .join("\n") || "Žádné"
 
@@ -526,6 +534,7 @@ Zpráva pro dodavatele: ${original.supplier_message}
             .from("ig_product_ideas")
             .update(updateData)
             .eq("id", ideaId)
+            .eq("client_id", clientId)
 
         if (updateErr) throw updateErr
 

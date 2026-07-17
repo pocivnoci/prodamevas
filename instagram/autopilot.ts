@@ -457,51 +457,59 @@ export async function generateOnePost(options: {
         console.log(`   📐 Médium přepsáno uživatelem: ${options.medium}`)
     }
 
-    // Plan media gating: config/category may still ask for a medium the
-    // subscription doesn't include (e.g. reel on the Start tier) — clamp it.
-    if (options.allowedMedia && !options.allowedMedia.includes(format.medium)) {
-        const original = format.medium
-        format.medium = options.allowedMedia.includes("carousel") ? "carousel" : "image"
-        if (format.medium === "carousel" && format.overlayStyle === "none") {
-            format.overlayStyle = "cover"
-        }
-        console.log(`   🔒 Médium "${original}" není v balíčku — fallback na ${format.medium}`)
-    }
-
-    // Global reel kill-switch — Veo video generation is OFF for now. Clamp any reel
-    // (from config/category/user) to carousel so no Veo call is ever made. Flip back on
-    // with REELS_ENABLED=1 (env) when ready — no redeploy needed.
-    if (process.env.REELS_ENABLED !== "1" && format.medium === "reel") {
-        format.medium = "carousel"
-        format.aspectRatio = "4:5" // 9:16 (reel) není feed-legální pro carousel — IG by ho ořízl
-        if (format.overlayStyle === "none") format.overlayStyle = "cover"
-        console.log("   🚫 Reels dočasně vypnuté (Veo off) — fallback na carousel (4:5)")
-    }
-
-    // Billing cap — the medium can never be MORE expensive than what the job was
-    // charged for (credits are media-weighted: image 1 / carousel 3 / reel 5, charged
-    // at job creation). Ideas/categories may still ask for a pricier medium; clamp it
-    // to the paid one. Downward differences are refunded via reconcileJobCharge.
-    if (options.chargedMedium) {
-        const MEDIUM_RANK: Record<string, number> = { image: 0, carousel: 1, reel: 2 }
-        if ((MEDIUM_RANK[format.medium] ?? 0) > (MEDIUM_RANK[options.chargedMedium] ?? 0)) {
-            const original = format.medium
-            format.medium = options.chargedMedium
-            if (format.medium !== "reel" && format.aspectRatio === "9:16") format.aspectRatio = "4:5"
-            if (format.medium === "carousel" && format.overlayStyle === "none") format.overlayStyle = "cover"
-            console.log(`   💳 Médium "${original}" překračuje účtovaný formát — clamp na ${format.medium}`)
-        }
-    }
-
-    // Feed-safety clamp — carousel/image must use a feed-legal aspect ratio. A 9:16
-    // (or landscape 16:9/4:3) on a non-reel medium gets cropped hard by Instagram, no
-    // matter where it leaked in from (config / category / onboarding / user override).
+    // ── Safety clamps — extracted so they can be RE-APPLIED after a checkpoint
+    // restore. These read LIVE settings (subscription plan, REELS_ENABLED env,
+    // charged medium); a checkpoint freezes the format under the ORIGINAL attempt's
+    // rules, and a deferral window can last hours — live rules must win on resume
+    // (a resumed reel must not bypass a kill-switch flipped mid-deferral).
     const CAROUSEL_SAFE_RATIOS = ["1:1", "4:5", "3:4"] as const
-    if (format.medium !== "reel" && !CAROUSEL_SAFE_RATIOS.includes(format.aspectRatio as any)) {
-        const original = format.aspectRatio
-        format.aspectRatio = "4:5"
-        console.log(`   📐 Poměr "${original}" není feed-legální pro ${format.medium} — clamp na 4:5`)
+    const applySafetyClamps = (f: PostFormat) => {
+        // Plan media gating: config/category may still ask for a medium the
+        // subscription doesn't include (e.g. reel on the Start tier) — clamp it.
+        if (options.allowedMedia && !options.allowedMedia.includes(f.medium)) {
+            const original = f.medium
+            f.medium = options.allowedMedia.includes("carousel") ? "carousel" : "image"
+            if (f.medium === "carousel" && f.overlayStyle === "none") {
+                f.overlayStyle = "cover"
+            }
+            console.log(`   🔒 Médium "${original}" není v balíčku — fallback na ${f.medium}`)
+        }
+
+        // Global reel kill-switch — Veo video generation is OFF for now. Clamp any reel
+        // (from config/category/user) to carousel so no Veo call is ever made. Flip back on
+        // with REELS_ENABLED=1 (env) when ready — no redeploy needed.
+        if (process.env.REELS_ENABLED !== "1" && f.medium === "reel") {
+            f.medium = "carousel"
+            f.aspectRatio = "4:5" // 9:16 (reel) není feed-legální pro carousel — IG by ho ořízl
+            if (f.overlayStyle === "none") f.overlayStyle = "cover"
+            console.log("   🚫 Reels dočasně vypnuté (Veo off) — fallback na carousel (4:5)")
+        }
+
+        // Billing cap — the medium can never be MORE expensive than what the job was
+        // charged for (credits are media-weighted: image 1 / carousel 3 / reel 5, charged
+        // at job creation). Ideas/categories may still ask for a pricier medium; clamp it
+        // to the paid one. Downward differences are refunded via reconcileJobCharge.
+        if (options.chargedMedium) {
+            const MEDIUM_RANK: Record<string, number> = { image: 0, carousel: 1, reel: 2 }
+            if ((MEDIUM_RANK[f.medium] ?? 0) > (MEDIUM_RANK[options.chargedMedium] ?? 0)) {
+                const original = f.medium
+                f.medium = options.chargedMedium
+                if (f.medium !== "reel" && f.aspectRatio === "9:16") f.aspectRatio = "4:5"
+                if (f.medium === "carousel" && f.overlayStyle === "none") f.overlayStyle = "cover"
+                console.log(`   💳 Médium "${original}" překračuje účtovaný formát — clamp na ${f.medium}`)
+            }
+        }
+
+        // Feed-safety clamp — carousel/image must use a feed-legal aspect ratio. A 9:16
+        // (or landscape 16:9/4:3) on a non-reel medium gets cropped hard by Instagram, no
+        // matter where it leaked in from (config / category / onboarding / user override).
+        if (f.medium !== "reel" && !CAROUSEL_SAFE_RATIOS.includes(f.aspectRatio as any)) {
+            const original = f.aspectRatio
+            f.aspectRatio = "4:5"
+            console.log(`   📐 Poměr "${original}" není feed-legální pro ${f.medium} — clamp na 4:5`)
+        }
     }
+    applySafetyClamps(format)
 
     // Smart overlay rotation — for image posts only, auto-select layout variant
     if (format.medium === "image" && format.overlayStyle === "default") {
@@ -517,8 +525,14 @@ export async function generateOnePost(options: {
     }
 
     // Resume: the checkpointed caption was written for THIS exact resolved format —
-    // restore it wholesale (it's already post-clamp) so the visual phase matches the text.
-    if (ck) format = { ...ck.format }
+    // restore it wholesale so the visual phase matches the text, then RE-APPLY the live
+    // safety clamps: the snapshot froze the rules of the original attempt, but the reel
+    // kill-switch / plan gating / billing cap may have changed during the deferral
+    // window (up to MAX_CAMPAIGN_AGE_MS) and must win over the frozen format.
+    if (ck) {
+        format = { ...ck.format }
+        applySafetyClamps(format)
+    }
 
     const isReel = format.medium === "reel"
     const isCarousel = format.medium === "carousel"
@@ -919,6 +933,18 @@ ${feedSummary}
             imageUrl = renderResult.imageUrl
             cost += renderResult.cost
         } else {
+            // Truthful fallback: a reel caption without scenes/script (or a carousel
+            // without slides) renders as a single image — the format MUST say so.
+            // Leaving format.medium = "reel" here made media_type lie: reconcileJobCharge
+            // saw no billed-vs-actual delta (5-credit reel charge, 1-credit image shipped,
+            // no refund) and the publisher later pushed a static image through the video
+            // path (publish failure).
+            if (format.medium !== "image") {
+                console.warn(`   ⚠️ ${format.medium} caption bez ${format.medium === "reel" ? "scén/skriptu" : "slides"} — renderuji single image, media_type opraven`)
+                format.medium = "image"
+                if (!(CAROUSEL_SAFE_RATIOS as readonly string[]).includes(format.aspectRatio)) format.aspectRatio = "4:5"
+                if (format.overlayStyle === "none") format.overlayStyle = "default"
+            }
             renderResult = await renderImage({
                 config, captionData: captionData as CaptionData, format, selectedType, report,
                 selectedProduct: selectedProduct as SelectedProduct | undefined,

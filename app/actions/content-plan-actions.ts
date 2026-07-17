@@ -236,6 +236,18 @@ PRAVIDLA: Každý nápad použij MAXIMÁLNĚ jednou. Když se žádný nehodí, 
             console.warn(`📋 [content-plan] brand grounding skipped: ${e?.message}`)
         }
 
+        // ─── Live product catalog (ig_products) — NOT config.products (frozen onboarding
+        // snapshot): grounding the plan on the snapshot produced hooks naming deleted
+        // products while the worker then picked a different live product at render time. ──
+        let catalogProducts: { name: string; type: string; price?: string; description?: string }[] = []
+        try {
+            const { getCatalogProducts } = await import("@/instagram/service")
+            catalogProducts = await getCatalogProducts(clientId, config.products)
+        } catch (e) {
+            console.warn(`📋 [content-plan] catalog read failed — falling back to config snapshot: ${(e as Error)?.message}`)
+            catalogProducts = config.products || []
+        }
+
         // ─── Deep plan pipeline (instagram/plan-pipeline.ts): strategist → concepts →
         // cross-family judge → targeted revision. All brand context is assembled here
         // (this file owns the DB queries); the pipeline treats it as an opaque block. ──
@@ -246,7 +258,7 @@ Tón: ${config.brandVoice.voiceTraits?.join(", ")}
 ## ANTI-PATTERNS (NEPOUŽÍVEJ)
 ${config.brandVoice.antiPatterns?.join(", ")}
 
-${config.products?.length ? `## PRODUKTY ZNAČKY (${config.products.length})\n${config.products.slice(0, 10).map(p => `- **${p.name}** (${p.type})${p.price ? ` — ${p.price}` : ""}${p.description ? `: ${p.description.substring(0, 60)}` : ""}`).join("\n")}\n⚠️ Pro posty typu product_drop/produkt MUSÍŠ zmínit KONKRÉTNÍ produkt z tohoto seznamu v hooku!\n` : ""}
+${catalogProducts.length ? `## PRODUKTY ZNAČKY (${catalogProducts.length})\n${catalogProducts.slice(0, 10).map(p => `- **${p.name}** (${p.type})${p.price ? ` — ${p.price}` : ""}${p.description ? `: ${p.description.substring(0, 60)}` : ""}`).join("\n")}\n⚠️ Pro posty typu product_drop/produkt MUSÍŠ zmínit KONKRÉTNÍ produkt z tohoto seznamu v hooku!\n` : ""}
 ${config.audiencePersonas?.length ? `## CÍLOVÉ PERSONY\n${config.audiencePersonas.map(p => `- **${p.label}** (${p.ageRange} let): Pain points: ${p.painPoints.slice(0, 2).join(", ")}`).join("\n")}\n` : ""}
 ${brandGroundingSection}${ideaBankSection}${topHooksSection}${deduplicationSection}${topicInstruction}
 ${count > 14 ? "\n## STRUKTURA\nRozděl do týdnů — každý týden má vlastní mini-téma.\n" : ""}`
@@ -472,9 +484,9 @@ export async function regeneratePlanItem(
     medium?: "image" | "carousel" | "reel"
 ): Promise<{ success: boolean; item?: { hookPreview: string; angle: string; topic: string }; error?: string }> {
     try {
-        await requireProjectAccess(projectSlug)
+        const { clientId } = await requireProjectAccess(projectSlug)
         const { loadConfig } = await import("@/instagram/configs")
-        const { getPillarForType } = await import("@/instagram/service")
+        const { getPillarForType, getCatalogProducts } = await import("@/instagram/service")
         const config = await loadConfig(projectSlug)
 
         // Build pillar context for this post type
@@ -484,8 +496,10 @@ export async function regeneratePlanItem(
             ? `## PILÍŘ: ${pillarCfg.emoji} ${pillarCfg.label}\n${pillarCfg.description || ""}\nCíl: ${pillarCfg.ctaStrategy === "hard" ? "PRODEJ" : pillarCfg.ctaStrategy === "medium" ? "HODNOTA" : pillarCfg.ctaStrategy === "soft" ? "DOSAH" : "KOMUNITA"}\n`
             : ""
 
-        const productsSection = config.products?.length
-            ? `## PRODUKTY (${config.products.length})\n${config.products.slice(0, 6).map(p => `- ${p.name} (${p.type})${p.price ? ` — ${p.price}` : ""}`).join("\n")}\n`
+        // Live catalog, not the frozen config.products snapshot (see generateContentPlan)
+        const catalogProducts = await getCatalogProducts(clientId, config.products).catch(() => config.products || [])
+        const productsSection = catalogProducts.length
+            ? `## PRODUKTY (${catalogProducts.length})\n${catalogProducts.slice(0, 6).map(p => `- ${p.name} (${p.type})${p.price ? ` — ${p.price}` : ""}`).join("\n")}\n`
             : ""
 
         const prompt = `Jsi content stratég pro "${config.name}" (${config.website}).

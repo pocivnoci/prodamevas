@@ -639,6 +639,45 @@ export interface ProductCategory {
 }
 
 /**
+ * Live product catalog for AI prompt grounding — the single source of truth is the
+ * ig_products TABLE (SettingsTab CRUD + the deep scraper write there); config.products
+ * is a frozen onboarding snapshot (@deprecated in configs/types.ts). Grounding prompts
+ * on the snapshot produced hooks naming deleted products while the engine then picked
+ * a DIFFERENT live product at render time (caption/image mismatch in published posts).
+ * Falls back to the passed config.products only when the table is empty (legacy clients
+ * whose onboarding sync failed). Explicit clientId per the CLAUDE.md tenant rule.
+ */
+export async function getCatalogProducts(
+    clientId: string,
+    fallback?: { name: string; type?: string; slug?: string; price?: string; description?: string }[],
+    limit = 20,
+): Promise<{ name: string; type: string; slug: string; price?: string; description?: string }[]> {
+    const { data } = await supabaseAdmin
+        .from("ig_products")
+        .select("name, type, slug, price, description")
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: false })
+        .limit(limit)
+
+    if (data && data.length > 0) {
+        return data.map(p => ({
+            name: p.name,
+            type: p.type || "product",
+            slug: p.slug,
+            price: p.price || undefined,
+            description: p.description || undefined,
+        }))
+    }
+    return (fallback || []).map(p => ({
+        name: p.name,
+        type: p.type || "product",
+        slug: p.slug || "",
+        price: p.price,
+        description: p.description,
+    }))
+}
+
+/**
  * Get product categories for the active client.
  * Returns client-specific categories if they exist,
  * otherwise falls back to global defaults (client_id IS NULL).

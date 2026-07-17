@@ -179,15 +179,25 @@ export async function creditGuardBatch(
 export async function canGenerate(
     projectId: string,
     count: number = 1,
+    /** Media of the posts to generate (media-weighted credits: image 1 / carousel 3 /
+     *  reel 5). Callers MUST pass these for carousel/reel — a flat 1-credit pre-check
+     *  said "ok" while the server-side charge then rejected mid-run (a campaign could
+     *  start and die on credits halfway through). Omitted = flat image cost (legacy). */
+    mediums?: (string | null | undefined)[],
 ): Promise<{ ok: boolean; error?: string }> {
     try {
         const { clientId } = await requireProjectAccess(projectId)
 
         if (count <= 1) {
-            const check = await canPerformAction(clientId, "post")
+            const check = await canPerformAction(clientId, "post", undefined, mediums?.[0] || undefined)
             return { ok: check.allowed, error: check.reason }
         } else {
-            const check = await canPerformBatchAction(clientId, "post", count)
+            // Same media-weighted total the campaign path uses (startCampaign / worker)
+            const { creditsForMedia } = await import("@/lib/credits")
+            const totalCredits = mediums?.length
+                ? Array.from({ length: count }, (_, i) => creditsForMedia(mediums[i % mediums.length])).reduce((a, b) => a + b, 0)
+                : undefined
+            const check = await canPerformBatchAction(clientId, "post", count, totalCredits)
             return { ok: check.allowed, error: check.reason }
         }
     } catch (err: any) {

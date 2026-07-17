@@ -100,23 +100,44 @@ export async function startCampaign(
                 !it.ideaId && it.topic && it.hookPreview && !it.hookPreview.startsWith("Nový post")
             )
             if (invented.length > 0) {
-                const { data: deposited } = await supabaseAdmin
-                    .from("ig_post_ideas")
-                    .insert(invented.map(it => ({
-                        client_id: clientId,
-                        category: it.pillar,
-                        subcategory: null,
-                        title: it.topic,
-                        content: `${it.hookPreview}${it.angle ? ` — ${it.angle}` : ""}`,
-                        keywords: [],
-                        used_count: 0,
-                        is_active: true,
-                        cooldown_days: 30,
-                    })))
-                    .select("id")
-                if (deposited?.length === invented.length) {
-                    invented.forEach((it, i) => { it.ideaId = deposited[i].id })
-                    console.log(`📦 [campaign] deposited ${deposited.length} plan topics into the idea bank`)
+                // Idempotency: a double-submit / network retry of plan approval must not
+                // deposit the same topics twice — duplicate rows each got the "unproven"
+                // exploration boost (double selection odds for one topic) and fragmented
+                // metrics across two performance_scores. Reuse the existing idea id when
+                // a same-title row already exists for this client.
+                try {
+                    const { data: existingIdeas } = await supabaseAdmin
+                        .from("ig_post_ideas")
+                        .select("id, title")
+                        .eq("client_id", clientId)
+                        .in("title", invented.map(it => it.topic))
+                    const byTitle = new Map((existingIdeas || []).map(r => [r.title, r.id]))
+                    for (const it of invented) {
+                        const existingId = byTitle.get(it.topic)
+                        if (existingId) it.ideaId = existingId
+                    }
+                } catch { /* dedup is best-effort — worst case we deposit as before */ }
+
+                const toDeposit = invented.filter(it => !it.ideaId)
+                if (toDeposit.length > 0) {
+                    const { data: deposited } = await supabaseAdmin
+                        .from("ig_post_ideas")
+                        .insert(toDeposit.map(it => ({
+                            client_id: clientId,
+                            category: it.pillar,
+                            subcategory: null,
+                            title: it.topic,
+                            content: `${it.hookPreview}${it.angle ? ` — ${it.angle}` : ""}`,
+                            keywords: [],
+                            used_count: 0,
+                            is_active: true,
+                            cooldown_days: 30,
+                        })))
+                        .select("id")
+                    if (deposited?.length === toDeposit.length) {
+                        toDeposit.forEach((it, i) => { it.ideaId = deposited[i].id })
+                        console.log(`📦 [campaign] deposited ${deposited.length} plan topics into the idea bank (${invented.length - toDeposit.length} reused)`)
+                    }
                 }
             }
         } catch (e: any) {
