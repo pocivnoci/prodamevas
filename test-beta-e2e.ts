@@ -248,30 +248,36 @@ test("7.3 CalendarTab handles loading state", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
-// 8. Onboarding Timeout Protection
+// 8. Onboarding Bootstrap (durable, server-side)
 // ═══════════════════════════════════════════════════════════
+// The old browser-driven showcase loop (3x Promise.race with a 90s timeout) was
+// replaced by ONE short server call: startOnboardingBootstrap runs the teaser plan
+// + idea-bank seed inline and queues the 3 showcase posts as a durable ig_campaigns
+// row drained by the cron worker — closing the tab no longer strands the client.
 
-test("8.1 Showcase posts have timeout protection", () => {
+test("8.1 Onboarding page calls the durable bootstrap (no browser showcase loop)", () => {
     const content = fileContent("app/onboarding/page.tsx")
-    assert(content.includes("Promise.race"), "Should use Promise.race for timeout")
+    assert(content.includes("startOnboardingBootstrap"), "Should call startOnboardingBootstrap")
+    assert(!content.includes("generateShowcasePost"), "Browser-driven showcase loop must be gone")
 })
 
-test("8.2 Timeout is 90 seconds", () => {
-    const content = fileContent("app/onboarding/page.tsx")
-    assert(content.includes("90_000") || content.includes("90000"), "Timeout should be 90 seconds")
+test("8.2 Bootstrap queues showcase posts as a campaign with adminBypass", () => {
+    const content = fileContent("app/onboarding/actions.ts")
+    assert(content.includes("startOnboardingBootstrap"), "Bootstrap action should exist")
+    assert(content.includes("adminBypass: true"), "Showcase campaign must not be charged (adminBypass)")
+    assert(content.includes("ig_campaigns"), "Showcase posts should be a durable ig_campaigns row")
 })
 
-test("8.3 Timeout failure is non-fatal", () => {
+test("8.3 Bootstrap failure is non-fatal", () => {
     const content = fileContent("app/onboarding/page.tsx")
-    // The try/catch around showcase posts should catch timeout errors
-    assert(content.includes("non-fatal"), "Timeout errors should be non-fatal")
+    assert(content.includes("non-fatal"), "Bootstrap errors should be non-fatal")
 })
 
-test("8.4 Each showcase post is individually wrapped", () => {
-    const content = fileContent("app/onboarding/page.tsx")
-    // The for loop with try/catch wraps each post
-    assert(content.includes("for (let i = 0; i < 3"), "Should loop through 3 showcase posts")
-    assert(content.includes("Showcase post ${i + 1} failed"), "Each post failure should be logged individually")
+test("8.4 Bootstrap seeds the idea bank before the showcase campaign", () => {
+    const content = fileContent("app/onboarding/actions.ts")
+    const seedIdx = content.indexOf("seedIdeaBank")
+    const campaignIdx = content.indexOf("Durable showcase campaign")
+    assert(seedIdx > 0 && campaignIdx > seedIdx, "seedIdeaBank must run before the showcase campaign insert")
 })
 
 // ═══════════════════════════════════════════════════════════

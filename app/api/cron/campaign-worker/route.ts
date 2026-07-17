@@ -110,6 +110,27 @@ export async function GET(req: Request) {
 
     const allowedMedia = (await getClientSubscription(clientId))?.features?.allowed_media
 
+    // ── Independent lease heartbeat ──────────────────────────────────────────
+    // onProgress only fires BETWEEN pipeline stages; a single stage (withQualityRetry
+    // backoff on an overloaded Pro model) can stay silent for longer than LEASE_MS,
+    // letting a second worker "reclaim" a still-alive campaign and double-process the
+    // current item (double charge + double post). Beat the lease on a timer, independent
+    // of generation progress. MUST be cleared on every exit path (a zombie interval on a
+    // reused Fluid instance would re-lease a released campaign and block the next tick) —
+    // hence the try/finally wrapping the rest of the handler.
+    const heartbeat = setInterval(() => {
+        void supabaseAdmin
+            .from("ig_campaigns")
+            .update({ worker_lease: nowIso() })
+            .eq("id", campaign.id)
+            .then(({ error }) => {
+                if (error) console.warn(`⚠️ campaign-worker lease heartbeat failed: ${error.message}`)
+            })
+    }, 60_000)
+
+    try {
+    // (body deliberately not re-indented — same style as autopilot's withActiveProject wrapper)
+
     let stopReason: "complete" | "budget" | "no_credits" | "deferred" = "complete"
     // The TRUE reason the gate stopped us (e.g. "subscription expired"), so the campaign
     // error isn't always the misleading "Došly kredity" when it's really something else.
@@ -183,9 +204,21 @@ export async function GET(req: Request) {
         if (item?.jobId) {
             const { data: parked } = await supabaseAdmin
                 .from("ig_jobs")
-                .select("id, config, result")
+                .select("id, config, result, status")
                 .eq("id", item.jobId)
                 .maybeSingle()
+            // A previous worker may have FINISHED this item and died before advancing the
+            // cursor (item.jobId is persisted at job creation) — count it and move on,
+            // never regenerate an already-delivered post.
+            const parkedResult = (parked?.result ?? null) as { success?: boolean; caption?: string } | null
+            if (parked && parked.status === "done" && parkedResult?.success) {
+                console.log(`   ✅ campaign ${campaign.id} item #${cursor + 1}: already completed by a previous worker (job ${parked.id}) — skipping`)
+                successes++
+                previousPosts.push({ hook: String(parkedResult.caption || "").split("\n")[0] || "", topic: item?.topic || "auto" })
+                cursor++
+                await persist()
+                continue
+            }
             if (parked) {
                 job = { id: parked.id }
                 const pcfg = (parked.config || {}) as Record<string, any>
@@ -247,6 +280,17 @@ export async function GET(req: Request) {
             } catch {
                 await supabaseAdmin.from("ig_jobs").delete().eq("id", job.id)
                 failures++; cursor++; await persist(); continue
+            }
+
+            // Persist the job id on the plan item NOW (not only on QualityUnavailable
+            // deferral): if this process is killed mid-generation (800s cap, OOM), the
+            // next tick REUSES this job and its already-made charge instead of charging
+            // the item a second time — and the ghost job (which no reaper ever visits,
+            // the campaign UI never polls individual jobs) can't strand an unrefunded
+            // charge. Same persistence pattern as the deferral path below.
+            if (item) {
+                item.jobId = job.id
+                try { await supabaseAdmin.from("ig_campaigns").update({ plan }).eq("id", campaign.id) } catch { /* best-effort */ }
             }
         }
 
@@ -381,6 +425,10 @@ export async function GET(req: Request) {
         .update({ cursor, successes, failures, worker_lease: null, status: "running" })
         .eq("id", campaign.id)
     return NextResponse.json({ success: true, campaignId: campaign.id, status: "running", reason: stopReason, resumeFrom: cursor })
+
+    } finally {
+        clearInterval(heartbeat)
+    }
 }
 
 /**

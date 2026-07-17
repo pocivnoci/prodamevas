@@ -2,7 +2,8 @@
 
 import { createClient } from '@/supabase/server'
 import supabaseAdmin from '@/supabase/admin'
-import { requireAuth } from '@/lib/auth-guard'
+import { requireAuth, requireProjectAccess } from '@/lib/auth-guard'
+import { withRetry } from '@/utils/retry'
 import { generateText } from '@/instagram/gemini-client'
 import { getModel } from '@/instagram/models'
 import { ensurePostTypes } from '@/instagram/service'
@@ -1175,6 +1176,35 @@ export async function saveReviewedConfig(
 
         const clientSlug = existingClientSlug || config.id
 
+        // ── RE-ONBOARDING: preserve slug-bound assets BEFORE anything derives from the
+        // fresh config. generateConfigPreview recomputes id/storageBucket/logoFile from the
+        // freshly re-scraped company name — a failed logo re-download or a name drift would
+        // otherwise clobber the working logo pointer (logo gone from every future post) or
+        // fork post uploads into a brand-new empty bucket while history stays in the old one.
+        // Rule: prefer fresh data, never replace a real value with nothing.
+        let existingClientId: string | null = null
+        if (existingClientSlug) {
+            const { resolveClientId } = await import('@/instagram/configs')
+            existingClientId = await resolveClientId(existingClientSlug)
+            const { data: existingRow } = await supabaseAdmin
+                .from('clients')
+                .select('config')
+                .eq('id', existingClientId)
+                .single()
+            const prev = (existingRow?.config || {}) as Partial<ClientConfig>
+            config.id = existingClientSlug
+            config.storageBucket = prev.storageBucket || `ig-posts-${existingClientSlug}`
+            if (!config.logoFile && prev.logoFile) config.logoFile = prev.logoFile
+            if (config.postsPerWeek == null && prev.postsPerWeek != null) config.postsPerWeek = prev.postsPerWeek
+            if (!config.igBaseline && prev.igBaseline) config.igBaseline = prev.igBaseline
+            if (!(config.brandVoiceExamples?.length) && prev.brandVoiceExamples?.length) {
+                config.brandVoiceExamples = prev.brandVoiceExamples
+            }
+            if (!(config.brandReferenceImages?.length) && prev.brandReferenceImages?.length) {
+                config.brandReferenceImages = prev.brandReferenceImages
+            }
+        }
+
         // Ensure Storage Bucket
         const bucketName = config.storageBucket || `ig-posts-${config.id}`
         const { error: bucketError } = await supabaseAdmin.storage.createBucket(bucketName, {
@@ -1188,8 +1218,8 @@ export async function saveReviewedConfig(
 
         if (existingClientSlug) {
             // ── RE-ONBOARDING: Update existing client ──
-            const { resolveClientId } = await import('@/instagram/configs')
-            const clientId = await resolveClientId(existingClientSlug)
+            // (clientId already resolved by the asset-preservation block above)
+            const clientId = existingClientId!
 
             const { error: updateError } = await supabaseAdmin
                 .from('clients')
@@ -1236,6 +1266,25 @@ export async function saveReviewedConfig(
         // ── NEW CLIENT: Insert ──
         const { id: insertedClientId, slug: insertedSlug } = await insertClient(clientSlug, config)
 
+        // RBAC link FIRST and FATALLY — user_clients membership is the ONLY ownership
+        // signal. A client without it is unreachable forever: checkOnboardingStatus keeps
+        // reporting "needs onboarding", and the user's retry then creates a DUPLICATE
+        // tenant while the first stays an invisible orphan (bucket + trial leaked).
+        // Retry once, then compensate by deleting the just-created bare client row
+        // (ig_* FKs cascade; nothing else references it yet) so a clean retry can't collide.
+        try {
+            await withRetry(async () => {
+                const { error: linkError } = await supabaseAdmin
+                    .from('user_clients')
+                    .insert({ user_id: user.id, client_id: insertedClientId, role: 'owner' })
+                if (linkError) throw new Error(linkError.message)
+            }, 1, 'user_clients link')
+        } catch (linkErr) {
+            console.error('🚨 user_clients link failed — rolling back client insert:', (linkErr as Error).message)
+            await supabaseAdmin.from('clients').delete().eq('id', insertedClientId)
+            return { success: false, error: 'Nepodařilo se propojit tvůj účet s novým profilem. Zkus uložení prosím znovu.' }
+        }
+
         // Warm-start brand memory from the scraped feed (guarded — only when empty)
         await seedMemoriesFromAnalysis(insertedClientId, analysis)
         await ensurePostTypes(config, insertedClientId)
@@ -1261,20 +1310,14 @@ export async function saveReviewedConfig(
             }
         }
 
-        // RBAC: Link user → client as owner
-        const { error: linkError } = await supabaseAdmin
-            .from('user_clients')
-            .insert({ user_id: user.id, client_id: insertedClientId, role: 'owner' })
-        if (linkError) {
-            console.error('⚠️ Failed to create user_clients link:', linkError.message)
-        }
-
-        // Create content-gated trial subscription (v2 — no time limit)
+        // Create content-gated trial subscription (v2 — no time limit). Retried; a
+        // persistent failure is NOT fatal — access fails safe to "no subscription"
+        // (canPerformAction denies) and the user can activate a plan from billing.
         try {
             const { createTrialSubscription } = await import('@/lib/subscription')
-            await createTrialSubscription(insertedClientId)
+            await withRetry(() => createTrialSubscription(insertedClientId), 1, 'trial subscription')
         } catch (trialErr) {
-            console.error('⚠️ Trial creation failed:', (trialErr as Error).message)
+            console.error(`🚨 Trial creation failed for client ${insertedClientId} — user will see "no subscription" until a plan is activated:`, (trialErr as Error).message)
         }
 
         return { success: true, clientSlug: insertedSlug }
@@ -1296,6 +1339,68 @@ async function seedMemoriesFromAnalysis(clientId: string, analysis: WebsiteAnaly
         await seedOnboardingMemories(clientId, seeds)
     } catch (err) {
         console.warn('⚠️ Memory seeding failed (non-fatal):', (err as Error).message)
+    }
+}
+
+// ============================================
+// POST-SAVE BOOTSTRAP (durable showcase content)
+// ============================================
+
+/**
+ * One-shot bootstrap after a NEW client is saved: the teaser plan + idea-bank seed run
+ * inline (both fast), and the 3 showcase posts become a durable ig_campaigns row drained
+ * by the server-side campaign worker (app/api/cron/campaign-worker). Previously all of
+ * this ran sequentially in the BROWSER for ~3-5 minutes — closing the tab stranded the
+ * client with an active trial and an empty dashboard, with no retry path anywhere. Now
+ * the only browser-dependent window is this single short call; the heavy Pro generation
+ * survives the tab, and the worker's "obsah je připraven" e-mail pulls the user back
+ * even if they closed the tab. adminBypass mirrors the old generateShowcasePost
+ * behaviour: showcase posts were never charged.
+ */
+export async function startOnboardingBootstrap(clientSlug: string): Promise<{
+    success: boolean
+    campaignId?: string
+    error?: string
+}> {
+    try {
+        const { clientId } = await requireProjectAccess(clientSlug)
+
+        // 1) Teaser plan — 27 locked template rows, zero AI cost. Non-fatal.
+        try {
+            const { generateMonthlyPlan } = await import('@/app/actions/ig-generate-action')
+            await generateMonthlyPlan({ configName: clientSlug, projectId: clientSlug })
+        } catch (e) {
+            console.warn('⚠️ Bootstrap: monthly teaser plan failed (non-fatal):', (e as Error).message)
+        }
+
+        // 2) Idea bank seed — BEFORE the showcase campaign so posts can draw from it. Non-fatal.
+        try {
+            const { seedIdeaBank } = await import('@/app/actions/ig-generate-action')
+            await seedIdeaBank(clientSlug)
+        } catch (e) {
+            console.warn('⚠️ Bootstrap: idea bank seed failed (non-fatal):', (e as Error).message)
+        }
+
+        // 3) Durable showcase campaign — 3 auto posts. Empty plan items = the engine picks
+        //    type/topic itself, exactly like the old generateOnePost({ configName }) loop.
+        const { data: campaign, error } = await supabaseAdmin
+            .from('ig_campaigns')
+            .insert({
+                client_id: clientId,
+                status: 'pending',
+                plan: [{}, {}, {}],
+                options: { configName: clientSlug, adminBypass: true, showcase: true },
+                total: 3,
+            })
+            .select('id')
+            .single()
+        if (error || !campaign) throw new Error(error?.message || 'Showcase campaign insert failed')
+
+        console.log(`🚀 Onboarding bootstrap: showcase campaign ${campaign.id} queued for ${clientSlug}`)
+        return { success: true, campaignId: campaign.id }
+    } catch (error) {
+        console.error('startOnboardingBootstrap error:', error)
+        return { success: false, error: humanizeError(error) }
     }
 }
 

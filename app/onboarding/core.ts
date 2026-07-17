@@ -22,6 +22,7 @@ import supabaseAdmin from '@/supabase/admin'
 import { generateText } from '@/instagram/gemini-client'
 import { getModel } from '@/instagram/models'
 import { ensurePostTypes } from '@/instagram/service'
+import { withRetry } from '@/utils/retry'
 import type { ClientConfig, PostTypeDef } from '@/instagram/configs/types'
 import type { WebsiteAnalysis } from './actions'
 
@@ -814,6 +815,35 @@ export async function saveConfigCore(
     const { userId, existingClientSlug } = opts
     const clientSlug = existingClientSlug || config.id
 
+    // ── RE-ONBOARDING: preserve slug-bound assets BEFORE anything derives from the
+    // fresh config (mirrors actions.ts saveReviewedConfig). generateConfigCore recomputes
+    // id/storageBucket/logoFile from the freshly re-scraped company name — a failed logo
+    // re-download or a name drift would otherwise clobber the working logo pointer or
+    // fork post uploads into a new empty bucket. Prefer fresh data, never replace a real
+    // value with nothing.
+    let existingClientId: string | null = null
+    if (existingClientSlug) {
+        const { resolveClientId } = await import('@/instagram/configs')
+        existingClientId = await resolveClientId(existingClientSlug)
+        const { data: existingRow } = await supabaseAdmin
+            .from('clients')
+            .select('config')
+            .eq('id', existingClientId)
+            .single()
+        const prev = (existingRow?.config || {}) as Partial<ClientConfig>
+        config.id = existingClientSlug
+        config.storageBucket = prev.storageBucket || `ig-posts-${existingClientSlug}`
+        if (!config.logoFile && prev.logoFile) config.logoFile = prev.logoFile
+        if (config.postsPerWeek == null && prev.postsPerWeek != null) config.postsPerWeek = prev.postsPerWeek
+        if (!config.igBaseline && prev.igBaseline) config.igBaseline = prev.igBaseline
+        if (!(config.brandVoiceExamples?.length) && prev.brandVoiceExamples?.length) {
+            config.brandVoiceExamples = prev.brandVoiceExamples
+        }
+        if (!(config.brandReferenceImages?.length) && prev.brandReferenceImages?.length) {
+            config.brandReferenceImages = prev.brandReferenceImages
+        }
+    }
+
     // Ensure Storage Bucket
     const bucketName = config.storageBucket || `ig-posts-${config.id}`
     const { error: bucketError } = await supabaseAdmin.storage.createBucket(bucketName, {
@@ -827,8 +857,8 @@ export async function saveConfigCore(
 
     if (existingClientSlug) {
         // ── RE-ONBOARDING: Update existing client ──
-        const { resolveClientId } = await import('@/instagram/configs')
-        const clientId = await resolveClientId(existingClientSlug)
+        // (clientId already resolved by the asset-preservation block above)
+        const clientId = existingClientId!
 
         const { error: updateError } = await supabaseAdmin
             .from('clients')
@@ -875,6 +905,25 @@ export async function saveConfigCore(
     // ── NEW CLIENT: Insert ──
     const { id: insertedClientId, slug: insertedSlug } = await insertClient(clientSlug, config)
 
+    // RBAC link FIRST and FATALLY (when a user is supplied) — user_clients membership is
+    // the ONLY ownership signal; a client without it is an unreachable orphan and the
+    // user's onboarding retry then creates a duplicate tenant. Retry once, then compensate
+    // by deleting the just-created bare client row (ig_* FKs cascade) and throw.
+    if (userId) {
+        try {
+            await withRetry(async () => {
+                const { error: linkError } = await supabaseAdmin
+                    .from('user_clients')
+                    .insert({ user_id: userId, client_id: insertedClientId, role: 'owner' })
+                if (linkError) throw new Error(linkError.message)
+            }, 1, 'user_clients link')
+        } catch (linkErr) {
+            console.error('🚨 user_clients link failed — rolling back client insert:', (linkErr as Error).message)
+            await supabaseAdmin.from('clients').delete().eq('id', insertedClientId)
+            throw new Error(`user_clients link failed: ${(linkErr as Error).message}`)
+        }
+    }
+
     // Warm-start brand memory from the scraped feed (guarded — only when empty)
     await seedMemoriesFromAnalysis(insertedClientId, analysis)
 
@@ -903,22 +952,14 @@ export async function saveConfigCore(
         }
     }
 
-    // RBAC: Link user → client as owner (when a user is supplied)
-    if (userId) {
-        const { error: linkError } = await supabaseAdmin
-            .from('user_clients')
-            .insert({ user_id: userId, client_id: insertedClientId, role: 'owner' })
-        if (linkError) {
-            console.error('⚠️ Failed to create user_clients link:', linkError.message)
-        }
-    }
-
-    // Create content-gated trial subscription (v2 — no time limit)
+    // Create content-gated trial subscription (v2 — no time limit). Retried; a
+    // persistent failure is NOT fatal — access fails safe to "no subscription"
+    // (canPerformAction denies) and a plan can be activated from billing.
     try {
         const { createTrialSubscription } = await import('@/lib/subscription')
-        await createTrialSubscription(insertedClientId)
+        await withRetry(() => createTrialSubscription(insertedClientId), 1, 'trial subscription')
     } catch (trialErr) {
-        console.error('⚠️ Trial creation failed:', (trialErr as Error).message)
+        console.error(`🚨 Trial creation failed for client ${insertedClientId}:`, (trialErr as Error).message)
     }
 
     return insertedSlug

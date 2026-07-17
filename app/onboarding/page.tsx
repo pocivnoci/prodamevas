@@ -205,40 +205,17 @@ function OnboardingContent() {
             const clientSlug = result.clientSlug || configPreview.id
             setStep('generating')
 
-            // Phase 1: Generate 27 locked text concepts
-            setGeneratingProgress({ phase: 'plan', current: 0, total: 4 })
+            // Phases 1+2+2.5 now run SERVER-SIDE via one short bootstrap call: teaser plan
+            // + idea-bank seed run inline, the 3 showcase posts become a durable campaign
+            // drained by the cron worker. Closing the tab no longer strands the client —
+            // the old browser loop awaited ~3-5 min of generation right here.
+            setGeneratingProgress({ phase: 'bootstrap', current: 1, total: 1 })
             try {
-                const { generateMonthlyPlan } = await import('@/app/actions/ig-generate-action')
-                await generateMonthlyPlan({ configName: clientSlug, projectId: clientSlug })
-            } catch (planErr) {
-                console.warn('Plan generation failed (non-fatal):', planErr)
-            }
-
-            // Phase 2: Generate 3 full showcase posts (sequential, each ~30-60s, 90s timeout)
-            for (let i = 0; i < 3; i++) {
-                setGeneratingProgress({ phase: 'showcase', current: i + 1, total: 3 })
-                try {
-                    const { generateShowcasePost } = await import('@/app/actions/ig-generate-action')
-                    const timeout = new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('Timeout: showcase post exceeded 90s')), 90_000)
-                    )
-                    await Promise.race([
-                        generateShowcasePost({ configName: clientSlug }),
-                        timeout,
-                    ])
-                } catch (showcaseErr) {
-                    console.warn(`Showcase post ${i + 1} failed (non-fatal):`, showcaseErr)
-                }
-            }
-
-            // Phase 2.5: seed the idea bank (Zásobník témat) from the top pillars — MUST run
-            // before the first plan so it can already draw topics from the bank.
-            setGeneratingProgress({ phase: 'ideas', current: 1, total: 1 })
-            try {
-                const { seedIdeaBank } = await import('@/app/actions/ig-generate-action')
-                await seedIdeaBank(clientSlug)
-            } catch (seedErr) {
-                console.warn('Idea bank seeding failed (non-fatal):', seedErr)
+                const { startOnboardingBootstrap } = await import('@/app/onboarding/actions')
+                const boot = await startOnboardingBootstrap(clientSlug)
+                if (!boot.success) console.warn('Bootstrap failed (non-fatal):', boot.error)
+            } catch (bootErr) {
+                console.warn('Bootstrap failed (non-fatal):', bootErr)
             }
 
             // Phase 3: generate a real, editable first content plan (insight-grounded from
@@ -787,33 +764,24 @@ function OnboardingContent() {
                         <h2 className="text-2xl font-bold mb-4">
                             {generatingProgress.phase === 'firstplan'
                                 ? 'Připravuji tvůj první plán obsahu...'
-                                : generatingProgress.phase === 'ideas'
-                                    ? 'Plním zásobník témat...'
-                                    : `Generuji ukázkový příspěvek ${generatingProgress.current}/3`}
+                                : 'Spouštím přípravu ukázkového obsahu...'}
                         </h2>
                         <p className="text-gray-400 mb-8">
                             {generatingProgress.phase === 'firstplan'
                                 ? 'Skládám témata a hooky na míru tvé značce — podle toho, co ti na Instagramu už funguje.'
-                                : generatingProgress.phase === 'ideas'
-                                    ? 'Připravuji zásobu nápadů na příspěvky, ze které bude AI čerpat témata.'
-                                    : 'Copywriter píše text, Art Director tvoří obrázek, Kritik kontroluje kvalitu...'}
+                                : 'Plním zásobník témat a zadávám 3 ukázkové příspěvky. Ty se dogenerují na serveru — nemusíš na ně čekat.'}
                         </p>
                         {/* Progress bar */}
                         <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden mb-3">
                             <div
                                 className="h-full rounded-full bg-violet-500 transition-all duration-1000 ease-out"
-                                style={{ width: generatingProgress.phase === 'firstplan' ? '100%' : generatingProgress.phase === 'ideas' ? '80%' : `${(generatingProgress.current / 3) * 100}%` }}
+                                style={{ width: generatingProgress.phase === 'firstplan' ? '90%' : '40%' }}
                             />
                         </div>
                         <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">
                             {generatingProgress.phase === 'firstplan'
                                 ? 'Tvůj týdenní plán bude čekat v dashboardu'
-                                : generatingProgress.phase === 'ideas'
-                                    ? 'Zásobník témat — základ tvého obsahového plánu'
-                                    : generatingProgress.current === 0
-                                        ? 'Připravuji měsíční plán...'
-                                        : `Příspěvek ${generatingProgress.current} ze 3 — plný obsah se vším`
-                            }
+                                : 'Ukázkové příspěvky se generují na pozadí — najdeš je v Příspěvcích'}
                         </p>
                     </div>
                 )}
