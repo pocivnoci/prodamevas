@@ -260,6 +260,28 @@ export async function getRecentPosts(limit: number = 30): Promise<Post[]> {
     return data ?? [];
 }
 
+/**
+ * How many posts the client's profile grid holds — the anchor for feed-pattern slot math
+ * (a new post's chronological index IS this count).
+ *
+ * Takes clientId explicitly: this is engine code and must never depend on the module-global
+ * active project (concurrent requests share a lambda and would cross tenants).
+ *
+ * The filter deliberately matches FeedTab's grid exactly (image_url present, nothing else),
+ * so the pattern the preview draws and the pattern the engine generates against are computed
+ * from the same set of posts. Diverge here and the ghost cells start lying.
+ */
+export async function countFeedPosts(clientId: string): Promise<number> {
+    const { count, error } = await supabaseAdmin
+        .from("ig_posts")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", clientId)
+        .not("image_url", "is", null)
+
+    if (error) throw error
+    return count ?? 0
+}
+
 export async function createPost(post: any): Promise<Post> {
     const { data, error } = await supabaseAdmin
         .from("ig_posts")

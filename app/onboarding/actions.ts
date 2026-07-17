@@ -919,6 +919,17 @@ DŮLEŽITÉ:
                     .filter(Boolean).join('\n')
             }
         }
+        // Grid rhythm, derived from what the brand's real feed already does. Deterministic —
+        // a photography-led feed gets "none" rather than having typography posts forced on it.
+        // NOTE: intentionally NOT mirrored in core.ts's generateConfigCore, unlike the rest of
+        // the config-gen twin: feedVisuals only exists on this (UI) path, which scrapes the
+        // client's Instagram. The scripts path has no feed to read, and validateConfig's
+        // "none" default covers it. The user can pick a pattern in Settings either way.
+        if (analysis.feedVisuals) {
+            const { recommendPattern } = await import('@/lib/feed-pattern')
+            config.feedPattern = recommendPattern(analysis.feedVisuals)
+            console.log(`🔲 Feed pattern doporučen: ${config.feedPattern}`)
+        }
         // Persist the scrape snapshot — cold-start baseline for planWeek & performance context
         if (analysis.igProfile && analysis.igInsights) {
             config.igBaseline = {

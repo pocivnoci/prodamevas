@@ -31,7 +31,9 @@ import {
     getWeightedIdeas,
     getWeightedReviews,
     getIdeaById,
+    countFeedPosts,
 } from "./service"
+import { computeSlotIntent, type SlotIntent } from "../lib/feed-pattern"
 import { loadConfig } from "./configs"
 import type { ClientConfig, PostFormat } from "./configs/types"
 import type { PostType, PostIdea, Review } from "./types"
@@ -160,7 +162,15 @@ export async function generateOnePost(options: {
     customImageUrl?: string
     /** Explicit product ID from ig_products — overrides random product selection */
     productId?: string
-    campaignContext?: { postNumber: number; totalPosts: number; previousPosts: { hook: string; topic: string }[] }
+    campaignContext?: {
+        postNumber: number
+        totalPosts: number
+        previousPosts: { hook: string; topic: string }[]
+        /** The strategist's campaign arc, decided once at plan time and carried by every post.
+         *  previousPosts alone only ever describes where the campaign has been — the arc is the
+         *  only thing that tells post #1 (which has no predecessors) where it's going. */
+        campaignArc?: string
+    }
     /** Media allowed by the subscription plan (undefined = everything; legacy plans). Disallowed medium gets clamped to carousel. */
     allowedMedia?: string[]
     /** Medium the job was charged for (media-weighted credits) — the engine never renders a more expensive one. */
@@ -169,6 +179,10 @@ export async function generateOnePost(options: {
     jobId?: string
     /** Prior checkpoint from a failed job — skips the caption phase (copywriter/critic/editorial). */
     resumeFrom?: CaptionCheckpoint
+    /** Feed-pattern slot decided at plan time (campaigns). Passed in rather than recomputed so a
+     *  resumed/retried post keeps the mode its neighbours were planned around. Omit for one-off
+     *  posts — those derive it from the live feed. */
+    slotIntent?: SlotIntent
     onProgress?: (stage: string, progress: number, message: string, editorialLog?: EditorialMessage[]) => Promise<void>
 }): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number; mediaType: "image" | "carousel" | "reel" }> {
     const report = options.onProgress || (async () => { }) // no-op if not provided
@@ -354,6 +368,21 @@ export async function generateOnePost(options: {
             .map((d: any) => d.layoutArchetype as string | undefined)
             .filter((a: any): a is string => Boolean(a))
     )]
+
+    // 3c. Feed-pattern slot. Campaign posts arrive with theirs already decided at plan time
+    // (stable across worker retries — recomputing mid-batch could flip a resumed post's mode);
+    // a one-off post computes it here from the live grid size. Never fatal: a pattern is a
+    // nice-to-have on top of a good post, so a failed count just means full creative freedom.
+    let slotIntent: SlotIntent | undefined = options.slotIntent
+    if (!slotIntent && config.feedPattern && config.feedPattern !== "none") {
+        try {
+            const feedCount = await countFeedPosts(clientUuid)
+            slotIntent = computeSlotIntent(config.feedPattern, feedCount, feedCount + 1) ?? undefined
+            if (slotIntent) console.log(`   🔲 Feed pattern "${config.feedPattern}": slot #${feedCount} → ${slotIntent.visualMode}`)
+        } catch (e: any) {
+            console.warn(`   ⚠️ Feed pattern skipped: ${e?.message}`)
+        }
+    }
 
     // 4. Get performance data
     const _getPillarForType = createPillarMapper(config)
@@ -677,12 +706,20 @@ ${feedSummary}
     // BEFORE the Researcher (step 0), appended here at the original injection point.
     megaPrompt += contextBlock
 
-    // Inject campaign continuity context
-    if (options.campaignContext && options.campaignContext.previousPosts.length > 0) {
+    // Inject campaign continuity context. Gated on the context existing, NOT on having
+    // predecessors: post #1 has no previousPosts by definition, and it's the post that sets
+    // the tone for the whole series — it needs the arc most.
+    if (options.campaignContext) {
         const cc = options.campaignContext
+        const arcSection = cc.campaignArc
+            ? `\n### Kampaňová linka (platí pro celou sérii):\n${cc.campaignArc}\n`
+            : ""
         const prevSummary = cc.previousPosts.map((p, i) => `  ${i + 1}. Hook: "${p.hook}" | Téma: ${p.topic}`).join("\n")
-        megaPrompt += `\n\n## 🎯 KAMPAŇ — NÁVAZNOST PŘÍSPĚVKŮ (KRITICKÉ!)\nToto je příspěvek **${cc.postNumber}/${cc.totalPosts}** v rámci koherentní kampaně.\n\n### Předchozí příspěvky v kampani:\n${prevSummary}\n\n### INSTRUKCE PRO NÁVAZNOST:\n- Tento post MUSÍ tematicky navazovat na předchozí — buduj na nich, prohlubuj téma, přidej nový úhel\n- NEOPAKUJ stejný hook ani stejný argument — posuň příběh dál\n- Zachovej konzistentní tón a vizuální styl napříč celou kampaní\n- Pokud je zadané hlavní téma kampaně, drž se ho ale z jiného úhlu než předchozí posty\n- Série by měla fungovat jako storytelling: každý post přidává novou vrstvu\n`
-        console.log(`   🎯 Campaign context: post ${cc.postNumber}/${cc.totalPosts} (${cc.previousPosts.length} previous)`)
+        const prevSection = cc.previousPosts.length > 0
+            ? `\n### Předchozí příspěvky v kampani:\n${prevSummary}\n\n### INSTRUKCE PRO NÁVAZNOST:\n- Tento post MUSÍ tematicky navazovat na předchozí — buduj na nich, prohlubuj téma, přidej nový úhel\n- NEOPAKUJ stejný hook ani stejný argument — posuň příběh dál\n- Zachovej konzistentní tón a vizuální styl napříč celou kampaní\n- Pokud je zadané hlavní téma kampaně, drž se ho ale z jiného úhlu než předchozí posty\n- Série by měla fungovat jako storytelling: každý post přidává novou vrstvu\n`
+            : `\n### INSTRUKCE:\n- Toto je PRVNÍ post kampaně — otevři linku, nastav tón a nech prostor, na co budou další posty navazovat\n`
+        megaPrompt += `\n\n## 🎯 KAMPAŇ — NÁVAZNOST PŘÍSPĚVKŮ (KRITICKÉ!)\nToto je příspěvek **${cc.postNumber}/${cc.totalPosts}** v rámci koherentní kampaně.\n${arcSection}${prevSection}`
+        console.log(`   🎯 Campaign context: post ${cc.postNumber}/${cc.totalPosts} (${cc.previousPosts.length} previous)${cc.campaignArc ? " + arc" : ""}`)
     }
 
     if (process.env.DEBUG_PROMPT === "1") {
@@ -927,7 +964,7 @@ ${feedSummary}
             renderResult = await renderCarousel({
                 config, captionData: captionData as CaptionData, format, selectedType, report,
                 selectedProduct: selectedProduct as SelectedProduct | undefined,
-                linkedProductId, clientUuid, recentBriefs, recentArchetypes,
+                linkedProductId, clientUuid, recentBriefs, recentArchetypes, slotIntent,
                 userPhotoUrl: options.customImageUrl, userPhotoDescription,
             })
             imageUrl = renderResult.imageUrl
@@ -948,7 +985,7 @@ ${feedSummary}
             renderResult = await renderImage({
                 config, captionData: captionData as CaptionData, format, selectedType, report,
                 selectedProduct: selectedProduct as SelectedProduct | undefined,
-                linkedProductId, clientUuid, recentBriefs, recentArchetypes,
+                linkedProductId, clientUuid, recentBriefs, recentArchetypes, slotIntent,
                 userPhotoUrl: options.customImageUrl, userPhotoDescription,
             })
             imageUrl = renderResult.imageUrl

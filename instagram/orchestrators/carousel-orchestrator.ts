@@ -88,6 +88,7 @@ async function renderCarouselNative(ctx: RenderContext): Promise<RenderResult | 
         postType: selectedType.name,
         recentBriefs: ctx.recentBriefs ?? [],
         bannedArchetypes: ctx.recentArchetypes ?? [],
+        slotIntent: ctx.slotIntent,
         accentWords: captionData.accentWords,
         product: productInfo,
         userPhoto: userPhotoInfo,

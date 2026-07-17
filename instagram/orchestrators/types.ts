@@ -6,6 +6,7 @@
 import type { ClientConfig, PostFormat } from "../configs/types"
 import type { PostType } from "../types"
 import type { DesignBrief } from "../image-pipeline"
+import type { SlotIntent } from "../../lib/feed-pattern"
 
 export type ProgressReporter = (stage: string, progress: number, message: string) => Promise<void>
 
@@ -48,6 +49,9 @@ export interface RenderContext {
     recentBriefs?: string[]
     /** Layout archetypes of the most recent posts — hard-banned for the next design brief */
     recentArchetypes?: string[]
+    /** This post's cell in the feed pattern — narrows the designer to that slot's archetype
+     *  family so the profile grid forms a deliberate rhythm (see lib/feed-pattern.ts). */
+    slotIntent?: SlotIntent
     /** User's own uploaded photo (public URL) — the render must be visibly built from it */
     userPhotoUrl?: string
     /** Vision description of that photo — the text-only AI Designer's window into it */

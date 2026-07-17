@@ -9,10 +9,11 @@ import {
     getIGIdeasList,
     getIGReviewsList,
 } from "@/app/actions/admin-actions"
-import { generateContentPlan, regeneratePlanItem, getPlanCadence, getPlanProgress, type ContentPlanItem } from "@/app/actions/content-plan-actions"
+import { generateContentPlan, regeneratePlanItem, getPlanCadence, getPlanProgress, getPlanDraft, savePlanDraft, discardPlanDraft, type ContentPlanItem, type CampaignGoal, type CarouselShare } from "@/app/actions/content-plan-actions"
 import { startCampaign, getCampaignStatus } from "@/app/actions/campaign-actions"
 import { schedulePostAction } from "@/app/actions/calendar-actions"
 import { distributeSchedule } from "@/lib/schedule-planner"
+import { computeSlotIntents, VISUAL_MODE_LABELS, type FeedPatternId } from "@/lib/feed-pattern"
 import { getProducts } from "@/app/actions/product-actions"
 import { uploadCustomImage, type GenerateResult } from "@/app/actions/ig-generate-action"
 import { canGenerate } from "@/app/actions/credit-guard"
@@ -76,8 +77,20 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const [planGenerating, setPlanGenerating] = useState(false)
     // Live stage message from the deep plan pipeline (strategist → concepts → judge → revision).
     const [planProgress, setPlanProgress] = useState<{ progress: number; message: string } | null>(null)
-    // Campaign arc from the strategist — shown above the plan preview in step 2.
+    // Campaign arc from the strategist — shown above the plan preview in step 2, and carried
+    // into the campaign so the worker can hand it to every post.
     const [planStrategy, setPlanStrategy] = useState<string | null>(null)
+    // Server-side draft of the plan preview: a refresh used to throw away a 1-2 min Pro run.
+    // Holding the id also makes approval a single-use claim (see startCampaign).
+    const [draftId, setDraftId] = useState<string | null>(null)
+    // Grid rhythm this plan was laid out against + where in the feed it starts, so slots can be
+    // re-derived locally when the user adds/removes posts. seqBase is the live feed's post count
+    // at plan time — it does NOT shift when plan items come and go.
+    const [planPattern, setPlanPattern] = useState<{ id: FeedPatternId; seqBase: number } | null>(null)
+    // Campaign brief knobs ("" = let the planner decide).
+    const [goal, setGoal] = useState<CampaignGoal | "">("")
+    const [carouselShare, setCarouselShare] = useState<CarouselShare>("auto")
+    const [focusProductIds, setFocusProductIds] = useState<string[]>([])
     const [editingPlanItem, setEditingPlanItem] = useState<string | null>(null)
     const [regeneratingItem, setRegeneratingItem] = useState<string | null>(null)
     const [showAdvanced, setShowAdvanced] = useState(false)
@@ -111,6 +124,9 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const [productPickerItem, setProductPickerItem] = useState<string | null>(null)
     const [productSearch, setProductSearch] = useState("")
     const productPickerRef = useRef<HTMLDivElement>(null)
+    // Set by whichever mount restore seeded a plan first, so the async server-draft restore
+    // can't overwrite a plan the onboarding handoff already planted.
+    const planSeededRef = useRef(false)
 
     // Reload post types + formats + categories when project changes
     useEffect(() => {
@@ -335,11 +351,53 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                 setContentPlan(autoDistribute(draft, scheduleStart, postsPerDay))
                 setBatchMode(true)
                 setStep(2)
+                planSeededRef.current = true
             }
         } catch { /* malformed — ignore */ }
         try { localStorage.removeItem(`ig_draft_plan_${projectId}`) } catch { /* ignore */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [projectId])
+
+    // Restore the server-side plan draft — the preview survives a refresh or a closed tab
+    // instead of throwing away a 1-2 min Pro-ladder run. Lowest priority of the three mount
+    // restores: an in-flight campaign and the onboarding handoff both outrank it.
+    useEffect(() => {
+        let inFlight: string | null = null
+        try { inFlight = localStorage.getItem(`ig_campaign_${projectId}`) } catch { /* ignore */ }
+        if (inFlight || planSeededRef.current) return
+        let cancelled = false
+        getPlanDraft(projectId).then(draft => {
+            // Re-check the seed flag after the await: the synchronous onboarding handoff can
+            // have planted a fresher plan while this request was in flight.
+            if (cancelled || !draft || planSeededRef.current) return
+            // No autoDistribute here — the draft already carries the schedule the user set.
+            setContentPlan(draft.plan)
+            setPlanStrategy(draft.strategySummary || null)
+            setDraftId(draft.draftId)
+            // The plan is self-describing: item 0's intent records both the pattern and the
+            // feed anchor it was laid out from (restamping preserves that invariant), so the
+            // rhythm survives a refresh without being persisted separately.
+            const anchor = draft.plan[0]?.slotIntent
+            setPlanPattern(anchor ? { id: anchor.patternId, seqBase: anchor.seqIndex } : null)
+            setBatchMode(true)
+            setStep(2)
+            planSeededRef.current = true
+        }).catch(() => { /* no draft is a normal state, not an error */ })
+        return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [projectId])
+
+    // Autosave plan edits into the draft, debounced. Guarded on draftId, which is cleared the
+    // moment the plan becomes a campaign — so a late save can never rewrite a plan the worker
+    // is already draining (savePlanDraft is status-scoped server-side for the same reason).
+    useEffect(() => {
+        if (!draftId || contentPlan.length === 0 || generating) return
+        const t = setTimeout(() => {
+            savePlanDraft(projectId, draftId, contentPlan).catch(() => { /* autosave is best-effort */ })
+        }, 2000)
+        return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [contentPlan, draftId, projectId, generating])
 
     const handleGenerate = async () => {
         setGenerating(true)
@@ -383,6 +441,11 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                     medium: medium || undefined,
                     category: category !== "auto" ? category : undefined,
                     topic: topic || undefined,
+                    // Approving the draft in place makes it a single-use claim: a second click
+                    // finds it already 'pending' and is refused, instead of billing twice.
+                    draftId: draftId || undefined,
+                    strategySummary: planStrategy || undefined,
+                    goal: goal || undefined,
                 })
 
                 if (!startRes.success || !startRes.campaignId) {
@@ -393,6 +456,9 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         success: false,
                     } as any)
                 } else {
+                    // The draft is now a live campaign — drop the id so the autosave effect
+                    // can't write over a plan the worker is already draining.
+                    setDraftId(null)
                     setCampaignId(startRes.campaignId)
                     try { localStorage.setItem(`ig_campaign_${projectId}`, startRes.campaignId) } catch { /* ignore */ }
                     await pollCampaign(startRes.campaignId)
@@ -486,6 +552,23 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         { key: "2w", label: "Dva týdny", weeks: 2 },
         { key: "month", label: "Měsíc", weeks: 4 },
     ] as const
+
+    const CAMPAIGN_GOALS: { key: CampaignGoal; label: string; emoji: string; hint: string }[] = [
+        { key: "reach", label: "Dosah", emoji: "📣", hint: "Zasáhnout nové lidi — sdílitelné, srozumitelné i bez znalosti značky" },
+        { key: "engagement", label: "Komunita", emoji: "💬", hint: "Vyvolat reakce — otázky, názory, uložení" },
+        { key: "sales", label: "Prodej", emoji: "🛒", hint: "Vést k nákupu — konkrétní produkt, konkrétní důvod jednat" },
+        { key: "launch", label: "Novinka", emoji: "🚀", hint: "Uvést novinku — série se stoupajícím obloukem" },
+    ]
+
+    const CAROUSEL_SHARES: { key: CarouselShare; label: string; emoji: string; hint: string }[] = [
+        { key: "low", label: "Víc fotek", emoji: "📷", hint: "levnější" },
+        { key: "auto", label: "Vyvážené", emoji: "⚖️", hint: "doporučeno" },
+        { key: "high", label: "Víc karuselů", emoji: "🎠", hint: "dražší" },
+    ]
+
+    const toggleFocusProduct = (id: string) => {
+        setFocusProductIds(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id])
+    }
     const durationToCount = (key: typeof planDuration): number => {
         if (key === "trial") return 3
         const weeks = PLAN_DURATIONS.find(d => d.key === key)?.weeks ?? 1
@@ -560,16 +643,20 @@ export function GenerateTab({ projectId }: { projectId: string }) {
             } catch { /* progress polling must never break the flow */ }
         }, 2500)
         try {
-            const result = await generateContentPlan(
-                projectId,
-                batchCount,
-                topic || undefined,
-                category !== "auto" ? category : undefined,
-                runId
-            )
+            const result = await generateContentPlan(projectId, {
+                count: batchCount,
+                topic: topic || undefined,
+                category: category !== "auto" ? category : undefined,
+                goal: goal || undefined,
+                carouselShare,
+                productIds: focusProductIds.length > 0 ? focusProductIds : undefined,
+                planRunId: runId,
+            })
             if (result.success && result.plan) {
                 setContentPlan(autoDistribute(result.plan, scheduleStart, postsPerDay))
                 setPlanStrategy(result.strategySummary || null)
+                setDraftId(result.draftId || null)
+                setPlanPattern(result.feedPattern || null)
                 setStep(2)
             } else {
                 alert(result.error || "Generování plánu selhalo")
@@ -601,12 +688,21 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         setRegeneratingItem(null)
     }
 
+    // Re-derive feed-pattern slots after the plan's length changed. Removing the 3rd post
+    // shifts every later post one cell up the grid, so their visual modes must shift with it —
+    // otherwise the approved plan no longer matches the rhythm the preview is showing.
+    const restampSlots = (items: ContentPlanItem[]): ContentPlanItem[] => {
+        if (!planPattern || planPattern.id === "none") return items
+        const intents = computeSlotIntents(planPattern.id, planPattern.seqBase, items.length)
+        return items.map((p, i) => ({ ...p, slotIntent: intents[i] ?? undefined }))
+    }
+
     // Content Plan: remove item (re-distribute remaining slots)
     const handleRemovePlanItem = (itemId: string) => {
-        setContentPlan(prev => autoDistribute(
+        setContentPlan(prev => restampSlots(autoDistribute(
             prev.filter(p => p.id !== itemId).map((p, i) => ({ ...p, day: i + 1 })),
             scheduleStart, postsPerDay,
-        ))
+        )))
     }
 
     // Content Plan: update item topic inline. An edited topic no longer represents
@@ -642,7 +738,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
             day: contentPlan.length + 1,
             week: contentPlan.length >= 14 ? Math.floor(contentPlan.length / 7) + 1 : undefined,
         }
-        setContentPlan(prev => autoDistribute([...prev, newItem], scheduleStart, postsPerDay))
+        setContentPlan(prev => restampSlots(autoDistribute([...prev, newItem], scheduleStart, postsPerDay)))
     }
 
     // Content Plan: start generation from approved plan
@@ -650,6 +746,20 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         setBatchCount(contentPlan.length)
         setStep(3)
         setPendingGenerate(true)
+    }
+
+    // Throw the saved preview away and start over from the brief.
+    const handleDiscardPlan = async () => {
+        if (!draftId) return
+        if (!confirm("Zahodit vygenerovaný plán? Tuhle akci nelze vrátit.")) return
+        const id = draftId
+        // Clear locally first so the autosave effect can't immediately re-save the plan
+        // we're deleting.
+        setDraftId(null)
+        setContentPlan([])
+        setPlanStrategy(null)
+        setStep(1)
+        await discardPlanDraft(projectId, id).catch(() => { /* row already gone — fine */ })
     }
 
     // Trigger generation when pendingGenerate flag is set (after step render)
@@ -968,6 +1078,86 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     })()}
                                 </div>
 
+                                {/* Campaign goal — steers the planner prompt, and (once there's
+                                    engagement data) tilts the pillar mix toward it. */}
+                                <div>
+                                    <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Cíl kampaně</label>
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                                        <button onClick={() => setGoal("")}
+                                            className={`px-3 py-2.5 rounded-sm border text-[11px] font-bold transition-all ${goal === ""
+                                                ? "border-white/30 bg-white/10 text-white" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
+                                            🤖 Auto
+                                        </button>
+                                        {CAMPAIGN_GOALS.map(g => (
+                                            <button key={g.key} onClick={() => setGoal(g.key)} title={g.hint}
+                                                className={`px-3 py-2.5 rounded-sm border text-[11px] font-bold transition-all ${goal === g.key
+                                                    ? "border-aisummit-cinnabar/50 bg-aisummit-cinnabar/10 text-aisummit-cinnabar" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
+                                                {g.emoji} {g.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Pillar focus */}
+                                {categories.length > 0 && (
+                                    <div>
+                                        <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Zaměření (volitelné)</label>
+                                        <div className="flex flex-wrap gap-2">
+                                            <button onClick={() => setCategory("auto")}
+                                                className={`px-4 py-2.5 rounded-sm border text-xs font-bold transition-all flex items-center gap-2 ${category === "auto" || category === ""
+                                                    ? "border-white/30 bg-white/10 text-white" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
+                                                <span className="grayscale opacity-80">🤖</span> Automaticky
+                                            </button>
+                                            {categories.map(cat => (
+                                                <button key={cat.id} onClick={() => setCategory(cat.id)}
+                                                    className={`px-4 py-2.5 rounded-sm border text-xs font-bold transition-all flex items-center gap-2 ${category === cat.id
+                                                        ? "border-aisummit-cinnabar/50 bg-aisummit-cinnabar/10 text-aisummit-cinnabar" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
+                                                    {cat.emoji} {cat.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Format mix — carousels cost more credits, so the share is the user's call */}
+                                <div>
+                                    <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Mix formátů</label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {CAROUSEL_SHARES.map(s => (
+                                            <button key={s.key} onClick={() => setCarouselShare(s.key)}
+                                                className={`px-3 py-2.5 rounded-sm border text-[11px] font-bold transition-all ${carouselShare === s.key
+                                                    ? "border-aisummit-cinnabar/50 bg-aisummit-cinnabar/10 text-aisummit-cinnabar" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
+                                                {s.emoji} {s.label}
+                                                <span className="block text-[8px] font-bold uppercase tracking-widest opacity-50 mt-0.5">{s.hint}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Product focus — the campaign revolves around these */}
+                                {catalogProducts.length > 0 && (
+                                    <div>
+                                        <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">📦 Zaměřit na produkty (volitelné)</label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {catalogProducts.map(p => {
+                                                const on = focusProductIds.includes(p.id)
+                                                return (
+                                                    <button key={p.id} onClick={() => toggleFocusProduct(p.id)}
+                                                        className={`px-3 py-2 rounded-sm border text-[11px] font-bold transition-all ${on
+                                                            ? "border-aisummit-cinnabar/50 bg-aisummit-cinnabar/10 text-aisummit-cinnabar" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
+                                                        {on ? "✓ " : ""}{p.name}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                        {focusProductIds.length > 0 && (
+                                            <p className="text-[9px] text-white/25 mt-2 font-bold uppercase tracking-widest">
+                                                Produkty se rozdělí mezi produktové posty v plánu
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+
                                 {/* Topic */}
                                 <div>
                                     <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">Téma kampaně (volitelné)</label>
@@ -975,6 +1165,27 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         value={topic} onChange={(e) => setTopic(e.target.value)} rows={2}
                                         className="w-full px-5 py-4 bg-[#050505] border border-white/10 rounded-sm text-white placeholder:text-white/30 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all shadow-sm resize-none"
                                     />
+                                </div>
+
+                                {/* Schedule — set up-front so the generated plan lands on real dates
+                                    immediately (still editable per post in the preview). */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">📅 Začít od</label>
+                                        <input type="date" value={scheduleStart}
+                                            onChange={(e) => handleScheduleChange(e.target.value, postsPerDay)}
+                                            className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">Postů denně</label>
+                                        <select value={postsPerDay}
+                                            onChange={(e) => handleScheduleChange(scheduleStart, Number(e.target.value))}
+                                            className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30">
+                                            <option value={1}>1 / den</option>
+                                            <option value={2}>2 / den</option>
+                                            <option value={3}>3 / den</option>
+                                        </select>
+                                    </div>
                                 </div>
 
                                 {/* Generate Plan CTA — during the deep pipeline run it streams stage messages */}
@@ -1131,6 +1342,18 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                                         title={editable ? "Přepnout formát: 1 obrázek ⇄ carousel" : "Reel"}
                                                                         className={`text-[8px] px-1.5 py-0.5 border rounded-sm font-bold uppercase tracking-wider transition-all ${m.cls} ${editable ? "cursor-pointer hover:brightness-150" : "cursor-default"}`}
                                                                     >{m.emoji} {m.label}{editable ? " ⇄" : ""}</button>
+                                                                )
+                                                            })()}
+                                                            {/* Feed-pattern slot: which cell of the grid rhythm this post fills */}
+                                                            {item.slotIntent && (() => {
+                                                                const vm = VISUAL_MODE_LABELS[item.slotIntent.visualMode]
+                                                                return (
+                                                                    <span
+                                                                        title={`Vzor feedu: ${vm.label} — pozice v mřížce profilu`}
+                                                                        className="text-[8px] px-1.5 py-0.5 border border-white/10 bg-white/[0.03] text-white/40 rounded-sm font-bold uppercase tracking-wider"
+                                                                    >
+                                                                        {vm.icon} {vm.label}
+                                                                    </span>
                                                                 )
                                                             })()}
                                                             <span className="text-[8px] text-white/20">{item.pillarEmoji} {item.pillar}</span>
@@ -1330,6 +1553,15 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 >
                                     ← Zpět na brief
                                 </button>
+                                {draftId && (
+                                    <button
+                                        onClick={handleDiscardPlan}
+                                        disabled={generating}
+                                        className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest text-white/40 bg-white/5 border border-white/10 hover:text-red-400 hover:border-red-400/30 transition-all disabled:opacity-50"
+                                    >
+                                        🗑 Zahodit plán
+                                    </button>
+                                )}
                                 <button
                                     onClick={handleApproveAndGenerate}
                                     disabled={contentPlan.length === 0 || generating}

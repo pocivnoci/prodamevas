@@ -491,6 +491,87 @@ test("12.7 autopilot stores design_brief + qa_status", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 12. Plan drafts / campaign arc / feed pattern
+// ═══════════════════════════════════════════════════════════
+
+test("12.1 draft approval is a single-use claim (no insert fallback → no double charge)", () => {
+    const c = fileContent("app/actions/campaign-actions.ts")
+    assert(c.includes('.eq("status", "draft")'), "startCampaign must filter the claim on status='draft'")
+    // The claim and the plain insert must be exclusive branches: an insert reachable after a
+    // failed claim would let a double-click bill the same plan twice.
+    const claimIdx = c.indexOf('if (options.draftId)')
+    const refusalIdx = c.indexOf('if (!claimed) return')
+    assert(claimIdx > 0 && refusalIdx > claimIdx, "a failed draft claim must return, not fall through to insert")
+})
+
+test("12.2 draft actions are status-scoped (can never touch a live campaign)", () => {
+    const c = fileContent("app/actions/content-plan-actions.ts")
+    for (const fn of ["savePlanDraft", "discardPlanDraft"]) {
+        const body = c.slice(c.indexOf(`export async function ${fn}`), c.indexOf(`export async function ${fn}`) + 900)
+        assert(body.includes('.eq("status", "draft")'), `${fn} must be scoped to status='draft'`)
+        assert(body.includes('.eq("client_id", clientId)'), `${fn} must filter by client_id`)
+    }
+})
+
+test("12.3 the worker cannot claim a draft", () => {
+    const c = fileContent("app/api/cron/campaign-worker/route.ts")
+    const claims = c.split('.in("status", ["pending", "running"])').length - 1
+    assert(claims >= 2, "both candidate select and tryClaim must restrict status to pending/running")
+    assert(!c.includes('"draft"') || c.includes('.eq("status", "draft")'), "draft may only appear in the GC delete")
+})
+
+test("12.4 plan preview stays side-effect-free (no idea-bank writes)", () => {
+    const c = fileContent("app/actions/content-plan-actions.ts")
+    const gen = c.slice(c.indexOf("export async function generateContentPlan"), c.indexOf("// ─── Plan drafts"))
+    assert(!gen.includes('.from("ig_post_ideas").insert'), "generateContentPlan must never deposit ideas — that's startCampaign's job")
+})
+
+test("12.5 campaign arc reaches every post, including the first", () => {
+    const w = fileContent("app/api/cron/campaign-worker/route.ts")
+    assert(w.includes("campaignArc: (opts.strategySummary"), "worker must pass the persisted arc into campaignContext")
+    const a = fileContent("instagram/autopilot.ts")
+    assert(!a.includes("options.campaignContext.previousPosts.length > 0"), "arc injection must not be gated on having predecessors")
+    const s = fileContent("app/actions/campaign-actions.ts")
+    assert(s.includes("strategySummary: options.strategySummary"), "startCampaign must persist the strategist arc")
+})
+
+test("12.6 slot intent rides the plan row and is never recomputed mid-campaign", () => {
+    const s = fileContent("app/actions/campaign-actions.ts")
+    assert(s.includes("slotIntent: it.slotIntent"), "startCampaign must persist slotIntent onto plan rows")
+    const w = fileContent("app/api/cron/campaign-worker/route.ts")
+    assert(w.includes("slotIntent: item?.slotIntent"), "worker must read slotIntent off the plan item")
+    assert(!w.includes("computeSlotIntent"), "worker must NOT recompute a slot — a resumed post would flip mode")
+})
+
+test("12.7 feed pattern narrows archetypes but keeps divergence", () => {
+    const c = fileContent("instagram/image-pipeline.ts")
+    assert(c.includes("ARCHETYPE_GROUPS[slotIntent.visualMode]"), "designer must scope archetypes to the slot's family")
+    assert(c.includes("afterBan.length > 0 ? afterBan : [...archetypePool]"), "pattern must win when the ban empties the family")
+    assert(c.includes("FEED PATTERN SLOT"), "designer prompt must carry the slot directive")
+    assert(c.includes("!allowedArchetypes.includes(brief.layoutArchetype)"), "in-code rejection must validate against the allowed set")
+})
+
+test("12.8 feedPattern is clamped in validateConfig", () => {
+    const c = fileContent("instagram/configs/index.ts")
+    assert(c.includes("isFeedPattern(config.feedPattern)"), "validateConfig must clamp feedPattern")
+    assert(c.includes(': "none"'), "unknown feedPattern must fall back to none")
+})
+
+test("12.9 feed-pattern grid count matches FeedTab's grid", () => {
+    // If these two filters diverge, the ghost cells stop describing the real grid.
+    const s = fileContent("instagram/service.ts")
+    const start = s.indexOf("export async function countFeedPosts")
+    assert(start > 0, "countFeedPosts must exist in instagram/service.ts")
+    // Bound the window at the next export, or a neighbouring function's body leaks into it.
+    const fn = s.slice(start, s.indexOf("export async function", start + 1))
+    assert(fn.includes('.not("image_url", "is", null)'), "countFeedPosts must count posts with an image")
+    assert(fn.includes("clientId: string"), "countFeedPosts must take clientId explicitly")
+    assert(!fn.includes("getActiveProject"), "countFeedPosts must not use the module-global tenant")
+    const f = fileContent("app/(dashboard)/dashboard/instagram/tabs/FeedTab.tsx")
+    assert(f.includes("filter((p: any) => p.image_url)"), "FeedTab grid still filters on image_url only — keep countFeedPosts in sync")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 

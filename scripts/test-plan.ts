@@ -2,7 +2,7 @@ import { generateContentPlan } from "../app/actions/content-plan-actions";
 
 async function main() {
     console.log("Generating plan...");
-    const res = await generateContentPlan("pocivnoci", 7);
+    const res = await generateContentPlan("pocivnoci", { count: 7 });
     console.log("Success:", res.success);
     if (res.plan) {
         console.log("Plan length:", res.plan.length);

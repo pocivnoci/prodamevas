@@ -23,6 +23,9 @@ const BUDGET_MS = 700 * 1000   // stop taking new posts past this, leaving margi
 // How long we keep deferring a post whose Pro engines stay overloaded before giving up
 // on it as a failure. "Quality over speed" — but not forever.
 const MAX_CAMPAIGN_AGE_MS = Number(process.env.CAMPAIGN_MAX_AGE_MS || 6 * 60 * 60 * 1000)
+// Plan previews the user generated but never approved. Kept long enough to survive a
+// "I'll finish this next week", then collected — otherwise every plan run leaks a row.
+const DRAFT_TTL_MS = 14 * 24 * 60 * 60 * 1000
 
 export async function GET(req: Request) {
     const secret = process.env.CRON_SECRET
@@ -67,6 +70,19 @@ export async function GET(req: Request) {
     }
 
     if (!campaign) {
+        // Nothing to drain — spend the idle tick collecting abandoned plan drafts. Only ever
+        // touches status='draft', so a live campaign can't be caught by a clock skew.
+        try {
+            const cutoff = new Date(Date.now() - DRAFT_TTL_MS).toISOString()
+            const { error } = await supabaseAdmin
+                .from("ig_campaigns")
+                .delete()
+                .eq("status", "draft")
+                .lt("updated_at", cutoff)
+            if (error) console.warn(`⚠️ draft GC failed: ${error.message}`)
+        } catch (e: any) {
+            console.warn(`⚠️ draft GC failed: ${e?.message}`)
+        }
         return NextResponse.json({ success: true, idle: true })
     }
 
@@ -190,9 +206,14 @@ export async function GET(req: Request) {
         // could not — so the campaign was created then silently died at post 0. Default OFF.
         const ADMIN_BYPASS = process.env.CAMPAIGN_ADMIN_BYPASS === "1" || opts.adminBypass === true
 
-        const campaignContext = previousPosts.length > 0
-            ? { postNumber: cursor + 1, totalPosts: total, previousPosts: [...previousPosts] }
-            : undefined
+        // Always built (not gated on previousPosts): the arc is decided once at plan time and
+        // every post needs it, including post #1 — the one that opens the series.
+        const campaignContext = {
+            postNumber: cursor + 1,
+            totalPosts: total,
+            previousPosts: [...previousPosts],
+            campaignArc: (opts.strategySummary as string | null) || undefined,
+        }
 
         // ♻️ Deferred-item reuse: a previous tick hit QualityUnavailable and PARKED this
         // item's job (charge kept, caption checkpoint kept). Reuse the job — no new
@@ -301,6 +322,10 @@ export async function GET(req: Request) {
                 aspectRatio: opts.aspectRatio || undefined,
                 medium: itemMedium,
                 productId: item?.productId || undefined,
+                // Decided at plan time and read straight off the plan row — never recomputed
+                // here, or a resumed post could flip to a different visual mode than the grid
+                // around it was planned for.
+                slotIntent: item?.slotIntent || undefined,
                 campaignContext, allowedMedia,
                 chargedMedium: ADMIN_BYPASS ? undefined : chargedMedium,
                 jobId: job.id,

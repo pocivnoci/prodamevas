@@ -3,11 +3,12 @@
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, upsertPostFormat, removePostFormat, type PostFormatInput } from "@/app/actions/config-actions"
+import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, upsertPostFormat, removePostFormat, recommendFeedPattern, type PostFormatInput } from "@/app/actions/config-actions"
 import { getProducts, createProduct, updateProduct, deleteProduct, deleteProducts, uploadProductImage, syncConfigProductsToDb, scrapeProductsFromWebsite } from "@/app/actions/product-actions"
 import { generateCategoryPrompt } from "@/app/actions/content-plan-actions"
 import { getConnectionStatus, disconnectInstagram, type ConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { SubscriptionSection } from "./SubscriptionSection"
+import { FEED_PATTERNS, computeSlotIntent, type FeedPatternId } from "@/lib/feed-pattern"
 
 // ═══════════════════════════════════════════════════════════
 // SETTINGS TAB
@@ -1102,6 +1103,39 @@ function AudienceSection({ config, setConfig }: { config: any; setConfig: (fn: a
 // 5. VISUAL IDENTITY
 // ═══════════════════════════════════════════════════════════
 
+/**
+ * 3×3 preview of a feed pattern. Cells come from the real slot math (not a hand-drawn
+ * mock-up), so the picker can never drift out of sync with what the engine actually does.
+ */
+function PatternMiniGrid({ patternId, accentColor }: { patternId: FeedPatternId; accentColor?: string }) {
+    const TOTAL = 9
+    // The grid reads newest-first, so cell 0 (top-left) is the NEWEST post: seq = TOTAL-1-pos.
+    const cells = Array.from({ length: TOTAL }, (_, pos) =>
+        computeSlotIntent(patternId, TOTAL - 1 - pos, TOTAL)?.visualMode ?? null
+    )
+    return (
+        <div className="grid grid-cols-3 gap-0.5">
+            {cells.map((mode, i) => {
+                if (mode === "typography") {
+                    return (
+                        <div key={i} className="aspect-square bg-white/[0.06] border border-white/10 flex items-center justify-center">
+                            <span className="text-[8px] font-black text-white/50">Aa</span>
+                        </div>
+                    )
+                }
+                if (mode === "graphic") {
+                    return (
+                        <div key={i} className="aspect-square border border-white/10"
+                            style={{ backgroundColor: accentColor || "#e5533f", opacity: 0.7 }} />
+                    )
+                }
+                // photo cell, and "none" (no pattern → every cell is just "a post")
+                return <div key={i} className="aspect-square bg-white/[0.12] border border-white/10" />
+            })}
+        </div>
+    )
+}
+
 function VisualSection({ config, updateField, handleLogoUpload, logoUploading, projectId, setConfig }: {
     config: any
     updateField: (p: string[], v: any) => void
@@ -1110,8 +1144,118 @@ function VisualSection({ config, updateField, handleLogoUpload, logoUploading, p
     projectId: string
     setConfig: (fn: any) => void
 }) {
+    // Feed-pattern recommendation, derived from the brand's REAL Instagram. The action is
+    // read-only: it only fills the picker, and the user saves it like any other field.
+    const [analyzing, setAnalyzing] = useState(false)
+    const [recommendation, setRecommendation] = useState<
+        { patternId: string; label: string; archetypes?: string[]; summary?: string } | null
+    >(null)
+    const [analyzeError, setAnalyzeError] = useState<string | null>(null)
+    const igHandle = String(config.instagram || "").replace(/^@+/, "").trim()
+
+    const handleAnalyzeFeed = async () => {
+        setAnalyzing(true)
+        setAnalyzeError(null)
+        setRecommendation(null)
+        try {
+            const res = await recommendFeedPattern(projectId)
+            if (!res.success || !res.patternId) {
+                setAnalyzeError(res.error || "Analýza selhala.")
+                return
+            }
+            setRecommendation({ patternId: res.patternId, label: res.label || res.patternId, archetypes: res.archetypes, summary: res.summary })
+            // Fill the picker; the user still reviews and hits Uložit.
+            updateField(["feedPattern"], res.patternId)
+        } finally {
+            setAnalyzing(false)
+        }
+    }
+
     return (
         <div className="space-y-6">
+            <SectionCard title="Vzor feedu" description="Jaký tvar má vytvářet mřížka profilu, když si někdo otevře váš Instagram">
+                {/* Suggest a pattern from the brand's real IG — the same vision pass onboarding runs */}
+                <div className="flex items-center justify-between gap-4 mb-4 p-3 rounded-sm border border-white/5 bg-[#0a0a0a]">
+                    <div className="min-w-0">
+                        <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest">Nevíte, který vzor?</p>
+                        <p className="text-[9px] text-white/25 mt-1 leading-relaxed">
+                            {igHandle
+                                ? <>AI se podívá na váš skutečný profil <span className="text-white/40">@{igHandle}</span> a doporučí vzor, který sedí k tomu, jak už vypadáte.</>
+                                : "Doplňte Instagram účet v Základních údajích a AI vám vzor doporučí podle vašeho skutečného profilu."}
+                        </p>
+                    </div>
+                    <button
+                        onClick={handleAnalyzeFeed}
+                        disabled={analyzing || !igHandle}
+                        className={`shrink-0 px-4 py-2.5 rounded-sm text-[10px] font-bold uppercase tracking-widest border transition-all ${analyzing || !igHandle
+                            ? "border-white/5 bg-white/5 text-white/25 cursor-not-allowed"
+                            : "border-white/20 bg-white/5 text-white/70 hover:text-white hover:border-white/40"}`}
+                    >
+                        {analyzing ? "⏳ Analyzuji feed…" : "🔍 Analyzovat můj feed"}
+                    </button>
+                </div>
+
+                {analyzeError && (
+                    <div className="mb-4 p-3 rounded-sm border border-red-400/20 bg-red-400/5">
+                        <p className="text-[10px] text-red-300/80 leading-relaxed">⚠️ {analyzeError}</p>
+                    </div>
+                )}
+
+                {recommendation && (
+                    <div className="mb-4 p-3 rounded-sm border border-emerald-400/20 bg-emerald-400/5">
+                        <p className="text-[10px] text-emerald-300/90 font-bold uppercase tracking-widest">
+                            ✓ Doporučeno: {recommendation.label}
+                        </p>
+                        {recommendation.summary && (
+                            <p className="text-[9px] text-white/40 mt-1.5 leading-relaxed">{recommendation.summary}</p>
+                        )}
+                        {!!recommendation.archetypes?.length && (
+                            <p className="text-[9px] text-white/25 mt-1.5 leading-relaxed">
+                                Váš feed dnes staví na: {recommendation.archetypes.join(", ")}
+                            </p>
+                        )}
+                        {recommendation.patternId === "none" && (
+                            <p className="text-[9px] text-white/40 mt-1.5 leading-relaxed">
+                                Z vašeho feedu se zatím nedá vyčíst dost na doporučení — vyberte vzor ručně, změnu uvidíte hned v Náhledu feedu.
+                            </p>
+                        )}
+                        <p className="text-[8px] text-white/25 mt-2 uppercase tracking-widest font-bold">
+                            Vybráno níže — nezapomeňte uložit
+                        </p>
+                    </div>
+                )}
+
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {FEED_PATTERNS.map(p => {
+                        const active = (config.feedPattern || "none") === p.id
+                        return (
+                            <button
+                                key={p.id}
+                                onClick={() => updateField(["feedPattern"], p.id)}
+                                className={`text-left p-3 rounded-sm border transition-all ${active
+                                    ? "border-aisummit-cinnabar/50 bg-aisummit-cinnabar/10"
+                                    : "border-white/5 bg-[#0a0a0a] hover:border-white/20"}`}
+                            >
+                                <PatternMiniGrid patternId={p.id} accentColor={config.feedAesthetic?.accentColor} />
+                                <p className={`mt-2 text-[10px] font-bold uppercase tracking-widest ${active ? "text-aisummit-cinnabar" : "text-white/60"}`}>
+                                    {p.label}
+                                </p>
+                                <p className="text-[9px] text-white/30 mt-1 leading-relaxed">{p.description}</p>
+                                {p.gridAligned && (
+                                    <p className="text-[8px] text-white/20 mt-1.5 uppercase tracking-widest font-bold">
+                                        ⚠ Publikujte po řádcích (3)
+                                    </p>
+                                )}
+                            </button>
+                        )
+                    })}
+                </div>
+                <p className="text-[9px] text-white/25 mt-3 leading-relaxed">
+                    Vzor určuje jen <strong className="text-white/40">rodinu</strong> layoutu pro každou pozici v mřížce — uvnitř ní se posty
+                    pořád liší kompozicí, výřezem i typografií. Nastavení platí pro všechny nové posty (kampaň i jednotlivé).
+                </p>
+            </SectionCard>
+
             <SectionCard title="Vizuální styl" description="Jak AI Designer renderuje obrázky postů (typografie, logo, video)">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
