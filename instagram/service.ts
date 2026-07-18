@@ -336,6 +336,9 @@ export async function logGeneration(log: {
     finalScore?: number;
     /** Angle the copywriter committed to before writing (1 Czech sentence) */
     angle?: string;
+    /** Format slug (ig_post_types.name) — lets the critic-feedback loop filter history
+     *  per format instead of mixing scores across unrelated post types */
+    postType?: string;
 }): Promise<void> {
     await supabaseAdmin
         .from("ig_generation_log")
@@ -355,6 +358,7 @@ export async function logGeneration(log: {
             editorial_rounds: log.editorialRounds,
             final_score: log.finalScore,
             angle: log.angle,
+            post_type: log.postType,
         });
 }
 
@@ -423,25 +427,27 @@ export async function scoreConsistencyAndEmbed(postId: string, clientId: string,
  * Called when metrics are entered for published posts.
  * This is the key feedback loop: Metrics → Ideas/Reviews → Future selection.
  */
-export async function propagateMetricsToSources(explicitClientId?: string): Promise<{ ideasUpdated: number; reviewsUpdated: number }> {
+export async function propagateMetricsToSources(explicitClientId?: string): Promise<{ ideasUpdated: number; reviewsUpdated: number; typesUpdated: number }> {
     const clientId = explicitClientId || getActiveProject()
 
-    // Get posts that have metrics AND linked ideas/reviews
+    // Get posts that have metrics AND linked ideas/reviews/types
     const { data: posts } = await supabaseAdmin
         .from("ig_posts")
-        .select("id, idea_id, review_id, likes, comments, saves, reach, shares, link_clicks")
+        .select("id, idea_id, review_id, post_type_id, likes, comments, saves, reach, shares, link_clicks")
         .eq("client_id", clientId)
         .eq("status", "posted")
         .not("likes", "is", null)
 
-    if (!posts || posts.length === 0) return { ideasUpdated: 0, reviewsUpdated: 0 }
+    if (!posts || posts.length === 0) return { ideasUpdated: 0, reviewsUpdated: 0, typesUpdated: 0 }
 
     let ideasUpdated = 0
     let reviewsUpdated = 0
+    let typesUpdated = 0
 
-    // Group metrics by idea_id
+    // Group metrics by idea_id / review_id / post_type_id
     const ideaMetrics: Record<string, number[]> = {}
     const reviewMetrics: Record<string, number[]> = {}
+    const typeMetrics: Record<string, number[]> = {}
 
     for (const post of posts) {
         const engagement = (post.likes || 0) + (post.comments || 0) * 3 + (post.saves || 0) * 5
@@ -452,6 +458,10 @@ export async function propagateMetricsToSources(explicitClientId?: string): Prom
         if (post.review_id) {
             if (!reviewMetrics[post.review_id]) reviewMetrics[post.review_id] = []
             reviewMetrics[post.review_id].push(engagement)
+        }
+        if (post.post_type_id) {
+            if (!typeMetrics[post.post_type_id]) typeMetrics[post.post_type_id] = []
+            typeMetrics[post.post_type_id].push(engagement)
         }
     }
 
@@ -481,7 +491,21 @@ export async function propagateMetricsToSources(explicitClientId?: string): Prom
         reviewsUpdated++
     }
 
-    return { ideasUpdated, reviewsUpdated }
+    // Update FORMAT performance scores (ig_post_types) — closes the loop the hard rule
+    // demands for every content source; feeds autopilot's weighted type selection.
+    for (const [typeId, scores] of Object.entries(typeMetrics)) {
+        const avgScore = scores.reduce((s, v) => s + v, 0) / scores.length
+        await supabaseAdmin
+            .from("ig_post_types")
+            .update({
+                performance_score: avgScore,
+                times_used_with_metrics: scores.length,
+            })
+            .eq("id", typeId)
+        typesUpdated++
+    }
+
+    return { ideasUpdated, reviewsUpdated, typesUpdated }
 }
 
 /**

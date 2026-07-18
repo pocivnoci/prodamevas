@@ -7,7 +7,7 @@ import { Type } from "@google/genai"
 import { generateTextQuality } from "./gemini-client"
 import { judgeText } from "./judge"
 import { getModel, hasFallback, getTemperature } from "./models"
-import type { ClientConfig, PostFormat, AudiencePersona, BrandVoiceExample } from "./configs/types"
+import type { ClientConfig, PostFormat, PostTypeDef, AudiencePersona, BrandVoiceExample } from "./configs/types"
 import type { PostType, PostIdea, Review } from "./types"
 import type { HookTemplate } from "./types"
 import type { PerformanceInsight } from "./performance"
@@ -55,6 +55,13 @@ export function getPostFormat(config: ClientConfig, typeName: string): PostForma
     // 3. Client default format
     if (config?.defaultFormat) return config.defaultFormat
     return DEFAULT_FORMAT
+}
+
+/** The format's creative brief from config — the SOURCE OF TRUTH for description/
+ *  structure/visualStyle. The `ig_post_types` DB row is a UI-picker copy that can
+ *  drift; generation must prefer the config def and fall back to the row. */
+export function getPostTypeDef(config: ClientConfig, typeName: string): PostTypeDef | undefined {
+    return (config?.postTypeDefs ?? []).find(d => d.name === typeName)
 }
 
 // ─── Smart Overlay Rotation ─────────────────────────────────
@@ -479,13 +486,36 @@ export function buildSmartWeekPlan(config: ClientConfig, performance: Performanc
     // Manual-only formats (giveaways, contests) are user-triggered only — never planned.
     const manualOnlyNames = new Set((config.postTypeDefs ?? []).filter(d => d.manualOnly).map(d => d.name))
 
+    // Per-FORMAT engagement (measured, name-keyed — see analyzePerformance.typePerformance).
+    // Within a pillar, proven formats earn more slots; unmeasured ones keep a fair chance
+    // (neutral 1.0), weak ones shrink but never disappear (min one slot in the rotation).
+    const typePerf = performance.typePerformance || {}
+    const clientAvg = performance.avgEngagement || 0
+    const typeWeight = (t: string): number => {
+        const p = typePerf[t]
+        if (!p || p.posts < 2 || clientAvg <= 0) return 1
+        return Math.min(1.6, Math.max(0.5, p.avgScore / clientAvg))
+    }
+
     const plan: string[] = []
     for (const [pillar, ratio] of Object.entries(ratios)) {
         const pillarCount = Math.max(1, Math.round(count * ratio))
         const types = (config.contentPillars[pillar]?.postTypes || []).filter(t => !manualOnlyNames.has(t))
         if (types.length === 0) continue
+        // Deterministic weighted rotation, interleaved: round-robin passes where a format
+        // stays in later passes only if its weight earns it (all-neutral ⇒ exactly the old
+        // round-robin, so cold start behaves identically).
+        const remaining = [...types]
+            .sort((a, b) => typeWeight(b) - typeWeight(a))
+            .map(t => ({ t, n: Math.max(1, Math.round(typeWeight(t) * 2)) }))
+        const rotation: string[] = []
+        while (remaining.some(r => r.n > 0)) {
+            for (const r of remaining) {
+                if (r.n > 0) { rotation.push(r.t); r.n-- }
+            }
+        }
         for (let i = 0; i < pillarCount && plan.length < count; i++) {
-            plan.push(types[i % types.length])
+            plan.push(rotation[i % rotation.length])
         }
     }
 
@@ -625,13 +655,17 @@ ${policy.productMention === "link"
 
 
     const postFormat = formatOverride || getPostFormat(config, postType.name)
+    // Config def = source of truth for the format's creative brief (description /
+    // structure / visualStyle); the DB row is a drift-prone copy kept for the picker.
+    const typeDef = getPostTypeDef(config, postType.name)
+    const formatDescription = typeDef?.description || postType.description
 
     return `
 ${bv.persona}
 
 ## TVŮJ ÚKOL
 Vytvoř kompletní Instagram post typu: **${postType.emoji || "📱"} ${postType.display_name}**
-${postType.description ? `(${postType.description})` : ""}
+${formatDescription ? `(${formatDescription})` : ""}
 
 Brand: ${config.name} | Web: ${config.website} | IG: ${config.instagram}
 
@@ -721,7 +755,10 @@ Video bude generováno AI (Veo 3.1) s nativním zvukem + český voiceover z nar
 - Camera movements musí být plynulé a profesionální
 - Poslední scéna MUSÍ obsahovat CTA${policy.allowWebsite ? ` s ${config.website}` : " — engagement výzvu (otázka / uložit / sdílet), BEZ webu"}
 
-### STRUKTURA SCÉN (${postFormat.reelDuration || 8}s video):
+${typeDef?.structure ? `### 🧩 STRUKTURA TOHOTO FORMÁTU (závazná — obsah scén řiď podle ní):
+${typeDef.structure}
+
+### ČASOVÁNÍ SCÉN (${postFormat.reelDuration || 8}s video — timing dodrž, obsah scén podle struktury výše):` : `### STRUKTURA SCÉN (${postFormat.reelDuration || 8}s video):`}
 ${(postFormat.reelDuration || 8) <= 5 ? `
 - Scene 1 (0-1.5s): HOOK — dramatický vizuál, narration = problém/otázka
 - Scene 2 (1.5-3.5s): VALUE — řešení/produkt v akci
@@ -766,31 +803,41 @@ ${config.videoFocus ? `### BRAND VIDEO STYLE:\n${config.videoFocus}\n` : ""}
   "hashtags": ["8-10", "relevantních", "hashtagů"]
 }
 ` : postFormat.medium === "carousel" ? `
-## 📸 CAROUSEL POST (4-6 slidů) — JEDEN TIP, KROK ZA KROKEM
+## 📸 CAROUSEL POST (4-6 slidů) — PŘÍBĚH, KTERÝ NUTÍ SWIPOVAT
 
-### STRUKTURA (POVINNÁ):
-1. **Slide 1 (COVER):** Bold hook headline
-2. **Slide 2-4 (KROKY):** Jednotlivé kroky/body
-3. **Poslední slide:** Shrnutí + CTA${policy.allowWebsite ? ` na ${config.website}` : " (engagement — BEZ webu)"}
-
-Použij 3 kroky pro jednoduchá témata, 4-5 kroků pro komplexnější témata. Celkem 4-6 slidů (cover + 3-5 kroků).
+${typeDef?.structure ? `### 🧩 STRUKTURA TOHOTO FORMÁTU (závazná — slidy přesně podle ní):
+${typeDef.structure}
+` : `### DRAMATURGIE (POVINNÁ):
+1. **Slide 1 (COVER):** otevřená smyčka — slib, otázka nebo napětí, které se vyřeší až UVNITŘ karuselu. Cover NIKDY neprozrazuje pointu.
+2. **Vnitřní slidy:** každý slide = přesně JEDNA myšlenka, která posouvá příběh dál. Slide bez nové myšlenky NEEXISTUJE — výplňový slide smaž.
+3. **Švy mezi slidy:** každý vnitřní slide končí důvodem swipnout dál (nedokončená pointa, mikro-napětí, "a teď to nejlepší").
+4. **Předposlední slide:** PAYOFF — splnění slibu z coveru. Tady je hodnota.
+5. **Poslední slide:** shrnutí jednou větou + CTA${policy.allowWebsite ? ` na ${config.website}` : " (engagement — BEZ webu)"}.
+`}
+### TEXT NA SLIDECH (tvrdá pravidla):
+- Slide je PLAKÁT, ne odstavec: headline max 6 slov, subtext max 12 slov. Detaily patří do caption.
+- Počet slidů podle obsahu (4-6 vč. coveru) — nikdy nenatahuj. Radši 4 silné než 6 vycpaných.
+- Slidy čte člověk za 2 sekundy — každé slovo si musí místo zasloužit.
 
 ## VÝSTUP — vrať POUZE validní JSON:
 {
   "angle": "1 věta — zvolený úhel a čím se liší od nedávných postů",
   "hook": "Cover headline (max 8 slov, česky). ŽÁDNÉ EMOJI.",
   "slides": [
-    { "headline": "Krok 1: ...", "subtext": "...", "imagePrompt": "English prompt..." },
-    { "headline": "Krok 2: ...", "subtext": "...", "imagePrompt": "English prompt..." },
-    { "headline": "Krok 3: ...", "subtext": "...", "imagePrompt": "English prompt..." }
-  ],  // můžeš přidat 4. a 5. krok pokud téma vyžaduje víc detailu
-  "body": "Hlavní caption (max 120 slov).",
+    { "headline": "max 6 slov...", "subtext": "max 12 slov...", "imagePrompt": "English prompt..." },
+    { "headline": "...", "subtext": "...", "imagePrompt": "English prompt..." },
+    { "headline": "...", "subtext": "...", "imagePrompt": "English prompt..." }
+  ],  // 3-5 vnitřních slidů podle toho, co obsah unese${typeDef?.structure ? " — drž strukturu formátu výše" : " — drž dramaturgii výše"}
+  "body": "Hlavní caption (max 120 slov) — sem patří detail, který se nevešel na slidy.",
   "cta": "${policy.allowWebsite ? `CTA směřující na ${config.website}` : "engagement CTA — BEZ webu a BEZ URL"}",
   "hashtags": ["8-10", "hashtagů"],
   "imagePrompt": "English prompt for COVER slide background.",
   "visualTheme": "Shared visual theme for ALL slides."
 }
 ` : `
+${typeDef?.structure ? `## 🧩 STRUKTURA TOHOTO FORMÁTU (závazná — caption stavěj přesně podle ní):
+${typeDef.structure}
+` : ""}
 ## 🎨 OBRÁZEK
 
 ### Layout (kromě meme):
@@ -802,8 +849,9 @@ Použij 3 kroky pro jednoduchá témata, 4-5 kroků pro komplexnější témata.
 
 ### Typ-specifické foto:
 ${(() => {
+            // Format visualStyle (config def) wins; imageInstructions is the legacy per-type fallback.
             const instructions = config.imageInstructions || {}
-            const typeInstr = instructions[postType.name] || instructions._default || "STANDARD: Pozadí: relevantní lifestyle fotka."
+            const typeInstr = typeDef?.visualStyle || instructions[postType.name] || instructions._default || "STANDARD: Pozadí: relevantní lifestyle fotka."
             return `**${postType.name.toUpperCase()}:**\n${typeInstr}`
         })()}
 

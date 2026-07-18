@@ -20,7 +20,7 @@ import {
 } from "../image-pipeline"
 import { loadLogo } from "../logo-loader"
 import { loadReferenceImages, loadUserPhoto } from "./image-orchestrator"
-import { COSTS } from "../caption-generator"
+import { COSTS, getPostTypeDef } from "../caption-generator"
 import { getModel } from "../models"
 import { withRetry } from "../../utils/retry"
 import type { RenderContext, RenderResult } from "./types"
@@ -80,12 +80,14 @@ async function renderCarouselNative(ctx: RenderContext): Promise<RenderResult | 
     const userPhotoInfo = userPhotoRef ? { description: ctx.userPhotoDescription } : undefined
 
     await report("art_director", 52, "🎨 AI Designer navrhuje design systém carouselu...")
+    const typeDef = getPostTypeDef(config, selectedType.name)
     const { designSystem, briefs } = await generateCarouselDesignBriefs({
         config,
         clientId: ctx.clientUuid,
         allSlides,
         visualTheme: captionData.visualTheme || "",
         postType: selectedType.name,
+        formatBrief: typeDef ? { description: typeDef.description, visualStyle: typeDef.visualStyle } : undefined,
         recentBriefs: ctx.recentBriefs ?? [],
         bannedArchetypes: ctx.recentArchetypes ?? [],
         slotIntent: ctx.slotIntent,

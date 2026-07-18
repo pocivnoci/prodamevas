@@ -18,7 +18,7 @@ import {
     qaScore,
 } from "../image-pipeline"
 import { loadLogo } from "../logo-loader"
-import { COSTS } from "../caption-generator"
+import { COSTS, getPostTypeDef } from "../caption-generator"
 import { getModel } from "../models"
 import type { RenderContext, RenderResult } from "./types"
 
@@ -109,6 +109,7 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
 
     await report("art_director", 55, "🎨 AI Designer navrhuje kompozici...")
     console.log("🎨 AI Designer — generuji design brief...")
+    const typeDef = getPostTypeDef(config, selectedType.name)
     const brief = await generateDesignBrief({
         config,
         clientId: ctx.clientUuid,
@@ -120,6 +121,7 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
             accentWords: captionData.accentWords,
         },
         postType: selectedType.name,
+        formatBrief: typeDef ? { description: typeDef.description, visualStyle: typeDef.visualStyle } : undefined,
         recentBriefs: ctx.recentBriefs ?? [],
         bannedArchetypes: ctx.recentArchetypes ?? [],
         slotIntent: ctx.slotIntent,

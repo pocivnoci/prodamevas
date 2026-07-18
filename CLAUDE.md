@@ -63,8 +63,9 @@ Content-plan batches do **not** loop in the browser (that loop died with the tab
 
 ### Feedback loops (sacred — don't break them)
 
-- Post metrics → `propagateMetricsToSources()` updates `performance_score` on `ig_post_ideas` / `ig_reviews` → weighted selection on next generation. Any new content source needs a `performance_score` + weighted-selection function.
-- Critic scores in `ig_generation_log` are injected back into prompts (last 5).
+- Post metrics → `propagateMetricsToSources()` updates `performance_score` on `ig_post_ideas` / `ig_reviews` / `ig_post_types` → weighted selection on next generation (autopilot type pick ×[0.5,1.6] vs measured avg; `buildSmartWeekPlan` weighted rotation within a pillar). Any new content source needs a `performance_score` + weighted-selection function.
+- Critic scores in `ig_generation_log` are injected back into prompts (last 5) — filtered by `post_type` first, client-wide as cold-start fallback.
+- Formats are creative briefs: `PostTypeDef.description/structure/visualStyle` reach the copywriter (structure replaces the generic medium skeleton), and BOTH designers via `formatBrief` — config def is the source of truth (`getPostTypeDef`), the `ig_post_types` row is a picker copy.
 - `memory-agent.ts` learns patterns into `ig_brand_memory` (pattern/preference/avoid/visual); `updateIGPostMetrics()` auto-triggers propagation + learning (fire & forget).
 
 ## Hard rules

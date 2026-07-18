@@ -130,10 +130,10 @@ export interface PostFormat {
 }
 
 /** A brand-specific post format generated at onboarding. Richer than a bare
- *  `postTypes` name: carries the display name + a description (shown in the
- *  Generate-tab picker and fed to the copywriter) so formats are meaningful
- *  per-brand, not the generic "carousel/meme/challenge" set. Persisted to
- *  `ig_post_types` via ensurePostTypes(). */
+ *  `postTypes` name: a creative BRIEF — description (copywriter), structure
+ *  (content skeleton: carousel slide outline / reel scenes / caption arc) and
+ *  visualStyle (AI Designer grounding). The engine reads the def from config
+ *  (source of truth); `ig_post_types` rows carry a copy for the UI picker. */
 export interface PostTypeDef {
     /** snake_case slug, no diacritics — the pipeline key (config.postTypes, ig_post_types.name) */
     name: string
@@ -141,6 +141,13 @@ export interface PostTypeDef {
     emoji: string
     /** Brand-specific: what the post shows + why it works for this brand */
     description: string
+    /** Content skeleton the copywriter must follow — for carousels a slide-by-slide
+     *  outline ("Slide 1: podmínky, Slide 2: výhra…"), for reels a scene arc, for
+     *  images a caption arc. Empty = the medium's generic skeleton applies. */
+    structure?: string
+    /** How posts of this format should LOOK (composition, mood, props) — injected
+     *  into the AI Designer brief alongside the brand kit. */
+    visualStyle?: string
     /** Content pillar key this format belongs to */
     pillar: string
     medium: PostMedium

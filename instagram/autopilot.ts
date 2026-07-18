@@ -276,19 +276,35 @@ export async function generateOnePost(options: {
             // Non-fatal — continue with base weights
         }
 
+        // Measured per-format engagement (propagateMetricsToSources → ig_post_types.
+        // performance_score). Bounded ×[0.5, 1.6] vs the measured average, and only once
+        // ≥2 formats have real data — one lucky format must not monopolize a cold start.
+        const measured = selectableTypes.filter(t => t.performance_score != null && (t.times_used_with_metrics ?? 0) >= 2)
+        const measuredAvg = measured.length >= 2
+            ? measured.reduce((s, t) => s + t.performance_score, 0) / measured.length
+            : 0
+        const perfFactor = (type: PostType): number => {
+            if (measuredAvg <= 0 || type.performance_score == null || (type.times_used_with_metrics ?? 0) < 2) return 1
+            return Math.min(1.6, Math.max(0.5, type.performance_score / measuredAvg))
+        }
+
         // Holiday/seasonal signal → bounded ×1.3 bias toward product/promo formats
         // (same name-pattern approach as review-type detection). Deterministic, small.
         const HOLIDAY_BIAS_PATTERN = /product|produkt|drop|limitka|nabidka|promo|akce/i
         const weighted = selectableTypes.flatMap(type => {
             const baseWeight = type.frequency === "daily" ? 3 : type.frequency === "weekly" ? 2 : 1
             const boost = postTypeBoosts[type.name] || 0
-            let finalWeight = Math.max(1, Math.round(baseWeight * (1 + boost)))
+            let finalWeight = Math.max(1, Math.round(baseWeight * (1 + boost) * perfFactor(type)))
             if (hasHoliday && HOLIDAY_BIAS_PATTERN.test(type.name)) {
                 finalWeight = Math.max(1, Math.round(finalWeight * 1.3))
             }
             return Array(finalWeight).fill(type)
         })
         selectedType = weighted[Math.floor(Math.random() * weighted.length)]
+        if (measuredAvg > 0) {
+            const shifts = selectableTypes.map(t => `${t.name}=${perfFactor(t).toFixed(2)}`).filter(s => !s.endsWith("=1.00"))
+            if (shifts.length > 0) console.log(`   📊 Format performance weights: ${shifts.join(", ")}`)
+        }
         if (hasHoliday) console.log("   📅 Svátek v kontextu — produktové/promo typy dostaly ×1.3 váhu")
     }
     console.log(`   ✓ ${selectedType.emoji} ${selectedType.display_name}`)
@@ -644,15 +660,30 @@ Uživatel nahrál vlastní fotku, která bude vizuálním základem příspěvku
         // Non-fatal — continue without memories
     }
 
-    // Inject critic score feedback from recent generation logs
+    // Inject critic score feedback from recent generation logs — same-FORMAT history first
+    // (a carousel's "fix" notes are noise for a meme), client-wide as cold-start fallback
+    // (post_type only exists on rows written after the format-feedback migration).
     try {
-        const { data: recentLogs } = await supabaseAdmin
+        let { data: recentLogs } = await supabaseAdmin
             .from("ig_generation_log")
             .select("critic_score, critic_keep, critic_fix")
             .eq("client_id", clientUuid)
+            .eq("post_type", selectedType.name)
             .not("critic_score", "is", null)
             .order("created_at", { ascending: false })
             .limit(5)
+        let scopeLabel = `formátu ${selectedType.display_name}`
+
+        if (!recentLogs || recentLogs.length < 2) {
+            ({ data: recentLogs } = await supabaseAdmin
+                .from("ig_generation_log")
+                .select("critic_score, critic_keep, critic_fix")
+                .eq("client_id", clientUuid)
+                .not("critic_score", "is", null)
+                .order("created_at", { ascending: false })
+                .limit(5))
+            scopeLabel = "všech postů"
+        }
 
         if (recentLogs && recentLogs.length >= 2) {
             const avgScore = recentLogs.reduce((s, l) => s + (l.critic_score || 0), 0) / recentLogs.length
@@ -663,14 +694,14 @@ Uživatel nahrál vlastní fotku, která bude vizuálním základem příspěvku
             const fixUnique = [...new Set(allFix)].slice(0, 5)
 
             if (keepUnique.length > 0 || fixUnique.length > 0) {
-                megaPrompt += `\n\n## 📋 ZPĚTNÁ VAZBA Z PŘEDCHOZÍCH POSTŮ (Critic Score)\nPrůměrné skóre posledních ${recentLogs.length} postů: **${avgScore.toFixed(1)}/10**\n`
+                megaPrompt += `\n\n## 📋 ZPĚTNÁ VAZBA Z PŘEDCHOZÍCH POSTŮ (Critic Score)\nPrůměrné skóre posledních ${recentLogs.length} postů ${scopeLabel}: **${avgScore.toFixed(1)}/10**\n`
                 if (keepUnique.length > 0) {
                     megaPrompt += `\n**Co funguje (zachovej):** ${keepUnique.join(", ")}`
                 }
                 if (fixUnique.length > 0) {
                     megaPrompt += `\n**Co zlepšit (oprav):** ${fixUnique.join(", ")}`
                 }
-                console.log(`   📋 Critic feedback: avg ${avgScore.toFixed(1)}/10 (${keepUnique.length} keep, ${fixUnique.length} fix)`)
+                console.log(`   📋 Critic feedback (${scopeLabel}): avg ${avgScore.toFixed(1)}/10 (${keepUnique.length} keep, ${fixUnique.length} fix)`)
             }
         }
     } catch {
@@ -1053,6 +1084,7 @@ ${feedSummary}
             editorialRounds: editorialRoundsUsed,
             finalScore: finalScore || score,
             angle: captionData.angle,
+            postType: selectedType.name,
         })
 
         // Close the loop: persist recurring critic "fix" notes into brand memory so they

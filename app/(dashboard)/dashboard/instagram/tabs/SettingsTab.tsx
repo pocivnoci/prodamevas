@@ -851,6 +851,8 @@ function FormatsSection({ config, projectId, onReload }: { config: any; projectI
         display_name: def.display_name || "",
         emoji: def.emoji || "📝",
         description: def.description || "",
+        structure: def.structure || "",
+        visualStyle: def.visualStyle || "",
         pillar: def.pillar || pillarKeys[0] || "",
         medium: def.medium || "image",
         aspectRatio: def.aspectRatio || "4:5",
@@ -896,9 +898,19 @@ function FormatsSection({ config, projectId, onReload }: { config: any; projectI
                 </div>
             </div>
             <div>
-                <FieldLabel hint="CO post ukazuje a JAK má vypadat — AI se tím řídí při psaní i vizuálu">Popis (pro AI)</FieldLabel>
+                <FieldLabel hint="CO post ukazuje a PROČ funguje pro vaši značku — čte to AI copywriter">Popis (pro AI)</FieldLabel>
                 <textarea value={value.description} onChange={e => onChange({ description: e.target.value })}
                     rows={3} placeholder="Soutěžní post: 1) dej like, 2) sleduj náš profil, 3) označ kámoše v komentáři — výherce získá produkt zdarma..." className={textareaClass} />
+            </div>
+            <div>
+                <FieldLabel hint="Kostra obsahu — u karuselu osnova slidů, u reelu scény, u obrázku stavba textu. Prázdné = obecná šablona média">Struktura obsahu (volitelné)</FieldLabel>
+                <textarea value={value.structure || ""} onChange={e => onChange({ structure: e.target.value })}
+                    rows={3} placeholder="Slide 1 (COVER): otázka o výhře · Slide 2: podmínky soutěže · Slide 3: co vyhrajete · Slide 4: deadline + CTA" className={textareaClass} />
+            </div>
+            <div>
+                <FieldLabel hint="Jak mají posty vypadat — kompozice, nálada, rekvizity. Řídí se tím AI designer při návrhu vizuálu">Vizuální styl (volitelné)</FieldLabel>
+                <textarea value={value.visualStyle || ""} onChange={e => onChange({ visualStyle: e.target.value })}
+                    rows={2} placeholder="Produkt na výrazném barevném pozadí, konfety, velká čísla, energická nálada..." className={textareaClass} />
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div>

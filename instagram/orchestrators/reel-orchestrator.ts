@@ -9,7 +9,7 @@ import supabaseAdmin from "../../supabase/admin"
 import { generateImage, generateVideo, generateVoiceover } from "../gemini-client"
 import { refineVideoPrompt } from "../image-pipeline"
 import { processReelVideo, scenesToSubtitles } from "../video-processor"
-import { COSTS, getReelDuration } from "../caption-generator"
+import { COSTS, getPostTypeDef, getReelDuration } from "../caption-generator"
 import type { RenderContext, RenderResult } from "./types"
 
 export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
@@ -232,6 +232,7 @@ async function renderNativeReelCover(ctx: RenderContext, coverScene: string): Pr
     const { loadLogo } = await import("../logo-loader")
 
     console.log("🎨 AI Designer — native reel cover...")
+    const typeDef = getPostTypeDef(config, selectedType.name)
     const brief = await generateDesignBrief({
         config,
         clientId: ctx.clientUuid,
@@ -240,6 +241,7 @@ async function renderNativeReelCover(ctx: RenderContext, coverScene: string): Pr
             imagePrompt: coverScene,
         },
         postType: selectedType.name,
+        formatBrief: typeDef ? { description: typeDef.description, visualStyle: typeDef.visualStyle } : undefined,
         recentBriefs: ctx.recentBriefs ?? [],
         bannedArchetypes: ctx.recentArchetypes ?? [],
     })

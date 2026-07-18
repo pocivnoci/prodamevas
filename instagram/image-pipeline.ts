@@ -282,8 +282,11 @@ export async function generateDesignBrief(params: {
     /** This post's slot in the feed pattern — narrows the archetype set to the slot's family
      *  (see lib/feed-pattern.ts). Absent (or pattern "none") = full creative freedom. */
     slotIntent?: SlotIntent
+    /** The format's creative brief (config.postTypeDefs) — what this post type IS and how
+     *  it should LOOK. Without it the designer only ever saw the bare slug. */
+    formatBrief?: { description?: string; visualStyle?: string }
 }): Promise<DesignBrief> {
-    const { config, clientId, captionData, postType, recentBriefs, slotIntent } = params
+    const { config, clientId, captionData, postType, recentBriefs, slotIntent, formatBrief } = params
     const banned = (params.bannedArchetypes ?? []).filter(a => (LAYOUT_ARCHETYPES as readonly string[]).includes(a))
     // The feed pattern picks the FAMILY of layouts; the rotation ban still keeps this post off
     // the archetypes its neighbours just used, but only WITHIN that family. If the ban would
@@ -317,7 +320,8 @@ ${config.characterDescription ? `- Brand character: ${config.characterDescriptio
 ${memSection}
 
 ## THIS POST:
-- Post type: ${postType}
+- Post type: ${postType}${formatBrief?.description ? ` — ${formatBrief.description}` : ""}
+${formatBrief?.visualStyle ? `- Format visual style (the brand defined how this post type should LOOK — follow it): ${formatBrief.visualStyle}` : ""}
 - Headline (Czech, render EXACTLY as written): "${captionData.hook}"
 ${captionData.imageSubtext ? `- Subtext (Czech, render EXACTLY as written): "${captionData.imageSubtext}"` : ""}
 ${captionData.accentWords?.length ? `- Accent words (highlight these within the headline): ${captionData.accentWords.join(", ")}` : ""}
@@ -471,8 +475,10 @@ export async function generateCarouselDesignBriefs(params: {
     userPhoto?: UserPhotoBriefInfo
     /** Feed-pattern slot for the COVER — the cover is the cell that shows up in the grid. */
     slotIntent?: SlotIntent
+    /** The format's creative brief (config.postTypeDefs) — see generateDesignBrief. */
+    formatBrief?: { description?: string; visualStyle?: string }
 }): Promise<{ designSystem: string; briefs: DesignBrief[] }> {
-    const { config, clientId, allSlides, visualTheme, postType, recentBriefs, slotIntent } = params
+    const { config, clientId, allSlides, visualTheme, postType, recentBriefs, slotIntent, formatBrief } = params
     const banned = (params.bannedArchetypes ?? []).filter(a => (LAYOUT_ARCHETYPES as readonly string[]).includes(a))
     // Same family/ban resolution as the single-image designer (see generateDesignBrief). One
     // archetype covers the whole carousel, and it's the cover that lands in the profile grid.
@@ -501,7 +507,8 @@ ${memSection}
 
 ## CAROUSEL:
 Visual theme: "${visualTheme}"
-Post type: ${postType}
+Post type: ${postType}${formatBrief?.description ? ` — ${formatBrief.description}` : ""}
+${formatBrief?.visualStyle ? `Format visual style (the brand defined how this post type should LOOK — follow it): ${formatBrief.visualStyle}` : ""}
 ${slideSummary}
 ${buildProductSection(params.product)}${buildUserPhotoSection(params.userPhoto, "cover")}
 

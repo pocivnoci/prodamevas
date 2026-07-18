@@ -95,6 +95,11 @@ export interface PostFormatInput {
     display_name: string
     emoji: string
     description: string
+    /** Content skeleton (carousel slide outline / reel scenes / caption arc) — binds the
+     *  copywriter's structure for this format. Empty = generic medium skeleton. */
+    structure?: string
+    /** How posts of this format should LOOK — grounds the AI Designer brief. */
+    visualStyle?: string
     /** Content pillar key (must exist in config.contentPillars) */
     pillar: string
     medium: "image" | "carousel" | "reel"
@@ -167,7 +172,9 @@ Vrať POUZE JSON objekt (bez markdownu):
 {
   "display_name": "krátký název formátu, česky",
   "emoji": "1 emoji vystihující formát",
-  "description": "2-3 věty česky: CO post ukazuje, JAK má vypadat a co má obsahovat — podle tohohle se AI řídí při psaní textu i vizuálu. U soutěže/giveaway napiš KONKRÉTNÍ mechaniku (dej like, sleduj profil, označ kámoše, co je výhra).",
+  "description": "2-3 věty česky: CO post ukazuje a PROČ funguje pro tuhle značku. U soutěže/giveaway napiš KONKRÉTNÍ mechaniku (dej like, sleduj profil, označ kámoše, co je výhra).",
+  "structure": "kostra obsahu, česky. Pro carousel: osnova slide po slidu (Slide 1 COVER: ..., Slide 2: ..., poslední slide: CTA). Pro reel: osnova scén. Pro obrázek: stavba caption (hook → ... → CTA).",
+  "visual_style": "1-2 věty česky: jak mají posty tohohle formátu VYPADAT — kompozice, nálada, rekvizity, práce s textem. Řídí se tím AI designer.",
   "pillar": "přesně jeden z povolených klíčů pilířů výše",
   "medium": "image | carousel | reel",
   "aspectRatio": "1:1 | 4:5 | 3:4 | 9:16",
@@ -211,6 +218,8 @@ Pravidla: konkrétní pro tuhle značku, ne generické. "uses_product" = true je
             display_name: String(parsed.display_name).slice(0, 60),
             emoji: parsed.emoji || "🎁",
             description: String(parsed.description).slice(0, 400),
+            structure: parsed.structure ? String(parsed.structure).slice(0, 600) : undefined,
+            visualStyle: parsed.visual_style ? String(parsed.visual_style).slice(0, 400) : undefined,
             pillar: pillarKeys.includes(parsed.pillar) ? parsed.pillar : pillarKeys[0],
             medium,
             aspectRatio,
@@ -259,6 +268,8 @@ export async function upsertPostFormat(
             display_name: input.display_name.trim().slice(0, 60),
             emoji: input.emoji || "📝",
             description: input.description.trim().slice(0, 400),
+            structure: input.structure?.trim() ? input.structure.trim().slice(0, 600) : undefined,
+            visualStyle: input.visualStyle?.trim() ? input.visualStyle.trim().slice(0, 400) : undefined,
             pillar: input.pillar,
             medium: input.medium,
             aspectRatio,

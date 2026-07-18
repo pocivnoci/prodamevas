@@ -19,6 +19,10 @@ export interface PerformanceInsight {
     avgEngagement: number
     topPatterns: string[]
     pillarPerformance?: Record<string, PillarPerformance>
+    /** Measured engagement per FORMAT, keyed by ig_post_types.name (bestPostTypes are
+     *  uuids — unusable against config format names, which is why nothing ever consumed
+     *  them). Feeds the weighted format rotation in buildSmartWeekPlan. */
+    typePerformance?: Record<string, { avgScore: number; posts: number }>
     conversionRate: number
     bestConvertingTypes: string[]
 }
@@ -180,6 +184,11 @@ export async function analyzePerformance(
         pillarPerformance: Object.fromEntries(
             Object.keys(pillarData).map(k => [k, buildPillarPerf(pillarData[k])])
         ) as Record<string, PillarPerformance>,
+        typePerformance: Object.fromEntries(
+            typeAvgs
+                .filter(t => postTypeNameMap[t.id])
+                .map(t => [postTypeNameMap[t.id], { avgScore: t.avg, posts: typeScores[t.id].length }])
+        ),
         conversionRate,
         bestConvertingTypes,
     }
