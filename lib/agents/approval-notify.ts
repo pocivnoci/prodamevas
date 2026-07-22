@@ -9,7 +9,7 @@
 import supabaseAdmin from "@/supabase/admin"
 import { getFounderEmail, sendEmail } from "@/lib/email"
 import { approvalLinkUrl } from "@/lib/agent-approval-link"
-import { siteUrl } from "@/lib/notifications"
+import { escapeHtml, siteUrl } from "@/lib/notifications"
 
 const RISK_LABELS: Record<string, string> = {
     outbound: "Odchozí (zákazník)",
@@ -36,9 +36,7 @@ async function clientLabel(clientId: string | null | undefined): Promise<string>
     }
 }
 
-function esc(s: string): string {
-    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-}
+const esc = escapeHtml
 
 /** Buttons + detail block for one pending action — also reused by digest e-mails. */
 export function renderApprovalItem(input: ApprovalNotifyInput, label: string): string {

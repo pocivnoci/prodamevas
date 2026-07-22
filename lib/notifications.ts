@@ -144,7 +144,7 @@ export async function getCampaignPosts(campaignId: string, clientId: string): Pr
 const DIGEST_MAX_CARDS = 15       // keep the HTML safely under Gmail's ~102KB clip limit
 const DIGEST_CAPTION_CHARS = 300
 
-function escapeHtml(s: string): string {
+export function escapeHtml(s: string): string {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
 }
 

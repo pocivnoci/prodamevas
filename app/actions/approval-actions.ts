@@ -1,7 +1,7 @@
 "use server"
 
 import supabaseAdmin from "@/supabase/admin"
-import { requireAuth, requireSuperAdmin } from "@/lib/auth-guard"
+import { requireSuperAdmin } from "@/lib/auth-guard"
 
 /**
  * Server actions for the dashboard "Schválení" (Approvals) tab — the human side
@@ -49,15 +49,13 @@ export async function getPendingApprovals(): Promise<PendingApprovalDTO[]> {
 }
 
 export async function approveAgentAction(actionId: string): Promise<{ ok: boolean; error?: string }> {
-    const { email } = await requireAuth()
-    await requireSuperAdmin()
+    const { email } = await requireSuperAdmin()
     const { approveAction } = await import("@/lib/agent-safety")
     return approveAction(actionId, email)
 }
 
 export async function rejectAgentAction(actionId: string): Promise<{ ok: boolean; error?: string }> {
-    const { email } = await requireAuth()
-    await requireSuperAdmin()
+    const { email } = await requireSuperAdmin()
     const { rejectAction } = await import("@/lib/agent-safety")
     return rejectAction(actionId, email)
 }

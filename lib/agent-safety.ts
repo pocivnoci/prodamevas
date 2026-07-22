@@ -149,15 +149,24 @@ export async function listPendingApprovals(clientId?: string): Promise<PendingAc
 
 /** Approve a pending action → dispatch its task. Returns false if not pending. */
 export async function approveAction(actionId: string, actor: string): Promise<{ ok: boolean; taskId?: string; error?: string }> {
-    const { data: action } = await supabaseAdmin
+    // Atomic claim: flip proposed→approved in a single guarded UPDATE (mirrors
+    // rejectAction). A read-then-write would let two concurrent approvals — the
+    // dashboard button and the e-mail one-click link firing at once — both pass a
+    // status check and both dispatch, double-charging / double-e-mailing the customer.
+    const { data: action, error } = await supabaseAdmin
         .from("agent_actions")
-        .select("id, status, agent_type, action, risk_tier, task_type, payload, client_id")
+        .update({ status: "approved", actor })
         .eq("id", actionId)
-        .single()
-    if (!action) return { ok: false, error: "Akce nenalezena." }
-    if (action.status !== "proposed") return { ok: false, error: `Akci nelze schválit (stav: ${action.status}).` }
+        .eq("status", "proposed")
+        .select("id, agent_type, action, risk_tier, task_type, payload, client_id")
+        .maybeSingle()
+    if (error) return { ok: false, error: error.message }
+    if (!action) {
+        // Claim matched nothing: either the action is gone or no longer proposed.
+        const { data: existing } = await supabaseAdmin.from("agent_actions").select("status").eq("id", actionId).maybeSingle()
+        return { ok: false, error: existing ? `Akci nelze schválit (stav: ${existing.status}).` : "Akce nenalezena." }
+    }
 
-    await supabaseAdmin.from("agent_actions").update({ status: "approved", actor }).eq("id", actionId)
     const taskId = await dispatch(actionId, {
         clientId: action.client_id,
         agentType: action.agent_type,

@@ -42,26 +42,29 @@ registerHandler("health_check", async () => {
 // Daily lifecycle scan: proposes outbound e-mails (approval-gated) and sends the
 // founder ONE digest with one-click approve/reject links per proposal.
 registerHandler("lifecycle_scan", async () => {
+    // No founder inbox → don't propose. scanLifecycle persists outbound-tier
+    // proposals with notify:false, so without the digest below they'd accumulate
+    // unseen and the once-ever dedupe would then block those customers forever.
+    const to = getFounderEmail()
+    if (!to) return { ok: true, proposed: 0, skipped: "no founder e-mail configured" }
+
     const { scanLifecycle } = await import("@/lib/agents/lifecycle")
     const proposals = await scanLifecycle()
     if (proposals.length === 0) return { ok: true, proposed: 0 }
 
-    const to = getFounderEmail()
-    if (to) {
-        const { renderApprovalItem, wrapOpsEmail } = await import("@/lib/agents/approval-notify")
-        const { sendEmail } = await import("@/lib/email")
-        const items = proposals.map(p => renderApprovalItem(
-            { actionId: p.actionId, clientId: p.clientId, agentType: "lifecycle", action: `${p.kind} → ${p.email}`, riskTier: "outbound" },
-            p.label,
-        )).join("")
-        const html = wrapOpsEmail("Lifecycle e-maily ke schválení", `${proposals.length} návrhů · ${new Date().toLocaleDateString("cs-CZ")}`, items)
-        await sendEmail({
-            to,
-            subject: `📬 ${proposals.length} lifecycle e-mailů ke schválení`,
-            html,
-            text: proposals.map(p => `${p.kind} → ${p.email}`).join("\n") + "\n\nSchval v dashboardu → Schválení.",
-        })
-    }
+    const { renderApprovalItem, wrapOpsEmail } = await import("@/lib/agents/approval-notify")
+    const { sendEmail } = await import("@/lib/email")
+    const items = proposals.map(p => renderApprovalItem(
+        { actionId: p.actionId, clientId: p.clientId, agentType: "lifecycle", action: `${p.kind} → ${p.email}`, riskTier: "outbound" },
+        p.label,
+    )).join("")
+    const html = wrapOpsEmail("Lifecycle e-maily ke schválení", `${proposals.length} návrhů · ${new Date().toLocaleDateString("cs-CZ")}`, items)
+    await sendEmail({
+        to,
+        subject: `📬 ${proposals.length} lifecycle e-mailů ke schválení`,
+        html,
+        text: proposals.map(p => `${p.kind} → ${p.email}`).join("\n") + "\n\nSchval v dashboardu → Schválení.",
+    })
     return { ok: true, proposed: proposals.length }
 })
 

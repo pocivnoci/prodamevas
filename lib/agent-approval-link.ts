@@ -1,4 +1,5 @@
 import crypto from "crypto"
+import { emailSigningSecret } from "@/lib/email-sign"
 
 /**
  * Signed one-click approve/reject links for pending agent actions.
@@ -17,9 +18,9 @@ import crypto from "crypto"
 
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
-function secret(): string {
-    return process.env.EMAIL_SECRET || process.env.CRON_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "chrlit-email-fallback"
-}
+// Same signing secret as the unsubscribe link (lib/email-sign.ts) — one source so
+// an env-precedence change can't desync approval links from the rest of our tokens.
+const secret = emailSigningSecret
 
 export type ApprovalDecision = "approve" | "reject"
 

@@ -15,6 +15,7 @@
 import { NextRequest } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
 import { verifyApprovalLink, type ApprovalDecision } from "@/lib/agent-approval-link"
+import { escapeHtml } from "@/lib/notifications"
 
 function page(title: string, message: string, formHtml = ""): Response {
     return new Response(
@@ -30,9 +31,7 @@ function page(title: string, message: string, formHtml = ""): Response {
     )
 }
 
-function esc(s: string): string {
-    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
-}
+const esc = escapeHtml
 
 const invalid = () => page("Neplatný odkaz", "Odkaz je neplatný, poškozený nebo vypršel (platí 7 dní). Akci najdeš v dashboardu → Schválení.")
 

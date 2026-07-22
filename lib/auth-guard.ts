@@ -68,11 +68,11 @@ export async function requireClientAccess(clientId: string): Promise<{ userId: s
  * Pokud není, vyhodí výjimku (zastaví provádění Server Action).
  * Použij POUZE pro admin-only akce (waitlist, debug, systémové nastavení).
  */
-export async function requireSuperAdmin(): Promise<void> {
-    const { email } = await requireAuth()
+export async function requireSuperAdmin(): Promise<{ email: string; userId: string }> {
+    const { email, userId } = await requireAuth()
 
     const admins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean)
-    
+
     if (admins.length === 0) {
         throw new Error('Neautorizovaný přístup: Systém nemá definované žádné administrátory (SUPER_ADMIN_EMAILS).')
     }
@@ -80,5 +80,7 @@ export async function requireSuperAdmin(): Promise<void> {
     if (!admins.includes(email)) {
         throw new Error('Neautorizovaný přístup: Uživatel nemá administrátorská práva.')
     }
+
+    return { email, userId }
 }
 

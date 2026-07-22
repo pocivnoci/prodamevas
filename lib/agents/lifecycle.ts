@@ -186,7 +186,7 @@ export async function scanLifecycle(): Promise<LifecycleProposal[]> {
                 kind: cand.kind,
                 email: cand.email,
                 clientId: cand.clientId,
-                label: cand.clientName ? `${cand.clientName}` : cand.email,
+                label: cand.clientName || cand.email,
             })
         }
     }

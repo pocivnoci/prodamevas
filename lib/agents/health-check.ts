@@ -68,8 +68,10 @@ export async function buildHealthCheck(): Promise<HealthReport> {
         // A campaign stuck 'running' with an hour-dead lease means the worker
         // stopped reclaiming it — normally a stale lease is re-claimed within minutes.
         safe("zaseklé kampaně", async () => {
+            // A running campaign is stuck if its lease is stale OR null — `.lt`
+            // alone drops null rows, exactly the "lease was cleared / never set" case.
             const { count, error } = await supabaseAdmin.from("ig_campaigns").select("id", { count: "exact", head: true })
-                .eq("status", "running").lt("worker_lease", staleHour)
+                .eq("status", "running").or(`worker_lease.is.null,worker_lease.lt.${staleHour}`)
             if (error) throw new Error(error.message)
             return count && count > 0
                 ? { icon: "🛑", title: `${count}× kampaň visí ve stavu running`, detail: "worker_lease starší než hodina — campaign-worker ji nepřebírá." }
