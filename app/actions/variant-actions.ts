@@ -192,8 +192,20 @@ export async function generatePostVariant(
                 : "image"
         // Reels kill-switch: the engine would clamp a reel to carousel anyway — bill the carousel.
         if (variantMedium === "reel" && process.env.REELS_ENABLED !== "1") variantMedium = "carousel"
+        // Reel variant bills by the original type's configured duration (8/16/24s).
+        let variantReelDuration: number | undefined
+        if (variantMedium === "reel") {
+            variantReelDuration = 8
+            try {
+                const { loadConfig } = await import("@/instagram/configs")
+                const { getReelDuration } = await import("@/instagram/caption-generator")
+                const cfg = await loadConfig(projectSlug)
+                const typeName = original.ig_post_types?.name
+                if (typeName) variantReelDuration = getReelDuration(typeName, cfg)
+            } catch { /* keep 8s base */ }
+        }
         const { creditGuard } = await import("./credit-guard")
-        const guard = await creditGuard(projectSlug, "post_variant", undefined, variantMedium)
+        const guard = await creditGuard(projectSlug, "post_variant", undefined, variantMedium, variantReelDuration)
         if (!guard.ok) {
             return { success: false, error: guard.error || "Nedostatek kreditů na variantu." }
         }
@@ -230,6 +242,7 @@ PRAVIDLA PRO VARIANTU:
             type: postTypeName,
             medium: variantMedium,
             chargedMedium: variantMedium,
+            chargedReelDuration: variantReelDuration,
         })
 
         if (result.id) {
@@ -364,7 +377,7 @@ export async function getVariantGroup(
         // Get original + all A/B variants (not revisions)
         const { data: variants } = await supabaseAdmin
             .from("ig_posts")
-            .select("id, caption, image_url, image_style, status, created_at, revision_of, link_type, ig_post_types(name, display_name, emoji)")
+            .select("id, caption, image_url, image_style, media_type, status, created_at, revision_of, link_type, ig_post_types(name, display_name, emoji)")
             .or(`id.eq.${originalId},and(revision_of.eq.${originalId},link_type.eq.variant)`)
             .eq("client_id", clientId)
             .order("created_at", { ascending: true })

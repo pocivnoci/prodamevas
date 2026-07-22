@@ -701,6 +701,92 @@ Return ONLY valid JSON:
 }
 
 // ============================================
+// REEL CLIP QA — frame-based video verification
+// ============================================
+
+export interface ReelClipQA {
+    ok: boolean
+    severity: "ok" | "cosmetic" | "severe"
+    issues: string[]
+    fixHint?: string
+}
+
+/**
+ * Verify a generated Veo clip from sampled frames: AI artifacts, garbled
+ * on-screen text, scene/intent match, product fidelity. Same cross-family
+ * visionQA Pro ladder as verifyNativeImage, fail-open on infra errors —
+ * QA must never block a render that already cost Veo dollars.
+ */
+export async function verifyReelClip(
+    frames: { buffer: Buffer; mimeType?: string }[],
+    expected: {
+        sceneDescriptions: string[]
+        productRef?: { buffer: Buffer; mimeType?: string; name: string }
+        brandNote?: string
+    },
+): Promise<ReelClipQA> {
+    if (frames.length === 0) {
+        return { ok: true, severity: "ok", issues: [] }
+    }
+
+    const qaPrompt = `You are a strict QA inspector for AI-generated Instagram Reel VIDEO.
+The first ${frames.length} attached images are frames sampled from one generated video clip (chronological order).
+${expected.productRef ? `The LAST attached image is the REAL product photo of "${expected.productRef.name}" — the reference.` : ""}
+
+The clip was generated from these scene directions:
+${expected.sceneDescriptions.map((s, i) => `${i + 1}. ${s}`).join("\n")}
+${expected.brandNote ? `Brand context: ${expected.brandNote}` : ""}
+
+Check the frames for:
+1. AI artifacts — morphed/extra fingers or hands, warped faces, melted or impossible geometry, ghosting/duplicated limbs.
+2. On-screen text — the video should contain NO rendered text; any gibberish, pseudo-letters or garbled signage counts as a defect (real-world signage that is legible and sensible is fine).
+3. Scene match — do the frames plausibly depict the directed scenes (subject, setting, mood)?
+${expected.productRef ? `4. Product fidelity — if the product appears, it must match the reference photo (print/graphic, colors, shape). A redesigned/invented lookalike is a SEVERE defect.` : ""}
+
+Grade the overall clip:
+- "ok" — clean, shippable.
+- "cosmetic" — minor imperfections a casual viewer scrolling Instagram would not notice.
+- "severe" — visible artifacts, garbled text, wrong product, or frames clearly unrelated to the directed scenes. A brand should not publish this.
+
+Return ONLY valid JSON:
+{
+  "ok": true/false,
+  "severity": "ok" | "cosmetic" | "severe",
+  "issues": ["specific problems, empty if ok"],
+  "fixHint": "if severe — one concrete instruction to improve the regeneration prompt, else empty string"
+}`
+
+    const images = frames.map(f => ({ buffer: f.buffer, mimeType: f.mimeType || "image/jpeg" }))
+    if (expected.productRef) {
+        images.push({ buffer: expected.productRef.buffer, mimeType: expected.productRef.mimeType || "image/jpeg" })
+    }
+
+    let text: string
+    try {
+        text = await judgeVision(qaPrompt, images, { label: "reel-clip-qa" })
+    } catch (err: any) {
+        if (isQualityUnavailable(err)) {
+            console.warn("   ⚠️ Reel clip QA: both Pro tiers exhausted — fail-open (QA skipped)")
+        } else {
+            console.warn(`   ⚠️ Reel clip QA failed (fail-open): ${String(err?.message || err).substring(0, 80)}`)
+        }
+        return { ok: true, severity: "ok", issues: [] }
+    }
+
+    try {
+        const parsed = JSON.parse(text.replace(/```(?:json)?/g, "").trim())
+        return {
+            ok: !!parsed.ok,
+            severity: parsed.ok ? "ok" : (parsed.severity === "severe" ? "severe" : "cosmetic"),
+            issues: parsed.issues || [],
+            fixHint: parsed.fixHint || undefined,
+        }
+    } catch {
+        return { ok: true, severity: "ok", issues: [] }
+    }
+}
+
+// ============================================
 // VIDEO PROMPT REFINEMENT
 // ============================================
 
@@ -713,6 +799,22 @@ interface VideoScene {
     soundEffect?: string
 }
 
+export interface RefineVideoOpts {
+    /** Live-catalog product the reel is grounded on — must physically appear in the video. */
+    product?: { name: string; description?: string; price?: string }
+    /** Multi-clip reels: which slice of the global timeline this prompt covers. */
+    clip?: {
+        index: number
+        count: number
+        startSec: number
+        durationSec: number
+        /** Shared subject/setting/lighting description keeping the clips visually continuous. */
+        continuityAnchor: string
+    }
+    /** From resolveCtaPolicy — website end-card only when the CTA policy allows it. */
+    allowWebsiteBranding?: boolean
+}
+
 export async function refineVideoPrompt(
     config: ClientConfig,
     videoData: {
@@ -721,9 +823,12 @@ export async function refineVideoPrompt(
         videoScript?: string   // legacy fallback
     },
     postType: string,
-    duration: number
+    duration: number,
+    opts: RefineVideoOpts = {}
 ): Promise<string> {
     const memSection = await getVisualMemoriesSection()
+    const { product, clip, allowWebsiteBranding } = opts
+    const isLastClip = !clip || clip.index === clip.count - 1
 
     // Build scene breakdown for the prompt
     const scenesText = videoData.scenes?.length
@@ -737,6 +842,24 @@ export async function refineVideoPrompt(
         ).join("\n\n")
         : `Raw script: "${videoData.videoScript || ""}"`
 
+    const clipSection = clip ? `
+## SEGMENT CONTEXT:
+This prompt covers SEGMENT ${clip.index + 1} of ${clip.count} of one continuous ${clip.count * 8}s reel — seconds ${clip.startSec}–${clip.startSec + clip.durationSec} of the global timeline. The segments will be stitched together seamlessly.
+CONTINUITY (mandatory): ${clip.continuityAnchor}
+The SAME subject, wardrobe, location, lighting and color grade as the other segments of this video.
+${clip.index > 0 ? "Do NOT restart with an establishing/opening shot — continue mid-flow from the previous segment." : ""}` : ""
+
+    const brandingLine = allowWebsiteBranding && isLastClip
+        ? `- Final 2-3 seconds MUST include ${config.website} branding (text on screen or product placement)`
+        : clip && !isLastClip
+            ? `- Do NOT show any end-card, logo sting or branding — this is a middle segment of a longer video`
+            : `- No website end-card — close on the subject/result, not on branding`
+
+    const productSection = product ? `
+## PRODUCT GROUNDING (mandatory):
+The video must visibly feature the real product "${product.name}"${product.description ? ` (${product.description})` : ""}${product.price ? `, price ${product.price}` : ""}.
+It must be physically present and recognizable in at least one scene — never a redesigned, recolored or invented lookalike. A reference photo of the product is attached to the video generation itself; describe the product consistently with its real appearance.` : ""
+
     const refinementPrompt = `
 You are a world-class video director creating an Instagram Reel.
 Transform these scene descriptions into a SINGLE, DETAILED Veo 3.1 video generation prompt.
@@ -744,9 +867,11 @@ ${memSection}
 
 ## INPUT SCENES:
 ${scenesText}
+${clipSection}
+${productSection}
 
 ## HOOK TEXT: "${videoData.hook}"
-## DURATION: ${duration} seconds
+## DURATION: ${clip ? clip.durationSec : duration} seconds
 ## POST TYPE: ${postType}
 
 ## CRITICAL REQUIREMENTS:
@@ -754,14 +879,16 @@ ${scenesText}
 - ${config.videoFocus || "Professional content with smooth, cinematic camera movements"}
 - EVERY camera transition must be SMOOTH — no jump cuts unless for dramatic effect
 - Lighting must be consistent within scenes, with natural transitions between them
-- Final 2-3 seconds MUST include ${config.website} branding (text on screen or product placement)
+${brandingLine}
+- NO text overlays, captions or subtitles rendered in the video — Czech subtitles are burned in later in post-production
+- CRITICAL: do NOT show any phone/tablet/computer SCREEN with a user interface, app, dashboard, charts or readable text on it, and no signs/labels with legible text. AI video renders these as garbled gibberish. Show the real physical world instead — people, product, environment, action, emotion.
 - Audio: include ambient sounds and effects described in scenes (${videoData.scenes?.map(s => s.soundEffect).filter(Boolean).join(", ") || "natural ambient"})
 
 ## CAMERA CHOREOGRAPHY:
 Describe camera movement as a CONTINUOUS FLOW through the scenes:
-- Start with the hook (${videoData.scenes?.[0]?.camera || "dramatic opening"})
+- Start with the ${clip && clip.index > 0 ? `segment's first scene (${videoData.scenes?.[0]?.camera || "continuing movement"})` : `hook (${videoData.scenes?.[0]?.camera || "dramatic opening"})`}
 - Transition smoothly through middle scenes
-- End with a clear, stable shot for CTA
+- End with a clear, stable shot${isLastClip ? " for CTA" : " that can cut seamlessly into the next segment"}
 
 ## OUTPUT:
 Return a SINGLE detailed English video generation prompt (4-6 sentences).
@@ -769,15 +896,21 @@ Include specific camera movements, lighting setup, subject actions, and audio cu
 The prompt must read like a professional shot list compressed into prose.
 `
 
-    const response = await ai.models.generateContent({
-        model: getModel("text"),
-        contents: refinementPrompt,
-    })
-
-    const parts = response.candidates?.[0]?.content?.parts || []
-    const textPart = parts.find((p: any) => p.text)
-    const refined = textPart?.text
-
-    if (!refined) return videoData.videoScript || videoData.scenes?.map(s => s.visual).join(". ") || ""
-    return refined.replace(/^["']|["']$/g, "").trim()
+    // Deep-quality Pro ladder (never silent flash) — the video prompt IS the reel's
+    // creative direction; on total Pro outage fall back to the raw scene join.
+    try {
+        const models = [getModel("textPro")]
+        if (hasFallback("textPro")) models.push(getModel("textPro", "fallback"))
+        const refined = await generateTextQuality(refinementPrompt, {
+            models,
+            json: false,
+            temperature: getTemperature("designer"),
+            label: "video-director",
+        })
+        return refined.replace(/^["']|["']$/g, "").trim()
+    } catch (err) {
+        if (!isQualityUnavailable(err)) throw err
+        console.warn("   ⚠️ video-director: Pro ladder exhausted — falling back to raw scene join")
+        return videoData.videoScript || videoData.scenes?.map(s => s.visual).join(". ") || ""
+    }
 }

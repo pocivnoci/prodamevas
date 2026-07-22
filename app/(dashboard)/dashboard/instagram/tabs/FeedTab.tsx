@@ -4,11 +4,14 @@ import { useEffect, useState } from "react"
 import { getIGPostsList, getProfilePreview } from "@/app/actions/admin-actions"
 import { getFeedPatternPreview } from "@/app/actions/content-plan-actions"
 import { VISUAL_MODE_LABELS, type VisualMode } from "@/lib/feed-pattern"
+import { parsePostMedia } from "@/lib/media-urls"
+import { ReelPlayer } from "./shared"
 
 interface FeedPost {
     id: string
     caption: string | null
     image_url: string | null
+    media_type?: string | null
     status: string
     created_at: string
     scheduled_for: string | null
@@ -86,11 +89,11 @@ export function FeedTab({ projectId }: { projectId: string }) {
                     <div className="w-20 h-20 rounded-full border-2 border-white/20 overflow-hidden flex-shrink-0 bg-white/5">
                         {(profile?.avatarUrl || posts[0]?.image_url) && (
                             <img
-                                src={profile?.avatarUrl || posts[0]!.image_url!.split("|")[0]}
+                                src={profile?.avatarUrl || parsePostMedia(posts[0]!.image_url, posts[0]!.media_type).thumbUrl || undefined}
                                 alt=""
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
-                                    const fallback = posts[0]?.image_url?.split("|")[0]
+                                    const fallback = posts[0] ? parsePostMedia(posts[0].image_url, posts[0].media_type).thumbUrl : null
                                     if (fallback && e.currentTarget.src !== fallback) e.currentTarget.src = fallback
                                 }}
                             />
@@ -163,26 +166,34 @@ export function FeedTab({ projectId }: { projectId: string }) {
                         ready: "bg-blue-500",
                         draft: "bg-amber-500",
                     }
+                    const media = parsePostMedia(post.image_url, post.media_type)
                     return (
                         <button
                             key={post.id}
                             onClick={() => setSelectedPost(post)}
                             className="relative aspect-square overflow-hidden group cursor-pointer"
                         >
-                            <img
-                                src={post.image_url!.split("|")[0]}
-                                alt=""
-                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                            />
+                            {media.thumbUrl ? (
+                                <img
+                                    src={media.thumbUrl}
+                                    alt=""
+                                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                />
+                            ) : media.videoUrl ? (
+                                <video src={media.videoUrl} preload="metadata" muted playsInline className="w-full h-full object-cover" />
+                            ) : null}
                             {/* Hover overlay */}
                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                 <span className="text-white text-xs font-bold uppercase tracking-wider">
                                     {post.post_type?.emoji || "📸"}
                                 </span>
                             </div>
-                            {/* Carousel indicator */}
-                            {post.image_url!.includes("|") && (
+                            {/* Media-type indicator */}
+                            {media.kind === "carousel" && (
                                 <div className="absolute top-2 left-2 text-white/80 text-[10px]">🖼️🖼️</div>
+                            )}
+                            {media.kind === "reel" && (
+                                <div className="absolute top-2 left-2 text-white/90 text-[10px]">▶</div>
                             )}
                             {/* Status dot */}
                             <div className={`absolute top-2 right-2 w-2 h-2 rounded-full ${statusDot[post.status] || "bg-white/30"} shadow-lg`} />
@@ -218,9 +229,14 @@ export function FeedTab({ projectId }: { projectId: string }) {
             {selectedPost && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={() => setSelectedPost(null)}>
                     <div className="bg-[#0a0a0a] border border-white/10 rounded-sm max-w-lg w-full mx-4 max-h-[85vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
-                        {selectedPost.image_url && (
-                            <img src={selectedPost.image_url.split("|")[0]} alt="" className="w-full aspect-square object-cover" />
-                        )}
+                        {selectedPost.image_url && (() => {
+                            const m = parsePostMedia(selectedPost.image_url, selectedPost.media_type)
+                            return m.kind === "reel" && m.videoUrl
+                                ? <ReelPlayer videoUrl={m.videoUrl} coverUrl={m.coverUrl} className="w-full aspect-[9/16] max-h-[60vh] object-contain bg-black" />
+                                : m.thumbUrl
+                                    ? <img src={m.thumbUrl} alt="" className="w-full aspect-square object-cover" />
+                                    : null
+                        })()}
                         <div className="p-5 space-y-3">
                             <div className="flex items-center gap-2">
                                 <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm border ${

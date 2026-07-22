@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import type { IGPost } from "./types"
 import { useCopyToClipboard } from "./hooks"
+import { ReelPlayer } from "./shared"
+import { parsePostMedia } from "@/lib/media-urls"
 import { publishNowAction, getPostPublishStatus } from "@/app/actions/calendar-actions"
 
 // ═══════════════════════════════════════════════════════════
@@ -12,10 +14,10 @@ import { publishNowAction, getPostPublishStatus } from "@/app/actions/calendar-a
 //
 // Per-post "post it" surface with two paths. When the account is connected it
 // offers ⚡ Publikovat hned — a real server-side Graph publish via the ig-publisher
-// cron (no Instagram app; image/carousel). The manual "handoff" is always available
-// as the fallback (and the only route for reels / unconnected accounts): the Web
-// Share API pushes the image(s) into the Instagram app and copies the caption to
-// the clipboard so it's ready to paste.
+// cron (no Instagram app; image, carousel, or reel). The manual "handoff" is always
+// available as the fallback (and the route for unconnected accounts): the Web Share
+// API pushes the image(s) or the reel MP4 into the Instagram app and copies the
+// caption to the clipboard so it's ready to paste.
 
 // Build a test File once to feature-detect Web Share file support.
 function canShareFiles(files: File[]): boolean {
@@ -48,15 +50,20 @@ export function PublishHandoffModal({
     const [permalink, setPermalink] = useState<string | null>(null)
     const mounted = useRef(true)
 
-    const imageUrls = (post.image_url || "").split("|").map(s => s.trim()).filter(Boolean)
-    const isCarousel = imageUrls.length > 1
+    const media = parsePostMedia(post.image_url, post.media_type)
+    const isReel = media.kind === "reel"
+    // Reels share/save their MP4; static posts share their image slides.
+    const imageUrls = isReel ? (media.coverUrl ? [media.coverUrl] : []) : media.urls
+    const isCarousel = media.kind === "carousel" && imageUrls.length > 1
 
     const hashtags = Array.isArray(post.hashtags) ? post.hashtags : []
     const hashtagsText = hashtags.join(" ")
     const fullText = [post.caption, hashtagsText].filter(Boolean).join("\n\n")
-    // ⚡ Publikovat hned is offered when the account is connected and the post is a
-    // static image/carousel (auto-publish has no reel path).
-    const canAutoPublish = connected && imageUrls.length > 0 && post.media_type !== "reel"
+    // ⚡ Publikovat hned — real Graph publish (connected). Reels publish via the REELS
+    // container (just need the video); static posts need at least one image.
+    const canAutoPublish = connected && (isReel ? !!media.videoUrl : imageUrls.length > 0)
+    // Something to hand off manually (Web Share / download): reel video or image slides.
+    const hasShareableMedia = isReel ? !!media.videoUrl : imageUrls.length > 0
 
     // Feature-detect Web Share (files) on the client — true on most phones, false on desktop.
     useEffect(() => {
@@ -91,7 +98,9 @@ export function PublishHandoffModal({
     }
 
     const shareToInstagram = useCallback(async () => {
-        if (imageUrls.length === 0) return
+        // Reels share the MP4; static posts share the image slide(s).
+        const shareUrls = isReel ? (media.videoUrl ? [media.videoUrl] : []) : imageUrls
+        if (shareUrls.length === 0) return
         setSharing(true)
         setError(null)
         try {
@@ -99,46 +108,54 @@ export function PublishHandoffModal({
             //    for photo posts, so the clipboard is the bridge (paste in IG).
             try { await navigator.clipboard.writeText(fullText) } catch { /* non-fatal */ }
 
-            // 2) Pull the public image URL(s) into File objects.
-            const files = await urlsToFiles(imageUrls)
+            // 2) Pull the public media URL(s) into File objects.
+            const files = await urlsToFiles(shareUrls)
 
             // 3) Native share sheet → user picks Instagram.
             if (navigator.canShare && navigator.canShare({ files })) {
                 await navigator.share({ files, title: "Instagram" })
                 setShared(true)
             } else {
-                setError("Tento prohlížeč neumí přímé sdílení — použij Uložit obrázek + Kopírovat popisek.")
+                setError("Tento prohlížeč neumí přímé sdílení — použij Uložit + Kopírovat popisek.")
             }
         } catch (e: unknown) {
             // User dismissing the share sheet throws AbortError — that's not an error.
             if (!(e instanceof DOMException && e.name === "AbortError")) {
-                setError("Sdílení se nezdařilo. Použij Uložit obrázek + Kopírovat popisek níže.")
+                setError("Sdílení se nezdařilo. Použij Uložit + Kopírovat popisek níže.")
             }
         } finally {
             setSharing(false)
         }
-    }, [imageUrls, fullText])
+    }, [isReel, media.videoUrl, imageUrls, fullText])
 
     const saveImages = useCallback(async () => {
-        for (let i = 0; i < imageUrls.length; i++) {
+        // Reels download the MP4 (+ cover); static posts download the image slide(s).
+        const items = isReel
+            ? [
+                ...(media.videoUrl ? [{ url: media.videoUrl, name: `reel-${post.id.slice(0, 8)}.mp4` }] : []),
+                ...(media.coverUrl ? [{ url: media.coverUrl, name: `reel-${post.id.slice(0, 8)}-cover.webp` }] : []),
+            ]
+            : imageUrls.map((url, i) => ({
+                url,
+                name: isCarousel ? `post-${post.id.slice(0, 8)}-slide${i + 1}.png` : `post-${post.id.slice(0, 8)}.png`,
+            }))
+        for (const item of items) {
             try {
-                const res = await fetch(imageUrls[i])
+                const res = await fetch(item.url)
                 const blob = await res.blob()
                 const blobUrl = URL.createObjectURL(blob)
                 const a = document.createElement("a")
                 a.href = blobUrl
-                a.download = isCarousel
-                    ? `post-${post.id.slice(0, 8)}-slide${i + 1}.png`
-                    : `post-${post.id.slice(0, 8)}.png`
+                a.download = item.name
                 document.body.appendChild(a)
                 a.click()
                 document.body.removeChild(a)
                 URL.revokeObjectURL(blobUrl)
             } catch {
-                window.open(imageUrls[i], "_blank")
+                window.open(item.url, "_blank")
             }
         }
-    }, [imageUrls, isCarousel, post.id])
+    }, [isReel, media.videoUrl, media.coverUrl, imageUrls, isCarousel, post.id])
 
     // ⚡ Publikovat hned: arm for immediate Graph publish, then poll until it lands.
     const publishNow = useCallback(async () => {
@@ -204,8 +221,12 @@ export function PublishHandoffModal({
 
                 {/* Body — scrollable */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {/* Image preview */}
-                    {imageUrls.length > 0 ? (
+                    {/* Reel video preview */}
+                    {isReel && media.videoUrl ? (
+                        <div className="flex justify-center">
+                            <ReelPlayer videoUrl={media.videoUrl} coverUrl={media.coverUrl} className="w-full max-w-[240px] aspect-[9/16] object-contain bg-black rounded-sm border border-white/10" />
+                        </div>
+                    ) : imageUrls.length > 0 ? (
                         <div className="flex flex-col items-center">
                             <div className="relative w-full bg-[#0f0f0f] rounded-sm border border-white/10 overflow-hidden">
                                 <img
@@ -261,18 +282,18 @@ export function PublishHandoffModal({
                     {canAutoPublish && pubMsg && (
                         <p className={`text-[11px] text-center ${pubState === "failed" ? "text-red-400" : "text-white/50"}`}>{pubMsg}</p>
                     )}
-                    {canAutoPublish && shareSupported && imageUrls.length > 0 && pubState !== "posted" && (
+                    {canAutoPublish && shareSupported && hasShareableMedia && pubState !== "posted" && (
                         <p className="text-[10px] text-white/25 text-center uppercase tracking-widest">nebo sdílej ručně</p>
                     )}
 
                     {/* Manual share CTA — phone only (Web Share files). Primary when not connected. */}
-                    {shareSupported && imageUrls.length > 0 && pubState !== "posted" && (
+                    {shareSupported && hasShareableMedia && pubState !== "posted" && (
                         <button
                             onClick={shareToInstagram}
                             disabled={sharing}
                             className={`w-full px-4 py-3.5 text-xs font-black uppercase tracking-widest rounded-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${canAutoPublish ? "bg-[#0f0f0f] text-white/70 border border-white/10 hover:bg-white/10 hover:text-white" : "bg-gradient-to-r from-aisummit-cinnabar/30 to-orange-600/30 text-aisummit-cinnabar border border-aisummit-cinnabar/30 hover:from-aisummit-cinnabar/40 hover:to-orange-600/40"}`}
                         >
-                            {sharing ? "⏳ Připravuji…" : shared ? "✅ Sdíleno — popisek je v schránce" : "📲 Sdílet do Instagramu"}
+                            {sharing ? "⏳ Připravuji…" : shared ? "✅ Sdíleno — popisek je v schránce" : `📲 Sdílet ${isReel ? "reel" : "do Instagramu"}`}
                         </button>
                     )}
 
@@ -310,16 +331,16 @@ export function PublishHandoffModal({
 
                     {/* Fallback actions */}
                     <div className="grid grid-cols-2 gap-2">
-                        {imageUrls.length > 0 && (
+                        {hasShareableMedia && (
                             <button onClick={saveImages} className={btnGhost}>
-                                ⬇️ {isCarousel ? "Uložit slidy" : "Uložit obrázek"}
+                                ⬇️ {isReel ? "Stáhnout video" : isCarousel ? "Uložit slidy" : "Uložit obrázek"}
                             </button>
                         )}
                         <a
                             href="https://www.instagram.com/"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className={`${btnGhost} ${imageUrls.length > 0 ? "" : "col-span-2"}`}
+                            className={`${btnGhost} ${hasShareableMedia ? "" : "col-span-2"}`}
                         >
                             ↗ Otevřít Instagram
                         </a>

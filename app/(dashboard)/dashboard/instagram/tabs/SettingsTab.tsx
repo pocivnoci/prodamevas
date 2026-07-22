@@ -7,6 +7,7 @@ import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient,
 import { getProducts, createProduct, updateProduct, deleteProduct, deleteProducts, uploadProductImage, syncConfigProductsToDb, scrapeProductsFromWebsite } from "@/app/actions/product-actions"
 import { generateCategoryPrompt } from "@/app/actions/content-plan-actions"
 import { getConnectionStatus, disconnectInstagram, type ConnectionStatus } from "@/app/actions/ig-connection-actions"
+import { creditsForReel } from "@/lib/credits"
 import { SubscriptionSection } from "./SubscriptionSection"
 import { FEED_PATTERNS, computeSlotIntent, type FeedPatternId } from "@/lib/feed-pattern"
 
@@ -859,6 +860,7 @@ function FormatsSection({ config, projectId, onReload }: { config: any; projectI
         uses_product: Boolean(def.uses_product),
         manualOnly: Boolean(def.manualOnly),
         overlayStyle: config.postFormats?.[def.name]?.overlayStyle,
+        reelDuration: config.postFormats?.[def.name]?.reelDuration,
     }
 
     const updateDraft = (name: string, def: any, patch: Partial<PostFormatInput>) => {
@@ -953,6 +955,17 @@ function FormatsSection({ config, projectId, onReload }: { config: any; projectI
                     <select value={value.overlayStyle || (value.medium === "carousel" ? "cover" : "default")}
                         onChange={e => onChange({ overlayStyle: e.target.value as PostFormatInput["overlayStyle"] })} className={inputClass}>
                         {OVERLAY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                </div>
+            )}
+            {value.medium === "reel" && (
+                <div className="max-w-[240px]">
+                    <FieldLabel hint="Delší reel = víc slepených AI klipů = vyšší cena v kreditech">Délka reelu</FieldLabel>
+                    <select value={String(value.reelDuration || 8)}
+                        onChange={e => onChange({ reelDuration: parseInt(e.target.value, 10) })} className={inputClass}>
+                        <option value="8">8 s ({creditsForReel(8)} kr.)</option>
+                        <option value="16">16 s ({creditsForReel(16)} kr.)</option>
+                        <option value="24">24 s ({creditsForReel(24)} kr.)</option>
                     </select>
                 </div>
             )}
@@ -1318,15 +1331,30 @@ function VisualSection({ config, updateField, handleLogoUpload, logoUploading, p
                     </div>
                 </div>
 
-                <div>
-                    <FieldLabel hint="Kvalita/cena videa pro reels — Lite ~$0.06/s, Fast $0.15/s, Premium $0.40/s">Video kvalita (reels)</FieldLabel>
-                    <select value={config.videoTier || "fast"}
-                        onChange={(e) => updateField(["videoTier"], e.target.value)}
-                        className={inputClass}>
-                        <option value="lite">Lite — nejlevnější</option>
-                        <option value="fast">Fast — doporučeno</option>
-                        <option value="premium">Premium — nejvyšší kvalita</option>
-                    </select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <FieldLabel hint="Kvalita/cena videa pro reels — Lite ~$0.06/s, Fast $0.15/s, Premium $0.40/s">Video kvalita (reels)</FieldLabel>
+                        <select value={config.videoTier || "fast"}
+                            onChange={(e) => updateField(["videoTier"], e.target.value)}
+                            className={inputClass}>
+                            <option value="lite">Lite — nejlevnější</option>
+                            <option value="fast">Fast — doporučeno (výchozí)</option>
+                            <option value="premium">Premium — nejvyšší kvalita (dražší)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <FieldLabel hint="Hlas českého voiceoveru v Reels (Gemini TTS)">Hlas voiceoveru (reels)</FieldLabel>
+                        <select value={config.ttsVoice || "Kore"}
+                            onChange={(e) => updateField(["ttsVoice"], e.target.value)}
+                            className={inputClass}>
+                            <option value="Kore">Kore — ženský, doporučeno</option>
+                            <option value="Aoede">Aoede — ženský, svěží</option>
+                            <option value="Leda">Leda — ženský, mladistvý</option>
+                            <option value="Puck">Puck — mužský, energický</option>
+                            <option value="Charon">Charon — mužský, hlubší</option>
+                            <option value="Fenrir">Fenrir — mužský, razantní</option>
+                        </select>
+                    </div>
                 </div>
             </SectionCard>
 

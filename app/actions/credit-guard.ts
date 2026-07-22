@@ -64,10 +64,12 @@ export async function creditGuard(
     isExtraPost?: boolean,
     /** Post medium (image/carousel/reel) — weights the credit cost for post actions */
     medium?: string | null,
+    /** Reel duration in seconds — 16/24s multi-clip reels bill above the 8s base */
+    reelDurationSec?: number | null,
 ): Promise<CreditGuardResult> {
     try {
         const { clientId } = await requireProjectAccess(projectId)
-        const check = await canPerformAction(clientId, action, isExtraPost, medium)
+        const check = await canPerformAction(clientId, action, isExtraPost, medium, reelDurationSec)
 
         if (!check.allowed) {
             return {
@@ -81,7 +83,7 @@ export async function creditGuard(
         }
 
         const isPlanPost = !!check.isPlanPost
-        const creditsRequired = isPlanPost ? 0 : creditsForAction(action, medium)
+        const creditsRequired = isPlanPost ? 0 : creditsForAction(action, medium, reelDurationSec)
 
         return {
             ok: true,

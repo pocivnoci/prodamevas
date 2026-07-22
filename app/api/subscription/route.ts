@@ -54,6 +54,9 @@ export async function GET(req: NextRequest) {
             planPostsTotal: sub.features.plan_posts_total || 0,
             planGeneratedAt: sub.planGeneratedAt,
             isTrial: sub.isTrial,
+            // Global reel kill-switch state — the UI must not offer reels the engine
+            // would clamp to carousel anyway (read-only; flipping it is an env change).
+            reelsEnabled: process.env.REELS_ENABLED === "1",
         })
     } catch (err: any) {
         console.error("Subscription fetch error:", err?.message)

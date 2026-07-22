@@ -18,6 +18,7 @@ import {
     qaScore,
 } from "../image-pipeline"
 import { loadLogo } from "../logo-loader"
+import { loadProductPhoto } from "./media-refs"
 import { COSTS, getPostTypeDef } from "../caption-generator"
 import { getModel } from "../models"
 import type { RenderContext, RenderResult } from "./types"
@@ -388,100 +389,14 @@ export async function loadReferenceImages(ctx: RenderContext): Promise<RefImage[
         }
     }
 
-    // Load product photos
+    // Load product photo (shared loader — the reel path grounds on the same logic)
     if (selectedProduct?.slug) {
-        const randomProduct = selectedProduct
-
-        let productImageLoaded = false
-
-        // Priority 0: Use product's own image_urls from ig_products DB
-        if (!productImageLoaded && selectedProduct.imageUrls?.length) {
-            try {
-                const imgUrl = selectedProduct.imageUrls[0]
-                const resp = await fetch(imgUrl)
-                if (resp.ok) {
-                    const arrayBuf = await resp.arrayBuffer()
-                    const mimeType = imgUrl.endsWith(".png") ? "image/png" : "image/jpeg"
-                    refImages.push({
-                        buffer: Buffer.from(arrayBuf),
-                        mimeType,
-                        label: `EXACT product photo: ${randomProduct.name}`,
-                    })
-                    productImageLoaded = true
-                    console.log(`   🛍️ Loaded product image from DB image_urls: ${imgUrl.substring(0, 80)}...`)
-                }
-            } catch (err) {
-                console.warn(`   ⚠️ DB image_url fetch failed, trying storage...`)
-            }
-        }
-
-        // Priority 1: Supabase storage — historically keyed by slug (config.id), but
-        // dashboard uploads write under the client UUID; check both layouts.
-        if (!productImageLoaded && randomProduct.slug) {
-            try {
-                const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-                if (!supabaseUrl) throw new Error('NEXT_PUBLIC_SUPABASE_URL not set')
-                for (const dir of [config.id, ctx.clientUuid]) {
-                    if (productImageLoaded || !dir) continue
-                    const { data: files } = await supabaseAdmin.storage
-                        .from('product-images')
-                        .list(dir, { search: randomProduct.slug })
-
-                    const matchingFiles = (files || [])
-                        .filter(f => f.name.startsWith(randomProduct.slug) && /\.(jpg|jpeg|png|webp)$/i.test(f.name))
-                        .sort((a, b) => a.name.localeCompare(b.name))
-
-                    if (matchingFiles.length > 0) {
-                        const mainFile = matchingFiles[0].name
-                        const publicUrl = `${supabaseUrl}/storage/v1/object/public/product-images/${dir}/${mainFile}`
-                        const resp = await fetch(publicUrl)
-                        if (resp.ok) {
-                            const arrayBuf = await resp.arrayBuffer()
-                            const mimeType = mainFile.endsWith(".png") ? "image/png" : "image/jpeg"
-                            refImages.push({
-                                buffer: Buffer.from(arrayBuf),
-                                mimeType,
-                                label: `EXACT product photo: ${randomProduct.name}`,
-                            })
-                            productImageLoaded = true
-                            console.log(`   🛍️ Loaded product image from Supabase: ${dir}/${mainFile}`)
-                        }
-                    }
-                }
-            } catch (err) {
-                // Supabase not available, try local
-            }
-        }
-
-        // Priority 2: Local filesystem fallback (dev only)
-        if (!productImageLoaded) {
-            try {
-                const { readdir, readFile } = await import("fs/promises")
-                const { join, dirname } = await import("path")
-                const { fileURLToPath } = await import("url")
-                const baseDir = dirname(fileURLToPath(import.meta.url))
-                const productDir = join(baseDir, "..", "product-images", config.id)
-
-                const localFiles = await readdir(productDir).catch(() => [] as string[])
-                const productFiles = localFiles
-                    .filter(f => f.startsWith(randomProduct.slug) && /\.(jpg|jpeg|png|webp)$/i.test(f))
-                    .sort()
-
-                if (productFiles.length > 0) {
-                    const mainFile = productFiles[0]
-                    const imgBuffer = await readFile(join(productDir, mainFile))
-                    const mimeType = mainFile.endsWith(".png") ? "image/png" : "image/jpeg"
-                    refImages.push({
-                        buffer: imgBuffer,
-                        mimeType,
-                        label: `EXACT product photo: ${randomProduct.name}`,
-                    })
-                    productImageLoaded = true
-                    console.log(`   🛍️ Loaded local product image: ${mainFile}`)
-                }
-            } catch (err) {
-                // Local files not available
-            }
+        const productPhoto = await loadProductPhoto(selectedProduct, config, ctx.clientUuid)
+        if (productPhoto) {
+            refImages.push({
+                ...productPhoto,
+                label: `EXACT product photo: ${selectedProduct.name}`,
+            })
         }
     }
 

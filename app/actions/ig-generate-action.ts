@@ -21,6 +21,8 @@ export interface GenerateResult {
     postId?: string
     caption?: string
     imageUrl?: string
+    /** image | carousel | reel — reel renders a video player in the result view */
+    mediaType?: string
     error?: string
     retryCount?: number
 }

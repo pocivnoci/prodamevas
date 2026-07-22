@@ -36,7 +36,7 @@ function planFeatureList(p: PlanRow): string[] {
         `${f.credits_per_month} kreditů měsíčně`,
         "AI posty — obrázek 1 kredit · carousel 3",
     ]
-    if (!f.allowed_media || f.allowed_media.includes("reel")) items.push("Reels (AI video) — 5 kreditů")
+    if (!f.allowed_media || f.allowed_media.includes("reel")) items.push("Reels (AI video) — od 5 kreditů (8 s; 16 s = 9, 24 s = 13)")
     if (f.allowed_actions.includes("post_variant")) items.push("A/B varianty příspěvků")
     if (f.allowed_actions.includes("idea_generate")) items.push("AI nápady na obsah")
     if (f.growth_tracking) items.push("Růstový dashboard — sledování followerů")

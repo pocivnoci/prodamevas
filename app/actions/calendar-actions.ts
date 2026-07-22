@@ -2,6 +2,7 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess, requireClientAccess } from "@/lib/auth-guard"
+import { parsePostMedia } from "@/lib/media-urls"
 
 /**
  * Resolve a post's tenant and verify the caller may touch it. Throws on missing
@@ -53,7 +54,7 @@ export async function getWeekPosts(
         const { data, error } = await supabaseAdmin
             .from("ig_posts")
             .select(`
-                id, caption, image_url, status, scheduled_for, time_slot, created_at,
+                id, caption, image_url, media_type, status, scheduled_for, time_slot, created_at,
                 ig_post_types ( name, display_name, emoji )
             `)
             .eq("client_id", clientId)
@@ -174,9 +175,10 @@ export async function publishNowAction(
             .select("media_type, image_url")
             .eq("id", postId)
             .single()
-        const mediaType = post?.media_type || ((post?.image_url || "").includes("|") ? "carousel" : "image")
-        if (mediaType === "reel") {
-            return { success: false, error: "Reels zatím nejdou publikovat automaticky — použij ruční sdílení." }
+        const media = parsePostMedia(post?.image_url, post?.media_type)
+        // Reels publish via the Graph API REELS container — they just need the video.
+        if (media.kind === "reel" && !media.videoUrl) {
+            return { success: false, error: "Reel nemá video — nelze publikovat." }
         }
 
         const { error } = await supabaseAdmin

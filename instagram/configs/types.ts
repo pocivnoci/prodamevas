@@ -125,7 +125,10 @@ export interface PostFormat {
     medium: PostMedium
     /** Text overlay style */
     overlayStyle: OverlayStyle
-    /** Reel duration in seconds (default: 8, range: 5-8 for 1080p Veo 3.1) */
+    /** Reel duration in seconds. 5–8 = single Veo clip (default 8); 16/24 = premium
+     *  multi-clip (stitched 8s blocks, billed higher — see lib/credits.ts creditsForReel).
+     *  Multi-clip is opt-in via explicit config only; validateConfig clamps to the
+     *  allowed set (REEL_ALLOWED_DURATIONS). */
     reelDuration?: number
 }
 

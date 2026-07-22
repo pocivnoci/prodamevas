@@ -69,6 +69,23 @@ export async function POST(req: Request) {
         // Reels kill-switch: never bill a reel the engine is globally forbidden to make
         if (process.env.REELS_ENABLED !== "1" && chargedMedium === "reel") chargedMedium = "carousel"
 
+        // Reel duration drives the price (8s base / 16s / 24s multi-clip). Derived from
+        // the type's format at charge time; the engine can only clamp DOWN from it
+        // (chargedReelDuration cap in applySafetyClamps) — deltas refund via reconcile.
+        let chargedReelDuration: number | undefined
+        if (chargedMedium === "reel") {
+            chargedReelDuration = 8
+            try {
+                const { loadConfig } = await import("@/instagram/configs")
+                const { getReelDuration } = await import("@/instagram/caption-generator")
+                const { clampReelDuration } = await import("@/lib/credits")
+                const config = await loadConfig(body.configName)
+                chargedReelDuration = body.type
+                    ? getReelDuration(body.type, config)
+                    : clampReelDuration(config.defaultFormat?.reelDuration)
+            } catch { /* keep 8s base */ }
+        }
+
         // Media gating: reels only from the Růst tier up (admin bypass)
         let allowedMedia: string[] | undefined
         if (!isSuperAdmin) {
@@ -94,7 +111,7 @@ export async function POST(req: Request) {
         let guard: Awaited<ReturnType<typeof import("@/app/actions/credit-guard").creditGuard>> | null = null
         if (!body.dryRun) {
             const { creditGuard } = await import("@/app/actions/credit-guard")
-            guard = await creditGuard(body.configName, "post", undefined, chargedMedium)
+            guard = await creditGuard(body.configName, "post", undefined, chargedMedium, chargedReelDuration)
             if (!guard.ok) {
                 return NextResponse.json(
                     { success: false, error: guard.error || "Nedostatek kreditů" },
@@ -125,6 +142,7 @@ export async function POST(req: Request) {
                     charged,
                     chargedCredits,
                     chargedMedium,
+                    chargedReelDuration,
                     allowedMedia,
                 },
                 status: "researcher",

@@ -111,6 +111,9 @@ export interface PostFormatInput {
     /** Text overlay style for the render. Optional — falls back to a medium-derived
      *  default. Reels are always "none"; static media can never be "none". */
     overlayStyle?: OverlayStyle
+    /** Reel length in seconds — 5–8 single clip, 16/24 premium multi-clip (higher
+     *  credit price). Clamped to REEL_ALLOWED_DURATIONS on save. Reels only. */
+    reelDuration?: number
 }
 
 function slugifyFormatName(input: string): string {
@@ -286,11 +289,15 @@ export async function upsertPostFormat(
 
         // Set this format's render entry explicitly (honors the chosen overlayStyle;
         // reconcile won't overwrite an existing postFormats entry).
+        const { clampReelDuration } = await import("@/lib/credits")
         config.postFormats = config.postFormats || {}
         config.postFormats[name] = {
             aspectRatio,
             medium: input.medium,
             overlayStyle: resolveOverlayStyle(input.medium, input.overlayStyle),
+            ...(input.medium === "reel" && input.reelDuration
+                ? { reelDuration: clampReelDuration(input.reelDuration) }
+                : {}),
         }
 
         // postTypes + pillar membership are projections — reconcile rebuilds them

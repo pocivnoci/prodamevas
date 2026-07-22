@@ -3,11 +3,14 @@
 import { useEffect, useState, useCallback } from "react"
 import { getWeekPosts, approvePost } from "@/app/actions/calendar-actions"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
+import { parsePostMedia } from "@/lib/media-urls"
+import { ReelPlayer } from "./shared"
 
 interface CalendarPost {
     id: string
     caption: string
     image_url: string | null
+    media_type?: string | null
     status: string
     scheduled_for: string | null
     time_slot: string | null
@@ -185,9 +188,9 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                             className={`p-2 border rounded-sm cursor-pointer transition-all hover:scale-[1.02] ${statusColors[post.status] || "border-white/10"}`}
                                         >
                                             {/* Thumbnail */}
-                                            {post.image_url && (
+                                            {parsePostMedia(post.image_url, post.media_type).thumbUrl && (
                                                 <img
-                                                    src={post.image_url.split("|")[0]}
+                                                    src={parsePostMedia(post.image_url, post.media_type).thumbUrl!}
                                                     alt=""
                                                     className="w-full h-16 object-cover rounded-sm mb-1.5 opacity-80"
                                                 />
@@ -224,10 +227,15 @@ export function CalendarTab({ projectId }: { projectId: string }) {
             {selectedPost && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={() => setSelectedPost(null)}>
                     <div className="bg-[#0a0a0a] border border-white/10 rounded-sm max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
-                        {/* Image */}
-                        {selectedPost.image_url && (
-                            <img src={selectedPost.image_url.split("|")[0]} alt="" className="w-full aspect-square object-cover" />
-                        )}
+                        {/* Image / Video */}
+                        {selectedPost.image_url && (() => {
+                            const m = parsePostMedia(selectedPost.image_url, selectedPost.media_type)
+                            return m.kind === "reel" && m.videoUrl
+                                ? <ReelPlayer videoUrl={m.videoUrl} coverUrl={m.coverUrl} className="w-full aspect-[9/16] max-h-[55vh] object-contain bg-black" />
+                                : m.thumbUrl
+                                    ? <img src={m.thumbUrl} alt="" className="w-full aspect-square object-cover" />
+                                    : null
+                        })()}
 
                         <div className="p-6 space-y-4">
                             {/* Status + Type */}

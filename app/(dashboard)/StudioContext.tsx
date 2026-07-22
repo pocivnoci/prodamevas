@@ -67,6 +67,8 @@ export interface SubscriptionState {
     // v3: growth tiers
     allowedMedia: string[]
     growthTracking: boolean
+    /** Global reel kill-switch (REELS_ENABLED env) — false = engine clamps reels to carousel */
+    reelsEnabled: boolean
 }
 
 interface StudioState {
@@ -134,6 +136,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
                     isTrial: data.isTrial ?? false,
                     allowedMedia: data.allowedMedia ?? ["image", "carousel", "reel"],
                     growthTracking: data.growthTracking ?? false,
+                    reelsEnabled: data.reelsEnabled ?? false,
                 } : null)
             } else {
                 setSubscription(null)

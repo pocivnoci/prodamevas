@@ -198,6 +198,22 @@ export async function GET(req: Request) {
             chargedMedium = allowedMedia.includes("carousel") ? "carousel" : "image"
         }
 
+        // Reel duration drives the price (8s base / 16s / 24s multi-clip) — derived from
+        // the item type's configured format; the engine clamps down to it on render.
+        let chargedReelDuration: number | undefined
+        if (chargedMedium === "reel") {
+            chargedReelDuration = 8
+            try {
+                const { loadConfig } = await import("@/instagram/configs")
+                const { getReelDuration } = await import("@/instagram/caption-generator")
+                const { clampReelDuration } = await import("@/lib/credits")
+                const cfg = await loadConfig(configName)
+                chargedReelDuration = postType
+                    ? getReelDuration(postType, cfg)
+                    : clampReelDuration(cfg.defaultFormat?.reelDuration)
+            } catch { /* keep 8s base */ }
+        }
+
         // ── Per-post credit check (clientId-based; no session in a worker) ──
         // Admin/internal bypass: CAMPAIGN_ADMIN_BYPASS=1 (global) OR options.adminBypass
         // (per-campaign, set by startCampaign when a super-admin starts it) skips the credit
@@ -246,6 +262,7 @@ export async function GET(req: Request) {
                 charged = pcfg.charged ?? "none"
                 chargedCredits = pcfg.chargedCredits ?? 0
                 if (pcfg.chargedMedium) chargedMedium = pcfg.chargedMedium
+                if (pcfg.chargedReelDuration) chargedReelDuration = pcfg.chargedReelDuration
                 resumeFrom = (parked.result as any)?.checkpoint?.stage === "caption"
                     ? (parked.result as any).checkpoint
                     : undefined
@@ -258,7 +275,7 @@ export async function GET(req: Request) {
         }
 
         if (!job) {
-            const check = ADMIN_BYPASS ? { allowed: true, isPlanPost: false } : await canPerformAction(clientId, "post", undefined, chargedMedium)
+            const check = ADMIN_BYPASS ? { allowed: true, isPlanPost: false } : await canPerformAction(clientId, "post", undefined, chargedMedium, chargedReelDuration)
             if (!check.allowed) {
                 stopReason = "no_credits"
                 stopDetail = (check as { reason?: string }).reason || "Nedostatek kreditů pro pokračování."
@@ -266,7 +283,7 @@ export async function GET(req: Request) {
             }
             const isPlanPost = !!check.isPlanPost
             charged = ADMIN_BYPASS ? "none" : (isPlanPost ? "plan" : "credits")
-            chargedCredits = charged === "credits" ? creditsForMedia(chargedMedium) : 0
+            chargedCredits = charged === "credits" ? creditsForMedia(chargedMedium, chargedReelDuration) : 0
 
             // Create the job row (mirrors ig-create-job) so the post shows in history/observability.
             const { data: created } = await supabaseAdmin
@@ -280,7 +297,7 @@ export async function GET(req: Request) {
                         medium: itemMedium,
                         productId: item?.productId || undefined,
                         campaignContext, campaignId: campaign.id,
-                        charged, chargedCredits, chargedMedium, allowedMedia,
+                        charged, chargedCredits, chargedMedium, chargedReelDuration, allowedMedia,
                     },
                     status: "researcher",
                     progress: 5,
@@ -327,6 +344,7 @@ export async function GET(req: Request) {
                 slotIntent: item?.slotIntent || undefined,
                 campaignContext, allowedMedia,
                 chargedMedium: ADMIN_BYPASS ? undefined : chargedMedium,
+                chargedReelDuration: ADMIN_BYPASS ? undefined : chargedReelDuration,
                 jobId: job.id,
                 resumeFrom,
                 onProgress: async (stage: string, progress: number, message: string, editorialLog?: any[]) => {
@@ -349,7 +367,7 @@ export async function GET(req: Request) {
             }).eq("id", job.id)
 
             // Engine clamped below the billed medium? Refund the difference.
-            try { await reconcileJobCharge(clientId, job.id, charged, chargedCredits, result.mediaType) } catch { /* best-effort */ }
+            try { await reconcileJobCharge(clientId, job.id, charged, chargedCredits, result.mediaType, result.reelDuration) } catch { /* best-effort */ }
 
             // Planner: stamp the chosen posting time + calendar entry on the new post.
             // Best-effort — a calendar hiccup must never fail an already-generated post.

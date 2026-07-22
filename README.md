@@ -99,7 +99,7 @@ instagram/                            # 🤖 AI Engine (server-only, 8101 LOC)
 ├── memory-agent.ts                   # 459 LOC — učení z metrik → brand memory
 ├── gemini-client.ts                  # 455 LOC — AI gateway (text, image, video, TTS)
 ├── image-pipeline.ts                 # 346 LOC — prompt refinement, visual memory
-├── video-processor.ts                # 247 LOC — Veo 3.1 reels processing
+├── video-processor.ts                # ~430 LOC — ffmpeg reel assembly (multi-clip concat, audio mix, drawtext titulky, PCM→WAV, frame extract)
 ├── context-agent.ts                  # 232 LOC — svátek, počasí, trendy
 ├── content-planner.ts                # 223 LOC — AI plánování týdne
 ├── performance.ts                    # 186 LOC — per-pillar engagement analytics

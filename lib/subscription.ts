@@ -65,9 +65,10 @@ export const ACTION_CREDITS: Record<ActionType, number> = {
 export { MEDIA_CREDITS, creditsForMedia } from "@/lib/credits"
 import { creditsForMedia as _creditsForMedia } from "@/lib/credits"
 
-/** Weighted credit cost for an action: post/post_variant scale with medium, the rest are flat. */
-export function creditsForAction(action: ActionType, medium?: string | null): number {
-    if (action === "post" || action === "post_variant") return _creditsForMedia(medium)
+/** Weighted credit cost for an action: post/post_variant scale with medium (reels
+ *  additionally with duration — 16/24s multi-clip bills more), the rest are flat. */
+export function creditsForAction(action: ActionType, medium?: string | null, reelDurationSec?: number | null): number {
+    if (action === "post" || action === "post_variant") return _creditsForMedia(medium, reelDurationSec)
     return ACTION_CREDITS[action]
 }
 
@@ -280,11 +281,13 @@ export async function canPerformAction(
     isExtraPost?: boolean,
     /** Post medium (image/carousel/reel) — weights the credit cost for post actions */
     medium?: string | null,
+    /** Reel duration in seconds — 16/24s multi-clip reels bill above the 8s base */
+    reelDurationSec?: number | null,
 ): Promise<CanPerformResult> {
     // Super admin bypasses all checks
     if (await isSuperAdmin()) return ADMIN_BYPASS
 
-    const creditsRequired = creditsForAction(action, medium)
+    const creditsRequired = creditsForAction(action, medium, reelDurationSec)
     const sub = await getClientSubscription(clientId)
 
     // No subscription at all
@@ -465,9 +468,11 @@ export async function reconcileJobCharge(
     charged: "plan" | "credits" | "none" | undefined,
     chargedCredits: number | undefined,
     actualMedium: string | undefined,
+    /** Delivered reel duration — a 16s charge that shipped an 8s reel refunds the delta */
+    actualReelDurationSec?: number | null,
 ): Promise<void> {
     if (charged !== "credits" || !chargedCredits || !actualMedium) return
-    const actualCredits = _creditsForMedia(actualMedium)
+    const actualCredits = _creditsForMedia(actualMedium, actualReelDurationSec)
     const delta = chargedCredits - actualCredits
     if (delta <= 0) return
     await supabaseAdmin.from("credit_transactions").insert({

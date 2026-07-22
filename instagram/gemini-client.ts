@@ -503,31 +503,59 @@ export async function generateVideo(
             ? getModel("videoPremium")
             : getModel("videoFast")
 
-    // Build reference images for Veo (brand photos, product shots, spaces)
+    // Veo 3.1 asset references (product shots, brand photos): each MUST carry an
+    // explicit referenceType and the array MUST live INSIDE `config`. The previous
+    // code passed `referenceImages` at the TOP LEVEL without a type, so the SDK
+    // silently dropped it — the real product photo never reached Veo and every reel
+    // was generated from text alone. (asset = a subject/object to appear in the video.)
     const refImages = referenceImages?.slice(0, 3).map(ref => ({
         image: {
             imageBytes: ref.buffer.toString("base64"),
             mimeType: ref.mimeType || "image/jpeg",
         },
+        referenceType: "ASSET",
     }))
 
-    let operation = await ai.models.generateVideos({
-        model,
-        prompt,
-        ...(refImages?.length ? { referenceImages: refImages } : {}),
-        config: {
-            durationSeconds: duration,
-            aspectRatio,
-            resolution: "1080p",
-            numberOfVideos: 1,
-        },
-    } as any)
+    const runVeo = async (withRefs: boolean) => {
+        let operation = await ai.models.generateVideos({
+            model,
+            prompt,
+            config: {
+                durationSeconds: duration,
+                aspectRatio,
+                resolution: "1080p",
+                numberOfVideos: 1,
+                // NOTE: no `generateAudio` — the Gemini API rejects it (Vertex-only). Veo 3.1
+                // produces native audio by default; a clip that somehow lacks it is handled
+                // downstream by the ffmpeg silence-fallback in processReelVideo.
+                ...(withRefs && refImages?.length ? { referenceImages: refImages } : {}),
+            },
+        } as any)
 
-    // Poll operation until complete (Veo takes 2-5 minutes)
-    console.log("   ⏳ Veo 3.1 generating video (this takes 2-5 min)...")
-    while (!operation.done) {
-        await new Promise(resolve => setTimeout(resolve, 10000)) // Poll every 10s
-        operation = await ai.operations.getVideosOperation({ operation })
+        // Poll operation until complete (Veo takes 2-5 minutes)
+        console.log(`   ⏳ Veo 3.1 generating video${withRefs && refImages?.length ? ` (${refImages.length} ref obrázků)` : ""} (this takes 2-5 min)...`)
+        while (!operation.done) {
+            await new Promise(resolve => setTimeout(resolve, 10000)) // Poll every 10s
+            operation = await ai.operations.getVideosOperation({ operation })
+        }
+        return operation
+    }
+
+    let operation
+    try {
+        operation = await runVeo(!!refImages?.length)
+    } catch (err: any) {
+        // A preview model that doesn't accept reference images must NOT kill the reel —
+        // fall back to text-only generation so the post still ships. Narrow match: only
+        // retry-without-refs when the error is genuinely ABOUT the reference images
+        // (not some unrelated 'not supported' param), and only if we sent refs.
+        const msg = String(err?.message || err)
+        if (refImages?.length && /reference.?image|referenceImages|asset image|reference/i.test(msg)) {
+            console.warn(`   ⚠️ Veo odmítlo referenční obrázky (${msg.substring(0, 100)}) — fallback bez referencí`)
+            operation = await runVeo(false)
+        } else {
+            throw err
+        }
     }
 
     const video = operation.response?.generatedVideos?.[0]?.video
@@ -568,22 +596,26 @@ export async function generateVoiceover(
     narrationText: string,
     options: {
         voice?: string        // Preset voice name (default: "Kore")
-        mood?: string         // e.g. "professional", "excited", "calm"
-        audioTags?: string[]  // expressive delivery tags, e.g. ["warm pace", "smiling"] (Gemini 3.1 TTS supports 200+)
+        /** Natural-language delivery style (Czech), e.g. "sebejistě a přirozeně". Gemini TTS
+         *  reads a leading "<style>:" as a DIRECTIVE (not spoken). Empty = neutral read. */
+        mood?: string
+        /** @deprecated Ignored. Gemini TTS has no ElevenLabs-style bracket tags — injecting
+         *  "[professional][…]" made the model read the tags aloud / garble the delivery. */
+        audioTags?: string[]
     } = {}
 ): Promise<Buffer> {
-    const { voice = "Kore", mood, audioTags } = options
+    const { voice = "Kore", mood } = options
 
-    // Prepend mood + audio tags for expressive delivery
-    const tags = [mood, ...(audioTags || [])].filter(Boolean)
-    const textWithMood = tags.length
-        ? `${tags.map(t => `[${t}]`).join("")} ${narrationText}`
+    // Style is a Gemini-documented natural-language directive ("Say <style>: <text>"),
+    // NOT bracket tags. Keep it minimal and Czech; on empty mood, speak the raw text.
+    const spoken = mood?.trim()
+        ? `Řekni ${mood.trim()} tímto textem: ${narrationText}`
         : narrationText
 
     const callModel = async (model: string): Promise<Buffer> => {
         const response = await ai.models.generateContent({
             model,
-            contents: textWithMood,
+            contents: spoken,
             config: {
                 responseModalities: ["AUDIO"] as any,
                 speechConfig: {
@@ -603,7 +635,18 @@ export async function generateVoiceover(
             throw new Error("TTS returned no audio data")
         }
 
-        return Buffer.from(inlineData.data, "base64")
+        const raw = Buffer.from(inlineData.data, "base64")
+
+        // Gemini TTS returns headerless PCM (e.g. "audio/L16;codec=pcm;rate=24000")
+        // — ffmpeg can't probe that from a .wav file, so wrap it in a RIFF header.
+        const mimeType: string = inlineData.mimeType || ""
+        if (mimeType.includes("wav") || raw.toString("ascii", 0, 4) === "RIFF") {
+            return raw
+        }
+        const { pcmToWav } = await import("./video-processor")
+        const rateMatch = mimeType.match(/rate=(\d+)/)
+        const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000
+        return pcmToWav(raw, { sampleRate })
     }
 
     try {

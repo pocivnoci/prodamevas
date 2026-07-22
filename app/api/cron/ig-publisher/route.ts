@@ -2,7 +2,8 @@ import { NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
 import { getConnection } from "@/instagram/ig-connection"
 import { instagramAdapter } from "@/lib/channels/instagram"
-import type { FormattedContent, MediaType } from "@/lib/channels/types"
+import { parsePostMedia } from "@/lib/media-urls"
+import type { FormattedContent } from "@/lib/channels/types"
 
 export const maxDuration = 800 // Vercel Pro cap (Fluid Compute).
 
@@ -18,8 +19,9 @@ export const maxDuration = 800 // Vercel Pro cap (Fluid Compute).
  *  - Atomic claim: status 'scheduled' → 'posting' on the row id; only the worker that
  *    wins the flip proceeds, so two overlapping ticks can't double-publish.
  *  - Per-item fail-open: one bad post never kills the batch.
- *  - Bounded retries with backoff; permanent errors (no connection, reel unsupported)
- *    fail fast instead of looping.
+ *  - Bounded retries with backoff; permanent errors (no connection, reel without a
+ *    video) fail fast instead of looping. A reel container transcodes server-side and
+ *    can take minutes to publish — one tick handles ~5–6 reels worst-case within budget.
  *
  * Triggers: Vercel cron every minute (vercel.json). Auth: CRON_SECRET bearer
  * (no user session in a worker). No credit charge here — credits are taken at
@@ -31,14 +33,6 @@ const BUDGET_MS = 700 * 1000 // stop taking new posts past this, margin under 80
 const MAX_ATTEMPTS = 4      // give up (status 'failed') after this many publish failures
 
 const nowIso = () => new Date().toISOString()
-
-/** Derive the media type for a post, falling back to the image_url pipe convention. */
-function resolveMediaType(post: { media_type: string | null; image_url: string | null }): MediaType {
-    if (post.media_type === "carousel" || post.media_type === "image" || post.media_type === "reel") {
-        return post.media_type
-    }
-    return (post.image_url || "").includes("|") ? "carousel" : "image"
-}
 
 export async function GET(req: Request) {
     const secret = process.env.CRON_SECRET
@@ -120,13 +114,20 @@ export async function GET(req: Request) {
                 continue
             }
 
-            const mediaType = resolveMediaType(post)
-            const mediaUrls = (post.image_url || "").split("|").map((u: string) => u.trim()).filter(Boolean)
+            // parsePostMedia: media_type wins; reel → [video, cover?], carousel → slides.
+            const media = parsePostMedia(post.image_url, post.media_type)
+            if (media.kind === "reel" && !media.videoUrl) {
+                await failPermanent("Reel nemá video — nelze publikovat.")
+                continue
+            }
+            const mediaUrls = media.kind === "reel"
+                ? [media.videoUrl!, ...(media.coverUrl ? [media.coverUrl] : [])]
+                : media.urls
             const content: FormattedContent = {
                 channel: "instagram",
                 body: post.caption || "",
                 mediaUrls,
-                mediaType,
+                mediaType: media.kind,
             }
 
             const result = await instagramAdapter.publish(

@@ -61,6 +61,7 @@ export async function POST(req: Request) {
             campaignContext: config.campaignContext,
             allowedMedia: config.allowedMedia,
             chargedMedium: config.chargedMedium,
+            chargedReelDuration: config.chargedReelDuration,
             jobId,
             resumeFrom,
             onProgress: async (stage: string, progress: number, message: string, editorialLog?: any[]) => {
@@ -82,7 +83,7 @@ export async function POST(req: Request) {
         // refund the difference — never bill a reel and deliver a carousel.
         try {
             const { reconcileJobCharge } = await import("@/lib/subscription")
-            await reconcileJobCharge(job.client_id, jobId, config.charged, config.chargedCredits, result.mediaType)
+            await reconcileJobCharge(job.client_id, jobId, config.charged, config.chargedCredits, result.mediaType, result.reelDuration)
         } catch (reconErr: any) {
             console.error("Job charge reconcile failed:", reconErr?.message)
         }
@@ -96,6 +97,7 @@ export async function POST(req: Request) {
                 postId: result.id,
                 caption: result.caption,
                 imageUrl: result.imageUrl,
+                mediaType: result.mediaType,
                 cost: result.cost,
             },
         })
@@ -106,6 +108,7 @@ export async function POST(req: Request) {
             postId: result.id,
             caption: result.caption,
             imageUrl: result.imageUrl,
+            mediaType: result.mediaType,
         })
 
     } catch (err: any) {

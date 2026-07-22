@@ -4,6 +4,30 @@ import { useState } from "react"
 import { updateIGPostMetrics } from "@/app/actions/admin-actions"
 import type { IGPost } from "./types"
 
+/** Inline video player for reels — poster = cover image, 9:16 dark frame. */
+export function ReelPlayer({ videoUrl, coverUrl, className }: { videoUrl: string; coverUrl?: string; className?: string }) {
+    return (
+        <video
+            src={videoUrl}
+            poster={coverUrl}
+            controls
+            playsInline
+            loop
+            preload="metadata"
+            className={className || "w-full aspect-[9/16] object-contain bg-black rounded-sm border border-white/5"}
+        />
+    )
+}
+
+/** Corner badge marking a reel thumbnail (mirrors the 📸 carousel badge style). */
+export function ReelBadge({ duration }: { duration?: number }) {
+    return (
+        <div className="absolute top-1.5 right-1.5 bg-black/70 text-white text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-sm">
+            🎬{duration ? ` ${duration}s` : ""}
+        </div>
+    )
+}
+
 export function CopyButton({ onClick, copied, label }: { onClick: () => void; copied: boolean; label?: string }) {
     return (
         <button

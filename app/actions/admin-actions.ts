@@ -37,7 +37,7 @@ export async function getDashboardStats(projectSlug: string) {
         // Post counts by status (last 200 for accurate totals)
         const { data: posts } = await supabaseAdmin
             .from("ig_posts")
-            .select("id, status, caption, image_url, created_at, scheduled_for, likes, comments, saves, reach, ig_post_types ( name, display_name, emoji )")
+            .select("id, status, caption, image_url, media_type, created_at, scheduled_for, likes, comments, saves, reach, ig_post_types ( name, display_name, emoji )")
             .eq("client_id", clientId)
             .order("created_at", { ascending: false })
             .limit(200)
@@ -76,6 +76,7 @@ export async function getDashboardStats(projectSlug: string) {
                 id: p.id,
                 caption: p.caption?.split("\n")[0]?.substring(0, 80) || "—",
                 image_url: p.image_url,
+                media_type: (p as any).media_type ?? null,
                 status: p.status,
                 created_at: p.created_at,
                 type_name: (p.ig_post_types as any)?.display_name || "Post",
@@ -90,7 +91,7 @@ export async function getDashboardStats(projectSlug: string) {
         monday.setDate(now.getDate() + mondayOffset)
         monday.setHours(0, 0, 0, 0)
 
-        const weekDays: { date: string; dayName: string; isToday: boolean; posts: { id: string; caption: string; image_url: string | null; status: string; type_emoji: string }[] }[] = []
+        const weekDays: { date: string; dayName: string; isToday: boolean; posts: { id: string; caption: string; image_url: string | null; media_type: string | null; status: string; type_emoji: string }[] }[] = []
         const dayNames = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"]
         for (let i = 0; i < 7; i++) {
             const d = new Date(monday)
@@ -105,6 +106,7 @@ export async function getDashboardStats(projectSlug: string) {
                 id: p.id,
                 caption: p.caption?.split("\n")[0]?.substring(0, 40) || "—",
                 image_url: p.image_url,
+                media_type: (p as any).media_type ?? null,
                 status: p.status,
                 type_emoji: (p.ig_post_types as any)?.emoji || "📸",
             }))
@@ -636,7 +638,7 @@ export async function getPerformanceInsights(projectSlug: string) {
         const { data: posts } = await supabaseAdmin
             .from("ig_posts")
             .select(`
-                id, caption, image_url, status, likes, comments, saves,
+                id, caption, image_url, media_type, status, likes, comments, saves,
                 reach, shares, profile_visits, link_clicks, content_pillar,
                 posted_at, created_at,
                 ig_post_types ( name, display_name, emoji )

@@ -1,9 +1,9 @@
 /**
  * Instagram channel adapter — the first ChannelAdapter implementation.
  * Constraints + draft formatting + publishing are live. `publish()` pushes an
- * image or carousel to a connected Instagram Business account via the Graph API
- * (container → publish). Reels/video publishing is deferred (no video storage yet)
- * and `fetchMetrics` is still stubbed until the insights call lands (roadmap step 3).
+ * image, carousel, or reel to a connected Instagram Business account via the Graph
+ * API (container → publish). Reels use a REELS container with video_url + cover_url
+ * and a longer transcode-poll window; `fetchMetrics` reads counts + insights.
  *
  * Publishing requires the `instagram_business_content_publish` scope (2nd App
  * Review). Until that clears, it only works for the chrlit account whose connecting
@@ -29,6 +29,11 @@ const IG_GRAPH_BASE = "https://graph.instagram.com"
 // publishable. Poll status_code up to this many times before giving up.
 const CONTAINER_POLL_ATTEMPTS = 10
 const CONTAINER_POLL_DELAY_MS = 3000
+
+// A REELS container transcodes the uploaded video server-side, which takes minutes —
+// poll far longer and slower than for images (≈5 min total).
+const REEL_POLL_ATTEMPTS = 60
+const REEL_POLL_DELAY_MS = 5000
 
 // Per-media insights we try to read (likes/comments come from direct fields below).
 // IG 400s the WHOLE request if any one metric is invalid for the media type / API
@@ -71,19 +76,27 @@ async function createContainer(
 
 /**
  * Wait until a container is FINISHED (publishable). IG returns IN_PROGRESS/FINISHED/
- * ERROR/EXPIRED via status_code. Cheap insurance for images, necessary for carousels.
+ * ERROR/EXPIRED via status_code. Cheap insurance for images, necessary for carousels,
+ * and mandatory for reels (video transcoding takes minutes → longer poll window).
  */
-async function waitForContainer(containerId: string, accessToken: string): Promise<void> {
-    for (let attempt = 0; attempt < CONTAINER_POLL_ATTEMPTS; attempt++) {
-        const json = await graphGet(`${containerId}?fields=status_code`, accessToken)
+async function waitForContainer(
+    containerId: string,
+    accessToken: string,
+    opts: { attempts?: number; delayMs?: number } = {},
+): Promise<void> {
+    const attempts = opts.attempts ?? CONTAINER_POLL_ATTEMPTS
+    const delayMs = opts.delayMs ?? CONTAINER_POLL_DELAY_MS
+    for (let attempt = 0; attempt < attempts; attempt++) {
+        // `status` carries a human-readable reason on ERROR — surface it for diagnostics.
+        const json = await graphGet(`${containerId}?fields=status_code,status`, accessToken)
         const code = json?.status_code
         if (code === "FINISHED") return
         if (code === "ERROR" || code === "EXPIRED") {
-            throw new Error(`IG container ${containerId} status ${code}`)
+            throw new Error(`IG container ${containerId} status ${code}${json?.status ? `: ${json.status}` : ""}`)
         }
-        await new Promise(r => setTimeout(r, CONTAINER_POLL_DELAY_MS))
+        await new Promise(r => setTimeout(r, delayMs))
     }
-    throw new Error(`IG container ${containerId} not FINISHED after ${CONTAINER_POLL_ATTEMPTS} polls`)
+    throw new Error(`IG container ${containerId} not FINISHED after ${attempts} polls`)
 }
 
 /** Publish a finished container; returns the published media id. */
@@ -120,12 +133,33 @@ export const instagramAdapter: ChannelAdapter = {
             throw new Error("IG publish: žádné mediální URL k publikování.")
         }
 
-        // Reels/video publishing is deferred (no video storage path yet).
-        if (content.mediaType === "reel" || content.mediaType === "video") {
-            throw new ChannelNotEnabledError("instagram", "reel/video publishing")
+        // Non-reel video publishing isn't wired (no such media type flows here today).
+        if (content.mediaType === "video") {
+            throw new ChannelNotEnabledError("instagram", "video publishing")
         }
 
         let creationId: string
+
+        if (content.mediaType === "reel") {
+            // Reel: mediaUrls = [videoUrl, coverUrl?] (parsePostMedia ordering). REELS
+            // container transcodes server-side, so poll long (waitForContainer w/ REEL opts).
+            const [videoUrl, coverUrl] = mediaUrls
+            creationId = await createContainer(igUserId, accessToken, {
+                media_type: "REELS",
+                video_url: videoUrl,
+                caption,
+                share_to_feed: "true",
+                ...(coverUrl ? { cover_url: coverUrl } : { thumb_offset: "0" }),
+            })
+            await waitForContainer(creationId, accessToken, { attempts: REEL_POLL_ATTEMPTS, delayMs: REEL_POLL_DELAY_MS })
+            const mediaId = await publishContainer(igUserId, accessToken, creationId)
+            let permalink: string | undefined
+            try {
+                const meta = await graphGet(`${mediaId}?fields=permalink`, accessToken)
+                permalink = meta?.permalink || undefined
+            } catch { /* permalink is a nicety */ }
+            return { externalId: mediaId, permalink }
+        }
 
         if (content.mediaType === "carousel" && mediaUrls.length > 1) {
             // 1) a child container per slide (no caption on children)

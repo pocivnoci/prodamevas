@@ -5,6 +5,7 @@ import { getPerformanceInsights, updateIGPostMetrics, syncMetricsAction } from "
 import { getConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { getGrowthData, type GrowthData } from "@/app/actions/growth-actions"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
+import { parsePostMedia } from "@/lib/media-urls"
 
 export function PerformanceTab({ projectId }: { projectId: string }) {
     const [posts, setPosts] = useState<any[]>([])
@@ -256,9 +257,9 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                                 >
                                     {/* Post info */}
                                     <div className="flex items-center gap-3 min-w-0">
-                                        {post.image_url && (
+                                        {parsePostMedia(post.image_url, post.media_type).thumbUrl && (
                                             <img
-                                                src={post.image_url.split("|")[0]}
+                                                src={parsePostMedia(post.image_url, post.media_type).thumbUrl!}
                                                 alt=""
                                                 className="w-8 h-8 rounded-sm object-cover flex-shrink-0"
                                             />

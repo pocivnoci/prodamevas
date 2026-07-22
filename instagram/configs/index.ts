@@ -5,9 +5,10 @@
  */
 
 import supabaseAdmin from "../../supabase/admin"
-import type { ClientConfig } from "./types"
+import type { ClientConfig, PostFormat } from "./types"
 import { reconcileFormats } from "./reconcile"
 import { isFeedPattern } from "../../lib/feed-pattern"
+import { clampReelDuration } from "../../lib/credits"
 
 export interface ClientMeta {
     id: string
@@ -63,6 +64,14 @@ export async function loadConfig(name: string, forceRefresh = false): Promise<Cl
     return config
 }
 
+/** Clamp reelDuration on a format to the allowed set — engine clip planning
+ *  (planClips) and duration-aware billing (creditsForReel) both index off it,
+ *  so a garbage value must never reach them. Non-reel formats pass through. */
+function clampFormatReelDuration(format: PostFormat): PostFormat {
+    if (format?.reelDuration === undefined) return format
+    return { ...format, reelDuration: clampReelDuration(format.reelDuration) }
+}
+
 /** Fill safe defaults for missing required fields to prevent runtime crashes */
 function validateConfig(config: ClientConfig, slug: string): ClientConfig {
     // reconcileFormats self-heals the four format sources on every load — drift
@@ -106,11 +115,15 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // Keep the three per-client format sources defaulted (never undefined) so
         // ensurePostTypes/getIGPostTypes can't silently no-op on a half-filled config.
         postTypes: config.postTypes || [],
-        postFormats: config.postFormats || {},
+        postFormats: Object.fromEntries(
+            Object.entries(config.postFormats || {}).map(([k, f]) => [k, clampFormatReelDuration(f)])
+        ),
+        defaultFormat: config.defaultFormat ? clampFormatReelDuration(config.defaultFormat) : config.defaultFormat,
         postTypeDefs: config.postTypeDefs || [],
         hashtagPools: config.hashtagPools || { core: [], niche: [], broad: [], trending: [], czech: [] },
         contentFocus: config.contentFocus || config.name || slug,
         videoTier: config.videoTier || "fast",
+        ttsVoice: config.ttsVoice || "Kore",
         psychologist: config.psychologist ?? true,
         // igBaseline is optional with no default — undefined means "no scrape
         // data available" and all consumers (planWeek) must handle that.

@@ -20,8 +20,10 @@ import { canGenerate } from "@/app/actions/credit-guard"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
 import { useCopyToClipboard } from "./hooks"
+import { ReelPlayer } from "./shared"
 import type { IGPostType, IGCategory, IGPostFormat } from "./types"
 import { creditsForMedia } from "@/lib/credits"
+import { parsePostMedia } from "@/lib/media-urls"
 import { trackEvent } from "@/lib/analytics"
 
 /**
@@ -60,6 +62,9 @@ function shortCzDate(dateStr: string): string {
 export function GenerateTab({ projectId }: { projectId: string }) {
     const { refreshSubscription, setActiveSection, subscription, generateIntent, setGenerateIntent } = useStudio()
     const reelAllowed = subscription?.allowedMedia?.includes("reel") ?? true
+    // Global kill-switch — while off, the engine clamps reels to carousel, so the UI
+    // must not offer them (a "reel" that ships as a carousel is a broken promise).
+    const reelsEnabled = subscription?.reelsEnabled ?? false
     // Posts still free within this month's plan allotment (plan posts cost 0 credits).
     const freeRemaining = subscription
         ? Math.max(0, (subscription.planPostsLimit ?? 0) - (subscription.planPostsUnlocked ?? 0))
@@ -628,7 +633,12 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const planMediums = (count: number): string[] => {
         const divisor = { low: 6, auto: 4, high: 2 }[carouselShare]
         const carousels = Math.floor(count / divisor)
-        return [...Array<string>(count - carousels).fill("image"), ...Array<string>(carousels).fill("carousel")]
+        // Reels enter plans only with the kill-switch on, the plan allowing them AND the
+        // brand having a reel format (~1 of 8 posts — mirrors the server-side spread).
+        const hasReelFormat = Object.values(postFormats).some(f => f.medium === "reel")
+        const reels = reelsEnabled && reelAllowed && hasReelFormat ? Math.floor(count / 8) : 0
+        const images = Math.max(0, count - carousels - reels)
+        return [...Array<string>(images).fill("image"), ...Array<string>(carousels).fill("carousel"), ...Array<string>(reels).fill("reel")]
     }
     const planCost = (count: number) => batchCreditCost(planMediums(count), freeRemaining)
 
@@ -793,13 +803,16 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         setContentPlan(prev => prev.map(p => p.id === itemId ? { ...p, topic: newTopic, ideaId: undefined, ideaTitle: undefined } : p))
     }
 
-    // Toggle a plan item's format: single image ⇄ carousel. Reel is excluded from the manual
-    // toggle while reels are globally clamped to carousel — flipping to "reel" would just be
-    // re-clamped at generation, so we don't offer a misleading option.
+    // Toggle a plan item's format. With reels live (kill-switch on + plan allows them)
+    // the cycle is image → carousel → reel → image; otherwise image ⇄ carousel only —
+    // flipping to "reel" under a clamp would be a misleading option.
     const handleTogglePlanMedium = (itemId: string) => {
+        const reelsAvailable = reelsEnabled && reelAllowed
         setContentPlan(prev => prev.map(p => {
-            if (p.id !== itemId || p.medium === "reel") return p
-            return { ...p, medium: p.medium === "carousel" ? "image" : "carousel" }
+            if (p.id !== itemId) return p
+            if (p.medium === "reel") return reelsAvailable ? { ...p, medium: "image" } : p
+            if (p.medium === "carousel") return { ...p, medium: reelsAvailable ? "reel" : "image" }
+            return { ...p, medium: "carousel" }
         }))
     }
 
@@ -1087,16 +1100,19 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                 <div className="grid grid-cols-4 gap-2">
                                                     {[{ value: "", label: "Auto", emoji: "🎲" }, { value: "image", label: "Obrázek", emoji: "🖼️" }, { value: "carousel", label: "Carousel", emoji: "📸" }, { value: "reel", label: "Reel", emoji: "🎬" }].map(opt => {
                                                         const locked = opt.value === "reel" && !reelAllowed
+                                                        const comingSoon = opt.value === "reel" && reelAllowed && !reelsEnabled
+                                                        const disabled = locked || comingSoon
                                                         return (
-                                                            <button key={opt.value} onClick={() => !locked && setMedium(opt.value)}
-                                                                disabled={locked}
-                                                                title={locked ? "Reels jsou dostupné od balíčku Růst" : undefined}
-                                                                className={`py-2.5 rounded-sm text-center transition-all border text-xs font-bold ${locked
+                                                            <button key={opt.value} onClick={() => !disabled && setMedium(opt.value)}
+                                                                disabled={disabled}
+                                                                title={locked ? "Reels jsou dostupné od balíčku Růst" : comingSoon ? "Reels už brzy — dolaďujeme kvalitu videa" : undefined}
+                                                                className={`py-2.5 rounded-sm text-center transition-all border text-xs font-bold ${disabled
                                                                     ? "bg-[#050505] border-white/5 text-white/20 cursor-not-allowed"
                                                                     : medium === opt.value
                                                                         ? "bg-white/10 border-white/30 text-white" : "bg-[#050505] border-white/10 text-white/40 hover:text-white"}`}>
                                                                 {locked ? "🔒" : opt.emoji} {opt.label}
                                                                 {locked && <span className="block text-[8px] text-white/25 font-bold uppercase tracking-widest mt-0.5">Od Růst</span>}
+                                                                {comingSoon && <span className="block text-[8px] text-white/25 font-bold uppercase tracking-widest mt-0.5">Brzy</span>}
                                                             </button>
                                                         )
                                                     })}
@@ -1415,15 +1431,18 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                                 const m = item.medium === "carousel"
                                                                     ? { emoji: "📸", label: "Carousel", cls: "text-sky-300/70 border-sky-400/20 bg-sky-400/5" }
                                                                     : item.medium === "reel"
-                                                                    ? { emoji: "🎬", label: "Reel", cls: "text-fuchsia-300/70 border-fuchsia-400/20 bg-fuchsia-400/5" }
+                                                                    ? { emoji: "🎬", label: `Reel (${creditsForMedia("reel")} kr.)`, cls: "text-fuchsia-300/70 border-fuchsia-400/20 bg-fuchsia-400/5" }
                                                                     : { emoji: "🖼️", label: "1 obrázek", cls: "text-emerald-300/70 border-emerald-400/20 bg-emerald-400/5" }
-                                                                const editable = item.medium !== "reel"
+                                                                const reelsAvailable = reelsEnabled && reelAllowed
+                                                                const editable = item.medium !== "reel" || reelsAvailable
                                                                 return (
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => editable && handleTogglePlanMedium(item.id)}
                                                                         disabled={!editable}
-                                                                        title={editable ? "Přepnout formát: 1 obrázek ⇄ carousel" : "Reel"}
+                                                                        title={editable
+                                                                            ? reelsAvailable ? "Přepnout formát: obrázek → carousel → reel" : "Přepnout formát: 1 obrázek ⇄ carousel"
+                                                                            : "Reel"}
                                                                         className={`text-[8px] px-1.5 py-0.5 border rounded-sm font-bold uppercase tracking-wider transition-all ${m.cls} ${editable ? "cursor-pointer hover:brightness-150" : "cursor-default"}`}
                                                                     >{m.emoji} {m.label}{editable ? " ⇄" : ""}</button>
                                                                 )
@@ -1783,17 +1802,27 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     <div className="bg-[#0a0a0a] rounded-sm p-4 sm:p-6 border border-white/10 shadow-lg">
                                         <div className="mb-6 rounded-sm overflow-hidden bg-[#0f0f0f] shadow-inner border border-white/5">
                                             {(() => {
-                                                const urls = result.imageUrl?.split("|").filter(Boolean) || []
-                                                if (urls.length > 1) {
+                                                // Legacy results lack mediaType — sniff the .mp4 so a reel never lands in an <img>
+                                                const sniffedType = result.mediaType
+                                                    ?? (result.imageUrl?.split("|")[0]?.includes(".mp4") ? "reel" : undefined)
+                                                const media = parsePostMedia(result.imageUrl, sniffedType)
+                                                if (media.kind === "reel" && media.videoUrl) {
+                                                    return (
+                                                        <div className="flex justify-center py-2">
+                                                            <ReelPlayer videoUrl={media.videoUrl} coverUrl={media.coverUrl} className="w-full max-w-[280px] aspect-[9/16] object-contain bg-black rounded-sm" />
+                                                        </div>
+                                                    )
+                                                }
+                                                if (media.slideCount > 1) {
                                                     return (
                                                         <div className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar">
-                                                            {urls.map((u, i) => (
+                                                            {media.urls.map((u, i) => (
                                                                 <img key={i} src={u} className="w-full h-auto max-h-[500px] object-contain snap-center shrink-0 border-r border-white/5 last:border-0" alt={`Slide ${i}`} />
                                                             ))}
                                                         </div>
                                                     )
                                                 }
-                                                return <img src={urls[0]} className="w-full h-auto max-h-[500px] object-contain" alt="Vygenerovaný obsah" />
+                                                return <img src={media.thumbUrl || undefined} className="w-full h-auto max-h-[500px] object-contain" alt="Vygenerovaný obsah" />
                                             })()}
                                         </div>
 

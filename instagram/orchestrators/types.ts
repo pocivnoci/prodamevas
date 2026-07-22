@@ -61,6 +61,8 @@ export interface RenderContext {
 export interface RenderResult {
     imageUrl?: string
     cost: number
+    /** Reel only — the duration actually rendered (drives the billing reconcile). */
+    reelDuration?: number
     /** e.g. "native:<concept-slug>" or "overlay:<variant>" — stored as ig_posts.image_style */
     imageStyle?: string
     /** Full design brief (native engine) — stored as ig_posts.design_brief */

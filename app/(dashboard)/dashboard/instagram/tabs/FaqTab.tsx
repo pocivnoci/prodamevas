@@ -57,7 +57,7 @@ const FAQ_CATEGORIES: FaqCategory[] = [
         items: [
             {
                 q: "Kolik stojí jedna akce?",
-                a: "Post = 1 kredit. Varianta = 1 kredit. Generování nápadů = 1 kredit. Produktová vizualizace = 2 kredity. Design pro tisk = 3 kredity. Mockup = 2 kredity. Business Brief = 5 kreditů.",
+                a: "Post (obrázek) = 1 kredit, carousel = 3 kredity, reel = od 5 kreditů (8 s; 16 s = 9, 24 s = 13). Varianta = jako daný formát. Generování nápadů = 1 kredit. Produktová vizualizace = 2 kredity. Design pro tisk = 3 kredity. Mockup = 2 kredity. Business Brief = 5 kreditů.",
             },
             {
                 q: "Co se stane, když mi dojdou kredity?",

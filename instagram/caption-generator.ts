@@ -4,6 +4,7 @@
  */
 
 import { Type } from "@google/genai"
+import { clampReelDuration } from "../lib/credits"
 import { generateTextQuality } from "./gemini-client"
 import { judgeText } from "./judge"
 import { getModel, hasFallback, getTemperature } from "./models"
@@ -35,9 +36,12 @@ export const COSTS = {
     videoPerSecond: 0.15,        // @deprecated — use videoPerSecondByTier
     videoPerSecondByTier: { lite: 0.06, fast: 0.15, premium: 0.40 } as Record<"lite" | "fast" | "premium", number>,
     ttsVoiceover: 0.02,          // Gemini 3.1 Flash TTS (~$0.02 per request)
+    frameQA: 0.01,               // reel clip QA — 3 sampled frames through the vision judge
     perPost: 0.27,       // 3× text ($0.075) + context ($0.025) + designer ($0.03) + image ($0.134) + QA ($0.01)
     perCarousel: 0.75,   // 3× text + context + designer + 4× image ($0.536) + 4× QA + overhead
     perReel: 1.45,       // 3× text + context + Veo 3.1 Fast 8s ($1.20) + TTS ($0.02) + cover ($0.134) + QA
+    perReel16: 2.85,     // 16s multi-clip: 2× Veo Fast 8s ($2.40) + TTS + cover + 2× frame QA
+    perReel24: 4.15,     // 24s multi-clip: 3× Veo Fast 8s ($3.60) + TTS + cover + 3× frame QA
 }
 
 // ============================================
@@ -120,21 +124,29 @@ export function selectOverlayVariant(
 
 /**
  * Determine reel duration from config or convention.
- * Veo 3.1 supports 5-8s at 1080p.
+ * Veo 3.1 supports 5-8s per clip at 1080p; 16/24s reels are stitched multi-clip
+ * and are opt-in via explicit config ONLY — name conventions never exceed 8s.
  */
 export function getReelDuration(typeName: string, config?: ClientConfig): number {
     // 1. Explicit per-type config
     const typeFormat = config?.postFormats?.[typeName]
-    if (typeFormat?.reelDuration) return Math.min(8, Math.max(5, typeFormat.reelDuration))
+    if (typeFormat?.reelDuration) return clampReelDuration(typeFormat.reelDuration)
 
     // 2. Default format config
-    if (config?.defaultFormat?.reelDuration) return Math.min(8, Math.max(5, config.defaultFormat.reelDuration))
+    if (config?.defaultFormat?.reelDuration) return clampReelDuration(config.defaultFormat.reelDuration)
 
     // 3. Convention-based
     if (typeName.includes("short") || typeName.includes("quick")) return 5
     if (typeName.includes("long") || typeName.includes("tutorial")) return 8
 
     return 8
+}
+
+/** Internal clip seams of a multi-clip reel, for the scene-timing prompt ("8s" / "8s a 16s"). */
+function clipBoundaries(durationSec: number): string {
+    const seams: number[] = []
+    for (let t = 8; t < durationSec; t += 8) seams.push(t)
+    return seams.map(t => `${t}s`).join(" a ") || `${durationSec}s`
 }
 
 export const IDEA_COOLDOWN_DAYS = 90
@@ -341,10 +353,19 @@ export function buildVideoSchema(config: ClientConfig) {
                             type: Type.STRING,
                             description: "Mood and lighting (e.g. 'warm golden hour, soft bokeh', 'dramatic side lighting, moody', 'bright natural daylight, energetic')",
                         },
+                        narration: {
+                            type: Type.STRING,
+                            description: "Český voiceover text scény — MAX 1 krátká věta, rozpočet ~2,5 slova na sekundu délky scény (2s scéna = max 5 slov). Přirozená mluvená čeština, žádné hashtagy/emoji/URL. Scéna 1 = mluvený hook.",
+                        },
+                        soundEffect: {
+                            type: Type.STRING,
+                            description: "Ambient sound/effect for Veo native audio (e.g. 'city ambience', 'coffee pouring', 'keyboard typing')",
+                        },
                     },
-                    required: ["timeRange", "visual", "camera", "mood"],
+                    required: ["timeRange", "visual", "camera", "mood", "narration"],
+                    propertyOrdering: ["timeRange", "visual", "camera", "mood", "narration", "soundEffect"],
                 },
-                description: "3-4 detailed scenes for Veo 3.1 video generation. Each scene must specify what happens, camera movement, and mood.",
+                description: "Detailed scenes for Veo 3.1 video generation. Each scene must specify what happens, camera movement, mood, and Czech narration (voiceover + burned-in subtitles).",
             },
             videoScript: {
                 type: Type.STRING,
@@ -749,11 +770,14 @@ Toto je Instagram Reel (krátké video, ${postFormat.reelDuration || 8} sekund).
 Video bude generováno AI (Veo 3.1) s nativním zvukem + český voiceover z narrace.
 
 ### PRAVIDLA PRO REELS:
-- **HOOK** musí být v prvních 1.5 sekundách — vizuálně i textově zaujmout
+- 🚫 **ŽELEZNÉ PRAVIDLO — scene.visual NIKDY neukazuje obrazovku telefonu/tabletu/PC s aplikací, textem, UI, grafy ani „appkou".** AI video generátor neumí vyrenderovat čitelný text ani rozhraní → vznikne rozsypaný nesmysl, který okamžitě prozradí lacinou AI. I když je produkt appka/software, ukaž REÁLNOU FYZICKOU scénu ze života zákazníka (člověk, prostředí, výsledek, emoce, reálný produkt v ruce) — NE obrazovku. Žádné cedule, etikety s textem, nápisy.
+- Preferuj záběry, které video umí dobře: reálná fyzická akce, produkt/textura zblízka, pohyb, atmosféra, denní/přírodní světlo. Vyhýbej se detailním záběrům rukou při jemné manipulaci a mluvícím hlavám v extrémním detailu.
+- **HOOK** musí být v prvních 1.5 sekundách — vizuálně i textově zaujmout. Narration scény 1 = mluvená verze hooku (problém/otázka), první 1,5 s rozhoduje o retention.
 - **PACING** musí být dynamický — žádné statické záběry delší než 3s
-- Každá scéna MUSÍ mít narration text (bude přečtený česky jako voiceover)
+- Každá scéna MUSÍ mít narration (přečte se česky jako voiceover a vypálí jako titulky). ROZPOČET SLOV: ~2,5 slova na sekundu scény — 2s scéna = max 5 slov, celý ${postFormat.reelDuration || 8}s reel = max ~${Math.round((postFormat.reelDuration || 8) * 2.5)} slov. Delší narace se do videa NEVEJDE.
 - Camera movements musí být plynulé a profesionální
-- Poslední scéna MUSÍ obsahovat CTA${policy.allowWebsite ? ` s ${config.website}` : " — engagement výzvu (otázka / uložit / sdílet), BEZ webu"}
+- Poslední scéna MUSÍ obsahovat CTA${policy.allowWebsite ? ` s ${config.website}` : " — engagement výzvu (otázka / uložit / sdílet), BEZ webu"}${selectedProduct ? `
+- **PRODUKT:** post staví na "${selectedProduct.name}"${selectedProduct.price ? ` (${selectedProduct.price})` : ""} — minimálně JEDNA scéna ho MUSÍ vizuálně ukázat (scene.visual v angličtině jmenuje produkt) a narration ho přirozeně zmíní (benefit, ne ceník)` : ""}
 
 ${typeDef?.structure ? `### 🧩 STRUKTURA TOHOTO FORMÁTU (závazná — obsah scén řiď podle ní):
 ${typeDef.structure}
@@ -763,6 +787,13 @@ ${(postFormat.reelDuration || 8) <= 5 ? `
 - Scene 1 (0-1.5s): HOOK — dramatický vizuál, narration = problém/otázka
 - Scene 2 (1.5-3.5s): VALUE — řešení/produkt v akci
 - Scene 3 (3.5-5s): CTA — ${policy.allowWebsite ? `result + ${config.website}` : "výsledek + engagement výzva (BEZ webu)"}
+` : (postFormat.reelDuration || 8) >= 16 ? `
+Toto je DELŠÍ reel (${postFormat.reelDuration}s) — video se generuje po 8s blocích a stříhá. Napiš 4-6 scén:
+- Scene 1 (0-2s): HOOK — dramatický vizuál, narration = problém/otázka
+- Scény VALUE: hlavní obsah, důkaz, ukázka — každá scéna max 4s
+- Scéna v ~${Math.round((postFormat.reelDuration || 16) / 2)}s: RE-HOOK — pattern interrupt (změna záběru/tempa/otázka), znovu chytit pozornost
+- Poslední scéna (${(postFormat.reelDuration || 16) - 3}-${postFormat.reelDuration || 16}s): CTA — ${policy.allowWebsite ? `výsledek + ${config.website}` : "výsledek + engagement výzva (BEZ webu)"}
+- DŮLEŽITÉ: hranice scén zarovnej na násobky 8s (žádná scéna nesmí přetékat přes ${clipBoundaries(postFormat.reelDuration || 16)}) — tam se video stříhá
 ` : `
 - Scene 1 (0-2s): HOOK — dramatický vizuál, narration = problém/otázka
 - Scene 2 (2-${(postFormat.reelDuration || 8) - 3}s): VALUE — hlavní obsah, důkaz, ukázka
@@ -793,7 +824,7 @@ ${config.videoFocus ? `### BRAND VIDEO STYLE:\n${config.videoFocus}\n` : ""}
       "visual": "Detailed English description of what happens visually",
       "camera": "camera movement type",
       "mood": "lighting and mood description", 
-      "narration": "Český text pro voiceover (1-2 věty, přirozená řeč)",
+      "narration": "Český voiceover (max 1 krátká věta, ~2,5 slova/s délky scény)",
       "soundEffect": "ambient sound or effect for this scene"
     }
   ],

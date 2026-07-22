@@ -7,7 +7,8 @@ import { getIGPostsList, updateIGPostStatus, getEditorialLog } from "@/app/actio
 import { deleteIGPost, deleteIGPosts } from "@/app/actions/post-actions"
 import { revisePost, generateMultipleVariants, selectVariantWinner, getVariantGroup } from "@/app/actions/variant-actions"
 import { retryPublishAction } from "@/app/actions/calendar-actions"
-import { LoadingSpinner, StatusBadge, PillarBadge, CopyButton, MetricsInputForm } from "./shared"
+import { LoadingSpinner, StatusBadge, PillarBadge, CopyButton, MetricsInputForm, ReelPlayer } from "./shared"
+import { parsePostMedia } from "@/lib/media-urls"
 import { PublishHandoffModal } from "./PublishHandoffModal"
 import { getConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { useCopyToClipboard } from "./hooks"
@@ -203,17 +204,28 @@ export function PostsTab({ projectId }: { projectId: string }) {
                             className="p-3 cursor-pointer group flex flex-col flex-1"
                         >
                         {/* Image Preview */}
-                        {post.image_url ? (
+                        {post.image_url ? (() => {
+                            const media = parsePostMedia(post.image_url, post.media_type)
+                            return (
                             <div className="w-full h-56 rounded-sm bg-[#0f0f0f] overflow-hidden relative mb-4">
-                                <img
-                                    src={post.image_url.split("|")[0]}
-                                    alt=""
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-                                />
+                                {media.thumbUrl ? (
+                                    <img
+                                        src={media.thumbUrl}
+                                        alt=""
+                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                                    />
+                                ) : media.videoUrl ? (
+                                    <video src={media.videoUrl} preload="metadata" muted playsInline className="w-full h-full object-cover" />
+                                ) : null}
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
-                                {post.image_url.includes("|") && (
+                                {media.kind === "carousel" && (
                                     <span className="absolute top-2 right-2 bg-black/70 border border-white/20 text-white/80 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm backdrop-blur-sm">
-                                        📸 {post.image_url.split("|").length} slidů
+                                        📸 {media.slideCount} slidů
+                                    </span>
+                                )}
+                                {media.kind === "reel" && (
+                                    <span className="absolute top-2 right-2 bg-black/70 border border-white/20 text-fuchsia-300 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm backdrop-blur-sm">
+                                        🎬 Reel
                                     </span>
                                 )}
                                 {post.qa_status === "native_forced" && (
@@ -225,7 +237,8 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                     </span>
                                 )}
                             </div>
-                        ) : (
+                            )
+                        })() : (
                             <div className="w-full h-56 rounded-sm bg-[#0f0f0f]/50 border border-white/5 flex flex-col items-center justify-center mb-4 gap-2">
                                 <span className="text-2xl opacity-50">🖼️</span>
                                 <span className="text-white/40 font-bold uppercase tracking-widest text-[10px]">Bez obrázku</span>
@@ -259,11 +272,12 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                 {post.image_url && (
                                     <InlineAction
                                         label="⬇️"
-                                        title="Stáhnout obrázek"
+                                        title={post.media_type === "reel" ? "Stáhnout video" : "Stáhnout obrázek"}
                                         onClick={() => {
+                                            const m = parsePostMedia(post.image_url, post.media_type)
                                             const a = document.createElement("a")
-                                            a.href = post.image_url!.split("|")[0]
-                                            a.download = `post-${post.id.slice(0, 8)}.png`
+                                            a.href = m.videoUrl || m.thumbUrl || ""
+                                            a.download = `post-${post.id.slice(0, 8)}.${m.videoUrl ? "mp4" : "png"}`
                                             a.target = "_blank"
                                             a.click()
                                         }}
@@ -462,8 +476,11 @@ function PostDetailModal({
         getEditorialLog(post.id).then(setEditorialLog)
     }, [post.id])
 
-    const imageUrls = post.image_url ? post.image_url.split("|").filter(Boolean) : []
-    const isCarousel = imageUrls.length > 1
+    const media = parsePostMedia(post.image_url, post.media_type)
+    const isReel = media.kind === "reel"
+    // Carousel slide navigation works off the slide list; a reel exposes only its cover here.
+    const imageUrls = isReel ? (media.coverUrl ? [media.coverUrl] : []) : media.urls
+    const isCarousel = media.kind === "carousel" && imageUrls.length > 1
 
     // Lock ALL scroll containers when modal is open
     useEffect(() => {
@@ -482,17 +499,19 @@ function PostDetailModal({
     }, [])
 
     const downloadImage = useCallback(async () => {
-        if (imageUrls.length === 0) return
-        const url = imageUrls[carouselIndex] || imageUrls[0]
+        const url = isReel ? media.videoUrl : (imageUrls[carouselIndex] || imageUrls[0])
+        if (!url) return
         try {
             const response = await fetch(url)
             const blob = await response.blob()
             const blobUrl = URL.createObjectURL(blob)
             const a = document.createElement("a")
             a.href = blobUrl
-            a.download = isCarousel
-                ? `ig-post-${post.id.substring(0, 8)}-slide${carouselIndex + 1}.png`
-                : `ig-post-${post.id.substring(0, 8)}.png`
+            a.download = isReel
+                ? `ig-reel-${post.id.substring(0, 8)}.mp4`
+                : isCarousel
+                    ? `ig-post-${post.id.substring(0, 8)}-slide${carouselIndex + 1}.png`
+                    : `ig-post-${post.id.substring(0, 8)}.png`
             document.body.appendChild(a)
             a.click()
             document.body.removeChild(a)
@@ -500,7 +519,7 @@ function PostDetailModal({
         } catch {
             window.open(url, "_blank")
         }
-    }, [post, carouselIndex, imageUrls, isCarousel])
+    }, [post, carouselIndex, imageUrls, isCarousel, isReel, media.videoUrl])
 
     const hashtags = Array.isArray(post.hashtags) ? post.hashtags : []
     const hashtagsText = hashtags.join(" ")
@@ -542,9 +561,15 @@ function PostDetailModal({
                 {/* Body — scrollable */}
                 <div className="flex-1 overflow-y-auto">
                     <div className="flex flex-col lg:flex-row">
-                        {/* Left: Image */}
+                        {/* Left: Image / Video */}
                         <div className="lg:w-1/2 bg-[#0f0f0f] border-r border-white/10 flex flex-col items-center justify-center p-4 relative">
-                            {imageUrls.length > 0 ? (
+                            {isReel && media.videoUrl ? (
+                                <ReelPlayer
+                                    videoUrl={media.videoUrl}
+                                    coverUrl={media.coverUrl}
+                                    className="max-w-full max-h-[300px] sm:max-h-[500px] aspect-[9/16] rounded-sm object-contain bg-black border border-white/10 shadow-lg"
+                                />
+                            ) : imageUrls.length > 0 ? (
                                 <>
                                     <img
                                         src={imageUrls[carouselIndex] || imageUrls[0]}
@@ -1034,7 +1059,7 @@ function VariantComparisonModal({
                                 const isLoser = selecting && selecting !== variant.id && done
                                 const hook = (variant.caption || "").split("\n")[0] || "—"
                                 const body = (variant.caption || "").split("\n").slice(1).join("\n").substring(0, 200)
-                                const firstImage = variant.image_url?.split("|")[0]
+                                const firstImage = parsePostMedia(variant.image_url, variant.media_type).thumbUrl
 
                                 return (
                                     <motion.div

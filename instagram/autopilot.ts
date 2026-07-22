@@ -175,6 +175,8 @@ export async function generateOnePost(options: {
     allowedMedia?: string[]
     /** Medium the job was charged for (media-weighted credits) — the engine never renders a more expensive one. */
     chargedMedium?: "image" | "carousel" | "reel"
+    /** Reel duration the job was charged for — the engine never renders a LONGER (pricier) reel. */
+    chargedReelDuration?: number
     /** ig_jobs id — enables writing the caption checkpoint for crash-resume. */
     jobId?: string
     /** Prior checkpoint from a failed job — skips the caption phase (copywriter/critic/editorial). */
@@ -184,7 +186,7 @@ export async function generateOnePost(options: {
      *  posts — those derive it from the live feed. */
     slotIntent?: SlotIntent
     onProgress?: (stage: string, progress: number, message: string, editorialLog?: EditorialMessage[]) => Promise<void>
-}): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number; mediaType: "image" | "carousel" | "reel" }> {
+}): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number; mediaType: "image" | "carousel" | "reel"; reelDuration?: number }> {
     const report = options.onProgress || (async () => { }) // no-op if not provided
     const clientUuid = await ensureConfig(options.configName)
     const ck = options.resumeFrom?.stage === "caption" ? options.resumeFrom : undefined
@@ -531,7 +533,7 @@ export async function generateOnePost(options: {
         }
 
         // Billing cap — the medium can never be MORE expensive than what the job was
-        // charged for (credits are media-weighted: image 1 / carousel 3 / reel 5, charged
+        // charged for (credits are media-weighted: image 1 / carousel 3 / reel 5+, charged
         // at job creation). Ideas/categories may still ask for a pricier medium; clamp it
         // to the paid one. Downward differences are refunded via reconcileJobCharge.
         if (options.chargedMedium) {
@@ -542,6 +544,17 @@ export async function generateOnePost(options: {
                 if (f.medium !== "reel" && f.aspectRatio === "9:16") f.aspectRatio = "4:5"
                 if (f.medium === "carousel" && f.overlayStyle === "none") f.overlayStyle = "cover"
                 console.log(`   💳 Médium "${original}" překračuje účtovaný formát — clamp na ${f.medium}`)
+            }
+        }
+
+        // Duration cap — a reel can never render LONGER than the duration it was charged
+        // for (creditsForReel scales with 8s blocks). Shorter is fine and refunds via
+        // reconcile; a config edit mid-deferral must not turn a 5-credit job into 24s.
+        if (f.medium === "reel" && options.chargedReelDuration) {
+            const configured = f.reelDuration ?? 8
+            if (configured > options.chargedReelDuration) {
+                f.reelDuration = options.chargedReelDuration
+                console.log(`   💳 Reel ${configured}s překračuje účtovaných ${options.chargedReelDuration}s — clamp`)
             }
         }
 
@@ -1112,7 +1125,7 @@ ${feedSummary}
     console.log(`⏱️  ${elapsed}s | 💰 ~$${cost.toFixed(3)}`)
     console.log("═".repeat(60) + "\n")
 
-    return { id: postId, caption: fullCaption, imageUrl, cost, mediaType: format.medium }
+    return { id: postId, caption: fullCaption, imageUrl, cost, mediaType: format.medium, reelDuration: renderResult?.reelDuration }
     }) // end withActiveProject
 }
 

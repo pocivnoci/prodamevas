@@ -16,6 +16,7 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { signEmail } from "@/lib/email-sign"
+import { parsePostMedia } from "@/lib/media-urls"
 
 export function siteUrl(): string {
     return process.env.NEXT_PUBLIC_SITE_URL || "https://chrlit.cz"
@@ -180,8 +181,8 @@ export function renderCampaignDigest(
 ): string {
     const cards = posts.slice(0, DIGEST_MAX_CARDS).map(post => {
         const typeLabel = MEDIA_LABELS[post.media_type || ""] || "📷 Příspěvek"
-        // Carousel image_url is pipe-joined child URLs — the first is the cover.
-        const thumb = post.media_type !== "reel" && post.image_url ? post.image_url.split("|")[0] : null
+        // parsePostMedia: carousel → first slide, reel → cover image (never the .mp4).
+        const thumb = parsePostMedia(post.image_url, post.media_type).thumbUrl
         const caption = truncateAtWord((post.caption || "").trim(), DIGEST_CAPTION_CHARS)
         const hashtags = (post.hashtags || []).filter(Boolean)
             .map(h => (h.startsWith("#") ? h : `#${h}`)).join(" ")

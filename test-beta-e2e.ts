@@ -571,6 +571,70 @@ test("12.9 feed-pattern grid count matches FeedTab's grid", () => {
     assert(f.includes("filter((p: any) => p.image_url)"), "FeedTab grid still filters on image_url only — keep countFeedPosts in sync")
 })
 
+// ── 13. REELS (voiceover + subtitles + product + multi-clip + publishing) ──
+
+test("13.1 video schema declares narration (the regression that killed voiceover)", () => {
+    const c = fileContent("instagram/caption-generator.ts")
+    const start = c.indexOf("export function buildVideoSchema")
+    const fn = c.slice(start, c.indexOf("export function buildCarouselSchema"))
+    assert(fn.includes("narration:"), "scene schema must declare narration")
+    assert(/required:\s*\[[^\]]*"narration"/.test(fn), "narration must be required in the scene schema")
+})
+
+test("13.2 TTS output is wrapped to WAV (Gemini returns headerless PCM)", () => {
+    const c = fileContent("instagram/gemini-client.ts")
+    const start = c.indexOf("export async function generateVoiceover")
+    const fn = c.slice(start, c.indexOf("export", start + 1))
+    assert(fn.includes("pcmToWav"), "generateVoiceover must wrap PCM into a WAV before returning")
+})
+
+test("13.3 reel orchestrator grounds on the product + reuses loadProductPhoto", () => {
+    const c = fileContent("instagram/orchestrators/reel-orchestrator.ts")
+    assert(c.includes("loadProductPhoto"), "reel render must load the product photo")
+    assert(c.includes("selectedProduct"), "reel render must use selectedProduct")
+    assert(c.includes("verifyReelClip") || c.includes("frame QA".toLowerCase()) || c.includes("extractFrames"), "reel render must run frame QA")
+})
+
+test("13.4 ffmpeg binary + subtitle font are traced for Vercel", () => {
+    const c = fileContent("next.config.ts")
+    assert(c.includes("ffmpeg-static/ffmpeg"), "ffmpeg-static binary must be in outputFileTracingIncludes")
+    assert(c.includes("instagram/assets/fonts"), "subtitle font must be in outputFileTracingIncludes")
+    assert(fileExists("instagram/assets/fonts/Inter-Bold.ttf"), "subtitle font file must be shipped")
+})
+
+test("13.5 IG adapter publishes reels via a REELS container (no throw)", () => {
+    const c = fileContent("lib/channels/instagram.ts")
+    assert(c.includes('media_type: "REELS"'), "publish must build a REELS container")
+    assert(c.includes("video_url"), "REELS container must pass video_url")
+    // The reel branch must publish, not throw ChannelNotEnabledError.
+    const reelIdx = c.indexOf('mediaType === "reel"')
+    assert(reelIdx === -1 || !c.slice(reelIdx, reelIdx + 200).includes("ChannelNotEnabledError"),
+        "reel must no longer throw ChannelNotEnabledError")
+})
+
+test("13.6 no raw image_url pipe-splitting outside lib/media-urls", () => {
+    const out = execSync(
+        `grep -rln 'image_url.*\\.split("|")\\|includes("|")' app/ lib/ --include="*.ts" --include="*.tsx" | grep -v "lib/media-urls.ts" || true`,
+        { cwd: ROOT, encoding: "utf-8" }
+    ).trim()
+    assert(out === "", `raw pipe-splitting still present in: ${out} — use parsePostMedia`)
+})
+
+test("13.7 validateConfig defaults ttsVoice and clamps reelDuration", () => {
+    const c = fileContent("instagram/configs/index.ts")
+    assert(c.includes('ttsVoice: config.ttsVoice || "Kore"'), "ttsVoice default missing")
+    assert(c.includes("clampFormatReelDuration") || c.includes("clampReelDuration"), "reelDuration must be clamped")
+})
+
+test("13.8 reel duration drives credits and threads through charging", () => {
+    const credits = fileContent("lib/credits.ts")
+    assert(credits.includes("export function creditsForReel"), "creditsForReel must exist")
+    const create = fileContent("app/api/ig-create-job/route.ts")
+    assert(create.includes("chargedReelDuration"), "ig-create-job must charge by reel duration")
+    const worker = fileContent("app/api/cron/campaign-worker/route.ts")
+    assert(worker.includes("chargedReelDuration"), "campaign-worker must charge by reel duration")
+})
+
 // ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════

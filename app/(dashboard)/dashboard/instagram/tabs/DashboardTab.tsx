@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react"
 import { motion } from "framer-motion"
 import { getDashboardStats } from "@/app/actions/admin-actions"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
+import { parsePostMedia } from "@/lib/media-urls"
 
 // ═══════════════════════════════════════════════════════════
 // TYPES
@@ -13,7 +14,7 @@ interface WeekDay {
     date: string
     dayName: string
     isToday: boolean
-    posts: { id: string; caption: string; image_url: string | null; status: string; type_emoji: string }[]
+    posts: { id: string; caption: string; image_url: string | null; media_type?: string | null; status: string; type_emoji: string }[]
 }
 
 interface ActivityItem {
@@ -35,6 +36,7 @@ interface DashboardStats {
         id: string
         caption: string
         image_url: string | null
+        media_type?: string | null
         status: string
         created_at: string
         type_name: string
@@ -456,9 +458,9 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                                     <div className="flex-1 flex flex-col gap-1">
                                         {day.posts.map(p => (
                                             <div key={p.id} className="flex items-center gap-1">
-                                                {p.image_url ? (
+                                                {parsePostMedia(p.image_url, p.media_type).thumbUrl ? (
                                                     <img
-                                                        src={p.image_url.split("|")[0]}
+                                                        src={parsePostMedia(p.image_url, p.media_type).thumbUrl!}
                                                         alt=""
                                                         className="w-5 h-5 rounded-sm object-cover flex-shrink-0"
                                                     />
@@ -549,26 +551,36 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                                 onClick={() => setActiveSection("posts")}
                                 className="group bg-[#0a0a0a]/80 border border-white/10 rounded-sm overflow-hidden text-left hover:border-white/20 transition-all"
                             >
-                                {post.image_url ? (
+                                {post.image_url ? (() => {
+                                    const media = parsePostMedia(post.image_url, post.media_type)
+                                    return (
                                     <div className="w-full aspect-square overflow-hidden relative">
-                                        <img
-                                            src={post.image_url.split("|")[0]}
-                                            alt=""
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                        />
+                                        {media.thumbUrl && (
+                                            <img
+                                                src={media.thumbUrl}
+                                                alt=""
+                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                            />
+                                        )}
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                                         {/* Status dot */}
                                         <span className={`absolute top-2 right-2 w-2 h-2 rounded-full shadow-lg ${
                                             post.status === "posted" ? "bg-emerald-500" : post.status === "ready" ? "bg-blue-500" : "bg-amber-500"
                                         }`} />
-                                        {/* Carousel badge */}
-                                        {post.image_url.includes("|") && (
+                                        {/* Media badge */}
+                                        {media.kind === "carousel" && (
                                             <span className="absolute top-2 left-2 bg-black/60 text-white/70 text-[8px] font-bold px-1.5 py-0.5 rounded-sm">
-                                                📸 {post.image_url.split("|").length}
+                                                📸 {media.slideCount}
+                                            </span>
+                                        )}
+                                        {media.kind === "reel" && (
+                                            <span className="absolute top-2 left-2 bg-black/60 text-fuchsia-300 text-[8px] font-bold px-1.5 py-0.5 rounded-sm">
+                                                🎬
                                             </span>
                                         )}
                                     </div>
-                                ) : (
+                                    )
+                                })() : (
                                     <div className="w-full aspect-square bg-white/[0.02] flex items-center justify-center">
                                         <span className="text-2xl opacity-20">{post.type_emoji}</span>
                                     </div>
