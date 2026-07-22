@@ -35,6 +35,11 @@ export interface ActionRequest {
     payload?: Record<string, unknown>
     /** Simulate only — record as proposed, never dispatch. */
     dryRun?: boolean
+    /**
+     * E-mail the founder when the action lands as pending_approval (default true).
+     * Batch proposers (lifecycle scan) set false and send one digest instead.
+     */
+    notify?: boolean
 }
 
 export type ActionOutcome =
@@ -87,6 +92,22 @@ export async function requestAction(req: ActionRequest): Promise<ActionOutcome> 
     if (needsApproval(req.riskTier)) {
         // High-risk → hold for a human. Nothing dispatched.
         const actionId = await insertAction(req, "proposed", "system")
+        if (req.notify !== false) {
+            // Fire & forget — a failed e-mail must never break the proposing flow.
+            try {
+                const { notifyPendingApproval } = await import("@/lib/agents/approval-notify")
+                await notifyPendingApproval({
+                    actionId,
+                    clientId: req.clientId,
+                    agentType: req.agentType,
+                    action: req.action,
+                    riskTier: req.riskTier,
+                    payload: req.payload,
+                })
+            } catch (err) {
+                console.warn(`agent-safety: approval notify failed: ${(err as Error)?.message}`)
+            }
+        }
         return { status: "pending_approval", actionId }
     }
 

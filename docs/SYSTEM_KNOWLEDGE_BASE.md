@@ -229,6 +229,33 @@ the content path (`ig_jobs`/`ig_campaigns`) is untouched; new agents ride this s
 IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Review). Plný plán:
 `~/.claude/plans` + brain `[[Core hardening - bezpečný základ pro agenty]]`.
 
+### Ops agenti (v8.1, 2026-07-22) — „nic se nerozbije potichu + revenue bez dotyku"
+
+Registrované handlery (`lib/agents/handlers.ts`): `noop`, `weekly_report`, `health_check`,
+`lifecycle_scan`, `send_lifecycle_email`. Denní cron **`/api/cron/daily-ops`** (05:30 UTC,
+`vercel.json`) dispatchuje přes `requestAction` dva interní tasky:
+
+- **`health_check`** (`lib/agents/health-check.ts`) — 7 kontrol za posledních 24 h (selhané
+  `ig_jobs`, joby visící uprostřed pipeline >2 h [okno 7 dní], kampaně stuck running/pending,
+  selhané `agent_tasks`, dunning `billing_failures`, schválení čekající >24 h **včetně
+  `client_id NULL`**). E-mail zakladateli JEN když něco nesedí; chyba dotazu = vlastní problém
+  (nikdy tiché „healthy"). Manuální read-only běh: `npx tsx scripts/run-health-check.ts`.
+- **`lifecycle_scan`** (`lib/agents/lifecycle.ts`) — najde lifecycle momenty (aktivace 2–14 d
+  bez vlastní kampaně [showcase nepočítá], kredity ≤10 %, winback 14–30 d po expiraci,
+  waitlist >7 d) a **navrhne** outbound e-maily přes safety rails (`outbound` tier → schválení).
+  Dedupe = samotný audit trail (`agent_actions` řádek stejného kind+příjemce v okně blokuje
+  re-návrh; rejection se respektuje). Zakladateli jde JEDEN digest s one-click odkazy.
+  Skutečné odeslání až po schválení: task `send_lifecycle_email` → `sendNotification`
+  (opt-outy + unsubscribe footer). Šablony česky v `buildLifecycleEmail`.
+
+**Schvalovací smyčka (rychlá):** `requestAction` s high-risk tierem pošle zakladateli e-mail
+(`lib/agents/approval-notify.ts`, potlačitelné `notify:false`) s podepsanými odkazy
+`/api/agent-approval` (`lib/agent-approval-link.ts` — HMAC nad actionId+decision+expiry 7 d;
+GET jen zobrazí potvrzení, **stav mění až POST** — mail scannery prefetchují GET). Decision je
+single-use (jen `status='proposed'`). Dashboard **Schválení** tab je super-admin-wide: ukazuje
+VŠECHNY pending akce včetně systémových `client_id NULL` (dřív neviditelné — listing byl
+client-scoped). Testy: `npx tsx scripts/test-agent-approval-link.ts` (token properties + šablony).
+
 ---
 
 ## 5. AI Model Registry
@@ -339,6 +366,8 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 | `GET /api/ig-connect/callback` | ❌ (signed state) | 30s | IG OAuth callback — code→long-lived token, uloží šifrované do `ig_connections` |
 | `POST /api/data-deletion` | ❌ (Meta signed_request) | 10s | Meta data deletion callback — smaže `ig_connections` daného ig_user_id |
 | `GET /api/email/unsubscribe` | ❌ (HMAC podpis emailu) | 10s | Public one-click unsubscribe — ověří podpis (`lib/email-sign.ts`), zapíše `email_optouts`, vrátí CZ potvrzení |
+| `GET /api/cron/daily-ops` | ❌ (CRON_SECRET bearer) | 60s | Denní ops dispatch (vercel.json cron `30 5 * * *`): `health_check` (alert jen při problému) + `lifecycle_scan` (návrhy outbound e-mailů → schválení) přes `requestAction`, běží je agent-worker |
+| `GET+POST /api/agent-approval` | ❌ (HMAC token, `lib/agent-approval-link.ts`) | 10s | One-click approve/reject pending agent akce z e-mailu — GET jen potvrzovací stránka, stav mění až POST (prefetch-safe); single-use přes `status='proposed'` |
 
 > `POST /api/ig-generate` byl odstraněn (v4.1) — obcházel rate limit i kredity a UI ho nepoužívalo.
 
