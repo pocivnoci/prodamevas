@@ -248,6 +248,12 @@ Registrované handlery (`lib/agents/handlers.ts`): `noop`, `weekly_report`, `hea
   Skutečné odeslání až po schválení: task `send_lifecycle_email` → `sendNotification`
   (opt-outy + unsubscribe footer). Šablony česky v `buildLifecycleEmail`.
 
+**Real-time alerting:** `agent-runner.runTask` catchne chybu handleru (zapíše do `agent_tasks.error`),
+takže se nikdy nepropaguje do Sentry `onRequestError`. Proto **terminální** selhání (vyčerpané
+retry) + `no_handler` volají `Sentry.captureException` napřímo (tagy `agent_task_type`/`task_id`);
+retry se nereportuje (očekávané, self-heal). health_check = denní digest, Sentry = real-time — dvě
+poloviny „nic se nerozbije potichu".
+
 **Schvalovací smyčka (rychlá):** `requestAction` s high-risk tierem pošle zakladateli e-mail
 (`lib/agents/approval-notify.ts`, potlačitelné `notify:false`) s podepsanými odkazy
 `/api/agent-approval` (`lib/agent-approval-link.ts` — HMAC nad actionId+decision+expiry 7 d;
