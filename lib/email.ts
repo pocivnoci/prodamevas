@@ -6,6 +6,14 @@
  * REPORT_FROM_EMAIL once a domain is verified.
  */
 
+/** Where ops-agent mail (reports, alerts, approval requests) goes: REPORT_EMAIL, else the first super admin. */
+export function getFounderEmail(): string | null {
+    const explicit = process.env.REPORT_EMAIL?.trim()
+    if (explicit) return explicit
+    const firstAdmin = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean)[0]
+    return firstAdmin || null
+}
+
 export async function sendEmail(opts: {
     to: string
     subject: string

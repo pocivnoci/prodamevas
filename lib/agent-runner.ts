@@ -10,6 +10,7 @@
  * Fáze 3 and will wrap runTask — this layer is just durable execution.
  */
 
+import * as Sentry from "@sentry/nextjs"
 import supabaseAdmin from "@/supabase/admin"
 
 export interface AgentTask {
@@ -116,6 +117,11 @@ async function runTask(task: AgentTask): Promise<"done" | "failed" | "retry" | "
         await supabaseAdmin.from("agent_tasks")
             .update({ status: "failed", error: `No handler for type '${task.type}'`, lease: null })
             .eq("id", task.id)
+        // Misconfiguration (a task enqueued for a type nobody registered) — surface
+        // it in real time, not just in agent_tasks.error / the daily health digest.
+        Sentry.captureException(new Error(`agent-runner: no handler for type '${task.type}'`), {
+            tags: { agent_task_type: task.type, task_id: task.id },
+        })
         return "no_handler"
     }
 
@@ -139,6 +145,15 @@ async function runTask(task: AgentTask): Promise<"done" | "failed" | "retry" | "
                 scheduled_for: willRetry ? new Date(Date.now() + attempts * 30_000).toISOString() : nowIso(),
             })
             .eq("id", task.id)
+        // Report only TERMINAL failures — retries are expected and self-heal, so
+        // capturing them would be noise. The catch here means the error never
+        // propagates to Sentry's onRequestError, so without this a dead ops agent
+        // is invisible in real time (only the daily health digest would catch it).
+        if (!willRetry) {
+            Sentry.captureException(err, {
+                tags: { agent_task_type: task.type, task_id: task.id, attempts: String(attempts) },
+            })
+        }
         return willRetry ? "retry" : "failed"
     }
 }

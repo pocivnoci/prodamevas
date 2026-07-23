@@ -253,6 +253,14 @@ export interface ClientConfig {
      *  posts, NOT 7. See validateConfig() for the safe default. */
     postsPerWeek?: number
 
+    /** Auto-publish: when true AND a live Instagram connection exists, the daily
+     *  auto-publish agent arms `ready` posts → `scheduled` on `postsPerWeek` cadence,
+     *  maintaining a bounded forward buffer (see lib/agents/auto-publish.ts). The
+     *  account then posts hands-free. OFF by default — arming stays a human step
+     *  (ready→scheduled) for every tenant that hasn't opted in. Reels are never
+     *  auto-armed (no auto-publish video path). validateConfig defaults false. */
+    autoPublish?: boolean
+
     /** Hashtag pools */
     hashtagPools: {
         core: string[]

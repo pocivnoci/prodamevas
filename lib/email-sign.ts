@@ -5,9 +5,11 @@ import crypto from "crypto"
  * trivially forged or enumerated. Low-stakes (worst case: a marketing opt-out), so
  * no auth — just an HMAC over the lowercased email.
  */
-function secret(): string {
+/** Shared HMAC secret for signed low/medium-stakes links (unsubscribe, agent approval). */
+export function emailSigningSecret(): string {
     return process.env.EMAIL_SECRET || process.env.CRON_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "chrlit-email-fallback"
 }
+const secret = emailSigningSecret
 
 export function signEmail(email: string): string {
     return crypto.createHmac("sha256", secret()).update(email.trim().toLowerCase()).digest("hex").slice(0, 32)

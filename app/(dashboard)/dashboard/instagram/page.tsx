@@ -103,7 +103,7 @@ export default function InstagramPage() {
                     {activeSection === "waitlist" && isAdmin && <WaitlistTab />}
                     {activeSection === "brain" && <BrainTab projectId={projectId} />}
                     {activeSection === "faq" && <FaqTab onReplayTutorial={openTutorial} />}
-                    {activeSection === "approvals" && isAdmin && <ApprovalsTab projectId={projectId} />}
+                    {activeSection === "approvals" && isAdmin && <ApprovalsTab />}
                     {activeSection === "mailing" && isAdmin && <MailingTab />}
                 </motion.div>
             </AnimatePresence>
