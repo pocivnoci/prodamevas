@@ -84,8 +84,11 @@ export async function movePost(
     newTime?: string    // "17:00"
 ): Promise<{ success: boolean }> {
     await gatePostAccess(postId)
+    const { toScheduledFor } = await import("@/lib/schedule-planner")
     const update: Record<string, any> = {
-        scheduled_for: `${newDate}T${newTime || "12:00"}:00`,
+        // Prague-local wall time → UTC instant (same helper as scheduling), so a
+        // moved post fires at the intended local time, not +2h.
+        scheduled_for: toScheduledFor(newDate, newTime || "12:00"),
         updated_at: new Date().toISOString(),
     }
     if (newTime) update.time_slot = newTime

@@ -19,7 +19,7 @@
  */
 
 import supabaseAdmin from "@/supabase/admin"
-import { distributeSchedule, toScheduledFor } from "@/lib/schedule-planner"
+import { distributeSchedule, toScheduledFor, MAX_POSTS_PER_WEEK } from "@/lib/schedule-planner"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const FORWARD_BUFFER_WEEKS = 2 // keep ~2 weeks of posts armed ahead
@@ -40,7 +40,7 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
         return { clientId, slug, armed: 0, queued: 0, skipped: "no live Instagram connection" }
     }
 
-    const perWeek = Math.min(7, Math.max(1, Math.round(Number(config.postsPerWeek) || 4)))
+    const perWeek = Math.min(MAX_POSTS_PER_WEEK, Math.max(1, Math.round(Number(config.postsPerWeek) || 4)))
     const target = perWeek * FORWARD_BUFFER_WEEKS
     const nowIso = new Date().toISOString()
 

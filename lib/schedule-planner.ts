@@ -14,11 +14,15 @@ export interface ScheduleSlot {
 export interface DistributeOptions {
     /** First day to schedule on. Defaults to tomorrow. */
     startDate?: Date
-    /** Posts per week, spread evenly across each 7-day week. Clamped 1-7. Default 4. */
+    /** Posts per week. Clamped 1-14. ≤7 → at most one post/day; >7 → multiple/day
+     *  (e.g. 14 = 2×/day). Default 4. */
     postsPerWeek?: number
-    /** Preferred posting times in "HH:MM", rotated across the days of a week. */
+    /** Preferred posting times in "HH:MM" (LOCAL Prague), rotated across days/slots. */
     timeSlots?: string[]
 }
+
+/** Max supported cadence — 14 = 2 posts/day. Kept in sync with validateConfig's clamp. */
+export const MAX_POSTS_PER_WEEK = 14
 
 // Czech-audience defaults (morning commute, after-work, evening scroll).
 const DEFAULT_TIME_SLOTS = ["09:00", "17:00", "19:00"]
@@ -36,11 +40,12 @@ function tomorrow(): Date {
 }
 
 /**
- * Produce `count` schedule slots at `postsPerWeek` per week. Within each 7-day
- * week the posts land on evenly spaced days (offset `floor(j*7/perWeek)`), so
- * cadence 4 gives Mon/Tue/Thu/Sat-style rhythm and there is never more than one
- * post per day. Times rotate through `timeSlots` by day-of-week position, stable
- * week over week.
+ * Produce `count` schedule slots at `postsPerWeek` per week.
+ *  - perWeek ≤ 7: at most one post/day, spread across the week (offset
+ *    `floor(j*7/perWeek)`) — cadence 4 gives a Mon/Tue/Thu/Sat rhythm.
+ *  - perWeek > 7: `ceil(perWeek/7)` posts/day (14 = 2×/day), each at a different
+ *    time slot within the day.
+ * Times come from `timeSlots` (Prague local); a day never reuses the same slot.
  */
 export function distributeSchedule(count: number, opts: DistributeOptions = {}): ScheduleSlot[] {
     if (count <= 0) return []
@@ -48,8 +53,9 @@ export function distributeSchedule(count: number, opts: DistributeOptions = {}):
     const slots = (opts.timeSlots && opts.timeSlots.length > 0 ? opts.timeSlots : DEFAULT_TIME_SLOTS)
         .slice()
         .sort() // chronological within a day
-    // Same 1-7 clamp as validateConfig applies to config.postsPerWeek.
-    const perWeek = Math.min(7, Math.max(1, Math.round(opts.postsPerWeek ?? 4)))
+    // Same clamp as validateConfig applies to config.postsPerWeek (1..14).
+    const perWeek = Math.min(MAX_POSTS_PER_WEEK, Math.max(1, Math.round(opts.postsPerWeek ?? 4)))
+    const perDay = Math.max(1, Math.ceil(perWeek / 7)) // 2 when perWeek=14
 
     // Start no earlier than tomorrow — guard against a caller passing a past date.
     const minStart = tomorrow()
@@ -61,14 +67,51 @@ export function distributeSchedule(count: number, opts: DistributeOptions = {}):
     for (let i = 0; i < count; i++) {
         const week = Math.floor(i / perWeek)
         const j = i % perWeek
+        let dayOffset: number
+        let slotIdx: number
+        if (perWeek <= 7) {
+            dayOffset = Math.floor((j * 7) / perWeek) // ≤1/day, spread across the week
+            slotIdx = j % slots.length                // rotate times by position
+        } else {
+            dayOffset = Math.floor(j / perDay)        // perDay posts land on the same day
+            slotIdx = j % perDay                      // …at distinct slots (09:00, 17:00, …)
+        }
         const day = new Date(start)
-        day.setDate(day.getDate() + week * 7 + Math.floor((j * 7) / perWeek))
-        out.push({ date: toDateStr(day), time: slots[j % slots.length] })
+        day.setDate(day.getDate() + week * 7 + dayOffset)
+        out.push({ date: toDateStr(day), time: slots[slotIdx % slots.length] })
     }
     return out
 }
 
-/** Combine a slot into the `scheduled_for` shape the DB/calendar expect. */
+/**
+ * How many ms Europe/Prague is ahead of UTC at a given instant (DST-aware).
+ * +7_200_000 in summer (CEST), +3_600_000 in winter (CET).
+ */
+function pragueOffsetMs(instant: number): number {
+    const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Europe/Prague", hour12: false,
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
+    }).formatToParts(new Date(instant))
+    const p: Record<string, string> = {}
+    for (const x of parts) p[x.type] = x.value
+    const hour = p.hour === "24" ? 0 : Number(p.hour) // some engines emit "24" for midnight
+    const asIfUtc = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), hour, Number(p.minute), Number(p.second))
+    return asIfUtc - instant
+}
+
+/**
+ * Combine a Prague-local `date`+`time` into the UTC `scheduled_for` instant the
+ * publisher compares against (`scheduled_for <= now`, both UTC). Storing the raw
+ * "YYYY-MM-DDTHH:MM:00" made timestamptz read it as UTC, so a "09:00" slot fired
+ * at 09:00 UTC = 11:00 Prague. We now convert the wall time through Prague's
+ * offset so "09:00" means 09:00 Prague. The `time_slot` column keeps the wall
+ * time for display. (Single-pass offset — exact except within the ~1h DST switch
+ * window at 02:00–03:00 local, which no posting slot uses.)
+ */
 export function toScheduledFor(date: string, time: string): string {
-    return `${date}T${time}:00`
+    const [y, mo, d] = date.split("-").map(Number)
+    const [h, mi] = time.split(":").map(Number)
+    const naiveAsUtc = Date.UTC(y, mo - 1, d, h, mi, 0)
+    return new Date(naiveAsUtc - pragueOffsetMs(naiveAsUtc)).toISOString()
 }

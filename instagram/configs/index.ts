@@ -100,9 +100,9 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         feedPattern: isFeedPattern(config.feedPattern) ? config.feedPattern : "none",
         weekPlan: config.weekPlan || [],
         // Real posting cadence drives content-plan length (duration × postsPerWeek). Clamp to a
-        // sane 1–7 and default to 4 — never let a missing/garbage value inflate the plan back to
-        // the old "1 post per day" assumption.
-        postsPerWeek: Math.min(7, Math.max(1, Math.round(config.postsPerWeek || 4))),
+        // sane 1–14 (14 = 2×/day; must match distributeSchedule's MAX_POSTS_PER_WEEK) and
+        // default to 4 — never let a missing/garbage value inflate or zero out the plan.
+        postsPerWeek: Math.min(14, Math.max(1, Math.round(config.postsPerWeek || 4))),
         // Hands-free publishing — opt-in, default OFF so arming stays a human step
         // unless a tenant deliberately turns it on (and only fires with a live connection).
         autoPublish: config.autoPublish ?? false,
