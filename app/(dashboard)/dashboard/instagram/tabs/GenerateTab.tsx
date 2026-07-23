@@ -36,9 +36,9 @@ function batchCreditCost(mediums: (string | null | undefined)[], freeRemaining: 
 }
 
 // Weekly cadence chips — the ONE frequency that drives post count, credit estimate
-// AND the calendar spread. (config.postsPerWeek is clamped 1-7; odd values snap to
-// the nearest chip for the default only, fine-tuning in step 2 still allows 1-7.)
-const CADENCE_OPTIONS = [2, 3, 4, 5, 7] as const
+// AND the calendar spread. (config.postsPerWeek is clamped 1-14; 10/14 = multiple
+// posts/day. Odd values snap to the nearest chip for the default only.)
+const CADENCE_OPTIONS = [2, 3, 4, 5, 7, 10, 14] as const
 
 function snapToChip(n: number): number {
     return CADENCE_OPTIONS.reduce((best, c) =>
@@ -1372,7 +1372,9 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     onChange={(e) => handleScheduleChange(scheduleStart, Number(e.target.value))}
                                     className="px-3 py-1.5 bg-[#050505] border border-white/20 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
                                 >
-                                    {[1, 2, 3, 4, 5, 6, 7].map(n => <option key={n} value={n}>{n}</option>)}
+                                    {[1, 2, 3, 4, 5, 6, 7, 10, 14].map(n => (
+                                        <option key={n} value={n}>{n === 14 ? "14 (2×/den)" : n === 10 ? "10" : n}</option>
+                                    ))}
                                 </select>
                             </div>
                             <p className="text-[9px] text-white/30 flex-1 min-w-[140px] leading-relaxed">

@@ -63,7 +63,8 @@ export async function getPlanCadence(projectSlug: string): Promise<number> {
 export async function savePlanCadence(projectSlug: string, postsPerWeek: number): Promise<{ success: boolean }> {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
-        const clamped = Math.min(7, Math.max(1, Math.round(postsPerWeek)))
+        // Match validateConfig / distributeSchedule (1–14; 14 = 2×/day).
+        const clamped = Math.min(14, Math.max(1, Math.round(postsPerWeek)))
         const { data, error } = await supabaseAdmin
             .from("clients")
             .select("config")
