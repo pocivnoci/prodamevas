@@ -44,5 +44,17 @@ export async function GET(req: Request) {
         payload: {},
     })
 
-    return NextResponse.json({ success: true, health, lifecycle })
+    // Arm ready posts for opted-in + connected clients (config.autoPublish). Internal
+    // risk: it only schedules a bounded buffer of already-generated posts onto the
+    // client's own cadence — no new spend, no customer-facing action.
+    const autoPublish = await requestAction({
+        agentType: "ops",
+        action: "Denní auto-publish arming",
+        riskTier: "internal",
+        taskType: "auto_publish_arm",
+        clientId: null,
+        payload: {},
+    })
+
+    return NextResponse.json({ success: true, health, lifecycle, autoPublish })
 }

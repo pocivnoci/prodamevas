@@ -76,4 +76,14 @@ registerHandler("send_lifecycle_email", async (task: AgentTask) => {
     return sendLifecycleEmail({ ...task.payload, clientId: task.client_id })
 })
 
+// Daily auto-publish arming: for opted-in (config.autoPublish) + connected clients,
+// arm `ready` posts → `scheduled` on cadence with a bounded forward buffer. No-op
+// for everyone else. See lib/agents/auto-publish.ts for the safety invariants.
+registerHandler("auto_publish_arm", async () => {
+    const { armReadyPosts } = await import("@/lib/agents/auto-publish")
+    const results = await armReadyPosts()
+    const armed = results.reduce((s, r) => s + r.armed, 0)
+    return { ok: true, clients: results.length, armed, results }
+})
+
 export {} // side-effect module

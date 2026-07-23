@@ -103,6 +103,9 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // sane 1–7 and default to 4 — never let a missing/garbage value inflate the plan back to
         // the old "1 post per day" assumption.
         postsPerWeek: Math.min(7, Math.max(1, Math.round(config.postsPerWeek || 4))),
+        // Hands-free publishing — opt-in, default OFF so arming stays a human step
+        // unless a tenant deliberately turns it on (and only fires with a live connection).
+        autoPublish: config.autoPublish ?? false,
         // Keep the three per-client format sources defaulted (never undefined) so
         // ensurePostTypes/getIGPostTypes can't silently no-op on a half-filled config.
         postTypes: config.postTypes || [],

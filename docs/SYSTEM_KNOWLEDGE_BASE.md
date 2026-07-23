@@ -232,8 +232,8 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 ### Ops agenti (v8.1, 2026-07-22) — „nic se nerozbije potichu + revenue bez dotyku"
 
 Registrované handlery (`lib/agents/handlers.ts`): `noop`, `weekly_report`, `health_check`,
-`lifecycle_scan`, `send_lifecycle_email`. Denní cron **`/api/cron/daily-ops`** (05:30 UTC,
-`vercel.json`) dispatchuje přes `requestAction` dva interní tasky:
+`lifecycle_scan`, `send_lifecycle_email`, `auto_publish_arm`. Denní cron **`/api/cron/daily-ops`**
+(05:30 UTC, `vercel.json`) dispatchuje přes `requestAction` tři interní tasky:
 
 - **`health_check`** (`lib/agents/health-check.ts`) — 7 kontrol za posledních 24 h (selhané
   `ig_jobs`, joby visící uprostřed pipeline >2 h [okno 7 dní], kampaně stuck running/pending,
@@ -247,6 +247,15 @@ Registrované handlery (`lib/agents/handlers.ts`): `noop`, `weekly_report`, `hea
   re-návrh; rejection se respektuje). Zakladateli jde JEDEN digest s one-click odkazy.
   Skutečné odeslání až po schválení: task `send_lifecycle_email` → `sendNotification`
   (opt-outy + unsubscribe footer). Šablony česky v `buildLifecycleEmail`.
+- **`auto_publish_arm`** (`lib/agents/auto-publish.ts`) — poslední míle flywheelu:
+  pipeline generuje posty do `ready` (nic se nepublikuje bez lidského ready→scheduled).
+  Pro klienty s **`config.autoPublish === true` A živým `ig_connection`** naarmuje
+  `ready` posty → `scheduled` na kadenci `postsPerWeek` (`distributeSchedule`), drží
+  **bounded forward buffer ~2 týdny** → účet publikuje sám, ale 149-post backlog
+  **nezaplaví** (drénuje po kadenci, zakladatel může budoucí `scheduled` post vetovat).
+  Safety: opt-in (default `false` ve `validateConfig`), connection-guarded (bez
+  připojení no-op), reels vyloučené (auto-publish nemá video cestu), FIFO. Ověřeno:
+  opt-in + connection guard + buffer math (`scripts/.tmp` E2E, throwaway klient).
 
 **Real-time alerting:** `agent-runner.runTask` catchne chybu handleru (zapíše do `agent_tasks.error`),
 takže se nikdy nepropaguje do Sentry `onRequestError`. Proto **terminální** selhání (vyčerpané
