@@ -95,10 +95,27 @@ console.log("\nClamps:")
     eq("cadence 0 clamps to 1 (one post per week)",
         distributeSchedule(2, { startDate: start, postsPerWeek: 0 }).map(s => dayOffset(start, s.date)),
         [0, 7])
-    eq("cadence 9 clamps to 7 (daily)",
-        distributeSchedule(8, { startDate: start, postsPerWeek: 9 }).map(s => dayOffset(start, s.date)),
+    eq("cadence 7 → daily (one per day)",
+        distributeSchedule(8, { startDate: start, postsPerWeek: 7 }).map(s => dayOffset(start, s.date)),
         [0, 1, 2, 3, 4, 5, 6, 7])
+    eq("cadence 20 clamps to 14 (2×/day)",
+        distributeSchedule(8, { startDate: start, postsPerWeek: 20 }).map(s => dayOffset(start, s.date)),
+        [0, 0, 1, 1, 2, 2, 3, 3])
     eq("count 0 → empty", distributeSchedule(0, { startDate: start, postsPerWeek: 4 }), [])
+}
+
+// ── 2× per day (cadence 14) ──
+console.log("\n2×/day (cadence 14):")
+{
+    const slots = distributeSchedule(14, { startDate: start, postsPerWeek: 14 })
+    eq("14 posts → 2 per day across 7 days",
+        slots.map(s => dayOffset(start, s.date)),
+        [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6])
+    eq("first day uses two distinct default slots", slots.slice(0, 2).map(s => s.time), ["09:00", "17:00"])
+    const byDay: Record<number, string[]> = {}
+    for (const s of slots) { const o = dayOffset(start, s.date); (byDay[o] ??= []).push(s.time) }
+    check("each of 7 days gets exactly 2 posts", Object.values(byDay).every(t => t.length === 2))
+    check("same-day posts never share a time", Object.values(byDay).every(t => new Set(t).size === t.length))
 }
 
 // ── Times ──
@@ -115,9 +132,11 @@ console.log("\nTimes:")
         ["08:00", "18:00"])
 }
 
-// ── DB shape helper ──
-console.log("\nscheduled_for:")
-eq("combines date and time", toScheduledFor("2026-08-01", "09:00"), "2026-08-01T09:00:00")
+// ── DB shape helper: Prague local wall time → UTC instant (DST-aware) ──
+console.log("\nscheduled_for (Prague → UTC):")
+eq("summer 09:00 Prague (CEST, +2) → 07:00Z", toScheduledFor("2026-08-01", "09:00"), "2026-08-01T07:00:00.000Z")
+eq("winter 09:00 Prague (CET, +1) → 08:00Z", toScheduledFor("2026-01-15", "09:00"), "2026-01-15T08:00:00.000Z")
+check("stored as UTC ISO (Z suffix)", toScheduledFor("2026-08-01", "17:00").endsWith("Z"))
 
 console.log(`\n${failed === 0 ? "✅" : "❌"} ${passed} passed, ${failed} failed\n`)
 process.exit(failed === 0 ? 0 : 1)
