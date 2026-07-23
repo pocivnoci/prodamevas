@@ -255,7 +255,14 @@ Registrované handlery (`lib/agents/handlers.ts`): `noop`, `weekly_report`, `hea
   **nezaplaví** (drénuje po kadenci, zakladatel může budoucí `scheduled` post vetovat).
   Safety: opt-in (default `false` ve `validateConfig`), connection-guarded (bez
   připojení no-op), reels vyloučené (auto-publish nemá video cestu), FIFO. Ověřeno:
-  opt-in + connection guard + buffer math (`scripts/.tmp` E2E, throwaway klient).
+  opt-in + connection guard + buffer math (E2E na throwaway klientovi).
+  **Per-klient self-service:** SettingsTab → **„Auto-publikování"** panel
+  (`AutoPublishSection`) přepíná `config.autoPublish`, `postsPerWeek` (1–14; 14 =
+  2×/den) a `config.postingTimes` (per-klient časy, jinak defaulty 09/17/19) přes
+  `updateClientConfig`. Časy jsou **Prague-local** — `toScheduledFor`
+  (`lib/schedule-planner.ts`) je převádí na UTC instant (DST-aware), takže „09:00"
+  = 09:00 ČR. `distributeSchedule` clamp 1–14 (`MAX_POSTS_PER_WEEK`); perWeek>7 →
+  `ceil/7` postů/den na distinct sloty. Kadence je tak plně per-klient bez DB.
 
 **Real-time alerting:** `agent-runner.runTask` catchne chybu handleru (zapíše do `agent_tasks.error`),
 takže se nikdy nepropaguje do Sentry `onRequestError`. Proto **terminální** selhání (vyčerpané

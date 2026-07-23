@@ -77,7 +77,10 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
     // clamps to ≥ tomorrow, so an empty queue starts tomorrow).
     const lastQueued = queued && queued.length > 0 ? new Date(queued[0].scheduled_for) : null
     const startDate = lastQueued ? new Date(lastQueued.getTime() + DAY_MS) : undefined
-    const slots = distributeSchedule(ready.length, { postsPerWeek: perWeek, startDate })
+    // Per-client posting times (Prague local); empty → engine defaults.
+    const times = Array.isArray(config.postingTimes) && (config.postingTimes as string[]).length > 0
+        ? (config.postingTimes as string[]) : undefined
+    const slots = distributeSchedule(ready.length, { postsPerWeek: perWeek, startDate, timeSlots: times })
 
     let armed = 0
     for (let i = 0; i < ready.length; i++) {

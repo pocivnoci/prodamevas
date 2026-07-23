@@ -261,6 +261,11 @@ export interface ClientConfig {
      *  auto-armed (no auto-publish video path). validateConfig defaults false. */
     autoPublish?: boolean
 
+    /** Preferred posting times ("HH:MM", Prague LOCAL) for auto-publish + plan spread.
+     *  Empty/undefined → engine defaults (09:00/17:00/19:00). A 2×/day cadence uses the
+     *  first two, a ≤daily cadence rotates through them. See lib/schedule-planner.ts. */
+    postingTimes?: string[]
+
     /** Hashtag pools */
     hashtagPools: {
         core: string[]

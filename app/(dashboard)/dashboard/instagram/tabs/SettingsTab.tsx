@@ -287,6 +287,7 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                     {activeSection === "manage" && (
                         <>
                             <InstagramConnectionSection projectId={projectId} />
+                            <AutoPublishSection projectId={projectId} />
                             <ClientManagementSection projectId={projectId} config={config} setConfig={setConfig} onReload={loadData} />
                         </>
                     )}
@@ -1624,6 +1625,148 @@ function InstagramConnectionSection({ projectId }: { projectId: string }) {
                     >
                         📸 Připojit
                     </a>
+                </div>
+            )}
+        </SectionCard>
+    )
+}
+
+// Frequency presets → posts/week. 7 = daily, 14 = 2×/day (see distributeSchedule).
+const AUTOPUB_CADENCES = [
+    { v: 3, label: "3× týdně" },
+    { v: 5, label: "5× týdně" },
+    { v: 7, label: "Denně" },
+    { v: 14, label: "2× denně" },
+] as const
+const DEFAULT_POST_TIMES = ["09:00", "17:00", "19:00"]
+
+/**
+ * Auto-publikování — per-client self-service for the auto-publish flywheel:
+ * on/off (config.autoPublish), cadence (config.postsPerWeek) and posting times
+ * (config.postingTimes). Saves via updateClientConfig; the daily auto_publish_arm
+ * agent + distributeSchedule read these straight from the config. No DB poking.
+ */
+function AutoPublishSection({ projectId }: { projectId: string }) {
+    const [enabled, setEnabled] = useState(false)
+    const [cadence, setCadence] = useState(4)
+    const [times, setTimes] = useState<string[]>(DEFAULT_POST_TIMES)
+    const [connected, setConnected] = useState(false)
+    const [loading, setLoading] = useState(true)
+    const [saving, setSaving] = useState(false)
+    const [msg, setMsg] = useState<string | null>(null)
+
+    useEffect(() => {
+        let cancelled = false
+        Promise.all([getClientConfig(projectId), getConnectionStatus(projectId)])
+            .then(([cfg, conn]) => {
+                if (cancelled) return
+                setEnabled(Boolean(cfg?.autoPublish))
+                setCadence(Math.min(14, Math.max(1, Number(cfg?.postsPerWeek) || 4)))
+                if (Array.isArray(cfg?.postingTimes) && cfg.postingTimes.length > 0) setTimes(cfg.postingTimes)
+                setConnected(Boolean(conn?.connected))
+            })
+            .catch(() => { /* leave defaults */ })
+            .finally(() => { if (!cancelled) setLoading(false) })
+        return () => { cancelled = true }
+    }, [projectId])
+
+    // How many posts/day this cadence implies, and therefore how many distinct times matter.
+    const perDay = Math.max(1, Math.ceil(cadence / 7))
+    const usedTimes = Math.min(perDay, times.length)
+
+    const setTimeAt = (i: number, val: string) => setTimes(prev => prev.map((t, j) => j === i ? val : t))
+
+    const save = async () => {
+        setSaving(true); setMsg(null)
+        const clean = times.map(t => t.trim()).filter(Boolean)
+        // 2×/day needs ≥2 distinct times; fall back to defaults if the user cleared too many.
+        const finalTimes = clean.length >= perDay ? clean : DEFAULT_POST_TIMES.slice(0, Math.max(perDay, clean.length || 1))
+        const res = await updateClientConfig(projectId, {
+            autoPublish: enabled,
+            postsPerWeek: cadence,
+            postingTimes: finalTimes,
+        })
+        setSaving(false)
+        setMsg(res.success ? "✅ Uloženo" : (res.error || "Uložení selhalo"))
+        if (res.success) setTimes(finalTimes)
+    }
+
+    return (
+        <SectionCard title="Auto-publikování" description="Ať účet postuje sám v čase — obsah se vydává postupně podle zvolené frekvence a časů (český čas).">
+            {loading ? (
+                <p className="text-[10px] text-white/30">Načítám…</p>
+            ) : (
+                <div className="space-y-5">
+                    {/* On/off */}
+                    <div className="flex items-center justify-between gap-4">
+                        <div>
+                            <p className="text-xs text-white/70 font-bold">Publikovat automaticky</p>
+                            <p className="text-[9px] text-white/30 mt-0.5">Hotové příspěvky se samy naplánují a vydají — bez klikání.</p>
+                        </div>
+                        <button
+                            onClick={() => setEnabled(v => !v)}
+                            role="switch"
+                            aria-checked={enabled}
+                            className={`relative w-12 h-6 rounded-full transition-colors border ${enabled ? "bg-emerald-500/30 border-emerald-500/50" : "bg-white/5 border-white/15"}`}
+                        >
+                            <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${enabled ? "left-6 bg-emerald-400" : "left-0.5 bg-white/40"}`} />
+                        </button>
+                    </div>
+
+                    {!connected && (
+                        <p className="text-[10px] text-amber-400/80 bg-amber-500/5 border border-amber-500/20 rounded-sm px-3 py-2">
+                            ⚠️ Účet zatím není připojený — nastavení se uloží, ale publikovat se začne až po připojení Instagramu (sekce výše).
+                        </p>
+                    )}
+
+                    {/* Frequency */}
+                    <div>
+                        <label className="block text-[8px] text-white/40 font-bold uppercase tracking-widest mb-2">Frekvence</label>
+                        <div className="flex flex-wrap gap-2">
+                            {AUTOPUB_CADENCES.map(c => (
+                                <button
+                                    key={c.v}
+                                    onClick={() => setCadence(c.v)}
+                                    className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm border transition-all ${cadence === c.v ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/40" : "bg-white/5 text-white/50 border-white/10 hover:bg-white/10"}`}
+                                >
+                                    {c.label}
+                                </button>
+                            ))}
+                        </div>
+                        <p className="text-[9px] text-white/30 mt-2">
+                            {cadence >= 8 ? `${perDay}× denně` : `${cadence}× týdně`} · drží se ~2 týdny naplánováno dopředu.
+                        </p>
+                    </div>
+
+                    {/* Times */}
+                    <div>
+                        <label className="block text-[8px] text-white/40 font-bold uppercase tracking-widest mb-2">
+                            Časy (ČR) {perDay > 1 ? `— první ${perDay} = posty dne` : "— střídají se"}
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                            {times.map((t, i) => (
+                                <input
+                                    key={i}
+                                    type="time"
+                                    value={t}
+                                    onChange={e => setTimeAt(i, e.target.value)}
+                                    className={`px-3 py-1.5 bg-[#050505] border rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500/50 ${i < usedTimes ? "border-emerald-500/30" : "border-white/15 opacity-50"}`}
+                                />
+                            ))}
+                        </div>
+                        <p className="text-[9px] text-white/30 mt-2">Zelené časy se použijí pro zvolenou frekvenci. Mimo pracovní špičku doporučeno (9:00 / 17:00 / 19:00).</p>
+                    </div>
+
+                    <div className="flex items-center gap-3 pt-2 border-t border-white/10">
+                        <button
+                            onClick={save}
+                            disabled={saving}
+                            className="px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 transition-all disabled:opacity-50"
+                        >
+                            {saving ? "Ukládám…" : "Uložit"}
+                        </button>
+                        {msg && <span className="text-[10px] text-white/60">{msg}</span>}
+                    </div>
                 </div>
             )}
         </SectionCard>
