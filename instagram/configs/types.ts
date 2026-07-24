@@ -261,6 +261,13 @@ export interface ClientConfig {
      *  auto-armed (no auto-publish video path). validateConfig defaults false. */
     autoPublish?: boolean
 
+    /** Idea-bank auto-replenishment: the daily-ops agent tops the available
+     *  (active, off-cooldown) pool of ig_post_ideas up to a cadence-derived runway
+     *  when it drops low (free, bounded — see lib/agents/idea-replenish.ts). ON by
+     *  default: new ideas are inert bank rows the user can deactivate in the Nápady
+     *  tab. Set false to opt a client out. validateConfig defaults true. */
+    autoReplenishIdeas?: boolean
+
     /** Preferred posting times ("HH:MM", Prague LOCAL) for auto-publish + plan spread.
      *  Empty/undefined → engine defaults (09:00/17:00/19:00). A 2×/day cadence uses the
      *  first two, a ≤daily cadence rotates through them. See lib/schedule-planner.ts. */

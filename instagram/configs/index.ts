@@ -106,6 +106,9 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // Hands-free publishing — opt-in, default OFF so arming stays a human step
         // unless a tenant deliberately turns it on (and only fires with a live connection).
         autoPublish: config.autoPublish ?? false,
+        // Idea-bank auto-replenishment — default ON (inert bank rows, free, bounded);
+        // false is an explicit per-client opt-out (lib/agents/idea-replenish.ts).
+        autoReplenishIdeas: config.autoReplenishIdeas ?? true,
         // Keep the three per-client format sources defaulted (never undefined) so
         // ensurePostTypes/getIGPostTypes can't silently no-op on a half-filled config.
         postTypes: config.postTypes || [],

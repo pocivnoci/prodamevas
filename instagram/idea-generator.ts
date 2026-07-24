@@ -11,11 +11,13 @@ export async function generateAIIdeas(config: ClientConfig, pillarId: string, co
     // Resolve category if specified
     const category = categoryId ? pillar.categories?.find(c => c.id === categoryId) : undefined
 
+    const clientId = await resolveClientId(config.id)
+
     // 2. Build prompt — products from the LIVE catalog (ig_products), not the frozen
     // config.products onboarding snapshot: ideas naming deleted products would flow
     // into the bank → plan → posts.
     const { getCatalogProducts } = await import("./service")
-    const catalogProducts = await getCatalogProducts(await resolveClientId(config.id), config.products)
+    const catalogProducts = await getCatalogProducts(clientId, config.products)
         .catch(() => config.products || [])
     const productsSection = catalogProducts.length
         ? `\n## PRODUKTY ZNAČKY\n${catalogProducts.slice(0, 8).map(p => `- ${p.name} (${p.type})${p.price ? ` — ${p.price}` : ""}`).join("\n")}\nNápady mohou být propojené s konkrétními produkty.\n`
@@ -36,6 +38,25 @@ export async function generateAIIdeas(config: ClientConfig, pillarId: string, co
         }
     } catch {
         // Non-fatal — continue without memories
+    }
+
+    // Existing bank titles as negative context — the prompt alone says "dosud
+    // nepoužité", but the model can't know what's already in the bank. Without
+    // this, repeated generation (especially the daily idea-replenish agent)
+    // converges on near-duplicates of the existing pool.
+    let existingSection = ""
+    {
+        const { data: existingRows } = await supabaseAdmin
+            .from("ig_post_ideas")
+            .select("title")
+            .eq("client_id", clientId)
+            .eq("is_active", true)
+            .eq("category", pillarId)
+            .order("created_at", { ascending: false })
+            .limit(40)
+        if (existingRows?.length) {
+            existingSection = `\n## UŽ V ZÁSOBNÍKU (vymysli něco JINÉHO — žádná podobná témata)\n${existingRows.map(r => `- ${r.title}`).join("\n")}\n`
+        }
     }
 
     // Inject seasonal/industry context so ideas are grounded in current reality
@@ -76,7 +97,7 @@ ${config.brandVoice?.antiPatterns?.slice(0, 5).join("\n") || ""}
 ## SPECIFIKACE PILÍŘE
 ${pillar.ideaPrompt || pillar.description || ""}
 Typy postů: ${pillar.postTypes?.join(", ") || ""}
-${categorySection}${productsSection}${personaSection}${memorySection}${contextSection}
+${categorySection}${productsSection}${personaSection}${memorySection}${contextSection}${existingSection}
 ## POŽADAVKY:
 - Vygeneruj přesně ${count} odlišných, atraktivních nápadů
 - Každý nápad musí mít chytlavý 'title', detailní 'content' (o čem to přesně bude) a pole 'keywords'
@@ -129,10 +150,7 @@ ${categorySection}${productsSection}${personaSection}${memorySection}${contextSe
         throw new Error("AI vrátila neplatná data (prázdné pole).")
     }
 
-    // 4. Client resolution
-    const clientId = await resolveClientId(config.id)
-
-    // 5. Map to DB rows — subcategory is always a real category id or null
+    // 4. Map to DB rows — subcategory is always a real category id or null
     const validCatIds = new Set(pillarCategoryIds)
     const rows = ideasPayload.slice(0, count).map(idea => ({
         client_id: clientId,
@@ -146,7 +164,7 @@ ${categorySection}${productsSection}${personaSection}${memorySection}${contextSe
         cooldown_days: 30
     }))
 
-    // 6. DB Insert
+    // 5. DB Insert
     console.log(`📥 Ukládám ${rows.length} nových nápadů do DB...`)
     const { data, error } = await supabaseAdmin.from("ig_post_ideas").insert(rows).select("*")
     if (error) {

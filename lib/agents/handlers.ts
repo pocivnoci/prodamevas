@@ -86,4 +86,14 @@ registerHandler("auto_publish_arm", async () => {
     return { ok: true, clients: results.length, armed, results }
 })
 
+// Daily idea-bank replenishment: tops each active client's available idea pool
+// up to a cadence-derived runway so plans never draw from a starved bank. Free,
+// bounded, opt-out via config — see lib/agents/idea-replenish.ts invariants.
+registerHandler("idea_replenish", async () => {
+    const { replenishIdeaBanks } = await import("@/lib/agents/idea-replenish")
+    const results = await replenishIdeaBanks()
+    const added = results.reduce((s, r) => s + r.added, 0)
+    return { ok: true, clients: results.length, added, results }
+})
+
 export {} // side-effect module
