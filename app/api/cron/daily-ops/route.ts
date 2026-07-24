@@ -56,5 +56,17 @@ export async function GET(req: Request) {
         payload: {},
     })
 
-    return NextResponse.json({ success: true, health, lifecycle, autoPublish })
+    // Top up idea banks that dropped under the cadence-derived runway
+    // (config.autoReplenishIdeas, default on). Internal risk: output is inert
+    // ig_post_ideas rows — nothing publishes, nothing is charged.
+    const ideaReplenish = await requestAction({
+        agentType: "ops",
+        action: "Denní doplnění zásobníku nápadů",
+        riskTier: "internal",
+        taskType: "idea_replenish",
+        clientId: null,
+        payload: {},
+    })
+
+    return NextResponse.json({ success: true, health, lifecycle, autoPublish, ideaReplenish })
 }

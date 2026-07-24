@@ -232,8 +232,9 @@ IG adaptéru jsou zatím `ChannelNotEnabledError` (čekají na 2. Meta App Revie
 ### Ops agenti (v8.1, 2026-07-22) — „nic se nerozbije potichu + revenue bez dotyku"
 
 Registrované handlery (`lib/agents/handlers.ts`): `noop`, `weekly_report`, `health_check`,
-`lifecycle_scan`, `send_lifecycle_email`, `auto_publish_arm`. Denní cron **`/api/cron/daily-ops`**
-(05:30 UTC, `vercel.json`) dispatchuje přes `requestAction` tři interní tasky:
+`lifecycle_scan`, `send_lifecycle_email`, `auto_publish_arm`, `idea_replenish`. Denní cron
+**`/api/cron/daily-ops`** (05:30 UTC, `vercel.json`) dispatchuje přes `requestAction` čtyři
+interní tasky:
 
 - **`health_check`** (`lib/agents/health-check.ts`) — 7 kontrol za posledních 24 h (selhané
   `ig_jobs`, joby visící uprostřed pipeline >2 h [okno 7 dní], kampaně stuck running/pending,
@@ -263,6 +264,22 @@ Registrované handlery (`lib/agents/handlers.ts`): `noop`, `weekly_report`, `hea
   (`lib/schedule-planner.ts`) je převádí na UTC instant (DST-aware), takže „09:00"
   = 09:00 ČR. `distributeSchedule` clamp 1–14 (`MAX_POSTS_PER_WEEK`); perWeek>7 →
   `ceil/7` postů/den na distinct sloty. Kadence je tak plně per-klient bez DB.
+- **`idea_replenish`** (`lib/agents/idea-replenish.ts`) — zásobník nápadů se sám
+  nevyčerpá potichu: banka (`ig_post_ideas`) se seeduje jen při onboardingu a pak
+  roste jen vratkami z plánů / ručním klikem, takže při vyšší kadenci dostupný
+  pool (aktivní + mimo cooldown) klesá rychleji, než se doplňuje. Agent denně
+  per-klient dorovná pool na **runway `max(10, postsPerWeek × 2)`** — refill jde
+  do pilířů nejvíc pod svým ratio-fair podílem (čistá matematika
+  `computeReplenishPlan`, testy `npx tsx scripts/test-idea-replenish.ts`).
+  Safety: **zdarma** (žádný creditGuard — maintenance jako `seedIdeaBank`, akce
+  bez kliku uživatele nikdy nehýbe kreditem), **bounded** (max 2 batche × 8
+  nápadů/klient/den), threshold-gated (plná banka no-op), dormant-skip (bez
+  postu za 60 d se netokenuje), opt-out `config.autoReplenishIdeas === false`
+  (default `true` ve `validateConfig`), per-klient izolace, výstup inertní
+  (řádky v Nápadech, nic nepublikuje ani neúčtuje). Dedup: `generateAIIdeas`
+  nově injektuje do promptu ~40 existujících titulů pilíře („UŽ V ZÁSOBNÍKU")
+  — bez toho by opakovaná generace konvergovala k duplikátům (platí i pro
+  ruční klik v Nápadech).
 
 **Real-time alerting:** `agent-runner.runTask` catchne chybu handleru (zapíše do `agent_tasks.error`),
 takže se nikdy nepropaguje do Sentry `onRequestError`. Proto **terminální** selhání (vyčerpané
@@ -388,7 +405,7 @@ client-scoped). Testy: `npx tsx scripts/test-agent-approval-link.ts` (token prop
 | `GET /api/ig-connect/callback` | ❌ (signed state) | 30s | IG OAuth callback — code→long-lived token, uloží šifrované do `ig_connections` |
 | `POST /api/data-deletion` | ❌ (Meta signed_request) | 10s | Meta data deletion callback — smaže `ig_connections` daného ig_user_id |
 | `GET /api/email/unsubscribe` | ❌ (HMAC podpis emailu) | 10s | Public one-click unsubscribe — ověří podpis (`lib/email-sign.ts`), zapíše `email_optouts`, vrátí CZ potvrzení |
-| `GET /api/cron/daily-ops` | ❌ (CRON_SECRET bearer) | 60s | Denní ops dispatch (vercel.json cron `30 5 * * *`): `health_check` (alert jen při problému) + `lifecycle_scan` (návrhy outbound e-mailů → schválení) přes `requestAction`, běží je agent-worker |
+| `GET /api/cron/daily-ops` | ❌ (CRON_SECRET bearer) | 60s | Denní ops dispatch (vercel.json cron `30 5 * * *`): `health_check` (alert jen při problému) + `lifecycle_scan` (návrhy outbound e-mailů → schválení) + `auto_publish_arm` (arming ready postů) + `idea_replenish` (dorovnání zásobníku nápadů na runway) přes `requestAction`, běží je agent-worker |
 | `GET+POST /api/agent-approval` | ❌ (HMAC token, `lib/agent-approval-link.ts`) | 10s | One-click approve/reject pending agent akce z e-mailu — GET jen potvrzovací stránka, stav mění až POST (prefetch-safe); single-use přes `status='proposed'` |
 
 > `POST /api/ig-generate` byl odstraněn (v4.1) — obcházel rate limit i kredity a UI ho nepoužívalo.
