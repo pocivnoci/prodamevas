@@ -4,8 +4,6 @@ import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess } from "@/lib/auth-guard"
 import {
     generateProductIdeas,
-    generateDesignConcept,
-    generateProductMockup,
     generateProductDesign,
     type ProductIdea,
     type DesignConcept
@@ -39,7 +37,7 @@ export async function triggerProductIdeas(options: {
 
         setActiveProject(clientId)
         const ideas = await withRetry(
-            () => generateProductIdeas(config, options.count || 5, options.theme || undefined),
+            () => generateProductIdeas(config, options.count || 5, options.theme || undefined, clientId),
             1,
             "Product ideas"
         )
@@ -53,106 +51,6 @@ export async function triggerProductIdeas(options: {
     } catch (err: any) {
         const errorMessage = err?.message || String(err) || "Unknown error"
         console.error("Product ideas error:", errorMessage)
-        return { success: false, error: errorMessage.substring(0, 500) }
-    }
-}
-
-export async function triggerDesignGeneration(options: {
-    configName: string
-    theme: string
-    productType?: string
-    ideaId?: string
-    includeLogo?: boolean
-    overlayText?: string
-}): Promise<{ success: boolean; concept?: DesignConcept; designUrl?: string; error?: string }> {
-    try {
-        // Credit check
-        const guard = await creditGuard(options.configName, "product_design")
-        if (!guard.ok) return { success: false, error: guard.error }
-
-        const { clientId } = await requireProjectAccess(options.configName)
-        const config = await loadConfig(options.configName)
-        setActiveProject(clientId)
-        const result = await withRetry(
-            () => generateDesignConcept(config, options.theme, options.productType || "triko", {
-                includeLogo: options.includeLogo,
-                overlayText: options.overlayText,
-            }),
-            1,
-            "Design generation"
-        )
-
-        if (!result) {
-            return { success: false, error: "Design generation returned null" }
-        }
-
-        await guard.commit(`Design: ${options.theme}`)
-
-        if (options.ideaId && result.designUrl) {
-            await supabaseAdmin
-                .from("ig_product_ideas")
-                .update({ design_url: result.designUrl })
-                .eq("id", options.ideaId)
-        }
-
-        return {
-            success: true,
-            concept: result.concept,
-            designUrl: result.designUrl,
-        }
-    } catch (err: any) {
-        const errorMessage = err?.message || String(err) || "Unknown error"
-        console.error("Design generation error:", errorMessage)
-        return { success: false, error: errorMessage.substring(0, 500) }
-    }
-}
-
-export async function triggerMockupGeneration(options: {
-    configName: string
-    designUrl: string
-    productType?: string
-    designDescription?: string
-    ideaId?: string
-}): Promise<{ success: boolean; mockupUrl?: string; error?: string }> {
-    try {
-        // Credit check
-        const guard = await creditGuard(options.configName, "product_mockup")
-        if (!guard.ok) return { success: false, error: guard.error }
-
-        const { clientId } = await requireProjectAccess(options.configName)
-        const config = await loadConfig(options.configName)
-        setActiveProject(clientId)
-        const result = await withRetry(
-            () => generateProductMockup(
-                config,
-                options.designUrl,
-                options.productType || "triko",
-                options.designDescription
-            ),
-            1,
-            "Mockup generation"
-        )
-
-        if (!result) {
-            return { success: false, error: "Mockup generation returned null" }
-        }
-
-        await guard.commit(`Mockup: ${options.productType || 'triko'}`)
-
-        if (options.ideaId && result.mockupUrl) {
-            await supabaseAdmin
-                .from("ig_product_ideas")
-                .update({ mockup_url: result.mockupUrl })
-                .eq("id", options.ideaId)
-        }
-
-        return {
-            success: true,
-            mockupUrl: result.mockupUrl,
-        }
-    } catch (err: any) {
-        const errorMessage = err?.message || String(err) || "Unknown error"
-        console.error("Mockup generation error:", errorMessage)
         return { success: false, error: errorMessage.substring(0, 500) }
     }
 }
@@ -325,6 +223,48 @@ export async function rejectProductIdea(configName: string, idea: Omit<ProductId
 }
 
 // ============================================
+// IDEA FEEDBACK — 👍/👎 that actually steers the next generation
+// ============================================
+
+/**
+ * Rate a saved product idea.
+ *
+ * Before this, saved/rejected was recorded and influenced nothing: unlike
+ * ig_post_ideas, product ideas had no performance_score and no weighted
+ * selection, so the model re-proposed variations of ideas the user had already
+ * thrown away. The rating feeds getWeightedProductIdeas (instagram/service.ts),
+ * which both the idea generator and the line generator read.
+ *
+ * performance_score is derived here rather than stored raw so the weighting math
+ * stays identical to the post-idea loop (decayedScore over a numeric score).
+ */
+export async function rateProductIdea(
+    projectSlug: string,
+    ideaId: string,
+    rating: 1 | -1 | null,
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { clientId } = await requireProjectAccess(projectSlug)
+
+        const { error } = await supabaseAdmin
+            .from("ig_product_ideas")
+            .update({
+                rating,
+                performance_score: rating === 1 ? 10 : rating === -1 ? 0 : 5,
+                last_used_at: new Date().toISOString(),
+            })
+            .eq("id", ideaId)
+            .eq("client_id", clientId)
+
+        if (error) throw error
+        return { success: true }
+    } catch (err: any) {
+        console.error("rateProductIdea error:", err)
+        return { success: false, error: err.message || "Hodnocení se neuložilo" }
+    }
+}
+
+// ============================================
 // PRODUCT REFERENCE UPLOAD (replaces client-side supabase.storage)
 // ============================================
 
@@ -334,10 +274,14 @@ export async function uploadProductReference(
     formData: FormData
 ): Promise<{ success: boolean; publicUrl?: string; error?: string }> {
     try {
+        // Tenant guard — this was the only product action without one, so any
+        // authenticated user could write into another client's reference bucket.
+        const { clientId } = await requireProjectAccess(projectId)
+
         const file = formData.get("file") as File
         if (!file) return { success: false, error: "No file provided" }
 
-        const fileName = `${projectId}_${ideaId}_${Date.now()}`
+        const fileName = `${clientId}_${ideaId}_${Date.now()}`
         const arrayBuffer = await file.arrayBuffer()
         const buffer = Buffer.from(arrayBuffer)
 

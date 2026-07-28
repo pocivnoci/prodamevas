@@ -651,6 +651,7 @@ export function isBodySimilar(newBody: string, recentBodies: string[], threshold
 // ============================================
 
 import type { ClientConfig } from "./configs/types"
+import type { SelectedProduct } from "./orchestrators/types"
 
 /** Get the pillar key for a given post type name */
 export function getPillarForType(config: ClientConfig, typeName: string): string {
@@ -682,6 +683,16 @@ export interface ProductCategory {
     sort_order: number
     is_active: boolean
     created_at: string
+    // ── Print parameters (20260729_product_lines.sql) ──
+    // The renderer used to hardcode aspectRatio "1:1" for every product; a bottle
+    // label is not square, so the physical shape has to be data.
+    artwork_kind: "flat" | "label" | "wrap" | "poster" | null
+    aspect_ratio: string | null
+    /** Printable area, "WxH" in millimetres — drives the 300 DPI upscale target */
+    print_size_mm: string | null
+    panels: { name: string; width_mm: number; height_mm: number; purpose?: string }[] | null
+    safe_margin_mm: number | null
+    bleed_mm: number | null
 }
 
 /**
@@ -721,6 +732,93 @@ export async function getCatalogProducts(
         price: p.price,
         description: p.description,
     }))
+}
+
+/**
+ * Weighted selection over PRODUCT ideas — the mirror of getWeightedIdeas above.
+ *
+ * Two deliberate differences from the post-idea version:
+ *
+ *  - clientId is an explicit parameter. getWeightedIdeas reads getActiveProject(),
+ *    which CLAUDE.md flags as module-global mutable tenant state that can
+ *    cross-contaminate concurrent requests in one lambda; no new callers of it.
+ *  - The signal is the user's 👍/👎 (`rating`), not post metrics. Product ideas
+ *    never get published, so there is nothing to measure — human judgement is the
+ *    only feedback available, and before this it influenced nothing at all
+ *    (status saved/rejected was recorded and then ignored).
+ *
+ * Exploration is preserved: an unrated idea gets a guaranteed 2× shot rather than
+ * being buried under proven winners, so the bank keeps exploring.
+ */
+export async function getWeightedProductIdeas(
+    clientId: string,
+    limit = 5,
+): Promise<any[]> {
+    const { data: all } = await supabaseAdmin
+        .from("ig_product_ideas")
+        .select("*")
+        .eq("client_id", clientId)
+        .neq("status", "rejected")
+        .order("performance_score", { ascending: false })
+        .limit(100)
+
+    const now = Date.now()
+    const ideas = (all ?? []).filter(idea => {
+        if (idea.is_active === false) return false
+        if (!idea.last_used_at) return true
+        const cooldownDays = idea.cooldown_days ?? 30
+        return now - new Date(idea.last_used_at).getTime() > cooldownDays * 86_400_000
+    }).slice(0, 50)
+
+    if (ideas.length === 0) return []
+
+    const scored = ideas.map(idea => ({
+        idea,
+        eff: decayedScore(idea.performance_score || 0, idea.last_used_at),
+        unrated: idea.rating === null || idea.rating === undefined,
+    }))
+    const avgScore = scored.reduce((s, x) => s + x.eff, 0) / scored.length
+
+    const weighted = scored.flatMap(({ idea, eff, unrated }) => {
+        if (idea.rating === -1) return []                   // explicitly rejected — drop
+        if (unrated) return [idea, idea]                    // exploration boost
+        if (eff > avgScore * 1.5) return [idea, idea, idea]
+        if (eff > avgScore) return [idea, idea]
+        return [idea]
+    })
+
+    const shuffled = weighted.sort(() => Math.random() - 0.5)
+    return shuffled.slice(0, limit)
+}
+
+/**
+ * Map an ig_products row onto the engine's SelectedProduct.
+ *
+ * Single mapper because the row is read in three places (explicit pick, cooldown
+ * rotation, variant re-hydration) and each used to inline its own object literal —
+ * which is how line_step/specs would silently go missing on one path and produce
+ * a caption that knows the product but not its role in the line.
+ *
+ * `ig_product_lines` may arrive embedded (PostgREST returns an object for a
+ * to-one embed, an array in some shapes) or not at all — normalise both.
+ */
+export function toSelectedProduct(row: any): SelectedProduct {
+    const embedded = row.ig_product_lines
+    const line = Array.isArray(embedded) ? embedded[0] : embedded
+
+    return {
+        name: row.name,
+        type: row.type || "product",
+        slug: row.slug,
+        price: row.price || undefined,
+        description: row.description || undefined,
+        imageUrls: row.image_urls || undefined,
+        lineId: row.line_id || undefined,
+        lineName: line?.name || undefined,
+        lineStep: row.line_step ?? undefined,
+        lineRole: row.line_role || undefined,
+        specs: row.specs || undefined,
+    }
 }
 
 /**

@@ -32,6 +32,7 @@ import {
     getWeightedReviews,
     getIdeaById,
     countFeedPosts,
+    toSelectedProduct,
 } from "./service"
 import { computeSlotIntent, type SlotIntent } from "../lib/feed-pattern"
 import { loadConfig } from "./configs"
@@ -405,28 +406,25 @@ export async function generateOnePost(options: {
     const performance = options.performance || await analyzePerformance(config, _getPillarForType)
 
     // 4b. Smart product selection — cooldown-based from ig_products
-    let selectedProduct: { name: string; type: string; slug: string; price?: string; description?: string; imageUrls?: string[] } | undefined = undefined
+    let selectedProduct: SelectedProduct | undefined = undefined
     let linkedProductId: string | undefined = undefined
 
     // Resume: re-fetch the exact product the checkpointed caption references
     // (reuses the explicit-product branch); no product on checkpoint = none now.
     const explicitProductId = ck ? ck.linkedProductId || undefined : options.productId
     if (explicitProductId) {
-        // Explicit product from ig_products DB table (user picked via @ mention)
+        // Explicit product from ig_products DB table (user picked via @ mention).
+        // client_id is part of the filter, not an assumption: the id arrives from a
+        // browser payload / plan row, so an id belonging to another tenant would
+        // otherwise render a foreign product into this client's post.
         const { data: dbProduct } = await supabaseAdmin
             .from("ig_products")
-            .select("id, name, type, slug, price, description, image_urls")
+            .select("id, name, type, slug, price, description, image_urls, line_id, line_step, line_role, specs, ig_product_lines(name)")
             .eq("id", explicitProductId)
+            .eq("client_id", clientUuid)
             .single()
         if (dbProduct) {
-            selectedProduct = {
-                name: dbProduct.name,
-                type: dbProduct.type || "product",
-                slug: dbProduct.slug,
-                price: dbProduct.price || undefined,
-                description: dbProduct.description || undefined,
-                imageUrls: dbProduct.image_urls || undefined,
-            }
+            selectedProduct = toSelectedProduct(dbProduct)
             linkedProductId = dbProduct.id
             console.log(`   🛍️ Explicit product (from DB): "${selectedProduct.name}"`)
         }
@@ -438,7 +436,7 @@ export async function generateOnePost(options: {
 
         const { data: candidates } = await supabaseAdmin
             .from("ig_products")
-            .select("id, name, type, slug, price, description, image_urls")
+            .select("id, name, type, slug, price, description, image_urls, line_id, line_step, line_role, specs, ig_product_lines(name)")
             .eq("client_id", clientUuid)
             .or(`last_used_at.is.null,last_used_at.lt.${cooldownDate.toISOString()}`)
             .order("last_used_at", { ascending: true, nullsFirst: true })
@@ -447,14 +445,7 @@ export async function generateOnePost(options: {
         if (candidates && candidates.length > 0) {
             // Pick from top 3 least-recently-used (slight randomness to avoid predictability)
             const pick = candidates[Math.floor(Math.random() * Math.min(3, candidates.length))]
-            selectedProduct = {
-                name: pick.name,
-                type: pick.type || "product",
-                slug: pick.slug,
-                price: pick.price || undefined,
-                description: pick.description || undefined,
-                imageUrls: pick.image_urls || undefined,
-            }
+            selectedProduct = toSelectedProduct(pick)
             linkedProductId = pick.id
             console.log(`   🛍️ Smart product (cooldown ${cooldownDays}d): "${selectedProduct.name}"`)
         } else {

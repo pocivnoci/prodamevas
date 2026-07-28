@@ -14,7 +14,7 @@ import {
     batchInsertIdeas,
     createPillarMapper,
 } from "./service"
-import { runProductIdeas, runDesignConcept } from "./product-generator"
+import { runProductIdeas } from "./product-generator"
 import { loadConfig } from "./configs"
 import type { ClientConfig } from "./configs/types"
 import type { PostIdea } from "./types"
@@ -382,7 +382,13 @@ Dostupné konfigurace: mobilnamiru (a klientské UUIDs z DB)
     if (args.includes("--stats")) return showStats()
     if (args.includes("--generate-ideas")) return runGenerateIdeas()
     if (args.includes("--product-idea")) return runProductIdeas(CLI_CONFIG!)
-    if (args.includes("--design")) return runDesignConcept(CLI_CONFIG!)
+    // --design was removed with the old print generator (it produced a product
+    // photograph, not printable artwork). The replacement pipeline needs a category
+    // row, a logo and storage, so it lives behind the Produkty → Design pro tisk UI.
+    if (args.includes("--design")) {
+        console.log("⚠️  --design byl odstraněn. Použij Dashboard → Produkty → Design pro tisk.")
+        return
+    }
 
     // Parse options
     const dryRun = args.includes("--dry-run")

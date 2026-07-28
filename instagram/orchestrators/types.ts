@@ -27,6 +27,13 @@ export interface CaptionData {
     visualTheme?: string
 }
 
+export interface ProductSpecs {
+    volume?: string
+    application?: string
+    surface?: string
+    claims?: string[]
+}
+
 export interface SelectedProduct {
     name: string
     type: string
@@ -34,6 +41,13 @@ export interface SelectedProduct {
     price?: string
     description?: string
     imageUrls?: string[]
+    /** Product-line membership — lets copy say "krok 3 z 5" instead of guessing */
+    lineId?: string
+    lineName?: string
+    lineStep?: number
+    lineRole?: string
+    /** Verified facts (objem, aplikace, povrch, claims) — grounding, not invention */
+    specs?: ProductSpecs
 }
 
 export interface RenderContext {

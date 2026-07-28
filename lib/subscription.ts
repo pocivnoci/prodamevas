@@ -43,6 +43,7 @@ export type ActionType =
     | "product_design"
     | "product_mockup"
     | "product_brief"
+    | "product_line"
 
 /** How many credits each action costs (for EXTRA posts, not plan posts) */
 export const ACTION_CREDITS: Record<ActionType, number> = {
@@ -54,6 +55,7 @@ export const ACTION_CREDITS: Record<ActionType, number> = {
     product_design: 3,     // concept + render
     product_mockup: 2,     // photorealistic mockup
     product_brief: 5,      // full business analysis
+    product_line: 8,       // whole line: Pro-ladder strategy + N SKUs + specs + repair round
 }
 
 /**
@@ -81,6 +83,7 @@ export const ACTION_LABELS: Record<ActionType, string> = {
     product_design: "Design pro tisk",
     product_mockup: "Produktový mockup",
     product_brief: "Business Brief",
+    product_line: "Produktová řada",
 }
 
 export type MediumType = "image" | "carousel" | "reel"

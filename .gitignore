@@ -61,3 +61,7 @@ supabase/.temp/
 # internal financial analysis — confidential (salary, cost structure, margins,
 # break-even). Kept local only; must NOT be pushed to the public repo.
 docs/pricing/
+
+# tenant data dumps written by one-off migration/rebrand scripts before they
+# write — live customer config, never source. Keep local only.
+scripts/backups/

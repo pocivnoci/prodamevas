@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, upsertPostFormat, removePostFormat, suggestPostFormat, recommendFeedPattern, type PostFormatInput } from "@/app/actions/config-actions"
-import { getProducts, createProduct, updateProduct, deleteProduct, deleteProducts, uploadProductImage, syncConfigProductsToDb, scrapeProductsFromWebsite } from "@/app/actions/product-actions"
+import { syncConfigProductsToDb } from "@/app/actions/product-actions"
+import { CatalogSection } from "./products/CatalogSection"
 import { generateCategoryPrompt } from "@/app/actions/content-plan-actions"
 import { getConnectionStatus, disconnectInstagram, type ConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { SubscriptionSection } from "./SubscriptionSection"
@@ -142,8 +143,12 @@ export function SettingsTab({ projectId }: { projectId: string }) {
             {/* Sticky header */}
             <div className="flex items-center justify-between bg-[#0a0a0a]/90 backdrop-blur-xl border border-white/10 rounded-sm p-5 shadow-sm sticky top-0 z-10">
                 <div>
-                    <h2 className="text-lg font-black uppercase tracking-tight text-white">Nastavení</h2>
-                    <p className="text-white/50 text-xs mt-1 tracking-wide">{config.name}</p>
+                    {/* The page header above already says "Nastavení"; repeating it here wasted
+                        the one line of this sticky bar that stays on screen while you scroll.
+                        Lead with the client instead — with the switcher scrolled out of view,
+                        "which tenant am I editing?" is the question this bar should answer. */}
+                    <h2 className="text-lg font-black uppercase tracking-tight text-white">{config.name}</h2>
+                    <p className="text-white/50 text-xs mt-1 tracking-wide">Konfigurace značky</p>
                 </div>
                 <div className="flex items-center gap-4">
                     {message && (
@@ -272,8 +277,11 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                     {activeSection === "audience" && (
                         <AudienceSection config={config} setConfig={setConfig} />
                     )}
+                    {/* Same component the Produkty tab mounts — one catalog, one
+                        implementation. It stays reachable from Nastavení because the
+                        Produkty studio is admin-only and clients still need CRUD. */}
                     {activeSection === "products" && (
-                        <ProductCatalogSection projectId={projectId} />
+                        <CatalogSection projectId={projectId} />
                     )}
                     {activeSection === "visual" && (
                         <VisualSection config={config} updateField={updateField} handleLogoUpload={handleLogoUpload} logoUploading={logoUploading} projectId={projectId} setConfig={setConfig} />
@@ -1923,326 +1931,5 @@ function ClientManagementSection({ projectId, config, setConfig, onReload }: {
                 </div>
             </div>
         </SectionCard>
-    )
-}
-
-// ═══════════════════════════════════════════════════════════
-// 9. PRODUCT CATALOG
-// ═══════════════════════════════════════════════════════════
-
-function ProductCatalogSection({ projectId }: { projectId: string }) {
-    const [products, setProducts] = useState<any[]>([])
-    const [loading, setLoading] = useState(true)
-    const [showForm, setShowForm] = useState(false)
-    const [editingId, setEditingId] = useState<string | null>(null)
-    const [saving, setSaving] = useState(false)
-    const [uploading, setUploading] = useState<string | null>(null)
-    const [scraping, setScraping] = useState(false)
-    const [scrapeResult, setScrapeResult] = useState<string | null>(null)
-    const [form, setForm] = useState({ name: "", type: "", slug: "", price: "", description: "" })
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-    const [bulkDeleting, setBulkDeleting] = useState(false)
-
-    const loadProducts = useCallback(async () => {
-        setLoading(true)
-        const data = await getProducts(projectId)
-        setProducts(data)
-        setLoading(false)
-    }, [projectId])
-
-    useEffect(() => { loadProducts() }, [loadProducts])
-
-    const autoSlug = (name: string) =>
-        name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
-
-    const handleSubmit = async () => {
-        if (!form.name || !form.slug) return
-        setSaving(true)
-        if (editingId) {
-            await updateProduct(editingId, projectId, form)
-        } else {
-            await createProduct(projectId, form)
-        }
-        setForm({ name: "", type: "", slug: "", price: "", description: "" })
-        setShowForm(false)
-        setEditingId(null)
-        setSaving(false)
-        await loadProducts()
-    }
-
-    const handleEdit = (p: any) => {
-        setForm({ name: p.name, type: p.type || "", slug: p.slug, price: p.price || "", description: p.description || "" })
-        setEditingId(p.id)
-        setShowForm(true)
-    }
-
-    const handleDelete = async (id: string) => {
-        if (!confirm("Smazat produkt? Tato akce je nevratná.")) return
-        await deleteProduct(id, projectId)
-        await loadProducts()
-    }
-
-    const handleImageUpload = async (productId: string, e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file) return
-        setUploading(productId)
-        const fd = new FormData()
-        fd.append("file", file)
-        await uploadProductImage(projectId, productId, fd)
-        await loadProducts()
-        setUploading(null)
-        e.target.value = ""
-    }
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center py-12">
-                <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            </div>
-        )
-    }
-
-    return (
-        <div className="space-y-6">
-            <SectionCard title="Produktový katalog" description="Produkty používané při generování obsahu. Přiřaďte je k postům přes @ mention v content planu.">
-                <div className="flex items-center justify-between gap-3">
-                    <div className="flex-1">
-                        {products.length === 0 && !showForm && (
-                            <p className="text-[10px] text-white/30">Žádné produkty. Načtěte z webu nebo přidejte ručně.</p>
-                        )}
-                        {products.length > 0 && (
-                            <p className="text-[10px] text-white/30">{products.length} produkt{products.length === 1 ? '' : products.length < 5 ? 'y' : 'ů'} v katalogu</p>
-                        )}
-                        {scrapeResult && (
-                            <p className="text-[10px] text-white/50 mt-1">{scrapeResult}</p>
-                        )}
-                    </div>
-                    <button
-                        onClick={async () => {
-                            setScraping(true)
-                            setScrapeResult(null)
-                            const res = await scrapeProductsFromWebsite(projectId)
-                            if (res.success) {
-                                setScrapeResult(`✅ Nalezeno ${res.found} · vloženo ${res.inserted} nových · ${res.images} fotek staženo`)
-                                await loadProducts()
-                            } else {
-                                setScrapeResult(`❌ ${res.error}`)
-                            }
-                            setScraping(false)
-                        }}
-                        disabled={scraping}
-                        className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all border border-blue-500/20 disabled:opacity-50 whitespace-nowrap flex items-center gap-1.5"
-                    >
-                        {scraping ? (
-                            <>
-                                <div className="w-3 h-3 border border-blue-400/50 border-t-blue-400 rounded-full animate-spin" />
-                                Scanuji web…
-                            </>
-                        ) : (
-                            <>🌐 Načíst z webu</>
-                        )}
-                    </button>
-                </div>
-            </SectionCard>
-
-            {/* Bulk actions bar */}
-            {products.length > 0 && (
-                <div className="flex items-center justify-between gap-3 bg-[#0a0a0a] border border-white/5 rounded-sm px-4 py-3">
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => {
-                                if (selectedIds.size === products.length) setSelectedIds(new Set())
-                                else setSelectedIds(new Set(products.map(p => p.id)))
-                            }}
-                            className="text-[9px] text-white/40 hover:text-white/70 font-bold uppercase tracking-widest transition-colors"
-                        >
-                            {selectedIds.size === products.length ? "Odznačit vše" : "Vybrat vše"}
-                        </button>
-                        {selectedIds.size > 0 && (
-                            <span className="text-[9px] text-white/30">{selectedIds.size} vybráno</span>
-                        )}
-                    </div>
-                    {selectedIds.size > 0 && (
-                        <button
-                            onClick={async () => {
-                                if (!confirm(`Smazat ${selectedIds.size} produktů? Tato akce je nevratná.`)) return
-                                setBulkDeleting(true)
-                                await deleteProducts(Array.from(selectedIds), projectId)
-                                setSelectedIds(new Set())
-                                setBulkDeleting(false)
-                                await loadProducts()
-                            }}
-                            disabled={bulkDeleting}
-                            className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all border border-red-500/20 disabled:opacity-50 whitespace-nowrap"
-                        >
-                            {bulkDeleting ? "Mažu…" : `🗑 Smazat ${selectedIds.size}`}
-                        </button>
-                    )}
-                </div>
-            )}
-
-            {/* Product list */}
-            {products.map(p => (
-                <div key={p.id} className={`bg-[#0f0f0f] border rounded-sm p-5 transition-all ${selectedIds.has(p.id) ? 'border-red-500/30 bg-red-500/5' : 'border-white/5 hover:border-white/10'}`}>
-                    <div className="flex items-start gap-4">
-                        {/* Checkbox */}
-                        <label className="flex-shrink-0 flex items-center justify-center w-5 h-16 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={selectedIds.has(p.id)}
-                                onChange={(e) => {
-                                    setSelectedIds(prev => {
-                                        const next = new Set(prev)
-                                        if (e.target.checked) next.add(p.id)
-                                        else next.delete(p.id)
-                                        return next
-                                    })
-                                }}
-                                className="w-3.5 h-3.5 rounded-sm border-white/20 bg-[#050505] accent-red-500 cursor-pointer"
-                            />
-                        </label>
-
-                        {/* Thumbnail */}
-                        <div className="w-16 h-16 flex-shrink-0 bg-[#050505] border border-white/10 rounded-sm overflow-hidden flex items-center justify-center">
-                            {p.image_urls?.length > 0 ? (
-                                <img src={p.image_urls[0]} alt={p.name} className="w-full h-full object-cover" />
-                            ) : (
-                                <span className="text-2xl opacity-30">📦</span>
-                            )}
-                        </div>
-
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                                <span className="text-white font-bold text-sm">{p.name}</span>
-                                {p.type && <span className="text-[8px] px-1.5 py-0.5 bg-white/5 border border-white/10 rounded-sm text-white/40 font-bold uppercase tracking-wider">{p.type}</span>}
-                            </div>
-                            {p.description && <p className="text-[10px] text-white/40 leading-relaxed line-clamp-2">{p.description}</p>}
-                            <div className="flex items-center gap-3 mt-2">
-                                {p.price && <span className="text-[10px] text-emerald-400/70 font-bold">{p.price}</span>}
-                                <span className="text-[8px] text-white/20 font-mono">/{p.slug}</span>
-                                <span className="text-[8px] text-white/20">{(p.image_urls || []).length} fotek</span>
-                            </div>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                            <label className={`p-2 text-white/20 hover:text-blue-400/80 transition-colors cursor-pointer ${uploading === p.id ? 'animate-pulse' : ''}`} title="Nahrát obrázek">
-                                <span className="text-[10px]">📷</span>
-                                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(p.id, e)} disabled={uploading === p.id} />
-                            </label>
-                            <button onClick={() => handleEdit(p)} className="p-2 text-white/20 hover:text-white/60 transition-colors" title="Upravit">
-                                <span className="text-[10px]">✏️</span>
-                            </button>
-                            <button onClick={() => handleDelete(p.id)} className="p-2 text-white/20 hover:text-red-400/80 transition-colors" title="Smazat">
-                                <span className="text-[10px]">✕</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Image gallery */}
-                    {p.image_urls?.length > 1 && (
-                        <div className="flex gap-2 mt-3 overflow-x-auto">
-                            {p.image_urls.map((url: string, i: number) => (
-                                <img key={i} src={url} alt={`${p.name} ${i + 1}`} className="w-12 h-12 object-cover rounded-sm border border-white/10 flex-shrink-0" />
-                            ))}
-                        </div>
-                    )}
-                </div>
-            ))}
-
-            {/* Add/Edit form */}
-            {showForm && (
-                <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-[#0f0f0f] border border-white/10 rounded-sm p-6 space-y-4"
-                >
-                    <div className="border-b border-white/10 pb-3">
-                        <h4 className="text-sm font-black uppercase tracking-widest text-white/70">
-                            {editingId ? "Upravit produkt" : "Nový produkt"}
-                        </h4>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <FieldLabel>Název produktu</FieldLabel>
-                            <input
-                                value={form.name}
-                                onChange={(e) => {
-                                    const name = e.target.value
-                                    setForm(f => ({ ...f, name, slug: editingId ? f.slug : autoSlug(name) }))
-                                }}
-                                placeholder="Chrlit 990 Kč"
-                                className={inputClass}
-                            />
-                        </div>
-                        <div>
-                            <FieldLabel hint="Automaticky z názvu">Slug (URL)</FieldLabel>
-                            <input
-                                value={form.slug}
-                                onChange={(e) => setForm(f => ({ ...f, slug: e.target.value }))}
-                                placeholder="balicek-starter"
-                                className={`${inputClass} font-mono`}
-                            />
-                        </div>
-                        <div>
-                            <FieldLabel>Typ / kategorie</FieldLabel>
-                            <input
-                                value={form.type}
-                                onChange={(e) => setForm(f => ({ ...f, type: e.target.value }))}
-                                placeholder="Balíček, Služba, Fyzický produkt..."
-                                className={inputClass}
-                            />
-                        </div>
-                        <div>
-                            <FieldLabel>Cena</FieldLabel>
-                            <input
-                                value={form.price}
-                                onChange={(e) => setForm(f => ({ ...f, price: e.target.value }))}
-                                placeholder="990 Kč"
-                                className={inputClass}
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <FieldLabel hint="Krátký popis pro AI — co produkt dělá, pro koho je">Popis</FieldLabel>
-                        <textarea
-                            value={form.description}
-                            onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
-                            rows={3}
-                            placeholder="Ideální startovací balíček pro nové zákazníky. Obsahuje..."
-                            className={textareaClass}
-                        />
-                    </div>
-
-                    <div className="flex items-center justify-end gap-3 pt-2">
-                        <button
-                            onClick={() => { setShowForm(false); setEditingId(null); setForm({ name: "", type: "", slug: "", price: "", description: "" }) }}
-                            className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
-                        >
-                            Zrušit
-                        </button>
-                        <button
-                            onClick={handleSubmit}
-                            disabled={saving || !form.name || !form.slug}
-                            className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-sm bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 transition-all disabled:opacity-40"
-                        >
-                            {saving ? "Ukládám..." : editingId ? "Uložit změny" : "Vytvořit produkt"}
-                        </button>
-                    </div>
-                </motion.div>
-            )}
-
-            {!showForm && (
-                <button
-                    onClick={() => { setShowForm(true); setEditingId(null); setForm({ name: "", type: "", slug: "", price: "", description: "" }) }}
-                    className="w-full py-4 border border-dashed border-white/15 rounded-sm text-[10px] text-white/40 font-bold uppercase tracking-widest hover:text-white/70 hover:border-white/30 transition-all"
-                >
-                    + Přidat produkt
-                </button>
-            )}
-        </div>
     )
 }
