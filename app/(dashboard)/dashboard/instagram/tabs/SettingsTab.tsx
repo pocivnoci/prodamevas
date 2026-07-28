@@ -166,9 +166,6 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                 </div>
             </div>
 
-            {/* Subscription */}
-            <SubscriptionSection projectId={projectId} />
-
             {/* Tab navigation */}
             <div className="space-y-2">
                 <div className="flex flex-wrap gap-1 bg-[#0a0a0a]/60 border border-white/10 rounded-sm p-1.5">
@@ -301,6 +298,18 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                     )}
                 </motion.div>
             </AnimatePresence>
+
+            {/* Subscription — deliberately BELOW the tab content.
+                Above the tab bar, a client with no active plan got the full 5-card
+                pricing table (~880px) injected between the page header and the tab
+                bar, pushing this screen's own navigation to y≈1288 on a 900px window
+                — 1.7 screens down. Someone opening Nastavení to fix their brand voice
+                had to scroll past a sales page to discover the tabs even existed, and
+                it only happened once the subscription query resolved, so the layout
+                looked fine while loading and then broke. The pricing stays on the page
+                (it is still a conversion surface, and the sidebar's "Vybrat plán" CTA
+                is unaffected); it just no longer blocks the settings. */}
+            <SubscriptionSection projectId={projectId} />
         </div>
     )
 }
