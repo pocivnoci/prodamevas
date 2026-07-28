@@ -54,7 +54,10 @@ export interface SubscriptionState {
     creditsTotal: number
     creditsRemaining: number
     trialEndsAt: string | null
+    /** End of the paid period (month or year) — renewal date. */
     currentPeriodEnd: string | null
+    /** End of the credit window (always monthly) — when the credit bar resets. */
+    creditPeriodEnd: string | null
     allowedActions: string[]
     analytics: "basic" | "full"
     maxProjects: number

@@ -7,8 +7,13 @@ export const maxDuration = 300
 /**
  * GET /api/cron/billing-worker
  *
- * Daily renewal + dunning worker (see vercel.json). For every ACTIVE subscription
- * whose current_period_end has passed:
+ * Daily renewal + dunning worker (see vercel.json).
+ *
+ * Step 0 (every run, all active subs): roll every lapsed CREDIT window forward.
+ * The credit window is monthly even on a yearly plan, so it moves on its own
+ * schedule — never tie it to the renewal pass.
+ *
+ * Then, for every ACTIVE subscription whose current_period_end has passed:
  *
  *   1. If a renewal payment is already PENDING (< 24h old) → wait for the callback.
  *   2. If the sub has a recurring token (Comgate initRecurring) and COMGATE_RECURRING=1
@@ -32,7 +37,21 @@ export async function GET(req: Request) {
     }
 
     const { isRecurringEnabled, chargeRecurring, generateRenewalRefId, isMockPaymentMode } = await import("@/lib/comgate")
-    const { MAX_BILLING_FAILURES } = await import("@/lib/subscription")
+    const { MAX_BILLING_FAILURES, rollLapsedCreditWindows } = await import("@/lib/subscription")
+
+    // 0. Roll every lapsed CREDIT window first — independent of whether a renewal
+    // is due. On a yearly plan this is the only thing that resets credits (paid
+    // once, credits reset twelve times), and it must not be skipped just because
+    // the paid period still has eleven months to run. Failing here must not stop
+    // the renewal pass: a customer's charge matters more than a persisted window
+    // (readers derive it anyway).
+    let creditWindowsRolled = 0
+    try {
+        creditWindowsRolled = await rollLapsedCreditWindows()
+        if (creditWindowsRolled > 0) console.log(`🔄 billing-worker: ${creditWindowsRolled} kreditových oken posunuto`)
+    } catch (err: any) {
+        console.error("billing-worker: credit window roll failed:", err?.message)
+    }
 
     const nowIso = new Date().toISOString()
     const { data: dueSubs, error } = await supabaseAdmin
@@ -147,8 +166,8 @@ export async function GET(req: Request) {
         }
     }
 
-    console.log(`💳 billing-worker: ${charged} charged, ${reminded} reminded, ${expired} expired, ${waiting} in-flight`)
-    return NextResponse.json({ success: true, charged, reminded, expired, waiting })
+    console.log(`💳 billing-worker: ${charged} charged, ${reminded} reminded, ${expired} expired, ${waiting} in-flight, ${creditWindowsRolled} credit windows rolled`)
+    return NextResponse.json({ success: true, charged, reminded, expired, waiting, creditWindowsRolled })
 }
 
 async function bumpFailures(subId: string, current: number): Promise<void> {

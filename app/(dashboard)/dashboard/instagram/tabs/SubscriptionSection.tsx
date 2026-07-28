@@ -123,6 +123,13 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {plans.map(plan => {
                         const isCurrent = subscription?.planId === plan.id && subscription?.status === "active"
+                        // Switching tiers mid-period is NOT prorated — the new plan starts
+                        // immediately and the rest of the paid period is forfeited. Say so
+                        // at the button, not in a support e-mail afterwards.
+                        const isTierChange = !isCurrent
+                            && subscription?.status === "active"
+                            && !subscription?.isTrial
+                            && !!subscription?.currentPeriodEnd
                         const highlight = plan.features.highlight
                         return (
                             <div
@@ -174,6 +181,11 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                                 >
                                     {isCurrent ? "Aktivní" : upgradingPlanId === plan.id ? "Zpracování..." : `Přejít na ${plan.name}`}
                                 </button>
+                                {isTierChange && (
+                                    <p className="mt-2 text-[8px] leading-relaxed text-white/25 font-bold uppercase tracking-widest">
+                                        Nový plán začne platit ihned — nevyčerpaný zbytek stávajícího období se nepřevádí
+                                    </p>
+                                )}
                             </div>
                         )
                     })}
@@ -200,6 +212,10 @@ function CurrentPlanCard({ sub, onRefresh }: { sub: SubscriptionState; onRefresh
     const trialDays = isTrial && sub.trialEndsAt
         ? Math.max(0, Math.ceil((new Date(String(sub.trialEndsAt)).getTime() - Date.now()) / 86400000))
         : null
+    // The credit bar resets on the CREDIT window (always monthly), not on the paid
+    // period — on a yearly plan those are up to eleven months apart, and showing the
+    // renewal date next to the credit bar would promise credits that arrive monthly.
+    const creditResetAt = sub.creditPeriodEnd ? String(sub.creditPeriodEnd) : null
     const periodEnd = sub.currentPeriodEnd ? String(sub.currentPeriodEnd) : null
 
     return (
@@ -253,12 +269,23 @@ function CurrentPlanCard({ sub, onRefresh }: { sub: SubscriptionState; onRefresh
                             ? `${remainingUnits} ${remainingUnits === 1 ? "příspěvek zdarma zbývá" : remainingUnits >= 2 && remainingUnits <= 4 ? "příspěvky zdarma zbývají" : "příspěvků zdarma zbývá"}`
                             : `${remainingUnits} kreditů zbývá`}
                     </span>
-                    {periodEnd && (
+                    {!usePostQuota && creditResetAt ? (
+                        <span className="text-[9px] text-white/20 font-bold">
+                            Kredity se obnoví {new Date(creditResetAt).toLocaleDateString("cs")}
+                        </span>
+                    ) : periodEnd ? (
                         <span className="text-[9px] text-white/20 font-bold">
                             Obnoví se {new Date(periodEnd).toLocaleDateString("cs")}
                         </span>
-                    )}
+                    ) : null}
                 </div>
+                {/* Only a yearly plan has two different dates — say which is which,
+                    otherwise "obnoví se" would look like the credits arrive in a year. */}
+                {periodEnd && creditResetAt && new Date(periodEnd).toDateString() !== new Date(creditResetAt).toDateString() && (
+                    <p className="text-[9px] text-white/20 font-bold mt-1">
+                        Předplatné se obnovuje {new Date(periodEnd).toLocaleDateString("cs")}
+                    </p>
+                )}
             </div>
         </div>
     )
