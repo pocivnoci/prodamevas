@@ -3,6 +3,8 @@ import supabaseAdmin from "@/supabase/admin"
 import { getConnection } from "@/instagram/ig-connection"
 import { instagramAdapter } from "@/lib/channels/instagram"
 import type { FormattedContent, MediaType } from "@/lib/channels/types"
+import { isMediumType } from "@/lib/credits"
+import { parsePostMedia } from "@/lib/media-urls"
 
 export const maxDuration = 800 // Vercel Pro cap (Fluid Compute).
 
@@ -32,11 +34,13 @@ const MAX_ATTEMPTS = 4      // give up (status 'failed') after this many publish
 
 const nowIso = () => new Date().toISOString()
 
-/** Derive the media type for a post, falling back to the image_url pipe convention. */
+/** Derive the media type for a post, falling back to the image_url pipe convention.
+ *  Narrowed through isMediumType rather than a hand-written whitelist: the old one
+ *  fell through to the pipe heuristic for anything it didn't name, so a 3-frame story
+ *  resolved to "carousel". The heuristic itself must stay carousel-biased — legacy
+ *  rows with a NULL media_type predate both stories and reels. */
 function resolveMediaType(post: { media_type: string | null; image_url: string | null }): MediaType {
-    if (post.media_type === "carousel" || post.media_type === "image" || post.media_type === "reel") {
-        return post.media_type
-    }
+    if (isMediumType(post.media_type)) return post.media_type
     return (post.image_url || "").includes("|") ? "carousel" : "image"
 }
 
@@ -121,7 +125,7 @@ export async function GET(req: Request) {
             }
 
             const mediaType = resolveMediaType(post)
-            const mediaUrls = (post.image_url || "").split("|").map((u: string) => u.trim()).filter(Boolean)
+            const mediaUrls = parsePostMedia(post.image_url, post.media_type).urls
             const content: FormattedContent = {
                 channel: "instagram",
                 body: post.caption || "",
@@ -134,15 +138,24 @@ export async function GET(req: Request) {
                 content,
             )
 
+            // A partial publish (some story frames live, a later one failed) is TERMINAL:
+            // "posted" with the error recorded. It IS on Instagram and it is NOT complete,
+            // and re-arming would republish the frames that already went live — up to
+            // MAX_ATTEMPTS times, i.e. 8 junk stories on a customer's account.
             await supabaseAdmin.from("ig_posts").update({
                 status: "posted",
                 posted_at: nowIso(),
                 ig_media_id: result.externalId,
                 permalink: result.permalink || null,
                 publish_attempts: attempts,
-                publish_error: null,
+                publish_error: result.partial
+                    ? `Publikováno ${result.partial.publishedCount}/${result.partial.total} snímků: ${result.partial.error}`.slice(0, 500)
+                    : null,
                 updated_at: nowIso(),
             }).eq("id", post.id)
+            if (result.partial) {
+                console.warn(`   ⚠️ Story ${post.id}: publikováno jen ${result.partial.publishedCount}/${result.partial.total} snímků — neopakuji`)
+            }
             published++
         } catch (err: any) {
             const msg = err?.message || String(err)

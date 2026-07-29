@@ -59,7 +59,12 @@ function shortCzDate(dateStr: string): string {
 
 export function GenerateTab({ projectId }: { projectId: string }) {
     const { refreshSubscription, setActiveSection, subscription, generateIntent, setGenerateIntent } = useStudio()
-    const reelAllowed = subscription?.allowedMedia?.includes("reel") ?? true
+    // A medium must pass BOTH gates: the plan allows it AND the engine can actually make
+    // it. Offering one the engine will clamp away is a broken promise — a "reel" that
+    // ships as a carousel. `?? false` on the flags: an older API response without them
+    // means we can't prove the engine will honour it.
+    const reelAllowed = (subscription?.allowedMedia?.includes("reel") ?? true) && (subscription?.reelsEnabled ?? false)
+    const storyAllowed = (subscription?.allowedMedia?.includes("story") ?? true) && (subscription?.storiesEnabled ?? false)
     // Posts still free within this month's plan allotment (plan posts cost 0 credits).
     const freeRemaining = subscription
         ? Math.max(0, (subscription.planPostsLimit ?? 0) - (subscription.planPostsUnlocked ?? 0))
@@ -1084,19 +1089,24 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                             </div>
                                             <div>
                                                 <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">🎞️ Typ</label>
-                                                <div className="grid grid-cols-4 gap-2">
-                                                    {[{ value: "", label: "Auto", emoji: "🎲" }, { value: "image", label: "Obrázek", emoji: "🖼️" }, { value: "carousel", label: "Carousel", emoji: "📸" }, { value: "reel", label: "Reel", emoji: "🎬" }].map(opt => {
-                                                        const locked = opt.value === "reel" && !reelAllowed
+                                                <div className="grid grid-cols-5 gap-2">
+                                                    {[{ value: "", label: "Auto", emoji: "🎲" }, { value: "image", label: "Obrázek", emoji: "🖼️" }, { value: "story", label: "Story", emoji: "📱" }, { value: "carousel", label: "Carousel", emoji: "📸" }, { value: "reel", label: "Reel", emoji: "🎬" }].map(opt => {
+                                                        const locked = (opt.value === "reel" && !reelAllowed) || (opt.value === "story" && !storyAllowed)
+                                                        const lockNote = opt.value === "reel"
+                                                            ? (subscription?.reelsEnabled === false ? "Reels připravujeme" : "Reels jsou dostupné od balíčku Růst")
+                                                            : (subscription?.storiesEnabled === false ? "Stories připravujeme" : "Stories nejsou v tomto balíčku")
                                                         return (
                                                             <button key={opt.value} onClick={() => !locked && setMedium(opt.value)}
                                                                 disabled={locked}
-                                                                title={locked ? "Reels jsou dostupné od balíčku Růst" : undefined}
+                                                                title={locked ? lockNote : undefined}
                                                                 className={`py-2.5 rounded-sm text-center transition-all border text-xs font-bold ${locked
                                                                     ? "bg-[#050505] border-white/5 text-white/20 cursor-not-allowed"
                                                                     : medium === opt.value
                                                                         ? "bg-white/10 border-white/30 text-white" : "bg-[#050505] border-white/10 text-white/40 hover:text-white"}`}>
                                                                 {locked ? "🔒" : opt.emoji} {opt.label}
-                                                                {locked && <span className="block text-[8px] text-white/25 font-bold uppercase tracking-widest mt-0.5">Od Růst</span>}
+                                                                {locked && <span className="block text-[8px] text-white/25 font-bold uppercase tracking-widest mt-0.5">
+                                                                    {lockNote.includes("připravujeme") ? "Brzy" : "Od Růst"}
+                                                                </span>}
                                                             </button>
                                                         )
                                                     })}
@@ -1111,6 +1121,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                 <p className="mt-2 text-[10px] text-white/30 leading-relaxed">
                                                     AI vaši fotku zakomponuje do designu příspěvku — použije ji celou nebo její část jako vizuální základ a doplní typografii, branding a logo. Text příspěvku se řídí zadaným tématem, ne fotkou.
                                                     {medium === "reel" && <span className="text-amber-400/60"> U reels se fotka nepoužije.</span>}
+                                                    {medium === "story" && <span className="text-white/40"> U storky se fotka použije na prvním snímku.</span>}
                                                 </p>
                                             </div>
                                         </div>

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom"
 import type { IGPost } from "./types"
 import { useCopyToClipboard } from "./hooks"
 import { publishNowAction, getPostPublishStatus } from "@/app/actions/calendar-actions"
+import { parsePostMedia } from "@/lib/media-urls"
 
 // ═══════════════════════════════════════════════════════════
 // PUBLISH HANDOFF MODAL — "one-tap" hand-off to the Instagram app
@@ -48,15 +49,17 @@ export function PublishHandoffModal({
     const [permalink, setPermalink] = useState<string | null>(null)
     const mounted = useRef(true)
 
-    const imageUrls = (post.image_url || "").split("|").map(s => s.trim()).filter(Boolean)
-    const isCarousel = imageUrls.length > 1
+    const media = parsePostMedia(post.image_url, post.media_type)
+    const imageUrls = media.urls
+    const isCarousel = media.kind === "carousel"
+    const isStory = media.kind === "story"
 
     const hashtags = Array.isArray(post.hashtags) ? post.hashtags : []
     const hashtagsText = hashtags.join(" ")
     const fullText = [post.caption, hashtagsText].filter(Boolean).join("\n\n")
-    // ⚡ Publikovat hned is offered when the account is connected and the post is a
-    // static image/carousel (auto-publish has no reel path).
-    const canAutoPublish = connected && imageUrls.length > 0 && post.media_type !== "reel"
+    // ⚡ Publikovat hned is offered when the account is connected and the post is
+    // static media — image, carousel or story (auto-publish has no reel path).
+    const canAutoPublish = connected && imageUrls.length > 0 && media.kind !== "reel"
 
     // Feature-detect Web Share (files) on the client — true on most phones, false on desktop.
     useEffect(() => {
@@ -254,7 +257,9 @@ export function PublishHandoffModal({
                                 disabled={pubState === "publishing"}
                                 className="w-full px-4 py-3.5 text-xs font-black uppercase tracking-widest rounded-sm bg-gradient-to-r from-aisummit-cinnabar/30 to-orange-600/30 text-aisummit-cinnabar border border-aisummit-cinnabar/30 hover:from-aisummit-cinnabar/40 hover:to-orange-600/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                             >
-                                {pubState === "publishing" ? "⏳ Publikuje se… (do minuty)" : "⚡ Publikovat hned"}
+                                {pubState === "publishing"
+                                    ? "⏳ Publikuje se… (do minuty)"
+                                    : isStory ? "📱 Přidat do stories" : "⚡ Publikovat hned"}
                             </button>
                         )
                     )}

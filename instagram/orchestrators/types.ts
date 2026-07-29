@@ -24,6 +24,8 @@ export interface CaptionData {
     scenes?: { timeRange: string; visual: string; camera: string; mood: string; narration?: string; soundEffect?: string }[]
     caption?: string
     slides?: { headline: string; subtext: string; imagePrompt: string }[]
+    /** Story only — 1-3 vertical frames INCLUDING the first (frames[0].headline === hook). */
+    frames?: { headline: string; subtext: string; imagePrompt: string }[]
     visualTheme?: string
 }
 

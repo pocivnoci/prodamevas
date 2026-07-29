@@ -7,13 +7,19 @@ import type { ClientConfig } from "@/instagram/configs/types"
 
 // ─── Content Plan Preview (cheap text-only plan before expensive generation) ──
 
+/** Media a content plan may schedule. Deliberately narrower than PostMedium: stories
+ *  are ephemeral and never enter the feed grid the plan is built around, so they are
+ *  mapped to `image` at plan time (see effectiveMediums below). Widen together with the
+ *  calendar and the campaign worker, not on its own. */
+export type PlanMedium = "image" | "carousel" | "reel"
+
 export interface ContentPlanItem {
     id: string
     postType: string
     postTypeEmoji: string
     postTypeLabel: string
     /** Effective medium for this post (reel kill-switch already applied) — UI shows single vs carousel */
-    medium: "image" | "carousel" | "reel"
+    medium: PlanMedium
     pillar: string
     pillarEmoji: string
     hookPreview: string
@@ -252,10 +258,15 @@ export async function generateContentPlan(
         // keeps the historical ¼ so an unspecified brief behaves exactly as before.
         const CAROUSEL_DIVISOR: Record<CarouselShare, number> = { low: 6, auto: 4, high: 2 }
         const carouselCap = Math.floor(count / CAROUSEL_DIVISOR[carouselShare || "auto"])
-        const effectiveMediums: ("image" | "carousel" | "reel")[] = (() => {
+        const effectiveMediums: PlanMedium[] = (() => {
             let carouselsKept = 0
             return typeSequence.map((typeName, i) => {
-                let m = getPostFormat(config, typeName).medium
+                const configured = getPostFormat(config, typeName).medium
+                // v2: stories in content plans. Until then a story-format post type planned
+                // into a batch renders as a single image — the plan preview, the calendar and
+                // the campaign worker all assume feed media, and a story would silently eat a
+                // feed slot it never appears in.
+                let m: PlanMedium = configured === "story" ? "image" : configured
                 if (process.env.REELS_ENABLED !== "1" && m === "reel") {
                     m = i % 3 === 0 ? "carousel" : "image"
                 }
@@ -285,7 +296,7 @@ export async function generateContentPlan(
             }
         }
 
-        const effectiveMedium = (_typeName: string, i: number): "image" | "carousel" | "reel" =>
+        const effectiveMedium = (_typeName: string, i: number): PlanMedium =>
             effectiveMediums[i] ?? "image"
 
         // Get post type metadata from DB

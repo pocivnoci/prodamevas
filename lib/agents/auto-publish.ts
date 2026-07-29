@@ -60,14 +60,21 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
 
     const need = target - queuedCount
 
-    // Oldest ready posts with real media, excluding reels (no auto-publish path).
+    // Oldest ready posts with real media, excluding reels (no auto-publish path) and
+    // stories (this agent arms FEED posts on the postsPerWeek cadence — a story would
+    // eat a feed slot it never appears in, and desync the schedule).
+    //
+    // CAREFUL: `.neq()` compiles to SQL `<>`, and `NULL <> 'reel'` is NULL — the row
+    // drops out. media_type was added by 20260622_ig_publishing.sql with no backfill,
+    // so the previous bare `.neq("media_type", "reel")` silently excluded EVERY post
+    // created before that date from auto-publish arming. The null branch fixes that.
     const { data: ready, error: rErr } = await supabaseAdmin
         .from("ig_posts")
         .select("id, media_type")
         .eq("client_id", clientId)
         .eq("status", "ready")
         .not("image_url", "is", null)
-        .neq("media_type", "reel")
+        .or("media_type.is.null,and(media_type.neq.reel,media_type.neq.story)")
         .order("created_at", { ascending: true })
         .limit(need)
     if (rErr) throw new Error(`auto-publish ready read (${slug}): ${rErr.message}`)

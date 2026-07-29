@@ -39,8 +39,13 @@ export function FeedTab({ projectId }: { projectId: string }) {
         getIGPostsList(undefined, projectId, 0, 100).then(result => {
             // "Future profile" order: scheduled posts first, newest-scheduled on top
             // (like IG shows newest first), then unscheduled by creation date.
+            // Stories never appear in the profile grid, so they must not appear here either.
+            // This filter MUST stay identical to countFeedPosts() in instagram/service.ts —
+            // the engine computes each post's grid position from that count, and a preview
+            // built from a different set draws ghost cells that lie. (JS !== is NULL-safe,
+            // unlike PostgREST's .neq() — see the note in countFeedPosts.)
             const withImages = (result.posts || [])
-                .filter((p: any) => p.image_url)
+                .filter((p: any) => p.image_url && p.media_type !== "story")
                 .sort((a: any, b: any) => {
                     const ka = a.scheduled_for ? new Date(a.scheduled_for).getTime() : null
                     const kb = b.scheduled_for ? new Date(b.scheduled_for).getTime() : null

@@ -25,8 +25,15 @@ import type { ClientConfig, PostFormat, PostMedium, AspectRatio, OverlayStyle } 
 
 /** Render-format default derived from a format's medium (matches upsertPostFormat). */
 function defaultOverlayStyle(medium: PostMedium): OverlayStyle {
-    // "none" is ONLY legal for reels — a static image must never render text-free.
+    // "none" is ONLY legal for reels — a static medium must never render text-free.
+    // A story is the most typography-led format there is, so it takes "default".
     return medium === "carousel" ? "cover" : medium === "reel" ? "none" : "default"
+}
+
+/** Media rendered in a 9:16 frame. Mirrors VERTICAL_MEDIA in instagram/format-clamps.ts;
+ *  that one enforces at render time, this one picks the default at config-load time. */
+function defaultAspectRatio(medium: PostMedium): AspectRatio {
+    return medium === "reel" || medium === "story" ? "9:16" : "4:5"
 }
 
 /** Ensure a postFormats entry exists for every active type without clobbering
@@ -43,7 +50,7 @@ function ensurePostFormats(
         if (out[name]) continue // never overwrite an existing render format
         const def = defByName.get(name)
         const medium: PostMedium = def?.medium || "image"
-        const aspectRatio: AspectRatio = def?.aspectRatio || (medium === "reel" ? "9:16" : "4:5")
+        const aspectRatio: AspectRatio = def?.aspectRatio || defaultAspectRatio(medium)
         out[name] = { aspectRatio, medium, overlayStyle: defaultOverlayStyle(medium) }
     }
     return out

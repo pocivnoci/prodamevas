@@ -36,7 +36,8 @@ import {
 } from "./service"
 import { computeSlotIntent, type SlotIntent } from "../lib/feed-pattern"
 import { loadConfig } from "./configs"
-import type { ClientConfig, PostFormat } from "./configs/types"
+import type { ClientConfig, PostFormat, PostMedium } from "./configs/types"
+import { applyFormatClamps, liveKillSwitches, FEED_SAFE_RATIOS } from "./format-clamps"
 import type { PostType, PostIdea, Review } from "./types"
 
 // Module imports (refactored from monolith)
@@ -50,6 +51,8 @@ import {
     buildCaptionSchema,
     buildVideoSchema,
     buildCarouselSchema,
+    buildStorySchema,
+    MAX_STORY_FRAMES,
     buildSmartWeekPlan,
     buildMegaPrompt,
     scorePost,
@@ -63,6 +66,7 @@ import type { EditorialMessage } from "./types"
 // Media orchestrators (extracted for maintainability)
 import { renderReel } from "./orchestrators/reel-orchestrator"
 import { renderCarousel } from "./orchestrators/carousel-orchestrator"
+import { renderStory } from "./orchestrators/story-orchestrator"
 import { renderImage } from "./orchestrators/image-orchestrator"
 import type { CaptionData, SelectedProduct, RenderResult } from "./orchestrators/types"
 
@@ -157,7 +161,7 @@ export async function generateOnePost(options: {
     dryRun?: boolean
     performance?: PerformanceInsight
     aspectRatio?: string
-    medium?: "image" | "carousel" | "reel"
+    medium?: PostMedium
     /** User's own uploaded photo — becomes the mandatory VISUAL BASE of the native render
      *  (designed on/around, never published raw). Ignored for reels. */
     customImageUrl?: string
@@ -179,7 +183,7 @@ export async function generateOnePost(options: {
     /** Media allowed by the subscription plan (undefined = everything; legacy plans). Disallowed medium gets clamped to carousel. */
     allowedMedia?: string[]
     /** Medium the job was charged for (media-weighted credits) — the engine never renders a more expensive one. */
-    chargedMedium?: "image" | "carousel" | "reel"
+    chargedMedium?: PostMedium
     /** ig_jobs id — enables writing the caption checkpoint for crash-resume. */
     jobId?: string
     /** Prior checkpoint from a failed job — skips the caption phase (copywriter/critic/editorial). */
@@ -189,7 +193,7 @@ export async function generateOnePost(options: {
      *  posts — those derive it from the live feed. */
     slotIntent?: SlotIntent
     onProgress?: (stage: string, progress: number, message: string, editorialLog?: EditorialMessage[]) => Promise<void>
-}): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number; mediaType: "image" | "carousel" | "reel" }> {
+}): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number; mediaType: PostMedium }> {
     const report = options.onProgress || (async () => { }) // no-op if not provided
     const clientUuid = await ensureConfig(options.configName)
     const ck = options.resumeFrom?.stage === "caption" ? options.resumeFrom : undefined
@@ -513,59 +517,16 @@ export async function generateOnePost(options: {
         console.log(`   📐 Médium přepsáno uživatelem: ${options.medium}`)
     }
 
-    // ── Safety clamps — extracted so they can be RE-APPLIED after a checkpoint
-    // restore. These read LIVE settings (subscription plan, REELS_ENABLED env,
-    // charged medium); a checkpoint freezes the format under the ORIGINAL attempt's
-    // rules, and a deferral window can last hours — live rules must win on resume
-    // (a resumed reel must not bypass a kill-switch flipped mid-deferral).
-    const CAROUSEL_SAFE_RATIOS = ["1:1", "4:5", "3:4"] as const
-    const applySafetyClamps = (f: PostFormat) => {
-        // Plan media gating: config/category may still ask for a medium the
-        // subscription doesn't include (e.g. reel on the Start tier) — clamp it.
-        if (options.allowedMedia && !options.allowedMedia.includes(f.medium)) {
-            const original = f.medium
-            f.medium = options.allowedMedia.includes("carousel") ? "carousel" : "image"
-            if (f.medium === "carousel" && f.overlayStyle === "none") {
-                f.overlayStyle = "cover"
-            }
-            console.log(`   🔒 Médium "${original}" není v balíčku — fallback na ${f.medium}`)
-        }
-
-        // Global reel kill-switch — Veo video generation is OFF for now. Clamp any reel
-        // (from config/category/user) to carousel so no Veo call is ever made. Flip back on
-        // with REELS_ENABLED=1 (env) when ready — no redeploy needed.
-        if (process.env.REELS_ENABLED !== "1" && f.medium === "reel") {
-            f.medium = "carousel"
-            f.aspectRatio = "4:5" // 9:16 (reel) není feed-legální pro carousel — IG by ho ořízl
-            if (f.overlayStyle === "none") f.overlayStyle = "cover"
-            console.log("   🚫 Reels dočasně vypnuté (Veo off) — fallback na carousel (4:5)")
-        }
-
-        // Billing cap — the medium can never be MORE expensive than what the job was
-        // charged for (credits are media-weighted: image 1 / carousel 3 / reel 5, charged
-        // at job creation). Ideas/categories may still ask for a pricier medium; clamp it
-        // to the paid one. Downward differences are refunded via reconcileJobCharge.
-        if (options.chargedMedium) {
-            const MEDIUM_RANK: Record<string, number> = { image: 0, carousel: 1, reel: 2 }
-            if ((MEDIUM_RANK[f.medium] ?? 0) > (MEDIUM_RANK[options.chargedMedium] ?? 0)) {
-                const original = f.medium
-                f.medium = options.chargedMedium
-                if (f.medium !== "reel" && f.aspectRatio === "9:16") f.aspectRatio = "4:5"
-                if (f.medium === "carousel" && f.overlayStyle === "none") f.overlayStyle = "cover"
-                console.log(`   💳 Médium "${original}" překračuje účtovaný formát — clamp na ${f.medium}`)
-            }
-        }
-
-        // Feed-safety clamp — carousel/image must use a feed-legal aspect ratio. A 9:16
-        // (or landscape 16:9/4:3) on a non-reel medium gets cropped hard by Instagram, no
-        // matter where it leaked in from (config / category / onboarding / user override).
-        if (f.medium !== "reel" && !CAROUSEL_SAFE_RATIOS.includes(f.aspectRatio as any)) {
-            const original = f.aspectRatio
-            f.aspectRatio = "4:5"
-            console.log(`   📐 Poměr "${original}" není feed-legální pro ${f.medium} — clamp na 4:5`)
-        }
+    // ── Safety clamps — see instagram/format-clamps.ts. Pure + idempotent, because
+    // they are RE-APPLIED after a checkpoint restore below: a checkpoint freezes the
+    // format under the ORIGINAL attempt's rules, and a deferral window can last hours,
+    // so live rules (plan, kill-switches, charged medium) must win on resume.
+    const clampOpts = {
+        allowedMedia: options.allowedMedia,
+        chargedMedium: options.chargedMedium,
+        ...liveKillSwitches(),
     }
-    applySafetyClamps(format)
+    format = applyFormatClamps(format, clampOpts)
 
     // Smart overlay rotation — for image posts only, auto-select layout variant
     if (format.medium === "image" && format.overlayStyle === "default") {
@@ -586,30 +547,20 @@ export async function generateOnePost(options: {
     // kill-switch / plan gating / billing cap may have changed during the deferral
     // window (up to MAX_CAMPAIGN_AGE_MS) and must win over the frozen format.
     if (ck) {
-        format = { ...ck.format }
-        applySafetyClamps(format)
+        format = applyFormatClamps(ck.format, clampOpts)
     }
 
     const isReel = format.medium === "reel"
     const isCarousel = format.medium === "carousel"
+    const isStory = format.medium === "story"
 
     // Caption-phase state — filled either from the checkpoint (resume) or by the
     // full caption phase below (copywriter → dedup → critic → editorial).
-    type CaptionPhaseData = {
-        angle?: string
-        hook: string
-        body?: string
-        cta: string
-        hashtags: string[]
-        imagePrompt?: string
-        imageSubtext?: string
-        accentWords?: string[]
-        videoScript?: string
-        scenes?: { timeRange: string; visual: string; camera: string; mood: string; narration?: string; soundEffect?: string }[]
-        caption?: string
-        slides?: { headline: string; subtext: string; imagePrompt: string }[]
-        visualTheme?: string
-    }
+    // Deliberately an ALIAS of the orchestrators' CaptionData, not a copy: this used
+    // to be a hand-maintained duplicate of the same 13 fields, so every new medium's
+    // payload (slides, scenes, frames…) had to be added in two places or the caption
+    // phase silently dropped it on the way to the renderer.
+    type CaptionPhaseData = CaptionData
     let captionData: CaptionPhaseData
     let megaPrompt = ""
     let captionModel = getModel("textPro")
@@ -768,7 +719,10 @@ ${feedSummary}
         console.log(`\n────── MEGA PROMPT ──────\n${megaPrompt}\n─────────────────────────\n`)
     }
 
-    const schema = isReel ? buildVideoSchema(config) : isCarousel ? buildCarouselSchema(config) : buildCaptionSchema(config)
+    const schema = isReel ? buildVideoSchema(config)
+        : isStory ? buildStorySchema(config)
+            : isCarousel ? buildCarouselSchema(config)
+                : buildCaptionSchema(config)
     // The MAIN caption is "80% of text quality" → it runs the Pro QUALITY LADDER
     // (textPro: gemini-pro-latest → gemini-2.5-pro, never flash), retried hard on
     // transient 503/429. This is in-job (800s budget) so latency is hidden. Previously
@@ -792,6 +746,19 @@ ${feedSummary}
         }
         // For reels: caption field replaces body
         if (isReel && parsed.caption) parsed.body = parsed.caption
+        // For stories: frames[0] IS the hook frame, so the two must agree verbatim.
+        // `hook` is load-bearing well beyond the render (caption assembly, critic score,
+        // dedup check, the post card's title), so it stays authoritative and the frame
+        // is corrected to match — never the other way round.
+        if (isStory && parsed.frames?.length) {
+            parsed.frames = parsed.frames.slice(0, MAX_STORY_FRAMES)
+            if (!parsed.hook) {
+                parsed.hook = parsed.frames[0].headline
+            } else if (parsed.frames[0].headline !== parsed.hook) {
+                console.warn(`   ⚠️ Story: headline snímku 1 ≠ hook — vynucuji hook doslova`)
+                parsed.frames[0] = { ...parsed.frames[0], headline: parsed.hook }
+            }
+        }
         return parsed
     }
 
@@ -1000,6 +967,17 @@ ${feedSummary}
             })
             imageUrl = renderResult.imageUrl
             cost += renderResult.cost
+        } else if (isStory && captionData.frames?.length) {
+            // No slotIntent: a story never occupies a cell in the profile grid, so the
+            // feed pattern has no say in its design (same as renderReel).
+            renderResult = await renderStory({
+                config, captionData: captionData as CaptionData, format, selectedType, report,
+                selectedProduct: selectedProduct as SelectedProduct | undefined,
+                linkedProductId, clientUuid, recentBriefs, recentArchetypes,
+                userPhotoUrl: options.customImageUrl, userPhotoDescription,
+            })
+            imageUrl = renderResult.imageUrl
+            cost += renderResult.cost
         } else if (isCarousel && captionData.slides) {
             // options.customImageUrl (user's own photo) is NOT published raw — it flows
             // into the native engine as the mandatory visual base (cover for carousels).
@@ -1012,16 +990,17 @@ ${feedSummary}
             imageUrl = renderResult.imageUrl
             cost += renderResult.cost
         } else {
-            // Truthful fallback: a reel caption without scenes/script (or a carousel
-            // without slides) renders as a single image — the format MUST say so.
-            // Leaving format.medium = "reel" here made media_type lie: reconcileJobCharge
-            // saw no billed-vs-actual delta (5-credit reel charge, 1-credit image shipped,
-            // no refund) and the publisher later pushed a static image through the video
-            // path (publish failure).
+            // Truthful fallback: a reel caption without scenes/script, a carousel without
+            // slides or a story without frames renders as a single image — the format MUST
+            // say so. Leaving format.medium = "reel" here made media_type lie:
+            // reconcileJobCharge saw no billed-vs-actual delta (5-credit reel charge,
+            // 1-credit image shipped, no refund) and the publisher later pushed a static
+            // image through the video path (publish failure).
             if (format.medium !== "image") {
-                console.warn(`   ⚠️ ${format.medium} caption bez ${format.medium === "reel" ? "scén/skriptu" : "slides"} — renderuji single image, media_type opraven`)
+                const missing = format.medium === "reel" ? "scén/skriptu" : format.medium === "story" ? "snímků" : "slides"
+                console.warn(`   ⚠️ ${format.medium} caption bez ${missing} — renderuji single image, media_type opraven`)
                 format.medium = "image"
-                if (!(CAROUSEL_SAFE_RATIOS as readonly string[]).includes(format.aspectRatio)) format.aspectRatio = "4:5"
+                if (!(FEED_SAFE_RATIOS as readonly string[]).includes(format.aspectRatio)) format.aspectRatio = "4:5"
                 if (format.overlayStyle === "none") format.overlayStyle = "default"
             }
             renderResult = await renderImage({
@@ -1034,7 +1013,7 @@ ${feedSummary}
             cost += renderResult.cost
         }
     } else {
-        console.log(`🎨 [DRY-RUN] Přeskakuji ${isReel ? "video" : isCarousel ? "carousel" : "obrázek"}`)
+        console.log(`🎨 [DRY-RUN] Přeskakuji ${isReel ? "video" : isStory ? "story" : isCarousel ? "carousel" : "obrázek"}`)
     }
 
 

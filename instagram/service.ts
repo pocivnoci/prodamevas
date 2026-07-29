@@ -267,16 +267,24 @@ export async function getRecentPosts(limit: number = 30): Promise<Post[]> {
  * Takes clientId explicitly: this is engine code and must never depend on the module-global
  * active project (concurrent requests share a lambda and would cross tenants).
  *
- * The filter deliberately matches FeedTab's grid exactly (image_url present, nothing else),
- * so the pattern the preview draws and the pattern the engine generates against are computed
- * from the same set of posts. Diverge here and the ghost cells start lying.
+ * The filter deliberately matches FeedTab's grid exactly (image_url present AND not a
+ * story), so the pattern the preview draws and the pattern the engine generates against are
+ * computed from the same set of posts. Diverge here and the ghost cells start lying.
+ *
+ * Stories are excluded because they never appear in the profile grid — counting them would
+ * shift every subsequent post's grid position and desync the whole feed pattern.
  */
 export async function countFeedPosts(clientId: string): Promise<number> {
+    // CAREFUL: `.neq()` compiles to SQL `<>`, and `NULL <> 'story'` is NULL — a bare
+    // .neq() would drop every legacy row, because media_type was added by
+    // 20260622_ig_publishing.sql with no backfill. That would silently shrink the grid
+    // for every existing tenant. The explicit null branch is load-bearing.
     const { count, error } = await supabaseAdmin
         .from("ig_posts")
         .select("id", { count: "exact", head: true })
         .eq("client_id", clientId)
         .not("image_url", "is", null)
+        .or("media_type.is.null,media_type.neq.story")
 
     if (error) throw error
     return count ?? 0

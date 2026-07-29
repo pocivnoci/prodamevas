@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { getClientSubscription, type SubscriptionInfo } from "@/lib/subscription"
+import { ALL_MEDIA } from "@/lib/credits"
 
 export async function GET(req: NextRequest) {
     // The UI passes projectId = tenant SLUG. Resolve it to the real client UUID
@@ -49,7 +50,13 @@ export async function GET(req: NextRequest) {
             analytics: sub.features.analytics,
             maxProjects: sub.features.max_projects,
             // v3 growth tiers: missing allowed_media = all media (legacy plans)
-            allowedMedia: sub.features.allowed_media ?? ["image", "carousel", "reel"],
+            allowedMedia: sub.features.allowed_media ?? ALL_MEDIA,
+            // Global engine kill-switches, surfaced so the medium picker can't offer a
+            // format the engine will clamp away. A "reel" that ships as a carousel is a
+            // broken promise — the plan gate above answers "may this tenant", these
+            // answer "can the engine at all".
+            reelsEnabled: process.env.REELS_ENABLED === "1",
+            storiesEnabled: process.env.STORIES_ENABLED === "1",
             growthTracking: sub.features.growth_tracking ?? false,
             // v2: plan tracking
             planPostsUnlocked: sub.planPostsUnlocked,

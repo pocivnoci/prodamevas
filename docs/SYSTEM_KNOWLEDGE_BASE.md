@@ -482,6 +482,7 @@ client-scoped). Testy: `npx tsx scripts/test-agent-approval-link.ts` (token prop
 | `RESEND_API_KEY` / `REPORT_FROM_EMAIL` | Optional | `lib/email.ts` — billing e-maily (reminder / failed charge / expiry) + weekly report + **admin Mailing broadcasty** + **automatické e-maily** (`lib/notifications.ts`): welcome po potvrzení registrace (`auth/callback`, once-only přes `app_metadata.welcome_email_at`), receipt po PAID callbacku, plan-ready digest po dokončení kampaně; chybí = e-maily se tiše přeskočí. Transactional = vždy; notification (digest) respektuje `email_optouts` + unsubscribe footer. Free tier: 100/den, 3 000/měs (Mailing capuje běh na 100 a reportuje zbytek) |
 | `EMAIL_SECRET` | Optional | HMAC klíč pro podpis unsubscribe odkazů (`lib/email-sign.ts`); fallback `CRON_SECRET` → `SUPABASE_SERVICE_ROLE_KEY` |
 | `REELS_ENABLED` | Optional (default OFF) | `=1` zapne Veo reels (kill-switch čtou `autopilot.ts`, `content-plan-actions.ts`, billing charge odhady). Zapnout až PO nasazení media-weighted kreditů |
+| `STORIES_ENABLED` | Optional (default OFF) | `=1` zapne Instagram Stories (sada 1-3 svislých 9:16 snímků, 2 kredity). Kill-switch čtou `instagram/format-clamps.ts` (přes `liveKillSwitches()`), `ig-create-job` (aby se neúčtovalo médium, které engine nevyrobí), `variant-actions` a `/api/subscription` → UI picker. Vyžaduje nasazenou migraci `20260730_stories_media.sql`, jinak platící uživatel dostane 403 |
 | `PIPELINE_BESTOF2` | Optional (default OFF) | `=1` zapne best-of-2 caption path (2 paralelní drafty → ranking judge → ≤1 opravné kolo). Měřeno přes `ig_generation_log.strategy` + týdenní report; default flip = lidské rozhodnutí |
 | `NEXT_PUBLIC_SITE_URL` | Yes | auth callback, payments |
 | `HIKERAPI_KEY` | Optional | IG scraping — onboarding + growth cron (graceful skip), `lib/ig-scraper.ts` |
@@ -503,5 +504,6 @@ client-scoped). Testy: `npx tsx scripts/test-agent-approval-link.ts` (token prop
 | Corrective edit (worst case 1×) | gemini-3-pro-image | ~$0.13 |
 | Video 8s | veo-3.1 (lite/fast/premium) | ~$0.48 / $1.20 / $3.20 |
 | **Total per image post** | — | **~$0.27** |
+| **Total per story (3 snímky)** | — | **~$0.56** |
 | **Total per reel (fast)** | — | **~$1.45** |
 | **Total per carousel (5 slides)** | — | **~$0.75** |

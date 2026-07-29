@@ -16,6 +16,8 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { signEmail } from "@/lib/email-sign"
+import { isMediumType, type MediumType } from "@/lib/credits"
+import { parsePostMedia } from "@/lib/media-urls"
 
 export function siteUrl(): string {
     return process.env.NEXT_PUBLIC_SITE_URL || "https://chrlit.cz"
@@ -155,7 +157,14 @@ function truncateAtWord(s: string, max: number): string {
     return (lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd() + "…"
 }
 
-const MEDIA_LABELS: Record<string, string> = { image: "📷 Obrázek", carousel: "🖼️ Carousel", reel: "🎬 Reel" }
+/** Typed on MediumType so a new medium is a build error here, not a silent
+ *  "📷 Příspěvek" in every customer's campaign digest. */
+const MEDIA_LABELS: Record<MediumType, string> = {
+    image: "📷 Obrázek",
+    story: "📱 Story",
+    carousel: "🖼️ Carousel",
+    reel: "🎬 Reel",
+}
 
 function formatScheduled(post: CampaignDigestPost): string {
     if (!post.scheduled_for) return "termín neurčen"
@@ -179,9 +188,10 @@ export function renderCampaignDigest(
     opts: { intro: string; ctaUrl: string; ctaLabel: string },
 ): string {
     const cards = posts.slice(0, DIGEST_MAX_CARDS).map(post => {
-        const typeLabel = MEDIA_LABELS[post.media_type || ""] || "📷 Příspěvek"
-        // Carousel image_url is pipe-joined child URLs — the first is the cover.
-        const thumb = post.media_type !== "reel" && post.image_url ? post.image_url.split("|")[0] : null
+        const typeLabel = (isMediumType(post.media_type) && MEDIA_LABELS[post.media_type]) || "📷 Příspěvek"
+        // image_url is pipe-joined (carousel slides / story frames / reel video|cover) —
+        // parsePostMedia picks the one URL that is safe to put in an <img>.
+        const thumb = parsePostMedia(post.image_url, post.media_type).thumbUrl
         const caption = truncateAtWord((post.caption || "").trim(), DIGEST_CAPTION_CHARS)
         const hashtags = (post.hashtags || []).filter(Boolean)
             .map(h => (h.startsWith("#") ? h : `#${h}`)).join(" ")

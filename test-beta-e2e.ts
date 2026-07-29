@@ -42,6 +42,15 @@ function fileContent(filePath: string): string {
     return readFileSync(resolve(ROOT, filePath), "utf-8")
 }
 
+/** Source with comments stripped — for NEGATIVE assertions ("X must stay deleted").
+ *  A comment explaining why something was removed would otherwise match the very
+ *  pattern it warns about, and the assertion fails on its own documentation. */
+function codeOnly(filePath: string): string {
+    return fileContent(filePath)
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/(^|[^:])\/\/.*$/gm, "$1")
+}
+
 // ═══════════════════════════════════════════════════════════
 // 1. PlanUnlockModal Bug Fix
 // ═══════════════════════════════════════════════════════════
@@ -567,8 +576,108 @@ test("12.9 feed-pattern grid count matches FeedTab's grid", () => {
     assert(fn.includes('.not("image_url", "is", null)'), "countFeedPosts must count posts with an image")
     assert(fn.includes("clientId: string"), "countFeedPosts must take clientId explicitly")
     assert(!fn.includes("getActiveProject"), "countFeedPosts must not use the module-global tenant")
+    // Stories never land in the profile grid — both sides must exclude them, or the
+    // engine's grid index drifts away from what the preview draws.
+    assert(fn.includes("media_type.neq.story"), "countFeedPosts must exclude stories from the grid")
+    // PostgREST .neq() is SQL <>, and NULL <> 'story' is NULL. media_type was added
+    // (20260622) with no backfill, so a bare .neq() would drop every legacy row and
+    // silently shrink the grid for every existing tenant.
+    assert(fn.includes("media_type.is.null"), "countFeedPosts must keep legacy NULL media_type rows (.neq() alone drops them)")
     const f = fileContent("app/(dashboard)/dashboard/instagram/tabs/FeedTab.tsx")
-    assert(f.includes("filter((p: any) => p.image_url)"), "FeedTab grid still filters on image_url only — keep countFeedPosts in sync")
+    assert(f.includes('p.image_url && p.media_type !== "story"'), "FeedTab grid must filter on image_url AND exclude stories — keep countFeedPosts in sync")
+})
+
+// ═══════════════════════════════════════════════════════════
+// 13. INSTAGRAM STORIES (v8.4)
+// ═══════════════════════════════════════════════════════════
+
+test("13.1 story is priced — MediumType is derived from the credit table", () => {
+    const c = fileContent("lib/credits.ts")
+    assert(c.includes("story: 2"), "MEDIA_CREDITS must price a story set at 2 credits")
+    assert(c.includes("keyof typeof MEDIA_CREDITS"), "MediumType must be DERIVED from MEDIA_CREDITS — an unpriced medium must not be representable")
+    // creditsForMedia falls back to image for unknown values, so a medium missing from
+    // the table would silently bill 1 credit. The derivation above is what prevents that.
+    assert(c.includes("MEDIA_CREDITS.image"), "creditsForMedia must keep its legacy-NULL fallback")
+})
+
+test("13.2 clamps pin vertical media to 9:16 and rank by price", () => {
+    const c = fileContent("instagram/format-clamps.ts")
+    assert(c.includes('VERTICAL_MEDIA'), "clamps must name the vertical media set explicitly")
+    assert(c.includes('"reel", "story"'), "reel AND story must both be vertical")
+    assert(c.includes("creditsForMedia(f.medium) > creditsForMedia(opts.chargedMedium)"), "billing cap must rank by the credit table, not a parallel MEDIUM_RANK map")
+    assert(!codeOnly("instagram/format-clamps.ts").includes("MEDIUM_RANK"), "MEDIUM_RANK is a second ordering to keep in sync — it must stay deleted")
+    assert(!codeOnly("instagram/autopilot.ts").includes("MEDIUM_RANK"), "MEDIUM_RANK must not come back in autopilot either")
+    const a = fileContent("instagram/autopilot.ts")
+    assert(a.includes("applyFormatClamps(format, clampOpts)"), "autopilot must clamp the fresh format")
+    assert(a.includes("applyFormatClamps(ck.format, clampOpts)"), "autopilot must RE-clamp after a checkpoint restore — live rules beat the frozen format")
+})
+
+test("13.3 story format survives a config reload", () => {
+    // reconcileFormats runs on EVERY loadConfig and rebuilds postFormats from
+    // postTypeDefs — without these defaults a story_* format reverts to image/4:5.
+    const r = fileContent("instagram/configs/reconcile.ts")
+    assert(r.includes('medium === "reel" || medium === "story" ? "9:16"'), "reconcile must default story to 9:16")
+    const cg = fileContent("instagram/caption-generator.ts")
+    assert(cg.includes('typeName.startsWith("story_")'), "getPostFormat must honour the story_ prefix convention")
+})
+
+test("13.4 copywriter emits frames and autopilot enforces the hook verbatim", () => {
+    const cg = fileContent("instagram/caption-generator.ts")
+    assert(cg.includes("export function buildStorySchema"), "buildStorySchema must exist")
+    assert(cg.includes("export const MAX_STORY_FRAMES"), "the frame cap must be a shared constant")
+    assert(cg.includes('"swipe up"'), "the story prompt must forbid swipe-up (API stories have no link sticker)")
+    const a = fileContent("instagram/autopilot.ts")
+    assert(a.includes("parsed.frames.slice(0, MAX_STORY_FRAMES)"), "autopilot must cap the frame count")
+    assert(a.includes("headline: parsed.hook"), "frames[0].headline must be forced to the hook — hook is load-bearing downstream")
+})
+
+test("13.5 designer + QA carry the story safe zone", () => {
+    const p = fileContent("instagram/image-pipeline.ts")
+    assert(p.includes("export const STORY_SAFE_ZONE_RULE"), "the safe zone must be a shared constant")
+    assert(p.includes("export async function generateStoryDesignBriefs"), "stories need their own designer (carousel semantics are wrong here)")
+    assert(p.includes("safeZone?: boolean"), "verifyNativeImage must accept the story frame checks")
+    // Without the QA half, the ship-best ladder can never correct the failure modes
+    // stories add. Both were observed in a real render before they were guarded:
+    assert(p.includes("STORY FRAME CHECKS"), "the QA prompt must run the story frame checks")
+    assert(p.includes("FAKE INTERFACE"), "QA must reject a drawn Instagram UI — describing IG's chrome to an image model made it render one")
+    assert(p.includes("SAFE ZONE"), "QA must check that text clears Instagram's own UI bands")
+    // The rule itself must FORBID the UI, not just describe where it sits.
+    assert(p.includes("NEVER DRAW INSTAGRAM'S INTERFACE"), "STORY_SAFE_ZONE_RULE must forbid rendering IG's interface")
+    const o = fileContent("instagram/orchestrators/story-orchestrator.ts")
+    assert(o.includes("safeZone: true"), "the story orchestrator must request the safe-zone QA")
+    assert(o.includes("ig-stories/"), "story frames must upload to their own prefix")
+    assert(!o.includes("SLIDE INDICATOR"), "a story must never carry a carousel's N/M counter")
+})
+
+test("13.6 stories publish as STORIES containers, at most once per frame", () => {
+    const c = fileContent("lib/channels/instagram.ts")
+    assert(c.includes('media_type: "STORIES"'), "stories need their own Graph container type")
+    // The old else-branch treated anything non-carousel as a feed image, so an
+    // unhandled medium would post a STORY to the feed — permanently, on a real account.
+    assert(c.includes("const _never: never = content.mediaType"), "publish() must be exhaustive on mediaType")
+    assert(c.includes("partial:"), "a later-frame failure must report partial success, not throw")
+    const cron = fileContent("app/api/cron/ig-publisher/route.ts")
+    assert(cron.includes("isMediumType(post.media_type)"), "resolveMediaType must narrow via isMediumType, not a hand-written whitelist")
+    assert(cron.includes("result.partial"), "the cron must close out a partial publish instead of re-arming it")
+    // ig_posts has one ig_media_id and no per-frame cursor: re-arming republishes the
+    // frames already live, up to MAX_ATTEMPTS times.
+    assert(cron.includes("Publikováno ${result.partial.publishedCount}"), "a partial publish must record what actually went live")
+})
+
+test("13.7 auto-publish skips stories AND keeps legacy NULL rows", () => {
+    const c = fileContent("lib/agents/auto-publish.ts")
+    assert(c.includes("media_type.is.null"), "a bare .neq() drops every legacy NULL row (media_type added 20260622 without a backfill)")
+    assert(c.includes("media_type.neq.story"), "the feed-cadence armer must skip stories")
+    assert(!codeOnly("lib/agents/auto-publish.ts").includes('.neq("media_type"'), "the old NULL-dropping .neq() must stay removed")
+})
+
+test("13.8 every plan grants story (seed must not drift)", () => {
+    // 20260716_pricing_v5.sql is a declarative seed with ON CONFLICT DO UPDATE SET
+    // features = EXCLUDED.features — leaving it stale means the next run STRIPS story.
+    const seed = fileContent("supabase/migrations/20260716_pricing_v5.sql")
+    const media = seed.match(/"allowed_media": \[[^\]]*\]/g) || []
+    assert(media.length === 4, `expected 4 allowed_media literals, found ${media.length}`)
+    assert(media.every(m => m.includes('"story"')), "every plan's allowed_media must include story, or the seed re-run removes it")
 })
 
 // ═══════════════════════════════════════════════════════════

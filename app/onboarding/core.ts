@@ -745,12 +745,15 @@ Pravidla: konkrétní pro tenhle obor (ne generické). Mix mediumů. Pokud firma
             return
         }
 
+        // Deliberately NOT ALL_MEDIA: the onboarding AI invents a brand's starting formats,
+        // and a brand-new tenant shouldn't be handed story formats before the owner has
+        // seen what a story looks like. Stories are added later, by hand, in Settings.
         const MEDIA = ["image", "carousel", "reel"]
         const RATIOS = ["1:1", "4:5", "3:4", "4:3", "9:16", "16:9"]
-        // Feed carousels/images only support 1:1 / 4:5 / 3:4; 9:16 is reels-only and
-        // 16:9 / 4:3 get cropped. Force a feed-legal pairing of medium ↔ aspectRatio.
+        // Feed carousels/images only support 1:1 / 4:5 / 3:4; 9:16 is for the vertical
+        // media (reel, story) and 16:9 / 4:3 get cropped. Force a legal medium ↔ ratio pair.
         const normalizeRatio = (medium: string, ratio: string): PostTypeDef["aspectRatio"] => {
-            if (medium === "reel") return "9:16"
+            if (medium === "reel" || medium === "story") return "9:16"
             return (["1:1", "4:5", "3:4"].includes(ratio) ? ratio : "4:5") as PostTypeDef["aspectRatio"]
         }
         const seen = new Set<string>()
