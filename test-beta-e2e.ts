@@ -567,8 +567,15 @@ test("12.9 feed-pattern grid count matches FeedTab's grid", () => {
     assert(fn.includes('.not("image_url", "is", null)'), "countFeedPosts must count posts with an image")
     assert(fn.includes("clientId: string"), "countFeedPosts must take clientId explicitly")
     assert(!fn.includes("getActiveProject"), "countFeedPosts must not use the module-global tenant")
+    // Stories never land in the profile grid — both sides must exclude them, or the
+    // engine's grid index drifts away from what the preview draws.
+    assert(fn.includes("media_type.neq.story"), "countFeedPosts must exclude stories from the grid")
+    // PostgREST .neq() is SQL <>, and NULL <> 'story' is NULL. media_type was added
+    // (20260622) with no backfill, so a bare .neq() would drop every legacy row and
+    // silently shrink the grid for every existing tenant.
+    assert(fn.includes("media_type.is.null"), "countFeedPosts must keep legacy NULL media_type rows (.neq() alone drops them)")
     const f = fileContent("app/(dashboard)/dashboard/instagram/tabs/FeedTab.tsx")
-    assert(f.includes("filter((p: any) => p.image_url)"), "FeedTab grid still filters on image_url only — keep countFeedPosts in sync")
+    assert(f.includes('p.image_url && p.media_type !== "story"'), "FeedTab grid must filter on image_url AND exclude stories — keep countFeedPosts in sync")
 })
 
 // ═══════════════════════════════════════════════════════════
