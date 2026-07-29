@@ -66,6 +66,7 @@ import type { EditorialMessage } from "./types"
 // Media orchestrators (extracted for maintainability)
 import { renderReel } from "./orchestrators/reel-orchestrator"
 import { renderCarousel } from "./orchestrators/carousel-orchestrator"
+import { renderStory } from "./orchestrators/story-orchestrator"
 import { renderImage } from "./orchestrators/image-orchestrator"
 import type { CaptionData, SelectedProduct, RenderResult } from "./orchestrators/types"
 
@@ -966,6 +967,17 @@ ${feedSummary}
             })
             imageUrl = renderResult.imageUrl
             cost += renderResult.cost
+        } else if (isStory && captionData.frames?.length) {
+            // No slotIntent: a story never occupies a cell in the profile grid, so the
+            // feed pattern has no say in its design (same as renderReel).
+            renderResult = await renderStory({
+                config, captionData: captionData as CaptionData, format, selectedType, report,
+                selectedProduct: selectedProduct as SelectedProduct | undefined,
+                linkedProductId, clientUuid, recentBriefs, recentArchetypes,
+                userPhotoUrl: options.customImageUrl, userPhotoDescription,
+            })
+            imageUrl = renderResult.imageUrl
+            cost += renderResult.cost
         } else if (isCarousel && captionData.slides) {
             // options.customImageUrl (user's own photo) is NOT published raw — it flows
             // into the native engine as the mandatory visual base (cover for carousels).
@@ -978,14 +990,15 @@ ${feedSummary}
             imageUrl = renderResult.imageUrl
             cost += renderResult.cost
         } else {
-            // Truthful fallback: a reel caption without scenes/script (or a carousel
-            // without slides) renders as a single image — the format MUST say so.
-            // Leaving format.medium = "reel" here made media_type lie: reconcileJobCharge
-            // saw no billed-vs-actual delta (5-credit reel charge, 1-credit image shipped,
-            // no refund) and the publisher later pushed a static image through the video
-            // path (publish failure).
+            // Truthful fallback: a reel caption without scenes/script, a carousel without
+            // slides or a story without frames renders as a single image — the format MUST
+            // say so. Leaving format.medium = "reel" here made media_type lie:
+            // reconcileJobCharge saw no billed-vs-actual delta (5-credit reel charge,
+            // 1-credit image shipped, no refund) and the publisher later pushed a static
+            // image through the video path (publish failure).
             if (format.medium !== "image") {
-                console.warn(`   ⚠️ ${format.medium} caption bez ${format.medium === "reel" ? "scén/skriptu" : "slides"} — renderuji single image, media_type opraven`)
+                const missing = format.medium === "reel" ? "scén/skriptu" : format.medium === "story" ? "snímků" : "slides"
+                console.warn(`   ⚠️ ${format.medium} caption bez ${missing} — renderuji single image, media_type opraven`)
                 format.medium = "image"
                 if (!(FEED_SAFE_RATIOS as readonly string[]).includes(format.aspectRatio)) format.aspectRatio = "4:5"
                 if (format.overlayStyle === "none") format.overlayStyle = "default"
@@ -1000,7 +1013,7 @@ ${feedSummary}
             cost += renderResult.cost
         }
     } else {
-        console.log(`🎨 [DRY-RUN] Přeskakuji ${isReel ? "video" : isCarousel ? "carousel" : "obrázek"}`)
+        console.log(`🎨 [DRY-RUN] Přeskakuji ${isReel ? "video" : isStory ? "story" : isCarousel ? "carousel" : "obrázek"}`)
     }
 
 
