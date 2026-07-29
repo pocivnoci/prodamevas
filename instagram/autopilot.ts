@@ -51,6 +51,8 @@ import {
     buildCaptionSchema,
     buildVideoSchema,
     buildCarouselSchema,
+    buildStorySchema,
+    MAX_STORY_FRAMES,
     buildSmartWeekPlan,
     buildMegaPrompt,
     scorePost,
@@ -549,6 +551,7 @@ export async function generateOnePost(options: {
 
     const isReel = format.medium === "reel"
     const isCarousel = format.medium === "carousel"
+    const isStory = format.medium === "story"
 
     // Caption-phase state — filled either from the checkpoint (resume) or by the
     // full caption phase below (copywriter → dedup → critic → editorial).
@@ -715,7 +718,10 @@ ${feedSummary}
         console.log(`\n────── MEGA PROMPT ──────\n${megaPrompt}\n─────────────────────────\n`)
     }
 
-    const schema = isReel ? buildVideoSchema(config) : isCarousel ? buildCarouselSchema(config) : buildCaptionSchema(config)
+    const schema = isReel ? buildVideoSchema(config)
+        : isStory ? buildStorySchema(config)
+            : isCarousel ? buildCarouselSchema(config)
+                : buildCaptionSchema(config)
     // The MAIN caption is "80% of text quality" → it runs the Pro QUALITY LADDER
     // (textPro: gemini-pro-latest → gemini-2.5-pro, never flash), retried hard on
     // transient 503/429. This is in-job (800s budget) so latency is hidden. Previously
@@ -739,6 +745,19 @@ ${feedSummary}
         }
         // For reels: caption field replaces body
         if (isReel && parsed.caption) parsed.body = parsed.caption
+        // For stories: frames[0] IS the hook frame, so the two must agree verbatim.
+        // `hook` is load-bearing well beyond the render (caption assembly, critic score,
+        // dedup check, the post card's title), so it stays authoritative and the frame
+        // is corrected to match — never the other way round.
+        if (isStory && parsed.frames?.length) {
+            parsed.frames = parsed.frames.slice(0, MAX_STORY_FRAMES)
+            if (!parsed.hook) {
+                parsed.hook = parsed.frames[0].headline
+            } else if (parsed.frames[0].headline !== parsed.hook) {
+                console.warn(`   ⚠️ Story: headline snímku 1 ≠ hook — vynucuji hook doslova`)
+                parsed.frames[0] = { ...parsed.frames[0], headline: parsed.hook }
+            }
+        }
         return parsed
     }
 

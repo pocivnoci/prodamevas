@@ -36,6 +36,7 @@ export const COSTS = {
     videoPerSecondByTier: { lite: 0.06, fast: 0.15, premium: 0.40 } as Record<"lite" | "fast" | "premium", number>,
     ttsVoiceover: 0.02,          // Gemini 3.1 Flash TTS (~$0.02 per request)
     perPost: 0.27,       // 3× text ($0.075) + context ($0.025) + designer ($0.03) + image ($0.134) + QA ($0.01)
+    perStory: 0.56,      // 3× text + context + 1 designer (shared) + 3× image ($0.402) + 3× QA
     perCarousel: 0.75,   // 3× text + context + designer + 4× image ($0.536) + 4× QA + overhead
     perReel: 1.45,       // 3× text + context + Veo 3.1 Fast 8s ($1.20) + TTS ($0.02) + cover ($0.134) + QA
 }
@@ -428,6 +429,65 @@ export function buildCarouselSchema(config: ClientConfig) {
         },
         required: ["angle", "hook", "imageSubtext", "slides", "body", "cta", "hashtags", "imagePrompt", "visualTheme"],
         propertyOrdering: ["angle", "hook", "accentWords", "imageSubtext", "slides", "body", "cta", "hashtags", "imagePrompt", "visualTheme"],
+    }
+}
+
+/** Hard cap on story frames. Three is where a viewer's patience runs out, and it
+ *  also keeps the render inside the same QA/edit budget a carousel gets. */
+export const MAX_STORY_FRAMES = 3
+
+/**
+ * Story set — 1 to 3 vertical 9:16 frames.
+ *
+ * `frames` deliberately includes frame 1, unlike the carousel's cover/slides split:
+ * a story has no cover asymmetry (nothing lands in the profile grid), and splitting
+ * would make a 1-frame story a hook plus an empty array — a special case in every
+ * downstream loop. `hook` stays required because it is load-bearing elsewhere (the
+ * caption assembly, the critic, the dedup check, the post card title); autopilot
+ * enforces `frames[0].headline === hook` in code, the same verbatim doctrine the
+ * design brief uses for typography.
+ */
+export function buildStorySchema(config: ClientConfig) {
+    return {
+        type: Type.OBJECT,
+        properties: {
+            angle: {
+                type: Type.STRING,
+                description: "PRVNÍ krok: 1 česká věta — jaký úhel volíš a čím se liší od nedávných postů",
+            },
+            hook: {
+                type: Type.STRING,
+                description: "Headline of frame 1 — the thumb-stopper (max 5 words, Czech). NO EMOJI, NO hashtags.",
+            },
+            frames: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        headline: { type: Type.STRING, description: "Frame headline (max 5 words, Czech). Read at arm's length in under 2 seconds — short beats clever." },
+                        subtext: { type: Type.STRING, description: "One supporting line (max 10 words, Czech). May be empty for a pure-statement frame." },
+                        imagePrompt: { type: Type.STRING, description: "English image prompt for this frame's background. Vertical 9:16 composition. NO TEXT, NO WORDS, NO LETTERS in image — the typography is rendered separately." },
+                    },
+                    required: ["headline", "subtext", "imagePrompt"],
+                },
+                description: "1 to 3 frames INCLUDING the first. 3 = hook / payoff / CTA, 2 = hook / CTA, 1 = single statement with the CTA in its subtext. Frame count follows the content — never pad.",
+            },
+            body: {
+                type: Type.STRING,
+                description: `Shrnutí storky pro majitele účtu — co říká a proč, jedním odstavcem (max 60 slov, česky). Tento text se na Instagram NEPOSÍLÁ (stories nemají popisek); slouží do přehledu v aplikaci, do e-mailu s kampaní a pro ruční sdílení. ${config.contentFocus}`,
+            },
+            cta: {
+                type: Type.STRING,
+                description: "CTA rendered INTO the last frame — řiď se sekcí CTA POLITIKA v promptu. Musí být soběstačné (story přes API nemá odkazový sticker): 'napiš nám do zpráv', 'odpověz na storku'. NIKDY 'swipe up' ani URL.",
+            },
+            hashtags: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "8-10 relevant hashtags. Ukládají se k příspěvku pro přehled a ruční sdílení — NIKDY se nevykreslují do snímku.",
+            },
+        },
+        required: ["angle", "hook", "frames", "body", "cta", "hashtags"],
+        propertyOrdering: ["angle", "hook", "frames", "body", "cta", "hashtags"],
     }
 }
 
@@ -834,6 +894,46 @@ ${typeDef.structure}
   "hashtags": ["8-10", "hashtagů"],
   "imagePrompt": "English prompt for COVER slide background.",
   "visualTheme": "Shared visual theme for ALL slides."
+}
+` : postFormat.medium === "story" ? `
+## 📱 INSTAGRAM STORY (1-3 svislé snímky) — RYCHLÝ ZÁSAH, KTERÝ ZMIZÍ
+
+Story je 1-3 svislé obrazovky 9:16, které po 24 hodinách zmizí. Divák je drží
+palcem nad tlačítkem "další" a čte je ve stoje, na světle, za necelé 2 sekundy.
+Nejde do feedu ani do mřížky profilu — nemá popisek, nemá odkaz, nemá čas.
+
+${typeDef?.structure ? `### 🧩 STRUKTURA TOHOTO FORMÁTU (závazná — snímky přesně podle ní):
+${typeDef.structure}
+` : `### DRAMATURGIE PODLE POČTU SNÍMKŮ (počet řídí OBSAH, ne naopak):
+- **3 snímky:** HOOK (zastav palec) → PAYOFF (ta jedna věc, kterou chci sdělit) → CTA
+- **2 snímky:** HOOK → CTA
+- **1 snímek:** jedno tvrzení, CTA v subtextu
+Když téma unese jen dvě obrazovky, udělej dvě. Vycpaný třetí snímek je horší než žádný.
+`}
+### TEXT NA SNÍMCÍCH (tvrdá pravidla):
+- Headline **max 5 slov**, subtext **max 10 slov**. Story se čte na délku paže.
+- Text musí být větší a stručnější než u feedového postu — ne odstavec, ale nápis.
+- **ZAKÁZÁNO v textu snímku:** hashtagy, URL, "swipe up", "odkaz v biu".
+  Story publikovaná přes API nemá odkazový sticker, takže CTA musí být soběstačné:
+  ${policy.allowWebsite ? `zmínka o ${config.website} patří do řeči, ne jako proklik` : "engagement výzva"} —
+  "napiš nám do zpráv", "odpověz na tuhle storku", "ulož si to".
+- Poslední snímek nese CTA a musí působit jako konec, ne jako přerušení.
+
+### POLE "body" — NEJDE NA INSTAGRAM:
+Stories nemají popisek. Do "body" napiš shrnutí pro majitele účtu (max 60 slov):
+co storka říká a proč. Zobrazí se v přehledu appky a v e-mailu s kampaní.
+
+## VÝSTUP — vrať POUZE validní JSON:
+{
+  "angle": "1 věta — zvolený úhel a čím se liší od nedávných postů",
+  "hook": "Headline PRVNÍHO snímku (max 5 slov, česky). ŽÁDNÉ EMOJI.",
+  "frames": [
+    { "headline": "max 5 slov — shodný s hookem", "subtext": "max 10 slov", "imagePrompt": "English prompt, vertical 9:16, NO TEXT" },
+    { "headline": "...", "subtext": "...", "imagePrompt": "English prompt..." }
+  ],  // 1-3 snímky VČETNĚ prvního${typeDef?.structure ? " — drž strukturu formátu výše" : " — drž dramaturgii výše"}
+  "body": "Shrnutí pro majitele účtu (max 60 slov) — na Instagram se neposílá.",
+  "cta": "${policy.allowWebsite ? "CTA — web zmíněný v řeči, NIKDY jako proklik" : "engagement CTA — BEZ webu a BEZ URL"}",
+  "hashtags": ["8-10", "hashtagů"]  // ukládají se k příspěvku, NEVYKRESLUJÍ se do snímku
 }
 ` : `
 ${typeDef?.structure ? `## 🧩 STRUKTURA TOHOTO FORMÁTU (závazná — caption stavěj přesně podle ní):
