@@ -32,6 +32,7 @@ import {
     getWeightedReviews,
     getIdeaById,
     countFeedPosts,
+    toSelectedProduct,
 } from "./service"
 import { computeSlotIntent, type SlotIntent } from "../lib/feed-pattern"
 import { loadConfig } from "./configs"
@@ -162,6 +163,10 @@ export async function generateOnePost(options: {
     customImageUrl?: string
     /** Explicit product ID from ig_products — overrides random product selection */
     productId?: string
+    /** Content pillar key ("Zaměření" in the Generate tab). Narrows weighted type
+     *  selection to that pillar's formats. Only meaningful when `type` is absent —
+     *  an explicit type already decides the pillar. */
+    category?: string
     campaignContext?: {
         postNumber: number
         totalPosts: number
@@ -261,7 +266,23 @@ export async function generateOnePost(options: {
         // NEVER auto-picked; they exist only for the explicit Generate-tab flow.
         const manualOnlyNames = new Set((config.postTypeDefs ?? []).filter(d => d.manualOnly).map(d => d.name))
         const autoTypes = postTypes.filter(t => !manualOnlyNames.has(t.name))
-        const selectableTypes = autoTypes.length > 0 ? autoTypes : postTypes
+        let selectableTypes = autoTypes.length > 0 ? autoTypes : postTypes
+
+        // "Zaměření" pillar picked by the user in the Generate tab. Until now this
+        // was stored on the job row and never read, so choosing "Prodej" and leaving
+        // the format on "AI vybere" silently generated from every pillar. Narrow the
+        // candidate pool instead — but never let the filter empty it (a pillar whose
+        // formats are all manual-only or deactivated would otherwise throw below).
+        if (options.category) {
+            const allowed = new Set(config.contentPillars?.[options.category]?.postTypes ?? [])
+            const narrowed = selectableTypes.filter(t => allowed.has(t.name))
+            if (narrowed.length > 0) {
+                selectableTypes = narrowed
+                console.log(`   🎯 Zaměření "${options.category}" → ${narrowed.length} formátů`)
+            } else {
+                console.warn(`   ⚠️ Zaměření "${options.category}" nemá dostupný formát — vybírám ze všech`)
+            }
+        }
 
         // Memory-informed post type weighting
         let postTypeBoosts: Record<string, number> = {}
@@ -405,28 +426,25 @@ export async function generateOnePost(options: {
     const performance = options.performance || await analyzePerformance(config, _getPillarForType)
 
     // 4b. Smart product selection — cooldown-based from ig_products
-    let selectedProduct: { name: string; type: string; slug: string; price?: string; description?: string; imageUrls?: string[] } | undefined = undefined
+    let selectedProduct: SelectedProduct | undefined = undefined
     let linkedProductId: string | undefined = undefined
 
     // Resume: re-fetch the exact product the checkpointed caption references
     // (reuses the explicit-product branch); no product on checkpoint = none now.
     const explicitProductId = ck ? ck.linkedProductId || undefined : options.productId
     if (explicitProductId) {
-        // Explicit product from ig_products DB table (user picked via @ mention)
+        // Explicit product from ig_products DB table (user picked via @ mention).
+        // client_id is part of the filter, not an assumption: the id arrives from a
+        // browser payload / plan row, so an id belonging to another tenant would
+        // otherwise render a foreign product into this client's post.
         const { data: dbProduct } = await supabaseAdmin
             .from("ig_products")
-            .select("id, name, type, slug, price, description, image_urls")
+            .select("id, name, type, slug, price, description, image_urls, line_id, line_step, line_role, specs, ig_product_lines(name)")
             .eq("id", explicitProductId)
+            .eq("client_id", clientUuid)
             .single()
         if (dbProduct) {
-            selectedProduct = {
-                name: dbProduct.name,
-                type: dbProduct.type || "product",
-                slug: dbProduct.slug,
-                price: dbProduct.price || undefined,
-                description: dbProduct.description || undefined,
-                imageUrls: dbProduct.image_urls || undefined,
-            }
+            selectedProduct = toSelectedProduct(dbProduct)
             linkedProductId = dbProduct.id
             console.log(`   🛍️ Explicit product (from DB): "${selectedProduct.name}"`)
         }
@@ -438,7 +456,7 @@ export async function generateOnePost(options: {
 
         const { data: candidates } = await supabaseAdmin
             .from("ig_products")
-            .select("id, name, type, slug, price, description, image_urls")
+            .select("id, name, type, slug, price, description, image_urls, line_id, line_step, line_role, specs, ig_product_lines(name)")
             .eq("client_id", clientUuid)
             .or(`last_used_at.is.null,last_used_at.lt.${cooldownDate.toISOString()}`)
             .order("last_used_at", { ascending: true, nullsFirst: true })
@@ -447,14 +465,7 @@ export async function generateOnePost(options: {
         if (candidates && candidates.length > 0) {
             // Pick from top 3 least-recently-used (slight randomness to avoid predictability)
             const pick = candidates[Math.floor(Math.random() * Math.min(3, candidates.length))]
-            selectedProduct = {
-                name: pick.name,
-                type: pick.type || "product",
-                slug: pick.slug,
-                price: pick.price || undefined,
-                description: pick.description || undefined,
-                imageUrls: pick.image_urls || undefined,
-            }
+            selectedProduct = toSelectedProduct(pick)
             linkedProductId = pick.id
             console.log(`   🛍️ Smart product (cooldown ${cooldownDays}d): "${selectedProduct.name}"`)
         } else {

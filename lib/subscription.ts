@@ -43,6 +43,7 @@ export type ActionType =
     | "product_design"
     | "product_mockup"
     | "product_brief"
+    | "product_line"
 
 /** How many credits each action costs (for EXTRA posts, not plan posts) */
 export const ACTION_CREDITS: Record<ActionType, number> = {
@@ -54,6 +55,7 @@ export const ACTION_CREDITS: Record<ActionType, number> = {
     product_design: 3,     // concept + render
     product_mockup: 2,     // photorealistic mockup
     product_brief: 5,      // full business analysis
+    product_line: 8,       // whole line: Pro-ladder strategy + N SKUs + specs + repair round
 }
 
 /**
@@ -81,6 +83,7 @@ export const ACTION_LABELS: Record<ActionType, string> = {
     product_design: "Design pro tisk",
     product_mockup: "Produktový mockup",
     product_brief: "Business Brief",
+    product_line: "Produktová řada",
 }
 
 export type MediumType = "image" | "carousel" | "reel"
@@ -117,7 +120,10 @@ export interface SubscriptionInfo {
     creditsTotal: number
     creditsRemaining: number
     trialEndsAt: string | null
+    /** End of the PAID period (month or year) — when the renewal is charged. */
     currentPeriodEnd: string | null
+    /** End of the CREDIT window (always monthly) — when credits reset. */
+    creditPeriodEnd: string | null
     // v2: plan tracking
     planPostsUnlocked: number
     planGeneratedAt: string | null
@@ -142,12 +148,28 @@ export interface CanPerformResult {
  * Returns null if no subscription exists.
  */
 /**
- * Dunning window: after current_period_end passes, the sub stays usable for this
- * many days while the billing worker retries the renewal charge (one attempt/day).
- * After the window (or MAX_BILLING_FAILURES attempts) it is persisted as expired.
+ * Dunning window + period math live in lib/billing-period.ts (pure, DB-free so
+ * scripts/test-billing-periods.ts can assert them). Re-exported here because
+ * every existing call site imports them from "@/lib/subscription".
  */
-export const BILLING_GRACE_DAYS = 3
-export const MAX_BILLING_FAILURES = 3
+export {
+    BILLING_GRACE_DAYS,
+    MAX_BILLING_FAILURES,
+    PERIOD_CHAIN_GRACE_DAYS,
+    computeBillingPeriod,
+    computeCreditWindow,
+    normalizeInterval,
+    addInterval,
+    addMonths,
+    type BillingInterval,
+} from "@/lib/billing-period"
+import {
+    BILLING_GRACE_DAYS,
+    addMonths,
+    computeBillingPeriod,
+    computeCreditWindow,
+    normalizeInterval,
+} from "@/lib/billing-period"
 
 /** active beats trialing beats pending — a freshly initiated (unpaid) upgrade
  *  must never mask the customer's live plan. Expired comes last: only shown
@@ -163,7 +185,7 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
     let sub: any = null
     const { data: subsV2, error: v2Error } = await supabaseAdmin
         .from("subscriptions")
-        .select("id, plan_id, status, trial_ends_at, current_period_start, current_period_end, created_at, plan_generated_at, plan_posts_unlocked")
+        .select("id, plan_id, status, trial_ends_at, current_period_start, current_period_end, credit_period_start, credit_period_end, created_at, plan_generated_at, plan_posts_unlocked")
         .eq("client_id", clientId)
         .in("status", ["active", "trialing", "pending", "expired"])
         .order("created_at", { ascending: false })
@@ -227,8 +249,12 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
         }
     }
 
-    // 5. Get credits used this month
-    const creditsUsed = await getCreditsUsedThisMonth(clientId)
+    // 5. Credits used in the CURRENT CREDIT WINDOW (never the calendar month).
+    // The window is derived from the stored anchor rather than read verbatim, so a
+    // late cron tick can't show a customer a stale (already-spent) window — the
+    // billing worker persists the same value on its next run.
+    const creditWindow = resolveCreditWindow(sub)
+    const creditsUsed = await getCreditsUsedThisPeriod(clientId, creditWindow)
     const creditsTotal = features.credits_per_month
     const creditsRemaining = Math.max(0, creditsTotal - creditsUsed)
 
@@ -244,29 +270,127 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
         creditsRemaining,
         trialEndsAt: sub.trial_ends_at,
         currentPeriodEnd: sub.current_period_end,
+        creditPeriodEnd: creditWindow.end.toISOString(),
         planPostsUnlocked: sub.plan_posts_unlocked || 0,
         planGeneratedAt: sub.plan_generated_at,
         isTrial,
     }
 }
 
+/** A row shaped enough to derive its credit window from. */
+type CreditWindowSource = {
+    credit_period_start?: string | null
+    credit_period_end?: string | null
+    current_period_start?: string | null
+    created_at?: string | null
+}
+
 /**
- * Count credits used by a client in the current calendar month.
- * Sums deductions (positive) AND refunds (negative) so a refunded
- * failed generation frees the credit again.
+ * The credit window a subscription row is currently in.
+ *
+ * Anchored on `current_period_start` — the paid period's start is the STABLE cycle
+ * anchor. Anchoring on `credit_period_start` (the window we last persisted) would
+ * re-anchor on a clamped date and walk a month-end subscriber backwards: a yearly
+ * plan paid on Jan 31 would go Feb 28 → Mar 28 → Apr 28 and never return to the
+ * 31st. From a fixed anchor it correctly reads Feb 28 → Mar 31 → Apr 30.
+ * `credit_period_start` is only the fallback for rows with no paid period.
+ *
+ * Always rolled forward to the window containing `now`, which makes this
+ * self-healing: a legacy row (pre-migration), a row the worker hasn't touched yet,
+ * and a freshly written one all resolve identically.
  */
-export async function getCreditsUsedThisMonth(clientId: string): Promise<number> {
-    const now = new Date()
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+function resolveCreditWindow(row: CreditWindowSource, now: Date = new Date()): { start: Date; end: Date } {
+    const anchorRaw = row.current_period_start || row.credit_period_start || row.created_at
+    const anchor = anchorRaw ? new Date(anchorRaw) : now
+    if (isNaN(anchor.getTime())) return computeCreditWindow({ now, anchor: now })
+    return computeCreditWindow({ now, anchor })
+}
+
+/**
+ * Count credits used by a client in the current CREDIT PERIOD.
+ *
+ * NOT the calendar month: billing runs from the payment date, so a customer who
+ * paid on the 25th used to get a full fresh allowance on the 1st — six days later.
+ * On a yearly plan that meant one payment and twelve calendar resets.
+ *
+ * Sums deductions (positive) AND refunds (negative) so a refunded failed
+ * generation frees the credit again. Unused credits do NOT carry over: the window
+ * simply moves and whatever was left is gone.
+ */
+export async function getCreditsUsedThisPeriod(
+    clientId: string,
+    /** Pass the window when the caller already has the subscription row (saves a query). */
+    window?: { start: Date; end: Date },
+): Promise<number> {
+    let period = window
+    if (!period) {
+        const { data: row } = await supabaseAdmin
+            .from("subscriptions")
+            .select("credit_period_start, credit_period_end, current_period_start, created_at")
+            .eq("client_id", clientId)
+            .in("status", ["active", "trialing", "pending", "expired"])
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        period = resolveCreditWindow(row || {})
+    }
 
     const { data } = await supabaseAdmin
         .from("credit_transactions")
         .select("credits")
         .eq("client_id", clientId)
-        .gte("created_at", monthStart)
+        .gte("created_at", period.start.toISOString())
+        .lt("created_at", period.end.toISOString())
 
     if (!data || data.length === 0) return 0
     return Math.max(0, data.reduce((sum, row) => sum + row.credits, 0))
+}
+
+/**
+ * Persist the credit window of every ACTIVE subscription whose window has lapsed
+ * (or was never set). Called by the billing worker on every run — independent of
+ * whether a renewal is due, because on a yearly plan this is the ONLY thing that
+ * resets credits.
+ *
+ * Readers derive the window anyway (resolveCreditWindow), so this doesn't change
+ * what a customer sees — it keeps the stored state true, the same reason the
+ * dunning expiry is persisted instead of computed at read time.
+ */
+export async function rollLapsedCreditWindows(limit = 200): Promise<number> {
+    const now = new Date()
+    const { data, error } = await supabaseAdmin
+        .from("subscriptions")
+        .select("id, credit_period_start, credit_period_end, current_period_start, created_at")
+        .eq("status", "active")
+        // `.lt` alone drops NULL rows — exactly the legacy/never-set case we must fix.
+        .or(`credit_period_end.is.null,credit_period_end.lt.${now.toISOString()}`)
+        .limit(limit)
+
+    if (error) throw new Error(`rollLapsedCreditWindows: ${error.message}`)
+
+    let rolled = 0
+    for (const row of data || []) {
+        const { start, end } = resolveCreditWindow(row, now)
+        if (row.credit_period_start === start.toISOString() && row.credit_period_end === end.toISOString()) continue
+
+        // Conditional claim on the window we read: an activation racing this write
+        // (payment callback mid-run) must win, not be silently rolled back.
+        let q = supabaseAdmin
+            .from("subscriptions")
+            .update({
+                credit_period_start: start.toISOString(),
+                credit_period_end: end.toISOString(),
+                updated_at: now.toISOString(),
+            })
+            .eq("id", row.id)
+        q = row.credit_period_end
+            ? q.eq("credit_period_end", row.credit_period_end)
+            : q.is("credit_period_end", null)
+
+        const { data: updated } = await q.select("id").maybeSingle()
+        if (updated) rolled++
+    }
+    return rolled
 }
 
 /**
@@ -550,13 +674,18 @@ export async function canPerformBatchAction(
  * User sees 3 full posts + 27 locked posts.
  */
 export async function createTrialSubscription(clientId: string): Promise<void> {
+    const now = new Date()
     await supabaseAdmin.from("subscriptions").insert({
         client_id: clientId,
         plan_id: "trial_v2",
         status: "trialing",
-        current_period_start: new Date().toISOString(),
+        current_period_start: now.toISOString(),
         // No trial_ends_at — content-gated, not time-gated
         // No current_period_end — unlimited until they pay
+        // Credit window starts anyway: trial_v2 has credits_per_month=0, but legacy
+        // trial plans don't, and an unanchored row would fall back to created_at.
+        credit_period_start: now.toISOString(),
+        credit_period_end: addMonths(now, 1).toISOString(),
         plan_posts_unlocked: 0,
     })
 }
@@ -566,35 +695,74 @@ export async function createTrialSubscription(clientId: string): Promise<void> {
  * Works for trial → paid AND tier changes (Start → Růst → Dominance):
  * activates the paid subscription on the given plan and cancels any other
  * non-cancelled subscription of the client, so exactly one stays active.
+ *
+ * Period length comes from the PLAN (`subscription_plans.interval`) — a yearly
+ * plan gets a year, not a month. Hardcoding +1 month meant a yearly customer
+ * would pay the annual price and be re-charged it 30 days later.
+ *
+ * Renewals of the same plan CHAIN off the previous current_period_end instead of
+ * restarting at now (see computeBillingPeriod). A tier change and the first paid
+ * activation start at now — no proration, the rest of the old period is forfeited.
  */
 export async function activatePaidPlan(clientId: string, planId: string, subscriptionId?: string): Promise<void> {
     const now = new Date()
-    const periodEnd = new Date(now)
-    periodEnd.setMonth(periodEnd.getMonth() + 1)
+
+    const { data: plan } = await supabaseAdmin
+        .from("subscription_plans")
+        .select("id, interval")
+        .eq("id", planId)
+        .maybeSingle()
+    const interval = normalizeInterval(plan?.interval)
 
     // The subscription to activate: the one linked to the payment, or the
-    // latest live one (pending created at payment init / trial)
-    let sub: { id: string } | null = subscriptionId ? { id: subscriptionId } : null
+    // latest live one (pending created at payment init / trial). Its own
+    // plan/status/period decide whether this is a renewal (chain) or a
+    // switch (start now), so the row is always read, never assumed.
+    type SubRow = { id: string; plan_id: string | null; status: string | null; current_period_end: string | null }
+    let sub: SubRow | null = null
+    if (subscriptionId) {
+        const { data } = await supabaseAdmin
+            .from("subscriptions")
+            .select("id, plan_id, status, current_period_end")
+            .eq("id", subscriptionId)
+            .eq("client_id", clientId) // never activate another tenant's row
+            .maybeSingle()
+        sub = data
+    }
     if (!sub) {
         const { data } = await supabaseAdmin
             .from("subscriptions")
-            .select("id")
+            .select("id, plan_id, status, current_period_end")
             .eq("client_id", clientId)
             .in("status", ["trialing", "pending", "active"])
             .order("created_at", { ascending: false })
             .limit(1)
-            .single()
+            .maybeSingle()
         sub = data
     }
 
     if (sub) {
+        // Renewal = same plan, already live. Anything else (trial → paid, tier
+        // change, comeback after expiry) is a fresh period starting now.
+        const isRenewal = sub.status === "active" && sub.plan_id === planId
+        const { start, end } = computeBillingPeriod({
+            now,
+            interval,
+            previousPeriodEnd: isRenewal && sub.current_period_end ? new Date(sub.current_period_end) : null,
+        })
+
+        // The credit window restarts with the paid period and is ALWAYS monthly —
+        // on a yearly plan this is window 1 of 12, and the billing worker rolls the
+        // remaining eleven. Unused credits don't carry over.
         await supabaseAdmin
             .from("subscriptions")
             .update({
                 plan_id: planId,
                 status: "active",
-                current_period_start: now.toISOString(),
-                current_period_end: periodEnd.toISOString(),
+                current_period_start: start.toISOString(),
+                current_period_end: end.toISOString(),
+                credit_period_start: start.toISOString(),
+                credit_period_end: addMonths(start, 1).toISOString(),
                 plan_posts_unlocked: 30, // unlock all plan posts
                 updated_at: now.toISOString(),
             })

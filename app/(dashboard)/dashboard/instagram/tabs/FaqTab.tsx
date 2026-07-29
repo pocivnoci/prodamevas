@@ -57,7 +57,7 @@ const FAQ_CATEGORIES: FaqCategory[] = [
         items: [
             {
                 q: "Kolik stojí jedna akce?",
-                a: "Post = 1 kredit. Varianta = 1 kredit. Generování nápadů = 1 kredit. Produktová vizualizace = 2 kredity. Design pro tisk = 3 kredity. Mockup = 2 kredity. Business Brief = 5 kreditů.",
+                a: "Post = 1 kredit. Varianta = 1 kredit. Generování nápadů = 1 kredit. Produktová vizualizace = 2 kredity. Design pro tisk = 3 kredity. Mockup = 2 kredity. Business Brief = 5 kreditů. Celá produktová řada = 8 kreditů.",
             },
             {
                 q: "Co se stane, když mi dojdou kredity?",
@@ -119,7 +119,7 @@ const FAQ_CATEGORIES: FaqCategory[] = [
         items: [
             {
                 q: "Co je produktový pipeline?",
-                a: "Funkce pro e-shopy a značky s produkty. AI navrhne nové produktové nápady, vygeneruje design pro tisk (trička, hrnky...), vytvoří realistické mockupy a může připravit celý Business Brief s analýzou trhu.",
+                a: "Funkce pro e-shopy a značky s produkty. AI navrhne celou produktovou řadu jako systém (každý produkt dostane svůj krok, roli a místo v cenovém žebříčku), nebo jednotlivé produktové nápady. Ke schváleným produktům pak vygeneruje tiskovou grafiku, mockupy a Business Brief s analýzou nákladů a marží.",
             },
             {
                 q: "Jak fungují mockupy?",
@@ -127,7 +127,7 @@ const FAQ_CATEGORIES: FaqCategory[] = [
             },
             {
                 q: "Co je Design pro tisk?",
-                a: "AI vytvoří grafický design optimalizovaný pro tisk na produkty — trička, plakáty, samolepky. Výstup je ve vysokém rozlišení s průhledným pozadím.",
+                a: "AI vytvoří plochou tiskovou grafiku pro produkty a obaly — trička, plakáty, etikety lahví, ovinové etikety. Výstup je PNG doškálované na fyzický rozměr při 300 DPI, u potisků s průhledným pozadím, plus náhled s vyznačenou spadávkou a bezpečným okrajem a textové zadání pro tiskárnu. Je to podklad pro tiskaře, ne hotová produkční data: barvy jsou v RGB a pro velké formáty je potřeba grafiku převést do vektorů.",
             },
             {
                 q: "Můžu použít vygenerované obrázky komerčně?",

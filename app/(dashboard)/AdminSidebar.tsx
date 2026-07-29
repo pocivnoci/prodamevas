@@ -181,7 +181,13 @@ export function AdminSidebar() {
                     </div>
                 </div>
 
-                {/* Client Selector */}
+                {/* Client Selector — only when there is something to switch between.
+                    A single-tenant customer sees a dropdown with one dead option, and it
+                    costs ~80px of FIXED chrome above the scrollable <nav>. That nav is
+                    already squeezed (logo + this + CTA above, plan box + 4 links below),
+                    which is what pushed "Generovat" under the fold and left the "Tvořit"
+                    heading looking empty. Admins and multi-project plans keep it. */}
+                {clients.length > 1 && (
                 <div className="px-4 py-3 border-b border-white/5">
                     <label className="text-[8px] text-white/30 font-bold uppercase tracking-[0.2em] block mb-1.5">Klient</label>
                     <div className="relative">
@@ -197,6 +203,7 @@ export function AdminSidebar() {
                         <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-white/30 text-[10px]">▾</div>
                     </div>
                 </div>
+                )}
 
                 {/* CTA Button */}
                 <div className="px-4 py-3 border-b border-white/5">
@@ -212,8 +219,15 @@ export function AdminSidebar() {
                     </button>
                 </div>
 
-                {/* Grouped Navigation */}
-                <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto override-scrollbar">
+                {/* Everything below the header scrolls as ONE column.
+                    Previously only <nav> was the scroll area (flex-1 overflow-y-auto) while
+                    the plan widget and the Help/Settings/Logout block stayed pinned below it.
+                    On a 900px window that left the nav 237px tall for 762px of content —
+                    525px (69%) hidden, with the "Tvořit" heading landing right on the cut so
+                    "Generovat", the product's primary action, was invisible and the heading
+                    read as an empty section. One scroll column more than doubles the region. */}
+                <div className="flex-1 overflow-y-auto override-scrollbar">
+                <nav className="px-3 py-4 space-y-5">
                     {NAV_GROUPS.map((group, gi) => (
                         <div key={group.label || `group-${gi}`}>
                             {group.label && (
@@ -352,6 +366,7 @@ export function AdminSidebar() {
                             <span>Odhlásit se</span>
                         </button>
                     </form>
+                </div>
                 </div>
             </aside>
         </>

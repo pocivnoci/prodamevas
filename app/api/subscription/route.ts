@@ -42,6 +42,9 @@ export async function GET(req: NextRequest) {
             creditsRemaining: sub.creditsRemaining,
             trialEndsAt: sub.trialEndsAt,
             currentPeriodEnd: sub.currentPeriodEnd,
+            // Credits reset on the CREDIT window, not the paid period — on a yearly
+            // plan those are eleven months apart.
+            creditPeriodEnd: sub.creditPeriodEnd,
             allowedActions: sub.features.allowed_actions,
             analytics: sub.features.analytics,
             maxProjects: sub.features.max_projects,

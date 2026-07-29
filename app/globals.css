@@ -81,3 +81,18 @@
 .blog-article th, .blog-article td { border: 1px solid rgba(255,255,255,0.08); padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
 .blog-article th { background: rgba(255,255,255,0.04); color: #fff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.7rem; }
 .blog-article td { color: rgba(255,255,255,0.7); }
+
+/* ─── Persistent scrollbar for overflowing panels ───────────────
+   .override-scrollbar was referenced by AdminSidebar + WaitlistTab but never
+   defined, so macOS overlay scrollbars left the sidebar nav with NO affordance:
+   the "Tvořit" group heading rendered with its item cut off below the fold and
+   read as an empty/broken section.
+   Chrome ignores ::-webkit-scrollbar-* once scrollbar-color is set, so the standard
+   properties carry the styling and the webkit block is a fallback only. The track is
+   deliberately NOT transparent — a faint trough is what signals "there is more below"
+   while the panel sits at rest. */
+.override-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.28) rgba(255,255,255,0.05); }
+.override-scrollbar::-webkit-scrollbar { width: 6px; }
+.override-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+.override-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.28); border-radius: 3px; }
+.override-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.45); }

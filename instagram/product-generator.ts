@@ -14,7 +14,7 @@ import type { ClientConfig } from "./configs/types"
 import { generateText, generateImage, generateImageWithReferences } from "./gemini-client"
 import { Type } from "@google/genai"
 import supabaseAdmin from "../supabase/admin"
-import { getProductCategories, getProductCategoryBySlug, type ProductCategory } from "./service"
+import { getProductCategories, getProductCategoryBySlug, getCatalogProducts, type ProductCategory } from "./service"
 
 // ============================================
 // INTERFACES
@@ -136,18 +136,62 @@ async function uploadToStorage(
 // PIPELINE 1: PRODUCT IDEAS
 // ============================================
 
+/**
+ * Format the user's 👍/👎 history for prompt injection.
+ *
+ * Rejected ideas matter as much as liked ones — a negative signal is the cheapest
+ * way to stop the model circling the same dead end. Best-effort: a failure here
+ * degrades idea quality, it must never block generation.
+ */
+async function buildIdeaFeedbackSection(clientId: string): Promise<string> {
+    try {
+        const { data } = await supabaseAdmin
+            .from("ig_product_ideas")
+            .select("name, tagline, rating, status")
+            .eq("client_id", clientId)
+            .order("created_at", { ascending: false })
+            .limit(40)
+
+        const liked = (data || []).filter(i => i.rating === 1).slice(0, 8)
+        const disliked = (data || []).filter(i => i.rating === -1 || i.status === "rejected").slice(0, 8)
+        if (liked.length === 0 && disliked.length === 0) return ""
+
+        return `
+## ZPĚTNÁ VAZBA UŽIVATELE (řiď se jí)
+${liked.length ? `### Tohle se líbilo — trefuj stejný typ myšlení:\n${liked.map(i => `- ${i.name}${i.tagline ? ` — ${i.tagline}` : ""}`).join("\n")}` : ""}
+${disliked.length ? `### Tohle bylo ODMÍTNUTO — nenabízej to znovu ani v jiné podobě:\n${disliked.map(i => `- ${i.name}${i.tagline ? ` — ${i.tagline}` : ""}`).join("\n")}` : ""}
+`
+    } catch (err: any) {
+        console.warn(`   ⚠️ Idea feedback nedostupná: ${err?.message}`)
+        return ""
+    }
+}
+
 export async function generateProductIdeas(
     config: ClientConfig,
     count: number = 5,
-    theme?: string
+    theme?: string,
+    /** Explicit tenant — enables the live catalog + the 👍/👎 feedback loop */
+    clientId?: string,
 ): Promise<ProductIdea[]> {
     const bv = config.brandVoice
-    const existingProducts = config.products
-        ? config.products.map(p => `- ${p.name} (${p.type}): ${p.price || "?"} — ${p.description || ""}`).join("\n")
+
+    // Live catalog, not the frozen config.products snapshot: proposing a "new"
+    // product that was deleted months ago is exactly what the snapshot causes.
+    const catalog = clientId
+        ? await getCatalogProducts(clientId, config.products, 30).catch(() => config.products || [])
+        : (config.products || [])
+
+    const existingProducts = catalog.length > 0
+        ? catalog.map(p => `- ${p.name} (${p.type}): ${p.price || "?"} — ${p.description || ""}`).join("\n")
         : "Žádné existující produkty"
 
+    // What the user already liked / rejected. Without this the model happily
+    // re-proposes variations of ideas that were thrown away last week.
+    const feedbackSection = clientId ? await buildIdeaFeedbackSection(clientId) : ""
+
     // Detect what kind of business this is from config signals
-    const hasEshop = (config.products && config.products.length > 0)
+    const hasEshop = catalog.length > 0
     const contentFocus = config.contentFocus || ""
     const persona = bv.persona || ""
     const values = bv.values || []
@@ -180,7 +224,7 @@ ${hasEshop ? "\n→ Tato značka MÁ e-shop s fyzickými produkty." : "\n→ Tat
     const prompt = `Jsi kreativní product/service designer. Tvůj úkol je navrhnout nové produkty, služby, nebo nabídky pro KONKRÉTNÍ značku.
 
 ${businessContext}
-
+${feedbackSection}
 ${theme ? `## TÉMA / INSPIRACE\n${theme}\n` : ""}
 ${categorySection}
 
@@ -231,142 +275,18 @@ Generuj PŘESNĚ ${count} nápadů.`
 }
 
 // ============================================
-// PIPELINE 2: PRINT-READY DESIGN
+// PIPELINE 2 (REMOVED): PRINT-READY DESIGN
 // ============================================
-
-export async function generateDesignConcept(
-    config: ClientConfig,
-    theme: string,
-    productType: string = "triko",
-    options: { includeLogo?: boolean; overlayText?: string } = {}
-): Promise<{ concept: DesignConcept; designUrl: string } | null> {
-    const bv = config.brandVoice
-    const { includeLogo = false, overlayText } = options
-
-    // Dynamic design guide from DB categories
-    const category = await getProductCategoryBySlug(productType)
-    const designGuide = category?.design_guide || `Design/vizualizace produktu typu ${productType}. Zobraz celý produkt, studio lighting, dark background.`
-    const materialContext = category?.material_hint ? `\nMateriál: ${category.material_hint}` : ""
-    const isMockupReady = ["triko", "mikina", "ponožky", "taška", "taska", "čepice", "cepice"].includes(productType)
-
-    // Step 1: Generate design concept via AI text
-    console.log("🧠 Generuji design koncept...")
-    const conceptPrompt = `Jsi grafický designér a product designer pro brand "${config.name}".
-
-## BRAND PERSONA
-${bv.persona}
-
-## BRAND VIZUÁL
-- Styl: ${config.feedAesthetic?.feel || 'Moderní a kvalitní'}
-- Barvy: ${config.feedAesthetic?.colorPalette || 'Preferuj barvy brandu, ale buď kreativní'}
-
-## STÁVAJÍCÍ PRODUKTY
-${config.products?.map(p => `- ${p.name}: ${p.description || ""}`).join("\n") || "Žádné"}
-
-## ZADÁNÍ
-Navrhni design pro: **${productType}**
-Téma / inspirace: **${theme}**
-
-## SPECIFIKA PRO TENTO TYP:
-${designGuide}
-
-## PRAVIDLA:
-1. Design MUSÍ sedět k "${config.name}" brand identity
-2. **Nezobrazuj jen plochý obrázek**, zobraz vždy REÁLNÝ PRODUKT v prostoru (S výjimkou plakátu, který může být i v rámu).
-3. Prompt MUSÍ obsahovat: "Product photography, studio lighting, photorealistic, clean dark background, professional quality"
-4. Design musí být vizuálně atraktivní a vypadat jako hotový prémiový kousek.
-5. Vytvoř detailní ANGLICKÝ prompt pro AI image generator
-6. V poli "suggestedTexts" navrhni 5 krátkých vtipných textů/sloganů k tomuto tématu:
-   - Max 5 slov každý
-   - On-brand humor, mix česky/anglicky
-   - Musí sedět k tématu "${theme}"
-
-Vrať POUZE validní JSON.`
-
-    try {
-        const conceptText = await generateText(conceptPrompt, {
-            responseSchema: DESIGN_CONCEPT_SCHEMA,
-            temperature: 0.9,
-        })
-
-        // Clean markdown backticks if Gemini includes them
-        const cleanText = conceptText.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim()
-
-        const concept = JSON.parse(cleanText) as DesignConcept
-
-        console.log(`   ✓ Koncept: "${concept.name}"`)
-        console.log(`   📐 Style: ${concept.style}`)
-        console.log(`   🎨 Colors: ${concept.colors.join(", ")}`)
-        console.log(`   📍 Placement: ${concept.placement}`)
-        console.log(`   ✍️ Texty: ${(concept.suggestedTexts || []).join(" | ")}`)
-
-        // Step 2: Generate image
-        console.log("\n🎨 Generuji design...")
-
-        const imageSuffix = "Product photography, studio lighting, clean dark background, photorealistic, premium quality, detailed materials and textures visible, professional product shot."
-
-        // Build text overlay instruction for the prompt
-        const textInstruction = overlayText
-            ? ` Include the text "${overlayText}" as a bold, stylized typographic element integrated into the design composition — the text should feel like a natural part of the artwork, not a separate label.`
-            : ""
-
-        let imageBuffer: Buffer
-
-        if (includeLogo && config.logoFile) {
-            // Load logo via shared loader (filesystem + Supabase fallback)
-            const { loadLogo } = await import('./logo-loader')
-            const logoBuffer = await loadLogo(config.logoFile)
-
-            if (logoBuffer) {
-                const imagePrompt = `${concept.designPrompt}.${textInstruction} ${imageSuffix}
-DESIGN RULES:
-- An image of the brand logo is provided as a reference. Naturally integrate this EXACT logo into the design composition.
-- The logo should feel like an organic part of the artwork — embossed, stamped, spray-painted, or stylized to match the design aesthetic.
-- Keep the logo clearly recognizable but creatively integrated.
-- Do NOT just slap it on top — make it part of the art.`
-
-                try {
-                    imageBuffer = await generateImageWithReferences(
-                        imagePrompt,
-                        [{ buffer: logoBuffer, mimeType: "image/png" }],
-                        { aspectRatio: "1:1" }
-                    )
-                    console.log(`   ✓ Design s logem vygenerován (Nano Banana Pro)`)
-                } catch (refErr: any) {
-                    console.warn(`   ⚠️ Reference gen selhalo (${refErr.message}), fallback na Imagen...`)
-                    const fallbackPrompt = `${concept.designPrompt}.${textInstruction} ${imageSuffix}`
-                    imageBuffer = await generateImage(fallbackPrompt, { aspectRatio: "1:1" })
-                }
-            } else {
-                // Logo file not found — proceed without it
-                const imagePrompt = `${concept.designPrompt}.${textInstruction} ${imageSuffix}`
-                const { generateImage } = await import("./gemini-client")
-                imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
-            }
-        } else {
-            // Standard Nano Banana Pro generation (no logo)
-            const { generateImage } = await import("./gemini-client")
-            const imagePrompt = `${concept.designPrompt}.${textInstruction} ${imageSuffix}`
-            console.log(`   🖼️ Nano Banana Pro...`)
-            imageBuffer = await generateImage(imagePrompt, { aspectRatio: "1:1" })
-        }
-
-        // Upload to Supabase Storage
-        const safeName = concept.name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "").slice(0, 30)
-        const designUrl = await uploadToStorage(
-            imageBuffer,
-            "product-designs",
-            `${config.id}_${safeName}`
-        )
-
-        console.log(`   ✓ Design nahrán: ${designUrl}`)
-
-        return { concept, designUrl }
-    } catch (err) {
-        console.error("❌ Design generation failed:", err)
-        return null
-    }
-}
+//
+// generateDesignConcept / generateProductMockup / runDesignConcept lived here and
+// produced the wrong artefact by construction: the concept prompt forbade flat
+// graphics ("Nezobrazuj jen plochý obrázek, zobraz vždy REÁLNÝ PRODUKT v prostoru")
+// and appended a "Product photography, studio lighting, photorealistic" suffix, so
+// the "print-ready design" was always a studio photo of a finished product — which
+// the mockup step then composited onto ANOTHER product.
+//
+// Replaced by instagram/print-pipeline.ts: flat artwork → vision QA → alpha +
+// 300 DPI + die-line + printer spec, with the mockup as a separate step.
 
 // ============================================
 // PIPELINE 2B: PRODUCT CONCEPT VISUALIZATION
@@ -453,122 +373,6 @@ DESIGN RULES:
 }
 
 // ============================================
-// PIPELINE 3: PRODUCT MOCKUP
-// ============================================
-
-export async function generateProductMockup(
-    config: ClientConfig,
-    designUrl: string,
-    productType: string = "triko",
-    designDescription?: string
-): Promise<{ mockupUrl: string } | null> {
-    console.log(`📸 Generuji mockup: ${productType}...`)
-
-    const sharp = (await import("sharp")).default
-    const path = await import("path")
-    const fs = await import("fs")
-
-    // Dynamic mockup prompt from DB categories
-    const category = await getProductCategoryBySlug(productType)
-
-    // Template mapping (physical files override AI generation)
-    const templateMap: Record<string, string> = {
-        triko: "tshirt_black_flat.png",
-        mikina: "hoodie_black_flat.png",
-    }
-
-    const templateFile = templateMap[productType]
-    const templatePath = templateFile
-        ? path.join(process.cwd(), "instagram", "templates", templateFile)
-        : null
-    let templateBuffer: Buffer
-
-    // Try physical template first, then AI-generate from category prompt
-    if (templatePath && fs.existsSync(templatePath)) {
-        templateBuffer = fs.readFileSync(templatePath)
-    } else {
-        console.warn(`⚠️ Šablona pro "${productType}" — generuji AI šablonu...`)
-        try {
-            const { generateImage } = await import("./gemini-client")
-            // Use category mockup_prompt if available, otherwise generic
-            const templatePrompt = category?.mockup_prompt
-                || `blank plain black ${productType} laid flat on simple studio background, photorealistic product photography, studio lighting, high resolution, no text, no logo`
-            templateBuffer = await generateImage(templatePrompt, { aspectRatio: "1:1" })
-            console.log(`   ✅ AI Šablona "${productType}" úspěšně vygenerována`)
-        } catch (err) {
-            console.error("❌ AI selhalo při tvorbě šablony, vracím tvrdý fallback:", err)
-            templateBuffer = await sharp({
-                create: {
-                    width: 1024, height: 1024, channels: 4,
-                    background: { r: 15, g: 15, b: 15, alpha: 1 }
-                }
-            }).png().toBuffer()
-        }
-    }
-
-    // Step 1: Download the actual design image
-    console.log(`   📥 Stahuji design...`)
-    let designBuffer: Buffer
-    try {
-        const response = await fetch(designUrl)
-        if (!response.ok) throw new Error(`HTTP ${response.status}`)
-        designBuffer = Buffer.from(await response.arrayBuffer())
-        console.log(`   ✅ Design stažen (${(designBuffer.length / 1024).toFixed(0)} KB)`)
-    } catch (err) {
-        console.error("❌ Nelze stáhnout design:", err)
-        return null
-    }
-
-    // Step 2: Get template dimensions and calculate placement
-    try {
-        const templateMeta = await sharp(templateBuffer).metadata()
-        const templateWidth = templateMeta.width || 1024
-        const templateHeight = templateMeta.height || 1024
-
-        // Design print area: centered on chest, ~40% of template width
-        const printWidth = Math.round(templateWidth * 0.40)
-        const printHeight = Math.round(printWidth * 1.0) // square-ish design
-
-        // Center horizontally, place at ~25% from top (chest area)
-        const left = Math.round((templateWidth - printWidth) / 2)
-        const top = Math.round(templateHeight * 0.25)
-
-        console.log(`   📐 Šablona: ${templateWidth}x${templateHeight}, design: ${printWidth}x${printHeight} @ (${left}, ${top})`)
-
-        // Step 3: Resize design and composite onto template
-        const resizedDesign = await sharp(designBuffer)
-            .resize(printWidth, printHeight, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
-            .png()
-            .toBuffer()
-
-        const composited = await sharp(templateBuffer)
-            .composite([{
-                input: resizedDesign,
-                left,
-                top,
-                blend: "over" as const,
-            }])
-            .png()
-            .toBuffer()
-
-        console.log(`   ✅ Kompozice hotová (${(composited.length / 1024).toFixed(0)} KB)`)
-
-        // Step 4: Upload to Supabase
-        const mockupUrl = await uploadToStorage(
-            composited,
-            "product-mockups",
-            `${config.id}_${productType}`
-        )
-
-        console.log(`   ✓ Mockup nahrán: ${mockupUrl}`)
-        return { mockupUrl }
-    } catch (err) {
-        console.error("❌ Mockup composition failed:", err)
-        return null
-    }
-}
-
-// ============================================
 // CLI HANDLERS (for development testing)
 // ============================================
 
@@ -610,34 +414,4 @@ export async function runProductIdeas(config: ClientConfig) {
     console.log(`\n${"═".repeat(60)}`)
     console.log(`✅ Celkem: ${ideas.length} produktových nápadů`)
     console.log("═".repeat(60) + "\n")
-}
-
-export async function runDesignConcept(config: ClientConfig) {
-    const args = process.argv.slice(2)
-    const themeArg = args.find(a => a.startsWith("--theme="))
-    const theme = themeArg?.split("=")[1] || "premium product design"
-    const productArg = args.find(a => a.startsWith("--product="))
-    const productType = productArg?.split("=")[1] || "triko"
-
-    console.log("\n" + "═".repeat(60))
-    console.log(`🎨 DESIGN GENERATOR — ${config.name}`)
-    console.log("═".repeat(60))
-    console.log(`📦 Produkt: ${productType}`)
-    console.log(`🎨 Téma: ${theme}\n`)
-
-    const result = await generateDesignConcept(config, theme, productType)
-
-    if (result) {
-        console.log(`\n${"═".repeat(60)}`)
-        console.log(`✅ Design "${result.concept.name}" vygenerován`)
-        console.log(`🔗 URL: ${result.designUrl}`)
-        console.log("═".repeat(60) + "\n")
-
-        // Generate mockup
-        console.log("📸 Generuji mockup...")
-        const mockup = await generateProductMockup(config, result.designUrl, productType, result.concept.description)
-        if (mockup) {
-            console.log(`✅ Mockup URL: ${mockup.mockupUrl}`)
-        }
-    }
 }

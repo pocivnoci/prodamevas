@@ -950,7 +950,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 {/* Topic */}
                                 <div>
                                     <div className="flex items-center justify-between mb-2">
-                                        <label className="text-[10px] text-white/50 uppercase tracking-widest font-bold">O čem? (volitelné)</label>
+                                        <label className="text-[10px] text-white/50 uppercase tracking-widest font-bold">O čem?</label>
                                         {(savedIdeas.length > 0 || approvedReviews.length > 0) && (
                                             <button type="button" onClick={() => setShowIdeaPicker(!showIdeaPicker)}
                                                 className="text-[9px] font-bold uppercase tracking-widest text-emerald-400 hover:text-emerald-300 transition-colors">
@@ -1012,55 +1012,6 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     )}
                                 </div>
 
-                                {/* Category pills */}
-                                <div>
-                                    <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Zaměření (volitelné)</label>
-                                    <div className="flex flex-wrap gap-2">
-                                        <button onClick={() => setCategory("auto")}
-                                            className={`px-4 py-2.5 rounded-sm border text-xs font-bold transition-all flex items-center gap-2 ${category === "auto" || category === ""
-                                                ? "border-white/30 bg-white/10 text-white" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
-                                            <span className="grayscale opacity-80">🤖</span> Automaticky
-                                        </button>
-                                        {categories.map(cat => (
-                                            <button key={cat.id} onClick={() => setCategory(cat.id)}
-                                                className={`px-4 py-2.5 rounded-sm border text-xs font-bold transition-all flex items-center gap-2 ${category === cat.id
-                                                    ? "border-aisummit-cinnabar/50 bg-aisummit-cinnabar/10 text-aisummit-cinnabar" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
-                                                {cat.emoji} {cat.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Product selector */}
-                                {catalogProducts.length > 0 && (
-                                    <div>
-                                        <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">📦 Produkt (volitelné)</label>
-                                        <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)}
-                                            className="w-full px-5 py-3.5 bg-[#050505] border border-white/10 rounded-sm text-white text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all">
-                                            <option value="">🎲 AI vybere automaticky</option>
-                                            {catalogProducts.map((p: any) => (
-                                                <option key={p.id} value={p.id}>{p.name}{p.price ? ` — ${p.price}` : ''}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                )}
-
-                                {/* Format selector */}
-                                <div>
-                                    <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">Formát (volitelné)</label>
-                                    <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)}
-                                        className="w-full px-5 py-3.5 bg-[#050505] border border-white/10 rounded-sm text-white text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all">
-                                        <option value="">🎲 AI vybere nejlepší formát</option>
-                                        {postTypes.filter(pt => pt.is_active).filter(pt => category === "auto" || category === "" || pt.pillarId === category)
-                                            .map(pt => (<option key={pt.id} value={pt.name}>{pt.display_name}</option>))}
-                                    </select>
-                                    {(() => {
-                                        const sel = postTypes.find(pt => pt.name === selectedType)
-                                        return sel?.description ? (
-                                            <p className="mt-2 text-[11px] text-white/40 leading-relaxed">{sel.description}</p>
-                                        ) : null
-                                    })()}
-                                </div>
 
                                 {/* Advanced */}
                                 <div>
@@ -1070,6 +1021,55 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     </button>
                                     {showAdvanced && (
                                         <div className="space-y-5 pl-4 border-l border-white/10">
+                                            {/* Category pills */}
+                                            <div>
+                                                <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Zaměření</label>
+                                                <div className="flex flex-wrap gap-2">
+                                                    <button onClick={() => setCategory("auto")}
+                                                        className={`px-4 py-2.5 rounded-sm border text-xs font-bold transition-all flex items-center gap-2 ${category === "auto" || category === ""
+                                                            ? "border-white/30 bg-white/10 text-white" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
+                                                        <span className="grayscale opacity-80">🤖</span> Automaticky
+                                                    </button>
+                                                    {categories.map(cat => (
+                                                        <button key={cat.id} onClick={() => setCategory(cat.id)}
+                                                            className={`px-4 py-2.5 rounded-sm border text-xs font-bold transition-all flex items-center gap-2 ${category === cat.id
+                                                                ? "border-aisummit-cinnabar/50 bg-aisummit-cinnabar/10 text-aisummit-cinnabar" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
+                                                            {cat.emoji} {cat.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Product selector */}
+                                            {catalogProducts.length > 0 && (
+                                                <div>
+                                                    <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">📦 Produkt</label>
+                                                    <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)}
+                                                        className="w-full px-5 py-3.5 bg-[#050505] border border-white/10 rounded-sm text-white text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all">
+                                                        <option value="">🎲 AI vybere automaticky</option>
+                                                        {catalogProducts.map((p: any) => (
+                                                            <option key={p.id} value={p.id}>{p.name}{p.price ? ` — ${p.price}` : ''}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            )}
+
+                                            {/* Format selector */}
+                                            <div>
+                                                <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">Formát</label>
+                                                <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)}
+                                                    className="w-full px-5 py-3.5 bg-[#050505] border border-white/10 rounded-sm text-white text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all">
+                                                    <option value="">🎲 AI vybere nejlepší formát</option>
+                                                    {postTypes.filter(pt => pt.is_active).filter(pt => category === "auto" || category === "" || pt.pillarId === category)
+                                                        .map(pt => (<option key={pt.id} value={pt.name}>{pt.display_name}</option>))}
+                                                </select>
+                                                {(() => {
+                                                    const sel = postTypes.find(pt => pt.name === selectedType)
+                                                    return sel?.description ? (
+                                                        <p className="mt-2 text-[11px] text-white/40 leading-relaxed">{sel.description}</p>
+                                                    ) : null
+                                                })()}
+                                            </div>
                                             <div>
                                                 <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">📐 Poměr stran</label>
                                                 <div className="grid grid-cols-4 gap-2">
