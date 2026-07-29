@@ -37,6 +37,7 @@ import {
 import { computeSlotIntent, type SlotIntent } from "../lib/feed-pattern"
 import { loadConfig } from "./configs"
 import type { ClientConfig, PostFormat, PostMedium } from "./configs/types"
+import { applyFormatClamps, liveKillSwitches, FEED_SAFE_RATIOS } from "./format-clamps"
 import type { PostType, PostIdea, Review } from "./types"
 
 // Module imports (refactored from monolith)
@@ -513,59 +514,16 @@ export async function generateOnePost(options: {
         console.log(`   📐 Médium přepsáno uživatelem: ${options.medium}`)
     }
 
-    // ── Safety clamps — extracted so they can be RE-APPLIED after a checkpoint
-    // restore. These read LIVE settings (subscription plan, REELS_ENABLED env,
-    // charged medium); a checkpoint freezes the format under the ORIGINAL attempt's
-    // rules, and a deferral window can last hours — live rules must win on resume
-    // (a resumed reel must not bypass a kill-switch flipped mid-deferral).
-    const CAROUSEL_SAFE_RATIOS = ["1:1", "4:5", "3:4"] as const
-    const applySafetyClamps = (f: PostFormat) => {
-        // Plan media gating: config/category may still ask for a medium the
-        // subscription doesn't include (e.g. reel on the Start tier) — clamp it.
-        if (options.allowedMedia && !options.allowedMedia.includes(f.medium)) {
-            const original = f.medium
-            f.medium = options.allowedMedia.includes("carousel") ? "carousel" : "image"
-            if (f.medium === "carousel" && f.overlayStyle === "none") {
-                f.overlayStyle = "cover"
-            }
-            console.log(`   🔒 Médium "${original}" není v balíčku — fallback na ${f.medium}`)
-        }
-
-        // Global reel kill-switch — Veo video generation is OFF for now. Clamp any reel
-        // (from config/category/user) to carousel so no Veo call is ever made. Flip back on
-        // with REELS_ENABLED=1 (env) when ready — no redeploy needed.
-        if (process.env.REELS_ENABLED !== "1" && f.medium === "reel") {
-            f.medium = "carousel"
-            f.aspectRatio = "4:5" // 9:16 (reel) není feed-legální pro carousel — IG by ho ořízl
-            if (f.overlayStyle === "none") f.overlayStyle = "cover"
-            console.log("   🚫 Reels dočasně vypnuté (Veo off) — fallback na carousel (4:5)")
-        }
-
-        // Billing cap — the medium can never be MORE expensive than what the job was
-        // charged for (credits are media-weighted: image 1 / carousel 3 / reel 5, charged
-        // at job creation). Ideas/categories may still ask for a pricier medium; clamp it
-        // to the paid one. Downward differences are refunded via reconcileJobCharge.
-        if (options.chargedMedium) {
-            const MEDIUM_RANK: Record<string, number> = { image: 0, carousel: 1, reel: 2 }
-            if ((MEDIUM_RANK[f.medium] ?? 0) > (MEDIUM_RANK[options.chargedMedium] ?? 0)) {
-                const original = f.medium
-                f.medium = options.chargedMedium
-                if (f.medium !== "reel" && f.aspectRatio === "9:16") f.aspectRatio = "4:5"
-                if (f.medium === "carousel" && f.overlayStyle === "none") f.overlayStyle = "cover"
-                console.log(`   💳 Médium "${original}" překračuje účtovaný formát — clamp na ${f.medium}`)
-            }
-        }
-
-        // Feed-safety clamp — carousel/image must use a feed-legal aspect ratio. A 9:16
-        // (or landscape 16:9/4:3) on a non-reel medium gets cropped hard by Instagram, no
-        // matter where it leaked in from (config / category / onboarding / user override).
-        if (f.medium !== "reel" && !CAROUSEL_SAFE_RATIOS.includes(f.aspectRatio as any)) {
-            const original = f.aspectRatio
-            f.aspectRatio = "4:5"
-            console.log(`   📐 Poměr "${original}" není feed-legální pro ${f.medium} — clamp na 4:5`)
-        }
+    // ── Safety clamps — see instagram/format-clamps.ts. Pure + idempotent, because
+    // they are RE-APPLIED after a checkpoint restore below: a checkpoint freezes the
+    // format under the ORIGINAL attempt's rules, and a deferral window can last hours,
+    // so live rules (plan, kill-switches, charged medium) must win on resume.
+    const clampOpts = {
+        allowedMedia: options.allowedMedia,
+        chargedMedium: options.chargedMedium,
+        ...liveKillSwitches(),
     }
-    applySafetyClamps(format)
+    format = applyFormatClamps(format, clampOpts)
 
     // Smart overlay rotation — for image posts only, auto-select layout variant
     if (format.medium === "image" && format.overlayStyle === "default") {
@@ -586,8 +544,7 @@ export async function generateOnePost(options: {
     // kill-switch / plan gating / billing cap may have changed during the deferral
     // window (up to MAX_CAMPAIGN_AGE_MS) and must win over the frozen format.
     if (ck) {
-        format = { ...ck.format }
-        applySafetyClamps(format)
+        format = applyFormatClamps(ck.format, clampOpts)
     }
 
     const isReel = format.medium === "reel"
@@ -1011,7 +968,7 @@ ${feedSummary}
             if (format.medium !== "image") {
                 console.warn(`   ⚠️ ${format.medium} caption bez ${format.medium === "reel" ? "scén/skriptu" : "slides"} — renderuji single image, media_type opraven`)
                 format.medium = "image"
-                if (!(CAROUSEL_SAFE_RATIOS as readonly string[]).includes(format.aspectRatio)) format.aspectRatio = "4:5"
+                if (!(FEED_SAFE_RATIOS as readonly string[]).includes(format.aspectRatio)) format.aspectRatio = "4:5"
                 if (format.overlayStyle === "none") format.overlayStyle = "default"
             }
             renderResult = await renderImage({
