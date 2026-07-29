@@ -180,12 +180,14 @@ export interface UserPhotoBriefInfo {
 
 /** Shared user-photo block for designer prompts (single image AND carousel cover).
  *  The designer never sees images, so the description is its only window into the photo. */
-function buildUserPhotoSection(userPhoto?: UserPhotoBriefInfo, target: "post" | "cover" = "post"): string {
+function buildUserPhotoSection(userPhoto?: UserPhotoBriefInfo, target: "post" | "cover" | "frame" = "post"): string {
     if (!userPhoto) return ""
+    const noun = target === "cover" ? "COVER SLIDE" : target === "frame" ? "FIRST STORY FRAME" : "POST"
+    const shortNoun = target === "cover" ? "cover" : target === "frame" ? "first frame" : "post"
     return `
 
-## 📷 CLIENT'S OWN PHOTO — MANDATORY VISUAL BASE OF THIS ${target === "cover" ? "COVER SLIDE" : "POST"}:
-The client uploaded their OWN photo to be used in this exact ${target === "cover" ? "cover" : "post"}. It is attached to the render call as a reference image labeled "CLIENT photo".
+## 📷 CLIENT'S OWN PHOTO — MANDATORY VISUAL BASE OF THIS ${noun}:
+The client uploaded their OWN photo to be used in this exact ${shortNoun}. It is attached to the render call as a reference image labeled "CLIENT photo".
 ${userPhoto.description ? `What the photo shows: ${userPhoto.description}` : ""}
 - Your composition MUST be built FROM this photo — describe how to use it whole as the base scene, or which part/crop of it to feature. NEVER invent a replacement scene.
 - Creative freedom applies to grading, cropping, typography and graphic elements layered ON the photo — never to replacing its real content (people, place, subject stay as photographed).`
@@ -565,6 +567,143 @@ Return JSON: { "designSystem": "one paragraph describing the shared system", "br
     return parsed
 }
 
+/**
+ * Instagram's own UI covers the top and bottom of a story: the profile row and close
+ * button up top, the reply bar and share row at the bottom. Anything placed there is
+ * invisible to the viewer — and unlike a feed crop, the author never sees it happen.
+ *
+ * Expressed in PERCENTAGES so it survives any render resolution. Injected in three
+ * places, and all three matter: the designer prompt (so the placement is AUTHORED
+ * inside the band), every frame's render prompt, and QA (so the ship-best ladder can
+ * actually correct it — `editExistingImage` is very good at "move this text up").
+ */
+export const STORY_SAFE_ZONE_RULE = `## STORY SAFE ZONE (hard constraint — Instagram's own UI covers the edges):
+- ALL typography and the logo must sit between 15% and 85% of the frame HEIGHT.
+- The top 15% is covered by the profile row and close button; the bottom 15% by the
+  reply bar. Anything placed there is invisible to the viewer.
+- Photography and colour fields SHOULD still run full-bleed to all four edges — only
+  TEXT and the LOGO are constrained.
+- Keep 8% side margins on text as well; stories are watched on phones, often in cases.`
+
+/**
+ * Design a complete story set — ONE designer call, one shared design system.
+ *
+ * Deliberately not `generateCarouselDesignBriefs`: that prompt hardcodes carousel
+ * semantics that are actively wrong here ("the COVER has the boldest typography",
+ * "same environment across slides, only the camera angle changes") and the carousel
+ * orchestrator stamps an "N/M" slide indicator on every render. A story set has no
+ * cover/inner asymmetry, each frame may cut to a new scene, and it must never carry
+ * a page counter.
+ *
+ * Also not three independent `generateDesignBrief` calls: a story is tapped through
+ * as one continuous piece, so it is MORE cohesion-sensitive than a carousel, not less.
+ */
+export async function generateStoryDesignBriefs(params: {
+    config: ClientConfig
+    clientId: string
+    frames: { headline: string; subtext: string; imagePrompt: string }[]
+    postType: string
+    recentBriefs: string[]
+    bannedArchetypes?: string[]
+    /** The real product this story is built around (uses_product formats). */
+    product?: ProductBriefInfo
+    /** The client's own uploaded photo — frame 1 must be built from it. */
+    userPhoto?: UserPhotoBriefInfo
+    /** The format's creative brief (config.postTypeDefs) — see generateDesignBrief. */
+    formatBrief?: { description?: string; visualStyle?: string }
+}): Promise<{ designSystem: string; briefs: DesignBrief[] }> {
+    const { config, clientId, frames, postType, recentBriefs, formatBrief } = params
+    const banned = (params.bannedArchetypes ?? []).filter(a => (LAYOUT_ARCHETYPES as readonly string[]).includes(a))
+    // No slotIntent: a story never occupies a cell in the profile grid, so the feed
+    // pattern has no say here — the designer gets the full archetype pool minus bans.
+    const afterBan = (LAYOUT_ARCHETYPES as readonly string[]).filter(a => !banned.includes(a))
+    const allowedArchetypes = afterBan.length > 0 ? afterBan : [...LAYOUT_ARCHETYPES]
+    const fa = config.feedAesthetic
+    const memSection = await getVisualMemoriesSection(clientId)
+
+    const frameSummary = frames.map((f, i) =>
+        `Frame ${i + 1}${i === 0 ? " (HOOK)" : i === frames.length - 1 ? " (CTA)" : ""}: headline="${f.headline}", subtext="${f.subtext}", visual idea="${f.imagePrompt}"`
+    ).join("\n")
+
+    const prompt = `
+You are a world-class Instagram art director designing a COMPLETE story set (${frames.length} vertical frame${frames.length > 1 ? "s" : ""}).
+The image model (Nano Banana Pro) renders each frame ENTIRELY from your briefs — photo, Czech typography AND logo.
+Format: 9:16 vertical, full screen on a phone, seen for under 2 seconds each.
+
+## BRAND KIT:
+- Color palette: ${fa.colorPalette}
+- Brand accent color: ${fa.accentColor || "pick a tasteful accent from the palette"}
+- Overall feel: ${fa.feel}
+- Typography vibe: ${fa.typographyStyle || `inspired by ${fa.font}`}
+${fa.customInstructions || ""}
+${memSection}
+
+## STORY SET:
+Post type: ${postType}${formatBrief?.description ? ` — ${formatBrief.description}` : ""}
+${formatBrief?.visualStyle ? `Format visual style (the brand defined how this post type should LOOK — follow it): ${formatBrief.visualStyle}` : ""}
+${frameSummary}
+${buildProductSection(params.product)}${buildUserPhotoSection(params.userPhoto, "frame")}
+
+## RECENT POST DESIGNS — THE STORY MUST DIVERGE FROM ALL OF THEM:
+${recentBriefs.length ? recentBriefs.map((b, i) => `${i + 1}. ${b}`).join("\n") : "(no history yet)"}
+
+${STORY_SAFE_ZONE_RULE}
+
+## RULES:
+1. First define ONE design system: same typography style, same palette/grading, same logo
+   treatment across ALL frames — the set must read as one continuous piece when tapped through.
+2. Unlike a carousel, each frame MAY cut to a different scene or subject — a story is a
+   sequence of moments, not one shoot from three angles. Keep the SYSTEM constant, not the set.
+3. Each frame's typography.headlineText / subtextText must be the EXACT Czech strings above,
+   character-for-character including diacritics (ě š č ř ž ý á í é ů ú). NEVER translate or rephrase.
+4. Type must be noticeably LARGER than on a feed post — a story is read at arm's length, in
+   daylight, in under 2 seconds. Headline ≥ 7% of frame height.
+5. Frame 1 is the hook and carries the boldest type. The LAST frame carries the CTA and must
+   have obvious visual finality (a closing gesture, not a cliffhanger).
+6. NO slide indicators, NO page counters, NO "swipe" arrows — this is not a carousel.
+7. Diverge hard from the recent designs (layout, type placement, concept).
+8. Set ONE layoutArchetype for the whole set (same value on every brief), chosen from:
+   ${allowedArchetypes.join(", ")}.${banned.filter(a => !allowedArchetypes.includes(a)).length ? `\n   🚫 FORBIDDEN (used by the latest posts): ${banned.filter(a => !allowedArchetypes.includes(a)).join(", ")}.` : ""}
+   Stay on-brand (palette, mood, type family) — change the STRUCTURE, not the brand.
+
+Return JSON: { "designSystem": "one paragraph describing the shared system", "briefs": [one design brief per frame, in order] }`
+
+    const raw = await generateTextQuality(prompt, {
+        models: designerLadder(),
+        responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+                designSystem: { type: Type.STRING },
+                briefs: { type: Type.ARRAY, items: DESIGN_BRIEF_SCHEMA },
+            },
+            required: ["designSystem", "briefs"],
+        },
+        temperature: getTemperature("designer"),
+        label: "story-designer",
+    })
+
+    const parsed = JSON.parse(raw) as { designSystem: string; briefs: DesignBrief[] }
+    if (!parsed?.designSystem || !Array.isArray(parsed.briefs) || parsed.briefs.length !== frames.length) {
+        throw new Error(`Story designer returned ${parsed?.briefs?.length ?? 0} briefs, expected ${frames.length}`)
+    }
+
+    // Verbatim typography guard — identical doctrine to generateDesignBrief and the
+    // carousel designer: the briefs drive each render prompt while QA expects the
+    // copywriter's strings, so equality is enforced in code, not hoped for.
+    parsed.briefs.forEach((b, i) => {
+        const frame = frames[i]
+        if (b.typography.headlineText !== frame.headline) {
+            console.warn(`   ⚠️ Frame ${i + 1}: designer paraphrased headline — restoring verbatim`)
+            b.typography.headlineText = frame.headline
+        }
+        const expectedSub = frame.subtext || undefined
+        if ((b.typography.subtextText || undefined) !== expectedSub) {
+            b.typography.subtextText = expectedSub
+        }
+    })
+    return parsed
+}
+
 // ============================================
 // NATIVE IMAGE QA — vision verification
 // ============================================
@@ -609,7 +748,15 @@ export function qaScore(qa: NativeImageQA): number {
  */
 export async function verifyNativeImage(
     imageBuffer: Buffer,
-    expected: { headline: string; subtext?: string; logoExpected: boolean },
+    expected: {
+        headline: string
+        subtext?: string
+        logoExpected: boolean
+        /** Story frames only — also verify nothing sits under Instagram's own UI bands.
+         *  Graded "cosmetic": the text is legible, just misplaced, and a corrective
+         *  edit fixes it. "severe" stays reserved for garbled/unreadable typography. */
+        safeZone?: boolean
+    },
     /** mode "require" (default): the product must appear AND match. Mode "if-present"
      *  (carousel slides): a slide may legitimately not show the product, but a
      *  different/invented product design is a FAIL. */
@@ -627,6 +774,13 @@ ${productRef.mode === "if-present"
 CLIENT PHOTO USAGE: The LAST attached image is the client's own photo that the post MUST be visibly built from.
 The generated post (first image) must use this photo — whole or a recognizable crop/part of it — as its photographic base. Color grading, reframing, background extension and text/logo composited over it are all fine. A completely different or invented scene that merely resembles the photo's style is a FAIL (photoUsed=false).` : ""
 
+    const safeZoneCheck = expected.safeZone ? `
+STORY SAFE ZONE: This is a 9:16 Instagram STORY frame. Instagram's own UI covers the top
+~15% (profile row, close button) and the bottom ~15% (reply bar) of the frame. ALL text and
+the logo must sit between 15% and 85% of the frame HEIGHT. Photography may run to the edges;
+text and logo may not. Text or logo intruding into either band is a FAIL — the viewer never
+sees it. Grade this as "cosmetic" (it is legible, just misplaced), not "severe".` : ""
+
     const qaPrompt = `You are a strict QA inspector for AI-designed Instagram posts in CZECH.
 
 Expected headline text (must match EXACTLY, including Czech diacritics ě š č ř ž ý á í é ů ú):
@@ -635,6 +789,7 @@ ${expected.subtext ? `Expected subtext (must match EXACTLY):\n"${expected.subtex
 ${expected.logoExpected ? "A brand logo MUST be present somewhere in the image." : ""}
 ${productCheck}
 ${userPhotoCheck}
+${safeZoneCheck}
 
 Check:
 1. Read ALL text rendered in the first image. Does the headline match the expected text character-for-character? Watch for: missing/wrong diacritics, swapped letters, duplicated words, gibberish, extra unwanted text.
@@ -643,6 +798,7 @@ ${expected.logoExpected ? "3. Is the brand logo present and not deformed?" : ""}
 4. Is all text clearly readable (contrast, not cut off at edges)?
 ${productRef ? `5. Does the product in the first image faithfully match the reference product photo (second image)? Compare the print/graphic, colors and cut.` : ""}
 ${userPhotoRef ? `6. Is the first image visibly built from the client's photo (the LAST attached image) — same real scene/subject, possibly regraded/cropped/extended?` : ""}
+${expected.safeZone ? `7. Does ALL text and the logo sit between 15% and 85% of the frame height (clear of Instagram's story UI bands)?` : ""}
 
 If NOT ok, also grade how bad it is:
 - "cosmetic" — a minor slip (e.g. one missing/wrong diacritic) but every word is still fully legible and correctly identifiable.
