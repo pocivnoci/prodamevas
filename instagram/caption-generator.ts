@@ -51,6 +51,7 @@ export function getPostFormat(config: ClientConfig, typeName: string): PostForma
     if (config?.postFormats?.[typeName]) return config.postFormats[typeName]
     // 2. Convention-based: prefix determines medium
     if (typeName.startsWith("reel_")) return { aspectRatio: "9:16", medium: "reel", overlayStyle: "none" }
+    if (typeName.startsWith("story_")) return { aspectRatio: "9:16", medium: "story", overlayStyle: "default" }
     if (typeName.startsWith("carousel_")) return { aspectRatio: "1:1", medium: "carousel", overlayStyle: "cover" }
     // 3. Client default format
     if (config?.defaultFormat) return config.defaultFormat

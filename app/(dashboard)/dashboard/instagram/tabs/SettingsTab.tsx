@@ -811,10 +811,13 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
 
 const MEDIUM_OPTIONS = [
     { value: "image", label: "🖼️ Obrázek" },
+    { value: "story", label: "📱 Story" },
     { value: "carousel", label: "🎠 Karusel" },
     { value: "reel", label: "🎬 Reel" },
 ] as const
 const RATIO_OPTIONS = ["1:1", "4:5", "3:4"] as const
+/** Media pinned to 9:16 — mirrors VERTICAL_MEDIA in instagram/format-clamps.ts. */
+const isVerticalMedium = (m: string) => m === "reel" || m === "story"
 // Static-media overlay styles (reels are always text-free "none").
 const OVERLAY_OPTIONS = [
     { value: "default", label: "Základní" },
@@ -945,9 +948,11 @@ function FormatsSection({ config, projectId, onReload }: { config: any; projectI
                 </div>
                 <div>
                     <FieldLabel>Poměr stran</FieldLabel>
-                    <select value={value.medium === "reel" ? "9:16" : value.aspectRatio} disabled={value.medium === "reel"}
+                    {/* Reels and stories are 9:16 only — the engine clamps anything else
+                        (instagram/format-clamps.ts), so offering a choice would be a lie. */}
+                    <select value={isVerticalMedium(value.medium) ? "9:16" : value.aspectRatio} disabled={isVerticalMedium(value.medium)}
                         onChange={e => onChange({ aspectRatio: e.target.value as PostFormatInput["aspectRatio"] })} className={inputClass}>
-                        {value.medium === "reel"
+                        {isVerticalMedium(value.medium)
                             ? <option value="9:16">9:16</option>
                             : RATIO_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
                     </select>
