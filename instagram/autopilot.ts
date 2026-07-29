@@ -163,6 +163,10 @@ export async function generateOnePost(options: {
     customImageUrl?: string
     /** Explicit product ID from ig_products — overrides random product selection */
     productId?: string
+    /** Content pillar key ("Zaměření" in the Generate tab). Narrows weighted type
+     *  selection to that pillar's formats. Only meaningful when `type` is absent —
+     *  an explicit type already decides the pillar. */
+    category?: string
     campaignContext?: {
         postNumber: number
         totalPosts: number
@@ -262,7 +266,23 @@ export async function generateOnePost(options: {
         // NEVER auto-picked; they exist only for the explicit Generate-tab flow.
         const manualOnlyNames = new Set((config.postTypeDefs ?? []).filter(d => d.manualOnly).map(d => d.name))
         const autoTypes = postTypes.filter(t => !manualOnlyNames.has(t.name))
-        const selectableTypes = autoTypes.length > 0 ? autoTypes : postTypes
+        let selectableTypes = autoTypes.length > 0 ? autoTypes : postTypes
+
+        // "Zaměření" pillar picked by the user in the Generate tab. Until now this
+        // was stored on the job row and never read, so choosing "Prodej" and leaving
+        // the format on "AI vybere" silently generated from every pillar. Narrow the
+        // candidate pool instead — but never let the filter empty it (a pillar whose
+        // formats are all manual-only or deactivated would otherwise throw below).
+        if (options.category) {
+            const allowed = new Set(config.contentPillars?.[options.category]?.postTypes ?? [])
+            const narrowed = selectableTypes.filter(t => allowed.has(t.name))
+            if (narrowed.length > 0) {
+                selectableTypes = narrowed
+                console.log(`   🎯 Zaměření "${options.category}" → ${narrowed.length} formátů`)
+            } else {
+                console.warn(`   ⚠️ Zaměření "${options.category}" nemá dostupný formát — vybírám ze všech`)
+            }
+        }
 
         // Memory-informed post type weighting
         let postTypeBoosts: Record<string, number> = {}

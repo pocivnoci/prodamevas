@@ -58,6 +58,7 @@ export async function POST(req: Request) {
             medium: config.medium,
             customImageUrl: config.customImageUrl,
             productId: config.productId,
+            category: config.category,
             campaignContext: config.campaignContext,
             allowedMedia: config.allowedMedia,
             chargedMedium: config.chargedMedium,
