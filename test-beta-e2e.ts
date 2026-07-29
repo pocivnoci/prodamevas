@@ -635,10 +635,14 @@ test("13.5 designer + QA carry the story safe zone", () => {
     const p = fileContent("instagram/image-pipeline.ts")
     assert(p.includes("export const STORY_SAFE_ZONE_RULE"), "the safe zone must be a shared constant")
     assert(p.includes("export async function generateStoryDesignBriefs"), "stories need their own designer (carousel semantics are wrong here)")
-    assert(p.includes("safeZone?: boolean"), "verifyNativeImage must accept the safe-zone check")
-    // Without the QA half, the ship-best ladder can never correct the one failure mode
-    // stories add — text hidden under Instagram's own UI bands.
-    assert(p.includes("STORY SAFE ZONE:"), "the QA prompt must include the safe-zone check")
+    assert(p.includes("safeZone?: boolean"), "verifyNativeImage must accept the story frame checks")
+    // Without the QA half, the ship-best ladder can never correct the failure modes
+    // stories add. Both were observed in a real render before they were guarded:
+    assert(p.includes("STORY FRAME CHECKS"), "the QA prompt must run the story frame checks")
+    assert(p.includes("FAKE INTERFACE"), "QA must reject a drawn Instagram UI — describing IG's chrome to an image model made it render one")
+    assert(p.includes("SAFE ZONE"), "QA must check that text clears Instagram's own UI bands")
+    // The rule itself must FORBID the UI, not just describe where it sits.
+    assert(p.includes("NEVER DRAW INSTAGRAM'S INTERFACE"), "STORY_SAFE_ZONE_RULE must forbid rendering IG's interface")
     const o = fileContent("instagram/orchestrators/story-orchestrator.ts")
     assert(o.includes("safeZone: true"), "the story orchestrator must request the safe-zone QA")
     assert(o.includes("ig-stories/"), "story frames must upload to their own prefix")

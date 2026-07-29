@@ -577,12 +577,23 @@ Return JSON: { "designSystem": "one paragraph describing the shared system", "br
  * inside the band), every frame's render prompt, and QA (so the ship-best ladder can
  * actually correct it — `editExistingImage` is very good at "move this text up").
  */
-export const STORY_SAFE_ZONE_RULE = `## STORY SAFE ZONE (hard constraint — Instagram's own UI covers the edges):
-- ALL typography and the logo must sit between 15% and 85% of the frame HEIGHT.
-- The top 15% is covered by the profile row and close button; the bottom 15% by the
-  reply bar. Anything placed there is invisible to the viewer.
-- Photography and colour fields SHOULD still run full-bleed to all four edges — only
-  TEXT and the LOGO are constrained.
+export const STORY_SAFE_ZONE_RULE = `## STORY LAYOUT — TWO HARD CONSTRAINTS:
+
+### 1. NEVER DRAW INSTAGRAM'S INTERFACE
+This artwork is the story CONTENT. Instagram draws its own interface on top of it at
+display time. You must NOT render any of it: no reply/message input bar, no "Reply"
+or "Send message" pill, no heart / send / share / camera icons, no profile avatar or
+username row, no close (X) button, no segment progress bars, no "swipe up" chevron,
+no phone status bar (clock, battery, signal). Any of these appearing IN the artwork is
+a hard failure — the published story would show two overlapping interfaces.
+
+### 2. KEEP TEXT AND LOGO IN THE MIDDLE 70% OF THE HEIGHT
+- The FIRST line of typography must START no higher than 18% down the frame, and the
+  LAST line must END no lower than 82%. The logo obeys the same bounds.
+- Think of it as a wide horizontal band across the middle of the frame: text lives
+  inside that band, nothing else does. Do not top-align or bottom-align the type block.
+- Photography, gradients and colour fields SHOULD still run full-bleed to all four
+  edges — only TEXT and the LOGO are constrained.
 - Keep 8% side margins on text as well; stories are watched on phones, often in cases.`
 
 /**
@@ -775,11 +786,17 @@ CLIENT PHOTO USAGE: The LAST attached image is the client's own photo that the p
 The generated post (first image) must use this photo — whole or a recognizable crop/part of it — as its photographic base. Color grading, reframing, background extension and text/logo composited over it are all fine. A completely different or invented scene that merely resembles the photo's style is a FAIL (photoUsed=false).` : ""
 
     const safeZoneCheck = expected.safeZone ? `
-STORY SAFE ZONE: This is a 9:16 Instagram STORY frame. Instagram's own UI covers the top
-~15% (profile row, close button) and the bottom ~15% (reply bar) of the frame. ALL text and
-the logo must sit between 15% and 85% of the frame HEIGHT. Photography may run to the edges;
-text and logo may not. Text or logo intruding into either band is a FAIL — the viewer never
-sees it. Grade this as "cosmetic" (it is legible, just misplaced), not "severe".` : ""
+STORY FRAME CHECKS (this is a 9:16 Instagram STORY, not a feed post):
+(a) FAKE INTERFACE — does the image contain any drawn Instagram UI: a reply/message input
+bar or pill, heart / send / share / camera icons, a profile avatar or username row, a close
+(X) button, segment progress bars, a "swipe up" chevron, or a phone status bar (clock,
+battery, signal)? Instagram draws its real interface on top at display time, so any of this
+inside the artwork means the published story shows TWO overlapping interfaces. This is a
+"severe" FAIL — report it in issues and set ok=false.
+(b) SAFE ZONE — do ALL text and the logo sit between 15% and 85% of the frame HEIGHT?
+Instagram's own chrome covers those bands, so anything there is invisible. Photography may
+run to the edges; text and the logo may not. Grade a safe-zone miss as "cosmetic" (the text
+is legible, just misplaced) unless (a) also fired.` : ""
 
     const qaPrompt = `You are a strict QA inspector for AI-designed Instagram posts in CZECH.
 
@@ -798,7 +815,7 @@ ${expected.logoExpected ? "3. Is the brand logo present and not deformed?" : ""}
 4. Is all text clearly readable (contrast, not cut off at edges)?
 ${productRef ? `5. Does the product in the first image faithfully match the reference product photo (second image)? Compare the print/graphic, colors and cut.` : ""}
 ${userPhotoRef ? `6. Is the first image visibly built from the client's photo (the LAST attached image) — same real scene/subject, possibly regraded/cropped/extended?` : ""}
-${expected.safeZone ? `7. Does ALL text and the logo sit between 15% and 85% of the frame height (clear of Instagram's story UI bands)?` : ""}
+${expected.safeZone ? `7. Run BOTH story frame checks above: (a) no drawn Instagram interface anywhere in the image, (b) all text and the logo between 15% and 85% of the frame height.` : ""}
 
 If NOT ok, also grade how bad it is:
 - "cosmetic" — a minor slip (e.g. one missing/wrong diacritic) but every word is still fully legible and correctly identifiable.

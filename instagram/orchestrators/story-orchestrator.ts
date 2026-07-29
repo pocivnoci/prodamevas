@@ -30,10 +30,16 @@ import { getModel } from "../models"
 import { withRetry } from "../../utils/retry"
 import type { RenderContext, RenderResult } from "./types"
 
-/** Max corrective text-fix edits per story set — same budget as a carousel. A 3-frame
- *  worst case (3 gens + 3 QAs + 2 edits + 1 bonus) is smaller than a 5-slide carousel's,
- *  so these numbers are already proven safe inside the 300s guard. Do NOT scale per frame. */
-const MAX_CORRECTIVE_EDITS = 2
+/**
+ * Max corrective text-fix edits per story set — one per frame at the 3-frame cap.
+ *
+ * Measured, not guessed: the carousel's budget of 2 was sized for 5 slides that mostly
+ * pass first time. Stories add the safe-zone constraint, which the model reliably misses
+ * by a few percent, so 2 edits across 3 frames meant the LAST frame never got its nudge
+ * and shipped overflowing the bottom band. The worst case (3 gens + 3 QAs + 3 edits +
+ * 1 bonus) is still smaller than a 6-slide carousel's, so this stays inside the 300s guard.
+ */
+const MAX_CORRECTIVE_EDITS = 3
 /** Separate tiny budget for "severe" (unreadable/garbled) misses — spent even when the
  *  normal budget is exhausted, because shipping unreadable typography is worse than a
  *  slightly higher bill. */
@@ -135,7 +141,8 @@ ${STORY_SAFE_ZONE_RULE}
 
 ## FORMAT:
 Vertical 9:16 Instagram story frame, full-screen on a phone. Frame ${i + 1} of ${frameCount}.
-Do NOT render any page counter, slide indicator or "swipe" arrow — this is a story, not a carousel.`
+Do NOT render any page counter, slide indicator or "swipe" arrow — this is a story, not a carousel.
+Render ONLY the artwork itself: no Instagram interface of any kind (see STORY LAYOUT above).`
 
             const refs = isFirst && logoRef ? [logoRef] : []
             if (isFirst && userPhotoRef) refs.push(userPhotoRef)
@@ -203,6 +210,7 @@ Follow the PRODUCT FIDELITY rules exactly: any depicted product must be a faithf
 Render the headline as this EXACT Czech text, character-for-character including diacritics: "${frame.headline}"
 ${frame.subtext ? `Render the subtext as this EXACT Czech text: "${frame.subtext}"` : ""}
 All text and the logo must sit between 15% and 85% of the frame HEIGHT — Instagram's story UI covers the top and bottom bands.
+Remove any drawn Instagram interface (reply bar, heart/send icons, profile row, close button, progress bars) — Instagram draws the real one on top.
 ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
                         let editModel = getModel("image")
                         const fixed = await editExistingImage(imageBuffer, fixPrompt, {
