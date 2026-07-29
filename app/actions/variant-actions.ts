@@ -2,6 +2,7 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess } from "@/lib/auth-guard"
+import { isMediumType, type MediumType } from "@/lib/credits"
 
 // ─── Post Revision ───────────────────────────────────────────
 
@@ -186,12 +187,13 @@ export async function generatePostVariant(
         // Credit gate — variants run the full pipeline (Pro copy + render) and were
         // previously generated for FREE (billing leak). Weighted by the original's
         // medium: the variant is forced to the same medium for a fair A/B comparison.
-        let variantMedium: "image" | "carousel" | "reel" =
-            original.media_type === "carousel" || original.media_type === "reel"
-                ? original.media_type
-                : "image"
-        // Reels kill-switch: the engine would clamp a reel to carousel anyway — bill the carousel.
+        // Narrowed through isMediumType, not a hand-written whitelist: the old ternary
+        // fell through to "image" for anything it didn't name, so a new medium was
+        // silently billed at the cheapest rate (a story variant = 1 credit instead of 2).
+        let variantMedium: MediumType = isMediumType(original.media_type) ? original.media_type : "image"
+        // Kill-switches: the engine would clamp these anyway — bill what it will deliver.
         if (variantMedium === "reel" && process.env.REELS_ENABLED !== "1") variantMedium = "carousel"
+        if (variantMedium === "story" && process.env.STORIES_ENABLED !== "1") variantMedium = "image"
         const { creditGuard } = await import("./credit-guard")
         const guard = await creditGuard(projectSlug, "post_variant", undefined, variantMedium)
         if (!guard.ok) {

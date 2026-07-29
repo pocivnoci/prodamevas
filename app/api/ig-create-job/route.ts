@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
+import { isMediumType, type MediumType } from "@/lib/credits"
 
 export const maxDuration = 10 // Fast — just creates a job record
 
@@ -55,8 +56,8 @@ export async function POST(req: Request) {
         // configured format. The engine can only clamp DOWN from this (chargedMedium cap
         // in generateOnePost), so the charge is always >= the delivered medium's cost —
         // any downward clamp is refunded via reconcileJobCharge in ig-run-job.
-        let chargedMedium: "image" | "carousel" | "reel" = "image"
-        if (body.medium === "carousel" || body.medium === "reel" || body.medium === "image") {
+        let chargedMedium: MediumType = "image"
+        if (isMediumType(body.medium)) {
             chargedMedium = body.medium
         } else if (body.type) {
             try {
@@ -66,8 +67,11 @@ export async function POST(req: Request) {
                 chargedMedium = getPostFormat(config, body.type).medium
             } catch { /* keep image (cheapest) — engine will clamp to it */ }
         }
-        // Reels kill-switch: never bill a reel the engine is globally forbidden to make
+        // Kill-switches: never bill a medium the engine is globally forbidden to make.
+        // The fallbacks must mirror applyFormatClamps in instagram/format-clamps.ts —
+        // a mismatch charges for one medium and delivers another.
         if (process.env.REELS_ENABLED !== "1" && chargedMedium === "reel") chargedMedium = "carousel"
+        if (process.env.STORIES_ENABLED !== "1" && chargedMedium === "story") chargedMedium = "image"
 
         // Media gating: reels only from the Růst tier up (admin bypass)
         let allowedMedia: string[] | undefined
@@ -85,6 +89,17 @@ export async function POST(req: Request) {
                 // Implicit reel (from post type) on a plan without reels — engine clamps
                 // to carousel, so bill the carousel.
                 chargedMedium = "carousel"
+            }
+            if ((body.medium === "story" || chargedMedium === "story") && !canUseMedium(sub?.features, "story")) {
+                if (body.medium === "story") {
+                    return NextResponse.json(
+                        { success: false, error: "Stories nejsou v tomto balíčku dostupné.", featureBlocked: true, planRequired: "Start" },
+                        { status: 403 }
+                    )
+                }
+                // Implicit story (from post type) on a plan without stories — the engine
+                // clamps to a single image, so bill the image.
+                chargedMedium = "image"
             }
         }
 

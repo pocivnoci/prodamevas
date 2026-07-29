@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { trackEvent } from "@/lib/analytics"
+import { ALL_MEDIA } from "@/lib/credits"
 
 export type StudioSection =
     | "dashboard"
@@ -69,6 +70,10 @@ export interface SubscriptionState {
     isTrial: boolean
     // v3: growth tiers
     allowedMedia: string[]
+    /** Global engine kill-switches (env). Distinct from allowedMedia, which is the
+     *  per-plan gate: a medium must pass BOTH to be offered in the picker. */
+    reelsEnabled: boolean
+    storiesEnabled: boolean
     growthTracking: boolean
 }
 
@@ -135,7 +140,12 @@ export function StudioProvider({ children }: { children: ReactNode }) {
                     planPostsTotal: data.planPostsTotal ?? 0,
                     planGeneratedAt: data.planGeneratedAt ?? null,
                     isTrial: data.isTrial ?? false,
-                    allowedMedia: data.allowedMedia ?? ["image", "carousel", "reel"],
+                    allowedMedia: data.allowedMedia ?? ALL_MEDIA,
+                    // Default OFF: an older API response without the flag means we can't
+                    // prove the engine will honour the medium, and offering it would be
+                    // the "reel that ships as a carousel" bug.
+                    reelsEnabled: data.reelsEnabled ?? false,
+                    storiesEnabled: data.storiesEnabled ?? false,
                     growthTracking: data.growthTracking ?? false,
                 } : null)
             } else {

@@ -12,9 +12,19 @@
  * avoid destabilizing the working IG flow.
  */
 
+import type { MediumType } from "@/lib/credits"
+
 export type Channel = "instagram" | "linkedin" | "facebook"
 
-export type MediaType = "image" | "carousel" | "reel" | "video" | "text"
+/** What a channel can be asked to publish. Deliberately a SUPERSET of the engine's
+ *  MediumType — it also carries shapes other channels need (bare `video`, text-only
+ *  posts) that the IG pipeline never produces. The guard below makes the subset
+ *  relation a compile error to break, so a new engine medium can't reach a channel
+ *  adapter as an unhandled string. */
+export type MediaType = "image" | "carousel" | "reel" | "story" | "video" | "text"
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _EveryMediumIsPublishable = MediumType extends MediaType ? true : never
 
 /** What a channel allows — used to validate/shape generation output. */
 export interface ChannelConstraints {

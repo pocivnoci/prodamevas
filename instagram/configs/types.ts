@@ -7,6 +7,7 @@
 
 import type { BrandVoiceConfig } from "../types"
 import type { FeedPatternId } from "../../lib/feed-pattern"
+import type { MediumType } from "../../lib/credits"
 
 // ─── Product ────────────────────────────────────────────────
 
@@ -35,7 +36,10 @@ export interface PillarCategory {
     prompt?: string
     /** Weight within pillar (0-1, all categories should sum to ~1.0). Default = equal */
     weight?: number
-    /** Preferred medium: undefined/"auto" = system decides */
+    /** Preferred medium: undefined/"auto" = system decides.
+     *  Deliberately narrower than PostMedium — steering the autopilot into a reel or a
+     *  story from a pillar category is a content-plan decision, and plans don't carry
+     *  stories yet. Widen together with content-plan-actions.ts. */
     medium?: "auto" | "image" | "carousel"
     /** Preferred overlay style: undefined/"auto" = system decides based on post type */
     overlayStyle?: "auto" | "default" | "top" | "cover" | "editorial" | "centered" | "none"
@@ -115,13 +119,15 @@ export interface OverlayGradient {
 // ─── Post Format ────────────────────────────────────────────
 
 export type AspectRatio = "1:1" | "4:5" | "3:4" | "4:3" | "9:16" | "16:9"
-export type PostMedium = "image" | "carousel" | "reel"
+/** Defined by the credit table (lib/credits.ts) — every renderable medium is priced.
+ *  Adding a medium there is what opens it here; there is no second list to sync. */
+export type PostMedium = MediumType
 export type OverlayStyle = "default" | "cover" | "step" | "minimal" | "none" | "centered" | "top" | "split" | "full-typo" | "editorial"
 
 export interface PostFormat {
     /** Image/video aspect ratio */
     aspectRatio: AspectRatio
-    /** Post type: single image, carousel, or reel */
+    /** Post type: single image, story set, carousel, or reel */
     medium: PostMedium
     /** Text overlay style */
     overlayStyle: OverlayStyle

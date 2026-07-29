@@ -4,6 +4,7 @@ import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess } from "@/lib/auth-guard"
 import { reconcileFormats } from "@/instagram/configs/reconcile"
 import type { OverlayStyle } from "@/instagram/configs/types"
+import { isMediumType, type MediumType } from "@/lib/credits"
 
 export async function getClientConfig(projectSlug: string): Promise<any> {
     try {
@@ -102,7 +103,7 @@ export interface PostFormatInput {
     visualStyle?: string
     /** Content pillar key (must exist in config.contentPillars) */
     pillar: string
-    medium: "image" | "carousel" | "reel"
+    medium: MediumType
     aspectRatio: "1:1" | "4:5" | "3:4" | "9:16"
     uses_product: boolean
     /** true = only selectable manually in the Generate tab; excluded from autopilot
@@ -122,12 +123,19 @@ const STATIC_OVERLAY_STYLES: OverlayStyle[] =
     ["default", "cover", "top", "centered", "editorial", "split", "minimal", "full-typo", "step"]
 
 /** Resolve the render overlay style, enforcing the hard rule: reels are text-free
- *  ("none"); a static image/carousel may NEVER be "none". Honors the user's choice
- *  when valid, else falls back to the medium-derived default. */
-function resolveOverlayStyle(medium: "image" | "carousel" | "reel", chosen?: OverlayStyle): OverlayStyle {
+ *  ("none"); any static medium — image, carousel, story — may NEVER be "none".
+ *  A story is typography-led (it IS the text), so it keeps the full style choice.
+ *  Honors the user's choice when valid, else falls back to the medium-derived default. */
+function resolveOverlayStyle(medium: MediumType, chosen?: OverlayStyle): OverlayStyle {
     if (medium === "reel") return "none"
     if (chosen && STATIC_OVERLAY_STYLES.includes(chosen)) return chosen
     return medium === "carousel" ? "cover" : "default"
+}
+
+/** Media rendered in a 9:16 frame. Feed media must use a feed-legal ratio instead —
+ *  mirrors VERTICAL_MEDIA in instagram/format-clamps.ts, which is the enforcing copy. */
+function isVerticalMedium(medium: MediumType): boolean {
+    return medium === "reel" || medium === "story"
 }
 
 /**
@@ -206,8 +214,8 @@ Pravidla: konkrétní pro tuhle značku, ne generické. "uses_product" = true je
             return { success: false, error: "AI návrh se nepovedl — zkus jiné slovo nebo vyplň ručně." }
         }
 
-        const medium = (["image", "carousel", "reel"].includes(parsed.medium) ? parsed.medium : "image") as PostFormatInput["medium"]
-        const aspectRatio = (medium === "reel"
+        const medium: PostFormatInput["medium"] = isMediumType(parsed.medium) ? parsed.medium : "image"
+        const aspectRatio = (isVerticalMedium(medium)
             ? "9:16"
             : (["1:1", "4:5", "3:4"].includes(parsed.aspectRatio) ? parsed.aspectRatio : "4:5")) as PostFormatInput["aspectRatio"]
         // Safety net for the manualOnly rule: a giveaway must never fall into autopilot
@@ -258,8 +266,8 @@ export async function upsertPostFormat(
             return { success: false, error: `Téma "${input.pillar}" v konfiguraci neexistuje` }
         }
 
-        // Reels are 9:16 only; feed media must use a feed-legal ratio.
-        const aspectRatio = input.medium === "reel"
+        // Reels and stories are 9:16 only; feed media must use a feed-legal ratio.
+        const aspectRatio = isVerticalMedium(input.medium)
             ? "9:16"
             : (["1:1", "4:5", "3:4"].includes(input.aspectRatio) ? input.aspectRatio : "4:5")
 

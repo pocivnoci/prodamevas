@@ -36,7 +36,7 @@ import {
 } from "./service"
 import { computeSlotIntent, type SlotIntent } from "../lib/feed-pattern"
 import { loadConfig } from "./configs"
-import type { ClientConfig, PostFormat } from "./configs/types"
+import type { ClientConfig, PostFormat, PostMedium } from "./configs/types"
 import type { PostType, PostIdea, Review } from "./types"
 
 // Module imports (refactored from monolith)
@@ -157,7 +157,7 @@ export async function generateOnePost(options: {
     dryRun?: boolean
     performance?: PerformanceInsight
     aspectRatio?: string
-    medium?: "image" | "carousel" | "reel"
+    medium?: PostMedium
     /** User's own uploaded photo — becomes the mandatory VISUAL BASE of the native render
      *  (designed on/around, never published raw). Ignored for reels. */
     customImageUrl?: string
@@ -179,7 +179,7 @@ export async function generateOnePost(options: {
     /** Media allowed by the subscription plan (undefined = everything; legacy plans). Disallowed medium gets clamped to carousel. */
     allowedMedia?: string[]
     /** Medium the job was charged for (media-weighted credits) — the engine never renders a more expensive one. */
-    chargedMedium?: "image" | "carousel" | "reel"
+    chargedMedium?: PostMedium
     /** ig_jobs id — enables writing the caption checkpoint for crash-resume. */
     jobId?: string
     /** Prior checkpoint from a failed job — skips the caption phase (copywriter/critic/editorial). */
@@ -189,7 +189,7 @@ export async function generateOnePost(options: {
      *  posts — those derive it from the live feed. */
     slotIntent?: SlotIntent
     onProgress?: (stage: string, progress: number, message: string, editorialLog?: EditorialMessage[]) => Promise<void>
-}): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number; mediaType: "image" | "carousel" | "reel" }> {
+}): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number; mediaType: PostMedium }> {
     const report = options.onProgress || (async () => { }) // no-op if not provided
     const clientUuid = await ensureConfig(options.configName)
     const ck = options.resumeFrom?.stage === "caption" ? options.resumeFrom : undefined
@@ -595,21 +595,11 @@ export async function generateOnePost(options: {
 
     // Caption-phase state — filled either from the checkpoint (resume) or by the
     // full caption phase below (copywriter → dedup → critic → editorial).
-    type CaptionPhaseData = {
-        angle?: string
-        hook: string
-        body?: string
-        cta: string
-        hashtags: string[]
-        imagePrompt?: string
-        imageSubtext?: string
-        accentWords?: string[]
-        videoScript?: string
-        scenes?: { timeRange: string; visual: string; camera: string; mood: string; narration?: string; soundEffect?: string }[]
-        caption?: string
-        slides?: { headline: string; subtext: string; imagePrompt: string }[]
-        visualTheme?: string
-    }
+    // Deliberately an ALIAS of the orchestrators' CaptionData, not a copy: this used
+    // to be a hand-maintained duplicate of the same 13 fields, so every new medium's
+    // payload (slides, scenes, frames…) had to be added in two places or the caption
+    // phase silently dropped it on the way to the renderer.
+    type CaptionPhaseData = CaptionData
     let captionData: CaptionPhaseData
     let megaPrompt = ""
     let captionModel = getModel("textPro")

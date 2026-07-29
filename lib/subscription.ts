@@ -64,7 +64,7 @@ export const ACTION_CREDITS: Record<ActionType, number> = {
  * below cost. Weighting the charge caps the worst case by construction.
  * Weights live in lib/credits.ts (client-safe) — re-exported here for the backend.
  */
-export { MEDIA_CREDITS, creditsForMedia } from "@/lib/credits"
+export { MEDIA_CREDITS, creditsForMedia, ALL_MEDIA, isMediumType } from "@/lib/credits"
 import { creditsForMedia as _creditsForMedia } from "@/lib/credits"
 
 /** Weighted credit cost for an action: post/post_variant scale with medium, the rest are flat. */
@@ -86,7 +86,10 @@ export const ACTION_LABELS: Record<ActionType, string> = {
     product_line: "Produktová řada",
 }
 
-export type MediumType = "image" | "carousel" | "reel"
+/** Derived from MEDIA_CREDITS — see lib/credits.ts. Re-exported so backend callers
+ *  don't need a second import path; this is NOT a second definition. */
+export type { MediumType } from "@/lib/credits"
+import type { MediumType } from "@/lib/credits"
 
 export interface PlanFeatures {
     credits_per_month: number
