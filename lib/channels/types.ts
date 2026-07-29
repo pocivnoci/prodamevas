@@ -53,8 +53,22 @@ export interface FormattedContent {
 }
 
 export interface PublishResult {
+    /** The media object to treat as THE post — for a multi-object publish (story set)
+     *  this is the FIRST one: the natural anchor for the permalink and for metrics. */
     externalId: string
     permalink?: string
+    /** Every media object created, in order. Only multi-object publishes set this. */
+    externalIds?: string[]
+    /**
+     * Set when SOME objects published and a later one failed.
+     *
+     * This exists because `ig_posts` has a single `ig_media_id` and no per-object
+     * cursor: re-arming such a post would republish the objects that already went
+     * live (up to MAX_ATTEMPTS times). A partial publish is therefore TERMINAL —
+     * the caller records it as `posted` with the error in `publish_error` and never
+     * retries. If a resume cursor is ever added, it belongs here.
+     */
+    partial?: { publishedCount: number; total: number; error: string }
 }
 
 export interface ChannelMetrics {

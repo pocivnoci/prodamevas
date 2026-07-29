@@ -159,7 +159,8 @@ export async function retryPublishAction(
  * manual step. We deliberately DON'T call the Graph publish synchronously here, so
  * a slow carousel (container polling) can't time out a server action — the cron
  * owns that with its 800s budget. Requires a live connection; reels are rejected
- * (auto-publish has no video path — those go through the manual handoff).
+ * (auto-publish has no video path — those go through the manual handoff). Stories
+ * ARE supported: they publish as one STORIES container per frame.
  */
 export async function publishNowAction(
     postId: string,
@@ -177,7 +178,10 @@ export async function publishNowAction(
             .select("media_type, image_url")
             .eq("id", postId)
             .single()
-        const mediaType = post?.media_type || ((post?.image_url || "").includes("|") ? "carousel" : "image")
+        // Same parser as the publisher cron, so the two can't disagree about what a
+        // pipe-joined image_url means.
+        const { parsePostMedia } = await import("@/lib/media-urls")
+        const mediaType = parsePostMedia(post?.image_url, post?.media_type).kind
         if (mediaType === "reel") {
             return { success: false, error: "Reels zatím nejdou publikovat automaticky — použij ruční sdílení." }
         }

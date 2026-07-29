@@ -99,7 +99,7 @@ export const instagramAdapter: ChannelAdapter = {
         maxCaptionChars: 2200,
         supportsHashtags: true,
         hashtagSweetSpot: [8, 15],
-        mediaTypes: ["image", "carousel", "reel"],
+        mediaTypes: ["image", "story", "carousel", "reel"],
         aspectRatios: ["1:1", "4:5", "9:16"],
     },
 
@@ -120,36 +120,91 @@ export const instagramAdapter: ChannelAdapter = {
             throw new Error("IG publish: žádné mediální URL k publikování.")
         }
 
-        // Reels/video publishing is deferred (no video storage path yet).
-        if (content.mediaType === "reel" || content.mediaType === "video") {
-            throw new ChannelNotEnabledError("instagram", "reel/video publishing")
-        }
-
         let creationId: string
 
-        if (content.mediaType === "carousel" && mediaUrls.length > 1) {
-            // 1) a child container per slide (no caption on children)
-            const childIds: string[] = []
-            for (const url of mediaUrls) {
-                const childId = await createContainer(igUserId, accessToken, {
-                    image_url: url,
-                    is_carousel_item: "true",
-                })
-                await waitForContainer(childId, accessToken)
-                childIds.push(childId)
+        // Exhaustive on mediaType. The old shape had an `else` that treated anything
+        // non-carousel as a plain feed image — which would have silently posted a STORY
+        // to the feed, permanently, on a customer's real account. A new medium must be
+        // a build error here, not a wrong post.
+        switch (content.mediaType) {
+            case "reel":
+            case "video":
+                // Reels/video publishing is deferred (no video storage path yet).
+                throw new ChannelNotEnabledError("instagram", "reel/video publishing")
+
+            case "story": {
+                // One STORIES container per frame, published in order. Stories have no
+                // carousel form and Instagram ignores `caption` on them, so neither is sent.
+                const ids: string[] = []
+                for (const [i, url] of mediaUrls.entries()) {
+                    try {
+                        const frameId = await createContainer(igUserId, accessToken, {
+                            media_type: "STORIES",
+                            image_url: url,
+                        })
+                        await waitForContainer(frameId, accessToken)
+                        ids.push(await publishContainer(igUserId, accessToken, frameId))
+                    } catch (err: any) {
+                        // Frame 1 failing means nothing shipped — a clean retry is correct.
+                        if (i === 0) throw err
+                        // A LATER frame failing is not retryable: ig_posts has one
+                        // ig_media_id and no per-frame cursor, so re-arming would
+                        // republish the frames already live. Report partial success and
+                        // let the caller close the post out.
+                        return {
+                            externalId: ids[0],
+                            externalIds: ids,
+                            partial: {
+                                publishedCount: ids.length,
+                                total: mediaUrls.length,
+                                error: err?.message || String(err),
+                            },
+                        }
+                    }
+                }
+                let storyPermalink: string | undefined
+                try {
+                    const meta = await graphGet(`${ids[0]}?fields=permalink`, accessToken)
+                    storyPermalink = meta?.permalink || undefined
+                } catch {
+                    /* stories expire in 24h — a permalink is a nicety at best */
+                }
+                return { externalId: ids[0], externalIds: ids, permalink: storyPermalink }
             }
-            // 2) the parent carousel container (caption lives here)
-            creationId = await createContainer(igUserId, accessToken, {
-                media_type: "CAROUSEL",
-                children: childIds.join(","),
-                caption,
-            })
-        } else {
-            // Single image (carousel with one slide degrades to a normal image post).
-            creationId = await createContainer(igUserId, accessToken, {
-                image_url: mediaUrls[0],
-                caption,
-            })
+
+            case "carousel":
+                if (mediaUrls.length > 1) {
+                    // 1) a child container per slide (no caption on children)
+                    const childIds: string[] = []
+                    for (const url of mediaUrls) {
+                        const childId = await createContainer(igUserId, accessToken, {
+                            image_url: url,
+                            is_carousel_item: "true",
+                        })
+                        await waitForContainer(childId, accessToken)
+                        childIds.push(childId)
+                    }
+                    // 2) the parent carousel container (caption lives here)
+                    creationId = await createContainer(igUserId, accessToken, {
+                        media_type: "CAROUSEL",
+                        children: childIds.join(","),
+                        caption,
+                    })
+                    break
+                }
+                // A one-slide carousel degrades to a normal image post.
+                creationId = await createContainer(igUserId, accessToken, { image_url: mediaUrls[0], caption })
+                break
+
+            case "image":
+            case "text":
+                creationId = await createContainer(igUserId, accessToken, { image_url: mediaUrls[0], caption })
+                break
+
+            default: {
+                const _never: never = content.mediaType
+                throw new ChannelNotEnabledError("instagram", `media type ${String(_never)}`)
+            }
         }
 
         // 3) wait for the (parent) container to be publishable, then publish.
