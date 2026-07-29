@@ -13,6 +13,7 @@ import { getConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPost } from "./types"
 import { trackEvent } from "@/lib/analytics"
+import { parsePostMedia } from "@/lib/media-urls"
 import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
 
 // ═══════════════════════════════════════════════════════════
@@ -25,6 +26,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
     const [loadingMore, setLoadingMore] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [statusFilter, setStatusFilter] = useState("all")
+    const [mediaFilter, setMediaFilter] = useState("all")
     const [selectedPost, setSelectedPost] = useState<IGPost | null>(null)
     const [handoffPost, setHandoffPost] = useState<IGPost | null>(null)
     const [igConnected, setIgConnected] = useState(false)
@@ -43,7 +45,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
         }
         setError(null)
         try {
-            const result = await getIGPostsList(statusFilter, projectId, pageNum)
+            const result = await getIGPostsList(statusFilter, projectId, pageNum, 15, mediaFilter)
             if (append) {
                 setPosts(prev => [...prev, ...result.posts])
             } else {
@@ -62,7 +64,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
 
     const loadMore = () => loadPosts(page + 1, true)
 
-    useEffect(() => { loadPosts(0) }, [statusFilter, projectId])
+    useEffect(() => { loadPosts(0) }, [statusFilter, mediaFilter, projectId])
 
     useEffect(() => {
         if (!projectId) return
@@ -119,6 +121,29 @@ export function PostsTab({ projectId }: { projectId: string }) {
                 <span className="text-xs font-mono uppercase tracking-widest text-white/40 ml-auto whitespace-nowrap pl-4">{posts.length} z {total} příspěvků</span>
             </div>
 
+            {/* Media filter — server-side (see getIGPostsList), because filtering a 15-row
+                page in the browser would hide most matches and look broken. */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide -mt-3">
+                {[
+                    { value: "all", label: "Vše" },
+                    { value: "image", label: "🖼️ Obrázky" },
+                    { value: "story", label: "📱 Stories" },
+                    { value: "carousel", label: "📸 Carousely" },
+                    { value: "reel", label: "🎬 Reels" },
+                ].map(m => (
+                    <button
+                        key={m.value}
+                        onClick={() => setMediaFilter(m.value)}
+                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all whitespace-nowrap border ${mediaFilter === m.value
+                            ? "bg-white/10 text-white/80 border-white/20"
+                            : "text-white/30 bg-transparent border-white/5 hover:text-white/60"
+                            }`}
+                    >
+                        {m.label}
+                    </button>
+                ))}
+            </div>
+
             {/* Bulk actions bar */}
             {posts.length > 0 && (
                 <div className="flex items-center justify-between gap-3 bg-[#0a0a0a] border border-white/5 rounded-sm px-4 py-3">
@@ -165,7 +190,11 @@ export function PostsTab({ projectId }: { projectId: string }) {
                     visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
                 }}
             >
-                {posts.map(post => (
+                {posts.map(post => {
+                    // media_type decides — the old code sniffed the pipe in image_url, which
+                    // labelled a 3-frame story "3 slidů" and put an .mp4 in an <img>.
+                    const cardMedia = parsePostMedia(post.image_url, post.media_type)
+                    return (
                     <motion.div
                         variants={{
                             hidden: { opacity: 0, scale: 0.98, y: 15 },
@@ -203,17 +232,23 @@ export function PostsTab({ projectId }: { projectId: string }) {
                             className="p-3 cursor-pointer group flex flex-col flex-1"
                         >
                         {/* Image Preview */}
-                        {post.image_url ? (
-                            <div className="w-full h-56 rounded-sm bg-[#0f0f0f] overflow-hidden relative mb-4">
+                        {cardMedia.thumbUrl ? (
+                            // Fixed row height keeps the grid aligned; a story is centred inside
+                            // it at 9:16 rather than being centre-cropped to look like a feed post.
+                            <div className={`w-full h-56 rounded-sm bg-[#0f0f0f] overflow-hidden relative mb-4 ${cardMedia.aspect === "vertical" ? "flex items-center justify-center" : ""}`}>
                                 <img
-                                    src={post.image_url.split("|")[0]}
+                                    src={cardMedia.thumbUrl}
                                     alt=""
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                                    className={`object-cover group-hover:scale-105 transition-transform duration-700 ease-out ${cardMedia.aspect === "vertical" ? "h-full aspect-[9/16] rounded-sm" : "w-full h-full"}`}
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
-                                {post.image_url.includes("|") && (
+                                {cardMedia.kind === "story" ? (
                                     <span className="absolute top-2 right-2 bg-black/70 border border-white/20 text-white/80 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm backdrop-blur-sm">
-                                        📸 {post.image_url.split("|").length} slidů
+                                        📱 Story · {cardMedia.slideCount} {cardMedia.slideCount === 1 ? "snímek" : cardMedia.slideCount < 5 ? "snímky" : "snímků"}
+                                    </span>
+                                ) : cardMedia.kind === "carousel" && (
+                                    <span className="absolute top-2 right-2 bg-black/70 border border-white/20 text-white/80 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm backdrop-blur-sm">
+                                        📸 {cardMedia.slideCount} slidů
                                     </span>
                                 )}
                                 {post.qa_status === "native_forced" && (
@@ -304,7 +339,8 @@ export function PostsTab({ projectId }: { projectId: string }) {
                         </div>
                         )}
                     </motion.div>
-                ))}
+                    )
+                })}
             </motion.div>
 
             {/* Load More */}
@@ -462,8 +498,10 @@ function PostDetailModal({
         getEditorialLog(post.id).then(setEditorialLog)
     }, [post.id])
 
-    const imageUrls = post.image_url ? post.image_url.split("|").filter(Boolean) : []
-    const isCarousel = imageUrls.length > 1
+    const media = parsePostMedia(post.image_url, post.media_type)
+    const imageUrls = media.urls
+    // Multi-frame stories step through exactly like a carousel does — same arrows, same dots.
+    const isCarousel = media.slideCount > 1
 
     // Lock ALL scroll containers when modal is open
     useEffect(() => {

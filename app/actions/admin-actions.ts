@@ -177,10 +177,15 @@ export async function getIGPostsList(
     statusFilter: string | undefined,
     projectSlug: string,
     page: number = 0,
-    pageSize: number = 15
+    pageSize: number = 15,
+    /** Filter by ig_posts.media_type ("story", "carousel"…). Applied server-side and to
+     *  the count — filtering a 15-row page in the browser would drop most matches and
+     *  look broken. Legacy rows have a NULL media_type and match nothing but "all". */
+    mediaFilter?: string,
 ): Promise<{ posts: IGPost[]; total: number; hasMore: boolean }> {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
+        const media = mediaFilter && mediaFilter !== "all" ? mediaFilter : undefined
 
         // Count total for pagination
         let countQuery = supabaseAdmin
@@ -192,6 +197,7 @@ export async function getIGPostsList(
             if (statusFilter === "draft") countQuery = countQuery.in("status", ["draft", "plan_draft"])
             else countQuery = countQuery.eq("status", statusFilter)
         }
+        if (media) countQuery = countQuery.eq("media_type", media)
         const { count } = await countQuery
         const total = count || 0
 
@@ -218,6 +224,7 @@ export async function getIGPostsList(
             if (statusFilter === "draft") query = query.in("status", ["draft", "plan_draft"])
             else query = query.eq("status", statusFilter)
         }
+        if (media) query = query.eq("media_type", media)
 
         const { data, error } = await query
         if (error) {
