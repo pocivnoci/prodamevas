@@ -11,6 +11,19 @@ import { getAvailableIGClients, isCurrentUserSuperAdmin } from "@/app/actions/ad
 
 type ClientInfo = { id: string; name: string; icon: string; description: string }
 
+/** Last tenant the user picked in the sidebar. Value is a client SLUG (StudioContext's
+ *  `projectId` is a slug despite the name). Only ever trusted after it is matched
+ *  against the list getAvailableIGClients() returns for the current session. */
+const PROJECT_STORAGE_KEY = "chrlit_active_project"
+
+function readStoredProject(): string | null {
+    try {
+        return localStorage.getItem(PROJECT_STORAGE_KEY)
+    } catch {
+        return null // private mode / storage disabled
+    }
+}
+
 interface NavItem {
     id: StudioSection
     label: string
@@ -116,15 +129,35 @@ export function AdminSidebar() {
         getAvailableIGClients().then(data => {
             setClients(data)
             if (data.length > 0 && !projectId) {
-                // Deep link (e.g. from the plan-ready e-mail): ?project=<id> selects
-                // the project; anything not in the user's client list falls through.
+                // Precedence: explicit deep link → last selection → first client.
+                //
+                // `projectId` is plain React state, so a reload wipes it. "Aktualizovat"
+                // is window.location.reload(), which meant every refresh silently threw
+                // you back to clients[0] — and because activeSection rides the URL hash
+                // and DOES survive, you stayed on the same tab while the tenant under it
+                // changed. Persisting the choice is what makes refresh non-destructive.
+                //
+                // Every candidate is validated against the user's OWN list before it can
+                // select anything: a stale slug (access revoked, another account on a
+                // shared browser) must fall through to clients[0], never resolve.
                 const wanted = new URLSearchParams(window.location.search).get("project")
-                const match = wanted ? data.find(c => c.id === wanted) : undefined
-                setProjectId(match ? match.id : data[0].id)
+                const stored = readStoredProject()
+                const pick = [wanted, stored].find(id => id && data.some(c => c.id === id))
+                setProjectId(pick || data[0].id)
             }
         })
         isCurrentUserSuperAdmin().then(setIsAdmin)
     }, [])
+
+    // Remember the active tenant across reloads (see precedence note above).
+    useEffect(() => {
+        if (!projectId) return
+        try {
+            localStorage.setItem(PROJECT_STORAGE_KEY, projectId)
+        } catch {
+            // Private mode / storage disabled — selection just won't survive a reload.
+        }
+    }, [projectId])
 
     // Close on Escape
     useEffect(() => {
