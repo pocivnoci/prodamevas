@@ -192,6 +192,27 @@ Targeted Edit Loop (post-edit-actions.ts, v8.6)
 > [!NOTE]
 > Feedback loop is **automatic** — triggered when user saves metrics via `updateIGPostMetrics()`. Manual trigger: `POST /api/ig-learn { configName }`.
 
+> [!WARNING]
+> **Smyčka je jen tak silná jako její nejtišší článek (v8.7).** Audit našel čtyři místa,
+> kde se do `ig_brand_memory` roky zapisovalo a nikdo odtud nečetl — bez jediného logu:
+>
+> - **Typový filtr musí být v DOTAZU.** `getBrandMemories(limit, clientId, pillar, topic, types)`
+>   aplikuje limit v SQL. Starý vzorec `getBrandMemories(5)` + `.filter(m => m.memory_type === "visual")`
+>   vracel prázdno, jakmile měl klient 5 textových pamětí s vyšší confidence — vizuální paměť
+>   tak zmizela z promptu AI Designera i z tiskového briefu. `learnFromCriticInsights` přitom
+>   zapisuje `avoid` po KAŽDÉM postu, takže textové paměti vizuální nevyhnutelně přerostou.
+> - **Vizuální učení čte `ig_posts.design_brief`**, ne `image_prompt`. V native enginu je
+>   `image_prompt` surový nápad copywritera („NO TEXT in image"); co se opravdu vyrenderovalo,
+>   nese brief (`layoutArchetype`, `typography.placement`, `colorTreatment`).
+> - **`clientId` explicitně, `catch` vždy s logem.** Pád na `getActiveProject()` mimo
+>   `withActiveProject` scope vyhodí výjimku; prázdný `catch {}` z ní udělá neviditelné selhání.
+> - **Nulové metriky ≠ výkonnostní data.** Learning sekce mega promptu je gatovaná na
+>   `avgEngagement > 0` — bez toho se posledních 5 postů injektovalo jako „Zlaté hooky
+>   (nejlepší dosah)" a copywriter dostal pokyn kopírovat jejich rytmus.
+>
+> Nový datový zdroj do smyčky ⇒ ověř, že se ke svému konzumentovi opravdu dostane.
+> Statické aserce: §16 v `test-beta-e2e.ts`, `scripts/test-prompt-assembly.ts`.
+
 ### Pravidla atribuce nápadů (v7.5, rozšířeno v7.6)
 
 Aby `propagateMetricsToSources` nekreditoval nápad za post, který nedriveoval:

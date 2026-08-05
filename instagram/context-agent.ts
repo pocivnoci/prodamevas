@@ -201,11 +201,21 @@ Vrať POUZE validní JSON:
 // FORMAT FOR MEGA PROMPT
 // ============================================
 
+/** How many pulse bullets one post sees. The agent returns 4; handing all of them to
+ *  every post in a campaign is what made seven posts share one seasonal angle. */
+const PULSE_PER_POST = 2
+
 /**
  * Format gathered context into a lean prompt section.
  * Copywriter gets context as optional inspiration, not mandatory instructions.
+ *
+ * `offset` rotates WHICH pulse bullets this post sees. The context is gathered once per
+ * client per 6h (and deliberately before the post type is known), so a 7-post campaign
+ * generated in a single worker run got the identical four bullets seven times — directly
+ * under an instruction saying a post detached from reality is a failure. Rotating is
+ * deterministic, costs no extra call and keeps the cache intact.
  */
-export function formatContextForPrompt(ctx: ContextSignals): string {
+export function formatContextForPrompt(ctx: ContextSignals, offset = 0): string {
     const parts: string[] = []
 
     parts.push(`\n\n## 🌍 KONTEXT (${ctx.date}, ${ctx.isWeekend ? "víkend" : "pracovní den"} — ${ctx.season})`)
@@ -218,10 +228,14 @@ export function formatContextForPrompt(ctx: ContextSignals): string {
         parts.push(`💰 ${ctx.monthPhase}`)
     }
 
-    // AI pulse
+    // AI pulse — rotated slice, so consecutive posts in a campaign get different angles.
     if (ctx.pulse.length > 0) {
+        const start = ((offset % ctx.pulse.length) + ctx.pulse.length) % ctx.pulse.length
+        const picked = ctx.pulse.length <= PULSE_PER_POST
+            ? ctx.pulse
+            : Array.from({ length: PULSE_PER_POST }, (_, i) => ctx.pulse[(start + i) % ctx.pulse.length])
         parts.push("")
-        for (const item of ctx.pulse) {
+        for (const item of picked) {
             parts.push(`• ${item}`)
         }
     }

@@ -38,6 +38,8 @@ export interface BrandMemory {
 // READ MEMORIES (for mega prompt injection)
 // ============================================
 
+export type MemoryType = BrandMemory["memory_type"]
+
 /**
  * Get brand memories for a client — relevance-first (pipeline v2).
  * With a `topic`, memories are retrieved by embedding similarity to the topic
@@ -45,10 +47,24 @@ export interface BrandMemory {
  * stay standing), so the prompt gets guidance that matches what's being written
  * instead of the same top-N-by-confidence set every post. Without a topic, or
  * when embeddings are unavailable, falls back to confidence ordering (legacy).
+ *
+ * `types` filters BEFORE the limit, and that ordering is the whole point. Callers
+ * used to fetch top-N across all types and filter afterwards — so once a client
+ * accumulated 5 text memories with higher confidence, getVisualMemoriesSection got
+ * an empty list forever and the AI Designer silently lost its visual memory section.
+ * The reverse held for the copywriter: visual memories ate slots in a text prompt
+ * that drops them. Filter in the query, not after it.
  */
-export async function getBrandMemories(limit = 10, clientId?: string, pillar?: string, topic?: string): Promise<BrandMemory[]> {
+export async function getBrandMemories(
+    limit = 10,
+    clientId?: string,
+    pillar?: string,
+    topic?: string,
+    types?: MemoryType[],
+): Promise<BrandMemory[]> {
     const cid = clientId ?? getActiveProject()
     const safePillar = pillar && /^[\w-]+$/.test(pillar) ? pillar : undefined
+    const wantTypes = types?.length ? types : undefined
 
     if (topic) {
         try {
@@ -57,17 +73,24 @@ export async function getBrandMemories(limit = 10, clientId?: string, pillar?: s
             await embedPendingMemories(cid)
             const { embedText } = await import("./gemini-client")
             const topicVec = await embedText(topic.substring(0, 500))
+            const wanted = Math.max(1, limit - 3)
             const { data: relevant, error } = await supabaseAdmin.rpc("match_brand_memories", {
                 p_client_id: cid,
                 p_embedding: JSON.stringify(topicVec),
-                p_match_count: Math.max(1, limit - 3),
+                // The RPC has no type parameter, so a type-filtered call over-fetches and
+                // narrows in JS. Adding a param would mean a migration for a filter that
+                // costs nothing here — the row count is bounded by pruneExcessMemories (25).
+                p_match_count: wantTypes ? wanted * 3 : wanted,
                 p_pillar: safePillar ?? null,
             })
-            if (!error && relevant && relevant.length > 0) {
-                const confident = await getMemoriesByConfidence(cid, safePillar, 3)
-                const seen = new Set((relevant as BrandMemory[]).map(m => m.id))
-                const merged = [...(relevant as BrandMemory[]), ...confident.filter(m => !seen.has(m.id))]
-                console.log(`   🧲 Memory relevance: ${relevant.length} k tématu + ${merged.length - relevant.length} top-confidence`)
+            const matched = wantTypes
+                ? ((relevant ?? []) as BrandMemory[]).filter(m => wantTypes.includes(m.memory_type)).slice(0, wanted)
+                : ((relevant ?? []) as BrandMemory[])
+            if (!error && matched.length > 0) {
+                const confident = await getMemoriesByConfidence(cid, safePillar, 3, wantTypes)
+                const seen = new Set(matched.map(m => m.id))
+                const merged = [...matched, ...confident.filter(m => !seen.has(m.id))]
+                console.log(`   🧲 Memory relevance: ${matched.length} k tématu + ${merged.length - matched.length} top-confidence`)
                 return merged.slice(0, limit)
             }
         } catch (err: any) {
@@ -75,16 +98,23 @@ export async function getBrandMemories(limit = 10, clientId?: string, pillar?: s
         }
     }
 
-    return getMemoriesByConfidence(cid, safePillar, limit)
+    return getMemoriesByConfidence(cid, safePillar, limit, wantTypes)
 }
 
 /** Legacy retrieval: top-N by confidence, pillar-scoped (global NULL always included). */
-async function getMemoriesByConfidence(clientId: string, safePillar: string | undefined, limit: number): Promise<BrandMemory[]> {
+async function getMemoriesByConfidence(
+    clientId: string,
+    safePillar: string | undefined,
+    limit: number,
+    types?: MemoryType[],
+): Promise<BrandMemory[]> {
     let query = supabaseAdmin
         .from("ig_brand_memory")
         .select("*")
         .eq("client_id", clientId)
         .gte("confidence", 0.4) // Only include reasonably confident memories
+    // Type scoping BEFORE the limit — see getBrandMemories' doc comment.
+    if (types?.length) query = query.in("memory_type", types)
     // Pillar scoping: include global (NULL) memories PLUS any tagged for THIS pillar, so a
     // lesson learned in one pillar doesn't bleed into another. Regex-guarded upstream
     // (pillar keys are internal config slugs) so a stray value can't break the .or() filter.
@@ -355,9 +385,16 @@ function isSimilarMemory(a: string, b: string): boolean {
 // ============================================
 
 /**
- * Analyze image prompts from top/bottom posts to extract visual rules.
+ * Analyze what the top/bottom posts actually LOOKED like and extract visual rules.
  * Stores results as memory_type = 'visual' in ig_brand_memory.
  * Called from analyzeAndLearn() — Phase 2 pass.
+ *
+ * Reads `design_brief`, not just `image_prompt`. In the native engine `image_prompt` is
+ * the copywriter's raw idea for a text-free background ("NO TEXT in image") — it only
+ * loosely influenced the render, while `design_brief` IS what Nano Banana was given:
+ * layout archetype, typography placement, colour treatment. Correlating engagement with
+ * the former could never produce the one rule that's directly actionable ("typography
+ * lower-left saves 2× better"), because that fact wasn't in the data being analysed.
  */
 async function analyzeVisualPatterns(
     clientId: string,
@@ -369,9 +406,9 @@ async function analyzeVisualPatterns(
     const allIds = [...topPostIds, ...bottomPostIds].slice(0, 20)
     const { data: posts } = await supabaseAdmin
         .from("ig_posts")
-        .select("id, image_prompt, image_style, likes, saves")
+        .select("id, image_prompt, image_style, design_brief, likes, saves")
         .in("id", allIds)
-        .not("image_prompt", "is", null)
+        .or("image_prompt.not.is.null,design_brief.not.is.null")
 
     if (!posts || posts.length < 2) return { created: 0, updated: 0 }
 
@@ -381,16 +418,35 @@ async function analyzeVisualPatterns(
 
     if (topImages.length === 0) return { created: 0, updated: 0 }
 
+    /** What the renderer was actually told — structured brief first, raw idea as fallback. */
+    const describeVisual = (p: any, max: number): string => {
+        const b = p.design_brief
+        if (b) {
+            const parts = [
+                b.layoutArchetype && `layout: ${b.layoutArchetype}`,
+                b.typography?.placement && `text: ${b.typography.placement}`,
+                b.typography?.styleDescription && `typo: ${b.typography.styleDescription}`,
+                b.colorTreatment && `barvy: ${String(b.colorTreatment).substring(0, 80)}`,
+                b.composition && `scéna: ${String(b.composition).substring(0, max)}`,
+            ].filter(Boolean)
+            if (parts.length > 0) return parts.join(" | ")
+        }
+        return (p.image_prompt || "").substring(0, max)
+    }
+
     const visualPrompt = `
-Jsi specialista na vizuální analýzu Instagramu. Analyzuj image prompty těchto postů.
+Jsi specialista na vizuální analýzu Instagramu. Analyzuj, jak tyhle posty vypadaly.
+Každý řádek popisuje SKUTEČNÉ zadání pro renderer: layout, umístění a styl typografie,
+barevné ladění a scénu.
 
 ## VIZUÁLNĚ ÚSPĚŠNÉ POSTY (vysoké saves a engagement):
-${topImages.map((p, i) => `${i + 1}. "${(p.image_prompt || "").substring(0, 200)}" | Saves: ${p.saves || 0}`).join("\n")}
+${topImages.map((p, i) => `${i + 1}. ${describeVisual(p, 200)} | Saves: ${p.saves || 0}`).join("\n")}
 
 ${bottomImages.length > 0 ? `## VIZUÁLNĚ SLABÉ POSTY:
-${bottomImages.map((p, i) => `${i + 1}. "${(p.image_prompt || "").substring(0, 150)}"`).join("\n")}` : ""}
+${bottomImages.map((p, i) => `${i + 1}. ${describeVisual(p, 150)}`).join("\n")}` : ""}
 
-Extrahuj max 2 konkrétní vizuální pravidla (osvětlení, kompozice, barvy, styl, prostředí).
+Extrahuj max 2 konkrétní vizuální pravidla (layout, umístění typografie, osvětlení, kompozice, barvy, prostředí).
+Např.: "Typografie v levém dolním rohu má 2x vyšší saves než centrovaná"
 Např.: "Tmavé pozadí s neon reflexy má 2x vyšší saves než světlé scény"
 
 Vrať POUZE validní JSON pole:

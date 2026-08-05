@@ -331,7 +331,10 @@ export async function logGeneration(log: {
     tokensUsed?: number;
     generationTimeMs?: number;
     error?: string;
-    criticScore?: number;
+    /** null = judge nedoběhl. Záměrně ROZLIŠENO od nízkého skóre: scorePost při selhání
+     *  vrací plochou 7, takže bez null by výpadek soudce byl v datech k nerozeznání od
+     *  průměrného postu. Viz `judged` v scorePost. */
+    criticScore?: number | null;
     criticKeep?: string[];
     criticFix?: string[];
     /** Native visual engine QA outcome: pass | retry_pass | fallback | overlay */

@@ -890,6 +890,135 @@ test("15.9 textová úprava nesmí rozjet re-roll obrázku", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 16. PROMPTOVÝ AUDIT (v8.7) — vrstvy si nesmí protiřečit
+// ═══════════════════════════════════════════════════════════
+
+test("16.1 reelové schéma nese narration + soundEffect (K1)", () => {
+    const code = fileContent("instagram/caption-generator.ts")
+    // responseSchema je whitelist, ne minimum: pole, o které si prompt řekne a schéma
+    // ho nedeklaruje, model NEVRÁTÍ (ověřeno proti gemini-pro-latest 2026-08-05).
+    // Bez těchhle dvou byl scenes[].narration vždy prázdný → generateVoiceover se
+    // nikdy nezavolal, scenesToSubtitles neměl co kreslit a celý FFmpeg krok se přeskočil.
+    assert(/required: \["timeRange", "visual", "camera", "mood", "narration", "soundEffect"\]/.test(code),
+        "scéna reelu musí mít narration i soundEffect v required")
+    // Hloubková verze téhle kontroly (schéma vs. JSON ukázka pro všechna média)
+    // žije v scripts/test-prompt-assembly.ts — tady jen kotva proti tichému návratu.
+    assert(fileExists("scripts/test-prompt-assembly.ts"), "prompt assembly testy musí existovat")
+})
+
+test("16.2 schéma revize umí vrátit slidy i scény (K2)", () => {
+    const code = fileContent("instagram/editorial-board.ts")
+    assert(code.includes("buildCopywriterRevisionSchema"), "schéma revize musí být stavěné, ne fixní")
+    assert(/isCarousel \?/.test(code) && /isReel \?/.test(code),
+        "schéma se musí větvit na stejné dva příznaky jako prompt")
+    assert(code.includes("slides:") && code.includes("scenes:"),
+        "bez slides/scenes nešlo karusel ani reel opravit — editor psal poznámky, které copywriter fyzicky nemohl provést")
+})
+
+test("16.3 skóre se po revizi přehodnotí (K3)", () => {
+    const code = codeOnly("instagram/editorial-board.ts")
+    assert(code.includes("scorePost("), "reviewPost musí po revizi znovu skórovat")
+    // lastScore se dřív přiřadil jednou a jen četl → final_score === critic_score vždy.
+    const assignments = (code.match(/lastScore = /g) || []).length
+    assert(assignments >= 2, `lastScore se musí aktualizovat, našel ${assignments} přiřazení`)
+    assert(code.includes("rescored.detail"), "přeskórování se smí přijmout jen když judge opravdu doběhl")
+})
+
+test("16.4 šéfredaktor zná skutečný počet kol (V6)", () => {
+    const code = fileContent("instagram/editorial-board.ts")
+    assert(/kolo \$\{round\}\/\$\{maxRounds\}/.test(code),
+        "prompt nesmí tvrdit 3 kola, když best-of-2 dává jedno")
+    assert(!/kolo \$\{round\}\/\$\{MAX_POST_ROUNDS\}/.test(code), "MAX_POST_ROUNDS se nesmí do promptu psát natvrdo")
+})
+
+test("16.5 getBrandMemories filtruje typ v dotazu, ne až za ním (K5)", () => {
+    const mem = fileContent("instagram/memory-agent.ts")
+    assert(mem.includes('query.in("memory_type", types)'), "typový filtr musí být v SQL — limit se aplikuje před ním")
+
+    // Limit šel do SQL napříč všemi typy, takže tenhle filtr vracel prázdno, jakmile
+    // měl klient 5 textových pamětí s vyšší confidence. Vizuální paměť tím tiše zmizela
+    // z promptu designéra — a s ní celá větev vizuálního učení.
+    const img = codeOnly("instagram/image-pipeline.ts")
+    assert(!/memories\.filter\(m => m\.memory_type === "visual"\)/.test(img),
+        "image-pipeline nesmí filtrovat typ až po limitu")
+    assert(/\["visual"\]/.test(img), "image-pipeline musí žádat visual paměti přímo")
+
+    const print = codeOnly("instagram/print-pipeline.ts")
+    assert(!/memories\.filter\(m => m\.memory_type === "visual"\)/.test(print),
+        "print-pipeline nesmí filtrovat typ až po limitu")
+})
+
+test("16.6 generátor nápadů předává clientId (K6)", () => {
+    const code = codeOnly("instagram/idea-generator.ts")
+    // Bez explicitního clientId spadl getBrandMemories na getActiveProject(), který mimo
+    // withActiveProject vyhodí výjimku — a catch ji spolkl. Onboarding volání obaloval,
+    // hlavní cesta z UI ani denní replenish ne.
+    assert(/getBrandMemories\(5, clientId/.test(code), "getBrandMemories musí dostat clientId explicitně")
+    assert(!/catch \{\s*\}/.test(code), "tiché catch bez logu tuhle chybu roky schovávalo")
+})
+
+test("16.7 learning sekce jen se skutečnými metrikami (K4)", () => {
+    const code = fileContent("instagram/caption-generator.ts")
+    assert(/performance\.avgEngagement > 0 && \(performance\.topPatterns\.length/.test(code),
+        "Zlaté hooky se nesmí injektovat, když engagement nikdo nenaměřil")
+})
+
+test("16.8 mega prompt neslibuje zrušený Satori overlay (V1)", () => {
+    const cap = fileContent("instagram/caption-generator.ts")
+    assert(!cap.includes("**OVERLAY:**"), "popis overlay gradientu patří mrtvému enginu")
+    assert(!cap.includes("1:1 square"), "default poměr je 4:5, ne 1:1")
+
+    const img = fileContent("instagram/image-pipeline.ts")
+    assert(!/export function buildFeedAesthetic/.test(img),
+        "buildFeedAesthetic byl mrtvý kód se stejným zastaralým textem — nevracet")
+})
+
+test("16.9 karusel: indikátor slidu neprotiřečí zákazu textu (V2)", () => {
+    const img = fileContent("instagram/image-pipeline.ts")
+    assert(img.includes("allowedExtraText"), "buildNativeImagePrompt i QA musí vědět o povoleném textu navíc")
+
+    const car = fileContent("instagram/orchestrators/carousel-orchestrator.ts")
+    assert(/buildNativeImagePrompt\([^)]*slideIndicator/.test(car),
+        "indikátor musí jít dovnitř promptu, ne se lepit za něj")
+    assert(car.includes("allowedExtraText: slideIndicator"),
+        "QA musí indikátor tolerovat, jinak spálí sdílený rozpočet oprav na neproblém")
+})
+
+test("16.10 vizuální učení čte design_brief (V7)", () => {
+    const code = fileContent("instagram/memory-agent.ts")
+    assert(/select\("id, image_prompt, image_style, design_brief/.test(code),
+        "analyzeVisualPatterns musí číst, co se opravdu renderovalo")
+    assert(code.includes("layoutArchetype"), "brief nese archetyp — to je použitelný signál, image_prompt ne")
+})
+
+test("16.11 critic_score se nefabrikuje při výpadku judge (S5)", () => {
+    const cap = fileContent("instagram/caption-generator.ts")
+    assert(/judged: false/.test(cap), "scorePost musí hlásit, že neproběhl")
+    const auto = fileContent("instagram/autopilot.ts")
+    assert(/criticScore: judged \? score : null/.test(auto),
+        "nehodnocený post musí mít critic_score null, ne vymyšlenou 7")
+})
+
+test("16.12 plán počítá top hooky z reálných metrik (S4)", () => {
+    const code = codeOnly("app/actions/content-plan-actions.ts")
+    // ig_posts.engagement_score v databázi NEEXISTUJE (ověřeno proti prod 2026-08-05)
+    // a nikdy ho nic nezapisovalo — dotaz pokaždé skončil chybou, ta se zahodila
+    // a sekce „nejlepší hooky" se v plánovacím promptu nikdy neobjevila.
+    assert(!code.includes("engagement_score"), "engagement_score je fantomový sloupec — nevracet")
+    assert(/3 \* \(p\.comments \|\| 0\) \+ 5 \* \(p\.saves \|\| 0\)/.test(code),
+        "engagement se musí počítat stejným vzorcem jako v performance.ts")
+})
+
+test("16.13 kampaň nedostane sedmkrát tentýž kontext (V4)", () => {
+    const ctx = fileContent("instagram/context-agent.ts")
+    assert(/formatContextForPrompt\(ctx: ContextSignals, offset = 0\)/.test(ctx),
+        "formátování kontextu musí umět rotaci")
+    const auto = fileContent("instagram/autopilot.ts")
+    assert(/formatContextForPrompt\(context, options\.campaignContext\?\.postNumber/.test(auto),
+        "pozice v kampani musí kontext posunout")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 

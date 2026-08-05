@@ -30,7 +30,7 @@ function editorialLadder(): string[] {
     if (hasFallback("textPro")) m.push(getModel("textPro", "fallback"))
     return m
 }
-import { COSTS } from "./caption-generator"
+import { COSTS, scorePost } from "./caption-generator"
 import { buildCtaPolicyJudgeBlock, type CtaPolicy } from "./cta-policy"
 import type { ClientConfig } from "./configs/types"
 import type {
@@ -356,6 +356,11 @@ function buildPostReviewPrompt(
     criticFeedback: { score: number; detail?: any },
     conversationHistory: EditorialMessage[],
     round: number,
+    /** How many rounds this run actually gets. NOT MAX_POST_ROUNDS: the best-of-2 path
+     *  passes 1, and telling the editor "kolo 1/3" there meant the "last round, be
+     *  tolerant" instruction never fired — it returned "revise" freely and the loop
+     *  then threw those fixInstructions away because there was no round to apply them. */
+    maxRounds: number,
     /** CTA policy of the post — gate criterion #1 checks the CTA against it. */
     ctaPolicy?: CtaPolicy,
     /** Product data — gate criterion #2 verifies the post's product claims against it. */
@@ -394,7 +399,7 @@ Název: ${selectedProduct.name} | Cena: ${selectedProduct.price || "neuvedena"}
 ${selectedProduct.description ? `Popis: ${selectedProduct.description}` : ""}
 Cokoliv post o produktu tvrdí, MUSÍ sedět s těmito daty.
 ` : ""}
-## POST (typ: ${postTypeName}, kolo ${round}/${MAX_POST_ROUNDS})
+## POST (typ: ${postTypeName}, kolo ${round}/${maxRounds})
 **Hook:** "${captionData.hook}"
 **Body:** "${captionData.body || ""}"${slidesBlock}
 **CTA:** "${captionData.cta}"
@@ -417,7 +422,9 @@ ${historyBlock}
 - Pokud vidíš problémy → "revise" s PŘESNÝMI instrukcemi co změnit
 - Neblokuj kvůli maličkostem (drobný wording) — zaměř se na ZÁSADNÍ problémy
 - Pokud Copywriter pushbacknul a má pravdu, uznej to a schval
-- Na posledním kole (${MAX_POST_ROUNDS}/${MAX_POST_ROUNDS}): buď tolerantnější — lepší publikovat OK post než žádný
+${round >= maxRounds
+    ? `- TOHLE JE POSLEDNÍ KOLO (${round}/${maxRounds}) — copywriter už nedostane šanci nic přepsat. Buď tolerantnější: lepší publikovat OK post než žádný. "revise" tu má smysl jen u vady, kvůli které bys post odmítl publikovat vůbec.`
+    : `- Na posledním kole (${maxRounds}/${maxRounds}): buď tolerantnější — lepší publikovat OK post než žádný`}
 
 Vrať POUZE validní JSON:
 {
@@ -495,11 +502,81 @@ Vrať POUZE validní JSON:
   "imageSubtext": "..."${isCarousel ? `,
   "slides": [{ "headline": "...", "subtext": "...", "imagePrompt": "..." }],
   "visualTheme": "..."` : ""}${isReel ? `,
-  "scenes": [{ "timeRange": "...", "visual": "...", "camera": "...", "mood": "..." }],
+  "scenes": [{ "timeRange": "...", "visual": "...", "camera": "...", "mood": "...", "narration": "český text pro voiceover", "soundEffect": "ambient sound" }],
   "videoScript": "...",
   "caption": "..."` : ""}
 }
 `.trim()
+}
+
+/**
+ * Response schema for the copywriter's revision — built from the SAME two flags as the
+ * prompt above, and that is the whole point.
+ *
+ * responseSchema is a whitelist, not a minimum: a field the prompt demands but the schema
+ * omits simply never comes back (verified against gemini-pro-latest, 2026-08-05). The old
+ * fixed schema listed only the text fields, so `revision.slides` / `revision.scenes` /
+ * `revision.caption` were ALWAYS undefined. Two consequences, both silent:
+ *   · a carousel could never be fixed — the editor was free to write "slide 3 doesn't
+ *     move the story" and the copywriter physically could not act on it;
+ *   · worse for reels, autopilot re-derives `body` from `caption` after the board runs,
+ *     and `caption` still held the pre-revision text — so the whole editorial round was
+ *     overwritten by the version it had just rewritten, after being paid for.
+ * If you add a field to the prompt's JSON example, add it here too.
+ */
+function buildCopywriterRevisionSchema(isCarousel: boolean, isReel: boolean) {
+    return {
+        type: "object",
+        properties: {
+            action: { type: "string", description: "fix or pushback" },
+            explanation: { type: "string", description: "What changed and why (max 2 sentences)" },
+            hook: { type: "string" },
+            body: { type: "string" },
+            cta: { type: "string" },
+            hashtags: { type: "array", items: { type: "string" } },
+            imagePrompt: { type: "string" },
+            imageSubtext: { type: "string" },
+            // Read by reviewPost's merge block since the A/B work landed, never delivered.
+            accentWords: { type: "array", items: { type: "string" } },
+            ...(isCarousel ? {
+                slides: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            headline: { type: "string" },
+                            subtext: { type: "string" },
+                            imagePrompt: { type: "string" },
+                        },
+                        required: ["headline", "subtext", "imagePrompt"],
+                    },
+                },
+                visualTheme: { type: "string" },
+            } : {}),
+            ...(isReel ? {
+                scenes: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            timeRange: { type: "string" },
+                            visual: { type: "string" },
+                            camera: { type: "string" },
+                            mood: { type: "string" },
+                            // Same reason as buildVideoSchema: without these the revision
+                            // strips the voiceover off every scene it touches.
+                            narration: { type: "string" },
+                            soundEffect: { type: "string" },
+                        },
+                        required: ["timeRange", "visual", "camera", "mood", "narration", "soundEffect"],
+                    },
+                },
+                videoScript: { type: "string" },
+                caption: { type: "string" },
+            } : {}),
+        },
+        required: ["action", "explanation", "hook", "body", "cta", "hashtags"],
+    }
 }
 
 /**
@@ -526,7 +603,13 @@ export async function reviewPost(
     const rounds: EditorialRound[] = []
     let currentCaption = { ...captionData }
     let totalCost = 0
+    // Both are RE-DERIVED after every revision (see the rescore block at the end of the
+    // loop). They used to be set once and only read: the Chief Editor in rounds 2-3 was
+    // handed the score and keep/fix list of a caption the copywriter had already replaced,
+    // and `finalScore` in ig_generation_log was by construction always equal to
+    // critic_score — so "did the editorial board improve the post" could never move.
     let lastScore = criticResult.score
+    let lastDetail = criticResult.detail
 
     // Initial copywriter proposal
     const copywriterProposal: EditorialMessage = {
@@ -577,9 +660,10 @@ export async function reviewPost(
             config,
             currentCaption,
             postTypeName,
-            { score: lastScore, detail: criticResult.detail },
+            { score: lastScore, detail: lastDetail },
             allMessages,
             round,
+            maxRounds,
             extras?.ctaPolicy,
             extras?.selectedProduct,
         )
@@ -660,23 +744,14 @@ export async function reviewPost(
             allMessages,
             extras?.ctaPolicy,
         )
-        const copywriterRevisionSchema = {
-            type: "object",
-            properties: {
-                action: { type: "string", description: "fix or pushback" },
-                explanation: { type: "string", description: "What changed and why (max 2 sentences)" },
-                hook: { type: "string" },
-                body: { type: "string" },
-                cta: { type: "string" },
-                hashtags: { type: "array", items: { type: "string" } },
-                imagePrompt: { type: "string" },
-                imageSubtext: { type: "string" },
-            },
-            required: ["action", "explanation", "hook", "body", "cta", "hashtags"],
-        }
+        // Same two flags the prompt branches on — the schema must be able to carry back
+        // everything the prompt asks for, or the round is spent and thrown away.
         const revisionRaw = await generateTextQuality(revisionPrompt, {
             models: editorialLadder(),
-            responseSchema: copywriterRevisionSchema,
+            responseSchema: buildCopywriterRevisionSchema(
+                currentCaption.slides?.length > 0,
+                currentCaption.scenes?.length > 0,
+            ),
             label: "editorial-post-revision",
             temperature: getTemperature("copywriter"),
         })
@@ -719,6 +794,37 @@ export async function reviewPost(
         if (revision.scenes) currentCaption.scenes = revision.scenes
         if (revision.videoScript) currentCaption.videoScript = revision.videoScript
         if (revision.caption) currentCaption.caption = revision.caption
+
+        // For a reel, `caption` and `body` are the same text under two names — the schema
+        // calls it caption, the rest of the pipeline reads body. Reconcile them HERE, where
+        // we still know which one the model actually rewrote, instead of letting the caller
+        // re-derive one from the other and overwrite a revision it can't see.
+        if (currentCaption.scenes?.length > 0) {
+            const revised = revision.caption || revision.body
+            if (revised) {
+                currentCaption.caption = revised
+                currentCaption.body = revised
+            }
+        }
+
+        // Re-score the REVISED caption. Without this the next round's Chief Editor judged
+        // fresh text against the previous version's rubric, and finalScore was mathematically
+        // pinned to critic_score — so the board's whole contribution was unmeasurable.
+        // Guarded on `detail`: scorePost swallows its own failures and returns a flat 7 with
+        // no rubric (see caption-generator.ts), so an unguarded assignment would let a judge
+        // outage silently demote a good post to 7.
+        try {
+            const rescored = await scorePost(config, currentCaption, postTypeName, extras?.ctaPolicy)
+            totalCost += COSTS.textGeneration
+            if (rescored.detail) {
+                console.log(`   🔁 Přeskórováno po revizi: ${lastScore}/10 → ${rescored.score}/10`)
+                lastScore = rescored.score
+                lastDetail = rescored.detail
+            }
+        } catch (rescoreErr: any) {
+            // Non-fatal: keep the previous score rather than lose the revision.
+            console.warn(`   ⚠️ Přeskórování po revizi selhalo — držím předchozí skóre: ${String(rescoreErr?.message || rescoreErr).substring(0, 80)}`)
+        }
 
         rounds.push({
             round,

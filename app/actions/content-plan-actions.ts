@@ -309,17 +309,32 @@ export async function generateContentPlan(
         const ptMap = new Map((dbPostTypes || []).map(pt => [pt.name, pt]))
 
         // ─── Quality Context: top hooks + recent dedup ───
-        const { data: topPosts } = await supabaseAdmin
+        // Engagement se POČÍTÁ ze skutečných metrik, stejným vzorcem jako všude jinde
+        // (performance.ts, propagateMetricsToSources, analyzeAndLearn):
+        //   likes + 3×comments + 5×saves.
+        // Dřív se tu četl sloupec `ig_posts.engagement_score`, který v databázi NEEXISTUJE
+        // (ověřeno proti prod 2026-08-05) a nikdy ho nic nezapisovalo — dotaz tedy pokaždé
+        // skončil chybou, ta se zahazovala (`const { data }` bez `error`) a sekce
+        // „PŘÍKLADY NEJLEPŠÍCH HOOKŮ" v plánovacím promptu se nikdy neobjevila. Data přitom
+        // existují. Filtrujeme na `posted` — draft nemá co dělat mezi „ověřenými" hooky.
+        const { data: measuredPosts, error: measuredErr } = await supabaseAdmin
             .from("ig_posts")
-            .select("caption, engagement_score")
+            .select("caption, likes, comments, saves")
             .eq("client_id", clientId)
-            .not("engagement_score", "is", null)
-            .order("engagement_score", { ascending: false })
-            .limit(5)
+            .eq("status", "posted")
+            .not("likes", "is", null)
+            .limit(50)
+        if (measuredErr) console.warn(`📋 [content-plan] top hooks skipped: ${measuredErr.message}`)
 
-        const topHooks = (topPosts || [])
-            .map(p => p.caption?.split("\n")[0]?.substring(0, 80))
-            .filter(Boolean)
+        const topHooks = (measuredPosts || [])
+            .map(p => ({
+                hook: p.caption?.split("\n")[0]?.substring(0, 80),
+                score: (p.likes || 0) + 3 * (p.comments || 0) + 5 * (p.saves || 0),
+            }))
+            .filter(p => Boolean(p.hook) && p.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 5)
+            .map(p => p.hook as string)
 
         const { data: recentPosts } = await supabaseAdmin
             .from("ig_posts")
