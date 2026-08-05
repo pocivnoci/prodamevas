@@ -39,6 +39,29 @@ registerHandler("health_check", async () => {
     return { ok: true, healthy: false, problems: report.problems.map(p => p.title), emailId: sent.id }
 })
 
+// Daňový a účetní kalendář: e-mail JEN když se blíží termín nebo je něco rozbité.
+// Tichý den nepošle nic — agent, který píše každý den, se přestane číst.
+registerHandler("compliance_check", async () => {
+    const { buildComplianceReport, renderComplianceEmail } = await import("@/lib/agents/compliance-calendar")
+    const report = await buildComplianceReport()
+    if (!report.needsAttention) {
+        return { ok: true, quiet: true, turnover12m: report.turnover12m }
+    }
+
+    const to = getFounderEmail()
+    if (!to) throw new Error("compliance_check: REPORT_EMAIL/SUPER_ADMIN_EMAILS není nastaveno")
+    const { sendEmail } = await import("@/lib/email")
+    const mail = renderComplianceEmail(report)
+    const sent = await sendEmail({ to, subject: mail.subject, html: mail.html, text: mail.text })
+    return {
+        ok: true,
+        quiet: false,
+        items: report.items.map(i => `${i.urgency}: ${i.action}`),
+        turnover12m: report.turnover12m,
+        emailId: sent.id,
+    }
+})
+
 // Daily lifecycle scan: proposes outbound e-mails (approval-gated) and sends the
 // founder ONE digest with one-click approve/reject links per proposal.
 registerHandler("lifecycle_scan", async () => {

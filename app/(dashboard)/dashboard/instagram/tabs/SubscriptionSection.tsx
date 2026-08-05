@@ -2,6 +2,8 @@
 
 import { useStudio, type SubscriptionState } from "@/app/(dashboard)/StudioContext"
 import { activateFreePlan } from "@/app/actions/settings-actions"
+import { hasBillingDetails } from "@/app/actions/billing-actions"
+import { BillingModal } from "./BillingSection"
 import { CheckCircle2 } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -50,6 +52,8 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
     const { subscription, subscriptionLoading, refreshSubscription } = useStudio()
     const [plans, setPlans] = useState<PlanRow[]>([])
     const [upgradingPlanId, setUpgradingPlanId] = useState<string | null>(null)
+    // Plán, který čeká na doplnění fakturačních údajů. Platba se spustí až po nich.
+    const [billingGatePlanId, setBillingGatePlanId] = useState<string | null>(null)
 
     useEffect(() => {
         fetch("/api/plans")
@@ -73,21 +77,49 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                 return
             }
 
-            const resp = await fetch("/api/payments/create", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                // projectId is the tenant SLUG — send as clientSlug (the API
-                // resolves it). Sending it as clientId queried clients.id=<slug>
-                // → "Client not found".
-                body: JSON.stringify({ planId, clientSlug: projectId }),
-            })
-            const data = await resp.json()
-            if (data.redirectUrl) {
-                window.open(data.redirectUrl, "_blank")
-            } else if (data.error) {
-                alert(data.error)
+            // Bez fakturačních údajů by doklad vznikl s náhradními údaji —
+            // vybrat je před platbou je jediný okamžik, kdy je zákazník ochotný.
+            // Selhání kontroly platbu neblokuje: neprodat je horší než dovyplnit potom.
+            const billingReady = await hasBillingDetails(projectId).catch(() => true)
+            if (!billingReady) {
+                setBillingGatePlanId(planId)
+                return
             }
+
+            await startPayment(planId)
         } catch (err) {
+            alert("Nepodařilo se vytvořit platbu.")
+        } finally {
+            setUpgradingPlanId(null)
+        }
+    }
+
+    const startPayment = async (planId: string) => {
+        const resp = await fetch("/api/payments/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            // projectId is the tenant SLUG — send as clientSlug (the API
+            // resolves it). Sending it as clientId queried clients.id=<slug>
+            // → "Client not found".
+            body: JSON.stringify({ planId, clientSlug: projectId }),
+        })
+        const data = await resp.json()
+        if (data.redirectUrl) {
+            window.open(data.redirectUrl, "_blank")
+        } else if (data.error) {
+            alert(data.error)
+        }
+    }
+
+    /** Údaje doplněny → pokračujeme přesně tam, kde platba skončila. */
+    const handleBillingSaved = async () => {
+        const planId = billingGatePlanId
+        setBillingGatePlanId(null)
+        if (!planId) return
+        setUpgradingPlanId(planId)
+        try {
+            await startPayment(planId)
+        } catch {
             alert("Nepodařilo se vytvořit platbu.")
         } finally {
             setUpgradingPlanId(null)
@@ -105,6 +137,14 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
 
     return (
         <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-6 space-y-6">
+            {billingGatePlanId && (
+                <BillingModal
+                    projectId={projectId}
+                    onDone={handleBillingSaved}
+                    onClose={() => setBillingGatePlanId(null)}
+                />
+            )}
+
             <h3 className="text-sm font-black uppercase tracking-widest text-white/70 border-b border-white/10 pb-2">
                 Předplatné & Kredity
             </h3>

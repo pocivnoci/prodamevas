@@ -10,9 +10,11 @@ export const maxDuration = 60
  * itself — it dispatches through the agent stack (audit row + task), and
  * /api/cron/agent-worker runs the handlers within the minute:
  *
- *   health_check    → alert e-mail to the founder ONLY when something is wrong
- *   lifecycle_scan  → proposes outbound lifecycle e-mails (approval-gated) and
- *                     e-mails the founder one digest with one-click links
+ *   health_check      → alert e-mail to the founder ONLY when something is wrong
+ *   lifecycle_scan    → proposes outbound lifecycle e-mails (approval-gated) and
+ *                       e-mails the founder one digest with one-click links
+ *   compliance_check  → daňové/úřední termíny + sledování obratu vůči hranici DPH;
+ *                       e-mail JEN když se blíží termín nebo je něco rozbité
  *
  * Both dispatches are 'internal' risk (the scan itself sends nothing to
  * customers — every actual customer e-mail is its own 'outbound' proposal).
@@ -68,5 +70,16 @@ export async function GET(req: Request) {
         payload: {},
     })
 
-    return NextResponse.json({ success: true, health, lifecycle, autoPublish, ideaReplenish })
+    // Daňový a účetní kalendář. Internal risk: jen čte a případně pošle e-mail
+    // vlastníkovi — nikdy nic zákazníkovi a nikdy nic neúčtuje.
+    const compliance = await requestAction({
+        agentType: "ops",
+        action: "Denní kontrola daňových termínů",
+        riskTier: "internal",
+        taskType: "compliance_check",
+        clientId: null,
+        payload: {},
+    })
+
+    return NextResponse.json({ success: true, health, lifecycle, autoPublish, ideaReplenish, compliance })
 }

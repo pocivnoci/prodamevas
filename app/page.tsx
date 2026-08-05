@@ -10,6 +10,7 @@ import { WaitlistForm } from "@/components/WaitlistForm"
 import { Reveal } from "@/components/Reveal"
 import { fadeUp, SPRING, EASE_OUT } from "@/lib/motion"
 import { REFERENCE_BRANDS } from "@/lib/reference-data"
+import { LEGAL, formatAddress, vatNotice } from "@/lib/legal"
 
 function hostFromUrl(u: string): string {
   try { return new URL(u).hostname.replace(/^www\./, "") } catch { return u.replace(/^https?:\/\//, "") }
@@ -450,6 +451,8 @@ export default function Home() {
           </div>
 
           <p className="text-center mt-12 text-[9px] text-white/25 font-bold uppercase tracking-widest">3 posty zdarma · Bez kreditky · Bez časového limitu</p>
+          {/* Povinná informace o DPH — u neplátce nesmí cena vypadat jako „bez DPH". */}
+          <p className="text-center mt-3 text-[9px] text-white/20 font-bold uppercase tracking-widest">{vatNotice()}</p>
         </div>
       </section>
 
@@ -504,7 +507,14 @@ export default function Home() {
             <ul className="space-y-3 text-[10px] tracking-wider uppercase text-white/30 font-bold">
               <li><Link href="/terms" className="hover:text-white transition-colors">Obchodní podmínky</Link></li>
               <li><Link href="/privacy" className="hover:text-white transition-colors">Zpracování dat</Link></li>
+              <li><a href={`mailto:${LEGAL.email}`} className="hover:text-white transition-colors">Kontakt</a></li>
             </ul>
+            {/* Identifikace prodávajícího — povinný údaj (§435 obč. zák.), ne dekorace. */}
+            <div className="mt-6 space-y-1 text-[9px] tracking-wider text-white/20 font-bold uppercase not-italic">
+              <p>{LEGAL.name}</p>
+              <p>IČO {LEGAL.ico}</p>
+              <p>{formatAddress()}</p>
+            </div>
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-6 pt-10 mt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center text-[9px] text-white/20 font-bold tracking-[0.2em] uppercase">

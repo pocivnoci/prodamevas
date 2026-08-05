@@ -20,6 +20,9 @@ const OPTIONAL = [
     "META_APP_ID",        // Instagram OAuth — IG connect disabled until set
     "META_APP_SECRET",
     "IG_TOKEN_ENCRYPTION_KEY", // AES-256-GCM key for IG token storage (openssl rand -hex 32)
+    "FAKTUROID_CLIENT_ID",     // fakturace — bez ní se doklad nevystaví (invoices.status='failed')
+    "FAKTUROID_CLIENT_SECRET",
+    "FAKTUROID_SLUG",          // název účtu v URL Fakturoidu
 ] as const
 
 export function validateEnv(): void {

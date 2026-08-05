@@ -51,3 +51,23 @@ Volitelné:
 - [ ] `EMAIL_SECRET` explicitně nastavit (HMAC pro unsubscribe odkazy; jinak fallback na `CRON_SECRET`)
 - [ ] Malá testovací platba end-to-end (vč. ověření, že se uložil `subscriptions.recurring_trans_id`)
 - [ ] Po nasazení: `REELS_ENABLED=1` (kredity už reels zpoplatňují správně — 5 kreditů)
+
+## 6. Právní identita a fakturace (v8.5) — BEZ TOHOTO SE NESMÍ PRODÁVAT
+
+Kompletní byrokratický postup (živnost, FÚ, ČSSZ, identifikovaná osoba k DPH, GDPR)
+je v **`docs/LEGAL_SETUP.md`**. Tady je jen to, co blokuje deploy.
+
+- [x] Identita na jednom místě (`lib/legal.ts`), právní stránky ji vykreslují
+- [x] Obchodní podmínky: identifikace prodávajícího, 14denní odstoupení + zánik u digitálního obsahu, reklamace do 30 dnů, ČOI/ADR, automatická obnova, propadání kreditů
+- [x] Zásady zpracování: správce, zpracovatelé, právní základy, doby uchování, ÚOOÚ
+- [x] Sběr fakturačních údajů před platbou + záznam souhlasu se zahájením plnění
+- [x] Automatické vystavení dokladu po `PAID` (idempotentní přes `UNIQUE invoices(payment_id)`)
+- [x] Migrace `20260730_billing_invoices.sql` aplikovaná v produkci (30. 7. 2026) — ověřeno, že UNIQUE index na `invoices(payment_id)` odmítne druhý doklad na tutéž platbu
+- [x] IČO, adresa a jméno doplněné z ARESu (IČO 21263990, Adela Mužátková)
+- [x] Fakturoid propojený (`adelamuzatkova`, neplátce DPH) — klíče v `.env.local` i ve Vercelu (**jen `production`**, aby mock platba na preview nevystavila skutečný doklad); ověřeno `npx tsx scripts/test-fakturoid.ts`
+- [ ] **Doplnit bankovní účet** — chybí v `lib/legal.ts` *i* v nastavení Fakturoidu
+- [ ] **Doplnit obory činnosti k živnosti** — Chrlit dnes není krytý živnostenským oprávněním (viz `docs/LEGAL_SETUP.md` kap. 1)
+- [ ] **`FAKTUROID_CLIENT_ID` / `_SECRET` / `_SLUG` na Vercelu**; ve Fakturoidu zaškrtnout „nejsem plátce DPH"
+- [ ] `npx tsx scripts/check-legal-identity.ts` projde (exit 0) — je to brána, ne varování
+- [ ] Po registraci identifikované osoby: `NEXT_PUBLIC_BUSINESS_DIC` + `NEXT_PUBLIC_BUSINESS_VAT_STATUS=identified`, a dát DIČ dodavatelům (Google, Vercel, Supabase, Anthropic, Resend)
+- [ ] Testovací platba: ověřit, že vznikl `invoices` řádek se `status='issued'` a číslem dokladu

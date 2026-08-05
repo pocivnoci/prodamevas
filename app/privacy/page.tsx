@@ -1,4 +1,21 @@
 import Link from "next/link"
+import { LEGAL, DATA_AUTHORITY, SUBPROCESSORS, formatAddress } from "@/lib/legal"
+
+export const metadata = {
+    title: "Zpracování osobních údajů — Chrlit",
+    description: "Jaké osobní údaje Chrlit zpracovává, proč, jak dlouho a jaká máte práva podle GDPR.",
+}
+
+const EFFECTIVE_FROM = "1. srpna 2026"
+
+function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+    return (
+        <section>
+            <h2 className="text-lg font-black uppercase tracking-widest text-white mb-4">{n}. {title}</h2>
+            {children}
+        </section>
+    )
+}
 
 export default function PrivacyPage() {
     return (
@@ -9,96 +26,127 @@ export default function PrivacyPage() {
                 </Link>
 
                 <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tighter mb-4">Zpracování osobních údajů</h1>
-                <p className="text-white/40 text-sm font-bold uppercase tracking-widest mb-16">Platné od 1. května 2026 · v souladu s GDPR</p>
+                <p className="text-white/40 text-sm font-bold uppercase tracking-widest mb-16">Účinné od {EFFECTIVE_FROM} · v souladu s GDPR</p>
 
                 <div className="prose prose-invert max-w-none space-y-10 text-white/70 text-sm leading-relaxed">
-                    <section>
-                        <h2 className="text-lg font-black uppercase tracking-widest text-white mb-4">1. Správce údajů</h2>
-                        <p>Správcem osobních údajů je Chrlit.cz (dále jen „Správce"). Kontaktní e-mail pro záležitosti ochrany osobních údajů: info@chrlit.cz</p>
-                    </section>
 
-                    <section>
-                        <h2 className="text-lg font-black uppercase tracking-widest text-white mb-4">2. Jaké údaje zpracováváme</h2>
-                        <p>Zpracováváme následující kategorie osobních údajů:</p>
-                        <ul className="list-disc list-inside space-y-2 mt-3 text-white/60">
-                            <li><strong className="text-white/80">Registrační údaje:</strong> e-mailová adresa, heslo (šifrované)</li>
-                            <li><strong className="text-white/80">Údaje o využívání služby:</strong> konfigurace projektů, vygenerovaný obsah, logy generování</li>
-                            <li><strong className="text-white/80">Technické údaje:</strong> IP adresa, typ prohlížeče, čas přístupu</li>
-                        </ul>
-                    </section>
+                    <Section n={1} title="Správce údajů">
+                        <p>Správcem osobních údajů je:</p>
+                        <div className="mt-4 border border-white/10 bg-white/[0.02] p-5 not-prose">
+                            <ul className="space-y-1.5 text-white/70 text-sm">
+                                <li className="text-white font-bold">{LEGAL.name}</li>
+                                <li>{formatAddress()}, {LEGAL.country}</li>
+                                <li>IČO: {LEGAL.ico}</li>
+                                <li>E-mail: <a href={`mailto:${LEGAL.email}`} className="text-white/80 underline">{LEGAL.email}</a></li>
+                            </ul>
+                        </div>
+                        <p className="mt-4">Správce nejmenoval pověřence pro ochranu osobních údajů — nesplňuje podmínky čl. 37 GDPR. Ve všech záležitostech ochrany údajů se obracejte na výše uvedený e-mail.</p>
+                    </Section>
 
-                    <section>
-                        <h2 className="text-lg font-black uppercase tracking-widest text-white mb-4">3. Účel zpracování</h2>
+                    <Section n={2} title="Jaké údaje zpracováváme">
                         <ul className="list-disc list-inside space-y-2 text-white/60">
-                            <li>Poskytování a provoz služby Chrlit</li>
-                            <li>Autentizace a zabezpečení uživatelského účtu</li>
-                            <li>Zlepšování kvality služby a uživatelského zážitku</li>
-                            <li>Komunikace s uživatelem (technické notifikace, změny podmínek)</li>
+                            <li><strong className="text-white/80">Registrační údaje:</strong> e-mailová adresa, heslo (uložené pouze v hašované podobě)</li>
+                            <li><strong className="text-white/80">Fakturační údaje:</strong> jméno nebo název, adresa, IČO a DIČ, historie plateb a vystavených faktur</li>
+                            <li><strong className="text-white/80">Údaje o využívání služby:</strong> nastavení projektů, zadání, vygenerovaný obsah, záznamy o generování a spotřebě kreditů</li>
+                            <li><strong className="text-white/80">Údaje z propojeného účtu Instagram:</strong> viz bod 10</li>
+                            <li><strong className="text-white/80">Technické údaje:</strong> IP adresa, typ prohlížeče, čas přístupu, chybové a bezpečnostní záznamy</li>
                         </ul>
-                    </section>
+                        <p className="mt-3">Údaje o platební kartě nezpracováváme ani neukládáme — zpracovává je výhradně platební brána ComGate Payments, a.s.</p>
+                    </Section>
 
-                    <section>
-                        <h2 className="text-lg font-black uppercase tracking-widest text-white mb-4">4. Právní základ</h2>
-                        <p>Zpracování osobních údajů probíhá na základě:</p>
-                        <ul className="list-disc list-inside space-y-2 mt-3 text-white/60">
-                            <li>Plnění smlouvy (poskytování služby)</li>
-                            <li>Oprávněného zájmu správce (bezpečnost, analytika)</li>
-                            <li>Souhlasu uživatele (marketingová komunikace)</li>
-                        </ul>
-                    </section>
-
-                    <section>
-                        <h2 className="text-lg font-black uppercase tracking-widest text-white mb-4">5. Třetí strany a zpracovatelé</h2>
-                        <p>Pro provoz služby využíváme následující zpracovatele:</p>
-                        <div className="mt-4 bg-[#0a0a0a] border border-white/10 rounded-sm overflow-hidden">
-                            <table className="w-full text-xs">
+                    <Section n={3} title="Účel a právní základ">
+                        <div className="mt-4 bg-[#0a0a0a] border border-white/10 rounded-sm overflow-x-auto not-prose">
+                            <table className="w-full text-xs min-w-[520px]">
                                 <thead>
                                     <tr className="border-b border-white/10 bg-white/5">
-                                        <th className="text-left p-3 font-bold uppercase tracking-widest text-white/60">Služba</th>
                                         <th className="text-left p-3 font-bold uppercase tracking-widest text-white/60">Účel</th>
-                                        <th className="text-left p-3 font-bold uppercase tracking-widest text-white/60">Sídlo</th>
+                                        <th className="text-left p-3 font-bold uppercase tracking-widest text-white/60">Právní základ</th>
                                     </tr>
                                 </thead>
                                 <tbody className="text-white/50">
-                                    <tr className="border-b border-white/5"><td className="p-3">Supabase</td><td className="p-3">Databáze, autentizace, úložiště</td><td className="p-3">USA (EU hosting)</td></tr>
-                                    <tr className="border-b border-white/5"><td className="p-3">Google Cloud (Gemini AI)</td><td className="p-3">AI generování obsahu</td><td className="p-3">USA / EU</td></tr>
-                                    <tr className="border-b border-white/5"><td className="p-3">Vercel</td><td className="p-3">Hosting aplikace</td><td className="p-3">USA (EU edge)</td></tr>
-                                    <tr className="border-b border-white/5"><td className="p-3">Meta Platforms (Instagram)</td><td className="p-3">Propojení Instagram účtu, statistiky příspěvků, publikování</td><td className="p-3">Irsko / USA</td></tr>
+                                    <tr className="border-b border-white/5"><td className="p-3">Poskytování a provoz služby, správa účtu</td><td className="p-3">Plnění smlouvy — čl. 6 odst. 1 písm. b) GDPR</td></tr>
+                                    <tr className="border-b border-white/5"><td className="p-3">Vystavování faktur a vedení daňové evidence</td><td className="p-3">Právní povinnost — čl. 6 odst. 1 písm. c) GDPR</td></tr>
+                                    <tr className="border-b border-white/5"><td className="p-3">Zabezpečení služby, prevence zneužití</td><td className="p-3">Oprávněný zájem — čl. 6 odst. 1 písm. f) GDPR</td></tr>
+                                    <tr className="border-b border-white/5"><td className="p-3">Zlepšování kvality generovaného obsahu</td><td className="p-3">Oprávněný zájem — čl. 6 odst. 1 písm. f) GDPR</td></tr>
+                                    <tr className="border-b border-white/5"><td className="p-3">Provozní a transakční e-maily (potvrzení platby, změny podmínek)</td><td className="p-3">Plnění smlouvy — čl. 6 odst. 1 písm. b) GDPR</td></tr>
+                                    <tr className="border-b border-white/5"><td className="p-3">Marketingová sdělení</td><td className="p-3">Souhlas — čl. 6 odst. 1 písm. a) GDPR (kdykoli odvolatelný)</td></tr>
+                                    <tr><td className="p-3">Propojení a publikování na Instagramu</td><td className="p-3">Souhlas — čl. 6 odst. 1 písm. a) GDPR</td></tr>
                                 </tbody>
                             </table>
                         </div>
-                    </section>
+                        <p className="mt-4">Neprovádíme automatizované rozhodování s právními účinky pro uživatele ani profilování ve smyslu čl. 22 GDPR. Modely umělé inteligence generují obsah, nerozhodují o právech uživatele.</p>
+                    </Section>
 
-                    <section>
-                        <h2 className="text-lg font-black uppercase tracking-widest text-white mb-4">6. Doba uchování</h2>
-                        <p>Osobní údaje uchováváme po dobu trvání uživatelského účtu a 30 dní po jeho zrušení. Po uplynutí této doby jsou údaje anonymizovány nebo smazány.</p>
-                    </section>
+                    <Section n={4} title="Zpracovatelé">
+                        <p>Pro provoz služby využíváme následující zpracovatele, s nimiž máme uzavřeny smlouvy o zpracování osobních údajů podle čl. 28 GDPR:</p>
+                        <div className="mt-4 bg-[#0a0a0a] border border-white/10 rounded-sm overflow-x-auto not-prose">
+                            <table className="w-full text-xs min-w-[520px]">
+                                <thead>
+                                    <tr className="border-b border-white/10 bg-white/5">
+                                        <th className="text-left p-3 font-bold uppercase tracking-widest text-white/60">Zpracovatel</th>
+                                        <th className="text-left p-3 font-bold uppercase tracking-widest text-white/60">Účel</th>
+                                        <th className="text-left p-3 font-bold uppercase tracking-widest text-white/60">Umístění</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="text-white/50">
+                                    {SUBPROCESSORS.map(p => (
+                                        <tr key={p.name} className="border-b border-white/5 last:border-b-0">
+                                            <td className="p-3 text-white/70">{p.name}</td>
+                                            <td className="p-3">{p.purpose}</td>
+                                            <td className="p-3 whitespace-nowrap">{p.location}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <p className="mt-4">U zpracovatelů se sídlem mimo EU probíhá předání údajů na základě standardních smluvních doložek schválených Evropskou komisí, případně na základě rozhodnutí o odpovídající ochraně (rámec EU–USA Data Privacy Framework).</p>
+                        <p className="mt-3"><strong className="text-white/80">Obsah, který zadáte do služby, se předává poskytovatelům modelů umělé inteligence</strong> za účelem vygenerování výstupu. Nepoužívá se k trénování jejich modelů.</p>
+                    </Section>
 
-                    <section>
-                        <h2 className="text-lg font-black uppercase tracking-widest text-white mb-4">7. Práva uživatele</h2>
-                        <p>V souladu s GDPR máte následující práva:</p>
-                        <ul className="list-disc list-inside space-y-2 mt-3 text-white/60">
-                            <li><strong className="text-white/80">Právo na přístup</strong> — vyžádat si kopii svých údajů</li>
-                            <li><strong className="text-white/80">Právo na opravu</strong> — opravit nepřesné údaje</li>
-                            <li><strong className="text-white/80">Právo na výmaz</strong> — požádat o smazání účtu a všech údajů</li>
-                            <li><strong className="text-white/80">Právo na přenositelnost</strong> — export dat ve strojově čitelném formátu</li>
-                            <li><strong className="text-white/80">Právo vznést námitku</strong> — proti zpracování na základě oprávněného zájmu</li>
+                    <Section n={5} title="Doba uchování">
+                        <ul className="list-disc list-inside space-y-2 text-white/60">
+                            <li><strong className="text-white/80">Údaje účtu a obsah:</strong> po dobu trvání účtu a 30 dní po jeho zrušení, poté smazány nebo anonymizovány</li>
+                            <li><strong className="text-white/80">Faktury a daňová evidence:</strong> po dobu stanovenou daňovými a účetními předpisy (zpravidla 10 let od konce zdaňovacího období) — tuto povinnost nelze zkrátit žádostí o výmaz</li>
+                            <li><strong className="text-white/80">Bezpečnostní a provozní záznamy:</strong> nejdéle 12 měsíců</li>
+                            <li><strong className="text-white/80">Token propojeného Instagram účtu:</strong> do odpojení účtu, poté okamžitě smazán</li>
                         </ul>
-                        <p className="mt-3">Pro uplatnění svých práv nás kontaktujte na info@chrlit.cz.</p>
-                    </section>
+                    </Section>
 
-                    <section>
-                        <h2 className="text-lg font-black uppercase tracking-widest text-white mb-4">8. Zabezpečení</h2>
-                        <p>Veškerá komunikace probíhá přes šifrované spojení (HTTPS/TLS). Hesla jsou ukládána v hašované podobě. Přístup k databázi je omezen prostřednictvím Row Level Security (RLS) a service role klíčů.</p>
-                    </section>
+                    <Section n={6} title="Vaše práva">
+                        <p>Podle GDPR máte právo:</p>
+                        <ul className="list-disc list-inside space-y-2 mt-3 text-white/60">
+                            <li><strong className="text-white/80">na přístup</strong> — vyžádat si potvrzení a kopii zpracovávaných údajů</li>
+                            <li><strong className="text-white/80">na opravu</strong> — nechat opravit nepřesné nebo doplnit neúplné údaje</li>
+                            <li><strong className="text-white/80">na výmaz</strong> — požádat o smazání účtu a údajů, nebrání-li tomu právní povinnost</li>
+                            <li><strong className="text-white/80">na omezení zpracování</strong> — v případech podle čl. 18 GDPR</li>
+                            <li><strong className="text-white/80">na přenositelnost</strong> — získat údaje ve strojově čitelném formátu</li>
+                            <li><strong className="text-white/80">vznést námitku</strong> — proti zpracování na základě oprávněného zájmu</li>
+                            <li><strong className="text-white/80">odvolat souhlas</strong> — kdykoli, bez vlivu na zákonnost dosavadního zpracování</li>
+                        </ul>
+                        <p className="mt-3">Žádost stačí poslat na <a href={`mailto:${LEGAL.email}`} className="text-white/80 underline">{LEGAL.email}</a>. Vyřídíme ji nejpozději do jednoho měsíce.</p>
+                        <p className="mt-3">Máte také právo podat stížnost u dozorového úřadu:</p>
+                        <div className="mt-4 border border-white/10 bg-white/[0.02] p-5 not-prose">
+                            <ul className="space-y-1.5 text-white/70 text-sm">
+                                <li className="text-white font-bold">{DATA_AUTHORITY.name}</li>
+                                <li>{DATA_AUTHORITY.address}</li>
+                                <li><a href={DATA_AUTHORITY.web} target="_blank" rel="noopener noreferrer" className="text-white/80 underline">{DATA_AUTHORITY.web}</a></li>
+                            </ul>
+                        </div>
+                    </Section>
 
-                    <section>
-                        <h2 className="text-lg font-black uppercase tracking-widest text-white mb-4">9. Cookies</h2>
-                        <p>Platforma využívá pouze technicky nezbytné cookies pro autentizaci uživatele (Supabase Auth session). Nepoužíváme žádné marketingové ani analytické cookies třetích stran.</p>
-                    </section>
+                    <Section n={7} title="Zabezpečení">
+                        <p>Veškerá komunikace probíhá přes šifrované spojení (HTTPS/TLS). Hesla jsou ukládána pouze v hašované podobě. Přístup k databázi je omezen politikami Row Level Security a servisními klíči. Tokeny propojených účtů jsou šifrovány algoritmem AES-256-GCM.</p>
+                    </Section>
 
-                    <section>
-                        <h2 className="text-lg font-black uppercase tracking-widest text-white mb-4">10. Propojení s Instagramem (Meta)</h2>
+                    <Section n={8} title="Cookies">
+                        <p>Používáme pouze technicky nezbytné cookies pro přihlášení uživatele (relace Supabase Auth). Nepoužíváme marketingové ani analytické cookies třetích stran, a proto nevyžadujeme souhlas s cookies.</p>
+                    </Section>
+
+                    <Section n={9} title="Děti">
+                        <p>Služba není určena osobám mladším 18 let a vědomě nezpracováváme jejich osobní údaje.</p>
+                    </Section>
+
+                    <Section n={10} title="Propojení s Instagramem (Meta)">
                         <p>Pokud propojíte svůj Instagram Business účet, využíváme rozhraní Instagram API with Instagram Login společnosti Meta. Připojení je dobrovolné a probíhá výhradně na základě vašeho souhlasu uděleného na přihlašovací obrazovce Instagramu.</p>
                         <p className="mt-3">V rámci propojení zpracováváme:</p>
                         <ul className="list-disc list-inside space-y-2 mt-3 text-white/60">
@@ -107,12 +155,16 @@ export default function PrivacyPage() {
                             <li><strong className="text-white/80">Přístupový token:</strong> uchováváme jej v šifrované podobě (AES-256-GCM) a používáme výhradně pro výše uvedené účely</li>
                         </ul>
                         <p className="mt-3">Tyto údaje nesdílíme s dalšími třetími stranami nad rámec uvedených zpracovatelů a nepoužíváme je k profilování ani cílené reklamě.</p>
-                        <p className="mt-3"><strong className="text-white/80">Odpojení a výmaz:</strong> propojení můžete kdykoli zrušit v Nastavení projektu. Tím dojde k odstranění uloženého tokenu. O výmaz dat získaných z Instagramu můžete rovněž požádat prostřednictvím <Link href="/api/data-deletion" className="text-white/80 underline">našeho data deletion endpointu</Link> nebo na e-mailu info@chrlit.cz.</p>
-                    </section>
+                        <p className="mt-3"><strong className="text-white/80">Odpojení a výmaz:</strong> propojení můžete kdykoli zrušit v Nastavení projektu. Tím dojde k odstranění uloženého tokenu. O výmaz dat získaných z Instagramu můžete rovněž požádat prostřednictvím <Link href="/api/data-deletion" className="text-white/80 underline">našeho data deletion endpointu</Link> nebo na e-mailu <a href={`mailto:${LEGAL.email}`} className="text-white/80 underline">{LEGAL.email}</a>.</p>
+                    </Section>
+
+                    <Section n={11} title="Změny těchto zásad">
+                        <p>Tyto zásady můžeme aktualizovat, zejména při změně rozsahu služby nebo seznamu zpracovatelů. O podstatné změně vás informujeme e-mailem nejméně 14 dní předem. Aktuální znění je vždy dostupné na této stránce.</p>
+                    </Section>
                 </div>
 
                 <div className="mt-16 pt-8 border-t border-white/10 text-[9px] text-white/20 font-bold uppercase tracking-widest">
-                    © 2026 Chrlit.cz — Všechna práva vyhrazena
+                    © {new Date().getFullYear()} {LEGAL.name} — IČO {LEGAL.ico}
                 </div>
             </div>
         </div>

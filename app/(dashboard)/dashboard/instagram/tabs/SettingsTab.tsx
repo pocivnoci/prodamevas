@@ -9,6 +9,7 @@ import { CatalogSection } from "./products/CatalogSection"
 import { generateCategoryPrompt } from "@/app/actions/content-plan-actions"
 import { getConnectionStatus, disconnectInstagram, type ConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { SubscriptionSection } from "./SubscriptionSection"
+import { BillingSection } from "./BillingSection"
 import { FEED_PATTERNS, computeSlotIntent, type FeedPatternId } from "@/lib/feed-pattern"
 
 // ═══════════════════════════════════════════════════════════
@@ -310,6 +311,10 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                 (it is still a conversion surface, and the sidebar's "Vybrat plán" CTA
                 is unaffected); it just no longer blocks the settings. */}
             <SubscriptionSection projectId={projectId} />
+
+            {/* Fakturační údaje + doklady patří pod předplatné: zákazník je hledá
+                ve stejný okamžik, kdy řeší platbu. */}
+            <BillingSection projectId={projectId} />
         </div>
     )
 }
