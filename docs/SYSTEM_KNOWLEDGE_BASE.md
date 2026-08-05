@@ -170,6 +170,18 @@ A/B Variant Loop (variant-actions.ts)
                     → ig_brand_memory (preference)
     Pozn.: revisePost() linkuje přes revision_of + link_type='revision' —
     revize se do A/B srovnání ani učení NEpočítají.
+
+Targeted Edit Loop (post-edit-actions.ts, v8.6)
+    editPost(scope, instruction, preserve?, region?) → JEDEN řádek, upravený in-place
+        ├── text  → reviseCaption({keepHook:true})   … 0 kreditů
+        └── image → fetchImageBuffer(image_url)
+                    → editExistingImage(buffer, buildPostEditPrompt(...))
+                    → verifyNativeImage (zásah jen u severity='severe', max 1 korekce)
+                    → uploadPostImage → splice zpět na slideIndex   … 1 kredit
+        → předchozí stav na ig_posts.edit_history (max 10) → revertPostEdit()
+        → learnFromRevision(...) fire & forget (feedback = nejsilnější signál)
+    Pozn.: NIKDY renderImage/generateDesignBrief a NIKDY čerstvá regenerace —
+    to je revisePost(), samostatné opt-in tlačítko „Vygenerovat úplně znovu".
 ```
 
 > [!IMPORTANT]
@@ -320,11 +332,13 @@ client-scoped). Testy: `npx tsx scripts/test-agent-approval-link.ts` (token prop
 
 ---
 
-## 6. Database Schema (22 tables)
+## 6. Database Schema (24 tables)
 
 | Table | Key Columns | Notes |
 |---|---|---|
 | `clients` | `id` (uuid PK), `slug` (unique), `config` (jsonb) | Multi-tenant root |
+| `ig_billing_details` | `client_id` (PK), `customer_type` (company/consumer), `name`, `ico`, `dic`, `street`, `city`, `zip`, `country_code`, `instant_access_consent_at`, `instant_access_consent_text` | **v8.5** (`20260730_billing_invoices.sql`). Na koho se vystavuje doklad — jeden řádek na tenanta. `instant_access_consent_*` je důkaz souhlasu se zahájením plnění před uplynutím 14denní lhůty (§ 1837 obč. zák.): bez něj právo spotřebitele na odstoupení **trvá**. Ukládá se čas i **znění** (boolean by v případném sporu nic nedokázal) a zápis je **podmíněný** (`.is(instant_access_consent_at, null)`), aby opakované potvrzení nepřepsalo původní čas |
+| `invoices` | `client_id`, `payment_id`, `provider`, `provider_invoice_id`, `number`, `total_czk` (**haléře**), `status` (pending/issued/failed), `pdf_url`, `public_url`, `error`, `attempts` | **v8.5.** Evidence vystavených dokladů. **UNIQUE index na `payment_id` je nárok na vystavení** — přehraný Comgate callback dostane konflikt a skončí (`status:"duplicate"`). Číselná řada je nevratná, takže duplicitu nejde smazat, jen stornovat → **nikdy nepřidávat insert fallback**. Řádek se zakládá PŘED voláním Fakturoidu, takže neúspěch zůstane viditelný jako `failed` místo tichého zmizení; jen `failed` se smí zkusit znovu, a to na témže řádku |
 | `user_clients` | `user_id`, `client_id`, `role` | RBAC |
 | `ig_post_types` | `name`, `display_name`, `emoji`, `frequency` | Per-client post types |
 | `ig_post_ideas` | `title`, `content`, `performance_score`, `times_used_with_metrics` | Idea Ranker (weighted) |
@@ -334,7 +348,7 @@ client-scoped). Testy: `npx tsx scripts/test-agent-approval-link.ts` (token prop
 | `ig_product_ideas` | `name`, `tagline`, `design_url`, `rating`, `performance_score`, `used_count`, `last_used_at`, `cooldown_days`, `is_active`, `line_id` | AI product concepts. **v8.3:** feedback columns mirror `ig_post_ideas` so `getWeightedProductIdeas(clientId, limit)` can mirror `getWeightedIdeas` instead of forking the scoring vocabulary. `rating` (👍 +1 / 👎 −1 / NULL = unrated) is the only signal — product ideas are never published, so there are no metrics; before this, saved/rejected was recorded and influenced **nothing** |
 | `ig_product_categories` | `slug`, `label`, `design_guide`, `mockup_prompt`, `material_hint`, `manufacturing_hint`, `artwork_kind`, `aspect_ratio`, `print_size_mm`, `panels` jsonb, `safe_margin_mm`, `bleed_mm` | Render templates per product type (`client_id NULL` = global default). **v8.3:** print geometry is now data — the old renderer hardcoded `aspectRatio: "1:1"` four times regardless of product, so a 75×160 mm bottle label was generated square. `artwork_kind ∈ flat/label/wrap/poster` decides whether the artwork gets chroma-keyed to alpha (only `flat` sits ON a product). Seeded packaging categories: `lahev-500`, `etiketa-ovin`, `kanystr-5l`, `sprej-750`, `set-box` |
 | `ig_product_designs` | `brief` jsonb, `artwork_url`, `artwork_print_url`, `dieline_url`, `mockup_url`, `print_spec` jsonb, `variant_group`, `is_winner`, `rating`, `qa_score`, `qa_status`, `status`, `progress` | **v8.3.** Print design history. Designs used to live only in React state + a bucket URL, so a refresh threw away a paid render, there was no corpus for anti-repetition, and A/B had nowhere to record a winner. `variant_group` groups an A/B pair; `selectDesignWinner` distils the winning brief into a `visual` `ig_brand_memory` — so a print decision also improves the Instagram art director |
-| `ig_posts` | `caption`, `image_url`, `status`, `channel`, `idea_id`, `review_id`, `product_id`, `likes`, `saves`, `reach`, `feedback`, `revision_of`, `link_type`, `design_brief` (jsonb) | `channel` (default `'instagram'`) = channel-adapter discriminator (Fáze 5). `revision_of` + `link_type` ('revision'/'variant') link revisions & A/B variants; `design_brief` = AI Designer output (anti-repetition source: concept + `layoutArchetype` + typografie + color fingerprint; archetypy posledních 3 postů jsou pro další post hard-banned) |
+| `ig_posts` | `caption`, `image_url`, `status`, `channel`, `idea_id`, `review_id`, `product_id`, `likes`, `saves`, `reach`, `feedback`, `revision_of`, `link_type`, `design_brief` (jsonb) | `channel` (default `'instagram'`) = channel-adapter discriminator (Fáze 5). `revision_of` + `link_type` ('revision'/'variant') link revisions & A/B variants; `design_brief` = AI Designer output (anti-repetition source: concept + `layoutArchetype` + typografie + color fingerprint; archetypy posledních 3 postů jsou pro další post hard-banned); `edit_history` (jsonb, v8.6) = zásobník předchozích stavů před každým `editPost()` (nejnovější poslední, max 10 v kódu) — zdroj pro `revertPostEdit()` |
 | `ig_content_calendar` | `date`, `post_id`, `time_slot` | Calendar scheduling. **Planner:** content-plan posts get `scheduled_for`/`time_slot` stamped by the campaign worker from each plan item's slot (auto-distributed at approval via `lib/schedule-planner.ts` `distributeSchedule` — weekly-cadence spread, `postsPerWeek` posts per 7-day week on evenly spaced days, not consecutive days; editable per post). Single posts via `schedulePostAction` (calendar-actions); fine-tune by drag (`movePost`). Posting itself stays manual until the `instagram_business_content_publish` App Review clears — `scheduled_for` is the feed for that future publish cron. |
 | `ig_generation_log` | `prompt_used`, `model_used`, `critic_score`, `critic_keep[]`, `critic_fix[]`, `qa_status`, `strategy`, `editorial_rounds`, `final_score`, `consistency_score`, `angle` | Critic feedback for learning; `qa_status` = native QA outcome; v7.0: `strategy` ('repair'/'bestof2') + `editorial_rounds` + `final_score` (post-editorial) pro srovnání pipeline cest, `consistency_score` = cosine caption vs gold-voice centroid (`20260703_generation_strategy.sql`, `20260703_embeddings.sql`); `angle` = úhel deklarovaný copywriterem před psaním, kritik proti němu hodnotí Originalitu (`20260704_caption_angle.sql`) |
 | `ig_brand_memory` | `memory_type` (pattern/preference/avoid/visual), `content`, `confidence`, `embedding` vector(768) | Long-term learning; `embedding` = relevance retrieval přes RPC `match_brand_memories` (pgvector, lazy self-heal `embedPendingMemories`) |
@@ -423,7 +437,8 @@ client-scoped). Testy: `npx tsx scripts/test-agent-approval-link.ts` (token prop
 | `admin-actions.ts` | ~640 | getDashboardStats(), getIGPostsList(), updateIGPostMetrics() (+ learning trigger), getEditorialLog(), checkIsAdmin() |
 | `ig-generate-action.ts` | ~520 | triggerBatchGeneration(), triggerIdeaGeneration(), triggerReviewGeneration() |
 | `content-plan-actions.ts` | ~540 | generateContentPlan() — hloubkový textový plán před generováním (PlanTab): `runPlanPipeline` (stratég → koncepty → cross-family judge → revize, Pro ladder `planner`, nikdy flash); `getPlanProgress(planRunId)` = live polling fází pro UI |
-| `variant-actions.ts` | ~400 | revisePost(), generatePostVariant(), generateMultipleVariants(), selectVariantWinner(), getVariantGroup() |
+| `variant-actions.ts` | ~400 | revisePost() = **přegenerování od nuly** (opt-in, účtované od v8.6), generatePostVariant(), generateMultipleVariants(), selectVariantWinner(), getVariantGroup() |
+| `post-edit-actions.ts` | ~330 | editPost() = cílená retuš hotového příspěvku in-place (rozsah text/obrázek/obojí, označená oblast, „nesahej na"), revertPostEdit() |
 | `config-actions.ts` | ~370 | getClientConfig(), updateClientConfig(), uploadClientLogo(), rescanClientWebsite(), deleteClient() |
 | `credit-guard.ts` | ~200 | creditGuard(), creditGuardBatch(), canGenerate() — vše s membership checkem |
 | `calendar-actions.ts` | ~180 | getWeekPosts/approvePost/movePost/schedulePostAction (planWeekAction odstraněn v7.6 — billing leak; „Naplánovat týden" jde přes campaign flow) |
@@ -490,6 +505,11 @@ client-scoped). Testy: `npx tsx scripts/test-agent-approval-link.ts` (token prop
 | `META_APP_ID` / `META_APP_SECRET` | Optional (gate IG connect) | Instagram OAuth — `/api/ig-connect/*`, `instagram/ig-connection.ts`; bez nich je „Připojit Instagram" v UI skryté |
 | `IG_TOKEN_ENCRYPTION_KEY` | Optional (gate IG connect) | AES-256-GCM klíč pro šifrování IG tokenů v `ig_connections` (`lib/ig-token-crypto.ts`) — `openssl rand -hex 32` |
 | `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Optional | error monitoring (server / client) |
+| `STRIPE_SECRET_KEY` / `STRIPE_PUBLISHABLE_KEY` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Yes for Stripe payments | Provisionováno přes Vercel Marketplace (`vercel integration add stripe`). ⚠️ K 2026-07-30 je to **sandbox v TEST režimu** (US/USD, `charges_enabled:false`) — na stavbu ano, na skutečné platby ne. Live vyžaduje `vercel integration resource claim` + Stripe onboarding s IČO. Postup v `docs/LEGAL_SETUP.md` §6a |
+| `LEGAL_OTHER_TURNOVER_CZK` | Optional | Roční obrat ostatních činností téže osoby (květinářství) v Kč. Hranice DPH 2 mil. se počítá **za osobu, ne za činnost**, takže `compliance-calendar` bez tohohle čísla hlídá jen faktury Chrlitu — a sám to hlásí jako neúplné |
+| `FAKTUROID_CLIENT_ID` / `FAKTUROID_CLIENT_SECRET` / `FAKTUROID_SLUG` | Yes for payments | `lib/fakturoid.ts` — OAuth client credentials + slug účtu z URL. Chybí = platba proběhne, ale doklad se nevystaví a `invoices.status` zůstane `failed`. Fakturace je best-effort vůči callbacku: **nikdy nesmí shodit potvrzení platby** |
+| `FAKTUROID_USER_AGENT` | Optional | Fakturoid vrací 400 na požadavek bez User-Agentu s kontaktem; default se odvodí z `LEGAL.email` |
+| `NEXT_PUBLIC_BUSINESS_*` | Optional (override) | Identita podnikatele — `NAME`, `ICO`, `DIC`, `VAT_STATUS`, `STREET`, `CITY`, `ZIP`, `REGISTRY_OFFICE`, `BANK_ACCOUNT`, `EMAIL`, `PHONE`. Výchozí hodnoty jsou v `lib/legal.ts` (verzované v gitu, protože obchodní podmínky musí být dohledatelné v čase). Kontrola úplnosti: `npx tsx scripts/check-legal-identity.ts` — končí exit 1, dokud kdekoli zůstane `DOPLNIT` |
 
 ---
 

@@ -52,6 +52,24 @@ export interface IGPost {
      *  — attached by getIGPostsList so the dashboard can flag posts whose image never passed
      *  vision QA cleanly (diacritics/garbled text) before a human publishes them. */
     qa_status?: string | null
+    /** Previous states, one pushed before each editPost() call (newest last, capped at 10).
+     *  Only the length matters to the UI — it drives the "Vrátit zpět" button. */
+    edit_history?: PostEditHistoryEntry[] | null
+}
+
+/** One undo step for editPost() — the post's state BEFORE that edit was applied. */
+export interface PostEditHistoryEntry {
+    at: string
+    scope: "text" | "image" | "both"
+    instruction: string
+    preserve?: string | null
+    region?: { x: number; y: number; w: number; h: number } | null
+    slide_index?: number | null
+    image_url: string | null
+    image_prompt: string | null
+    image_style: string | null
+    caption: string | null
+    hashtags: string[] | null
 }
 
 // ─── IG Post Type ────────────────────────────────────────────

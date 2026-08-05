@@ -716,6 +716,111 @@ Return JSON: { "designSystem": "one paragraph describing the shared system", "br
 }
 
 // ============================================
+// USER-DRIVEN EDIT — targeted retouch, never a re-design
+// ============================================
+
+/** Normalized selection box on the image, origin top-left, all values 0..1. */
+export interface EditRegion {
+    x: number
+    y: number
+    w: number
+    h: number
+}
+
+/** Coarse human name for where a box sits — models follow "the upper-right area"
+ *  far more reliably than bare percentages, so we give them both. */
+function regionName(r: EditRegion): string {
+    const cx = r.x + r.w / 2
+    const cy = r.y + r.h / 2
+    // A selection covering most of the frame isn't a location, it's the whole picture
+    if (r.w >= 0.8 && r.h >= 0.8) return "almost the entire frame"
+    const vertical = cy < 0.34 ? "upper" : cy > 0.66 ? "lower" : "middle"
+    const horizontal = cx < 0.34 ? "left" : cx > 0.66 ? "right" : "centre"
+    if (vertical === "middle" && horizontal === "centre") return "the centre of the frame"
+    if (vertical === "middle") return `the ${horizontal} side, vertically centred`
+    if (horizontal === "centre") return `the ${vertical} centre`
+    return `the ${vertical}-${horizontal} area`
+}
+
+const pct = (v: number) => `${Math.round(clamp01(v) * 100)}%`
+function clamp01(v: number): number {
+    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0
+}
+
+/** Clamp a raw selection into the frame and drop degenerate (zero-area) boxes. */
+export function normalizeEditRegion(r?: Partial<EditRegion> | null): EditRegion | undefined {
+    if (!r || r.x == null || r.y == null || r.w == null || r.h == null) return undefined
+    // Reject non-finite coordinates outright rather than letting clamp01 turn them into
+    // zeros — that would quietly aim the edit at the top-left corner instead of telling
+    // the caller there is no usable selection.
+    if (![r.x, r.y, r.w, r.h].every(v => Number.isFinite(v))) return undefined
+    const x = clamp01(r.x)
+    const y = clamp01(r.y)
+    const w = clamp01(Math.min(r.w, 1 - x))
+    const h = clamp01(Math.min(r.h, 1 - y))
+    if (w < 0.01 || h < 0.01) return undefined
+    return { x, y, w, h }
+}
+
+/**
+ * Prompt for editing a FINISHED post image on the user's instruction.
+ *
+ * Deliberately shaped like editPrintDesign's edit (instruction first, preservation
+ * clause second) rather than like a design brief. The whole point of this path is
+ * that the user said "move the headline up" and got a completely different photo,
+ * layout and concept back — because revisePost re-ran generateDesignBrief. Nothing
+ * here may invite a new design; the words "create", "design" and "generate" are
+ * kept out on purpose, and the preservation clause is unconditional.
+ *
+ * Pure function — tested by scripts/test-post-edit-prompt.ts.
+ */
+export function buildPostEditPrompt(p: {
+    /** What the user wants changed, verbatim (Czech is fine — the model is multilingual) */
+    instruction: string
+    /** Optional "don't touch" list from the user */
+    preserve?: string
+    /** Optional marked area; when absent the instruction applies to the whole frame */
+    region?: EditRegion
+    /** Headline burnt into the image — must survive an edit character-for-character */
+    hook?: string
+}): string {
+    const blocks: string[] = [
+        `Apply this change to the image: ${p.instruction.trim()}`,
+    ]
+
+    const region = normalizeEditRegion(p.region)
+    if (region) {
+        blocks.push(
+            `APPLY THE CHANGE ONLY inside this region of the frame: horizontally from ` +
+            `${pct(region.x)} to ${pct(region.x + region.w)}, vertically from ${pct(region.y)} ` +
+            `to ${pct(region.y + region.h)}, measured from the top-left corner — ` +
+            `${regionName(region)}.\n` +
+            `Everything outside that region must stay pixel-identical to the input image.`
+        )
+    }
+
+    if (p.preserve?.trim()) {
+        blocks.push(`KEEP UNCHANGED — the user explicitly asked you not to touch this: ${p.preserve.trim()}`)
+    }
+
+    blocks.push(
+        `Keep the composition, framing, photo, colors, typography style, logo and layout ` +
+        `EXACTLY the same. This is a targeted retouch of an existing finished design, ` +
+        `not a new design. Do not re-photograph, re-stage or re-compose the scene. ` +
+        `Do not swap the subject, the background or the color palette.`
+    )
+
+    blocks.push(
+        p.hook?.trim()
+            ? `All Czech text must keep its exact spelling and diacritics. The headline must read ` +
+              `character-for-character: "${p.hook.trim()}"${/nadpis|headline|titul|text/i.test(p.instruction) ? " — unless the change above explicitly rewords it." : "."}`
+            : `All Czech text must keep its exact spelling and diacritics.`
+    )
+
+    return blocks.join("\n\n")
+}
+
+// ============================================
 // NATIVE IMAGE QA — vision verification
 // ============================================
 

@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { createPortal } from "react-dom"
 import { motion } from "framer-motion"
 import { getIGPostsList, updateIGPostStatus, getEditorialLog } from "@/app/actions/admin-actions"
 import { deleteIGPost, deleteIGPosts } from "@/app/actions/post-actions"
 import { revisePost, generateMultipleVariants, selectVariantWinner, getVariantGroup } from "@/app/actions/variant-actions"
+import { editPost, revertPostEdit, type EditScope } from "@/app/actions/post-edit-actions"
 import { retryPublishAction } from "@/app/actions/calendar-actions"
 import { LoadingSpinner, StatusBadge, PillarBadge, CopyButton, MetricsInputForm } from "./shared"
 import { PublishHandoffModal } from "./PublishHandoffModal"
@@ -455,7 +456,7 @@ function InlineAction({ label, title, onClick, accent }: { label: string; title:
 }
 
 function PostDetailModal({
-    post,
+    post: postProp,
     projectId,
     onClose,
     onStatusChange,
@@ -472,10 +473,16 @@ function PostDetailModal({
     onPublish: (post: IGPost) => void
 }) {
     const { copiedField, copyToClipboard } = useCopyToClipboard()
+    // Edits update the post IN PLACE, so the modal renders the freshest row it has —
+    // the list behind it refreshes separately and must not blank the modal mid-edit.
+    const [editedPost, setEditedPost] = useState<IGPost | null>(null)
+    const post = editedPost ?? postProp
     const [confirmDelete, setConfirmDelete] = useState(false)
     const [feedbackText, setFeedbackText] = useState("")
     const [revising, setRevising] = useState(false)
     const [revisionResult, setRevisionResult] = useState<{ success: boolean; newPostId?: string; error?: string } | null>(null)
+    const [editRegion, setEditRegion] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+    const [regionActive, setRegionActive] = useState(false)
     const [generatingVariants, setGeneratingVariants] = useState(false)
     const [variantIds, setVariantIds] = useState<string[]>([])
     const [showVariantComparison, setShowVariantComparison] = useState(false)
@@ -580,14 +587,19 @@ function PostDetailModal({
                 {/* Body — scrollable */}
                 <div className="flex-1 overflow-y-auto">
                     <div className="flex flex-col lg:flex-row">
-                        {/* Left: Image */}
-                        <div className="lg:w-1/2 bg-[#0f0f0f] border-r border-white/10 flex flex-col items-center justify-center p-4 relative">
+                        {/* Left: Image — pinned to the top of the scroll area. It used to be
+                            vertically centred in a column stretched by the caption, which put
+                            most of the picture below the fold; you can't drag a region over
+                            something you can't see. */}
+                        <div className="lg:w-1/2 bg-[#0f0f0f] border-r border-white/10 flex flex-col items-center justify-start p-4 relative lg:sticky lg:top-0 lg:self-start">
                             {imageUrls.length > 0 ? (
                                 <>
-                                    <img
+                                    <RegionSelectableImage
                                         src={imageUrls[carouselIndex] || imageUrls[0]}
                                         alt={isCarousel ? `Slide ${carouselIndex + 1}` : ""}
-                                        className="max-w-full max-h-[300px] sm:max-h-[500px] rounded-sm object-contain border border-white/10 shadow-lg"
+                                        enabled={regionActive}
+                                        region={editRegion}
+                                        onRegion={setEditRegion}
                                     />
                                     {isCarousel && (
                                         <>
@@ -748,52 +760,32 @@ function PostDetailModal({
                     </div>
                 </div>
 
-                {/* Revision Panel */}
-                <div className="px-4 sm:px-6 py-4 border-t border-white/10 bg-[#030303]">
-                    <p className="text-[9px] uppercase tracking-widest font-bold text-white/30 mb-2">💬 Feedback k revizi</p>
-                    {revisionResult?.success ? (
-                        <div className="flex items-center gap-3 py-2">
-                            <span className="text-xs text-emerald-400">✅ Revize hotova — nový draft vytvořen</span>
-                            <button
-                                onClick={() => { onClose() }}
-                                className="text-[10px] underline text-white/40 hover:text-white/70"
-                            >
-                                Zobrazit v seznamu
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="flex gap-2 items-start">
-                            <textarea
-                                value={feedbackText}
-                                onChange={e => setFeedbackText(e.target.value)}
-                                placeholder="Např: přidej emoji, zkrať text, zmiň konkrétní cenu..."
-                                rows={2}
-                                className="flex-1 px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-xs resize-none focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
-                            />
-                            <button
-                                onClick={async () => {
-                                    if (!feedbackText.trim() || revising) return
-                                    setRevising(true)
-                                    const result = await revisePost(post.id, feedbackText.trim(), projectId)
-                                    setRevisionResult(result)
-                                    setRevising(false)
-                                }}
-                                disabled={revising || !feedbackText.trim()}
-                                className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-white/5 text-white/60 hover:bg-white/10 hover:text-white transition-all border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
-                            >
-                                {revising ? (
-                                    <span className="flex items-center gap-1.5">
-                                        <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" /></svg>
-                                        Přepracovávám...
-                                    </span>
-                                ) : "🔄 Přepracovat"}
-                            </button>
-                        </div>
-                    )}
-                    {revisionResult?.error && (
-                        <p className="text-[10px] text-red-400 mt-1.5">❌ {revisionResult.error}</p>
-                    )}
-                </div>
+                {/* Edit Panel — targeted retouch; full re-generation is the separate opt-in below */}
+                <PostEditPanel
+                    post={post}
+                    projectId={projectId}
+                    slideIndex={carouselIndex}
+                    slideCount={imageUrls.length}
+                    mediaKind={media.kind}
+                    region={editRegion}
+                    onRegionModeChange={setRegionActive}
+                    onClearRegion={() => setEditRegion(null)}
+                    onEdited={p => { setEditedPost(p); setEditRegion(null); onRefresh() }}
+                    regenerate={{
+                        feedbackText,
+                        setFeedbackText,
+                        revising,
+                        revisionResult,
+                        run: async () => {
+                            if (!feedbackText.trim() || revising) return
+                            setRevising(true)
+                            const result = await revisePost(post.id, feedbackText.trim(), projectId)
+                            setRevisionResult(result)
+                            setRevising(false)
+                            if (result.success) onRefresh()
+                        },
+                    }}
+                />
 
                 {/* Publish failure reason */}
                 {post.status === "failed" && post.publish_error && (
@@ -971,6 +963,342 @@ function PostDetailModal({
             </div>
         </div>,
         document.body
+    )
+}
+
+// ═══════════════════════════════════════════════════════════
+// REGION SELECTOR — drag a box over the preview to say "here"
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * The image preview, optionally drag-selectable. Coordinates are normalized 0..1
+ * against the rendered <img> box, so they survive any display size and map straight
+ * onto the percentages buildPostEditPrompt() puts in the prompt.
+ *
+ * Plain pointer events + one absolutely-positioned div: no canvas and no library.
+ * The selection is advisory input for the prompt, not a pixel mask — the model gets
+ * words, so sub-pixel accuracy would be false precision anyway.
+ */
+function RegionSelectableImage({
+    src,
+    alt,
+    enabled,
+    region,
+    onRegion,
+}: {
+    src: string
+    alt: string
+    enabled: boolean
+    region: { x: number; y: number; w: number; h: number } | null
+    onRegion: (r: { x: number; y: number; w: number; h: number } | null) => void
+}) {
+    const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null)
+    const wrapRef = useRef<HTMLDivElement>(null)
+
+    const pointFromEvent = (e: React.PointerEvent) => {
+        const rect = wrapRef.current?.getBoundingClientRect()
+        if (!rect || rect.width === 0 || rect.height === 0) return null
+        return {
+            x: Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)),
+            y: Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height)),
+        }
+    }
+
+    const boxFrom = (a: { x: number; y: number }, b: { x: number; y: number }) => ({
+        x: Math.min(a.x, b.x),
+        y: Math.min(a.y, b.y),
+        w: Math.abs(a.x - b.x),
+        h: Math.abs(a.y - b.y),
+    })
+
+    return (
+        <div
+            ref={wrapRef}
+            className={`relative inline-block max-w-full ${enabled ? "cursor-crosshair touch-none" : ""}`}
+            onPointerDown={enabled ? e => {
+                const p = pointFromEvent(e)
+                if (!p) return
+                // Capture keeps the drag alive when the cursor leaves the image, but it's an
+                // enhancement — it throws on a pointer id the browser doesn't consider active,
+                // and that must not take the whole selection down with it.
+                try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* drag still works */ }
+                setDragStart(p)
+                onRegion(null)
+            } : undefined}
+            onPointerMove={enabled && dragStart ? e => {
+                const p = pointFromEvent(e)
+                if (p) onRegion(boxFrom(dragStart, p))
+            } : undefined}
+            onPointerUp={enabled ? e => {
+                const p = pointFromEvent(e)
+                if (dragStart && p) {
+                    const box = boxFrom(dragStart, p)
+                    // A click without a drag is not a selection — don't leave a 0×0 box behind
+                    onRegion(box.w < 0.02 || box.h < 0.02 ? null : box)
+                }
+                setDragStart(null)
+            } : undefined}
+        >
+            <img
+                src={src}
+                alt={alt}
+                draggable={false}
+                // Capped shorter than the old preview on purpose: the edit panel below now
+                // has to share the modal, and a region you can't see is a region you can't drag.
+                className="max-w-full max-h-[32vh] sm:max-h-[38vh] rounded-sm object-contain border border-white/10 shadow-lg select-none"
+            />
+            {region && (
+                <div
+                    className="absolute border-2 border-emerald-400 bg-emerald-400/10 pointer-events-none rounded-[2px]"
+                    style={{
+                        left: `${region.x * 100}%`,
+                        top: `${region.y * 100}%`,
+                        width: `${region.w * 100}%`,
+                        height: `${region.h * 100}%`,
+                    }}
+                />
+            )}
+            {enabled && !region && !dragStart && (
+                <div className="absolute inset-0 flex items-end justify-center pb-3 pointer-events-none">
+                    <span className="text-[9px] uppercase tracking-widest font-bold text-white/70 bg-black/70 px-2 py-1 rounded-sm border border-white/10">
+                        Táhni myší přes místo, které chceš změnit
+                    </span>
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ═══════════════════════════════════════════════════════════
+// POST EDIT PANEL — targeted retouch (scope · region · keep)
+// ═══════════════════════════════════════════════════════════
+
+function PostEditPanel({
+    post,
+    projectId,
+    slideIndex,
+    slideCount,
+    mediaKind,
+    region,
+    onRegionModeChange,
+    onClearRegion,
+    onEdited,
+    regenerate,
+}: {
+    post: IGPost
+    projectId: string
+    slideIndex: number
+    slideCount: number
+    mediaKind: string
+    region: { x: number; y: number; w: number; h: number } | null
+    onRegionModeChange: (active: boolean) => void
+    onClearRegion: () => void
+    onEdited: (post: IGPost) => void
+    regenerate: {
+        feedbackText: string
+        setFeedbackText: (v: string) => void
+        revising: boolean
+        revisionResult: { success: boolean; newPostId?: string; error?: string } | null
+        run: () => Promise<void>
+    }
+}) {
+    const isReel = mediaKind === "reel"
+    const hasImage = !!post.image_url && !isReel
+    const [scope, setScope] = useState<EditScope>(hasImage ? "image" : "text")
+    const [instruction, setInstruction] = useState("")
+    const [preserve, setPreserve] = useState("")
+    const [busy, setBusy] = useState(false)
+    const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null)
+    const [showRegenerate, setShowRegenerate] = useState(false)
+    const [confirmRegenerate, setConfirmRegenerate] = useState(false)
+
+    const touchesImage = scope !== "text"
+    const historyDepth = post.edit_history?.length ?? 0
+    const locked = post.status === "posted" || post.status === "posting"
+
+    // Region marking only makes sense while an image edit is on the table
+    useEffect(() => {
+        onRegionModeChange(touchesImage && hasImage && !locked)
+        return () => onRegionModeChange(false)
+    }, [touchesImage, hasImage, locked, onRegionModeChange])
+
+    const runEdit = async () => {
+        if (!instruction.trim() || busy) return
+        setBusy(true)
+        setResult(null)
+        const res = await editPost(projectId, post.id, {
+            scope,
+            instruction: instruction.trim(),
+            preserve: preserve.trim() || undefined,
+            region: touchesImage && region ? region : undefined,
+            slideIndex,
+        })
+        setBusy(false)
+        if (res.success && res.post) {
+            onEdited(res.post)
+            setInstruction("")
+            setPreserve("")
+            setResult({ ok: true, message: res.warning || "Hotovo — upraveno." })
+            trackEvent("post_edited", { scope, region: !!region })
+        } else {
+            setResult({ ok: false, message: res.error || "Úprava selhala." })
+        }
+    }
+
+    const runRevert = async () => {
+        if (busy) return
+        setBusy(true)
+        const res = await revertPostEdit(projectId, post.id)
+        setBusy(false)
+        if (res.success && res.post) {
+            onEdited(res.post)
+            setResult({ ok: true, message: "Vráceno na předchozí verzi." })
+        } else {
+            setResult({ ok: false, message: res.error || "Vrácení selhalo." })
+        }
+    }
+
+    if (locked) return null
+
+    return (
+        <div className="px-4 sm:px-6 py-3 border-t border-white/10 bg-[#030303] space-y-2">
+            {/* Scope + status on one row — vertical space here is space taken away from
+                the image preview, which is what the region drag needs to be usable. */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+                {([
+                    { id: "text" as const, label: "✏️ Text" },
+                    { id: "image" as const, label: "🖼️ Obrázek" },
+                    { id: "both" as const, label: "Obojí" },
+                ]).map(opt => {
+                    const disabled = opt.id !== "text" && !hasImage
+                    return (
+                        <button
+                            key={opt.id}
+                            onClick={() => !disabled && setScope(opt.id)}
+                            disabled={disabled}
+                            title={disabled ? (isReel ? "Video u reelu nejde upravit — použij Vygenerovat znovu" : "Příspěvek nemá obrázek") : undefined}
+                            className={`px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded-sm border transition-all ${
+                                scope === opt.id
+                                    ? "bg-white/10 text-white border-white/20"
+                                    : "bg-transparent text-white/40 border-white/10 hover:text-white/70"
+                            } disabled:opacity-25 disabled:cursor-not-allowed`}
+                        >
+                            {opt.label}
+                        </button>
+                    )
+                })}
+                {touchesImage && (
+                    <span className="text-[9px] uppercase tracking-widest font-bold text-amber-400/70 ml-1">1 kredit</span>
+                )}
+                {touchesImage && hasImage && (
+                    <span className="text-[10px] text-white/35 ml-1">
+                        {region ? (
+                            <>
+                                <span className="text-emerald-400">◻ oblast označena</span>{" "}
+                                <button onClick={onClearRegion} className="underline hover:text-white/70">× zrušit</button>
+                            </>
+                        ) : "· táhni myší přes náhled a označ místo"}
+                        {slideCount > 1 && <span className="text-white/25"> · snímek {slideIndex + 1}/{slideCount}</span>}
+                    </span>
+                )}
+                {historyDepth > 0 && (
+                    <button
+                        onClick={runRevert}
+                        disabled={busy}
+                        className="ml-auto text-[9px] uppercase tracking-widest font-bold text-white/40 hover:text-white underline disabled:opacity-40"
+                    >
+                        ↩ Vrátit zpět ({historyDepth})
+                    </button>
+                )}
+            </div>
+
+            {/* Inputs */}
+            <div className="space-y-2">
+                <textarea
+                    value={instruction}
+                    onChange={e => setInstruction(e.target.value)}
+                    placeholder={touchesImage ? "Co změnit — např: dej nadpis výš a zmenši ho" : "Co změnit — např: zkrať popisek, přidej cenu"}
+                    rows={2}
+                    className="w-full px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-xs resize-none focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
+                />
+                <div className="flex gap-2 items-start">
+                    <input
+                        value={preserve}
+                        onChange={e => setPreserve(e.target.value)}
+                        placeholder="Nesahej na… (nepovinné) — např: foto a barvy"
+                        className="flex-1 px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
+                    />
+                    <button
+                        onClick={runEdit}
+                        disabled={busy || !instruction.trim()}
+                        className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-white/5 text-white/60 hover:bg-white/10 hover:text-white transition-all border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
+                    >
+                        {busy ? (
+                            <span className="flex items-center gap-1.5">
+                                <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" /></svg>
+                                Upravuji...
+                            </span>
+                        ) : "✏️ Upravit"}
+                    </button>
+                </div>
+            </div>
+
+            {result && (
+                <p className={`text-[10px] ${result.ok ? "text-emerald-400" : "text-red-400"}`}>
+                    {result.ok ? "✅" : "❌"} {result.message}
+                </p>
+            )}
+
+            {/* Full re-generation — the destructive path, deliberately opt-in */}
+            <div className={showRegenerate ? "pt-2 border-t border-white/5" : ""}>
+                {!showRegenerate ? (
+                    <button
+                        onClick={() => setShowRegenerate(true)}
+                        className="text-[9px] uppercase tracking-widest font-bold text-white/25 hover:text-white/50 transition-colors"
+                    >
+                        🔄 Nebo vygenerovat úplně znovu…
+                    </button>
+                ) : (
+                    <div className="space-y-2">
+                        <p className="text-[9px] uppercase tracking-widest font-bold text-amber-400/70">
+                            ⚠ Vytvoří nový příspěvek s úplně novým vizuálem — jiná fotka, jiná kompozice
+                        </p>
+                        {regenerate.revisionResult?.success ? (
+                            <p className="text-xs text-emerald-400">✅ Nový draft vytvořen — najdeš ho v seznamu</p>
+                        ) : (
+                            <div className="flex gap-2 items-start">
+                                <textarea
+                                    value={regenerate.feedbackText}
+                                    onChange={e => regenerate.setFeedbackText(e.target.value)}
+                                    placeholder="Co má být jinak na úplně novém příspěvku..."
+                                    rows={2}
+                                    className="flex-1 px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-xs resize-none focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
+                                />
+                                <button
+                                    onClick={() => {
+                                        if (!confirmRegenerate) { setConfirmRegenerate(true); return }
+                                        setConfirmRegenerate(false)
+                                        regenerate.run()
+                                    }}
+                                    disabled={regenerate.revising || !regenerate.feedbackText.trim()}
+                                    className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-amber-500/10 text-amber-300/80 hover:bg-amber-500/20 transition-all border border-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
+                                >
+                                    {regenerate.revising ? (
+                                        <span className="flex items-center gap-1.5">
+                                            <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" /></svg>
+                                            Generuji...
+                                        </span>
+                                    ) : confirmRegenerate ? "⚠️ Opravdu?" : "🔄 Znovu (1 kredit)"}
+                                </button>
+                            </div>
+                        )}
+                        {regenerate.revisionResult?.error && (
+                            <p className="text-[10px] text-red-400">❌ {regenerate.revisionResult.error}</p>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
     )
 }
 

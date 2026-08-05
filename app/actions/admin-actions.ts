@@ -213,7 +213,7 @@ export async function getIGPostsList(
                 reach, shares, profile_visits, link_clicks, content_pillar,
                 created_at, updated_at, client_id,
                 media_type, ig_media_id, permalink, publish_error,
-                feedback, revision_of,
+                feedback, revision_of, image_style, edit_history,
                 ig_post_types ( name, display_name, emoji )
             `)
             .eq("client_id", clientId)

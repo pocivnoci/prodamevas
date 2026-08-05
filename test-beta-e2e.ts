@@ -681,6 +681,215 @@ test("13.8 every plan grants story (seed must not drift)", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 14. FAKTURACE A PRÁVNÍ IDENTITA (v8.5)
+// ═══════════════════════════════════════════════════════════
+
+test("14.1 legal identity has exactly one source of truth", () => {
+    assert(fileExists("lib/legal.ts"), "lib/legal.ts must exist — identity on five pages is identity that drifts")
+    // Právní stránky ani patička nesmí mít IČO natvrdo: jedna změna sídla by
+    // jinak nechala část webu lhát a nikdo by si toho nevšiml.
+    for (const page of ["app/terms/page.tsx", "app/privacy/page.tsx", "app/page.tsx"]) {
+        assert(fileContains(page, 'from "@/lib/legal"'), `${page} must read identity from lib/legal`)
+        assert(!/IČO[:\s]*\d{6}/.test(fileContent(page)), `${page} must not hardcode an IČO`)
+    }
+})
+
+test("14.2 identity gaps block the launch instead of shipping placeholders", () => {
+    const c = fileContent("lib/legal.ts")
+    assert(c.includes("legalIdentityGaps"), "lib/legal must expose the completeness check")
+    assert(c.includes('PLACEHOLDER = "DOPLNIT"'), "placeholder must be recognisable, never a plausible-looking fake value")
+    const s = fileContent("scripts/check-legal-identity.ts")
+    assert(s.includes("process.exit(1)"), "check script must FAIL — a warning nobody reads is not a gate")
+})
+
+test("14.3 one payment can never produce two invoices", () => {
+    const m = fileContent("supabase/migrations/20260730_billing_invoices.sql")
+    // Číselná řada faktur je nevratná: duplicitu nejde smazat, jen stornovat.
+    assert(/CREATE UNIQUE INDEX[\s\S]*?invoices \(payment_id\)/.test(m), "invoices.payment_id must carry a UNIQUE index — that index IS the idempotency claim")
+    const c = codeOnly("lib/invoicing.ts")
+    assert(c.includes('.insert('), "the claim must be an INSERT that the unique index can reject")
+    assert(c.includes('status: "duplicate"'), "a rejected claim must return duplicate, never fall through to issuing")
+})
+
+test("14.4 invoicing can never break the payment callback", () => {
+    const c = fileContent("lib/invoicing.ts")
+    assert(c.includes("catch"), "issueInvoiceForPayment must swallow its own failures")
+    assert(c.includes('status: "failed"'), "a failure must be PERSISTED — a silent catch leaves a customer with no document and nobody knowing")
+    // Doklad se vystavuje ve společném jádru, ne v routě konkrétní brány.
+    const core = fileContent("lib/payments/on-paid.ts")
+    assert(core.includes("issueInvoiceForPayment"), "the shared core must issue the document")
+    assert(/deliverPaidArtifacts[\s\S]*?catch/.test(core), "deliverPaidArtifacts must swallow its own failures — a receipt must never break a payment")
+    const cb = fileContent("app/api/payments/callback/route.ts")
+    assert(cb.includes("deliverPaidArtifacts"), "callback must delegate delivery to the shared core")
+    assert(/after\(\(\) =>\s*deliverPaidArtifacts/.test(cb), "delivery must run inside after() so Comgate still gets its immediate ACK")
+})
+
+test("14.9 the paid-payment core is shared, not copied per gateway", () => {
+    // Druhá brána nesmí znamenat druhé místo, které zapomene na doklad nebo na
+    // aktivaci plánu. Jádro je provider-neutrální; routy dělají jen ověření a claim.
+    const core = codeOnly("lib/payments/on-paid.ts")
+    // Jádro SMÍ brány jmenovat v typu PaymentProvider (potřebuje je odlišit ve
+    // Sentry tagu), ale nesmí IMPORTOVAT klienta konkrétní brány — tím by se
+    // stalo závislé na jedné z nich a druhá by si musela udělat kopii.
+    assert(!/from\s+["']@?\/?lib\/comgate["']/.test(core), "the shared core must not import the Comgate client")
+    assert(!/from\s+["']stripe["']/.test(core), "the shared core must not import the Stripe SDK either")
+    assert(!core.includes("getPaymentStatus"), "server-side status verification is gateway-specific and stays in the route")
+
+    // Aktivace plánu smí být jen v jádru — kopie v routě by se rozešla.
+    const cb = codeOnly("app/api/payments/callback/route.ts")
+    assert(!cb.includes("activatePaidPlan"), "the Comgate route must NOT activate the plan itself — that logic lives in the core")
+    assert(cb.includes("finalizePaidPayment"), "the route must call the core")
+
+    // Mock transId se nikdy nesmí uložit jako token pro budoucí obnovy —
+    // příští měsíc by se na něj poslala skutečná platba.
+    assert(/isMockPaymentMode\(\)[\s\S]*?recurringToken|recurringToken[\s\S]*?isMockPaymentMode\(\)/.test(cb),
+        "the mock guard must stay on the recurring token")
+    assert(core.includes("if (!opts.isRenewal && opts.recurringToken)"),
+        "the core stores the recurring token only on the FIRST payment, never on a renewal")
+})
+
+test("14.5 amounts cross the haléř/koruna boundary exactly once", () => {
+    const f = fileContent("lib/fakturoid.ts")
+    assert(f.includes("haleruToCzk"), "the conversion must be a named function, not an inline /100 sprinkled around")
+    assert(f.includes("unit_price: haleruToCzk("), "invoice line must convert — raw payments.amount would invoice 100× the price")
+    // invoices.total_czk zůstává v haléřích schválně, aby seděl s payments.amount.
+    assert(fileContains("app/actions/billing-actions.ts", "totalCzk"), "invoice list must expose the total for the UI")
+})
+
+test("14.6 consumer consent to instant access is recorded, not assumed", () => {
+    const a = fileContent("app/actions/billing-actions.ts")
+    // Bez záznamu souhlasu právo spotřebitele na odstoupení do 14 dnů TRVÁ (§1837).
+    assert(a.includes("recordInstantAccessConsent"), "consent must be recordable")
+    assert(a.includes("instant_access_consent_text"), "the exact wording must be stored — a boolean proves nothing in a dispute")
+    assert(a.includes('.is("instant_access_consent_at", null)'), "consent write must be conditional so a re-confirm never overwrites the original timestamp")
+    const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/BillingSection.tsx")
+    assert(ui.includes("INSTANT_ACCESS_CONSENT_TEXT"), "the UI must show the same wording it stores")
+})
+
+test("14.7 terms match what the code actually does", () => {
+    const t = fileContent("app/terms/page.tsx")
+    // Trial je obsahově omezený (lib/subscription.ts), ne časový — podmínky
+    // slibovaly „7denní zkušební období", což byl nevymahatelný slib navíc.
+    assert(!t.includes("7denní"), "terms must not promise a 7-day trial — the trial is content-gated, not time-gated")
+    assert(fileContains("lib/subscription.ts", "No expiration — trial is limited by content gating"), "if the trial becomes time-gated, this assertion must be revisited together with the terms")
+    // Nevyčerpané kredity propadají — materiální podmínka, kterou musí zákazník znát předem.
+    assert(t.includes("nepřevádějí"), "terms must disclose that unused credits expire")
+    assert(t.includes("automaticky obnovuje"), "terms must disclose auto-renewal")
+})
+
+test("14.8 no reference to the shut-down EU ODR platform", () => {
+    // Platforma ODR byla ukončena 20. 7. 2025 — odkaz na ni je dnes chyba,
+    // a vzory obchodních podmínek ji pořád obsahují.
+    for (const page of ["app/terms/page.tsx", "app/privacy/page.tsx", "lib/legal.ts"]) {
+        const c = fileContent(page)
+        assert(!c.includes("ec.europa.eu/consumers/odr"), `${page} must not link the discontinued ODR platform`)
+    }
+    // Adresa ČOI je v lib/legal (CONSUMER_AUTHORITY), stránka ji jen vykresluje.
+    assert(fileContains("lib/legal.ts", "adr.coi.cz"), "lib/legal must carry the ČOI ADR address consumers are pointed at")
+    assert(fileContains("app/terms/page.tsx", "CONSUMER_AUTHORITY"), "terms must render the ADR body from lib/legal")
+})
+
+// ═══════════════════════════════════════════════════════════
+// 15. CÍLENÁ ÚPRAVA PŘÍSPĚVKU (v8.6)
+// ═══════════════════════════════════════════════════════════
+
+test("15.1 editPost retušuje hotový obrázek, nikdy nekreslí nový návrh", () => {
+    assert(fileExists("app/actions/post-edit-actions.ts"), "post-edit-actions.ts musí existovat")
+    const code = codeOnly("app/actions/post-edit-actions.ts")
+
+    // Jádro celé opravy. renderImage/generateDesignBrief = cesta „vymysli nový koncept,
+    // nový archetyp, novou fotku" — přesně to, co uživateli přepisovalo celou grafiku,
+    // když napsal „posuň nadpis". Jakmile je sem někdo doimportuje, chyba je zpátky.
+    assert(!code.includes("renderImage"), "editPost nesmí volat renderImage — to je přegenerování, ne úprava")
+    assert(!code.includes("generateDesignBrief"), "editPost nesmí volat generateDesignBrief")
+    assert(code.includes("editExistingImage"), "editPost musí upravovat existující buffer")
+    assert(code.includes("fetchImageBuffer"), "editPost musí stáhnout původní obrázek")
+    assert(code.includes("buildPostEditPrompt"), "editPost musí použít sdílený builder promptu")
+})
+
+test("15.2 úprava se zapisuje na místě a nikdy nezaloží nový řádek", () => {
+    const code = codeOnly("app/actions/post-edit-actions.ts")
+    // Stejná doktrína jako u plan draftů a schvalování produktových řad: jediný
+    // podmíněný zápis vlastněný klientem, žádný insert fallback.
+    assert(!code.includes(".insert("), "editPost nesmí vkládat nový příspěvek — úprava je in-place")
+    assert(code.includes('.eq("client_id", clientId)'), "každý zápis musí být omezený na klienta")
+    assert(code.includes("edit_history"), "předchozí stav se musí uložit do historie")
+    assert(code.includes("revertPostEdit"), "musí existovat cesta zpět")
+})
+
+test("15.3 úprava obrázku je zpoplatněná, úprava textu ne", () => {
+    const code = codeOnly("app/actions/post-edit-actions.ts")
+    assert(/creditGuard\(projectSlug, "post_edit"\)/.test(code), "obrázková větev musí projít credit guardem")
+    assert(/wantsImage \? await creditGuard/.test(code), "textová úprava se nesmí účtovat")
+    assert(code.includes("guard.commit"), "kredit se strhává až po úspěchu")
+
+    const sub = fileContent("lib/subscription.ts")
+    assert(sub.includes('post_edit: 1'), "post_edit musí stát 1 kredit")
+    assert(!/action === "post" \|\| action === "post_edit"/.test(sub), "post_edit je plochý — edit je jedno volání modelu bez ohledu na médium")
+})
+
+test("15.4 post_edit je povolený na všech plánech, které umí generovat", () => {
+    // canPerformAction odmítne akci chybějící v allowed_actions s featureBlocked,
+    // takže bez backfillu je tlačítko mrtvé na všech tarifech.
+    const mig = fileContent("supabase/migrations/20260805_post_edit_history.sql")
+    assert(mig.includes("edit_history"), "migrace musí přidat sloupec historie")
+    assert(mig.includes('allowed_actions') && mig.includes('"post_edit"'), "migrace musí doplnit post_edit do plánů")
+    assert(mig.includes(`@> '["post"]'::jsonb`), "backfill se musí vázat na 'post', ne na názvy tarifů (ty se třikrát přejmenovaly)")
+})
+
+test("15.5 po uživatelské úpravě se nikdy neregeneruje od nuly", () => {
+    const code = codeOnly("app/actions/post-edit-actions.ts")
+    // Jeden korektivní edit ANO (rozbitá diakritika je rozbitá vždycky), čerstvá
+    // regenerace NE — zahodila by návrh, který si uživatel chce nechat.
+    assert(code.includes('qa.severity === "severe"'), "QA smí zasáhnout jen u vážné vady, ne u kosmetické")
+    // Korektivní prompt umí opravit JEN typografii. Bez téhle podmínky se v ostrém běhu
+    // spustil na hlášku „no brand logo present" u postu, který logo nikdy neměl — a edit
+    // ho přidal, tedy provedl změnu designu, kterou si uživatel nevyžádal.
+    assert(code.includes("qa.textAccurate === false"), "korekce se smí spustit jen na vadu textu, kterou úprava způsobila")
+    assert(!code.includes("generateImageWithReferences"), "žádná čerstvá regenerace v edit cestě")
+    const editCalls = (code.match(/editExistingImage\(/g) || []).length
+    assert(editCalls <= 2, `nejvýš dva edity (úprava + jedna korekce), našel ${editCalls}`)
+})
+
+test("15.6 poměr stran vychází ze skutečných pixelů, ne z konfigurace", () => {
+    const code = codeOnly("app/actions/post-edit-actions.ts")
+    // Jiný aspectRatio než má vstup = model překomponuje celý snímek. Přesně tohle
+    // dělá revisePost, když story natvrdo vrazí do 4:5.
+    assert(code.includes("nearestAspectRatio"), "poměr stran se musí odvodit z metadat obrázku")
+    assert(code.includes("sharp(original).metadata()"), "rozměry se musí přečíst ze skutečného bufferu")
+    assert(!/aspectRatio: "4:5"/.test(code), "poměr stran se nesmí hardcodovat")
+    // Uložené obrázky jsou WebP; editExistingImage má default image/jpeg.
+    assert(code.includes('mimeType: "image/webp"'), "vstupní buffer je WebP a musí se tak deklarovat")
+})
+
+test("15.7 přegenerování je zpoplatněné a zůstává opt-in", () => {
+    const code = codeOnly("app/actions/variant-actions.ts")
+    assert(/creditGuard\(projectSlug, "post_variant"\)/.test(code), "revisePost je plná generace — musí být zpoplatněná")
+
+    const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/PostsTab.tsx")
+    assert(ui.includes("editPost"), "PostsTab musí nabízet cílenou úpravu")
+    assert(ui.includes("Vygenerovat úplně znovu") || ui.includes("vygenerovat úplně znovu"),
+        "přegenerování musí být samostatná, jasně označená akce")
+    assert(ui.includes("Vrátit zpět"), "musí jít vrátit poslední úpravu")
+})
+
+test("15.8 fetchImageBuffer má jedinou definici", () => {
+    assert(fileExists("lib/image-buffer.ts"), "lib/image-buffer.ts musí existovat")
+    const print = codeOnly("app/actions/print-actions.ts")
+    assert(!/async function fetchBuffer\(/.test(print), "print-actions už nesmí mít vlastní kopii")
+    assert(print.includes('from "@/lib/image-buffer"'), "print-actions musí importovat sdílený helper")
+})
+
+test("15.9 textová úprava nesmí rozjet re-roll obrázku", () => {
+    const cap = fileContent("instagram/caption-generator.ts")
+    // reviseCaption měla imagePrompt povinně ve schématu, takže i „zkrať text" vrátilo
+    // nový image prompt a revisePost na něj vyrenderoval úplně nový obrázek.
+    assert(cap.includes("keepHook"), "reviseCaption musí umět textovou úpravu bez obrázku")
+    assert(cap.includes("delete parsed.imagePrompt"), "u keepHook musí imagePrompt zmizet v kódu, ne jen v promptu")
+    assert(/parsed\.hook = input\.renderedHook/.test(cap), "hook vypálený v obrázku se musí vynutit kódem")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 

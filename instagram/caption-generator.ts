@@ -1221,6 +1221,13 @@ export interface ReviseCaptionInput {
     /** Engine post-type slug (ig_post_types.name). When present, the revision carries the
      *  post's CTA policy so a rewrite can't re-introduce a forbidden website link. */
     postTypeName?: string
+    /** Text-only edit: the image is NOT being re-rendered, so the hook stays exactly as
+     *  it is — it's burnt into the existing artwork and a "better" one would make the
+     *  caption contradict the picture. Also drops imagePrompt/imageSubtext from the
+     *  output schema, so a caption tweak can't hand the caller a re-roll trigger. */
+    keepHook?: boolean
+    /** The hook currently rendered in the image — passed verbatim when keepHook is set. */
+    renderedHook?: string
 }
 
 export interface RevisedCaption {
@@ -1271,20 +1278,29 @@ ${hashtagSection}
 
 ## INSTRUKCE:
 1. Přepiš caption PŘESNĚ podle feedbacku — ale zachovej brand voice a styl
-2. Hook (první řádek) musí stále zastavit scrollování — max 15 slov, bez emoji
+2. ${input.keepHook
+        ? `Hook je VYPÁLENÝ V OBRÁZKU a obrázek se teď nemění — vrať ho ZNAKOVĚ SHODNĚ: "${input.renderedHook || input.originalCaption.split("\n")[0]}". Uprav jen tělo, CTA a hashtagy.`
+        : "Hook (první řádek) musí stále zastavit scrollování — max 15 slov, bez emoji"}
 3. ${policy && !policy.allowWebsite ? "CTA zůstává engagement (komentář / uložení / sdílení) — NEPŘIDÁVEJ web ani URL" : `CTA musí směřovat na ${config.website || "web značky"}`}
 4. Zachovej strukturu: hook → body → CTA → hashtags
 5. Pokud feedback říká "zkrátit" — zkrať. Pokud "přidat humor" — přidej. Buď DOSLOVNÝ.
 6. NIKDY nepřekládej anglické názvy produktů/kolekcí do češtiny
+7. Měň POUZE to, co feedback žádá. Co feedback nezmiňuje, zůstává beze změny.
 
 ## VÝSTUP — vrať POUZE validní JSON:
-{
+${input.keepHook
+        ? `{
+  "caption": "kompletní nový text příspěvku (hook + body + CTA)",
+  "hashtags": ["#hashtag1", "#hashtag2", "..."],
+  "hook": "PŘESNĚ tentýž hook jako v původním příspěvku, znak po znaku"
+}`
+        : `{
   "caption": "kompletní nový text příspěvku (hook + body + CTA)",
   "hashtags": ["#hashtag1", "#hashtag2", "..."],
   "hook": "první řádek captiony — hook text pro overlay na obrázku (max 15 slov, bez emoji)",
   "imagePrompt": "English prompt for AI image generation — describe the background photo. NO TEXT in image. Photorealistic, editorial quality.",
   "imageSubtext": "krátký podtext pod hook na obrázku (max 8 slov, česky)"
-}`
+}`}`
 
     // Copywriter = ~80% of text quality, so it runs the QUALITY LADDER: top Pro
     // (gemini-pro-latest) retried HARD on transient 503/429 for minutes, then the GA
@@ -1296,9 +1312,21 @@ ${hashtagSection}
 
     const text = await generateTextQuality(prompt, { models: copyModels, label: "copywriter", temperature: getTemperature("copywriter") })
 
+    let parsed: RevisedCaption
     try {
-        return JSON.parse(text.replace(/```json|```/g, "").trim())
+        parsed = JSON.parse(text.replace(/```json|```/g, "").trim())
     } catch {
         throw new Error("AI vrátilo neplatný JSON")
     }
+
+    // Hard guard, same doctrine as the design brief's verbatim typography check: on a
+    // text-only edit the image is not being re-rendered, so a drifted hook would leave
+    // the caption saying one thing and the picture another. Asking politely isn't enough.
+    if (input.keepHook) {
+        parsed.hook = input.renderedHook || input.originalCaption.split("\n")[0]
+        delete parsed.imagePrompt
+        delete parsed.imageSubtext
+    }
+
+    return parsed
 }

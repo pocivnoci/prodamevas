@@ -494,7 +494,18 @@ export async function loadReferenceImages(ctx: RenderContext): Promise<RefImage[
 
 async function uploadFinalImage(finalImage: Buffer, ctx: RenderContext): Promise<string | undefined> {
     const { config, report } = ctx
+    await report("uploading", 85, "📤 Nahrávám do Supabase...")
+    return uploadPostImage(finalImage, config)
+}
 
+/**
+ * PNG buffer → WebP → bucket → public URL. The single upload path for post images.
+ *
+ * Exported because editPost (app/actions/post-edit-actions.ts) ships an edited
+ * buffer without going through a RenderContext — it must land in the same bucket
+ * with the same compression, not in a second copy of this logic.
+ */
+export async function uploadPostImage(finalImage: Buffer, config: RenderContext["config"]): Promise<string | undefined> {
     console.log("🗜️ Komprimuji obrázek před uploadem (PNG -> WebP)...")
     const compressedImage = await sharp(finalImage)
         .webp({ quality: 90, effort: 6 })
@@ -502,7 +513,6 @@ async function uploadFinalImage(finalImage: Buffer, ctx: RenderContext): Promise
 
     console.log(`   ✓ WebP size: ${(compressedImage.length / 1024).toFixed(0)} KB`)
 
-    await report("uploading", 85, "📤 Nahrávám do Supabase...")
     console.log("📤 Nahrávám do Supabase...")
     const timestamp = Date.now()
     const filename = `ig-posts/${timestamp}.webp`

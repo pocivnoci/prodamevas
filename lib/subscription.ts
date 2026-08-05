@@ -36,6 +36,7 @@ const ADMIN_BYPASS: CanPerformResult = {
 
 export type ActionType =
     | "post"
+    | "post_edit"
     | "post_variant"
     | "idea_generate"
     | "product_ideas"
@@ -48,6 +49,7 @@ export type ActionType =
 /** How many credits each action costs (for EXTRA posts, not plan posts) */
 export const ACTION_CREDITS: Record<ActionType, number> = {
     post: 1,               // base = image; carousel/reel are weighted via creditsForMedia()
+    post_edit: 1,          // targeted retouch = ONE image call — flat, never media-weighted
     post_variant: 1,       // base = image; weighted via creditsForMedia()
     idea_generate: 1,      // batch of ideas
     product_ideas: 2,      // 5 product ideas
@@ -76,6 +78,7 @@ export function creditsForAction(action: ActionType, medium?: string | null): nu
 /** Human-readable labels for actions */
 export const ACTION_LABELS: Record<ActionType, string> = {
     post: "Příspěvek",
+    post_edit: "Úprava příspěvku",
     post_variant: "Varianta příspěvku",
     idea_generate: "Generování nápadů",
     product_ideas: "Produktové nápady",
@@ -804,5 +807,7 @@ export async function upgradeTrialToPaid(clientId: string): Promise<void> {
 function getPlanForAction(action: ActionType): string {
     if (action.startsWith("product_")) return "Dominance"
     if (action === "post_variant") return "Růst"
+    // post_edit deliberately falls through to Start — fixing a post you already paid to
+    // generate is table stakes on every plan, not an upsell.
     return "Start"
 }

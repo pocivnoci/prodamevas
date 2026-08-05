@@ -2,23 +2,34 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess } from "@/lib/auth-guard"
+import { creditGuard } from "./credit-guard"
 import { isMediumType, type MediumType } from "@/lib/credits"
 
 // ─── Post Revision ───────────────────────────────────────────
 
 /**
- * Revise a post based on user feedback.
- * Creates a new draft post with revised caption/hashtags.
- * Original post is preserved unchanged.
+ * Regenerate a post from scratch on user feedback — new caption AND a brand-new
+ * visual (fresh design brief, fresh archetype, fresh photo).
+ *
+ * ⚠️ This is the DESTRUCTIVE path and must stay opt-in. For "move the headline up"
+ * use editPost() in app/actions/post-edit-actions.ts, which retouches the existing
+ * image instead. This one exists for "I don't want this post at all, try again".
+ *
+ * Creates a new draft post; the original is preserved unchanged.
  */
 export async function revisePost(
     postId: string,
     feedback: string,
     projectSlug: string
 ): Promise<{ success: boolean; newPostId?: string; error?: string }> {
-    try {
-        const { clientId } = await requireProjectAccess(projectSlug)
+    // Full generation: Pro copywriter + design brief + render + QA + up to 3 corrective
+    // attempts. It ran uncharged and unguarded until v8.6 — a straight billing leak, and
+    // the only free path to an unlimited image render in the product.
+    const guard = await creditGuard(projectSlug, "post_variant")
+    if (!guard.ok) return { success: false, error: guard.error }
+    const clientId = guard.clientId
 
+    try {
         // 1. Load original post (must belong to this client)
         const { data: original, error: fetchErr } = await supabaseAdmin
             .from("ig_posts")
@@ -131,6 +142,7 @@ export async function revisePost(
 
         if (insertErr) throw insertErr
 
+        await guard.commit(`Přegenerování: ${feedback.slice(0, 60)}`, newPost.id)
         console.log(`✅ Post revised: ${postId} → ${newPost.id}`)
 
         // ─── REJECTION LEARNING ───────────────────────────

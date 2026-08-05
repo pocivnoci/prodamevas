@@ -33,6 +33,8 @@ import {
 } from "@/instagram/print-pipeline"
 import { editExistingImage } from "@/instagram/gemini-client"
 import { upsertMemory } from "@/instagram/memory-agent"
+// Shared with editPost — one definition of "download a shipped image back into bytes"
+import { fetchImageBuffer as fetchBuffer } from "@/lib/image-buffer"
 
 const BUCKET = "product-designs"
 
@@ -543,12 +545,6 @@ async function loadLogoSafe(logoFile: string): Promise<Buffer | null> {
     } catch {
         return null
     }
-}
-
-async function fetchBuffer(url: string): Promise<Buffer> {
-    const res = await fetch(url)
-    if (!res.ok) throw new Error(`Nepodařilo se stáhnout ${url} (${res.status})`)
-    return Buffer.from(await res.arrayBuffer())
 }
 
 async function upload(buffer: Buffer, path: string): Promise<string> {

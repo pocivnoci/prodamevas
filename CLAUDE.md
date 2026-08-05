@@ -35,6 +35,7 @@ Three layers, all multi-tenant:
    - `variant-actions.ts` — A/B variant system: `revisePost`, `generatePostVariant`/`generateMultipleVariants`, `selectVariantWinner` (winner feeds memory learning), variant groups shown in PostsTab comparison modal
    - `line-actions.ts` — product lines (v8.3): `generateLine` (credit `product_line`, row created up-front at `status:'generating'` so `getLineProgress(runId)` has something to poll), `reviseLineSku`, `approveLine`, `discardLine`. Approval is a **conditional claim** (`UPDATE … WHERE id=? AND client_id=? AND status='draft'`) exactly like plan drafts — single-use, **never add an insert fallback**
    - `print-actions.ts` — print designs (v8.3): `generatePrintDesign`, `generatePrintVariants` (A/B), `editPrintDesign` (**edits** existing artwork, never re-rolls), `generateMockup`, `selectDesignWinner` (→ `visual` brand memory)
+   - `billing-actions.ts` — fakturační údaje zákazníka (`ig_billing_details`) + přehled dokladů. `recordInstantAccessConsent` ukládá čas **i znění** souhlasu se zahájením plnění a zapisuje **podmíněně** (`.is(…, null)`), aby re-potvrzení nepřepsalo původní razítko
    - `memory-actions.ts`, `post-actions.ts`, `product-actions.ts`, `calendar-actions.ts`, `credit-guard.ts`, …
    - `app/onboarding/actions.ts` — onboarding wizard backend: `analyzeWebsite()` scrapes the website **and** the Instagram profile (`IgProfileData`, `IgInsights`), then config preview → refine → save flow. Save is transactional-ish: the `user_clients` link is created right after the client insert and is **fatal** (rollback of the client row on failure — an unlinked client is an unreachable orphan and a retry would duplicate the tenant); re-onboarding (`existingClientSlug`) preserves slug-bound assets (`storageBucket`, `logoFile`, `postsPerWeek`, voice examples…) so a re-scan can't clobber them. Post-save showcase content runs via `startOnboardingBootstrap()` — teaser plan + idea-bank seed inline, then the 3 showcase posts as a durable `ig_campaigns` row (`adminBypass: true`, never charged) drained by the campaign worker, so closing the tab no longer strands a new client
 
@@ -76,6 +77,37 @@ A **product line** (`ig_product_lines`, migration `20260729_product_lines.sql`) 
 - Formats are creative briefs: `PostTypeDef.description/structure/visualStyle` reach the copywriter (structure replaces the generic medium skeleton), and BOTH designers via `formatBrief` — config def is the source of truth (`getPostTypeDef`), the `ig_post_types` row is a picker copy.
 - `memory-agent.ts` learns patterns into `ig_brand_memory` (pattern/preference/avoid/visual); `updateIGPostMetrics()` auto-triggers propagation + learning (fire & forget).
 - **Product ideas** have their own loop (v8.3): `rateProductIdea` writes 👍/👎 → `getWeightedProductIdeas(clientId, limit)` mirrors `getWeightedIdeas` but takes **clientId explicitly** (no new `getActiveProject()` callers). Ratings feed both the idea generator and the line generator. Picking an A/B print winner (`selectDesignWinner`) writes a `visual` memory, so a print decision also reaches the Instagram art director.
+
+### Úprava příspěvku ≠ přegenerování (v8.6)
+
+`editPost` (`app/actions/post-edit-actions.ts`) je **retuš hotového vizuálu**, ne nový návrh: stáhne publikovaný obrázek (`fetchImageBuffer`), pošle **ten buffer** do `editExistingImage` s uživatelovou instrukcí + ochrannou klauzulí a zapíše výsledek **na tentýž řádek**. Přesně vzor, který už roky funguje u tisku (`editPrintDesign`). Předtím `revisePost` odpovídal na „posuň nadpis" voláním `renderImage()` → `generateDesignBrief()` vymyslel nový koncept, archetyp, fotku i layout; hotový obrázek nikdy neviděl žádný model, takže každá drobná poznámka vrátila jiný příspěvek.
+
+Čtyři pravidla, která to drží (aserce §15 v `test-beta-e2e.ts`):
+
+- **`post-edit-actions.ts` nesmí importovat `renderImage` ani `generateDesignBrief`.** To je cesta k novému návrhu; „malá oprava", která se k nim dostane, je ta chyba, ne fallback.
+- **Po uživatelské úpravě se nikdy neregeneruje od nuly.** Nejvýš **jeden** korektivní edit, a jen při `qa.severity === "severe"` (rozbitá/nečitelná typografie). Po textové úpravě je očekávaný text z `design_brief` schválně neaktuální, takže kosmetický nesoulad se ignoruje — soudce je uživatel. Čerstvá regenerace by zahodila návrh, který si uživatel nechává.
+- **Poměr stran ze skutečných pixelů** (`sharp().metadata()` → `nearestAspectRatio`), nikdy z formátu post typu. Jiný `aspectRatio` než má vstup = model překomponuje celý snímek (tak `revisePost` cpe 9:16 story do 4:5). A `mimeType: "image/webp"` — uložené obrázky jsou WebP, `editExistingImage` má default `image/jpeg`.
+- **In-place + historie, žádný insert fallback.** Předchozí stav se odloží do `ig_posts.edit_history` (max 10) pro `revertPostEdit`; `revision_of`/`link_type` patří revizím a variantám a nesahá se na ně. Publikovaný příspěvek (`posted`/`posting`) se needituje — rozešel by se s `ig_media_id`.
+
+Rozsah omezují tři páky z UI: přepínač text/obrázek/obojí, označená oblast (normalizované 0..1, `buildPostEditPrompt` z ní udělá procenta **i** slovní kvadrant) a pole „nesahej na". Textová úprava jede přes `reviseCaption({ keepHook: true })` — vynutí hook vypálený v obrázku **kódem** a smaže `imagePrompt` z výstupu; jeho povinnost ve schématu byla důvod, proč i „zkrať text" spustilo re-roll. Úprava obrázku stojí 1 kredit (`post_edit`, plochý — jedno volání modelu), textová je zdarma. `revisePost` zůstává jako **vědomé** „vygenerovat úplně znovu" a konečně má vlastní credit guard (do v8.6 to byla jediná neúčtovaná plná generace v produktu).
+
+`editExistingImage` bere **jen jeden vstupní obrázek** — logo ani produktovou referenci nelze přiložit, takže špatný produkt úprava neopraví; to patří přegenerování (stejný důvod, proč `image-orchestrator.ts` u `productAccurate === false` regeneruje místo editu).
+
+### Platební brány — jedno jádro, adaptéry na okrajích (v8.5)
+
+`lib/payments/on-paid.ts` je **jediné místo**, kde žije „co se stane, když platba dojde": aktivace plánu, token pro obnovy, daňový doklad, potvrzovací e-mail. ComGate callback i (chystaný) Stripe webhook ho volají — druhá brána proto **není druhá kódová cesta**, a tedy ani druhé místo, kde se zapomene na doklad. Hlídá to aserce §14.9 v `test-beta-e2e.ts`.
+
+Rozdělení respektuje to, co se mezi branami skutečně liší: **v routě zůstává parsování, serverové ověření stavu a zabrání stavu** (`payments` má pro každou bránu jiný lokátor), **v jádru je všechno po claimu**. Jádro nesmí importovat klienta konkrétní brány. `finalizePaidPayment` běží synchronně (aktivaci plánu nelze odkládat), `deliverPaidArtifacts` v `after()` (brána musí dostat ACK hned) a **nikdy nevyhazuje výjimku**. Když aktivace selže, vrací `activated:false` a route musí skončit — řádek zůstává PAID pro ruční opravu.
+
+**Mock transId se nikdy nesmí uložit jako `recurring_trans_id`** — příští měsíc by se na něj poslala skutečná platba. Guard je v ComGate routě, jádro token ukládá jen u první platby, nikdy u obnovy.
+
+### Fakturace a právní identita (v8.5)
+
+Identita podnikatele má **jediný zdroj — `lib/legal.ts`** (jméno, IČO, adresa, režim DPH, `SUBPROCESSORS`); obchodní podmínky, zásady zpracování, patička i faktury ji jen vykreslují, IČO se nikdy nepíše do JSX. Nevyplněné údaje nesou hodnotu `"DOPLNIT"` a `npx tsx scripts/check-legal-identity.ts` kvůli nim končí **exit 1** — prodej s prázdným IČO je porušení informační povinnosti, ne kosmetická vada.
+
+Po zaplacení vystaví `lib/invoicing.ts` doklad přes Fakturoid (`lib/fakturoid.ts`). **`UNIQUE INDEX ON invoices(payment_id)` je nárok na vystavení** — INSERT předchází volání API, konflikt znamená konec (`status:"duplicate"`), a **nikdy se nepřidává insert fallback**: číselná řada je nevratná, duplicitu jde jen stornovat. Celá cesta běží v `after()` a chyby polyká, ale **vždy je persistuje** jako `status='failed'` — tichý `catch` = zákazník bez dokladu a nikdo o tom neví. Částky jsou v **haléřích** (`payments.amount`, `invoices.total_czk`); do Fakturoidu smí jen přes `haleruToCzk()`.
+
+Podmínky musí odpovídat kódu: trial je **obsahově omezený, ne 7denní**, kredity propadají, předplatné se automaticky obnovuje. Hlídá to §14 v `test-beta-e2e.ts`. Reálný postup (živnost, identifikovaná osoba k DPH, ComGate, Fakturoid, GDPR) je v `docs/LEGAL_SETUP.md`.
 
 ## Hard rules
 
