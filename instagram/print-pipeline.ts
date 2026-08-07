@@ -240,8 +240,8 @@ export async function generatePrintBrief(
 ): Promise<PrintBrief> {
     const geo = resolvePrintGeometry(opts.category)
     const bv = config.brandVoice
-    const memories = await getBrandMemories(6, clientId).catch(() => [])
-    const visual = memories.filter(m => m.memory_type === "visual")
+    // Typový filtr v dotazu, ne za ním — viz getBrandMemories (limit je v SQL).
+    const visual = await getBrandMemories(6, clientId, undefined, undefined, ["visual"]).catch(() => [])
 
     const palette = [
         config.feedAesthetic?.colorPalette,
@@ -287,7 +287,6 @@ ale odlišitelný od sousedních kroků — typicky barevným odlišením kroku,
 Persona: ${bv?.persona || "—"}
 Vizuální styl: ${config.feedAesthetic?.feel || "moderní, kvalitní"}
 Paleta: ${palette || "barvy značky"}
-${config.imageInstructions ? `Pokyny k vizuálu: ${config.imageInstructions}` : ""}
 ${memorySection}
 
 ## FORMÁT

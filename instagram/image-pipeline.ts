@@ -39,8 +39,10 @@ export async function getVisualMemoriesSection(clientId?: string): Promise<strin
         }
     }
 
-    const memories = await getBrandMemories(5, clientId)
-    const visual = memories.filter(m => m.memory_type === "visual")
+    // Typový filtr patří do dotazu, ne za něj: limit se aplikuje v SQL, takže
+    // `getBrandMemories(5)` + `.filter(visual)` vracel prázdno, jakmile měl klient
+    // 5 textových pamětí s vyšší confidence — a tahle sekce pak z promptu tiše zmizela.
+    const visual = await getBrandMemories(5, clientId, undefined, undefined, ["visual"])
 
     if (visual.length === 0) return ""
 
@@ -52,45 +54,12 @@ ${visual.map(m => `- ${m.content} (confidence: ${(m.confidence * 100).toFixed(0)
 }
 
 // ============================================
-// FEED AESTHETIC BUILDER
-// ============================================
-
-export function buildFeedAesthetic(config: ClientConfig): string {
-    const fa = config.feedAesthetic
-    return `
-You are an expert Instagram visual designer. Your job is to create a DETAILED, 
-HIGH QUALITY image prompt for Nano Banana Pro (Google's best image model).
-
-## BRAND VISUAL IDENTITY (must be consistent across ALL posts):
-- Color palette: ${fa.colorPalette}
-- The overlay covers the ENTIRE image at ~${fa.overlayOpacity} opacity (photo clearly visible beneath)
-- Text position: ${fa.textPosition} of image
-- Font: ${fa.font}
-- Overall feel: ${fa.feel}
-- Aspect ratio: 1:1 square
-${fa.customInstructions || ""}
-
-## IMAGE QUALITY REQUIREMENTS:
-- Photorealistic, professional editorial photography quality
-- VISUAL VARIETY is key — alternate between people shots, product details, environments, creative angles
-- When featuring people: authentic emotions, candid body language, real interactions
-- When featuring products: dramatic close-ups, interesting textures, creative compositions
-- Good lighting (golden hour, studio, or dramatic natural)
-- Sharp focus, shallow depth of field where appropriate  
-- Modern, aspirational lifestyle aesthetic — NOT stock photo vibes
-- Dynamic angles: low angle, over-shoulder, close-up details, environmental portraits, bird’s eye
-- 2K resolution output
-${config.characterDescription ? `
-## BRAND CHARACTER:
-${config.characterDescription}
-When the post is about the brand or lifestyle, include this character in the scene.
-` : fa.phoneModel && fa.phoneModel !== "none" ? `
-## PHONE CONSISTENCY:
-- When showing a smartphone, ALWAYS depict a ${fa.phoneModel}
-` : ""}
-`
-}
-
+// (buildFeedAesthetic ODSTRANĚN — v8.7)
+//
+// Popisoval zrušený Satori overlay engine ("overlay covers the ENTIRE image at ~X
+// opacity", "Text position: BOTTOM", "Aspect ratio: 1:1 square") a byl exportovaný,
+// ale odnikud nevolaný. Brand kit dnes skládá generateDesignBrief níž; poměr stran
+// řídí format-clamps.ts a rozhodně to není 1:1. Nevracet.
 // ============================================
 // AI DESIGNER — Native design engine
 // (Nano Banana Pro renders the FULL post incl. Czech typography + logo;
@@ -409,7 +378,18 @@ Return ONLY the JSON design brief.`
 /**
  * Convert a DesignBrief into the final Nano Banana Pro image prompt.
  */
-export function buildNativeImagePrompt(brief: DesignBrief, config: ClientConfig, product?: ProductBriefInfo, userPhoto?: UserPhotoBriefInfo): string {
+export function buildNativeImagePrompt(
+    brief: DesignBrief,
+    config: ClientConfig,
+    product?: ProductBriefInfo,
+    userPhoto?: UserPhotoBriefInfo,
+    /** One extra string the render is ALLOWED to draw beyond the brief's typography —
+     *  today only the carousel's "N/M" slide indicator. Without this the same prompt said
+     *  "do not add any other text anywhere" and then, appended by the carousel orchestrator,
+     *  "render a small 1/5 indicator" — a contradiction the model could only lose, and one
+     *  QA then flagged as unwanted extra text, burning the carousel-wide edit budget. */
+    allowedExtraText?: string,
+): string {
     const t = brief.typography
     const hasLogo = Boolean(config.logoFile)
 
@@ -445,7 +425,7 @@ ${t.subtextText ? `- Subtext — render this EXACT Czech text verbatim: "${t.sub
 - Type style: ${t.styleDescription}
 - Placement: ${t.placement}
 - Color treatment: ${t.color}
-⚠️ The Czech text must be reproduced with PERFECT spelling — every háček and čárka exactly as written. Do not add any other text, words, watermarks or labels anywhere in the image.
+⚠️ The Czech text must be reproduced with PERFECT spelling — every háček and čárka exactly as written. Do not add any other text, words, watermarks or labels anywhere in the image${allowedExtraText ? `, with ONE exception: a small, subtle "${allowedExtraText}" indicator styled to match the design system` : ""}.
 
 ## COLOR / GRADING:
 ${brief.colorTreatment}
@@ -512,6 +492,7 @@ Visual theme: "${visualTheme}"
 Post type: ${postType}${formatBrief?.description ? ` — ${formatBrief.description}` : ""}
 ${formatBrief?.visualStyle ? `Format visual style (the brand defined how this post type should LOOK — follow it): ${formatBrief.visualStyle}` : ""}
 ${slideSummary}
+${params.accentWords?.length ? `Accent words (highlight these within the COVER headline, same as a single-image post): ${params.accentWords.join(", ")}` : ""}
 ${buildProductSection(params.product)}${buildUserPhotoSection(params.userPhoto, "cover")}
 
 ## RECENT POST DESIGNS — THE CAROUSEL MUST DIVERGE FROM ALL OF THEM:
@@ -872,6 +853,10 @@ export async function verifyNativeImage(
          *  Graded "cosmetic": the text is legible, just misplaced, and a corrective
          *  edit fixes it. "severe" stays reserved for garbled/unreadable typography. */
         safeZone?: boolean
+        /** Text the render was explicitly asked to draw on TOP of the brief's typography
+         *  (carousel "N/M"). QA must not report it as unwanted extra text — that failure
+         *  is free, unfixable by an edit, and spends the shared correction budget. */
+        allowedExtraText?: string
     },
     /** mode "require" (default): the product must appear AND match. Mode "if-present"
      *  (carousel slides): a slide may legitimately not show the product, but a
@@ -909,12 +894,13 @@ Expected headline text (must match EXACTLY, including Czech diacritics ě š č 
 "${expected.headline}"
 ${expected.subtext ? `Expected subtext (must match EXACTLY):\n"${expected.subtext}"` : ""}
 ${expected.logoExpected ? "A brand logo MUST be present somewhere in the image." : ""}
+${expected.allowedExtraText ? `A small "${expected.allowedExtraText}" indicator is EXPECTED in this image (it was requested on purpose). Do NOT report it as unwanted or extra text.` : ""}
 ${productCheck}
 ${userPhotoCheck}
 ${safeZoneCheck}
 
 Check:
-1. Read ALL text rendered in the first image. Does the headline match the expected text character-for-character? Watch for: missing/wrong diacritics, swapped letters, duplicated words, gibberish, extra unwanted text.
+1. Read ALL text rendered in the first image. Does the headline match the expected text character-for-character? Watch for: missing/wrong diacritics, swapped letters, duplicated words, gibberish, extra unwanted text${expected.allowedExtraText ? ` (the "${expected.allowedExtraText}" indicator does NOT count as unwanted)` : ""}.
 ${expected.subtext ? "2. Does the subtext match exactly?" : ""}
 ${expected.logoExpected ? "3. Is the brand logo present and not deformed?" : ""}
 4. Is all text clearly readable (contrast, not cut off at edges)?

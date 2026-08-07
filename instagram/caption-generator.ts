@@ -343,10 +343,24 @@ export function buildVideoSchema(config: ClientConfig) {
                             type: Type.STRING,
                             description: "Mood and lighting (e.g. 'warm golden hour, soft bokeh', 'dramatic side lighting, moody', 'bright natural daylight, energetic')",
                         },
+                        // narration + soundEffect MUSÍ být ve schématu, i když si o ně prompt říká.
+                        // responseSchema je whitelist, ne minimum: pole, které schéma nedeklaruje,
+                        // model nevrátí (ověřeno voláním gemini-pro-latest, 2026-08-05). Bez nich
+                        // byly `scenes[].narration` vždy prázdné → generateVoiceover se nikdy
+                        // nezavolal, scenesToSubtitles neměl co vykreslit a celý FFmpeg krok
+                        // v reel-orchestrator.ts se přeskočil. Reel odjel němý a bez titulků.
+                        narration: {
+                            type: Type.STRING,
+                            description: "Český text pro voiceover téhle scény (1-2 věty, přirozená mluvená řeč). Čte se nahlas — piš, jak se mluví, ne jak se píše.",
+                        },
+                        soundEffect: {
+                            type: Type.STRING,
+                            description: "Ambient sound or effect for this scene, in English (e.g. 'city ambience', 'coffee pouring', 'wind in trees')",
+                        },
                     },
-                    required: ["timeRange", "visual", "camera", "mood"],
+                    required: ["timeRange", "visual", "camera", "mood", "narration", "soundEffect"],
                 },
-                description: "3-4 detailed scenes for Veo 3.1 video generation. Each scene must specify what happens, camera movement, and mood.",
+                description: "3-4 detailed scenes for Veo 3.1 video generation. Each scene must specify what happens, camera movement, mood, Czech narration and a sound effect.",
             },
             videoScript: {
                 type: Type.STRING,
@@ -678,8 +692,15 @@ export function buildMegaPrompt(
     // Canonical voice examples — the few-shot anchor that keeps the brand sounding like itself.
     const goldExamplesSection = buildGoldExamplesSection(config, postType.name)
 
+    // avgEngagement > 0 je PODMÍNKA EXISTENCE téhle sekce, ne jen jednoho jejího řádku.
+    // analyzePerformance počítá engagement z metrik; post bez metrik má 0, takže u klienta,
+    // který metriky nezadává, byly "bestHooks" prostě posledních 5 postů a "topPatterns"
+    // výsledek substringového testu nad nimi. Copywriter pak dostal "Zlaté hooky (nejlepší
+    // dosah)" o postech s nulovým naměřeným dosahem a instrukci držet jejich rytmus —
+    // přímo proti sekci "NEOPAKUJ SE" o pár řádků níž, která ty samé posty zakazuje.
+    // Stejnou podmínku má buildSmartWeekPlan (viz cold-start větev výše).
     let learningSection = ""
-    if (performance.topPatterns.length > 0 || performance.bestHooks.length > 0) {
+    if (performance.avgEngagement > 0 && (performance.topPatterns.length > 0 || performance.bestHooks.length > 0)) {
         learningSection = `
 ## 📊 DATA Z REÁLNÉHO VÝKONU (PRIORITA 4)
 Toto jsou historicky nejúspěšnější formáty pro tuto značku. Stavěj na nich:
@@ -884,6 +905,7 @@ ${typeDef.structure}
 {
   "angle": "1 věta — zvolený úhel a čím se liší od nedávných postů",
   "hook": "Cover headline (max 8 slov, česky). ŽÁDNÉ EMOJI.",
+  "accentWords": ["2-3 klíčová slova Z HOOKU k vizuálnímu zvýraznění (přesný podřetězec hooku)"],
   "slides": [
     { "headline": "max 6 slov...", "subtext": "max 12 slov...", "imagePrompt": "English prompt..." },
     { "headline": "...", "subtext": "...", "imagePrompt": "English prompt..." },
@@ -939,14 +961,12 @@ co storka říká a proč. Zobrazí se v přehledu appky a v e-mailu s kampaní.
 ${typeDef?.structure ? `## 🧩 STRUKTURA TOHOTO FORMÁTU (závazná — caption stavěj přesně podle ní):
 ${typeDef.structure}
 ` : ""}
-## 🎨 OBRÁZEK
+## 🎨 VIZUÁL
+Layout, typografii, umístění loga i poměr stran určuje AI Designer v dalším kroku.
+Ty popiš POUZE SCÉNU: co je na fotce, kdo/co je subjekt, prostředí, světlo, nálada.
+Nepiš, kde má být text ani jak má vypadat — o to se nestarej.
 
-### Layout (kromě meme):
-- **POZADÍ:** Full-bleed relevantní fotografie (1:1 square)
-- **OVERLAY:** Barevný gradient — ${config.feedAesthetic.colorPalette}
-- **TEXT DOLE:** Velký bílý tučný headline + menší subtext
-- **Font:** ${config.feedAesthetic.font}
-- **Feel:** ${config.feedAesthetic.feel}
+- **Feel značky:** ${config.feedAesthetic.feel}
 
 ### Typ-specifické foto:
 ${(() => {
@@ -1011,7 +1031,7 @@ export async function scorePost(
     /** CTA policy of the post — the judge scores the CTA against it (a REACH post
      *  must NOT contain the website; a CONVERSION post must). Neutral check when omitted. */
     ctaPolicy?: CtaPolicy
-): Promise<{ score: number; feedback: string; detail?: QualityGateResult }> {
+): Promise<{ score: number; feedback: string; detail?: QualityGateResult; judged: boolean }> {
     const isCarousel = captionData.slides && captionData.slides.length > 0
 
     let slidesSection = ""
@@ -1100,9 +1120,15 @@ ${SCORE_ANCHORS}
             score: detail.overall,
             feedback: fixSummary,
             detail,
+            judged: true,
         }
     } catch {
-        return { score: 7, feedback: "Scoring failed - passing through" }
+        // The 7 stays — the caller's contract is unchanged and a judge outage must never
+        // block a Pro-written caption. But `judged: false` makes the outage VISIBLE: without
+        // it, ig_generation_log recorded a real-looking 7/10 for a post nobody ever scored,
+        // indistinguishable from a genuinely mediocre one, and the editorial board was told
+        // the same. Callers log critic_score as null when judged is false.
+        return { score: 7, feedback: "Scoring failed - passing through", judged: false }
     }
 }
 

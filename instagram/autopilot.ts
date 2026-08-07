@@ -216,7 +216,10 @@ export async function generateOnePost(options: {
         try {
             const { gatherContext, formatContextForPrompt } = await import("./context-agent")
             const context = await gatherContext(config, "single")
-            contextBlock = formatContextForPrompt(context)
+            // Rotate the pulse slice by position in the campaign — the context is cached
+            // per client for 6h, so without this every post of one campaign gets the
+            // identical four bullets (and converges on the same seasonal angle).
+            contextBlock = formatContextForPrompt(context, options.campaignContext?.postNumber ?? 0)
             hasHoliday = context.holidays.length > 0
             const holidayInfo = hasHoliday ? ` | 📅 ${context.holidays[0]}` : ""
             console.log(`   🌍 Context: ${context.season}${holidayInfo} | ${context.pulse.length} signálů`)
@@ -565,6 +568,10 @@ export async function generateOnePost(options: {
     let megaPrompt = ""
     let captionModel = getModel("textPro")
     let score = 7
+    /** Did a judge ACTUALLY score this caption? scorePost swallows its own failures and
+     *  returns a flat 7, so without this a judge outage was logged as a real 7/10 and was
+     *  indistinguishable from a mediocre post in ig_generation_log. */
+    let judged = true
     let feedback = ""
     let detail: Awaited<ReturnType<typeof scorePost>>["detail"]
     let strategyUsed: "repair" | "bestof2" = "repair"
@@ -613,7 +620,9 @@ Uživatel nahrál vlastní fotku, která bude vizuálním základem příspěvku
     // relevance to the topic/idea when available (pipeline v2), not just top-confidence.
     try {
         const memoryTopic = options.topic || idea?.title || undefined
-        const memories = await getBrandMemories(8, clientUuid, _getPillarForType(selectedType.name), memoryTopic)
+        // Jen textové typy: formatMemoriesForPrompt vizuální paměti zahazuje, takže by
+        // jinak ujídaly sloty z limitu a copywriter by dostal míň pravidel, než si řekl.
+        const memories = await getBrandMemories(8, clientUuid, _getPillarForType(selectedType.name), memoryTopic, ["pattern", "preference", "avoid"])
         if (memories.length > 0) {
             megaPrompt += formatMemoriesForPrompt(memories)
             console.log(`   🧠 Brand memory: ${memories.length} vzorců načteno`)
@@ -854,13 +863,14 @@ ${feedSummary}
     if (strategyUsed !== "bestof2") {
         await report("critic", 45, "🔍 Kritik hodnotí kvalitu obsahu...")
         console.log("🔍 Quality gate (Critic + Šéfredaktor review)...")
-        ;({ score, feedback, detail } = await scorePost(
+        ;({ score, feedback, detail, judged } = await scorePost(
             config,
             captionData as { hook: string; body?: string; cta: string; hashtags: string[]; slides?: { headline: string; subtext: string }[]; angle?: string },
             selectedType.name,
             ctaPolicy
         ))
         cost += COSTS.textGeneration
+        if (!judged) console.warn("   ⚠️ Kritik nedoběhl — post projde bez hodnocení (critic_score se zaloguje jako null)")
     }
     finalScore = score
     const scoreEmoji = score >= 8 ? "🟢" : score >= 6 ? "🟡" : "🔴"
@@ -889,7 +899,11 @@ ${feedSummary}
         )
         captionData = editorialResult.captionData
         cost += editorialResult.totalTokenCost
-        if (isReel && captionData.caption) captionData.body = captionData.caption
+        // Only a backstop now: reviewPost keeps caption/body in sync for reels itself.
+        // This line used to overwrite the editorial rewrite with the PRE-revision caption,
+        // because the revision schema couldn't return `caption` at all — so the board's
+        // work on every reel was paid for and then discarded here.
+        if (isReel && !captionData.body && captionData.caption) captionData.body = captionData.caption
 
         // auto-approve (score ≥ 9) returns a bookkeeping round-0 entry at zero cost = 0 real rounds
         editorialRoundsUsed = editorialResult.totalTokenCost === 0 ? 0 : editorialResult.rounds.length
@@ -1066,7 +1080,9 @@ ${feedSummary}
             // where no native image render happened.
             modelUsed: `${captionModel} + ${renderResult?.imageModel || getModel("image")}`,
             generationTimeMs: Date.now() - startTime,
-            criticScore: score,
+            // null, ne 7 — viz `judged`. Prázdné pole je poctivější než vymyšlená sedmička,
+            // a zároveň je konečně vidět, jak často je judge nedostupný.
+            criticScore: judged ? score : null,
             criticKeep: detail?.feedback.keep,
             criticFix: detail?.feedback.fix,
             qaStatus: renderResult?.qaStatus,

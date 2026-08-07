@@ -109,6 +109,16 @@ Po zaplacení vystaví `lib/invoicing.ts` doklad přes Fakturoid (`lib/fakturoid
 
 Podmínky musí odpovídat kódu: trial je **obsahově omezený, ne 7denní**, kredity propadají, předplatné se automaticky obnovuje. Hlídá to §14 v `test-beta-e2e.ts`. Reálný postup (živnost, identifikovaná osoba k DPH, ComGate, Fakturoid, GDPR) je v `docs/LEGAL_SETUP.md`.
 
+### Schéma a prompt se mění SPOLU (v8.7)
+
+`responseSchema` je **whitelist, ne minimum**: pole, o které si prompt řekne a schéma ho nedeklaruje, model **nevrátí** (změřeno proti `gemini-pro-latest` 2026-08-05). Takhle byly mrtvé dvě věci najednou — `buildVideoSchema` neměl `narration`/`soundEffect`, takže reelový voiceover i titulky se nikdy nevygenerovaly; a revizní schéma editorial boardu neumělo vrátit `slides`/`scenes`/`caption`, takže karusel nešlo opravit a u reelu se revize přepsala zpět starým textem. Když přidáš pole do JSON ukázky v promptu, přidej ho do schématu — `scripts/test-prompt-assembly.ts` to hlídá pro všechna čtyři média.
+
+`getBrandMemories(limit, clientId, pillar, topic, types)` — **typový filtr patří do dotazu**, limit se aplikuje v SQL. Vzorec „načti 5 a pak `.filter(visual)`" vracel prázdno, jakmile klient nasbíral 5 textových pamětí s vyšší confidence, takže vizuální paměť tiše zmizela z promptu designéra. `clientId` předávej explicitně a `catch` nikdy nenechávej němý — pád na `getActiveProject()` mimo `withActiveProject` scope je jinak neviditelný.
+
+Learning sekce mega promptu je gatovaná na `performance.avgEngagement > 0`. Bez metrik totiž `bestHooks` = prostě posledních 5 postů, a injektovat je jako „Zlaté hooky (nejlepší dosah)" nutí copywritera kopírovat rytmus postů, které o dva odstavce níž zakazuje sekce „NEOPAKUJ SE". `scorePost` vrací `judged`; nehodnocený post loguje `critic_score: null`, ne plochou sedmičku. Editorial board po každé revizi **přeskórovává** (jinak `final_score === critic_score` vždy a přínos boardu je neměřitelný) a do promptu píše **skutečný** `maxRounds`, ne `MAX_POST_ROUNDS`.
+
+Celý audit a co zůstalo odložené: `docs/PROMPT_AUDIT_2026-08.md`, aserce §16 v `test-beta-e2e.ts`.
+
 ## Hard rules
 
 - **Identifier convention:** the tenant *slug* lives at the UI boundary (`projectId` in `StudioContext` is actually the slug); resolve it to the client UUID exactly once via `requireProjectAccess(slug)` (or `requireClientAccess(uuid)` when you already have a row's `client_id`) and pass the UUID everywhere inside. Never default a missing identifier to a real tenant — throw.

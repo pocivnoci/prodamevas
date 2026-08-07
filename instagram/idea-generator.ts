@@ -27,17 +27,22 @@ export async function generateAIIdeas(config: ClientConfig, pillarId: string, co
         ? `\n## CÍLOVÁ SKUPINA\n${config.audiencePersonas.map(p => `- ${p.label} (${p.ageRange} let): ${p.painPoints.slice(0, 2).join(", ")}`).join("\n")}\n`
         : ""
 
-    // Inject brand memories so new ideas build on what historically worked
+    // Inject brand memories so new ideas build on what historically worked.
+    // clientId je EXPLICITNÍ: bez něj padal getBrandMemories na getActiveProject(),
+    // který mimo withActiveProject scope vyhodí výjimku — a `catch {}` níž ji spolkl.
+    // Onboarding (seedIdeaBank) volání obaloval, hlavní cesta z UI a denní
+    // idea_replenish ne, takže se paměť do nápadů reálně nikdy nedostala.
     let memorySection = ""
     try {
         const { getBrandMemories, formatMemoriesForPrompt } = await import("./memory-agent")
-        const memories = await getBrandMemories(5)
+        const memories = await getBrandMemories(5, clientId, undefined, undefined, ["pattern", "preference", "avoid"])
         if (memories.length > 0) {
             memorySection = formatMemoriesForPrompt(memories)
             console.log(`   🧠 Brand memory: ${memories.length} vzorců injected into idea generation`)
         }
-    } catch {
-        // Non-fatal — continue without memories
+    } catch (err: any) {
+        // Non-fatal — ale nikdy potichu: tohle selhání bylo roky neviditelné.
+        console.warn(`   ⚠️ Brand memory pro nápady přeskočena: ${String(err?.message || err).substring(0, 100)}`)
     }
 
     // Existing bank titles as negative context — the prompt alone says "dosud
@@ -64,10 +69,12 @@ export async function generateAIIdeas(config: ClientConfig, pillarId: string, co
     try {
         const { gatherContext, formatContextForPrompt } = await import("./context-agent")
         const context = await gatherContext(config, "plan")
+        // Nápady vznikají v dávce, ne v kampani — celý pulse je tu na místě (offset 0).
         contextSection = formatContextForPrompt(context)
         console.log(`   🌍 Context: ${context.season} | ${context.pulse.length} signálů pro nápady`)
-    } catch {
-        // Non-fatal
+    } catch (err: any) {
+        // Non-fatal — ale nahlas, ať se nedělí o osud brand memory výše.
+        console.warn(`   ⚠️ Sezónní kontext pro nápady přeskočen: ${String(err?.message || err).substring(0, 100)}`)
     }
 
     // Pillar-level generation asks the model to assign each idea a real category id,

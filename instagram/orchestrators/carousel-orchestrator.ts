@@ -130,13 +130,19 @@ async function renderCarouselNative(ctx: RenderContext): Promise<RenderResult | 
             // The client's photo is the base of the COVER only — inner slides keep the
             // design system and must not receive the photo as a reference.
             const slideUserPhoto = isCover ? userPhotoInfo : undefined
-            const prompt = `${buildNativeImagePrompt(brief, { ...config, logoFile: isCover ? config.logoFile : undefined }, productInfo, slideUserPhoto)}
+            // The indicator goes in THROUGH buildNativeImagePrompt (allowedExtraText), not
+            // appended after it: the base prompt forbids "any other text anywhere", so
+            // tacking the request on afterwards left the model with two opposite orders —
+            // and QA, which was never told the indicator was wanted, then reported it as
+            // unwanted extra text and spent the carousel-wide edit budget on it.
+            const slideIndicator = `${i + 1}/${slideCount}`
+            const prompt = `${buildNativeImagePrompt(brief, { ...config, logoFile: isCover ? config.logoFile : undefined }, productInfo, slideUserPhoto, slideIndicator)}
 
 ## CAROUSEL DESIGN SYSTEM (identical across all ${slideCount} slides):
 ${designSystem}
 
 ## SLIDE INDICATOR:
-Render a small, subtle "${i + 1}/${slideCount}" indicator consistent with the design system (e.g. corner or edge).`
+Place the "${slideIndicator}" indicator in a corner or at an edge, styled to match the design system.`
 
             const refs = isCover && logoRef ? [logoRef] : []
             if (isCover && userPhotoRef) refs.push(userPhotoRef)
@@ -153,6 +159,7 @@ Render a small, subtle "${i + 1}/${slideCount}" indicator consistent with the de
                 headline: slide.headline,
                 subtext: slide.subtext || undefined,
                 logoExpected: isCover && !!logoRef,
+                allowedExtraText: slideIndicator,
             }
             const qaProductRef = productRef && selectedProduct
                 ? { buffer: productRef.buffer, mimeType: productRef.mimeType, name: selectedProduct.name, mode: "if-present" as const }
