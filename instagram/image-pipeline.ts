@@ -20,6 +20,7 @@ import { getBrandMemories } from "./memory-agent"
 import type { ClientConfig } from "./configs/types"
 import { buildPhotoFidelitySection } from "./photo-fidelity"
 import { ARCHETYPE_GROUPS, type SlotIntent, type VisualMode } from "../lib/feed-pattern"
+import type { CtaPolicy } from "./cta-policy"
 
 // ============================================
 // VISUAL MEMORY FORMATTER
@@ -977,6 +978,17 @@ interface VideoScene {
     soundEffect?: string
 }
 
+/**
+ * Turn the copywriter's structured scenes into ONE Veo prompt.
+ *
+ * This is the only creative step between the copywriter and the video, so it runs on
+ * the same Pro ladder as every other creative stage (it used the flash `text` tier via
+ * a raw `generateContent` call, i.e. no hard retry, no fallback, no
+ * QualityUnavailableError). It also honours the post's CtaPolicy: the branding line
+ * used to hardcode `config.website` into the last seconds regardless of pillar, which
+ * put a URL on screen for exactly the REACH/CONNECT posts whose policy forbids it —
+ * in the one place no text critic ever looks.
+ */
 export async function refineVideoPrompt(
     config: ClientConfig,
     videoData: {
@@ -985,7 +997,8 @@ export async function refineVideoPrompt(
         videoScript?: string   // legacy fallback
     },
     postType: string,
-    duration: number
+    duration: number,
+    ctaPolicy?: CtaPolicy
 ): Promise<string> {
     const memSection = await getVisualMemoriesSection()
 
@@ -1000,6 +1013,14 @@ export async function refineVideoPrompt(
   - Narration hint: "${s.narration || ""}"`
         ).join("\n\n")
         : `Raw script: "${videoData.videoScript || ""}"`
+
+    // The pillar's CTA policy decides whether a URL may appear on screen at all.
+    // Default (no policy passed) stays on the safe side: brand feel, no URL.
+    const closingBrandRule = ctaPolicy && !ctaPolicy.allowWebsite
+        ? `Land on a clear, stable brand moment (product, logo mark or signature visual). ` +
+          `⛔ NO website address, NO URL, NO domain name anywhere on screen at any point — ` +
+          `this post's CTA policy (${ctaPolicy.pillarLabel.toUpperCase()}) forbids it.`
+        : `MUST include ${config.website} branding (text on screen or product placement).`
 
     const refinementPrompt = `
 You are a world-class video director creating an Instagram Reel.
@@ -1018,7 +1039,7 @@ ${scenesText}
 - ${config.videoFocus || "Professional content with smooth, cinematic camera movements"}
 - EVERY camera transition must be SMOOTH — no jump cuts unless for dramatic effect
 - Lighting must be consistent within scenes, with natural transitions between them
-- Final 2-3 seconds MUST include ${config.website} branding (text on screen or product placement)
+- Final 2-3 seconds: ${closingBrandRule}
 - Audio: include ambient sounds and effects described in scenes (${videoData.scenes?.map(s => s.soundEffect).filter(Boolean).join(", ") || "natural ambient"})
 
 ## CAMERA CHOREOGRAPHY:
@@ -1033,15 +1054,24 @@ Include specific camera movements, lighting setup, subject actions, and audio cu
 The prompt must read like a professional shot list compressed into prose.
 `
 
-    const response = await ai.models.generateContent({
-        model: getModel("text"),
-        contents: refinementPrompt,
-    })
+    // Prose out, not JSON → json: false. Same textPro ladder as the copywriter.
+    const videoDirectorLadder = [getModel("textPro")]
+    if (hasFallback("textPro")) videoDirectorLadder.push(getModel("textPro", "fallback"))
 
-    const parts = response.candidates?.[0]?.content?.parts || []
-    const textPart = parts.find((p: any) => p.text)
-    const refined = textPart?.text
+    let refined: string | undefined
+    try {
+        refined = await generateTextQuality(refinementPrompt, {
+            models: videoDirectorLadder,
+            json: false,
+            temperature: getTemperature("designer"),
+            label: "video-director",
+        })
+    } catch (err) {
+        // Both Pro tiers exhausted. Falling through to the raw script is the truthful
+        // outcome (a flash rewrite would be a silent quality drop), but say so.
+        console.warn("   ⚠️ Video director (Pro ladder) nedostupný — používám surový scénář:", err)
+    }
 
-    if (!refined) return videoData.videoScript || videoData.scenes?.map(s => s.visual).join(". ") || ""
+    if (!refined?.trim()) return videoData.videoScript || videoData.scenes?.map(s => s.visual).join(". ") || ""
     return refined.replace(/^["']|["']$/g, "").trim()
 }

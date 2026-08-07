@@ -119,6 +119,14 @@ Learning sekce mega promptu je gatovaná na `performance.avgEngagement > 0`. Bez
 
 Celý audit a co zůstalo odložené: `docs/PROMPT_AUDIT_2026-08.md`, aserce §16 v `test-beta-e2e.ts`.
 
+### Reely: kvalita na Pro ladderu, degradace nahlas (v8.8)
+
+`refineVideoPrompt` (`image-pipeline.ts`) je **jediný kreativní krok mezi copywriterem a Veo** — přepisuje celý scénář do jednoho promptu. Běží proto na `textPro` ladderu přes `generateTextQuality` (`json: false`, výstup je próza), ne na flash. Když jsou oba Pro tiery vyčerpané, propadne se na surový scénář a **zaloguje to**; flash přepis by byl přesně ta tichá degradace, kterou produkt nikde jinde nepřipouští.
+
+**CTA politika platí i na obraz.** Prompt dřív vypaloval `config.website` do posledních vteřin videa natvrdo, takže reel z REACH/CONNECT pilíře porušoval vlastní `CtaPolicy` tam, kam textový kritik nevidí. `refineVideoPrompt` bere `ctaPolicy` a při `!allowWebsite` zakazuje URL kdekoli ve videu; cesta vede přes `RenderContext.ctaPolicy`. Resolve `ctaPolicy` v `autopilot.ts` **musí zůstat nad checkpoint větví** — resume z caption checkpointu přeskakuje copywritera, ale média renderuje.
+
+**FFmpeg:** binárka `ffmpeg-static` se do build trace dostane i bez `outputFileTracingIncludes` (změřeno 2026-08-07 — audit tvrdil opak); záznam v `next.config.ts` je **pojistka, ne oprava**. Reálný problém byl, že chybějící binárka mizela potichu: `getFfmpegPath()` teď existenci ověřuje a hází diagnostikovatelnou chybu, a pád post-processingu jde do Sentry (`step: ffmpeg-postprocess`). Surové video se pořád publikuje, ale reel za 5 kreditů bez voiceoveru a titulků už není k nerozeznání od úspěchu. Aserce §17 v `test-beta-e2e.ts`.
+
 ## Hard rules
 
 - **Identifier convention:** the tenant *slug* lives at the UI boundary (`projectId` in `StudioContext` is actually the slug); resolve it to the client UUID exactly once via `requireProjectAccess(slug)` (or `requireClientAccess(uuid)` when you already have a row's `client_id`) and pass the UUID everywhere inside. Never default a missing identifier to a real tenant — throw.

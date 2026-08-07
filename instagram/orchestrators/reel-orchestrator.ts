@@ -26,7 +26,8 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
         config,
         { hook: captionData.hook, scenes: captionData.scenes, videoScript: captionData.videoScript },
         selectedType.name,
-        duration
+        duration,
+        ctx.ctaPolicy
     )
     cost += COSTS.promptRefinement
     console.log(`   ✓ Video prompt refined (${refinedVideoPrompt.length} chars)`)
@@ -142,7 +143,24 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
             videoBuffer = processedBuffer
             console.log(`   ✓ Post-processed (${(videoBuffer.length / 1024 / 1024).toFixed(1)} MB)`)
         } catch (ffErr) {
+            // Shipping the raw Veo clip is the right call — a reel without titles beats
+            // no reel at all — but this is a DEGRADED delivery of a 5-credit post, so it
+            // must never be just a console line nobody reads. The whole reason K1's
+            // schema fix looked like it did nothing was that this catch swallowed the
+            // missing binary (see next.config.ts outputFileTracingIncludes).
             console.warn("   ⚠️ FFmpeg post-processing failed (using raw video):", ffErr)
+            try {
+                const Sentry = await import("@sentry/nextjs")
+                Sentry.captureException(ffErr, {
+                    tags: { area: "reel", step: "ffmpeg-postprocess" },
+                    extra: {
+                        clientId: ctx.clientUuid,
+                        postType: selectedType.name,
+                        hadVoiceover: Boolean(voiceoverBuffer),
+                        subtitleCount: captionData.scenes?.filter(s => s.narration).length ?? 0,
+                    },
+                })
+            } catch { /* Sentry unavailable (CLI run) — the console.warn above stands */ }
         }
     }
 

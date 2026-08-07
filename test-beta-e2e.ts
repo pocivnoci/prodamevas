@@ -1019,6 +1019,72 @@ test("16.13 kampaň nedostane sedmkrát tentýž kontext (V4)", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 17. REELOVÉ BLOKÁTORY (v8.8) — kvalita a tichá degradace
+// ═══════════════════════════════════════════════════════════
+
+test("17.1 video director běží na Pro ladderu, ne na flash (V3)", () => {
+    const code = codeOnly("instagram/image-pipeline.ts")
+    const fn = code.slice(code.indexOf("export async function refineVideoPrompt"))
+    assert(!/model: getModel\("text"\)/.test(fn),
+        "video director je jediný kreativní krok mezi copywriterem a videem — nesmí na flash")
+    assert(/generateTextQuality\(refinementPrompt/.test(fn),
+        "musí jít přes kvalitní ladder (tvrdý retry + fallback + QualityUnavailableError)")
+    assert(/getModel\("textPro"\)/.test(fn), "ladder je textPro, stejný jako u copywritera")
+    assert(/json: false/.test(fn), "výstup je próza, ne JSON")
+})
+
+test("17.2 reel neporušuje CTA politiku vypálenou URL do videa (V3)", () => {
+    const code = codeOnly("instagram/image-pipeline.ts")
+    const fn = code.slice(code.indexOf("export async function refineVideoPrompt"))
+    assert(/ctaPolicy\?: CtaPolicy/.test(fn), "refineVideoPrompt musí politiku vůbec dostat")
+    assert(!/MUST include \$\{config\.website\} branding \(text on screen or product placement\)\n/.test(fn),
+        "web se nesmí do závěru videa vypalovat natvrdo bez ohledu na pilíř")
+    assert(/!ctaPolicy\.allowWebsite/.test(fn),
+        "zákaz webu musí větvit podle politiky, ne podle formátu")
+    const types = fileContent("instagram/orchestrators/types.ts")
+    assert(/ctaPolicy\?: CtaPolicy/.test(types), "RenderContext musí politiku přenést do orchestrátoru")
+    const reel = codeOnly("instagram/orchestrators/reel-orchestrator.ts")
+    assert(/ctx\.ctaPolicy/.test(reel), "reel orchestrátor ji musí předat dál")
+})
+
+test("17.3 CTA politika je k dispozici i postu z checkpointu (V3)", () => {
+    const code = codeOnly("instagram/autopilot.ts")
+    const resolveIdx = code.indexOf("const ctaPolicy = resolveCtaPolicyForPost")
+    const megaIdx = code.indexOf("megaPrompt = buildMegaPrompt(")
+    assert(resolveIdx > 0 && megaIdx > 0, "obě místa musí existovat")
+    // Checkpoint větev, která hlídá copywritera, je ta poslední před buildMegaPrompt.
+    // Resume z caption checkpointu přeskakuje CELOU copywriterskou větev, ale média
+    // renderuje — kdyby policy zůstala uvnitř else, resumnutý reel by ji neměl.
+    const branchIdx = code.lastIndexOf("if (ck) {", megaIdx)
+    assert(branchIdx > 0, "checkpoint větev před copywriterem musí existovat")
+    assert(resolveIdx < branchIdx,
+        "resolve CTA politiky musí být NAD checkpoint větví, ne uvnitř else")
+})
+
+test("17.4 ffmpeg binárka je připnutá pro obě reelové routy", () => {
+    const cfg = fileContent("next.config.ts")
+    assert(/"\/api\/ig-run-job": \[[^\]]*ffmpeg-static\/ffmpeg/.test(cfg),
+        "single-post cesta musí mít binárku v tracingu")
+    assert(/"\/api\/cron\/campaign-worker": \[[^\]]*ffmpeg-static\/ffmpeg/.test(cfg),
+        "kampaňový worker renderuje reely taky")
+})
+
+test("17.5 chybějící ffmpeg nesmí tiše degradovat reel", () => {
+    const vp = codeOnly("instagram/video-processor.ts")
+    // Starý getFfmpegPath vracel naslepo "ffmpeg" — na Vercelu spawn nesmyslné binárky,
+    // orchestrátor to chytil a reel za 5 kreditů odešel bez voiceoveru i titulků.
+    assert(/existsSync\(staticPath\)/.test(vp),
+        "existenci binárky je nutné ověřit, ne předpokládat")
+    assert(/throw new Error\(\s*`ffmpeg-static resolved to/.test(vp),
+        "chybějící nabundlovaná binárka musí být diagnostikovatelná chyba")
+    const reel = codeOnly("instagram/orchestrators/reel-orchestrator.ts")
+    const catchIdx = reel.indexOf("catch (ffErr)")
+    assert(catchIdx > 0, "catch kolem post-processingu musí existovat")
+    assert(/step: "ffmpeg-postprocess"/.test(reel.slice(catchIdx)),
+        "degradace postu za 5 kreditů se musí hlásit do Sentry, ne jen do konzole")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 
