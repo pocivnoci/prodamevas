@@ -11,8 +11,22 @@ Tenhle dokument dělá dvě věci: **(A)** kompletní mapu toho, jak prompty na 
 
 **Opraveno:** K1 · K2 · K3 · K4 · K5 · K6 · V1 · V2 · V4 · V6 · V7 · S1 · S2 · S4 · S5 — plus jeden nález, který se objevil až při opravě (viz níže).
 
-**Odloženo vědomě** (reelová větev je za `REELS_ENABLED` a v prod vypnutá): **V3** (video director na flash + natvrdo web proti CTA politice) a `ffmpeg-static` do `outputFileTracingIncludes`. Obojí je podmínka pro zapnutí reels — bez tracingu spadne post-processing na Vercelu do catche a video odejde bez voiceoveru i po opravě K1.
 Dál odloženo: **V5** (`slotIntent` do mega promptu), **S3** (print QA čeká logo, které render vynechal), **H1–H7**.
+
+## ✅ Stav oprav (v8.8, 2026-08-07) — reelové blokátory
+
+**V3 opraveno.** `refineVideoPrompt` běží na `textPro` ladderu přes `generateTextQuality` (dřív syrové `generateContent` na flash tieru — bez tvrdého retry, bez fallbacku, bez `QualityUnavailableError`) a dostává `CtaPolicy`. Když politika zakazuje web (REACH/CONNECT pilíř), závěrečné vteřiny videa dostanou explicitní zákaz URL místo natvrdo vypáleného `config.website`. Policy se do reelu dostane přes nové `RenderContext.ctaPolicy`; její resolve se v `autopilot.ts` **vyzvedl nad checkpoint větev**, aby ji měl i post obnovený z caption checkpointu (ten copywriterskou větev celou přeskakuje).
+
+### ⚠️ Korekce auditu: `ffmpeg-static` nebyl rozbitý
+
+Audit vedl chybějící `ffmpeg-static` v `outputFileTracingIncludes` jako podmínku pro zapnutí reels. **Změřeno 2026-08-07 a to tvrzení neplatí:** build s odebraným záznamem má `node_modules/ffmpeg-static/ffmpeg` v `.next/server/app/api/ig-run-job/route.js.nft.json` i tak — nft si tuhle závislost dohledá sám. Původní tvrzení stálo na úvaze o runtime `require()`, ne na měření.
+
+Záznam v `next.config.ts` **zůstává jako pojistka** (runtime-resolved binárka je přesně ten tvar závislosti, který může příští heuristika nft tiše přestat vidět), ale je označený za pojistku, ne za opravu.
+
+Co z toho **je** reálné a měřením nepokryté: jestli je binárka v Vercel sandboxu i **spustitelná** (práva). To ověří až první reel na produkci. Proto:
+
+- `getFfmpegPath()` už nevrací naslepo `"ffmpeg"` — ověří existenci binárky a hodí diagnostikovatelnou chybu; systémový fallback zůstává jen pro lokální dev, kde balík není nainstalovaný.
+- Pád post-processingu se v `reel-orchestrator.ts` **hlásí do Sentry** (`area: reel`, `step: ffmpeg-postprocess`). Surové video se pořád odešle — reel bez titulků je lepší než žádný — ale degradace postu za 5 kreditů přestala být řádkem v konzoli, který nikdo nečte.
 
 ### Nález navíc: `ig_posts.engagement_score` neexistuje
 

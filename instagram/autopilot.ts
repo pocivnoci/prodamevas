@@ -578,6 +578,14 @@ export async function generateOnePost(options: {
     let editorialRoundsUsed = 0
     let finalScore = 0
 
+    // Resolve the CTA policy ONCE and pass it to the writer AND every judge (critic,
+    // ranking judge, editorial board) AND the reel's video director — writer/judge/
+    // director parity on the CTA rules. Hoisted above the checkpoint branch on purpose:
+    // resolveCtaPolicyForPost is pure and cheap, and a post RESUMED from the caption
+    // checkpoint still renders its media here, so the render stage must have the policy
+    // on both paths.
+    const ctaPolicy = resolveCtaPolicyForPost(config, selectedType.name, selectedProduct)
+
     if (ck) {
         // ♻️ Resume from the caption checkpoint — the expensive Pro text calls
         // (copywriter, dedup regen, critic, editorial board) already ran and are skipped.
@@ -597,9 +605,6 @@ export async function generateOnePost(options: {
     const postFormat = isReel ? "video script" : isCarousel ? "carousel" : "caption"
     await report("copywriter", 25, `✍️ Copywriter generuje ${postFormat}...`)
     console.log(`✍️  Generuji ${postFormat} (Pro copywriter ladder)...`)
-    // Resolve the CTA policy ONCE and pass it to the writer AND every judge (critic,
-    // ranking judge, editorial board) — writer/judge parity on the CTA rules.
-    const ctaPolicy = resolveCtaPolicyForPost(config, selectedType.name, selectedProduct)
     megaPrompt = buildMegaPrompt(config, selectedType, idea, review, recentHooks, performance, options.topic, selectedProduct, format, options.approvedHook, ctaPolicy)
 
     // The user's uploaded photo will be the post's visual base — the caption must
@@ -977,7 +982,7 @@ ${feedSummary}
             renderResult = await renderReel({
                 config, captionData: captionData as CaptionData, format, selectedType, report,
                 selectedProduct: selectedProduct as SelectedProduct | undefined,
-                linkedProductId, clientUuid, recentBriefs, recentArchetypes,
+                linkedProductId, clientUuid, recentBriefs, recentArchetypes, ctaPolicy,
             })
             imageUrl = renderResult.imageUrl
             cost += renderResult.cost

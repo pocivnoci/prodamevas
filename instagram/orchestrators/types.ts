@@ -7,6 +7,7 @@ import type { ClientConfig, PostFormat } from "../configs/types"
 import type { PostType } from "../types"
 import type { DesignBrief } from "../image-pipeline"
 import type { SlotIntent } from "../../lib/feed-pattern"
+import type { CtaPolicy } from "../cta-policy"
 
 export type ProgressReporter = (stage: string, progress: number, message: string) => Promise<void>
 
@@ -72,6 +73,10 @@ export interface RenderContext {
     userPhotoUrl?: string
     /** Vision description of that photo — the text-only AI Designer's window into it */
     userPhotoDescription?: string
+    /** The post's resolved CTA policy — the SAME object the copywriter and critic got.
+     *  The reel's video director needs it: a REACH/CONNECT pillar forbids the website
+     *  anywhere in the post, and the closing seconds of a video are part of the post. */
+    ctaPolicy?: CtaPolicy
 }
 
 export interface RenderResult {

@@ -37,15 +37,38 @@ interface ProcessVideoOptions {
 // FFmpeg BINARY RESOLUTION
 // ============================================
 
+/**
+ * Resolve the FFmpeg binary.
+ *
+ * The old version fell back to the bare string `"ffmpeg"` whenever the require
+ * failed — on Vercel that means spawning a binary that isn't there, which the reel
+ * orchestrator catches and turns into a reel without voiceover or subtitles. The
+ * customer pays 5 credits either way, so the degradation has to be LOUD: we verify
+ * the static binary actually exists on disk (it only ships if it's listed in
+ * `outputFileTracingIncludes` — see next.config.ts) and throw a diagnosable error
+ * rather than let the spawn fail with a generic ENOENT.
+ *
+ * The system fallback stays for local dev (brew-installed ffmpeg), but only when
+ * the static package genuinely isn't installed.
+ */
 function getFfmpegPath(): string {
+    let staticPath: string | undefined
     try {
-        // Try ffmpeg-static first (npm package provides static binary)
-        const ffmpegStatic = require("ffmpeg-static") as string
-        return ffmpegStatic
+        staticPath = require("ffmpeg-static") as string
     } catch {
-        // Fallback to system ffmpeg
-        return "ffmpeg"
+        staticPath = undefined
     }
+
+    if (staticPath) {
+        if (existsSync(staticPath)) return staticPath
+        throw new Error(
+            `ffmpeg-static resolved to "${staticPath}" but the binary is missing on disk. ` +
+            `On Vercel this means it was not bundled — add it to outputFileTracingIncludes in next.config.ts.`
+        )
+    }
+
+    // ffmpeg-static not installed at all → local dev with a system ffmpeg.
+    return "ffmpeg"
 }
 
 // ============================================
