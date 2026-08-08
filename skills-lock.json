@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "stripe-best-practices": {
+      "source": "stripe/ai",
+      "sourceType": "github",
+      "skillPath": "skills/stripe-best-practices/SKILL.md",
+      "computedHash": "d578eb6fb77456b58e195c05ab7b266ecfa8349f449da2a70dbde50af30a33aa"
+    }
+  }
+}

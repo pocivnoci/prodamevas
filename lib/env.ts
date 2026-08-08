@@ -23,6 +23,8 @@ const OPTIONAL = [
     "FAKTUROID_CLIENT_ID",     // fakturace — bez ní se doklad nevystaví (invoices.status='failed')
     "FAKTUROID_CLIENT_SECRET",
     "FAKTUROID_SLUG",          // název účtu v URL Fakturoidu
+    "STRIPE_SECRET_KEY",       // druhá brána — zatím SANDBOX, cesta k penězům není dopojená
+    "STRIPE_WEBHOOK_SECRET",   // bez něj webhook odmítne každou událost (podpis nelze ověřit)
 ] as const
 
 export function validateEnv(): void {
