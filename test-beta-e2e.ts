@@ -1085,6 +1085,52 @@ test("17.5 chybějící ffmpeg nesmí tiše degradovat reel", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 18. FAKTURACE: ostrá číselná řada patří ostrým platbám (v8.9)
+// ═══════════════════════════════════════════════════════════
+
+test("18.1 testovací platba nesmí vystavit doklad", () => {
+    const code = codeOnly("lib/invoicing.ts")
+    const fn = code.slice(code.indexOf("export async function issueInvoiceForPayment"))
+    const guardIdx = fn.indexOf("input.sandbox")
+    const fakturoidIdx = fn.indexOf("isFakturoidEnabled")
+    assert(guardIdx > 0, "invoicing musí umět dostat informaci, že platba je sandboxová")
+    // Brána MUSÍ být před jakýmkoli dotykem Fakturoidu — po něm už je pozdě.
+    assert(guardIdx < fakturoidIdx, "sandbox guard patří PŘED volání Fakturoidu")
+    assert(/VERCEL_ENV !== "production"/.test(fn),
+        "druhá pojistka: mimo produkci se doklad nevystavuje, i když volající příznak zapomene")
+})
+
+test("18.2 záměrně nevystavený doklad není 'failed'", () => {
+    const code = codeOnly("lib/invoicing.ts")
+    assert(/async function markSkipped/.test(code), "skipped má vlastní zápis, ne markFailed")
+    assert(/status: "skipped"/.test(code), "stav musí být odlišitelný od selhání")
+    const mig = fileContent("supabase/migrations/20260809_invoice_skipped_status.sql")
+    assert(/CHECK \(status IN \([^)]*'skipped'/.test(mig), "constraint musí 'skipped' povolit")
+    // Fronta „chybí doklad, spravit" se nesmí plnit testy.
+    assert(/WHERE status = 'failed'/.test(mig), "retry index zůstává jen na skutečných selháních")
+})
+
+test("18.3 obě brány předávají sandbox příznak", () => {
+    const core = codeOnly("lib/payments/on-paid.ts")
+    assert(/sandbox\?: boolean/.test(core), "FinalizeOptions musí příznak nést")
+    assert(/sandbox: result\.sandbox/.test(core), "musí dojít až k vystavení dokladu")
+    const cg = codeOnly("app/api/payments/callback/route.ts")
+    assert(/sandbox: isMockPaymentMode\(\)/.test(cg), "ComGate route musí mock přiznat")
+})
+
+test("18.4 platformní proměnné nepatří do .env.local", () => {
+    // vercel env pull je tam zatáhne a lokální běh se pak tváří jako produkce:
+    // isMockPaymentMode() vrátí false (mock platby přestanou fungovat) a
+    // fakturační backstop na nonProd taky. Objeveno naostro 2026-08-09.
+    let env = ""
+    try { env = fileContent(".env.local") } catch { return } // v CI soubor není
+    for (const key of ["VERCEL", "VERCEL_ENV", "VERCEL_URL"]) {
+        assert(!new RegExp(`^\\s*${key}\\s*=`, "m").test(env),
+            `${key} v .env.local — lokální běh se tváří jako produkce`)
+    }
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 

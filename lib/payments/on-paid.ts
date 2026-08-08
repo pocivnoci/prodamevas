@@ -43,6 +43,14 @@ export interface FinalizeOptions {
      * na jeho straně, takže se nepředává. Ukládá se jen u první platby.
      */
     recurringToken?: string | null
+    /**
+     * Platba nepřišla z ostré brány (mock ComGate, Stripe `sk_test_`).
+     * Ví to **jen route** — jádro nesmí znát konkrétní bránu, aby ji mohlo
+     * obsloužit obě. Propaguje se do `FinalizeResult`, protože doklad se
+     * vystavuje až v `deliverPaidArtifacts`, a na fiktivní platbu se
+     * vystavit nesmí (číselná řada je nevratná).
+     */
+    sandbox?: boolean
 }
 
 export interface FinalizeResult {
@@ -50,6 +58,8 @@ export interface FinalizeResult {
     activated: boolean
     planId: string
     isRenewal: boolean
+    /** Přeneseno z `FinalizeOptions` — rozhoduje, jestli se smí sáhnout na ostrou fakturaci. */
+    sandbox: boolean
 }
 
 /** Legacy fallback pro platby bez navázaného předplatného. */
@@ -90,7 +100,7 @@ export async function finalizePaidPayment(
                 extra: { paymentId: payment.id, clientId: payment.client_id, planId },
             })
         } catch { /* Sentry je volitelný */ }
-        return { activated: false, planId, isRenewal: opts.isRenewal }
+        return { activated: false, planId, isRenewal: opts.isRenewal, sandbox: Boolean(opts.sandbox) }
     }
 
     // Úspěšná platba nuluje dunning a u PRVNÍ platby uloží token pro obnovy.
@@ -105,7 +115,7 @@ export async function finalizePaidPayment(
         await supabaseAdmin.from("subscriptions").update(update).eq("id", payment.subscription_id)
     }
 
-    return { activated: true, planId, isRenewal: opts.isRenewal }
+    return { activated: true, planId, isRenewal: opts.isRenewal, sandbox: Boolean(opts.sandbox) }
 }
 
 /**
@@ -132,6 +142,7 @@ export async function deliverPaidArtifacts(
             label: payment.label,
             payerEmail: to,
             paidAt: new Date(),
+            sandbox: result.sandbox,
         })
 
         if (!to) return

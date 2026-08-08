@@ -90,6 +90,12 @@ export interface IssueForPaymentInput {
     label?: string | null
     payerEmail?: string | null
     paidAt?: Date
+    /**
+     * Platba nepřišla z ostré brány (mock ComGate, Stripe `sk_test_`).
+     * Volající to ví, invoicing to sám poznat nemůže — a musí to vědět,
+     * protože doklad na fiktivní platbu je zásah do nevratné číselné řady.
+     */
+    sandbox?: boolean
 }
 
 export interface IssueForPaymentResult {
@@ -150,8 +156,27 @@ export async function issueInvoiceForPayment(
             .eq("id", existing.id)
     }
 
-    // 2. Bez konfigurace Fakturoidu doklad nevystavíme — ale řádek zůstane
-    //    jako 'failed', takže se na to přijde dřív než při daňové kontrole.
+    // 2. ⛔ Ostrá číselná řada patří ostrým platbám. Testovací platba, která
+    //    vystaví skutečný doklad, je účetní zásah, který jde jen stornovat —
+    //    proto je tahle brána PŘED voláním Fakturoidu a je dvojitá:
+    //    (a) volající přiznal sandbox, (b) neběžíme na produkci.
+    //    Stačí jedna podmínka a doklad se nevystaví. Backstop (b) je tu proto,
+    //    že (a) se dá zapomenout předat — a příští brána ho zapomene určitě.
+    const nonProd = process.env.VERCEL_ENV !== "production"
+    const override = process.env.FAKTUROID_ALLOW_NONPROD === "true"
+    if (input.sandbox || (nonProd && !override)) {
+        const why = input.sandbox
+            ? "platba je sandboxová/mock"
+            : `běh mimo produkci (VERCEL_ENV=${process.env.VERCEL_ENV || "unset"})`
+        const msg = `Doklad se vědomě nevystavuje: ${why}. Ostrá číselná řada je nevratná.`
+        console.warn(`🧾 invoicing: ${msg} (platba ${input.paymentId})`)
+        await markSkipped(invoiceRowId, msg)
+        return { status: "skipped", error: msg }
+    }
+
+    // 3. Bez konfigurace Fakturoidu doklad nevystavíme — a tohle JE selhání
+    //    ('failed'), protože na produkci se to musí spravit dřív než při
+    //    daňové kontrole.
     if (!isFakturoidEnabled()) {
         const msg = "Fakturoid není nakonfigurován (FAKTUROID_CLIENT_ID / _SECRET / _SLUG)"
         console.warn(`⚠️ invoicing: ${msg} — doklad k platbě ${input.paymentId} nevystaven`)
@@ -222,5 +247,18 @@ async function markFailed(invoiceRowId: string | undefined, error: string): Prom
     await supabaseAdmin
         .from("invoices")
         .update({ status: "failed", error, updated_at: new Date().toISOString() })
+        .eq("id", invoiceRowId)
+}
+
+/**
+ * Doklad se vědomě nevystavil. Vlastní stav, ne 'failed' — jinak by testovací
+ * platby zaplavily frontu „chybí doklad, spravit", kterou řeší člověk.
+ * Řádek zůstává, takže unikátní index dál brání pozdějšímu vystavení k téže platbě.
+ */
+async function markSkipped(invoiceRowId: string | undefined, error: string): Promise<void> {
+    if (!invoiceRowId) return
+    await supabaseAdmin
+        .from("invoices")
+        .update({ status: "skipped", error, updated_at: new Date().toISOString() })
         .eq("id", invoiceRowId)
 }

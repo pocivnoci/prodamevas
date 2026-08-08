@@ -101,6 +101,8 @@ export async function POST(req: NextRequest) {
                 // The INIT transId is what chargeRecurring references forever. A mock
                 // transId must never be stored — it would be charged for real later.
                 recurringToken: !isMockPaymentMode() && !transId.startsWith("MOCK-") ? transId : null,
+                // Mock platba nesmí sáhnout na ostrou číselnou řadu Fakturoidu.
+                sandbox: isMockPaymentMode() || transId.startsWith("MOCK-"),
             })
 
             // Comgate gets OK either way; the payment row stays PAID for manual repair.
