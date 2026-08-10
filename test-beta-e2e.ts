@@ -1201,9 +1201,14 @@ test("20.2 každé volání modelu hlásí spotřebu", () => {
     // Nový krok pipeline bez telemetrie = tiše nezapočítaný náklad. Počty musí sedět.
     const gem = codeOnly("instagram/gemini-client.ts")
     const contentCalls = (gem.match(/await ai\.models\.generateContent\(/g) || []).length
-    const recorded = (gem.match(/recordUsage\(/g) || []).length
+    // Dvě legitimní hlášení: tokeny (text, vision, TTS) a jednotky (obraz za kus,
+    // video za vteřinu — tak to Google účtuje, tokeny by u nich lhaly).
+    const recorded = (gem.match(/record(Usage|Units)\(/g) || []).length
     assert(recorded >= contentCalls,
-        `${contentCalls} volání generateContent, ale jen ${recorded} recordUsage — nějaký krok se neúčtuje`)
+        `${contentCalls} volání generateContent, ale jen ${recorded} hlášení spotřeby — nějaký krok se neúčtuje`)
+    // Obraz se účtuje za kus. Kdyby se hlásil tokeny, cena vyjde null a post je neoceněný.
+    assert(/recordUnits\([^)]*"images"/.test(gem),
+        "obrázkové volání musí hlásit jednotky, ne tokeny — Google účtuje za kus")
     // Veo vrací operaci bez usageMetadata, takže musí jít přes jednotky.
     assert(/recordUnits\([^)]*"seconds"/.test(gem),
         "video se musí měřit ve vteřinách — jinak nejdražší médium vychází na nulu")

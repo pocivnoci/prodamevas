@@ -93,7 +93,27 @@ mezi tenanty stejně, jako to umí `setActiveProject()`.
   env `GEMINI_THINK_<ROLE>`), ne číslo v call site. `-1` = dynamické, `0` = vypnuté.
   Pro tiery mají `-1` schválně — snižovat jim rozpočet bez měření je tichá degradace.
 
-Hlídají to aserce §20 a `scripts/test-usage-meter.ts`.
+Hlídají to aserce §20 a `scripts/test-usage-meter.ts` — ten mimo jiné tvrdí, že
+**každý model z registru má ověřenou sazbu**. Nový model bez ceny shodí test.
+
+## Cachování promptu: změřeno, nedělat
+
+**Nezkoušej cachovat mega prompt.** Je to slepá ulička a je to ověřené proti živému
+API (2026-08-10, `scripts/probe-prompt-cache.ts`):
+
+- Google zapíná implicitní cachování defaultně u modelů 2.5+ a dává 90 % slevu na
+  cachované tokeny, ale vyžaduje **minimálně 4 096 tokenů** promptu
+  (`gemini-3.5-flash` i `gemini-3.1-pro-preview`).
+- Reálný mega prompt má u tří produkčních klientů **2 463–3 573 tokenů** — pod
+  minimem. Živá zkouška: tentýž prompt poslaný dvakrát za sebou vrátil `cached=0`
+  v obou bězích.
+- **Společný prefix dvou po sobě jdoucích generací je 549–1 037 tokenů (22–29 %).**
+  To je strop toho, co by cache kdy mohla ušetřit — pořád hluboko pod minimem, takže
+  ani přeuspořádání promptu (stabilní blok dopředu) na tom nic nezmění.
+
+Když prompt někdy povyroste přes ~4 000 tokenů, vrať se k tomu — sonda je připravená
+(`npx tsx scripts/probe-prompt-cache.ts <slug> --live`). Do té doby platí, že **text
+není místo, kde jsou peníze**: účtuje se obraz za kus a video za vteřinu.
 
 ## Zpětné vazby jsou posvátné
 

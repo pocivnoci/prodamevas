@@ -1,8 +1,8 @@
 /**
  * Ceník modelů — převod naměřených tokenů na peníze
  * =================================================
- * Doplněk k `instagram/usage-meter.ts`: ten měří tokeny (tvrdá data, nikdy nezastarají),
- * tenhle soubor je překládá na dolary (měkká data, zastarají do měsíce).
+ * Doplněk k `instagram/usage-meter.ts`: ten měří spotřebu (tvrdá data, nikdy
+ * nezastarají), tenhle soubor ji překládá na dolary (měkká data, zastarají do měsíce).
  *
  * Dvě pravidla, na kterých to stojí:
  *
@@ -15,40 +15,90 @@
  * Sazby přepíšeš bez deploye přes env: `MODEL_PRICE_<MODEL>_IN` a `_OUT` v USD za
  * milion tokenů (model se normalizuje na velká písmena s podtržítky, např.
  * `MODEL_PRICE_GEMINI_PRO_LATEST_IN=1.25`).
+ *
+ * ⚠️ Všechny sazby níž jsou z ai.google.dev/gemini-api/docs/pricing, **ověřeno
+ *    2026-08-10** (placený tier, standard — ne batch). Google ceny mění; když se
+ *    naměřené náklady rozejdou s fakturou, začni tady.
  */
 
-/** USD za milion tokenů. `cachedIn` je sazba za část promptu obslouženou z cache. */
+/** USD za milion tokenů. Google účtuje jinak nad 200k tokenů promptu. */
 interface TokenPrice {
     in: number
     out: number
-    cachedIn?: number
-    /** Odkud sazba je — bez zdroje se sem nic nepřidává. */
+    /** Sazba za cachovanou část promptu. U Gemini je to shodně 10 % vstupní sazby. */
+    cachedIn: number
+    /** Sazby pro prompty > 200 000 tokenů, pokud je model rozlišuje. */
+    longContext?: { in: number; out: number; cachedIn: number }
     source: string
 }
 
-/**
- * Sazby ověřené k datu uvedenému u položky.
- *
- * ⚠️ Textové Gemini modely tu **schválně nejsou**. V repozitáři pro ně žádná ověřená
- * sazba není (`docs/pricing/ASSUMPTIONS.md` má ověřené jen ceny za obrázek a vteřinu
- * videa; agentický základ ~$0,20/post je označený `[ODHAD]`). Radši ať se cena spočítá
- * jako `null` a bude vidět, že chybí, než aby se do faktury dostalo číslo z hlavy.
- * Doplň je sem s datem a zdrojem — nebo dočasně přes env.
- */
+const GOOGLE = "ai.google.dev/gemini-api/docs/pricing, ověřeno 2026-08-10"
+
 const PRICES: Record<string, TokenPrice> = {
-    // models.ts: „intro pricing $2/$10 per MTok through 2026-08-31"
-    "claude-sonnet-5": { in: 2, out: 10, source: "instagram/models.ts, intro pricing do 2026-08-31" },
+    // ── Flash tiery ────────────────────────────────────────────────────────────
+    "gemini-3.6-flash": { in: 1.50, out: 7.50, cachedIn: 0.15, source: GOOGLE },
+    "gemini-3.5-flash": { in: 1.50, out: 9.00, cachedIn: 0.15, source: GOOGLE },
+    // Flash-Lite 3.5 cachování nepodporuje — cachedIn je tu jen pro tvar typu.
+    "gemini-3.5-flash-lite": { in: 0.30, out: 2.50, cachedIn: 0.30, source: `${GOOGLE} (bez context caching)` },
+    "gemini-3.1-flash-lite": { in: 0.25, out: 1.50, cachedIn: 0.025, source: GOOGLE },
+    "gemini-2.5-flash": { in: 0.30, out: 2.50, cachedIn: 0.03, source: GOOGLE },
+
+    // ── Pro tiery ──────────────────────────────────────────────────────────────
+    "gemini-3.1-pro-preview": {
+        in: 2.00, out: 12.00, cachedIn: 0.20,
+        longContext: { in: 4.00, out: 18.00, cachedIn: 0.40 },
+        source: GOOGLE,
+    },
+    "gemini-2.5-pro": {
+        in: 1.25, out: 10.00, cachedIn: 0.125,
+        longContext: { in: 2.50, out: 15.00, cachedIn: 0.25 },
+        source: GOOGLE,
+    },
+
+    // ── Embeddingy ─────────────────────────────────────────────────────────────
+    // Běží u každého postu (consistency score + retrieval brand memory), takže bez
+    // nich by cost_usd zůstalo NULL prakticky vždycky. Výstup se neúčtuje.
+    "gemini-embedding-2": { in: 0.20, out: 0, cachedIn: 0.20, source: GOOGLE },
+    "gemini-embedding-001": { in: 0.15, out: 0, cachedIn: 0.15, source: GOOGLE },
+
+    // ── TTS ────────────────────────────────────────────────────────────────────
+    "gemini-3.1-flash-tts-preview": { in: 1.00, out: 20.00, cachedIn: 0.10, source: GOOGLE },
+    "gemini-2.5-flash-preview-tts": { in: 0.50, out: 10.00, cachedIn: 0.05, source: GOOGLE },
+
+    // ── Cross-family judge ─────────────────────────────────────────────────────
+    // models.ts: „intro pricing $2/$10 per MTok through 2026-08-31" — po tomhle datu
+    // ověřit znovu, sazba se skokem změní.
+    "claude-sonnet-5": { in: 2, out: 10, cachedIn: 0.20, source: "instagram/models.ts, intro pricing do 2026-08-31" },
 }
 
 /**
- * Jednotkové sazby v USD — modely, které se neúčtují za tokeny.
- * Zdroj: `docs/pricing/ASSUMPTIONS.md`, řádky označené jako ověřené (2026-07-15).
+ * Aliasy → skutečný model. Telemetrie zaznamenává řetězec, který jsme POSLALI, a to
+ * je u Pro tieru alias. Bez tohohle by každé Pro volání zůstalo neoceněné.
+ *
+ * ⚠️ Alias se sám otáčí na aktuální GA Pro (to je důvod, proč ho používáme —
+ *    nepinnutý preview ID nás už jednou shodil na 404). Když se otočí, **překontroluj
+ *    tenhle řádek**: cena se změní pod rukama, aniž by se změnil kód.
+ *    Stav k 2026-08-10: gemini-3.5 Pro ještě není GA (testuje se s partnery),
+ *    takže alias míří na gemini-3.1-pro-preview.
+ */
+const ALIASES: Record<string, string> = {
+    "gemini-pro-latest": "gemini-3.1-pro-preview",
+}
+
+/**
+ * Jednotkové sazby — modely, které se neúčtují za tokeny.
+ * Obraz per kus, video per vteřinu. Rozlišení bereme to, které engine skutečně
+ * renderuje: video `resolution: "1080p"` (gemini-client.ts), obraz bez `imageSize`
+ * (= 1K; „2K"/„4K" rozmazává gemini-3-pro-image, viz komentář tamtéž).
  */
 const UNIT_PRICES: Record<string, { perSecond?: number; perImage?: number; source: string }> = {
-    "veo-3.1-fast-generate-preview": { perSecond: 0.15, source: "ASSUMPTIONS.md — techjacksolutions.com" },
-    "veo-3.1-generate-preview": { perSecond: 0.40, source: "ASSUMPTIONS.md — techjacksolutions.com" },
-    // Lite nemá ověřenou sazbu; schválně chybí, ať se ozve místo tichého odhadu.
-    "gemini-3-pro-image": { perImage: 0.134, source: "ASSUMPTIONS.md — pricepertoken.com (Nano Banana Pro 2K)" },
+    // Veo 3.1 @ 1080p
+    "veo-3.1-generate-preview": { perSecond: 0.40, source: GOOGLE },
+    "veo-3.1-fast-generate-preview": { perSecond: 0.12, source: `${GOOGLE} (1080p; 720p je 0,10)` },
+    "veo-3.1-lite-generate-preview": { perSecond: 0.08, source: `${GOOGLE} (1080p; 720p je 0,05)` },
+    // Nano Banana Pro / 2 @ 1K
+    "gemini-3-pro-image": { perImage: 0.134, source: `${GOOGLE} (1K/2K)` },
+    "gemini-3.1-flash-image": { perImage: 0.067, source: `${GOOGLE} (1K)` },
 }
 
 const warned = new Set<string>()
@@ -68,15 +118,23 @@ function warnMissing(model: string, what: string): void {
     )
 }
 
+/** Alias na skutečný model; ostatní vrací beze změny. */
+export function resolveModelAlias(model: string): string {
+    return ALIASES[model] ?? model
+}
+
 function priceFor(model: string): TokenPrice | null {
     const key = envKey(model)
     const envIn = Number(process.env[`MODEL_PRICE_${key}_IN`])
     const envOut = Number(process.env[`MODEL_PRICE_${key}_OUT`])
     if (Number.isFinite(envIn) && Number.isFinite(envOut)) {
-        return { in: envIn, out: envOut, source: "env override" }
+        return { in: envIn, out: envOut, cachedIn: envIn * 0.1, source: "env override" }
     }
-    return PRICES[model] ?? null
+    return PRICES[resolveModelAlias(model)] ?? null
 }
+
+/** Nad tímhle počtem tokenů promptu účtuje Google vyšší sazbou. */
+const LONG_CONTEXT_THRESHOLD = 200_000
 
 export interface PricedUsage {
     promptTokens: number
@@ -93,7 +151,7 @@ export interface PricedUsage {
 export function costUsdForCall(model: string, u: PricedUsage): number | null {
     // Netokenové volání (video za vteřiny, obrázek za kus) má vlastní sazebník.
     if (u.units) {
-        const up = UNIT_PRICES[model]
+        const up = UNIT_PRICES[resolveModelAlias(model)]
         const rate = u.units.kind === "seconds" ? up?.perSecond : up?.perImage
         if (rate === undefined) {
             warnMissing(model, `jednotková sazba (${u.units.kind})`)
@@ -107,10 +165,12 @@ export function costUsdForCall(model: string, u: PricedUsage): number | null {
         warnMissing(model, "tokenová sazba")
         return null
     }
+
+    const tier = u.promptTokens > LONG_CONTEXT_THRESHOLD && p.longContext ? p.longContext : p
     const fresh = Math.max(0, u.promptTokens - u.cachedTokens)
-    const cachedRate = p.cachedIn ?? p.in * 0.25 // cache se běžně účtuje zlomkem vstupu
     return (
-        (fresh * p.in + u.cachedTokens * cachedRate + (u.outputTokens + u.thoughtTokens) * p.out) / 1_000_000
+        (fresh * tier.in + u.cachedTokens * tier.cachedIn + (u.outputTokens + u.thoughtTokens) * tier.out) /
+        1_000_000
     )
 }
 
@@ -118,7 +178,7 @@ export function costUsdForCall(model: string, u: PricedUsage): number | null {
  * Cena celé generace. Vrací `null`, jakmile **kterýkoli** krok cenu nemá — částečný
  * součet by tvrdil, že příspěvek stál míň, než ve skutečnosti stál.
  */
-export function costUsdForBreakdown(calls: { model: string; promptTokens: number; outputTokens: number; thoughtTokens: number; cachedTokens: number }[]): number | null {
+export function costUsdForBreakdown(calls: { model: string; promptTokens: number; outputTokens: number; thoughtTokens: number; cachedTokens: number; units?: { kind: "seconds" | "images"; n: number } }[]): number | null {
     let sum = 0
     for (const c of calls) {
         const cost = costUsdForCall(c.model, c)

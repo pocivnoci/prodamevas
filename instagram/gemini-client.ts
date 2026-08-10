@@ -229,7 +229,7 @@ export async function generateImage(
                 } as any,
             })
 
-            recordUsage(getModel("image"), response.usageMetadata, "image")
+            recordUnits(getModel("image"), "images", 1, "image")
 
             const parts = response.candidates?.[0]?.content?.parts || []
             for (const part of parts) {
@@ -255,7 +255,7 @@ export async function generateImage(
                         },
                     } as any,
                 })
-                recordUsage(getModel("image", "fallback"), response.usageMetadata, "image:fallback")
+                recordUnits(getModel("image", "fallback"), "images", 1, "image:fallback")
                 const parts = response.candidates?.[0]?.content?.parts || []
                 for (const part of parts) {
                     if ((part as any).inlineData?.data) {
@@ -318,7 +318,7 @@ export async function generateImageWithReferences(
             } as any,
         })
 
-        recordUsage(model, response.usageMetadata, "image:refs")
+        recordUnits(model, "images", 1, "image:refs")
 
         const parts = response.candidates?.[0]?.content?.parts || []
         for (const part of parts) {
@@ -397,7 +397,7 @@ export async function editExistingImage(
             } as any,
         })
 
-        recordUsage(model, response.usageMetadata, "image:edit")
+        recordUnits(model, "images", 1, "image:edit")
 
         const parts = response.candidates?.[0]?.content?.parts || []
         for (const part of parts) {
