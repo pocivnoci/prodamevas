@@ -9,6 +9,7 @@
 
 import { qualifyLead, isRoleAddress, daysSince, openingLine, QUALIFY_THRESHOLD } from "../lib/agents/sales/qualify"
 import { composeMessage, pickAngle, judgeRubric, MAX_WORDS } from "../lib/agents/sales/templates"
+import { extractColors, extractText } from "../lib/agents/sales/brand-scrape"
 import { readFileSync } from "fs"
 import { resolve } from "path"
 
@@ -135,6 +136,28 @@ check("rubrika trvá na konkrétnosti první věty", /KONKRÉTNOST/.test(rub))
 check("rubrika zakazuje sliby výsledků", /SLIBY/.test(rub) && /dosah/.test(rub))
 check("rubrika vyžaduje identifikaci s IČO", /IDENTIFIKACE/.test(rub) && /IČO/.test(rub))
 check("jediné porušení znamená zamítnutí", /jediný bod porušený[\s\S]*false/.test(rub))
+
+console.log("\n🎨 SCRAPE ZNAČKY (čisté funkce, bez sítě)\n")
+
+const htmlSample = `
+<html><head><style>.a{color:#e63946}.b{background:#1d3557}.c{color:#e63946}
+.bg{background:#ffffff}.txt{color:#111111}.grey{color:#808080}</style>
+<script>var x = "#ff00ff";</script></head>
+<body><h1>Kavárna</h1><p>Pražíme vlastní kávu.&nbsp;Každý den.</p></body></html>`
+
+const cols = extractColors(htmlSample)
+check("barvy značky se najdou", cols.includes("#e63946") && cols.includes("#1d3557"), cols.join(" "))
+check("nejčastější barva je první", cols[0] === "#e63946", cols.join(" "))
+check("bílá se zahodí — je to pozadí, ne značka", !cols.includes("#ffffff"))
+check("skoro černá se zahodí", !cols.includes("#111111"))
+check("šedá se zahodí — nenese identitu", !cols.includes("#808080"))
+
+const txt = extractText(htmlSample)
+check("text nezahrnuje skripty", !txt.includes("var x"))
+check("text nezahrnuje styly", !txt.includes("background"))
+check("text nese obsah stránky", txt.includes("Pražíme vlastní kávu"))
+check("nezlomitelná mezera se přeloží", !txt.includes("&nbsp;"))
+check("text se ořízne na limit", extractText("x".repeat(9999), 100).length === 100)
 
 console.log("\n🕓 POMOCNÉ\n")
 check("daysSince počítá správně", daysSince(daysAgo(10), NOW) === 10)
