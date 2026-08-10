@@ -286,6 +286,27 @@ test("počet slidů je ve schématu STRUKTURÁLNÍ, ne jen popis", () => {
         "prompt neodpovídá hranicím")
 })
 
+test("se závaznou strukturou se počet slidů neurčuje 'podle obsahu'", () => {
+    // Nalezeno až za běhu reálné generace: structure vyjmenovala 6 slidů jako
+    // „závaznou", ale o dva řádky níž stálo „počet slidů podle obsahu, nikdy
+    // nenatahuj". Model vzal druhou instrukci a vyrobil 5. Dvě pravidla pro tutéž
+    // věc — jen měkčí varianta rozporu, který §21 řeší pro nemožná čísla.
+    const withStructure = buildMegaPrompt(
+        { ...config,
+          postFormats: { meme: { medium: "carousel", aspectRatio: "4:5" } },
+          postTypeDefs: [{ name: "meme", displayName: "Meme", pillar: "dosah",
+                           structure: "Slide 1 COVER: x. Slide 2: y. Slide 3 CTA: z." }],
+        } as any, postType, null, null, [], noPerf,
+    )
+    assert(!withStructure.includes("Počet slidů podle obsahu"),
+        "se závaznou strukturou nesmí prompt zároveň říkat 'počet podle obsahu'")
+    assert(withStructure.includes("Počet slidů urči podle STRUKTURY"),
+        "struktura musí počet slidů řídit")
+    // Bez struktury (dramaturgická větev) volba podle obsahu naopak platí dál.
+    assert(carouselPrompt.includes("Počet slidů podle obsahu"),
+        "bez struktury má model volit počet podle obsahu")
+})
+
 test("nadpis karuselu počítá cover do celkového počtu", () => {
     assert(carouselPrompt.includes(`CAROUSEL POST (${PROMPT_LIMITS.carouselInnerMin + 1}-${CAROUSEL_MAX_TOTAL_SLIDES} slidů)`),
         "nadpis neodpovídá stropu — cover se musí počítat")

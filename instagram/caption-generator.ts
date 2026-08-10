@@ -942,7 +942,9 @@ ${typeDef.structure}
 `}
 ### TEXT NA SLIDECH (tvrdá pravidla):
 - Slide je PLAKÁT, ne odstavec: headline max ${PROMPT_LIMITS.slideHeadlineWords} slov, subtext max ${PROMPT_LIMITS.slideSubtextWords} slov. Detaily patří do caption.
-- Počet slidů podle obsahu (${PROMPT_LIMITS.carouselInnerMin + 1}-${CAROUSEL_MAX_TOTAL_SLIDES} vč. coveru) — nikdy nenatahuj. Radši ${PROMPT_LIMITS.carouselInnerMin + 1} silné než ${CAROUSEL_MAX_TOTAL_SLIDES} vycpaných.
+${typeDef?.structure
+    ? `- Počet slidů urči podle STRUKTURY výše — ta je závazná. Strop je ${CAROUSEL_MAX_TOTAL_SLIDES} vč. coveru.`
+    : `- Počet slidů podle obsahu (${PROMPT_LIMITS.carouselInnerMin + 1}-${CAROUSEL_MAX_TOTAL_SLIDES} vč. coveru) — nikdy nenatahuj. Radši ${PROMPT_LIMITS.carouselInnerMin + 1} silné než ${CAROUSEL_MAX_TOTAL_SLIDES} vycpaných.`}
 - Slidy čte člověk za 2 sekundy — každé slovo si musí místo zasloužit.
 
 ## VÝSTUP — vrať POUZE validní JSON:
