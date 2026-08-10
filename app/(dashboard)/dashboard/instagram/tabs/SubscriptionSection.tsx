@@ -2,7 +2,7 @@
 
 import { useStudio, type SubscriptionState } from "@/app/(dashboard)/StudioContext"
 import { activateFreePlan } from "@/app/actions/settings-actions"
-import { hasBillingDetails } from "@/app/actions/billing-actions"
+import { hasBillingDetails, cancelSubscription, resumeSubscription } from "@/app/actions/billing-actions"
 import { BillingModal } from "./BillingSection"
 import { CheckCircle2 } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -151,7 +151,7 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
 
             {/* Current plan status */}
             {subscription ? (
-                <CurrentPlanCard sub={subscription} onRefresh={refreshSubscription} />
+                <CurrentPlanCard sub={subscription} onRefresh={refreshSubscription} projectId={projectId} />
             ) : (
                 <div className="bg-aisummit-cinnabar/10 border border-aisummit-cinnabar/20 rounded-sm p-4">
                     <p className="text-white/60 text-xs">Nemáte aktivní předplatné.</p>
@@ -234,7 +234,7 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
         </div>
     )
 }
-function CurrentPlanCard({ sub, onRefresh }: { sub: SubscriptionState; onRefresh: () => void }) {
+function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState; onRefresh: () => void; projectId: string }) {
     const isTrial = sub.status === "trialing"
     // The v2 trial has NO monthly credits (credits_per_month=0) — its real quota is
     // "N free posts" tracked via plan_posts_unlocked/limit. Showing a "0/0 kreditů"
@@ -276,6 +276,11 @@ function CurrentPlanCard({ sub, onRefresh }: { sub: SubscriptionState; onRefresh
                     {sub.status === "expired" && (
                         <span className="text-[9px] bg-red-500/20 text-red-400 px-3 py-1 rounded-full font-bold uppercase">
                             Vypršel
+                        </span>
+                    )}
+                    {sub.cancelAtPeriodEnd && sub.status !== "expired" && (
+                        <span className="text-[9px] bg-white/10 text-white/60 px-3 py-1 rounded-full font-bold uppercase">
+                            Končí {periodEnd ? new Date(periodEnd).toLocaleDateString("cs") : "koncem období"}
                         </span>
                     )}
                 </div>
@@ -327,6 +332,95 @@ function CurrentPlanCard({ sub, onRefresh }: { sub: SubscriptionState; onRefresh
                     </p>
                 )}
             </div>
+
+            {!isTrial && sub.status === "active" && (
+                <CancelControl sub={sub} projectId={projectId} onRefresh={onRefresh} />
+            )}
+        </div>
+    )
+}
+
+/**
+ * Odchod bez volání a bez e-mailu.
+ *
+ * Zrušení nikdy nezabere přístup okamžitě — zaplacené období doběhne a teprve
+ * pak předplatné skončí (server nastavuje `cancel_at_period_end`, ne `status`).
+ * Proto je i text potvrzení o datu, ne o „ztratíte přístup".
+ */
+function CancelControl({ sub, projectId, onRefresh }: { sub: SubscriptionState; projectId: string; onRefresh: () => void }) {
+    const [confirming, setConfirming] = useState(false)
+    const [busy, setBusy] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+
+    const until = sub.currentPeriodEnd ? new Date(String(sub.currentPeriodEnd)).toLocaleDateString("cs") : null
+
+    async function run(action: "cancel" | "resume") {
+        setBusy(true)
+        setError(null)
+        try {
+            const res = action === "cancel"
+                ? await cancelSubscription(projectId)
+                : await resumeSubscription(projectId)
+            if (!res.success) setError(res.error || "Nepodařilo se to provést.")
+            else { setConfirming(false); onRefresh() }
+        } catch {
+            setError("Nepodařilo se to provést. Zkuste to prosím znovu.")
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    if (sub.cancelAtPeriodEnd) {
+        return (
+            <div className="mt-5 pt-4 border-t border-white/5 flex flex-wrap items-center gap-3">
+                <p className="text-[10px] text-white/40 font-bold">
+                    Předplatné končí{until ? ` ${until}` : " koncem období"}. Do té doby funguje beze změny.
+                </p>
+                <button
+                    onClick={() => run("resume")}
+                    disabled={busy}
+                    className="ml-auto text-[9px] font-bold uppercase tracking-widest text-emerald-400 hover:text-emerald-300 disabled:opacity-40 transition-colors"
+                >
+                    {busy ? "Obnovuji…" : "Obnovit předplatné"}
+                </button>
+                {error && <p className="w-full text-[10px] text-red-400">{error}</p>}
+            </div>
+        )
+    }
+
+    return (
+        <div className="mt-5 pt-4 border-t border-white/5">
+            {!confirming ? (
+                <button
+                    onClick={() => setConfirming(true)}
+                    className="text-[9px] font-bold uppercase tracking-widest text-white/25 hover:text-white/50 transition-colors"
+                >
+                    Zrušit předplatné
+                </button>
+            ) : (
+                <div className="flex flex-wrap items-center gap-3">
+                    <p className="text-[10px] text-white/50 font-bold">
+                        Zrušit? Plán poběží{until ? ` do ${until}` : " do konce zaplaceného období"} a pak se neobnoví.
+                    </p>
+                    <div className="ml-auto flex items-center gap-3">
+                        <button
+                            onClick={() => setConfirming(false)}
+                            disabled={busy}
+                            className="text-[9px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 disabled:opacity-40 transition-colors"
+                        >
+                            Nechat běžet
+                        </button>
+                        <button
+                            onClick={() => run("cancel")}
+                            disabled={busy}
+                            className="text-[9px] font-bold uppercase tracking-widest text-aisummit-cinnabar hover:opacity-80 disabled:opacity-40 transition-colors"
+                        >
+                            {busy ? "Ruším…" : "Ano, zrušit"}
+                        </button>
+                    </div>
+                </div>
+            )}
+            {error && <p className="mt-2 text-[10px] text-red-400">{error}</p>}
         </div>
     )
 }

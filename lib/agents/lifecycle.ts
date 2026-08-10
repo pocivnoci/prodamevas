@@ -20,7 +20,9 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const MAX_PROPOSALS_PER_RUN = 15
 const MAX_WAITLIST_PER_RUN = 10
 
-export type LifecycleKind = "activation_nudge" | "credit_low" | "winback" | "waitlist_drip"
+export type LifecycleKind =
+    | "activation_nudge" | "credit_low" | "winback" | "waitlist_drip"
+    | "dormant" | "ig_disconnected"
 
 /** Re-proposal block window per kind (days; null = once ever). */
 const DEDUPE_DAYS: Record<LifecycleKind, number | null> = {
@@ -28,6 +30,8 @@ const DEDUPE_DAYS: Record<LifecycleKind, number | null> = {
     credit_low: 30,
     winback: 90,
     waitlist_drip: 30,
+    dormant: 30,
+    ig_disconnected: 14,
 }
 
 export interface LifecycleProposal {
@@ -127,6 +131,33 @@ async function findWinbackCandidates(): Promise<Candidate[]> {
     return out
 }
 
+/**
+ * Zdravotní rizika platících účtů → pobídka. Čte `client-health.ts`, aby
+ * definice „spící" a „odpojený" existovala v repu jednou; brief a tab Firma
+ * pak nemůžou tvrdit něco jiného než e-mail.
+ *
+ * Jeden průchod dává obě kategorie — dva samostatné findery by ten (nelevný)
+ * přehled počítaly dvakrát.
+ */
+async function findHealthCandidates(): Promise<Candidate[]> {
+    const { buildClientHealth } = await import("@/lib/agents/client-health")
+    const rows = await buildClientHealth()
+    const out: Candidate[] = []
+
+    for (const r of rows) {
+        // Priorita: rozbité propojení je konkrétní úkon, spící účet jen pobídka.
+        // Poslat obojí najednou znamená nechat člověka vybírat, co je důležitější.
+        const kind: LifecycleKind | null = r.risks.includes("ig_disconnected")
+            ? "ig_disconnected"
+            : r.risks.includes("dormant") ? "dormant" : null
+        if (!kind) continue
+
+        const email = await getOwnerEmail(r.clientId)
+        if (email) out.push({ kind, email, clientId: r.clientId, clientName: r.name })
+    }
+    return out
+}
+
 /** Waitlist entries older than a week — keep the list warm while invites are gated. */
 async function findWaitlistCandidates(): Promise<Candidate[]> {
     const { data } = await supabaseAdmin
@@ -144,6 +175,8 @@ const KIND_LABELS: Record<LifecycleKind, string> = {
     credit_low: "Docházejí kredity",
     winback: "Winback po expiraci",
     waitlist_drip: "Waitlist připomínka",
+    dormant: "Spící účet",
+    ig_disconnected: "Odpojený Instagram",
 }
 
 /**
@@ -155,6 +188,7 @@ export async function scanLifecycle(): Promise<LifecycleProposal[]> {
         findActivationCandidates().catch(() => [] as Candidate[]),
         findCreditLowCandidates().catch(() => [] as Candidate[]),
         findWinbackCandidates().catch(() => [] as Candidate[]),
+        findHealthCandidates().catch(() => [] as Candidate[]),
         findWaitlistCandidates().catch(() => [] as Candidate[]),
     ])
 
@@ -216,6 +250,20 @@ export function buildLifecycleEmail(kind: LifecycleKind, vars: { clientName?: st
                 subject: "Instagram mezitím spí — vraťte se k Chrlit",
                 body: `Předplatné${name} vypršelo a účet přestal dostávat nový obsah. Vaše nastavení, značka i naučené preference zůstávají uložené — návrat je otázka jednoho kliknutí.\n\n` +
                     `<a href="${vars.clientId ? studioDeepLink(vars.clientId, "subscription") : siteUrl()}">Obnovit předplatné →</a>`,
+            }
+        case "dormant":
+            return {
+                subject: "Váš Instagram je pár kliknutí od dalšího týdne obsahu",
+                body: `Za poslední dva týdny nevznikl${name ? ` pro${name.replace(" pro", "")}` : ""} žádný nový příspěvek — a účet, který přestane publikovat, ztrácí dosah rychleji, než ho pak jde získat zpátky.\n\n` +
+                    `Značku i naučené preference máme uložené, takže týdenní plán vznikne na jedno kliknutí.\n\n` +
+                    `<a href="${vars.clientId ? studioDeepLink(vars.clientId, "plan") : siteUrl() + "/dashboard/instagram"}">Vygenerovat obsah →</a>`,
+            }
+        case "ig_disconnected":
+            return {
+                subject: "Propojení s Instagramem je potřeba obnovit",
+                body: `Účet${name} nemá funkční propojení s Instagramem — přístup od Meta po čase vyprší a je potřeba ho jednou za čas potvrdit.\n\n` +
+                    `Dokud je odpojený, příspěvky se sice vygenerují, ale nemají se kam publikovat. Obnovení je otázka dvou kliknutí:\n\n` +
+                    `<a href="${vars.clientId ? studioDeepLink(vars.clientId, "settings") : siteUrl() + "/dashboard/instagram"}">Připojit Instagram →</a>`,
             }
         case "waitlist_drip":
             return {

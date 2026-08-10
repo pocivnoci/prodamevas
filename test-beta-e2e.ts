@@ -719,9 +719,11 @@ test("14.4 invoicing can never break the payment callback", () => {
     const core = fileContent("lib/payments/on-paid.ts")
     assert(core.includes("issueInvoiceForPayment"), "the shared core must issue the document")
     assert(/deliverPaidArtifacts[\s\S]*?catch/.test(core), "deliverPaidArtifacts must swallow its own failures — a receipt must never break a payment")
+    // Doručení se přestěhovalo z rout do jádra (applyGatewayStatus), protože ho
+    // potřebují tři volající. Záruka je stejná, jen na jednom místě.
+    assert(/after\(\(\) => deliverPaidArtifacts/.test(core), "delivery must run inside after() so the gateway still gets its immediate ACK")
     const cb = fileContent("app/api/payments/callback/route.ts")
-    assert(cb.includes("deliverPaidArtifacts"), "callback must delegate delivery to the shared core")
-    assert(/after\(\(\) =>\s*deliverPaidArtifacts/.test(cb), "delivery must run inside after() so Comgate still gets its immediate ACK")
+    assert(cb.includes("applyGatewayStatus"), "callback must delegate delivery to the shared core")
 })
 
 test("14.9 the paid-payment core is shared, not copied per gateway", () => {
@@ -732,13 +734,14 @@ test("14.9 the paid-payment core is shared, not copied per gateway", () => {
     // Sentry tagu), ale nesmí IMPORTOVAT klienta konkrétní brány — tím by se
     // stalo závislé na jedné z nich a druhá by si musela udělat kopii.
     assert(!/from\s+["']@?\/?lib\/comgate["']/.test(core), "the shared core must not import the Comgate client")
+    assert(!/import\(["']@\/lib\/comgate["']\)/.test(core), "not even dynamically — the refId convention lives in lib/payments/ref-id.ts")
     assert(!/from\s+["']stripe["']/.test(core), "the shared core must not import the Stripe SDK either")
     assert(!core.includes("getPaymentStatus"), "server-side status verification is gateway-specific and stays in the route")
 
     // Aktivace plánu smí být jen v jádru — kopie v routě by se rozešla.
     const cb = codeOnly("app/api/payments/callback/route.ts")
     assert(!cb.includes("activatePaidPlan"), "the Comgate route must NOT activate the plan itself — that logic lives in the core")
-    assert(cb.includes("finalizePaidPayment"), "the route must call the core")
+    assert(cb.includes("applyGatewayStatus"), "the route must call the core")
 
     // Mock transId se nikdy nesmí uložit jako token pro budoucí obnovy —
     // příští měsíc by se na něj poslala skutečná platba.
@@ -1115,7 +1118,8 @@ test("18.3 obě brány předávají sandbox příznak", () => {
     assert(/sandbox\?: boolean/.test(core), "FinalizeOptions musí příznak nést")
     assert(/sandbox: result\.sandbox/.test(core), "musí dojít až k vystavení dokladu")
     const cg = codeOnly("app/api/payments/callback/route.ts")
-    assert(/sandbox: isMockPaymentMode\(\)/.test(cg), "ComGate route musí mock přiznat")
+    assert(/const sandbox = isMockPaymentMode\(\)/.test(cg) && /sandbox,/.test(cg),
+        "ComGate route musí mock přiznat a příznak předat jádru")
 })
 
 test("18.4 platformní proměnné nepatří do .env.local", () => {
@@ -1305,13 +1309,18 @@ test("21.5 onboarding negeneruje strukturu, kterou engine nevykreslí", () => {
 // hlídají, že druhá brána zůstane adaptérem, ne druhou kódovou cestou.
 
 test("22.1 Stripe zabírá platbu podmíněným claimem, ne insertem", () => {
-    const code = codeOnly("app/api/payments/stripe/webhook/route.ts")
-    assert(/\.eq\("provider", "stripe"\)/.test(code) && /\.eq\("provider_ref", sessionId\)/.test(code),
+    // Claim se přestěhoval do sdíleného jádra, protože ho potřebují TŘI volající
+    // (ComGate callback, Stripe webhook, reconciler). Invariant je tím silnější:
+    // podmíněný UPDATE existuje v repu právě jednou.
+    const core = codeOnly("lib/payments/on-paid.ts")
+    assert(/\.eq\("provider", "stripe"\)\.eq\("provider_ref", input\.locator\.sessionId\)/.test(core),
         "claim musí hledat podle vlastního lokátoru brány")
-    assert(/\.neq\("status", "PAID"\)/.test(code),
+    assert(/\.neq\("status", "PAID"\)/.test(core),
         "bez podmínky na status by replay webhooku aktivoval plán dvakrát")
-    assert(!/\.from\("payments"\)\s*\.insert\(/.test(code),
-        "webhook nikdy nesmí platbu zakládat — claim bez řádku je konec")
+
+    const code = codeOnly("app/api/payments/stripe/webhook/route.ts")
+    assert(!/\.from\("payments"\)/.test(code),
+        "webhook nesmí na payments sahat vůbec — od toho je applyGatewayStatus")
 })
 
 test("22.2 unikátní index je nárok na zpracování", () => {
@@ -1324,13 +1333,17 @@ test("22.2 unikátní index je nárok na zpracování", () => {
 
 test("22.3 aktivace je sdílená, ne zkopírovaná do brány", () => {
     const code = codeOnly("app/api/payments/stripe/webhook/route.ts")
-    assert(/finalizePaidPayment/.test(code) && /deliverPaidArtifacts/.test(code),
+    assert(/applyGatewayStatus/.test(code),
         "Stripe musí volat totéž jádro jako ComGate")
-    assert(/after\(\(\) => deliverPaidArtifacts/.test(code),
-        "doklad a e-mail patří do after() — brána musí dostat ACK hned")
     // Kdyby si brána aktivaci napsala sama, je to druhé místo, kde se zapomene na doklad.
     assert(!/from\("subscriptions"\)[\s\S]{0,80}\.update\(/.test(code),
         "webhook nesmí aktivovat předplatné sám")
+    assert(!/finalizePaidPayment/.test(code),
+        "brána nesmí obcházet applyGatewayStatus a volat aktivaci napřímo")
+
+    const core = codeOnly("lib/payments/on-paid.ts")
+    assert(/after\(\(\) => deliverPaidArtifacts/.test(core),
+        "doklad a e-mail patří mimo kritickou cestu — brána musí dostat ACK hned")
 })
 
 test("22.4 sandboxová platba nesmí sáhnout na ostrou číselnou řadu", () => {
@@ -1361,6 +1374,160 @@ test("22.6 volba brány je na serveru, ne v tlačítkách", () => {
     const create = codeOnly("app/api/payments/create/route.ts")
     assert(/activeGateway\(\) === "stripe"/.test(create),
         "hlavní create route musí bránu vybírat sama")
+})
+
+// ═══════════════════════════════════════════════════════════
+// 23. AGENTNÍ VRSTVA A PENÍZE — chief-of-staff
+// ═══════════════════════════════════════════════════════════
+// Firma nesmí běžet na tom, jestli si zakladatel vzpomene. Tyhle aserce hlídají
+// tři věci, které se nejsnáz rozpadnou zpátky: jedinou cestu k penězům, jediný
+// e-mail ven, a hranici mezi „oznamuju fakt" a „přemlouvám".
+
+test("23.1 stav platby mění jediné místo", () => {
+    const core = codeOnly("lib/payments/on-paid.ts")
+    assert(/export async function applyGatewayStatus/.test(core),
+        "sdílené jádro musí nabízet jednu vstupní bránu pro stav od brány")
+
+    // Kdyby si claim napsala i routa, je to druhé místo, kde se dá zapomenout
+    // na aktivaci, doklad nebo dunning.
+    for (const route of ["app/api/payments/callback/route.ts", "app/api/payments/stripe/webhook/route.ts"]) {
+        const code = codeOnly(route)
+        assert(/applyGatewayStatus/.test(code), `${route}: musí delegovat na sdílené jádro`)
+        assert(!/\.neq\("status", "PAID"\)/.test(code), `${route}: claim patří do jádra, ne do routy`)
+        assert(!/\.from\("payments"\)/.test(code), `${route}: routa nesmí na payments sahat vůbec`)
+    }
+})
+
+test("23.2 odmítnutá obnova nesmí být tichá smyčka", () => {
+    // Regrese, která tohle hlídá: callback u renew- platby jen přepsal status na
+    // CANCELLED. Řádek zmizel z filtru „PENDING obnova", čítač zůstal na nule a
+    // billing-worker strhával znovu každý den — bez e-mailu a bez expirace.
+    const core = codeOnly("lib/payments/on-paid.ts")
+    assert(/billing_failures: attempt/.test(core),
+        "selhaná obnova musí inkrementovat dunning čítač")
+    assert(/kind: "charge_failed"/.test(core),
+        "selhaná obnova musí zákazníkovi něco říct")
+
+    const worker = codeOnly("app/api/cron/billing-worker/route.ts")
+    assert(/midnight\.setUTCHours\(0, 0, 0, 0\)/.test(worker) && /like\("ref_id", "renew-%"\)/.test(worker),
+        "kontrola 'PENDING < 24 h' nestačí — po CANCELLED řádek z filtru zmizí")
+})
+
+test("23.3 po selhané platbě zůstává stopa", () => {
+    const worker = codeOnly("app/api/cron/billing-worker/route.ts")
+    assert(/status: "FAILED"/.test(worker) && /comgate_response:/.test(worker),
+        "bez řádku s důvodem nejde zpětně zjistit, proč platba selhala")
+
+    const core = codeOnly("lib/payments/on-paid.ts")
+    assert(/comgate_response: \(input\.raw/.test(core),
+        "syrová odpověď brány se musí ukládat — sloupec byl roky prázdný")
+})
+
+test("23.4 reconciler neaktivuje plán vlastní cestou", () => {
+    const rec = codeOnly("lib/agents/payment-reconcile.ts")
+    assert(/applyGatewayStatus/.test(rec), "dohojení musí jít stejnou cestou jako callback")
+    assert(!/activatePaidPlan/.test(rec), "reconciler nesmí aktivovat plán napřímo")
+    assert(/isMockPaymentMode/.test(rec) && /"MOCK-"/.test(rec),
+        "mock platby se nesmí doptávat brány — getConfig() by shodil celý sweep")
+})
+
+test("23.5 jeden e-mail ven, ne šest", () => {
+    const ops = codeOnly("app/api/cron/daily-ops/route.ts")
+    assert(/daily_brief/.test(ops), "brief musí být dispatchovaný z denního cronu")
+    assert(!/health_check/.test(ops) && !/compliance_check/.test(ops),
+        "health check a compliance pohltil brief — nesmí posílat vlastní poštu")
+
+    const handlers = fileContent("lib/agents/handlers.ts")
+    for (const type of ["daily_brief", "send_customer_notice", "payment_reconcile", "repair_activation", "incident_watch"]) {
+        assert(handlers.includes(`registerHandler("${type}"`), `chybí handler ${type}`)
+    }
+    // Lifecycle sken jen navrhuje; jeho návrhy vidí zakladatel v sekci briefu
+    // „co potřebuje tebe", která renderuje VŠECHNY proposed akce.
+    const lifecycleBlock = handlers.slice(handlers.indexOf('registerHandler("lifecycle_scan"'))
+        .slice(0, handlers.slice(handlers.indexOf('registerHandler("lifecycle_scan"')).indexOf("registerHandler(", 10))
+    assert(!/sendEmail/.test(lifecycleBlock), "lifecycle_scan už nesmí posílat vlastní digest")
+})
+
+test("23.6 brief běží po skenech a po penězích", () => {
+    const ops = codeOnly("app/api/cron/daily-ops/route.ts")
+    assert(/priority: -10/.test(ops),
+        "brief musí mít zápornou prioritu, jinak nevidí, co skeny ve stejném ticku navrhly")
+
+    // billing-worker musí běžet DŘÍV než daily-ops, jinak brief hlásí včerejší peníze.
+    const crons = JSON.parse(fileContent("vercel.json")).crons as { path: string; schedule: string }[]
+    const hourOf = (p: string) => {
+        const c = crons.find(x => x.path === p)
+        if (!c) throw new Error(`cron ${p} chybí ve vercel.json`)
+        const [min, hour] = c.schedule.split(" ")
+        return Number(hour) * 60 + Number(min)
+    }
+    assert(hourOf("/api/cron/billing-worker") < hourOf("/api/cron/daily-ops"),
+        "billing-worker musí běžet před daily-ops — jinak brief reportuje včerejší peníze")
+})
+
+test("23.7 hranice mezi oznámením a přemlouváním se nesmí pohnout", () => {
+    const safety = codeOnly("lib/agent-safety.ts")
+    const autoLine = safety.match(/const AUTO_TIERS[^\n]*\n?[^\n]*/)?.[0] || ""
+    assert(/transactional/.test(autoLine), "faktická pošta musí odcházet sama")
+    assert(!/outbound/.test(autoLine),
+        "outbound NIKDY nesmí být auto — pobídky a winbacky patří člověku")
+
+    const mig = fileContent("supabase/migrations/20260811_agent_transactional_tier.sql")
+    assert(/'transactional'/.test(mig), "CHECK constraint musí nový tier povolit")
+})
+
+test("23.8 oznámení se dedupují klíčem, ne oknem", () => {
+    const notices = codeOnly("lib/agents/customer-notices.ts")
+    assert(/payload->>dedupeKey/.test(notices),
+        "dedupe musí stát na klíči — časové okno se s posunem cronu rozjede")
+    assert(/riskTier: "transactional"/.test(notices), "faktická pošta patří do transactional tieru")
+
+    const watch = codeOnly("lib/agents/billing-watch.ts")
+    assert(/dedupeKey: r\.periodEnd/.test(watch),
+        "oznámení o obnově se klíčuje konkrétním koncem období")
+})
+
+test("23.9 tichý support mlčí o tom, co zákazník viděl", () => {
+    const inc = codeOnly("lib/agents/incident-watch.ts")
+    assert(/config->>campaignId/.test(inc),
+        "hlásí se jen selhání na pozadí — interaktivní chybu ukázalo UI")
+    assert(/⏸️/.test(fileContent("lib/agents/incident-watch.ts")),
+        "odložený job není selhaný job — campaign-worker je značí stejným stavem")
+    assert(/dedupeKey: inc\.ref/.test(inc), "jeden incident = nejvýš jeden e-mail")
+})
+
+test("23.10 výpověď nesmí sebrat zaplacené období", () => {
+    const actions = codeOnly("app/actions/billing-actions.ts")
+    assert(/cancel_at_period_end: true/.test(actions), "výpověď nastavuje příznak, ne stav")
+    assert(!/status: "cancelled"/.test(actions),
+        "status='cancelled' vypadne z filtru getClientSubscription → okamžitá ztráta přístupu")
+    assert(/subscription\.cancelled/.test(actions),
+        "dobrovolný odchod musí být rozeznatelný od selhané karty")
+
+    const sub = fileContent("lib/subscription.ts")
+    assert(/cancel_at_period_end, billing_failures/.test(sub),
+        "getClientSubscription musí oba sloupce číst, jinak je banner slepý")
+
+    const worker = codeOnly("app/api/cron/billing-worker/route.ts")
+    assert(/sub\.cancel_at_period_end/.test(worker),
+        "billing-worker nesmí strhnout peníze někomu, kdo vypověděl")
+})
+
+test("23.11 politika o penězích žije na serveru", () => {
+    const banner = codeOnly("app/(dashboard)/BillingBanner.tsx")
+    assert(!/billingFailures\s*>=?\s*\d/.test(banner) && !/currentPeriodEnd.*getTime\(\)\s*[-+]/.test(banner),
+        "banner nesmí počítat pravidla sám — od toho je deriveBillingState")
+    const api = fileContent("app/api/subscription/route.ts")
+    assert(/deriveBillingState\(sub\)/.test(api), "stav fakturace odvozuje server")
+})
+
+test("23.12 nové migrace nezakládají tabulky", () => {
+    // Celá vrstva měla vzniknout nad existujícím schématem. Nová tabulka je
+    // signál, že se něco počítá dvakrát nebo se duplikuje audit.
+    for (const m of ["20260811_agent_transactional_tier.sql", "20260811_subscription_cancel.sql"]) {
+        const sql = fileContent(`supabase/migrations/${m}`)
+        assert(!/CREATE TABLE/i.test(sql), `${m}: nová tabulka nebyla v plánu`)
+    }
 })
 
 // ═══════════════════════════════════════════════════════════

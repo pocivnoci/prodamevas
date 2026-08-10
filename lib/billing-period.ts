@@ -149,3 +149,42 @@ export function computeCreditWindow(input: { now: Date; anchor: Date }): { start
     const n = monthsElapsed(anchor, now)
     return { start: addMonths(anchor, n), end: addMonths(anchor, n + 1) }
 }
+
+// ─── Stav fakturace pro UI ──────────────────────────────────────────────────
+
+/**
+ * Jediný stav, ze kterého se odvozuje in-app banner. Politika patří na server:
+ * klient jen renderuje, aby se pravidla o penězích nedublovala v Reactu.
+ */
+export type BillingState = "ok" | "expiring_soon" | "dunning" | "grace" | "cancelled" | "expired"
+
+/** Do kolika dnů dopředu se hlásí „plán brzy končí". Shodné s oknem T-3 oznámení. */
+export const EXPIRING_SOON_DAYS = 3
+
+/**
+ * Pořadí je záměrné a jde od nejzávažnějšího: co už se stalo, bije to, co teprve
+ * hrozí. `dunning` předbíhá `grace`, protože „selhala vám karta" je akce, kdežto
+ * „běžíte v odkladu" je jen důsledek téhož.
+ */
+export function deriveBillingState(
+    input: {
+        status: string
+        cancelAtPeriodEnd?: boolean
+        billingFailures?: number
+        currentPeriodEnd?: string | null
+    },
+    now: Date = new Date(),
+): BillingState {
+    if (input.status === "expired") return "expired"
+    if ((input.billingFailures || 0) > 0) return "dunning"
+    if (input.cancelAtPeriodEnd) return "cancelled"
+
+    if (!input.currentPeriodEnd) return "ok"
+    const end = new Date(input.currentPeriodEnd).getTime()
+    if (Number.isNaN(end)) return "ok"
+
+    const msLeft = end - now.getTime()
+    if (msLeft <= 0) return "grace"
+    if (msLeft <= EXPIRING_SOON_DAYS * 24 * 60 * 60 * 1000) return "expiring_soon"
+    return "ok"
+}

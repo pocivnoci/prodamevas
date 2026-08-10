@@ -215,3 +215,96 @@ export async function hasBillingDetails(projectSlug: string): Promise<boolean> {
     const details = await getBillingDetails(projectSlug)
     return Boolean(details?.name && details.street && details.city && details.zip)
 }
+
+// ─── Výpověď předplatného ───────────────────────────────
+//
+// Zaplacené období se neodebírá. Výpověď proto NIKDY nesahá na `status`:
+// `getClientSubscription` čte jen ('active','trialing','pending','expired'), takže
+// `status='cancelled'` by zákazníkovi sebralo přístup v tu vteřinu, co klikne —
+// uprostřed měsíce, který si zaplatil. Místo toho se nastaví
+// `cancel_at_period_end` a billing-worker předplatné na konci období nechá
+// doběhnout místo strhnutí.
+//
+// Zrušení je doménová událost, ne agentní akce — neprochází přes requestAction,
+// ale emituje `subscription.cancelled`, aby ranní brief a týdenní report uměly
+// odlišit dobrovolný odchod od selhané karty.
+
+export interface CancelResult {
+    success: boolean
+    /** Datum, do kdy předplatné ještě běží (ISO). */
+    activeUntil?: string | null
+    error?: string
+}
+
+/** Živé předplatné klienta, na které se dá vypovědět. */
+async function liveSubscription(clientId: string) {
+    const { data } = await supabaseAdmin
+        .from("subscriptions")
+        .select("id, status, current_period_end, cancel_at_period_end, plan_id")
+        .eq("client_id", clientId)
+        .in("status", ["active", "trialing"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    return data
+}
+
+export async function cancelSubscription(projectSlug: string, reason?: string): Promise<CancelResult> {
+    const { clientId } = await requireProjectAccess(projectSlug)
+
+    const sub = await liveSubscription(clientId)
+    if (!sub) return { success: false, error: "Nemáte aktivní předplatné, které by šlo zrušit." }
+    if (sub.cancel_at_period_end) {
+        return { success: true, activeUntil: sub.current_period_end }
+    }
+
+    // Podmíněný claim: dvojklik ani dvě záložky nesmí vyrobit dvě události.
+    const { data: claimed } = await supabaseAdmin
+        .from("subscriptions")
+        .update({ cancel_at_period_end: true, updated_at: new Date().toISOString() })
+        .eq("id", sub.id)
+        .eq("cancel_at_period_end", false)
+        .select("id, current_period_end")
+        .maybeSingle()
+
+    if (!claimed) return { success: true, activeUntil: sub.current_period_end }
+
+    const { emit } = await import("@/lib/events")
+    await emit("subscription.cancelled", {
+        clientId,
+        payload: {
+            subscriptionId: sub.id,
+            planId: sub.plan_id,
+            activeUntil: claimed.current_period_end,
+            reason: reason?.slice(0, 500) || null,
+        },
+    })
+
+    console.log(`🚪 Předplatné ${sub.id} vypovězeno (${projectSlug}), běží do ${claimed.current_period_end}`)
+    return { success: true, activeUntil: claimed.current_period_end }
+}
+
+/** Vzít výpověď zpět, dokud období ještě běží. */
+export async function resumeSubscription(projectSlug: string): Promise<CancelResult> {
+    const { clientId } = await requireProjectAccess(projectSlug)
+
+    const sub = await liveSubscription(clientId)
+    if (!sub) return { success: false, error: "Nemáte předplatné, které by šlo obnovit." }
+
+    const { data: claimed } = await supabaseAdmin
+        .from("subscriptions")
+        .update({ cancel_at_period_end: false, updated_at: new Date().toISOString() })
+        .eq("id", sub.id)
+        .eq("cancel_at_period_end", true)
+        .select("id, current_period_end")
+        .maybeSingle()
+
+    if (claimed) {
+        const { emit } = await import("@/lib/events")
+        await emit("subscription.resumed", {
+            clientId,
+            payload: { subscriptionId: sub.id, planId: sub.plan_id },
+        })
+    }
+    return { success: true, activeUntil: sub.current_period_end }
+}

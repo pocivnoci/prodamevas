@@ -74,6 +74,7 @@ const ADMIN_GROUP: NavGroup = {
     label: "Admin",
     items: [
         { id: "products", label: "Produkty", icon: "📦" },
+        { id: "company", label: "Firma", icon: "🏢" },
         { id: "approvals", label: "Schválení", icon: "✅" },
         { id: "onboard", label: "Onboarding", icon: "➕" },
         { id: "waitlist", label: "Waitlist", icon: "🔑" },

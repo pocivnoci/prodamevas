@@ -24,11 +24,12 @@ export type StudioSection =
     | "faq"
     | "approvals"
     | "mailing"
+    | "company"
 
 const VALID_SECTIONS: StudioSection[] = [
     "dashboard", "posts", "calendar", "feed", "plan", "generate",
     "ideas", "reviews", "inspiration", "brand", "products",
-    "performance", "settings", "onboard", "waitlist", "brain", "faq", "approvals", "mailing",
+    "performance", "settings", "onboard", "waitlist", "brain", "faq", "approvals", "mailing", "company",
 ]
 
 /** One-shot intent handed from a CTA (dashboard hero / sidebar) to GenerateTab so it
@@ -75,6 +76,14 @@ export interface SubscriptionState {
     reelsEnabled: boolean
     storiesEnabled: boolean
     growthTracking: boolean
+    /**
+     * Odvozený stav fakturace ze serveru — banner ho jen renderuje. Pravidla
+     * o penězích žijí v lib/billing-period.ts, ne tady.
+     */
+    billingState: "ok" | "expiring_soon" | "dunning" | "grace" | "cancelled" | "expired"
+    billingFailures: number
+    /** Zákazník vypověděl: běží do currentPeriodEnd, pak skončí. */
+    cancelAtPeriodEnd: boolean
 }
 
 interface StudioState {

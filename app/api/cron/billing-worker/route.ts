@@ -1,33 +1,45 @@
 import { NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
-import { getOwnerEmail, sendNotification } from "@/lib/notifications"
+import { getOwnerEmail } from "@/lib/notifications"
+import { enqueueTask } from "@/lib/agent-runner"
+import { proposeCustomerNotice } from "@/lib/agents/customer-notices"
 
 export const maxDuration = 300
 
 /**
  * GET /api/cron/billing-worker
  *
- * Daily renewal + dunning worker (see vercel.json).
+ * Denní worker obnov a dunningu (rozvrh ve vercel.json).
  *
- * Step 0 (every run, all active subs): roll every lapsed CREDIT window forward.
- * The credit window is monthly even on a yearly plan, so it moves on its own
- * schedule — never tie it to the renewal pass.
+ * Běží ve **04:00 UTC, tedy před daily-ops (05:30)** — ranní brief tak hlásí
+ * dnešní peníze, ne včerejší. To pořadí hlídá `npm run guard`.
  *
- * Then, for every ACTIVE subscription whose current_period_end has passed:
+ * Krok 0 (každý běh, všechna aktivní předplatná): posunout propadlá KREDITOVÁ
+ * okna. Kreditové okno je měsíční i u ročního plánu, takže se hýbe po vlastní
+ * ose — nikdy ho neváž na obnovu.
  *
- *   1. If a renewal payment is already PENDING (< 24h old) → wait for the callback.
- *   2. If the sub has a recurring token (Comgate initRecurring) and COMGATE_RECURRING=1
- *      → charge a background renewal (chargeRecurring). The standard payment callback
- *      confirms it and extends the period via activatePaidPlan — same path as the
- *      first payment, so there is exactly ONE activation code path.
- *   3. Otherwise (no token / recurring disabled) → e-mail a manual-renewal reminder.
- *   4. Each failed/missed attempt increments billing_failures; after
- *      MAX_BILLING_FAILURES the sub is persisted as expired + final e-mail.
+ * Pak pro každé ACTIVE předplatné, kterému uplynulo `current_period_end`:
  *
- * getClientSubscription keeps the sub usable during the grace window
- * (BILLING_GRACE_DAYS) so a card hiccup doesn't lock the customer out mid-dunning.
+ *   1. Zákazník předplatné vypověděl (`cancel_at_period_end`) → nechat doběhnout,
+ *      označit `expired` a poslat oznámení. Nikdy nestrhávat.
+ *   2. Obnova už běží (PENDING `renew-` řádek < 24 h, nebo jakýkoli `renew-` řádek
+ *      z dneška) → počkat na callback.
+ *   3. Vyčerpaný dunning (`billing_failures >= MAX`) → `expired` + poslední zpráva.
+ *   4. Uložený token + COMGATE_RECURRING=1 → strhnout na pozadí. Potvrzení chodí
+ *      standardním callbackem, takže aktivace má jednu jedinou kódovou cestu.
+ *   5. Jinak → upomínka k ruční obnově.
  *
- * Auth: CRON_SECRET bearer (no user session in a cron).
+ * Nakonec projde předplatná, kterým období teprve KONČÍ (do 3 dnů), a pošle
+ * oznámení dopředu. Do téhle chvíle přišel první signál až den PO expiraci,
+ * což je striktně horší než nic.
+ *
+ * Každé selhání zakládá řádek v `payments` se stavem FAILED a důvodem od brány.
+ * Dřív po neúspěchu nezbylo nic než čítač, takže nešlo zjistit ani proč, ani kdy.
+ *
+ * `getClientSubscription` drží předplatné použitelné po dobu grace okna
+ * (BILLING_GRACE_DAYS), aby výpadek karty nezamkl zákazníka uprostřed dunningu.
+ *
+ * Auth: CRON_SECRET bearer (v cronu není uživatelská session).
  */
 export async function GET(req: Request) {
     const secret = process.env.CRON_SECRET
@@ -39,12 +51,11 @@ export async function GET(req: Request) {
     const { isRecurringEnabled, chargeRecurring, generateRenewalRefId, isMockPaymentMode } = await import("@/lib/comgate")
     const { MAX_BILLING_FAILURES, rollLapsedCreditWindows } = await import("@/lib/subscription")
 
-    // 0. Roll every lapsed CREDIT window first — independent of whether a renewal
-    // is due. On a yearly plan this is the only thing that resets credits (paid
-    // once, credits reset twelve times), and it must not be skipped just because
-    // the paid period still has eleven months to run. Failing here must not stop
-    // the renewal pass: a customer's charge matters more than a persisted window
-    // (readers derive it anyway).
+    // 0. Nejdřív posunout každé propadlé KREDITOVÉ okno — nezávisle na tom, jestli
+    // je splatná obnova. U ročního plánu je tohle jediné, co kredity resetuje
+    // (zaplaceno jednou, kredity dvanáctkrát), a nesmí se přeskočit jen proto, že
+    // zaplacené období běží ještě jedenáct měsíců. Selhání tady nesmí zastavit
+    // obnovy: stržení je důležitější než persistované okno (čtenáři si ho odvodí).
     let creditWindowsRolled = 0
     try {
         creditWindowsRolled = await rollLapsedCreditWindows()
@@ -56,7 +67,7 @@ export async function GET(req: Request) {
     const nowIso = new Date().toISOString()
     const { data: dueSubs, error } = await supabaseAdmin
         .from("subscriptions")
-        .select("id, client_id, plan_id, current_period_end, recurring_trans_id, billing_failures, clients(id, slug, name)")
+        .select("id, client_id, plan_id, current_period_end, recurring_trans_id, billing_failures, cancel_at_period_end, clients(id, slug, name)")
         .eq("status", "active")
         .lt("current_period_end", nowIso)
         .order("current_period_end", { ascending: true })
@@ -71,6 +82,7 @@ export async function GET(req: Request) {
     let reminded = 0
     let expired = 0
     let waiting = 0
+    let cancelled = 0
 
     for (const sub of dueSubs || []) {
         const client = (Array.isArray(sub.clients) ? sub.clients[0] : sub.clients) as
@@ -79,8 +91,41 @@ export async function GET(req: Request) {
         if (!client) continue
 
         try {
-            // 1. A renewal is already in flight — the callback will finish it.
+            const failures = sub.billing_failures || 0
+            const payerEmail = await getOwnerEmail(client.id)
+            const notice = (kind: "expired" | "charge_failed" | "manual_renew", dedupeKey: string, vars?: Record<string, unknown>) =>
+                proposeCustomerNotice({
+                    clientId: client.id,
+                    kind,
+                    email: payerEmail,
+                    dedupeKey,
+                    vars: { clientName: client.name, clientId: client.id, ...(vars || {}) },
+                })
+
+            // 1. Zákazník vypověděl → období doběhlo, končíme. Nikdy nestrhávat:
+            // strhnout peníze někomu, kdo řekl „už ne", je to nejhorší, co umíme.
+            if (sub.cancel_at_period_end) {
+                await supabaseAdmin
+                    .from("subscriptions")
+                    .update({ status: "expired", updated_at: new Date().toISOString() })
+                    .eq("id", sub.id)
+                    .eq("status", "active")
+                await notice("expired", `${sub.id}:${sub.current_period_end}`)
+                cancelled++
+                console.log(`🚪 billing-worker: sub ${sub.id} (${client.slug}) doběhlo po výpovědi`)
+                continue
+            }
+
+            // 2. Obnova je rozjetá — počkat na callback.
+            //
+            // Samotné „PENDING < 24 h" nestačí: odmítnutá obnova přejde na
+            // CANCELLED a z filtru zmizí, takže by se týž den strhlo znovu.
+            // Druhá podmínka (jakýkoli renew- řádek z dneška) je pojistka proti
+            // tomu, aby jeden zákazník dostal víc než jeden pokus denně.
             const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+            const midnight = new Date()
+            midnight.setUTCHours(0, 0, 0, 0)
+
             const { data: openRenewal } = await supabaseAdmin
                 .from("payments")
                 .select("id")
@@ -90,19 +135,26 @@ export async function GET(req: Request) {
                 .gte("created_at", dayAgo)
                 .limit(1)
                 .maybeSingle()
-            if (openRenewal) { waiting++; continue }
 
-            const failures = sub.billing_failures || 0
-            const payerEmail = await getOwnerEmail(client.id)
+            const { data: todaysAttempt } = openRenewal ? { data: null } : await supabaseAdmin
+                .from("payments")
+                .select("id")
+                .eq("subscription_id", sub.id)
+                .like("ref_id", "renew-%")
+                .gte("created_at", midnight.toISOString())
+                .limit(1)
+                .maybeSingle()
 
-            // 2. Dunning exhausted → persist expiry + final notice.
+            if (openRenewal || todaysAttempt) { waiting++; continue }
+
+            // 3. Dunning vyčerpán → persistovat expiraci + poslední zpráva.
             if (failures >= MAX_BILLING_FAILURES) {
                 await supabaseAdmin
                     .from("subscriptions")
                     .update({ status: "expired", updated_at: new Date().toISOString() })
                     .eq("id", sub.id)
                     .eq("status", "active")
-                await notify(payerEmail, "Vaše předplatné Chrlit vypršelo", expiredEmailBody(client.name))
+                await notice("expired", `${sub.id}:${sub.current_period_end}`)
                 expired++
                 console.log(`⛔ billing-worker: sub ${sub.id} (${client.slug}) expired after ${failures} failed attempts`)
                 continue
@@ -118,7 +170,7 @@ export async function GET(req: Request) {
                 continue
             }
 
-            // 3. Auto-renew via the stored recurring token.
+            // 4. Automatická obnova uloženým tokenem.
             if (sub.recurring_trans_id && isRecurringEnabled() && !isMockPaymentMode()) {
                 const refId = generateRenewalRefId(client.slug)
                 const label = `${plan.name} — obnovení`.substring(0, 40)
@@ -132,42 +184,82 @@ export async function GET(req: Request) {
                     })
                     if (!result.transId) throw new Error("Comgate nevrátil transId pro recurring charge")
 
-                    await supabaseAdmin.from("payments").insert({
+                    const { data: inserted } = await supabaseAdmin.from("payments").insert({
                         client_id: client.id,
                         subscription_id: sub.id,
+                        provider: "comgate",
                         comgate_trans_id: result.transId,
+                        provider_ref: result.transId,
                         ref_id: refId,
                         amount: plan.price_czk,
                         currency: "CZK",
                         status: "PENDING",
                         label,
                         payer_email: payerEmail,
-                    })
+                    }).select("id").maybeSingle()
+
+                    // Kdyby se callback ztratil, zůstane strhnutá platba navždy
+                    // v PENDING. Doptání za 20 minut to dohojí samo.
+                    if (inserted?.id) {
+                        await enqueueTask({
+                            type: "payment_reconcile",
+                            payload: { paymentId: inserted.id },
+                            clientId: client.id,
+                            scheduledFor: new Date(Date.now() + 20 * 60_000),
+                        })
+                    }
+
                     charged++
                     console.log(`💳 billing-worker: renewal charged for ${client.slug} (${result.transId})`)
                 } catch (chargeErr: any) {
+                    const attempt = failures + 1
+                    // Stopa po selhání. Bez ní zbyl jen čítač a nešlo zjistit proč.
+                    // comgate_trans_id zůstává NULL — UNIQUE index NULLů snese kolik chce.
+                    await supabaseAdmin.from("payments").insert({
+                        client_id: client.id,
+                        subscription_id: sub.id,
+                        provider: "comgate",
+                        ref_id: refId,
+                        amount: plan.price_czk,
+                        currency: "CZK",
+                        status: "FAILED",
+                        label,
+                        payer_email: payerEmail,
+                        comgate_response: {
+                            source: "chargeRecurring",
+                            error: String(chargeErr?.message || chargeErr).slice(0, 500),
+                            attempt,
+                            at: new Date().toISOString(),
+                        },
+                    })
                     await bumpFailures(sub.id, failures)
-                    await notify(
-                        payerEmail,
-                        "Platba za Chrlit se nezdařila",
-                        failedChargeEmailBody(client.name, failures + 1),
-                    )
+                    await notice("charge_failed", `${sub.id}:${attempt}`, { attempt })
                     console.warn(`⚠️ billing-worker: recurring charge failed for ${client.slug}: ${chargeErr?.message}`)
                 }
                 continue
             }
 
-            // 4. No recurring token → manual renewal reminder (counts toward dunning).
+            // 5. Bez tokenu → upomínka k ruční obnově (počítá se do dunningu).
             await bumpFailures(sub.id, failures)
-            await notify(payerEmail, "Obnovte si předplatné Chrlit", manualRenewEmailBody(client.name))
+            await notice("manual_renew", `${sub.id}:${failures + 1}`)
             reminded++
         } catch (subErr: any) {
             console.warn(`billing-worker: sub ${sub.id} threw:`, subErr?.message)
         }
     }
 
-    console.log(`💳 billing-worker: ${charged} charged, ${reminded} reminded, ${expired} expired, ${waiting} in-flight, ${creditWindowsRolled} credit windows rolled`)
-    return NextResponse.json({ success: true, charged, reminded, expired, waiting, creditWindowsRolled })
+    // 6. Oznámení DOPŘEDU pro předplatná, kterým období teprve končí. Až sem,
+    // protože splatné obnovy jsou důležitější a nesmí je zdržet upomínka.
+    let upcoming = { notified: 0, duplicates: 0 }
+    try {
+        const { notifyUpcomingRenewals } = await import("@/lib/agents/billing-watch")
+        upcoming = await notifyUpcomingRenewals()
+    } catch (err: any) {
+        console.error("billing-worker: oznámení o nadcházejících obnovách selhalo:", err?.message)
+    }
+
+    console.log(`💳 billing-worker: ${charged} charged, ${reminded} reminded, ${expired} expired, ${cancelled} ended after cancellation, ${waiting} in-flight, ${upcoming.notified} pre-notified, ${creditWindowsRolled} credit windows rolled`)
+    return NextResponse.json({ success: true, charged, reminded, expired, cancelled, waiting, upcoming, creditWindowsRolled })
 }
 
 async function bumpFailures(subId: string, current: number): Promise<void> {
@@ -175,41 +267,4 @@ async function bumpFailures(subId: string, current: number): Promise<void> {
         .from("subscriptions")
         .update({ billing_failures: current + 1, updated_at: new Date().toISOString() })
         .eq("id", subId)
-}
-
-/** Billing e-mails go through sendNotification (transactional → always sent, branded). */
-async function notify(to: string | null, subject: string, body: string): Promise<void> {
-    await sendNotification({ to, subject, body, kind: "transactional" })
-}
-
-const APP_URL = () => process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://chrlit.cz"
-
-function manualRenewEmailBody(clientName: string): string {
-    return `Dobrý den,
-
-měsíční předplatné pro <strong>${clientName}</strong> právě doběhlo. Aby generování příspěvků pokračovalo bez přerušení, obnovte si prosím plán jedním kliknutím v aplikaci:
-
-<a href="${APP_URL()}/dashboard/instagram">Obnovit předplatné →</a>
-
-Tým Chrlit`
-}
-
-function failedChargeEmailBody(clientName: string, attempt: number): string {
-    return `Dobrý den,
-
-automatická platba za předplatné <strong>${clientName}</strong> se nezdařila (pokus ${attempt}/3). Zkusíme to znovu zítra — zkontrolujte prosím platební kartu, případně obnovte plán ručně:
-
-<a href="${APP_URL()}/dashboard/instagram">Zkontrolovat předplatné →</a>
-
-Tým Chrlit`
-}
-
-function expiredEmailBody(clientName: string): string {
-    return `Dobrý den,
-
-předplatné pro <strong>${clientName}</strong> vypršelo — platbu se nepodařilo dokončit ani po opakovaných pokusech. Vaše data i vygenerovaný obsah zůstávají zachovány; generování se znovu spustí hned po obnovení plánu:
-
-<a href="${APP_URL()}/dashboard/instagram">Obnovit předplatné →</a>
-
-Tým Chrlit`
 }

@@ -134,6 +134,13 @@ export interface SubscriptionInfo {
     planPostsUnlocked: number
     planGeneratedAt: string | null
     isTrial: boolean
+    /**
+     * Zákazník vypověděl — běží do `currentPeriodEnd` a pak skončí. Status
+     * zůstává `active`, protože zaplacené období se odebrat nesmí.
+     */
+    cancelAtPeriodEnd: boolean
+    /** Kolikátý pokus dunningu (0 = v pořádku). Živí in-app banner. */
+    billingFailures: number
 }
 
 export interface CanPerformResult {
@@ -167,7 +174,10 @@ export {
     normalizeInterval,
     addInterval,
     addMonths,
+    deriveBillingState,
+    EXPIRING_SOON_DAYS,
     type BillingInterval,
+    type BillingState,
 } from "@/lib/billing-period"
 import {
     BILLING_GRACE_DAYS,
@@ -191,7 +201,7 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
     let sub: any = null
     const { data: subsV2, error: v2Error } = await supabaseAdmin
         .from("subscriptions")
-        .select("id, plan_id, status, trial_ends_at, current_period_start, current_period_end, credit_period_start, credit_period_end, created_at, plan_generated_at, plan_posts_unlocked")
+        .select("id, plan_id, status, trial_ends_at, current_period_start, current_period_end, credit_period_start, credit_period_end, created_at, plan_generated_at, plan_posts_unlocked, cancel_at_period_end, billing_failures")
         .eq("client_id", clientId)
         .in("status", ["active", "trialing", "pending", "expired"])
         .order("created_at", { ascending: false })
@@ -280,6 +290,8 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
         planPostsUnlocked: sub.plan_posts_unlocked || 0,
         planGeneratedAt: sub.plan_generated_at,
         isTrial,
+        cancelAtPeriodEnd: Boolean(sub.cancel_at_period_end),
+        billingFailures: sub.billing_failures || 0,
     }
 }
 
