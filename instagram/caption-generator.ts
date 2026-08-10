@@ -476,8 +476,13 @@ export const PROMPT_LIMITS = {
     coverSubtextWords: 8,
     /** Headline vnitřního slidu. */
     slideHeadlineWords: 6,
-    /** Detail vnitřního slidu — návodové formáty potřebují ředění, časy a pořadí kroků. */
-    slideSubtextWords: 20,
+    /** Detail vnitřního slidu. Krátce schválně: text se vypaluje do obrázku a česká
+     *  diakritika je přesně to, na čem render selhává. Naměřeno 2026-08-10 na
+     *  chrlit/tahak_pro_obory — v šestnáctislovném podtextu skončil v obraze překlep
+     *  („NESMYSKNÉ"), korektivní edit ho neopravil a slide odešel jako native_forced.
+     *  Ten pokus o opravu stál $0,134, tedy 13 % ceny celého postu.
+     *  Celý návod patří do captionu, ne na slide — slide je plakát. */
+    slideSubtextWords: 12,
     /** Hlavní caption. */
     bodyWords: 120,
     /** Vnitřní slidy karuselu (BEZ coveru). Strop 6 = 7 slidů celkem: cover + 4 kroky
@@ -957,7 +962,7 @@ ${typeDef?.structure
     { "headline": "...", "subtext": "...", "imagePrompt": "English prompt..." },
     { "headline": "...", "subtext": "...", "imagePrompt": "English prompt..." }
   ],  // ${PROMPT_LIMITS.carouselInnerMin}-${PROMPT_LIMITS.carouselInnerMax} vnitřních slidů podle toho, co obsah unese${typeDef?.structure ? " — drž strukturu formátu výše" : " — drž dramaturgii výše"}
-  "body": "Hlavní caption (max ${PROMPT_LIMITS.bodyWords} slov) — sem patří detail, který se nevešel na slidy.",
+  "body": "Hlavní caption (max ${PROMPT_LIMITS.bodyWords} slov) — sem patří ÚPLNÝ postup. Slidy nesou plakátovou verzi, caption ten návod dopoví: konkrétní kroky, čísla, časy, pořadí.",
   "cta": "${policy.allowWebsite ? `CTA směřující na ${config.website}` : "engagement CTA — BEZ webu a BEZ URL"}",
   "hashtags": ["8-10", "hashtagů"],
   "imagePrompt": "English prompt for COVER slide background.",
