@@ -1298,6 +1298,56 @@ test("21.5 onboarding negeneruje strukturu, kterou engine nevykreslí", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 22. STRIPE — druhá brána k penězům
+// ═══════════════════════════════════════════════════════════
+// Produkt uměl generovat 307 příspěvků a nevzal ani korunu: ComGate čeká na
+// smlouvu a Stripe webhook podpis ověřoval, ale plán neaktivoval. Tyhle aserce
+// hlídají, že druhá brána zůstane adaptérem, ne druhou kódovou cestou.
+
+test("22.1 Stripe zabírá platbu podmíněným claimem, ne insertem", () => {
+    const code = codeOnly("app/api/payments/stripe/webhook/route.ts")
+    assert(/\.eq\("provider", "stripe"\)/.test(code) && /\.eq\("provider_ref", sessionId\)/.test(code),
+        "claim musí hledat podle vlastního lokátoru brány")
+    assert(/\.neq\("status", "PAID"\)/.test(code),
+        "bez podmínky na status by replay webhooku aktivoval plán dvakrát")
+    assert(!/\.from\("payments"\)\s*\.insert\(/.test(code),
+        "webhook nikdy nesmí platbu zakládat — claim bez řádku je konec")
+})
+
+test("22.2 unikátní index je nárok na zpracování", () => {
+    const mig = fileContent("supabase/migrations/20260810_payment_provider_ref.sql")
+    assert(/CREATE UNIQUE INDEX[\s\S]*payments\(provider, provider_ref\)/.test(mig),
+        "bez unikátního indexu není claim idempotentní")
+    assert(/provider_ref IS NOT NULL/.test(mig),
+        "index musí částečný — legacy řádky bez ref nesmí kolidovat")
+})
+
+test("22.3 aktivace je sdílená, ne zkopírovaná do brány", () => {
+    const code = codeOnly("app/api/payments/stripe/webhook/route.ts")
+    assert(/finalizePaidPayment/.test(code) && /deliverPaidArtifacts/.test(code),
+        "Stripe musí volat totéž jádro jako ComGate")
+    assert(/after\(\(\) => deliverPaidArtifacts/.test(code),
+        "doklad a e-mail patří do after() — brána musí dostat ACK hned")
+    // Kdyby si brána aktivaci napsala sama, je to druhé místo, kde se zapomene na doklad.
+    assert(!/from\("subscriptions"\)[\s\S]{0,80}\.update\(/.test(code),
+        "webhook nesmí aktivovat předplatné sám")
+})
+
+test("22.4 sandboxová platba nesmí sáhnout na ostrou číselnou řadu", () => {
+    const code = codeOnly("app/api/payments/stripe/webhook/route.ts")
+    assert(/sandbox: isStripeSandbox\(\)/.test(code),
+        "příznak sandboxu musí dojít až k vystavení dokladu")
+})
+
+test("22.5 platbu zakládá jen autorizovaná route", () => {
+    const code = codeOnly("app/api/payments/stripe/create/route.ts")
+    assert(/requireAuth/.test(code), "každá API route potřebuje requireAuth")
+    assert(/requireClientAccess/.test(code), "bez toho by šlo zaplatit cizímu tenantovi")
+    assert(/provider: "stripe"/.test(code) && /provider_ref: session\.id/.test(code),
+        "PENDING řádek musí nést lokátor, jinak ho webhook nenajde")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 
