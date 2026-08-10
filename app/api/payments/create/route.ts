@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
 import { createPayment, generateRefId, isMockPaymentMode, isRecurringEnabled } from "@/lib/comgate"
+import { activeGateway, createStripeCheckout } from "@/lib/payments/checkout"
 
 export async function POST(req: NextRequest) {
     const { requireAuth } = await import("@/lib/auth-guard")
@@ -76,6 +77,18 @@ export async function POST(req: NextRequest) {
         }
 
         // 3. Create payment (mock or real Comgate)
+        // ── Výběr brány ────────────────────────────────────────────────────────
+        // UI o branách nic neví (viz lib/payments/checkout.ts). Když je aktivní
+        // Stripe, celá zbývající ComGate větev se přeskočí — druhá brána tak
+        // nepotřebuje vlastní tlačítko ani vlastní cestu z Reactu.
+        if (activeGateway() === "stripe") {
+            const result = await createStripeCheckout({ client, plan, payerEmail })
+            return NextResponse.json({
+                success: true, gateway: "stripe",
+                transId: result.providerRef, redirect: result.redirectUrl, redirectUrl: result.redirectUrl,
+            })
+        }
+
         const refId = generateRefId(client.slug)
         const label = `${plan.name} — ${client.name}`
 

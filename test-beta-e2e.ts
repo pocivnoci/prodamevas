@@ -1340,11 +1340,27 @@ test("22.4 sandboxová platba nesmí sáhnout na ostrou číselnou řadu", () =>
 })
 
 test("22.5 platbu zakládá jen autorizovaná route", () => {
-    const code = codeOnly("app/api/payments/stripe/create/route.ts")
-    assert(/requireAuth/.test(code), "každá API route potřebuje requireAuth")
-    assert(/requireClientAccess/.test(code), "bez toho by šlo zaplatit cizímu tenantovi")
-    assert(/provider: "stripe"/.test(code) && /provider_ref: session\.id/.test(code),
+    for (const route of ["app/api/payments/stripe/create/route.ts", "app/api/payments/create/route.ts"]) {
+        const code = codeOnly(route)
+        assert(/requireAuth/.test(code), `${route}: každá API route potřebuje requireAuth`)
+        assert(/requireClientAccess/.test(code), `${route}: bez toho by šlo zaplatit cizímu tenantovi`)
+    }
+    const lib = codeOnly("lib/payments/checkout.ts")
+    assert(/provider: "stripe"/.test(lib) && /provider_ref: session\.id/.test(lib),
         "PENDING řádek musí nést lokátor, jinak ho webhook nenajde")
+})
+
+test("22.6 volba brány je na serveru, ne v tlačítkách", () => {
+    // Kdyby o branách rozhodovalo UI, přibývá s každou bránou další místo,
+    // kde se to dá splést — a Stripe by potřeboval vlastní tlačítko.
+    for (const ui of ["app/(dashboard)/PaywallProvider.tsx",
+                      "app/(dashboard)/dashboard/instagram/tabs/SubscriptionSection.tsx"]) {
+        const code = codeOnly(ui)
+        assert(!/stripe/i.test(code), `${ui} nesmí vědět o konkrétní bráně`)
+    }
+    const create = codeOnly("app/api/payments/create/route.ts")
+    assert(/activeGateway\(\) === "stripe"/.test(create),
+        "hlavní create route musí bránu vybírat sama")
 })
 
 // ═══════════════════════════════════════════════════════════
