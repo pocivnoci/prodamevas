@@ -129,3 +129,45 @@ export function getTemperature(role: TemperatureRole): number {
     }
     return TEMPERATURES[role]
 }
+
+/**
+ * Thinking budget policy — kolik smí model „přemýšlet" před odpovědí.
+ * =================================================================
+ * Stejný tvar jako TEMPERATURES, protože jde o tutéž věc: rozhodnutí per ROLE, které
+ * se nemá schovávat v call site.
+ *
+ *   -1 = dynamické (model si rozhodne sám — výchozí chování)
+ *    0 = vypnuté
+ *   >0 = strop v tokenech
+ *
+ * Thinking tokeny se účtují sazbou výstupu a přidávají latenci. U vysokoobjemových
+ * mechanických kroků (roztřídit obrázek, vytáhnout souřadnice loga) nepřinášejí nic —
+ * u soudce a copywritera naopak nesou přesně tu kvalitu, za kterou produkt platí Pro
+ * tier. **Pro tierům rozpočet nesnižuj bez měření**; tichá degradace kvality je přesně
+ * to, co se tu jinde nepřipouští (viz `generateTextQuality`).
+ *
+ * Override bez deploye: GEMINI_THINK_<ROLE> (např. GEMINI_THINK_CHEAP=0).
+ */
+export const THINKING = {
+    /** Kritik, šéfredaktor, hodnocení plánu — úsudek stojí na uvažování. */
+    judge: -1,
+    /** Copywriter — caption je 80 % textové kvality produktu. */
+    copywriter: -1,
+    /** AI Designer brief — kompozice je taky úvaha. */
+    designer: -1,
+    /** Mechanické flash kroky: tagování assetů, detekce plochy pro logo, kontextový
+     *  pulz. Odpověď je klasifikace nebo pár souřadnic — přemýšlení tu platíš bez
+     *  protihodnoty. */
+    cheap: 0,
+} as const
+
+export type ThinkingRole = keyof typeof THINKING
+
+export function getThinkingBudget(role: ThinkingRole): number {
+    const override = process.env[`GEMINI_THINK_${role.toUpperCase()}`]
+    if (override !== undefined && override !== "") {
+        const n = Number(override)
+        if (Number.isInteger(n)) return n
+    }
+    return THINKING[role]
+}

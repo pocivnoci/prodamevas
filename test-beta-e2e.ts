@@ -1131,6 +1131,112 @@ test("18.4 platformní proměnné nepatří do .env.local", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 19. KAMPAŇOVÝ WORKER — trvanlivost běhu bez uživatelské session
+// ═══════════════════════════════════════════════════════════
+// Tahle sekce vznikla při přesunu CLAUDE.md do skillů: pravidla níž byla do té doby
+// POUZE v próze. Próza spoléhá na to, že si ji model přečte; aserce spadne. Worker
+// nemá session ani tab, který by chybu ukázal — jeho selhání jsou tiché a placené.
+
+test("19.1 lease se tluče nezávislým časovačem, ne postupem generování", () => {
+    const code = codeOnly("app/api/cron/campaign-worker/route.ts")
+    // onProgress fíruje jen MEZI fázemi pipeline; jediná fáze (withQualityRetry backoff
+    // na přetíženém Pro modelu) umí mlčet déle než LEASE_MS. Druhý worker pak kampaň
+    // „převezme" a rozgeneruje tentýž bod ještě jednou — dvojitá platba i dvojitý post.
+    assert(/const heartbeat = setInterval\(/.test(code),
+        "lease heartbeat musí být samostatný setInterval, ne vedlejší efekt onProgress")
+    assert(/}, 60_000\)/.test(code), "interval musí být kratší než LEASE_MS (5 min)")
+})
+
+test("19.2 heartbeat se ruší na každé cestě ven", () => {
+    const code = codeOnly("app/api/cron/campaign-worker/route.ts")
+    // Zombie interval na recyklované Fluid instanci by prodlužoval lease uvolněné
+    // kampaně a zablokoval další tick.
+    assert(/} finally {\s*clearInterval\(heartbeat\)/.test(code),
+        "clearInterval(heartbeat) patří do finally, ne na jednotlivé returny")
+    const afterHeartbeat = code.slice(code.indexOf("const heartbeat = setInterval("))
+    assert(afterHeartbeat.includes("try {"), "tělo za heartbeatem musí být obalené try/finally")
+})
+
+test("19.3 jobId se zapisuje na plán už při založení jobu", () => {
+    const code = codeOnly("app/api/cron/campaign-worker/route.ts")
+    const genIdx = code.indexOf("await generateOnePost(")
+    const persistIdx = code.indexOf("item.jobId = job.id")
+    assert(persistIdx > 0 && persistIdx < genIdx,
+        "jobId musí být na plánu PŘED generováním — jinak kill uprostřed účtuje bod podruhé")
+})
+
+test("19.4 worker účtuje přes clientId primitiva, ne přes session guardy", () => {
+    const code = codeOnly("app/api/cron/campaign-worker/route.ts")
+    // creditGuard/requireProjectAccess čtou přihlášeného uživatele. Worker žádného nemá,
+    // takže by buď spadl, nebo (hůř) prošel s cizím tenantem.
+    assert(!/\bcreditGuard\b/.test(code), "creditGuard potřebuje session — worker ji nemá")
+    assert(!/\brequireProjectAccess\b/.test(code), "requireProjectAccess potřebuje session")
+    for (const prim of ["canPerformAction", "deductCredits", "incrementPlanPostCount", "refundJobCharge"]) {
+        assert(code.includes(prim), `worker musí účtovat přes ${prim}(clientId, …)`)
+    }
+})
+
+test("19.5 cursor se ukládá po každém bodu, aby pád navázal", () => {
+    const code = codeOnly("app/api/cron/campaign-worker/route.ts")
+    assert(/\.update\(\{ cursor, successes, failures, worker_lease: nowIso\(\) \}\)/.test(code),
+        "persist() musí ukládat cursor — bez něj se po timeoutu generuje kampaň znovu od nuly")
+    assert(/while \(cursor < total\)/.test(code), "smyčka musí jet z cursoru, ne od nuly")
+})
+
+// ═══════════════════════════════════════════════════════════
+// 20. TELEMETRIE SPOTŘEBY — COGS tohohle produktu jsou tokeny
+// ═══════════════════════════════════════════════════════════
+
+test("20.1 měřič je request-scoped, ne modulová proměnná", () => {
+    const code = codeOnly("instagram/usage-meter.ts")
+    // Jedna lambda obsluhuje víc requestů najednou (Fluid Compute). Globální akumulátor
+    // by míchal spotřebu mezi tenanty úplně stejně, jako to umí setActiveProject().
+    assert(/new AsyncLocalStorage<UsageAccumulator>\(\)/.test(code),
+        "akumulátor musí žít v AsyncLocalStorage")
+    assert(!/^(let|var) +(total|usage|acc)/m.test(code),
+        "žádný modulový mutable součet — to je ta past se setActiveProject()")
+})
+
+test("20.2 každé volání modelu hlásí spotřebu", () => {
+    // Nový krok pipeline bez telemetrie = tiše nezapočítaný náklad. Počty musí sedět.
+    const gem = codeOnly("instagram/gemini-client.ts")
+    const contentCalls = (gem.match(/await ai\.models\.generateContent\(/g) || []).length
+    const recorded = (gem.match(/recordUsage\(/g) || []).length
+    assert(recorded >= contentCalls,
+        `${contentCalls} volání generateContent, ale jen ${recorded} recordUsage — nějaký krok se neúčtuje`)
+    // Veo vrací operaci bez usageMetadata, takže musí jít přes jednotky.
+    assert(/recordUnits\([^)]*"seconds"/.test(gem),
+        "video se musí měřit ve vteřinách — jinak nejdražší médium vychází na nulu")
+    // Soudce běží u každého postu, klidně vícekrát.
+    assert(/recordUsage\(/.test(codeOnly("instagram/anthropic-client.ts")),
+        "Claude soudce nesmí být v telemetrii neviditelný")
+})
+
+test("20.3 neoceněný model nedostane vymyšlenou nulu", () => {
+    const code = codeOnly("lib/model-pricing.ts")
+    assert(/: number \| null/.test(code), "cena musí umět být null")
+    assert(/return null/.test(code) && /warnMissing/.test(code),
+        "chybějící sazba se ohlásí a vrátí null — tichá nula vypadá jako levný post")
+    // Částečný součet by tvrdil, že příspěvek stál míň, než stál.
+    const fn = code.slice(code.indexOf("export function costUsdForBreakdown"))
+    assert(/if \(cost === null\) return null/.test(fn),
+        "jeden neoceněný krok musí zneplatnit celý součet")
+})
+
+test("20.4 thinking politika je v registru, ne v call site", () => {
+    const models = codeOnly("instagram/models.ts")
+    assert(/export const THINKING = \{/.test(models) && /export function getThinkingBudget/.test(models),
+        "rozpočet na přemýšlení patří vedle TEMPERATURES, ne do volání")
+    assert(/GEMINI_THINK_/.test(models), "musí jít přepsat env proměnnou bez deploye")
+    // Pro tiery si uvažování platí záměrně — nesmí spadnout na 0 nedopatřením.
+    assert(/judge: -1/.test(models) && /copywriter: -1/.test(models),
+        "soudci ani copywriterovi se rozpočet nesnižuje bez měření")
+    const gem = codeOnly("instagram/gemini-client.ts")
+    assert(!/thinkingBudget: [0-9]/.test(gem),
+        "žádné natvrdo zadrátované číslo v klientovi — politika patří do models.ts")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 

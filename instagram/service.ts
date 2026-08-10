@@ -6,6 +6,8 @@
 
 import supabaseAdmin from "../supabase/admin";
 import { AsyncLocalStorage } from "node:async_hooks";
+import type { UsageTotals } from "./usage-meter";
+import { costUsdForBreakdown } from "../lib/model-pricing";
 
 // ============================================
 // MULTI-TENANT: Active client (uuid)
@@ -350,7 +352,14 @@ export async function logGeneration(log: {
     /** Format slug (ig_post_types.name) — lets the critic-feedback loop filter history
      *  per format instead of mixing scores across unrelated post types */
     postType?: string;
+    /** Naměřená spotřeba za celou generaci (instagram/usage-meter.ts). Bez ní zůstanou
+     *  sloupce NULL — telemetrie nikdy nesmí zdržet ani shodit zápis logu. */
+    usage?: UsageTotals;
 }): Promise<void> {
+    // Cena je null, jakmile kterýkoli krok nemá ověřenou sazbu — částečný součet by
+    // tvrdil, že příspěvek stál míň, než ve skutečnosti stál.
+    const costUsd = log.usage ? costUsdForBreakdown(log.usage.breakdown) : null
+
     await supabaseAdmin
         .from("ig_generation_log")
         .insert({
@@ -358,7 +367,14 @@ export async function logGeneration(log: {
             client_id: getActiveProject(),
             prompt_used: log.promptUsed,
             model_used: log.modelUsed,
-            tokens_used: log.tokensUsed,
+            tokens_used: log.tokensUsed ?? log.usage?.totalTokens,
+            prompt_tokens: log.usage?.promptTokens,
+            output_tokens: log.usage?.outputTokens,
+            thought_tokens: log.usage?.thoughtTokens,
+            cached_tokens: log.usage?.cachedTokens,
+            model_calls: log.usage?.calls,
+            cost_usd: costUsd,
+            usage_breakdown: log.usage?.breakdown,
             generation_time_ms: log.generationTimeMs,
             error: log.error,
             critic_score: log.criticScore,

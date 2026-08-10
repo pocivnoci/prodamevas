@@ -1,8 +1,13 @@
 # AI AGENT KNOWLEDGE BASE: Chrlit Studio — Instagram Multi-Tenant Autopilot
 
-**POZOR PRO VŠECHNY AI AGENTY**: Tento dokument slouží jako zdroj pravdy pro architektonická a technická rozhodnutí. Přečtěte si ho jako první.
+> **Čti při potřebě, ne povinně.** Tenhle dokument popisuje architekturu do hloubky,
+> ale **zdroj pravdy je kód** a invarianty vynucuje `npm run guard`. Orientaci dává
+> `CLAUDE.md`, hloubkové „proč" per subsystém `.claude/skills/*/SKILL.md`.
+> Části psané před v8 nemusí odpovídat současnému kódu — při rozporu platí kód.
 
-*Last Updated: 2026-07-02 — v7.0 Pipeline v2 (checkpoints, best-of-2 ranking judge, embeddings/konzistence, context-first) + v6.9 "Ready to Charge" (media-weighted kredity, Comgate recurring billing, idempotentní callback)*
+*Poslední velký přepis: 2026-07-02 (v7.0 — pipeline v2: checkpointy, best-of-2 ranking
+judge, embeddingy/konzistence, context-first). Novější změny se sem doplňovaly jen
+částečně.*
 
 ---
 
