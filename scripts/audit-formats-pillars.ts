@@ -23,6 +23,7 @@
 
 import supabaseAdmin from "../supabase/admin"
 import { loadConfig, getPillarForPostType, invalidateConfigCache } from "../instagram/configs"
+import { CAROUSEL_MAX_TOTAL_SLIDES } from "../instagram/caption-generator"
 import { reconcileFormats } from "../instagram/configs/reconcile"
 import { ensurePostTypes } from "../instagram/service"
 import type { ClientConfig } from "../instagram/configs/types"
@@ -40,7 +41,28 @@ interface Finding {
     typesNoPillar: string[]     // in postTypes, not a member of any pillar → pillarId null
     deadPillarRefs: string[]    // pillar.postTypes referencing a name not in postTypes
     staleRows: string[]         // active ig_post_types rows whose name isn't in postTypes
+    oversizedStructures: string[] // structure předepisuje víc slidů, než unese schéma
     healed: string[]            // what --fix actually changed
+}
+
+/**
+ * Pátý zdroj, který si musí odpovídat: `postTypeDefs[].structure` vs schéma karuselu.
+ *
+ * `structure` je volný text z onboardingu a do promptu se vkládá jako „**závazná** —
+ * slidy přesně podle ní". Když vyjmenuje víc slidů, než schéma unese, dostane model
+ * dvě neslučitelné instrukce a řeší to pokaždé jinak. Jen report — kreativní zadání
+ * klienta se automaticky nepřepisuje ani pod `--fix`.
+ */
+function findOversizedStructures(config: ClientConfig): string[] {
+    const out: string[] = []
+    for (const def of config.postTypeDefs ?? []) {
+        if (!def?.structure) continue
+        const ns = [...String(def.structure).matchAll(/\bSlide\s+(\d+)/gi)].map(m => Number(m[1]))
+        if (ns.length === 0) continue
+        const highest = Math.max(...ns)
+        if (highest > CAROUSEL_MAX_TOTAL_SLIDES) out.push(`${def.name} (${highest} slidů)`)
+    }
+    return out
 }
 
 async function audit(): Promise<void> {
@@ -70,7 +92,8 @@ async function audit(): Promise<void> {
 
         const f: Finding = {
             slug, leakProne: false, emptyConfig: false, genericFormats: false,
-            typesNoDef: [], typesNoPillar: [], deadPillarRefs: [], staleRows: [], healed: [],
+            typesNoDef: [], typesNoPillar: [], deadPillarRefs: [], staleRows: [],
+            oversizedStructures: findOversizedStructures(config), healed: [],
         }
 
         // Empty config → report only.
@@ -173,7 +196,14 @@ function report(findings: Finding[]): void {
             console.log(`   • ${f.slug}: ${bits.join(" | ")}${f.healed.length ? `  → healed: ${f.healed.join(", ")}` : ""}`)
         }
     }
-    if (!leak.length && !generic.length && !empty.length && !drift.length) console.log(`\n✅ All clients consistent.`)
+    const oversized = findings.filter(f => f.oversizedStructures.length > 0)
+    if (oversized.length) {
+        console.log(`\n🟡 STRUCTURE > SCHÉMA (structure předepisuje víc slidů, než engine vykreslí — strop ${CAROUSEL_MAX_TOTAL_SLIDES}):`)
+        console.log(`   Prompt ji vkládá jako "závaznou", takže model dostane dvě neslučitelné instrukce.`)
+        console.log(`   Zkrať structure v Nastavení, nebo zvyš PROMPT_LIMITS.carouselInnerMax (pozor: každý slide = 1 generace obrázku).`)
+        for (const f of oversized) console.log(`   • ${f.slug}: ${f.oversizedStructures.join(", ")}`)
+    }
+    if (!leak.length && !generic.length && !empty.length && !drift.length && !oversized.length) console.log(`\n✅ All clients consistent.`)
     console.log()
 }
 

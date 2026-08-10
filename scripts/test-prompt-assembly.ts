@@ -8,7 +8,9 @@
  * Spuštění: npx tsx scripts/test-prompt-assembly.ts
  */
 
-import { buildMegaPrompt, buildVideoSchema, buildCaptionSchema, buildCarouselSchema, buildStorySchema } from "../instagram/caption-generator"
+import { buildMegaPrompt, buildVideoSchema, buildCaptionSchema, buildCarouselSchema, buildStorySchema, PROMPT_LIMITS, CAROUSEL_MAX_TOTAL_SLIDES } from "../instagram/caption-generator"
+import { readFileSync } from "fs"
+import { resolve } from "path"
 import { formatContextForPrompt, type ContextSignals } from "../instagram/context-agent"
 import type { ClientConfig } from "../instagram/configs/types"
 import type { PostType } from "../instagram/types"
@@ -221,6 +223,108 @@ test("rotace je bezpečná i pro krátký/prázdný pulse", () => {
     assert(formatContextForPrompt(short, 7).includes("jediný bod"), "jednoprvkový pulse se ztratil")
     const empty: ContextSignals = { ...ctx, pulse: [] }
     assert(typeof formatContextForPrompt(empty, 3) === "string", "prázdný pulse spadl")
+})
+
+// ─── Limity: prompt a schéma musí říkat TOTÉŽ číslo ─────────
+// Tohle je ta pojistka, která dosud chyběla. Limity se psaly ručně dvakrát —
+// jednou do textu promptu, jednou do `description` ve schématu — a rozešly se
+// tiše: u `subtext` slidu říkal prompt „max 12 slov" a schéma „max 20 words"
+// o tomtéž poli. Model dostal dvě čísla a musel si vybrat.
+
+console.log("\n📐 Limity mají jediný zdroj pravdy")
+
+const carouselSchema: any = buildCarouselSchema(config)
+const carouselPrompt = buildMegaPrompt(
+    { ...config, postFormats: { meme: { medium: "carousel", aspectRatio: "4:5" } } } as any,
+    postType, null, null, [], noPerf,
+)
+
+test("žádný limit se nepíše natvrdo — všechny jdou z PROMPT_LIMITS", () => {
+    // Komentáře pryč: vysvětlení, PROČ se 12 rozešlo s 20, by jinak spustilo přesně
+    // tu asserci, kterou popisuje. Stejný důvod má `codeOnly` v test-beta-e2e.ts.
+    const src = readFileSync(resolve(__dirname, "../instagram/caption-generator.ts"), "utf-8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/(^|[^:])\/\/.*$/gm, "$1")
+    // Literál „max <číslo> slov/words" smí zůstat jen tam, kde ho PROMPT_LIMITS
+    // nepokrývá; nová čísla patří do konstanty, ne do řetězce.
+    const covered = new Set(Object.values(PROMPT_LIMITS).map(String))
+    const hardcoded = [...src.matchAll(/max (\d+) (?:slov|words)/g)]
+        .map(m => m[1])
+        .filter(n => covered.has(n))
+    assert(hardcoded.length === 0,
+        `limit(y) ${[...new Set(hardcoded)].join(", ")} se píšou natvrdo, přestože je PROMPT_LIMITS pokrývá`)
+})
+
+test("cover headline: prompt i schéma říkají totéž", () => {
+    const n = PROMPT_LIMITS.coverHeadlineWords
+    assert(carouselPrompt.includes(`Cover headline (max ${n} slov`), `prompt neříká max ${n}`)
+    assert(carouselSchema.properties.hook.description.includes(`max ${n} words`), `schéma neříká max ${n}`)
+})
+
+test("subtext slidu: prompt i schéma říkají totéž", () => {
+    const n = PROMPT_LIMITS.slideSubtextWords
+    assert(carouselPrompt.includes(`subtext max ${n} slov`), `prompt neříká max ${n}`)
+    assert(carouselSchema.properties.slides.items.properties.subtext.description.includes(`max ${n} words`),
+        `schéma neříká max ${n} — přesně tady se dřív 12 rozešlo s 20`)
+})
+
+test("headline slidu: prompt i schéma říkají totéž", () => {
+    const n = PROMPT_LIMITS.slideHeadlineWords
+    assert(carouselPrompt.includes(`headline max ${n} slov`), `prompt neříká max ${n}`)
+    assert(carouselSchema.properties.slides.items.properties.headline.description.includes(`max ${n} words`),
+        `schéma neříká max ${n}`)
+})
+
+test("počet slidů je ve schématu STRUKTURÁLNÍ, ne jen popis", () => {
+    const s = carouselSchema.properties.slides
+    assert(s.minItems === String(PROMPT_LIMITS.carouselInnerMin), "chybí minItems")
+    assert(s.maxItems === String(PROMPT_LIMITS.carouselInnerMax), "chybí maxItems")
+    // Popis i text promptu musí sedět na tytéž hranice.
+    assert(s.description.includes(`${PROMPT_LIMITS.carouselInnerMin} to ${PROMPT_LIMITS.carouselInnerMax}`),
+        "popis schématu neodpovídá hranicím")
+    assert(carouselPrompt.includes(`${PROMPT_LIMITS.carouselInnerMin}-${PROMPT_LIMITS.carouselInnerMax} vnitřních slidů`),
+        "prompt neodpovídá hranicím")
+})
+
+test("se závaznou strukturou se počet slidů neurčuje 'podle obsahu'", () => {
+    // Nalezeno až za běhu reálné generace: structure vyjmenovala 6 slidů jako
+    // „závaznou", ale o dva řádky níž stálo „počet slidů podle obsahu, nikdy
+    // nenatahuj". Model vzal druhou instrukci a vyrobil 5. Dvě pravidla pro tutéž
+    // věc — jen měkčí varianta rozporu, který §21 řeší pro nemožná čísla.
+    const withStructure = buildMegaPrompt(
+        { ...config,
+          postFormats: { meme: { medium: "carousel", aspectRatio: "4:5" } },
+          postTypeDefs: [{ name: "meme", displayName: "Meme", pillar: "dosah",
+                           structure: "Slide 1 COVER: x. Slide 2: y. Slide 3 CTA: z." }],
+        } as any, postType, null, null, [], noPerf,
+    )
+    assert(!withStructure.includes("Počet slidů podle obsahu"),
+        "se závaznou strukturou nesmí prompt zároveň říkat 'počet podle obsahu'")
+    assert(withStructure.includes("Počet slidů urči podle STRUKTURY"),
+        "struktura musí počet slidů řídit")
+    // Bez struktury (dramaturgická větev) volba podle obsahu naopak platí dál.
+    assert(carouselPrompt.includes("Počet slidů podle obsahu"),
+        "bez struktury má model volit počet podle obsahu")
+})
+
+test("nadpis karuselu počítá cover do celkového počtu", () => {
+    assert(carouselPrompt.includes(`CAROUSEL POST (${PROMPT_LIMITS.carouselInnerMin + 1}-${CAROUSEL_MAX_TOTAL_SLIDES} slidů)`),
+        "nadpis neodpovídá stropu — cover se musí počítat")
+})
+
+test("prompt nemá hluchá místa po vynechaných sekcích", () => {
+    assert(!/\n{3,}/.test(carouselPrompt), "tři a víc prázdných řádků za sebou")
+})
+
+// ─── CTA politika si nesmí odporovat se seznamem PRIORIT ────
+
+console.log("\n🎯 Jedno pravidlo pro řešení konfliktů")
+
+test("CTA politika je zdroj pravdy pro SVOU doménu, ne globálně", () => {
+    const p = build(noPerf)
+    assert(!p.includes("při rozporu s čímkoli jiným"),
+        "CTA sekce si nárokuje globální přednost — to si odporuje se seznamem PRIORIT, kde je až druhá")
+    assert(p.includes("ZDROJ PRAVDY PRO CTA"), "nárok CTA politiky ve své doméně zmizel úplně")
 })
 
 // ─── Report ─────────────────────────────────────────────────

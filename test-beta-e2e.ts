@@ -1242,6 +1242,128 @@ test("20.4 thinking politika je v registru, ne v call site", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 21. LIMITY PROMPTU — jedno číslo, jeden zdroj
+// ═══════════════════════════════════════════════════════════
+// Limity se psaly ručně dvakrát: do textu promptu a do `description` ve schématu.
+// Nic je nedrželo u sebe, takže se tiše rozešly — u `subtext` slidu říkal prompt
+// „max 12 slov" a schéma „max 20 words" o TOMTÉŽ poli. Model dostal dvě čísla.
+// Detailní shodu čísel hlídá scripts/test-prompt-assembly.ts; tady je struktura.
+
+test("21.1 limity mají jediný zdroj pravdy", () => {
+    const code = codeOnly("instagram/caption-generator.ts")
+    assert(/export const PROMPT_LIMITS = \{/.test(code), "PROMPT_LIMITS musí existovat")
+    assert(/export const CAROUSEL_MAX_TOTAL_SLIDES/.test(code),
+        "strop celkového počtu slidů se odvozuje, nepíše ručně")
+    // Prompt i schéma musí číst z konstanty. Kdyby někdo napsal číslo natvrdo,
+    // rozejde se to znovu — a příště si toho zase nikdo nevšimne.
+    const usages = (code.match(/PROMPT_LIMITS\./g) || []).length
+    assert(usages >= 12, `PROMPT_LIMITS se používá jen ${usages}× — část limitů zůstala natvrdo`)
+})
+
+test("21.2 počet slidů je ve schématu strukturální, ne jen popis", () => {
+    const code = codeOnly("instagram/caption-generator.ts")
+    const fn = code.slice(code.indexOf("export function buildCarouselSchema"))
+    assert(/minItems: String\(PROMPT_LIMITS\.carouselInnerMin\)/.test(fn),
+        "slides potřebuje minItems — popis je jen přání, které volný text z configu přebije")
+    assert(/maxItems: String\(PROMPT_LIMITS\.carouselInnerMax\)/.test(fn),
+        "slides potřebuje maxItems")
+})
+
+test("21.3 structure z configu se kontroluje proti schématu", () => {
+    const code = codeOnly("instagram/configs/index.ts")
+    // postTypeDefs procházely `config.postTypeDefs || []` — tedy úplně bez kontroly,
+    // přestože se vkládají do promptu jako „ZÁVAZNÁ struktura".
+    assert(!/postTypeDefs: config\.postTypeDefs \|\| \[\]/.test(code),
+        "postTypeDefs zase prochází bez kontroly")
+    assert(/warnOnOversizedStructures/.test(code), "chybí kontrola počtu slidů ve structure")
+    assert(/CAROUSEL_MAX_TOTAL_SLIDES/.test(code), "kontrola musí vycházet ze společného stropu")
+    // Nesmí tiše osekávat — kvalita se nedegraduje potichu.
+    assert(/console\.warn/.test(code), "nález musí být vidět v logu")
+})
+
+test("21.4 v promptu je jen JEDNO pravidlo pro řešení konfliktů", () => {
+    const cta = codeOnly("instagram/cta-policy.ts")
+    // Nárok „při rozporu s čímkoli jiným platí TOHLE" si odporoval se seznamem
+    // PRIORIT, kde je CTA politika až druhá za zadaným tématem.
+    assert(!/při rozporu s čímkoli jiným/.test(cta),
+        "CTA sekce si znovu nárokuje globální přednost proti seznamu PRIORIT")
+    assert(/ZDROJ PRAVDY PRO CTA/.test(cta),
+        "CTA politika musí zůstat zdrojem pravdy ve své doméně")
+})
+
+test("21.5 onboarding negeneruje strukturu, kterou engine nevykreslí", () => {
+    const code = codeOnly("app/onboarding/core.ts")
+    assert(/CAROUSEL_MAX_TOTAL_SLIDES/.test(code),
+        "generátor formátů musí znát strop — jinak vyrábí rozpory rovnou při onboardingu")
+})
+
+// ═══════════════════════════════════════════════════════════
+// 22. STRIPE — druhá brána k penězům
+// ═══════════════════════════════════════════════════════════
+// Produkt uměl generovat 307 příspěvků a nevzal ani korunu: ComGate čeká na
+// smlouvu a Stripe webhook podpis ověřoval, ale plán neaktivoval. Tyhle aserce
+// hlídají, že druhá brána zůstane adaptérem, ne druhou kódovou cestou.
+
+test("22.1 Stripe zabírá platbu podmíněným claimem, ne insertem", () => {
+    const code = codeOnly("app/api/payments/stripe/webhook/route.ts")
+    assert(/\.eq\("provider", "stripe"\)/.test(code) && /\.eq\("provider_ref", sessionId\)/.test(code),
+        "claim musí hledat podle vlastního lokátoru brány")
+    assert(/\.neq\("status", "PAID"\)/.test(code),
+        "bez podmínky na status by replay webhooku aktivoval plán dvakrát")
+    assert(!/\.from\("payments"\)\s*\.insert\(/.test(code),
+        "webhook nikdy nesmí platbu zakládat — claim bez řádku je konec")
+})
+
+test("22.2 unikátní index je nárok na zpracování", () => {
+    const mig = fileContent("supabase/migrations/20260810_payment_provider_ref.sql")
+    assert(/CREATE UNIQUE INDEX[\s\S]*payments\(provider, provider_ref\)/.test(mig),
+        "bez unikátního indexu není claim idempotentní")
+    assert(/provider_ref IS NOT NULL/.test(mig),
+        "index musí částečný — legacy řádky bez ref nesmí kolidovat")
+})
+
+test("22.3 aktivace je sdílená, ne zkopírovaná do brány", () => {
+    const code = codeOnly("app/api/payments/stripe/webhook/route.ts")
+    assert(/finalizePaidPayment/.test(code) && /deliverPaidArtifacts/.test(code),
+        "Stripe musí volat totéž jádro jako ComGate")
+    assert(/after\(\(\) => deliverPaidArtifacts/.test(code),
+        "doklad a e-mail patří do after() — brána musí dostat ACK hned")
+    // Kdyby si brána aktivaci napsala sama, je to druhé místo, kde se zapomene na doklad.
+    assert(!/from\("subscriptions"\)[\s\S]{0,80}\.update\(/.test(code),
+        "webhook nesmí aktivovat předplatné sám")
+})
+
+test("22.4 sandboxová platba nesmí sáhnout na ostrou číselnou řadu", () => {
+    const code = codeOnly("app/api/payments/stripe/webhook/route.ts")
+    assert(/sandbox: isStripeSandbox\(\)/.test(code),
+        "příznak sandboxu musí dojít až k vystavení dokladu")
+})
+
+test("22.5 platbu zakládá jen autorizovaná route", () => {
+    for (const route of ["app/api/payments/stripe/create/route.ts", "app/api/payments/create/route.ts"]) {
+        const code = codeOnly(route)
+        assert(/requireAuth/.test(code), `${route}: každá API route potřebuje requireAuth`)
+        assert(/requireClientAccess/.test(code), `${route}: bez toho by šlo zaplatit cizímu tenantovi`)
+    }
+    const lib = codeOnly("lib/payments/checkout.ts")
+    assert(/provider: "stripe"/.test(lib) && /provider_ref: session\.id/.test(lib),
+        "PENDING řádek musí nést lokátor, jinak ho webhook nenajde")
+})
+
+test("22.6 volba brány je na serveru, ne v tlačítkách", () => {
+    // Kdyby o branách rozhodovalo UI, přibývá s každou bránou další místo,
+    // kde se to dá splést — a Stripe by potřeboval vlastní tlačítko.
+    for (const ui of ["app/(dashboard)/PaywallProvider.tsx",
+                      "app/(dashboard)/dashboard/instagram/tabs/SubscriptionSection.tsx"]) {
+        const code = codeOnly(ui)
+        assert(!/stripe/i.test(code), `${ui} nesmí vědět o konkrétní bráně`)
+    }
+    const create = codeOnly("app/api/payments/create/route.ts")
+    assert(/activeGateway\(\) === "stripe"/.test(create),
+        "hlavní create route musí bránu vybírat sama")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 
