@@ -12,6 +12,7 @@
 import Anthropic from "@anthropic-ai/sdk"
 import sharp from "sharp"
 import { getModel } from "./models"
+import { recordUsage } from "./usage-meter"
 import dotenv from "dotenv"
 
 // Load env for CLI usage (mirrors gemini-client.ts). In the Next runtime env is already present.
@@ -116,6 +117,14 @@ export async function judgeWithClaude(
         output_config: { effort: "low" },
         messages: [{ role: "user", content }],
     })
+
+    // Claude hlásí spotřebu pod jinými jmény než Gemini — mapujeme na tvar měřiče,
+    // ať soudce není v telemetrii neviditelný (běží u každého postu, i vícekrát).
+    recordUsage(model, {
+        promptTokenCount: resp.usage?.input_tokens,
+        candidatesTokenCount: resp.usage?.output_tokens,
+        cachedContentTokenCount: resp.usage?.cache_read_input_tokens,
+    }, opts.label ?? "judge")
 
     const text = resp.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text
     if (!text) throw new Error("Claude judge returned no text")

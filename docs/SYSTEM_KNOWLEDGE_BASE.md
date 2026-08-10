@@ -2,7 +2,12 @@
 
 > **Codename:** ProdameVas  
 > **Stack:** Next.js 16 (App Router) · Supabase (Postgres + Auth + Storage) · Google Gemini 3.5 Flash · Nano Banana Pro · Veo 3.1  
-> **Last Updated:** 2026-06-10 (v4.1 — A/B varianty, dekompozice god files, onboarding + IG scraping)
+> **Poslední velký přepis:** 2026-06-10 (v4.1 — A/B varianty, dekompozice god files,
+> onboarding + IG scraping). Novější změny se sem doplňovaly jen částečně.
+
+> **Čti při potřebě, ne povinně.** Zdroj pravdy je kód; invarianty vynucuje
+> `npm run guard`. Orientace je v `CLAUDE.md`, hloubkové „proč" ve
+> `.claude/skills/*/SKILL.md`. Při rozporu s kódem platí kód.
 
 ---
 

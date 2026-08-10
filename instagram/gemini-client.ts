@@ -46,6 +46,17 @@ const ai = new Proxy({} as GoogleGenAI, {
 // ============================================
 
 import { withRetry, withQualityRetry, QualityUnavailableError, isPermanentModelError } from "../utils/retry"
+import { recordUsage, recordUnits } from "./usage-meter"
+import { getThinkingBudget } from "./models"
+
+/**
+ * Thinking budget do configu volání. Záporná hodnota (dynamické) a `undefined` se
+ * NEPOSÍLAJÍ vůbec — je to výchozí chování modelu a modely bez thinking režimu by na
+ * neznámém poli mohly spadnout. Politika per role je v `instagram/models.ts`.
+ */
+function thinkingCfg(budget?: number): Record<string, unknown> {
+    return budget === undefined || budget < 0 ? {} : { thinkingConfig: { thinkingBudget: budget } }
+}
 
 // ============================================
 // TEXT GENERATION (Gemini 3.5 Flash)
@@ -53,7 +64,7 @@ import { withRetry, withQualityRetry, QualityUnavailableError, isPermanentModelE
 
 export async function generateText(
     prompt: string,
-    options?: { responseSchema?: any; temperature?: number; model?: string; fallbackModel?: string }
+    options?: { responseSchema?: any; temperature?: number; model?: string; fallbackModel?: string; thinkingBudget?: number }
 ): Promise<string> {
     const defaultModel = options?.model || getModel("text")
     const fallbackModel = options?.fallbackModel || getModel("text", "fallback")
@@ -66,8 +77,11 @@ export async function generateText(
                     responseMimeType: "application/json",
                     ...(options?.responseSchema && { responseSchema: options.responseSchema }),
                     ...(options?.temperature !== undefined && { temperature: options.temperature }),
+                    ...thinkingCfg(options?.thinkingBudget),
                 },
             })
+
+            recordUsage(defaultModel, response.usageMetadata, "text")
 
             const parts = response.candidates?.[0]?.content?.parts || []
             const textPart = parts.find((p: any) => p.text)
@@ -90,8 +104,11 @@ export async function generateText(
                         responseMimeType: "application/json",
                         ...(options?.responseSchema && { responseSchema: options.responseSchema }),
                         ...(options?.temperature !== undefined && { temperature: options.temperature }),
+                        ...thinkingCfg(options?.thinkingBudget),
                     },
                 })
+
+                recordUsage(fallbackModel, response.usageMetadata, "text:fallback")
 
                 const parts = response.candidates?.[0]?.content?.parts || []
                 const textPart = parts.find((p: any) => p.text)
@@ -122,7 +139,7 @@ export async function generateText(
  */
 export async function generateTextQuality(
     prompt: string,
-    options: { models: string[]; responseSchema?: any; temperature?: number; label?: string; images?: { buffer: Buffer; mimeType?: string; label?: string }[]; onModelUsed?: (model: string) => void; json?: boolean }
+    options: { models: string[]; responseSchema?: any; temperature?: number; label?: string; images?: { buffer: Buffer; mimeType?: string; label?: string }[]; onModelUsed?: (model: string) => void; json?: boolean; thinkingBudget?: number }
 ): Promise<string> {
     const wantJson = options.json !== false // default: JSON output
     const models = options.models.filter(Boolean)
@@ -151,8 +168,10 @@ export async function generateTextQuality(
                 ...(wantJson && { responseMimeType: "application/json" }),
                 ...(options.responseSchema && { responseSchema: options.responseSchema }),
                 ...(options.temperature !== undefined && { temperature: options.temperature }),
+                ...thinkingCfg(options.thinkingBudget),
             },
         })
+        recordUsage(model, response.usageMetadata, label)
         const text = response.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text
         if (!text) throw new Error("Gemini returned no text")
         return text
@@ -210,6 +229,8 @@ export async function generateImage(
                 } as any,
             })
 
+            recordUsage(getModel("image"), response.usageMetadata, "image")
+
             const parts = response.candidates?.[0]?.content?.parts || []
             for (const part of parts) {
                 if ((part as any).inlineData?.data) {
@@ -234,6 +255,7 @@ export async function generateImage(
                         },
                     } as any,
                 })
+                recordUsage(getModel("image", "fallback"), response.usageMetadata, "image:fallback")
                 const parts = response.candidates?.[0]?.content?.parts || []
                 for (const part of parts) {
                     if ((part as any).inlineData?.data) {
@@ -295,6 +317,8 @@ export async function generateImageWithReferences(
                 },
             } as any,
         })
+
+        recordUsage(model, response.usageMetadata, "image:refs")
 
         const parts = response.candidates?.[0]?.content?.parts || []
         for (const part of parts) {
@@ -373,6 +397,8 @@ export async function editExistingImage(
             } as any,
         })
 
+        recordUsage(model, response.usageMetadata, "image:edit")
+
         const parts = response.candidates?.[0]?.content?.parts || []
         for (const part of parts) {
             if ((part as any).inlineData?.data) {
@@ -415,8 +441,12 @@ export async function detectLogoPlacementArea(imageBuffer: Buffer): Promise<{ x:
             config: {
                 // responseMimeType enforces JSON output
                 responseMimeType: "application/json",
+                // Výstup jsou čtyři souřadnice — přemýšlení tu nemá co zlepšit.
+                ...thinkingCfg(getThinkingBudget("cheap")),
             } as any,
         })
+
+        recordUsage(getModel("vision"), response.usageMetadata, "vision:logo-area")
 
         try {
             const text = response.candidates?.[0]?.content?.parts?.[0]?.text
@@ -447,7 +477,7 @@ export async function detectLogoPlacementArea(imageBuffer: Buffer): Promise<{ x:
 export async function analyzeImagesWithText(
     images: { buffer: Buffer; mimeType?: string; label?: string }[],
     prompt: string,
-    options?: { responseSchema?: any; temperature?: number }
+    options?: { responseSchema?: any; temperature?: number; thinkingBudget?: number }
 ): Promise<string> {
     if (images.length === 0) throw new Error("analyzeImagesWithText: no images provided")
 
@@ -471,9 +501,11 @@ export async function analyzeImagesWithText(
                 responseMimeType: "application/json",
                 ...(options?.responseSchema && { responseSchema: options.responseSchema }),
                 ...(options?.temperature !== undefined && { temperature: options.temperature }),
+                ...thinkingCfg(options?.thinkingBudget),
             },
         })
 
+        recordUsage(getModel("vision"), response.usageMetadata, "vision")
         const text = response.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text
         if (!text) throw new Error("Gemini vision returned no text")
         return text
@@ -535,6 +567,10 @@ export async function generateVideo(
         throw new Error("Veo 3.1 returned no video data")
     }
 
+    // Veo se účtuje za vteřinu vygenerovaného videa a operace nenese usageMetadata —
+    // bez tohohle by reel (nejdražší médium) vycházel v telemetrii na nulu.
+    recordUnits(model, "seconds", duration, "video")
+
     // Check for inline video bytes first
     if ((video as any).videoBytes) {
         return Buffer.from((video as any).videoBytes, "base64")
@@ -595,6 +631,8 @@ export async function generateVoiceover(
                 },
             } as any,
         })
+
+        recordUsage(model, response.usageMetadata, "tts")
 
         const audioPart = response.candidates?.[0]?.content?.parts?.[0]
         const inlineData = (audioPart as any)?.inlineData

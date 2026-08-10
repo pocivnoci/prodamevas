@@ -34,6 +34,7 @@ import {
     countFeedPosts,
     toSelectedProduct,
 } from "./service"
+import { withUsageScope, currentUsage } from "./usage-meter"
 import { computeSlotIntent, type SlotIntent } from "../lib/feed-pattern"
 import { loadConfig } from "./configs"
 import type { ClientConfig, PostFormat, PostMedium } from "./configs/types"
@@ -198,8 +199,10 @@ export async function generateOnePost(options: {
     const clientUuid = await ensureConfig(options.configName)
     const ck = options.resumeFrom?.stage === "caption" ? options.resumeFrom : undefined
 
-    // Wrap entire generation in request-scoped context to prevent race conditions
-    return withActiveProject(clientUuid, async () => {
+    // Wrap entire generation in request-scoped context to prevent race conditions.
+    // withUsageScope sčítá spotřebu tokenů všech volání modelu uvnitř — taky
+    // request-scoped, takže souběžné generace v jedné lambdě se nemíchají.
+    return withActiveProject(clientUuid, () => withUsageScope(async () => {
     const config = CLIENT_CONFIG!
     const startTime = Date.now()
     let cost = ck?.costSoFar ?? 0
@@ -1096,6 +1099,9 @@ ${feedSummary}
             finalScore: finalScore || score,
             angle: captionData.angle,
             postType: selectedType.name,
+            // Naměřená spotřeba všech volání modelu v téhle generaci. Nahrazuje odhad
+            // v docs/pricing (blended $0,50/post) měřením per příspěvek.
+            usage: currentUsage() ?? undefined,
         })
 
         // Close the loop: persist recurring critic "fix" notes into brand memory so they
@@ -1124,7 +1130,7 @@ ${feedSummary}
     console.log("═".repeat(60) + "\n")
 
     return { id: postId, caption: fullCaption, imageUrl, cost, mediaType: format.medium }
-    }) // end withActiveProject
+    })) // end withActiveProject + withUsageScope
 }
 
 // ============================================
