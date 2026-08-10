@@ -10,7 +10,8 @@
  */
 
 import { withUsageMeter, recordUsage, recordUnits, currentUsage, isMetering } from "../instagram/usage-meter"
-import { costUsdForCall, costUsdForBreakdown } from "../lib/model-pricing"
+import { costUsdForCall, costUsdForBreakdown, resolveModelAlias } from "../lib/model-pricing"
+import { MODELS, getModel, hasFallback } from "../instagram/models"
 
 let passed = 0
 let failed = 0
@@ -105,23 +106,55 @@ async function main() {
     check("neznámý model nemá cenu 0, ale null",
         costUsdForCall("model-co-neexistuje", { promptTokens: 999_999, outputTokens: 999_999, thoughtTokens: 0, cachedTokens: 0 }) === null)
 
+    // Alias musí ocenit stejně jako model, na který míří — telemetrie loguje ALIAS,
+    // takže bez tohohle by každé Pro volání zůstalo neoceněné.
+    check("gemini-pro-latest se ocení přes alias na 3.1 Pro",
+        resolveModelAlias("gemini-pro-latest") === "gemini-3.1-pro-preview")
+    // 100k tokenů je pod prahem 200k, takže platí základní sazba $2/M.
+    const proAlias = costUsdForCall("gemini-pro-latest", { promptTokens: 100_000, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0 })
+    check("Pro pod prahem 200k: 100k tokenů = $0,20", proAlias !== null && Math.abs(proAlias - 0.2) < 1e-9, `bylo ${proAlias}`)
+
+    // Google účtuje jinak nad 200k tokenů promptu.
+    const longCtx = costUsdForCall("gemini-pro-latest", { promptTokens: 300_000, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0 })
+    check("nad 200k tokenů platí vyšší sazba", longCtx !== null && Math.abs(longCtx - 1.2) < 1e-9, `bylo ${longCtx}`)
+
     const veo = costUsdForCall("veo-3.1-fast-generate-preview", {
         promptTokens: 0, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0, units: { kind: "seconds", n: 10 },
     })
-    check("video se ocení za vteřiny (10 s Veo Fast = $1,50)", veo !== null && Math.abs(veo - 1.5) < 1e-9, `bylo ${veo}`)
+    check("video se ocení za vteřiny (10 s Veo Fast @1080p = $1,20)", veo !== null && Math.abs(veo - 1.2) < 1e-9, `bylo ${veo}`)
 
-    check("model bez jednotkové sazby vrací null (Veo Lite)",
-        costUsdForCall("veo-3.1-lite-generate-preview", {
-            promptTokens: 0, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0, units: { kind: "seconds", n: 10 },
-        }) === null)
+    const img = costUsdForCall("gemini-3-pro-image", {
+        promptTokens: 0, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0, units: { kind: "images", n: 1 },
+    })
+    check("obrázek se ocení za kus, ne za tokeny ($0,134)", img !== null && Math.abs(img - 0.134) < 1e-9, `bylo ${img}`)
 
     // Tohle je to podstatné: raději žádná cena než podhodnocená.
     const mixed = costUsdForBreakdown([
         { model: "claude-sonnet-5", promptTokens: 1000, outputTokens: 100, thoughtTokens: 0, cachedTokens: 0 },
-        { model: "gemini-pro-latest", promptTokens: 50_000, outputTokens: 5000, thoughtTokens: 0, cachedTokens: 0 },
+        { model: "model-bez-sazby", promptTokens: 50_000, outputTokens: 5000, thoughtTokens: 0, cachedTokens: 0 },
     ])
     check("jeden neoceněný krok zneplatní celý součet", mixed === null,
         "částečný součet by tvrdil, že post stál míň, než stál")
+
+    // Každý model, který engine reálně používá, musí mít sazbu — jinak zůstane
+    // cost_usd u většiny postů NULL a měření je k ničemu.
+    console.log("\n🎯 POKRYTÍ REGISTRU MODELŮ\n")
+    const unpriced: string[] = []
+    for (const action of Object.keys(MODELS) as (keyof typeof MODELS)[]) {
+        for (const tier of ["primary", "fallback"] as const) {
+            if (tier === "fallback" && !hasFallback(action)) continue
+            const model = getModel(action, tier)
+            const isMedia = action === "image" || action === "imageCheap" ||
+                action.startsWith("video")
+            const priced = isMedia
+                ? costUsdForCall(model, { promptTokens: 0, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0, units: { kind: action.startsWith("video") ? "seconds" : "images", n: 1 } })
+                : costUsdForCall(model, { promptTokens: 1000, outputTokens: 100, thoughtTokens: 0, cachedTokens: 0 })
+            if (priced === null) unpriced.push(`${action}.${tier} → ${model}`)
+        }
+    }
+    if (unpriced.length > 0) console.log(`     neoceněné: ${unpriced.join(", ")}`)
+    check("každý model z registru má ověřenou sazbu", unpriced.length === 0,
+        `${unpriced.length} bez sazby`)
 
     const allKnown = costUsdForBreakdown([
         { model: "claude-sonnet-5", promptTokens: 1_000_000, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0 },
