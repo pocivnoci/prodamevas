@@ -1242,6 +1242,62 @@ test("20.4 thinking politika je v registru, ne v call site", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 21. LIMITY PROMPTU — jedno číslo, jeden zdroj
+// ═══════════════════════════════════════════════════════════
+// Limity se psaly ručně dvakrát: do textu promptu a do `description` ve schématu.
+// Nic je nedrželo u sebe, takže se tiše rozešly — u `subtext` slidu říkal prompt
+// „max 12 slov" a schéma „max 20 words" o TOMTÉŽ poli. Model dostal dvě čísla.
+// Detailní shodu čísel hlídá scripts/test-prompt-assembly.ts; tady je struktura.
+
+test("21.1 limity mají jediný zdroj pravdy", () => {
+    const code = codeOnly("instagram/caption-generator.ts")
+    assert(/export const PROMPT_LIMITS = \{/.test(code), "PROMPT_LIMITS musí existovat")
+    assert(/export const CAROUSEL_MAX_TOTAL_SLIDES/.test(code),
+        "strop celkového počtu slidů se odvozuje, nepíše ručně")
+    // Prompt i schéma musí číst z konstanty. Kdyby někdo napsal číslo natvrdo,
+    // rozejde se to znovu — a příště si toho zase nikdo nevšimne.
+    const usages = (code.match(/PROMPT_LIMITS\./g) || []).length
+    assert(usages >= 12, `PROMPT_LIMITS se používá jen ${usages}× — část limitů zůstala natvrdo`)
+})
+
+test("21.2 počet slidů je ve schématu strukturální, ne jen popis", () => {
+    const code = codeOnly("instagram/caption-generator.ts")
+    const fn = code.slice(code.indexOf("export function buildCarouselSchema"))
+    assert(/minItems: String\(PROMPT_LIMITS\.carouselInnerMin\)/.test(fn),
+        "slides potřebuje minItems — popis je jen přání, které volný text z configu přebije")
+    assert(/maxItems: String\(PROMPT_LIMITS\.carouselInnerMax\)/.test(fn),
+        "slides potřebuje maxItems")
+})
+
+test("21.3 structure z configu se kontroluje proti schématu", () => {
+    const code = codeOnly("instagram/configs/index.ts")
+    // postTypeDefs procházely `config.postTypeDefs || []` — tedy úplně bez kontroly,
+    // přestože se vkládají do promptu jako „ZÁVAZNÁ struktura".
+    assert(!/postTypeDefs: config\.postTypeDefs \|\| \[\]/.test(code),
+        "postTypeDefs zase prochází bez kontroly")
+    assert(/warnOnOversizedStructures/.test(code), "chybí kontrola počtu slidů ve structure")
+    assert(/CAROUSEL_MAX_TOTAL_SLIDES/.test(code), "kontrola musí vycházet ze společného stropu")
+    // Nesmí tiše osekávat — kvalita se nedegraduje potichu.
+    assert(/console\.warn/.test(code), "nález musí být vidět v logu")
+})
+
+test("21.4 v promptu je jen JEDNO pravidlo pro řešení konfliktů", () => {
+    const cta = codeOnly("instagram/cta-policy.ts")
+    // Nárok „při rozporu s čímkoli jiným platí TOHLE" si odporoval se seznamem
+    // PRIORIT, kde je CTA politika až druhá za zadaným tématem.
+    assert(!/při rozporu s čímkoli jiným/.test(cta),
+        "CTA sekce si znovu nárokuje globální přednost proti seznamu PRIORIT")
+    assert(/ZDROJ PRAVDY PRO CTA/.test(cta),
+        "CTA politika musí zůstat zdrojem pravdy ve své doméně")
+})
+
+test("21.5 onboarding negeneruje strukturu, kterou engine nevykreslí", () => {
+    const code = codeOnly("app/onboarding/core.ts")
+    assert(/CAROUSEL_MAX_TOTAL_SLIDES/.test(code),
+        "generátor formátů musí znát strop — jinak vyrábí rozpory rovnou při onboardingu")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 

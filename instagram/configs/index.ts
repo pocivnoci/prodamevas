@@ -8,6 +8,7 @@ import supabaseAdmin from "../../supabase/admin"
 import type { ClientConfig } from "./types"
 import { reconcileFormats } from "./reconcile"
 import { isFeedPattern } from "../../lib/feed-pattern"
+import { CAROUSEL_MAX_TOTAL_SLIDES } from "../caption-generator"
 
 export interface ClientMeta {
     id: string
@@ -64,6 +65,33 @@ export async function loadConfig(name: string, forceRefresh = false): Promise<Cl
 }
 
 /** Fill safe defaults for missing required fields to prevent runtime crashes */
+/**
+ * `postTypeDefs[].structure` je volný text, který napsala AI při onboardingu, a do
+ * promptu se vkládá jako „**závazná** — slidy přesně podle ní". Když vyjmenuje víc
+ * slidů, než unese schéma karuselu, dostane model dvě neslučitelné instrukce a řeší
+ * to pokaždé jinak. Doteď to nic nekontrolovalo (`config.postTypeDefs || []`).
+ *
+ * Záměrně jen **hlasitě loguje** a nechává hodnotu být: kreativní zadání klienta se
+ * automaticky nepřepisuje a tichá degradace je tu zakázaná. Report napříč tenanty
+ * dělá `scripts/audit-formats-pillars.ts`.
+ */
+function warnOnOversizedStructures(defs: NonNullable<ClientConfig["postTypeDefs"]>, slug: string) {
+    for (const def of defs) {
+        if (!def?.structure) continue
+        // Onboarding generuje osnovu ve tvaru „Slide 1 COVER: … Slide 7 CTA: …".
+        const numbers = [...String(def.structure).matchAll(/\bSlide\s+(\d+)/gi)].map(m => Number(m[1]))
+        const highest = numbers.length > 0 ? Math.max(...numbers) : 0
+        if (highest > CAROUSEL_MAX_TOTAL_SLIDES) {
+            console.warn(
+                `⚠️ config[${slug}] formát "${def.name}": structure předepisuje ${highest} slidů, ` +
+                `schéma karuselu jich unese ${CAROUSEL_MAX_TOTAL_SLIDES}. Model dostane dvě neslučitelné ` +
+                `instrukce — zkrať structure, nebo zvyš PROMPT_LIMITS.carouselInnerMax.`,
+            )
+        }
+    }
+    return defs
+}
+
 function validateConfig(config: ClientConfig, slug: string): ClientConfig {
     // reconcileFormats self-heals the four format sources on every load — drift
     // (e.g. a format orphaned by a deleted pillar) never reaches the pipeline.
@@ -113,7 +141,7 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // ensurePostTypes/getIGPostTypes can't silently no-op on a half-filled config.
         postTypes: config.postTypes || [],
         postFormats: config.postFormats || {},
-        postTypeDefs: config.postTypeDefs || [],
+        postTypeDefs: warnOnOversizedStructures(config.postTypeDefs || [], slug),
         hashtagPools: config.hashtagPools || { core: [], niche: [], broad: [], trending: [], czech: [] },
         contentFocus: config.contentFocus || config.name || slug,
         videoTier: config.videoTier || "fast",

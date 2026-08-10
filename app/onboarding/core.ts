@@ -22,6 +22,7 @@ import supabaseAdmin from '@/supabase/admin'
 import { generateText } from '@/instagram/gemini-client'
 import { getModel } from '@/instagram/models'
 import { ensurePostTypes } from '@/instagram/service'
+import { CAROUSEL_MAX_TOTAL_SLIDES } from '@/instagram/caption-generator'
 import { withRetry } from '@/utils/retry'
 import type { ClientConfig, PostTypeDef } from '@/instagram/configs/types'
 import type { WebsiteAnalysis } from './actions'
@@ -715,7 +716,7 @@ Vrať POUZE JSON pole 7 objektů:
   "display_name": "krátký název formátu, česky (např. Sezónní kytice)",
   "emoji": "1 emoji",
   "description": "1-2 věty česky: CO příspěvek ukazuje a PROČ funguje právě pro tuhle značku",
-  "structure": "kostra obsahu, česky. Pro carousel: osnova slide po slidu (Slide 1 COVER: ..., poslední: CTA). Pro reel: osnova scén. Pro obrázek: stavba caption (hook → ... → CTA).",
+  "structure": "kostra obsahu, česky. Pro carousel: osnova slide po slidu (Slide 1 COVER: ..., poslední: CTA) — NEJVÝŠ ${CAROUSEL_MAX_TOTAL_SLIDES} slidů včetně coveru, víc jich engine nevykreslí. Pro reel: osnova scén. Pro obrázek: stavba caption (hook → ... → CTA).",
   "visual_style": "1-2 věty česky: jak mají posty tohohle formátu VYPADAT (kompozice, nálada, rekvizity) — řídí se tím AI designer",
   "pillar": "jeden z povolených klíčů pilířů výše",
   "medium": "image | carousel | reel",

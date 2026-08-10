@@ -88,7 +88,12 @@ export function resolveCtaPolicy(input: {
  */
 export function buildCtaPolicySection(policy: CtaPolicy, ctaPool: string[], pillarGoal?: string): string {
     const lines = [
-        `## ${MODE_LABELS[policy.mode]} POST — CTA POLITIKA (JEDINÝ ZDROJ PRAVDY: při rozporu s čímkoli jiným v zadání platí TOHLE)`,
+        // Nárok je ZÁMĚRNĚ zúžený na doménu téhle sekce. Dřív zněl „při rozporu
+        // s čímkoli jiným v zadání platí TOHLE", což si odporovalo se seznamem PRIORIT
+        // o pár set řádků výš, kde je CTA politika až druhá za zadaným tématem. Dvě
+        // různá pravidla pro řešení konfliktů v jednom promptu = model si vybere sám.
+        // Uvnitř své domény (CTA, odkazy, web) politika vyhrává dál a beze změny.
+        `## ${MODE_LABELS[policy.mode]} POST — CTA POLITIKA (ZDROJ PRAVDY PRO CTA: při rozporu v otázce CTA, odkazů a zmínek webu platí TOHLE)`,
         `**Pilíř:** ${policy.pillarLabel.toUpperCase()}${pillarGoal ? ` | **Cíl:** ${pillarGoal}` : ""}`,
         policy.ctaInstruction,
         policy.productMention === "link"

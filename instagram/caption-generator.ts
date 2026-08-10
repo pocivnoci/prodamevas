@@ -280,7 +280,7 @@ export function buildCaptionSchema(config: ClientConfig) {
             },
             body: {
                 type: Type.STRING,
-                description: `Main text (max 120 words). ${config.contentFocus}`,
+                description: `Main text (max ${PROMPT_LIMITS.bodyWords} words). ${config.contentFocus}`,
             },
             cta: {
                 type: Type.STRING,
@@ -297,7 +297,7 @@ export function buildCaptionSchema(config: ClientConfig) {
             },
             imageSubtext: {
                 type: Type.STRING,
-                description: "Subtext below hook (benefit, max 8 words, Czech)",
+                description: `Subtext below hook (benefit, max ${PROMPT_LIMITS.coverSubtextWords} words, Czech)`,
             },
             accentWords: {
                 type: Type.ARRAY,
@@ -395,7 +395,7 @@ export function buildCarouselSchema(config: ClientConfig) {
             },
             hook: {
                 type: Type.STRING,
-                description: "Cover slide headline (max 8 words, Czech, punchy). ZADNE EMOJI.",
+                description: `Cover slide headline (max ${PROMPT_LIMITS.coverHeadlineWords} words, Czech, punchy). ZADNE EMOJI.`,
             },
             accentWords: {
                 type: Type.ARRAY,
@@ -404,24 +404,29 @@ export function buildCarouselSchema(config: ClientConfig) {
             },
             imageSubtext: {
                 type: Type.STRING,
-                description: "Cover slide subtext - brief benefit or teaser (max 8 words, Czech, e.g. 'Navod krok za krokem')",
+                description: `Cover slide subtext - brief benefit or teaser (max ${PROMPT_LIMITS.coverSubtextWords} words, Czech, e.g. 'Navod krok za krokem')`,
             },
             slides: {
                 type: Type.ARRAY,
+                // minItems/maxItems dělá z počtu slidů STRUKTURÁLNÍ omezení. Dřív ho
+                // držela jen věta v description — tedy pouhé přání, které volný text
+                // `structure` z configu ("Slide 7 CTA") beztrestně přebil.
+                minItems: String(PROMPT_LIMITS.carouselInnerMin),
+                maxItems: String(PROMPT_LIMITS.carouselInnerMax),
                 items: {
                     type: Type.OBJECT,
                     properties: {
-                        headline: { type: Type.STRING, description: "Step headline (max 6 words, Czech, e.g. 'Krok 1: Otevri Nastaveni')" },
-                        subtext: { type: Type.STRING, description: "Step detail - exact path or explanation (max 20 words, Czech)" },
+                        headline: { type: Type.STRING, description: `Step headline (max ${PROMPT_LIMITS.slideHeadlineWords} words, Czech, e.g. 'Krok 1: Otevri Nastaveni')` },
+                        subtext: { type: Type.STRING, description: `Step detail - exact path or explanation (max ${PROMPT_LIMITS.slideSubtextWords} words, Czech)` },
                         imagePrompt: { type: Type.STRING, description: "English image prompt for this step - MUST share the same environment/setting as all other slides. NO TEXT, NO WORDS, NO LETTERS in image. Pure background photo." },
                     },
                     required: ["headline", "subtext", "imagePrompt"],
                 },
-                description: "3 to 5 steps that walk through ONE topic step-by-step (cover slide introduces the topic). Use 3 for simple topics, 4-5 for richer topics.",
+                description: `${PROMPT_LIMITS.carouselInnerMin} to ${PROMPT_LIMITS.carouselInnerMax} steps that walk through ONE topic step-by-step (cover slide introduces the topic). Use ${PROMPT_LIMITS.carouselInnerMin} for simple topics, more for richer ones.`,
             },
             body: {
                 type: Type.STRING,
-                description: "Full caption for the post (max 120 words, Czech)",
+                description: `Full caption for the post (max ${PROMPT_LIMITS.bodyWords} words, Czech)`,
             },
             cta: {
                 type: Type.STRING,
@@ -449,6 +454,42 @@ export function buildCarouselSchema(config: ClientConfig) {
 /** Hard cap on story frames. Three is where a viewer's patience runs out, and it
  *  also keeps the render inside the same QA/edit budget a carousel gets. */
 export const MAX_STORY_FRAMES = 3
+
+/**
+ * Tvrdé limity promptu — JEDINÝ zdroj pravdy.
+ * ===========================================
+ * Každé z těchhle čísel se dřív psalo ručně dvakrát: jednou do textu promptu a jednou
+ * do `description` ve schématu. Nic je nedrželo u sebe, takže se tiše rozešla —
+ * u `subtext` slidu říkal prompt „max 12 slov" a schéma „max 20 words" o tomtéž poli.
+ * Model pak dostal dvě čísla a musel si vybrat.
+ *
+ * Je to stejná třída chyby jako pravidlo „schéma a prompt se mění SPOLU" (§16, tam
+ * šlo o chybějící pole, tady o rozcházející se hodnoty). Proto se obojí interpoluje
+ * odsud a `scripts/test-prompt-assembly.ts` navíc tvrdí, že se čísla rovnají.
+ *
+ * ⚠️ Nepiš limit natvrdo do promptu ani do schématu. Přidej ho sem.
+ */
+export const PROMPT_LIMITS = {
+    /** Pole `hook` = headline cover slidu. Cover nese míň textu než vnitřní slide. */
+    coverHeadlineWords: 8,
+    /** Podtext coveru (`imageSubtext`). */
+    coverSubtextWords: 8,
+    /** Headline vnitřního slidu. */
+    slideHeadlineWords: 6,
+    /** Detail vnitřního slidu — návodové formáty potřebují ředění, časy a pořadí kroků. */
+    slideSubtextWords: 20,
+    /** Hlavní caption. */
+    bodyWords: 120,
+    /** Vnitřní slidy karuselu (BEZ coveru). Strop 6 = 7 slidů celkem: cover + 4 kroky
+     *  + „chyby" + CTA. Přesně tolik chce reálná `structure` formátu krok_za_krokem;
+     *  dřívější strop 5 ji strukturálně nešlo splnit, přestože byla vložená jako
+     *  „závazná". Pozor na cenu: každý slide je samostatná generace obrázku. */
+    carouselInnerMin: 3,
+    carouselInnerMax: 6,
+} as const
+
+/** Kolik slidů smí mít karusel celkem (cover + vnitřní) — pro validaci `structure`. */
+export const CAROUSEL_MAX_TOTAL_SLIDES = PROMPT_LIMITS.carouselInnerMax + 1
 
 /**
  * Story set — 1 to 3 vertical 9:16 frames.
@@ -710,6 +751,9 @@ ${performance.bestHooks.length > 0 ? `**Zlaté Hooky (Nejlepší dosah):**\n${pe
 ${performance.avgEngagement > 0 ? `**Průměrný Engagement (Benchmarking):** ${performance.avgEngagement.toFixed(0)} bodů` : ""}
 
 **INSTRUKCE:** NEKOPÍRUJ tyto přesné fráze doslovně, ale použij stejnou psychologii, strukturu a rytmus.
+Vzorec znamená ZPŮSOB, jak to funguje — ne šablonu k zopakování. Když stejný vzorec
+najdeš i mezi posledními posty níž, sekce NEOPAKUJ SE má přednost: použij jeho
+psychologii, ale jinou formu.
 `
     }
 
@@ -885,7 +929,7 @@ ${config.videoFocus ? `### BRAND VIDEO STYLE:\n${config.videoFocus}\n` : ""}
   "hashtags": ["8-10", "relevantních", "hashtagů"]
 }
 ` : postFormat.medium === "carousel" ? `
-## 📸 CAROUSEL POST (4-6 slidů) — PŘÍBĚH, KTERÝ NUTÍ SWIPOVAT
+## 📸 CAROUSEL POST (${PROMPT_LIMITS.carouselInnerMin + 1}-${CAROUSEL_MAX_TOTAL_SLIDES} slidů) — PŘÍBĚH, KTERÝ NUTÍ SWIPOVAT
 
 ${typeDef?.structure ? `### 🧩 STRUKTURA TOHOTO FORMÁTU (závazná — slidy přesně podle ní):
 ${typeDef.structure}
@@ -897,21 +941,21 @@ ${typeDef.structure}
 5. **Poslední slide:** shrnutí jednou větou + CTA${policy.allowWebsite ? ` na ${config.website}` : " (engagement — BEZ webu)"}.
 `}
 ### TEXT NA SLIDECH (tvrdá pravidla):
-- Slide je PLAKÁT, ne odstavec: headline max 6 slov, subtext max 12 slov. Detaily patří do caption.
-- Počet slidů podle obsahu (4-6 vč. coveru) — nikdy nenatahuj. Radši 4 silné než 6 vycpaných.
+- Slide je PLAKÁT, ne odstavec: headline max ${PROMPT_LIMITS.slideHeadlineWords} slov, subtext max ${PROMPT_LIMITS.slideSubtextWords} slov. Detaily patří do caption.
+- Počet slidů podle obsahu (${PROMPT_LIMITS.carouselInnerMin + 1}-${CAROUSEL_MAX_TOTAL_SLIDES} vč. coveru) — nikdy nenatahuj. Radši ${PROMPT_LIMITS.carouselInnerMin + 1} silné než ${CAROUSEL_MAX_TOTAL_SLIDES} vycpaných.
 - Slidy čte člověk za 2 sekundy — každé slovo si musí místo zasloužit.
 
 ## VÝSTUP — vrať POUZE validní JSON:
 {
   "angle": "1 věta — zvolený úhel a čím se liší od nedávných postů",
-  "hook": "Cover headline (max 8 slov, česky). ŽÁDNÉ EMOJI.",
+  "hook": "Cover headline (max ${PROMPT_LIMITS.coverHeadlineWords} slov, česky). ŽÁDNÉ EMOJI.",
   "accentWords": ["2-3 klíčová slova Z HOOKU k vizuálnímu zvýraznění (přesný podřetězec hooku)"],
   "slides": [
-    { "headline": "max 6 slov...", "subtext": "max 12 slov...", "imagePrompt": "English prompt..." },
+    { "headline": "max ${PROMPT_LIMITS.slideHeadlineWords} slov...", "subtext": "max ${PROMPT_LIMITS.slideSubtextWords} slov...", "imagePrompt": "English prompt..." },
     { "headline": "...", "subtext": "...", "imagePrompt": "English prompt..." },
     { "headline": "...", "subtext": "...", "imagePrompt": "English prompt..." }
-  ],  // 3-5 vnitřních slidů podle toho, co obsah unese${typeDef?.structure ? " — drž strukturu formátu výše" : " — drž dramaturgii výše"}
-  "body": "Hlavní caption (max 120 slov) — sem patří detail, který se nevešel na slidy.",
+  ],  // ${PROMPT_LIMITS.carouselInnerMin}-${PROMPT_LIMITS.carouselInnerMax} vnitřních slidů podle toho, co obsah unese${typeDef?.structure ? " — drž strukturu formátu výše" : " — drž dramaturgii výše"}
+  "body": "Hlavní caption (max ${PROMPT_LIMITS.bodyWords} slov) — sem patří detail, který se nevešel na slidy.",
   "cta": "${policy.allowWebsite ? `CTA směřující na ${config.website}` : "engagement CTA — BEZ webu a BEZ URL"}",
   "hashtags": ["8-10", "hashtagů"],
   "imagePrompt": "English prompt for COVER slide background.",
@@ -980,14 +1024,20 @@ ${(() => {
 {
   "angle": "1 věta — zvolený úhel a čím se liší od nedávných postů",
   "hook": "První věta co zastaví scrollování (max 15 slov). ŽÁDNÉ EMOJI.",
-  "body": "Hlavní text (max 120 slov). ${config.contentFocus}",
+  "body": "Hlavní text (max ${PROMPT_LIMITS.bodyWords} slov). ${config.contentFocus}",
   "cta": "CTA podle CTA POLITIKY výše",
   "hashtags": ["8-10", "relevantních", "hashtagů"],
   "imagePrompt": "English prompt for AI image generation. NO TEXT in image! ${config.contentFocus}.",
-  "imageSubtext": "Podtext dole pod hookem (max 8 slov, česky)"
+  "imageSubtext": "Podtext dole pod hookem (max ${PROMPT_LIMITS.coverSubtextWords} slov, česky)"
 }
 `}
 `.trim()
+        // Volitelné sekce (produkt, nápad, téma, schválený hook) se skládají jako
+        // `${cond ? "…" : ""}` na vlastních řádcích, takže když jich pár chybí naráz,
+        // zůstane po nich až sedm prázdných řádků za sebou. Nic to nerozbíjí, jen se
+        // za to platí a prompt se hůř čte při ladění. Slepit je až tady je bezpečnější
+        // než přestavovat celý literál.
+        .replace(/\n{3,}/g, "\n\n")
 }
 
 // ============================================
@@ -1325,7 +1375,7 @@ ${input.keepHook
   "hashtags": ["#hashtag1", "#hashtag2", "..."],
   "hook": "první řádek captiony — hook text pro overlay na obrázku (max 15 slov, bez emoji)",
   "imagePrompt": "English prompt for AI image generation — describe the background photo. NO TEXT in image. Photorealistic, editorial quality.",
-  "imageSubtext": "krátký podtext pod hook na obrázku (max 8 slov, česky)"
+  "imageSubtext": "krátký podtext pod hook na obrázku (max ${PROMPT_LIMITS.coverSubtextWords} slov, česky)"
 }`}`
 
     // Copywriter = ~80% of text quality, so it runs the QUALITY LADDER: top Pro
