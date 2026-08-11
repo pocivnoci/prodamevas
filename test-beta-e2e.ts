@@ -1531,6 +1531,71 @@ test("23.12 nové migrace nezakládají tabulky", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 24. OBCHODNÍ AGENT — co se nesmí rozbít
+// ═══════════════════════════════════════════════════════════
+// Produkt vygeneroval 307 příspěvků a nevzal korunu. Tenhle agent má přivést
+// zákazníky — a přitom nesmí spálit doménu, přes kterou chodí doklady.
+
+test("24.1 oslovení NIKDY nejde přes transakční poštu", () => {
+    const pipeline = codeOnly("lib/agents/sales/pipeline.ts")
+    // Resend má studené oslovení v pravidlech zakázané a ruší účty bez varování.
+    // Přes tentýž účet chodí potvrzení o platbách — jedna stížnost by je zabila.
+    assert(!/from ["']@\/lib\/email["']/.test(pipeline),
+        "pipeline nesmí importovat lib/email.ts (Resend)")
+    assert(/sendOutreach/.test(pipeline), "oslovení má vlastní přepravu")
+    const transport = codeOnly("lib/agents/sales/transport.ts")
+    assert(!/lib\/email/.test(transport), "přeprava oslovení nesmí sáhnout na transakční kanál")
+    assert(!/RESEND/.test(transport), "žádný tichý fallback na Resend")
+})
+
+test("24.2 nenastavená přeprava neodesílá, místo aby mlčky přeskočila", () => {
+    const t = codeOnly("lib/agents/sales/transport.ts")
+    assert(/throw new Error\(outreachSetupHint\(\)\)/.test(t),
+        "bez konfigurace se musí ozvat, ne tiše nic neposlat")
+    assert(/isOutreachConfigured/.test(codeOnly("lib/agents/sales/pipeline.ts")),
+        "pipeline musí konfiguraci ověřit před odesláním")
+})
+
+test("24.3 odhlášení se kontroluje před KAŽDÝM odesláním", () => {
+    const code = codeOnly("lib/agents/sales/pipeline.ts")
+    const fn = code.slice(code.indexOf("export async function runOutreach"))
+    const optIdx = fn.indexOf("email_optouts")
+    const sendIdx = fn.indexOf("sendOutreach")
+    assert(optIdx > 0 && optIdx < sendIdx,
+        "kontrola opt-outu musí být PŘED odesláním, ne jen při zápisu")
+})
+
+test("24.4 zpráva bez schválení soudcem neodejde", () => {
+    const code = codeOnly("lib/agents/sales/pipeline.ts")
+    const fn = code.slice(code.indexOf("export async function runOutreach"))
+    assert(/judgeText/.test(fn), "před odesláním musí zprávu posoudit soudce")
+    const judgeIdx = fn.indexOf("judgeText")
+    assert(judgeIdx < fn.indexOf("sendOutreach"), "soudce musí běžet PŘED odesláním")
+    // Nedostupný soudce = neodesílá se. Raději nic než nezkontrolovaná zpráva.
+    assert(/soudce nedostupn/.test(fn), "výpadek soudce musí odeslání zastavit")
+    assert(/if \(!verdict\.pass\)/.test(fn), "zamítnutá zpráva nesmí odejít")
+})
+
+test("24.5 denní strop existuje a lead se nezahazuje", () => {
+    const code = codeOnly("lib/agents/sales/pipeline.ts")
+    assert(/DAILY_SEND_CAP/.test(code), "strop musí existovat")
+    assert(/sentToday\(\) >= DAILY_SEND_CAP/.test(code), "strop se počítá ze skutečně odeslaných")
+    // Vyčerpaný strop lead odloží, nezahodí — je to o doručitelnosti, ne o kvalitě leadu.
+    const capBlock = code.slice(code.indexOf("sentToday() >= DAILY_SEND_CAP"))
+    assert(/enqueueTask/.test(capBlock.slice(0, 400)), "přebytek se odkládá na zítra")
+})
+
+test("24.6 prospekt nikdy neskončí řádkem v clients", () => {
+    const prev = codeOnly("lib/agents/sales/preview.ts")
+    // clients je kořen multi-tenancy; stovky firem, které o nás nevědí, by rozbily
+    // počty, audity, účtování i izolaci tenantů.
+    assert(!/from\("clients"\)/.test(prev), "generátor ukázky nesmí zakládat klienta")
+    assert(!/insertClient/.test(prev), "ani přes onboarding helper")
+    assert(/visualMemoriesSection: ""/.test(prev),
+        "prázdná vizuální paměť brání sáhnutí na ig_brand_memory bez tenanta")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 

@@ -161,4 +161,24 @@ registerHandler("idea_replenish", async () => {
     return { ok: true, clients: results.length, added, results }
 })
 
+// ── Obchodní agent ─────────────────────────────────────────────────────────────
+// Tři kroky od leadu k odeslané zprávě. Kvalitu drží soudce, ne klikání
+// zakladatele — viz lib/agents/sales/pipeline.ts.
+
+registerHandler("lead_qualify", async (task) => {
+    const { runQualify } = await import("@/lib/agents/sales/pipeline")
+    return runQualify(String((task.payload as any).leadId))
+})
+
+// Drahý krok (~18 Kč/lead) — zařazuje se až pro kvalifikované.
+registerHandler("lead_preview", async (task) => {
+    const { runPreview } = await import("@/lib/agents/sales/pipeline")
+    return runPreview(String((task.payload as any).leadId))
+})
+
+registerHandler("lead_outreach", async (task) => {
+    const { runOutreach } = await import("@/lib/agents/sales/pipeline")
+    return runOutreach(String((task.payload as any).leadId))
+})
+
 export {} // side-effect module
