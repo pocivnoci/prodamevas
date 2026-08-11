@@ -37,8 +37,12 @@ export async function POST(req: NextRequest) {
         const { requireClientAccess } = await import("@/lib/auth-guard")
         try { await requireClientAccess(client.id) } catch { return NextResponse.json({ error: "Unauthorized" }, { status: 403 }) }
 
+        // Tabulka se jmenuje `subscription_plans`, ne `plans` — a filtr na
+        // is_active je tu ze stejného důvodu jako u ComGate: neaktivní tarif se
+        // nesmí dát koupit ani přímým odkazem.
         const { data: plan } = await supabaseAdmin
-            .from("plans").select("id, name, price_czk").eq("id", planId).single()
+            .from("subscription_plans").select("id, name, price_czk")
+            .eq("id", planId).eq("is_active", true).single()
         if (!plan) return NextResponse.json({ error: "Plán nenalezen" }, { status: 404 })
 
         let payerEmail: string | null = email || null

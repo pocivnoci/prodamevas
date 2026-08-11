@@ -1595,6 +1595,19 @@ test("24.6 prospekt nikdy neskončí řádkem v clients", () => {
         "prázdná vizuální paměť brání sáhnutí na ig_brand_memory bez tenanta")
 })
 
+test("24.8 obě platební brány čtou tarify z téže tabulky", () => {
+    // Moje Stripe routa se ptala tabulky `plans`, která neexistuje — vrátila by
+    // vždycky "Plán nenalezen" a cesta k penězům by tiše nefungovala. Druhá brána
+    // nesmí mít vlastní představu o tom, kde tarify žijí.
+    for (const route of ["app/api/payments/create/route.ts", "app/api/payments/stripe/create/route.ts"]) {
+        const code = codeOnly(route)
+        assert(/from\("subscription_plans"\)/.test(code), `${route}: tarify jsou v subscription_plans`)
+        assert(!/from\("plans"\)/.test(code), `${route}: tabulka "plans" neexistuje`)
+        // Neaktivní tarif se nesmí dát koupit ani přímým odkazem.
+        assert(/is_active/.test(code), `${route}: chybí filtr na aktivní tarif`)
+    }
+})
+
 test("24.7 obchod nemá vlastní denní e-mail", () => {
     // daily_brief je JEDINÁ denní zpráva zakladateli. Druhý denní mail je
     // nejspolehlivější způsob, jak se přestanou číst oba.
