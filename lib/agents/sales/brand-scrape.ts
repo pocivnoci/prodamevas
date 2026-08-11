@@ -52,11 +52,32 @@ function meta(html: string, ...names: string[]): string | null {
     return null
 }
 
+/**
+ * Firemní barvy cizích služeb. Sociální tlačítka a widgety je vysypou do stylů
+ * skoro každého webu — a pak se vydávají za identitu značky.
+ *
+ * Nalezeno naostro: web květinářství vrátil jako PRIMÁRNÍ barvu `#25d366`, což je
+ * zelená WhatsAppu z chatovacího tlačítka. Ukázka by pak byla laděná do barev
+ * Facebooku místo do barev firmy.
+ */
+const FOREIGN_BRAND_COLORS = new Set([
+    "#25d366", "#128c7e", "#075e54",             // WhatsApp
+    "#1877f2", "#4267b2", "#3b5998",             // Facebook
+    "#e4405f", "#c13584", "#833ab4", "#fd1d1d",  // Instagram
+    "#1da1f2", "#14171a",                        // Twitter/X
+    "#ff0000", "#282828",                        // YouTube
+    "#0a66c2", "#0077b5",                        // LinkedIn
+    "#4285f4", "#ea4335", "#34a853", "#fbbc05",  // Google
+    "#25f4ee", "#fe2c55",                        // TikTok
+    "#7360f2",                                    // Viber
+])
+
 /** Barvy z inline CSS. Neutrální odstíny se zahazují — nenesou identitu značky. */
 export function extractColors(html: string, limit = 5): string[] {
     const counts = new Map<string, number>()
     for (const m of html.matchAll(/#([0-9a-fA-F]{6})\b/g)) {
         const hex = `#${m[1].toLowerCase()}`
+        if (FOREIGN_BRAND_COLORS.has(hex)) continue
         const r = parseInt(hex.slice(1, 3), 16)
         const g = parseInt(hex.slice(3, 5), 16)
         const b = parseInt(hex.slice(5, 7), 16)

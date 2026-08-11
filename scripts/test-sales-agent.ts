@@ -169,6 +169,14 @@ check("bílá se zahodí — je to pozadí, ne značka", !cols.includes("#ffffff
 check("skoro černá se zahodí", !cols.includes("#111111"))
 check("šedá se zahodí — nenese identitu", !cols.includes("#808080"))
 
+// Nalezeno naostro: web květinářství vracel jako PRIMÁRNÍ barvu zelenou WhatsAppu
+// z chatovacího tlačítka. Ukázka by pak byla v barvách cizí služby.
+const social = extractColors(`<style>.wa{background:#25d366}.wa2{color:#25d366}
+.fb{color:#1877f2}.ig{color:#e4405f}.yt{color:#ff0000}.brand{color:#c97c8e}</style>`)
+check("zelená WhatsAppu se nevydává za barvu značky", !social.includes("#25d366"), social.join(" "))
+check("modrá Facebooku taky ne", !social.includes("#1877f2"))
+check("skutečná barva značky přežije", social.includes("#c97c8e"), social.join(" "))
+
 const txt = extractText(htmlSample)
 check("text nezahrnuje skripty", !txt.includes("var x"))
 check("text nezahrnuje styly", !txt.includes("background"))
