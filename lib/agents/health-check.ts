@@ -1,9 +1,14 @@
 /**
  * Daily ops health check — "nothing breaks silently".
  * ====================================================
- * Scans the last 24 h for operational problems and returns an alert-ready
- * report. The handler e-mails the founder ONLY when something is wrong — the
- * quiet day produces no mail (the weekly report stays the digest).
+ * Scans the last 24 h for operational problems and returns a report.
+ *
+ * This module is a DETECTION LIBRARY, not a channel: it no longer owns an
+ * e-mail. `lib/agents/daily-brief.ts` consumes buildHealthCheck() as its
+ * `system` section, so the founder gets one morning brief instead of a mail
+ * per agent. renderHealthAlert() is kept for the standalone script and for
+ * anyone who wants the old shape.
+ *
  * Defensive like weekly-report: each check is isolated, a broken source is
  * reported as a problem of its own rather than crashing the whole check.
  */
@@ -27,8 +32,12 @@ export interface HealthReport {
 
 type Check = () => Promise<HealthProblem | null>
 
-/** Wraps a check so its own failure surfaces as a problem instead of crashing the run. */
-async function safe(name: string, fn: Check): Promise<HealthProblem | null> {
+/**
+ * Wraps a check so its own failure surfaces as a problem instead of crashing the run.
+ * Exported because the daily brief composes several independent scanners the same
+ * way — one broken data source must never cost the founder the whole briefing.
+ */
+export async function safe(name: string, fn: Check): Promise<HealthProblem | null> {
     try {
         return await fn()
     } catch (err) {

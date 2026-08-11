@@ -5,21 +5,35 @@
  * the action in agent_actions (audit trail) and decides, by risk tier, whether
  * to run it now or hold it for human approval:
  *
- *   reversible | internal   → auto-approve, dispatch immediately
- *   outbound | spending | irreversible → 'proposed', wait for a human
+ *   reversible | internal | transactional → auto-approve, dispatch immediately
+ *   outbound | spending | irreversible    → 'proposed', wait for a human
  *
  * Approved/auto actions execute as an agent_tasks task (Fáze 2 runner), so the
  * safety layer never executes work itself — it gates and audits. Default-deny:
  * anything that touches customers or money cannot run unseen.
+ *
+ * `transactional` vs `outbound` — the line that decides what may leave the
+ * building unattended:
+ *
+ *   transactional = goes to the customer, but it's a FIXED template stating a
+ *     fact that already happened or is contractually certain (an upcoming
+ *     charge, a failed payment, an expiry, an invoice, a post that failed to
+ *     publish). Withholding it until the founder clicks would be worse than
+ *     sending it. Pair it with sendNotification({ kind: "transactional" }).
+ *   outbound = anything that persuades — a nudge, a winback, a drip. It waits.
+ *
+ * The tier exists so that automatic mail still leaves an agent_actions row:
+ * without it there is no dedupe key and no source for the daily brief's
+ * "what I did on my own" section. Never move `outbound` into AUTO_TIERS.
  */
 
 import supabaseAdmin from "@/supabase/admin"
 import { enqueueTask } from "@/lib/agent-runner"
 
-export type RiskTier = "reversible" | "internal" | "outbound" | "spending" | "irreversible"
+export type RiskTier = "reversible" | "internal" | "transactional" | "outbound" | "spending" | "irreversible"
 
 /** Tiers that may run without human sign-off. Everything else needs approval. */
-const AUTO_TIERS: ReadonlySet<RiskTier> = new Set<RiskTier>(["reversible", "internal"])
+const AUTO_TIERS: ReadonlySet<RiskTier> = new Set<RiskTier>(["reversible", "internal", "transactional"])
 
 export function needsApproval(tier: RiskTier): boolean {
     return !AUTO_TIERS.has(tier)
@@ -40,6 +54,12 @@ export interface ActionRequest {
      * Batch proposers (lifecycle scan) set false and send one digest instead.
      */
     notify?: boolean
+    /**
+     * Queue priority for the dispatched task (drainTasks orders priority DESC).
+     * Negative = run last in the wave — the daily brief uses -10 so it observes
+     * the results of the scans dispatched alongside it in the same cron tick.
+     */
+    priority?: number
 }
 
 export type ActionOutcome =
@@ -74,6 +94,7 @@ async function dispatch(actionId: string, req: ActionRequest): Promise<string | 
         type: req.taskType,
         payload: { ...(req.payload || {}), agentActionId: actionId },
         clientId: req.clientId ?? null,
+        priority: req.priority,
     })
     await supabaseAdmin.from("agent_actions").update({ status: "executed" }).eq("id", actionId)
     return taskId

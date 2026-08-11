@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
 import { createPayment, generateRefId, isMockPaymentMode, isRecurringEnabled } from "@/lib/comgate"
 import { activeGateway, createStripeCheckout } from "@/lib/payments/checkout"
+import { enqueueTask } from "@/lib/agent-runner"
 
 export async function POST(req: NextRequest) {
     const { requireAuth } = await import("@/lib/auth-guard")
@@ -137,12 +138,14 @@ export async function POST(req: NextRequest) {
             .single()
 
         // 5. Record payment
-        await supabaseAdmin
+        const { data: payment } = await supabaseAdmin
             .from("payments")
             .insert({
                 client_id: client.id,
                 subscription_id: subscription?.id,
+                provider: "comgate",
                 comgate_trans_id: transId,
+                provider_ref: transId,
                 ref_id: refId,
                 amount: plan.price_czk,
                 currency: "CZK",
@@ -150,6 +153,20 @@ export async function POST(req: NextRequest) {
                 label,
                 payer_email: payerEmail,
             })
+            .select("id")
+            .maybeSingle()
+
+        // 6. Pojistka proti ztracenému callbacku: za 20 minut se brány doptáme
+        // sami. Bez ní zůstane zaplacená platba navždy v PENDING — zákazník
+        // zaplatil a plán se neaktivoval, a nikdo se to nedozví.
+        if (!isMock && payment?.id) {
+            await enqueueTask({
+                type: "payment_reconcile",
+                payload: { paymentId: payment.id },
+                clientId: client.id,
+                scheduledFor: new Date(Date.now() + 20 * 60_000),
+            })
+        }
 
         return NextResponse.json({
             success: true,

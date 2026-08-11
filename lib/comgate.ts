@@ -257,21 +257,9 @@ function parseComgateResponse(text: string): Record<string, any> {
 }
 
 /**
- * Generate a unique refId for a subscription payment.
+ * Konvence refId je gateway-neutrální (`sub-` vs `renew-`) a bydlí v
+ * `lib/payments/ref-id.ts` — sdílené jádro se musí umět zeptat „je tohle
+ * obnova?", aniž by importovalo klienta jedné konkrétní brány. Re-export tu
+ * zůstává, aby stávající volající nemuseli měnit import.
  */
-export function generateRefId(clientSlug: string): string {
-    return `sub-${clientSlug}-${Date.now()}`
-}
-
-/**
- * refId for an automatic renewal charge. The `renew-` prefix tells the payment
- * callback this is a renewal: a CANCELLED/declined renewal must NOT cancel the
- * live subscription (the billing worker retries with dunning instead).
- */
-export function generateRenewalRefId(clientSlug: string): string {
-    return `renew-${clientSlug}-${Date.now()}`
-}
-
-export function isRenewalRefId(refId?: string | null): boolean {
-    return !!refId?.startsWith("renew-")
-}
+export { generateRefId, generateRenewalRefId, isRenewalRefId } from "@/lib/payments/ref-id"

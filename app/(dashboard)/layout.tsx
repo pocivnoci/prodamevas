@@ -3,6 +3,7 @@ import { AdminSidebar } from "./AdminSidebar"
 import { StudioProvider } from "./StudioContext"
 import { ErrorBoundary } from "./ErrorBoundary"
 import { PaywallProvider } from "./PaywallProvider"
+import { BillingBanner } from "./BillingBanner"
 import { checkOnboardingStatus } from "@/app/onboarding/actions"
 
 export const maxDuration = 800 // Vercel Pro cap (Fluid Compute)
@@ -33,6 +34,7 @@ export default async function DashboardLayout({
 
                 <main className="lg:pl-72 min-h-screen relative z-10 transition-all duration-300">
                     <div className="p-4 sm:p-6 lg:p-10 mb-20 max-w-7xl mx-auto">
+                        <BillingBanner />
                         <ErrorBoundary>
                             {children}
                         </ErrorBoundary>

@@ -8,12 +8,12 @@
  * druhá brána nesmí být druhé místo, kde se zapomene na doklad:
  *
  *  1. ověřit podpis (bez něj by kdokoli poslal „zaplaceno")
- *  2. **podmíněný claim** `UPDATE … WHERE provider='stripe' AND provider_ref=? AND
- *     status != 'PAID'` — Stripe opakuje webhook, dokud nedostane 2xx, takže tohle
- *     je jediná pojistka proti dvojí aktivaci a dvěma dokladům. Claim bez řádku
- *     znamená konec, **nikdy insert fallback.**
- *  3. `finalizePaidPayment` synchronně (aktivaci nelze odkládat), pak
- *     `deliverPaidArtifacts` v `after()` (brána musí dostat ACK hned)
+ *  2. předat výsledek do `applyGatewayStatus`, které **zabere** řádek podmíněným
+ *     UPDATE (`WHERE provider='stripe' AND provider_ref=? AND status != 'PAID'`),
+ *     aktivuje plán synchronně a doklad s potvrzením odloží mimo kritickou cestu
+ *
+ * Routa sama nesahá na `payments` ani na `subscriptions` — kdyby si brána
+ * aktivaci napsala po svém, je to druhé místo, kde se zapomene na doklad.
  *
  * Lokátor je `payments.provider_ref` = id Checkout Session, unikátní v rámci
  * `provider` (migrace `20260810_payment_provider_ref.sql`).
@@ -30,8 +30,6 @@
  */
 
 import { NextRequest } from "next/server"
-import { after } from "next/server"
-import supabaseAdmin from "@/supabase/admin"
 import { verifyStripeWebhook, isStripeConfigured, isStripeSandbox } from "@/lib/payments/stripe"
 
 /** Události, které bude cesta k penězům skutečně zpracovávat, až se dopojí. */
@@ -85,50 +83,36 @@ export async function POST(req: NextRequest) {
         return Response.json({ received: true, handled: false })
     }
 
-    // ── Podmíněný claim ────────────────────────────────────────────────────────
-    // Přesně vzor ComGate callbacku: UPDATE … WHERE lokátor AND status != 'PAID'.
-    // Stripe posílá webhook opakovaně, dokud nedostane 2xx, takže tohle je JEDINÁ
-    // pojistka proti dvojí aktivaci a dvěma dokladům. Když claim nevrátí řádek,
-    // je to konec — nikdy insert fallback.
-    const { data: payment } = await supabaseAdmin
-        .from("payments")
-        .update({ status: "PAID", paid_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-        .eq("provider", "stripe")
-        .eq("provider_ref", sessionId)
-        .neq("status", "PAID")
-        .select("id, subscription_id, client_id, ref_id, payer_email, amount, currency, label")
-        .single()
+    // ── Zabrání + aktivace ─────────────────────────────────────────────────────
+    // Podmíněný claim `WHERE provider='stripe' AND provider_ref=? AND status!='PAID'`
+    // žije ve sdíleném jádře, protože stejný UPDATE potřebuje i ComGate callback
+    // a reconciler. Stripe posílá webhook opakovaně, dokud nedostane 2xx, takže
+    // je to JEDINÁ pojistka proti dvojí aktivaci a dvěma dokladům; claim bez
+    // řádku je konec, nikdy insert fallback.
+    const { applyGatewayStatus } = await import("@/lib/payments/on-paid")
+    const result = await applyGatewayStatus({
+        locator: { provider: "stripe", sessionId },
+        status: "PAID",
+        raw: { source: "stripe", eventId: event.id, type: event.type, paymentStatus: session.payment_status },
+        // Sandboxová platba nikdy nesmí sáhnout na ostrou číselnou řadu.
+        sandbox: isStripeSandbox(),
+        // Obnovy tudy nevedou (jednorázová platba), takže se token neukládá.
+        recurringToken: null,
+        source: "webhook",
+    })
 
-    if (!payment) {
-        const { data: existing } = await supabaseAdmin
-            .from("payments").select("id, status").eq("provider", "stripe").eq("provider_ref", sessionId).maybeSingle()
-        if (existing?.status === "PAID") console.log(`💳 [stripe/${mode}] replay pro už zaplacenou ${sessionId} — no-op`)
-        else console.warn(`⚠️ [stripe/${mode}] platba pro session ${sessionId} nenalezena`)
+    if (!result.claimed) {
+        console.log(`💳 [stripe/${mode}] session ${sessionId} nic nezabrala — replay nebo neznámá platba`)
         return Response.json({ received: true, handled: false })
     }
 
-    const { finalizePaidPayment, deliverPaidArtifacts } = await import("@/lib/payments/on-paid")
-
-    // Aktivace běží SYNCHRONNĚ — zaplacený a neaktivovaný zákazník je nejhorší stav.
-    const result = await finalizePaidPayment(payment, {
-        provider: "stripe",
-        isRenewal: false,
-        // Obnovy tudy nevedou (jednorázová platba), takže se token neukládá.
-        recurringToken: null,
-        // Sandboxová platba nikdy nesmí sáhnout na ostrou číselnou řadu.
-        sandbox: isStripeSandbox(),
-    })
-
     if (!result.activated) {
-        // Řádek zůstává PAID pro ruční opravu. 200, aby Stripe neopakoval něco,
-        // co se opakováním nespraví.
-        console.error(`🚨 [stripe/${mode}] platba ${payment.id} zaplacena, ale plán se NEAKTIVOVAL`)
+        // Řádek zůstává PAID pro ruční opravu a jádro už založilo návrh s jedním
+        // tlačítkem. 200, aby Stripe neopakoval něco, co se opakováním nespraví.
+        console.error(`🚨 [stripe/${mode}] platba ${result.paymentId} zaplacena, ale plán se NEAKTIVOVAL`)
         return Response.json({ received: true, handled: false, activated: false })
     }
 
-    // Doklad a potvrzovací e-mail až po ACK — brána ho musí dostat hned.
-    after(() => deliverPaidArtifacts(payment, result))
-
-    console.log(`💳 [stripe/${mode}] ✅ ${payment.label} aktivováno (${result.planId})`)
+    console.log(`💳 [stripe/${mode}] ✅ platba ${result.paymentId} aktivována`)
     return Response.json({ received: true, handled: true })
 }

@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { getClientSubscription, type SubscriptionInfo } from "@/lib/subscription"
+import { getClientSubscription, deriveBillingState, type SubscriptionInfo } from "@/lib/subscription"
 import { ALL_MEDIA } from "@/lib/credits"
 
 export async function GET(req: NextRequest) {
@@ -64,6 +64,12 @@ export async function GET(req: NextRequest) {
             planPostsTotal: sub.features.plan_posts_total || 0,
             planGeneratedAt: sub.planGeneratedAt,
             isTrial: sub.isTrial,
+            // Stav fakturace se odvozuje TADY, ne v Reactu: pravidla o penězích
+            // musí mít jedno místo, jinak banner a sekce Předplatné začnou tvrdit
+            // každý něco jiného.
+            billingState: deriveBillingState(sub),
+            billingFailures: sub.billingFailures,
+            cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
         })
     } catch (err: any) {
         console.error("Subscription fetch error:", err?.message)

@@ -6,6 +6,7 @@
  * add their registerHandler() call here.
  */
 
+import supabaseAdmin from "@/supabase/admin"
 import { registerHandler, type AgentTask } from "@/lib/agent-runner"
 import { getFounderEmail } from "@/lib/email"
 
@@ -25,70 +26,55 @@ registerHandler("weekly_report", async () => {
     return { ok: true, to, emailId: sent.id, subject: report.subject }
 })
 
-// Daily ops health check: e-mails the founder ONLY when something is wrong.
-registerHandler("health_check", async () => {
-    const { buildHealthCheck, renderHealthAlert } = await import("@/lib/agents/health-check")
-    const report = await buildHealthCheck()
-    if (report.healthy) return { ok: true, healthy: true }
+// Ranní brief — JEDINÝ kanál z firmy k zakladateli. Pohlcuje bývalé samostatné
+// e-maily health_check a compliance_check i lifecycle digest: ty moduly zůstávají
+// detekčními knihovnami, ale poštu už nevlastní. Když je klid, nepošle se nic.
+registerHandler("daily_brief", async () => {
+    // Jeden brief denně je celá pointa — ruční curl na daily-ops ho nesmí poslat
+    // podruhé. Vlastní task je v tuhle chvíli 'running', takže se nezapočítá.
+    const midnight = new Date()
+    midnight.setUTCHours(0, 0, 0, 0)
+    const { count: alreadySent } = await supabaseAdmin
+        .from("agent_tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("type", "daily_brief")
+        .eq("status", "done")
+        .gte("created_at", midnight.toISOString())
+    if ((alreadySent || 0) > 0) return { ok: true, skipped: "brief už dnes odešel" }
+
+    const { buildDailyBrief, renderDailyBrief } = await import("@/lib/agents/daily-brief")
+    const brief = await buildDailyBrief()
+    if (brief.quiet) return { ok: true, quiet: true }
 
     const to = getFounderEmail()
-    if (!to) throw new Error("health_check: REPORT_EMAIL/SUPER_ADMIN_EMAILS není nastaveno")
+    if (!to) throw new Error("daily_brief: REPORT_EMAIL/SUPER_ADMIN_EMAILS není nastaveno")
     const { sendEmail } = await import("@/lib/email")
-    const alert = renderHealthAlert(report)
-    const sent = await sendEmail({ to, subject: alert.subject, html: alert.html, text: alert.text })
-    return { ok: true, healthy: false, problems: report.problems.map(p => p.title), emailId: sent.id }
-})
-
-// Daňový a účetní kalendář: e-mail JEN když se blíží termín nebo je něco rozbité.
-// Tichý den nepošle nic — agent, který píše každý den, se přestane číst.
-registerHandler("compliance_check", async () => {
-    const { buildComplianceReport, renderComplianceEmail } = await import("@/lib/agents/compliance-calendar")
-    const report = await buildComplianceReport()
-    if (!report.needsAttention) {
-        return { ok: true, quiet: true, turnover12m: report.turnover12m }
-    }
-
-    const to = getFounderEmail()
-    if (!to) throw new Error("compliance_check: REPORT_EMAIL/SUPER_ADMIN_EMAILS není nastaveno")
-    const { sendEmail } = await import("@/lib/email")
-    const mail = renderComplianceEmail(report)
+    const mail = renderDailyBrief(brief)
     const sent = await sendEmail({ to, subject: mail.subject, html: mail.html, text: mail.text })
     return {
         ok: true,
         quiet: false,
-        items: report.items.map(i => `${i.urgency}: ${i.action}`),
-        turnover12m: report.turnover12m,
+        needsYou: brief.needsYou.length,
+        money: brief.money.length,
+        risk: brief.risk.length,
+        system: brief.system.length,
         emailId: sent.id,
     }
 })
 
-// Daily lifecycle scan: proposes outbound e-mails (approval-gated) and sends the
-// founder ONE digest with one-click approve/reject links per proposal.
+// Daily lifecycle scan: proposes outbound e-mails (approval-gated). Sends NOTHING
+// itself — the proposals surface in the morning brief's "co potřebuje tebe"
+// section, which renders every `proposed` action regardless of which agent made it.
 registerHandler("lifecycle_scan", async () => {
     // No founder inbox → don't propose. scanLifecycle persists outbound-tier
-    // proposals with notify:false, so without the digest below they'd accumulate
-    // unseen and the once-ever dedupe would then block those customers forever.
+    // proposals with notify:false, so without a founder to approve them they'd
+    // accumulate unseen and the once-ever dedupe would block those customers forever.
     const to = getFounderEmail()
     if (!to) return { ok: true, proposed: 0, skipped: "no founder e-mail configured" }
 
     const { scanLifecycle } = await import("@/lib/agents/lifecycle")
     const proposals = await scanLifecycle()
-    if (proposals.length === 0) return { ok: true, proposed: 0 }
-
-    const { renderApprovalItem, wrapOpsEmail } = await import("@/lib/agents/approval-notify")
-    const { sendEmail } = await import("@/lib/email")
-    const items = proposals.map(p => renderApprovalItem(
-        { actionId: p.actionId, clientId: p.clientId, agentType: "lifecycle", action: `${p.kind} → ${p.email}`, riskTier: "outbound" },
-        p.label,
-    )).join("")
-    const html = wrapOpsEmail("Lifecycle e-maily ke schválení", `${proposals.length} návrhů · ${new Date().toLocaleDateString("cs-CZ")}`, items)
-    await sendEmail({
-        to,
-        subject: `📬 ${proposals.length} lifecycle e-mailů ke schválení`,
-        html,
-        text: proposals.map(p => `${p.kind} → ${p.email}`).join("\n") + "\n\nSchval v dashboardu → Schválení.",
-    })
-    return { ok: true, proposed: proposals.length }
+    return { ok: true, proposed: proposals.length, kinds: proposals.map(p => p.kind) }
 })
 
 // Send one approved lifecycle e-mail. Runs only after founder approval (outbound
@@ -97,6 +83,62 @@ registerHandler("lifecycle_scan", async () => {
 registerHandler("send_lifecycle_email", async (task: AgentTask) => {
     const { sendLifecycleEmail } = await import("@/lib/agents/lifecycle")
     return sendLifecycleEmail({ ...task.payload, clientId: task.client_id })
+})
+
+// Faktické oznámení zákazníkovi (blíží se stržení, platba selhala, příspěvek
+// nevyšel). Tier `transactional` → dispatchuje se rovnou, bez čekání na člověka.
+// Dedupe řeší proposeCustomerNotice ještě před založením akce.
+registerHandler("send_customer_notice", async (task: AgentTask) => {
+    const { sendCustomerNotice } = await import("@/lib/agents/customer-notices")
+    return sendCustomerNotice({ ...task.payload, clientId: task.client_id })
+})
+
+// Tichý support: selhání NA POZADÍ, o kterých se zákazník jinak nedozví
+// (naplánovaný příspěvek nevyšel, generování v kampani se nepovedlo). Interaktivní
+// chyby se sem záměrně nepočítají — ty ukázalo UI v reálném čase.
+registerHandler("incident_watch", async () => {
+    const { notifyIncidents } = await import("@/lib/agents/incident-watch")
+    return notifyIncidents()
+})
+
+// Doptání brány na visící platbu. S `paymentId` cíleně (naplánováno ~20 min po
+// založení platby), bez něj denní sweep přes všechny PENDING řádky.
+registerHandler("payment_reconcile", async (task: AgentTask) => {
+    const { reconcilePayment, reconcilePendingPayments } = await import("@/lib/agents/payment-reconcile")
+    const paymentId = task.payload?.paymentId
+    return typeof paymentId === "string"
+        ? reconcilePayment(paymentId)
+        : reconcilePendingPayments()
+})
+
+// Ruční oprava „zaplaceno, plán NEAKTIVOVÁN". Běží až po schválení člověkem
+// (irreversible) — schválení JE ta oprava. Aktivace je idempotentní přes
+// activatePaidPlan, takže omylem dvakrát schválené nic nerozbije.
+registerHandler("repair_activation", async (task: AgentTask) => {
+    const paymentId = String(task.payload?.paymentId || "")
+    if (!paymentId) throw new Error("repair_activation: chybí paymentId")
+
+    const { data: payment } = await supabaseAdmin
+        .from("payments")
+        .select("id, subscription_id, client_id, ref_id, payer_email, amount, currency, label, status")
+        .eq("id", paymentId)
+        .maybeSingle()
+    if (!payment) throw new Error(`repair_activation: platba ${paymentId} nenalezena`)
+    if (payment.status !== "PAID") return { ok: false, skipped: `platba není PAID (${payment.status})` }
+
+    const { finalizePaidPayment, deliverPaidArtifacts } = await import("@/lib/payments/on-paid")
+    const { isRenewalRefId } = await import("@/lib/payments/ref-id")
+    const result = await finalizePaidPayment(payment, {
+        provider: "comgate",
+        isRenewal: isRenewalRefId(payment.ref_id),
+        recurringToken: null,
+        // Oprava ostré platby — doklad se vystavit MÁ, právě ten při selhání chybí.
+        sandbox: false,
+    })
+    if (!result.activated) throw new Error(`repair_activation: aktivace znovu selhala (${paymentId})`)
+
+    await deliverPaidArtifacts(payment, result)
+    return { ok: true, paymentId, planId: result.planId }
 })
 
 // Daily auto-publish arming: for opted-in (config.autoPublish) + connected clients,
