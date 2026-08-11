@@ -29,6 +29,8 @@ export interface BrandBasics {
     colors: string[]
     /** Prvních pár tisíc znaků čitelného textu — vstup pro analýzu. */
     text: string
+    /** Kontaktní adresy, nejvhodnější první. Bez nich není komu napsat. */
+    emails: string[]
 }
 
 function absolutize(href: string, base: string): string | null {
@@ -67,6 +69,63 @@ export function extractColors(html: string, limit = 5): string[] {
     return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([c]) => c)
 }
 
+/**
+ * E-maily ze stránky. Tohle je ta část, která v první verzi úplně chyběla —
+ * postavil jsem trychtýř, který našel firmy, na které se nedá napsat.
+ *
+ * Instagram kontakty spolehlivě nevydává: ověřeno na skutečných profilech, kde
+ * `public_email`, `contact_phone_number` i `external_url` byly prázdné i u účtů
+ * označených jako firemní. Web adresu naopak uvádí skoro vždycky, protože ji tam
+ * firma dává schválně.
+ *
+ * Vrací se v pořadí podle vhodnosti: `info@` a spol. dřív než cokoli osobního.
+ */
+const OBFUSCATED = /\s*(?:\[at\]|\(at\)|\{at\}|\s+at\s+)\s*/gi
+
+export function extractEmails(html: string, domain?: string): string[] {
+    // Zamaskované zápisy („info (at) firma.cz") se nejdřív narovnají.
+    const text = html.replace(OBFUSCATED, "@")
+    const found = new Set<string>()
+
+    // Escapované znaky v JSON/JS blocích ("info@x.cz\") by jinak zůstaly v adrese.
+    const clean = (e: string) => e.trim().toLowerCase().replace(/[\\"'<>,;:.)\]}]+$/, "")
+
+    for (const m of text.matchAll(/mailto:([^"'?>\s]+)/gi)) {
+        const e = clean(decodeURIComponent(m[1]))
+        if (e.includes("@")) found.add(e)
+    }
+    for (const m of text.matchAll(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi)) {
+        found.add(clean(m[0]))
+    }
+
+    const ROLE = ["info", "kontakt", "obchod", "office", "podpora", "hello", "ahoj",
+        "objednavky", "prodej", "rezervace", "recepce", "studio", "shop", "eshop"]
+    // Adresy šablon, knihoven a sledovačů — nejsou to kontakty na firmu.
+    // České zástupné texty z formulářů („tvuj@email.cz") sem patří taky: vypadají
+    // jako platná adresa, ale poslat na ně znamená bounce, a ten kazí reputaci.
+    // Pozor na doménu: `email.cz` je SKUTEČNÝ český poskytovatel, ne zástupný text.
+    // Zástupnost pozná místní část („tvuj@", „vase@"), ne doména.
+    const NOISE = new RegExp([
+        "sentry", "wixpress", "godaddy", "@2x", "\\.png", "\\.jpg", "\\.webp", "\\.svg",
+        "wordpress", "placeholder",
+        "^(tvuj|tvoje|vas|vase|jmeno|prijmeni|neco|nekdo|adresa|nazev)@",
+        "@(example|priklad|yourdomain|domain|vasedomena)\\.",
+    ].join("|"), "i")
+
+    return [...found]
+        .filter(e => !NOISE.test(e) && e.split("@")[1]?.includes("."))
+        .sort((a, b) => {
+            // 1) adresa na vlastní doméně firmy, 2) role adresa, 3) zbytek
+            const own = (e: string) => (domain && e.endsWith(`@${domain}`) ? 0 : 1)
+            const role = (e: string) => (ROLE.includes(e.split("@")[0].split(/[.\-_+]/)[0]) ? 0 : 1)
+            return own(a) - own(b) || role(a) - role(b) || a.localeCompare(b)
+        })
+        .slice(0, 5)
+}
+
+/** Podstránky, kde firmy kontakt obvykle mají. Zkouší se, až když ho úvodní nemá. */
+export const CONTACT_PATHS = ["/kontakt", "/kontakty", "/contact", "/o-nas", "/napiste-nam"]
+
 /** Čitelný text bez skriptů, stylů a značek. */
 export function extractText(html: string, maxChars = 4000): string {
     return html
@@ -84,9 +143,7 @@ export function extractText(html: string, maxChars = 4000): string {
  * Vrací `null`, když web nejde načíst — lead se pak nekvalifikuje, protože bez
  * webu není z čeho udělat ukázku.
  */
-export async function scrapeBrandBasics(rawUrl: string): Promise<BrandBasics | null> {
-    const url = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`
-    let html: string
+async function fetchHtml(url: string): Promise<string | null> {
     try {
         const res = await fetch(url, {
             headers: {
@@ -102,10 +159,29 @@ export async function scrapeBrandBasics(rawUrl: string): Promise<BrandBasics | n
             return null
         }
         const buf = await res.arrayBuffer()
-        html = new TextDecoder("utf-8").decode(buf.slice(0, MAX_BYTES))
+        return new TextDecoder("utf-8").decode(buf.slice(0, MAX_BYTES))
     } catch (err: any) {
         console.warn(`⚠️ brand-scrape selhal pro ${url}: ${err?.message}`)
         return null
+    }
+}
+
+export async function scrapeBrandBasics(rawUrl: string): Promise<BrandBasics | null> {
+    const url = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`
+    const html = await fetchHtml(url)
+    if (!html) return null
+    const domain = (() => { try { return new URL(url).hostname.replace(/^www\./, "") } catch { return undefined } })()
+
+    // Kontakt nejdřív z úvodní stránky; když tam není, zkusí se /kontakt a spol.
+    // Až TŘI stažení na firmu — víc ne, tohle je kvalifikace, ne crawler.
+    let emails = extractEmails(html, domain)
+    if (emails.length === 0) {
+        for (const path of CONTACT_PATHS.slice(0, 2)) {
+            const sub = await fetchHtml(new URL(path, url).toString())
+            if (!sub) continue
+            emails = extractEmails(sub, domain)
+            if (emails.length) break
+        }
     }
 
     const titleTag = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim() ?? null
@@ -122,5 +198,6 @@ export async function scrapeBrandBasics(rawUrl: string): Promise<BrandBasics | n
         logo: iconHref ? absolutize(iconHref, url) : null,
         colors: extractColors(html),
         text: extractText(html),
+        emails,
     }
 }

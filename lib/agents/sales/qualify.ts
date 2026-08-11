@@ -5,42 +5,62 @@
  * by odpověděl pokaždé trochu jinak a důvod by se nedal doložit, takže skóre počítá
  * kód a každý bod si nese slovní zdůvodnění (`score_reasons`).
  *
- * Kritéria nejsou libovolná — jsou to tytéž věci, které dělají z firmy dobrého
- * zákazníka, a **zároveň obsah první věty mailu**. Spící profil není jen filtr; je
- * to důvod, proč jim vůbec píšeme.
+ * ⚠️ Přepsáno po ostrém ověření na skutečných profilech (2026-08-11). Dvě věci
+ *    v první verzi byly špatně a stály za to:
+ *
+ *  1. **Web nebyl podmínka, ale zdroj kontaktu.** Vyřazoval jsem firmy bez webu
+ *     v biu — mimo jiné reálné květinářství, tedy přesně cílového zákazníka.
+ *     Instagram profil (bio, kategorie, příspěvky) je pro generování
+ *     instagramového obsahu lepší zdroj značky než web. Web je potřeba kvůli
+ *     e-mailu, ne kvůli značce.
+ *  2. **„Aktivní profil = zahodit" byl nepodložený dohad.** Kdo postuje třikrát
+ *     týdně, tomu to bere hodiny a dokázal, že mu na Instagramu záleží — to je
+ *     motivovaný kupec nástroje na automatizaci. Kdo neposlal nic půl roku,
+ *     dokázal spíš opak. Nevím, co konvertuje líp, a **hádat to v kódu je horší
+ *     než to změřit**: kadence proto skóruje na obou koncích a lead si nese
+ *     `segment`, aby se konverze dala porovnat podle skutečných dat.
+ *
+ * Jediné tvrdé vyřazení je teď „nemám jak se s nimi spojit" — což je fakt, ne dohad.
  */
 
-/** Nejnižší skóre, se kterým se ještě oslovuje. Pod ním se lead zahodí. */
-export const QUALIFY_THRESHOLD = 50
+/** Nejnižší skóre, se kterým se ještě oslovuje. */
+export const QUALIFY_THRESHOLD = 45
+
+/** Kam lead spadá podle toho, jak často postuje. Nese se dál, aby šlo měřit,
+ *  který segment skutečně konvertuje — místo aby to rozhodl můj odhad. */
+export type Segment = "spici" | "nepravidelny" | "aktivni" | "neznamy"
 
 export interface LeadSignals {
     company?: string | null
     igHandle?: string | null
+    /** Web z bia nebo dohledaný — slouží hlavně jako ZDROJ e-mailu. */
     website?: string | null
+    /** Kontaktní adresa: z IG `public_email`, nebo vytažená z webu. */
     email?: string | null
-    /** Kdy naposledy něco publikovali. null = nezjištěno. */
     lastPostAt?: Date | null
     followers?: number | null
-    /** Bio profilu — hledá se v něm web a náznak, že jde o podnik. */
     bio?: string | null
+    isBusiness?: boolean | null
+    isPrivate?: boolean | null
 }
 
 export interface Qualification {
     score: number
     reasons: string[]
     qualified: boolean
+    segment: Segment
     /** Vyplněné jen když qualified === false. */
     rejectReason?: string
 }
 
 /**
  * Osobní adresy se zahazují UŽ TADY, ne až před odesláním.
- * Oslovovat `jan.novak@` je jiná věc než napsat na `info@` — a rozhodnutí o tom
- * patří do kvalifikace, aby se taková adresa vůbec nedostala do fronty.
+ * Napsat na `info@` je jiná věc než napsat konkrétnímu člověku na jeho adresu.
  */
 const ROLE_PREFIXES = [
     "info", "kontakt", "obchod", "office", "podpora", "support", "hello", "ahoj",
     "objednavky", "objednavka", "prodej", "sales", "rezervace", "recepce", "studio",
+    "shop", "eshop", "mail", "firma", "provozovna",
 ]
 
 export function isRoleAddress(email: string): boolean {
@@ -57,57 +77,57 @@ export function daysSince(date: Date | null | undefined, now: Date = new Date())
     return Math.floor((now.getTime() - date.getTime()) / 86_400_000)
 }
 
+export function segmentOf(s: LeadSignals, now: Date = new Date()): Segment {
+    const idle = daysSince(s.lastPostAt, now)
+    if (idle === null) return "neznamy"
+    if (idle >= 30) return "spici"
+    if (idle >= 10) return "nepravidelny"
+    return "aktivni"
+}
+
 /**
  * Skóre 0–100. Prahy jsou schválně hrubé — jemnější rozlišení by předstíralo
  * přesnost, kterou tahle data nemají.
  */
 export function qualifyLead(s: LeadSignals, now: Date = new Date()): Qualification {
+    const segment = segmentOf(s, now)
     const reasons: string[] = []
 
-    // ── Vyřazovací podmínky ────────────────────────────────────────────────────
-    // Bez webu se značka nenaučí, nevznikne ukázka a není co poslat.
-    if (!s.website) {
-        return { score: 0, reasons: ["bez webu v biu"], qualified: false, rejectReason: "no_website" }
+    // ── Tvrdá vyřazení: fakta, ne dohady ───────────────────────────────────────
+    if (s.isPrivate) {
+        return { score: 0, reasons: ["soukromý profil — nejde posoudit"], qualified: false, segment, rejectReason: "private" }
     }
+    // Bez adresy není kam napsat. Volající se ji nejdřív pokusí vytáhnout z webu
+    // (viz `extractEmails` v brand-scrape.ts) — sem se dostane až výsledek.
     if (!s.email) {
-        return { score: 0, reasons: ["nenalezena firemní adresa"], qualified: false, rejectReason: "no_email" }
+        return { score: 0, reasons: ["nenalezena kontaktní adresa"], qualified: false, segment, rejectReason: "no_contact" }
     }
     if (!isRoleAddress(s.email)) {
-        return {
-            score: 0,
-            reasons: ["adresa vypadá osobně, ne firemně"],
-            qualified: false,
-            rejectReason: "personal_email",
-        }
+        return { score: 0, reasons: ["adresa vypadá osobně, ne firemně"], qualified: false, segment, rejectReason: "personal_email" }
     }
 
     let score = 0
 
-    // ── Spící profil: hlavní důvod, proč jim píšeme ────────────────────────────
+    // ── Kadence: skóruje na OBOU koncích ───────────────────────────────────────
+    // Spící má viditelnou bolest a hook píše sám sebe. Aktivní prokázal, že do
+    // Instagramu investuje čas — a přesně ten čas mu produkt vrací. Který z nich
+    // konvertuje líp, ukáže `segment` v datech, ne můj odhad.
     const idle = daysSince(s.lastPostAt, now)
     if (idle === null) {
-        reasons.push("poslední příspěvek se nepodařilo zjistit")
+        reasons.push("kadenci se nepodařilo zjistit")
         score += 10
     } else if (idle >= 180) {
         reasons.push(`neposlali nic ${idle} dní — profil vypadá opuštěně`)
-        score += 45
-    } else if (idle >= 60) {
-        reasons.push(`neposlali nic ${idle} dní`)
-        score += 40
+        score += 35
     } else if (idle >= 30) {
-        reasons.push(`poslední příspěvek před ${idle} dny`)
+        reasons.push(`neposlali nic ${idle} dní`)
+        score += 35
+    } else if (idle >= 10) {
+        reasons.push(`postují nepravidelně (naposled před ${idle} dny)`)
         score += 30
-    } else if (idle >= 14) {
-        reasons.push("postují nepravidelně")
-        score += 12
     } else {
-        // Aktivní profil problém nemá — nabídka by byla mimo.
-        return {
-            score: 5,
-            reasons: [`postují pravidelně (naposled před ${idle} dny)`],
-            qualified: false,
-            rejectReason: "active_profile",
-        }
+        reasons.push(`postují pravidelně (naposled před ${idle} dny) — Instagramu už čas věnují`)
+        score += 30
     }
 
     // ── Velikost: firma, ne hobby, ale ani korporát s vlastním týmem ───────────
@@ -115,7 +135,7 @@ export function qualifyLead(s: LeadSignals, now: Date = new Date()): Qualificati
     if (f === null) {
         score += 5
     } else if (f < 150) {
-        reasons.push(`jen ${f} sledujících — spíš než firma to vypadá na začátek`)
+        reasons.push(`jen ${f} sledujících — spíš začátek než firma`)
         score += 5
     } else if (f <= 10_000) {
         reasons.push(`${f} sledujících — velikost, kde nabídka dává smysl`)
@@ -124,13 +144,15 @@ export function qualifyLead(s: LeadSignals, now: Date = new Date()): Qualificati
         reasons.push(`${f} sledujících — možná už mají někoho na obsah`)
         score += 15
     } else {
-        reasons.push(`${f} sledujících — na tuhle velikost má obvykle vlastní tým`)
+        reasons.push(`${f} sledujících — na tuhle velikost bývá vlastní tým`)
         score += 2
     }
 
     // ── Doplňkové signály ──────────────────────────────────────────────────────
-    if (s.company) { reasons.push("známe název firmy"); score += 10 }
-    if (s.igHandle) score += 5
+    if (s.isBusiness) { reasons.push("označeno jako firemní profil"); score += 10 }
+    if (s.company) { reasons.push("známe název firmy"); score += 8 }
+    // Web není podmínka, ale je to lepší podklad pro ukázku než samotné bio.
+    if (s.website) { reasons.push("má web — bohatší podklad pro ukázku"); score += 7 }
 
     const capped = Math.max(0, Math.min(100, score))
     const qualified = capped >= QUALIFY_THRESHOLD
@@ -138,26 +160,30 @@ export function qualifyLead(s: LeadSignals, now: Date = new Date()): Qualificati
         score: capped,
         reasons,
         qualified,
+        segment,
         ...(qualified ? {} : { rejectReason: "low_score" }),
     }
 }
 
 /**
- * První věta mailu se odvozuje z TÝCHŽ signálů jako skóre — proto tu, a ne
- * v šabloně. Kdyby to byly dvě různá místa, rozejdou se: mail by tvrdil něco,
+ * První věta zprávy se odvozuje z TÝCHŽ signálů jako skóre — proto tu, a ne
+ * v šabloně. Kdyby to byla dvě různá místa, rozejdou se: zpráva by tvrdila něco,
  * co kvalifikace nezjistila.
  */
 export function openingLine(s: LeadSignals, now: Date = new Date()): string {
     const name = s.company?.trim() || s.igHandle?.replace(/^@/, "") || "vaší firmy"
     const idle = daysSince(s.lastPostAt, now)
     if (idle !== null && idle >= 180) {
-        return `koukal jsem na web ${name} a všiml si, že na Instagramu je ticho už přes půl roku.`
-    }
-    if (idle !== null && idle >= 60) {
-        return `koukal jsem na web ${name} a všiml si, že poslední příspěvek na Instagramu je starý ${idle} dní.`
+        return `koukal jsem na ${name} a všiml si, že na Instagramu je ticho už přes půl roku.`
     }
     if (idle !== null && idle >= 30) {
-        return `koukal jsem na web ${name} — Instagram vám trochu spí, poslední příspěvek je před ${idle} dny.`
+        return `koukal jsem na ${name} a všiml si, že poslední příspěvek na Instagramu je starý ${idle} dní.`
     }
-    return `koukal jsem na web ${name} a na váš Instagram.`
+    if (idle !== null && idle >= 10) {
+        return `koukal jsem na Instagram ${name} — postujete, ale nepravidelně.`
+    }
+    if (idle !== null) {
+        return `koukal jsem na Instagram ${name} a je vidět, že mu dáváte čas — postujete pravidelně.`
+    }
+    return `koukal jsem na ${name} a na váš Instagram.`
 }

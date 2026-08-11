@@ -7,9 +7,9 @@
  * doložit, kdyby se někdo zeptal, proč jsme mu psali.
  */
 
-import { qualifyLead, isRoleAddress, daysSince, openingLine, QUALIFY_THRESHOLD } from "../lib/agents/sales/qualify"
+import { qualifyLead, isRoleAddress, daysSince, openingLine, segmentOf, QUALIFY_THRESHOLD } from "../lib/agents/sales/qualify"
 import { composeMessage, pickAngle, judgeRubric, MAX_WORDS } from "../lib/agents/sales/templates"
-import { extractColors, extractText } from "../lib/agents/sales/brand-scrape"
+import { extractColors, extractText, extractEmails } from "../lib/agents/sales/brand-scrape"
 import { readFileSync } from "fs"
 import { resolve } from "path"
 
@@ -37,17 +37,38 @@ const good = {
 
 console.log("\n🎯 VYŘAZOVACÍ PODMÍNKY\n")
 
-check("bez webu se lead zahodí — nebylo by z čeho udělat ukázku",
-    qualifyLead({ ...good, website: null }, NOW).rejectReason === "no_website")
-
-check("bez firemní adresy se lead zahodí",
-    qualifyLead({ ...good, email: null }, NOW).rejectReason === "no_email")
+check("bez kontaktní adresy se lead zahodí — není kam napsat",
+    qualifyLead({ ...good, email: null }, NOW).rejectReason === "no_contact")
 
 check("osobní adresa se zahodí UŽ v kvalifikaci, ne až před odesláním",
     qualifyLead({ ...good, email: "jan.novak@ukohouta.cz" }, NOW).rejectReason === "personal_email")
 
-check("aktivní profil se neoslovuje — nabídka by byla mimo",
-    qualifyLead({ ...good, lastPostAt: daysAgo(3) }, NOW).rejectReason === "active_profile")
+check("soukromý profil se zahodí — nejde posoudit",
+    qualifyLead({ ...good, isPrivate: true }, NOW).rejectReason === "private")
+
+// Opraveno po ostrém ověření: web NENÍ podmínka. Vyřazoval reálné květinářství,
+// jehož Instagram nemá web v biu — ale jehož WEB má info@ adresu.
+check("firma bez webu projde, když má kontakt odjinud",
+    qualifyLead({ ...good, website: null }, NOW).qualified)
+
+// Opraveno: „aktivní = zahodit" byl dohad. Kdo postuje, dokázal, že mu na
+// Instagramu záleží — a přesně ten čas mu produkt vrací.
+check("aktivní profil se NEZAHAZUJE, jen se označí segmentem", (() => {
+    const r = qualifyLead({ ...good, lastPostAt: daysAgo(3) }, NOW)
+    return r.qualified && r.segment === "aktivni"
+})())
+
+check("segment se pozná podle kadence", 
+    segmentOf({ ...good, lastPostAt: daysAgo(200) }, NOW) === "spici" &&
+    segmentOf({ ...good, lastPostAt: daysAgo(15) }, NOW) === "nepravidelny" &&
+    segmentOf({ ...good, lastPostAt: daysAgo(2) }, NOW) === "aktivni" &&
+    segmentOf({ ...good, lastPostAt: null }, NOW) === "neznamy")
+
+check("spící i aktivní skórují srovnatelně — rozhodnou data, ne můj odhad", (() => {
+    const spici = qualifyLead({ ...good, lastPostAt: daysAgo(200) }, NOW).score
+    const aktiv = qualifyLead({ ...good, lastPostAt: daysAgo(2) }, NOW).score
+    return Math.abs(spici - aktiv) <= 10 && spici >= QUALIFY_THRESHOLD && aktiv >= QUALIFY_THRESHOLD
+})())
 
 console.log("\n📇 ROZPOZNÁNÍ FIREMNÍ ADRESY\n")
 
@@ -63,10 +84,6 @@ const q = qualifyLead(good, NOW)
 check("dobrý lead projde", q.qualified && q.score >= QUALIFY_THRESHOLD, `skóre ${q.score}`)
 check("skóre nese slovní zdůvodnění", q.reasons.length >= 2, `důvodů: ${q.reasons.length}`)
 check("mezi důvody je spící profil", q.reasons.some(r => /dn[ií]/.test(r)))
-
-check("déle spící profil má vyšší skóre než krátce spící",
-    qualifyLead({ ...good, lastPostAt: daysAgo(200) }, NOW).score >
-    qualifyLead({ ...good, lastPostAt: daysAgo(20) }, NOW).score)
 
 check("velký účet skóruje níž — obvykle má vlastní tým",
     qualifyLead({ ...good, followers: 200_000 }, NOW).score <
@@ -158,6 +175,21 @@ check("text nezahrnuje styly", !txt.includes("background"))
 check("text nese obsah stránky", txt.includes("Pražíme vlastní kávu"))
 check("nezlomitelná mezera se přeloží", !txt.includes("&nbsp;"))
 check("text se ořízne na limit", extractText("x".repeat(9999), 100).length === 100)
+
+console.log("\n📧 KONTAKT Z WEBU (to, co v první verzi úplně chybělo)\n")
+
+const mailCases: [string, string, string[]][] = [
+    ["escapovaná adresa z JS bloku", `<a href="mailto:info@firma.cz\\">x</a>`, ["info@firma.cz"]],
+    ["zástupný text z formuláře", `tvuj@email.cz a info@firma.cz`, ["info@firma.cz"]],
+    ["email.cz je skutečný poskytovatel", `novak@email.cz`, ["novak@email.cz"]],
+    ["role adresa má přednost", `jan.novak@firma.cz info@firma.cz`, ["info@firma.cz", "jan.novak@firma.cz"]],
+    ["zamaskovaný zápis", `napište na info (at) firma.cz`, ["info@firma.cz"]],
+    ["obrázky nejsou adresy", `logo@2x.png info@firma.cz`, ["info@firma.cz"]],
+]
+for (const [name, html, exp] of mailCases) {
+    const got = extractEmails(html, "firma.cz")
+    check(name, JSON.stringify(got.slice(0, exp.length)) === JSON.stringify(exp), JSON.stringify(got))
+}
 
 console.log("\n🕓 POMOCNÉ\n")
 check("daysSince počítá správně", daysSince(daysAgo(10), NOW) === 10)
