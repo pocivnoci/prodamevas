@@ -19,8 +19,25 @@ import { signEmail } from "@/lib/email-sign"
 import { isMediumType, type MediumType } from "@/lib/credits"
 import { parsePostMedia } from "@/lib/media-urls"
 
+/**
+ * Základ pro všechny generované odkazy (odhlášení, deep linky, ukázky).
+ *
+ * Dvě pasti, obě chycené naostro 2026-08-11:
+ *
+ *  1. **Zástupný text projde `||`.** V `.env.local` bylo `[SENSITIVE]` —
+ *     neprázdný řetězec, takže se použil a všechny odkazy vedly na
+ *     `[SENSITIVE]/...`. Stejná chyba jako `[SET_ME]` u HikerAPI klíče.
+ *  2. **`chrlit.cz` přesměrovává na `www.chrlit.cz` (308).** Prohlížeč to
+ *     přežije, STROJ ne — Stripe webhooky přesměrování nenásledují, takže
+ *     platba prošla a plán se neaktivoval. Výchozí hodnota je proto kanonická.
+ */
 export function siteUrl(): string {
-    return process.env.NEXT_PUBLIC_SITE_URL || "https://chrlit.cz"
+    const v = (process.env.NEXT_PUBLIC_SITE_URL || "").trim()
+    const usable = v.startsWith("http") ? v.replace(/\/$/, "") : ""
+    if (v && !usable) {
+        console.warn(`⚠️ NEXT_PUBLIC_SITE_URL není URL ("${v.slice(0, 20)}") — používám výchozí doménu`)
+    }
+    return usable || "https://www.chrlit.cz"
 }
 
 /** Deep link into the studio: selects the project (?project=) and opens a tab (#hash). */

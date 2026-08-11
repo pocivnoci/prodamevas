@@ -1595,6 +1595,18 @@ test("24.6 prospekt nikdy neskončí řádkem v clients", () => {
         "prázdná vizuální paměť brání sáhnutí na ig_brand_memory bez tenanta")
 })
 
+test("24.10 generované odkazy míří na kanonickou doménu", () => {
+    // chrlit.cz vrací 308 na www.chrlit.cz. Prohlížeč to přežije, STROJ ne —
+    // Stripe webhooky přesměrování nenásledují, takže testovací platba prošla
+    // a plán se neaktivoval. Zjištěno naostro 2026-08-11.
+    const code = codeOnly("lib/notifications.ts")
+    assert(/www\.chrlit\.cz/.test(code), "výchozí doména musí být kanonická (www)")
+    assert(!/\|\| "https:\/\/chrlit\.cz"/.test(code), "nekanonická doména se nesmí vrátit jako výchozí")
+    // Zástupný text je neprázdný řetězec a projde `||` — stejná past jako [SET_ME]
+    // u HikerAPI. Odkaz na `[SENSITIVE]/...` je horší než výchozí doména.
+    assert(/startsWith\("http"\)/.test(code), "hodnota, která není URL, se musí odmítnout")
+})
+
 test("24.9 brána bez webhooku nesmí brát peníze", () => {
     // Stripe umí vzít peníze jen s tajným klíčem, ale aktivovat plán až s
     // webhookem. Nalezeno na produkci: ComGate creds chyběly, Stripe klíč byl,
