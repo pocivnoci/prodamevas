@@ -1595,6 +1595,20 @@ test("24.6 prospekt nikdy neskončí řádkem v clients", () => {
         "prázdná vizuální paměť brání sáhnutí na ig_brand_memory bez tenanta")
 })
 
+test("24.7 obchod nemá vlastní denní e-mail", () => {
+    // daily_brief je JEDINÁ denní zpráva zakladateli. Druhý denní mail je
+    // nejspolehlivější způsob, jak se přestanou číst oba.
+    const digest = codeOnly("lib/agents/sales/digest.ts")
+    assert(!/sendEmail|sendNotification|sendOutreach/.test(digest),
+        "obchodní souhrn nesmí posílat vlastní e-mail — patří do daily_brief")
+    const brief = codeOnly("lib/agents/daily-brief.ts")
+    assert(/buildSalesLines/.test(brief), "brief musí obchodní řádky načítat")
+    assert(/sales\.length === 0/.test(brief),
+        "tichý obchodní den nesmí brief probudit — jinak se přestane číst")
+    const handlers = codeOnly("lib/agents/handlers.ts")
+    assert(!/sales_digest/.test(handlers), "žádný samostatný obchodní digest handler")
+})
+
 // ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════

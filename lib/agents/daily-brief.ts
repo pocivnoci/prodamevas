@@ -44,6 +44,8 @@ export interface DailyBrief {
     money: BriefLine[]
     /** Zákazníci v riziku + nedokončený onboarding. */
     risk: BriefLine[]
+    /** Obchod: co odešlo, kdo odpověděl, co drhne. Prázdné = ticho. */
+    sales: BriefLine[]
     /** Co agent za posledních 24 h udělal sám (audit z agent_actions). */
     did: BriefLine[]
     /** Co čeká na člověka — každá položka nese one-click tlačítka. */
@@ -178,19 +180,23 @@ async function buildDid(now: Date): Promise<BriefLine[]> {
 // ── Sestavení ───────────────────────────────────────────────────────────────
 
 export async function buildDailyBrief(now: Date = new Date()): Promise<DailyBrief> {
-    const [money, risk, did, needsYou, system, compliance] = await Promise.all([
+    const [money, risk, did, needsYou, system, compliance, sales] = await Promise.all([
         buildMoney(now).catch(() => [] as BriefLine[]),
         buildRisk(now).catch(() => [] as BriefLine[]),
         buildDid(now).catch(() => [] as BriefLine[]),
         listPendingApprovals().catch(() => [] as PendingAction[]),
         buildSystem().catch(() => [] as HealthProblem[]),
         buildCompliance().catch(() => [] as ComplianceItem[]),
+        // Obchodní agent — selhání jeho dotazů nesmí shodit celý brief.
+        import("@/lib/agents/sales/digest")
+            .then(m => m.buildSalesLines(now))
+            .catch(() => [] as BriefLine[]),
     ])
 
     return {
         quiet: money.length === 0 && risk.length === 0 && needsYou.length === 0
-            && system.length === 0 && compliance.length === 0,
-        money, risk, did, needsYou, system, compliance,
+            && system.length === 0 && compliance.length === 0 && sales.length === 0,
+        money, risk, did, needsYou, system, compliance, sales,
         clientLabels: await resolveClientLabels(needsYou),
         checkedAt: now.toISOString(),
     }
@@ -278,6 +284,7 @@ function renderHtml(b: DailyBrief): string {
         parts.push(section("Co potřebuje tebe", b.needsYou.map(a => approvalHtml(a, b.clientLabels)).join("")))
     }
     if (b.money.length > 0) parts.push(section("Peníze", b.money.map(lineHtml).join("")))
+    if (b.sales.length > 0) parts.push(section("Obchod", b.sales.map(lineHtml).join("")))
     if (b.risk.length > 0) parts.push(section("Zákazníci v riziku", b.risk.map(lineHtml).join("")))
     if (b.system.length > 0) {
         parts.push(section("Systém", b.system.map(p =>
@@ -339,6 +346,7 @@ function renderText(b: DailyBrief): string {
     }
     add("Co potřebuje tebe", b.needsYou.map(a => `${a.action} (${a.agentType}) — schval v dashboardu → Schválení`))
     add("Peníze", b.money.map(l => `${l.icon} ${l.text}${l.detail ? ` — ${l.detail}` : ""}`))
+    add("Obchod", b.sales.map(l => `${l.icon} ${l.text}${l.detail ? ` — ${l.detail}` : ""}`))
     add("Zákazníci v riziku", b.risk.map(l => `${l.icon} ${l.text}${l.detail ? ` — ${l.detail}` : ""}`))
     add("Systém", b.system.map(p => `${p.icon} ${p.title} — ${p.detail}`))
     add("Termíny", b.compliance.map(i => `${i.action}${i.deadline ? ` — ${i.deadline}` : ""} (${i.why})`))
