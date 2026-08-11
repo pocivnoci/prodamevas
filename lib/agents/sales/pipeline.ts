@@ -75,13 +75,18 @@ export async function runQualify(leadId: string) {
     }
 
     const q = qualifyLead(signalsOf({ ...lead, email }))
-    await supabaseAdmin.from("leads").update({
+    // Chyba zápisu se MUSÍ ozvat. Bez téhle kontroly hlásila kvalifikace úspěch,
+    // přestože update spadl na neexistujícím sloupci — lead zůstal na score 0
+    // a status "new", a nikdo se to nedozvěděl. Tiché selhání zápisu je horší
+    // než hlasitý pád: fronta by se plnila leady, které nikam nepostoupí.
+    const { error: upErr } = await supabaseAdmin.from("leads").update({
         score: q.score, score_reasons: q.reasons,
         status: q.qualified ? "qualified" : "rejected",
         reject_reason: q.rejectReason ?? null,
-        stage: q.segment,
+        segment: q.segment,
         updated_at: new Date().toISOString(),
     }).eq("id", leadId)
+    if (upErr) throw new Error(`zápis kvalifikace selhal: ${upErr.message}`)
 
     await logEvent(leadId, q.qualified ? "qualified" : "rejected",
         { score: q.score, segment: q.segment, reasons: q.reasons, reject: q.rejectReason })
@@ -107,13 +112,16 @@ export async function runPreview(leadId: string) {
         website: lead.website, igHandle: lead.ig_handle ?? undefined, count: 3, token,
     })
 
-    await supabaseAdmin.from("leads").update({
+    const { error: pvErr } = await supabaseAdmin.from("leads").update({
         preview_token: token,
         preview_posts: result.posts,
         preview_ready_at: new Date().toISOString(),
         company: lead.company ?? result.config.name,
         updated_at: new Date().toISOString(),
     }).eq("id", leadId)
+    // Ukázka se vygenerovala (18 Kč) — když se neuloží, jsou to vyhozené peníze
+    // a odkaz v mailu povede na 404. Musí to spadnout, ne projít.
+    if (pvErr) throw new Error(`zápis ukázky selhal: ${pvErr.message}`)
 
     await enqueueTask({ type: "lead_outreach", payload: { leadId } })
     return { ok: true, posts: result.posts.length, costCzk: result.costCzk }
