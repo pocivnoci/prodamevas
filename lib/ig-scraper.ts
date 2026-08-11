@@ -4,9 +4,26 @@
  * Fail-open: returns null on any error; callers continue without IG data.
  */
 
-const HIKERAPI_KEY = process.env.HIKERAPI_KEY || ''
 const HIKERAPI_BASE = 'https://api.hikerapi.com'
 const HIKERAPI_TIMEOUT = 15_000
+
+/**
+ * Klíč se čte AŽ PŘI VOLÁNÍ, ne při načtení modulu.
+ *
+ * Modulová konstanta zamrzne na hodnotě, kterou má env v okamžiku importu. V Nextu
+ * to nevadí, ale `tsx` skripty (dry-run obchodního agenta, utility) načítají
+ * `.env.local` až v těle skriptu — a scraper pak tvrdil „HIKERAPI_KEY not set",
+ * přestože klíč byl k dispozici.
+ *
+ * Zároveň se odmítne zástupný text: `.env.local` obsahoval `[SET_ME]`, což je
+ * neprázdný řetězec, takže starý guard `if (!KEY)` ho pustil dál a každé volání
+ * skončilo Unauthorized. Tiché plýtvání requestem je horší než jasné „nenastaveno".
+ */
+function hikerKey(): string {
+    const raw = (process.env.HIKERAPI_KEY || '').trim()
+    if (!raw || raw.startsWith('[') || raw.toUpperCase().includes('SET_ME')) return ''
+    return raw
+}
 
 export interface IgProfileData {
     username: string
@@ -33,8 +50,9 @@ export async function fetchInstagramProfile(
     handle: string,
     options?: { includePosts?: boolean }
 ): Promise<IgProfileData | null> {
-    if (!HIKERAPI_KEY) {
-        console.warn('⚠️ HIKERAPI_KEY not set — skipping IG scraping')
+    const key = hikerKey()
+    if (!key) {
+        console.warn('⚠️ HIKERAPI_KEY není nastavený (nebo je to zástupný text) — přeskakuji IG scraping')
         return null
     }
     const includePosts = options?.includePosts ?? true
@@ -48,7 +66,7 @@ export async function fetchInstagramProfile(
         const profileRes = await fetch(
             `${HIKERAPI_BASE}/v1/user/by/username?username=${encodeURIComponent(username)}`,
             {
-                headers: { 'x-access-key': HIKERAPI_KEY, 'accept': 'application/json' },
+                headers: { 'x-access-key': key, 'accept': 'application/json' },
                 signal: AbortSignal.timeout(HIKERAPI_TIMEOUT),
             }
         )
@@ -74,7 +92,7 @@ export async function fetchInstagramProfile(
                 const mediasRes = await fetch(
                     `${HIKERAPI_BASE}/gql/user/medias?user_id=${userId}&flat=true`,
                     {
-                        headers: { 'x-access-key': HIKERAPI_KEY, 'accept': 'application/json' },
+                        headers: { 'x-access-key': key, 'accept': 'application/json' },
                         signal: AbortSignal.timeout(HIKERAPI_TIMEOUT),
                     }
                 )
