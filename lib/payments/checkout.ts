@@ -25,11 +25,31 @@ export type Gateway = "comgate" | "stripe"
  * naskočí, když ComGate nakonfigurovaná není. Díky tomu stačí k přepnutí
  * doplnit klíče, ne měnit kód.
  */
+/**
+ * Stripe umí vzít peníze už se samotným tajným klíčem — ale **aktivovat plán umí
+ * až s webhookem**. Bez `STRIPE_WEBHOOK_SECRET` se podpis nedá ověřit,
+ * `verifyStripeWebhook` vyhodí, route vrátí 400 a zaplacený zákazník nikdy
+ * nedostane, co si koupil.
+ *
+ * Zaplacený a neaktivovaný zákazník je nejhorší možný stav — horší než platba,
+ * která vůbec nezačne. Proto se za „nakonfigurovanou" považuje jen brána, která
+ * zvládne CELOU cestu, ne jen její začátek.
+ *
+ * Nalezeno na produkci 2026-08-11: ComGate creds tam nebyly, Stripe klíč ano,
+ * a tenhle výběr proto tiše směroval platby na bránu bez webhooku.
+ */
+export function stripeCanCompletePayment(): boolean {
+    return isStripeConfigured() && Boolean(process.env.STRIPE_WEBHOOK_SECRET)
+}
+
 export function activeGateway(): Gateway {
     const forced = (process.env.PAYMENT_GATEWAY || "").toLowerCase()
-    if (forced === "stripe" || forced === "comgate") return forced
+    // I vynucená volba musí umět dojet do konce — jinak by se překlep v env
+    // proměnné projevil až tím, že zákazník zaplatí a nic nedostane.
+    if (forced === "stripe" && stripeCanCompletePayment()) return "stripe"
+    if (forced === "comgate") return "comgate"
     const comgateReady = Boolean(process.env.COMGATE_MERCHANT_ID && process.env.COMGATE_SECRET)
-    if (!comgateReady && isStripeConfigured()) return "stripe"
+    if (!comgateReady && stripeCanCompletePayment()) return "stripe"
     return "comgate"
 }
 

@@ -1595,6 +1595,20 @@ test("24.6 prospekt nikdy neskončí řádkem v clients", () => {
         "prázdná vizuální paměť brání sáhnutí na ig_brand_memory bez tenanta")
 })
 
+test("24.9 brána bez webhooku nesmí brát peníze", () => {
+    // Stripe umí vzít peníze jen s tajným klíčem, ale aktivovat plán až s
+    // webhookem. Nalezeno na produkci: ComGate creds chyběly, Stripe klíč byl,
+    // a výběr brány tiše směroval platby na bránu, která nedokáže plán aktivovat.
+    // Zaplacený a neaktivovaný zákazník je horší než platba, která nezačne.
+    const code = codeOnly("lib/payments/checkout.ts")
+    assert(/STRIPE_WEBHOOK_SECRET/.test(code),
+        "výběr brány musí vědět o webhooku, ne jen o tajném klíči")
+    assert(/stripeCanCompletePayment/.test(code), "podmínka musí být pojmenovaná a sdílená")
+    // I vynucená volba přes PAYMENT_GATEWAY musí projít touž kontrolou.
+    assert(/forced === "stripe" && stripeCanCompletePayment\(\)/.test(code),
+        "překlep v PAYMENT_GATEWAY nesmí obejít kontrolu úplnosti brány")
+})
+
 test("24.8 obě platební brány čtou tarify z téže tabulky", () => {
     // Moje Stripe routa se ptala tabulky `plans`, která neexistuje — vrátila by
     // vždycky "Plán nenalezen" a cesta k penězům by tiše nefungovala. Druhá brána
