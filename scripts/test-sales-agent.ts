@@ -107,7 +107,10 @@ check("tentýž vstup dá vždy totéž skóre", (() => {
 console.log("\n✍️  PRVNÍ VĚTA MAILU\n")
 
 const line = openingLine(good, NOW)
-check("první věta jmenuje konkrétní firmu", line.includes("Kavárna U Kohouta"))
+// Název firmy uvnitř věty čeština skloňuje a my to neumíme — patří do předmětu,
+// kde stojí v apozici. Konkrétní je ČÍSLO, ne jméno.
+check("název firmy NENÍ uvnitř věty (čeština by ho skloňovala)",
+    !line.includes("Kavárna U Kohouta"), line)
 check("první věta zmiňuje, jak dlouho je ticho", /95 dní/.test(line), line)
 check("bez názvu firmy věta pořád dává smysl", openingLine({ ...good, company: null }, NOW).length > 20)
 check("dvě různě staré firmy dostanou různou první větu",
@@ -122,7 +125,17 @@ const m = composeMessage(good, url, NOW)
 
 check("zpráva se vejde do limitu", m.wordCount <= MAX_WORDS, `${m.wordCount} slov`)
 check("obsahuje odkaz na ukázku", m.text.includes(url))
-check("předmět jmenuje firmu", m.subject.includes("Kavárna U Kohouta"), m.subject)
+check("předmět jmenuje firmu v apozici za pomlčkou",
+    m.subject.startsWith("Kavárna U Kohouta —"), m.subject)
+
+// Regrese: „Instagram Kavárna Alchymista vypadá…" prozradí šablonu na první pohled.
+for (const angle of ["cas","penize","vyloha"] as const) {
+    const s3 = angle === "vyloha" ? { ...good, lastPostAt: daysAgo(300) }
+             : angle === "penize" ? { ...good, followers: 8000 } : good
+    const subj = composeMessage(s3, url, NOW).subject
+    check(`předmět „${angle}" nemá název uprostřed věty`,
+        /^Kavárna U Kohouta — /.test(subj), subj)
+}
 
 // Doručitelnost: v mailu nesmí být obrázek ani příloha.
 check("žádné HTML ani obrázek v těle", !/<img|<html|<table|base64/i.test(m.text))

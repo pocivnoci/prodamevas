@@ -171,19 +171,22 @@ export function qualifyLead(s: LeadSignals, now: Date = new Date()): Qualificati
  * co kvalifikace nezjistila.
  */
 export function openingLine(s: LeadSignals, now: Date = new Date()): string {
-    const name = s.company?.trim() || s.igHandle?.replace(/^@/, "") || "vaší firmy"
+    // Název firmy se tu ZÁMĚRNĚ nepoužívá: čeština ho po předložce skloňuje
+    // („koukal jsem na Kavárnu Alchymista") a my skloňovat neumíme. Nesklonný tvar
+    // uvnitř věty prozradí šablonu okamžitě. Název patří do předmětu, kde stojí
+    // v apozici za pomlčkou. Konkrétní je tady ČÍSLO, ne jméno — a to je i silnější.
     const idle = daysSince(s.lastPostAt, now)
     if (idle !== null && idle >= 180) {
-        return `koukal jsem na ${name} a všiml si, že na Instagramu je ticho už přes půl roku.`
+        return `koukal jsem na váš web a Instagram — poslední příspěvek je starý přes půl roku.`
     }
     if (idle !== null && idle >= 30) {
-        return `koukal jsem na ${name} a všiml si, že poslední příspěvek na Instagramu je starý ${idle} dní.`
+        return `koukal jsem na váš web a Instagram — poslední příspěvek je starý ${idle} dní.`
     }
     if (idle !== null && idle >= 10) {
-        return `koukal jsem na Instagram ${name} — postujete, ale nepravidelně.`
+        return `koukal jsem na váš web a Instagram — postujete, ale nepravidelně.`
     }
     if (idle !== null) {
-        return `koukal jsem na Instagram ${name} a je vidět, že mu dáváte čas — postujete pravidelně.`
+        return `koukal jsem na váš web a Instagram — je vidět, že mu dáváte čas, postujete pravidelně.`
     }
-    return `koukal jsem na ${name} a na váš Instagram.`
+    return `koukal jsem na váš web a Instagram.`
 }

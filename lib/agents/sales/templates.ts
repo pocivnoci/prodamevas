@@ -57,10 +57,18 @@ const BODY: Record<Angle, (previewUrl: string) => string> = {
         `Ukázka je zdarma a nezávazná.`,
 }
 
+/**
+ * Název firmy stojí VŽDY v apozici za pomlčkou nebo dvojtečkou, nikdy uvnitř věty.
+ *
+ * Čeština názvy skloňuje a my je skloňovat neumíme: „Instagram Kavárna Alchymista
+ * vypadá…" pozná jako šablonu každý rodilý mluvčí na první pohled — a to u
+ * produktu, jehož celý argument je „píšeme česky, ne strojovým překladem".
+ * Apozice se neskloňuje, takže je to bezpečné u každého názvu.
+ */
 const SUBJECT: Record<Angle, (name: string) => string> = {
-    cas: (n) => `Ukázka příspěvků pro ${n}`,
-    penize: (n) => `Instagram pro ${n} — ukázka a co to stojí`,
-    vyloha: (n) => `Instagram ${n} vypadá, že máte zavřeno`,
+    cas: (n) => `${n} — ukázka příspěvků na Instagram`,
+    penize: (n) => `${n} — ukázka Instagramu a co to stojí`,
+    vyloha: (n) => `${n} — Instagram vypadá, jako byste měli zavřeno`,
 }
 
 /**
