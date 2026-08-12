@@ -6,6 +6,7 @@ import { analyzeWebsite, generateQuestions, generateConfigPreview, refineConfigS
 import type { WebsiteAnalysis, OnboardingQuestion, ReviewSection } from './actions'
 import type { ClientConfig } from '@/instagram/configs/types'
 import { trackEvent } from '@/lib/analytics'
+import { Anchor, Check, CircleCheck, Landmark, MessageCircle, Mic, Package, Palette, Rocket, ThumbsUp, X, type LucideIcon } from "lucide-react"
 
 type Step = 'choose' | 'input' | 'manual' | 'analyzing' | 'questions' | 'building' | 'review' | 'saving' | 'generating' | 'done'
 type Mode = 'website' | 'manual' | null
@@ -359,15 +360,15 @@ function OnboardingContent() {
                                     <label className="block text-sm font-medium text-gray-300 mb-2">Kategorie</label>
                                     <div className="grid grid-cols-3 gap-2">
                                         {[
-                                            { id: 'kavarna', label: '☕ Kavárna' },
-                                            { id: 'restaurace', label: '🍽️ Restaurace' },
-                                            { id: 'salon', label: '💇 Salon' },
-                                            { id: 'fitness', label: '💪 Fitness' },
-                                            { id: 'eshop', label: '🛒 E-shop' },
-                                            { id: 'remeslnik', label: '🔧 Řemeslník' },
-                                            { id: 'poradce', label: '📊 Poradce' },
-                                            { id: 'fotograf', label: '📸 Fotograf' },
-                                            { id: 'jine', label: '📌 Jiné' },
+                                            { id: 'kavarna', label: 'Kavárna' },
+                                            { id: 'restaurace', label: 'Restaurace' },
+                                            { id: 'salon', label: 'Salon' },
+                                            { id: 'fitness', label: 'Fitness' },
+                                            { id: 'eshop', label: 'E-shop' },
+                                            { id: 'remeslnik', label: 'Řemeslník' },
+                                            { id: 'poradce', label: 'Poradce' },
+                                            { id: 'fotograf', label: 'Fotograf' },
+                                            { id: 'jine', label: 'Jiné' },
                                         ].map(cat => (
                                             <button key={cat.id} type="button" onClick={() => setCategory(cat.id)}
                                                 className={`px-3 py-2.5 rounded-xl text-sm transition-all cursor-pointer text-left ${
@@ -388,10 +389,10 @@ function OnboardingContent() {
                                     <label className="block text-sm font-medium text-gray-300 mb-2">Jak chcete komunikovat?</label>
                                     <div className="grid grid-cols-2 gap-2">
                                         {[
-                                            { id: 'přátelský', label: '😊 Přátelský' },
-                                            { id: 'profesionální', label: '👔 Profesionální' },
-                                            { id: 'drzý', label: '😎 Drzý / Vtipný' },
-                                            { id: 'expertní', label: '🎓 Expertní' },
+                                            { id: 'přátelský', label: 'Přátelský' },
+                                            { id: 'profesionální', label: 'Profesionální' },
+                                            { id: 'drzý', label: 'Drzý / Vtipný' },
+                                            { id: 'expertní', label: 'Expertní' },
                                         ].map(t => (
                                             <button key={t.id} type="button" onClick={() => setTone(t.id)}
                                                 className={`px-3 py-2.5 rounded-xl text-sm transition-all cursor-pointer text-left ${
@@ -502,7 +503,7 @@ function OnboardingContent() {
                                                             : 'bg-black/30 border border-white/10 text-gray-300 hover:border-white/20'
                                                             }`}
                                                     >
-                                                        {selected ? '✓ ' : ''}{option}
+                                                        {selected ? '' : ''}{option}
                                                     </button>
                                                 )
                                             })}
@@ -544,7 +545,7 @@ function OnboardingContent() {
                                 className="w-full relative group overflow-hidden rounded-xl bg-emerald-600 px-6 py-3.5 text-sm font-medium text-white shadow-[0_0_20px_rgba(16,185,129,0.2)] transition-all hover:bg-emerald-500 cursor-pointer"
                             >
                                 <span className="relative z-10 flex items-center justify-center gap-2">
-                                    🚀 Vygenerovat konfiguraci
+                                    <span className="inline-flex items-center gap-1.5"><Rocket className="w-3.5 h-3.5 shrink-0" />Vygenerovat konfiguraci</span>
                                     <span className="transition-transform group-hover:translate-x-1">→</span>
                                 </span>
                             </button>
@@ -587,7 +588,7 @@ function OnboardingContent() {
                         {configPreview.communicationStyle && (
                             <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-5 mb-4">
                                 <div className="flex items-center gap-2 mb-3">
-                                    <span className="text-lg">💬</span>
+                                    <MessageCircle className="w-5 h-5" />
                                     <h3 className="font-bold text-white">Doporučený styl komunikace</h3>
                                     <span className="ml-auto text-[10px] uppercase tracking-wider font-bold text-emerald-400/70 bg-emerald-500/10 px-2 py-0.5 rounded">AI na míru</span>
                                 </div>
@@ -595,7 +596,7 @@ function OnboardingContent() {
                                 <p className="text-xs text-gray-400 mb-4">{configPreview.communicationStyle.rationale}</p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                        <span className="block text-[10px] uppercase font-bold tracking-wider text-emerald-400/70 mb-1.5">✓ Dělat</span>
+                                        <span className="inline-flex items-center gap-1.5 block text-[10px] uppercase font-bold tracking-wider text-emerald-400/70 mb-1.5"><Check className="w-3 h-3 shrink-0" />Dělat</span>
                                         <ul className="space-y-1">
                                             {(configPreview.communicationStyle.dos || []).map((d: string, i: number) => (
                                                 <li key={i} className="text-xs text-gray-300 flex gap-1.5"><span className="text-emerald-400">·</span>{d}</li>
@@ -603,7 +604,7 @@ function OnboardingContent() {
                                         </ul>
                                     </div>
                                     <div>
-                                        <span className="block text-[10px] uppercase font-bold tracking-wider text-rose-400/70 mb-1.5">✕ Vyhnout se</span>
+                                        <span className="inline-flex items-center gap-1.5 block text-[10px] uppercase font-bold tracking-wider text-rose-400/70 mb-1.5"><X className="w-3 h-3 shrink-0" />Vyhnout se</span>
                                         <ul className="space-y-1">
                                             {(configPreview.communicationStyle.donts || []).map((d: string, i: number) => (
                                                 <li key={i} className="text-xs text-gray-300 flex gap-1.5"><span className="text-rose-400">·</span>{d}</li>
@@ -615,7 +616,7 @@ function OnboardingContent() {
                         )}
 
                         <div className="space-y-4">
-                            <ReviewCard section="brand_voice" icon="🎤" title="Brand Voice & Persona"
+                            <ReviewCard section="brand_voice" Icon={Mic} title="Brand Voice & Persona"
                                 status={sectionStatuses.brand_voice} feedback={sectionFeedback.brand_voice || ''}
                                 refineCount={refineCounts.brand_voice || 0} isRefining={refiningSection === 'brand_voice'}
                                 onApprove={() => approveSection('brand_voice')} onReject={() => rejectSection('brand_voice')}
@@ -629,7 +630,7 @@ function OnboardingContent() {
                                 </div>
                             </ReviewCard>
 
-                            <ReviewCard section="pillars" icon="🏛️" title="Content Pilíře & Kategorie"
+                            <ReviewCard section="pillars" Icon={Landmark} title="Content Pilíře & Kategorie"
                                 status={sectionStatuses.pillars} feedback={sectionFeedback.pillars || ''}
                                 refineCount={refineCounts.pillars || 0} isRefining={refiningSection === 'pillars'}
                                 onApprove={() => approveSection('pillars')} onReject={() => rejectSection('pillars')}
@@ -660,7 +661,7 @@ function OnboardingContent() {
                                 </div>
                             </ReviewCard>
 
-                            <ReviewCard section="products" icon="📦" title="Produkty & Služby"
+                            <ReviewCard section="products" Icon={Package} title="Produkty & Služby"
                                 status={sectionStatuses.products} feedback={sectionFeedback.products || ''}
                                 refineCount={refineCounts.products || 0} isRefining={refiningSection === 'products'}
                                 onApprove={() => approveSection('products')} onReject={() => rejectSection('products')}
@@ -679,7 +680,7 @@ function OnboardingContent() {
                                 )}
                             </ReviewCard>
 
-                            <ReviewCard section="visual" icon="🎨" title="Vizuální Identita"
+                            <ReviewCard section="visual" Icon={Palette} title="Vizuální Identita"
                                 status={sectionStatuses.visual} feedback={sectionFeedback.visual || ''}
                                 refineCount={refineCounts.visual || 0} isRefining={refiningSection === 'visual'}
                                 onApprove={() => approveSection('visual')} onReject={() => rejectSection('visual')}
@@ -698,7 +699,7 @@ function OnboardingContent() {
                                 </div>
                             </ReviewCard>
 
-                            <ReviewCard section="hooks_cta" icon="🪝" title="Hook Templates & CTA"
+                            <ReviewCard section="hooks_cta" Icon={Anchor} title="Hook Templates & CTA"
                                 status={sectionStatuses.hooks_cta} feedback={sectionFeedback.hooks_cta || ''}
                                 refineCount={refineCounts.hooks_cta || 0} isRefining={refiningSection === 'hooks_cta'}
                                 onApprove={() => approveSection('hooks_cta')} onReject={() => rejectSection('hooks_cta')}
@@ -722,7 +723,7 @@ function OnboardingContent() {
                                 <button onClick={handleSaveConfig}
                                     className="w-full relative group overflow-hidden rounded-xl bg-emerald-600 px-6 py-4 text-sm font-bold text-white shadow-[0_0_20px_rgba(16,185,129,0.2)] transition-all hover:bg-emerald-500 cursor-pointer">
                                     <span className="relative z-10 flex items-center justify-center gap-2">
-                                        ✅ Vše schváleno — Uložit a pokračovat
+                                        <span className="inline-flex items-center gap-1.5"><CircleCheck className="w-3.5 h-3.5 shrink-0" />Vše schváleno — Uložit a pokračovat</span>
                                         <span className="transition-transform group-hover:translate-x-1">→</span>
                                     </span>
                                 </button>
@@ -877,7 +878,7 @@ function ReviewField({ label, value }: { label: string; value?: string }) {
 
 function ReviewCard({
     section: _section,
-    icon,
+    Icon,
     title,
     status,
     feedback,
@@ -890,7 +891,7 @@ function ReviewCard({
     children,
 }: {
     section: string
-    icon: string
+    Icon: LucideIcon
     title: string
     status: 'pending' | 'approved' | 'rejected' | 'refining'
     feedback: string
@@ -912,9 +913,9 @@ function ReviewCard({
         <div className={`bg-white/5 border ${borderColor} rounded-2xl p-5 transition-all`}>
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                    <span className="text-lg">{icon}</span>
+                    <Icon className="w-4 h-4 shrink-0 text-white/60" />
                     <h3 className="font-bold text-sm text-white">{title}</h3>
-                    {status === 'approved' && <span className="text-emerald-400 text-sm">✅</span>}
+                    {status === 'approved' && <CircleCheck className="w-4 h-4 text-emerald-400" />}
                     {status === 'refining' && <span className="text-purple-400 text-xs animate-pulse">Přegenerovávám...</span>}
                     {refineCount > 0 && <span className="text-[9px] text-gray-500 font-mono">v{refineCount + 1}</span>}
                 </div>
@@ -924,9 +925,7 @@ function ReviewCard({
                             status === 'approved'
                                 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                                 : 'bg-white/5 text-gray-400 border border-white/10 hover:text-emerald-300 hover:border-emerald-500/30'
-                        }`}>
-                        👍
-                    </button>
+                        }`}><span className="inline-flex items-center gap-1.5"><ThumbsUp className="w-3.5 h-3.5 shrink-0" /> </span></button>
                     <button onClick={onReject} disabled={isRefining || refineCount >= maxRefines}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                             status === 'rejected'
@@ -958,7 +957,7 @@ function ReviewCard({
                             disabled={!feedback.trim() || isRefining || refineCount >= maxRefines}
                             className="px-4 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-medium hover:bg-amber-500/30 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                            {isRefining ? '⏳ Přepracovávám...' : '🔄 Přegenerovat'}
+                            {isRefining ? '⏳ Přepracovávám...' : 'Přegenerovat'}
                         </button>
                     </div>
                 </div>

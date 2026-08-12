@@ -25,6 +25,7 @@ import {
 import { getProducts } from "@/app/actions/product-actions"
 import { getLines, type LineRow } from "@/app/actions/line-actions"
 import { LoadingSpinner } from "../shared"
+import { Star } from "lucide-react"
 
 interface CategoryItem {
     id: string
@@ -443,7 +444,7 @@ export function PrintSection({
                                     ? <img src={d.artwork_url} alt="" className="w-full aspect-square object-contain bg-[#0a0a0a]" />
                                     : <div className="w-full aspect-square bg-[#0a0a0a] flex items-center justify-center text-white/20 text-xl">🎨</div>}
                                 <div className="px-1.5 py-1 text-[8px] uppercase tracking-widest font-bold text-white/35 truncate">
-                                    {d.is_winner ? "★ " : ""}{d.brief?.name || d.category_slug}
+                                    {d.is_winner && <Star className="w-3 h-3 inline-block align-[-1px] mr-1" />}{d.brief?.name || d.category_slug}
                                 </div>
                             </button>
                         ))}

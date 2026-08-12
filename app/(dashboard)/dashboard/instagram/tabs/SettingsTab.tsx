@@ -13,6 +13,7 @@ import { BillingSection } from "./BillingSection"
 import { ConsultationSection } from "./ConsultationSection"
 import { FEED_PATTERNS, computeSlotIntent, type FeedPatternId } from "@/lib/feed-pattern"
 import { Hint, HINTS } from "./Hint"
+import { Ban, Camera, ClipboardList, Hand, Hash, Landmark, Megaphone, Mic, Palette, Puzzle, RefreshCw, Settings, ShoppingBag, Trash2, TriangleAlert, User, Users } from "lucide-react"
 
 // ═══════════════════════════════════════════════════════════
 // SETTINGS TAB
@@ -125,20 +126,21 @@ export function SettingsTab({ projectId }: { projectId: string }) {
         )
     }
 
+    // Ikona je komponenta, ne emoji: záložky nastavení jsou rozhraní, ne obsah.
     const TABS_MAIN = [
-        { id: "basic", label: "Základní", icon: "📋" },
-        { id: "voice", label: "Styl textu", icon: "🎤" },
-        { id: "pillars", label: "Témata", icon: "🏛️" },
-        { id: "formats", label: "Formáty", icon: "🧩" },
-        { id: "visual", label: "Vizuál", icon: "🎨" },
-        { id: "products", label: "Produkty", icon: "🛍️" },
-        { id: "manage", label: "Správa", icon: "⚙️" },
+        { id: "basic", label: "Základní", Icon: ClipboardList },
+        { id: "voice", label: "Styl textu", Icon: Mic },
+        { id: "pillars", label: "Témata", Icon: Landmark },
+        { id: "formats", label: "Formáty", Icon: Puzzle },
+        { id: "visual", label: "Vizuál", Icon: Palette },
+        { id: "products", label: "Produkty", Icon: ShoppingBag },
+        { id: "manage", label: "Správa", Icon: Settings },
     ]
 
     const TABS_ADVANCED = [
-        { id: "audience", label: "Publikum", icon: "👥" },
-        { id: "hashtags", label: "Hashtagy", icon: "#️⃣" },
-        { id: "cta", label: "CTA", icon: "📣" },
+        { id: "audience", label: "Publikum", Icon: Users },
+        { id: "hashtags", label: "Hashtagy", Icon: Hash },
+        { id: "cta", label: "CTA", Icon: Megaphone },
     ]
 
     return (
@@ -164,7 +166,7 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                         disabled={saving}
                         className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 px-6 py-2.5 rounded-sm text-xs font-black uppercase tracking-widest transition-all shadow-sm disabled:opacity-50"
                     >
-                        {saving ? "Ukládám..." : "💾 Uložit"}
+                        {saving ? "Ukládám..." : "Uložit"}
                     </button>
                 </div>
             </div>
@@ -191,7 +193,7 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                                 />
                             )}
                             <span className="relative z-10 flex items-center gap-2">
-                                <span>{tab.icon}</span>
+                                <tab.Icon className="w-3.5 h-3.5 shrink-0" />
                                 <span className="whitespace-nowrap">{tab.label}</span>
                             </span>
                         </button>
@@ -242,7 +244,7 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                                             />
                                         )}
                                         <span className="relative z-10 flex items-center gap-2">
-                                            <span>{tab.icon}</span>
+                                            <tab.Icon className="w-3.5 h-3.5 shrink-0" />
                                             <span className="whitespace-nowrap">{tab.label}</span>
                                         </span>
                                     </button>
@@ -454,7 +456,7 @@ function VoiceSection({ config, updateField, updateArrayField }: {
                     {voice.antiPatterns?.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 mt-2">
                             {voice.antiPatterns.map((a: string, i: number) => (
-                                <span key={i} className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-sm text-[9px] text-red-400/70 font-bold uppercase tracking-wider">🚫 {a}</span>
+                                <span key={i} className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-sm text-[9px] text-red-400/70 font-bold uppercase tracking-wider"><Ban className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{a}</span>
                             ))}
                         </div>
                     )}
@@ -631,7 +633,7 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
                         <div className="flex justify-between text-[8px] text-white/20 font-bold">
                             <span>Součet ratios: {totalRatio.toFixed(2)}</span>
                             <span className={totalRatio > 0.95 && totalRatio < 1.05 ? "text-emerald-400" : "text-amber-400"}>
-                                {totalRatio > 0.95 && totalRatio < 1.05 ? "✅ OK" : "⚠️ Měl by být ~1.0"}
+                                {totalRatio > 0.95 && totalRatio < 1.05 ? "OK" : "Měl by být ~1.0"}
                             </span>
                         </div>
                     </div>
@@ -651,7 +653,7 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
                             </div>
                         </div>
                         <button onClick={() => removePillar(key)} className="text-[9px] text-red-400/40 hover:text-red-400 transition-colors font-bold uppercase tracking-widest">
-                            🗑️ Smazat
+                            <span className="inline-flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5 shrink-0" />Smazat</span>
                         </button>
                     </div>
 
@@ -764,16 +766,16 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
                                                 cats[catIdx] = { ...cats[catIdx], medium: e.target.value }
                                                 updatePillar(key, "categories", cats)
                                             }} className="flex-1 px-1.5 py-1 bg-[#050505] border border-white/5 rounded-sm text-[9px] text-white/40 focus:outline-none focus:ring-1 focus:ring-white/30" title="Formát">
-                                                <option value="auto">📐 Auto</option>
-                                                <option value="image">🖼️ Obrázek</option>
-                                                <option value="carousel">📸 Carousel</option>
+                                                <option value="auto">Auto</option>
+                                                <option value="image">Obrázek</option>
+                                                <option value="carousel">Carousel</option>
                                             </select>
                                             <select value={cat.overlayStyle || "auto"} onChange={(e) => {
                                                 const cats = [...(pillar.categories || [])]
                                                 cats[catIdx] = { ...cats[catIdx], overlayStyle: e.target.value }
                                                 updatePillar(key, "categories", cats)
                                             }} className="flex-1 px-1.5 py-1 bg-[#050505] border border-white/5 rounded-sm text-[9px] text-white/40 focus:outline-none focus:ring-1 focus:ring-white/30" title="Styl textu">
-                                                <option value="auto">🎨 Auto</option>
+                                                <option value="auto">Auto</option>
                                                 <option value="default">Klasický (dole)</option>
                                                 <option value="top">Nahoře</option>
                                                 <option value="cover">Přes celý</option>
@@ -786,7 +788,7 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
                                                 cats[catIdx] = { ...cats[catIdx], aspectRatio: e.target.value }
                                                 updatePillar(key, "categories", cats)
                                             }} className="flex-1 px-1.5 py-1 bg-[#050505] border border-white/5 rounded-sm text-[9px] text-white/40 focus:outline-none focus:ring-1 focus:ring-white/30" title="Poměr stran">
-                                                <option value="auto">📏 Auto</option>
+                                                <option value="auto">Auto</option>
                                                 <option value="1:1">1:1 Čtverec</option>
                                                 <option value="4:5">4:5 IG Feed</option>
                                                 <option value="3:4">3:4 Na výšku</option>
@@ -829,10 +831,10 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
 // wouldn't. After every mutation the whole config reloads.
 
 const MEDIUM_OPTIONS = [
-    { value: "image", label: "🖼️ Obrázek" },
-    { value: "story", label: "📱 Story" },
-    { value: "carousel", label: "🎠 Karusel" },
-    { value: "reel", label: "🎬 Reel" },
+    { value: "image", label: "Obrázek" },
+    { value: "story", label: "Story" },
+    { value: "carousel", label: "Karusel" },
+    { value: "reel", label: "Reel" },
 ] as const
 const RATIO_OPTIONS = ["1:1", "4:5", "3:4"] as const
 /** Media pinned to 9:16 — mirrors VERTICAL_MEDIA in instagram/format-clamps.ts. */
@@ -980,12 +982,12 @@ function FormatsSection({ config, projectId, onReload }: { config: any; projectI
                     <label className="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" checked={value.uses_product} onChange={e => onChange({ uses_product: e.target.checked })}
                             className="accent-emerald-500" />
-                        <span className="text-[9px] text-white/50 font-bold uppercase tracking-widest">🛍️ S produktem</span>
+                        <span className="inline-flex items-center gap-1.5 text-[9px] text-white/50 font-bold uppercase tracking-widest"><ShoppingBag className="w-3 h-3 shrink-0" />S produktem</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" checked={Boolean(value.manualOnly)} onChange={e => onChange({ manualOnly: e.target.checked })}
                             className="accent-amber-500" />
-                        <span className="text-[9px] text-white/50 font-bold uppercase tracking-widest">✋ Jen ručně</span>
+                        <span className="inline-flex items-center gap-1.5 text-[9px] text-white/50 font-bold uppercase tracking-widest"><Hand className="w-3 h-3 shrink-0" />Jen ručně</span>
                     </label>
                 </div>
             </div>
@@ -1027,12 +1029,12 @@ function FormatsSection({ config, projectId, onReload }: { config: any; projectI
                                 {dirty && (
                                     <button onClick={() => save({ ...value, name: def.name }, def.name)} disabled={busy !== null}
                                         className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 px-4 py-1.5 rounded-sm text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50">
-                                        {busy === def.name ? "Ukládám..." : "💾 Uložit formát"}
+                                        {busy === def.name ? "Ukládám..." : "Uložit formát"}
                                     </button>
                                 )}
                                 <button onClick={() => remove(def.name)} disabled={busy !== null}
                                     className="text-[9px] text-red-400/40 hover:text-red-400 transition-colors font-bold uppercase tracking-widest disabled:opacity-50">
-                                    🗑️ Smazat
+                                    <span className="inline-flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5 shrink-0" />Smazat</span>
                                 </button>
                             </div>
                         </div>
@@ -1059,7 +1061,7 @@ function FormatsSection({ config, projectId, onReload }: { config: any; projectI
                                 className={`${inputClass} flex-1`} />
                             <button onClick={suggest} disabled={genBusy || !genKeyword.trim()}
                                 className="whitespace-nowrap bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 px-4 py-2 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40">
-                                {genBusy ? "AI přemýšlí…" : "✨ Vyplnit"}
+                                {genBusy ? "AI přemýšlí…" : "Vyplnit"}
                             </button>
                         </div>
                     </div>
@@ -1068,7 +1070,7 @@ function FormatsSection({ config, projectId, onReload }: { config: any; projectI
                     <button onClick={() => save(addDraft, "__add__")}
                         disabled={busy !== null || !addDraft.display_name.trim() || !addDraft.description.trim()}
                         className="w-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 py-3 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40">
-                        {busy === "__add__" ? "Ukládám..." : "💾 Vytvořit formát"}
+                        {busy === "__add__" ? "Ukládám..." : "Vytvořit formát"}
                     </button>
                 </div>
             ) : (
@@ -1125,12 +1127,12 @@ function AudienceSection({ config, setConfig }: { config: any; setConfig: (fn: a
                 <div key={idx} className="bg-[#0f0f0f] border border-white/5 rounded-sm p-6 space-y-4">
                     <div className="flex items-center justify-between border-b border-white/10 pb-3">
                         <div className="flex items-center gap-3">
-                            <span className="text-2xl">👤</span>
+                            <User className="w-6 h-6" />
                             <input value={p.label || ""} onChange={(e) => updatePersona(idx, "label", e.target.value)}
                                 className="bg-transparent text-white font-black uppercase tracking-tight text-sm border-none focus:outline-none" placeholder="Název persony" />
                         </div>
                         <button onClick={() => removePersona(idx)} className="text-[9px] text-red-400/40 hover:text-red-400 transition-colors font-bold uppercase tracking-widest">
-                            🗑️ Smazat
+                            <span className="inline-flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5 shrink-0" />Smazat</span>
                         </button>
                     </div>
 
@@ -1150,7 +1152,7 @@ function AudienceSection({ config, setConfig }: { config: any; setConfig: (fn: a
                                                 ? "bg-white/10 border-white/20 text-white"
                                                 : "border-white/5 text-white/30 hover:text-white/60"
                                         }`}>
-                                        {style === "soft" ? "🫶 Jemné" : style === "medium" ? "💪 Střední" : "🔥 Přímý"}
+                                        {style === "soft" ? "Jemné" : style === "medium" ? "Střední" : "Přímý"}
                                     </button>
                                 ))}
                             </div>
@@ -1273,13 +1275,13 @@ function VisualSection({ config, updateField, handleLogoUpload, logoUploading, p
                             ? "border-white/5 bg-white/5 text-white/25 cursor-not-allowed"
                             : "border-white/20 bg-white/5 text-white/70 hover:text-white hover:border-white/40"}`}
                     >
-                        {analyzing ? "⏳ Analyzuji feed…" : "🔍 Analyzovat můj feed"}
+                        {analyzing ? "⏳ Analyzuji feed…" : "Analyzovat můj feed"}
                     </button>
                 </div>
 
                 {analyzeError && (
                     <div className="mb-4 p-3 rounded-sm border border-red-400/20 bg-red-400/5">
-                        <p className="text-[10px] text-red-300/80 leading-relaxed">⚠️ {analyzeError}</p>
+                        <p className="text-[10px] text-red-300/80 leading-relaxed"><TriangleAlert className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{analyzeError}</p>
                     </div>
                 )}
 
@@ -1324,9 +1326,7 @@ function VisualSection({ config, updateField, handleLogoUpload, logoUploading, p
                                 </p>
                                 <p className="text-[9px] text-white/30 mt-1 leading-relaxed">{p.description}</p>
                                 {p.gridAligned && (
-                                    <p className="text-[8px] text-white/20 mt-1.5 uppercase tracking-widest font-bold">
-                                        ⚠ Publikujte po řádcích (3)
-                                    </p>
+                                    <p className="inline-flex items-center gap-1.5 text-[8px] text-white/20 mt-1.5 uppercase tracking-widest font-bold"><TriangleAlert className="w-3 h-3 shrink-0" />Publikujte po řádcích (3)</p>
                                 )}
                             </button>
                         )
@@ -1602,9 +1602,9 @@ function InstagramConnectionSection({ projectId }: { projectId: string }) {
         load()
         if (typeof window !== "undefined") {
             const ig = new URLSearchParams(window.location.search).get("ig")
-            if (ig === "connected") setFlash("✅ Instagram úspěšně připojen")
-            else if (ig === "denied") setFlash("⚠️ Připojení zrušeno na straně Instagramu")
-            else if (ig === "error") setFlash("❌ Připojení se nezdařilo, zkus to znovu")
+            if (ig === "connected") setFlash("Instagram úspěšně připojen")
+            else if (ig === "denied") setFlash("Připojení zrušeno na straně Instagramu")
+            else if (ig === "error") setFlash("Připojení se nezdařilo, zkus to znovu")
         }
     }, [load])
 
@@ -1664,7 +1664,7 @@ function InstagramConnectionSection({ projectId }: { projectId: string }) {
                                 : "bg-white/5 text-white/20 border-white/5 pointer-events-none"
                         }`}
                     >
-                        📸 Připojit
+                        <span className="inline-flex items-center gap-1.5"><Camera className="w-3.5 h-3.5 shrink-0" />Připojit</span>
                     </a>
                 </div>
             )}
@@ -1728,7 +1728,7 @@ function AutoPublishSection({ projectId }: { projectId: string }) {
             postingTimes: finalTimes,
         })
         setSaving(false)
-        setMsg(res.success ? "✅ Uloženo" : (res.error || "Uložení selhalo"))
+        setMsg(res.success ? "Uloženo" : (res.error || "Uložení selhalo"))
         if (res.success) setTimes(finalTimes)
     }
 
@@ -1755,9 +1755,7 @@ function AutoPublishSection({ projectId }: { projectId: string }) {
                     </div>
 
                     {!connected && (
-                        <p className="text-[10px] text-amber-400/80 bg-amber-500/5 border border-amber-500/20 rounded-sm px-3 py-2">
-                            ⚠️ Účet zatím není připojený — nastavení se uloží, ale publikovat se začne až po připojení Instagramu (sekce výše).
-                        </p>
+                        <p className="inline-flex items-center gap-1.5 text-[10px] text-amber-400/80 bg-amber-500/5 border border-amber-500/20 rounded-sm px-3 py-2"><TriangleAlert className="w-3 h-3 shrink-0" />Účet zatím není připojený — nastavení se uloží, ale publikovat se začne až po připojení Instagramu (sekce výše).</p>
                     )}
 
                     {/* Frequency */}
@@ -1872,7 +1870,7 @@ function ClientManagementSection({ projectId, config, setConfig, onReload }: {
                     onClick={() => router.push(`/onboarding?reonboard=${projectId}`)}
                     className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-all border border-amber-500/20 whitespace-nowrap"
                 >
-                    🔄 Re-onboarding
+                    <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />Re-onboarding</span>
                 </button>
             </div>
 
@@ -1891,7 +1889,7 @@ function ClientManagementSection({ projectId, config, setConfig, onReload }: {
                     disabled={rescanning}
                     className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all border border-blue-500/20 disabled:opacity-50 whitespace-nowrap"
                 >
-                    {rescanning ? "Skenuji…" : "🔍 Skenovat"}
+                    {rescanning ? "Skenuji…" : "Skenovat"}
                 </button>
             </div>
             {rescanResult && (
@@ -1921,7 +1919,7 @@ function ClientManagementSection({ projectId, config, setConfig, onReload }: {
                     disabled={syncing}
                     className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-all border border-purple-500/20 disabled:opacity-50 whitespace-nowrap"
                 >
-                    {syncing ? "Syncuji…" : "🔄 Sync"}
+                    {syncing ? "Syncuji…" : "Sync"}
                 </button>
             </div>
             {syncResult && (
@@ -1942,7 +1940,7 @@ function ClientManagementSection({ projectId, config, setConfig, onReload }: {
                             onClick={() => setConfirmDelete(true)}
                             className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-all border border-red-500/10 hover:border-red-500/20 whitespace-nowrap"
                         >
-                            🗑️ Smazat
+                            <span className="inline-flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5 shrink-0" />Smazat</span>
                         </button>
                     ) : (
                         <div className="flex gap-2">
@@ -1958,7 +1956,7 @@ function ClientManagementSection({ projectId, config, setConfig, onReload }: {
                                 disabled={deleting}
                                 className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-red-600/30 text-red-400 border border-red-500/30 hover:bg-red-600/50 transition-all whitespace-nowrap disabled:opacity-50"
                             >
-                                {deleting ? "Mažu…" : "⚠️ Opravdu smazat"}
+                                {deleting ? "Mažu…" : "Opravdu smazat"}
                             </button>
                         </div>
                     )}

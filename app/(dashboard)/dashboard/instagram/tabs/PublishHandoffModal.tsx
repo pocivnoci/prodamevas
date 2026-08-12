@@ -6,6 +6,7 @@ import type { IGPost } from "./types"
 import { useCopyToClipboard } from "./hooks"
 import { publishNowAction, getPostPublishStatus } from "@/app/actions/calendar-actions"
 import { parsePostMedia } from "@/lib/media-urls"
+import { Check, CircleCheck, Image, Smartphone, X } from "lucide-react"
 
 // ═══════════════════════════════════════════════════════════
 // PUBLISH HANDOFF MODAL — "one-tap" hand-off to the Instagram app
@@ -195,14 +196,12 @@ export function PublishHandoffModal({
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
                     <h3 className="text-white font-black uppercase tracking-tighter text-sm flex items-center gap-2">
-                        <span>📲</span> Publikovat na Instagram
+                        <Smartphone className="w-4 h-4" /> Publikovat na Instagram
                     </h3>
                     <button
                         onClick={onClose}
                         className="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 rounded-sm transition-colors border border-transparent hover:border-white/10"
-                    >
-                        ✕
-                    </button>
+                    ><X className="w-3.5 h-3.5 shrink-0" /> </button>
                 </div>
 
                 {/* Body — scrollable */}
@@ -237,7 +236,7 @@ export function PublishHandoffModal({
                         </div>
                     ) : (
                         <div className="w-full h-40 rounded-sm bg-[#0f0f0f]/50 border border-white/5 flex flex-col items-center justify-center gap-2">
-                            <span className="text-2xl opacity-50">🖼️</span>
+                            <Image className="w-6 h-6 opacity-50" />
                             <span className="text-white/40 font-bold uppercase tracking-widest text-[10px]">Bez obrázku</span>
                         </div>
                     )}
@@ -246,7 +245,7 @@ export function PublishHandoffModal({
                     {canAutoPublish && (
                         pubState === "posted" ? (
                             <div className="w-full px-4 py-3.5 text-xs font-black uppercase tracking-widest rounded-sm bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center gap-2">
-                                ✅ Publikováno!
+                                <span className="inline-flex items-center gap-1.5"><CircleCheck className="w-3.5 h-3.5 shrink-0" />Publikováno!</span>
                                 {permalink && (
                                     <a href={permalink} target="_blank" rel="noopener noreferrer" className="underline hover:text-emerald-300 normal-case tracking-normal">otevřít ↗</a>
                                 )}
@@ -259,7 +258,7 @@ export function PublishHandoffModal({
                             >
                                 {pubState === "publishing"
                                     ? "⏳ Publikuje se… (do minuty)"
-                                    : isStory ? "📱 Přidat do stories" : "⚡ Publikovat hned"}
+                                    : isStory ? "Přidat do stories" : "Publikovat hned"}
                             </button>
                         )
                     )}
@@ -277,7 +276,7 @@ export function PublishHandoffModal({
                             disabled={sharing}
                             className={`w-full px-4 py-3.5 text-xs font-black uppercase tracking-widest rounded-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${canAutoPublish ? "bg-[#0f0f0f] text-white/70 border border-white/10 hover:bg-white/10 hover:text-white" : "bg-gradient-to-r from-aisummit-cinnabar/30 to-orange-600/30 text-aisummit-cinnabar border border-aisummit-cinnabar/30 hover:from-aisummit-cinnabar/40 hover:to-orange-600/40"}`}
                         >
-                            {sharing ? "⏳ Připravuji…" : shared ? "✅ Sdíleno — popisek je v schránce" : "📲 Sdílet do Instagramu"}
+                            {sharing ? "⏳ Připravuji…" : shared ? "Sdíleno — popisek je v schránce" : "Sdílet do Instagramu"}
                         </button>
                     )}
 
@@ -303,7 +302,7 @@ export function PublishHandoffModal({
                                 onClick={() => copyToClipboard(fullText, "caption")}
                                 className="text-[10px] font-bold uppercase tracking-widest text-aisummit-cinnabar hover:text-orange-400 transition-colors"
                             >
-                                {copiedField === "caption" ? "✅ Zkopírováno!" : "📋 Kopírovat popisek"}
+                                {copiedField === "caption" ? "Zkopírováno!" : "Kopírovat popisek"}
                             </button>
                         </div>
                         <div className="rounded-sm border border-white/10 bg-[#0f0f0f] p-3 max-h-40 overflow-y-auto">
@@ -351,7 +350,7 @@ export function PublishHandoffModal({
                             onClick={() => onMarkedPosted(post.id)}
                             className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all border border-emerald-500/20"
                         >
-                            ✓ Označit jako publikováno
+                            <span className="inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5 shrink-0" />Označit jako publikováno</span>
                         </button>
                     )}
                 </div>

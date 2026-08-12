@@ -5,6 +5,7 @@ import { getPerformanceInsights, updateIGPostMetrics, syncMetricsAction } from "
 import { getConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { getGrowthData, type GrowthData } from "@/app/actions/growth-actions"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
+import { Anchor, Bookmark, Brain, ChartColumn, Check, Eye, Heart, Link, LockOpen, MessageCircle, Search, Share2, TrendingUp } from "lucide-react"
 
 export function PerformanceTab({ projectId }: { projectId: string }) {
     const [posts, setPosts] = useState<any[]>([])
@@ -54,10 +55,10 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
         setSyncMsg(null)
         const r = await syncMetricsAction(projectId)
         if (r.success) {
-            setSyncMsg(`✅ Načteno ${r.synced ?? 0} příspěvků z Instagramu${r.matched ? `, nově propojeno ${r.matched}` : ""}.`)
+            setSyncMsg(`Načteno ${r.synced ?? 0} příspěvků z Instagramu${r.matched ? `, nově propojeno ${r.matched}` : ""}.`)
             await loadData(false)
         } else {
-            setSyncMsg(`⚠️ ${r.error || "Synchronizace selhala"}`)
+            setSyncMsg(`${r.error || "Synchronizace selhala"}`)
         }
         setSyncing(false)
     }
@@ -84,12 +85,12 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
     }
 
     const metricFields = [
-        { key: "likes", label: "❤️", title: "Likes" },
-        { key: "comments", label: "💬", title: "Komentáře" },
-        { key: "saves", label: "🔖", title: "Uložení" },
-        { key: "reach", label: "👁", title: "Reach" },
-        { key: "shares", label: "↗️", title: "Sdílení" },
-        { key: "link_clicks", label: "🔗", title: "Kliky" },
+        { key: "likes", Icon: Heart, title: "Likes" },
+        { key: "comments", Icon: MessageCircle, title: "Komentáře" },
+        { key: "saves", Icon: Bookmark, title: "Uložení" },
+        { key: "reach", Icon: Eye, title: "Reach" },
+        { key: "shares", Icon: Share2, title: "Sdílení" },
+        { key: "link_clicks", Icon: Link, title: "Kliky" },
     ]
 
     if (loading) {
@@ -111,7 +112,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
             <div>
                 <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
                     <h2 className="text-lg font-black uppercase tracking-tight text-white flex items-center gap-2">
-                        📊 Statistiky výkonu
+                        <span className="inline-flex items-center gap-1.5"><ChartColumn className="w-3.5 h-3.5 shrink-0" />Statistiky výkonu</span>
                         {!hasData && <span className="text-[10px] font-normal normal-case tracking-normal text-white/30">— zatím žádná data, zadej metriky níže</span>}
                     </h2>
                     {connected && (
@@ -121,7 +122,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                             title="Stáhne aktuální metriky z propojeného Instagramu"
                             className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-[#0f0f0f] border border-white/10 text-white/70 hover:bg-white/10 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
-                            {syncing ? "⏳ Načítám…" : "🔄 Načíst metriky z Instagramu"}
+                            {syncing ? "⏳ Načítám…" : "Načíst metriky z Instagramu"}
                         </button>
                     )}
                 </div>
@@ -153,7 +154,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                             {/* Best Hooks */}
                             <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
-                                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-3">🎣 Nejlepší hooky</div>
+                                <div className="inline-flex items-center gap-1.5 text-[10px] text-white/40 uppercase tracking-wider mb-3"><Anchor className="w-3 h-3 shrink-0" />Nejlepší hooky</div>
                                 <div className="space-y-2">
                                     {insights.bestHooks?.slice(0, 5).map((hook: string, i: number) => (
                                         <div key={i} className="flex items-start gap-2">
@@ -169,7 +170,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
 
                             {/* Top Patterns */}
                             <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
-                                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-3">🔍 Detekované vzorce</div>
+                                <div className="inline-flex items-center gap-1.5 text-[10px] text-white/40 uppercase tracking-wider mb-3"><Search className="w-3 h-3 shrink-0" />Detekované vzorce</div>
                                 <div className="flex flex-wrap gap-2">
                                     {insights.topPatterns?.map((pattern: string, i: number) => (
                                         <span key={i} className="inline-flex items-center px-3 py-1.5 bg-white/5 border border-white/10 rounded-sm text-[11px] text-white/70 font-medium">
@@ -186,7 +187,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                         {/* Per-Pillar Performance */}
                         {insights.pillarPerformance && Object.keys(insights.pillarPerformance).length > 0 && (
                             <div>
-                                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-3">📊 Výkon podle témat</div>
+                                <div className="inline-flex items-center gap-1.5 text-[10px] text-white/40 uppercase tracking-wider mb-3"><ChartColumn className="w-3 h-3 shrink-0" />Výkon podle témat</div>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                     {Object.entries(insights.pillarPerformance).map(([key, perf]: [string, any]) => {
                                         const label = pillarLabels[key]
@@ -207,7 +208,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                     </>
                 ) : (
                     <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-6 text-center">
-                        <div className="text-2xl mb-2">🧠</div>
+                        <Brain className="w-6 h-6 mb-2 text-white/40" />
                         <div className="text-sm text-white/50">Zadej metriky k publikovaným postům níže</div>
                         <div className="text-[10px] text-white/30 mt-1">Statistiky se zobrazí po přidání dat k alespoň 3 postům</div>
                     </div>
@@ -217,7 +218,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
             {/* ── Manual Metrics Input ──────────────────────── */}
             <div>
                 <h2 className="text-lg font-black uppercase tracking-tight text-white mb-4 flex items-center gap-2">
-                    📊 Manuální zadávání metrik
+                    <span className="inline-flex items-center gap-1.5"><ChartColumn className="w-3.5 h-3.5 shrink-0" />Manuální zadávání metrik</span>
                     <span className="text-[10px] font-normal normal-case tracking-normal text-white/30">— {posts.length} postů</span>
                 </h2>
 
@@ -232,7 +233,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                         <div className="hidden sm:grid grid-cols-[1fr_repeat(6,60px)_70px] gap-2 px-3 py-2">
                             <div className="text-[9px] text-white/30 uppercase tracking-wider">Post</div>
                             {metricFields.map(f => (
-                                <div key={f.key} className="text-[9px] text-white/30 uppercase tracking-wider text-center" title={f.title}>{f.label}</div>
+                                <div key={f.key} className="flex justify-center text-white/30" title={f.title}><f.Icon className="w-3.5 h-3.5" /><span className="sr-only">{f.title}</span></div>
                             ))}
                             <div />
                         </div>
@@ -279,7 +280,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                                     {/* Metric inputs */}
                                     {metricFields.map(f => (
                                         <div key={f.key} className="flex sm:block items-center gap-2">
-                                            <span className="sm:hidden text-[9px] text-white/30 w-8">{f.label}</span>
+                                            <f.Icon className="sm:hidden w-3.5 h-3.5 shrink-0 text-white/30" aria-label={f.title} />
                                             <input
                                                 type="number"
                                                 min="0"
@@ -302,7 +303,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                                                     : "bg-white/5 text-white/60 border border-white/10 hover:bg-white/10 hover:text-white"
                                             }`}
                                     >
-                                        {isSaved ? "✓" : isSaving ? "..." : "Uložit"}
+                                        {isSaved ? <Check className="w-3.5 h-3.5" /> : isSaving ? "..." : "Uložit"}
                                     </button>
                                 </div>
                             )
@@ -313,9 +314,9 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
 
             {/* Info */}
             <div className="bg-[#0a0a0a]/60 border border-white/5 rounded-sm p-4 text-[10px] text-white/30 tracking-wide space-y-1">
-                <p>🧠 <strong className="text-white/50">Neural Engine:</strong> Zadané metriky automaticky ovlivní příští generování — AI se naučí, co funguje líp.</p>
-                <p>📊 <strong className="text-white/50">Insights:</strong> Zobrazí se po zadání metrik k alespoň 3 postům se statusem "posted".</p>
-                <p>🔗 <strong className="text-white/50">Meta API:</strong> Automatické stahování metrik bude přidáno později — zatím zadávej ručně z IG Insights.</p>
+                <p><Brain className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" /><strong className="text-white/50">Neural Engine:</strong> Zadané metriky automaticky ovlivní příští generování — AI se naučí, co funguje líp.</p>
+                <p><ChartColumn className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" /><strong className="text-white/50">Insights:</strong> Zobrazí se po zadání metrik k alespoň 3 postům se statusem "posted".</p>
+                <p><Link className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" /><strong className="text-white/50">Meta API:</strong> Automatické stahování metrik bude přidáno později — zatím zadávej ručně z IG Insights.</p>
             </div>
         </div>
     )
@@ -339,14 +340,14 @@ function GrowthSection({ projectId }: { projectId: string }) {
         return (
             <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-6 flex items-center justify-between gap-4 flex-wrap">
                 <div>
-                    <h2 className="text-lg font-black uppercase tracking-tight text-white mb-1">📈 Růst profilu</h2>
+                    <h2 className="inline-flex items-center gap-1.5 text-lg font-black uppercase tracking-tight text-white mb-1"><TrendingUp className="w-4 h-4 shrink-0" />Růst profilu</h2>
                     <p className="text-xs text-white/40">Týdenní sledování followerů a graf růstu od startu je dostupný od balíčku <strong className="text-white/70">Růst</strong>.</p>
                 </div>
                 <button
                     onClick={() => setActiveSection("settings")}
                     className="px-5 py-2.5 rounded-sm bg-aisummit-cinnabar text-white text-[9px] font-bold uppercase tracking-widest hover:bg-aisummit-cinnabar/90 transition-all"
                 >
-                    🔓 Odemknout
+                    <span className="inline-flex items-center gap-1.5"><LockOpen className="w-3.5 h-3.5 shrink-0" />Odemknout</span>
                 </button>
             </div>
         )
@@ -364,7 +365,7 @@ function GrowthSection({ projectId }: { projectId: string }) {
     return (
         <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-6">
             <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <h2 className="text-lg font-black uppercase tracking-tight text-white">📈 Růst profilu</h2>
+                <h2 className="inline-flex items-center gap-1.5 text-lg font-black uppercase tracking-tight text-white"><TrendingUp className="w-4 h-4 shrink-0" />Růst profilu</h2>
                 <div className="flex items-center gap-4">
                     {growth?.currentFollowers !== null && growth?.currentFollowers !== undefined && (
                         <div className="text-right">

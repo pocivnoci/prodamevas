@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { getIGReviewsList, updateIGReviewApproval } from "@/app/actions/admin-actions"
 import { addNewReview, triggerAIReviewsGeneration } from "@/app/actions/ig-generate-action"
 import { LoadingSpinner } from "./shared"
+import { Check } from "lucide-react"
 
 export function ReviewsTab({ projectId }: { projectId: string }) {
     const [reviews, setReviews] = useState<any[]>([])
@@ -60,7 +61,7 @@ export function ReviewsTab({ projectId }: { projectId: string }) {
                         disabled={generatingAI}
                         className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-[0_0_15px_rgba(16,185,129,0.1)] ${generatingAI ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-500/20'}`}
                     >
-                        {generatingAI ? "✨ Generuji..." : "✨ AI Recenze (5x)"}
+                        {generatingAI ? "Generuji..." : "AI Recenze (5x)"}
                     </button>
                     <button
                         onClick={() => setShowForm(!showForm)}
@@ -109,7 +110,7 @@ export function ReviewsTab({ projectId }: { projectId: string }) {
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 {review.is_approved ? (
-                                    <span className="text-[9px] px-2 py-1 rounded-sm bg-emerald-500/10 text-emerald-400 uppercase tracking-widest font-bold border border-emerald-500/20">✓ Schváleno</span>
+                                    <span className="inline-flex items-center gap-1.5 text-[9px] px-2 py-1 rounded-sm bg-emerald-500/10 text-emerald-400 uppercase tracking-widest font-bold border border-emerald-500/20"><Check className="w-3 h-3 shrink-0" />Schváleno</span>
                                 ) : (
                                     <div className="flex gap-1">
                                         <button

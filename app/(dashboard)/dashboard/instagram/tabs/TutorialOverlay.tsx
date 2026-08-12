@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useStudio, type StudioSection } from "@/app/(dashboard)/StudioContext"
+import { Camera, Rocket, Settings, Sparkles } from "lucide-react"
 
 // ═══════════════════════════════════════════════════════════
 // WELCOME BANNER — replaces 7-step tutorial modal
@@ -82,7 +83,7 @@ export function TutorialOverlay({
                         <div className="px-8 py-8">
                             <div className="flex items-center justify-center mb-6">
                                 <div className="w-16 h-16 bg-white/5 border border-white/10 rounded-sm flex items-center justify-center">
-                                    <span className="text-4xl">✨</span>
+                                    <Sparkles className="w-8 h-8" />
                                 </div>
                             </div>
 
@@ -96,21 +97,21 @@ export function TutorialOverlay({
                             {/* 3 key tips */}
                             <div className="space-y-3 mb-8">
                                 <div className="flex items-start gap-3 bg-white/5 border border-white/10 rounded-sm p-4">
-                                    <span className="text-lg mt-0.5">🚀</span>
+                                    <Rocket className="w-5 h-5 mt-0.5" />
                                     <div>
                                         <p className="text-xs font-bold text-white/80">Generovat</p>
                                         <p className="text-[11px] text-white/40 mt-0.5">Vytvořte příspěvek jedním klikem — vyberte téma a AI udělá zbytek</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-3 bg-white/5 border border-white/10 rounded-sm p-4">
-                                    <span className="text-lg mt-0.5">📸</span>
+                                    <Camera className="w-5 h-5 mt-0.5" />
                                     <div>
                                         <p className="text-xs font-bold text-white/80">Příspěvky</p>
                                         <p className="text-[11px] text-white/40 mt-0.5">Všechny vygenerované posty najdete v Příspěvcích — zkopírujte text a stáhněte obrázek</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-3 bg-white/5 border border-white/10 rounded-sm p-4">
-                                    <span className="text-lg mt-0.5">⚙️</span>
+                                    <Settings className="w-5 h-5 mt-0.5" />
                                     <div>
                                         <p className="text-xs font-bold text-white/80">Nastavení</p>
                                         <p className="text-[11px] text-white/40 mt-0.5">Dolaďte styl textu, témata a vizuální styl kdykoliv v Nastavení</p>
@@ -129,10 +130,8 @@ export function TutorialOverlay({
                             </button>
                             <button
                                 onClick={handleStartGenerating}
-                                className="px-8 py-3 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all shadow-[0_0_25px_rgba(229,83,63,0.3)]"
-                            >
-                                🚀 Vytvořit první příspěvek
-                            </button>
+                                className="inline-flex items-center gap-1.5 justify-center px-8 py-3 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all shadow-[0_0_25px_rgba(229,83,63,0.3)]"
+                            ><Rocket className="w-3 h-3 shrink-0" />Vytvořit první příspěvek</button>
                         </div>
                     </div>
                 </motion.div>

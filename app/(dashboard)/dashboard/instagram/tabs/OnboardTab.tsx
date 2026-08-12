@@ -13,6 +13,7 @@ import {
 } from '@/app/onboarding/actions'
 import type { WebsiteAnalysis, OnboardingQuestion, ReviewSection } from '@/app/onboarding/actions'
 import type { ClientConfig, ImageBriefItem } from '@/instagram/configs/types'
+import { Anchor, Camera, ChartColumn, Check, CircleCheck, ClipboardList, Globe, Mic, Package, Palette, Pencil, Plus, Rocket, Search, ThumbsUp, TriangleAlert, type LucideIcon } from "lucide-react"
 
 type Step = 'choose' | 'input' | 'manual' | 'analyzing' | 'questions' | 'building' | 'review' | 'saving' | 'done'
 
@@ -21,12 +22,12 @@ interface OnboardedClient {
     slug: string
 }
 
-const REVIEW_SECTIONS: { id: ReviewSection; icon: string; title: string }[] = [
-    { id: 'brand_voice', icon: '🎤', title: 'Brand Voice' },
-    { id: 'pillars', icon: '📊', title: 'Content Pillars' },
-    { id: 'products', icon: '📦', title: 'Produkty' },
-    { id: 'visual', icon: '🎨', title: 'Vizuální identita' },
-    { id: 'hooks_cta', icon: '🪝', title: 'Hooks & CTA' },
+const REVIEW_SECTIONS: { id: ReviewSection; Icon: LucideIcon; title: string }[] = [
+    { id: 'brand_voice', Icon: Mic, title: 'Brand Voice' },
+    { id: 'pillars', Icon: ChartColumn, title: 'Content Pillars' },
+    { id: 'products', Icon: Package, title: 'Produkty' },
+    { id: 'visual', Icon: Palette, title: 'Vizuální identita' },
+    { id: 'hooks_cta', Icon: Anchor, title: 'Hooks & CTA' },
 ]
 
 export function OnboardTab() {
@@ -319,7 +320,7 @@ export function OnboardTab() {
             {step === 'choose' && (
                 <div>
                     <div className="mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-2">➕ Onboardovat nového klienta</h2>
+                        <h2 className="inline-flex items-center gap-1.5 text-2xl font-bold text-white mb-2"><Plus className="w-5 h-5 shrink-0" />Onboardovat nového klienta</h2>
                         <p className="text-white/50 text-sm">Jak chceš začít?</p>
                     </div>
 
@@ -349,7 +350,7 @@ export function OnboardTab() {
                             <div className="space-y-2">
                                 {history.map((c, i) => (
                                     <div key={i} className="flex items-center gap-2 text-sm text-white/60">
-                                        <span className="text-emerald-400">✓</span>
+                                        <Check className="w-4 h-4 text-emerald-400" />
                                         <span className="font-medium text-white/80">{c.name}</span>
                                         <span className="text-white/30">({c.slug})</span>
                                     </div>
@@ -364,7 +365,7 @@ export function OnboardTab() {
             {step === 'input' && (
                 <div>
                     <div className="mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-2">🌐 Webová stránka klienta</h2>
+                        <h2 className="inline-flex items-center gap-1.5 text-2xl font-bold text-white mb-2"><Globe className="w-5 h-5 shrink-0" />Webová stránka klienta</h2>
                         <p className="text-white/50 text-sm">AI analyzuje web a vytvoří konfiguraci.</p>
                     </div>
 
@@ -403,9 +404,7 @@ export function OnboardTab() {
                             <button
                                 type="submit"
                                 className="flex-1 rounded-lg bg-emerald-600 px-6 py-3.5 text-sm font-medium text-white transition-all hover:bg-emerald-500 cursor-pointer"
-                            >
-                                🔍 Analyzovat web
-                            </button>
+                            ><Search className="w-3.5 h-3.5 shrink-0" />Analyzovat web</button>
                         </div>
                     </form>
                 </div>
@@ -415,7 +414,7 @@ export function OnboardTab() {
             {step === 'manual' && (
                 <div>
                     <div className="mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-2">✏️ Manuální onboarding</h2>
+                        <h2 className="inline-flex items-center gap-1.5 text-2xl font-bold text-white mb-2"><Pencil className="w-5 h-5 shrink-0" />Manuální onboarding</h2>
                         <p className="text-white/50 text-sm">Vyplň základní info — AI vytvoří konfiguraci bez webu.</p>
                     </div>
 
@@ -432,15 +431,15 @@ export function OnboardTab() {
                                 <label className="block text-sm font-medium text-gray-300 mb-2">Kategorie</label>
                                 <div className="grid grid-cols-3 gap-2">
                                     {[
-                                        { id: 'kavarna', label: '☕ Kavárna' },
-                                        { id: 'restaurace', label: '🍽️ Restaurace' },
-                                        { id: 'salon', label: '💇 Salon' },
-                                        { id: 'fitness', label: '💪 Fitness' },
-                                        { id: 'eshop', label: '🛒 E-shop' },
-                                        { id: 'remeslnik', label: '🔧 Řemeslník' },
-                                        { id: 'poradce', label: '📊 Poradce' },
-                                        { id: 'fotograf', label: '📸 Fotograf' },
-                                        { id: 'jine', label: '📌 Jiné' },
+                                        { id: 'kavarna', label: 'Kavárna' },
+                                        { id: 'restaurace', label: 'Restaurace' },
+                                        { id: 'salon', label: 'Salon' },
+                                        { id: 'fitness', label: 'Fitness' },
+                                        { id: 'eshop', label: 'E-shop' },
+                                        { id: 'remeslnik', label: 'Řemeslník' },
+                                        { id: 'poradce', label: 'Poradce' },
+                                        { id: 'fotograf', label: 'Fotograf' },
+                                        { id: 'jine', label: 'Jiné' },
                                     ].map(cat => (
                                         <button key={cat.id} type="button" onClick={() => setCategory(cat.id)}
                                             className={`px-3 py-2 rounded-lg text-sm transition-all cursor-pointer text-left ${
@@ -461,10 +460,10 @@ export function OnboardTab() {
                                 <label className="block text-sm font-medium text-gray-300 mb-2">Tón komunikace</label>
                                 <div className="grid grid-cols-2 gap-2">
                                     {[
-                                        { id: 'přátelský', label: '😊 Přátelský' },
-                                        { id: 'profesionální', label: '👔 Profesionální' },
-                                        { id: 'drzý', label: '😎 Drzý / Vtipný' },
-                                        { id: 'expertní', label: '🎓 Expertní' },
+                                        { id: 'přátelský', label: 'Přátelský' },
+                                        { id: 'profesionální', label: 'Profesionální' },
+                                        { id: 'drzý', label: 'Drzý / Vtipný' },
+                                        { id: 'expertní', label: 'Expertní' },
                                     ].map(t => (
                                         <button key={t.id} type="button" onClick={() => setManualTone(t.id)}
                                             className={`px-3 py-2 rounded-lg text-sm transition-all cursor-pointer text-left ${
@@ -494,11 +493,11 @@ export function OnboardTab() {
                                 <label className="block text-sm font-medium text-gray-300 mb-2">Vizuální styl</label>
                                 <div className="grid grid-cols-3 gap-2">
                                     {[
-                                        { id: 'tmavý', label: '🌑 Tmavý' },
-                                        { id: 'světlý', label: '☀️ Světlý' },
-                                        { id: 'barevný', label: '🌈 Barevný' },
-                                        { id: 'minimalistický', label: '⬜ Minimalistický' },
-                                        { id: 'luxusní', label: '✨ Luxusní' },
+                                        { id: 'tmavý', label: 'Tmavý' },
+                                        { id: 'světlý', label: 'Světlý' },
+                                        { id: 'barevný', label: 'Barevný' },
+                                        { id: 'minimalistický', label: 'Minimalistický' },
+                                        { id: 'luxusní', label: 'Luxusní' },
                                     ].map(v => (
                                         <button key={v.id} type="button" onClick={() => setVisualStyle(v.id)}
                                             className={`px-3 py-2 rounded-lg text-sm transition-all cursor-pointer text-left ${
@@ -511,7 +510,7 @@ export function OnboardTab() {
 
                         {/* IG Insights */}
                         <div className="p-6 bg-white/5 border border-white/10 rounded-xl space-y-5">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-white/40">📊 Instagram insights (volitelné)</h4>
+                            <h4 className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-white/40"><ChartColumn className="w-3.5 h-3.5 shrink-0" />Instagram insights (volitelné)</h4>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-300 mb-2">Followerů</label>
@@ -526,10 +525,10 @@ export function OnboardTab() {
                                 <label className="block text-sm font-medium text-gray-300 mb-2">Publikum</label>
                                 <div className="grid grid-cols-4 gap-2">
                                     {[
-                                        { id: 'mostly_female', label: '👩 Převážně ženy' },
-                                        { id: 'mostly_male', label: '👨 Převážně muži' },
-                                        { id: 'mixed', label: '👥 Mix' },
-                                        { id: 'unknown', label: '❓ Nevím' },
+                                        { id: 'mostly_female', label: 'Převážně ženy' },
+                                        { id: 'mostly_male', label: 'Převážně muži' },
+                                        { id: 'mixed', label: 'Mix' },
+                                        { id: 'unknown', label: 'Nevím' },
                                     ].map(g => (
                                         <button key={g.id} type="button" onClick={() => setAudienceGender(g.id)}
                                             className={`px-3 py-2 rounded-lg text-xs transition-all cursor-pointer text-center ${
@@ -546,9 +545,7 @@ export function OnboardTab() {
                                 type="submit"
                                 disabled={!businessName || !category || !manualDescription}
                                 className="flex-1 rounded-lg bg-blue-600 px-6 py-3.5 text-sm font-medium text-white transition-all hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                            >
-                                🚀 Analyzovat a nastavit
-                            </button>
+                            ><Rocket className="w-3.5 h-3.5 shrink-0" />Analyzovat a nastavit</button>
                         </div>
                     </form>
                 </div>
@@ -624,7 +621,7 @@ export function OnboardTab() {
                                                     className={`px-3 py-2 rounded-lg text-sm transition-all cursor-pointer text-left ${selected
                                                         ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 border'
                                                         : 'bg-black/30 border border-white/10 text-gray-300 hover:border-white/20'
-                                                    }`}>{selected ? '✓ ' : ''}{option}</button>
+                                                    }`}>{selected ? '' : ''}{option}</button>
                                             )
                                         })}
                                     </div>
@@ -656,10 +653,8 @@ export function OnboardTab() {
 
                         <button
                             type="submit"
-                            className="w-full rounded-lg bg-emerald-600 px-6 py-3.5 text-sm font-medium text-white transition-all hover:bg-emerald-500 cursor-pointer"
-                        >
-                            🚀 Vygenerovat konfiguraci
-                        </button>
+                            className="inline-flex items-center gap-1.5 justify-center w-full rounded-lg bg-emerald-600 px-6 py-3.5 text-sm font-medium text-white transition-all hover:bg-emerald-500 cursor-pointer"
+                        ><Rocket className="w-3.5 h-3.5 shrink-0" />Vygenerovat konfiguraci</button>
                     </form>
                 </div>
             )}
@@ -685,7 +680,7 @@ export function OnboardTab() {
             {step === 'review' && configPreview && (
                 <div>
                     <div className="mb-6">
-                        <h2 className="text-xl font-bold text-white mb-1">📋 Review konfigurace</h2>
+                        <h2 className="inline-flex items-center gap-1.5 text-xl font-bold text-white mb-1"><ClipboardList className="w-4 h-4 shrink-0" />Review konfigurace</h2>
                         <p className="text-white/40 text-sm">Projdi každou sekci — schval 👍 nebo nech přegenerovat 👎</p>
                     </div>
 
@@ -694,7 +689,7 @@ export function OnboardTab() {
                     <div className="space-y-4">
                         {/* Brand Voice */}
                         <ReviewCard
-                            section="brand_voice" icon="🎤" title="Brand Voice"
+                            section="brand_voice" Icon={Mic} title="Brand Voice"
                             status={sectionStatuses.brand_voice} feedback={sectionFeedback.brand_voice}
                             refineCount={refineCounts.brand_voice} isRefining={sectionStatuses.brand_voice === 'refining'}
                             onApprove={() => approveSection('brand_voice')} onReject={() => rejectSection('brand_voice')}
@@ -710,7 +705,7 @@ export function OnboardTab() {
 
                         {/* Pillars */}
                         <ReviewCard
-                            section="pillars" icon="📊" title="Content Pillars"
+                            section="pillars" Icon={ChartColumn} title="Content Pillars"
                             status={sectionStatuses.pillars} feedback={sectionFeedback.pillars}
                             refineCount={refineCounts.pillars} isRefining={sectionStatuses.pillars === 'refining'}
                             onApprove={() => approveSection('pillars')} onReject={() => rejectSection('pillars')}
@@ -730,7 +725,7 @@ export function OnboardTab() {
 
                         {/* Products */}
                         <ReviewCard
-                            section="products" icon="📦" title="Produkty"
+                            section="products" Icon={Package} title="Produkty"
                             status={sectionStatuses.products} feedback={sectionFeedback.products}
                             refineCount={refineCounts.products} isRefining={sectionStatuses.products === 'refining'}
                             onApprove={() => approveSection('products')} onReject={() => rejectSection('products')}
@@ -749,7 +744,7 @@ export function OnboardTab() {
 
                         {/* Visual */}
                         <ReviewCard
-                            section="visual" icon="🎨" title="Vizuální identita"
+                            section="visual" Icon={Palette} title="Vizuální identita"
                             status={sectionStatuses.visual} feedback={sectionFeedback.visual}
                             refineCount={refineCounts.visual} isRefining={sectionStatuses.visual === 'refining'}
                             onApprove={() => approveSection('visual')} onReject={() => rejectSection('visual')}
@@ -776,7 +771,7 @@ export function OnboardTab() {
 
                         {/* Hooks & CTA */}
                         <ReviewCard
-                            section="hooks_cta" icon="🪝" title="Hooks & CTA"
+                            section="hooks_cta" Icon={Anchor} title="Hooks & CTA"
                             status={sectionStatuses.hooks_cta} feedback={sectionFeedback.hooks_cta}
                             refineCount={refineCounts.hooks_cta} isRefining={sectionStatuses.hooks_cta === 'refining'}
                             onApprove={() => approveSection('hooks_cta')} onReject={() => rejectSection('hooks_cta')}
@@ -801,7 +796,7 @@ export function OnboardTab() {
                                     : 'bg-white/5 text-white/30 border border-white/10 cursor-not-allowed'
                             }`}
                         >
-                            {allApproved ? '💾 Uložit konfiguraci' : `Schval všech 5 sekcí (${REVIEW_SECTIONS.filter(s => sectionStatuses[s.id] === 'approved').length}/5)`}
+                            {allApproved ? 'Uložit konfiguraci' : `Schval všech 5 sekcí (${REVIEW_SECTIONS.filter(s => sectionStatuses[s.id] === 'approved').length}/5)`}
                         </button>
                     </div>
                 </div>
@@ -843,13 +838,11 @@ export function OnboardTab() {
                     {imageBrief.length > 0 && (
                         <div className="p-6 bg-white/5 border border-white/10 rounded-xl mb-6">
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="font-bold text-white text-sm">📸 Shot list pro klienta</h3>
+                                <h3 className="inline-flex items-center gap-1.5 font-bold text-white text-sm"><Camera className="w-3.5 h-3.5 shrink-0" />Shot list pro klienta</h3>
                                 <button
                                     onClick={copyBriefToClipboard}
-                                    className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-                                >
-                                    📋 Kopírovat
-                                </button>
+                                    className="inline-flex items-center gap-1.5 justify-center px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+                                ><ClipboardList className="w-3.5 h-3.5 shrink-0" />Kopírovat</button>
                             </div>
                             <div className="space-y-4">
                                 {imageBrief.map((cat, i) => (
@@ -880,10 +873,8 @@ export function OnboardTab() {
                     <div className="flex gap-3 justify-center">
                         <button
                             onClick={handleReset}
-                            className="px-6 py-3 rounded-lg bg-emerald-600 text-sm font-medium text-white transition-all hover:bg-emerald-500 cursor-pointer"
-                        >
-                            ➕ Onboardovat dalšího
-                        </button>
+                            className="inline-flex items-center gap-1.5 justify-center px-6 py-3 rounded-lg bg-emerald-600 text-sm font-medium text-white transition-all hover:bg-emerald-500 cursor-pointer"
+                        ><Plus className="w-3.5 h-3.5 shrink-0" />Onboardovat dalšího</button>
                         <button
                             onClick={() => window.location.reload()}
                             className="px-6 py-3 rounded-lg bg-white/10 border border-white/10 text-sm font-medium text-white/70 transition-all hover:bg-white/15 cursor-pointer"
@@ -902,7 +893,7 @@ export function OnboardTab() {
 function ErrorBanner({ message }: { message: string }) {
     return (
         <div className="mb-4 rounded-lg bg-red-500/10 p-3 border border-red-500/20">
-            <p className="text-sm text-red-400">⚠️ {message}</p>
+            <p className="text-sm text-red-400"><TriangleAlert className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{message}</p>
         </div>
     )
 }
@@ -932,7 +923,7 @@ function ReviewField({ label, value }: { label: string; value?: string }) {
 
 function ReviewCard({
     section: _section,
-    icon,
+    Icon,
     title,
     status,
     feedback,
@@ -945,7 +936,7 @@ function ReviewCard({
     children,
 }: {
     section: string
-    icon: string
+    Icon: LucideIcon
     title: string
     status: 'pending' | 'approved' | 'rejected' | 'refining'
     feedback: string
@@ -967,9 +958,9 @@ function ReviewCard({
         <div className={`bg-white/5 border ${borderColor} rounded-xl p-5 transition-all`}>
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                    <span className="text-lg">{icon}</span>
+                    <Icon className="w-4 h-4 shrink-0 text-white/60" />
                     <h3 className="font-bold text-sm text-white">{title}</h3>
-                    {status === 'approved' && <span className="text-emerald-400 text-sm">✅</span>}
+                    {status === 'approved' && <CircleCheck className="w-4 h-4 text-emerald-400" />}
                     {status === 'refining' && <span className="text-purple-400 text-xs animate-pulse">Přegenerovávám...</span>}
                     {refineCount > 0 && <span className="text-[9px] text-gray-500 font-mono">v{refineCount + 1}</span>}
                 </div>
@@ -979,9 +970,7 @@ function ReviewCard({
                             status === 'approved'
                                 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                                 : 'bg-white/5 text-gray-400 border border-white/10 hover:text-emerald-300 hover:border-emerald-500/30'
-                        }`}>
-                        👍
-                    </button>
+                        }`}><span className="inline-flex items-center gap-1.5"><ThumbsUp className="w-3.5 h-3.5 shrink-0" /> </span></button>
                     <button onClick={onReject} disabled={isRefining || refineCount >= maxRefines}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                             status === 'rejected'
@@ -1013,7 +1002,7 @@ function ReviewCard({
                             disabled={!feedback.trim() || isRefining || refineCount >= maxRefines}
                             className="px-4 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-medium hover:bg-amber-500/30 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                            {isRefining ? '⏳ Přepracovávám...' : '🔄 Přegenerovat'}
+                            {isRefining ? '⏳ Přepracovávám...' : 'Přegenerovat'}
                         </button>
                     </div>
                 </div>

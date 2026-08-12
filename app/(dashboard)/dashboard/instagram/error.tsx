@@ -1,5 +1,7 @@
 "use client"
 
+import { RefreshCw } from "lucide-react"
+
 export default function InstagramError({
     error,
     reset,
@@ -20,10 +22,8 @@ export default function InstagramError({
                 )}
                 <button
                     onClick={reset}
-                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold rounded-xl transition-all shadow-lg"
-                >
-                    🔄 Zkusit znovu
-                </button>
+                    className="inline-flex items-center gap-1.5 justify-center px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold rounded-xl transition-all shadow-lg"
+                ><RefreshCw className="w-3.5 h-3.5 shrink-0" />Zkusit znovu</button>
             </div>
         </div>
     )

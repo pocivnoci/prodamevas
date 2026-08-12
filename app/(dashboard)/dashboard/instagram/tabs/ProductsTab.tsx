@@ -28,6 +28,7 @@ import { LoadingSpinner } from "./shared"
 import { Hint, HINTS } from "./Hint"
 import { analyzeProductForBrief } from "@/app/actions/product-brief-actions"
 import { generateProductBriefPDF } from "@/lib/product-brief-docx"
+import { Banknote, Check, CircleCheck, CircleX, ClipboardList, Download, Eye, Factory, Flame, Lightbulb, Package, Palette, Paperclip, Pencil, Puzzle, RefreshCw, Rocket, Ruler, Save, Search, ShoppingBag, Tag, ThumbsDown, ThumbsUp, Trash2, Wrench, type LucideIcon } from "lucide-react"
 
 
 type ProductSection = "catalog" | "lines" | "ideas" | "design" | "categories"
@@ -145,12 +146,12 @@ export function ProductsTab({ projectId }: { projectId: string }) {
         loadCategories()
     }, [loadCategories])
 
-    const sections: { id: ProductSection; label: string; icon: string }[] = [
-        { id: "catalog", label: "Katalog", icon: "🛍️" },
-        { id: "lines", label: "Řady", icon: "🧩" },
-        { id: "ideas", label: "Nápady", icon: "💡" },
-        { id: "design", label: "Design pro tisk", icon: "🎨" },
-        { id: "categories", label: "Kategorie", icon: "📦" },
+    const sections: { id: ProductSection; label: string; Icon: LucideIcon }[] = [
+        { id: "catalog", label: "Katalog", Icon: ShoppingBag },
+        { id: "lines", label: "Řady", Icon: Puzzle },
+        { id: "ideas", label: "Nápady", Icon: Lightbulb },
+        { id: "design", label: "Design pro tisk", Icon: Palette },
+        { id: "categories", label: "Kategorie", Icon: Package },
     ]
 
     // ── Ideas Handler ─────────────────────────────────────
@@ -183,7 +184,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
             if (result.success) {
                 setIdeas(prev => prev.filter((_, i) => i !== index))
                 fetchSavedIdeas()
-                setSuccessMsg(`"${idea.name}" uložen ✅`)
+                setSuccessMsg(`"${idea.name}" uložen`)
                 setTimeout(() => setSuccessMsg(null), 3000)
             } else {
                 setError(`Uložení selhalo: ${result.error || 'Neznámá chyba'} (client: ${projectId})`)
@@ -324,7 +325,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                 designUrl: url,
             });
             if (result.success) {
-                alert(`✅ Promo post vytvořen!\n\nCaption:\n${result.caption?.substring(0, 200)}...\n\nNajdeš ho v záložce Posts jako Draft.`);
+                alert(`Promo post vytvořen!\n\nCaption:\n${result.caption?.substring(0, 200)}...\n\nNajdeš ho v záložce Posts jako Draft.`);
             } else {
                 setError(result.error || "Vytvoření selhalo.");
             }
@@ -348,7 +349,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                             : "bg-[#0a0a0a] text-white/40 border-white/5 hover:bg-white/5 hover:text-white"
                             }`}
                     >
-                        <span>{s.icon}</span>
+                        <s.Icon className="w-3.5 h-3.5 shrink-0" />
                         <span>{s.label}</span>
                     </button>
                 ))}
@@ -357,7 +358,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
             {/* Error display */}
             {error && (
                 <div className="bg-aisummit-cinnabar/10 border border-aisummit-cinnabar/30 rounded-sm p-4 text-aisummit-cinnabar text-[10px] uppercase font-bold tracking-widest">
-                    ❌ {error}
+                    <CircleX className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" />{error}
                 </div>
             )}
             {successMsg && (
@@ -378,7 +379,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
             {section === "ideas" && !loading && (
                 <div className="space-y-6">
                     <div className="bg-[#0f0f0f] border border-white/10 rounded-sm p-8 shadow-lg">
-                        <h3 className="text-2xl font-black uppercase tracking-tighter text-white mb-2">💡 Product Ideas Brainstorm</h3>
+                        <h3 className="inline-flex items-center gap-1.5 text-2xl font-black uppercase tracking-tighter text-white mb-2"><Lightbulb className="w-5 h-5 shrink-0" />Product Ideas Brainstorm</h3>
                         <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest mb-6">AI vygeneruje kreativní nápady na nové produkty — nejen oblečení, ale i gadgety, doplňky a originální merch.</p>
 
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
@@ -405,17 +406,15 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                 <button
                                     onClick={handleGenerateIdeas}
                                     disabled={loading}
-                                    className="w-full px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-sm text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 border border-white/20 shadow-sm"
-                                >
-                                    🚀 Generovat nápady
-                                </button>
+                                    className="inline-flex items-center gap-1.5 justify-center w-full px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-sm text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 border border-white/20 shadow-sm"
+                                ><Rocket className="w-3 h-3 shrink-0" />Generovat nápady</button>
                             </div>
                         </div>
                     </div>
 
                     {/* ═══════════════ VLASTNÍ PRODUKT ═══════════════ */}
                     <div className="bg-[#0a0a0a] border border-emerald-500/20 rounded-sm p-6 mb-6">
-                        <h3 className="text-[10px] uppercase tracking-[0.3em] font-black text-emerald-400 mb-4">✏️ Vlastní produkt — napiš co chceš vizualizovat</h3>
+                        <h3 className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.3em] font-black text-emerald-400 mb-4"><Pencil className="w-3 h-3 shrink-0" />Vlastní produkt — napiš co chceš vizualizovat</h3>
                         <div className="flex gap-3">
                             <input
                                 value={customProductInput}
@@ -466,7 +465,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                 disabled={customProductLoading || !customProductInput.trim()}
                                 className="px-6 py-3 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-sm text-[10px] font-black uppercase tracking-widest text-emerald-400 transition-all disabled:opacity-50 whitespace-nowrap"
                             >
-                                {customProductLoading ? '⏳ Generuji...' : '🎨 Vytvořit vizualizaci'}
+                                {customProductLoading ? '⏳ Generuji...' : 'Vytvořit vizualizaci'}
                             </button>
                         </div>
                         {customProductUrl && (
@@ -495,20 +494,20 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                 disabled={savingId === i}
                                                 className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center transition-all bg-white/5 text-white/30 border-white/10 hover:bg-emerald-500/20 hover:text-emerald-400 hover:border-emerald-500/30 disabled:opacity-50"
                                                 title="Uložit nápad"
-                                            >{savingId === i ? '⏳' : '💾'}</button>
+                                            >{savingId === i ? <span className="animate-pulse">…</span> : <Save className="w-3.5 h-3.5" />}</button>
                                             <button
                                                 onClick={() => handleRejectIdea(idea, i)}
                                                 disabled={rejectingId === i}
                                                 className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center transition-all bg-white/5 text-white/30 border-white/10 hover:bg-aisummit-cinnabar/20 hover:text-aisummit-cinnabar hover:border-aisummit-cinnabar/30 disabled:opacity-50"
                                                 title="Zahodit"
-                                            >{rejectingId === i ? '⏳' : '🗑️'}</button>
+                                            >{rejectingId === i ? <span className="animate-pulse">…</span> : <Trash2 className="w-3.5 h-3.5" />}</button>
                                         </div>
                                     </div>
 
                                     {/* Branding name variants */}
                                     {idea.brandingNames && idea.brandingNames.length > 0 && (
                                         <div className="mb-4 pt-2">
-                                            <span className="text-[9px] uppercase tracking-widest font-bold text-amber-500/50 mb-2 block">🏷️ Varianty názvů</span>
+                                            <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest font-bold text-amber-500/50 mb-2 block"><Tag className="w-3 h-3 shrink-0" />Varianty názvů</span>
                                             <div className="flex flex-wrap gap-1.5">
                                                 {idea.brandingNames.map((bn: string, j: number) => (
                                                     <span key={j} className="px-2 py-1 bg-amber-500/5 border border-amber-500/10 text-amber-500 rounded-sm text-[9px] font-bold uppercase tracking-widest cursor-default">
@@ -523,34 +522,34 @@ export function ProductsTab({ projectId }: { projectId: string }) {
 
                                     <div className="space-y-2 text-[10px] font-mono tracking-wide text-white/50">
                                         <div className="flex gap-2">
-                                            <span className="text-white/30 w-16 uppercase font-bold tracking-widest">💰 Cena:</span>
+                                            <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Banknote className="w-3.5 h-3.5 shrink-0" />Cena:</span>
                                             <span className="text-emerald-400 font-bold">{idea.priceRange}</span>
                                         </div>
                                         <div className="flex gap-2">
-                                            <span className="text-white/30 w-16 uppercase font-bold tracking-widest">🔧 Mat.:</span>
+                                            <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Wrench className="w-3.5 h-3.5 shrink-0" />Mat.:</span>
                                             <span>{idea.material}</span>
                                         </div>
                                         <div className="flex gap-2">
-                                            <span className="text-white/30 w-16 uppercase font-bold tracking-widest">📐 Rozm.:</span>
+                                            <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Ruler className="w-3.5 h-3.5 shrink-0" />Rozm.:</span>
                                             <span>{idea.dimensions}</span>
                                         </div>
                                         <div className="flex gap-2">
-                                            <span className="text-white/30 w-16 uppercase font-bold tracking-widest">🏭 Výr.:</span>
+                                            <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Factory className="w-3.5 h-3.5 shrink-0" />Výr.:</span>
                                             <span>{idea.manufacturingMethod}</span>
                                         </div>
                                     </div>
 
                                     <div className="mt-4 pt-4 border-t border-white/10 space-y-4 shadow-sm pb-2">
                                         <div>
-                                            <span className="text-[9px] uppercase tracking-widest text-amber-500/50 font-bold">🔥 Virální angle</span>
+                                            <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-amber-500/50 font-bold"><Flame className="w-3 h-3 shrink-0" />Virální angle</span>
                                             <p className="text-white/70 text-[10px] font-medium mt-1 leading-relaxed">{idea.viralAngle}</p>
                                         </div>
                                         <div>
-                                            <span className="text-[9px] uppercase tracking-widest text-emerald-500/50 font-bold">✅ Proč to bude fungovat</span>
+                                            <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-emerald-500/50 font-bold"><CircleCheck className="w-3 h-3 shrink-0" />Proč to bude fungovat</span>
                                             <p className="text-white/70 text-[10px] font-medium mt-1 leading-relaxed">{idea.whyItWorks}</p>
                                         </div>
                                         <div>
-                                            <span className="text-[9px] uppercase tracking-widest text-blue-500/50 font-bold">📋 Produkce</span>
+                                            <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-blue-500/50 font-bold"><ClipboardList className="w-3 h-3 shrink-0" />Produkce</span>
                                             <p className="text-white/70 text-[10px] font-medium mt-1 leading-relaxed">{idea.productionNotes}</p>
                                         </div>
                                     </div>
@@ -564,7 +563,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="absolute bottom-2 right-2 px-2 py-1 bg-[#050505] border border-white/10 text-white text-[9px] uppercase tracking-widest font-bold rounded-sm opacity-0 group-hover/vis:opacity-100 transition-opacity shadow-sm"
-                                            >📥 Plná velikost</a>
+                                            ><Download className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" />Plná velikost</a>
                                         </div>
                                     )}
 
@@ -587,7 +586,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                             disabled={visualizingId === idea.name}
                                             className="flex-1 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-sm text-[9px] font-bold uppercase tracking-widest text-amber-500 transition-all disabled:opacity-50 shadow-sm"
                                         >
-                                            {visualizingId === idea.name ? "⏳ Generuji..." : "🖼️ Vizualizovat produkt"}
+                                            {visualizingId === idea.name ? "⏳ Generuji..." : "Vizualizovat produkt"}
                                         </button>
                                         <button
                                             onClick={() => {
@@ -596,7 +595,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                             }}
                                             className="flex-1 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-sm text-[9px] font-bold uppercase tracking-widest text-white/50 hover:text-white transition-all shadow-sm"
                                         >
-                                            🎨 Design pro tisk
+                                            <span className="inline-flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 shrink-0" />Design pro tisk</span>
                                         </button>
                                         <button
                                             onClick={async () => {
@@ -620,7 +619,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                             disabled={briefGenerating === idea.name}
                                             className="flex-1 px-3 py-2 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 rounded-sm text-[9px] font-bold uppercase tracking-widest text-violet-400 transition-all disabled:opacity-50 shadow-sm"
                                         >
-                                            {briefGenerating === idea.name ? "⏳ Brief..." : "📄 Brief"}
+                                            {briefGenerating === idea.name ? "⏳ Brief..." : "Brief"}
                                         </button>
                                     </div>
                                 </div>
@@ -631,7 +630,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                     {/* DB Saved Ideas grid */}
                     {savedIdeas.length > 0 && (
                         <div className="mt-12">
-                            <h3 className="text-xl font-black uppercase tracking-tighter text-emerald-400 mb-2 border-b border-emerald-900/50 pb-2">💾 Uložené Nápady</h3>
+                            <h3 className="inline-flex items-center gap-1.5 text-xl font-black uppercase tracking-tighter text-emerald-400 mb-2 border-b border-emerald-900/50 pb-2"><Save className="w-4 h-4 shrink-0" />Uložené Nápady</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-6">
                                 {savedIdeas.map((idea) => (
                                     <div key={idea.id} className="bg-[#050505] border border-emerald-500/20 rounded-sm p-6 shadow-sm transition-all relative overflow-hidden">
@@ -667,7 +666,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                             : "bg-red-500/15 border-red-500/40"
                                                         : "border-white/10 hover:border-white/25"}`}
                                                 >
-                                                    {value === 1 ? "👍" : "👎"}
+                                                    {value === 1 ? <ThumbsUp className="w-3.5 h-3.5" /> : <ThumbsDown className="w-3.5 h-3.5" />}
                                                 </button>
                                             ))}
                                         </div>
@@ -680,15 +679,15 @@ export function ProductsTab({ projectId }: { projectId: string }) {
 
                                         <div className="space-y-2 text-[10px] font-mono tracking-wide text-white/50">
                                             <div className="flex gap-2">
-                                                <span className="text-white/30 w-16 uppercase font-bold tracking-widest">💰 Cena:</span>
+                                                <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Banknote className="w-3.5 h-3.5 shrink-0" />Cena:</span>
                                                 <span className="text-emerald-400 font-bold">{idea.priceRange}</span>
                                             </div>
                                             <div className="flex gap-2">
-                                                <span className="text-white/30 w-16 uppercase font-bold tracking-widest">🔧 Mat.:</span>
+                                                <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Wrench className="w-3.5 h-3.5 shrink-0" />Mat.:</span>
                                                 <span>{idea.material}</span>
                                             </div>
                                             <div className="flex gap-2">
-                                                <span className="text-white/30 w-16 uppercase font-bold tracking-widest">🏭 Výr.:</span>
+                                                <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Factory className="w-3.5 h-3.5 shrink-0" />Výr.:</span>
                                                 <span>{idea.manufacturingMethod}</span>
                                             </div>
                                         </div>
@@ -697,9 +696,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                         {ideaVisuals[idea.id as string] && (
                                             <div className="mt-4 relative group/vis cursor-pointer" onClick={() => setSelectedIdea(idea)}>
                                                 <img src={ideaVisuals[idea.id as string]} alt={idea.name} className="w-full rounded-sm border border-emerald-500/20 shadow-sm transition-transform group-hover/vis:scale-[1.02]" />
-                                                <div className="absolute bottom-2 right-2 px-2 py-1 bg-[#050505] border border-white/10 text-white text-[9px] uppercase tracking-widest font-bold rounded-sm opacity-0 group-hover/vis:opacity-100 transition-opacity shadow-sm">
-                                                    🔍 Zvětšit
-                                                </div>
+                                                <div className="inline-flex items-center gap-1.5 absolute bottom-2 right-2 px-2 py-1 bg-[#050505] border border-white/10 text-white text-[9px] uppercase tracking-widest font-bold rounded-sm opacity-0 group-hover/vis:opacity-100 transition-opacity shadow-sm"><Search className="w-3 h-3 shrink-0" />Zvětšit</div>
                                             </div>
                                         )}
 
@@ -708,7 +705,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                             onClick={() => setSelectedIdea(idea)}
                                             className="mt-4 w-full py-2 bg-white/5 hover:bg-white/10 text-white text-[10px] uppercase tracking-widest font-bold rounded-sm border border-white/10 transition-colors"
                                         >
-                                            👁️ Všechny parametry & Dodavatel
+                                            <span className="inline-flex items-center gap-1.5"><Eye className="w-3.5 h-3.5 shrink-0" />Všechny parametry & Dodavatel</span>
                                         </button>
 
                                         {/* Action buttons */}
@@ -735,9 +732,9 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                     {uploadingId === idea.id ? (
                                                         <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin" />
                                                     ) : referenceUrls[idea.id as string] ? (
-                                                        "✓"
+                                                        <Check className="w-3.5 h-3.5" />
                                                     ) : (
-                                                        "📎"
+                                                        <Paperclip className="w-3.5 h-3.5" />
                                                     )}
                                                 </label>
                                             </div>
@@ -768,8 +765,8 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                             >
                                                 {visualizingId === idea.id ? "⏳ Generuji..." : (
                                                     referenceUrls[idea.id as string]
-                                                        ? "🖼️ Fuse vizualizace (i2i)"
-                                                        : "🖼️ Vizualizovat z textu"
+                                                        ? "Fuse vizualizace (i2i)"
+                                                        : "Vizualizovat z textu"
                                                 )}
                                             </button>
 
@@ -791,7 +788,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                                 designUrl: ideaVisuals[id],
                                                             })
                                                             if (result.success) {
-                                                                alert(`✅ Promo post vytvořen!\n\nCaption:\n${result.caption?.substring(0, 200)}...\n\nNajdeš ho v záložce Posts jako Draft.`)
+                                                                alert(`Promo post vytvořen!\n\nCaption:\n${result.caption?.substring(0, 200)}...\n\nNajdeš ho v záložce Posts jako Draft.`)
                                                             } else {
                                                                 setError(result.error || "Vytvoření postu selhalo")
                                                             }
@@ -801,7 +798,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                     disabled={visualizingId === `promo_${idea.id}`}
                                                     className="flex-1 px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-sm text-[9px] font-bold uppercase tracking-widest text-blue-400 transition-all disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
                                                 >
-                                                    {visualizingId === `promo_${idea.id}` ? "⏳ Vytvářím..." : "📸 Vytvoř promo post"}
+                                                    {visualizingId === `promo_${idea.id}` ? "⏳ Vytvářím..." : "Vytvoř promo post"}
                                                 </button>
                                             )}
 
@@ -829,14 +826,14 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                 disabled={briefGenerating === idea.id}
                                                 className="flex-1 px-3 py-2 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 rounded-sm text-[9px] font-bold uppercase tracking-widest text-violet-400 transition-all disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
                                             >
-                                                {briefGenerating === idea.id ? "⏳ Generuji brief..." : "📄 Business Brief"}
+                                                {briefGenerating === idea.id ? "⏳ Generuji brief..." : "Business Brief"}
                                             </button>
                                         </div>
 
                                         {/* Feedback / Revision */}
                                         <div className="mt-4 pt-4 border-t border-white/5">
                                             {productRevisionDone[idea.id as string] ? (
-                                                <p className="text-[10px] text-emerald-400">✅ Produkt přepracován</p>
+                                                <p className="inline-flex items-center gap-1.5 text-[10px] text-emerald-400"><CircleCheck className="w-3 h-3 shrink-0" />Produkt přepracován</p>
                                             ) : (
                                                 <div className="flex gap-2 items-start">
                                                     <textarea
@@ -871,7 +868,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                                 <svg className="animate-spin" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" /></svg>
                                                                 Přeprac...
                                                             </span>
-                                                        ) : "🔄"}
+                                                        ) : <RefreshCw className="w-3.5 h-3.5" />}
                                                     </button>
                                                 </div>
                                             )}
@@ -900,7 +897,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                     <div className="bg-[#0f0f0f] border border-white/10 rounded-sm p-8 shadow-lg">
                         <div className="flex items-center justify-between mb-6">
                             <div>
-                                <h3 className="text-2xl font-black uppercase tracking-tighter text-white mb-2">📦 Produktové kategorie</h3>
+                                <h3 className="inline-flex items-center gap-1.5 text-2xl font-black uppercase tracking-tighter text-white mb-2"><Package className="w-5 h-5 shrink-0" />Produktové kategorie</h3>
                                 <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest">
                                     {categoriesCustom
                                         ? "Vlastní kategorie tohoto klienta"
@@ -912,7 +909,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                 onClick={() => { setShowAddCategory(!showAddCategory); setEditingCat(null) }}
                                 className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-sm text-[10px] font-black uppercase tracking-widest text-amber-400 transition-all"
                             >
-                                {showAddCategory ? "✕ Zavřít" : "＋ Nová kategorie"}
+                                {showAddCategory ? "Zavřít" : "＋ Nová kategorie"}
                             </button>
                         </div>
 
@@ -920,7 +917,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                         {(showAddCategory || editingCat) && (
                             <div className="bg-[#0a0a0a] border border-amber-500/20 rounded-sm p-6 mb-6 space-y-4">
                                 <h4 className="text-[10px] uppercase tracking-[0.3em] font-black text-amber-400">
-                                    {editingCat ? `✏️ Upravit: ${editingCat.label}` : "✨ Nová produktová kategorie"}
+                                    {editingCat ? `✏️ Upravit: ${editingCat.label}` : "Nová produktová kategorie"}
                                 </h4>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1012,7 +1009,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                     if (result.success) {
                                                         setEditingCat(null)
                                                         loadCategories()
-                                                        setSuccessMsg("Kategorie upravena ✅")
+                                                        setSuccessMsg("Kategorie upravena")
                                                         setTimeout(() => setSuccessMsg(null), 3000)
                                                     } else {
                                                         setError(result.error || "Upravení selhalo")
@@ -1022,7 +1019,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                 disabled={catLoading || !editingCat.label || !editingCat.design_guide}
                                                 className="px-6 py-3 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 rounded-sm text-[10px] font-black uppercase tracking-widest text-amber-400 transition-all disabled:opacity-50"
                                             >
-                                                {catLoading ? "⏳" : "💾"} Uložit změny
+                                                {catLoading ? <span className="animate-pulse">…</span> : <Save className="w-3.5 h-3.5" />} Uložit změny
                                             </button>
                                             <button
                                                 onClick={() => setEditingCat(null)}
@@ -1080,7 +1077,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                     onClick={() => { setEditingCat(cat); setShowAddCategory(false) }}
                                                     className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center bg-white/5 text-white/30 border-white/10 hover:bg-amber-500/20 hover:text-amber-400 hover:border-amber-500/30 transition-all"
                                                     title="Upravit"
-                                                >✏️</button>
+                                                ><Pencil className="w-3.5 h-3.5" /></button>
                                                 <button
                                                     onClick={async () => {
                                                         if (!confirm(`Smazat kategorii "${cat.label}"?`)) return
@@ -1090,7 +1087,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                     }}
                                                     className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center bg-white/5 text-white/30 border-white/10 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 transition-all"
                                                     title="Smazat"
-                                                >🗑️</button>
+                                                ><Trash2 className="w-3.5 h-3.5" /></button>
                                             </div>
                                         )}
                                         {!cat.client_id && (

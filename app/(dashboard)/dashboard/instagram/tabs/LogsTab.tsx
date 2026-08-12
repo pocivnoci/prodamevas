@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { getIGGenerationLogs } from "@/app/actions/admin-actions"
 import { LoadingSpinner } from "./shared"
+import { Check } from "lucide-react"
 
 export function LogsTab({ projectId }: { projectId: string }) {
     const [logs, setLogs] = useState<any[]>([])
@@ -49,7 +50,7 @@ export function LogsTab({ projectId }: { projectId: string }) {
                                         {log.error ? (
                                             <span className="text-[10px] font-mono tracking-widest text-aisummit-cinnabar truncate max-w-[150px] block">{log.error}</span>
                                         ) : (
-                                            <span className="text-[10px] font-bold text-emerald-500">✓</span>
+                                            <Check className="w-3 h-3 text-[10px] font-bold text-emerald-500" />
                                         )}
                                     </td>
                                     <td className="px-5 py-4 text-[10px] text-white/40 font-mono tracking-widest">

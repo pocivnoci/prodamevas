@@ -8,6 +8,7 @@ import {
     updateBrandMemory,
     deleteBrandMemory,
 } from "@/app/actions/memory-actions"
+import { Brain, CircleCheck, CircleX, ClipboardList, Image, Target } from "lucide-react"
 
 interface BrandMemory {
     id: string
@@ -21,10 +22,10 @@ interface BrandMemory {
 }
 
 const MEMORY_TYPES = {
-    pattern: { label: "Co funguje", emoji: "✅", color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
-    preference: { label: "Styl značky", emoji: "🎯", color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20" },
-    avoid: { label: "Vyhnout se", emoji: "❌", color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20" },
-    visual: { label: "Vizuální", emoji: "🖼️", color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
+    pattern: { label: "Co funguje", Icon: CircleCheck, color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
+    preference: { label: "Styl značky", Icon: Target, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20" },
+    avoid: { label: "Vyhnout se", Icon: CircleX, color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20" },
+    visual: { label: "Vizuální", Icon: Image, color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
 } as const
 
 export function BrainTab({ projectId }: { projectId: string }) {
@@ -105,7 +106,7 @@ export function BrainTab({ projectId }: { projectId: string }) {
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                        <span className="text-xl">🧠</span> Paměť značky
+                        <Brain className="w-5 h-5" /> Paměť značky
                     </h2>
                     <p className="text-[10px] uppercase tracking-widest text-white/30 mt-1">
                         Naučené vzorce z reálného výkonu • {memories.length} pravidel
@@ -140,7 +141,7 @@ export function BrainTab({ projectId }: { projectId: string }) {
                                                 : "bg-white/5 border-white/5 text-white/30 hover:text-white/50"
                                         }`}
                                     >
-                                        {cfg.emoji} {cfg.label}
+                                        <cfg.Icon className="w-3.5 h-3.5 shrink-0" /> {cfg.label}
                                     </button>
                                 ))}
                             </div>
@@ -179,7 +180,7 @@ export function BrainTab({ projectId }: { projectId: string }) {
 
             {/* Filter tabs */}
             <div className="flex gap-1.5 flex-wrap">
-                {[{ key: "all", label: "Vše", emoji: "📋" }, ...Object.entries(MEMORY_TYPES).map(([key, cfg]) => ({ key, label: cfg.label, emoji: cfg.emoji }))].map(tab => (
+                {[{ key: "all", label: "Vše", Icon: ClipboardList }, ...Object.entries(MEMORY_TYPES).map(([key, cfg]) => ({ key, label: cfg.label, Icon: cfg.Icon }))].map(tab => (
                     <button
                         key={tab.key}
                         onClick={() => setFilter(tab.key)}
@@ -189,7 +190,7 @@ export function BrainTab({ projectId }: { projectId: string }) {
                                 : "bg-white/5 border-white/5 text-white/30 hover:text-white/50"
                         }`}
                     >
-                        {tab.emoji} {tab.label} ({counts[tab.key as keyof typeof counts] || 0})
+                        <tab.Icon className="w-3.5 h-3.5 shrink-0" /> {tab.label} ({counts[tab.key as keyof typeof counts] || 0})
                     </button>
                 ))}
             </div>
@@ -260,7 +261,7 @@ export function BrainTab({ projectId }: { projectId: string }) {
                                         </div>
                                     ) : (
                                         <div className="flex items-start gap-3">
-                                            <span className="text-base mt-0.5">{cfg.emoji}</span>
+                                            <cfg.Icon className="w-4 h-4 shrink-0 mt-0.5 text-white/50" />
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm text-white/80 leading-relaxed">{mem.content}</p>
                                                 <div className="flex items-center gap-3 mt-1.5">

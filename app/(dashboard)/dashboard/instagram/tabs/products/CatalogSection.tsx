@@ -23,6 +23,7 @@ import {
     scrapeProductsFromWebsite,
 } from "@/app/actions/product-actions"
 import { getLines, type LineRow } from "@/app/actions/line-actions"
+import { Camera, Package, Pencil, X } from "lucide-react"
 
 const LABEL = "text-[9px] uppercase tracking-widest font-bold text-white/40"
 const INPUT = "w-full bg-[#0a0a0a] border border-white/8 rounded-sm px-3 py-2 text-sm text-white/90 focus:border-amber-500/40 focus:outline-none"
@@ -250,7 +251,7 @@ export function CatalogSection({ projectId }: { projectId: string }) {
                         <div className="w-16 h-16 flex-shrink-0 bg-[#050505] border border-white/10 rounded-sm overflow-hidden flex items-center justify-center">
                             {p.image_urls?.length > 0
                                 ? <img src={p.image_urls[0]} alt={p.name} className="w-full h-full object-cover" />
-                                : <span className="text-2xl opacity-30">📦</span>}
+                                : <Package className="w-6 h-6 opacity-30" />}
                         </div>
 
                         <div className="flex-1 min-w-0">
@@ -286,15 +287,15 @@ export function CatalogSection({ projectId }: { projectId: string }) {
 
                         <div className="flex items-center gap-1 flex-shrink-0">
                             <label className={`p-2 text-white/20 hover:text-blue-400/80 cursor-pointer transition-colors ${uploading === p.id ? "animate-pulse" : ""}`} title="Nahrát obrázek">
-                                <span className="text-[10px]">📷</span>
+                                <Camera className="w-3 h-3 text-[10px]" />
                                 <input type="file" accept="image/*" className="hidden"
                                     onChange={(e) => handleImageUpload(p.id, e)} disabled={uploading === p.id} />
                             </label>
                             <button onClick={() => handleEdit(p)} className="p-2 text-white/20 hover:text-white/60 transition-colors" title="Upravit">
-                                <span className="text-[10px]">✏️</span>
+                                <Pencil className="w-3 h-3 text-[10px]" />
                             </button>
                             <button onClick={() => handleDelete(p.id)} className="p-2 text-white/20 hover:text-red-400/80 transition-colors" title="Smazat">
-                                <span className="text-[10px]">✕</span>
+                                <X className="w-3 h-3 text-[10px]" />
                             </button>
                         </div>
                     </div>

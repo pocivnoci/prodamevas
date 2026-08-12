@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react"
 import { motion } from "framer-motion"
 import { getDashboardStats } from "@/app/actions/admin-actions"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
+import { Bookmark, CalendarDays, Camera, ChartColumn, CircleAlert, CircleCheck, Eye, FileText, Heart, Lightbulb, MessageCircle, RefreshCw, Send, TriangleAlert, type LucideIcon } from "lucide-react"
 
 // ═══════════════════════════════════════════════════════════
 // TYPES
@@ -267,7 +268,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                     }}
                     className="px-6 py-2.5 bg-white/10 border border-white/20 text-white rounded-sm text-[10px] font-black uppercase tracking-widest hover:bg-white/15 transition-all"
                 >
-                    🔄 Zkusit znovu
+                    <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />Zkusit znovu</span>
                 </button>
             </div>
         )
@@ -284,7 +285,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                     className="flex items-center justify-between gap-4 rounded-sm border border-violet-400/25 bg-violet-400/5 p-4"
                 >
                     <div className="flex items-center gap-3">
-                        <span className="text-2xl leading-none">🗓️</span>
+                        <CalendarDays className="w-6 h-6 leading-none" />
                         <div>
                             <p className="text-xs font-black uppercase tracking-tight text-white">Váš první plán obsahu čeká na schválení</p>
                             <p className="text-[10px] text-white/40 font-medium mt-0.5">AI ho připravila při onboardingu — stačí zkontrolovat a spustit.</p>
@@ -310,7 +311,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                 <div className="absolute inset-0 bg-gradient-to-r from-aisummit-cinnabar/[0.06] to-transparent pointer-events-none" />
                 <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
                     <div className="flex items-start gap-4">
-                        <span className="text-3xl sm:text-4xl leading-none">📅</span>
+                        <CalendarDays className="w-8 h-8 sm: leading-none" />
                         <div>
                             <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white">Obsah na měsíc</h2>
                             <p className="text-white/50 text-xs sm:text-sm font-medium mt-1 max-w-md">
@@ -355,9 +356,11 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                     }`}
                 >
                     <div className="flex items-center gap-3">
-                        <span className="text-lg">
-                            {status.level === "critical" ? "🔴" : status.level === "warning" ? "🟡" : "✅"}
-                        </span>
+                        {status.level === "critical"
+                            ? <CircleAlert className="w-5 h-5 shrink-0 text-red-400" />
+                            : status.level === "warning"
+                                ? <TriangleAlert className="w-5 h-5 shrink-0 text-amber-400" />
+                                : <CircleCheck className="w-5 h-5 shrink-0 text-emerald-400" />}
                         <span className={`text-xs font-bold ${
                             status.level === "critical"
                                 ? "text-red-400"
@@ -399,13 +402,13 @@ export function DashboardTab({ projectId }: { projectId: string }) {
 
             {/* ──── Secondary counts (compact, not primary) ──── */}
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-1">
-                <SecondaryCount emoji="📤" label="Publikováno" count={stats.posted} />
-                <SecondaryCount emoji="💡" label="Nápady" count={stats.ideas} onClick={() => setActiveSection("inspiration")} />
+                <SecondaryCount Icon={Send} label="Publikováno" count={stats.posted} />
+                <SecondaryCount Icon={Lightbulb} label="Nápady" count={stats.ideas} onClick={() => setActiveSection("inspiration")} />
                 {stats.quickMetrics && (
                     <>
                         <div className="w-px h-4 bg-white/10" />
-                        <SecondaryCount emoji="❤️" label="Ø Lajky" count={stats.quickMetrics.avgLikes} onClick={() => setActiveSection("performance")} />
-                        <SecondaryCount emoji="🔖" label="Ø Uložení" count={stats.quickMetrics.avgSaves} onClick={() => setActiveSection("performance")} />
+                        <SecondaryCount Icon={Heart} label="Ø Lajky" count={stats.quickMetrics.avgLikes} onClick={() => setActiveSection("performance")} />
+                        <SecondaryCount Icon={Bookmark} label="Ø Uložení" count={stats.quickMetrics.avgSaves} onClick={() => setActiveSection("performance")} />
                     </>
                 )}
             </div>
@@ -521,7 +524,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                         onClick={() => goGenerate({ mode: "plan", duration: "month" })}
                         className="mt-4 w-full py-3 bg-gradient-to-r from-aisummit-cinnabar/80 to-orange-600/60 border border-aisummit-cinnabar/30 text-white rounded-sm text-[10px] font-black uppercase tracking-widest hover:from-aisummit-cinnabar hover:to-orange-600 transition-all shadow-[0_0_20px_rgba(229,83,63,0.15)] hover:shadow-[0_0_30px_rgba(229,83,63,0.3)]"
                     >
-                        📅 Obsah na měsíc
+                        <span className="inline-flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5 shrink-0" />Obsah na měsíc</span>
                     </button>
                 </motion.div>
             </div>
@@ -604,10 +607,10 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                         </button>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <MetricCard emoji="❤️" label="Ø Lajky" value={stats.quickMetrics.avgLikes} />
-                        <MetricCard emoji="💬" label="Ø Komentáře" value={stats.quickMetrics.avgComments} />
-                        <MetricCard emoji="🔖" label="Ø Uložení" value={stats.quickMetrics.avgSaves} />
-                        <MetricCard emoji="👁" label="Ø Dosah" value={stats.quickMetrics.avgReach} />
+                        <MetricCard Icon={Heart} label="Ø Lajky" value={stats.quickMetrics.avgLikes} />
+                        <MetricCard Icon={MessageCircle} label="Ø Komentáře" value={stats.quickMetrics.avgComments} />
+                        <MetricCard Icon={Bookmark} label="Ø Uložení" value={stats.quickMetrics.avgSaves} />
+                        <MetricCard Icon={Eye} label="Ø Dosah" value={stats.quickMetrics.avgReach} />
                     </div>
                     <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/5">
                         <span className="text-[9px] text-white/25 font-bold uppercase tracking-widest">
@@ -634,7 +637,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                         onClick={() => goGenerate({ mode: "plan", duration: "month" })}
                         className="px-8 py-3 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm text-xs font-black uppercase tracking-widest hover:opacity-90 transition-opacity shadow-[0_0_30px_rgba(229,83,63,0.3)]"
                     >
-                        📅 Vytvořit obsah na měsíc
+                        <span className="inline-flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5 shrink-0" />Vytvořit obsah na měsíc</span>
                     </button>
                 </motion.div>
             )}
@@ -676,8 +679,8 @@ function ActionCard({ icon, label, count, color, actionLabel, onClick }: {
     )
 }
 
-function SecondaryCount({ emoji, label, count, onClick }: {
-    emoji: string; label: string; count: number; onClick?: () => void
+function SecondaryCount({ Icon, label, count, onClick }: {
+    Icon: LucideIcon; label: string; count: number; onClick?: () => void
 }) {
     const Tag = onClick ? "button" : "div"
     return (
@@ -685,17 +688,17 @@ function SecondaryCount({ emoji, label, count, onClick }: {
             onClick={onClick}
             className={`flex items-center gap-2 ${onClick ? "min-h-[36px] hover:opacity-80 transition-opacity cursor-pointer" : ""}`}
         >
-            <span className="text-sm">{emoji}</span>
+            <Icon className="w-4 h-4 shrink-0 text-white/40" />
             <span className="text-[9px] text-white/25 font-bold uppercase tracking-widest">{label}</span>
             <span className="text-xs text-white/50 font-black">{count.toLocaleString("cs-CZ")}</span>
         </Tag>
     )
 }
 
-function MetricCard({ emoji, label, value }: { emoji: string; label: string; value: number }) {
+function MetricCard({ Icon, label, value }: { Icon: LucideIcon; label: string; value: number }) {
     return (
         <div className="bg-white/[0.02] border border-white/5 rounded-sm p-3 text-center">
-            <span className="text-base">{emoji}</span>
+            <Icon className="w-4 h-4 shrink-0 text-white/40" />
             <p className="text-lg font-black text-white/80 mt-1">{value.toLocaleString("cs-CZ")}</p>
             <p className="text-[8px] font-bold uppercase tracking-widest text-white/30 mt-0.5">{label}</p>
         </div>

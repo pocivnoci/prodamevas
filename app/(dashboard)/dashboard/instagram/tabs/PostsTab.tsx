@@ -17,6 +17,7 @@ import { trackEvent } from "@/lib/analytics"
 import { parsePostMedia } from "@/lib/media-urls"
 import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
 import { formatCzk, LOWEST_MONTHLY_HALERU } from "@/lib/pricing"
+import { Brain, ChartColumn, Check, CircleCheck, CircleX, ClipboardList, Download, Image, Lock, Package, RefreshCw, Send, Shuffle, Smartphone, Trash2, TriangleAlert, Trophy, X, type LucideIcon } from "lucide-react"
 
 // ═══════════════════════════════════════════════════════════
 // POSTS TAB  (with detail modal + copy/download)
@@ -97,9 +98,9 @@ export function PostsTab({ projectId }: { projectId: string }) {
     if (loading) return <LoadingSpinner />
     if (error) return (
         <div className="text-center py-12">
-            <p className="text-aisummit-cinnabar mb-4 font-bold uppercase tracking-widest text-sm">❌ {error}</p>
+            <p className="text-aisummit-cinnabar mb-4 font-bold uppercase tracking-widest text-sm"><CircleX className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{error}</p>
             <button onClick={() => loadPosts(0)} className="px-5 py-2.5 bg-[#0f0f0f] shadow-sm border border-white/10 text-white rounded-sm text-xs font-bold uppercase tracking-widest hover:bg-white/10 transition-colors">
-                🔄 Zkusit znovu
+                <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />Zkusit znovu</span>
             </button>
         </div>
     )
@@ -117,7 +118,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                             : "text-white/50 bg-[#0f0f0f] border-white/10 hover:text-white hover:bg-white/5"
                             }`}
                     >
-                        {status === "all" ? "Všechny" : status === "draft" ? "Koncepty" : status === "ready" ? "Připravené" : status === "scheduled" ? "Naplánované" : status === "posted" ? "Publikované" : status === "failed" ? "⚠ Selhalé" : "🔒 Plán"}
+                        {status === "all" ? "Všechny" : status === "draft" ? "Koncepty" : status === "ready" ? "Připravené" : status === "scheduled" ? "Naplánované" : status === "posted" ? "Publikované" : status === "failed" ? "Selhalé" : "Plán"}
                     </button>
                 ))}
                 <span className="text-xs font-mono uppercase tracking-widest text-white/40 ml-auto whitespace-nowrap pl-4">{posts.length} z {total} příspěvků</span>
@@ -128,10 +129,10 @@ export function PostsTab({ projectId }: { projectId: string }) {
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide -mt-3">
                 {[
                     { value: "all", label: "Vše" },
-                    { value: "image", label: "🖼️ Obrázky" },
-                    { value: "story", label: "📱 Stories" },
-                    { value: "carousel", label: "📸 Carousely" },
-                    { value: "reel", label: "🎬 Reels" },
+                    { value: "image", label: "Obrázky" },
+                    { value: "story", label: "Stories" },
+                    { value: "carousel", label: "Carousely" },
+                    { value: "reel", label: "Reels" },
                 ].map(m => (
                     <button
                         key={m.value}
@@ -256,15 +257,13 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                 {post.qa_status === "native_forced" && (
                                     <span
                                         title="Vizuální QA neprošla čistě ani po opravách — zkontroluj text a diakritiku v obrázku před publikací"
-                                        className="absolute top-2 left-2 bg-red-950/80 border border-red-500/40 text-red-300 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm backdrop-blur-sm"
-                                    >
-                                        ⚠ Zkontroluj text
-                                    </span>
+                                        className="inline-flex items-center gap-1.5 absolute top-2 left-2 bg-red-950/80 border border-red-500/40 text-red-300 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm backdrop-blur-sm"
+                                    ><TriangleAlert className="w-3 h-3 shrink-0" />Zkontroluj text</span>
                                 )}
                             </div>
                         ) : (
                             <div className="w-full h-56 rounded-sm bg-[#0f0f0f]/50 border border-white/5 flex flex-col items-center justify-center mb-4 gap-2">
-                                <span className="text-2xl opacity-50">🖼️</span>
+                                <Image className="w-6 h-6 opacity-50" />
                                 <span className="text-white/40 font-bold uppercase tracking-widest text-[10px]">Bez obrázku</span>
                             </div>
                         )}
@@ -285,7 +284,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                             {/* Inline quick actions — always visible */}
                             <div className="flex items-center gap-1.5 mb-3" onClick={(e) => e.stopPropagation()}>
                                 <InlineAction
-                                    label="📋"
+                                    Icon={ClipboardList}
                                     title="Kopírovat text"
                                     onClick={() => {
                                         if (post.caption) {
@@ -295,7 +294,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                 />
                                 {post.image_url && (
                                     <InlineAction
-                                        label="⬇️"
+                                        Icon={Download}
                                         title="Stáhnout obrázek"
                                         onClick={() => {
                                             const a = document.createElement("a")
@@ -308,14 +307,14 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                 )}
                                 {post.image_url && (
                                     <InlineAction
-                                        label="📲"
+                                        Icon={Smartphone}
                                         title="Publikovat na Instagram"
                                         onClick={() => setHandoffPost(post)}
                                     />
                                 )}
                                 {(post.status === "draft" || post.status === "plan_draft") && (
                                     <InlineAction
-                                        label="✅"
+                                        Icon={CircleCheck}
                                         title="Označit jako Připraveno"
                                         onClick={() => handleStatusChange(post.id, "ready")}
                                         accent="blue"
@@ -323,7 +322,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                 )}
                                 {post.status === "ready" && (
                                     <InlineAction
-                                        label="📤"
+                                        Icon={Send}
                                         title="Označit jako Publikováno"
                                         onClick={() => handleStatusChange(post.id, "posted")}
                                         accent="emerald"
@@ -411,7 +410,7 @@ function LockedPostCard({ post }: { post: IGPost }) {
             {/* Blurred image placeholder */}
             <div className="w-full h-56 rounded-sm bg-[#0f0f0f]/50 border border-white/5 flex flex-col items-center justify-center mb-4 gap-2 relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-white/[0.01]" />
-                <span className="text-3xl opacity-30">🔒</span>
+                <Lock className="w-6 h-6 opacity-30" />
                 <span className="text-white/30 font-bold uppercase tracking-widest text-[9px]">Zamčený obsah</span>
             </div>
 
@@ -421,7 +420,9 @@ function LockedPostCard({ post }: { post: IGPost }) {
                         <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{post.ig_post_types?.display_name || "Příspěvek"}</span>
                         {post.content_pillar && <PillarBadge pillar={post.content_pillar} />}
                     </div>
-                    <span className="text-sm bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-sm">🔒</span>
+                    <span className="inline-flex items-center bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-sm">
+                        <Lock className="w-3.5 h-3.5" />
+                    </span>
                 </div>
 
                 {/* Blurred caption snippet */}
@@ -439,7 +440,7 @@ function LockedPostCard({ post }: { post: IGPost }) {
     )
 }
 
-function InlineAction({ label, title, onClick, accent }: { label: string; title: string; onClick: () => void; accent?: "blue" | "emerald" }) {
+function InlineAction({ Icon, title, onClick, accent }: { Icon: LucideIcon; title: string; onClick: () => void; accent?: "blue" | "emerald" }) {
     const accentClass = accent === "blue"
         ? "hover:bg-blue-500/20 hover:border-blue-500/30"
         : accent === "emerald"
@@ -449,9 +450,10 @@ function InlineAction({ label, title, onClick, accent }: { label: string; title:
         <button
             onClick={onClick}
             title={title}
-            className={`w-8 h-8 flex items-center justify-center rounded-sm border border-white/10 bg-white/5 text-sm transition-all ${accentClass}`}
+            aria-label={title}
+            className={`w-9 h-9 flex items-center justify-center rounded-sm border border-white/10 bg-white/5 text-white/60 transition-all ${accentClass}`}
         >
-            {label}
+            <Icon className="w-4 h-4" />
         </button>
     )
 }
@@ -580,9 +582,7 @@ function PostDetailModal({
                     <button
                         onClick={onClose}
                         className="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 rounded-sm transition-colors border border-transparent hover:border-white/10"
-                    >
-                        ✕
-                    </button>
+                    ><X className="w-3.5 h-3.5 shrink-0" /> </button>
                 </div>
 
                 {/* Body — scrollable */}
@@ -814,7 +814,7 @@ function PostDetailModal({
                         onClick={() => copyToClipboard(fullText, "full-btn")}
                         className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-[#0f0f0f] text-white/70 hover:bg-white/10 hover:text-white transition-all flex items-center gap-2 border border-white/10"
                     >
-                        {copiedField === "full-btn" ? "✅ Zkopírováno!" : "📋 Kopírovat text"}
+                        {copiedField === "full-btn" ? "Zkopírováno!" : "Kopírovat text"}
                     </button>
 
                     {/* Publish to Instagram (mobile handoff) */}
@@ -823,7 +823,7 @@ function PostDetailModal({
                             onClick={() => onPublish(post)}
                             className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-gradient-to-r from-aisummit-cinnabar/20 to-orange-600/20 text-aisummit-cinnabar hover:from-aisummit-cinnabar/30 hover:to-orange-600/30 transition-all flex items-center gap-2 border border-aisummit-cinnabar/30"
                         >
-                            📲 Publikovat na Instagram
+                            <span className="inline-flex items-center gap-1.5"><Smartphone className="w-3.5 h-3.5 shrink-0" />Publikovat na Instagram</span>
                         </button>
                     )}
 
@@ -843,7 +843,7 @@ function PostDetailModal({
                                 onClick={() => onStatusChange(post.id, "posted")}
                                 className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all border border-emerald-500/20"
                             >
-                                ✓ Publikováno
+                                <span className="inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5 shrink-0" />Publikováno</span>
                             </button>
                         </>
                     )}
@@ -859,7 +859,7 @@ function PostDetailModal({
                                 onClick={() => onStatusChange(post.id, "posted")}
                                 className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all border border-emerald-500/20"
                             >
-                                ✓ Publikováno
+                                <span className="inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5 shrink-0" />Publikováno</span>
                             </button>
                         </>
                     )}
@@ -879,7 +879,7 @@ function PostDetailModal({
                                 onClick={() => onStatusChange(post.id, "archived")}
                                 className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-white/5 text-white/40 hover:bg-white/10 transition-all border border-white/10"
                             >
-                                📦 Archivovat
+                                <span className="inline-flex items-center gap-1.5"><Package className="w-3.5 h-3.5 shrink-0" />Archivovat</span>
                             </button>
                         </>
                     )}
@@ -917,14 +917,14 @@ function PostDetailModal({
                                     : "bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 border-violet-500/20"
                         }`}
                     >
-                        {generatingVariants ? "⏳ Generuji 2 varianty (~60s)..." : variantIds.length > 0 ? "🔀 Zobrazit varianty" : "🔀 A/B Test"}
+                        {generatingVariants ? "⏳ Generuji 2 varianty (~60s)..." : variantIds.length > 0 ? "Zobrazit varianty" : "A/B Test"}
                     </button>
                     {variantIds.length > 0 && !generatingVariants && (
                         <button
                             onClick={() => setShowVariantComparison(true)}
                             className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 border border-violet-500/20 transition-all"
                         >
-                            📊 Srovnat
+                            <span className="inline-flex items-center gap-1.5"><ChartColumn className="w-3.5 h-3.5 shrink-0" />Srovnat</span>
                         </button>
                     )}
                     {variantError && (
@@ -950,14 +950,14 @@ function PostDetailModal({
                             onClick={() => setConfirmDelete(true)}
                             className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20"
                         >
-                            🗑️ Smazat
+                            <span className="inline-flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5 shrink-0" />Smazat</span>
                         </button>
                     ) : (
                         <button
                             onClick={() => onDelete(post.id)}
                             className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse"
                         >
-                            ⚠️ Opravdu smazat?
+                            <span className="inline-flex items-center gap-1.5"><TriangleAlert className="w-3.5 h-3.5 shrink-0" />Opravdu smazat?</span>
                         </button>
                     )}
                 </div>
@@ -1167,8 +1167,8 @@ function PostEditPanel({
                 the image preview, which is what the region drag needs to be usable. */}
             <div className="flex items-center gap-1.5 flex-wrap">
                 {([
-                    { id: "text" as const, label: "✏️ Text" },
-                    { id: "image" as const, label: "🖼️ Obrázek" },
+                    { id: "text" as const, label: "Text" },
+                    { id: "image" as const, label: "Obrázek" },
                     { id: "both" as const, label: "Obojí" },
                 ]).map(opt => {
                     const disabled = opt.id !== "text" && !hasImage
@@ -1239,7 +1239,7 @@ function PostEditPanel({
                                 <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" /></svg>
                                 Upravuji...
                             </span>
-                        ) : "✏️ Upravit"}
+                        ) : "Upravit"}
                     </button>
                 </div>
             </div>
@@ -1257,15 +1257,13 @@ function PostEditPanel({
                         onClick={() => setShowRegenerate(true)}
                         className="text-[9px] uppercase tracking-widest font-bold text-white/25 hover:text-white/50 transition-colors"
                     >
-                        🔄 Nebo vygenerovat úplně znovu…
+                        <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />Nebo vygenerovat úplně znovu…</span>
                     </button>
                 ) : (
                     <div className="space-y-2">
-                        <p className="text-[9px] uppercase tracking-widest font-bold text-amber-400/70">
-                            ⚠ Vytvoří nový příspěvek s úplně novým vizuálem — jiná fotka, jiná kompozice
-                        </p>
+                        <p className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest font-bold text-amber-400/70"><TriangleAlert className="w-3 h-3 shrink-0" />Vytvoří nový příspěvek s úplně novým vizuálem — jiná fotka, jiná kompozice</p>
                         {regenerate.revisionResult?.success ? (
-                            <p className="text-xs text-emerald-400">✅ Nový draft vytvořen — najdeš ho v seznamu</p>
+                            <p className="inline-flex items-center gap-1.5 text-xs text-emerald-400"><CircleCheck className="w-3.5 h-3.5 shrink-0" />Nový draft vytvořen — najdeš ho v seznamu</p>
                         ) : (
                             <div className="flex gap-2 items-start">
                                 <textarea
@@ -1289,12 +1287,12 @@ function PostEditPanel({
                                             <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" /></svg>
                                             Generuji...
                                         </span>
-                                    ) : confirmRegenerate ? "⚠️ Opravdu?" : "🔄 Znovu (1 kredit)"}
+                                    ) : confirmRegenerate ? "Opravdu?" : "Znovu (1 kredit)"}
                                 </button>
                             </div>
                         )}
                         {regenerate.revisionResult?.error && (
-                            <p className="text-[10px] text-red-400">❌ {regenerate.revisionResult.error}</p>
+                            <p className="text-[10px] text-red-400"><CircleX className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{regenerate.revisionResult.error}</p>
                         )}
                     </div>
                 )}
@@ -1368,20 +1366,18 @@ function VariantComparisonModal({
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
                     <div className="flex items-center gap-3">
-                        <span className="text-lg">🔀</span>
+                        <Shuffle className="w-5 h-5" />
                         <div>
                             <h3 className="text-white font-black uppercase tracking-tighter">A/B Srovnání variant</h3>
                             <p className="text-[10px] text-white/40 font-mono tracking-widest uppercase">
-                                {done ? "✅ Vítěz vybrán — systém se učí z tvé preference" : "Vyber nejlepší variantu"}
+                                {done ? "Vítěz vybrán — systém se učí z tvé preference" : "Vyber nejlepší variantu"}
                             </p>
                         </div>
                     </div>
                     <button
                         onClick={onClose}
                         className="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 rounded-sm transition-colors border border-transparent hover:border-white/10"
-                    >
-                        ✕
-                    </button>
+                    ><X className="w-3.5 h-3.5 shrink-0" /> </button>
                 </div>
 
                 {/* Body */}
@@ -1430,7 +1426,7 @@ function VariantComparisonModal({
                                                     {isOriginal ? "Originál" : `Varianta ${index}`}
                                                 </span>
                                                 {isWinner && (
-                                                    <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400 animate-pulse">🏆 Vítěz</span>
+                                                    <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-emerald-400 animate-pulse"><Trophy className="w-3 h-3 shrink-0" />Vítěz</span>
                                                 )}
                                             </div>
                                             <span className="text-[9px] text-white/30 font-mono">{variant.ig_post_types?.emoji || "📸"}</span>
@@ -1443,7 +1439,7 @@ function VariantComparisonModal({
                                             </div>
                                         ) : (
                                             <div className="w-full aspect-[4/5] bg-[#050505] flex items-center justify-center">
-                                                <span className="text-white/20 text-3xl">🖼️</span>
+                                                <Image className="w-6 h-6 text-white/20" />
                                             </div>
                                         )}
 
@@ -1462,7 +1458,7 @@ function VariantComparisonModal({
                                                             : 'bg-white/5 text-white/60 border-white/10 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/20'
                                                     } disabled:opacity-40 disabled:cursor-not-allowed`}
                                                 >
-                                                    {selecting === variant.id ? "⏳ Vybírám..." : "✓ Vybrat jako vítěze"}
+                                                    {selecting === variant.id ? "⏳ Vybírám..." : "Vybrat jako vítěze"}
                                                 </button>
                                             )}
                                         </div>
@@ -1475,9 +1471,7 @@ function VariantComparisonModal({
 
                 {done && (
                     <div className="px-6 py-3 border-t border-emerald-500/20 bg-emerald-500/5 flex items-center justify-center gap-2">
-                        <span className="text-xs text-emerald-400 font-bold uppercase tracking-widest">
-                            🧠 Preference uložena — AI se učí z tvého výběru
-                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-bold uppercase tracking-widest"><Brain className="w-3.5 h-3.5 shrink-0" />Preference uložena — AI se učí z tvého výběru</span>
                     </div>
                 )}
             </div>

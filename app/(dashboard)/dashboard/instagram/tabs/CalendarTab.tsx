@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { getWeekPosts, approvePost } from "@/app/actions/calendar-actions"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
+import { CalendarDays, CircleCheck, Clock, CloudSun, FileText, Send, Wand, type LucideIcon } from "lucide-react"
 
 interface CalendarPost {
     id: string
@@ -106,9 +107,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                 Tři tlačítka namačkaná vpravo měla terč pod 40 px. */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h2 className="text-xl font-black uppercase tracking-tight text-white flex items-center gap-2">
-                        📅 Content Calendar
-                    </h2>
+                    <h2 className="text-xl font-black uppercase tracking-tight text-white flex items-center gap-2"><CalendarDays className="w-4 h-4 shrink-0" />Content Calendar</h2>
                     <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">
                         {weekStart.getDate()}.{weekStart.getMonth() + 1}. – {weekEndDate.getDate()}.{weekEndDate.getMonth() + 1}.{weekEndDate.getFullYear()}
                     </p>
@@ -131,10 +130,8 @@ export function CalendarTab({ projectId }: { projectId: string }) {
             <div className="flex items-center gap-4">
                 <button
                     onClick={handlePlanWeek}
-                    className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-emerald-600/20 to-emerald-500/10 border border-emerald-500/30 rounded-sm text-emerald-400 text-xs font-bold uppercase tracking-widest hover:from-emerald-600/30 hover:to-emerald-500/20 transition-all shadow-lg shadow-emerald-900/20 cursor-pointer"
-                >
-                    🪄 Naplánovat týden →
-                </button>
+                    className="inline-flex items-center gap-1.5 justify-center w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-emerald-600/20 to-emerald-500/10 border border-emerald-500/30 rounded-sm text-emerald-400 text-xs font-bold uppercase tracking-widest hover:from-emerald-600/30 hover:to-emerald-500/20 transition-all shadow-lg shadow-emerald-900/20 cursor-pointer"
+                ><Wand className="w-3.5 h-3.5 shrink-0" />Naplánovat týden →</button>
             </div>
 
             {/* Calendar Grid */}
@@ -239,10 +236,10 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                         ready: "border-emerald-500/30 bg-emerald-500/5",
                                         posted: "border-blue-500/30 bg-blue-500/5",
                                     }
-                                    const statusBadge: Record<string, string> = {
-                                        draft: "📝",
-                                        ready: "✅",
-                                        posted: "📤",
+                                    const StatusIcon: Record<string, LucideIcon> = {
+                                        draft: FileText,
+                                        ready: CircleCheck,
+                                        posted: Send,
                                     }
 
                                     return (
@@ -263,7 +260,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                                 <span className="text-[9px] text-white/60 leading-tight line-clamp-2">
                                                     {post.caption?.split("\n")[0]?.substring(0, 50) || "—"}
                                                 </span>
-                                                <span className="text-[10px] flex-shrink-0">{statusBadge[post.status] || "📝"}</span>
+                                                {(() => { const I = StatusIcon[post.status] || FileText; return <I className="w-3 h-3 shrink-0 text-white/50" /> })()}
                                             </div>
                                             <div className="flex items-center gap-1.5 mt-1">
                                                 <span className="text-[8px] text-white/30">{post.time_slot || "—"}</span>
@@ -315,7 +312,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                     </span>
                                 )}
                                 {selectedPost.time_slot && (
-                                    <span className="text-[9px] text-white/30">🕐 {selectedPost.time_slot}</span>
+                                    <span className="text-[9px] text-white/30"><Clock className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{selectedPost.time_slot}</span>
                                 )}
                             </div>
 
@@ -331,7 +328,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                         onClick={() => handleApprove(selectedPost.id)}
                                         className="flex-1 min-h-[44px] px-4 bg-emerald-500/10 border border-emerald-500/30 rounded-sm text-emerald-400 text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-500/20 transition-all cursor-pointer"
                                     >
-                                        ✅ Schválit
+                                        <span className="inline-flex items-center gap-1.5"><CircleCheck className="w-3.5 h-3.5 shrink-0" />Schválit</span>
                                     </button>
                                 )}
                                 <button
@@ -348,9 +345,9 @@ export function CalendarTab({ projectId }: { projectId: string }) {
 
             {/* Info */}
             <div className="bg-[#0a0a0a]/60 border border-white/5 rounded-sm p-4 text-[10px] text-white/30 tracking-wide space-y-1">
-                <p>📅 <strong className="text-white/50">Naplánuj týden:</strong> AI analyzuje počasí, svátky a výkon značky, pak strategicky naplánuje posty na celý týden.</p>
-                <p>🌤️ <strong className="text-white/50">Počasí:</strong> Když je dostupná předpověď, plán ji zohlední. Jinak plánuje podle kalendáře, svátků a výkonu značky.</p>
-                <p>📝 <strong className="text-white/50">Workflow:</strong> Naplánuj → zkontroluj drafty → schval → publikuj.</p>
+                <p><CalendarDays className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" /><strong className="text-white/50">Naplánuj týden:</strong> AI analyzuje počasí, svátky a výkon značky, pak strategicky naplánuje posty na celý týden.</p>
+                <p><CloudSun className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" /><strong className="text-white/50">Počasí:</strong> Když je dostupná předpověď, plán ji zohlední. Jinak plánuje podle kalendáře, svátků a výkonu značky.</p>
+                <p><FileText className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" /><strong className="text-white/50">Workflow:</strong> Naplánuj → zkontroluj drafty → schval → publikuj.</p>
             </div>
         </div>
     )

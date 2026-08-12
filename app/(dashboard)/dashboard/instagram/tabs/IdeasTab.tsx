@@ -5,6 +5,7 @@ import { motion } from "framer-motion"
 import { getIGIdeasList, getIGCategories } from "@/app/actions/admin-actions"
 import { addNewIdea, triggerAIIdeasGeneration, deleteIdea, setIdeaActive } from "@/app/actions/ig-generate-action"
 import { LoadingSpinner } from "./shared"
+import { Flame, Lightbulb, Moon, X } from "lucide-react"
 
 type PillarWithCategories = {
     id: string
@@ -143,7 +144,7 @@ export function IdeasTab({ projectId }: { projectId: string }) {
         <div className="space-y-4">
             {/* Explainer — what this bank actually does */}
             <div className="bg-[#0a0a0a] border border-white/5 rounded-sm p-4">
-                <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest mb-1">💡 Zásobník témat</p>
+                <p className="inline-flex items-center gap-1.5 text-[9px] text-white/40 font-bold uppercase tracking-widest mb-1"><Lightbulb className="w-3 h-3 shrink-0" />Zásobník témat</p>
                 <p className="text-xs text-white/50">
                     AI si odsud bere témata pro vaše příspěvky — nápady, které fungují, používá častěji.
                     Po použití se nápad nemaže, jen si dá pauzu, aby se váš feed neopakoval.
@@ -170,7 +171,7 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                             disabled={generatingAI}
                             className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-[0_0_15px_rgba(16,185,129,0.1)] appearance-none cursor-pointer pr-8 ${generatingAI ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-500/20'}`}
                         >
-                            <option value="">{generatingAI ? "✨ Generuji..." : "✨ AI Nápady (10x)"}</option>
+                            <option value="">{generatingAI ? "Generuji..." : "AI Nápady (10x)"}</option>
                             {pillars.map(pillar => (
                                 pillar.categories && pillar.categories.length > 0 ? (
                                     <optgroup key={pillar.id} label={`${pillar.emoji} ${pillar.label}`}>
@@ -337,14 +338,10 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                                         </span>
                                     )}
                                     {isProven && (
-                                        <span className="text-[9px] px-2 py-1 rounded-sm bg-emerald-500/10 text-emerald-400 uppercase tracking-widest font-bold border border-emerald-500/20">
-                                            🔥 Funguje
-                                        </span>
+                                        <span className="inline-flex items-center gap-1.5 text-[9px] px-2 py-1 rounded-sm bg-emerald-500/10 text-emerald-400 uppercase tracking-widest font-bold border border-emerald-500/20"><Flame className="w-3 h-3 shrink-0" />Funguje</span>
                                     )}
                                     {isResting && (
-                                        <span className="text-[9px] px-2 py-1 rounded-sm bg-white/5 text-white/30 uppercase tracking-widest font-bold border border-white/10">
-                                            💤 Odpočívá
-                                        </span>
+                                        <span className="inline-flex items-center gap-1.5 text-[9px] px-2 py-1 rounded-sm bg-white/5 text-white/30 uppercase tracking-widest font-bold border border-white/10"><Moon className="w-3 h-3 shrink-0" />Odpočívá</span>
                                     )}
                                     {usedCount === 0 ? (
                                         <span className="text-[9px] px-2 py-1 rounded-sm bg-white/5 text-white/40 uppercase tracking-widest font-bold border border-white/10">
@@ -376,7 +373,7 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                                     onClick={() => handleDelete(idea)}
                                     className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest rounded-sm bg-white/3 text-white/40 border border-white/5 hover:text-red-400 hover:border-red-500/20 transition-all"
                                 >
-                                    ✕ Smazat
+                                    <span className="inline-flex items-center gap-1.5"><X className="w-3.5 h-3.5 shrink-0" />Smazat</span>
                                 </button>
                             </div>
                         </motion.div>

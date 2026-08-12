@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion"
-import { ArrowRight, CheckCircle2, ChevronDown, Cpu, Camera, TrendingUp, Menu, X } from "lucide-react"
+import { ArrowRight, Camera, Check, CheckCircle2, ChevronDown, Cpu, Menu, TrendingUp, X } from "lucide-react"
 import { PostWall, type WallPost } from "@/components/PostWall"
 import { SeedToFlower } from "@/components/SeedToFlower"
 import { WaitlistForm } from "@/components/WaitlistForm"
@@ -327,7 +327,7 @@ export function Landing({ plans }: { plans: readonly PricingPlan[] }) {
                   ["Chcete mít poslední slovo", "Obsah dostanete hotový. Co vyjde ven, schvalujete vy."],
                 ].map(([t, d]) => (
                   <li key={t} className="flex gap-3">
-                    <span className="text-emerald-400/60 text-xs mt-0.5 shrink-0">✓</span>
+                    <Check className="w-3.5 h-3.5 text-emerald-400/60 mt-0.5 shrink-0" />
                     <div>
                       <p className="text-white text-sm font-bold leading-snug">{t}</p>
                       <p className="text-white/40 text-sm leading-relaxed mt-1">{d}</p>
@@ -357,7 +357,7 @@ export function Landing({ plans }: { plans: readonly PricingPlan[] }) {
                   ["Chcete řídit každý pixel", "Layout navrhuje AI. Můžete ho přegenerovat nebo připomínkovat — ne sázet ručně."],
                 ].map(([t, d]) => (
                   <li key={t} className="flex gap-3">
-                    <span className="text-white/25 text-xs mt-0.5 shrink-0">✕</span>
+                    <X className="w-3.5 h-3.5 text-white/25 mt-0.5 shrink-0" />
                     <div>
                       <p className="text-white/70 text-sm font-bold leading-snug">{t}</p>
                       <p className="text-white/35 text-sm leading-relaxed mt-1">{d}</p>
