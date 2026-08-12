@@ -122,7 +122,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                             title="Stáhne aktuální metriky z propojeného Instagramu"
                             className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-[#0f0f0f] border border-white/10 text-white/70 hover:bg-white/10 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
-                            {syncing ? "⏳ Načítám…" : "🔄 Načíst metriky z Instagramu"}
+                            {syncing ? "⏳ Načítám…" : "Načíst metriky z Instagramu"}
                         </button>
                     )}
                 </div>

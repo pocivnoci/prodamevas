@@ -171,7 +171,7 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                             disabled={generatingAI}
                             className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-[0_0_15px_rgba(16,185,129,0.1)] appearance-none cursor-pointer pr-8 ${generatingAI ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-500/20'}`}
                         >
-                            <option value="">{generatingAI ? "✨ Generuji..." : "✨ AI Nápady (10x)"}</option>
+                            <option value="">{generatingAI ? "Generuji..." : "AI Nápady (10x)"}</option>
                             {pillars.map(pillar => (
                                 pillar.categories && pillar.categories.length > 0 ? (
                                     <optgroup key={pillar.id} label={`${pillar.emoji} ${pillar.label}`}>

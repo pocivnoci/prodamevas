@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { getIGPostsList, getProfilePreview } from "@/app/actions/admin-actions"
 import { getFeedPatternPreview } from "@/app/actions/content-plan-actions"
 import { VISUAL_MODE_LABELS, type VisualMode } from "@/lib/feed-pattern"
+import { Square } from "lucide-react"
 
 interface FeedPost {
     id: string
@@ -136,7 +137,7 @@ export function FeedTab({ projectId }: { projectId: string }) {
                 <div className="flex items-center justify-between gap-4 bg-[#0a0a0a]/80 border border-white/10 rounded-sm px-4 py-3">
                     <div className="flex items-center gap-3">
                         <span className="text-[9px] text-white/40 uppercase tracking-widest font-bold">Vzor feedu</span>
-                        <span className="text-[11px] text-aisummit-cinnabar font-bold uppercase tracking-widest">🔲 {pattern.label}</span>
+                        <span className="text-[11px] text-aisummit-cinnabar font-bold uppercase tracking-widest"><Square className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{pattern.label}</span>
                     </div>
                     {pattern.gridAligned && (
                         <span className="text-[9px] text-white/25 font-bold uppercase tracking-widest text-right">

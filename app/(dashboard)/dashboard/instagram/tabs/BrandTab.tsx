@@ -212,7 +212,7 @@ export function BrandTab({ projectId }: { projectId: string }) {
                             className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 rounded-sm text-[9px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50"
                             title="Nechej AI znovu projít a oštítkovat všechny fotky"
                         >
-                            {retagging ? "🏷️ Přeznačuji…" : "🏷️ Přeznačit AI"}
+                            {retagging ? "Přeznačuji…" : "Přeznačit AI"}
                         </button>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">

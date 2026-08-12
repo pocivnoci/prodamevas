@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { getWeekPosts, approvePost } from "@/app/actions/calendar-actions"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
-import { CalendarDays, CircleCheck, Wand } from "lucide-react"
+import { CalendarDays, CircleCheck, Clock, Wand } from "lucide-react"
 
 interface CalendarPost {
     id: string
@@ -312,7 +312,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                     </span>
                                 )}
                                 {selectedPost.time_slot && (
-                                    <span className="text-[9px] text-white/30">🕐 {selectedPost.time_slot}</span>
+                                    <span className="text-[9px] text-white/30"><Clock className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{selectedPost.time_slot}</span>
                                 )}
                             </div>
 

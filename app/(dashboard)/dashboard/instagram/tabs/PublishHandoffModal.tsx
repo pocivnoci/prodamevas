@@ -258,7 +258,7 @@ export function PublishHandoffModal({
                             >
                                 {pubState === "publishing"
                                     ? "⏳ Publikuje se… (do minuty)"
-                                    : isStory ? "📱 Přidat do stories" : "⚡ Publikovat hned"}
+                                    : isStory ? "Přidat do stories" : "Publikovat hned"}
                             </button>
                         )
                     )}
@@ -276,7 +276,7 @@ export function PublishHandoffModal({
                             disabled={sharing}
                             className={`w-full px-4 py-3.5 text-xs font-black uppercase tracking-widest rounded-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${canAutoPublish ? "bg-[#0f0f0f] text-white/70 border border-white/10 hover:bg-white/10 hover:text-white" : "bg-gradient-to-r from-aisummit-cinnabar/30 to-orange-600/30 text-aisummit-cinnabar border border-aisummit-cinnabar/30 hover:from-aisummit-cinnabar/40 hover:to-orange-600/40"}`}
                         >
-                            {sharing ? "⏳ Připravuji…" : shared ? "✅ Sdíleno — popisek je v schránce" : "📲 Sdílet do Instagramu"}
+                            {sharing ? "⏳ Připravuji…" : shared ? "Sdíleno — popisek je v schránce" : "Sdílet do Instagramu"}
                         </button>
                     )}
 
@@ -302,7 +302,7 @@ export function PublishHandoffModal({
                                 onClick={() => copyToClipboard(fullText, "caption")}
                                 className="text-[10px] font-bold uppercase tracking-widest text-aisummit-cinnabar hover:text-orange-400 transition-colors"
                             >
-                                {copiedField === "caption" ? "✅ Zkopírováno!" : "📋 Kopírovat popisek"}
+                                {copiedField === "caption" ? "Zkopírováno!" : "Kopírovat popisek"}
                             </button>
                         </div>
                         <div className="rounded-sm border border-white/10 bg-[#0f0f0f] p-3 max-h-40 overflow-y-auto">

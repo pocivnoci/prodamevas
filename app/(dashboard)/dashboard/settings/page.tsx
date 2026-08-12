@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { getAvailableIGClients } from "@/app/actions/admin-actions"
 import { getClientConfig, updateClientConfig } from "@/app/actions/settings-actions"
-import { Lightbulb } from "lucide-react"
+import { CircleCheck, CircleX, Lightbulb, TriangleAlert } from "lucide-react"
 
 type ClientInfo = { id: string; name: string; icon: string; description: string }
 
@@ -154,12 +154,12 @@ export default function SettingsPage() {
                 <AnimatePresence>
                     {errorMsg && (
                         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="bg-red-500/10 border-b border-red-500/20 p-4">
-                            <p className="text-xs text-red-400 font-medium">❌ {errorMsg}</p>
+                            <p className="text-xs text-red-400 font-medium"><CircleX className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{errorMsg}</p>
                         </motion.div>
                     )}
                     {successMsg && (
                         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="bg-emerald-500/10 border-b border-emerald-500/20 p-4">
-                            <p className="text-xs text-emerald-400 font-medium">✅ {successMsg}</p>
+                            <p className="text-xs text-emerald-400 font-medium"><CircleCheck className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{successMsg}</p>
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -187,7 +187,7 @@ export default function SettingsPage() {
 
                     {jsonError && (
                         <div className="absolute bottom-4 left-4 right-4 sm:left-14 bg-red-950/80 backdrop-blur-md border border-red-500/50 p-3 rounded-sm shadow-xl">
-                            <p className="text-xs text-red-400 font-mono text-center">⚠️ {jsonError}</p>
+                            <p className="text-xs text-red-400 font-mono text-center"><TriangleAlert className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{jsonError}</p>
                         </div>
                     )}
                 </div>

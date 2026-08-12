@@ -79,7 +79,7 @@ export function ApprovalsTab() {
                                 disabled={busy === item.id}
                                 className="px-5 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all disabled:opacity-50"
                             >
-                                {busy === item.id ? "…" : "✓ Schválit"}
+                                {busy === item.id ? "…" : "Schválit"}
                             </button>
                             <button
                                 onClick={() => decide(item.id, false)}

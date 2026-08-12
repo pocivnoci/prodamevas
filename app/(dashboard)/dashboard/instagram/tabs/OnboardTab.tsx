@@ -13,7 +13,7 @@ import {
 } from '@/app/onboarding/actions'
 import type { WebsiteAnalysis, OnboardingQuestion, ReviewSection } from '@/app/onboarding/actions'
 import type { ClientConfig, ImageBriefItem } from '@/instagram/configs/types'
-import { Anchor, Camera, ChartColumn, Check, CircleCheck, ClipboardList, Globe, Mic, Package, Palette, Pencil, Plus, Rocket, Search, ThumbsUp, type LucideIcon } from "lucide-react"
+import { Anchor, Camera, ChartColumn, Check, CircleCheck, ClipboardList, Globe, Mic, Package, Palette, Pencil, Plus, Rocket, Search, ThumbsUp, TriangleAlert, type LucideIcon } from "lucide-react"
 
 type Step = 'choose' | 'input' | 'manual' | 'analyzing' | 'questions' | 'building' | 'review' | 'saving' | 'done'
 
@@ -431,15 +431,15 @@ export function OnboardTab() {
                                 <label className="block text-sm font-medium text-gray-300 mb-2">Kategorie</label>
                                 <div className="grid grid-cols-3 gap-2">
                                     {[
-                                        { id: 'kavarna', label: '☕ Kavárna' },
-                                        { id: 'restaurace', label: '🍽️ Restaurace' },
-                                        { id: 'salon', label: '💇 Salon' },
-                                        { id: 'fitness', label: '💪 Fitness' },
-                                        { id: 'eshop', label: '🛒 E-shop' },
-                                        { id: 'remeslnik', label: '🔧 Řemeslník' },
-                                        { id: 'poradce', label: '📊 Poradce' },
-                                        { id: 'fotograf', label: '📸 Fotograf' },
-                                        { id: 'jine', label: '📌 Jiné' },
+                                        { id: 'kavarna', label: 'Kavárna' },
+                                        { id: 'restaurace', label: 'Restaurace' },
+                                        { id: 'salon', label: 'Salon' },
+                                        { id: 'fitness', label: 'Fitness' },
+                                        { id: 'eshop', label: 'E-shop' },
+                                        { id: 'remeslnik', label: 'Řemeslník' },
+                                        { id: 'poradce', label: 'Poradce' },
+                                        { id: 'fotograf', label: 'Fotograf' },
+                                        { id: 'jine', label: 'Jiné' },
                                     ].map(cat => (
                                         <button key={cat.id} type="button" onClick={() => setCategory(cat.id)}
                                             className={`px-3 py-2 rounded-lg text-sm transition-all cursor-pointer text-left ${
@@ -460,10 +460,10 @@ export function OnboardTab() {
                                 <label className="block text-sm font-medium text-gray-300 mb-2">Tón komunikace</label>
                                 <div className="grid grid-cols-2 gap-2">
                                     {[
-                                        { id: 'přátelský', label: '😊 Přátelský' },
-                                        { id: 'profesionální', label: '👔 Profesionální' },
-                                        { id: 'drzý', label: '😎 Drzý / Vtipný' },
-                                        { id: 'expertní', label: '🎓 Expertní' },
+                                        { id: 'přátelský', label: 'Přátelský' },
+                                        { id: 'profesionální', label: 'Profesionální' },
+                                        { id: 'drzý', label: 'Drzý / Vtipný' },
+                                        { id: 'expertní', label: 'Expertní' },
                                     ].map(t => (
                                         <button key={t.id} type="button" onClick={() => setManualTone(t.id)}
                                             className={`px-3 py-2 rounded-lg text-sm transition-all cursor-pointer text-left ${
@@ -493,11 +493,11 @@ export function OnboardTab() {
                                 <label className="block text-sm font-medium text-gray-300 mb-2">Vizuální styl</label>
                                 <div className="grid grid-cols-3 gap-2">
                                     {[
-                                        { id: 'tmavý', label: '🌑 Tmavý' },
-                                        { id: 'světlý', label: '☀️ Světlý' },
-                                        { id: 'barevný', label: '🌈 Barevný' },
-                                        { id: 'minimalistický', label: '⬜ Minimalistický' },
-                                        { id: 'luxusní', label: '✨ Luxusní' },
+                                        { id: 'tmavý', label: 'Tmavý' },
+                                        { id: 'světlý', label: 'Světlý' },
+                                        { id: 'barevný', label: 'Barevný' },
+                                        { id: 'minimalistický', label: 'Minimalistický' },
+                                        { id: 'luxusní', label: 'Luxusní' },
                                     ].map(v => (
                                         <button key={v.id} type="button" onClick={() => setVisualStyle(v.id)}
                                             className={`px-3 py-2 rounded-lg text-sm transition-all cursor-pointer text-left ${
@@ -525,10 +525,10 @@ export function OnboardTab() {
                                 <label className="block text-sm font-medium text-gray-300 mb-2">Publikum</label>
                                 <div className="grid grid-cols-4 gap-2">
                                     {[
-                                        { id: 'mostly_female', label: '👩 Převážně ženy' },
-                                        { id: 'mostly_male', label: '👨 Převážně muži' },
-                                        { id: 'mixed', label: '👥 Mix' },
-                                        { id: 'unknown', label: '❓ Nevím' },
+                                        { id: 'mostly_female', label: 'Převážně ženy' },
+                                        { id: 'mostly_male', label: 'Převážně muži' },
+                                        { id: 'mixed', label: 'Mix' },
+                                        { id: 'unknown', label: 'Nevím' },
                                     ].map(g => (
                                         <button key={g.id} type="button" onClick={() => setAudienceGender(g.id)}
                                             className={`px-3 py-2 rounded-lg text-xs transition-all cursor-pointer text-center ${
@@ -621,7 +621,7 @@ export function OnboardTab() {
                                                     className={`px-3 py-2 rounded-lg text-sm transition-all cursor-pointer text-left ${selected
                                                         ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 border'
                                                         : 'bg-black/30 border border-white/10 text-gray-300 hover:border-white/20'
-                                                    }`}>{selected ? '✓ ' : ''}{option}</button>
+                                                    }`}>{selected ? '' : ''}{option}</button>
                                             )
                                         })}
                                     </div>
@@ -796,7 +796,7 @@ export function OnboardTab() {
                                     : 'bg-white/5 text-white/30 border border-white/10 cursor-not-allowed'
                             }`}
                         >
-                            {allApproved ? '💾 Uložit konfiguraci' : `Schval všech 5 sekcí (${REVIEW_SECTIONS.filter(s => sectionStatuses[s.id] === 'approved').length}/5)`}
+                            {allApproved ? 'Uložit konfiguraci' : `Schval všech 5 sekcí (${REVIEW_SECTIONS.filter(s => sectionStatuses[s.id] === 'approved').length}/5)`}
                         </button>
                     </div>
                 </div>
@@ -893,7 +893,7 @@ export function OnboardTab() {
 function ErrorBanner({ message }: { message: string }) {
     return (
         <div className="mb-4 rounded-lg bg-red-500/10 p-3 border border-red-500/20">
-            <p className="text-sm text-red-400">⚠️ {message}</p>
+            <p className="text-sm text-red-400"><TriangleAlert className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{message}</p>
         </div>
     )
 }
@@ -1002,7 +1002,7 @@ function ReviewCard({
                             disabled={!feedback.trim() || isRefining || refineCount >= maxRefines}
                             className="px-4 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-medium hover:bg-amber-500/30 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                            {isRefining ? '⏳ Přepracovávám...' : '🔄 Přegenerovat'}
+                            {isRefining ? '⏳ Přepracovávám...' : 'Přegenerovat'}
                         </button>
                     </div>
                 </div>

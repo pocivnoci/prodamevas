@@ -24,7 +24,7 @@ import { useCopyToClipboard } from "./hooks"
 import type { IGPostType, IGCategory, IGPostFormat } from "./types"
 import { creditsForMedia } from "@/lib/credits"
 import { trackEvent } from "@/lib/analytics"
-import { Award, Bot, CalendarDays, ChartColumn, ClipboardList, Compass, Film, Lightbulb, MessageCircle, Package, PenLine, Pencil, RefreshCw, Rocket, Ruler, Search, Sparkles, Star, Trash2, TriangleAlert, X } from "lucide-react"
+import { Award, Bot, CalendarDays, ChartColumn, Check, ClipboardList, Compass, Film, Lightbulb, MessageCircle, Package, PenLine, Pencil, Pin, RefreshCw, Rocket, Ruler, Search, Sparkles, Star, Trash2, TriangleAlert, X } from "lucide-react"
 
 /**
  * What a batch actually costs in credits. The first `freeRemaining` posts fall
@@ -718,7 +718,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     // poll its ig_jobs breadcrumb (via planRunId) and show live stage messages on the button.
     const handleGeneratePlan = async () => {
         setPlanGenerating(true)
-        setPlanProgress({ progress: 5, message: "📋 Připravuji kontext značky…" })
+        setPlanProgress({ progress: 5, message: "Připravuji kontext značky…" })
         const runId = crypto.randomUUID()
         const poll = setInterval(async () => {
             try {
@@ -961,7 +961,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         {(savedIdeas.length > 0 || approvedReviews.length > 0) && (
                                             <button type="button" onClick={() => setShowIdeaPicker(!showIdeaPicker)}
                                                 className="text-[9px] font-bold uppercase tracking-widest text-emerald-400 hover:text-emerald-300 transition-colors">
-                                                {showIdeaPicker ? "✕ Skrýt" : "💡 Vybrat z nápadů"}
+                                                {showIdeaPicker ? "Skrýt" : "Vybrat z nápadů"}
                                             </button>
                                         )}
                                     </div>
@@ -1140,7 +1140,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         ? "bg-white/5 text-white/30 cursor-wait border border-white/10"
                                         : "bg-aisummit-cinnabar text-white shadow-[0_0_20px_rgba(229,83,63,0.3)] hover:shadow-[0_0_30px_rgba(229,83,63,0.5)] hover:scale-[1.01] active:scale-[0.99]"}`}>
                                     {generating ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-transparent rounded-full animate-spin" /> Pracuji na tom...</>)
-                                        : (<>✨ Vytvořit příspěvek</>)}
+                                        : (<><Sparkles className="w-3.5 h-3.5 shrink-0" />Vytvořit příspěvek</>)}
                                 </button>
                             </div>
                         ) : (
@@ -1241,7 +1241,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                     <button key={p.id} onClick={() => toggleFocusProduct(p.id)}
                                                         className={`px-3 py-2 rounded-sm border text-[11px] font-bold transition-all ${on
                                                             ? "border-aisummit-cinnabar/50 bg-aisummit-cinnabar/10 text-aisummit-cinnabar" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
-                                                        {on ? "✓ " : ""}{p.name}
+                                                        {on && <Check className="w-3 h-3 inline-block align-[-1px] mr-1" />}{p.name}
                                                     </button>
                                                 )
                                             })}
@@ -1295,7 +1295,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         ? "bg-white/5 text-white/30 cursor-wait border border-white/10"
                                         : "bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] hover:scale-[1.01] active:scale-[0.99]"}`}>
                                     {planGenerating ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-transparent rounded-full animate-spin" /> {planProgress?.message || "AI plánuje…"}</>)
-                                        : (<>📋 Vytvořit plán</>)}
+                                        : (<><ClipboardList className="w-3.5 h-3.5 shrink-0" />Vytvořit plán</>)}
                                 </button>
                                 {planGenerating && (
                                     <div className="space-y-1.5">
@@ -1499,7 +1499,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                             </div>
                                                         ) : (
                                                             <div className="mt-1 flex items-center gap-1.5">
-                                                                <span className="text-[9px] text-emerald-400/60 font-mono">📌 {item.topic}</span>
+                                                                <span className="text-[9px] text-emerald-400/60 font-mono"><Pin className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{item.topic}</span>
                                                             </div>
                                                         )}
 
@@ -1742,7 +1742,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     single post is slow, so the spinner never reads as "frozen" (QA #4). */}
                                 {batchProgress && (batchProgress.successes > 0 || batchProgress.failures > 0) && (
                                     <p className="text-[9px] font-bold uppercase tracking-widest mb-4 relative z-10 text-center">
-                                        <span className="text-emerald-400/80">✓ {batchProgress.successes} hotovo</span>
+                                        <span className="text-emerald-400/80"><Check className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{batchProgress.successes} hotovo</span>
                                         {batchProgress.failures > 0 && (
                                             <span className="text-amber-400/80"> · {batchProgress.failures} přeskočeno</span>
                                         )}
@@ -1821,7 +1821,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Finální Copy</span>
                                                     <button onClick={() => copyToClipboard(result.caption!, "final")} className="text-[10px] font-bold uppercase tracking-widest text-aisummit-cinnabar hover:text-white transition-colors">
-                                                        {copiedField === "final" ? "✓ Zkopírováno" : "Kopírovat text"}
+                                                        {copiedField === "final" ? "Zkopírováno" : "Kopírovat text"}
                                                     </button>
                                                 </div>
                                                 <p className="text-white/70 font-medium leading-relaxed whitespace-pre-wrap bg-[#0f0f0f] p-5 rounded-sm border border-white/5 shadow-sm">{result.caption}</p>
@@ -1895,7 +1895,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                             disabled={singleScheduling}
                                                             className="px-5 py-2 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all disabled:opacity-50"
                                                         >
-                                                            {singleScheduling ? "Plánuji…" : "📅 Naplánovat"}
+                                                            {singleScheduling ? "Plánuji…" : "Naplánovat"}
                                                         </button>
                                                     </div>
                                                 )}

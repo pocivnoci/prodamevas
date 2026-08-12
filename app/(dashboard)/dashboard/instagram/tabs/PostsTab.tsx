@@ -17,7 +17,7 @@ import { trackEvent } from "@/lib/analytics"
 import { parsePostMedia } from "@/lib/media-urls"
 import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
 import { formatCzk, LOWEST_MONTHLY_HALERU } from "@/lib/pricing"
-import { Brain, ChartColumn, Check, CircleCheck, Image, Lock, Package, RefreshCw, Shuffle, Smartphone, Trash2, TriangleAlert, Trophy, X } from "lucide-react"
+import { Brain, ChartColumn, Check, CircleCheck, CircleX, Image, Lock, Package, RefreshCw, Shuffle, Smartphone, Trash2, TriangleAlert, Trophy, X } from "lucide-react"
 
 // ═══════════════════════════════════════════════════════════
 // POSTS TAB  (with detail modal + copy/download)
@@ -98,7 +98,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
     if (loading) return <LoadingSpinner />
     if (error) return (
         <div className="text-center py-12">
-            <p className="text-aisummit-cinnabar mb-4 font-bold uppercase tracking-widest text-sm">❌ {error}</p>
+            <p className="text-aisummit-cinnabar mb-4 font-bold uppercase tracking-widest text-sm"><CircleX className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{error}</p>
             <button onClick={() => loadPosts(0)} className="px-5 py-2.5 bg-[#0f0f0f] shadow-sm border border-white/10 text-white rounded-sm text-xs font-bold uppercase tracking-widest hover:bg-white/10 transition-colors">
                 <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />Zkusit znovu</span>
             </button>
@@ -118,7 +118,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                             : "text-white/50 bg-[#0f0f0f] border-white/10 hover:text-white hover:bg-white/5"
                             }`}
                     >
-                        {status === "all" ? "Všechny" : status === "draft" ? "Koncepty" : status === "ready" ? "Připravené" : status === "scheduled" ? "Naplánované" : status === "posted" ? "Publikované" : status === "failed" ? "⚠ Selhalé" : "🔒 Plán"}
+                        {status === "all" ? "Všechny" : status === "draft" ? "Koncepty" : status === "ready" ? "Připravené" : status === "scheduled" ? "Naplánované" : status === "posted" ? "Publikované" : status === "failed" ? "Selhalé" : "Plán"}
                     </button>
                 ))}
                 <span className="text-xs font-mono uppercase tracking-widest text-white/40 ml-auto whitespace-nowrap pl-4">{posts.length} z {total} příspěvků</span>
@@ -129,10 +129,10 @@ export function PostsTab({ projectId }: { projectId: string }) {
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide -mt-3">
                 {[
                     { value: "all", label: "Vše" },
-                    { value: "image", label: "🖼️ Obrázky" },
-                    { value: "story", label: "📱 Stories" },
-                    { value: "carousel", label: "📸 Carousely" },
-                    { value: "reel", label: "🎬 Reels" },
+                    { value: "image", label: "Obrázky" },
+                    { value: "story", label: "Stories" },
+                    { value: "carousel", label: "Carousely" },
+                    { value: "reel", label: "Reels" },
                 ].map(m => (
                     <button
                         key={m.value}
@@ -813,7 +813,7 @@ function PostDetailModal({
                         onClick={() => copyToClipboard(fullText, "full-btn")}
                         className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-[#0f0f0f] text-white/70 hover:bg-white/10 hover:text-white transition-all flex items-center gap-2 border border-white/10"
                     >
-                        {copiedField === "full-btn" ? "✅ Zkopírováno!" : "📋 Kopírovat text"}
+                        {copiedField === "full-btn" ? "Zkopírováno!" : "Kopírovat text"}
                     </button>
 
                     {/* Publish to Instagram (mobile handoff) */}
@@ -916,7 +916,7 @@ function PostDetailModal({
                                     : "bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 border-violet-500/20"
                         }`}
                     >
-                        {generatingVariants ? "⏳ Generuji 2 varianty (~60s)..." : variantIds.length > 0 ? "🔀 Zobrazit varianty" : "🔀 A/B Test"}
+                        {generatingVariants ? "⏳ Generuji 2 varianty (~60s)..." : variantIds.length > 0 ? "Zobrazit varianty" : "A/B Test"}
                     </button>
                     {variantIds.length > 0 && !generatingVariants && (
                         <button
@@ -1166,8 +1166,8 @@ function PostEditPanel({
                 the image preview, which is what the region drag needs to be usable. */}
             <div className="flex items-center gap-1.5 flex-wrap">
                 {([
-                    { id: "text" as const, label: "✏️ Text" },
-                    { id: "image" as const, label: "🖼️ Obrázek" },
+                    { id: "text" as const, label: "Text" },
+                    { id: "image" as const, label: "Obrázek" },
                     { id: "both" as const, label: "Obojí" },
                 ]).map(opt => {
                     const disabled = opt.id !== "text" && !hasImage
@@ -1238,7 +1238,7 @@ function PostEditPanel({
                                 <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" /></svg>
                                 Upravuji...
                             </span>
-                        ) : "✏️ Upravit"}
+                        ) : "Upravit"}
                     </button>
                 </div>
             </div>
@@ -1286,12 +1286,12 @@ function PostEditPanel({
                                             <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" /></svg>
                                             Generuji...
                                         </span>
-                                    ) : confirmRegenerate ? "⚠️ Opravdu?" : "🔄 Znovu (1 kredit)"}
+                                    ) : confirmRegenerate ? "Opravdu?" : "Znovu (1 kredit)"}
                                 </button>
                             </div>
                         )}
                         {regenerate.revisionResult?.error && (
-                            <p className="text-[10px] text-red-400">❌ {regenerate.revisionResult.error}</p>
+                            <p className="text-[10px] text-red-400"><CircleX className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{regenerate.revisionResult.error}</p>
                         )}
                     </div>
                 )}
@@ -1369,7 +1369,7 @@ function VariantComparisonModal({
                         <div>
                             <h3 className="text-white font-black uppercase tracking-tighter">A/B Srovnání variant</h3>
                             <p className="text-[10px] text-white/40 font-mono tracking-widest uppercase">
-                                {done ? "✅ Vítěz vybrán — systém se učí z tvé preference" : "Vyber nejlepší variantu"}
+                                {done ? "Vítěz vybrán — systém se učí z tvé preference" : "Vyber nejlepší variantu"}
                             </p>
                         </div>
                     </div>
@@ -1457,7 +1457,7 @@ function VariantComparisonModal({
                                                             : 'bg-white/5 text-white/60 border-white/10 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/20'
                                                     } disabled:opacity-40 disabled:cursor-not-allowed`}
                                                 >
-                                                    {selecting === variant.id ? "⏳ Vybírám..." : "✓ Vybrat jako vítěze"}
+                                                    {selecting === variant.id ? "⏳ Vybírám..." : "Vybrat jako vítěze"}
                                                 </button>
                                             )}
                                         </div>

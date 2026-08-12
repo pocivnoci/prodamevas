@@ -360,15 +360,15 @@ function OnboardingContent() {
                                     <label className="block text-sm font-medium text-gray-300 mb-2">Kategorie</label>
                                     <div className="grid grid-cols-3 gap-2">
                                         {[
-                                            { id: 'kavarna', label: '☕ Kavárna' },
-                                            { id: 'restaurace', label: '🍽️ Restaurace' },
-                                            { id: 'salon', label: '💇 Salon' },
-                                            { id: 'fitness', label: '💪 Fitness' },
-                                            { id: 'eshop', label: '🛒 E-shop' },
-                                            { id: 'remeslnik', label: '🔧 Řemeslník' },
-                                            { id: 'poradce', label: '📊 Poradce' },
-                                            { id: 'fotograf', label: '📸 Fotograf' },
-                                            { id: 'jine', label: '📌 Jiné' },
+                                            { id: 'kavarna', label: 'Kavárna' },
+                                            { id: 'restaurace', label: 'Restaurace' },
+                                            { id: 'salon', label: 'Salon' },
+                                            { id: 'fitness', label: 'Fitness' },
+                                            { id: 'eshop', label: 'E-shop' },
+                                            { id: 'remeslnik', label: 'Řemeslník' },
+                                            { id: 'poradce', label: 'Poradce' },
+                                            { id: 'fotograf', label: 'Fotograf' },
+                                            { id: 'jine', label: 'Jiné' },
                                         ].map(cat => (
                                             <button key={cat.id} type="button" onClick={() => setCategory(cat.id)}
                                                 className={`px-3 py-2.5 rounded-xl text-sm transition-all cursor-pointer text-left ${
@@ -389,10 +389,10 @@ function OnboardingContent() {
                                     <label className="block text-sm font-medium text-gray-300 mb-2">Jak chcete komunikovat?</label>
                                     <div className="grid grid-cols-2 gap-2">
                                         {[
-                                            { id: 'přátelský', label: '😊 Přátelský' },
-                                            { id: 'profesionální', label: '👔 Profesionální' },
-                                            { id: 'drzý', label: '😎 Drzý / Vtipný' },
-                                            { id: 'expertní', label: '🎓 Expertní' },
+                                            { id: 'přátelský', label: 'Přátelský' },
+                                            { id: 'profesionální', label: 'Profesionální' },
+                                            { id: 'drzý', label: 'Drzý / Vtipný' },
+                                            { id: 'expertní', label: 'Expertní' },
                                         ].map(t => (
                                             <button key={t.id} type="button" onClick={() => setTone(t.id)}
                                                 className={`px-3 py-2.5 rounded-xl text-sm transition-all cursor-pointer text-left ${
@@ -503,7 +503,7 @@ function OnboardingContent() {
                                                             : 'bg-black/30 border border-white/10 text-gray-300 hover:border-white/20'
                                                             }`}
                                                     >
-                                                        {selected ? '✓ ' : ''}{option}
+                                                        {selected ? '' : ''}{option}
                                                     </button>
                                                 )
                                             })}
@@ -957,7 +957,7 @@ function ReviewCard({
                             disabled={!feedback.trim() || isRefining || refineCount >= maxRefines}
                             className="px-4 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-medium hover:bg-amber-500/30 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                            {isRefining ? '⏳ Přepracovávám...' : '🔄 Přegenerovat'}
+                            {isRefining ? '⏳ Přepracovávám...' : 'Přegenerovat'}
                         </button>
                     </div>
                 </div>

@@ -465,7 +465,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                 disabled={customProductLoading || !customProductInput.trim()}
                                 className="px-6 py-3 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-sm text-[10px] font-black uppercase tracking-widest text-emerald-400 transition-all disabled:opacity-50 whitespace-nowrap"
                             >
-                                {customProductLoading ? '⏳ Generuji...' : '🎨 Vytvořit vizualizaci'}
+                                {customProductLoading ? '⏳ Generuji...' : 'Vytvořit vizualizaci'}
                             </button>
                         </div>
                         {customProductUrl && (
@@ -586,7 +586,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                             disabled={visualizingId === idea.name}
                                             className="flex-1 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-sm text-[9px] font-bold uppercase tracking-widest text-amber-500 transition-all disabled:opacity-50 shadow-sm"
                                         >
-                                            {visualizingId === idea.name ? "⏳ Generuji..." : "🖼️ Vizualizovat produkt"}
+                                            {visualizingId === idea.name ? "⏳ Generuji..." : "Vizualizovat produkt"}
                                         </button>
                                         <button
                                             onClick={() => {
@@ -619,7 +619,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                             disabled={briefGenerating === idea.name}
                                             className="flex-1 px-3 py-2 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 rounded-sm text-[9px] font-bold uppercase tracking-widest text-violet-400 transition-all disabled:opacity-50 shadow-sm"
                                         >
-                                            {briefGenerating === idea.name ? "⏳ Brief..." : "📄 Brief"}
+                                            {briefGenerating === idea.name ? "⏳ Brief..." : "Brief"}
                                         </button>
                                     </div>
                                 </div>
@@ -765,8 +765,8 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                             >
                                                 {visualizingId === idea.id ? "⏳ Generuji..." : (
                                                     referenceUrls[idea.id as string]
-                                                        ? "🖼️ Fuse vizualizace (i2i)"
-                                                        : "🖼️ Vizualizovat z textu"
+                                                        ? "Fuse vizualizace (i2i)"
+                                                        : "Vizualizovat z textu"
                                                 )}
                                             </button>
 
@@ -798,7 +798,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                     disabled={visualizingId === `promo_${idea.id}`}
                                                     className="flex-1 px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-sm text-[9px] font-bold uppercase tracking-widest text-blue-400 transition-all disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
                                                 >
-                                                    {visualizingId === `promo_${idea.id}` ? "⏳ Vytvářím..." : "📸 Vytvoř promo post"}
+                                                    {visualizingId === `promo_${idea.id}` ? "⏳ Vytvářím..." : "Vytvoř promo post"}
                                                 </button>
                                             )}
 
@@ -826,7 +826,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                 disabled={briefGenerating === idea.id}
                                                 className="flex-1 px-3 py-2 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 rounded-sm text-[9px] font-bold uppercase tracking-widest text-violet-400 transition-all disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
                                             >
-                                                {briefGenerating === idea.id ? "⏳ Generuji brief..." : "📄 Business Brief"}
+                                                {briefGenerating === idea.id ? "⏳ Generuji brief..." : "Business Brief"}
                                             </button>
                                         </div>
 
@@ -909,7 +909,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                 onClick={() => { setShowAddCategory(!showAddCategory); setEditingCat(null) }}
                                 className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-sm text-[10px] font-black uppercase tracking-widest text-amber-400 transition-all"
                             >
-                                {showAddCategory ? "✕ Zavřít" : "＋ Nová kategorie"}
+                                {showAddCategory ? "Zavřít" : "＋ Nová kategorie"}
                             </button>
                         </div>
 
@@ -917,7 +917,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                         {(showAddCategory || editingCat) && (
                             <div className="bg-[#0a0a0a] border border-amber-500/20 rounded-sm p-6 mb-6 space-y-4">
                                 <h4 className="text-[10px] uppercase tracking-[0.3em] font-black text-amber-400">
-                                    {editingCat ? `✏️ Upravit: ${editingCat.label}` : "✨ Nová produktová kategorie"}
+                                    {editingCat ? `✏️ Upravit: ${editingCat.label}` : "Nová produktová kategorie"}
                                 </h4>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
