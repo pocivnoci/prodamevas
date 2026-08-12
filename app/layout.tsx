@@ -46,8 +46,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // Přibližování zůstává povolené — zakázat ho je porušení WCAG 1.4.4 a iOS to
+  // stejně ignoruje. Dvojité ťuknutí hlídá `touch-action: manipulation`
+  // v globals.css, což na pinch nesahá.
   viewportFit: "cover",
 };
 

@@ -96,3 +96,27 @@
 .override-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
 .override-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.28); border-radius: 3px; }
 .override-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.45); }
+
+/* ─── Opak: scroller bez lišty ──────────────────────────────────
+   Vodorovné pásy s čipy a karuselem na obě jména sahaly, ale definované nebyly
+   ani jednou (PostsTab, GenerateTab). Tady se lišta schovává schválně — že jde
+   posouvat, prozradí useknutá karta na okraji. */
+.scrollbar-hide, .hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.scrollbar-hide::-webkit-scrollbar, .hide-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ─── Písmo formulářových polí na telefonu ──────────────────────
+   Safari na iOS přiblíží stránku při fokusu do pole menšího než 16 px a už ji
+   nezmenší zpět. Studio má pole v `text-xs` (12 px), takže průchod nastavením
+   znamenal skákající viewport u každého ťuknutí.
+
+   Pravidlo stojí ZÁMĚRNĚ mimo `@layer` — Tailwind 4 řadí `base` před `utilities`,
+   takže ve vrstvě by `text-xs` vyhrálo. Nezávrstvené pravidlo přebije obojí
+   a pokryje všech ~25 polí naráz, místo pěti různých `inputClass` konstant. */
+@media (max-width: 639.98px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px;
+    line-height: 1.35;
+  }
+}
