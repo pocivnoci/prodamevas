@@ -766,16 +766,16 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
                                                 cats[catIdx] = { ...cats[catIdx], medium: e.target.value }
                                                 updatePillar(key, "categories", cats)
                                             }} className="flex-1 px-1.5 py-1 bg-[#050505] border border-white/5 rounded-sm text-[9px] text-white/40 focus:outline-none focus:ring-1 focus:ring-white/30" title="Formát">
-                                                <option value="auto">📐 Auto</option>
-                                                <option value="image">🖼️ Obrázek</option>
-                                                <option value="carousel">📸 Carousel</option>
+                                                <option value="auto">Auto</option>
+                                                <option value="image">Obrázek</option>
+                                                <option value="carousel">Carousel</option>
                                             </select>
                                             <select value={cat.overlayStyle || "auto"} onChange={(e) => {
                                                 const cats = [...(pillar.categories || [])]
                                                 cats[catIdx] = { ...cats[catIdx], overlayStyle: e.target.value }
                                                 updatePillar(key, "categories", cats)
                                             }} className="flex-1 px-1.5 py-1 bg-[#050505] border border-white/5 rounded-sm text-[9px] text-white/40 focus:outline-none focus:ring-1 focus:ring-white/30" title="Styl textu">
-                                                <option value="auto">🎨 Auto</option>
+                                                <option value="auto">Auto</option>
                                                 <option value="default">Klasický (dole)</option>
                                                 <option value="top">Nahoře</option>
                                                 <option value="cover">Přes celý</option>
@@ -788,7 +788,7 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
                                                 cats[catIdx] = { ...cats[catIdx], aspectRatio: e.target.value }
                                                 updatePillar(key, "categories", cats)
                                             }} className="flex-1 px-1.5 py-1 bg-[#050505] border border-white/5 rounded-sm text-[9px] text-white/40 focus:outline-none focus:ring-1 focus:ring-white/30" title="Poměr stran">
-                                                <option value="auto">📏 Auto</option>
+                                                <option value="auto">Auto</option>
                                                 <option value="1:1">1:1 Čtverec</option>
                                                 <option value="4:5">4:5 IG Feed</option>
                                                 <option value="3:4">3:4 Na výšku</option>

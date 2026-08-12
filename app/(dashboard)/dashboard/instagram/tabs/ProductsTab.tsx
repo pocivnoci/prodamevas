@@ -28,7 +28,7 @@ import { LoadingSpinner } from "./shared"
 import { Hint, HINTS } from "./Hint"
 import { analyzeProductForBrief } from "@/app/actions/product-brief-actions"
 import { generateProductBriefPDF } from "@/lib/product-brief-docx"
-import { Banknote, CircleCheck, ClipboardList, Eye, Factory, Flame, Lightbulb, Package, Palette, Pencil, Rocket, Ruler, Save, Search, Tag, Wrench } from "lucide-react"
+import { Banknote, CircleCheck, ClipboardList, Eye, Factory, Flame, Lightbulb, Package, Palette, Pencil, Puzzle, Rocket, Ruler, Save, Search, ShoppingBag, Tag, Wrench, type LucideIcon } from "lucide-react"
 
 
 type ProductSection = "catalog" | "lines" | "ideas" | "design" | "categories"
@@ -146,12 +146,12 @@ export function ProductsTab({ projectId }: { projectId: string }) {
         loadCategories()
     }, [loadCategories])
 
-    const sections: { id: ProductSection; label: string; icon: string }[] = [
-        { id: "catalog", label: "Katalog", icon: "🛍️" },
-        { id: "lines", label: "Řady", icon: "🧩" },
-        { id: "ideas", label: "Nápady", icon: "💡" },
-        { id: "design", label: "Design pro tisk", icon: "🎨" },
-        { id: "categories", label: "Kategorie", icon: "📦" },
+    const sections: { id: ProductSection; label: string; Icon: LucideIcon }[] = [
+        { id: "catalog", label: "Katalog", Icon: ShoppingBag },
+        { id: "lines", label: "Řady", Icon: Puzzle },
+        { id: "ideas", label: "Nápady", Icon: Lightbulb },
+        { id: "design", label: "Design pro tisk", Icon: Palette },
+        { id: "categories", label: "Kategorie", Icon: Package },
     ]
 
     // ── Ideas Handler ─────────────────────────────────────
@@ -349,7 +349,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                             : "bg-[#0a0a0a] text-white/40 border-white/5 hover:bg-white/5 hover:text-white"
                             }`}
                     >
-                        <span>{s.icon}</span>
+                        <s.Icon className="w-3.5 h-3.5 shrink-0" />
                         <span>{s.label}</span>
                     </button>
                 ))}

@@ -17,7 +17,7 @@ import { trackEvent } from "@/lib/analytics"
 import { parsePostMedia } from "@/lib/media-urls"
 import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
 import { formatCzk, LOWEST_MONTHLY_HALERU } from "@/lib/pricing"
-import { Brain, ChartColumn, Check, CircleCheck, CircleX, Image, Lock, Package, RefreshCw, Shuffle, Smartphone, Trash2, TriangleAlert, Trophy, X } from "lucide-react"
+import { Brain, ChartColumn, Check, CircleCheck, CircleX, ClipboardList, Download, Image, Lock, Package, RefreshCw, Send, Shuffle, Smartphone, Trash2, TriangleAlert, Trophy, X, type LucideIcon } from "lucide-react"
 
 // ═══════════════════════════════════════════════════════════
 // POSTS TAB  (with detail modal + copy/download)
@@ -284,7 +284,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                             {/* Inline quick actions — always visible */}
                             <div className="flex items-center gap-1.5 mb-3" onClick={(e) => e.stopPropagation()}>
                                 <InlineAction
-                                    label="📋"
+                                    Icon={ClipboardList}
                                     title="Kopírovat text"
                                     onClick={() => {
                                         if (post.caption) {
@@ -294,7 +294,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                 />
                                 {post.image_url && (
                                     <InlineAction
-                                        label="⬇️"
+                                        Icon={Download}
                                         title="Stáhnout obrázek"
                                         onClick={() => {
                                             const a = document.createElement("a")
@@ -307,14 +307,14 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                 )}
                                 {post.image_url && (
                                     <InlineAction
-                                        label="📲"
+                                        Icon={Smartphone}
                                         title="Publikovat na Instagram"
                                         onClick={() => setHandoffPost(post)}
                                     />
                                 )}
                                 {(post.status === "draft" || post.status === "plan_draft") && (
                                     <InlineAction
-                                        label="✅"
+                                        Icon={CircleCheck}
                                         title="Označit jako Připraveno"
                                         onClick={() => handleStatusChange(post.id, "ready")}
                                         accent="blue"
@@ -322,7 +322,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                 )}
                                 {post.status === "ready" && (
                                     <InlineAction
-                                        label="📤"
+                                        Icon={Send}
                                         title="Označit jako Publikováno"
                                         onClick={() => handleStatusChange(post.id, "posted")}
                                         accent="emerald"
@@ -440,7 +440,7 @@ function LockedPostCard({ post }: { post: IGPost }) {
     )
 }
 
-function InlineAction({ label, title, onClick, accent }: { label: string; title: string; onClick: () => void; accent?: "blue" | "emerald" }) {
+function InlineAction({ Icon, title, onClick, accent }: { Icon: LucideIcon; title: string; onClick: () => void; accent?: "blue" | "emerald" }) {
     const accentClass = accent === "blue"
         ? "hover:bg-blue-500/20 hover:border-blue-500/30"
         : accent === "emerald"
@@ -450,9 +450,10 @@ function InlineAction({ label, title, onClick, accent }: { label: string; title:
         <button
             onClick={onClick}
             title={title}
-            className={`w-8 h-8 flex items-center justify-center rounded-sm border border-white/10 bg-white/5 text-sm transition-all ${accentClass}`}
+            aria-label={title}
+            className={`w-9 h-9 flex items-center justify-center rounded-sm border border-white/10 bg-white/5 text-white/60 transition-all ${accentClass}`}
         >
-            {label}
+            <Icon className="w-4 h-4" />
         </button>
     )
 }

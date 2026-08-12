@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react"
 import { motion } from "framer-motion"
 import { getDashboardStats } from "@/app/actions/admin-actions"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
-import { CalendarDays, RefreshCw } from "lucide-react"
+import { Bookmark, CalendarDays, Camera, ChartColumn, CircleAlert, CircleCheck, Eye, FileText, Heart, Lightbulb, MessageCircle, RefreshCw, Send, TriangleAlert, type LucideIcon } from "lucide-react"
 
 // ═══════════════════════════════════════════════════════════
 // TYPES
@@ -356,9 +356,11 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                     }`}
                 >
                     <div className="flex items-center gap-3">
-                        <span className="text-lg">
-                            {status.level === "critical" ? "🔴" : status.level === "warning" ? "🟡" : "✅"}
-                        </span>
+                        {status.level === "critical"
+                            ? <CircleAlert className="w-5 h-5 shrink-0 text-red-400" />
+                            : status.level === "warning"
+                                ? <TriangleAlert className="w-5 h-5 shrink-0 text-amber-400" />
+                                : <CircleCheck className="w-5 h-5 shrink-0 text-emerald-400" />}
                         <span className={`text-xs font-bold ${
                             status.level === "critical"
                                 ? "text-red-400"
@@ -400,13 +402,13 @@ export function DashboardTab({ projectId }: { projectId: string }) {
 
             {/* ──── Secondary counts (compact, not primary) ──── */}
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-1">
-                <SecondaryCount emoji="📤" label="Publikováno" count={stats.posted} />
-                <SecondaryCount emoji="💡" label="Nápady" count={stats.ideas} onClick={() => setActiveSection("inspiration")} />
+                <SecondaryCount Icon={Send} label="Publikováno" count={stats.posted} />
+                <SecondaryCount Icon={Lightbulb} label="Nápady" count={stats.ideas} onClick={() => setActiveSection("inspiration")} />
                 {stats.quickMetrics && (
                     <>
                         <div className="w-px h-4 bg-white/10" />
-                        <SecondaryCount emoji="❤️" label="Ø Lajky" count={stats.quickMetrics.avgLikes} onClick={() => setActiveSection("performance")} />
-                        <SecondaryCount emoji="🔖" label="Ø Uložení" count={stats.quickMetrics.avgSaves} onClick={() => setActiveSection("performance")} />
+                        <SecondaryCount Icon={Heart} label="Ø Lajky" count={stats.quickMetrics.avgLikes} onClick={() => setActiveSection("performance")} />
+                        <SecondaryCount Icon={Bookmark} label="Ø Uložení" count={stats.quickMetrics.avgSaves} onClick={() => setActiveSection("performance")} />
                     </>
                 )}
             </div>
@@ -605,10 +607,10 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                         </button>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <MetricCard emoji="❤️" label="Ø Lajky" value={stats.quickMetrics.avgLikes} />
-                        <MetricCard emoji="💬" label="Ø Komentáře" value={stats.quickMetrics.avgComments} />
-                        <MetricCard emoji="🔖" label="Ø Uložení" value={stats.quickMetrics.avgSaves} />
-                        <MetricCard emoji="👁" label="Ø Dosah" value={stats.quickMetrics.avgReach} />
+                        <MetricCard Icon={Heart} label="Ø Lajky" value={stats.quickMetrics.avgLikes} />
+                        <MetricCard Icon={MessageCircle} label="Ø Komentáře" value={stats.quickMetrics.avgComments} />
+                        <MetricCard Icon={Bookmark} label="Ø Uložení" value={stats.quickMetrics.avgSaves} />
+                        <MetricCard Icon={Eye} label="Ø Dosah" value={stats.quickMetrics.avgReach} />
                     </div>
                     <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/5">
                         <span className="text-[9px] text-white/25 font-bold uppercase tracking-widest">
@@ -677,8 +679,8 @@ function ActionCard({ icon, label, count, color, actionLabel, onClick }: {
     )
 }
 
-function SecondaryCount({ emoji, label, count, onClick }: {
-    emoji: string; label: string; count: number; onClick?: () => void
+function SecondaryCount({ Icon, label, count, onClick }: {
+    Icon: LucideIcon; label: string; count: number; onClick?: () => void
 }) {
     const Tag = onClick ? "button" : "div"
     return (
@@ -686,17 +688,17 @@ function SecondaryCount({ emoji, label, count, onClick }: {
             onClick={onClick}
             className={`flex items-center gap-2 ${onClick ? "min-h-[36px] hover:opacity-80 transition-opacity cursor-pointer" : ""}`}
         >
-            <span className="text-sm">{emoji}</span>
+            <Icon className="w-4 h-4 shrink-0 text-white/40" />
             <span className="text-[9px] text-white/25 font-bold uppercase tracking-widest">{label}</span>
             <span className="text-xs text-white/50 font-black">{count.toLocaleString("cs-CZ")}</span>
         </Tag>
     )
 }
 
-function MetricCard({ emoji, label, value }: { emoji: string; label: string; value: number }) {
+function MetricCard({ Icon, label, value }: { Icon: LucideIcon; label: string; value: number }) {
     return (
         <div className="bg-white/[0.02] border border-white/5 rounded-sm p-3 text-center">
-            <span className="text-base">{emoji}</span>
+            <Icon className="w-4 h-4 shrink-0 text-white/40" />
             <p className="text-lg font-black text-white/80 mt-1">{value.toLocaleString("cs-CZ")}</p>
             <p className="text-[8px] font-bold uppercase tracking-widest text-white/30 mt-0.5">{label}</p>
         </div>

@@ -1051,7 +1051,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                     <label className="inline-flex items-center gap-1.5 text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold"><Package className="w-3 h-3 shrink-0" />Produkt</label>
                                                     <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)}
                                                         className="w-full px-5 py-3.5 bg-[#050505] border border-white/10 rounded-sm text-white text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all">
-                                                        <option value="">🎲 AI vybere automaticky</option>
+                                                        <option value="">AI vybere automaticky</option>
                                                         {catalogProducts.map((p: any) => (
                                                             <option key={p.id} value={p.id}>{p.name}{p.price ? ` — ${p.price}` : ''}</option>
                                                         ))}
@@ -1064,7 +1064,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                 <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">Formát</label>
                                                 <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)}
                                                     className="w-full px-5 py-3.5 bg-[#050505] border border-white/10 rounded-sm text-white text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all">
-                                                    <option value="">🎲 AI vybere nejlepší formát</option>
+                                                    <option value="">AI vybere nejlepší formát</option>
                                                     {postTypes.filter(pt => pt.is_active).filter(pt => category === "auto" || category === "" || pt.pillarId === category)
                                                         .map(pt => (<option key={pt.id} value={pt.name}>{pt.display_name}</option>))}
                                                 </select>
