@@ -1,11 +1,22 @@
-import { login } from "@/app/login/actions"
 import Link from "next/link"
+import { login } from "@/app/login/actions"
+import { signInWithGoogle } from "@/app/auth/actions"
+import { AuthDivider, GoogleButton } from "@/components/auth/GoogleButton"
+import { AuthNotice } from "@/components/auth/AuthNotice"
+import { PasswordField } from "@/components/auth/PasswordField"
+import { googleAuthEnabled } from "@/lib/auth-providers"
+
+const ERROR_MESSAGES: Record<string, string> = {
+    invalid_credentials: "Neplatný e-mail nebo heslo. Zkus to znovu.",
+    google_unavailable: "Přihlášení přes Google se teď nepodařilo spustit. Zkus to znovu, nebo použij e-mail.",
+}
 
 export default async function LoginPage(props: {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
     const searchParams = await props.searchParams
-    const isError = searchParams?.error === "invalid_credentials"
+    const errorKey = searchParams?.error as string | undefined
+    const errorMessage = errorKey ? ERROR_MESSAGES[errorKey] || "Přihlášení se nepodařilo." : null
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-[#050505] p-4 text-white">
@@ -17,25 +28,20 @@ export default async function LoginPage(props: {
                         </svg>
                     </div>
                     <h1 className="text-xl font-black uppercase tracking-widest">Přihlášení</h1>
-                    <p className="text-white/40 mt-2 text-xs font-medium">Zadej své údaje pro přístup do Chrlit Studia.</p>
+                    <p className="text-white/40 mt-2 text-xs font-medium">Vítej zpátky v Chrlit Studiu.</p>
                 </div>
 
-                {isError && (
-                    <div className="mb-6 rounded-sm bg-red-500/10 p-4 border border-red-500/20">
-                        <div className="flex">
-                            <div className="flex-shrink-0">
-                                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                </svg>
-                            </div>
-                            <div className="ml-3">
-                                <h3 className="text-xs font-bold uppercase tracking-widest text-red-400">Chybné přihlášení</h3>
-                                <div className="mt-1 text-xs text-red-400/80">
-                                    <p>Neplatný e-mail nebo heslo. Zkus to znovu.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                {errorMessage && (
+                    <AuthNotice tone="error" title="Nepovedlo se">{errorMessage}</AuthNotice>
+                )}
+
+                {googleAuthEnabled() && (
+                    <>
+                        <form>
+                            <GoogleButton action={signInWithGoogle} label="Pokračovat přes Google" />
+                        </form>
+                        <AuthDivider label="nebo e-mailem" />
+                    </>
                 )}
 
                 <form className="space-y-5">
@@ -46,26 +52,20 @@ export default async function LoginPage(props: {
                             name="email"
                             type="email"
                             required
+                            autoComplete="email"
                             placeholder="tym@chrlit.cz"
                             className="w-full px-4 py-2.5 rounded-sm bg-[#050505] border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-aisummit-cinnabar/40 focus:border-aisummit-cinnabar/50 transition-all text-sm"
                         />
                     </div>
 
-                    <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                            <label htmlFor="password" className="block text-[9px] font-bold uppercase tracking-widest text-white/40">Heslo</label>
+                    <PasswordField
+                        label="Heslo"
+                        trailing={
                             <Link href="/forgot-password" className="text-[9px] font-bold uppercase tracking-widest text-white/40 hover:text-aisummit-cinnabar transition-colors">
                                 Zapomněl jsi heslo?
                             </Link>
-                        </div>
-                        <input
-                            id="password"
-                            name="password"
-                            type="password"
-                            required
-                            className="w-full px-4 py-2.5 rounded-sm bg-[#050505] border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-aisummit-cinnabar/40 focus:border-aisummit-cinnabar/50 transition-all text-sm"
-                        />
-                    </div>
+                        }
+                    />
 
                     <button
                         formAction={login}

@@ -538,6 +538,7 @@ export function Landing({ plans }: { plans: readonly PricingPlan[] }) {
               <li><Link href="#reference" className="hover:text-white transition-colors">Ukázky</Link></li>
               <li><Link href="#pricing" className="hover:text-white transition-colors">Ceník</Link></li>
               <li><Link href="/blog" className="hover:text-white transition-colors">Blog</Link></li>
+              <li><Link href="/aplikace" className="hover:text-white transition-colors">Do telefonu</Link></li>
               <li><Link href="#faq" className="hover:text-white transition-colors">FAQ</Link></li>
               <li><Link href="/login" className="hover:text-white transition-colors text-white/60">Přihlášení</Link></li>
             </ul>

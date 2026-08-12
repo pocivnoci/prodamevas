@@ -363,9 +363,49 @@ test("10.6 Register page requires invite code", () => {
 })
 
 test("10.7 Register action validates invite code", () => {
+    // Kontrola kódu žije v lib/invite-gate.ts, protože ji sdílí heslová i Google
+    // cesta. Registrace ji musí volat a umět odmítnout.
     const content = fileContent("app/register/actions.ts")
-    assert(content.includes("invite_codes"), "Should check invite_codes table")
+    assert(content.includes("findUsableInvite"), "Should validate the code through the shared invite gate")
     assert(content.includes("invalid_invite"), "Should handle invalid invite code")
+    assert(fileContains("lib/invite-gate.ts", "invite_codes"), "Invite gate should read the invite_codes table")
+})
+
+test("10.7b Kód pozvánky se zabírá podmíněným claimem", () => {
+    // Dva lidé nesmí spotřebovat totéž poslední místo. Claim proto musí být
+    // podmíněný na hodnotě, kterou jsme přečetli — ne slepý increment.
+    const gate = fileContent("lib/invite-gate.ts")
+    const claim = gate.slice(gate.indexOf("export async function claimInvite"))
+    assert(claim.includes(".eq('used_count', invite.used_count)"), "claimInvite musí být podmíněný na přečtené hodnotě used_count")
+    assert(claim.includes(".select("), "claimInvite musí poznat, jestli claim něco zabral")
+
+    for (const f of ["app/register/actions.ts", "app/auth/actions.ts"]) {
+        assert(!fileContent(f).includes("used_count + 1"), `${f} nesmí zvyšovat used_count mimo claimInvite`)
+    }
+})
+
+test("10.7c Google registrace prochází stejnou branou", () => {
+    // Supabase založí OAuth účet dřív, než ho uvidíme — bránu proto musí držet
+    // callback, jinak se přes Google dá betu obejít úplně.
+    const callback = fileContent("app/auth/callback/route.ts")
+    assert(callback.includes("enforceInviteGate"), "Callback musí pouštět OAuth účty přes invite gate")
+    assert(callback.includes("signOut"), "Odmítnutý účet musí přijít o session")
+
+    const actions = fileContent("app/auth/actions.ts")
+    assert(actions.includes("findUsableInvite"), "Google registrace musí kód ověřit ještě před odchodem na Google")
+    assert(actions.includes("INVITE_COOKIE"), "Kód musí přežít přesměrování na Google")
+})
+
+test("10.7d Google se nenabízí, dokud není provider zapnutý", () => {
+    // Provider se zapíná v Supabase, ne v repu. Mrtvé tlačítko na přihlašovací
+    // stránce je horší než žádné — přepínač proto musí hlídat UI i akci.
+    for (const page of ["app/login/page.tsx", "app/register/page.tsx"]) {
+        assert(fileContains(page, "googleAuthEnabled()"), `${page} musí tlačítko schovat za přepínač`)
+    }
+    assert(fileContains("app/auth/actions.ts", "googleAuthEnabled()"), "Server action se dá zavolat i bez tlačítka — musí přepínač ověřit sama")
+
+    // Odmítnutí od providera se nesmí schovat za hlášku o špatném heslu.
+    assert(fileContains("app/auth/callback/route.ts", "google_unavailable"), "Callback musí odlišit selhání Googlu od špatných přihlašovacích údajů")
 })
 
 test("10.8 Register redirects to email confirmation", () => {

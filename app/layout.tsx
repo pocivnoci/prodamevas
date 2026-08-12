@@ -69,6 +69,14 @@ export default function RootLayout({
             __html: `try{if(sessionStorage.getItem('chrlit_splash_seen')){document.documentElement.setAttribute('data-splash','seen')}}catch(e){}`,
           }}
         />
+        {/* Nabídku instalace pošle Chromium hned po načtení — dřív, než se React
+            namountuje. Bez tohohle odchycení by zmizela a tlačítko „Nainstalovat"
+            by nešlo nabídnout (components/InstallApp.tsx si ji vyzvedne tady). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__chrlitInstall=e});window.addEventListener('appinstalled',function(){window.__chrlitInstall=null});`,
+          }}
+        />
       </head>
       <body
         className={`${inter.className} antialiased selection:bg-aisummit-cinnabar/30 selection:text-white bg-aisummit-bg text-aisummit-text`}
