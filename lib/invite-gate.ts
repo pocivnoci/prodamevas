@@ -1,5 +1,6 @@
 import supabaseAdmin from '@/supabase/admin'
 import type { User } from '@supabase/supabase-js'
+import { hasBetaStamp } from '@/lib/beta-access'
 
 /**
  * Brána do bety. Účet vznikne jen s platným kódem pozvánky — **i když přijde
@@ -56,12 +57,9 @@ export type InviteVerdict = { ok: true } | { ok: false; reason: 'invite_required
  * takže se tentýž člověk může vrátit s kódem a projít.
  */
 export async function enforceInviteGate(user: User, pendingCode: string | null): Promise<InviteVerdict> {
-    const admins = (process.env.SUPER_ADMIN_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean)
-    if (user.email && admins.includes(user.email)) return { ok: true }
-
-    // Razítko z registrace. Účty z e-mailové cesty mají kód v user_metadata
-    // (posílá ho `signUp` v `options.data`), OAuth účty v app_metadata.
-    if (user.app_metadata?.invite_code || user.user_metadata?.invite_code) return { ok: true }
+    // Super admin, nebo razítko z registrace — tutéž podmínku čte i middleware
+    // u každého requestu, proto má vlastní modul bez závislostí.
+    if (hasBetaStamp(user)) return { ok: true }
 
     // Existující zákazník — má projekt, tedy branou prošel dřív, než razítka byla.
     const { data: link } = await supabaseAdmin

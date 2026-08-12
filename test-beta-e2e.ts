@@ -411,6 +411,22 @@ test("10.7e Brána platí pro každou cestu k session, ne jen pro Google", () =>
     assert(!/if\s*\(\s*isOAuth\s*\)/.test(callback), "Brána v callbacku nesmí platit jen pro OAuth")
 })
 
+test("10.7f Živá session bránu neobejde", () => {
+    // Kontrola u přihlášení nestačí: kdo byl přihlášený dřív, než účet zavřel,
+    // by se s platnou cookie proklikal až do onboardingu. Hlídá to middleware.
+    const mw = fileContent("middleware.ts")
+    assert(mw.includes("hasBetaStamp"), "Middleware musí razítko kontrolovat u každého requestu")
+    assert(/onboarding/.test(mw), "Kontrola musí krýt i /onboarding, ne jen /dashboard")
+    // Bez smazání cookies vznikne smyčka /dashboard → /login → /dashboard.
+    assert(/maxAge:\s*0/.test(mw), "Odmítnutému požadavku se musí smazat sb- cookies")
+
+    // Middleware běží u každého requestu — nesmí si přes tenhle modul natáhnout
+    // service role klíč.
+    const access = codeOnly("lib/beta-access.ts")
+    assert(!/^\s*import\s/m.test(access), "lib/beta-access.ts musí zůstat bez importů")
+    assert(!/supabase/i.test(access), "lib/beta-access.ts se nesmí dotýkat Supabase klientů")
+})
+
 test("10.7d Google se nenabízí, dokud není provider zapnutý", () => {
     // Provider se zapíná v Supabase, ne v repu. Mrtvé tlačítko na přihlašovací
     // stránce je horší než žádné — přepínač proto musí hlídat UI i akci.
