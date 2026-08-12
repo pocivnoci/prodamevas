@@ -53,7 +53,7 @@ const SECTION_LABELS: Record<string, { title: string; description: string }> = {
 }
 
 export default function InstagramPage() {
-    const { activeSection, projectId } = useStudio()
+    const { activeSection, projectId, navDirection, refreshNonce } = useStudio()
     const sectionInfo = SECTION_LABELS[activeSection] || { title: "", description: "" }
     const { showTutorial, openTutorial, closeTutorial } = useTutorialState()
 
@@ -75,17 +75,25 @@ export default function InstagramPage() {
                 old body animated out, briefly showing the new title over the old content. */}
             <AnimatePresence mode="wait">
                 <motion.div
-                    key={activeSection}
+                    // `refreshNonce` v klíči je celé tažení pro obnovení: změní se
+                    // a tab se přemountuje, takže si data načte znovu sám. Jinak by
+                    // se obnovování muselo dopisovat do každého z dvaceti tabů.
+                    key={`${activeSection}:${refreshNonce}`}
                     className="space-y-6"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
+                    // Přejetí prstem posouvá do strany, klik ve svislé ose — aby
+                    // pohyb odpovídal tomu, čím se sekce přepnula.
+                    initial={navDirection ? { opacity: 0, x: navDirection * 40 } : { opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, x: 0, y: 0 }}
+                    exit={navDirection ? { opacity: 0, x: navDirection * -40 } : { opacity: 0, y: -8 }}
                     transition={{ duration: 0.2, ease: "easeOut" }}
                 >
                     {showHeader && (
                         <div>
-                            <h1 className="text-3xl font-black uppercase tracking-tight text-white">{sectionInfo.title}</h1>
-                            <p className="text-white/40 mt-1 font-medium text-xs">{sectionInfo.description}</p>
+                            {/* Na telefonu menší: `text-3xl` sežral přes dva řádky výšku,
+                                kterou obsah potřebuje víc než nadpis. Popisek pod ním je
+                                na malé obrazovce řádek navíc bez informace. */}
+                            <h1 className="text-xl sm:text-3xl font-black uppercase tracking-tight text-white">{sectionInfo.title}</h1>
+                            <p className="hidden sm:block text-white/40 mt-1 font-medium text-xs">{sectionInfo.description}</p>
                         </div>
                     )}
                     {activeSection === "dashboard" && <DashboardTab projectId={projectId} />}

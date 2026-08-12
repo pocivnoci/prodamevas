@@ -240,6 +240,56 @@ test("6.7 Editorial log is collapsible", () => {
 // 7. Empty States
 // ═══════════════════════════════════════════════════════════
 
+test("7.0a Akce nesmí být dostupné jen po najetí myší", () => {
+    // Rozlišit regexem ovládací prvek od dekorativního přechodu nejde — obojí
+    // je `opacity-0 group-hover:…`. Kontrolují se proto konkrétní místa, kde
+    // hover schovával JEDINOU cestu k akci.
+
+    // Mazání fotky značky: celoplošný overlay je desktopový, na dotyku musí
+    // zůstat rohové tlačítko.
+    const brand = fileContent("app/(dashboard)/dashboard/instagram/tabs/BrandTab.tsx")
+    assert(brand.includes("hidden sm:flex"), "BrandTab: overlay s mazáním musí být jen pro myš")
+
+    const at = brand.indexOf("sm:hidden")
+    assert(at > 0, "BrandTab: chybí mobilní varianta mazání fotky")
+    // `onClick` stojí nad `className`, takže se kouká na okno kolem, ne za.
+    const around = brand.slice(Math.max(0, at - 400), at + 400)
+    assert(around.includes("handleDelete"),
+        "BrandTab: mobilní tlačítko u fotky musí opravdu mazat, ne jen existovat")
+
+    // Úpravy a mazání paměti + odebrání produktu z položky plánu.
+    for (const [file, what] of [
+        ["app/(dashboard)/dashboard/instagram/tabs/BrainTab.tsx", "úpravy paměti"],
+        ["app/(dashboard)/dashboard/instagram/tabs/GenerateTab.tsx", "odebrání produktu"],
+    ] as const) {
+        assert(fileContains(file, "sm:opacity-0 sm:group-hover:opacity-100"),
+            `${file}: ${what} musí být na dotyku vidět (sm: prefix na skrývání)`)
+    }
+})
+
+test("7.0b Spodní lišta nesmí zmizet pod modály ani překrýt obsah", () => {
+    const nav = fileContent("app/(dashboard)/BottomNav.tsx")
+    // z-40: nad obsahem (main je z-10), pod modály (z-50) a paywallem (z-[99]).
+    assert(nav.includes("z-40"), "Lišta musí sedět na z-40 — mezi obsahem a modály")
+    assert(!/z-\[?(5[0-9]|[6-9][0-9]|[0-9]{3,})\]?/.test(nav.split("AnimatePresence")[0]),
+        "Lišta samotná nesmí lézt na úroveň modálů")
+
+    // Odsazení obsahu musí být padding s výškou lišty; margin ji nepřekoná.
+    const layout = fileContent("app/(dashboard)/layout.tsx")
+    assert(layout.includes("--studio-navbar-h"), "Obsah musí rezervovat výšku lišty")
+    assert(!codeOnly("app/(dashboard)/layout.tsx").includes("mb-20"),
+        "mb-20 je margin — fixed lišta by přes obsah přelezla")
+})
+
+test("7.0c Gesta jdou vypnout a nesmí krást vodorovné scrollery", () => {
+    const src = fileContent("app/(dashboard)/useStudioGestures.ts")
+    assert(src.includes("GESTURES_ENABLED"), "Gesta musí jít vypnout jedním přepínačem")
+    // Bez téhle kontroly by přejíždění sebralo čipy, karusel i širokou tabulku.
+    assert(src.includes("insideHorizontalScroller"), "Gesto se nesmí založit uvnitř vodorovného scrolleru")
+    assert(src.includes("display-mode: standalone"),
+        "Tažení pro obnovení smí běžet jen na ploše — v prohlížeči má vlastní nativní")
+})
+
 test("7.1 CalendarTab has empty slot indicator", () => {
     const content = fileContent("app/(dashboard)/dashboard/instagram/tabs/CalendarTab.tsx")
     assert(content.includes("Volno"), "Should show 'Volno' for empty days")

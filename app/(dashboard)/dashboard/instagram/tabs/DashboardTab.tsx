@@ -398,7 +398,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
             </div>
 
             {/* ──── Secondary counts (compact, not primary) ──── */}
-            <div className="flex items-center gap-6 px-1">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-1">
                 <SecondaryCount emoji="📤" label="Publikováno" count={stats.posted} />
                 <SecondaryCount emoji="💡" label="Nápady" count={stats.ideas} onClick={() => setActiveSection("inspiration")} />
                 {stats.quickMetrics && (
@@ -429,7 +429,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                             Kalendář →
                         </button>
                     </div>
-                    <div className="grid grid-cols-7 gap-2">
+                    <div className="flex sm:grid sm:grid-cols-7 gap-2 overflow-x-auto scrollbar-hide snap-x [&>*]:w-[68px] [&>*]:shrink-0 sm:[&>*]:w-auto">
                         {stats.weekDays.map(day => (
                             <div
                                 key={day.date}
@@ -683,7 +683,7 @@ function SecondaryCount({ emoji, label, count, onClick }: {
     return (
         <Tag
             onClick={onClick}
-            className={`flex items-center gap-2 ${onClick ? "hover:opacity-80 transition-opacity cursor-pointer" : ""}`}
+            className={`flex items-center gap-2 ${onClick ? "min-h-[36px] hover:opacity-80 transition-opacity cursor-pointer" : ""}`}
         >
             <span className="text-sm">{emoji}</span>
             <span className="text-[9px] text-white/25 font-bold uppercase tracking-widest">{label}</span>
