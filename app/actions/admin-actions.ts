@@ -680,3 +680,123 @@ export async function getPerformanceInsights(projectSlug: string) {
     }
 }
 
+
+// ═══════════════════════════════════════════════════════════
+// GARANCE VRÁCENÍ PENĚZ
+// ═══════════════════════════════════════════════════════════
+
+export interface RefundResult {
+    success: boolean
+    error?: string
+    /** Kroky, které musí zakladatel dodělat ručně v portálech. */
+    manualSteps?: string[]
+}
+
+/**
+ * Zaznamená vrácení peněz podle garance 30 dnů (článek 9 obchodních podmínek).
+ *
+ * **Peníze tahle akce nevrací** — pohyb se dělá ručně v portálu brány a dobropis
+ * ve Fakturoidu. Při dnešním objemu je poctivější ruční krok než napůl hotová
+ * automatika, která by refundovala špatnou částku. Co ale ruční být NESMÍ, je
+ * stav v naší databázi: kdyby platba zůstala PAID a předplatné aktivní, zákazník
+ * má peníze zpátky a službu dál, a pozdní callback by mu ji ještě jednou aktivoval.
+ *
+ * Proto se tady dělá právě to, co ruční krok udělat neumí:
+ *   1. podmíněný claim `PAID → REFUNDED` (dvojklik ani dva adminové nesmí
+ *      vyrobit dvě vrácení),
+ *   2. okamžité ukončení předplatného — na rozdíl od výpovědi, která nechává
+ *      období doběhnout; tady se vrací celá částka, takže přístup končí hned,
+ *   3. u Stripe zrušení předplatného i u brány, aby nefakturovala dál,
+ *   4. připomínka se skutečnými kroky, ať se na dobropis nezapomene.
+ *
+ * Claim v `lib/payments/on-paid.ts` stav REFUNDED vylučuje stejně jako PAID —
+ * bez toho by reconciler nebo opakovaný webhook platbu vzkřísil zpátky.
+ */
+export async function refundPayment(paymentId: string, reason?: string): Promise<RefundResult> {
+    const { requireSuperAdmin } = await import("@/lib/auth-guard")
+    let adminEmail: string
+    try {
+        adminEmail = (await requireSuperAdmin()).email
+    } catch {
+        return { success: false, error: "Vrácení peněz smí zadat jen správce." }
+    }
+
+    const now = new Date().toISOString()
+
+    // 1. Podmíněný claim — vrátit se dá jen zaplacená platba, a jen jednou.
+    const { data: payment } = await supabaseAdmin
+        .from("payments")
+        .update({
+            status: "REFUNDED",
+            refunded_at: now,
+            refund_reason: reason?.slice(0, 500) || "Garance vrácení peněz do 30 dnů",
+            updated_at: now,
+        })
+        .eq("id", paymentId)
+        .eq("status", "PAID")
+        .select("id, client_id, subscription_id, amount, currency, provider, provider_ref, label")
+        .maybeSingle()
+
+    if (!payment) {
+        return { success: false, error: "Platba neexistuje, není zaplacená, nebo už byla vrácena." }
+    }
+
+    const steps: string[] = []
+
+    // 2. Předplatné končí OKAMŽITĚ — peníze se vrací celé, ne poměrnou částí.
+    let stripeRef: string | null = null
+    if (payment.subscription_id) {
+        const { data: sub } = await supabaseAdmin
+            .from("subscriptions")
+            .update({ status: "cancelled", cancelled_at: now, updated_at: now })
+            .eq("id", payment.subscription_id)
+            .in("status", ["active", "trialing", "pending"])
+            .select("provider, provider_ref")
+            .maybeSingle()
+        stripeRef = sub?.provider === "stripe" ? sub.provider_ref : null
+    }
+
+    // 3. Stripe musí přestat fakturovat i na své straně.
+    if (stripeRef) {
+        try {
+            const { getStripe } = await import("@/lib/payments/stripe")
+            await getStripe().subscriptions.cancel(stripeRef)
+        } catch (err: any) {
+            // Stav u nás je správný, ale brána o tom neví — musí to vidět člověk.
+            steps.push(`⚠️ Zrušit předplatné ${stripeRef} ručně v portálu brány (automaticky selhalo: ${err?.message})`)
+        }
+    }
+
+    const amountCzk = Math.round(payment.amount / 100).toLocaleString("cs-CZ")
+    steps.push(
+        `Vrátit ${amountCzk} ${payment.currency || "CZK"} v portálu brány (${payment.provider}, ref ${payment.provider_ref || paymentId})`,
+        `Vystavit dobropis ve Fakturoidu k dokladu za „${payment.label || "předplatné"}"`,
+    )
+
+    // 4. Připomínka s konkrétními kroky. Bez ní se na dobropis zapomene a
+    // v účetnictví zůstane příjem, který na účtu není.
+    try {
+        const { sendNotification, siteUrl } = await import("@/lib/notifications")
+        // Píše se tomu, kdo vrácení zadal — ten ty kroky taky dodělá.
+        if (adminEmail) {
+            await sendNotification({
+                to: adminEmail,
+                kind: "transactional",
+                subject: `Vrácení peněz: ${amountCzk} Kč — zbývají ruční kroky`,
+                body: `Platba <strong>${paymentId}</strong> je v systému označená jako vrácená a předplatné je ukončené.
+
+Zbývá dodělat ručně:
+${steps.map(s => `• ${s}`).join("\n")}
+
+Důvod: ${reason || "garance vrácení peněz do 30 dnů"}
+
+<a href="${siteUrl()}/dashboard/instagram">Otevřít studio →</a>`,
+            })
+        }
+    } catch (err: any) {
+        console.warn(`refundPayment: připomínka se neodeslala: ${err?.message}`)
+    }
+
+    console.log(`💸 Platba ${paymentId} vrácena (${amountCzk} Kč) — zbývají ruční kroky v bráně a ve Fakturoidu`)
+    return { success: true, manualSteps: steps }
+}

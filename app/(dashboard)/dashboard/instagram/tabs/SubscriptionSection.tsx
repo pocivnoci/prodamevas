@@ -6,6 +6,18 @@ import { hasBillingDetails, cancelSubscription, resumeSubscription } from "@/app
 import { BillingModal } from "./BillingSection"
 import { CheckCircle2 } from "lucide-react"
 import { useEffect, useState } from "react"
+import {
+    BILLING_TERMS,
+    DEFAULT_TERM_MONTHS,
+    formatCzk,
+    formatCzkAmount,
+    getTerm,
+    monthlyEquivalent,
+    termLabel,
+    termPrice,
+    termSavings,
+    type TermMonths,
+} from "@/lib/pricing"
 
 interface PlanRow {
     id: string
@@ -54,6 +66,7 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
     const [upgradingPlanId, setUpgradingPlanId] = useState<string | null>(null)
     // Plán, který čeká na doplnění fakturačních údajů. Platba se spustí až po nich.
     const [billingGatePlanId, setBillingGatePlanId] = useState<string | null>(null)
+    const [term, setTerm] = useState<TermMonths>(DEFAULT_TERM_MONTHS)
 
     useEffect(() => {
         fetch("/api/plans")
@@ -61,6 +74,29 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
             .then(d => setPlans(d.plans || []))
             .catch(() => setPlans([]))
     }, [])
+
+    // Volba z ceníku na landingu dojede až sem (?tarif=…&obdobi=…) — kdo si
+    // vybral před registrací, nemá se rozhodovat podruhé.
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search)
+        const wanted = params.get("obdobi")
+        if (wanted) {
+            const months = Number(wanted)
+            if (months === 1 || months === 3 || months === 6 || months === 12) setTerm(months)
+        }
+    }, [])
+
+    /**
+     * Uprostřed předplaceného období se tarif nemění.
+     *
+     * Změna tarifu není proratovaná — nové období začíná ihned a zbytek starého
+     * propadá. U měsíčního plánu to znamená pár dnů, u ročního jedenáct měsíců,
+     * a to už není „bez proráce", to je vyvlastnění. Dokud proráci neumíme,
+     * musí se to udělat ručně.
+     */
+    const lockedTerm = (subscription?.termMonths ?? 1) > 1
+        && subscription?.status === "active"
+        && !subscription?.isTrial
 
     const handleUpgrade = async (planId: string) => {
         setUpgradingPlanId(planId)
@@ -101,7 +137,7 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
             // projectId is the tenant SLUG — send as clientSlug (the API
             // resolves it). Sending it as clientId queried clients.id=<slug>
             // → "Client not found".
-            body: JSON.stringify({ planId, clientSlug: projectId }),
+            body: JSON.stringify({ planId, clientSlug: projectId, termMonths: term }),
         })
         const data = await resp.json()
         if (data.redirectUrl) {
@@ -158,6 +194,45 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                 </div>
             )}
 
+            {/* Přepínač období — stejné pravidlo i ceny jako na ceníku (lib/pricing.ts) */}
+            {plans.length > 0 && !lockedTerm && (
+                <div className="flex justify-center">
+                    <div className="grid grid-cols-2 sm:flex bg-[#080808] p-1 rounded-sm border border-white/10 gap-1">
+                        {BILLING_TERMS.map(t => {
+                            const active = t.months === term
+                            return (
+                                <button
+                                    key={t.months}
+                                    onClick={() => setTerm(t.months)}
+                                    className={`px-3 sm:px-4 py-2 text-[9px] font-bold uppercase tracking-widest rounded-sm transition-all flex items-center justify-center gap-1.5 ${
+                                        active
+                                            ? "bg-aisummit-cinnabar/20 text-aisummit-cinnabar border border-aisummit-cinnabar/30"
+                                            : "text-white/40 hover:text-white border border-transparent"
+                                    }`}
+                                >
+                                    {t.label}
+                                    {t.badge && (
+                                        <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold ${
+                                            active ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-white/30"
+                                        }`}>
+                                            {t.badge}
+                                        </span>
+                                    )}
+                                </button>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {lockedTerm && (
+                <p className="text-center text-[9px] text-white/30 font-bold uppercase tracking-widest leading-relaxed">
+                    Máte zaplaceno {termLabel((subscription?.termMonths ?? 1) as TermMonths)}
+                    {subscription?.currentPeriodEnd ? ` do ${new Date(subscription.currentPeriodEnd).toLocaleDateString("cs-CZ")}` : ""}.
+                    <br />Chcete vyšší tarif? Napište nám — zbývající období převedeme.
+                </p>
+            )}
+
             {/* Growth tier cards */}
             {plans.length > 0 && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -171,6 +246,9 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                             && !subscription?.isTrial
                             && !!subscription?.currentPeriodEnd
                         const highlight = plan.features.highlight
+                        // Uprostřed předplaceného období nesmí jít tarif změnit
+                        // jedním klikem — propálilo by to zbytek zaplaceného roku.
+                        const blockedByTerm = lockedTerm && !isCurrent
                         return (
                             <div
                                 key={plan.id}
@@ -198,10 +276,22 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                                 <p className="text-[9px] text-white/30 font-bold uppercase tracking-widest mb-3">
                                     {PLAN_TAGLINES[plan.id] || plan.description || ""}
                                 </p>
-                                <div className="mb-3">
-                                    <span className="text-3xl font-black text-white">{Math.round(plan.price_czk / 100)}</span>
+                                {/* `price_czk` je MĚSÍČNÍ cena; cenu období z ní počítá
+                                    sdílené pravidlo, ať ceník a strh nikdy nemluví jinak. */}
+                                <div className="mb-1">
+                                    <span className="text-3xl font-black text-white">{formatCzkAmount(monthlyEquivalent(plan.price_czk, term))}</span>
                                     <span className="text-white/40 text-[10px] font-bold ml-1">Kč/měs</span>
                                 </div>
+                                <p className="text-[9px] text-white/30 font-bold mb-1">
+                                    {term === 1
+                                        ? getTerm(term).note
+                                        : `${formatCzk(termPrice(plan.price_czk, term))} jednorázově ${termLabel(term)}`}
+                                </p>
+                                <p className="text-[9px] font-bold mb-3 h-3">
+                                    {termSavings(plan.price_czk, term) > 0 && (
+                                        <span className="text-emerald-400">Ušetříte {formatCzk(termSavings(plan.price_czk, term))}</span>
+                                    )}
+                                </p>
                                 <ul className="space-y-1.5 mb-4 flex-1">
                                     {planFeatureList(plan).map((f, i) => (
                                         <li key={i} className="flex items-center gap-1.5 text-[10px] text-white/50">
@@ -212,16 +302,20 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                                 </ul>
                                 <button
                                     onClick={() => handleUpgrade(plan.id)}
-                                    disabled={isCurrent || upgradingPlanId !== null}
+                                    disabled={isCurrent || blockedByTerm || upgradingPlanId !== null}
                                     className={`w-full py-2.5 rounded-sm text-[9px] font-bold uppercase tracking-widest transition-all ${
-                                        isCurrent
+                                        isCurrent || blockedByTerm
                                             ? "bg-white/5 text-white/30 cursor-default"
                                             : "bg-aisummit-cinnabar text-white hover:bg-aisummit-cinnabar/90"
                                     } ${upgradingPlanId === plan.id ? "opacity-50" : ""}`}
                                 >
-                                    {isCurrent ? "Aktivní" : upgradingPlanId === plan.id ? "Zpracování..." : `Přejít na ${plan.name}`}
+                                    {isCurrent
+                                        ? "Aktivní"
+                                        : blockedByTerm
+                                            ? "Napište nám"
+                                            : upgradingPlanId === plan.id ? "Zpracování..." : `Přejít na ${plan.name}`}
                                 </button>
-                                {isTierChange && (
+                                {isTierChange && !blockedByTerm && (
                                     <p className="mt-2 text-[8px] leading-relaxed text-white/25 font-bold uppercase tracking-widest">
                                         Nový plán začne platit ihned — nevyčerpaný zbytek stávajícího období se nepřevádí
                                     </p>
@@ -324,11 +418,11 @@ function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState
                         </span>
                     ) : null}
                 </div>
-                {/* Only a yearly plan has two different dates — say which is which,
+                {/* Only a multi-month plan has two different dates — say which is which,
                     otherwise "obnoví se" would look like the credits arrive in a year. */}
                 {periodEnd && creditResetAt && new Date(periodEnd).toDateString() !== new Date(creditResetAt).toDateString() && (
                     <p className="text-[9px] text-white/20 font-bold mt-1">
-                        Předplatné se obnovuje {new Date(periodEnd).toLocaleDateString("cs")}
+                        Platíte {termLabel((sub.termMonths ?? 1) as TermMonths)} · předplatné se obnovuje {new Date(periodEnd).toLocaleDateString("cs")}
                     </p>
                 )}
             </div>

@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
 import { createStripeCheckout } from "@/lib/payments/checkout"
 import { isStripeConfigured } from "@/lib/payments/stripe"
+import { normalizeTermMonths } from "@/lib/pricing"
 
 export async function POST(req: NextRequest) {
     const { requireAuth } = await import("@/lib/auth-guard")
@@ -23,10 +24,12 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        const { clientSlug, clientId, planId, email } = await req.json()
+        const { clientSlug, clientId, planId, email, termMonths } = await req.json()
         if ((!clientSlug && !clientId) || !planId) {
             return NextResponse.json({ error: "Chybí clientSlug/clientId nebo planId" }, { status: 400 })
         }
+        // Období z requestu se nikdy nebere doslova — cokoliv mimo 3/6/12 je měsíc.
+        const term = normalizeTermMonths(termMonths)
 
         const q = clientId
             ? supabaseAdmin.from("clients").select("id, slug, name").eq("id", clientId)
@@ -55,7 +58,7 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        const result = await createStripeCheckout({ client, plan, payerEmail })
+        const result = await createStripeCheckout({ client, plan, payerEmail, termMonths: term })
         return NextResponse.json({ success: true, sessionId: result.providerRef, redirect: result.redirectUrl, redirectUrl: result.redirectUrl })
     } catch (err: any) {
         console.error("Stripe create error:", err?.message || err)

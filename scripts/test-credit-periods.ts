@@ -71,7 +71,7 @@ console.log("\nYearly plan (one payment, twelve credit windows):")
 {
     const anchor = D("2026-03-10T08:00:00.000Z")
     // Paid period runs a full year …
-    const paid = computeBillingPeriod({ now: anchor, interval: "year" })
+    const paid = computeBillingPeriod({ now: anchor, termMonths: 12 })
     eq("paid period ends in a year", iso(paid.end), "2027-03-10T08:00:00.000Z")
 
     // … while the credit window walks month by month underneath it.
@@ -98,7 +98,7 @@ console.log("\nRenewal after dunning:")
     // otherwise the credit reset and the charge drift apart month by month.
     const prevEnd = D("2026-07-25T10:00:00.000Z")
     const renewedAt = D("2026-07-27T06:00:00.000Z")
-    const period = computeBillingPeriod({ now: renewedAt, interval: "month", previousPeriodEnd: prevEnd })
+    const period = computeBillingPeriod({ now: renewedAt, termMonths: 1, previousPeriodEnd: prevEnd })
     eq("paid period chains off the old end", iso(period.start), iso(prevEnd))
 
     // activatePaidPlan sets credit_period_start = paid period start.

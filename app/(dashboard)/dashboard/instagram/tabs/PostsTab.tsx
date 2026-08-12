@@ -16,6 +16,7 @@ import type { IGPost } from "./types"
 import { trackEvent } from "@/lib/analytics"
 import { parsePostMedia } from "@/lib/media-urls"
 import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
+import { formatCzk, LOWEST_MONTHLY_HALERU } from "@/lib/pricing"
 
 // ═══════════════════════════════════════════════════════════
 // POSTS TAB  (with detail modal + copy/download)
@@ -430,7 +431,7 @@ function LockedPostCard({ post }: { post: IGPost }) {
 
                 <div className="mt-auto pt-3 border-t border-white/10">
                     <button className="w-full py-2 bg-gradient-to-r from-aisummit-cinnabar/20 to-orange-600/20 border border-aisummit-cinnabar/20 rounded-sm text-[9px] font-black uppercase tracking-widest text-aisummit-cinnabar hover:from-aisummit-cinnabar/30 hover:to-orange-600/30 transition-all">
-                        🔓 Odemknout za 990 Kč
+                        🔓 Odemknout od {formatCzk(LOWEST_MONTHLY_HALERU)}
                     </button>
                 </div>
             </div>

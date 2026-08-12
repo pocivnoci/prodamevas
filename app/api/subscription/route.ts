@@ -70,6 +70,10 @@ export async function GET(req: NextRequest) {
             billingState: deriveBillingState(sub),
             billingFailures: sub.billingFailures,
             cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
+            // Délka zaplaceného období — UI z ní skládá „obnoví se za rok" i to,
+            // že uprostřed předplaceného období nenabídne změnu tarifu.
+            termMonths: sub.termMonths,
+            extraCreditPrice: sub.features.extra_credit_price ?? 4900,
         })
     } catch (err: any) {
         console.error("Subscription fetch error:", err?.message)

@@ -9,7 +9,7 @@
  * must never be collapsed back into one:
  *
  *   current_period_start/end  = the PAID period. Drives renewal charging.
- *                               Monthly OR yearly, per subscription_plans.interval.
+ *                               1, 3, 6 or 12 months, per subscriptions.term_months.
  *   credit_period_start/end   = the CREDIT window. ALWAYS monthly, even on a
  *                               yearly plan. Drives the credits_per_month reset.
  *                               (added in the credit-period migration)
@@ -46,6 +46,36 @@ export function normalizeInterval(raw: string | null | undefined): BillingInterv
 }
 
 /**
+ * How many months one paid period lasts.
+ *
+ * Two inputs, one answer, on purpose. `subscriptions.term_months` is what the
+ * customer bought (1/3/6/12 — see lib/pricing.ts). `subscription_plans.interval`
+ * is the unit `price_czk` is quoted in, and every live plan quotes a MONTH.
+ * Should a yearly-quoted plan ever be seeded, its price already covers a year,
+ * so multiplying it by the term as well would hand out twelve years for one —
+ * the interval therefore wins and the term is ignored.
+ */
+export function resolveTermMonths(
+    planInterval: string | null | undefined,
+    termMonths: number | null | undefined,
+): number {
+    if (normalizeInterval(planInterval) === "year") return 12
+    const n = Number(termMonths)
+    return n === 3 || n === 6 || n === 12 ? n : 1
+}
+
+/**
+ * How many days before the renewal charge the customer gets a heads-up.
+ *
+ * Three days is fine for 990 Kč. Announcing a 19 900 Kč charge three days out is
+ * an invitation to a chargeback — a yearly customer has long forgotten the sign-up
+ * and needs time to cancel deliberately rather than by disputing the payment.
+ */
+export function renewalNoticeDays(termMonths: number): number {
+    return termMonths > 1 ? 30 : EXPIRING_SOON_DAYS
+}
+
+/**
  * Add calendar months, clamping to the end of the target month.
  * Jan 31 + 1 month = Feb 28 (not Mar 3, which is what Date.setMonth does and what
  * the old `periodEnd.setMonth(+1)` shipped — it silently gave away 3 days a year
@@ -68,11 +98,17 @@ export function addInterval(from: Date, interval: BillingInterval): Date {
 
 export interface BillingPeriodInput {
     now: Date
-    interval: BillingInterval
+    /** Length of the paid period in months — 1, 3, 6 or 12 (see resolveTermMonths). */
+    termMonths: number
     /**
      * current_period_end of the subscription being renewed. ONLY a renewal of the
      * same live plan passes this — a first payment and a tier change both start at
      * `now` (no proration: the tier change forfeits the rest of the old period).
+     *
+     * A TERM change on the same plan passes it too, and that is deliberate: the
+     * early-renewal branch below starts the new (longer) period where the paid one
+     * ends, so switching from monthly to yearly mid-month adds the year on top
+     * instead of burning the days already paid for.
      */
     previousPeriodEnd?: Date | null
     /** Override for tests; defaults to PERIOD_CHAIN_GRACE_DAYS. */
@@ -88,7 +124,8 @@ export interface BillingPeriodInput {
  * but got a month minus the dunning delay, every single time.
  */
 export function computeBillingPeriod(input: BillingPeriodInput): { start: Date; end: Date } {
-    const { now, interval } = input
+    const { now } = input
+    const termMonths = input.termMonths > 0 ? input.termMonths : 1
     const graceMs = (input.chainGraceDays ?? PERIOD_CHAIN_GRACE_DAYS) * DAY_MS
     const prev = input.previousPeriodEnd ?? null
 
@@ -105,12 +142,12 @@ export function computeBillingPeriod(input: BillingPeriodInput): { start: Date; 
         // Lapsed beyond the grace window: the sub was expired → fresh start at now.
     }
 
-    let end = addInterval(start, interval)
+    let end = addMonths(start, termMonths)
     // Defensive: a chained period must still end in the future (only reachable if
-    // chainGraceDays is configured longer than the interval itself).
+    // chainGraceDays is configured longer than the term itself).
     if (end.getTime() <= now.getTime()) {
         start = now
-        end = addInterval(start, interval)
+        end = addMonths(start, termMonths)
     }
     return { start, end }
 }
@@ -172,6 +209,8 @@ export function deriveBillingState(
         cancelAtPeriodEnd?: boolean
         billingFailures?: number
         currentPeriodEnd?: string | null
+        /** Delší období hlásí konec s měsíčním předstihem — viz renewalNoticeDays. */
+        termMonths?: number
     },
     now: Date = new Date(),
 ): BillingState {
@@ -185,6 +224,6 @@ export function deriveBillingState(
 
     const msLeft = end - now.getTime()
     if (msLeft <= 0) return "grace"
-    if (msLeft <= EXPIRING_SOON_DAYS * 24 * 60 * 60 * 1000) return "expiring_soon"
+    if (msLeft <= renewalNoticeDays(input.termMonths ?? 1) * DAY_MS) return "expiring_soon"
     return "ok"
 }

@@ -240,13 +240,36 @@ export interface CancelResult {
 async function liveSubscription(clientId: string) {
     const { data } = await supabaseAdmin
         .from("subscriptions")
-        .select("id, status, current_period_end, cancel_at_period_end, plan_id")
+        .select("id, status, current_period_end, cancel_at_period_end, plan_id, provider, provider_ref")
         .eq("client_id", clientId)
         .in("status", ["active", "trialing"])
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle()
     return data
+}
+
+/**
+ * Propíše výpověď (nebo její vzetí zpět) do brány, která předplatné pohání.
+ *
+ * ComGate obnovu strhává náš cron, takže tomu stačí náš vlastní příznak. Stripe
+ * si ale období fakturuje sám — kdyby se výpověď nepropsala, zákazník uvidí
+ * „zrušeno" a stejně mu přijde další platba. To je vrácení peněz a stížnost,
+ * takže se to hlásí jako chyba, ne jako varování v logu.
+ */
+async function syncCancelToGateway(
+    sub: { provider?: string | null; provider_ref?: string | null },
+    cancel: boolean,
+): Promise<string | null> {
+    if (sub.provider !== "stripe" || !sub.provider_ref) return null
+    try {
+        const { setStripeCancelAtPeriodEnd } = await import("@/lib/payments/stripe-billing")
+        await setStripeCancelAtPeriodEnd(sub.provider_ref, cancel)
+        return null
+    } catch (err: any) {
+        console.error(`🚨 Výpověď se nepropsala do brány (${sub.provider_ref}): ${err?.message}`)
+        return err?.message || "Změnu se nepodařilo propsat platební bráně."
+    }
 }
 
 export async function cancelSubscription(projectSlug: string, reason?: string): Promise<CancelResult> {
@@ -257,6 +280,12 @@ export async function cancelSubscription(projectSlug: string, reason?: string): 
     if (sub.cancel_at_period_end) {
         return { success: true, activeUntil: sub.current_period_end }
     }
+
+    // Brána první: kdyby se výpověď zapsala u nás a v bráně selhala, zákazník
+    // by měl v aplikaci „zrušeno" a na účtu další strh. Opačné pořadí je
+    // bezpečné — nejhorší případ je výpověď v bráně a další pokus u nás.
+    const gatewayError = await syncCancelToGateway(sub, true)
+    if (gatewayError) return { success: false, error: gatewayError }
 
     // Podmíněný claim: dvojklik ani dvě záložky nesmí vyrobit dvě události.
     const { data: claimed } = await supabaseAdmin
@@ -290,6 +319,9 @@ export async function resumeSubscription(projectSlug: string): Promise<CancelRes
 
     const sub = await liveSubscription(clientId)
     if (!sub) return { success: false, error: "Nemáte předplatné, které by šlo obnovit." }
+
+    const gatewayError = await syncCancelToGateway(sub, false)
+    if (gatewayError) return { success: false, error: gatewayError }
 
     const { data: claimed } = await supabaseAdmin
         .from("subscriptions")

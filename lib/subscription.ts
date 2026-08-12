@@ -10,6 +10,7 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { createClient } from "@/supabase/server"
+import { formatCzk } from "@/lib/pricing"
 
 // ─── Admin bypass ────────────────────────────────────────────
 
@@ -111,6 +112,17 @@ export interface PlanFeatures {
     growth_tracking?: boolean      // weekly follower snapshots + growth dashboard
 }
 
+/**
+ * Cena extra kreditu tak, jak ji vidí zákazník.
+ *
+ * Čte se z tarifu, ne z konstanty ve větě: „49 Kč" bylo natvrdo na dvou místech
+ * tady a jinou hodnotu (15 Kč) slibovalo paywall modální okno. Cena kreditu je
+ * v `features.extra_credit_price`, takže ji smí říkat jenom ta.
+ */
+export function extraCreditPriceLabel(features: PlanFeatures | null | undefined): string {
+    return formatCzk(features?.extra_credit_price ?? 4900)
+}
+
 /** Media gating: plans without allowed_media (trial_v2, legacy chrlit) allow everything. */
 export function canUseMedium(features: PlanFeatures | null | undefined, medium: MediumType): boolean {
     if (!features?.allowed_media) return true
@@ -141,6 +153,10 @@ export interface SubscriptionInfo {
     cancelAtPeriodEnd: boolean
     /** Kolikátý pokus dunningu (0 = v pořádku). Živí in-app banner. */
     billingFailures: number
+    /** Délka zaplaceného období v měsících (1/3/6/12) — viz lib/pricing.ts. */
+    termMonths: number
+    /** Brána, která předplatné pohání. Stripe si obnovu účtuje sám. */
+    provider: "comgate" | "stripe"
 }
 
 export interface CanPerformResult {
@@ -172,6 +188,8 @@ export {
     computeBillingPeriod,
     computeCreditWindow,
     normalizeInterval,
+    resolveTermMonths,
+    renewalNoticeDays,
     addInterval,
     addMonths,
     deriveBillingState,
@@ -184,7 +202,7 @@ import {
     addMonths,
     computeBillingPeriod,
     computeCreditWindow,
-    normalizeInterval,
+    resolveTermMonths,
 } from "@/lib/billing-period"
 
 /** active beats trialing beats pending — a freshly initiated (unpaid) upgrade
@@ -201,7 +219,7 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
     let sub: any = null
     const { data: subsV2, error: v2Error } = await supabaseAdmin
         .from("subscriptions")
-        .select("id, plan_id, status, trial_ends_at, current_period_start, current_period_end, credit_period_start, credit_period_end, created_at, plan_generated_at, plan_posts_unlocked, cancel_at_period_end, billing_failures")
+        .select("id, plan_id, status, trial_ends_at, current_period_start, current_period_end, credit_period_start, credit_period_end, created_at, plan_generated_at, plan_posts_unlocked, cancel_at_period_end, billing_failures, term_months, provider")
         .eq("client_id", clientId)
         .in("status", ["active", "trialing", "pending", "expired"])
         .order("created_at", { ascending: false })
@@ -227,13 +245,14 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
     // 2. Get plan details
     const { data: plan } = await supabaseAdmin
         .from("subscription_plans")
-        .select("id, name, features")
+        .select("id, name, features, interval")
         .eq("id", sub.plan_id)
         .single()
 
     if (!plan) return null
 
     const features = plan.features as PlanFeatures
+    const termMonths = resolveTermMonths(plan.interval, sub.term_months)
 
     // 3. Check if old-style trial is still active (legacy)
     let status = sub.status as SubscriptionInfo["status"]
@@ -292,6 +311,8 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
         isTrial,
         cancelAtPeriodEnd: Boolean(sub.cancel_at_period_end),
         billingFailures: sub.billing_failures || 0,
+        termMonths,
+        provider: sub.provider === "stripe" ? "stripe" : "comgate",
     }
 }
 
@@ -482,7 +503,7 @@ export async function canPerformAction(
     if (sub.creditsRemaining < creditsRequired) {
         return {
             allowed: false,
-            reason: `Nedostatek kreditů. Potřebujete ${creditsRequired}, zbývá ${sub.creditsRemaining}. Dobijte si kredity za 49 Kč/ks.`,
+            reason: `Nedostatek kreditů. Potřebujete ${creditsRequired}, zbývá ${sub.creditsRemaining}. Dobijte si kredity za ${extraCreditPriceLabel(sub.features)}/ks.`,
             creditsRequired,
             creditsRemaining: sub.creditsRemaining,
         }
@@ -673,7 +694,7 @@ export async function canPerformBatchAction(
     if (sub.creditsRemaining < creditsRequired) {
         return {
             allowed: false,
-            reason: `Nedostatek kreditů pro ${count}× ${ACTION_LABELS[action]}. Potřebujete ${creditsRequired}, zbývá ${sub.creditsRemaining}. Dobijte si kredity za 49 Kč/ks.`,
+            reason: `Nedostatek kreditů pro ${count}× ${ACTION_LABELS[action]}. Potřebujete ${creditsRequired}, zbývá ${sub.creditsRemaining}. Dobijte si kredity za ${extraCreditPriceLabel(sub.features)}/ks.`,
             creditsRequired,
             creditsRemaining: sub.creditsRemaining,
         }
@@ -714,15 +735,24 @@ export async function createTrialSubscription(clientId: string): Promise<void> {
  * activates the paid subscription on the given plan and cancels any other
  * non-cancelled subscription of the client, so exactly one stays active.
  *
- * Period length comes from the PLAN (`subscription_plans.interval`) — a yearly
- * plan gets a year, not a month. Hardcoding +1 month meant a yearly customer
- * would pay the annual price and be re-charged it 30 days later.
+ * Period length comes from the SUBSCRIPTION (`subscriptions.term_months`, written
+ * when the payment was initiated) — a yearly customer gets a year, not a month.
+ * Hardcoding +1 month meant they would pay the annual price and be re-charged it
+ * 30 days later. `subscription_plans.interval` still wins if a plan is ever quoted
+ * per year, so the term can't multiply an already-yearly price (resolveTermMonths).
  *
  * Renewals of the same plan CHAIN off the previous current_period_end instead of
  * restarting at now (see computeBillingPeriod). A tier change and the first paid
  * activation start at now — no proration, the rest of the old period is forfeited.
+ *
+ * Returns the period it wrote, so the caller can put real dates on the doklad —
+ * on a prepaid year that is what the accountant needs for časové rozlišení.
  */
-export async function activatePaidPlan(clientId: string, planId: string, subscriptionId?: string): Promise<void> {
+export async function activatePaidPlan(
+    clientId: string,
+    planId: string,
+    subscriptionId?: string,
+): Promise<{ start: Date; end: Date; termMonths: number } | null> {
     const now = new Date()
 
     const { data: plan } = await supabaseAdmin
@@ -730,18 +760,23 @@ export async function activatePaidPlan(clientId: string, planId: string, subscri
         .select("id, interval")
         .eq("id", planId)
         .maybeSingle()
-    const interval = normalizeInterval(plan?.interval)
 
     // The subscription to activate: the one linked to the payment, or the
     // latest live one (pending created at payment init / trial). Its own
-    // plan/status/period decide whether this is a renewal (chain) or a
+    // plan/status/period/term decide whether this is a renewal (chain) or a
     // switch (start now), so the row is always read, never assumed.
-    type SubRow = { id: string; plan_id: string | null; status: string | null; current_period_end: string | null }
+    type SubRow = {
+        id: string
+        plan_id: string | null
+        status: string | null
+        current_period_end: string | null
+        term_months: number | null
+    }
     let sub: SubRow | null = null
     if (subscriptionId) {
         const { data } = await supabaseAdmin
             .from("subscriptions")
-            .select("id, plan_id, status, current_period_end")
+            .select("id, plan_id, status, current_period_end, term_months")
             .eq("id", subscriptionId)
             .eq("client_id", clientId) // never activate another tenant's row
             .maybeSingle()
@@ -750,7 +785,7 @@ export async function activatePaidPlan(clientId: string, planId: string, subscri
     if (!sub) {
         const { data } = await supabaseAdmin
             .from("subscriptions")
-            .select("id, plan_id, status, current_period_end")
+            .select("id, plan_id, status, current_period_end, term_months")
             .eq("client_id", clientId)
             .in("status", ["trialing", "pending", "active"])
             .order("created_at", { ascending: false })
@@ -759,15 +794,23 @@ export async function activatePaidPlan(clientId: string, planId: string, subscri
         sub = data
     }
 
+    let period: { start: Date; end: Date; termMonths: number } | null = null
+
     if (sub) {
+        const termMonths = resolveTermMonths(plan?.interval, sub.term_months)
         // Renewal = same plan, already live. Anything else (trial → paid, tier
         // change, comeback after expiry) is a fresh period starting now.
+        //
+        // The term deliberately does NOT enter this test: a customer moving from
+        // monthly to yearly on the same tier chains off the end of the month they
+        // already paid for, so the year is added on top instead of burning it.
         const isRenewal = sub.status === "active" && sub.plan_id === planId
         const { start, end } = computeBillingPeriod({
             now,
-            interval,
+            termMonths,
             previousPeriodEnd: isRenewal && sub.current_period_end ? new Date(sub.current_period_end) : null,
         })
+        period = { start, end, termMonths }
 
         // The credit window restarts with the paid period and is ALWAYS monthly —
         // on a yearly plan this is window 1 of 12, and the billing worker rolls the
@@ -806,11 +849,13 @@ export async function activatePaidPlan(clientId: string, planId: string, subscri
         .delete()
         .eq("client_id", clientId)
         .eq("status", "plan_locked")
+
+    return period
 }
 
 /** @deprecated Use activatePaidPlan(clientId, planId) — kept for old call sites */
 export async function upgradeTrialToPaid(clientId: string): Promise<void> {
-    return activatePaidPlan(clientId, "chrlit")
+    await activatePaidPlan(clientId, "chrlit")
 }
 
 // ─── Helpers ─────────────────────────────────────────────────

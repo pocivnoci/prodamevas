@@ -15,6 +15,7 @@
 import { notFound } from "next/navigation"
 import supabaseAdmin from "@/supabase/admin"
 import { LEGAL, formatIdentityLine } from "@/lib/legal"
+import { lowestPriceClaim } from "@/lib/pricing"
 
 export const dynamic = "force-dynamic"
 
@@ -121,7 +122,7 @@ export default async function PreviewPage({ params }: { params: Promise<{ token:
                         >
                             Chci to pro svoji firmu
                         </a>
-                        <p className="text-xs text-white/40">Od 990 Kč měsíčně. Zrušit můžete kdykoli.</p>
+                        <p className="text-xs text-white/40">{lowestPriceClaim().replace(/^od/, "Od")}. Zrušit můžete kdykoli.</p>
                     </div>
                 </section>
 

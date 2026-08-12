@@ -84,6 +84,10 @@ export interface SubscriptionState {
     billingFailures: number
     /** Zákazník vypověděl: běží do currentPeriodEnd, pak skončí. */
     cancelAtPeriodEnd: boolean
+    /** Délka zaplaceného období v měsících (1/3/6/12) — viz lib/pricing.ts. */
+    termMonths: number
+    /** Cena extra kreditu v haléřích, z tarifu — nikdy ji nepiš do UI natvrdo. */
+    extraCreditPrice: number
 }
 
 interface StudioState {

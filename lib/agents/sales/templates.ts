@@ -16,6 +16,7 @@
  */
 
 import { LEGAL, formatIdentityLine } from "@/lib/legal"
+import { lowestPriceClaim } from "@/lib/pricing"
 import { openingLine, type LeadSignals } from "./qualify"
 
 /** Nejdelší přípustná zpráva. Delší cold mail se nečte. */
@@ -49,7 +50,7 @@ const BODY: Record<Angle, (previewUrl: string) => string> = {
         `Chrlit umí připravit obsah na celý měsíc dopředu. Ukázka je zdarma a nezávazná.`,
     penize: (url) =>
         `Vygeneroval jsem z vašeho webu ukázku příspěvků — podívat se můžete tady: ${url}\n\n` +
-        `Agentura si za měsíc obsahu řekne o 15 tisíc. Chrlit dělá totéž od 990 Kč měsíčně. ` +
+        `Agentura si za měsíc obsahu řekne o 15 tisíc. Chrlit dělá totéž ${lowestPriceClaim()}. ` +
         `Ukázka je zdarma a nezávazná.`,
     vyloha: (url) =>
         `Zákazníci si vás před návštěvou projedou na Instagramu — a ten teď působí, jako byste měli zavřeno. ` +

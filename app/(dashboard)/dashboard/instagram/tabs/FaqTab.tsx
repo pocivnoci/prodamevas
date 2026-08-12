@@ -77,7 +77,19 @@ const FAQ_CATEGORIES: FaqCategory[] = [
             },
             {
                 q: "Jaké jsou plány a jak si dobiju kredity?",
-                a: "Čtyři plány: Start (990 Kč, 20 kreditů — obrázky a carousely), Růst (1 990 Kč, 45 kreditů — navíc A/B varianty, reels a růstový dashboard), Dominance (3 990 Kč, 100 kreditů — navíc product studio a prioritní generování) a Impérium (7 990 Kč, 220 kreditů — plný objem pro agentury a e-shopy). Když kredity dojdou, dobijete si je za 49 Kč/ks v Nastavení → Předplatné.",
+                a: "Čtyři plány: Start (990 Kč, 20 kreditů — obrázky a carousely), Růst (1 990 Kč, 45 kreditů — navíc A/B varianty, reels a růstový dashboard), Dominance (3 990 Kč, 100 kreditů — navíc product studio a prioritní generování) a Impérium (7 990 Kč, 220 kreditů — plný objem pro agentury a e-shopy). Ceny jsou měsíční; při delším období platíte míň. Když kredity dojdou, dobijete si je za 49 Kč/ks v Nastavení → Předplatné.",
+            },
+            {
+                q: "Jak funguje placení na 3, 6 nebo 12 měsíců?",
+                a: "Zaplatíte jednou dopředu a máte klid. Za čtvrt roku ušetříte 5 %, za půl roku 10 % a za rok platíte jen deset měsíců — dva jsou zdarma. Cenu máte navíc zamčenou na celé období: i kdyby se ceník mezitím zvedl, vás se to dotkne až při obnově. Kredity se přitom obnovují každý měsíc úplně stejně jako u měsíčního plánu.",
+            },
+            {
+                q: "Co když si to rozmyslím po zaplacení na rok?",
+                a: "Máte 30 dní na rozmyšlenou — napište nám a peníze vrátíme, bez udání důvodu. Po té lhůtě předplacené období doběhne; předplatné jde kdykoli vypovědět k jeho konci, takže se další období už nestrhne.",
+            },
+            {
+                q: "Můžu uprostřed předplaceného období přejít na vyšší tarif?",
+                a: "Ano, ale ne jedním klikem — napsali bychom vám tím zbytek zaplaceného období k dobru a to musíme udělat ručně. Napište nám a zbývající období převedeme do nového tarifu.",
             },
         ],
     },

@@ -3,6 +3,7 @@
 import { useState, useEffect, createContext, useContext, useCallback, type ReactNode } from "react"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { CheckCircle2, X, Zap, AlertTriangle, Lock } from "lucide-react"
+import { formatCzk, LOWEST_MONTHLY_HALERU } from "@/lib/pricing"
 
 // ─── Toast System ────────────────────────────────────────────
 
@@ -142,7 +143,7 @@ function UpgradeModal({
     requiredPlan?: string
     onClose: () => void
 }) {
-    const { setActiveSection } = useStudio()
+    const { setActiveSection, subscription } = useStudio()
 
     return (
         <div className="fixed inset-0 z-[99] flex items-center justify-center">
@@ -174,7 +175,12 @@ function UpgradeModal({
                     {requiredPlan && (
                         <div className="bg-white/5 border border-white/5 rounded-sm px-4 py-3 mb-6">
                             <span className="text-[9px] text-white/30 font-bold uppercase tracking-widest">Dobíjecí kredity</span>
-                            <p className="text-white font-black text-lg mt-1">15 Kč / kredit</p>
+                            {/* Cena chodí z tarifu. Natvrdo tu roky stálo „15 Kč",
+                                zatímco ceník i FAQ říkaly 49 — slíbit v modálním
+                                okně třetinovou cenu je reklamace, ne překlep. */}
+                            <p className="text-white font-black text-lg mt-1">
+                                {formatCzk(subscription?.extraCreditPrice ?? 4900)} / kredit
+                            </p>
                         </div>
                     )}
 
@@ -204,26 +210,19 @@ function UpgradeModal({
 // ─── Plan Unlock Modal (trial → paid) ────────────────────────
 
 function PlanUnlockModal({ onClose }: { onClose: () => void }) {
-    const { subscription, projectId } = useStudio()
-    const [loading, setLoading] = useState(false)
+    const { subscription, setActiveSection } = useStudio()
 
-    const handleActivate = async () => {
-        if (!projectId) return
-        setLoading(true)
-        try {
-            const resp = await fetch("/api/payments/create", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                // projectId is the tenant SLUG — send as clientSlug (see API).
-                body: JSON.stringify({ clientSlug: projectId, planId: "chrlit" }),
-            })
-            const data = await resp.json()
-            if (data.redirectUrl) {
-                window.location.href = data.redirectUrl
-            }
-        } catch {
-            setLoading(false)
-        }
+    /**
+     * Modální okno **nezakládá platbu samo.**
+     *
+     * Dřív posílalo `planId: "chrlit"` — tarif zrušený ceníkem v5, takže route
+     * odpověděla „Plan not found" a jediné tlačítko „Aktivovat nyní" v aplikaci
+     * mlčky nedělalo nic. A i kdyby ten tarif žil, není z čeho vybrat tarif ani
+     * období; obojí patří na ceník, ne do vyskakovacího okna.
+     */
+    const goToPricing = () => {
+        setActiveSection("settings")
+        onClose()
     }
 
     return (
@@ -274,20 +273,21 @@ function PlanUnlockModal({ onClose }: { onClose: () => void }) {
                         </div>
                     </div>
 
-                    {/* Price */}
+                    {/* Cena z ceníku, ne z ruky — a rovnou ta nejnižší dosažitelná,
+                        protože o tarifu i období se rozhoduje na ceníku vedle. */}
                     <div className="text-center mb-6">
-                        <span className="text-3xl font-black text-white">990 Kč</span>
+                        <span className="text-3xl font-black text-white">od {formatCzk(LOWEST_MONTHLY_HALERU)}</span>
                         <span className="text-white/30 text-sm font-bold ml-1">/ měsíc</span>
+                        <p className="text-[9px] text-white/25 font-bold uppercase tracking-widest mt-1">při roční platbě · 2 měsíce zdarma</p>
                     </div>
 
                     {/* CTA */}
                     <div className="flex gap-3">
                         <button
-                            onClick={handleActivate}
-                            disabled={loading}
-                            className="flex-1 py-3.5 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm font-black text-xs uppercase tracking-widest hover:opacity-90 transition-all shadow-[0_0_30px_rgba(229,83,63,0.3)] disabled:opacity-50"
+                            onClick={goToPricing}
+                            className="flex-1 py-3.5 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm font-black text-xs uppercase tracking-widest hover:opacity-90 transition-all shadow-[0_0_30px_rgba(229,83,63,0.3)]"
                         >
-                            {loading ? "Přesměrování..." : "💳 Aktivovat nyní"}
+                            💳 Vybrat tarif
                         </button>
                         <button
                             onClick={onClose}

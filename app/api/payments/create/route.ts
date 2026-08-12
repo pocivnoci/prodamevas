@@ -4,14 +4,15 @@
  * Creates a Comgate payment + records it in DB.
  * Returns redirect URL for the client to complete payment.
  * 
- * Body: { clientSlug, planId, email }
+ * Body: { clientSlug, planId, email, termMonths }
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
 import { createPayment, generateRefId, isMockPaymentMode, isRecurringEnabled } from "@/lib/comgate"
-import { activeGateway, createStripeCheckout } from "@/lib/payments/checkout"
+import { activeGateway, createStripeCheckout, paymentLabel } from "@/lib/payments/checkout"
 import { enqueueTask } from "@/lib/agent-runner"
+import { normalizeTermMonths, termPrice } from "@/lib/pricing"
 
 export async function POST(req: NextRequest) {
     const { requireAuth } = await import("@/lib/auth-guard")
@@ -20,6 +21,9 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json()
         const { clientSlug, clientId, planId, email } = body
+        // Období z klienta se nikdy nebere doslova: cokoliv mimo 3/6/12 je měsíc.
+        // Podvržené `termMonths` by jinak koupilo rok za měsíční cenu.
+        const termMonths = normalizeTermMonths(body.termMonths)
 
         if (!planId || (!clientSlug && !clientId)) {
             return NextResponse.json(
@@ -83,7 +87,7 @@ export async function POST(req: NextRequest) {
         // Stripe, celá zbývající ComGate větev se přeskočí — druhá brána tak
         // nepotřebuje vlastní tlačítko ani vlastní cestu z Reactu.
         if (activeGateway() === "stripe") {
-            const result = await createStripeCheckout({ client, plan, payerEmail })
+            const result = await createStripeCheckout({ client, plan, payerEmail, termMonths })
             return NextResponse.json({
                 success: true, gateway: "stripe",
                 transId: result.providerRef, redirect: result.redirectUrl, redirectUrl: result.redirectUrl,
@@ -91,7 +95,12 @@ export async function POST(req: NextRequest) {
         }
 
         const refId = generateRefId(client.slug)
-        const label = `${plan.name} — ${client.name}`
+        // `plan.price_czk` je MĚSÍČNÍ cena — cena zaplaceného období z ní vzniká
+        // tady, jednou, sdíleným pravidlem (lib/pricing.ts).
+        const amount = termPrice(plan.price_czk, termMonths)
+        // Do `payments.label` jde plný popisek (skončí jako položka na dokladu),
+        // do ComGate až jeho 40znakový ořez.
+        const label = paymentLabel(plan.name, termMonths)
 
         const isMock = isMockPaymentMode()
 
@@ -102,12 +111,12 @@ export async function POST(req: NextRequest) {
             // Mock mode: skip Comgate, redirect to mock payment page
             transId = `MOCK-${Date.now()}`
             const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://chrlit.cz"
-            redirectUrl = `${baseUrl}/mock-payment?transId=${transId}&amount=${plan.price_czk}&label=${encodeURIComponent(label.substring(0, 40))}&clientId=${client.id}`
+            redirectUrl = `${baseUrl}/mock-payment?transId=${transId}&amount=${amount}&label=${encodeURIComponent(label.substring(0, 40))}&clientId=${client.id}`
             console.log(`💳 [MOCK] Payment created: ${transId} for ${client.name}`)
         } else {
             const comgateResult = await createPayment({
                 refId,
-                price: plan.price_czk,
+                price: amount,
                 curr: "CZK",
                 label: label.substring(0, 40),
                 email: payerEmail || "noreply@chrlit.cz",
@@ -133,6 +142,9 @@ export async function POST(req: NextRequest) {
                 client_id: client.id,
                 plan_id: planId,
                 status: "pending",
+                // Aktivace po zaplacení z tohohle sloupce spočítá délku období.
+                term_months: termMonths,
+                provider: "comgate",
             })
             .select("id")
             .single()
@@ -147,10 +159,11 @@ export async function POST(req: NextRequest) {
                 comgate_trans_id: transId,
                 provider_ref: transId,
                 ref_id: refId,
-                amount: plan.price_czk,
+                amount,
                 currency: "CZK",
                 status: "PENDING",
                 label,
+                term_months: termMonths,
                 payer_email: payerEmail,
             })
             .select("id")

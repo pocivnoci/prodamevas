@@ -86,16 +86,41 @@ export interface IssueForPaymentInput {
     /** Částka v haléřích, přímo z `payments.amount`. */
     amountHaleru: number
     currency?: string | null
-    /** `payments.label`, např. „Růst — Kavárna U Lípy". */
+    /** `payments.label`, např. „Chrlit Růst — předplatné na 12 měsíců". */
     label?: string | null
     payerEmail?: string | null
     paidAt?: Date
+    /**
+     * Zaplacené období. U předplatného na rok je to údaj, bez kterého účetní
+     * nemá z čeho udělat časové rozlišení — z data vystavení se nedozví, že
+     * jedna platba pokrývá dvanáct měsíců.
+     */
+    period?: { start: Date; end: Date } | null
     /**
      * Platba nepřišla z ostré brány (mock ComGate, Stripe `sk_test_`).
      * Volající to ví, invoicing to sám poznat nemůže — a musí to vědět,
      * protože doklad na fiktivní platbu je zásah do nevratné číselné řady.
      */
     sandbox?: boolean
+}
+
+/**
+ * Text položky na dokladu.
+ *
+ * Datum vystavení říká, KDY se platilo — ne, ZA CO. U předplatného na rok je to
+ * rozdíl dvanácti měsíců a účetní z něj musí umět udělat časové rozlišení, takže
+ * období patří přímo do názvu položky: „Chrlit Růst — předplatné na 12 měsíců
+ * (12. 8. 2026 – 12. 8. 2027)".
+ */
+export function invoiceLineName(
+    label: string | null | undefined,
+    period: { start: Date; end: Date } | null | undefined,
+): string {
+    const base = label || "Předplatné Chrlit"
+    if (!period) return base
+    const cz = (d: Date) => d.toLocaleDateString("cs-CZ", { day: "numeric", month: "numeric", year: "numeric" })
+    if (Number.isNaN(period.start.getTime()) || Number.isNaN(period.end.getTime())) return base
+    return `${base} (${cz(period.start)} – ${cz(period.end)})`
 }
 
 export interface IssueForPaymentResult {
@@ -193,7 +218,7 @@ export async function issueInvoiceForPayment(
         const invoice = await issueInvoice({
             clientId: input.clientId,
             billing,
-            lineName: input.label || "Předplatné Chrlit",
+            lineName: invoiceLineName(input.label, input.period),
             amountHaleru: input.amountHaleru,
             paidAt,
             paymentRef: input.paymentId,

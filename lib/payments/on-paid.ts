@@ -66,6 +66,12 @@ export interface FinalizeResult {
     isRenewal: boolean
     /** Přeneseno z `FinalizeOptions` — rozhoduje, jestli se smí sáhnout na ostrou fakturaci. */
     sandbox: boolean
+    /**
+     * Období, které tahle platba zaplatila. Jde na daňový doklad — u předplatného
+     * na rok je to údaj, který účetní potřebuje pro časové rozlišení, a jediné
+     * místo, kde ho lze spolehlivě zjistit, je aktivace (ta ho právě spočítala).
+     */
+    period?: { start: Date; end: Date; termMonths: number } | null
 }
 
 /** Legacy fallback pro platby bez navázaného předplatného. */
@@ -91,9 +97,10 @@ export async function finalizePaidPayment(
         if (sub?.plan_id) planId = sub.plan_id
     }
 
+    let period: FinalizeResult["period"] = null
     try {
         const { activatePaidPlan } = await import("@/lib/subscription")
-        await activatePaidPlan(payment.client_id, planId, payment.subscription_id || undefined)
+        period = await activatePaidPlan(payment.client_id, planId, payment.subscription_id || undefined)
         console.log(`✅ Plán „${planId}" ${opts.isRenewal ? "obnoven" : "aktivován"} pro klienta ${payment.client_id}`)
     } catch (err: any) {
         // Zaplaceno a neaktivováno je nejhorší možný stav — křičet nahlas.
@@ -106,7 +113,7 @@ export async function finalizePaidPayment(
                 extra: { paymentId: payment.id, clientId: payment.client_id, planId },
             })
         } catch { /* Sentry je volitelný */ }
-        return { activated: false, planId, isRenewal: opts.isRenewal, sandbox: Boolean(opts.sandbox) }
+        return { activated: false, planId, isRenewal: opts.isRenewal, sandbox: Boolean(opts.sandbox), period: null }
     }
 
     // Úspěšná platba nuluje dunning a u PRVNÍ platby uloží token pro obnovy.
@@ -121,7 +128,7 @@ export async function finalizePaidPayment(
         await supabaseAdmin.from("subscriptions").update(update).eq("id", payment.subscription_id)
     }
 
-    return { activated: true, planId, isRenewal: opts.isRenewal, sandbox: Boolean(opts.sandbox) }
+    return { activated: true, planId, isRenewal: opts.isRenewal, sandbox: Boolean(opts.sandbox), period }
 }
 
 /**
@@ -149,6 +156,9 @@ export async function deliverPaidArtifacts(
             payerEmail: to,
             paidAt: new Date(),
             sandbox: result.sandbox,
+            // Bez období by na dokladu za předplacený rok stálo jen „Růst" a
+            // účetní by neměla z čeho udělat časové rozlišení.
+            period: result.period ? { start: result.period.start, end: result.period.end } : null,
         })
 
         if (!to) return
@@ -219,10 +229,16 @@ export async function cancelPendingSubscription(payment: PaidPaymentRow): Promis
 // Jediná cesta pro „brána řekla X"
 // ════════════════════════════════════════════════════════════════════════════
 
-/** Lokátor platby u dané brány. Každá má vlastní sloupec — sémantika je stejná. */
+/**
+ * Lokátor platby u dané brány. Každá má vlastní sloupec — sémantika je stejná.
+ *
+ * `ref` u Stripe = `payments.provider_ref`, a to je **id Checkout Session u první
+ * platby, ale id faktury u obnovy** (obnovu vystavuje Stripe Billing sám a žádná
+ * Session u ní neexistuje). Proto se to nejmenuje `sessionId`.
+ */
 export type PaymentLocator =
     | { provider: "comgate"; transId: string }
-    | { provider: "stripe"; sessionId: string }
+    | { provider: "stripe"; ref: string }
 
 export type GatewayStatus = "PENDING" | "PAID" | "CANCELLED" | "AUTHORIZED" | "FAILED"
 
@@ -284,10 +300,13 @@ export async function applyGatewayStatus(input: ApplyGatewayInput): Promise<Appl
 
     claim = input.locator.provider === "comgate"
         ? claim.eq("comgate_trans_id", input.locator.transId)
-        : claim.eq("provider", "stripe").eq("provider_ref", input.locator.sessionId)
+        : claim.eq("provider", "stripe").eq("provider_ref", input.locator.ref)
 
     const { data: payment } = await claim
-        .neq("status", "PAID")
+        // PAID: replay webhooku by aktivoval plán a vystavil doklad podruhé.
+        // REFUNDED: peníze jsou vrácené a předplatné zrušené — pozdní callback
+        // (reconciler, opakovaný webhook) ho nesmí vzkřísit zpátky na PAID.
+        .not("status", "in", "(PAID,REFUNDED)")
         .select("id, subscription_id, client_id, ref_id, payer_email, amount, currency, label")
         .maybeSingle()
 
@@ -322,6 +341,104 @@ export async function applyGatewayStatus(input: ApplyGatewayInput): Promise<Appl
     }
 
     return base
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Obnova, kterou iniciovala brána
+// ════════════════════════════════════════════════════════════════════════════
+
+export interface ProviderInvoiceInput {
+    /**
+     * Jen Stripe. ComGate obnovu neiniciuje — tu strhává náš cron uloženým
+     * tokenem a `payments` řádek si zakládá sám.
+     */
+    provider: "stripe"
+    /** Id faktury u brány. Zároveň idempotenční klíč (`payments.provider_ref`). */
+    invoiceRef: string
+    /** Id předplatného u brány — podle něj se najde to naše (`subscriptions.provider_ref`). */
+    subscriptionRef: string
+    status: Extract<GatewayStatus, "PAID" | "FAILED">
+    /** Skutečně účtovaná částka v haléřích — bere se od brány, ne z našeho ceníku. */
+    amount: number
+    currency?: string | null
+    sandbox: boolean
+    raw?: unknown
+}
+
+/**
+ * Obnova předplatného, kterou **iniciovala brána** (Stripe Billing), ne náš cron.
+ *
+ * U ComGate strhává obnovu `billing-worker` uloženým tokenem, takže si `payments`
+ * řádek zakládá sám. Stripe si období účtuje sám a jen pošle `invoice.paid` —
+ * řádek k němu tedy musí vzniknout tady, jinak by obnova neměla doklad, potvrzení
+ * ani stopu v historii plateb.
+ *
+ * Zbytek (aktivace, doklad, dunning) jde přes `applyGatewayStatus` úplně stejně
+ * jako u ComGate — druhá brána nesmí být druhá kódová cesta.
+ *
+ * Idempotence stojí na `payments_provider_ref_uniq`: druhé doručení téhož webhooku
+ * insert neprojde, řádek už existuje a claim ho podruhé nevydá.
+ */
+export async function applyProviderInvoice(input: ProviderInvoiceInput): Promise<ApplyGatewayResult> {
+    const { data: sub } = await supabaseAdmin
+        .from("subscriptions")
+        .select("id, client_id, term_months, plan_id")
+        .eq("provider", input.provider)
+        .eq("provider_ref", input.subscriptionRef)
+        .maybeSingle()
+
+    if (!sub) {
+        // Neznámé předplatné — nikdy nezakládat nic naslepo. Typicky faktura
+        // z jiného prostředí (sandbox vs. ostrá) nebo ručně smazaný řádek.
+        console.warn(`⚠️ ${input.provider}: faktura ${input.invoiceRef} k neznámému předplatnému ${input.subscriptionRef}`)
+        return { claimed: false }
+    }
+
+    const { data: client } = await supabaseAdmin
+        .from("clients")
+        .select("slug, name")
+        .eq("id", sub.client_id)
+        .maybeSingle()
+
+    const { generateRenewalRefId } = await import("@/lib/payments/ref-id")
+    const { data: plan } = await supabaseAdmin
+        .from("subscription_plans")
+        .select("name")
+        .eq("id", sub.plan_id)
+        .maybeSingle()
+    const { termLabel, normalizeTermMonths } = await import("@/lib/pricing")
+    const termMonths = normalizeTermMonths(sub.term_months)
+
+    // Řádek jde dovnitř jako PENDING; stav mu dá až claim níž, aby existovala
+    // jediná cesta, kterou se `payments.status` mění.
+    const { error: insertErr } = await supabaseAdmin.from("payments").insert({
+        client_id: sub.client_id,
+        subscription_id: sub.id,
+        provider: input.provider,
+        provider_ref: input.invoiceRef,
+        ref_id: generateRenewalRefId(client?.slug || "klient"),
+        amount: input.amount,
+        currency: input.currency || "CZK",
+        status: "PENDING",
+        label: `Chrlit ${plan?.name || sub.plan_id} — obnovení ${termLabel(termMonths)}`,
+        term_months: termMonths,
+    })
+
+    // 23505 = řádek už existuje (opakované doručení). To není chyba: claim níž
+    // rozhodne, jestli se s ním ještě něco děje, nebo je to replay.
+    if (insertErr && insertErr.code !== "23505") {
+        console.error(`🚨 ${input.provider}: nešlo založit platbu k faktuře ${input.invoiceRef}: ${insertErr.message}`)
+        return { claimed: false }
+    }
+
+    return applyGatewayStatus({
+        locator: { provider: "stripe", ref: input.invoiceRef },
+        status: input.status,
+        raw: input.raw,
+        sandbox: input.sandbox,
+        recurringToken: null,
+        source: "webhook",
+    })
 }
 
 /**

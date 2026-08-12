@@ -4,7 +4,12 @@ import { useState } from 'react'
 import { joinWaitlist } from '@/app/actions/waitlist'
 import Link from 'next/link'
 
-export function WaitlistForm() {
+/**
+ * `planId` / `termMonths` nesou volbu z ceníku. Kdo klikne na konkrétní kartu,
+ * přichází s rozhodnutím — ztratit ho znamená posílat pozvánku naslepo a ptát
+ * se znovu na to, co už řekl.
+ */
+export function WaitlistForm({ planId, termMonths }: { planId?: string | null; termMonths?: number } = {}) {
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
     const [errorMsg, setErrorMsg] = useState('')
 
@@ -68,7 +73,11 @@ export function WaitlistForm() {
                         disabled={status === 'loading'}
                     />
                 </div>
-                <button 
+                {/* Volba z ceníku jede s přihláškou. Skryté pole, ne stav v paměti:
+                    server action dostane FormData, ne React kontext. */}
+                <input type="hidden" name="planInterest" value={planId || ''} />
+                <input type="hidden" name="termInterest" value={termMonths ? String(termMonths) : ''} />
+                <button
                     type="submit"
                     disabled={status === 'loading'}
                     className="w-full relative group overflow-hidden rounded-sm bg-aisummit-cinnabar px-5 py-4 text-sm font-bold text-white shadow-[0_0_25px_rgba(230,57,70,0.3)] transition-all hover:bg-aisummit-cinnabar/90 disabled:opacity-70 uppercase tracking-widest"

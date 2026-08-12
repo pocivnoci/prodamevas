@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { GoogleAnalytics } from "@/components/GoogleAnalytics";
+import { lowestPriceClaim } from "@/lib/pricing";
 import "./globals.css";
 
 const inter = Inter({
@@ -10,7 +11,9 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Chrlit — Posty na Instagram za pár minut | AI obsah pro firmy",
-  description: "Zadejte web svého podnikání a dostanete měsíc hotového obsahu na Instagram — texty, obrázky, hashtagy. Bez grafika, bez copywritera. Od 990 Kč měsíčně.",
+  // Cena se do popisku dosazuje z ceníku — natvrdo napsaná přežije každou
+  // změnu ceníku a Google ji indexuje ještě měsíce potom.
+  description: `Zadejte web svého podnikání a dostanete měsíc hotového obsahu na Instagram — texty, obrázky, hashtagy. Bez grafika, bez copywritera. ${lowestPriceClaim().replace(/^od/, "Od")}.`,
   keywords: ["instagram posty", "obsah na sociální sítě", "AI obsah pro firmy", "generování příspěvků", "správa Instagramu", "chrlit", "obsah bez grafika"],
   icons: {
     icon: "/favicon.ico",
@@ -34,7 +37,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Chrlit — Posty na Instagram za pár minut",
-    description: "Měsíc obsahu bez grafika a copywritera. Od 990 Kč.",
+    description: `Měsíc obsahu bez grafika a copywritera. ${lowestPriceClaim().replace(/^od/, "Od")}.`,
     images: ["/chrlit-logo.png"],
   },
   robots: { index: true, follow: true },

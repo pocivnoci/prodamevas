@@ -335,12 +335,15 @@ test("10.1 Landing page exists", () => {
 })
 
 test("10.2 Landing page links to /login", () => {
-    const content = fileContent("app/page.tsx")
+    // Markup landingu žije v components/Landing.tsx; app/page.tsx je server
+    // komponenta, která k němu načte ceník z DB.
+    const content = fileContent("components/Landing.tsx")
     assert(content.includes('href="/login"'), "Should link to /login")
+    assert(fileContains("app/page.tsx", "<Landing"), "app/page.tsx musí landing skutečně vykreslit")
 })
 
 test("10.3 Landing page has WaitlistForm", () => {
-    const content = fileContent("app/page.tsx")
+    const content = fileContent("components/Landing.tsx")
     assert(content.includes("WaitlistForm"), "Should include WaitlistForm component")
 })
 
@@ -688,7 +691,7 @@ test("14.1 legal identity has exactly one source of truth", () => {
     assert(fileExists("lib/legal.ts"), "lib/legal.ts must exist — identity on five pages is identity that drifts")
     // Právní stránky ani patička nesmí mít IČO natvrdo: jedna změna sídla by
     // jinak nechala část webu lhát a nikdo by si toho nevšiml.
-    for (const page of ["app/terms/page.tsx", "app/privacy/page.tsx", "app/page.tsx"]) {
+    for (const page of ["app/terms/page.tsx", "app/privacy/page.tsx", "components/Landing.tsx"]) {
         assert(fileContains(page, 'from "@/lib/legal"'), `${page} must read identity from lib/legal`)
         assert(!/IČO[:\s]*\d{6}/.test(fileContent(page)), `${page} must not hardcode an IČO`)
     }
@@ -1313,10 +1316,13 @@ test("22.1 Stripe zabírá platbu podmíněným claimem, ne insertem", () => {
     // (ComGate callback, Stripe webhook, reconciler). Invariant je tím silnější:
     // podmíněný UPDATE existuje v repu právě jednou.
     const core = codeOnly("lib/payments/on-paid.ts")
-    assert(/\.eq\("provider", "stripe"\)\.eq\("provider_ref", input\.locator\.sessionId\)/.test(core),
+    assert(/\.eq\("provider", "stripe"\)\.eq\("provider_ref", input\.locator\.ref\)/.test(core),
         "claim musí hledat podle vlastního lokátoru brány")
-    assert(/\.neq\("status", "PAID"\)/.test(core),
-        "bez podmínky na status by replay webhooku aktivoval plán dvakrát")
+    // Podmínka na status se rozšířila o REFUNDED: vrácená platba se nesmí dát
+    // zabrat znovu (pozdní callback nebo reconciler by ji vzkřísil na PAID a
+    // aktivoval plán, za který už zákazník dostal peníze zpátky).
+    assert(/\.not\("status", "in", "\(PAID,REFUNDED\)"\)/.test(core),
+        "claim musí vylučovat zaplacené I vrácené platby")
 
     const code = codeOnly("app/api/payments/stripe/webhook/route.ts")
     assert(!/\.from\("payments"\)/.test(code),
@@ -1646,6 +1652,137 @@ test("24.7 obchod nemá vlastní denní e-mail", () => {
         "tichý obchodní den nesmí brief probudit — jinak se přestane číst")
     const handlers = codeOnly("lib/agents/handlers.ts")
     assert(!/sales_digest/.test(handlers), "žádný samostatný obchodní digest handler")
+})
+
+// ═══════════════════════════════════════════════════════════
+// 25. PŘEDPLACENÁ OBDOBÍ (3 / 6 / 12 měsíců)
+// ═══════════════════════════════════════════════════════════
+// Období je vlastnost PŘEDPLATNÉHO, ne tarifu. Nejdražší chyba téhle domény je
+// tichá: zákazník zaplatí rok, a po roce mu systém strhne měsíční cenu — nebo
+// naopak měsíčnímu zákazníkovi roční. Tyhle aserce hlídají, že cena, období a
+// doklad mluví o tomtéž.
+
+test("25.1 obnova strhává cenu období, ne měsíční sazbu", () => {
+    const code = codeOnly("app/api/cron/billing-worker/route.ts")
+    assert(/termPrice\(/.test(code),
+        "obnova musí cenu období počítat sdíleným pravidlem")
+    // `plan.price_czk` je MĚSÍČNÍ sazba. Poslat ji přímo do brány znamená, že
+    // roční zákazník dostane po roce strh 1 990 místo 19 900 — a rok navíc zdarma.
+    assert(!/price: plan\.price_czk/.test(code),
+        "měsíční sazba nesmí jít přímo do strhu")
+    assert(!/amount: plan\.price_czk/.test(code),
+        "řádek platby musí nést částku období, ne měsíční sazbu")
+})
+
+test("25.2 délka období vychází z term_months, ne z natvrdo psaného měsíce", () => {
+    const sub = codeOnly("lib/subscription.ts")
+    assert(/resolveTermMonths\(/.test(sub),
+        "aktivace musí délku období odvodit z předplatného a intervalu tarifu")
+    assert(/termMonths,?\n/.test(sub) || /termMonths/.test(sub),
+        "computeBillingPeriod bere počet měsíců, ne interval")
+
+    const create = codeOnly("app/api/payments/create/route.ts")
+    assert(/normalizeTermMonths\(/.test(create),
+        "období z requestu se musí normalizovat — jinak si klient koupí rok za měsíc")
+    assert(/term_months: termMonths/.test(create),
+        "období musí sednout na předplatné, jinak ho aktivace nemá kde vzít")
+})
+
+test("25.3 ceník na landingu a v migraci se shodují", () => {
+    // Landing má statickou kopii ceníku pro případ výpadku DB. Dvě pravdy o ceně
+    // vydrží přesně do první změny ceníku — pak jedna z nich lže zákazníkovi.
+    const pricing = fileContent("lib/pricing.ts")
+    const mig = fileContent("supabase/migrations/20260716_pricing_v5.sql")
+
+    const fromCode = [...pricing.matchAll(/id: "(chrlit_\w+)", name: "[^"]+", monthlyHaleru: (\d+)/g)]
+        .map(m => `${m[1]}=${m[2]}`)
+    assert(fromCode.length === 4, `lib/pricing.ts musí mít 4 tarify, má ${fromCode.length}`)
+
+    for (const entry of fromCode) {
+        const [id, price] = entry.split("=")
+        const re = new RegExp(`'${id}',\\s*'[^']+',\\s*'[^']*',\\s*${price},`)
+        assert(re.test(mig), `${id}: cena ${price} haléřů nesedí s migrací pricing_v5`)
+    }
+})
+
+test("25.4 delší období nesmí vyjít dráž", () => {
+    // Běhová aserce nad skutečným modulem, ne nad textem: žebřík musí být
+    // monotónní a ceny kulaté, jinak „ušetříte 10 %" na kartě lže.
+    const { BILLING_TERMS, FALLBACK_PLANS, monthlyEquivalent, termPrice } = require("./lib/pricing")
+    for (const plan of FALLBACK_PLANS) {
+        let prev = Infinity
+        for (const t of BILLING_TERMS) {
+            const perMonth = monthlyEquivalent(plan.monthlyHaleru, t.months)
+            assert(perMonth <= prev, `${plan.name}/${t.months}: ${perMonth} > ${prev} haléřů za měsíc`)
+            assert(termPrice(plan.monthlyHaleru, t.months) % 1000 === 0,
+                `${plan.name}/${t.months}: cena není celých 10 Kč`)
+            prev = perMonth
+        }
+        // Slib „dva měsíce zdarma" musí platit doslova — zákazník si to spočítá.
+        assert(termPrice(plan.monthlyHaleru, 12) === plan.monthlyHaleru * 10,
+            `${plan.name}: rok musí být přesně 10× měsíc`)
+    }
+})
+
+test("25.5 doklad uvádí zaplacené období", () => {
+    const inv = codeOnly("lib/invoicing.ts")
+    assert(/invoiceLineName\(/.test(inv),
+        "název položky musí skládat jedno místo, ne každý volající po svém")
+    assert(/period\?:/.test(inv), "doklad musí umět převzít období")
+
+    const core = codeOnly("lib/payments/on-paid.ts")
+    assert(/period: result\.period/.test(core),
+        "období spočítané při aktivaci musí dojít až na doklad")
+    // Datum vystavení říká KDY se platilo, ne ZA CO. U předplaceného roku je to
+    // rozdíl dvanácti měsíců a účetní z toho dělá časové rozlišení.
+    assert(/activatePaidPlan\(/.test(core) && /period = await activatePaidPlan/.test(core),
+        "aktivace musí období vracet, ne ho zahodit")
+})
+
+test("25.6 víceměsíční předplatné se nedá propálit změnou tarifu", () => {
+    // Změna tarifu není proratovaná: nové období začíná ihned a zbytek starého
+    // propadá. U měsíčního plánu jsou to dny, u ročního jedenáct měsíců.
+    const ui = codeOnly("app/(dashboard)/dashboard/instagram/tabs/SubscriptionSection.tsx")
+    assert(/lockedTerm/.test(ui), "UI musí poznat běžící víceměsíční období")
+    assert(/blockedByTerm/.test(ui) && /disabled=\{isCurrent \|\| blockedByTerm/.test(ui),
+        "uprostřed předplaceného období nesmí jít tarif změnit jedním klikem")
+})
+
+test("25.7 Stripe předplatné neobnovuje náš cron", () => {
+    // Stripe Billing si období fakturuje sám (`invoice.paid`). Kdyby ho strhl
+    // i worker, zákazník zaplatí jedno období dvakrát.
+    const worker = codeOnly("app/api/cron/billing-worker/route.ts")
+    assert(/sub\.provider === "stripe"/.test(worker) && /continue/.test(worker),
+        "worker musí Stripe předplatná přeskočit")
+
+    const hook = codeOnly("app/api/payments/stripe/webhook/route.ts")
+    assert(/invoice\.paid/.test(hook) && /applyProviderInvoice/.test(hook),
+        "obnovy ze Stripu musí mít obsluhu, jinak předplatné tiše skončí")
+    assert(/subscription_create/.test(hook),
+        "první faktura patří Checkout Session — jinak vzniknou dvě platby a dva doklady")
+    assert(/customer\.subscription\.deleted/.test(hook),
+        "ukončení u brány se musí propsat, jinak zůstane aktivní předplatné bez plateb")
+})
+
+test("25.8 zrušení se propíše do brány, která fakturuje", () => {
+    const code = codeOnly("app/actions/billing-actions.ts")
+    assert(/syncCancelToGateway/.test(code),
+        "výpověď musí dojít i do brány, jinak zákazník uvidí zrušeno a přijde mu další platba")
+    // Brána první: opačné pořadí by při chybě nechalo zrušeno u nás a fakturaci v bráně.
+    assert(/const gatewayError = await syncCancelToGateway\(sub, true\)[\s\S]{0,120}return \{ success: false/.test(code),
+        "selhání brány musí zrušení zastavit, ne ho jen zalogovat")
+})
+
+test("25.9 mód Stripe Checkout unese obnovy", () => {
+    const code = codeOnly("lib/payments/checkout.ts")
+    // `mode: "payment"` je jednorázovka — druhé období by nikdo nestrhl,
+    // přestože §8 podmínek slibuje automatickou obnovu.
+    assert(/mode: "subscription"/.test(code), "Stripe musí zakládat předplatné, ne jednorázovou platbu")
+    assert(!/mode: "payment"/.test(code), "jednorázový režim obnovy neunese")
+    assert(/stripeRecurring\(termMonths\)/.test(code),
+        "kratší období musí být skutečné předplatné přes interval_count, ne série jednorázovek")
+    assert(/subscription_data:/.test(code),
+        "metadata musí být i na předplatném — obnova chodí bez Checkout Session")
 })
 
 // ═══════════════════════════════════════════════════════════

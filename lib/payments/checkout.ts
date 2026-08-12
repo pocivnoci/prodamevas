@@ -14,6 +14,7 @@ import "server-only"
 import supabaseAdmin from "@/supabase/admin"
 import { getStripe, isStripeConfigured, isStripeSandbox } from "./stripe"
 import { generateRefId } from "@/lib/comgate"
+import { termPrice, termLabel, stripeRecurring, type TermMonths } from "@/lib/pricing"
 
 export type Gateway = "comgate" | "stripe"
 
@@ -55,8 +56,10 @@ export function activeGateway(): Gateway {
 
 export interface CheckoutInput {
     client: { id: string; slug: string; name: string }
+    /** `price_czk` je MĚSÍČNÍ cena tarifu — cena období z ní vzniká přes termPrice(). */
     plan: { id: string; name: string; price_czk: number }
     payerEmail: string | null
+    termMonths: TermMonths
 }
 
 export interface CheckoutResult {
@@ -66,7 +69,25 @@ export interface CheckoutResult {
 }
 
 /**
+ * Popisek platby. Do ComGate se ořezává na 40 znaků, ale do `payments.label` se
+ * ukládá celý — je to text, který skončí jako položka na daňovém dokladu.
+ */
+export function paymentLabel(planName: string, termMonths: TermMonths): string {
+    return `Chrlit ${planName} — předplatné ${termLabel(termMonths)}`
+}
+
+/**
  * Stripe Checkout + `PENDING` řádek v `payments`.
+ *
+ * **Režim `subscription`, ne `payment`.** Stripe Billing tím přebírá obnovu:
+ * vystaví fakturu sám na konci každého období a pošle `invoice.paid`. Do
+ * `mode: "payment"` (jednorázovka) se tudy vracet nedá — pak by druhé období
+ * nikdo nestrhl a zákazník by po roce tiše přišel o službu, přestože §8 podmínek
+ * slibuje automatickou obnovu. ComGate to řeší uloženým tokenem a naším cronem;
+ * Stripe si to řídí sám a cron ho proto přeskakuje (`subscriptions.provider`).
+ *
+ * Kratší období než rok jsou u Stripu plnohodnotná předplatná přes
+ * `interval_count` (3 nebo 6 měsíců), ne série jednorázovek.
  *
  * Volající si ověřuje přístup sám (`requireAuth` + `requireClientAccess`) —
  * tahle funkce se dostane k penězům, takže **nikdy ji nevolej z neautorizované
@@ -75,22 +96,34 @@ export interface CheckoutResult {
 export async function createStripeCheckout(input: CheckoutInput): Promise<CheckoutResult> {
     if (!isStripeConfigured()) throw new Error("Stripe není nakonfigurovaná")
 
-    const { client, plan, payerEmail } = input
+    const { client, plan, payerEmail, termMonths } = input
     const refId = generateRefId(client.slug)
-    const label = `${plan.name} — ${client.name}`
+    const label = paymentLabel(plan.name, termMonths)
+    const amount = termPrice(plan.price_czk, termMonths)
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://chrlit.cz"
 
     // `plans.price_czk` drží HALÉŘE (stejně jako `payments.amount` a to, co jde
     // do ComGate). Stripe chce nejmenší jednotku měny → předává se beze změny.
     const session = await getStripe().checkout.sessions.create({
-        mode: "payment",
+        mode: "subscription",
         line_items: [{
             quantity: 1,
-            price_data: { currency: "czk", unit_amount: plan.price_czk, product_data: { name: label } },
+            price_data: {
+                currency: "czk",
+                unit_amount: amount,
+                recurring: stripeRecurring(termMonths),
+                product_data: { name: label },
+            },
         }],
         ...(payerEmail ? { customer_email: payerEmail } : {}),
         client_reference_id: refId,
-        metadata: { clientId: client.id, clientSlug: client.slug, planId: plan.id, refId },
+        metadata: { clientId: client.id, clientSlug: client.slug, planId: plan.id, refId, termMonths: String(termMonths) },
+        // Metadata na SAMOTNÉM předplatném — obnovy chodí jako `invoice.paid` bez
+        // Checkout Session, takže bez tohohle by se u druhé faktury nedalo zjistit,
+        // čí a jaký tarif to je.
+        subscription_data: {
+            metadata: { clientId: client.id, clientSlug: client.slug, planId: plan.id, termMonths: String(termMonths) },
+        },
         success_url: `${baseUrl}/dashboard/instagram?platba=ok`,
         cancel_url: `${baseUrl}/dashboard/instagram?platba=zrusena`,
     })
@@ -99,7 +132,13 @@ export async function createStripeCheckout(input: CheckoutInput): Promise<Checko
 
     const { data: subscription } = await supabaseAdmin
         .from("subscriptions")
-        .insert({ client_id: client.id, plan_id: plan.id, status: "pending" })
+        .insert({
+            client_id: client.id,
+            plan_id: plan.id,
+            status: "pending",
+            term_months: termMonths,
+            provider: "stripe",
+        })
         .select("id")
         .single()
 
@@ -111,13 +150,15 @@ export async function createStripeCheckout(input: CheckoutInput): Promise<Checko
         provider: "stripe",
         provider_ref: session.id,
         ref_id: refId,
-        amount: plan.price_czk,
+        amount,
         currency: "CZK",
         status: "PENDING",
         label,
+        term_months: termMonths,
         payer_email: payerEmail,
     })
 
-    console.log(`💳 [stripe/${isStripeSandbox() ? "sandbox" : "LIVE"}] Session ${session.id} pro ${client.name} (${plan.name})`)
+    console.log(`💳 [stripe/${isStripeSandbox() ? "sandbox" : "LIVE"}] Session ${session.id} pro ${client.name} (${plan.name}, ${termMonths} měs.)`)
     return { redirectUrl: session.url, providerRef: session.id }
 }
+

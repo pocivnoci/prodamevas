@@ -20,6 +20,9 @@ export const maxDuration = 300
  *
  * Pak pro každé ACTIVE předplatné, kterému uplynulo `current_period_end`:
  *
+ *   0b. Předplatné pohání **Stripe** → přeskočit úplně. Stripe Billing si období
+ *      fakturuje sám a obnova přijde jako `invoice.paid` na webhook; strhnout ji
+ *      ještě jednou ComGatem znamená dvojí platbu za totéž období.
  *   1. Zákazník předplatné vypověděl (`cancel_at_period_end`) → nechat doběhnout,
  *      označit `expired` a poslat oznámení. Nikdy nestrhávat.
  *   2. Obnova už běží (PENDING `renew-` řádek < 24 h, nebo jakýkoli `renew-` řádek
@@ -50,6 +53,8 @@ export async function GET(req: Request) {
 
     const { isRecurringEnabled, chargeRecurring, generateRenewalRefId, isMockPaymentMode } = await import("@/lib/comgate")
     const { MAX_BILLING_FAILURES, rollLapsedCreditWindows } = await import("@/lib/subscription")
+    const { resolveTermMonths } = await import("@/lib/billing-period")
+    const { termPrice, termLabel, normalizeTermMonths } = await import("@/lib/pricing")
 
     // 0. Nejdřív posunout každé propadlé KREDITOVÉ okno — nezávisle na tom, jestli
     // je splatná obnova. U ročního plánu je tohle jediné, co kredity resetuje
@@ -67,7 +72,7 @@ export async function GET(req: Request) {
     const nowIso = new Date().toISOString()
     const { data: dueSubs, error } = await supabaseAdmin
         .from("subscriptions")
-        .select("id, client_id, plan_id, current_period_end, recurring_trans_id, billing_failures, cancel_at_period_end, clients(id, slug, name)")
+        .select("id, client_id, plan_id, current_period_end, recurring_trans_id, billing_failures, cancel_at_period_end, term_months, provider, clients(id, slug, name)")
         .eq("status", "active")
         .lt("current_period_end", nowIso)
         .order("current_period_end", { ascending: true })
@@ -83,12 +88,22 @@ export async function GET(req: Request) {
     let expired = 0
     let waiting = 0
     let cancelled = 0
+    let skippedStripe = 0
 
     for (const sub of dueSubs || []) {
         const client = (Array.isArray(sub.clients) ? sub.clients[0] : sub.clients) as
             | { id: string; slug: string; name: string }
             | null
         if (!client) continue
+
+        // 0b. Stripe si obnovu účtuje sám (`invoice.paid` → webhook). Kdyby ji
+        // strhl i tenhle worker, zákazník zaplatí jedno období dvakrát a rozdíl
+        // se vrací ručně. Období u Stripe předplatných proto posouvá výhradně
+        // webhook — tady se jen nesahá.
+        if (sub.provider === "stripe") {
+            skippedStripe++
+            continue
+        }
 
         try {
             const failures = sub.billing_failures || 0
@@ -162,7 +177,7 @@ export async function GET(req: Request) {
 
             const { data: plan } = await supabaseAdmin
                 .from("subscription_plans")
-                .select("id, name, price_czk")
+                .select("id, name, price_czk, interval")
                 .eq("id", sub.plan_id)
                 .single()
             if (!plan || !plan.price_czk) {
@@ -170,15 +185,22 @@ export async function GET(req: Request) {
                 continue
             }
 
+            // Obnova strhává cenu ZAPLACENÉHO OBDOBÍ, ne měsíční cenu tarifu.
+            // `plan.price_czk` je měsíční sazba; roční zákazník by jinak po roce
+            // dostal strh na 1 990 místo 19 900 a tiše dostal rok za měsíc.
+            const termMonths = resolveTermMonths(plan.interval, sub.term_months)
+            const renewalAmount = termPrice(plan.price_czk, normalizeTermMonths(termMonths))
+
             // 4. Automatická obnova uloženým tokenem.
             if (sub.recurring_trans_id && isRecurringEnabled() && !isMockPaymentMode()) {
                 const refId = generateRenewalRefId(client.slug)
-                const label = `${plan.name} — obnovení`.substring(0, 40)
+                // Plný popisek do `payments.label` (jde na doklad), ořez až do brány.
+                const label = `Chrlit ${plan.name} — obnovení ${termLabel(normalizeTermMonths(termMonths))}`
                 try {
                     const result = await chargeRecurring({
                         refId,
-                        price: plan.price_czk,
-                        label,
+                        price: renewalAmount,
+                        label: label.substring(0, 40),
                         email: payerEmail || "noreply@chrlit.cz",
                         initRecurringId: sub.recurring_trans_id,
                     })
@@ -191,7 +213,8 @@ export async function GET(req: Request) {
                         comgate_trans_id: result.transId,
                         provider_ref: result.transId,
                         ref_id: refId,
-                        amount: plan.price_czk,
+                        amount: renewalAmount,
+                        term_months: termMonths,
                         currency: "CZK",
                         status: "PENDING",
                         label,
@@ -220,7 +243,8 @@ export async function GET(req: Request) {
                         subscription_id: sub.id,
                         provider: "comgate",
                         ref_id: refId,
-                        amount: plan.price_czk,
+                        amount: renewalAmount,
+                        term_months: termMonths,
                         currency: "CZK",
                         status: "FAILED",
                         label,
@@ -258,8 +282,8 @@ export async function GET(req: Request) {
         console.error("billing-worker: oznámení o nadcházejících obnovách selhalo:", err?.message)
     }
 
-    console.log(`💳 billing-worker: ${charged} charged, ${reminded} reminded, ${expired} expired, ${cancelled} ended after cancellation, ${waiting} in-flight, ${upcoming.notified} pre-notified, ${creditWindowsRolled} credit windows rolled`)
-    return NextResponse.json({ success: true, charged, reminded, expired, cancelled, waiting, upcoming, creditWindowsRolled })
+    console.log(`💳 billing-worker: ${charged} charged, ${reminded} reminded, ${expired} expired, ${cancelled} ended after cancellation, ${waiting} in-flight, ${skippedStripe} driven by Stripe, ${upcoming.notified} pre-notified, ${creditWindowsRolled} credit windows rolled`)
+    return NextResponse.json({ success: true, charged, reminded, expired, cancelled, waiting, skippedStripe, upcoming, creditWindowsRolled })
 }
 
 async function bumpFailures(subId: string, current: number): Promise<void> {

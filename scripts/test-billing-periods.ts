@@ -13,9 +13,19 @@ import {
     addMonths,
     computeBillingPeriod,
     normalizeInterval,
+    renewalNoticeDays,
+    resolveTermMonths,
     PERIOD_CHAIN_GRACE_DAYS,
     type BillingInterval,
 } from "../lib/billing-period"
+import {
+    BILLING_TERMS,
+    FALLBACK_PLANS,
+    monthlyEquivalent,
+    normalizeTermMonths,
+    termPrice,
+    termSavings,
+} from "../lib/pricing"
 
 let passed = 0
 let failed = 0
@@ -61,11 +71,11 @@ eq("Feb 29 + 1 year clamps to Feb 28", iso(addInterval(D("2028-02-29T12:00:00.00
 console.log("\nFirst payment (no previous period):")
 {
     const now = D("2026-07-27T10:00:00.000Z")
-    const m = computeBillingPeriod({ now, interval: "month" })
+    const m = computeBillingPeriod({ now, termMonths: 1 })
     eq("monthly starts now", iso(m.start), iso(now))
     eq("monthly ends +1 month", iso(m.end), "2026-08-27T10:00:00.000Z")
 
-    const y = computeBillingPeriod({ now, interval: "year" })
+    const y = computeBillingPeriod({ now, termMonths: 12 })
     eq("yearly starts now", iso(y.start), iso(now))
     // The whole point of reading plan.interval: a yearly plan must NOT come back
     // for another charge in 30 days.
@@ -77,7 +87,7 @@ console.log("\nRenewal chaining:")
 {
     const prevEnd = D("2026-07-27T10:00:00.000Z")
     // Worker charges the same minute the period lapses.
-    const onTime = computeBillingPeriod({ now: prevEnd, interval: "month", previousPeriodEnd: prevEnd })
+    const onTime = computeBillingPeriod({ now: prevEnd, termMonths: 1, previousPeriodEnd: prevEnd })
     eq("on-time renewal starts at the old end", iso(onTime.start), iso(prevEnd))
     eq("on-time renewal ends +1 month", iso(onTime.end), "2026-08-27T10:00:00.000Z")
 
@@ -85,7 +95,7 @@ console.log("\nRenewal chaining:")
     // the grace window, so those days are paid for — the period must not shrink.
     const late = computeBillingPeriod({
         now: new Date(prevEnd.getTime() + 2 * DAY_MS),
-        interval: "month",
+        termMonths: 1,
         previousPeriodEnd: prevEnd,
     })
     eq("2-day-late renewal still starts at the old end", iso(late.start), iso(prevEnd))
@@ -95,7 +105,7 @@ console.log("\nRenewal chaining:")
     // the period they already paid for.
     const early = computeBillingPeriod({
         now: new Date(prevEnd.getTime() - 5 * DAY_MS),
-        interval: "month",
+        termMonths: 1,
         previousPeriodEnd: prevEnd,
     })
     eq("early renewal starts at the old end", iso(early.start), iso(prevEnd))
@@ -104,7 +114,7 @@ console.log("\nRenewal chaining:")
     // Yearly renewal chains identically.
     const yearly = computeBillingPeriod({
         now: new Date(prevEnd.getTime() + DAY_MS),
-        interval: "year",
+        termMonths: 12,
         previousPeriodEnd: prevEnd,
     })
     eq("yearly renewal chains", iso(yearly.start), iso(prevEnd))
@@ -116,7 +126,7 @@ console.log("\nLapsed subscription (comeback):")
 {
     const prevEnd = D("2026-04-01T10:00:00.000Z")
     const now = D("2026-07-27T10:00:00.000Z") // ~4 months later, sub long expired
-    const back = computeBillingPeriod({ now, interval: "month", previousPeriodEnd: prevEnd })
+    const back = computeBillingPeriod({ now, termMonths: 1, previousPeriodEnd: prevEnd })
     // Chaining here would sell a period that ended in the past.
     eq("comeback starts now, not at the dead end", iso(back.start), iso(now))
     eq("comeback ends +1 month from now", iso(back.end), "2026-08-27T10:00:00.000Z")
@@ -124,7 +134,7 @@ console.log("\nLapsed subscription (comeback):")
     // Just outside the chaining window: expired, no access → fresh period.
     const justOutside = computeBillingPeriod({
         now: new Date(prevEnd.getTime() + (PERIOD_CHAIN_GRACE_DAYS * DAY_MS) + 60_000),
-        interval: "month",
+        termMonths: 1,
         previousPeriodEnd: prevEnd,
     })
     check("renewal past the grace window restarts at now",
@@ -134,7 +144,7 @@ console.log("\nLapsed subscription (comeback):")
     // Exactly at the edge still chains.
     const atEdge = computeBillingPeriod({
         now: new Date(prevEnd.getTime() + PERIOD_CHAIN_GRACE_DAYS * DAY_MS),
-        interval: "month",
+        termMonths: 1,
         previousPeriodEnd: prevEnd,
     })
     eq("renewal exactly at the grace edge still chains", iso(atEdge.start), iso(prevEnd))
@@ -146,9 +156,101 @@ console.log("\nTier change (no proration):")
     const now = D("2026-07-10T10:00:00.000Z")
     // activatePaidPlan passes previousPeriodEnd=null for a tier change — the new
     // plan starts now and the remainder of the old period is forfeited.
-    const upgraded = computeBillingPeriod({ now, interval: "month", previousPeriodEnd: null })
+    const upgraded = computeBillingPeriod({ now, termMonths: 1, previousPeriodEnd: null })
     eq("tier change starts now", iso(upgraded.start), iso(now))
     eq("tier change ends +1 month from now", iso(upgraded.end), "2026-08-10T10:00:00.000Z")
+}
+
+// ── multi-month terms ──
+console.log("\nPředplacená období (3 / 6 / 12 měsíců):")
+{
+    const now = D("2026-08-12T10:00:00.000Z")
+    eq("3 měsíce končí +3 měsíce", iso(computeBillingPeriod({ now, termMonths: 3 }).end), "2026-11-12T10:00:00.000Z")
+    eq("6 měsíců končí +6 měsíců", iso(computeBillingPeriod({ now, termMonths: 6 }).end), "2027-02-12T10:00:00.000Z")
+    eq("12 měsíců končí +12 měsíců", iso(computeBillingPeriod({ now, termMonths: 12 }).end), "2027-08-12T10:00:00.000Z")
+
+    // Konec měsíce se svírá stejně jako u měsíčního období — 31. 8. + 6 měsíců
+    // je 28. 2., ne 3. 3.
+    eq("konec měsíce se svírá i u půlročního období",
+        iso(computeBillingPeriod({ now: D("2026-08-31T10:00:00.000Z"), termMonths: 6 }).end),
+        "2027-02-28T10:00:00.000Z")
+
+    // Nesmyslné období (0, NaN, podvržená hodnota z requestu) nesmí vyrobit
+    // období nulové délky — to by šlo obnovovat donekonečna zadarmo.
+    eq("nesmyslné období spadne na měsíc", iso(computeBillingPeriod({ now, termMonths: 0 }).end), "2026-09-12T10:00:00.000Z")
+}
+
+// ── term change on the same tier ──
+console.log("\nZměna období u téhož tarifu:")
+{
+    // Zákazník platí měsíčně do 12. 9. a 20. 8. přejde na roční. Nesmí přijít
+    // o zbytek zaplaceného měsíce — roční období se má NAVÁZAT na jeho konec.
+    const monthlyEnd = D("2026-09-12T10:00:00.000Z")
+    const switched = computeBillingPeriod({
+        now: D("2026-08-20T10:00:00.000Z"),
+        termMonths: 12,
+        previousPeriodEnd: monthlyEnd,
+    })
+    eq("přechod na roční začíná koncem zaplaceného měsíce", iso(switched.start), iso(monthlyEnd))
+    eq("přechod na roční končí rok po něm", iso(switched.end), "2027-09-12T10:00:00.000Z")
+}
+
+// ── resolveTermMonths ──
+console.log("\nresolveTermMonths (interval tarifu vs. období předplatného):")
+{
+    eq("měsíční tarif + 12 = 12", String(resolveTermMonths("month", 12)), "12")
+    eq("měsíční tarif + 3 = 3", String(resolveTermMonths("month", 3)), "3")
+    eq("chybějící období = 1", String(resolveTermMonths("month", null)), "1")
+    eq("nepovolená hodnota = 1", String(resolveTermMonths("month", 24)), "1")
+    // Kdyby někdo naseedoval tarif s roční cenou, období ho nesmí násobit —
+    // jinak by jedna roční platba koupila dvanáct let.
+    eq("roční tarif ignoruje období", String(resolveTermMonths("year", 12)), "12")
+    eq("roční tarif ignoruje i měsíční období", String(resolveTermMonths("year", 1)), "12")
+}
+
+// ── renewal notice lead time ──
+console.log("\nPředstih oznámení o obnově:")
+{
+    eq("měsíční = 3 dny", String(renewalNoticeDays(1)), "3")
+    // Oznámit strh 19 900 Kč tři dny předem je pozvánka na chargeback.
+    eq("čtvrtletní = 30 dní", String(renewalNoticeDays(3)), "30")
+    eq("roční = 30 dní", String(renewalNoticeDays(12)), "30")
+}
+
+// ── ceník: žebřík období ──
+console.log("\nCeník — žebřík období:")
+{
+    for (const plan of FALLBACK_PLANS) {
+        let prevPerMonth = Infinity
+        for (const t of BILLING_TERMS) {
+            const total = termPrice(plan.monthlyHaleru, t.months)
+            const perMonth = monthlyEquivalent(plan.monthlyHaleru, t.months)
+            check(`${plan.name} / ${t.months} měs.: cena je celých 10 Kč`,
+                total % 1000 === 0, `${total} haléřů není násobek 1000`)
+            check(`${plan.name} / ${t.months} měs.: delší období nevyjde dráž`,
+                perMonth <= prevPerMonth, `${perMonth} > ${prevPerMonth} haléřů/měs`)
+            check(`${plan.name} / ${t.months} měs.: sleva není nižší než slibovaná`,
+                termSavings(plan.monthlyHaleru, t.months) >= 0, "záporná úspora")
+            prevPerMonth = perMonth
+        }
+    }
+    // Konkrétní čísla z ceníku — kdyby se žebřík posunul, musí to spadnout tady,
+    // ne až v tom, že zákazník zaplatí jinou částku, než jakou viděl.
+    eq("Start / rok = 9 900 Kč", String(termPrice(99000, 12)), "990000")
+    eq("Růst / rok = 19 900 Kč", String(termPrice(199000, 12)), "1990000")
+    eq("Růst / 3 měsíce = 5 670 Kč", String(termPrice(199000, 3)), "567000")
+    eq("Růst / 6 měsíců = 10 740 Kč", String(termPrice(199000, 6)), "1074000")
+    eq("Impérium / rok = 79 900 Kč", String(termPrice(799000, 12)), "7990000")
+    // Roční cena musí být PŘESNĚ desetinásobek měsíční — na tom stojí celý slib
+    // „dva měsíce zdarma" a zákazník si to ověří z hlavy.
+    for (const plan of FALLBACK_PLANS) {
+        eq(`${plan.name}: rok = 10× měsíc`,
+            String(termPrice(plan.monthlyHaleru, 12)), String(plan.monthlyHaleru * 10))
+    }
+    // Podvržené období z requestu nesmí koupit rok za měsíční cenu.
+    eq("normalizeTermMonths(24) = 1", String(normalizeTermMonths(24)), "1")
+    eq("normalizeTermMonths(\"12\") = 12", String(normalizeTermMonths("12")), "12")
+    eq("normalizeTermMonths(undefined) = 1", String(normalizeTermMonths(undefined)), "1")
 }
 
 // ── drift regression: 12 late cycles must not move the anniversary ──
@@ -158,7 +260,7 @@ console.log("\nDunning drift over a year:")
     for (let cycle = 0; cycle < 12; cycle++) {
         // Every cycle the renewal lands 2 days late (worker retry + grace).
         const now = new Date(periodEnd.getTime() + 2 * DAY_MS)
-        periodEnd = computeBillingPeriod({ now, interval: "month", previousPeriodEnd: periodEnd }).end
+        periodEnd = computeBillingPeriod({ now, termMonths: 1, previousPeriodEnd: periodEnd }).end
     }
     // Old behaviour (start = now) would land on 2027-02-09 — 24 days of paid
     // service silently taken back over one year.
@@ -167,7 +269,7 @@ console.log("\nDunning drift over a year:")
     let yearEnd = D("2026-01-15T10:00:00.000Z")
     for (let cycle = 0; cycle < 3; cycle++) {
         const now = new Date(yearEnd.getTime() + 3 * DAY_MS)
-        yearEnd = computeBillingPeriod({ now, interval: "year", previousPeriodEnd: yearEnd }).end
+        yearEnd = computeBillingPeriod({ now, termMonths: 12, previousPeriodEnd: yearEnd }).end
     }
     eq("3 late yearly renewals keep the anniversary", iso(yearEnd), "2029-01-15T10:00:00.000Z")
 }

@@ -179,6 +179,10 @@ export const SUBPROCESSORS: ReadonlyArray<{
     { name: "Google Ireland Ltd. (Gemini API)", purpose: "generování textů, obrázků a videí", location: "EU / USA" },
     { name: "Anthropic PBC", purpose: "kontrola kvality generovaného obsahu", location: "USA" },
     { name: "ComGate Payments, a.s.", purpose: "zpracování plateb", location: "Česká republika" },
+    // Druhá platební brána. Uvedená i tehdy, když zrovna neběží: `activeGateway()`
+    // na ni umí přepnout pouhou změnou env proměnné, a mlčet o zpracovateli,
+    // který může kdykoli dostat data zákazníka, je porušení informační povinnosti.
+    { name: "Stripe Payments Europe, Ltd.", purpose: "zpracování plateb a opakovaných plateb", location: "Irsko / USA" },
     { name: "Resend, Inc.", purpose: "odesílání transakčních e-mailů", location: "EU / USA" },
     { name: "Fakturoid s.r.o.", purpose: "vystavování a archivace faktur", location: "Česká republika" },
     { name: "Meta Platforms Ireland Ltd.", purpose: "publikování na Instagram (jen při propojení účtu)", location: "EU / USA" },

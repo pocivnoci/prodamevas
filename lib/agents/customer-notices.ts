@@ -46,6 +46,8 @@ export interface NoticeVars {
     attempt?: number
     /** Čeho se incident týká — „příspěvek plánovaný na 12. 8.". */
     what?: string | null
+    /** Délka obnovovaného období, česky — „na 12 měsíců". */
+    termLabel?: string | null
     /** Proč to selhalo, jednou větou a bez technikálií. */
     reason?: string | null
 }
@@ -75,13 +77,17 @@ export function buildCustomerNotice(kind: NoticeKind, vars: NoticeVars): { subje
     const cal = link(vars.clientId, "calendar")
 
     switch (kind) {
-        case "renewal_upcoming":
+        case "renewal_upcoming": {
+            // Předmět nesmí tvrdit „za 3 dny": u víceměsíčního období chodí
+            // upozornění měsíc dopředu (renewalNoticeDays), protože nečekaných
+            // 19 900 Kč na výpisu je nejlevnější cesta k chargebacku.
+            const term = vars.termLabel ? ` ${vars.termLabel}` : ""
             return vars.auto
                 ? {
-                    subject: "Připomínka: předplatné se obnoví za 3 dny",
+                    subject: vars.date ? `Připomínka: předplatné se obnoví ${vars.date}` : "Připomínka: předplatné se brzy obnoví",
                     body: `Dobrý den,
 
-${vars.date ? `<strong>${vars.date}</strong> ` : "Za tři dny "}vám automaticky strhneme <strong>${czk(vars.amountHaleru)}</strong> za předplatné pro <strong>${name}</strong>. Nemusíte nic dělat — píšeme jen proto, abyste to na výpisu čekali.
+${vars.date ? `<strong>${vars.date}</strong> ` : "Brzy "}vám automaticky strhneme <strong>${czk(vars.amountHaleru)}</strong> za předplatné${term} pro <strong>${name}</strong>. Nemusíte nic dělat — píšeme jen proto, abyste to na výpisu čekali.
 
 Pokud si přejete plán změnit nebo zrušit, stihnete to do té doby:
 
@@ -90,15 +96,16 @@ Pokud si přejete plán změnit nebo zrušit, stihnete to do té doby:
 Tým Chrlit`,
                 }
                 : {
-                    subject: "Předplatné končí za 3 dny",
+                    subject: vars.date ? `Předplatné končí ${vars.date}` : "Předplatné brzy končí",
                     body: `Dobrý den,
 
-předplatné pro <strong>${name}</strong> končí ${vars.date ? `<strong>${vars.date}</strong>` : "za tři dny"}. Nemáme uloženou kartu, takže se automaticky neobnoví — aby generování příspěvků nepřestalo, obnovte plán prosím ručně:
+předplatné pro <strong>${name}</strong> končí ${vars.date ? `<strong>${vars.date}</strong>` : "brzy"}. Nemáme uloženou kartu, takže se automaticky neobnoví — aby generování příspěvků nepřestalo, obnovte plán prosím ručně:
 
 <a href="${sub}">Obnovit předplatné →</a>
 
 Tým Chrlit`,
                 }
+        }
 
         case "charge_failed":
             return {
