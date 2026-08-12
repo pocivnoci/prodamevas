@@ -13,7 +13,7 @@ import {
 } from '@/app/onboarding/actions'
 import type { WebsiteAnalysis, OnboardingQuestion, ReviewSection } from '@/app/onboarding/actions'
 import type { ClientConfig, ImageBriefItem } from '@/instagram/configs/types'
-import { Camera, ChartColumn, Check, CircleCheck, ClipboardList, Globe, Pencil, Plus, Rocket, Search, ThumbsUp } from "lucide-react"
+import { Anchor, Camera, ChartColumn, Check, CircleCheck, ClipboardList, Globe, Mic, Package, Palette, Pencil, Plus, Rocket, Search, ThumbsUp, type LucideIcon } from "lucide-react"
 
 type Step = 'choose' | 'input' | 'manual' | 'analyzing' | 'questions' | 'building' | 'review' | 'saving' | 'done'
 
@@ -22,12 +22,12 @@ interface OnboardedClient {
     slug: string
 }
 
-const REVIEW_SECTIONS: { id: ReviewSection; icon: string; title: string }[] = [
-    { id: 'brand_voice', icon: '🎤', title: 'Brand Voice' },
-    { id: 'pillars', icon: '📊', title: 'Content Pillars' },
-    { id: 'products', icon: '📦', title: 'Produkty' },
-    { id: 'visual', icon: '🎨', title: 'Vizuální identita' },
-    { id: 'hooks_cta', icon: '🪝', title: 'Hooks & CTA' },
+const REVIEW_SECTIONS: { id: ReviewSection; Icon: LucideIcon; title: string }[] = [
+    { id: 'brand_voice', Icon: Mic, title: 'Brand Voice' },
+    { id: 'pillars', Icon: ChartColumn, title: 'Content Pillars' },
+    { id: 'products', Icon: Package, title: 'Produkty' },
+    { id: 'visual', Icon: Palette, title: 'Vizuální identita' },
+    { id: 'hooks_cta', Icon: Anchor, title: 'Hooks & CTA' },
 ]
 
 export function OnboardTab() {
@@ -689,7 +689,7 @@ export function OnboardTab() {
                     <div className="space-y-4">
                         {/* Brand Voice */}
                         <ReviewCard
-                            section="brand_voice" icon="🎤" title="Brand Voice"
+                            section="brand_voice" Icon={Mic} title="Brand Voice"
                             status={sectionStatuses.brand_voice} feedback={sectionFeedback.brand_voice}
                             refineCount={refineCounts.brand_voice} isRefining={sectionStatuses.brand_voice === 'refining'}
                             onApprove={() => approveSection('brand_voice')} onReject={() => rejectSection('brand_voice')}
@@ -705,7 +705,7 @@ export function OnboardTab() {
 
                         {/* Pillars */}
                         <ReviewCard
-                            section="pillars" icon="📊" title="Content Pillars"
+                            section="pillars" Icon={ChartColumn} title="Content Pillars"
                             status={sectionStatuses.pillars} feedback={sectionFeedback.pillars}
                             refineCount={refineCounts.pillars} isRefining={sectionStatuses.pillars === 'refining'}
                             onApprove={() => approveSection('pillars')} onReject={() => rejectSection('pillars')}
@@ -725,7 +725,7 @@ export function OnboardTab() {
 
                         {/* Products */}
                         <ReviewCard
-                            section="products" icon="📦" title="Produkty"
+                            section="products" Icon={Package} title="Produkty"
                             status={sectionStatuses.products} feedback={sectionFeedback.products}
                             refineCount={refineCounts.products} isRefining={sectionStatuses.products === 'refining'}
                             onApprove={() => approveSection('products')} onReject={() => rejectSection('products')}
@@ -744,7 +744,7 @@ export function OnboardTab() {
 
                         {/* Visual */}
                         <ReviewCard
-                            section="visual" icon="🎨" title="Vizuální identita"
+                            section="visual" Icon={Palette} title="Vizuální identita"
                             status={sectionStatuses.visual} feedback={sectionFeedback.visual}
                             refineCount={refineCounts.visual} isRefining={sectionStatuses.visual === 'refining'}
                             onApprove={() => approveSection('visual')} onReject={() => rejectSection('visual')}
@@ -771,7 +771,7 @@ export function OnboardTab() {
 
                         {/* Hooks & CTA */}
                         <ReviewCard
-                            section="hooks_cta" icon="🪝" title="Hooks & CTA"
+                            section="hooks_cta" Icon={Anchor} title="Hooks & CTA"
                             status={sectionStatuses.hooks_cta} feedback={sectionFeedback.hooks_cta}
                             refineCount={refineCounts.hooks_cta} isRefining={sectionStatuses.hooks_cta === 'refining'}
                             onApprove={() => approveSection('hooks_cta')} onReject={() => rejectSection('hooks_cta')}
@@ -923,7 +923,7 @@ function ReviewField({ label, value }: { label: string; value?: string }) {
 
 function ReviewCard({
     section: _section,
-    icon,
+    Icon,
     title,
     status,
     feedback,
@@ -936,7 +936,7 @@ function ReviewCard({
     children,
 }: {
     section: string
-    icon: string
+    Icon: LucideIcon
     title: string
     status: 'pending' | 'approved' | 'rejected' | 'refining'
     feedback: string
@@ -958,7 +958,7 @@ function ReviewCard({
         <div className={`bg-white/5 border ${borderColor} rounded-xl p-5 transition-all`}>
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                    <span className="text-lg">{icon}</span>
+                    <Icon className="w-4 h-4 shrink-0 text-white/60" />
                     <h3 className="font-bold text-sm text-white">{title}</h3>
                     {status === 'approved' && <CircleCheck className="w-4 h-4 text-emerald-400" />}
                     {status === 'refining' && <span className="text-purple-400 text-xs animate-pulse">Přegenerovávám...</span>}

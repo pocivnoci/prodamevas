@@ -6,7 +6,7 @@ import { analyzeWebsite, generateQuestions, generateConfigPreview, refineConfigS
 import type { WebsiteAnalysis, OnboardingQuestion, ReviewSection } from './actions'
 import type { ClientConfig } from '@/instagram/configs/types'
 import { trackEvent } from '@/lib/analytics'
-import { Check, CircleCheck, MessageCircle, Rocket, ThumbsUp, X } from "lucide-react"
+import { Anchor, Check, CircleCheck, Landmark, MessageCircle, Mic, Package, Palette, Rocket, ThumbsUp, X, type LucideIcon } from "lucide-react"
 
 type Step = 'choose' | 'input' | 'manual' | 'analyzing' | 'questions' | 'building' | 'review' | 'saving' | 'generating' | 'done'
 type Mode = 'website' | 'manual' | null
@@ -616,7 +616,7 @@ function OnboardingContent() {
                         )}
 
                         <div className="space-y-4">
-                            <ReviewCard section="brand_voice" icon="🎤" title="Brand Voice & Persona"
+                            <ReviewCard section="brand_voice" Icon={Mic} title="Brand Voice & Persona"
                                 status={sectionStatuses.brand_voice} feedback={sectionFeedback.brand_voice || ''}
                                 refineCount={refineCounts.brand_voice || 0} isRefining={refiningSection === 'brand_voice'}
                                 onApprove={() => approveSection('brand_voice')} onReject={() => rejectSection('brand_voice')}
@@ -630,7 +630,7 @@ function OnboardingContent() {
                                 </div>
                             </ReviewCard>
 
-                            <ReviewCard section="pillars" icon="🏛️" title="Content Pilíře & Kategorie"
+                            <ReviewCard section="pillars" Icon={Landmark} title="Content Pilíře & Kategorie"
                                 status={sectionStatuses.pillars} feedback={sectionFeedback.pillars || ''}
                                 refineCount={refineCounts.pillars || 0} isRefining={refiningSection === 'pillars'}
                                 onApprove={() => approveSection('pillars')} onReject={() => rejectSection('pillars')}
@@ -661,7 +661,7 @@ function OnboardingContent() {
                                 </div>
                             </ReviewCard>
 
-                            <ReviewCard section="products" icon="📦" title="Produkty & Služby"
+                            <ReviewCard section="products" Icon={Package} title="Produkty & Služby"
                                 status={sectionStatuses.products} feedback={sectionFeedback.products || ''}
                                 refineCount={refineCounts.products || 0} isRefining={refiningSection === 'products'}
                                 onApprove={() => approveSection('products')} onReject={() => rejectSection('products')}
@@ -680,7 +680,7 @@ function OnboardingContent() {
                                 )}
                             </ReviewCard>
 
-                            <ReviewCard section="visual" icon="🎨" title="Vizuální Identita"
+                            <ReviewCard section="visual" Icon={Palette} title="Vizuální Identita"
                                 status={sectionStatuses.visual} feedback={sectionFeedback.visual || ''}
                                 refineCount={refineCounts.visual || 0} isRefining={refiningSection === 'visual'}
                                 onApprove={() => approveSection('visual')} onReject={() => rejectSection('visual')}
@@ -699,7 +699,7 @@ function OnboardingContent() {
                                 </div>
                             </ReviewCard>
 
-                            <ReviewCard section="hooks_cta" icon="🪝" title="Hook Templates & CTA"
+                            <ReviewCard section="hooks_cta" Icon={Anchor} title="Hook Templates & CTA"
                                 status={sectionStatuses.hooks_cta} feedback={sectionFeedback.hooks_cta || ''}
                                 refineCount={refineCounts.hooks_cta || 0} isRefining={refiningSection === 'hooks_cta'}
                                 onApprove={() => approveSection('hooks_cta')} onReject={() => rejectSection('hooks_cta')}
@@ -878,7 +878,7 @@ function ReviewField({ label, value }: { label: string; value?: string }) {
 
 function ReviewCard({
     section: _section,
-    icon,
+    Icon,
     title,
     status,
     feedback,
@@ -891,7 +891,7 @@ function ReviewCard({
     children,
 }: {
     section: string
-    icon: string
+    Icon: LucideIcon
     title: string
     status: 'pending' | 'approved' | 'rejected' | 'refining'
     feedback: string
@@ -913,7 +913,7 @@ function ReviewCard({
         <div className={`bg-white/5 border ${borderColor} rounded-2xl p-5 transition-all`}>
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                    <span className="text-lg">{icon}</span>
+                    <Icon className="w-4 h-4 shrink-0 text-white/60" />
                     <h3 className="font-bold text-sm text-white">{title}</h3>
                     {status === 'approved' && <CircleCheck className="w-4 h-4 text-emerald-400" />}
                     {status === 'refining' && <span className="text-purple-400 text-xs animate-pulse">Přegenerovávám...</span>}

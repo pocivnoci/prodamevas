@@ -24,7 +24,7 @@ import { useCopyToClipboard } from "./hooks"
 import type { IGPostType, IGCategory, IGPostFormat } from "./types"
 import { creditsForMedia } from "@/lib/credits"
 import { trackEvent } from "@/lib/analytics"
-import { Bot, CalendarDays, ClipboardList, Compass, Film, Lightbulb, Package, Pencil, RefreshCw, Rocket, Ruler, Sparkles, Star, Trash2, TriangleAlert, X } from "lucide-react"
+import { Award, Bot, CalendarDays, ChartColumn, ClipboardList, Compass, Film, Lightbulb, MessageCircle, Package, PenLine, Pencil, RefreshCw, Rocket, Ruler, Search, Sparkles, Star, Trash2, TriangleAlert, X } from "lucide-react"
 
 /**
  * What a batch actually costs in credits. The first `freeRemaining` posts fall
@@ -1710,7 +1710,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         <div className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2 text-center">Konverzace agentů</div>
                                         <div className="bg-[#050505] border border-white/10 rounded-sm p-3 max-h-40 overflow-y-auto space-y-1.5">
                                             {editorialLog.map((msg, i) => {
-                                                const roleEmoji = { strategist: "📊", copywriter: "✍️", critic: "🔍", chief_editor: "🎖️" }[msg.role] || "💬"
+                                                const RoleIcon = { strategist: ChartColumn, copywriter: PenLine, critic: Search, chief_editor: Award }[msg.role] || MessageCircle
                                                 const roleLabel = { strategist: "Stratég", copywriter: "Copywriter", critic: "Kritik", chief_editor: "Šéfredaktor" }[msg.role] || msg.role
                                                 const actionColor = msg.action === "approve" ? "text-emerald-400"
                                                     : msg.action === "revise" ? "text-amber-400"
@@ -1719,7 +1719,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                     : "text-white/50"
                                                 return (
                                                     <div key={i} className="flex items-start gap-2">
-                                                        <span className="text-xs flex-shrink-0">{roleEmoji}</span>
+                                                        <RoleIcon className="w-3.5 h-3.5 shrink-0 text-white/50" />
                                                         <div className="min-w-0">
                                                             <span className={`text-[9px] font-bold uppercase tracking-widest ${actionColor}`}>{roleLabel}</span>
                                                             <p className="text-[10px] text-white/60 leading-snug truncate">{msg.summary}</p>
@@ -1839,7 +1839,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                 </div>
                                                 <div className="bg-[#080808] border border-white/5 rounded-sm p-3 space-y-2">
                                                     {editorialLog.map((msg, i) => {
-                                                        const roleEmoji = { strategist: "📊", copywriter: "✍️", critic: "🔍", chief_editor: "🎖️" }[msg.role] || "💬"
+                                                        const RoleIcon = { strategist: ChartColumn, copywriter: PenLine, critic: Search, chief_editor: Award }[msg.role] || MessageCircle
                                                         const roleLabel = { strategist: "Stratég", copywriter: "Copywriter", critic: "Kritik", chief_editor: "Šéfredaktor" }[msg.role] || msg.role
                                                         const actionColor = msg.action === "approve" ? "text-emerald-400"
                                                             : msg.action === "revise" ? "text-amber-400"
@@ -1856,7 +1856,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                             : msg.action
                                                         return (
                                                             <div key={i} className="flex items-start gap-2 py-1">
-                                                                <span className="text-xs flex-shrink-0 mt-0.5">{roleEmoji}</span>
+                                                                <RoleIcon className="w-3.5 h-3.5 shrink-0 mt-0.5 text-white/50" />
                                                                 <div className="min-w-0 flex-1">
                                                                     <div className="flex items-center gap-1.5">
                                                                         <span className="text-[9px] font-bold uppercase tracking-widest text-white/50">{roleLabel}</span>

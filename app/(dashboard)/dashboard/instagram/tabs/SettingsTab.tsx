@@ -13,7 +13,7 @@ import { BillingSection } from "./BillingSection"
 import { ConsultationSection } from "./ConsultationSection"
 import { FEED_PATTERNS, computeSlotIntent, type FeedPatternId } from "@/lib/feed-pattern"
 import { Hint, HINTS } from "./Hint"
-import { Camera, Hand, RefreshCw, ShoppingBag, Trash2, TriangleAlert, User } from "lucide-react"
+import { Camera, ClipboardList, Hand, Hash, Landmark, Megaphone, Mic, Palette, Puzzle, RefreshCw, Settings, ShoppingBag, Trash2, TriangleAlert, User, Users } from "lucide-react"
 
 // ═══════════════════════════════════════════════════════════
 // SETTINGS TAB
@@ -126,20 +126,21 @@ export function SettingsTab({ projectId }: { projectId: string }) {
         )
     }
 
+    // Ikona je komponenta, ne emoji: záložky nastavení jsou rozhraní, ne obsah.
     const TABS_MAIN = [
-        { id: "basic", label: "Základní", icon: "📋" },
-        { id: "voice", label: "Styl textu", icon: "🎤" },
-        { id: "pillars", label: "Témata", icon: "🏛️" },
-        { id: "formats", label: "Formáty", icon: "🧩" },
-        { id: "visual", label: "Vizuál", icon: "🎨" },
-        { id: "products", label: "Produkty", icon: "🛍️" },
-        { id: "manage", label: "Správa", icon: "⚙️" },
+        { id: "basic", label: "Základní", Icon: ClipboardList },
+        { id: "voice", label: "Styl textu", Icon: Mic },
+        { id: "pillars", label: "Témata", Icon: Landmark },
+        { id: "formats", label: "Formáty", Icon: Puzzle },
+        { id: "visual", label: "Vizuál", Icon: Palette },
+        { id: "products", label: "Produkty", Icon: ShoppingBag },
+        { id: "manage", label: "Správa", Icon: Settings },
     ]
 
     const TABS_ADVANCED = [
-        { id: "audience", label: "Publikum", icon: "👥" },
-        { id: "hashtags", label: "Hashtagy", icon: "#️⃣" },
-        { id: "cta", label: "CTA", icon: "📣" },
+        { id: "audience", label: "Publikum", Icon: Users },
+        { id: "hashtags", label: "Hashtagy", Icon: Hash },
+        { id: "cta", label: "CTA", Icon: Megaphone },
     ]
 
     return (
@@ -192,7 +193,7 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                                 />
                             )}
                             <span className="relative z-10 flex items-center gap-2">
-                                <span>{tab.icon}</span>
+                                <tab.Icon className="w-3.5 h-3.5 shrink-0" />
                                 <span className="whitespace-nowrap">{tab.label}</span>
                             </span>
                         </button>
@@ -243,7 +244,7 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                                             />
                                         )}
                                         <span className="relative z-10 flex items-center gap-2">
-                                            <span>{tab.icon}</span>
+                                            <tab.Icon className="w-3.5 h-3.5 shrink-0" />
                                             <span className="whitespace-nowrap">{tab.label}</span>
                                         </span>
                                     </button>
