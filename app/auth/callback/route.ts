@@ -39,11 +39,11 @@ export async function GET(request: Request) {
         if (!error) {
             const user = data?.user
 
-            // Invite gate — only for OAuth. The e-mail flows (confirmation,
-            // recovery) already passed a code at registration, so gating them
-            // here would only risk locking existing people out.
-            const isOAuth = !!user && (user.app_metadata?.provider ?? 'email') !== 'email'
-            if (isOAuth) {
+            // Invite gate — pro každou cestu, která odsud vyjde s session.
+            // Kdyby platila jen pro OAuth, dal by se obejít obnovou hesla:
+            // i ta končí přihlášeným uživatelem.
+            if (user) {
+                const isOAuth = (user.app_metadata?.provider ?? 'email') !== 'email'
                 const jar = await cookies()
                 const verdict = await enforceInviteGate(user, jar.get(INVITE_COOKIE)?.value ?? null)
                 jar.delete(INVITE_COOKIE)
@@ -52,7 +52,10 @@ export async function GET(request: Request) {
                     // Účet v Supabase zůstane, ale bez razítka je bezcenný —
                     // session hned zahazujeme, ať se nikdo neproklikne dál.
                     await supabase.auth.signOut()
-                    return NextResponse.redirect(`${origin}/register?error=${verdict.reason}`)
+                    // Kdo přišel přes Google, byl uprostřed registrace; kdo přes
+                    // e-mail, hledal přihlášení. Ať skončí tam, kam mířil.
+                    const dest = isOAuth ? `/register?error=${verdict.reason}` : '/login?error=no_access'
+                    return NextResponse.redirect(`${origin}${dest}`)
                 }
             }
 

@@ -9,6 +9,7 @@ import { googleAuthEnabled } from "@/lib/auth-providers"
 const ERROR_MESSAGES: Record<string, string> = {
     invalid_credentials: "Neplatný e-mail nebo heslo. Zkus to znovu.",
     google_unavailable: "Přihlášení přes Google se teď nepodařilo spustit. Zkus to znovu, nebo použij e-mail.",
+    no_access: "Chrlit je zatím v uzavřené betě. Tenhle účet do ní nemá přístup — pokud si myslíš, že jde o omyl, napiš nám.",
 }
 
 export default async function LoginPage(props: {

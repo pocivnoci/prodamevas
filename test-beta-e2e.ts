@@ -396,6 +396,21 @@ test("10.7c Google registrace prochází stejnou branou", () => {
     assert(actions.includes("INVITE_COOKIE"), "Kód musí přežít přesměrování na Google")
 })
 
+test("10.7e Brána platí pro každou cestu k session, ne jen pro Google", () => {
+    // Heslo bránu neobchází: účet z doby před pozvánkami, bez kódu a bez
+    // projektu, se nesmí přihlásit postaru. A obnova hesla taky končí
+    // přihlášeným uživatelem, takže i ta musí branou projít.
+    const login = fileContent("app/login/actions.ts")
+    assert(login.includes("enforceInviteGate"), "Přihlášení heslem musí projít branou")
+    assert(login.includes("signOut"), "Odmítnutý účet musí přijít o session")
+
+    const callback = codeOnly("app/auth/callback/route.ts")
+    assert(callback.includes("enforceInviteGate"), "Callback musí bránu volat")
+    // Brána nesmí být schovaná za podmínkou „jen OAuth" — to byl přesně ten
+    // způsob, jak se dalo dovnitř přes obnovu hesla.
+    assert(!/if\s*\(\s*isOAuth\s*\)/.test(callback), "Brána v callbacku nesmí platit jen pro OAuth")
+})
+
 test("10.7d Google se nenabízí, dokud není provider zapnutý", () => {
     // Provider se zapíná v Supabase, ne v repu. Mrtvé tlačítko na přihlašovací
     // stránce je horší než žádné — přepínač proto musí hlídat UI i akci.
