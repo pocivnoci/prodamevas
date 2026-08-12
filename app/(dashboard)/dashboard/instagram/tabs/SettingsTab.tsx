@@ -171,12 +171,12 @@ export function SettingsTab({ projectId }: { projectId: string }) {
 
             {/* Tab navigation */}
             <div className="space-y-2">
-                <div className="flex flex-wrap gap-1 bg-[#0a0a0a]/60 border border-white/10 rounded-sm p-1.5">
+                <div className="flex sm:flex-wrap gap-1 overflow-x-auto scrollbar-hide bg-[#0a0a0a]/60 border border-white/10 rounded-sm p-1.5">
                     {TABS_MAIN.map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveSection(tab.id)}
-                            className={`relative px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all duration-200 ${
+                            className={`relative shrink-0 min-h-[40px] px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all duration-200 cursor-pointer ${
                                 activeSection === tab.id
                                     ? "text-white"
                                     : "text-white/40 hover:text-white/70"
@@ -192,7 +192,7 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                             )}
                             <span className="relative z-10 flex items-center gap-2">
                                 <span>{tab.icon}</span>
-                                <span className="hidden sm:inline">{tab.label}</span>
+                                <span className="whitespace-nowrap">{tab.label}</span>
                             </span>
                         </button>
                     ))}
@@ -206,7 +206,7 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                     >
                         <span className="relative z-10 flex items-center gap-2">
                             <span>{showAdvanced ? "▼" : "▶"}</span>
-                            <span className="hidden sm:inline">Pokročilé</span>
+                            <span className="whitespace-nowrap">Pokročilé</span>
                         </span>
                     </button>
                 </div>
@@ -227,7 +227,7 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                                     <button
                                         key={tab.id}
                                         onClick={() => setActiveSection(tab.id)}
-                                        className={`relative px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all duration-200 ${
+                                        className={`relative shrink-0 min-h-[40px] px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all duration-200 cursor-pointer ${
                                             activeSection === tab.id
                                                 ? "text-white"
                                                 : "text-white/40 hover:text-white/70"
@@ -243,7 +243,7 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                                         )}
                                         <span className="relative z-10 flex items-center gap-2">
                                             <span>{tab.icon}</span>
-                                            <span className="hidden sm:inline">{tab.label}</span>
+                                            <span className="whitespace-nowrap">{tab.label}</span>
                                         </span>
                                     </button>
                                 ))}

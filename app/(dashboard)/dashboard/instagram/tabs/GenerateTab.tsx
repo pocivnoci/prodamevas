@@ -1090,7 +1090,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                             </div>
                                             <div>
                                                 <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">🎞️ Typ</label>
-                                                <div className="grid grid-cols-5 gap-2">
+                                                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                                                     {[{ value: "", label: "Auto", emoji: "🎲" }, { value: "image", label: "Obrázek", emoji: "🖼️" }, { value: "story", label: "Story", emoji: "📱" }, { value: "carousel", label: "Carousel", emoji: "📸" }, { value: "reel", label: "Reel", emoji: "🎬" }].map(opt => {
                                                         const locked = (opt.value === "reel" && !reelAllowed) || (opt.value === "story" && !storyAllowed)
                                                         const lockNote = opt.value === "reel"
@@ -1175,7 +1175,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     subscription affords for the selected duration. */}
                                 <div>
                                     <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Příspěvků týdně</label>
-                                    <div className="grid grid-cols-5 gap-2">
+                                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                                         {CADENCE_OPTIONS.map(c => {
                                             const overBudget = planDuration !== "trial" && subscription != null
                                                 && planCost(durationWeeks * c) > (subscription.creditsRemaining ?? 0)
@@ -1219,7 +1219,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 {/* Format mix — carousels cost more credits, so the share is the user's call */}
                                 <div>
                                     <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Mix formátů</label>
-                                    <div className="grid grid-cols-3 gap-2">
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                         {CAROUSEL_SHARES.map(s => (
                                             <button key={s.key} onClick={() => setCarouselShare(s.key)}
                                                 className={`px-3 py-2.5 rounded-sm border text-[11px] font-bold transition-all ${carouselShare === s.key
@@ -1444,7 +1444,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                                         onClick={() => editable && handleTogglePlanMedium(item.id)}
                                                                         disabled={!editable}
                                                                         title={editable ? "Přepnout formát: 1 obrázek ⇄ carousel" : "Reel"}
-                                                                        className={`text-[8px] px-1.5 py-0.5 border rounded-sm font-bold uppercase tracking-wider transition-all ${m.cls} ${editable ? "cursor-pointer hover:brightness-150" : "cursor-default"}`}
+                                                                        className={`text-[10px] sm:text-[8px] min-h-[32px] sm:min-h-0 px-2 sm:px-1.5 py-1 sm:py-0.5 border rounded-sm font-bold uppercase tracking-wider transition-all ${m.cls} ${editable ? "cursor-pointer hover:brightness-150" : "cursor-default"}`}
                                                                     >{m.emoji} {m.label}{editable ? " ⇄" : ""}</button>
                                                                 )
                                                             })()}
@@ -1511,13 +1511,13 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                                 type="date"
                                                                 value={item.scheduledDate || ""}
                                                                 onChange={(e) => handleUpdatePlanSchedule(item.id, e.target.value, item.scheduledTime || "09:00")}
-                                                                className="px-2 py-1 bg-[#050505] border border-white/10 rounded-sm text-white/70 text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
+                                                                className="px-2 py-1.5 sm:py-1 min-h-[36px] sm:min-h-0 bg-[#050505] border border-white/10 rounded-sm text-white/70 text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
                                                             />
                                                             <input
                                                                 type="time"
                                                                 value={item.scheduledTime || ""}
                                                                 onChange={(e) => handleUpdatePlanSchedule(item.id, item.scheduledDate || scheduleStart, e.target.value)}
-                                                                className="px-2 py-1 bg-[#050505] border border-white/10 rounded-sm text-white/70 text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
+                                                                className="px-2 py-1.5 sm:py-1 min-h-[36px] sm:min-h-0 bg-[#050505] border border-white/10 rounded-sm text-white/70 text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
                                                             />
                                                         </div>
 
@@ -1531,7 +1531,9 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                                     <span className="text-[9px] text-blue-400 font-bold">@{item.productName}</span>
                                                                     <button
                                                                         onClick={() => handleSetProduct(item.id, null)}
-                                                                        className="text-[8px] text-blue-400/40 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                                                                        aria-label="Odebrat produkt"
+                                                                        // Na dotyku vidět vždy — jinak produkt z položky nešel odebrat.
+                                                                        className="min-w-[28px] min-h-[28px] flex items-center justify-center text-xs sm:text-[8px] text-blue-400/70 sm:text-blue-400/40 hover:text-red-400 transition-colors sm:opacity-0 sm:group-hover:opacity-100 cursor-pointer"
                                                                     >
                                                                         ✕
                                                                     </button>

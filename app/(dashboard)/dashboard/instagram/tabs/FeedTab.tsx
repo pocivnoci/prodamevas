@@ -105,7 +105,7 @@ export function FeedTab({ projectId }: { projectId: string }) {
                         <div className="flex items-center gap-4 mb-3">
                             <span className="text-white font-bold text-sm">@{profile?.handle || "brand"}</span>
                         </div>
-                        <div className="flex gap-8">
+                        <div className="flex flex-wrap gap-x-6 gap-y-2 sm:gap-8">
                             <div className="text-center">
                                 <p className="text-white font-black text-lg">{profile?.postCount ?? posts.length}</p>
                                 <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">příspěvků</p>

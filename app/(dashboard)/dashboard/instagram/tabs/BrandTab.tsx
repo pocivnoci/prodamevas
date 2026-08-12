@@ -224,14 +224,28 @@ export function BrandTab({ projectId }: { projectId: string }) {
                                     className="w-full h-full object-cover"
                                     loading="lazy"
                                 />
-                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                {/* Počítač: celoplošný overlay na najetí myší. */}
+                                <div className="hidden sm:flex absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity items-center justify-center">
                                     <button
                                         onClick={(e) => { e.stopPropagation(); handleDelete(img.url) }}
-                                        className="bg-red-500/80 hover:bg-red-500 text-white px-3 py-1.5 rounded-sm text-[10px] font-bold uppercase tracking-wider transition-colors shadow-sm"
+                                        className="bg-red-500/80 hover:bg-red-500 text-white px-3 py-1.5 rounded-sm text-[10px] font-bold uppercase tracking-wider transition-colors shadow-sm cursor-pointer"
                                     >
                                         Smazat
                                     </button>
                                 </div>
+
+                                {/* Telefon: najetí myší neexistuje, takže mazání fotky nešlo
+                                    vyvolat vůbec. Rohové tlačítko místo overlaye, ať zůstane
+                                    vidět, co se maže. */}
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); handleDelete(img.url) }}
+                                    aria-label="Smazat fotku"
+                                    className="sm:hidden absolute top-1.5 right-1.5 w-9 h-9 rounded-sm bg-black/70 border border-white/15 text-red-400 flex items-center justify-center active:bg-black/90 transition-colors cursor-pointer"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
                                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-2">
                                     {img.tags && img.tags.length > 0 ? (
                                         <div className="flex flex-wrap gap-1">
