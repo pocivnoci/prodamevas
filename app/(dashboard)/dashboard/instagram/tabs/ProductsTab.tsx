@@ -25,6 +25,7 @@ import {
     removeProductCategory,
 } from "@/app/actions/product-category-actions"
 import { LoadingSpinner } from "./shared"
+import { Hint, HINTS } from "./Hint"
 import { analyzeProductForBrief } from "@/app/actions/product-brief-actions"
 import { generateProductBriefPDF } from "@/lib/product-brief-docx"
 
@@ -905,6 +906,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                         ? "Vlastní kategorie tohoto klienta"
                                         : "Globální výchozí kategorie — přidej vlastní pro tento brand"}
                                 </p>
+                                <div className="mt-2"><Hint label="proč na katalogu záleží">{HINTS.products}</Hint></div>
                             </div>
                             <button
                                 onClick={() => { setShowAddCategory(!showAddCategory); setEditingCat(null) }}

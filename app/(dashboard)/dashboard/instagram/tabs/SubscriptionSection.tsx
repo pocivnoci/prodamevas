@@ -4,6 +4,7 @@ import { useStudio, type SubscriptionState } from "@/app/(dashboard)/StudioConte
 import { activateFreePlan } from "@/app/actions/settings-actions"
 import { hasBillingDetails, cancelSubscription, resumeSubscription } from "@/app/actions/billing-actions"
 import { BillingModal } from "./BillingSection"
+import { Hint, HINTS } from "./Hint"
 import { CheckCircle2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import {
@@ -181,9 +182,12 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                 />
             )}
 
-            <h3 className="text-sm font-black uppercase tracking-widest text-white/70 border-b border-white/10 pb-2">
-                Předplatné & Kredity
-            </h3>
+            <div className="border-b border-white/10 pb-2">
+                <h3 className="text-sm font-black uppercase tracking-widest text-white/70">
+                    Předplatné & Kredity
+                </h3>
+                <div className="mt-2"><Hint label="jak fungují kredity">{HINTS.credits}</Hint></div>
+            </div>
 
             {/* Current plan status */}
             {subscription ? (
@@ -222,6 +226,7 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                             )
                         })}
                     </div>
+                    <div className="mt-3 flex justify-center"><Hint label="co znamená delší období">{HINTS.term}</Hint></div>
                 </div>
             )}
 

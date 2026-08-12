@@ -181,4 +181,14 @@ registerHandler("lead_outreach", async (task) => {
     return runOutreach(String((task.payload as any).leadId))
 })
 
+// ── Vstupní schůzka ────────────────────────────────────────────────────────────
+// Podklad se skládá až po rezervaci termínu, ne dřív: dřív by zestaral, protože
+// zákazník mezitím konfiguraci ještě mění. Běží mimo webhook, aby Cal.com dostal
+// ACK hned a selhání přípravy nikdy neshodilo domluvený termín.
+registerHandler("consultation_brief", async (task) => {
+    const { generateConsultationBrief } = await import("@/lib/agents/consultation-brief")
+    const brief = await generateConsultationBrief(String((task.payload as any).consultationId))
+    return { ok: true, generated: Boolean(brief) }
+})
+
 export {} // side-effect module

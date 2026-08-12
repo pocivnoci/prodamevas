@@ -12,7 +12,7 @@ import supabaseAdmin from "@/supabase/admin"
 import { createPayment, generateRefId, isMockPaymentMode, isRecurringEnabled } from "@/lib/comgate"
 import { activeGateway, createStripeCheckout, paymentLabel } from "@/lib/payments/checkout"
 import { enqueueTask } from "@/lib/agent-runner"
-import { normalizeTermMonths, termPrice } from "@/lib/pricing"
+import { CONSULTATION, normalizeTermMonths, termPrice } from "@/lib/pricing"
 
 export async function POST(req: NextRequest) {
     const { requireAuth } = await import("@/lib/auth-guard")
@@ -69,16 +69,37 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // 2. Get plan
-        const { data: plan } = await supabaseAdmin
-            .from("subscription_plans")
-            .select("*")
-            .eq("id", planId)
-            .eq("is_active", true)
-            .single()
+        // 2. Get plan — nebo jednorázová služba, která žádný tarif neaktivuje.
+        //
+        // Služba není řádek v `subscription_plans` a být nesmí: nemá kredity,
+        // období ani obnovu, a `/api/plans` by ji vysypalo na ceník jako pátý
+        // tarif. Definice žije v lib/pricing.ts, cesta k penězům je společná,
+        // aby se na doklad nezapomnělo právě u ní.
+        const isService = planId === CONSULTATION.id
+        const plan = isService
+            ? { id: CONSULTATION.id, name: CONSULTATION.name, price_czk: CONSULTATION.priceHaleru }
+            : (await supabaseAdmin
+                .from("subscription_plans")
+                .select("*")
+                .eq("id", planId)
+                .eq("is_active", true)
+                .single()).data
 
         if (!plan) {
             return NextResponse.json({ error: "Plan not found" }, { status: 404 })
+        }
+
+        // Službu si nemá smysl kupovat dvakrát — a hlavně ne, když už na ni má
+        // nárok z předplatného na 6 nebo 12 měsíců.
+        if (isService) {
+            const { pendingConsultation } = await import("@/lib/consultations")
+            const existing = await pendingConsultation(client.id)
+            if (existing) {
+                return NextResponse.json(
+                    { error: "Nastavení značky už máte — stačí si vybrat termín.", alreadyOwned: true },
+                    { status: 409 },
+                )
+            }
         }
 
         // 3. Create payment (mock or real Comgate)
@@ -87,7 +108,10 @@ export async function POST(req: NextRequest) {
         // Stripe, celá zbývající ComGate větev se přeskočí — druhá brána tak
         // nepotřebuje vlastní tlačítko ani vlastní cestu z Reactu.
         if (activeGateway() === "stripe") {
-            const result = await createStripeCheckout({ client, plan, payerEmail, termMonths })
+            const result = await createStripeCheckout({
+                client, plan, payerEmail, termMonths,
+                kind: isService ? "service" : "subscription",
+            })
             return NextResponse.json({
                 success: true, gateway: "stripe",
                 transId: result.providerRef, redirect: result.redirectUrl, redirectUrl: result.redirectUrl,
@@ -95,12 +119,12 @@ export async function POST(req: NextRequest) {
         }
 
         const refId = generateRefId(client.slug)
-        // `plan.price_czk` je MĚSÍČNÍ cena — cena zaplaceného období z ní vzniká
-        // tady, jednou, sdíleným pravidlem (lib/pricing.ts).
-        const amount = termPrice(plan.price_czk, termMonths)
+        // U tarifu je `price_czk` MĚSÍČNÍ cena a cena období z ní vzniká tady,
+        // jednou, sdíleným pravidlem. Služba se platí celá a období nemá.
+        const amount = isService ? CONSULTATION.priceHaleru : termPrice(plan.price_czk, termMonths)
         // Do `payments.label` jde plný popisek (skončí jako položka na dokladu),
         // do ComGate až jeho 40znakový ořez.
-        const label = paymentLabel(plan.name, termMonths)
+        const label = isService ? `Chrlit — ${CONSULTATION.name}` : paymentLabel(plan.name, termMonths)
 
         const isMock = isMockPaymentMode()
 
@@ -135,19 +159,24 @@ export async function POST(req: NextRequest) {
             console.log(`💳 Payment created: ${transId} for ${client.name} (${plan.name})`)
         }
 
-        // 4. Create subscription (pending)
-        const { data: subscription } = await supabaseAdmin
-            .from("subscriptions")
-            .insert({
-                client_id: client.id,
-                plan_id: planId,
-                status: "pending",
-                // Aktivace po zaplacení z tohohle sloupce spočítá délku období.
-                term_months: termMonths,
-                provider: "comgate",
-            })
-            .select("id")
-            .single()
+        // 4. Create subscription (pending) — jen u tarifu.
+        // Služba žádné předplatné nezakládá: pending řádek bez tarifu by se
+        // pletl do `pickLiveSubscription` a zamaskoval by zákazníkovi jeho
+        // skutečný plán.
+        const { data: subscription } = isService
+            ? { data: null }
+            : await supabaseAdmin
+                .from("subscriptions")
+                .insert({
+                    client_id: client.id,
+                    plan_id: planId,
+                    status: "pending",
+                    // Aktivace po zaplacení z tohohle sloupce spočítá délku období.
+                    term_months: termMonths,
+                    provider: "comgate",
+                })
+                .select("id")
+                .single()
 
         // 5. Record payment
         const { data: payment } = await supabaseAdmin
@@ -163,7 +192,10 @@ export async function POST(req: NextRequest) {
                 currency: "CZK",
                 status: "PENDING",
                 label,
-                term_months: termMonths,
+                // Druh rozhoduje, jestli se po zaplacení aktivuje tarif, nebo
+                // odemkne rezervace. Doklad se vystaví tak jako tak.
+                kind: isService ? "service" : "subscription",
+                term_months: isService ? null : termMonths,
                 payer_email: payerEmail,
             })
             .select("id")

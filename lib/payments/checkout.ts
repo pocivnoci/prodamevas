@@ -60,6 +60,12 @@ export interface CheckoutInput {
     plan: { id: string; name: string; price_czk: number }
     payerEmail: string | null
     termMonths: TermMonths
+    /**
+     * `service` = jednorázová služba (nastavení značky). Mění tři věci: platí se
+     * celá cena bez období, Stripe jede v jednorázovém režimu (není co obnovovat)
+     * a nezakládá se žádné předplatné.
+     */
+    kind?: "subscription" | "service"
 }
 
 export interface CheckoutResult {
@@ -97,21 +103,25 @@ export async function createStripeCheckout(input: CheckoutInput): Promise<Checko
     if (!isStripeConfigured()) throw new Error("Stripe není nakonfigurovaná")
 
     const { client, plan, payerEmail, termMonths } = input
+    const isService = input.kind === "service"
     const refId = generateRefId(client.slug)
-    const label = paymentLabel(plan.name, termMonths)
-    const amount = termPrice(plan.price_czk, termMonths)
+    const label = isService ? `Chrlit — ${plan.name}` : paymentLabel(plan.name, termMonths)
+    const amount = isService ? plan.price_czk : termPrice(plan.price_czk, termMonths)
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://chrlit.cz"
 
     // `plans.price_czk` drží HALÉŘE (stejně jako `payments.amount` a to, co jde
     // do ComGate). Stripe chce nejmenší jednotku měny → předává se beze změny.
+    //
+    // Jednorázová služba jede v režimu `payment`: není co obnovovat, a předplatné
+    // by u ní znamenalo strhávat 990 Kč každý měsíc za schůzku, která byla jednou.
     const session = await getStripe().checkout.sessions.create({
-        mode: "subscription",
+        mode: isService ? "payment" : "subscription",
         line_items: [{
             quantity: 1,
             price_data: {
                 currency: "czk",
                 unit_amount: amount,
-                recurring: stripeRecurring(termMonths),
+                ...(isService ? {} : { recurring: stripeRecurring(termMonths) }),
                 product_data: { name: label },
             },
         }],
@@ -121,26 +131,32 @@ export async function createStripeCheckout(input: CheckoutInput): Promise<Checko
         // Metadata na SAMOTNÉM předplatném — obnovy chodí jako `invoice.paid` bez
         // Checkout Session, takže bez tohohle by se u druhé faktury nedalo zjistit,
         // čí a jaký tarif to je.
-        subscription_data: {
-            metadata: { clientId: client.id, clientSlug: client.slug, planId: plan.id, termMonths: String(termMonths) },
-        },
+        ...(isService ? {} : {
+            subscription_data: {
+                metadata: { clientId: client.id, clientSlug: client.slug, planId: plan.id, termMonths: String(termMonths) },
+            },
+        }),
         success_url: `${baseUrl}/dashboard/instagram?platba=ok`,
         cancel_url: `${baseUrl}/dashboard/instagram?platba=zrusena`,
     })
 
     if (!session.id || !session.url) throw new Error("Stripe nevrátil session id nebo URL")
 
-    const { data: subscription } = await supabaseAdmin
-        .from("subscriptions")
-        .insert({
-            client_id: client.id,
-            plan_id: plan.id,
-            status: "pending",
-            term_months: termMonths,
-            provider: "stripe",
-        })
-        .select("id")
-        .single()
+    // Služba nezakládá předplatné — pending řádek bez tarifu by zamaskoval
+    // zákazníkovi jeho skutečný plán (viz pickLiveSubscription).
+    const { data: subscription } = isService
+        ? { data: null }
+        : await supabaseAdmin
+            .from("subscriptions")
+            .insert({
+                client_id: client.id,
+                plan_id: plan.id,
+                status: "pending",
+                term_months: termMonths,
+                provider: "stripe",
+            })
+            .select("id")
+            .single()
 
     // provider_ref = id Session. Částečný UNIQUE index (provider, provider_ref)
     // z migrace 20260810 je nárok na zpracování — replay webhooku claim nevrátí.
@@ -154,7 +170,8 @@ export async function createStripeCheckout(input: CheckoutInput): Promise<Checko
         currency: "CZK",
         status: "PENDING",
         label,
-        term_months: termMonths,
+        kind: isService ? "service" : "subscription",
+        term_months: isService ? null : termMonths,
         payer_email: payerEmail,
     })
 

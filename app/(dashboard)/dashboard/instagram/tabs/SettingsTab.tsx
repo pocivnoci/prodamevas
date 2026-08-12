@@ -10,7 +10,9 @@ import { generateCategoryPrompt } from "@/app/actions/content-plan-actions"
 import { getConnectionStatus, disconnectInstagram, type ConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { SubscriptionSection } from "./SubscriptionSection"
 import { BillingSection } from "./BillingSection"
+import { ConsultationSection } from "./ConsultationSection"
 import { FEED_PATTERNS, computeSlotIntent, type FeedPatternId } from "@/lib/feed-pattern"
+import { Hint, HINTS } from "./Hint"
 
 // ═══════════════════════════════════════════════════════════
 // SETTINGS TAB
@@ -310,6 +312,11 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                 looked fine while loading and then broke. The pricing stays on the page
                 (it is still a conversion surface, and the sidebar's "Vybrat plán" CTA
                 is unaffected); it just no longer blocks the settings. */}
+            {/* Schůzka sedí NAD ceníkem: kdo se rozmýšlí nad tarifem, má vidět, že
+                si to může nechat nastavit — a že u 6 a 12 měsíců je to v ceně.
+                Komponenta se sama skryje, dokud stav nedorazí, takže nic nepřeskakuje. */}
+            <ConsultationSection projectId={projectId} />
+
             <SubscriptionSection projectId={projectId} />
 
             {/* Fakturační údaje + doklady patří pod předplatné: zákazník je hledá
@@ -323,12 +330,19 @@ export function SettingsTab({ projectId }: { projectId: string }) {
 // SHARED UI HELPERS
 // ═══════════════════════════════════════════════════════════
 
-function SectionCard({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+/**
+ * `description` říká, CO sekce dělá. `why` říká, PROČ na ní záleží — a je
+ * schované za kliknutím, protože se hodí jednou, při prvním nastavování.
+ * Dává se jen tam, kde špatné nastavení stojí kredity nebo kvalitu; u ostatních
+ * sekcí by to byl šum, který lidi naučí přestat vysvětlivky číst.
+ */
+function SectionCard({ title, description, why, children }: { title: string; description?: string; why?: React.ReactNode; children: React.ReactNode }) {
     return (
         <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-6 space-y-5">
             <div className="border-b border-white/10 pb-3 mb-2">
                 <h3 className="text-sm font-black uppercase tracking-widest text-white/70">{title}</h3>
                 {description && <p className="text-[10px] text-white/30 mt-1 font-medium">{description}</p>}
+                {why && <div className="mt-2"><Hint>{why}</Hint></div>}
             </div>
             {children}
         </div>
@@ -395,7 +409,7 @@ function VoiceSection({ config, updateField, updateArrayField }: {
 
     return (
         <div className="space-y-6">
-            <SectionCard title="Persona & Tón" description="Jak vaše značka mluví — co AI říká a jak to říká">
+            <SectionCard title="Persona & Tón" description="Jak vaše značka mluví — co AI říká a jak to říká" why={HINTS.tone}>
                 <div>
                     <FieldLabel hint="Detailní popis kdo jsme, jak mluvíme, jaký máme přístup k zákazníkům">Persona — kdo jsme, jak mluvíme</FieldLabel>
                     <textarea value={voice.persona || ""} onChange={(e) => updateField(["brandVoice", "persona"], e.target.value)}
@@ -599,7 +613,7 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
 
     return (
         <div className="space-y-6">
-            <SectionCard title="Témata obsahu" description="Tematické kategorie definují mix vašeho obsahu. Každé téma má poměr (ratio) — celkový součet by měl být ~1.0">
+            <SectionCard title="Témata obsahu" description="Tematické kategorie definují mix vašeho obsahu. Každé téma má poměr (ratio) — celkový součet by měl být ~1.0" why={HINTS.pillars}>
                 {/* Ratio bar */}
                 {pillarEntries.length > 0 && (
                     <div className="space-y-2">
@@ -989,7 +1003,7 @@ function FormatsSection({ config, projectId, onReload }: { config: any; projectI
 
     return (
         <div className="space-y-6">
-            <SectionCard title="Formáty příspěvků" description="Každý formát je jeden typ postu (šablona), který si vybíráte při generování. Formát „s produktem“ automaticky přikládá reálnou fotku produktu. „Jen ručně“ znamená, že ho AI nikdy nezvolí sama (soutěže, limitky) — vyberete ho jen vy v Tvorbě.">
+            <SectionCard title="Formáty příspěvků" description="Každý formát je jeden typ postu (šablona), který si vybíráte při generování. Formát „s produktem“ automaticky přikládá reálnou fotku produktu. „Jen ručně“ znamená, že ho AI nikdy nezvolí sama (soutěže, limitky) — vyberete ho jen vy v Tvorbě." why={HINTS.formats}>
                 {error && (
                     <p className="text-[10px] text-red-400 font-bold uppercase tracking-widest">{error}</p>
                 )}
@@ -1604,7 +1618,7 @@ function InstagramConnectionSection({ projectId }: { projectId: string }) {
     const expiry = status?.expiresAt ? new Date(status.expiresAt).toLocaleDateString("cs-CZ") : null
 
     return (
-        <SectionCard title="Instagram účet">
+        <SectionCard title="Instagram účet" why={HINTS.instagram}>
             {flash && (
                 <p className="text-[10px] text-white/60 bg-white/5 rounded-sm px-3 py-2 mb-3">{flash}</p>
             )}
@@ -1719,7 +1733,7 @@ function AutoPublishSection({ projectId }: { projectId: string }) {
     }
 
     return (
-        <SectionCard title="Auto-publikování" description="Ať účet postuje sám v čase — obsah se vydává postupně podle zvolené frekvence a časů (český čas).">
+        <SectionCard title="Auto-publikování" description="Ať účet postuje sám v čase — obsah se vydává postupně podle zvolené frekvence a časů (český čas)." why={HINTS.autoPublish}>
             {loading ? (
                 <p className="text-[10px] text-white/30">Načítám…</p>
             ) : (
@@ -1749,6 +1763,7 @@ function AutoPublishSection({ projectId }: { projectId: string }) {
                     {/* Frequency */}
                     <div>
                         <label className="block text-[8px] text-white/40 font-bold uppercase tracking-widest mb-2">Frekvence</label>
+                        <div className="mb-2"><Hint label="kolik to stojí">{HINTS.cadence}</Hint></div>
                         <div className="flex flex-wrap gap-2">
                             {AUTOPUB_CADENCES.map(c => (
                                 <button

@@ -1775,14 +1775,106 @@ test("25.8 zrušení se propíše do brány, která fakturuje", () => {
 
 test("25.9 mód Stripe Checkout unese obnovy", () => {
     const code = codeOnly("lib/payments/checkout.ts")
-    // `mode: "payment"` je jednorázovka — druhé období by nikdo nestrhl,
-    // přestože §8 podmínek slibuje automatickou obnovu.
-    assert(/mode: "subscription"/.test(code), "Stripe musí zakládat předplatné, ne jednorázovou platbu")
-    assert(!/mode: "payment"/.test(code), "jednorázový režim obnovy neunese")
-    assert(/stripeRecurring\(termMonths\)/.test(code),
+    // `mode: "payment"` je jednorázovka — u PŘEDPLATNÉHO by druhé období nikdo
+    // nestrhl, přestože §8 podmínek slibuje automatickou obnovu. Jednorázový
+    // režim smí být navázaný VÝHRADNĚ na službu (nastavení značky), která se
+    // ze své podstaty neobnovuje.
+    assert(/mode: isService \? "payment" : "subscription"/.test(code),
+        "režim musí viset na druhu platby — předplatné nikdy jednorázově")
+    assert(!/mode: "payment"[,\s]/.test(code),
+        "natvrdo jednorázový režim by obnovy neunesl")
+    assert(/isService \? \{\} : \{ recurring: stripeRecurring\(termMonths\) \}/.test(code),
         "kratší období musí být skutečné předplatné přes interval_count, ne série jednorázovek")
     assert(/subscription_data:/.test(code),
         "metadata musí být i na předplatném — obnova chodí bez Checkout Session")
+})
+
+// ═══════════════════════════════════════════════════════════
+// 26. VSTUPNÍ SCHŮZKA (nastavení značky na míru)
+// ═══════════════════════════════════════════════════════════
+// Placená služba je první platba v systému, která NEAKTIVUJE tarif. Tyhle
+// aserce hlídají tři hranice, které se snadno rozmažou: služba nesmí nic
+// aktivovat, peníze nesmí obejít doklad, a rezervace nesmí přijít bez ověření.
+
+test("26.1 zaplacená služba neaktivuje tarif", () => {
+    const core = codeOnly("lib/payments/on-paid.ts")
+    // Bez téhle větve by zákazník dostal za 990 Kč měsíc Startu.
+    assert(/payment\.kind === "service"/.test(core),
+        "jádro musí rozlišit službu od předplatného")
+    assert(/unlockPaidService/.test(core),
+        "služba odemyká schůzku, ne tarif")
+    // Doklad se druhem platby neliší — daňová povinnost je stejná.
+    assert(/issueInvoiceForPayment/.test(core),
+        "i jednorázová služba musí dostat daňový doklad")
+
+    const create = codeOnly("app/api/payments/create/route.ts")
+    assert(/kind: isService \? "service" : "subscription"/.test(create),
+        "druh platby musí být na řádku, jinak ho jádro nemá kde přečíst")
+    assert(/isService\s*\n?\s*\?\s*\{ data: null \}/.test(create),
+        "služba nesmí zakládat pending předplatné — maskovalo by skutečný plán")
+})
+
+test("26.2 peníze za schůzku nesmí jít mimo náš doklad", () => {
+    // Kdyby 990 Kč inkasoval Cal.com svým Stripem, nevznikne faktura ve
+    // Fakturoidu — a to je zákonná povinnost, ne detail.
+    const hook = codeOnly("app/api/consultations/cal-webhook/route.ts")
+    assert(!/payments/.test(hook), "rezervační webhook nesmí sahat na platby")
+    assert(!/amount|price|cena/i.test(hook), "Cal.com o ceně nemá vědět vůbec")
+
+    const lib = codeOnly("lib/consultations.ts")
+    assert(!/from\("payments"\)\s*\n?\s*\.insert/.test(lib),
+        "konzultace nezakládají platby — od toho je platební cesta")
+})
+
+test("26.3 rezervace bez ověřeného podpisu se nezpracuje", () => {
+    const hook = codeOnly("app/api/consultations/cal-webhook/route.ts")
+    assert(/verifyCalSignature/.test(hook), "webhook URL je veřejná — bez podpisu si schůzku připíše kdokoli")
+    assert(/timingSafeEqual/.test(hook), "porovnání podpisu musí být časově konstantní")
+    assert(/req\.text\(\)/.test(hook), "podpis se počítá ze syrových bajtů, ne z přeparsovaného JSON")
+    assert(/CAL_WEBHOOK_SECRET/.test(hook), "bez tajemství se nesmí zpracovat nic")
+})
+
+test("26.4 nárok na schůzku se uděluje jednou", () => {
+    const mig = fileContent("supabase/migrations/20260812_consultations.sql")
+    // Bez tohohle indexu by každá obnova ročního tarifu založila další schůzku zdarma.
+    assert(/CREATE UNIQUE INDEX[\s\S]*?consultations_entitlement_uniq[\s\S]*?WHERE source IN \('term_6', 'term_12'\)/.test(mig),
+        "nárok z předplatného musí být unikátní na klienta")
+    assert(/consultations_booking_uid_uniq/.test(mig),
+        "rezervace potřebuje idempotenční klíč — webhook chodí opakovaně")
+
+    const lib = codeOnly("lib/consultations.ts")
+    assert(/23505/.test(lib), "konflikt unikátního indexu je správný stav, ne chyba")
+
+    const core = codeOnly("lib/payments/on-paid.ts")
+    assert(/grantConsultationEntitlement/.test(core),
+        "nárok musí vzniknout při aktivaci delšího období")
+})
+
+test("26.5 podklad na hovor se negeneruje dvakrát", () => {
+    // Přegenerování by přepsalo poznámky z prvního běhu.
+    const brief = codeOnly("lib/agents/consultation-brief.ts")
+    assert(/brief_generated_at/.test(brief), "generování musí být idempotentní přes značku času")
+    assert(/\.is\("brief_generated_at", null\)/.test(brief),
+        "zápis podkladu musí být podmíněný — souběžný běh nesmí přepsat hotový")
+
+    // Generování mimo webhook: Cal.com má dostat ACK hned.
+    const hook = codeOnly("app/api/consultations/cal-webhook/route.ts")
+    assert(/enqueueTask/.test(hook), "podklad patří do fronty, ne do webhooku")
+    assert(!/generateConsultationBrief/.test(hook), "webhook nesmí generovat synchronně")
+})
+
+test("26.6 vysvětlivky jsou jen tam, kde chyba něco stojí", () => {
+    // Nápověda u samozřejmého pole je šum, který lidi naučí přestat ji číst.
+    const hints = codeOnly("app/(dashboard)/dashboard/instagram/tabs/Hint.tsx")
+    for (const key of ["tone", "pillars", "formats", "cadence", "autoPublish", "credits"]) {
+        assert(new RegExp(`${key}:`).test(hints), `chybí vysvětlivka pro ${key}`)
+    }
+    // Nevratná akce se musí označit jako nevratná.
+    assert(/Zpátky to vzít nejde/.test(hints),
+        "auto-publikování musí říct, že zveřejnění nejde vzít zpět")
+    // Prepaid zákazník se nesmí dozvědět až ve třetím měsíci, že kredity propadají.
+    assert(/i u předplatného zaplaceného na rok/.test(hints),
+        "propadání kreditů musí být řečené i u ročního předplatného")
 })
 
 // ═══════════════════════════════════════════════════════════

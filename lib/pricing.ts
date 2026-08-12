@@ -220,3 +220,33 @@ export const LOWEST_MONTHLY_HALERU = monthlyEquivalent(FALLBACK_PLANS[0].monthly
 export function lowestPriceClaim(): string {
     return `od ${formatCzk(LOWEST_MONTHLY_HALERU)} měsíčně při roční platbě`
 }
+
+// ─── Nastavení značky na míru (vstupní konzultace) ───────────────────────────
+
+/**
+ * Jednorázová služba, ne tarif.
+ *
+ * Cena je záměrně shodná s měsícem Startu — číslo, které si člověk okamžitě
+ * přepočítá. Neúčtuje se kvůli tržbě: **je to filtr proti neúčasti.** Bezplatné
+ * schůzky u neznámé značky má docházku kolem poloviny, zaplacené se blíží stovce.
+ *
+ * Prodává se výstup, ne rada: ze schůzky odchází nastavený profil a první měsíc
+ * obsahu. Účtovat si za „konzultaci" před nákupem je obchodní hovor za peníze;
+ * účtovat si za nastavení je služba.
+ */
+export const CONSULTATION = {
+    id: "nastaveni-znacky",
+    name: "Nastavení značky na míru",
+    priceHaleru: 99000,
+    durationMinutes: 30,
+    /**
+     * Období, ke kterým se dodává v ceně. Delší závazek tím dostane důvod navíc,
+     * aniž se sáhne na slevu — marginální náklad je půlhodina, ne marže.
+     */
+    includedWithTerms: [6, 12] as readonly number[],
+} as const
+
+/** Dostane zákazník nastavení k tomuhle období zdarma? */
+export function consultationIncluded(termMonths: number): boolean {
+    return CONSULTATION.includedWithTerms.includes(termMonths)
+}

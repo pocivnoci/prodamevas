@@ -37,6 +37,12 @@ export interface PaidPaymentRow {
     amount: number
     currency?: string | null
     label?: string | null
+    /**
+     * `subscription` aktivuje tarif, `service` je jednorázová služba (nastavení
+     * značky), která nesmí aktivovat NIC — ale doklad na ni vzniká úplně stejně.
+     * Bez tohohle rozlišení by zákazník za 990 Kč dostal měsíc Startu.
+     */
+    kind?: string | null
 }
 
 export interface FinalizeOptions {
@@ -77,6 +83,35 @@ export interface FinalizeResult {
 /** Legacy fallback pro platby bez navázaného předplatného. */
 const LEGACY_PLAN_ID = "chrlit"
 
+/** Pseudo-„plán" pro jednorázové služby — jen aby měl e-mail co pojmenovat. */
+const SERVICE_PLAN_ID = "nastaveni-znacky"
+
+/**
+ * Zaplacená jednorázová služba → konzultace čeká na rezervaci termínu.
+ *
+ * Podmíněný insert přes `consultations_payment_uniq`: jedna platba smí odemknout
+ * právě jednu schůzku, i kdyby webhook dorazil desetkrát. Konflikt není chyba,
+ * je to důkaz, že to už někdo udělal.
+ *
+ * Selhání se **polyká záměrně**: zaplaceno je, doklad se vystaví, a když se
+ * nepodaří založit řádek schůzky, je to na ruční opravu — ale nesmí to shodit
+ * potvrzení platby a poslat zákazníka do neúspěšné brány s penězi pryč.
+ */
+async function unlockPaidService(payment: PaidPaymentRow): Promise<void> {
+    try {
+        const { error } = await supabaseAdmin.from("consultations").insert({
+            client_id: payment.client_id,
+            payment_id: payment.id,
+            status: "paid",
+            source: "purchase",
+        })
+        if (error && error.code !== "23505") throw new Error(error.message)
+        console.log(`🗓️ Nastavení značky odemčeno pro klienta ${payment.client_id}`)
+    } catch (err: any) {
+        console.error(`🚨 Zaplacená služba ${payment.id} neodemkla schůzku: ${err?.message}`)
+    }
+}
+
 /**
  * Aktivuje zaplacený plán. Volá se **po** úspěšném zabrání stavu, takže se na
  * jednu platbu provede právě jednou.
@@ -85,6 +120,14 @@ export async function finalizePaidPayment(
     payment: PaidPaymentRow,
     opts: FinalizeOptions
 ): Promise<FinalizeResult> {
+    // Jednorázová služba (nastavení značky) žádný tarif neaktivuje — jen odemkne
+    // rezervaci termínu. Doklad a potvrzení běží dál stejnou cestou, protože
+    // daňová povinnost se druhem platby neliší.
+    if (payment.kind === "service") {
+        await unlockPaidService(payment)
+        return { activated: true, planId: SERVICE_PLAN_ID, isRenewal: false, sandbox: Boolean(opts.sandbox), period: null }
+    }
+
     // Zakoupený plán visí na pending předplatném založeném při vytvoření platby;
     // obnovy odkazují přímo na živé předplatné.
     let planId = LEGACY_PLAN_ID
@@ -114,6 +157,14 @@ export async function finalizePaidPayment(
             })
         } catch { /* Sentry je volitelný */ }
         return { activated: false, planId, isRenewal: opts.isRenewal, sandbox: Boolean(opts.sandbox), period: null }
+    }
+
+    // Nastavení značky v ceně u 6 a 12 měsíců. Bonus, ne podmínka — vlastní
+    // idempotence (jeden nárok na klienta), vlastní chyby, nikdy nevyhazuje,
+    // takže obnova ročního tarifu nezaloží druhou schůzku zdarma.
+    if (period?.termMonths) {
+        const { grantConsultationEntitlement } = await import("@/lib/consultations")
+        await grantConsultationEntitlement(payment.client_id, period.termMonths)
     }
 
     // Úspěšná platba nuluje dunning a u PRVNÍ platby uloží token pro obnovy.
@@ -163,6 +214,37 @@ export async function deliverPaidArtifacts(
 
         if (!to) return
 
+        const invoiceLine = invoice.status === "issued" && invoice.publicUrl
+            ? `Daňový doklad č. <strong>${invoice.number}</strong>: <a href="${invoice.publicUrl}">zobrazit fakturu →</a>`
+            : invoice.status === "issued"
+                ? `Daňový doklad č. <strong>${invoice.number}</strong> jsme vám poslali samostatným e-mailem.`
+                : `Daňový doklad vám zašleme e-mailem během okamžiku.`
+
+
+        // Jednorázová služba má vlastní potvrzení: neaktivoval se žádný tarif,
+        // takže „generování je odemčené" by bylo lež. Odemkla se rezervace.
+        if (payment.kind === "service") {
+            const { consultationBookingUrl } = await import("@/lib/consultations")
+            const bookingUrl = await consultationBookingUrl(payment.client_id, to)
+            await sendNotification({
+                to,
+                kind: "transactional",
+                subject: "Zaplaceno — vyberte si termín nastavení značky",
+                body: `Dobrý den,
+
+děkujeme za platbu. Teď zbývá jediné: <strong>vybrat si termín</strong>.
+
+<a href="${bookingUrl}">Vybrat termín →</a>
+
+Schůzka trvá 30 minut a je online — odkaz na video hovor dostanete spolu s potvrzením termínu. Než se sejdeme, projdeme si vaši značku a přijdeme s hotovým návrhem, takže se na nic připravovat nemusíte.
+
+${invoiceLine}
+
+Tým Chrlit`,
+            })
+            return
+        }
+
         let planName = result.planId
         const { data: planRow } = await supabaseAdmin
             .from("subscription_plans")
@@ -174,12 +256,6 @@ export async function deliverPaidArtifacts(
         const amountStr = typeof payment.amount === "number"
             ? `${(payment.amount / 100).toLocaleString("cs-CZ")} ${payment.currency === "CZK" || !payment.currency ? "Kč" : payment.currency}`
             : null
-
-        const invoiceLine = invoice.status === "issued" && invoice.publicUrl
-            ? `Daňový doklad č. <strong>${invoice.number}</strong>: <a href="${invoice.publicUrl}">zobrazit fakturu →</a>`
-            : invoice.status === "issued"
-                ? `Daňový doklad č. <strong>${invoice.number}</strong> jsme vám poslali samostatným e-mailem.`
-                : `Daňový doklad vám zašleme e-mailem během okamžiku.`
 
         await sendNotification({
             to,
@@ -307,7 +383,7 @@ export async function applyGatewayStatus(input: ApplyGatewayInput): Promise<Appl
         // REFUNDED: peníze jsou vrácené a předplatné zrušené — pozdní callback
         // (reconciler, opakovaný webhook) ho nesmí vzkřísit zpátky na PAID.
         .not("status", "in", "(PAID,REFUNDED)")
-        .select("id, subscription_id, client_id, ref_id, payer_email, amount, currency, label")
+        .select("id, subscription_id, client_id, ref_id, payer_email, amount, currency, label, kind")
         .maybeSingle()
 
     if (!payment) return { claimed: false }
