@@ -1,8 +1,10 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react"
+import { usePathname, useRouter } from "next/navigation"
 import { trackEvent } from "@/lib/analytics"
 import { ALL_MEDIA } from "@/lib/credits"
+import { ALL_SECTIONS, SWIPE_ORDER } from "./nav"
 
 export type StudioSection =
     | "dashboard"
@@ -26,11 +28,10 @@ export type StudioSection =
     | "mailing"
     | "company"
 
-const VALID_SECTIONS: StudioSection[] = [
-    "dashboard", "posts", "calendar", "feed", "plan", "generate",
-    "ideas", "reviews", "inspiration", "brand", "products",
-    "performance", "settings", "onboard", "waitlist", "brain", "faq", "approvals", "mailing", "company",
-]
+// Seznam platných sekcí odvozuje registr v `nav.ts` (import nahoře) — ručně
+// udržovaná kopie se od unionu výš pokaždé rozešla. Union zůstává ručně: je to
+// typ, proti kterému se registr validuje (`NavItem.id: StudioSection`).
+const VALID_SECTIONS = ALL_SECTIONS
 
 /** One-shot intent handed from a CTA (dashboard hero / sidebar) to GenerateTab so it
  *  opens pre-configured — e.g. "Obsah na měsíc" opens plan mode with month preset.
@@ -56,6 +57,8 @@ export interface SubscriptionState {
     creditsTotal: number
     creditsRemaining: number
     trialEndsAt: string | null
+    /** Dopočítané při načtení — viz `refreshSubscription`. */
+    trialDaysLeft: number | null
     /** End of the paid period (month or year) — renewal date. */
     currentPeriodEnd: string | null
     /** End of the credit window (always monthly) — when the credit bar resets. */
@@ -94,7 +97,7 @@ export interface SubscriptionState {
 
 interface StudioState {
     activeSection: StudioSection
-    setActiveSection: (s: StudioSection) => void
+    setActiveSection: (s: StudioSection, opts?: { replace?: boolean }) => void
     projectId: string
     setProjectId: (id: string) => void
     subscription: SubscriptionState | null
@@ -102,6 +105,11 @@ interface StudioState {
     refreshSubscription: () => void
     generateIntent: GenerateIntent | null
     setGenerateIntent: (i: GenerateIntent | null) => void
+    /** Odkud kam se šlo v rámci lišty: -1 doleva, 1 doprava, 0 skok jinam. */
+    navDirection: number
+    /** Zvýší se při tažení pro obnovení; `page.tsx` ho má v `key`, takže se tab přemountuje. */
+    refreshNonce: number
+    bumpRefresh: () => void
 }
 
 const StudioContext = createContext<StudioState>({
@@ -114,15 +122,35 @@ const StudioContext = createContext<StudioState>({
     refreshSubscription: () => {},
     generateIntent: null,
     setGenerateIntent: () => {},
+    navDirection: 0,
+    refreshNonce: 0,
+    bumpRefresh: () => {},
 })
 
 export function StudioProvider({ children }: { children: ReactNode }) {
     const [activeSection, setActiveSectionRaw] = useState<StudioSection>(getInitialSection)
-    const setActiveSection = useCallback((s: StudioSection) => {
+    const [navDirection, setNavDirection] = useState(0)
+    const [refreshNonce, setRefreshNonce] = useState(0)
+    // Směr se počítá ze sekce, ze které odcházíme. Ref, ne stav — čte se uvnitř
+    // setteru a nesmí ho zpožďovat další render.
+    const currentRef = useRef<StudioSection>(activeSection)
+    currentRef.current = activeSection
+
+    const setActiveSection = useCallback((s: StudioSection, opts?: { replace?: boolean }) => {
+        const from = SWIPE_ORDER.indexOf(currentRef.current)
+        const to = SWIPE_ORDER.indexOf(s)
+        setNavDirection(from >= 0 && to >= 0 && from !== to ? Math.sign(to - from) : 0)
+
         setActiveSectionRaw(s)
-        window.history.pushState(null, "", `#${s}`)
+        // `replace` je pro ťuknutí na už otevřenou položku lišty — jinak by se
+        // historie zaplnila stejným záznamem a tlačítko zpět by přestalo fungovat.
+        const url = `#${s}`
+        if (opts?.replace) window.history.replaceState(null, "", url)
+        else window.history.pushState(null, "", url)
         trackEvent('tab_viewed', { tab_name: s })
     }, [])
+
+    const bumpRefresh = useCallback(() => setRefreshNonce(n => n + 1), [])
     const [projectId, setProjectId] = useState("")
     const [subscription, setSubscription] = useState<SubscriptionState | null>(null)
     const [subscriptionLoading, setSubscriptionLoading] = useState(true)
@@ -162,6 +190,12 @@ export function StudioProvider({ children }: { children: ReactNode }) {
                     reelsEnabled: data.reelsEnabled ?? false,
                     storiesEnabled: data.storiesEnabled ?? false,
                     growthTracking: data.growthTracking ?? false,
+                    // Počítá se tady, ne při vykreslení: `Date.now()` v renderu je
+                    // nečistá funkce a hodnota by se měnila při každém překreslení.
+                    // Zbývající dny navíc patří k načteným datům — jsou stejně čerstvé.
+                    trialDaysLeft: data.trialEndsAt
+                        ? Math.max(0, Math.ceil((new Date(data.trialEndsAt).getTime() - Date.now()) / 86400000))
+                        : null,
                 } : null)
             } else {
                 setSubscription(null)
@@ -184,6 +218,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             projectId, setProjectId,
             subscription, subscriptionLoading, refreshSubscription,
             generateIntent, setGenerateIntent,
+            navDirection, refreshNonce, bumpRefresh,
         }}>
             {children}
         </StudioContext.Provider>
@@ -192,4 +227,24 @@ export function StudioProvider({ children }: { children: ReactNode }) {
 
 export function useStudio() {
     return useContext(StudioContext)
+}
+
+/**
+ * Přepnutí sekce odkudkoli pod dashboard layoutem.
+ *
+ * Sekce je stav, ne route, takže `setActiveSection` sám o sobě nic neudělá na
+ * `/dashboard/settings` — ta stránka ho nečte. Sidebar tím trpí už dnes: kliknutí
+ * na položku tam vypadá jako zaseknutá aplikace. Pořadí je podstatné — stav se
+ * nastaví první, layout se při změně route nedemountuje, takže `getInitialSection()`
+ * podruhé neproběhne a nepřebije ho hashem.
+ */
+export function useStudioNavigate() {
+    const { setActiveSection } = useStudio()
+    const pathname = usePathname()
+    const router = useRouter()
+
+    return useCallback((s: StudioSection, opts?: { replace?: boolean }) => {
+        setActiveSection(s, opts)
+        if (pathname !== "/dashboard/instagram") router.push("/dashboard/instagram")
+    }, [setActiveSection, pathname, router])
 }
