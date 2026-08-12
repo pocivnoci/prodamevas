@@ -1,11 +1,13 @@
-const CACHE_NAME = 'chrlit-v2'
+const CACHE_NAME = 'chrlit-v3'
+const OFFLINE_URL = '/offline.html'
 
 // Assets to precache (app shell)
 const PRECACHE_URLS = [
-  '/dashboard',
+  OFFLINE_URL,
   '/icon-192.png',
   '/icon-512.png',
   '/chrlit-logo.png',
+  '/chrlit-logo-transparent.svg',
 ]
 
 self.addEventListener('install', (event) => {
@@ -32,8 +34,17 @@ self.addEventListener('fetch', (event) => {
   if (!request.url.startsWith('http')) return
   if (request.url.includes('/api/') || request.url.includes('/auth/')) return
   if (request.url.includes('supabase.co')) return
-  // Skip page navigations — only intercept static assets
-  if (request.mode === 'navigate') return
+
+  // Navigace jde vždy na síť — nic se necachuje, aby nešlo narazit na starou
+  // stránku nebo cizí přihlášení. Cache slouží jen jako záchrana, když síť
+  // spadne: bez ní by nainstalovaná aplikace ukázala chybovou stránku prohlížeče.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() => caches.match(OFFLINE_URL))
+    )
+    return
+  }
+
   if (!request.url.match(/\.(js|css|png|jpg|webp|svg|ico|woff2?)(\?|$)/)) return
 
   event.respondWith(
