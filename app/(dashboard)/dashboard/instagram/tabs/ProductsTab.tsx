@@ -338,13 +338,14 @@ export function ProductsTab({ projectId }: { projectId: string }) {
 
     return (
         <div className="space-y-6">
-            {/* Section tabs */}
-            <div className="flex gap-2">
+            {/* Section tabs — na telefonu se pět sekcí s popisky nevejde; bez posuvu
+                se poslední dvě neuřízly jen vizuálně, vůbec nešly otevřít. */}
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide sm:flex-wrap">
                 {sections.map(s => (
                     <button
                         key={s.id}
                         onClick={() => { setSection(s.id); setError(null) }}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-sm text-[10px] uppercase tracking-widest font-bold transition-all border ${section === s.id
+                        className={`shrink-0 flex items-center gap-2 px-4 min-h-[40px] rounded-sm text-[10px] uppercase tracking-widest font-bold transition-all border cursor-pointer ${section === s.id
                             ? "bg-aisummit-cinnabar/10 text-aisummit-cinnabar border-aisummit-cinnabar/30"
                             : "bg-[#0a0a0a] text-white/40 border-white/5 hover:bg-white/5 hover:text-white"
                             }`}

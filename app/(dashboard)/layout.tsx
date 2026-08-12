@@ -7,6 +7,7 @@ import { BillingBanner } from "./BillingBanner"
 import { InstallBanner } from "@/components/InstallApp"
 import { BottomNav } from "./BottomNav"
 import { GestureShell } from "./GestureShell"
+import { MobileTopBar } from "./MobileTopBar"
 import { checkOnboardingStatus } from "@/app/onboarding/actions"
 
 export const maxDuration = 800 // Vercel Pro cap (Fluid Compute)
@@ -43,6 +44,7 @@ export default async function DashboardLayout({
                     a fixed lišta by přes obsah stejně přelezla. */}
                 <main className="lg:pl-72 min-h-[100dvh] relative z-10 transition-all duration-300 pt-[env(safe-area-inset-top)] pb-[calc(var(--studio-navbar-h)+env(safe-area-inset-bottom))]">
                     <div className="p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto">
+                        <MobileTopBar />
                         <BillingBanner />
                         <InstallBanner />
                         <GestureShell>
