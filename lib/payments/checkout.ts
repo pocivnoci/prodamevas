@@ -61,11 +61,13 @@ export interface CheckoutInput {
     payerEmail: string | null
     termMonths: TermMonths
     /**
-     * `service` = jednorázová služba (nastavení značky). Mění tři věci: platí se
-     * celá cena bez období, Stripe jede v jednorázovém režimu (není co obnovovat)
-     * a nezakládá se žádné předplatné.
+     * `service` = jednorázová služba (nastavení značky), `credits` = dobití.
+     * Obojí mění tři věci: platí se celá cena bez období, Stripe jede
+     * v jednorázovém režimu (není co obnovovat) a nezakládá se předplatné.
      */
-    kind?: "subscription" | "service"
+    kind?: "subscription" | "service" | "credits"
+    /** Kolik kreditů platba koupila — jen u `kind = "credits"`. */
+    creditsGranted?: number
 }
 
 export interface CheckoutResult {
@@ -103,7 +105,9 @@ export async function createStripeCheckout(input: CheckoutInput): Promise<Checko
     if (!isStripeConfigured()) throw new Error("Stripe není nakonfigurovaná")
 
     const { client, plan, payerEmail, termMonths } = input
-    const isService = input.kind === "service"
+    const isCredits = input.kind === "credits"
+    // Služba i dobití se chovají u brány stejně: jednorázová platba bez období.
+    const isService = input.kind === "service" || isCredits
     const refId = generateRefId(client.slug)
     const label = isService ? `Chrlit — ${plan.name}` : paymentLabel(plan.name, termMonths)
     const amount = isService ? plan.price_czk : termPrice(plan.price_czk, termMonths)
@@ -170,7 +174,8 @@ export async function createStripeCheckout(input: CheckoutInput): Promise<Checko
         currency: "CZK",
         status: "PENDING",
         label,
-        kind: isService ? "service" : "subscription",
+        kind: input.kind || "subscription",
+        credits_granted: input.creditsGranted ?? null,
         term_months: isService ? null : termMonths,
         payer_email: payerEmail,
     })

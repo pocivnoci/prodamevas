@@ -88,6 +88,8 @@ export interface SubscriptionState {
     termMonths: number
     /** Cena extra kreditu v haléřích, z tarifu — nikdy ji nepiš do UI natvrdo. */
     extraCreditPrice: number
+    /** Kolik kreditů si klient v tomhle okně dokoupil nad rámec tarifu. */
+    creditsPurchased: number
 }
 
 interface StudioState {

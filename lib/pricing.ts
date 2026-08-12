@@ -250,3 +250,45 @@ export const CONSULTATION = {
 export function consultationIncluded(termMonths: number): boolean {
     return CONSULTATION.includedWithTerms.includes(termMonths)
 }
+
+// ─── Dobití kreditů ──────────────────────────────────────────────────────────
+
+/**
+ * Cena jednoho dokoupeného kreditu.
+ *
+ * Záměrně **bez množstevní slevy**: 49 Kč odpovídá ceně kreditu v nejlevnějším
+ * tarifu, takže dokupování nikdy nevyjde líp než přejít o tarif výš. Sleva na
+ * velkém balíčku by tenhle žebřík obrátila a lidi by zůstávali na Startu
+ * a dokupovali — s horší marží pro nás i horší cenou pro ně.
+ *
+ * Jediná pravda o ceně je `features.extra_credit_price` v tarifu; tohle je
+ * záloha pro případ, že tarif hodnotu nenese (legacy řádky).
+ */
+export const EXTRA_CREDIT_HALERU = 4900
+
+/** Velikosti balíčků. Tři stačí — víc voleb v okamžiku zablokování zdržuje. */
+export const CREDIT_PACKS = [10, 25, 50] as const
+export type CreditPack = (typeof CREDIT_PACKS)[number]
+
+/** Prefix id, pod kterým se balíček kupuje: `kredity-25`. */
+export const CREDIT_PACK_PREFIX = "kredity-"
+
+/**
+ * `"kredity-25"` → 25. Cokoliv jiného → `null`.
+ *
+ * Přípona se ověřuje na SAMÉ číslice, ne přes `parseInt`. Ten je shovívavý —
+ * `parseInt("25; drop table")` vrátí 25 — a tiše by propustil podvržený `planId`
+ * dál do kódu, který s ním pracuje jako s identifikátorem. Dnes by to neuškodilo,
+ * ale je to přesně ta laxnost, ze které se stane díra při příštím použití.
+ */
+export function parseCreditPack(planId: unknown): CreditPack | null {
+    if (typeof planId !== "string" || !planId.startsWith(CREDIT_PACK_PREFIX)) return null
+    const suffix = planId.slice(CREDIT_PACK_PREFIX.length)
+    if (!/^\d+$/.test(suffix)) return null
+    const n = Number(suffix)
+    return (CREDIT_PACKS as readonly number[]).includes(n) ? (n as CreditPack) : null
+}
+
+export function creditPackPrice(credits: number, unitHaleru = EXTRA_CREDIT_HALERU): number {
+    return credits * unitHaleru
+}

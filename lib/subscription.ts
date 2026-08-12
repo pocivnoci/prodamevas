@@ -135,8 +135,11 @@ export interface SubscriptionInfo {
     status: "active" | "trialing" | "cancelled" | "expired" | "pending"
     features: PlanFeatures
     creditsUsed: number
+    /** Měsíční příděl tarifu + dokoupené kredity v tomhle okně. */
     creditsTotal: number
     creditsRemaining: number
+    /** Kolik kreditů si klient v tomhle okně dokoupil (0 = žádné). */
+    creditsPurchased: number
     trialEndsAt: string | null
     /** End of the PAID period (month or year) — when the renewal is charged. */
     currentPeriodEnd: string | null
@@ -289,8 +292,10 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
     // late cron tick can't show a customer a stale (already-spent) window — the
     // billing worker persists the same value on its next run.
     const creditWindow = resolveCreditWindow(sub)
-    const creditsUsed = await getCreditsUsedThisPeriod(clientId, creditWindow)
-    const creditsTotal = features.credits_per_month
+    const { used: creditsUsed, purchased: creditsPurchased } = await getCreditLedger(clientId, creditWindow)
+    // Dokoupené kredity se PŘIČÍTAJÍ k přídělu, neodečítají od spotřeby — jinak
+    // by se přebytek nad měsíční příděl ztratil na ořezu v getCreditLedger.
+    const creditsTotal = features.credits_per_month + creditsPurchased
     const creditsRemaining = Math.max(0, creditsTotal - creditsUsed)
 
     const isTrial = sub.plan_id === "trial_v2"
@@ -311,6 +316,7 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
         isTrial,
         cancelAtPeriodEnd: Boolean(sub.cancel_at_period_end),
         billingFailures: sub.billing_failures || 0,
+        creditsPurchased,
         termMonths,
         provider: sub.provider === "stripe" ? "stripe" : "comgate",
     }
@@ -361,6 +367,28 @@ export async function getCreditsUsedThisPeriod(
     /** Pass the window when the caller already has the subscription row (saves a query). */
     window?: { start: Date; end: Date },
 ): Promise<number> {
+    return (await getCreditLedger(clientId, window)).used
+}
+
+/** Akce, pod kterou se do knihy zapisuje DOBITÍ (záporný řádek). */
+export const TOPUP_ACTION = "credit_topup"
+
+/**
+ * Spotřeba a dobití za aktuální kreditové okno — **oddělně**.
+ *
+ * Oddělit je nutné kvůli tomu ořezání na nule výš. Kdyby se dobití počítalo
+ * jako záporná spotřeba, součet by se u nevyčerpaného přídělu ořízl na nulu
+ * a **koupené kredity nad měsíční příděl by tiše zmizely** — zákazník zaplatí
+ * za 50 kreditů a dostane jen doplnění do svého tarifu. Ořez přitom musí
+ * zůstat: brání tomu, aby refundace vyrobila zápornou spotřebu.
+ *
+ * Dobité kredity platí do konce kreditového období (obchodní podmínky, čl. 7),
+ * takže stejné okno platí pro obojí a nic se nepřenáší.
+ */
+export async function getCreditLedger(
+    clientId: string,
+    window?: { start: Date; end: Date },
+): Promise<{ used: number; purchased: number }> {
     let period = window
     if (!period) {
         const { data: row } = await supabaseAdmin
@@ -376,13 +404,20 @@ export async function getCreditsUsedThisPeriod(
 
     const { data } = await supabaseAdmin
         .from("credit_transactions")
-        .select("credits")
+        .select("credits, action")
         .eq("client_id", clientId)
         .gte("created_at", period.start.toISOString())
         .lt("created_at", period.end.toISOString())
 
-    if (!data || data.length === 0) return 0
-    return Math.max(0, data.reduce((sum, row) => sum + row.credits, 0))
+    if (!data || data.length === 0) return { used: 0, purchased: 0 }
+
+    let used = 0
+    let purchased = 0
+    for (const row of data) {
+        if (row.action === TOPUP_ACTION) purchased += -row.credits // zápisuje se záporně
+        else used += row.credits
+    }
+    return { used: Math.max(0, used), purchased: Math.max(0, purchased) }
 }
 
 /**

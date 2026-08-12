@@ -5,6 +5,7 @@ import { activateFreePlan } from "@/app/actions/settings-actions"
 import { hasBillingDetails, cancelSubscription, resumeSubscription } from "@/app/actions/billing-actions"
 import { BillingModal } from "./BillingSection"
 import { Hint, HINTS } from "./Hint"
+import { CreditPacks } from "@/app/(dashboard)/CreditPacks"
 import { CheckCircle2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import {
@@ -399,6 +400,9 @@ function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState
                     </span>
                     <span className="text-[10px] text-white/60 font-bold">
                         {usedUnits} / {totalUnits}
+                        {!usePostQuota && (sub.creditsPurchased ?? 0) > 0 && (
+                            <span className="text-emerald-400/70 ml-1">(+{sub.creditsPurchased} dokoupeno)</span>
+                        )}
                     </span>
                 </div>
                 <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
@@ -431,6 +435,15 @@ function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState
                     </p>
                 )}
             </div>
+
+            {/* Dobití hned pod ukazatelem kreditů — tam se člověk dívá ve chvíli,
+                kdy si říká „potřebuju víc". Ne o dvě obrazovky níž. */}
+            {!isTrial && sub.status === "active" && (
+                <div className="mt-5 pt-4 border-t border-white/5">
+                    <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest mb-2">Dobít kredity</p>
+                    <CreditPacks />
+                </div>
+            )}
 
             {!isTrial && sub.status === "active" && (
                 <CancelControl sub={sub} projectId={projectId} onRefresh={onRefresh} />

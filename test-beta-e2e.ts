@@ -1808,10 +1808,11 @@ test("26.1 zaplacená služba neaktivuje tarif", () => {
         "i jednorázová služba musí dostat daňový doklad")
 
     const create = codeOnly("app/api/payments/create/route.ts")
-    assert(/kind: isService \? "service" : "subscription"/.test(create),
+    // Tři druhy plateb, tři různé následky — a jen předplatné smí aktivovat tarif.
+    assert(/kind: creditPack \? "credits" : isService \? "service" : "subscription"/.test(create),
         "druh platby musí být na řádku, jinak ho jádro nemá kde přečíst")
-    assert(/isService\s*\n?\s*\?\s*\{ data: null \}/.test(create),
-        "služba nesmí zakládat pending předplatné — maskovalo by skutečný plán")
+    assert(/isService \|\| creditPack\s*\n?\s*\?\s*\{ data: null \}/.test(create),
+        "služba ani dobití nesmí zakládat pending předplatné — maskovalo by skutečný plán")
 })
 
 test("26.2 peníze za schůzku nesmí jít mimo náš doklad", () => {
@@ -1875,6 +1876,82 @@ test("26.6 vysvětlivky jsou jen tam, kde chyba něco stojí", () => {
     // Prepaid zákazník se nesmí dozvědět až ve třetím měsíci, že kredity propadají.
     assert(/i u předplatného zaplaceného na rok/.test(hints),
         "propadání kreditů musí být řečené i u ročního předplatného")
+})
+
+// ═══════════════════════════════════════════════════════════
+// 27. DOKOUPENÉ KREDITY
+// ═══════════════════════════════════════════════════════════
+// Aplikace slibovala „dobijte si kredity" na čtyřech místech a cesta k nákupu
+// neexistovala. Při jejím stavění je nejnebezpečnější past tichá: spotřeba se
+// ořezává na nule, takže dobití počítané jako záporná spotřeba by nad měsíčním
+// přídělem zmizelo — vzali bychom peníze a dali míň.
+
+test("27.1 dokoupené kredity se nesmí ztratit na ořezu", () => {
+    const code = codeOnly("lib/subscription.ts")
+    assert(/TOPUP_ACTION/.test(code), "dobití musí mít vlastní akci, ne se tvářit jako spotřeba")
+    assert(/getCreditLedger/.test(code), "spotřeba a dobití se musí počítat odděleně")
+    // Ořez musí zůstat u SPOTŘEBY (brání záporné spotřebě z refundací), ale
+    // dobití se přičítá k přídělu — ne odečítá od spotřeby.
+    assert(/credits_per_month \+ creditsPurchased/.test(code),
+        "dokoupené kredity se přičítají k přídělu")
+    assert(/action === TOPUP_ACTION/.test(code),
+        "rozdělení musí stát na akci, ne na znaménku — refundace jsou taky záporné")
+})
+
+test("27.2 dobití je idempotentní a nese, kolik se koupilo", () => {
+    const core = codeOnly("lib/payments/on-paid.ts")
+    assert(/credits_granted/.test(core), "množství se bere z platby, ne dopočítává z částky")
+    assert(/reference_id: payment\.id/.test(core),
+        "idempotenci drží unikátní index (action, reference_id) — replay nesmí připsat dvakrát")
+    assert(/23505/.test(core), "konflikt indexu je správný stav, ne chyba")
+    // Nepřipsané kredity = zaplaceno a pořád zablokováno. Nesmí se spolknout.
+    assert(/return false/.test(core), "selhání připsání musí vést na ruční opravu, ne na tiché ignorování")
+
+    const create = codeOnly("app/api/payments/create/route.ts")
+    assert(/parseCreditPack/.test(create), "velikost balíčku se musí validovat, ne brát z requestu")
+    assert(/kind: creditPack \? "credits"/.test(create), "druh platby musí rozlišit dobití")
+})
+
+test("27.3 cena kreditu má jediný zdroj", () => {
+    // Hláška „dobijte si kredity za X/ks" čte cenu z tarifu. Kdyby si ji routa
+    // držela zvlášť, účtovala by jinou částku, než jakou zákazník viděl.
+    const create = codeOnly("app/api/payments/create/route.ts")
+    assert(/extra_credit_price/.test(create), "cena kreditu se bere z tarifu klienta")
+    const sub = codeOnly("lib/subscription.ts")
+    assert(/extraCreditPriceLabel/.test(sub), "hláška o nedostatku musí cenu číst, ne psát natvrdo")
+    assert(!/49 Kč/.test(sub), "cena kreditu nesmí být v textu natvrdo")
+
+    // Množstevní sleva by dokupování udělala výhodnější než vyšší tarif.
+    const { CREDIT_PACKS, creditPackPrice } = require("./lib/pricing")
+    const unit = CREDIT_PACKS.map((c: number) => creditPackPrice(c) / c)
+    assert(new Set(unit).size === 1, "balíčky musí mít stejnou cenu za kredit")
+})
+
+test("27.4 nákup kreditů nezakládá předplatné", () => {
+    // Pending řádek bez tarifu by v pickLiveSubscription zamaskoval skutečný plán.
+    const create = codeOnly("app/api/payments/create/route.ts")
+    assert(/isService \|\| creditPack\s*\n?\s*\?\s*\{ data: null \}/.test(create),
+        "dobití nesmí zakládat pending předplatné")
+    const checkout = codeOnly("lib/payments/checkout.ts")
+    assert(/isCredits/.test(checkout), "Stripe musí u dobití jet jednorázově, ne jako předplatné")
+})
+
+test("27.5 dobití je dosažitelné z místa, kde člověk narazí", () => {
+    // Slepá ulička byla přesně tady: hláška slíbila dobití a tlačítko jen
+    // přepnulo do Nastavení na ceník TARIFŮ.
+    const paywall = codeOnly("app/(dashboard)/PaywallProvider.tsx")
+    assert(/CreditPacks/.test(paywall), "paywall okno musí nabídnout nákup přímo")
+    assert(!/stripe/i.test(paywall), "UI nesmí vědět o konkrétní bráně")
+
+    const packs = codeOnly("app/(dashboard)/CreditPacks.tsx")
+    assert(/api\/payments\/create/.test(packs), "nákup jde společnou platební cestou (kvůli dokladu)")
+    assert(!/stripe/i.test(packs), "UI nesmí vědět o konkrétní bráně")
+})
+
+test("27.6 cena formátu je vidět tam, kde se formát vybírá", () => {
+    const gen = codeOnly("app/(dashboard)/dashboard/instagram/tabs/GenerateTab.tsx")
+    assert(/MEDIA_CREDITS/.test(gen), "u výběru formátu musí být jeho cena")
+    assert(/from "@\/lib\/credits"/.test(gen), "váhy se importují, nikdy nepřepisují")
 })
 
 // ═══════════════════════════════════════════════════════════

@@ -4,6 +4,7 @@ import { useState, useEffect, createContext, useContext, useCallback, type React
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { CheckCircle2, X, Zap, AlertTriangle, Lock } from "lucide-react"
 import { formatCzk, LOWEST_MONTHLY_HALERU } from "@/lib/pricing"
+import { CreditPacks } from "@/app/(dashboard)/CreditPacks"
 
 // ─── Toast System ────────────────────────────────────────────
 
@@ -143,7 +144,7 @@ function UpgradeModal({
     requiredPlan?: string
     onClose: () => void
 }) {
-    const { setActiveSection, subscription } = useStudio()
+    const { setActiveSection } = useStudio()
 
     return (
         <div className="fixed inset-0 z-[99] flex items-center justify-center">
@@ -172,17 +173,12 @@ function UpgradeModal({
                         {reason}
                     </p>
 
-                    {requiredPlan && (
-                        <div className="bg-white/5 border border-white/5 rounded-sm px-4 py-3 mb-6">
-                            <span className="text-[9px] text-white/30 font-bold uppercase tracking-widest">Dobíjecí kredity</span>
-                            {/* Cena chodí z tarifu. Natvrdo tu roky stálo „15 Kč",
-                                zatímco ceník i FAQ říkaly 49 — slíbit v modálním
-                                okně třetinovou cenu je reklamace, ne překlep. */}
-                            <p className="text-white font-black text-lg mt-1">
-                                {formatCzk(subscription?.extraCreditPrice ?? 4900)} / kredit
-                            </p>
-                        </div>
-                    )}
+                    {/* Nákup je PŘÍMO tady, ne za přepnutím do Nastavení. Tohle je
+                        okamžik, kdy je člověk zablokovaný uprostřed práce — poslat
+                        ho hledat ceník znamená, že se nevrátí. */}
+                    <div className="mb-6">
+                        <CreditPacks compact />
+                    </div>
 
                     <div className="flex gap-3">
                         <button
@@ -190,9 +186,9 @@ function UpgradeModal({
                                 setActiveSection("settings")
                                 onClose()
                             }}
-                            className="flex-1 py-3 bg-aisummit-cinnabar text-white rounded-sm font-bold text-xs uppercase tracking-widest hover:bg-aisummit-cinnabar/90 transition-all shadow-[0_0_25px_rgba(230,57,70,0.3)]"
+                            className="flex-1 py-3 border border-white/10 text-white/50 rounded-sm font-bold text-[10px] uppercase tracking-widest hover:bg-white/5 transition-all"
                         >
-                            💳 Dobijte kredity
+                            Nebo přejít na vyšší tarif
                         </button>
                         <button
                             onClick={onClose}

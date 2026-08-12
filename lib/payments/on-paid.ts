@@ -39,10 +39,13 @@ export interface PaidPaymentRow {
     label?: string | null
     /**
      * `subscription` aktivuje tarif, `service` je jednorázová služba (nastavení
-     * značky), která nesmí aktivovat NIC — ale doklad na ni vzniká úplně stejně.
-     * Bez tohohle rozlišení by zákazník za 990 Kč dostal měsíc Startu.
+     * značky) a `credits` je dobití — ani jedno nesmí aktivovat tarif, ale doklad
+     * na ně vzniká úplně stejně. Bez tohohle rozlišení by zákazník za 990 Kč
+     * dostal měsíc Startu.
      */
     kind?: string | null
+    /** Kolik kreditů platba koupila (jen u `kind = 'credits'`). */
+    credits_granted?: number | null
 }
 
 export interface FinalizeOptions {
@@ -85,6 +88,46 @@ const LEGACY_PLAN_ID = "chrlit"
 
 /** Pseudo-„plán" pro jednorázové služby — jen aby měl e-mail co pojmenovat. */
 const SERVICE_PLAN_ID = "nastaveni-znacky"
+const CREDITS_PLAN_ID = "dobiti-kreditu"
+
+/**
+ * Připíše zaplacené kredity.
+ *
+ * Zapisuje se ZÁPORNÝ řádek s akcí `credit_topup` — vlastní akce je nutná,
+ * protože spotřeba se v `getCreditLedger` ořezává na nule a dobití počítané
+ * jako záporná spotřeba by nad měsíčním přídělem tiše zmizelo.
+ *
+ * Idempotence: `ux_credit_transactions_action_ref (action, reference_id)` s id
+ * platby jako referencí. Replay webhooku kredity nepřipíše dvakrát.
+ *
+ * Na rozdíl od dokladu se tady chyba **nepolyká**: nepřipsané kredity znamenají,
+ * že zákazník zaplatil a zůstal zablokovaný. Vrácené `false` nechá platbu ve
+ * stavu PAID a založí návrh na ruční opravu, stejně jako neaktivovaný tarif.
+ */
+async function grantPurchasedCredits(payment: PaidPaymentRow): Promise<boolean> {
+    const credits = Number(payment.credits_granted)
+    if (!Number.isFinite(credits) || credits <= 0) {
+        console.error(`🚨 Platba ${payment.id} je za kredity, ale nenese kolik (credits_granted=${payment.credits_granted})`)
+        return false
+    }
+
+    const { TOPUP_ACTION } = await import("@/lib/subscription")
+    const { error } = await supabaseAdmin.from("credit_transactions").insert({
+        client_id: payment.client_id,
+        action: TOPUP_ACTION,
+        credits: -credits, // záporně = přírůstek
+        description: `Dobití ${credits} kreditů`,
+        reference_id: payment.id,
+    })
+
+    // 23505 = už připsáno (replay). Správný stav, ne chyba.
+    if (error && error.code !== "23505") {
+        console.error(`🚨 Kredity z platby ${payment.id} se nepřipsaly: ${error.message}`)
+        return false
+    }
+    console.log(`⚡ Připsáno ${credits} kreditů klientovi ${payment.client_id}`)
+    return true
+}
 
 /**
  * Zaplacená jednorázová služba → konzultace čeká na rezervaci termínu.
@@ -126,6 +169,20 @@ export async function finalizePaidPayment(
     if (payment.kind === "service") {
         await unlockPaidService(payment)
         return { activated: true, planId: SERVICE_PLAN_ID, isRenewal: false, sandbox: Boolean(opts.sandbox), period: null }
+    }
+
+    // Dobití kreditů — taky neaktivuje tarif, jen připíše kredity do aktuálního
+    // okna. Připsání je součást KRITICKÉ cesty (na rozdíl od dokladu): zákazník
+    // se právě odblokoval uprostřed práce a čeká, že může generovat dál.
+    if (payment.kind === "credits") {
+        const granted = await grantPurchasedCredits(payment)
+        return {
+            activated: granted,
+            planId: CREDITS_PLAN_ID,
+            isRenewal: false,
+            sandbox: Boolean(opts.sandbox),
+            period: null,
+        }
     }
 
     // Zakoupený plán visí na pending předplatném založeném při vytvoření platby;
@@ -220,6 +277,29 @@ export async function deliverPaidArtifacts(
                 ? `Daňový doklad č. <strong>${invoice.number}</strong> jsme vám poslali samostatným e-mailem.`
                 : `Daňový doklad vám zašleme e-mailem během okamžiku.`
 
+
+        // Dobití: žádný tarif se nezměnil, jen přibyly kredity. Nejdůležitější
+        // je říct, že se může hned generovat dál — člověk byl před chvílí
+        // zastavený uprostřed práce.
+        if (payment.kind === "credits") {
+            await sendNotification({
+                to,
+                kind: "transactional",
+                subject: `Připsáno ${payment.credits_granted} kreditů`,
+                body: `Dobrý den,
+
+na váš účet jsme připsali <strong>${payment.credits_granted} kreditů</strong>. Můžete rovnou pokračovat v generování — nic dalšího dělat nemusíte.
+
+Kredity platí do konce probíhajícího kreditového období, stejně jako ty z tarifu.
+
+${invoiceLine}
+
+<a href="${siteUrl()}/dashboard/instagram">Zpět do studia →</a>
+
+Tým Chrlit`,
+            })
+            return
+        }
 
         // Jednorázová služba má vlastní potvrzení: neaktivoval se žádný tarif,
         // takže „generování je odemčené" by bylo lež. Odemkla se rezervace.
@@ -383,7 +463,7 @@ export async function applyGatewayStatus(input: ApplyGatewayInput): Promise<Appl
         // REFUNDED: peníze jsou vrácené a předplatné zrušené — pozdní callback
         // (reconciler, opakovaný webhook) ho nesmí vzkřísit zpátky na PAID.
         .not("status", "in", "(PAID,REFUNDED)")
-        .select("id, subscription_id, client_id, ref_id, payer_email, amount, currency, label, kind")
+        .select("id, subscription_id, client_id, ref_id, payer_email, amount, currency, label, kind, credits_granted")
         .maybeSingle()
 
     if (!payment) return { claimed: false }

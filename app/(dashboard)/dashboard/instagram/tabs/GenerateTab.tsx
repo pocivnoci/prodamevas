@@ -13,6 +13,7 @@ import { generateContentPlan, regeneratePlanItem, getPlanCadence, savePlanCadenc
 import { startCampaign, getCampaignStatus } from "@/app/actions/campaign-actions"
 import { schedulePostAction } from "@/app/actions/calendar-actions"
 import { distributeSchedule } from "@/lib/schedule-planner"
+import { MEDIA_CREDITS, type MediumType } from "@/lib/credits"
 import { computeSlotIntents, VISUAL_MODE_LABELS, type FeedPatternId } from "@/lib/feed-pattern"
 import { getProducts } from "@/app/actions/product-actions"
 import { uploadCustomImage, type GenerateResult } from "@/app/actions/ig-generate-action"
@@ -1104,9 +1105,15 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                                     : medium === opt.value
                                                                         ? "bg-white/10 border-white/30 text-white" : "bg-[#050505] border-white/10 text-white/40 hover:text-white"}`}>
                                                                 {locked ? "🔒" : opt.emoji} {opt.label}
-                                                                {locked && <span className="block text-[8px] text-white/25 font-bold uppercase tracking-widest mt-0.5">
+                                                                {locked ? <span className="block text-[8px] text-white/25 font-bold uppercase tracking-widest mt-0.5">
                                                                     {lockNote.includes("připravujeme") ? "Brzy" : "Od Růst"}
-                                                                </span>}
+                                                                </span> : (
+                                                                    /* Cena formátu patří k VOLBĚ formátu. V Nastavení je pozdě —
+                                                                       rozhodnutí „udělám reel za 5 kreditů" padá tady. */
+                                                                    <span className="block text-[8px] font-bold uppercase tracking-widest mt-0.5 text-white/30">
+                                                                        {opt.value === "" ? "dle typu" : `${MEDIA_CREDITS[opt.value as MediumType]} kr.`}
+                                                                    </span>
+                                                                )}
                                                             </button>
                                                         )
                                                     })}

@@ -12,7 +12,29 @@ import supabaseAdmin from "@/supabase/admin"
 import { createPayment, generateRefId, isMockPaymentMode, isRecurringEnabled } from "@/lib/comgate"
 import { activeGateway, createStripeCheckout, paymentLabel } from "@/lib/payments/checkout"
 import { enqueueTask } from "@/lib/agent-runner"
-import { CONSULTATION, normalizeTermMonths, termPrice } from "@/lib/pricing"
+import { CONSULTATION, EXTRA_CREDIT_HALERU, creditPackPrice, normalizeTermMonths, parseCreditPack, termPrice } from "@/lib/pricing"
+
+/**
+ * Cena jednoho dokoupeného kreditu podle TARIFU klienta.
+ *
+ * Musí sedět s tím, co aplikace slibuje v hlášce „dobijte si kredity za X/ks" —
+ * ta ji čte z `features.extra_credit_price`. Kdyby si routa držela vlastní
+ * konstantu, dřív nebo později by účtovala jinou částku, než jakou zákazník viděl.
+ */
+async function extraCreditPriceFor(clientId: string): Promise<number> {
+    const { data } = await supabaseAdmin
+        .from("subscriptions")
+        .select("subscription_plans(features)")
+        .eq("client_id", clientId)
+        .in("status", ["active", "trialing"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    const plan = (Array.isArray(data?.subscription_plans) ? data?.subscription_plans[0] : data?.subscription_plans) as
+        | { features?: { extra_credit_price?: number } }
+        | undefined
+    return plan?.features?.extra_credit_price || EXTRA_CREDIT_HALERU
+}
 
 export async function POST(req: NextRequest) {
     const { requireAuth } = await import("@/lib/auth-guard")
@@ -76,14 +98,22 @@ export async function POST(req: NextRequest) {
         // tarif. Definice žije v lib/pricing.ts, cesta k penězům je společná,
         // aby se na doklad nezapomnělo právě u ní.
         const isService = planId === CONSULTATION.id
+        // Balíček kreditů: `kredity-25`. Cena za kredit se bere z TARIFU klienta
+        // (`extra_credit_price`), ne z konstanty — ceník kreditů je vlastnost
+        // tarifu a musí sedět s tím, co aplikace slibuje v hlášce o nedostatku.
+        const creditPack = parseCreditPack(planId)
+        const unitPrice = creditPack ? await extraCreditPriceFor(client.id) : EXTRA_CREDIT_HALERU
+
         const plan = isService
             ? { id: CONSULTATION.id, name: CONSULTATION.name, price_czk: CONSULTATION.priceHaleru }
-            : (await supabaseAdmin
-                .from("subscription_plans")
-                .select("*")
-                .eq("id", planId)
-                .eq("is_active", true)
-                .single()).data
+            : creditPack
+                ? { id: planId, name: `${creditPack} kreditů`, price_czk: creditPackPrice(creditPack, unitPrice) }
+                : (await supabaseAdmin
+                    .from("subscription_plans")
+                    .select("*")
+                    .eq("id", planId)
+                    .eq("is_active", true)
+                    .single()).data
 
         if (!plan) {
             return NextResponse.json({ error: "Plan not found" }, { status: 404 })
@@ -110,7 +140,8 @@ export async function POST(req: NextRequest) {
         if (activeGateway() === "stripe") {
             const result = await createStripeCheckout({
                 client, plan, payerEmail, termMonths,
-                kind: isService ? "service" : "subscription",
+                kind: creditPack ? "credits" : isService ? "service" : "subscription",
+                creditsGranted: creditPack ?? undefined,
             })
             return NextResponse.json({
                 success: true, gateway: "stripe",
@@ -121,10 +152,12 @@ export async function POST(req: NextRequest) {
         const refId = generateRefId(client.slug)
         // U tarifu je `price_czk` MĚSÍČNÍ cena a cena období z ní vzniká tady,
         // jednou, sdíleným pravidlem. Služba se platí celá a období nemá.
-        const amount = isService ? CONSULTATION.priceHaleru : termPrice(plan.price_czk, termMonths)
+        const amount = isService || creditPack ? plan.price_czk : termPrice(plan.price_czk, termMonths)
         // Do `payments.label` jde plný popisek (skončí jako položka na dokladu),
         // do ComGate až jeho 40znakový ořez.
-        const label = isService ? `Chrlit — ${CONSULTATION.name}` : paymentLabel(plan.name, termMonths)
+        const label = isService ? `Chrlit — ${CONSULTATION.name}`
+            : creditPack ? `Chrlit — dobití ${creditPack} kreditů`
+            : paymentLabel(plan.name, termMonths)
 
         const isMock = isMockPaymentMode()
 
@@ -163,7 +196,7 @@ export async function POST(req: NextRequest) {
         // Služba žádné předplatné nezakládá: pending řádek bez tarifu by se
         // pletl do `pickLiveSubscription` a zamaskoval by zákazníkovi jeho
         // skutečný plán.
-        const { data: subscription } = isService
+        const { data: subscription } = isService || creditPack
             ? { data: null }
             : await supabaseAdmin
                 .from("subscriptions")
@@ -194,8 +227,9 @@ export async function POST(req: NextRequest) {
                 label,
                 // Druh rozhoduje, jestli se po zaplacení aktivuje tarif, nebo
                 // odemkne rezervace. Doklad se vystaví tak jako tak.
-                kind: isService ? "service" : "subscription",
-                term_months: isService ? null : termMonths,
+                kind: creditPack ? "credits" : isService ? "service" : "subscription",
+                credits_granted: creditPack ?? null,
+                term_months: isService || creditPack ? null : termMonths,
                 payer_email: payerEmail,
             })
             .select("id")

@@ -74,6 +74,7 @@ export async function GET(req: NextRequest) {
             // že uprostřed předplaceného období nenabídne změnu tarifu.
             termMonths: sub.termMonths,
             extraCreditPrice: sub.features.extra_credit_price ?? 4900,
+            creditsPurchased: sub.creditsPurchased,
         })
     } catch (err: any) {
         console.error("Subscription fetch error:", err?.message)
