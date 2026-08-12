@@ -33,7 +33,10 @@ export default async function DashboardLayout({
 
                 <AdminSidebar />
 
-                <main className="lg:pl-72 min-h-screen relative z-10 transition-all duration-300">
+                {/* Výřez a domovský indikátor. V prohlížeči jsou insety nulové —
+                    projeví se to až v aplikaci přidané na plochu, kde stavový řádek
+                    leží přes obsah (`viewportFit: cover` + black-translucent). */}
+                <main className="lg:pl-72 min-h-screen relative z-10 transition-all duration-300 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
                     <div className="p-4 sm:p-6 lg:p-10 mb-20 max-w-7xl mx-auto">
                         <BillingBanner />
                         <InstallBanner />

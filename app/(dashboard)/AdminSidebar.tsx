@@ -172,7 +172,7 @@ export function AdminSidebar() {
             {/* Mobile Refresh */}
             <button
                 onClick={() => window.location.reload()}
-                className="lg:hidden fixed top-4 right-20 z-[60] w-12 h-12 bg-[#0a0a0a]/90 backdrop-blur-xl border border-white/10 rounded-sm flex items-center justify-center text-white shadow-sm hover:bg-white/5 transition-all"
+                className="lg:hidden fixed top-[calc(1rem+env(safe-area-inset-top))] right-20 z-[60] w-12 h-12 bg-[#0a0a0a]/90 backdrop-blur-xl border border-white/10 rounded-sm flex items-center justify-center text-white shadow-sm hover:bg-white/5 transition-all"
                 aria-label="Obnovit"
             >
                 <span className="text-xl">🔄</span>
@@ -181,7 +181,7 @@ export function AdminSidebar() {
             {/* Mobile hamburger */}
             <button
                 onClick={() => setOpen(!open)}
-                className="lg:hidden fixed top-4 right-4 z-[60] w-12 h-12 bg-[#0a0a0a]/90 backdrop-blur-xl border border-white/10 rounded-sm flex items-center justify-center text-white shadow-sm hover:bg-white/5 transition-all"
+                className="lg:hidden fixed top-[calc(1rem+env(safe-area-inset-top))] right-4 z-[60] w-12 h-12 bg-[#0a0a0a]/90 backdrop-blur-xl border border-white/10 rounded-sm flex items-center justify-center text-white shadow-sm hover:bg-white/5 transition-all"
                 aria-label="Menu"
             >
                 {open ? "✕" : "☰"}
