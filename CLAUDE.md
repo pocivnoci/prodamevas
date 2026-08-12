@@ -87,6 +87,10 @@ Tři vrstvy, všechny multi-tenant:
 - **`ig_posts.link_type`** rozlišuje `'revision'` (přepis podle uživatele) od
   `'variant'` (A/B varianta); obojí odkazuje přes `revision_of`. Vždy ho nastav.
 - **Retry logika** — importuj z `utils/retry.ts`, nikdy nekopíruj.
+- **Navigace studia** má jediný registr `app/(dashboard)/nav.ts`; nová sekce patří
+  do něj, ne natvrdo do JSX — čte ho sidebar, spodní lišta i validace hashe.
+  Přepínat sekci vždy přes `useStudioNavigate()`, jinak nefunguje mimo
+  `/dashboard/instagram`.
 - **Nic nehardcoduj** — DB ID, buckety, adminské e-maily patří do `ClientConfig` nebo
   env (`SUPER_ADMIN_EMAILS`). Fonty a assety na Vercelu patří do
   `outputFileTracingIncludes` v `next.config.ts`.
