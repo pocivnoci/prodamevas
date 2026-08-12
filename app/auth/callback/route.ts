@@ -24,6 +24,15 @@ export async function GET(request: Request) {
         ? rawNext
         : '/dashboard/instagram'
 
+    // Provider (nebo Supabase) odmítl ještě před výměnou — přijde `error` a žádný
+    // `code`. Bez tohohle větvení by to spadlo do společné hlášky o špatném hesle,
+    // kterou u přihlášení přes Google nikdo nerozklíčuje.
+    const providerError = searchParams.get('error') || searchParams.get('error_code')
+    if (providerError && !code) {
+        console.warn(`auth-callback: provider odmítl přihlášení: ${providerError} — ${searchParams.get('error_description') ?? ''}`)
+        return NextResponse.redirect(`${origin}/login?error=google_unavailable`)
+    }
+
     if (code) {
         const supabase = await createClient()
         const { data, error } = await supabase.auth.exchangeCodeForSession(code)

@@ -396,6 +396,18 @@ test("10.7c Google registrace prochází stejnou branou", () => {
     assert(actions.includes("INVITE_COOKIE"), "Kód musí přežít přesměrování na Google")
 })
 
+test("10.7d Google se nenabízí, dokud není provider zapnutý", () => {
+    // Provider se zapíná v Supabase, ne v repu. Mrtvé tlačítko na přihlašovací
+    // stránce je horší než žádné — přepínač proto musí hlídat UI i akci.
+    for (const page of ["app/login/page.tsx", "app/register/page.tsx"]) {
+        assert(fileContains(page, "googleAuthEnabled()"), `${page} musí tlačítko schovat za přepínač`)
+    }
+    assert(fileContains("app/auth/actions.ts", "googleAuthEnabled()"), "Server action se dá zavolat i bez tlačítka — musí přepínač ověřit sama")
+
+    // Odmítnutí od providera se nesmí schovat za hlášku o špatném heslu.
+    assert(fileContains("app/auth/callback/route.ts", "google_unavailable"), "Callback musí odlišit selhání Googlu od špatných přihlašovacích údajů")
+})
+
 test("10.8 Register redirects to email confirmation", () => {
     const content = fileContent("app/register/actions.ts")
     assert(content.includes("check_email"), "Should redirect to email confirmation")

@@ -4,6 +4,7 @@ import { signUpWithGoogle } from "@/app/auth/actions"
 import { AuthDivider, GoogleButton } from "@/components/auth/GoogleButton"
 import { AuthNotice } from "@/components/auth/AuthNotice"
 import { PasswordField } from "@/components/auth/PasswordField"
+import { googleAuthEnabled } from "@/lib/auth-providers"
 
 const ERROR_MESSAGES: Record<string, string> = {
     missing_fields: "Vyplň email i heslo.",
@@ -61,10 +62,13 @@ export default async function RegisterPage(props: {
                             />
                         </div>
 
-                        {/* formNoValidate: e-mail a heslo pod tím jsou pro tuhle cestu prázdné schválně. */}
-                        <GoogleButton action={signUpWithGoogle} label="Pokračovat přes Google" formNoValidate />
-
-                        <AuthDivider label="nebo e-mailem" />
+                        {googleAuthEnabled() && (
+                            <>
+                                {/* formNoValidate: e-mail a heslo pod tím jsou pro tuhle cestu prázdné schválně. */}
+                                <GoogleButton action={signUpWithGoogle} label="Pokračovat přes Google" formNoValidate />
+                                <AuthDivider label="nebo e-mailem" />
+                            </>
+                        )}
 
                         <div>
                             <label htmlFor="email" className="block text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5">Email</label>

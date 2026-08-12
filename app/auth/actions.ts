@@ -4,6 +4,7 @@ import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/supabase/server'
 import { findUsableInvite, INVITE_COOKIE, INVITE_COOKIE_MAX_AGE } from '@/lib/invite-gate'
+import { googleAuthEnabled } from '@/lib/auth-providers'
 
 /**
  * Přihlášení přes Google. Supabase vrátí URL k souhlasné obrazovce, my na ni
@@ -24,6 +25,14 @@ async function requestOrigin(): Promise<string> {
 
 /** Vrátí URL souhlasné obrazovky Googlu, nebo null když brána selže. */
 async function googleConsentUrl(): Promise<string | null> {
+    // Server action je dosažitelná i bez tlačítka, tak se přepínač kontroluje tady,
+    // ne jen v UI. Supabase by při vypnutém provideru vrátil URL, která skončí
+    // chybou až u něj — to je horší než poctivé „teď nejde".
+    if (!googleAuthEnabled()) {
+        console.warn('Google OAuth je vypnutý (GOOGLE_AUTH_ENABLED != 1) — pokus o přihlášení odmítnut')
+        return null
+    }
+
     const supabase = await createClient()
     const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',

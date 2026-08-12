@@ -4,6 +4,7 @@ import { signInWithGoogle } from "@/app/auth/actions"
 import { AuthDivider, GoogleButton } from "@/components/auth/GoogleButton"
 import { AuthNotice } from "@/components/auth/AuthNotice"
 import { PasswordField } from "@/components/auth/PasswordField"
+import { googleAuthEnabled } from "@/lib/auth-providers"
 
 const ERROR_MESSAGES: Record<string, string> = {
     invalid_credentials: "Neplatný e-mail nebo heslo. Zkus to znovu.",
@@ -34,11 +35,14 @@ export default async function LoginPage(props: {
                     <AuthNotice tone="error" title="Nepovedlo se">{errorMessage}</AuthNotice>
                 )}
 
-                <form>
-                    <GoogleButton action={signInWithGoogle} label="Pokračovat přes Google" />
-                </form>
-
-                <AuthDivider label="nebo e-mailem" />
+                {googleAuthEnabled() && (
+                    <>
+                        <form>
+                            <GoogleButton action={signInWithGoogle} label="Pokračovat přes Google" />
+                        </form>
+                        <AuthDivider label="nebo e-mailem" />
+                    </>
+                )}
 
                 <form className="space-y-5">
                     <div>
