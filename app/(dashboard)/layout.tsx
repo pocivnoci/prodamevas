@@ -6,6 +6,7 @@ import { PaywallProvider } from "./PaywallProvider"
 import { BillingBanner } from "./BillingBanner"
 import { InstallBanner } from "@/components/InstallApp"
 import { BottomNav } from "./BottomNav"
+import { GestureShell } from "./GestureShell"
 import { checkOnboardingStatus } from "@/app/onboarding/actions"
 
 export const maxDuration = 800 // Vercel Pro cap (Fluid Compute)
@@ -44,9 +45,11 @@ export default async function DashboardLayout({
                     <div className="p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto">
                         <BillingBanner />
                         <InstallBanner />
-                        <ErrorBoundary>
-                            {children}
-                        </ErrorBoundary>
+                        <GestureShell>
+                            <ErrorBoundary>
+                                {children}
+                            </ErrorBoundary>
+                        </GestureShell>
                     </div>
                 </main>
             </div>
