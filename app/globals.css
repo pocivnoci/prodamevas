@@ -97,6 +97,12 @@
 .override-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.28); border-radius: 3px; }
 .override-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.45); }
 
+/* ─── Výška spodní navigační lišty ──────────────────────────────
+   Jedno číslo pro lištu i pro odsazení obsahu pod ní. Na počítači je nulové,
+   protože tam lištu nahrazuje postranní sloupec. */
+:root { --studio-navbar-h: 4.25rem; }
+@media (min-width: 1024px) { :root { --studio-navbar-h: 0rem; } }
+
 /* ─── Opak: scroller bez lišty ──────────────────────────────────
    Vodorovné pásy s čipy a karuselem na obě jména sahaly, ale definované nebyly
    ani jednou (PostsTab, GenerateTab). Tady se lišta schovává schválně — že jde

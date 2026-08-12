@@ -84,8 +84,11 @@ export default function InstagramPage() {
                 >
                     {showHeader && (
                         <div>
-                            <h1 className="text-3xl font-black uppercase tracking-tight text-white">{sectionInfo.title}</h1>
-                            <p className="text-white/40 mt-1 font-medium text-xs">{sectionInfo.description}</p>
+                            {/* Na telefonu menší: `text-3xl` sežral přes dva řádky výšku,
+                                kterou obsah potřebuje víc než nadpis. Popisek pod ním je
+                                na malé obrazovce řádek navíc bez informace. */}
+                            <h1 className="text-xl sm:text-3xl font-black uppercase tracking-tight text-white">{sectionInfo.title}</h1>
+                            <p className="hidden sm:block text-white/40 mt-1 font-medium text-xs">{sectionInfo.description}</p>
                         </div>
                     )}
                     {activeSection === "dashboard" && <DashboardTab projectId={projectId} />}

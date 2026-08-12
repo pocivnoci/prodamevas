@@ -33,6 +33,29 @@ function readStoredProject(): string | null {
     }
 }
 
+/**
+ * Panel je na telefonu ve stromu dvakrát — skrytý sidebar (`hidden lg:flex` prvek
+ * pořád mountuje) a sheet, který se navíc při každém otevření mountuje znovu.
+ * Bez sdílené cache by to znamenalo dvě server akce na každé ťuknutí na „Více".
+ * Promisy se drží na úrovni modulu, takže souběžné mounty sdílejí jeden let.
+ */
+let clientsPromise: Promise<ClientInfo[]> | null = null
+let adminPromise: Promise<boolean> | null = null
+
+function loadClients(): Promise<ClientInfo[]> {
+    return (clientsPromise ??= getAvailableIGClients().catch(err => {
+        clientsPromise = null // ať se to dá zkusit znovu
+        throw err
+    }))
+}
+
+function loadIsAdmin(): Promise<boolean> {
+    return (adminPromise ??= isCurrentUserSuperAdmin().catch(err => {
+        adminPromise = null
+        throw err
+    }))
+}
+
 function NavButton({ item, active, onSelect, layoutId }: {
     item: NavItem
     active: boolean
@@ -85,7 +108,7 @@ export function StudioNavPanel({ variant, onNavigate }: {
 
     // Load clients
     useEffect(() => {
-        getAvailableIGClients().then(data => {
+        loadClients().then(data => {
             setClients(data)
             if (data.length > 0 && !projectId) {
                 // Precedence: explicit deep link → last selection → first client.
@@ -105,7 +128,7 @@ export function StudioNavPanel({ variant, onNavigate }: {
                 setProjectId(pick || data[0].id)
             }
         })
-        isCurrentUserSuperAdmin().then(setIsAdmin)
+        loadIsAdmin().then(setIsAdmin)
     }, [])
 
     // Remember the active tenant across reloads (see precedence note above).

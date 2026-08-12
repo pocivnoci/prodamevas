@@ -5,6 +5,7 @@ import { ErrorBoundary } from "./ErrorBoundary"
 import { PaywallProvider } from "./PaywallProvider"
 import { BillingBanner } from "./BillingBanner"
 import { InstallBanner } from "@/components/InstallApp"
+import { BottomNav } from "./BottomNav"
 import { checkOnboardingStatus } from "@/app/onboarding/actions"
 
 export const maxDuration = 800 // Vercel Pro cap (Fluid Compute)
@@ -32,12 +33,15 @@ export default async function DashboardLayout({
                 </div>
 
                 <AdminSidebar />
+                <BottomNav />
 
-                {/* Výřez a domovský indikátor. V prohlížeči jsou insety nulové —
-                    projeví se to až v aplikaci přidané na plochu, kde stavový řádek
-                    leží přes obsah (`viewportFit: cover` + black-translucent). */}
-                <main className="lg:pl-72 min-h-screen relative z-10 transition-all duration-300 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
-                    <div className="p-4 sm:p-6 lg:p-10 mb-20 max-w-7xl mx-auto">
+                {/* Nahoře výřez a stavový řádek, dole navigační lišta a domovský
+                    indikátor. Insety jsou v prohlížeči nulové — projeví se až
+                    v aplikaci na ploše (`viewportFit: cover` + black-translucent).
+                    Odsazení dole musí být PADDING: `mb-20`, které tu bylo, je margin
+                    a fixed lišta by přes obsah stejně přelezla. */}
+                <main className="lg:pl-72 min-h-[100dvh] relative z-10 transition-all duration-300 pt-[env(safe-area-inset-top)] pb-[calc(var(--studio-navbar-h)+env(safe-area-inset-bottom))]">
+                    <div className="p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto">
                         <BillingBanner />
                         <InstallBanner />
                         <ErrorBoundary>
