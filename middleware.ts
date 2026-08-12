@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { hasBetaStamp } from '@/lib/beta-access'
 
 export async function middleware(request: NextRequest) {
     try {
@@ -64,13 +65,33 @@ export async function middleware(request: NextRequest) {
             return finalResponse
         }
 
-        if (
-            !user &&
-            (request.nextUrl.pathname.startsWith('/dashboard') || request.nextUrl.pathname.startsWith('/onboarding'))
-        ) {
+        const isProtected =
+            request.nextUrl.pathname.startsWith('/dashboard') ||
+            request.nextUrl.pathname.startsWith('/onboarding')
+
+        if (!user && isProtected) {
             const url = request.nextUrl.clone()
             url.pathname = '/login'
             return NextResponse.redirect(url)
+        }
+
+        // Brána bety platí i pro session, která vznikla dřív, než účet zavřel.
+        // Kontrola u přihlášení sama nestačí — kdo je přihlášený, ten se kolem ní
+        // proklikne až do onboardingu a začne pálit generování.
+        //
+        // Cookies se přitom musí smazat, jinak vznikne smyčka: /dashboard by
+        // posílal na /login a pravidlo o něco níž rovnou zpátky na /dashboard.
+        // Ztráta session nic nezničí — kdo na betu nárok má, tomu ho přihlášení
+        // vrátí i s razítkem.
+        if (user && isProtected && !hasBetaStamp(user)) {
+            const url = request.nextUrl.clone()
+            url.pathname = '/login'
+            url.search = '?error=no_access'
+            const denied = NextResponse.redirect(url)
+            request.cookies.getAll()
+                .filter(c => c.name.startsWith('sb-'))
+                .forEach(c => denied.cookies.set(c.name, '', { maxAge: 0, path: '/' }))
+            return denied
         }
 
         // Ensure logged-in users can't visit login/register pages
