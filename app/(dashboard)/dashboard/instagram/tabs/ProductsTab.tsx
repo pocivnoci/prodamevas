@@ -28,7 +28,7 @@ import { LoadingSpinner } from "./shared"
 import { Hint, HINTS } from "./Hint"
 import { analyzeProductForBrief } from "@/app/actions/product-brief-actions"
 import { generateProductBriefPDF } from "@/lib/product-brief-docx"
-import { Banknote, CircleCheck, ClipboardList, Eye, Factory, Flame, Lightbulb, Package, Palette, Pencil, Puzzle, Rocket, Ruler, Save, Search, ShoppingBag, Tag, Wrench, type LucideIcon } from "lucide-react"
+import { Banknote, Check, CircleCheck, CircleX, ClipboardList, Download, Eye, Factory, Flame, Lightbulb, Package, Palette, Paperclip, Pencil, Puzzle, RefreshCw, Rocket, Ruler, Save, Search, ShoppingBag, Tag, ThumbsDown, ThumbsUp, Trash2, Wrench, type LucideIcon } from "lucide-react"
 
 
 type ProductSection = "catalog" | "lines" | "ideas" | "design" | "categories"
@@ -184,7 +184,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
             if (result.success) {
                 setIdeas(prev => prev.filter((_, i) => i !== index))
                 fetchSavedIdeas()
-                setSuccessMsg(`"${idea.name}" uložen ✅`)
+                setSuccessMsg(`"${idea.name}" uložen`)
                 setTimeout(() => setSuccessMsg(null), 3000)
             } else {
                 setError(`Uložení selhalo: ${result.error || 'Neznámá chyba'} (client: ${projectId})`)
@@ -325,7 +325,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                 designUrl: url,
             });
             if (result.success) {
-                alert(`✅ Promo post vytvořen!\n\nCaption:\n${result.caption?.substring(0, 200)}...\n\nNajdeš ho v záložce Posts jako Draft.`);
+                alert(`Promo post vytvořen!\n\nCaption:\n${result.caption?.substring(0, 200)}...\n\nNajdeš ho v záložce Posts jako Draft.`);
             } else {
                 setError(result.error || "Vytvoření selhalo.");
             }
@@ -358,7 +358,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
             {/* Error display */}
             {error && (
                 <div className="bg-aisummit-cinnabar/10 border border-aisummit-cinnabar/30 rounded-sm p-4 text-aisummit-cinnabar text-[10px] uppercase font-bold tracking-widest">
-                    ❌ {error}
+                    <CircleX className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" />{error}
                 </div>
             )}
             {successMsg && (
@@ -494,13 +494,13 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                 disabled={savingId === i}
                                                 className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center transition-all bg-white/5 text-white/30 border-white/10 hover:bg-emerald-500/20 hover:text-emerald-400 hover:border-emerald-500/30 disabled:opacity-50"
                                                 title="Uložit nápad"
-                                            >{savingId === i ? '⏳' : '💾'}</button>
+                                            >{savingId === i ? <span className="animate-pulse">…</span> : <Save className="w-3.5 h-3.5" />}</button>
                                             <button
                                                 onClick={() => handleRejectIdea(idea, i)}
                                                 disabled={rejectingId === i}
                                                 className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center transition-all bg-white/5 text-white/30 border-white/10 hover:bg-aisummit-cinnabar/20 hover:text-aisummit-cinnabar hover:border-aisummit-cinnabar/30 disabled:opacity-50"
                                                 title="Zahodit"
-                                            >{rejectingId === i ? '⏳' : '🗑️'}</button>
+                                            >{rejectingId === i ? <span className="animate-pulse">…</span> : <Trash2 className="w-3.5 h-3.5" />}</button>
                                         </div>
                                     </div>
 
@@ -563,7 +563,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="absolute bottom-2 right-2 px-2 py-1 bg-[#050505] border border-white/10 text-white text-[9px] uppercase tracking-widest font-bold rounded-sm opacity-0 group-hover/vis:opacity-100 transition-opacity shadow-sm"
-                                            >📥 Plná velikost</a>
+                                            ><Download className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" />Plná velikost</a>
                                         </div>
                                     )}
 
@@ -666,7 +666,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                             : "bg-red-500/15 border-red-500/40"
                                                         : "border-white/10 hover:border-white/25"}`}
                                                 >
-                                                    {value === 1 ? "👍" : "👎"}
+                                                    {value === 1 ? <ThumbsUp className="w-3.5 h-3.5" /> : <ThumbsDown className="w-3.5 h-3.5" />}
                                                 </button>
                                             ))}
                                         </div>
@@ -732,9 +732,9 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                     {uploadingId === idea.id ? (
                                                         <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin" />
                                                     ) : referenceUrls[idea.id as string] ? (
-                                                        "✓"
+                                                        <Check className="w-3.5 h-3.5" />
                                                     ) : (
-                                                        "📎"
+                                                        <Paperclip className="w-3.5 h-3.5" />
                                                     )}
                                                 </label>
                                             </div>
@@ -788,7 +788,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                                 designUrl: ideaVisuals[id],
                                                             })
                                                             if (result.success) {
-                                                                alert(`✅ Promo post vytvořen!\n\nCaption:\n${result.caption?.substring(0, 200)}...\n\nNajdeš ho v záložce Posts jako Draft.`)
+                                                                alert(`Promo post vytvořen!\n\nCaption:\n${result.caption?.substring(0, 200)}...\n\nNajdeš ho v záložce Posts jako Draft.`)
                                                             } else {
                                                                 setError(result.error || "Vytvoření postu selhalo")
                                                             }
@@ -868,7 +868,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                                 <svg className="animate-spin" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" /></svg>
                                                                 Přeprac...
                                                             </span>
-                                                        ) : "🔄"}
+                                                        ) : <RefreshCw className="w-3.5 h-3.5" />}
                                                     </button>
                                                 </div>
                                             )}
@@ -1009,7 +1009,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                     if (result.success) {
                                                         setEditingCat(null)
                                                         loadCategories()
-                                                        setSuccessMsg("Kategorie upravena ✅")
+                                                        setSuccessMsg("Kategorie upravena")
                                                         setTimeout(() => setSuccessMsg(null), 3000)
                                                     } else {
                                                         setError(result.error || "Upravení selhalo")
@@ -1019,7 +1019,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                 disabled={catLoading || !editingCat.label || !editingCat.design_guide}
                                                 className="px-6 py-3 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 rounded-sm text-[10px] font-black uppercase tracking-widest text-amber-400 transition-all disabled:opacity-50"
                                             >
-                                                {catLoading ? "⏳" : "💾"} Uložit změny
+                                                {catLoading ? <span className="animate-pulse">…</span> : <Save className="w-3.5 h-3.5" />} Uložit změny
                                             </button>
                                             <button
                                                 onClick={() => setEditingCat(null)}
@@ -1077,7 +1077,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                     onClick={() => { setEditingCat(cat); setShowAddCategory(false) }}
                                                     className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center bg-white/5 text-white/30 border-white/10 hover:bg-amber-500/20 hover:text-amber-400 hover:border-amber-500/30 transition-all"
                                                     title="Upravit"
-                                                >✏️</button>
+                                                ><Pencil className="w-3.5 h-3.5" /></button>
                                                 <button
                                                     onClick={async () => {
                                                         if (!confirm(`Smazat kategorii "${cat.label}"?`)) return
@@ -1087,7 +1087,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                     }}
                                                     className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center bg-white/5 text-white/30 border-white/10 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 transition-all"
                                                     title="Smazat"
-                                                >🗑️</button>
+                                                ><Trash2 className="w-3.5 h-3.5" /></button>
                                             </div>
                                         )}
                                         {!cat.client_id && (

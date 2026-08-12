@@ -5,7 +5,7 @@ import { getPerformanceInsights, updateIGPostMetrics, syncMetricsAction } from "
 import { getConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { getGrowthData, type GrowthData } from "@/app/actions/growth-actions"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
-import { Anchor, ChartColumn, LockOpen, Search, TrendingUp } from "lucide-react"
+import { Anchor, Bookmark, Brain, ChartColumn, Check, Eye, Heart, Link, LockOpen, MessageCircle, Search, Share2, TrendingUp } from "lucide-react"
 
 export function PerformanceTab({ projectId }: { projectId: string }) {
     const [posts, setPosts] = useState<any[]>([])
@@ -55,10 +55,10 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
         setSyncMsg(null)
         const r = await syncMetricsAction(projectId)
         if (r.success) {
-            setSyncMsg(`✅ Načteno ${r.synced ?? 0} příspěvků z Instagramu${r.matched ? `, nově propojeno ${r.matched}` : ""}.`)
+            setSyncMsg(`Načteno ${r.synced ?? 0} příspěvků z Instagramu${r.matched ? `, nově propojeno ${r.matched}` : ""}.`)
             await loadData(false)
         } else {
-            setSyncMsg(`⚠️ ${r.error || "Synchronizace selhala"}`)
+            setSyncMsg(`${r.error || "Synchronizace selhala"}`)
         }
         setSyncing(false)
     }
@@ -85,12 +85,12 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
     }
 
     const metricFields = [
-        { key: "likes", label: "❤️", title: "Likes" },
-        { key: "comments", label: "💬", title: "Komentáře" },
-        { key: "saves", label: "🔖", title: "Uložení" },
-        { key: "reach", label: "👁", title: "Reach" },
-        { key: "shares", label: "↗️", title: "Sdílení" },
-        { key: "link_clicks", label: "🔗", title: "Kliky" },
+        { key: "likes", Icon: Heart, title: "Likes" },
+        { key: "comments", Icon: MessageCircle, title: "Komentáře" },
+        { key: "saves", Icon: Bookmark, title: "Uložení" },
+        { key: "reach", Icon: Eye, title: "Reach" },
+        { key: "shares", Icon: Share2, title: "Sdílení" },
+        { key: "link_clicks", Icon: Link, title: "Kliky" },
     ]
 
     if (loading) {
@@ -208,7 +208,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                     </>
                 ) : (
                     <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-6 text-center">
-                        <div className="text-2xl mb-2">🧠</div>
+                        <Brain className="w-6 h-6 mb-2 text-white/40" />
                         <div className="text-sm text-white/50">Zadej metriky k publikovaným postům níže</div>
                         <div className="text-[10px] text-white/30 mt-1">Statistiky se zobrazí po přidání dat k alespoň 3 postům</div>
                     </div>
@@ -233,7 +233,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                         <div className="hidden sm:grid grid-cols-[1fr_repeat(6,60px)_70px] gap-2 px-3 py-2">
                             <div className="text-[9px] text-white/30 uppercase tracking-wider">Post</div>
                             {metricFields.map(f => (
-                                <div key={f.key} className="text-[9px] text-white/30 uppercase tracking-wider text-center" title={f.title}>{f.label}</div>
+                                <div key={f.key} className="flex justify-center text-white/30" title={f.title}><f.Icon className="w-3.5 h-3.5" /><span className="sr-only">{f.title}</span></div>
                             ))}
                             <div />
                         </div>
@@ -280,7 +280,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                                     {/* Metric inputs */}
                                     {metricFields.map(f => (
                                         <div key={f.key} className="flex sm:block items-center gap-2">
-                                            <span className="sm:hidden text-[9px] text-white/30 w-8">{f.label}</span>
+                                            <f.Icon className="sm:hidden w-3.5 h-3.5 shrink-0 text-white/30" aria-label={f.title} />
                                             <input
                                                 type="number"
                                                 min="0"
@@ -303,7 +303,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                                                     : "bg-white/5 text-white/60 border border-white/10 hover:bg-white/10 hover:text-white"
                                             }`}
                                     >
-                                        {isSaved ? "✓" : isSaving ? "..." : "Uložit"}
+                                        {isSaved ? <Check className="w-3.5 h-3.5" /> : isSaving ? "..." : "Uložit"}
                                     </button>
                                 </div>
                             )
@@ -314,9 +314,9 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
 
             {/* Info */}
             <div className="bg-[#0a0a0a]/60 border border-white/5 rounded-sm p-4 text-[10px] text-white/30 tracking-wide space-y-1">
-                <p>🧠 <strong className="text-white/50">Neural Engine:</strong> Zadané metriky automaticky ovlivní příští generování — AI se naučí, co funguje líp.</p>
-                <p>📊 <strong className="text-white/50">Insights:</strong> Zobrazí se po zadání metrik k alespoň 3 postům se statusem "posted".</p>
-                <p>🔗 <strong className="text-white/50">Meta API:</strong> Automatické stahování metrik bude přidáno později — zatím zadávej ručně z IG Insights.</p>
+                <p><Brain className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" /><strong className="text-white/50">Neural Engine:</strong> Zadané metriky automaticky ovlivní příští generování — AI se naučí, co funguje líp.</p>
+                <p><ChartColumn className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" /><strong className="text-white/50">Insights:</strong> Zobrazí se po zadání metrik k alespoň 3 postům se statusem "posted".</p>
+                <p><Link className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" /><strong className="text-white/50">Meta API:</strong> Automatické stahování metrik bude přidáno později — zatím zadávej ručně z IG Insights.</p>
             </div>
         </div>
     )

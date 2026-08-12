@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { getWeekPosts, approvePost } from "@/app/actions/calendar-actions"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
-import { CalendarDays, CircleCheck, Clock, Wand } from "lucide-react"
+import { CalendarDays, CircleCheck, Clock, CloudSun, FileText, Send, Wand, type LucideIcon } from "lucide-react"
 
 interface CalendarPost {
     id: string
@@ -236,10 +236,10 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                         ready: "border-emerald-500/30 bg-emerald-500/5",
                                         posted: "border-blue-500/30 bg-blue-500/5",
                                     }
-                                    const statusBadge: Record<string, string> = {
-                                        draft: "📝",
-                                        ready: "✅",
-                                        posted: "📤",
+                                    const StatusIcon: Record<string, LucideIcon> = {
+                                        draft: FileText,
+                                        ready: CircleCheck,
+                                        posted: Send,
                                     }
 
                                     return (
@@ -260,7 +260,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                                 <span className="text-[9px] text-white/60 leading-tight line-clamp-2">
                                                     {post.caption?.split("\n")[0]?.substring(0, 50) || "—"}
                                                 </span>
-                                                <span className="text-[10px] flex-shrink-0">{statusBadge[post.status] || "📝"}</span>
+                                                {(() => { const I = StatusIcon[post.status] || FileText; return <I className="w-3 h-3 shrink-0 text-white/50" /> })()}
                                             </div>
                                             <div className="flex items-center gap-1.5 mt-1">
                                                 <span className="text-[8px] text-white/30">{post.time_slot || "—"}</span>
@@ -345,9 +345,9 @@ export function CalendarTab({ projectId }: { projectId: string }) {
 
             {/* Info */}
             <div className="bg-[#0a0a0a]/60 border border-white/5 rounded-sm p-4 text-[10px] text-white/30 tracking-wide space-y-1">
-                <p>📅 <strong className="text-white/50">Naplánuj týden:</strong> AI analyzuje počasí, svátky a výkon značky, pak strategicky naplánuje posty na celý týden.</p>
-                <p>🌤️ <strong className="text-white/50">Počasí:</strong> Když je dostupná předpověď, plán ji zohlední. Jinak plánuje podle kalendáře, svátků a výkonu značky.</p>
-                <p>📝 <strong className="text-white/50">Workflow:</strong> Naplánuj → zkontroluj drafty → schval → publikuj.</p>
+                <p><CalendarDays className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" /><strong className="text-white/50">Naplánuj týden:</strong> AI analyzuje počasí, svátky a výkon značky, pak strategicky naplánuje posty na celý týden.</p>
+                <p><CloudSun className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" /><strong className="text-white/50">Počasí:</strong> Když je dostupná předpověď, plán ji zohlední. Jinak plánuje podle kalendáře, svátků a výkonu značky.</p>
+                <p><FileText className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" /><strong className="text-white/50">Workflow:</strong> Naplánuj → zkontroluj drafty → schval → publikuj.</p>
             </div>
         </div>
     )
