@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { getWeekPosts, approvePost } from "@/app/actions/calendar-actions"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
+import { CalendarDays, CircleCheck, Wand } from "lucide-react"
 
 interface CalendarPost {
     id: string
@@ -106,9 +107,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                 Tři tlačítka namačkaná vpravo měla terč pod 40 px. */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h2 className="text-xl font-black uppercase tracking-tight text-white flex items-center gap-2">
-                        📅 Content Calendar
-                    </h2>
+                    <h2 className="text-xl font-black uppercase tracking-tight text-white flex items-center gap-2"><CalendarDays className="w-4 h-4 shrink-0" />Content Calendar</h2>
                     <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">
                         {weekStart.getDate()}.{weekStart.getMonth() + 1}. – {weekEndDate.getDate()}.{weekEndDate.getMonth() + 1}.{weekEndDate.getFullYear()}
                     </p>
@@ -131,10 +130,8 @@ export function CalendarTab({ projectId }: { projectId: string }) {
             <div className="flex items-center gap-4">
                 <button
                     onClick={handlePlanWeek}
-                    className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-emerald-600/20 to-emerald-500/10 border border-emerald-500/30 rounded-sm text-emerald-400 text-xs font-bold uppercase tracking-widest hover:from-emerald-600/30 hover:to-emerald-500/20 transition-all shadow-lg shadow-emerald-900/20 cursor-pointer"
-                >
-                    🪄 Naplánovat týden →
-                </button>
+                    className="inline-flex items-center gap-1.5 justify-center w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-emerald-600/20 to-emerald-500/10 border border-emerald-500/30 rounded-sm text-emerald-400 text-xs font-bold uppercase tracking-widest hover:from-emerald-600/30 hover:to-emerald-500/20 transition-all shadow-lg shadow-emerald-900/20 cursor-pointer"
+                ><Wand className="w-3.5 h-3.5 shrink-0" />Naplánovat týden →</button>
             </div>
 
             {/* Calendar Grid */}
@@ -331,7 +328,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                         onClick={() => handleApprove(selectedPost.id)}
                                         className="flex-1 min-h-[44px] px-4 bg-emerald-500/10 border border-emerald-500/30 rounded-sm text-emerald-400 text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-500/20 transition-all cursor-pointer"
                                     >
-                                        ✅ Schválit
+                                        <span className="inline-flex items-center gap-1.5"><CircleCheck className="w-3.5 h-3.5 shrink-0" />Schválit</span>
                                     </button>
                                 )}
                                 <button

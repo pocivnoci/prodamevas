@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { getAvailableIGClients } from "@/app/actions/admin-actions"
 import { getClientConfig, updateClientConfig } from "@/app/actions/settings-actions"
+import { Lightbulb } from "lucide-react"
 
 type ClientInfo = { id: string; name: string; icon: string; description: string }
 
@@ -193,7 +194,7 @@ export default function SettingsPage() {
             </div>
             
             <div className="p-4 bg-aisummit-cinnabar/10 border border-aisummit-cinnabar/20 rounded-sm">
-                <h3 className="text-xs text-aisummit-cinnabar font-bold uppercase tracking-widest mb-2 flex items-center gap-2"><span>💡</span> Uživatelský manuál k nastavení profilu</h3>
+                <h3 className="text-xs text-aisummit-cinnabar font-bold uppercase tracking-widest mb-2 flex items-center gap-2"><Lightbulb className="w-4 h-4" /> Uživatelský manuál k nastavení profilu</h3>
                 <ul className="text-[11px] text-white/60 space-y-1 ml-6 list-disc">
                     <li>Vyber projekt nahoře vpravo.</li>
                     <li>V JSONu můžeš ručně upravit sekci <strong className="text-white/80">"products"</strong> a přidat / smazat libovolné produkty nebo služby pro tento model.</li>

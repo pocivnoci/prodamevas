@@ -1,6 +1,7 @@
 "use client"
 
 import { Component, type ReactNode } from "react"
+import { TriangleAlert } from "lucide-react"
 
 interface Props {
     children: ReactNode
@@ -30,7 +31,7 @@ export class ErrorBoundary extends Component<Props, State> {
             return (
                 <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
                     <div className="w-16 h-16 bg-aisummit-cinnabar/10 border border-aisummit-cinnabar/20 rounded-sm flex items-center justify-center mb-6">
-                        <span className="text-3xl">⚠️</span>
+                        <TriangleAlert className="w-6 h-6" />
                     </div>
                     <h2 className="text-xl font-black uppercase tracking-widest text-white mb-3">
                         Něco se pokazilo

@@ -5,6 +5,7 @@ import { getPerformanceInsights, updateIGPostMetrics, syncMetricsAction } from "
 import { getConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { getGrowthData, type GrowthData } from "@/app/actions/growth-actions"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
+import { Anchor, ChartColumn, LockOpen, Search, TrendingUp } from "lucide-react"
 
 export function PerformanceTab({ projectId }: { projectId: string }) {
     const [posts, setPosts] = useState<any[]>([])
@@ -111,7 +112,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
             <div>
                 <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
                     <h2 className="text-lg font-black uppercase tracking-tight text-white flex items-center gap-2">
-                        📊 Statistiky výkonu
+                        <span className="inline-flex items-center gap-1.5"><ChartColumn className="w-3.5 h-3.5 shrink-0" />Statistiky výkonu</span>
                         {!hasData && <span className="text-[10px] font-normal normal-case tracking-normal text-white/30">— zatím žádná data, zadej metriky níže</span>}
                     </h2>
                     {connected && (
@@ -153,7 +154,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                             {/* Best Hooks */}
                             <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
-                                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-3">🎣 Nejlepší hooky</div>
+                                <div className="inline-flex items-center gap-1.5 text-[10px] text-white/40 uppercase tracking-wider mb-3"><Anchor className="w-3 h-3 shrink-0" />Nejlepší hooky</div>
                                 <div className="space-y-2">
                                     {insights.bestHooks?.slice(0, 5).map((hook: string, i: number) => (
                                         <div key={i} className="flex items-start gap-2">
@@ -169,7 +170,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
 
                             {/* Top Patterns */}
                             <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
-                                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-3">🔍 Detekované vzorce</div>
+                                <div className="inline-flex items-center gap-1.5 text-[10px] text-white/40 uppercase tracking-wider mb-3"><Search className="w-3 h-3 shrink-0" />Detekované vzorce</div>
                                 <div className="flex flex-wrap gap-2">
                                     {insights.topPatterns?.map((pattern: string, i: number) => (
                                         <span key={i} className="inline-flex items-center px-3 py-1.5 bg-white/5 border border-white/10 rounded-sm text-[11px] text-white/70 font-medium">
@@ -186,7 +187,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                         {/* Per-Pillar Performance */}
                         {insights.pillarPerformance && Object.keys(insights.pillarPerformance).length > 0 && (
                             <div>
-                                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-3">📊 Výkon podle témat</div>
+                                <div className="inline-flex items-center gap-1.5 text-[10px] text-white/40 uppercase tracking-wider mb-3"><ChartColumn className="w-3 h-3 shrink-0" />Výkon podle témat</div>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                     {Object.entries(insights.pillarPerformance).map(([key, perf]: [string, any]) => {
                                         const label = pillarLabels[key]
@@ -217,7 +218,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
             {/* ── Manual Metrics Input ──────────────────────── */}
             <div>
                 <h2 className="text-lg font-black uppercase tracking-tight text-white mb-4 flex items-center gap-2">
-                    📊 Manuální zadávání metrik
+                    <span className="inline-flex items-center gap-1.5"><ChartColumn className="w-3.5 h-3.5 shrink-0" />Manuální zadávání metrik</span>
                     <span className="text-[10px] font-normal normal-case tracking-normal text-white/30">— {posts.length} postů</span>
                 </h2>
 
@@ -339,14 +340,14 @@ function GrowthSection({ projectId }: { projectId: string }) {
         return (
             <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-6 flex items-center justify-between gap-4 flex-wrap">
                 <div>
-                    <h2 className="text-lg font-black uppercase tracking-tight text-white mb-1">📈 Růst profilu</h2>
+                    <h2 className="inline-flex items-center gap-1.5 text-lg font-black uppercase tracking-tight text-white mb-1"><TrendingUp className="w-4 h-4 shrink-0" />Růst profilu</h2>
                     <p className="text-xs text-white/40">Týdenní sledování followerů a graf růstu od startu je dostupný od balíčku <strong className="text-white/70">Růst</strong>.</p>
                 </div>
                 <button
                     onClick={() => setActiveSection("settings")}
                     className="px-5 py-2.5 rounded-sm bg-aisummit-cinnabar text-white text-[9px] font-bold uppercase tracking-widest hover:bg-aisummit-cinnabar/90 transition-all"
                 >
-                    🔓 Odemknout
+                    <span className="inline-flex items-center gap-1.5"><LockOpen className="w-3.5 h-3.5 shrink-0" />Odemknout</span>
                 </button>
             </div>
         )
@@ -364,7 +365,7 @@ function GrowthSection({ projectId }: { projectId: string }) {
     return (
         <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-6">
             <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <h2 className="text-lg font-black uppercase tracking-tight text-white">📈 Růst profilu</h2>
+                <h2 className="inline-flex items-center gap-1.5 text-lg font-black uppercase tracking-tight text-white"><TrendingUp className="w-4 h-4 shrink-0" />Růst profilu</h2>
                 <div className="flex items-center gap-4">
                     {growth?.currentFollowers !== null && growth?.currentFollowers !== undefined && (
                         <div className="text-right">

@@ -11,6 +11,7 @@ import {
 import { getClientConfig } from "@/app/actions/settings-actions"
 import type { ImageBriefItem, BrandImage } from "@/instagram/configs/types"
 import { LoadingSpinner } from "./shared"
+import { Camera, Image, TriangleAlert } from "lucide-react"
 
 export function BrandTab({ projectId }: { projectId: string }) {
     const [images, setImages] = useState<BrandImage[]>([])
@@ -109,7 +110,7 @@ export function BrandTab({ projectId }: { projectId: string }) {
                         className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 transition-colors"
                     >
                         <div className="flex items-center gap-2">
-                            <span className="text-lg">📸</span>
+                            <Camera className="w-5 h-5" />
                             <span className="text-sm font-bold text-white">Co ještě chybí</span>
                             <span className="text-[10px] text-blue-400/60 font-mono">
                                 {imageBrief.reduce((sum, cat) => sum + cat.items.length, 0)} položek
@@ -179,7 +180,7 @@ export function BrandTab({ projectId }: { projectId: string }) {
                     </div>
                 ) : (
                     <div className="flex flex-col items-center gap-3">
-                        <span className="text-4xl">📸</span>
+                        <Camera className="w-8 h-8" />
                         <span className="text-white/50 text-xs font-bold uppercase tracking-wider">
                             Přetáhni fotky sem nebo klikni pro výběr
                         </span>
@@ -197,7 +198,7 @@ export function BrandTab({ projectId }: { projectId: string }) {
                 </div>
             ) : images.length === 0 ? (
                 <div className="text-center py-12 text-white/30">
-                    <span className="text-5xl block mb-4">🖼️</span>
+                    <Image className="w-8 h-8 block mb-4" />
                     <p className="text-xs font-bold uppercase tracking-wider">Zatím žádné fotky</p>
                     <p className="text-[10px] mt-1 tracking-wide">Nahraj fotky produktů a značky pro lepší AI generování</p>
                 </div>
@@ -254,7 +255,7 @@ export function BrandTab({ projectId }: { projectId: string }) {
                                             ))}
                                         </div>
                                     ) : (
-                                        <span className="text-[8px] text-amber-400/90 font-bold uppercase tracking-wider">⚠ bez štítku</span>
+                                        <span className="inline-flex items-center gap-1.5 text-[8px] text-amber-400/90 font-bold uppercase tracking-wider"><TriangleAlert className="w-3 h-3 shrink-0" />bez štítku</span>
                                     )}
                                 </div>
                             </div>

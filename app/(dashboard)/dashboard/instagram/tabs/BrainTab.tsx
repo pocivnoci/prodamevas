@@ -8,6 +8,7 @@ import {
     updateBrandMemory,
     deleteBrandMemory,
 } from "@/app/actions/memory-actions"
+import { Brain } from "lucide-react"
 
 interface BrandMemory {
     id: string
@@ -105,7 +106,7 @@ export function BrainTab({ projectId }: { projectId: string }) {
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                        <span className="text-xl">🧠</span> Paměť značky
+                        <Brain className="w-5 h-5" /> Paměť značky
                     </h2>
                     <p className="text-[10px] uppercase tracking-widest text-white/30 mt-1">
                         Naučené vzorce z reálného výkonu • {memories.length} pravidel

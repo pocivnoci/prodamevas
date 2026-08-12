@@ -17,6 +17,7 @@ import { trackEvent } from "@/lib/analytics"
 import { parsePostMedia } from "@/lib/media-urls"
 import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
 import { formatCzk, LOWEST_MONTHLY_HALERU } from "@/lib/pricing"
+import { Brain, ChartColumn, Check, CircleCheck, Image, Lock, Package, RefreshCw, Shuffle, Smartphone, Trash2, TriangleAlert, Trophy, X } from "lucide-react"
 
 // ═══════════════════════════════════════════════════════════
 // POSTS TAB  (with detail modal + copy/download)
@@ -99,7 +100,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
         <div className="text-center py-12">
             <p className="text-aisummit-cinnabar mb-4 font-bold uppercase tracking-widest text-sm">❌ {error}</p>
             <button onClick={() => loadPosts(0)} className="px-5 py-2.5 bg-[#0f0f0f] shadow-sm border border-white/10 text-white rounded-sm text-xs font-bold uppercase tracking-widest hover:bg-white/10 transition-colors">
-                🔄 Zkusit znovu
+                <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />Zkusit znovu</span>
             </button>
         </div>
     )
@@ -256,15 +257,13 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                 {post.qa_status === "native_forced" && (
                                     <span
                                         title="Vizuální QA neprošla čistě ani po opravách — zkontroluj text a diakritiku v obrázku před publikací"
-                                        className="absolute top-2 left-2 bg-red-950/80 border border-red-500/40 text-red-300 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm backdrop-blur-sm"
-                                    >
-                                        ⚠ Zkontroluj text
-                                    </span>
+                                        className="inline-flex items-center gap-1.5 absolute top-2 left-2 bg-red-950/80 border border-red-500/40 text-red-300 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm backdrop-blur-sm"
+                                    ><TriangleAlert className="w-3 h-3 shrink-0" />Zkontroluj text</span>
                                 )}
                             </div>
                         ) : (
                             <div className="w-full h-56 rounded-sm bg-[#0f0f0f]/50 border border-white/5 flex flex-col items-center justify-center mb-4 gap-2">
-                                <span className="text-2xl opacity-50">🖼️</span>
+                                <Image className="w-6 h-6 opacity-50" />
                                 <span className="text-white/40 font-bold uppercase tracking-widest text-[10px]">Bez obrázku</span>
                             </div>
                         )}
@@ -411,7 +410,7 @@ function LockedPostCard({ post }: { post: IGPost }) {
             {/* Blurred image placeholder */}
             <div className="w-full h-56 rounded-sm bg-[#0f0f0f]/50 border border-white/5 flex flex-col items-center justify-center mb-4 gap-2 relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-white/[0.01]" />
-                <span className="text-3xl opacity-30">🔒</span>
+                <Lock className="w-6 h-6 opacity-30" />
                 <span className="text-white/30 font-bold uppercase tracking-widest text-[9px]">Zamčený obsah</span>
             </div>
 
@@ -421,7 +420,9 @@ function LockedPostCard({ post }: { post: IGPost }) {
                         <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{post.ig_post_types?.display_name || "Příspěvek"}</span>
                         {post.content_pillar && <PillarBadge pillar={post.content_pillar} />}
                     </div>
-                    <span className="text-sm bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-sm">🔒</span>
+                    <span className="inline-flex items-center bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-sm">
+                        <Lock className="w-3.5 h-3.5" />
+                    </span>
                 </div>
 
                 {/* Blurred caption snippet */}
@@ -580,9 +581,7 @@ function PostDetailModal({
                     <button
                         onClick={onClose}
                         className="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 rounded-sm transition-colors border border-transparent hover:border-white/10"
-                    >
-                        ✕
-                    </button>
+                    ><X className="w-3.5 h-3.5 shrink-0" /> </button>
                 </div>
 
                 {/* Body — scrollable */}
@@ -823,7 +822,7 @@ function PostDetailModal({
                             onClick={() => onPublish(post)}
                             className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-gradient-to-r from-aisummit-cinnabar/20 to-orange-600/20 text-aisummit-cinnabar hover:from-aisummit-cinnabar/30 hover:to-orange-600/30 transition-all flex items-center gap-2 border border-aisummit-cinnabar/30"
                         >
-                            📲 Publikovat na Instagram
+                            <span className="inline-flex items-center gap-1.5"><Smartphone className="w-3.5 h-3.5 shrink-0" />Publikovat na Instagram</span>
                         </button>
                     )}
 
@@ -843,7 +842,7 @@ function PostDetailModal({
                                 onClick={() => onStatusChange(post.id, "posted")}
                                 className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all border border-emerald-500/20"
                             >
-                                ✓ Publikováno
+                                <span className="inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5 shrink-0" />Publikováno</span>
                             </button>
                         </>
                     )}
@@ -859,7 +858,7 @@ function PostDetailModal({
                                 onClick={() => onStatusChange(post.id, "posted")}
                                 className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all border border-emerald-500/20"
                             >
-                                ✓ Publikováno
+                                <span className="inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5 shrink-0" />Publikováno</span>
                             </button>
                         </>
                     )}
@@ -879,7 +878,7 @@ function PostDetailModal({
                                 onClick={() => onStatusChange(post.id, "archived")}
                                 className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-white/5 text-white/40 hover:bg-white/10 transition-all border border-white/10"
                             >
-                                📦 Archivovat
+                                <span className="inline-flex items-center gap-1.5"><Package className="w-3.5 h-3.5 shrink-0" />Archivovat</span>
                             </button>
                         </>
                     )}
@@ -924,7 +923,7 @@ function PostDetailModal({
                             onClick={() => setShowVariantComparison(true)}
                             className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 border border-violet-500/20 transition-all"
                         >
-                            📊 Srovnat
+                            <span className="inline-flex items-center gap-1.5"><ChartColumn className="w-3.5 h-3.5 shrink-0" />Srovnat</span>
                         </button>
                     )}
                     {variantError && (
@@ -950,14 +949,14 @@ function PostDetailModal({
                             onClick={() => setConfirmDelete(true)}
                             className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20"
                         >
-                            🗑️ Smazat
+                            <span className="inline-flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5 shrink-0" />Smazat</span>
                         </button>
                     ) : (
                         <button
                             onClick={() => onDelete(post.id)}
                             className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse"
                         >
-                            ⚠️ Opravdu smazat?
+                            <span className="inline-flex items-center gap-1.5"><TriangleAlert className="w-3.5 h-3.5 shrink-0" />Opravdu smazat?</span>
                         </button>
                     )}
                 </div>
@@ -1257,15 +1256,13 @@ function PostEditPanel({
                         onClick={() => setShowRegenerate(true)}
                         className="text-[9px] uppercase tracking-widest font-bold text-white/25 hover:text-white/50 transition-colors"
                     >
-                        🔄 Nebo vygenerovat úplně znovu…
+                        <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />Nebo vygenerovat úplně znovu…</span>
                     </button>
                 ) : (
                     <div className="space-y-2">
-                        <p className="text-[9px] uppercase tracking-widest font-bold text-amber-400/70">
-                            ⚠ Vytvoří nový příspěvek s úplně novým vizuálem — jiná fotka, jiná kompozice
-                        </p>
+                        <p className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest font-bold text-amber-400/70"><TriangleAlert className="w-3 h-3 shrink-0" />Vytvoří nový příspěvek s úplně novým vizuálem — jiná fotka, jiná kompozice</p>
                         {regenerate.revisionResult?.success ? (
-                            <p className="text-xs text-emerald-400">✅ Nový draft vytvořen — najdeš ho v seznamu</p>
+                            <p className="inline-flex items-center gap-1.5 text-xs text-emerald-400"><CircleCheck className="w-3.5 h-3.5 shrink-0" />Nový draft vytvořen — najdeš ho v seznamu</p>
                         ) : (
                             <div className="flex gap-2 items-start">
                                 <textarea
@@ -1368,7 +1365,7 @@ function VariantComparisonModal({
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
                     <div className="flex items-center gap-3">
-                        <span className="text-lg">🔀</span>
+                        <Shuffle className="w-5 h-5" />
                         <div>
                             <h3 className="text-white font-black uppercase tracking-tighter">A/B Srovnání variant</h3>
                             <p className="text-[10px] text-white/40 font-mono tracking-widest uppercase">
@@ -1379,9 +1376,7 @@ function VariantComparisonModal({
                     <button
                         onClick={onClose}
                         className="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 rounded-sm transition-colors border border-transparent hover:border-white/10"
-                    >
-                        ✕
-                    </button>
+                    ><X className="w-3.5 h-3.5 shrink-0" /> </button>
                 </div>
 
                 {/* Body */}
@@ -1430,7 +1425,7 @@ function VariantComparisonModal({
                                                     {isOriginal ? "Originál" : `Varianta ${index}`}
                                                 </span>
                                                 {isWinner && (
-                                                    <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400 animate-pulse">🏆 Vítěz</span>
+                                                    <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-emerald-400 animate-pulse"><Trophy className="w-3 h-3 shrink-0" />Vítěz</span>
                                                 )}
                                             </div>
                                             <span className="text-[9px] text-white/30 font-mono">{variant.ig_post_types?.emoji || "📸"}</span>
@@ -1443,7 +1438,7 @@ function VariantComparisonModal({
                                             </div>
                                         ) : (
                                             <div className="w-full aspect-[4/5] bg-[#050505] flex items-center justify-center">
-                                                <span className="text-white/20 text-3xl">🖼️</span>
+                                                <Image className="w-6 h-6 text-white/20" />
                                             </div>
                                         )}
 
@@ -1475,9 +1470,7 @@ function VariantComparisonModal({
 
                 {done && (
                     <div className="px-6 py-3 border-t border-emerald-500/20 bg-emerald-500/5 flex items-center justify-center gap-2">
-                        <span className="text-xs text-emerald-400 font-bold uppercase tracking-widest">
-                            🧠 Preference uložena — AI se učí z tvého výběru
-                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-bold uppercase tracking-widest"><Brain className="w-3.5 h-3.5 shrink-0" />Preference uložena — AI se učí z tvého výběru</span>
                     </div>
                 )}
             </div>

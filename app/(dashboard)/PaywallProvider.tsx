@@ -2,7 +2,7 @@
 
 import { useState, useEffect, createContext, useContext, useCallback, type ReactNode } from "react"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
-import { CheckCircle2, X, Zap, AlertTriangle, Lock } from "lucide-react"
+import { AlertTriangle, ChartColumn, CheckCircle2, ClipboardList, CreditCard, Lock, X, Zap } from "lucide-react"
 import { formatCzk, LOWEST_MONTHLY_HALERU } from "@/lib/pricing"
 import { CreditPacks } from "@/app/(dashboard)/CreditPacks"
 
@@ -247,21 +247,21 @@ function PlanUnlockModal({ onClose }: { onClose: () => void }) {
                     {/* What you get */}
                     <div className="bg-white/[0.02] border border-white/5 rounded-sm p-4 mb-6 space-y-3">
                         <div className="flex items-center gap-3">
-                            <span className="text-base">📋</span>
+                            <ClipboardList className="w-4 h-4" />
                             <div>
                                 <p className="text-[10px] text-white/70 font-bold">Měsíční plán (~30 příspěvků)</p>
                                 <p className="text-[9px] text-white/30">Caption, hashtags, obrázek — vše vygenerováno</p>
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
-                            <span className="text-base">⚡</span>
+                            <Zap className="w-4 h-4" />
                             <div>
                                 <p className="text-[10px] text-white/70 font-bold">Kredity na tvorbu navíc každý měsíc</p>
                                 <p className="text-[9px] text-white/30">Extra posty, varianty, nápady, produkty</p>
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
-                            <span className="text-base">📊</span>
+                            <ChartColumn className="w-4 h-4" />
                             <div>
                                 <p className="text-[10px] text-white/70 font-bold">Plná analytika</p>
                                 <p className="text-[9px] text-white/30">Výkon příspěvků, doporučení, trendy</p>
@@ -282,9 +282,7 @@ function PlanUnlockModal({ onClose }: { onClose: () => void }) {
                         <button
                             onClick={goToPricing}
                             className="flex-1 py-3.5 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm font-black text-xs uppercase tracking-widest hover:opacity-90 transition-all shadow-[0_0_30px_rgba(229,83,63,0.3)]"
-                        >
-                            💳 Vybrat tarif
-                        </button>
+                        ><CreditCard className="w-3.5 h-3.5 shrink-0" />Vybrat tarif</button>
                         <button
                             onClick={onClose}
                             className="px-6 py-3.5 border border-white/10 text-white/40 rounded-sm font-bold text-xs uppercase tracking-widest hover:bg-white/5 transition-all"

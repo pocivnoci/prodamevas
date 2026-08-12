@@ -28,6 +28,7 @@ import { LoadingSpinner } from "./shared"
 import { Hint, HINTS } from "./Hint"
 import { analyzeProductForBrief } from "@/app/actions/product-brief-actions"
 import { generateProductBriefPDF } from "@/lib/product-brief-docx"
+import { Banknote, CircleCheck, ClipboardList, Eye, Factory, Flame, Lightbulb, Package, Palette, Pencil, Rocket, Ruler, Save, Search, Tag, Wrench } from "lucide-react"
 
 
 type ProductSection = "catalog" | "lines" | "ideas" | "design" | "categories"
@@ -378,7 +379,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
             {section === "ideas" && !loading && (
                 <div className="space-y-6">
                     <div className="bg-[#0f0f0f] border border-white/10 rounded-sm p-8 shadow-lg">
-                        <h3 className="text-2xl font-black uppercase tracking-tighter text-white mb-2">💡 Product Ideas Brainstorm</h3>
+                        <h3 className="inline-flex items-center gap-1.5 text-2xl font-black uppercase tracking-tighter text-white mb-2"><Lightbulb className="w-5 h-5 shrink-0" />Product Ideas Brainstorm</h3>
                         <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest mb-6">AI vygeneruje kreativní nápady na nové produkty — nejen oblečení, ale i gadgety, doplňky a originální merch.</p>
 
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
@@ -405,17 +406,15 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                 <button
                                     onClick={handleGenerateIdeas}
                                     disabled={loading}
-                                    className="w-full px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-sm text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 border border-white/20 shadow-sm"
-                                >
-                                    🚀 Generovat nápady
-                                </button>
+                                    className="inline-flex items-center gap-1.5 justify-center w-full px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-sm text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 border border-white/20 shadow-sm"
+                                ><Rocket className="w-3 h-3 shrink-0" />Generovat nápady</button>
                             </div>
                         </div>
                     </div>
 
                     {/* ═══════════════ VLASTNÍ PRODUKT ═══════════════ */}
                     <div className="bg-[#0a0a0a] border border-emerald-500/20 rounded-sm p-6 mb-6">
-                        <h3 className="text-[10px] uppercase tracking-[0.3em] font-black text-emerald-400 mb-4">✏️ Vlastní produkt — napiš co chceš vizualizovat</h3>
+                        <h3 className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.3em] font-black text-emerald-400 mb-4"><Pencil className="w-3 h-3 shrink-0" />Vlastní produkt — napiš co chceš vizualizovat</h3>
                         <div className="flex gap-3">
                             <input
                                 value={customProductInput}
@@ -508,7 +507,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                     {/* Branding name variants */}
                                     {idea.brandingNames && idea.brandingNames.length > 0 && (
                                         <div className="mb-4 pt-2">
-                                            <span className="text-[9px] uppercase tracking-widest font-bold text-amber-500/50 mb-2 block">🏷️ Varianty názvů</span>
+                                            <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest font-bold text-amber-500/50 mb-2 block"><Tag className="w-3 h-3 shrink-0" />Varianty názvů</span>
                                             <div className="flex flex-wrap gap-1.5">
                                                 {idea.brandingNames.map((bn: string, j: number) => (
                                                     <span key={j} className="px-2 py-1 bg-amber-500/5 border border-amber-500/10 text-amber-500 rounded-sm text-[9px] font-bold uppercase tracking-widest cursor-default">
@@ -523,34 +522,34 @@ export function ProductsTab({ projectId }: { projectId: string }) {
 
                                     <div className="space-y-2 text-[10px] font-mono tracking-wide text-white/50">
                                         <div className="flex gap-2">
-                                            <span className="text-white/30 w-16 uppercase font-bold tracking-widest">💰 Cena:</span>
+                                            <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Banknote className="w-3.5 h-3.5 shrink-0" />Cena:</span>
                                             <span className="text-emerald-400 font-bold">{idea.priceRange}</span>
                                         </div>
                                         <div className="flex gap-2">
-                                            <span className="text-white/30 w-16 uppercase font-bold tracking-widest">🔧 Mat.:</span>
+                                            <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Wrench className="w-3.5 h-3.5 shrink-0" />Mat.:</span>
                                             <span>{idea.material}</span>
                                         </div>
                                         <div className="flex gap-2">
-                                            <span className="text-white/30 w-16 uppercase font-bold tracking-widest">📐 Rozm.:</span>
+                                            <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Ruler className="w-3.5 h-3.5 shrink-0" />Rozm.:</span>
                                             <span>{idea.dimensions}</span>
                                         </div>
                                         <div className="flex gap-2">
-                                            <span className="text-white/30 w-16 uppercase font-bold tracking-widest">🏭 Výr.:</span>
+                                            <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Factory className="w-3.5 h-3.5 shrink-0" />Výr.:</span>
                                             <span>{idea.manufacturingMethod}</span>
                                         </div>
                                     </div>
 
                                     <div className="mt-4 pt-4 border-t border-white/10 space-y-4 shadow-sm pb-2">
                                         <div>
-                                            <span className="text-[9px] uppercase tracking-widest text-amber-500/50 font-bold">🔥 Virální angle</span>
+                                            <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-amber-500/50 font-bold"><Flame className="w-3 h-3 shrink-0" />Virální angle</span>
                                             <p className="text-white/70 text-[10px] font-medium mt-1 leading-relaxed">{idea.viralAngle}</p>
                                         </div>
                                         <div>
-                                            <span className="text-[9px] uppercase tracking-widest text-emerald-500/50 font-bold">✅ Proč to bude fungovat</span>
+                                            <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-emerald-500/50 font-bold"><CircleCheck className="w-3 h-3 shrink-0" />Proč to bude fungovat</span>
                                             <p className="text-white/70 text-[10px] font-medium mt-1 leading-relaxed">{idea.whyItWorks}</p>
                                         </div>
                                         <div>
-                                            <span className="text-[9px] uppercase tracking-widest text-blue-500/50 font-bold">📋 Produkce</span>
+                                            <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-blue-500/50 font-bold"><ClipboardList className="w-3 h-3 shrink-0" />Produkce</span>
                                             <p className="text-white/70 text-[10px] font-medium mt-1 leading-relaxed">{idea.productionNotes}</p>
                                         </div>
                                     </div>
@@ -596,7 +595,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                             }}
                                             className="flex-1 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-sm text-[9px] font-bold uppercase tracking-widest text-white/50 hover:text-white transition-all shadow-sm"
                                         >
-                                            🎨 Design pro tisk
+                                            <span className="inline-flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 shrink-0" />Design pro tisk</span>
                                         </button>
                                         <button
                                             onClick={async () => {
@@ -631,7 +630,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                     {/* DB Saved Ideas grid */}
                     {savedIdeas.length > 0 && (
                         <div className="mt-12">
-                            <h3 className="text-xl font-black uppercase tracking-tighter text-emerald-400 mb-2 border-b border-emerald-900/50 pb-2">💾 Uložené Nápady</h3>
+                            <h3 className="inline-flex items-center gap-1.5 text-xl font-black uppercase tracking-tighter text-emerald-400 mb-2 border-b border-emerald-900/50 pb-2"><Save className="w-4 h-4 shrink-0" />Uložené Nápady</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-6">
                                 {savedIdeas.map((idea) => (
                                     <div key={idea.id} className="bg-[#050505] border border-emerald-500/20 rounded-sm p-6 shadow-sm transition-all relative overflow-hidden">
@@ -680,15 +679,15 @@ export function ProductsTab({ projectId }: { projectId: string }) {
 
                                         <div className="space-y-2 text-[10px] font-mono tracking-wide text-white/50">
                                             <div className="flex gap-2">
-                                                <span className="text-white/30 w-16 uppercase font-bold tracking-widest">💰 Cena:</span>
+                                                <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Banknote className="w-3.5 h-3.5 shrink-0" />Cena:</span>
                                                 <span className="text-emerald-400 font-bold">{idea.priceRange}</span>
                                             </div>
                                             <div className="flex gap-2">
-                                                <span className="text-white/30 w-16 uppercase font-bold tracking-widest">🔧 Mat.:</span>
+                                                <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Wrench className="w-3.5 h-3.5 shrink-0" />Mat.:</span>
                                                 <span>{idea.material}</span>
                                             </div>
                                             <div className="flex gap-2">
-                                                <span className="text-white/30 w-16 uppercase font-bold tracking-widest">🏭 Výr.:</span>
+                                                <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Factory className="w-3.5 h-3.5 shrink-0" />Výr.:</span>
                                                 <span>{idea.manufacturingMethod}</span>
                                             </div>
                                         </div>
@@ -697,9 +696,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                         {ideaVisuals[idea.id as string] && (
                                             <div className="mt-4 relative group/vis cursor-pointer" onClick={() => setSelectedIdea(idea)}>
                                                 <img src={ideaVisuals[idea.id as string]} alt={idea.name} className="w-full rounded-sm border border-emerald-500/20 shadow-sm transition-transform group-hover/vis:scale-[1.02]" />
-                                                <div className="absolute bottom-2 right-2 px-2 py-1 bg-[#050505] border border-white/10 text-white text-[9px] uppercase tracking-widest font-bold rounded-sm opacity-0 group-hover/vis:opacity-100 transition-opacity shadow-sm">
-                                                    🔍 Zvětšit
-                                                </div>
+                                                <div className="inline-flex items-center gap-1.5 absolute bottom-2 right-2 px-2 py-1 bg-[#050505] border border-white/10 text-white text-[9px] uppercase tracking-widest font-bold rounded-sm opacity-0 group-hover/vis:opacity-100 transition-opacity shadow-sm"><Search className="w-3 h-3 shrink-0" />Zvětšit</div>
                                             </div>
                                         )}
 
@@ -708,7 +705,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                             onClick={() => setSelectedIdea(idea)}
                                             className="mt-4 w-full py-2 bg-white/5 hover:bg-white/10 text-white text-[10px] uppercase tracking-widest font-bold rounded-sm border border-white/10 transition-colors"
                                         >
-                                            👁️ Všechny parametry & Dodavatel
+                                            <span className="inline-flex items-center gap-1.5"><Eye className="w-3.5 h-3.5 shrink-0" />Všechny parametry & Dodavatel</span>
                                         </button>
 
                                         {/* Action buttons */}
@@ -836,7 +833,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                         {/* Feedback / Revision */}
                                         <div className="mt-4 pt-4 border-t border-white/5">
                                             {productRevisionDone[idea.id as string] ? (
-                                                <p className="text-[10px] text-emerald-400">✅ Produkt přepracován</p>
+                                                <p className="inline-flex items-center gap-1.5 text-[10px] text-emerald-400"><CircleCheck className="w-3 h-3 shrink-0" />Produkt přepracován</p>
                                             ) : (
                                                 <div className="flex gap-2 items-start">
                                                     <textarea
@@ -900,7 +897,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                     <div className="bg-[#0f0f0f] border border-white/10 rounded-sm p-8 shadow-lg">
                         <div className="flex items-center justify-between mb-6">
                             <div>
-                                <h3 className="text-2xl font-black uppercase tracking-tighter text-white mb-2">📦 Produktové kategorie</h3>
+                                <h3 className="inline-flex items-center gap-1.5 text-2xl font-black uppercase tracking-tighter text-white mb-2"><Package className="w-5 h-5 shrink-0" />Produktové kategorie</h3>
                                 <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest">
                                     {categoriesCustom
                                         ? "Vlastní kategorie tohoto klienta"

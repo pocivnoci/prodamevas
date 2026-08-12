@@ -24,6 +24,7 @@ import { useCopyToClipboard } from "./hooks"
 import type { IGPostType, IGCategory, IGPostFormat } from "./types"
 import { creditsForMedia } from "@/lib/credits"
 import { trackEvent } from "@/lib/analytics"
+import { Bot, CalendarDays, ClipboardList, Compass, Film, Lightbulb, Package, Pencil, RefreshCw, Rocket, Ruler, Sparkles, Star, Trash2, TriangleAlert, X } from "lucide-react"
 
 /**
  * What a batch actually costs in credits. The first `freeRemaining` posts fall
@@ -888,7 +889,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                             : "text-white/40 hover:text-white"
                         }`}
                     >
-                        ✨ Jeden příspěvek
+                        <span className="inline-flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 shrink-0" />Jeden příspěvek</span>
                     </button>
                     <button
                         onClick={() => { setBatchMode(true); setStep(1) }}
@@ -897,7 +898,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                             : "text-white/40 hover:text-white"
                         }`}
                     >
-                        📅 Obsahový plán
+                        <span className="inline-flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5 shrink-0" />Obsahový plán</span>
                     </button>
                 </div>
                 <div className="flex items-center gap-2">
@@ -930,7 +931,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
             {/* Credit error */}
             {creditError && (
                 <div className="bg-aisummit-cinnabar/10 border border-aisummit-cinnabar/20 rounded-sm p-4 flex items-center gap-3">
-                    <span className="text-lg">⚠️</span>
+                    <TriangleAlert className="w-5 h-5" />
                     <p className="text-sm text-aisummit-cinnabar font-bold">{creditError}</p>
                 </div>
             )}
@@ -968,7 +969,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         <div className="mb-3 bg-[#050505] border border-white/10 rounded-sm p-3 max-h-52 overflow-y-auto space-y-1">
                                             {savedIdeas.length > 0 && (
                                                 <>
-                                                    <span className="text-[9px] font-bold uppercase tracking-widest text-white/30 block mb-1">💡 Nápady</span>
+                                                    <span className="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-white/30 block mb-1"><Lightbulb className="w-3 h-3 shrink-0" />Nápady</span>
                                                     {savedIdeas.slice(0, 10).map((idea: any) => (
                                                         <button key={idea.id} type="button"
                                                             onClick={() => { setTopic(`${idea.title}: ${idea.content}`); setSelectedIdeaId(idea.id); setShowIdeaPicker(false) }}
@@ -981,7 +982,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                             )}
                                             {approvedReviews.length > 0 && (
                                                 <>
-                                                    <span className="text-[9px] font-bold uppercase tracking-widest text-white/30 block mb-1 mt-2">⭐ Recenze</span>
+                                                    <span className="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-white/30 block mb-1 mt-2"><Star className="w-3 h-3 shrink-0" />Recenze</span>
                                                     {approvedReviews.slice(0, 5).map((review: any) => (
                                                         <button key={review.id} type="button"
                                                             onClick={() => {
@@ -1007,9 +1008,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     />
                                     {selectedIdeaId && (
                                         <div className="mt-2 flex items-center gap-2">
-                                            <span className="text-[9px] px-2 py-1 rounded-sm bg-emerald-500/10 text-emerald-400/80 uppercase tracking-widest font-bold border border-emerald-500/20">
-                                                💡 Napojeno na nápad — příspěvek se započítá do jeho výkonu
-                                            </span>
+                                            <span className="inline-flex items-center gap-1.5 text-[9px] px-2 py-1 rounded-sm bg-emerald-500/10 text-emerald-400/80 uppercase tracking-widest font-bold border border-emerald-500/20"><Lightbulb className="w-3 h-3 shrink-0" />Napojeno na nápad — příspěvek se započítá do jeho výkonu</span>
                                             <button type="button" onClick={() => setSelectedIdeaId(null)}
                                                 className="text-[9px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors">
                                                 ✕
@@ -1034,7 +1033,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                     <button onClick={() => setCategory("auto")}
                                                         className={`px-4 py-2.5 rounded-sm border text-xs font-bold transition-all flex items-center gap-2 ${category === "auto" || category === ""
                                                             ? "border-white/30 bg-white/10 text-white" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
-                                                        <span className="grayscale opacity-80">🤖</span> Automaticky
+                                                        <Bot className="w-4 h-4 grayscale opacity-80" /> Automaticky
                                                     </button>
                                                     {categories.map(cat => (
                                                         <button key={cat.id} onClick={() => setCategory(cat.id)}
@@ -1049,7 +1048,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                             {/* Product selector */}
                                             {catalogProducts.length > 0 && (
                                                 <div>
-                                                    <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">📦 Produkt</label>
+                                                    <label className="inline-flex items-center gap-1.5 text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold"><Package className="w-3 h-3 shrink-0" />Produkt</label>
                                                     <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)}
                                                         className="w-full px-5 py-3.5 bg-[#050505] border border-white/10 rounded-sm text-white text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all">
                                                         <option value="">🎲 AI vybere automaticky</option>
@@ -1077,7 +1076,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                 })()}
                                             </div>
                                             <div>
-                                                <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">📐 Poměr stran</label>
+                                                <label className="inline-flex items-center gap-1.5 text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold"><Ruler className="w-3 h-3 shrink-0" />Poměr stran</label>
                                                 <div className="grid grid-cols-4 gap-2">
                                                     {[{ value: "", label: "Auto" }, { value: "1:1", label: "1:1" }, { value: "4:5", label: "4:5" }, { value: "3:4", label: "3:4" }].map(opt => (
                                                         <button key={opt.value} onClick={() => setAspectRatio(opt.value)}
@@ -1089,7 +1088,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">🎞️ Typ</label>
+                                                <label className="inline-flex items-center gap-1.5 text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold"><Film className="w-3 h-3 shrink-0" />Typ</label>
                                                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                                                     {[{ value: "", label: "Auto", emoji: "🎲" }, { value: "image", label: "Obrázek", emoji: "🖼️" }, { value: "story", label: "Story", emoji: "📱" }, { value: "carousel", label: "Carousel", emoji: "📸" }, { value: "reel", label: "Reel", emoji: "🎬" }].map(opt => {
                                                         const locked = (opt.value === "reel" && !reelAllowed) || (opt.value === "story" && !storyAllowed)
@@ -1204,7 +1203,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         <button onClick={() => setGoal("")}
                                             className={`px-3 py-2.5 rounded-sm border text-[11px] font-bold transition-all ${goal === ""
                                                 ? "border-white/30 bg-white/10 text-white" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
-                                            🤖 Auto
+                                            <span className="inline-flex items-center gap-1.5"><Bot className="w-3.5 h-3.5 shrink-0" />Auto</span>
                                         </button>
                                         {CAMPAIGN_GOALS.map(g => (
                                             <button key={g.key} onClick={() => setGoal(g.key)} title={g.hint}
@@ -1234,7 +1233,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 {/* Product focus — the campaign revolves around these */}
                                 {catalogProducts.length > 0 && (
                                     <div>
-                                        <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">📦 Zaměřit na produkty (volitelné)</label>
+                                        <label className="inline-flex items-center gap-1.5 text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold"><Package className="w-3 h-3 shrink-0" />Zaměřit na produkty (volitelné)</label>
                                         <div className="flex flex-wrap gap-2">
                                             {catalogProducts.map(p => {
                                                 const on = focusProductIds.includes(p.id)
@@ -1267,7 +1266,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 {/* Schedule — set up-front so the generated plan lands on real dates
                                     immediately (still editable per post in the preview). */}
                                 <div>
-                                    <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">📅 Začít od</label>
+                                    <label className="inline-flex items-center gap-1.5 text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold"><CalendarDays className="w-3 h-3 shrink-0" />Začít od</label>
                                     <input type="date" value={scheduleStart}
                                         onChange={(e) => handleScheduleChange(e.target.value, postsPerWeek)}
                                         className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30" />
@@ -1335,7 +1334,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         {/* Campaign arc from the strategist stage */}
                         {planStrategy && (
                             <div className="mb-6 bg-[#050505] border border-emerald-500/15 rounded-sm p-5">
-                                <p className="text-[9px] text-emerald-400/60 font-bold uppercase tracking-widest mb-2">🧭 Kampaňová linka</p>
+                                <p className="inline-flex items-center gap-1.5 text-[9px] text-emerald-400/60 font-bold uppercase tracking-widest mb-2"><Compass className="w-3 h-3 shrink-0" />Kampaňová linka</p>
                                 <p className="text-sm text-white/70 leading-relaxed">{planStrategy}</p>
                             </div>
                         )}
@@ -1375,7 +1374,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         {/* Schedule bar — auto-distributes posting times; editable per post below */}
                         <div className="max-w-2xl mx-auto mb-6 bg-[#0a0a0a] border border-white/10 rounded-sm p-4 flex flex-wrap items-end gap-4">
                             <div>
-                                <label className="block text-[8px] text-white/40 font-bold uppercase tracking-widest mb-1.5">📅 Začít od</label>
+                                <label className="inline-flex items-center gap-1.5 block text-[8px] text-white/40 font-bold uppercase tracking-widest mb-1.5"><CalendarDays className="w-3 h-3 shrink-0" />Začít od</label>
                                 <input
                                     type="date"
                                     value={scheduleStart}
@@ -1506,7 +1505,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
 
                                                         {/* Per-post schedule (overrides auto-distribute) */}
                                                         <div className="mt-2 flex items-center gap-2">
-                                                            <span className="text-[9px] text-white/30">🗓️</span>
+                                                            <CalendarDays className="w-3 h-3 text-[9px] text-white/30" />
                                                             <input
                                                                 type="date"
                                                                 value={item.scheduledDate || ""}
@@ -1576,7 +1575,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                                                         {p.image_urls?.[0] ? (
                                                                                             <img src={p.image_urls[0]} alt="" className="w-full h-full object-cover" />
                                                                                         ) : (
-                                                                                            <span className="text-sm opacity-30">📦</span>
+                                                                                            <Package className="w-4 h-4 opacity-30" />
                                                                                         )}
                                                                                     </div>
                                                                                     <div className="flex-1 min-w-0">
@@ -1605,7 +1604,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                             className="p-1.5 text-white/20 hover:text-white/60 transition-colors"
                                                             title="Upravit téma"
                                                         >
-                                                            <span className="text-[10px]">✏️</span>
+                                                            <Pencil className="w-3 h-3 text-[10px]" />
                                                         </button>
                                                         <button
                                                             onClick={() => handleRegenerateItem(item.id)}
@@ -1613,14 +1612,14 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                             className="p-1.5 text-white/20 hover:text-amber-400/80 transition-colors disabled:opacity-30"
                                                             title="Jiný koncept"
                                                         >
-                                                            <span className="text-[10px]">🔄</span>
+                                                            <RefreshCw className="w-3 h-3 text-[10px]" />
                                                         </button>
                                                         <button
                                                             onClick={() => handleRemovePlanItem(item.id)}
                                                             className="p-1.5 text-white/20 hover:text-red-400/80 transition-colors"
                                                             title="Odebrat"
                                                         >
-                                                            <span className="text-[10px]">✕</span>
+                                                            <X className="w-3 h-3 text-[10px]" />
                                                         </button>
                                                     </div>
                                                 </div>
@@ -1663,10 +1662,8 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     <button
                                         onClick={handleDiscardPlan}
                                         disabled={generating}
-                                        className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest text-white/40 bg-white/5 border border-white/10 hover:text-red-400 hover:border-red-400/30 transition-all disabled:opacity-50"
-                                    >
-                                        🗑 Zahodit plán
-                                    </button>
+                                        className="inline-flex items-center gap-1.5 justify-center px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest text-white/40 bg-white/5 border border-white/10 hover:text-red-400 hover:border-red-400/30 transition-all disabled:opacity-50"
+                                    ><Trash2 className="w-3 h-3 shrink-0" />Zahodit plán</button>
                                 )}
                                 <button
                                     onClick={handleApproveAndGenerate}
@@ -1795,7 +1792,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                             onClick={() => { setResult(null); setStep(1); setTimeout(() => handleGenerate(), 100) }}
                                             className="mt-4 px-6 py-3 rounded-sm text-[10px] font-black uppercase tracking-widest bg-aisummit-cinnabar text-white shadow-[0_0_15px_rgba(229,83,63,0.3)] hover:shadow-[0_0_20px_rgba(229,83,63,0.5)] transition-all"
                                         >
-                                            🔄 Zkusit znovu
+                                            <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />Zkusit znovu</span>
                                         </button>
                                     )}
                                 </div>
@@ -1876,7 +1873,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         {/* Schedule this post */}
                                         {result.success && result.postId && (
                                             <div className="pt-6 mt-6 border-t border-white/10">
-                                                <span className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3">📅 Naplánovat na Instagram</span>
+                                                <span className="inline-flex items-center gap-1.5 block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3"><CalendarDays className="w-3 h-3 shrink-0" />Naplánovat na Instagram</span>
                                                 {singleScheduled ? (
                                                     <p className="text-[11px] text-emerald-400 font-bold">✅ Naplánováno na {singleScheduled} — uvidíš to v Plánovači</p>
                                                 ) : (
@@ -1910,13 +1907,13 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                 onClick={() => setActiveSection("posts")}
                                                 className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
                                             >
-                                                📋 Otevřít v Příspěvcích
+                                                <span className="inline-flex items-center gap-1.5"><ClipboardList className="w-3.5 h-3.5 shrink-0" />Otevřít v Příspěvcích</span>
                                             </button>
                                             <button
                                                 onClick={() => { setResult(null); setStep(1); setSingleScheduled(null); setSingleSchedDate("") }}
                                                 className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-white/5 text-white/60 border border-white/10 hover:text-white hover:bg-white/10 transition-all"
                                             >
-                                                ✨ Generovat další
+                                                <span className="inline-flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 shrink-0" />Generovat další</span>
                                             </button>
                                         </div>
                                     </div>
@@ -1924,7 +1921,9 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                             </div>
                         ) : batchResult ? (
                             <div className="w-full max-w-md mx-auto text-center space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                                <span className="inline-flex items-center justify-center w-20 h-20 rounded-sm bg-emerald-500/10 text-emerald-400 text-4xl shadow-sm border border-emerald-500/20 mb-2">🚀</span>
+                                <span className="inline-flex items-center justify-center w-20 h-20 rounded-sm bg-emerald-500/10 text-emerald-400 shadow-sm border border-emerald-500/20 mb-2">
+                                    <Rocket className="w-8 h-8" />
+                                </span>
                                 <h2 className="text-4xl font-black uppercase tracking-tighter text-white">Kampaň spuštěna</h2>
                                 <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest">{batchResult.message}</p>
 
@@ -1943,21 +1942,21 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         onClick={() => setActiveSection("posts")}
                                         className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
                                     >
-                                        📋 Otevřít v Příspěvcích
+                                        <span className="inline-flex items-center gap-1.5"><ClipboardList className="w-3.5 h-3.5 shrink-0" />Otevřít v Příspěvcích</span>
                                     </button>
                                     {batchResult.errors > 0 && (
                                         <button
                                             onClick={() => { setBatchResult(null); setStep(1) }}
                                             className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-aisummit-cinnabar/10 text-aisummit-cinnabar border border-aisummit-cinnabar/20 hover:bg-aisummit-cinnabar/20 transition-all"
                                         >
-                                            🔄 Zkusit selhané znovu
+                                            <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />Zkusit selhané znovu</span>
                                         </button>
                                     )}
                                     <button
                                         onClick={() => { setStep(1); setContentPlan([]) }}
                                         className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-white/5 text-white/60 border border-white/10 hover:text-white hover:bg-white/10 transition-all"
                                     >
-                                        ✨ Vytvořit další
+                                        <span className="inline-flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 shrink-0" />Vytvořit další</span>
                                     </button>
                                 </div>
                             </div>

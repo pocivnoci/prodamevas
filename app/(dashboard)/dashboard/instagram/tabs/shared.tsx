@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { updateIGPostMetrics } from "@/app/actions/admin-actions"
 import type { IGPost } from "./types"
+import { ChartColumn } from "lucide-react"
 
 export function CopyButton({ onClick, copied, label }: { onClick: () => void; copied: boolean; label?: string }) {
     return (
@@ -104,7 +105,7 @@ export function MetricsInputForm({ post, onUpdate }: { post: IGPost; onUpdate: (
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">📊 Metriky</span>
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-white/40 uppercase tracking-widest"><ChartColumn className="w-3 h-3 shrink-0" />Metriky</span>
                 <button
                     onClick={handleSave}
                     disabled={saving}

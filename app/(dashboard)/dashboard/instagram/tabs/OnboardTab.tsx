@@ -13,6 +13,7 @@ import {
 } from '@/app/onboarding/actions'
 import type { WebsiteAnalysis, OnboardingQuestion, ReviewSection } from '@/app/onboarding/actions'
 import type { ClientConfig, ImageBriefItem } from '@/instagram/configs/types'
+import { Camera, ChartColumn, Check, CircleCheck, ClipboardList, Globe, Pencil, Plus, Rocket, Search, ThumbsUp } from "lucide-react"
 
 type Step = 'choose' | 'input' | 'manual' | 'analyzing' | 'questions' | 'building' | 'review' | 'saving' | 'done'
 
@@ -319,7 +320,7 @@ export function OnboardTab() {
             {step === 'choose' && (
                 <div>
                     <div className="mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-2">➕ Onboardovat nového klienta</h2>
+                        <h2 className="inline-flex items-center gap-1.5 text-2xl font-bold text-white mb-2"><Plus className="w-5 h-5 shrink-0" />Onboardovat nového klienta</h2>
                         <p className="text-white/50 text-sm">Jak chceš začít?</p>
                     </div>
 
@@ -349,7 +350,7 @@ export function OnboardTab() {
                             <div className="space-y-2">
                                 {history.map((c, i) => (
                                     <div key={i} className="flex items-center gap-2 text-sm text-white/60">
-                                        <span className="text-emerald-400">✓</span>
+                                        <Check className="w-4 h-4 text-emerald-400" />
                                         <span className="font-medium text-white/80">{c.name}</span>
                                         <span className="text-white/30">({c.slug})</span>
                                     </div>
@@ -364,7 +365,7 @@ export function OnboardTab() {
             {step === 'input' && (
                 <div>
                     <div className="mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-2">🌐 Webová stránka klienta</h2>
+                        <h2 className="inline-flex items-center gap-1.5 text-2xl font-bold text-white mb-2"><Globe className="w-5 h-5 shrink-0" />Webová stránka klienta</h2>
                         <p className="text-white/50 text-sm">AI analyzuje web a vytvoří konfiguraci.</p>
                     </div>
 
@@ -403,9 +404,7 @@ export function OnboardTab() {
                             <button
                                 type="submit"
                                 className="flex-1 rounded-lg bg-emerald-600 px-6 py-3.5 text-sm font-medium text-white transition-all hover:bg-emerald-500 cursor-pointer"
-                            >
-                                🔍 Analyzovat web
-                            </button>
+                            ><Search className="w-3.5 h-3.5 shrink-0" />Analyzovat web</button>
                         </div>
                     </form>
                 </div>
@@ -415,7 +414,7 @@ export function OnboardTab() {
             {step === 'manual' && (
                 <div>
                     <div className="mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-2">✏️ Manuální onboarding</h2>
+                        <h2 className="inline-flex items-center gap-1.5 text-2xl font-bold text-white mb-2"><Pencil className="w-5 h-5 shrink-0" />Manuální onboarding</h2>
                         <p className="text-white/50 text-sm">Vyplň základní info — AI vytvoří konfiguraci bez webu.</p>
                     </div>
 
@@ -511,7 +510,7 @@ export function OnboardTab() {
 
                         {/* IG Insights */}
                         <div className="p-6 bg-white/5 border border-white/10 rounded-xl space-y-5">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-white/40">📊 Instagram insights (volitelné)</h4>
+                            <h4 className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-white/40"><ChartColumn className="w-3.5 h-3.5 shrink-0" />Instagram insights (volitelné)</h4>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-300 mb-2">Followerů</label>
@@ -546,9 +545,7 @@ export function OnboardTab() {
                                 type="submit"
                                 disabled={!businessName || !category || !manualDescription}
                                 className="flex-1 rounded-lg bg-blue-600 px-6 py-3.5 text-sm font-medium text-white transition-all hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                            >
-                                🚀 Analyzovat a nastavit
-                            </button>
+                            ><Rocket className="w-3.5 h-3.5 shrink-0" />Analyzovat a nastavit</button>
                         </div>
                     </form>
                 </div>
@@ -656,10 +653,8 @@ export function OnboardTab() {
 
                         <button
                             type="submit"
-                            className="w-full rounded-lg bg-emerald-600 px-6 py-3.5 text-sm font-medium text-white transition-all hover:bg-emerald-500 cursor-pointer"
-                        >
-                            🚀 Vygenerovat konfiguraci
-                        </button>
+                            className="inline-flex items-center gap-1.5 justify-center w-full rounded-lg bg-emerald-600 px-6 py-3.5 text-sm font-medium text-white transition-all hover:bg-emerald-500 cursor-pointer"
+                        ><Rocket className="w-3.5 h-3.5 shrink-0" />Vygenerovat konfiguraci</button>
                     </form>
                 </div>
             )}
@@ -685,7 +680,7 @@ export function OnboardTab() {
             {step === 'review' && configPreview && (
                 <div>
                     <div className="mb-6">
-                        <h2 className="text-xl font-bold text-white mb-1">📋 Review konfigurace</h2>
+                        <h2 className="inline-flex items-center gap-1.5 text-xl font-bold text-white mb-1"><ClipboardList className="w-4 h-4 shrink-0" />Review konfigurace</h2>
                         <p className="text-white/40 text-sm">Projdi každou sekci — schval 👍 nebo nech přegenerovat 👎</p>
                     </div>
 
@@ -843,13 +838,11 @@ export function OnboardTab() {
                     {imageBrief.length > 0 && (
                         <div className="p-6 bg-white/5 border border-white/10 rounded-xl mb-6">
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="font-bold text-white text-sm">📸 Shot list pro klienta</h3>
+                                <h3 className="inline-flex items-center gap-1.5 font-bold text-white text-sm"><Camera className="w-3.5 h-3.5 shrink-0" />Shot list pro klienta</h3>
                                 <button
                                     onClick={copyBriefToClipboard}
-                                    className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-                                >
-                                    📋 Kopírovat
-                                </button>
+                                    className="inline-flex items-center gap-1.5 justify-center px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+                                ><ClipboardList className="w-3.5 h-3.5 shrink-0" />Kopírovat</button>
                             </div>
                             <div className="space-y-4">
                                 {imageBrief.map((cat, i) => (
@@ -880,10 +873,8 @@ export function OnboardTab() {
                     <div className="flex gap-3 justify-center">
                         <button
                             onClick={handleReset}
-                            className="px-6 py-3 rounded-lg bg-emerald-600 text-sm font-medium text-white transition-all hover:bg-emerald-500 cursor-pointer"
-                        >
-                            ➕ Onboardovat dalšího
-                        </button>
+                            className="inline-flex items-center gap-1.5 justify-center px-6 py-3 rounded-lg bg-emerald-600 text-sm font-medium text-white transition-all hover:bg-emerald-500 cursor-pointer"
+                        ><Plus className="w-3.5 h-3.5 shrink-0" />Onboardovat dalšího</button>
                         <button
                             onClick={() => window.location.reload()}
                             className="px-6 py-3 rounded-lg bg-white/10 border border-white/10 text-sm font-medium text-white/70 transition-all hover:bg-white/15 cursor-pointer"
@@ -969,7 +960,7 @@ function ReviewCard({
                 <div className="flex items-center gap-2">
                     <span className="text-lg">{icon}</span>
                     <h3 className="font-bold text-sm text-white">{title}</h3>
-                    {status === 'approved' && <span className="text-emerald-400 text-sm">✅</span>}
+                    {status === 'approved' && <CircleCheck className="w-4 h-4 text-emerald-400" />}
                     {status === 'refining' && <span className="text-purple-400 text-xs animate-pulse">Přegenerovávám...</span>}
                     {refineCount > 0 && <span className="text-[9px] text-gray-500 font-mono">v{refineCount + 1}</span>}
                 </div>
@@ -979,9 +970,7 @@ function ReviewCard({
                             status === 'approved'
                                 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                                 : 'bg-white/5 text-gray-400 border border-white/10 hover:text-emerald-300 hover:border-emerald-500/30'
-                        }`}>
-                        👍
-                    </button>
+                        }`}><span className="inline-flex items-center gap-1.5"><ThumbsUp className="w-3.5 h-3.5 shrink-0" /> </span></button>
                     <button onClick={onReject} disabled={isRefining || refineCount >= maxRefines}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                             status === 'rejected'

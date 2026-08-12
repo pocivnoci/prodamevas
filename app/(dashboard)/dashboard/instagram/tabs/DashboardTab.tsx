@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react"
 import { motion } from "framer-motion"
 import { getDashboardStats } from "@/app/actions/admin-actions"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
+import { CalendarDays, RefreshCw } from "lucide-react"
 
 // ═══════════════════════════════════════════════════════════
 // TYPES
@@ -267,7 +268,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                     }}
                     className="px-6 py-2.5 bg-white/10 border border-white/20 text-white rounded-sm text-[10px] font-black uppercase tracking-widest hover:bg-white/15 transition-all"
                 >
-                    🔄 Zkusit znovu
+                    <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />Zkusit znovu</span>
                 </button>
             </div>
         )
@@ -284,7 +285,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                     className="flex items-center justify-between gap-4 rounded-sm border border-violet-400/25 bg-violet-400/5 p-4"
                 >
                     <div className="flex items-center gap-3">
-                        <span className="text-2xl leading-none">🗓️</span>
+                        <CalendarDays className="w-6 h-6 leading-none" />
                         <div>
                             <p className="text-xs font-black uppercase tracking-tight text-white">Váš první plán obsahu čeká na schválení</p>
                             <p className="text-[10px] text-white/40 font-medium mt-0.5">AI ho připravila při onboardingu — stačí zkontrolovat a spustit.</p>
@@ -310,7 +311,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                 <div className="absolute inset-0 bg-gradient-to-r from-aisummit-cinnabar/[0.06] to-transparent pointer-events-none" />
                 <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
                     <div className="flex items-start gap-4">
-                        <span className="text-3xl sm:text-4xl leading-none">📅</span>
+                        <CalendarDays className="w-8 h-8 sm: leading-none" />
                         <div>
                             <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white">Obsah na měsíc</h2>
                             <p className="text-white/50 text-xs sm:text-sm font-medium mt-1 max-w-md">
@@ -521,7 +522,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                         onClick={() => goGenerate({ mode: "plan", duration: "month" })}
                         className="mt-4 w-full py-3 bg-gradient-to-r from-aisummit-cinnabar/80 to-orange-600/60 border border-aisummit-cinnabar/30 text-white rounded-sm text-[10px] font-black uppercase tracking-widest hover:from-aisummit-cinnabar hover:to-orange-600 transition-all shadow-[0_0_20px_rgba(229,83,63,0.15)] hover:shadow-[0_0_30px_rgba(229,83,63,0.3)]"
                     >
-                        📅 Obsah na měsíc
+                        <span className="inline-flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5 shrink-0" />Obsah na měsíc</span>
                     </button>
                 </motion.div>
             </div>
@@ -634,7 +635,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                         onClick={() => goGenerate({ mode: "plan", duration: "month" })}
                         className="px-8 py-3 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm text-xs font-black uppercase tracking-widest hover:opacity-90 transition-opacity shadow-[0_0_30px_rgba(229,83,63,0.3)]"
                     >
-                        📅 Vytvořit obsah na měsíc
+                        <span className="inline-flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5 shrink-0" />Vytvořit obsah na měsíc</span>
                     </button>
                 </motion.div>
             )}

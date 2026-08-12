@@ -6,6 +6,7 @@ import { analyzeWebsite, generateQuestions, generateConfigPreview, refineConfigS
 import type { WebsiteAnalysis, OnboardingQuestion, ReviewSection } from './actions'
 import type { ClientConfig } from '@/instagram/configs/types'
 import { trackEvent } from '@/lib/analytics'
+import { Check, CircleCheck, MessageCircle, Rocket, ThumbsUp, X } from "lucide-react"
 
 type Step = 'choose' | 'input' | 'manual' | 'analyzing' | 'questions' | 'building' | 'review' | 'saving' | 'generating' | 'done'
 type Mode = 'website' | 'manual' | null
@@ -544,7 +545,7 @@ function OnboardingContent() {
                                 className="w-full relative group overflow-hidden rounded-xl bg-emerald-600 px-6 py-3.5 text-sm font-medium text-white shadow-[0_0_20px_rgba(16,185,129,0.2)] transition-all hover:bg-emerald-500 cursor-pointer"
                             >
                                 <span className="relative z-10 flex items-center justify-center gap-2">
-                                    🚀 Vygenerovat konfiguraci
+                                    <span className="inline-flex items-center gap-1.5"><Rocket className="w-3.5 h-3.5 shrink-0" />Vygenerovat konfiguraci</span>
                                     <span className="transition-transform group-hover:translate-x-1">→</span>
                                 </span>
                             </button>
@@ -587,7 +588,7 @@ function OnboardingContent() {
                         {configPreview.communicationStyle && (
                             <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-5 mb-4">
                                 <div className="flex items-center gap-2 mb-3">
-                                    <span className="text-lg">💬</span>
+                                    <MessageCircle className="w-5 h-5" />
                                     <h3 className="font-bold text-white">Doporučený styl komunikace</h3>
                                     <span className="ml-auto text-[10px] uppercase tracking-wider font-bold text-emerald-400/70 bg-emerald-500/10 px-2 py-0.5 rounded">AI na míru</span>
                                 </div>
@@ -595,7 +596,7 @@ function OnboardingContent() {
                                 <p className="text-xs text-gray-400 mb-4">{configPreview.communicationStyle.rationale}</p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                        <span className="block text-[10px] uppercase font-bold tracking-wider text-emerald-400/70 mb-1.5">✓ Dělat</span>
+                                        <span className="inline-flex items-center gap-1.5 block text-[10px] uppercase font-bold tracking-wider text-emerald-400/70 mb-1.5"><Check className="w-3 h-3 shrink-0" />Dělat</span>
                                         <ul className="space-y-1">
                                             {(configPreview.communicationStyle.dos || []).map((d: string, i: number) => (
                                                 <li key={i} className="text-xs text-gray-300 flex gap-1.5"><span className="text-emerald-400">·</span>{d}</li>
@@ -603,7 +604,7 @@ function OnboardingContent() {
                                         </ul>
                                     </div>
                                     <div>
-                                        <span className="block text-[10px] uppercase font-bold tracking-wider text-rose-400/70 mb-1.5">✕ Vyhnout se</span>
+                                        <span className="inline-flex items-center gap-1.5 block text-[10px] uppercase font-bold tracking-wider text-rose-400/70 mb-1.5"><X className="w-3 h-3 shrink-0" />Vyhnout se</span>
                                         <ul className="space-y-1">
                                             {(configPreview.communicationStyle.donts || []).map((d: string, i: number) => (
                                                 <li key={i} className="text-xs text-gray-300 flex gap-1.5"><span className="text-rose-400">·</span>{d}</li>
@@ -722,7 +723,7 @@ function OnboardingContent() {
                                 <button onClick={handleSaveConfig}
                                     className="w-full relative group overflow-hidden rounded-xl bg-emerald-600 px-6 py-4 text-sm font-bold text-white shadow-[0_0_20px_rgba(16,185,129,0.2)] transition-all hover:bg-emerald-500 cursor-pointer">
                                     <span className="relative z-10 flex items-center justify-center gap-2">
-                                        ✅ Vše schváleno — Uložit a pokračovat
+                                        <span className="inline-flex items-center gap-1.5"><CircleCheck className="w-3.5 h-3.5 shrink-0" />Vše schváleno — Uložit a pokračovat</span>
                                         <span className="transition-transform group-hover:translate-x-1">→</span>
                                     </span>
                                 </button>
@@ -914,7 +915,7 @@ function ReviewCard({
                 <div className="flex items-center gap-2">
                     <span className="text-lg">{icon}</span>
                     <h3 className="font-bold text-sm text-white">{title}</h3>
-                    {status === 'approved' && <span className="text-emerald-400 text-sm">✅</span>}
+                    {status === 'approved' && <CircleCheck className="w-4 h-4 text-emerald-400" />}
                     {status === 'refining' && <span className="text-purple-400 text-xs animate-pulse">Přegenerovávám...</span>}
                     {refineCount > 0 && <span className="text-[9px] text-gray-500 font-mono">v{refineCount + 1}</span>}
                 </div>
@@ -924,9 +925,7 @@ function ReviewCard({
                             status === 'approved'
                                 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                                 : 'bg-white/5 text-gray-400 border border-white/10 hover:text-emerald-300 hover:border-emerald-500/30'
-                        }`}>
-                        👍
-                    </button>
+                        }`}><span className="inline-flex items-center gap-1.5"><ThumbsUp className="w-3.5 h-3.5 shrink-0" /> </span></button>
                     <button onClick={onReject} disabled={isRefining || refineCount >= maxRefines}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                             status === 'rejected'

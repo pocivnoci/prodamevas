@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { getPendingApprovals, approveAgentAction, rejectAgentAction, type PendingApprovalDTO } from "@/app/actions/approval-actions"
+import { X } from "lucide-react"
 
 const RISK_LABELS: Record<string, { label: string; cls: string }> = {
     outbound: { label: "Odchozí (zákazník)", cls: "text-amber-400 border-amber-500/30 bg-amber-500/10" },
@@ -85,7 +86,7 @@ export function ApprovalsTab() {
                                 disabled={busy === item.id}
                                 className="px-5 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm text-red-400/60 hover:text-red-400 hover:bg-red-500/10 border border-red-500/10 hover:border-red-500/20 transition-all disabled:opacity-50"
                             >
-                                ✕ Zamítnout
+                                <span className="inline-flex items-center gap-1.5"><X className="w-3.5 h-3.5 shrink-0" />Zamítnout</span>
                             </button>
                         </div>
                     </div>

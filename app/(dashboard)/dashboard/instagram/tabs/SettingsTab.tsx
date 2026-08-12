@@ -13,6 +13,7 @@ import { BillingSection } from "./BillingSection"
 import { ConsultationSection } from "./ConsultationSection"
 import { FEED_PATTERNS, computeSlotIntent, type FeedPatternId } from "@/lib/feed-pattern"
 import { Hint, HINTS } from "./Hint"
+import { Camera, Hand, RefreshCw, ShoppingBag, Trash2, TriangleAlert, User } from "lucide-react"
 
 // ═══════════════════════════════════════════════════════════
 // SETTINGS TAB
@@ -651,7 +652,7 @@ function PillarsSection({ config, setConfig, projectId }: { config: any; setConf
                             </div>
                         </div>
                         <button onClick={() => removePillar(key)} className="text-[9px] text-red-400/40 hover:text-red-400 transition-colors font-bold uppercase tracking-widest">
-                            🗑️ Smazat
+                            <span className="inline-flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5 shrink-0" />Smazat</span>
                         </button>
                     </div>
 
@@ -980,12 +981,12 @@ function FormatsSection({ config, projectId, onReload }: { config: any; projectI
                     <label className="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" checked={value.uses_product} onChange={e => onChange({ uses_product: e.target.checked })}
                             className="accent-emerald-500" />
-                        <span className="text-[9px] text-white/50 font-bold uppercase tracking-widest">🛍️ S produktem</span>
+                        <span className="inline-flex items-center gap-1.5 text-[9px] text-white/50 font-bold uppercase tracking-widest"><ShoppingBag className="w-3 h-3 shrink-0" />S produktem</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" checked={Boolean(value.manualOnly)} onChange={e => onChange({ manualOnly: e.target.checked })}
                             className="accent-amber-500" />
-                        <span className="text-[9px] text-white/50 font-bold uppercase tracking-widest">✋ Jen ručně</span>
+                        <span className="inline-flex items-center gap-1.5 text-[9px] text-white/50 font-bold uppercase tracking-widest"><Hand className="w-3 h-3 shrink-0" />Jen ručně</span>
                     </label>
                 </div>
             </div>
@@ -1032,7 +1033,7 @@ function FormatsSection({ config, projectId, onReload }: { config: any; projectI
                                 )}
                                 <button onClick={() => remove(def.name)} disabled={busy !== null}
                                     className="text-[9px] text-red-400/40 hover:text-red-400 transition-colors font-bold uppercase tracking-widest disabled:opacity-50">
-                                    🗑️ Smazat
+                                    <span className="inline-flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5 shrink-0" />Smazat</span>
                                 </button>
                             </div>
                         </div>
@@ -1125,12 +1126,12 @@ function AudienceSection({ config, setConfig }: { config: any; setConfig: (fn: a
                 <div key={idx} className="bg-[#0f0f0f] border border-white/5 rounded-sm p-6 space-y-4">
                     <div className="flex items-center justify-between border-b border-white/10 pb-3">
                         <div className="flex items-center gap-3">
-                            <span className="text-2xl">👤</span>
+                            <User className="w-6 h-6" />
                             <input value={p.label || ""} onChange={(e) => updatePersona(idx, "label", e.target.value)}
                                 className="bg-transparent text-white font-black uppercase tracking-tight text-sm border-none focus:outline-none" placeholder="Název persony" />
                         </div>
                         <button onClick={() => removePersona(idx)} className="text-[9px] text-red-400/40 hover:text-red-400 transition-colors font-bold uppercase tracking-widest">
-                            🗑️ Smazat
+                            <span className="inline-flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5 shrink-0" />Smazat</span>
                         </button>
                     </div>
 
@@ -1324,9 +1325,7 @@ function VisualSection({ config, updateField, handleLogoUpload, logoUploading, p
                                 </p>
                                 <p className="text-[9px] text-white/30 mt-1 leading-relaxed">{p.description}</p>
                                 {p.gridAligned && (
-                                    <p className="text-[8px] text-white/20 mt-1.5 uppercase tracking-widest font-bold">
-                                        ⚠ Publikujte po řádcích (3)
-                                    </p>
+                                    <p className="inline-flex items-center gap-1.5 text-[8px] text-white/20 mt-1.5 uppercase tracking-widest font-bold"><TriangleAlert className="w-3 h-3 shrink-0" />Publikujte po řádcích (3)</p>
                                 )}
                             </button>
                         )
@@ -1664,7 +1663,7 @@ function InstagramConnectionSection({ projectId }: { projectId: string }) {
                                 : "bg-white/5 text-white/20 border-white/5 pointer-events-none"
                         }`}
                     >
-                        📸 Připojit
+                        <span className="inline-flex items-center gap-1.5"><Camera className="w-3.5 h-3.5 shrink-0" />Připojit</span>
                     </a>
                 </div>
             )}
@@ -1755,9 +1754,7 @@ function AutoPublishSection({ projectId }: { projectId: string }) {
                     </div>
 
                     {!connected && (
-                        <p className="text-[10px] text-amber-400/80 bg-amber-500/5 border border-amber-500/20 rounded-sm px-3 py-2">
-                            ⚠️ Účet zatím není připojený — nastavení se uloží, ale publikovat se začne až po připojení Instagramu (sekce výše).
-                        </p>
+                        <p className="inline-flex items-center gap-1.5 text-[10px] text-amber-400/80 bg-amber-500/5 border border-amber-500/20 rounded-sm px-3 py-2"><TriangleAlert className="w-3 h-3 shrink-0" />Účet zatím není připojený — nastavení se uloží, ale publikovat se začne až po připojení Instagramu (sekce výše).</p>
                     )}
 
                     {/* Frequency */}
@@ -1872,7 +1869,7 @@ function ClientManagementSection({ projectId, config, setConfig, onReload }: {
                     onClick={() => router.push(`/onboarding?reonboard=${projectId}`)}
                     className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-all border border-amber-500/20 whitespace-nowrap"
                 >
-                    🔄 Re-onboarding
+                    <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />Re-onboarding</span>
                 </button>
             </div>
 
@@ -1942,7 +1939,7 @@ function ClientManagementSection({ projectId, config, setConfig, onReload }: {
                             onClick={() => setConfirmDelete(true)}
                             className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-all border border-red-500/10 hover:border-red-500/20 whitespace-nowrap"
                         >
-                            🗑️ Smazat
+                            <span className="inline-flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5 shrink-0" />Smazat</span>
                         </button>
                     ) : (
                         <div className="flex gap-2">
