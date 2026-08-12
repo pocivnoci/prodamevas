@@ -130,12 +130,12 @@ export function BrainTab({ projectId }: { projectId: string }) {
                         className="overflow-hidden"
                     >
                         <div className="bg-[#0a0a0a] border border-white/10 rounded-lg p-4 space-y-3">
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 overflow-x-auto scrollbar-hide sm:flex-wrap">
                                 {Object.entries(MEMORY_TYPES).map(([key, cfg]) => (
                                     <button
                                         key={key}
                                         onClick={() => setNewType(key)}
-                                        className={`px-2.5 py-1 text-[9px] uppercase tracking-widest font-bold rounded border transition-all ${
+                                        className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 min-h-[32px] text-[9px] uppercase tracking-widest font-bold rounded border transition-all cursor-pointer ${
                                             newType === key
                                                 ? `${cfg.bg} ${cfg.border} ${cfg.color}`
                                                 : "bg-white/5 border-white/5 text-white/30 hover:text-white/50"
@@ -184,7 +184,7 @@ export function BrainTab({ projectId }: { projectId: string }) {
                     <button
                         key={tab.key}
                         onClick={() => setFilter(tab.key)}
-                        className={`px-2.5 py-1 text-[9px] uppercase tracking-widest font-bold rounded border transition-all ${
+                        className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 min-h-[32px] text-[9px] uppercase tracking-widest font-bold rounded border transition-all cursor-pointer ${
                             filter === tab.key
                                 ? "bg-white/10 border-white/20 text-white"
                                 : "bg-white/5 border-white/5 text-white/30 hover:text-white/50"
