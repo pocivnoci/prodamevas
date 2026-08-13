@@ -6,6 +6,7 @@
 
 import supabaseAdmin from "../../supabase/admin"
 import type { ClientConfig } from "./types"
+import { FORMAT_BRIEF_LIMITS } from "./types"
 import { reconcileFormats } from "./reconcile"
 import { isFeedPattern } from "../../lib/feed-pattern"
 import { CAROUSEL_MAX_TOTAL_SLIDES } from "../caption-generator"
@@ -92,6 +93,77 @@ function warnOnOversizedStructures(defs: NonNullable<ClientConfig["postTypeDefs"
     return defs
 }
 
+/** Značky beatů a obecná jména, která ve formátu nejsou podpisem konkrétní scény. */
+const BEAT_MARKERS = /^(COVER|CTA|HOOK|PAYOFF|VALUE|SLIDE|SCENE|SCÉNA|INTRO|OUTRO|POV|ASMR|AI|Instagram|Reels?|Stories|Story|Karusel|Feed)$/i
+
+/**
+ * Formát MUSÍ být invariant — šablona, kterou značka použije na DESÍTKY různých témat.
+ * Onboarding ho ale historicky generoval jako storyboard JEDNOHO postu (včetně přesných
+ * replik a CTA). Takový „formát" se pak vkládá do promptu u každého svého postu, takže
+ * se stejný příspěvek vrací donekonečna — u `chrlit` vyšlo 170 postů z 8 formátů.
+ *
+ * Heuristika hlásí tři podpisy storyboardu:
+ *   1. hotová replika v uvozovkách — copy píše copywriter pokaždé znovu, ne formát
+ *   2. vlastní jméno uprostřed věty — konkrétní osoba/místo patří do NÁMĚTU
+ *   3. brief výrazně delší než AI strop — do velkého prostoru se scénář vejde sám
+ *
+ * Záměrně jen **loguje**: kreativní zadání klienta se nikdy automaticky nepřepisuje
+ * (stejná politika jako warnOnOversizedStructures). Hromadný převod starých formátů
+ * na invarianty dělá `scripts/degeneralize-formats.ts`.
+ */
+function warnOnScenicFormats(defs: NonNullable<ClientConfig["postTypeDefs"]>, slug: string) {
+    for (const def of defs) {
+        if (!def) continue
+        const fields: Array<[string, string | undefined, number]> = [
+            ["description", def.description, FORMAT_BRIEF_LIMITS.description],
+            ["structure", def.structure, FORMAT_BRIEF_LIMITS.structure],
+            ["visualStyle", def.visualStyle, FORMAT_BRIEF_LIMITS.visualStyle],
+        ]
+        const signals: string[] = []
+
+        for (const [field, raw, limit] of fields) {
+            if (!raw) continue
+            const text = String(raw)
+
+            // 1) Hotová replika: ≥3 slova v uvozovkách (rovných i českých).
+            if (/[„"'']\s*\S+(?:\s+\S+){2,}\s*[""'']/u.test(text)) {
+                signals.push(`${field}: hotová replika v uvozovkách`)
+            }
+
+            // 2) Vlastní jméno uprostřed věty — první slovo věty se přeskakuje.
+            const properNouns = new Set<string>()
+            // Beaty se v briefech oddělují i šipkou/odrážkou — bez nich by první slovo
+            // každého beatu ("Hodnota", "Závěr") vypadalo jako vlastní jméno.
+            for (const sentence of text.split(/(?<=[.!?:])\s+|\n+|\s*[→•·|]\s*|\s+[-–—]\s+/u)) {
+                const words = sentence.trim().split(/\s+/u)
+                for (const word of words.slice(1)) {
+                    const bare = word.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "")
+                    if (bare.length < 3 || BEAT_MARKERS.test(bare)) continue
+                    if (bare === bare.toUpperCase()) continue // ALL-CAPS = značka beatu
+                    if (/^\p{Lu}\p{Ll}+$/u.test(bare)) properNouns.add(bare)
+                }
+            }
+            if (properNouns.size > 0) {
+                signals.push(`${field}: vlastní jméno (${[...properNouns].slice(0, 3).join(", ")})`)
+            }
+
+            // 3) Brief výrazně delší než strop pro AI-generované formáty.
+            if (text.length > limit * 1.5) {
+                signals.push(`${field}: ${text.length} znaků (strop pro AI je ${limit})`)
+            }
+        }
+
+        if (signals.length > 0) {
+            console.warn(
+                `⚠️ config[${slug}] formát "${def.name}" vypadá jako STORYBOARD jednoho postu, ` +
+                `ne jako znovupoužitelná šablona — ${signals.join(" · ")}. ` +
+                `Takový formát vyrábí pořád tentýž příspěvek. Převod: npx tsx scripts/degeneralize-formats.ts --slug=${slug}`,
+            )
+        }
+    }
+    return defs
+}
+
 function validateConfig(config: ClientConfig, slug: string): ClientConfig {
     // reconcileFormats self-heals the four format sources on every load — drift
     // (e.g. a format orphaned by a deleted pillar) never reaches the pipeline.
@@ -141,7 +213,7 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // ensurePostTypes/getIGPostTypes can't silently no-op on a half-filled config.
         postTypes: config.postTypes || [],
         postFormats: config.postFormats || {},
-        postTypeDefs: warnOnOversizedStructures(config.postTypeDefs || [], slug),
+        postTypeDefs: warnOnScenicFormats(warnOnOversizedStructures(config.postTypeDefs || [], slug), slug),
         hashtagPools: config.hashtagPools || { core: [], niche: [], broad: [], trending: [], czech: [] },
         contentFocus: config.contentFocus || config.name || slug,
         videoTier: config.videoTier || "fast",

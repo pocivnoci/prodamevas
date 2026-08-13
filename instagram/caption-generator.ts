@@ -280,7 +280,7 @@ export function buildCaptionSchema(config: ClientConfig) {
             },
             body: {
                 type: Type.STRING,
-                description: `Main text (max ${PROMPT_LIMITS.bodyWords} words). ${config.contentFocus}`,
+                description: `Main text (max ${PROMPT_LIMITS.bodyWords} words).`,
             },
             cta: {
                 type: Type.STRING,
@@ -534,7 +534,7 @@ export function buildStorySchema(config: ClientConfig) {
             },
             body: {
                 type: Type.STRING,
-                description: `Shrnutí storky pro majitele účtu — co říká a proč, jedním odstavcem (max 60 slov, česky). Tento text se na Instagram NEPOSÍLÁ (stories nemají popisek); slouží do přehledu v aplikaci, do e-mailu s kampaní a pro ruční sdílení. ${config.contentFocus}`,
+                description: `Shrnutí storky pro majitele účtu — co říká a proč, jedním odstavcem (max 60 slov, česky). Tento text se na Instagram NEPOSÍLÁ (stories nemají popisek); slouží do přehledu v aplikaci, do e-mailu s kampaní a pro ruční sdílení.`,
             },
             cta: {
                 type: Type.STRING,
@@ -795,10 +795,15 @@ ${policy.productMention === "link"
 ${bv.persona}
 
 ## TVŮJ ÚKOL
-Vytvoř kompletní Instagram post typu: **${postType.emoji || "📱"} ${postType.display_name}**
-${formatDescription ? `(${formatDescription})` : ""}
+Vytvoř kompletní Instagram post ve formátu: **${postType.emoji || "📱"} ${postType.display_name}**
+${formatDescription ? `**Jak tenhle formát funguje:** ${formatDescription}
+
+⚠️ Tohle je MECHANISMUS formátu, ne téma postu. Formát říká, JAK obsah podat.
+CO je obsahem, určuje námět / zadané téma níž. Formát se použije na stovky různých
+témat — nikdy z něj nedělej pořád tentýž příspěvek.` : ""}
 
 Brand: ${config.name} | Web: ${config.website} | IG: ${config.instagram}
+Značka je o tomhle: ${config.contentFocus}
 
 ## 🧭 PRIORITY (při konfliktu instrukcí VŽDY vyhrává nižší číslo)
 1. Zadané téma od uživatele / schválený hook
@@ -886,10 +891,14 @@ Video bude generováno AI (Veo 3.1) s nativním zvukem + český voiceover z nar
 - Camera movements musí být plynulé a profesionální
 - Poslední scéna MUSÍ obsahovat CTA${policy.allowWebsite ? ` s ${config.website}` : " — engagement výzvu (otázka / uložit / sdílet), BEZ webu"}
 
-${typeDef?.structure ? `### 🧩 STRUKTURA TOHOTO FORMÁTU (závazná — obsah scén řiď podle ní):
+${typeDef?.structure ? `### 🧩 RYTMUS TOHOTO FORMÁTU (sled beatů — tempo, ne obsah):
 ${typeDef.structure}
 
-### ČASOVÁNÍ SCÉN (${postFormat.reelDuration || 8}s video — timing dodrž, obsah scén podle struktury výše):` : `### STRUKTURA SCÉN (${postFormat.reelDuration || 8}s video):`}
+Kostra říká, JAK se příběh odvíjí. CO se v něm odehrává, určuje NÁMĚT výše.
+Pokud kostra zmiňuje konkrétní scénu, rekvizitu nebo znění věty, ber to jen jako
+ukázku tempa — NEZOPAKUJ ji, přenes na ni svůj námět.
+
+### ČASOVÁNÍ SCÉN (${postFormat.reelDuration || 8}s video — timing dodrž, sled beatů podle rytmu výše):` : `### STRUKTURA SCÉN (${postFormat.reelDuration || 8}s video):`}
 ${(postFormat.reelDuration || 8) <= 5 ? `
 - Scene 1 (0-1.5s): HOOK — dramatický vizuál, narration = problém/otázka
 - Scene 2 (1.5-3.5s): VALUE — řešení/produkt v akci
@@ -936,8 +945,12 @@ ${config.videoFocus ? `### BRAND VIDEO STYLE:\n${config.videoFocus}\n` : ""}
 ` : postFormat.medium === "carousel" ? `
 ## 📸 CAROUSEL POST (${PROMPT_LIMITS.carouselInnerMin + 1}-${CAROUSEL_MAX_TOTAL_SLIDES} slidů) — PŘÍBĚH, KTERÝ NUTÍ SWIPOVAT
 
-${typeDef?.structure ? `### 🧩 STRUKTURA TOHOTO FORMÁTU (závazná — slidy přesně podle ní):
+${typeDef?.structure ? `### 🧩 RYTMUS TOHOTO FORMÁTU (sled beatů — tempo, ne obsah):
 ${typeDef.structure}
+
+Kostra určuje dramaturgii a počet beatů. CO je na slidech, určuje NÁMĚT výše.
+Pokud kostra zmiňuje konkrétní scénu, rekvizitu nebo znění věty, ber to jen jako
+ukázku tempa — NEZOPAKUJ ji, přenes na ni svůj námět.
 ` : `### DRAMATURGIE (POVINNÁ):
 1. **Slide 1 (COVER):** otevřená smyčka — slib, otázka nebo napětí, které se vyřeší až UVNITŘ karuselu. Cover NIKDY neprozrazuje pointu.
 2. **Vnitřní slidy:** každý slide = přesně JEDNA myšlenka, která posouvá příběh dál. Slide bez nové myšlenky NEEXISTUJE — výplňový slide smaž.
@@ -948,7 +961,7 @@ ${typeDef.structure}
 ### TEXT NA SLIDECH (tvrdá pravidla):
 - Slide je PLAKÁT, ne odstavec: headline max ${PROMPT_LIMITS.slideHeadlineWords} slov, subtext max ${PROMPT_LIMITS.slideSubtextWords} slov. Detaily patří do caption.
 ${typeDef?.structure
-    ? `- Počet slidů urči podle STRUKTURY výše — ta je závazná. Strop je ${CAROUSEL_MAX_TOTAL_SLIDES} vč. coveru.`
+    ? `- Počet slidů urči podle STRUKTURY výše — drž se jejího počtu beatů. Strop je ${CAROUSEL_MAX_TOTAL_SLIDES} vč. coveru.`
     : `- Počet slidů podle obsahu (${PROMPT_LIMITS.carouselInnerMin + 1}-${CAROUSEL_MAX_TOTAL_SLIDES} vč. coveru) — nikdy nenatahuj. Radši ${PROMPT_LIMITS.carouselInnerMin + 1} silné než ${CAROUSEL_MAX_TOTAL_SLIDES} vycpaných.`}
 - Slidy čte člověk za 2 sekundy — každé slovo si musí místo zasloužit.
 
@@ -975,8 +988,12 @@ Story je 1-3 svislé obrazovky 9:16, které po 24 hodinách zmizí. Divák je dr
 palcem nad tlačítkem "další" a čte je ve stoje, na světle, za necelé 2 sekundy.
 Nejde do feedu ani do mřížky profilu — nemá popisek, nemá odkaz, nemá čas.
 
-${typeDef?.structure ? `### 🧩 STRUKTURA TOHOTO FORMÁTU (závazná — snímky přesně podle ní):
+${typeDef?.structure ? `### 🧩 RYTMUS TOHOTO FORMÁTU (sled beatů — tempo, ne obsah):
 ${typeDef.structure}
+
+Kostra určuje sled a počet snímků. CO na nich je, určuje NÁMĚT výše.
+Pokud kostra zmiňuje konkrétní scénu nebo znění věty, ber to jen jako ukázku
+tempa — NEZOPAKUJ ji, přenes na ni svůj námět.
 ` : `### DRAMATURGIE PODLE POČTU SNÍMKŮ (počet řídí OBSAH, ne naopak):
 - **3 snímky:** HOOK (zastav palec) → PAYOFF (ta jedna věc, kterou chci sdělit) → CTA
 - **2 snímky:** HOOK → CTA
@@ -1009,8 +1026,12 @@ co storka říká a proč. Zobrazí se v přehledu appky a v e-mailu s kampaní.
   "hashtags": ["8-10", "hashtagů"]  // ukládají se k příspěvku, NEVYKRESLUJÍ se do snímku
 }
 ` : `
-${typeDef?.structure ? `## 🧩 STRUKTURA TOHOTO FORMÁTU (závazná — caption stavěj přesně podle ní):
+${typeDef?.structure ? `## 🧩 RYTMUS TOHOTO FORMÁTU (sled beatů — tempo, ne obsah):
 ${typeDef.structure}
+
+Kostra určuje stavbu caption. CO se v ní říká, určuje NÁMĚT výše.
+Pokud kostra zmiňuje konkrétní scénu nebo znění věty, ber to jen jako ukázku
+tempa — NEZOPAKUJ ji, přenes na ni svůj námět.
 ` : ""}
 ## 🎨 VIZUÁL
 Layout, typografii, umístění loga i poměr stran určuje AI Designer v dalším kroku.
@@ -1031,10 +1052,10 @@ ${(() => {
 {
   "angle": "1 věta — zvolený úhel a čím se liší od nedávných postů",
   "hook": "První věta co zastaví scrollování (max 15 slov). ŽÁDNÉ EMOJI.",
-  "body": "Hlavní text (max ${PROMPT_LIMITS.bodyWords} slov). ${config.contentFocus}",
+  "body": "Hlavní text (max ${PROMPT_LIMITS.bodyWords} slov).",
   "cta": "CTA podle CTA POLITIKY výše",
   "hashtags": ["8-10", "relevantních", "hashtagů"],
-  "imagePrompt": "English prompt for AI image generation. NO TEXT in image! ${config.contentFocus}.",
+  "imagePrompt": "English prompt for AI image generation. NO TEXT in image!",
   "imageSubtext": "Podtext dole pod hookem (max ${PROMPT_LIMITS.coverSubtextWords} slov, česky)"
 }
 `}
