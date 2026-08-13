@@ -5,14 +5,16 @@
  *   - ig_brand_memory.embedding      (memory relevance retrieval)
  *   - ig_posts.caption_embedding     (gold-voice centroid for the consistency score)
  *
- *   npx tsx scripts/backfill-embeddings.ts            # every client
- *   npx tsx scripts/backfill-embeddings.ts <slug>     # one client
- *   npx tsx scripts/backfill-embeddings.ts --dry      # counts only, no API calls/writes
+ *   npx tsx scripts/backfill-embeddings.ts             # every client
+ *   npx tsx scripts/backfill-embeddings.ts <slug>      # one client
+ *   npx tsx scripts/backfill-embeddings.ts --dry       # counts only, no API calls/writes
+ *   npx tsx scripts/backfill-embeddings.ts --recompute # přepočítá i existující vektory
  *
- * Idempotent: only rows with a NULL embedding are touched. Requires the
- * 20260703_embeddings.sql migration and GEMINI_API_KEY.
+ * Idempotent: only rows with a NULL embedding are touched (unless --recompute).
+ * Requires the 20260703_embeddings.sql migration and GEMINI_API_KEY.
  */
 import supabaseAdmin from '../supabase/admin'
+import { captionVoiceText } from '../instagram/service'
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 const BATCH = 20
@@ -20,6 +22,7 @@ const BATCH = 20
 async function main() {
     const args = process.argv.slice(2)
     const dry = args.includes('--dry')
+    const recompute = args.includes('--recompute')
     const slug = args.find(a => !a.startsWith('--'))
 
     let clientQuery = supabaseAdmin.from('clients').select('id, slug')
@@ -56,19 +59,23 @@ async function main() {
 
         // 2. Post captions — gold-pool candidates: anything with a caption. Metrics
         // decide gold membership at scoring time, embeddings just need to exist.
-        const { data: posts } = await supabaseAdmin
+        let postQuery = supabaseAdmin
             .from('ig_posts')
             .select('id, caption')
             .eq('client_id', client.id)
-            .is('caption_embedding', null)
             .not('caption', 'is', null)
             .neq('status', 'rejected')
+        // --recompute přepíše i existující vektory. Potřeba právě jednou: embeddingy
+        // se dřív počítaly z celého captionu VČETNĚ hashtagů, teď z captionVoiceText
+        // (hashtagy pryč). Míchat obojí nejde — porovnávaly by se různě složené texty.
+        if (!recompute) postQuery = postQuery.is('caption_embedding', null)
+        const { data: posts } = await postQuery
         const withText = (posts || []).filter(p => (p.caption || '').trim().length > 20)
-        console.log(`   captions missing embedding: ${withText.length}`)
+        console.log(`   captions ${recompute ? 'to recompute' : 'missing embedding'}: ${withText.length}`)
         if (!dry && withText.length) {
             for (let i = 0; i < withText.length; i += BATCH) {
                 const chunk = withText.slice(i, i + BATCH)
-                const vectors = await embedTexts(chunk.map(p => (p.caption as string).substring(0, 2000)))
+                const vectors = await embedTexts(chunk.map(p => captionVoiceText(p.caption as string)))
                 await Promise.all(chunk.map((p, j) =>
                     supabaseAdmin.from('ig_posts').update({ caption_embedding: JSON.stringify(vectors[j]) }).eq('id', p.id)
                 ))

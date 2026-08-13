@@ -42,7 +42,7 @@ import { applyFormatClamps, liveKillSwitches, FEED_SAFE_RATIOS } from "./format-
 import type { PostType, PostIdea, Review } from "./types"
 
 // Module imports (refactored from monolith)
-import { isHookSimilar, isBodySimilar, createPillarMapper } from "./service"
+import { isHookSimilar, isBodySimilar, createPillarMapper, findSemanticEcho } from "./service"
 import { analyzePerformance, type PerformanceInsight } from "./performance"
 import {
     COSTS,
@@ -206,6 +206,9 @@ export async function generateOnePost(options: {
     const config = CLIENT_CONFIG!
     const startTime = Date.now()
     let cost = ck?.costSoFar ?? 0
+    // Embedding finálního captionu. Spočítá ho sémantická brána (krok 6) a použije
+    // ho ještě consistency skóre při ukládání — tentýž text se tak neembeduje dvakrát.
+    let captionEmbedding: number[] | null = null
 
     // 0. Context FIRST (pipeline v2, stage 4) — real-world signals (holiday/season/trends)
     // now arrive BEFORE the Researcher, so they can bias WHAT gets made (type selection),
@@ -842,15 +845,27 @@ ${feedSummary}
         captionData = await generateDraft("copywriter")
     }
 
-    // 6. Dedup check — hook similarity + body keyword overlap
+    // 6. Dedup check — hook similarity + body keyword overlap + sémantické echo.
+    // Lexikální vrstva porovnává překryv SLOV, takže tutéž myšlenku řečenou jinými
+    // slovy propustí (u květinářství takhle prošly 4 z 5 postů behind_scenes se
+    // stejnou pointou). Embedding kandidáta se pak předá dál do consistency skóre,
+    // takže tahle vrstva nestojí žádné volání navíc.
     const hookDuplicate = recentHooks.some(h => isHookSimilar(captionData.hook, h, 0.5))
     const bodyDuplicate = captionData.body ? isBodySimilar(captionData.body, recentBodies, 0.4) : false
-    const isDuplicate = hookDuplicate || bodyDuplicate
+    // Stejná skladba jako fullCaption níž (hook / body / cta) — hashtagy z ní
+    // captionVoiceText stejně vyhazuje, takže obě strany porovnání sedí.
+    const fullCaptionDraft = [captionData.hook, captionData.body, captionData.cta].filter(Boolean).join("\n\n")
+    const echo = await findSemanticEcho(clientUuid, fullCaptionDraft)
+    captionEmbedding = echo.embedding
+    if (echo.isEcho) {
+        console.log(`   ⚠️ Sémantické echo ${echo.maxSimilarity.toFixed(3)} (práh ${echo.threshold.toFixed(3)}) vůči: "${echo.against}"`)
+    }
+    const isDuplicate = hookDuplicate || bodyDuplicate || echo.isEcho
 
     if (isDuplicate) {
-        const reason = hookDuplicate ? "hook" : "téma/body"
+        const reason = hookDuplicate ? "hook" : bodyDuplicate ? "téma/body" : "význam"
         console.log(`   ⚠️ Duplicitní ${reason} detekován — regeneruji...`)
-        const retryPrompt = megaPrompt + `\n\nDŮLEŽITÉ: Předchozí verze měla duplicitní ${reason}!\nOdmítnutý hook: "${captionData.hook}"\n${bodyDuplicate ? `Odmítnuté body: "${captionData.body?.substring(0, 100)}..."\n` : ""}Vymysli ÚPLNĚ jiný úhel pohledu, jiný hook, jiné argumenty.`
+        const retryPrompt = megaPrompt + `\n\nDŮLEŽITÉ: Předchozí verze měla duplicitní ${reason}!\nOdmítnutý hook: "${captionData.hook}"\n${bodyDuplicate ? `Odmítnuté body: "${captionData.body?.substring(0, 100)}..."\n` : ""}${echo.isEcho ? `Tenhle post říká prakticky totéž co už existující: "${echo.against}"\nNEJDE o stejná slova, ale o stejnou MYŠLENKU — najdi jiné sdělení, ne jinou formulaci téhož.\n` : ""}Vymysli ÚPLNĚ jiný úhel pohledu, jiný hook, jiné argumenty.`
         // Dedup regeneration is best-effort: we already hold a valid Pro caption, so if
         // the Pro ladder is busy (QualityUnavailable) or the JSON is bad, keep the original
         // rather than fail the post.
@@ -860,6 +875,9 @@ ${feedSummary}
             const jsonMatch = retryText.match(/\{[\s\S]*\}/)
             captionData = JSON.parse(jsonMatch?.[0] || retryText)
             if (isReel && captionData.caption) captionData.body = captionData.caption
+            // Text se změnil → spočítaný embedding už mu neodpovídá. Zahodit, jinak by
+            // consistency skóre měřilo caption, který se nikdy neuložil.
+            captionEmbedding = null
             console.log(`   ✓ Nový hook: "${captionData.hook.substring(0, 50)}..."`)
         } catch {
             console.log("   ⚠️ Dedup regeneration failed/busy — pokračuji s originálem")
@@ -1112,7 +1130,10 @@ ${feedSummary}
 
         // Brand-consistency sensor (pipeline v2): embed the caption + log cosine vs
         // the gold-voice centroid. Fire-and-forget — never blocks or fails the post.
-        scoreConsistencyAndEmbed(post.id, clientUuid, fullCaption).catch(() => {})
+        // Embedding už spočítala sémantická brána (krok 6) — předáváme ho, aby se
+        // tentýž text neembedoval dvakrát. Je null, když se caption mezitím
+        // regeneroval; pak si ho scoreConsistencyAndEmbed dopočítá sám.
+        scoreConsistencyAndEmbed(post.id, clientUuid, fullCaption, captionEmbedding).catch(() => {})
 
         console.log(`   ✓ ID: ${post.id}`)
     }
