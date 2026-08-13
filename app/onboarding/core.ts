@@ -528,6 +528,11 @@ DŮLEŽITÉ:
     const slug = slugify(analysis.companyName)
     config.id = slug
     config.website = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`
+    // industry/city se doteď nikdy nepropsaly do configu — žily jen jako řetězec
+    // v onboardingových promptech. Kontextový agent (svátky, sezóna) i počasí je
+    // ale čtou z configu, takže všem tenantům běžely na "business" + Praha.
+    if (analysis.industry) config.industry = analysis.industry
+    if (analysis.city?.trim()) config.city = analysis.city.trim()
     config.instagram = igHandle.startsWith('@') ? igHandle : `@${igHandle}`
 
     // Force visual identity from analysis (AI may hallucinate different values)
