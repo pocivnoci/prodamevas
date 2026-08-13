@@ -125,9 +125,15 @@ function warnOnScenicFormats(defs: NonNullable<ClientConfig["postTypeDefs"]>, sl
             if (!raw) continue
             const text = String(raw)
 
-            // 1) Hotová replika: ≥3 slova v uvozovkách (rovných i českých).
-            if (/[„"'']\s*\S+(?:\s+\S+){2,}\s*[""'']/u.test(text)) {
-                signals.push(`${field}: hotová replika v uvozovkách`)
+            // 1) Hotová replika: ≥3 slova v uvozovkách. Uvozovky samy nestačí — nesou
+            //    i názvy estetik ('romanticizing your life'), a ty do formátu patří.
+            //    Hotovou copy pozná velké počáteční písmeno nebo koncová interpunkce.
+            for (const m of text.matchAll(/[„"'']\s*(\S+(?:\s+\S+){2,}?)\s*[""'']/gu)) {
+                const quote = m[1]
+                if (/^\p{Lu}/u.test(quote) || /[.!?…]$/u.test(quote)) {
+                    signals.push(`${field}: hotová replika „${quote.slice(0, 40)}"`)
+                    break
+                }
             }
 
             // 2) Vlastní jméno uprostřed věty — první slovo věty se přeskakuje.
