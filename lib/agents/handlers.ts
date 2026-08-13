@@ -161,6 +161,18 @@ registerHandler("idea_replenish", async () => {
     return { ok: true, clients: results.length, added, results }
 })
 
+// Povýšení ověřených postů na zlaté příklady hlasu. Jediné místo, kde se
+// clients.config mění sám podle výsledků — zbytek učicí vrstvy jen přepočítává
+// váhy za běhu a po doběhnutí je zahodí. Zdarma, bez volání modelu, a zasetou
+// kotvu nahradí jen post s reálně naměřeným výkonem.
+// Viz lib/agents/voice-examples.ts.
+registerHandler("voice_examples_promote", async () => {
+    const { promoteVoiceExamples } = await import("@/lib/agents/voice-examples")
+    const results = await promoteVoiceExamples()
+    const promoted = results.reduce((s, r) => s + r.promoted, 0)
+    return { ok: true, clients: results.length, promoted, results }
+})
+
 // ── Obchodní agent ─────────────────────────────────────────────────────────────
 // Tři kroky od leadu k odeslané zprávě. Kvalitu drží soudce, ne klikání
 // zakladatele — viz lib/agents/sales/pipeline.ts.
