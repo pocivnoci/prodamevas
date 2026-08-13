@@ -197,13 +197,13 @@ export async function replenishIdeaBanks(): Promise<ReplenishResult[]> {
         .eq("is_active", true)
     if (error) throw new Error(`idea-replenish client scan: ${error.message}`)
 
-    const results: ReplenishResult[] = []
-    for (const c of clients || []) {
-        try {
-            results.push(await replenishClient(c.id, c.slug, (c.config || {}) as Record<string, unknown>))
-        } catch (err) {
-            results.push({ clientId: c.id, slug: c.slug, added: 0, available: 0, target: 0, skipped: (err as Error)?.message?.slice(0, 200) })
-        }
-    }
+    // Rotované pořadí + časový rozpočet — viz lib/agents/client-sweep.ts. Bez toho
+    // by zabitý běh pokaždé odřízl tytéž klienty na konci seznamu.
+    const { sweepClients } = await import("./client-sweep")
+    const { results } = await sweepClients(
+        (clients || []) as { id: string; slug: string; config: unknown }[],
+        c => replenishClient(c.id, c.slug, (c.config || {}) as Record<string, unknown>),
+        (c, err) => ({ clientId: c.id, slug: c.slug, added: 0, available: 0, target: 0, skipped: err.message?.slice(0, 200) }),
+    )
     return results
 }

@@ -69,17 +69,32 @@ function firstLine(caption: string): string {
     return caption.split("\n")[0].trim()
 }
 
+/** Srovnatelný tvar seznamu — nezávislý na pořadí klíčů, které jsonb přerovnává.
+ *  Pořadí PRVKŮ zůstává významné: je to žebříček podle výkonu. */
+function canonical(list: BrandVoiceExample[]): string {
+    return JSON.stringify(list.map(e => [e.caption ?? "", e.note ?? ""]))
+}
+
 export async function promoteVoiceExamples(): Promise<VoicePromotionResult[]> {
     const { data: clients, error } = await supabaseAdmin
         .from("clients")
         .select("id, slug, config")
-        .order("slug")
+        // Stejně jako idea-replenish a auto-publish: zrušený tenant nemá co
+        // konzumovat běh denní údržby.
+        .eq("is_active", true)
     if (error) throw new Error(`Nepodařilo se načíst klienty: ${error.message}`)
 
-    const results: VoicePromotionResult[] = []
+    // Rotované pořadí + časový rozpočet — viz lib/agents/client-sweep.ts.
+    const { sweepClients } = await import("./client-sweep")
+    const { results } = await sweepClients(
+        (clients || []) as { id: string; slug: string; config: unknown }[],
+        client => promoteForClient(client),
+        (client, err) => ({ slug: client.slug, promoted: 0, kept: 0, skipped: `chyba: ${err.message}` }),
+    )
+    return results
+}
 
-    for (const client of clients || []) {
-        try {
+async function promoteForClient(client: { id: string; slug: string; config: unknown }): Promise<VoicePromotionResult> {
             const config = (client.config || {}) as { brandVoiceExamples?: BrandVoiceExample[] }
             const existing = config.brandVoiceExamples || []
 
@@ -93,8 +108,7 @@ export async function promoteVoiceExamples(): Promise<VoicePromotionResult[]> {
 
             const measured = (posts || []).filter(p => (p.caption || "").trim().length >= MIN_CAPTION_LEN)
             if (measured.length < MIN_MEASURED) {
-                results.push({ slug: client.slug, promoted: 0, kept: existing.length, skipped: `jen ${measured.length} naměřených postů` })
-                continue
+                return { slug: client.slug, promoted: 0, kept: existing.length, skipped: `jen ${measured.length} naměřených postů` }
             }
 
             // Zlatý příklad musí být DŮKAZ, ne jen nejlepší z ničeho. Proto obojí:
@@ -132,10 +146,12 @@ export async function promoteVoiceExamples(): Promise<VoicePromotionResult[]> {
                 if (tryAdd(e.caption, e.note)) kept++
             }
 
-            const changed = JSON.stringify(next) !== JSON.stringify(existing)
-            if (!changed) {
-                results.push({ slug: client.slug, promoted: 0, kept: existing.length, skipped: "beze změny" })
-                continue
+            // Porovnání MUSÍ být kanonické. PostgreSQL jsonb si klíče v objektu
+            // přerovnává (kratší napřed), takže `{caption, note}` se vrátí jako
+            // `{note, caption}` a prosté JSON.stringify by hlásilo změnu pokaždé —
+            // agent by přepisoval config každý den nadarmo a hlásil falešná povýšení.
+            if (canonical(next) === canonical(existing)) {
+                return { slug: client.slug, promoted: 0, kept: existing.length, skipped: "beze změny" }
             }
 
             const { error: rpcErr } = await supabaseAdmin.rpc("set_brand_voice_examples", {
@@ -148,12 +164,5 @@ export async function promoteVoiceExamples(): Promise<VoicePromotionResult[]> {
             invalidateConfigCache(client.slug)
 
             console.log(`   ✓ ${client.slug}: ${promoted} ověřených + ${kept} zasetých zlatých příkladů`)
-            results.push({ slug: client.slug, promoted, kept })
-        } catch (err) {
-            console.warn(`⚠️ ${client.slug}: povýšení zlatých příkladů selhalo — ${(err as Error).message}`)
-            results.push({ slug: client.slug, promoted: 0, kept: 0, skipped: `chyba: ${(err as Error).message}` })
-        }
-    }
-
-    return results
+            return { slug: client.slug, promoted, kept }
 }
