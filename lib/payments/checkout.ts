@@ -68,12 +68,28 @@ export interface CheckoutInput {
     kind?: "subscription" | "service" | "credits"
     /** Kolik kreditů platba koupila — jen u `kind = "credits"`. */
     creditsGranted?: number
+    /**
+     * Vykreslit pokladnu UVNITŘ aplikace místo odchodu na Stripe.
+     *
+     * Hostovaná varianta znamená odchod z aplikace, a ten se ukázal jako křehký:
+     * nové okno blokuje blokátor, v nainstalované aplikaci `window.open` mlčky
+     * selže a přesměrování celé karty uživatele z aplikace vyhodí. Vestavěná
+     * pokladna je podle doporučení Stripu rovnocenná první volba a žádnou
+     * navigaci nepotřebuje.
+     *
+     * Serverová část zůstává stejná — týž webhook, týž podmíněný claim, týž
+     * doklad. Liší se jen to, kde se pokladna nakreslí.
+     */
+    embedded?: boolean
 }
 
 export interface CheckoutResult {
+    /** Adresa hostované pokladny. Prázdné u vestavěné — ta se nikam neodchází. */
     redirectUrl: string
     /** Lokátor, pod kterým platbu najde webhook. */
     providerRef: string
+    /** Klíč pro vykreslení pokladny uvnitř aplikace (`ui_mode: "embedded"`). */
+    clientSecret?: string
 }
 
 /**
@@ -140,11 +156,29 @@ export async function createStripeCheckout(input: CheckoutInput): Promise<Checko
                 metadata: { clientId: client.id, clientSlug: client.slug, planId: plan.id, termMonths: String(termMonths) },
             },
         }),
-        success_url: `${baseUrl}/dashboard/instagram?platba=ok`,
-        cancel_url: `${baseUrl}/dashboard/instagram?platba=zrusena`,
+        // Vestavěná pokladna se nikam nepřesměrovává, takže success_url/cancel_url
+        // nedávají smysl — Stripe místo nich chce jediné `return_url` pro chvíli,
+        // kdy platba skončí. Hostovaná varianta zůstává beze změny.
+        ...(input.embedded
+            ? {
+                ui_mode: "embedded" as const,
+                return_url: `${baseUrl}/dashboard/instagram?platba=ok&session={CHECKOUT_SESSION_ID}`,
+            }
+            : {
+                success_url: `${baseUrl}/dashboard/instagram?platba=ok`,
+                cancel_url: `${baseUrl}/dashboard/instagram?platba=zrusena`,
+            }),
+        // Štítek pro porovnávání pokladen v dashboardu Stripu (doporučení pro
+        // apiVersion 2026-03-25.dahlia a novější). Suffix odlišuje nasazení.
+        integration_identifier: `chrlit-${input.embedded ? "embed" : "hosted"}-${Math.random().toString(36).slice(2, 10)}`,
     })
 
-    if (!session.id || !session.url) throw new Error("Stripe nevrátil session id nebo URL")
+    if (!session.id) throw new Error("Stripe nevrátil session id")
+    if (input.embedded) {
+        if (!session.client_secret) throw new Error("Stripe nevrátil client_secret pro vestavěnou pokladnu")
+    } else if (!session.url) {
+        throw new Error("Stripe nevrátil URL hostované pokladny")
+    }
 
     // Služba nezakládá předplatné — pending řádek bez tarifu by zamaskoval
     // zákazníkovi jeho skutečný plán (viz pickLiveSubscription).
@@ -181,6 +215,10 @@ export async function createStripeCheckout(input: CheckoutInput): Promise<Checko
     })
 
     console.log(`💳 [stripe/${isStripeSandbox() ? "sandbox" : "LIVE"}] Session ${session.id} pro ${client.name} (${plan.name}, ${termMonths} měs.)`)
-    return { redirectUrl: session.url, providerRef: session.id }
+    return {
+        redirectUrl: session.url ?? "",
+        providerRef: session.id,
+        ...(session.client_secret ? { clientSecret: session.client_secret } : {}),
+    }
 }
 

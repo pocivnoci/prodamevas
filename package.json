@@ -13,6 +13,8 @@
     "@anthropic-ai/sdk": "^0.109.0",
     "@google/genai": "^1.42.0",
     "@sentry/nextjs": "^10.57.0",
+    "@stripe/react-stripe-js": "^6.8.1",
+    "@stripe/stripe-js": "^9.13.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.97.0",
     "@types/nodemailer": "^8.0.1",

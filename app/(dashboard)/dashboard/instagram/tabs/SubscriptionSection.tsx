@@ -1,6 +1,7 @@
 "use client"
 
 import { openCheckoutWindow } from "@/lib/open-checkout"
+import { EmbeddedCheckoutModal, isEmbeddedCheckoutAvailable } from "@/app/(dashboard)/EmbeddedCheckoutModal"
 import { useStudio, type SubscriptionState } from "@/app/(dashboard)/StudioContext"
 import { activateFreePlan } from "@/app/actions/settings-actions"
 import { hasBillingDetails, cancelSubscription, resumeSubscription } from "@/app/actions/billing-actions"
@@ -67,6 +68,8 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
     const { subscription, subscriptionLoading, refreshSubscription } = useStudio()
     const [plans, setPlans] = useState<PlanRow[]>([])
     const [upgradingPlanId, setUpgradingPlanId] = useState<string | null>(null)
+    /** Klíč vestavěné pokladny. Neprázdný = pokladna je otevřená nad studiem. */
+    const [checkoutSecret, setCheckoutSecret] = useState<string | null>(null)
     // Plán, který čeká na doplnění fakturačních údajů. Platba se spustí až po nich.
     const [billingGatePlanId, setBillingGatePlanId] = useState<string | null>(null)
     const [term, setTerm] = useState<TermMonths>(DEFAULT_TERM_MONTHS)
@@ -134,9 +137,11 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
     }
 
     const startPayment = async (planId: string) => {
-        // Okno se MUSÍ otevřít ještě před `await` — po něm už ho blokátor zahodí
-        // a kliknutí vypadá jako by nic neudělalo. Viz lib/open-checkout.ts.
-        const checkout = openCheckoutWindow()
+        // Vestavěná pokladna nikam neodchází, takže odpadá celá třída selhání
+        // kolem otevírání okna. Hostovaná zůstává jako záloha pro případ, že
+        // chybí veřejný klíč nebo běží druhá brána — viz lib/open-checkout.ts.
+        const wantEmbedded = isEmbeddedCheckoutAvailable()
+        const checkout = wantEmbedded ? null : openCheckoutWindow()
         try {
             const resp = await fetch("/api/payments/create", {
                 method: "POST",
@@ -144,17 +149,20 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                 // projectId is the tenant SLUG — send as clientSlug (the API
                 // resolves it). Sending it as clientId queried clients.id=<slug>
                 // → "Client not found".
-                body: JSON.stringify({ planId, clientSlug: projectId, termMonths: term }),
+                body: JSON.stringify({ planId, clientSlug: projectId, termMonths: term, embedded: wantEmbedded }),
             })
             const data = await resp.json()
-            if (data.redirectUrl) {
-                checkout.go(data.redirectUrl)
+            if (data.clientSecret) {
+                setCheckoutSecret(data.clientSecret)
+            } else if (data.redirectUrl) {
+                // Brána vestavěný režim nepodpořila (ComGate) — odcházíme.
+                ;(checkout ?? openCheckoutWindow()).go(data.redirectUrl)
             } else {
-                checkout.abort()
+                checkout?.abort()
                 alert(data.error || "Platební bránu se nepodařilo otevřít.")
             }
         } catch (err) {
-            checkout.abort()
+            checkout?.abort()
             throw err
         }
     }
@@ -185,6 +193,15 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
 
     return (
         <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-6 space-y-6">
+            {checkoutSecret && (
+                <EmbeddedCheckoutModal
+                    clientSecret={checkoutSecret}
+                    // Zavření pokladnu neruší: PENDING řádek v `payments` zůstává
+                    // a reconciler se brány doptá sám, takže zaplacená platba
+                    // neuvízne jen proto, že uživatel zavřel okno.
+                    onClose={() => { setCheckoutSecret(null); refreshSubscription() }}
+                />
+            )}
             {billingGatePlanId && (
                 <BillingModal
                     projectId={projectId}
