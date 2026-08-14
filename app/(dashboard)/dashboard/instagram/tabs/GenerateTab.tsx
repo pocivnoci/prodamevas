@@ -724,7 +724,12 @@ export function GenerateTab({ projectId }: { projectId: string }) {
             try {
                 const p = await getPlanProgress(projectId, runId)
                 if (p && p.status !== "done" && p.status !== "failed") setPlanProgress({ progress: p.progress, message: p.message })
-            } catch { /* progress polling must never break the flow */ }
+            } catch (e) {
+                // Průběh smí selhat bez následků, ale ne beze stopy — když se
+                // nepodaří ani načíst progres, je to první příznak, že akce vůbec
+                // neběží, a v konzoli to má být vidět.
+                console.warn("[content-plan] progres se nepodařilo načíst:", e)
+            }
         }, 2500)
         try {
             const result = await generateContentPlan(projectId, {
@@ -750,6 +755,17 @@ export function GenerateTab({ projectId }: { projectId: string }) {
             } else {
                 alert(result.error || "Generování plánu selhalo")
             }
+        } catch (err: any) {
+            // Bez tohohle catche byl `try/finally` němý: když serverová akce vyhodila
+            // výjimku (vypršelá session, timeout, výpadek sítě), odletěla do prázdna,
+            // tlačítko se jen vrátilo do klidu a uživatel neviděl NIC — nerozeznatelné
+            // od „tlačítko nefunguje". Plán běží 1-2 minuty, takže tichý pád je tu
+            // obzvlášť matoucí.
+            console.error("[content-plan] generování selhalo:", err)
+            alert(
+                `Generování plánu se nepodařilo dokončit.\n\n${err?.message || String(err)}\n\n` +
+                `Pokud jsi byl(a) dlouho nečinný(á), zkus stránku načíst znovu a přihlásit se.`
+            )
         } finally {
             clearInterval(poll)
             setPlanProgress(null)
