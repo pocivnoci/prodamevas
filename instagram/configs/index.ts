@@ -7,6 +7,7 @@
 import supabaseAdmin from "../../supabase/admin"
 import type { ClientConfig } from "./types"
 import { FORMAT_BRIEF_LIMITS } from "./types"
+import { findFinishedCopy } from "./format-brief"
 import { reconcileFormats } from "./reconcile"
 import { isFeedPattern } from "../../lib/feed-pattern"
 import { CAROUSEL_MAX_TOTAL_SLIDES } from "../caption-generator"
@@ -128,16 +129,10 @@ function warnOnScenicFormats(defs: NonNullable<ClientConfig["postTypeDefs"]>, sl
             // 1) Hotová replika: ≥3 slova v uvozovkách. Uvozovky samy nestačí — nesou
             //    i názvy estetik ('romanticizing your life'), a ty do formátu patří.
             //    Hotovou copy pozná velké počáteční písmeno nebo koncová interpunkce.
-            // Třídy znaků MUSÍ obsahovat i ASCII ' a " — modely citují hotovou copy
-            // nejčastěji právě jimi, ne typografickými uvozovkami. Bez nich zůstala
-            // v briefech nezachycená znění typu 'Dokonalá základna. Rezervujte'.
-            for (const m of text.matchAll(/[„"'"']\s*(\S+(?:\s+\S+){2,}?)\s*["""']/gu)) {
-                const quote = m[1]
-                if (/^\p{Lu}/u.test(quote) || /[.!?…]$/u.test(quote)) {
-                    signals.push(`${field}: hotová replika „${quote.slice(0, 40)}"`)
-                    break
-                }
-            }
+            // Týž predikát, jakým se brief při zápisu sanitizuje (format-brief.ts) —
+            // detekce a odstranění se tak nemůžou rozejít.
+            const copy = findFinishedCopy(text)
+            if (copy.length > 0) signals.push(`${field}: hotová replika „${copy[0].slice(0, 40)}"`)
 
             // 2) Vlastní jméno UVNITŘ plynulého textu. Rozhoduje, co slovu předchází:
             //    skutečné jméno stojí za malým písmenem („na Vinohradech", „kolekce
@@ -147,7 +142,12 @@ function warnOnScenicFormats(defs: NonNullable<ClientConfig["postTypeDefs"]>, sl
             //    rozkazovací tvary a nadpisy, po migraci 31 falešných poplachů na
             //    0 skutečných nálezů. Validátor s nulovou přesností se přestane číst.
             const properNouns = new Set<string>()
-            const tokens = text.split(/\s+/u)
+            // Zástupné sloty ([Produktu], [Typ klienta], [Nový systém]) se vyhazují
+            // PŘED skenem. Placeholder je pravý opak zadrátované konkrétnosti — je to
+            // přesně to, co má invariantní formát obsahovat. Bez tohohle kroku hlásila
+            // heuristika 12 falešných nálezů na 0 skutečných, protože tokenizace
+            // ořízne hranaté závorky a `[Produktu]` vypadá jako vlastní jméno.
+            const tokens = text.replace(/\[[^\]]*\]/gu, " ").split(/\s+/u)
             for (let i = 1; i < tokens.length; i++) {
                 const bare = tokens[i].replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "")
                 if (bare.length < 3 || BEAT_MARKERS.test(bare)) continue

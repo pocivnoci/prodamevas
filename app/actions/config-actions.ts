@@ -5,6 +5,7 @@ import { requireProjectAccess } from "@/lib/auth-guard"
 import { reconcileFormats } from "@/instagram/configs/reconcile"
 import type { OverlayStyle } from "@/instagram/configs/types"
 import { FORMAT_BRIEF_LIMITS } from "@/instagram/configs/types"
+import { stripFinishedCopy } from "@/instagram/configs/format-brief"
 import { isMediumType, type MediumType } from "@/lib/credits"
 
 export async function getClientConfig(projectSlug: string): Promise<any> {
@@ -246,9 +247,9 @@ generovat sama). aspectRatio "9:16" jen pro reel.`
             emoji: parsed.emoji || "🎁",
             // AI cesta drží invariantní stropy; ruční editace níž (upsertPostFormat)
             // zůstává volnější — tam je autorem uživatel a jen varujeme.
-            description: String(parsed.description).slice(0, FORMAT_BRIEF_LIMITS.description),
-            structure: parsed.structure ? String(parsed.structure).slice(0, FORMAT_BRIEF_LIMITS.structure) : undefined,
-            visualStyle: parsed.visual_style ? String(parsed.visual_style).slice(0, FORMAT_BRIEF_LIMITS.visualStyle) : undefined,
+            description: stripFinishedCopy(String(parsed.description)).slice(0, FORMAT_BRIEF_LIMITS.description),
+            structure: parsed.structure ? stripFinishedCopy(String(parsed.structure)).slice(0, FORMAT_BRIEF_LIMITS.structure) : undefined,
+            visualStyle: parsed.visual_style ? stripFinishedCopy(String(parsed.visual_style)).slice(0, FORMAT_BRIEF_LIMITS.visualStyle) : undefined,
             pillar: pillarKeys.includes(parsed.pillar) ? parsed.pillar : pillarKeys[0],
             medium,
             aspectRatio,

@@ -26,6 +26,7 @@ import { CAROUSEL_MAX_TOTAL_SLIDES } from '@/instagram/caption-generator'
 import { withRetry } from '@/utils/retry'
 import type { ClientConfig, PostTypeDef } from '@/instagram/configs/types'
 import { FORMAT_BRIEF_LIMITS } from '@/instagram/configs/types'
+import { stripFinishedCopy } from '@/instagram/configs/format-brief'
 import type { WebsiteAnalysis } from './actions'
 
 // ============================================
@@ -802,10 +803,11 @@ name unikátní, snake_case, bez diakritiky.`
                 name,
                 display_name: String(d.display_name).slice(0, 60),
                 emoji: d.emoji || "📝",
-                // Stropy drží formát invariantem — viz FORMAT_BRIEF_LIMITS.
-                description: String(d.description).slice(0, FORMAT_BRIEF_LIMITS.description),
-                structure: d.structure ? String(d.structure).slice(0, FORMAT_BRIEF_LIMITS.structure) : undefined,
-                visualStyle: d.visual_style ? String(d.visual_style).slice(0, FORMAT_BRIEF_LIMITS.visualStyle) : undefined,
+                // Stropy drží formát invariantem (FORMAT_BRIEF_LIMITS), stripFinishedCopy
+                // z něj vyhazuje konkrétní znění vět — zákaz v promptu na to nestačí.
+                description: stripFinishedCopy(String(d.description)).slice(0, FORMAT_BRIEF_LIMITS.description),
+                structure: d.structure ? stripFinishedCopy(String(d.structure)).slice(0, FORMAT_BRIEF_LIMITS.structure) : undefined,
+                visualStyle: d.visual_style ? stripFinishedCopy(String(d.visual_style)).slice(0, FORMAT_BRIEF_LIMITS.visualStyle) : undefined,
                 pillar: pillarKeys.includes(d.pillar) ? d.pillar : pillarKeys[0],
                 medium,
                 aspectRatio: normalizeRatio(medium, (RATIOS.includes(d.aspectRatio) ? d.aspectRatio : "4:5")),

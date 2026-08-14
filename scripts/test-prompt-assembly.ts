@@ -14,6 +14,7 @@ import { resolve } from "path"
 import { formatContextForPrompt, type ContextSignals } from "../instagram/context-agent"
 import type { ClientConfig } from "../instagram/configs/types"
 import { FORMAT_BRIEF_LIMITS } from "../instagram/configs/types"
+import { findFinishedCopy, stripFinishedCopy } from "../instagram/configs/format-brief"
 import type { PostType } from "../instagram/types"
 import type { PerformanceInsight } from "../instagram/performance"
 
@@ -376,14 +377,34 @@ test("brief formátu má stropy, které nepustí storyboard", () => {
         "strop pro description/visualStyle je tak velký, že se do něj vejde scénář")
     assert(FORMAT_BRIEF_LIMITS.structure <= 260,
         "strop pro structure je tak velký, že se do něj vejde storyboard slide-po-slidu")
+    // Sanitizace musí být na KAŽDÉ cestě, která brief zapisuje. Zákaz v promptu
+    // nestačí — i s výslovným zákazem nechal model hotovou copy v 11 z 95 formátů.
     for (const [file, fn] of [
         ["../app/onboarding/core.ts", "generateCustomFormats"],
         ["../app/actions/config-actions.ts", "suggestPostFormat"],
+        ["../scripts/degeneralize-formats.ts", "migrace formátů"],
     ] as const) {
         const src = readFileSync(resolve(__dirname, file), "utf-8")
         assert(src.includes("FORMAT_BRIEF_LIMITS"),
             `${fn} (${file}) neořezává brief přes FORMAT_BRIEF_LIMITS — stropy se rozejdou`)
+        assert(src.includes("stripFinishedCopy"),
+            `${fn} (${file}) nesanitizuje brief přes stripFinishedCopy — do formátu propadne hotová copy`)
     }
+})
+
+test("hotová copy se pozná a odstraní stejným predikátem", () => {
+    // Detekce (warnOnScenicFormats) a odstranění (zápisové cesty) musí sdílet
+    // jedno pravidlo, jinak validátor hlásí něco jiného, než sanitizace maže.
+    const copy = "Slide 5: Vchod + CTA 'Dokonalá základna. Rezervujte'."
+    assert(findFinishedCopy(copy).length === 1, "hotová replika v ASCII apostrofech se nepozná")
+    assert(findFinishedCopy(stripFinishedCopy(copy)).length === 0,
+        "po sanitizaci pořád zbývá hotová replika")
+    assert(stripFinishedCopy(copy).includes("CTA"),
+        "sanitizace ukrojila i ROLI beatu, nejen jeho znění")
+    // Název estetiky není replika — do briefu patří a nesmí zmizet.
+    const style = "Měkké světlo, 'romanticizing your life' estetika, plynulý pohyb."
+    assert(findFinishedCopy(style).length === 0, "název stylu se hlásí jako hotová replika")
+    assert(stripFinishedCopy(style) === style, "sanitizace smazala název stylu")
 })
 
 test("existuje detekce formátů psaných jako storyboard", () => {

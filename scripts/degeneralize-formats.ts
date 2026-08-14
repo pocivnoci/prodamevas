@@ -38,12 +38,15 @@ import { ensurePostTypes, DEFAULT_IDEA_COOLDOWN_DAYS } from "../instagram/servic
 import { generateText } from "../instagram/gemini-client"
 import { getModel } from "../instagram/models"
 import { FORMAT_BRIEF_LIMITS } from "../instagram/configs/types"
+import { stripFinishedCopy } from "../instagram/configs/format-brief"
 import type { ClientConfig, PostTypeDef, PillarCategory } from "../instagram/configs/types"
 
 const FIX = process.argv.includes("--fix")
 const ONLY_SLUG = process.argv.find(a => a.startsWith("--slug="))?.split("=")[1]
 /** Přemigruje i klienta, který už převedený je (původní záloha zůstává). */
 const FORCE = process.argv.includes("--force")
+/** Jen deterministicky uklidí hotovou copy z existujících briefů — bez AI volání. */
+const SANITIZE_ONLY = process.argv.includes("--sanitize-only")
 
 interface ClientRow { id: string; slug: string; config: ClientConfig | null }
 
@@ -177,9 +180,9 @@ async function convert(config: ClientConfig, defs: PostTypeDef[]): Promise<Conve
             ...original,
             display_name: f.display_name ? String(f.display_name).slice(0, 60) : original.display_name,
             emoji: f.emoji || original.emoji,
-            description: String(f.description || original.description).slice(0, FORMAT_BRIEF_LIMITS.description),
-            structure: f.structure ? String(f.structure).slice(0, FORMAT_BRIEF_LIMITS.structure) : undefined,
-            visualStyle: f.visual_style ? String(f.visual_style).slice(0, FORMAT_BRIEF_LIMITS.visualStyle) : undefined,
+            description: stripFinishedCopy(String(f.description || original.description)).slice(0, FORMAT_BRIEF_LIMITS.description),
+            structure: f.structure ? stripFinishedCopy(String(f.structure)).slice(0, FORMAT_BRIEF_LIMITS.structure) : undefined,
+            visualStyle: f.visual_style ? stripFinishedCopy(String(f.visual_style)).slice(0, FORMAT_BRIEF_LIMITS.visualStyle) : undefined,
         })
     }
     // Formát, který AI vynechala, si ponechá původní brief — radši starý storyboard
@@ -293,12 +296,38 @@ async function main(): Promise<void> {
         }
         // --force přemigruje i už převedeného klienta. Záloha se NEPŘEPÍŠE (zapisuje se
         // jen když chybí), takže i po opakovaném běhu drží PŮVODNÍ storyboardy.
-        if ((raw as any)._postTypeDefsBackup && !FORCE) {
+        // --sanitize-only cílí právě na už převedené klienty, takže se ho tenhle
+        // skip týkat nesmí.
+        if ((raw as any)._postTypeDefsBackup && !FORCE && !SANITIZE_ONLY) {
             console.log(`\n✅ ${client.slug}: už převedeno (existuje _postTypeDefsBackup) — přeskakuji (--force přepíše)`)
             continue
         }
 
         console.log(`\n${"─".repeat(70)}\n### ${client.slug} — ${defs.length} formátů`)
+
+        // --sanitize-only: deterministický úklid už převedených briefů, bez AI.
+        // Když model nechal v briefu hotovou copy, není důvod platit další Pro
+        // volání za něco, co umí regex spolehlivěji než prompt.
+        if (SANITIZE_ONLY) {
+            const cleaned = defs.map(d => ({
+                ...d,
+                description: stripFinishedCopy(d.description || ""),
+                structure: d.structure ? stripFinishedCopy(d.structure) : undefined,
+                visualStyle: d.visualStyle ? stripFinishedCopy(d.visualStyle) : undefined,
+            }))
+            const changedDefs = cleaned.filter((c, i) =>
+                c.description !== defs[i].description || c.structure !== defs[i].structure || c.visualStyle !== defs[i].visualStyle)
+            if (changedDefs.length === 0) { console.log("   ✅ nic k úklidu"); continue }
+            for (const c of changedDefs) console.log(`   🧹 ${c.name}: ${c.structure || c.description}`)
+            if (FIX) {
+                const { error: upErr } = await supabaseAdmin.from("clients")
+                    .update({ config: reconcileFormats({ ...raw, postTypeDefs: cleaned }) }).eq("id", client.id)
+                if (upErr) console.error(`   ❌ ${upErr.message}`)
+                else { invalidateConfigCache(client.slug); console.log(`   ✅ uklizeno ${changedDefs.length} formátů`) }
+            }
+            continue
+        }
+
         // loadConfig kvůli defaultům (contentFocus, pilíře) — zápis jde vždy na raw.
         let config: ClientConfig
         try { config = await loadConfig(client.slug) } catch (e) {
