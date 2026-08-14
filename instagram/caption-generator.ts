@@ -13,6 +13,7 @@ import type { HookTemplate } from "./types"
 import type { PerformanceInsight } from "./performance"
 import { getPillarForType, createPillarMapper } from "./service"
 import { buildPsychologistSection } from "./psychologist"
+import { getMechanism } from "./mechanisms"
 import { resolveCtaPolicy, buildCtaPolicySection, buildCtaPolicyJudgeBlock, type CtaPolicy } from "./cta-policy"
 
 // ============================================
@@ -59,11 +60,30 @@ export function getPostFormat(config: ClientConfig, typeName: string): PostForma
     return DEFAULT_FORMAT
 }
 
-/** The format's creative brief from config — the SOURCE OF TRUTH for description/
- *  structure/visualStyle. The `ig_post_types` DB row is a UI-picker copy that can
- *  drift; generation must prefer the config def and fall back to the row. */
+/** The format's creative brief — the SOURCE OF TRUTH for description/structure/
+ *  visualStyle. The `ig_post_types` DB row is a UI-picker copy that can drift;
+ *  generation must prefer this and fall back to the row.
+ *
+ *  Když má formát přiřazený `mechanism`, brief se bere ze sdílené tabulky
+ *  (`instagram/mechanisms.ts`) a per-klientská pole se ignorují. Důvod: formáty
+ *  se generovaly per značku a měly být mechanismy — nebyly. Ani po přepsání
+ *  promptu, zavedení stropů a strojové sanitizaci hotové copy do nich model
+ *  propašoval téma („Průvodce ideálním tarifem"). Sdílená tabulka dělá z invariantu
+ *  vlastnost konstrukce místo pravidla, které musí model dodržet.
+ *
+ *  `name`, `pillar`, `medium`, `aspectRatio`, `uses_product` i `manualOnly`
+ *  zůstávají per klient — mechanismus mění POUZE text briefu. */
 export function getPostTypeDef(config: ClientConfig, typeName: string): PostTypeDef | undefined {
-    return (config?.postTypeDefs ?? []).find(d => d.name === typeName)
+    const def = (config?.postTypeDefs ?? []).find(d => d.name === typeName)
+    if (!def) return undefined
+    const mechanism = getMechanism(def.mechanism)
+    if (!mechanism) return def
+    return {
+        ...def,
+        description: mechanism.description,
+        structure: mechanism.structure,
+        visualStyle: mechanism.visualStyle,
+    }
 }
 
 // ─── Smart Overlay Rotation ─────────────────────────────────

@@ -8,13 +8,14 @@
  * Spuštění: npx tsx scripts/test-prompt-assembly.ts
  */
 
-import { buildMegaPrompt, buildVideoSchema, buildCaptionSchema, buildCarouselSchema, buildStorySchema, PROMPT_LIMITS, CAROUSEL_MAX_TOTAL_SLIDES } from "../instagram/caption-generator"
+import { buildMegaPrompt, buildVideoSchema, buildCaptionSchema, buildCarouselSchema, buildStorySchema, getPostTypeDef, PROMPT_LIMITS, CAROUSEL_MAX_TOTAL_SLIDES } from "../instagram/caption-generator"
 import { readFileSync } from "fs"
 import { resolve } from "path"
 import { formatContextForPrompt, type ContextSignals } from "../instagram/context-agent"
 import type { ClientConfig } from "../instagram/configs/types"
 import { FORMAT_BRIEF_LIMITS } from "../instagram/configs/types"
 import { findFinishedCopy, stripFinishedCopy } from "../instagram/configs/format-brief"
+import { MECHANISMS, MECHANISM_IDS } from "../instagram/mechanisms"
 import type { PostType } from "../instagram/types"
 import type { PerformanceInsight } from "../instagram/performance"
 
@@ -405,6 +406,44 @@ test("hotová copy se pozná a odstraní stejným predikátem", () => {
     const style = "Měkké světlo, 'romanticizing your life' estetika, plynulý pohyb."
     assert(findFinishedCopy(style).length === 0, "název stylu se hlásí jako hotová replika")
     assert(stripFinishedCopy(style) === style, "sanitizace smazala název stylu")
+})
+
+test("mechanismus přebíjí per-klientský brief formátu", () => {
+    // Invariant zaručený KONSTRUKCÍ, ne pravidlem v promptu. Dvakrát po sobě se
+    // ukázalo, že model formátovací pravidlo nedodrží: do briefu propašoval téma
+    // („Průvodce ideálním tarifem") i po přepsání promptu, stropech a sanitizaci.
+    // Když má formát mechanismus, text pochází ze sdílené tabulky a model do něj
+    // nemá jak sáhnout.
+    const def = getPostTypeDef({
+        ...config,
+        postTypeDefs: [{
+            name: "meme", display_name: "Meme", pillar: "dosah",
+            description: "Průvodce ideálním tarifem pro fáze byznysu",
+            structure: "Slide 1: náš tarif Start…",
+            mechanism: "srovnani",
+        }],
+    } as any, "meme")
+    assert(def?.description === MECHANISMS.srovnani.description,
+        "description se nebere z mechanismu — per-klientské téma se propsalo do promptu")
+    assert(def?.structure === MECHANISMS.srovnani.structure, "structure se nebere z mechanismu")
+    assert(def?.visualStyle === MECHANISMS.srovnani.visualStyle, "visualStyle se nebere z mechanismu")
+    // Vše ostatní MUSÍ zůstat per klient — na `name` visí ig_post_types,
+    // weekPlan, členství v pilířích i post_type_id starých příspěvků.
+    assert(def?.name === "meme" && def?.pillar === "dosah",
+        "mechanismus přepsal i identitu formátu — to rozbije vazby v DB")
+})
+
+test("mechanismy samy projdou testem invariantu", () => {
+    for (const id of MECHANISM_IDS) {
+        const m = MECHANISMS[id]
+        for (const [field, text] of [["description", m.description], ["structure", m.structure], ["visualStyle", m.visualStyle]] as const) {
+            assert(findFinishedCopy(text).length === 0, `${id}.${field} obsahuje hotovou repliku`)
+            assert(!/[A-ZÁ-Ž][a-zá-ž]+\s+(?:s\.r\.o|a\.s)/.test(text), `${id}.${field} vypadá jako konkrétní firma`)
+        }
+        assert(m.description.length <= FORMAT_BRIEF_LIMITS.description, `${id}.description překračuje strop`)
+        assert(m.structure.length <= FORMAT_BRIEF_LIMITS.structure, `${id}.structure překračuje strop`)
+        assert(m.visualStyle.length <= FORMAT_BRIEF_LIMITS.visualStyle, `${id}.visualStyle překračuje strop`)
+    }
 })
 
 test("existuje detekce formátů psaných jako storyboard", () => {
