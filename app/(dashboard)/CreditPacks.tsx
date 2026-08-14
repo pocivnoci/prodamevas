@@ -23,7 +23,7 @@ import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { CREDIT_PACKS, CREDIT_PACK_PREFIX, EXTRA_CREDIT_HALERU, creditPackPrice, formatCzk } from "@/lib/pricing"
 
 export function CreditPacks({ compact = false }: { compact?: boolean }) {
-    const { projectId, subscription, refreshSubscription } = useStudio()
+    const { projectId, subscription } = useStudio()
     const [busy, setBusy] = useState<number | null>(null)
     const [error, setError] = useState<string | null>(null)
 
@@ -43,9 +43,10 @@ export function CreditPacks({ compact = false }: { compact?: boolean }) {
             })
             const data = await resp.json()
             if (data.redirectUrl) {
+                // Odsud se odchází na bránu, takže tahle komponenta se odmountuje
+                // a plánovat na ni obnovu stavu nemá smysl — po návratu z brány se
+                // studio načte znovu a stav si natáhne samo.
                 checkout.go(data.redirectUrl)
-                // Platba dobíhá v jiném okně — po návratu se stav sám neobnoví.
-                setTimeout(refreshSubscription, 3000)
             } else {
                 checkout.abort()
                 setError(data.error || "Platbu se nepodařilo založit.")
