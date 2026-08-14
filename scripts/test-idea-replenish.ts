@@ -16,6 +16,7 @@ import {
     MAX_BATCHES_PER_RUN,
     type PillarState,
 } from "../lib/agents/idea-replenish"
+import { DEFAULT_IDEA_COOLDOWN_DAYS } from "../instagram/service"
 
 let passed = 0
 let failed = 0
@@ -33,20 +34,25 @@ function eq<T>(name: string, actual: T, expected: T) {
 const pillars = (spec: Array<[string, number, number]>): PillarState[] =>
     spec.map(([id, ratio, available]) => ({ id, ratio, available }))
 
+/** Cíl pro danou kadenci — fixtury se odvozují z NĚJ, ne ze zapsaného čísla.
+ *  Runway se odvíjí od cooldownu nápadu; zadrátovaná čísla by při každém jeho
+ *  doladění spadla, aniž by se rozbil invariant, který test hlídá. */
+const targetFor = (perWeek: number) => computeReplenishPlan(perWeek, pillars([["x", 100, 0]])).target
+
 console.log("\n— Full bank no-ops —")
 {
-    // 4/wk → target max(10, 8) = 10; 12 available → no refill.
-    const plan = computeReplenishPlan(4, pillars([["a", 50, 6], ["b", 50, 6]]))
-    eq("target is runway floor", plan.target, MIN_TARGET)
+    // Plná banka = dostupných přesně tolik, kolik je cíl.
+    const t = targetFor(4)
+    const plan = computeReplenishPlan(4, pillars([["a", 50, Math.ceil(t / 2)], ["b", 50, Math.ceil(t / 2)]]))
+    check("target pokrývá aspoň cooldown okno", t >= Math.round(4 * DEFAULT_IDEA_COOLDOWN_DAYS / 7))
     eq("no batches when above target", plan.batches, [])
     eq("need clamps to 0", plan.need, 0)
 }
 
 console.log("\n— 2×/day starved bank refills —")
 {
-    // 14/wk → target 28; 3 available → need 25 → capped at 2 batches × 8.
     const plan = computeReplenishPlan(14, pillars([["a", 40, 1], ["b", 30, 1], ["c", 30, 1]]))
-    eq("target scales with cadence", plan.target, 14 * RUNWAY_WEEKS)
+    eq("target scales with cadence", plan.target, Math.ceil(14 * RUNWAY_WEEKS))
     eq("batch count capped", plan.batches.length, MAX_BATCHES_PER_RUN)
     check("every batch capped at MAX_BATCH", plan.batches.every(b => b.count <= MAX_BATCH))
     eq("most starved pillar first", plan.batches[0].pillarId, "a")
@@ -55,7 +61,7 @@ console.log("\n— 2×/day starved bank refills —")
 console.log("\n— Dribbles are skipped —")
 {
     // Need 3 (< MIN_REFILL) → wait for a meaningful refill instead of daily crumbs.
-    const plan = computeReplenishPlan(4, pillars([["a", 100, MIN_TARGET - (MIN_REFILL - 1)]]))
+    const plan = computeReplenishPlan(4, pillars([["a", 100, targetFor(4) - (MIN_REFILL - 1)]]))
     eq("small need produces no batches", plan.batches, [])
     check("need still reported", plan.need === MIN_REFILL - 1)
 }
@@ -77,10 +83,12 @@ console.log("\n— Zero/unset ratios fall back to equal shares —")
 
 console.log("\n— Retired-pillar ideas count toward the runway —")
 {
-    // 8 orphans + 4 in-pillar = 12 available ≥ target 10 → no refill even though
-    // the config pillar itself looks starved.
-    const plan = computeReplenishPlan(4, pillars([["a", 100, 4]]), 8)
-    eq("orphans included in available", plan.available, 12)
+    // Osiřelé nápady (po zrušeném pilíři) se pořád počítají do runwaye —
+    // getWeightedIdeas je nadále vybírá. Když s nimi banka cíl splní, negeneruje
+    // se nic, i když samotný pilíř v configu vypadá vyhladověle.
+    const t = targetFor(4)
+    const plan = computeReplenishPlan(4, pillars([["a", 100, 4]]), t - 4)
+    eq("orphans included in available", plan.available, t)
     eq("orphans can satisfy the runway", plan.batches, [])
 }
 
@@ -92,9 +100,10 @@ console.log("\n— No pillars → nothing to generate —")
 
 console.log("\n— Garbage cadence clamps —")
 {
-    // 0 → default 4, 99 → clamp to 14: target stays in [MIN_TARGET, 28].
-    eq("cadence 0 defaults", computeReplenishPlan(0, pillars([["a", 100, 0]])).target, MIN_TARGET)
-    eq("cadence 99 clamps to 2×/day", computeReplenishPlan(99, pillars([["a", 100, 0]])).target, 14 * RUNWAY_WEEKS)
+    // 0 → bere se výchozí kadence 4, 99 → ořez na 14 (2×/den).
+    eq("cadence 0 defaults", computeReplenishPlan(0, pillars([["a", 100, 0]])).target, targetFor(4))
+    eq("cadence 99 clamps to 2×/day", computeReplenishPlan(99, pillars([["a", 100, 0]])).target, Math.ceil(14 * RUNWAY_WEEKS))
+    check("cíl nikdy neklesne pod podlahu", targetFor(1) >= MIN_TARGET)
 }
 
 console.log(`\n${failed === 0 ? "✅" : "❌"} ${passed} passed, ${failed} failed\n`)

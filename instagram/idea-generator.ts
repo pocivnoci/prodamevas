@@ -1,6 +1,7 @@
 import { generateText } from "./gemini-client"
 import { type ClientConfig } from "./configs/types"
 import { resolveClientId } from "./configs"
+import { DEFAULT_IDEA_COOLDOWN_DAYS } from "./service"
 import supabaseAdmin from "../supabase/admin"
 
 export async function generateAIIdeas(config: ClientConfig, pillarId: string, count: number = 10, categoryId?: string) {
@@ -168,7 +169,7 @@ ${categorySection}${productsSection}${personaSection}${memorySection}${contextSe
         keywords: idea.keywords || [],
         used_count: 0,
         is_active: true,
-        cooldown_days: 30
+        cooldown_days: DEFAULT_IDEA_COOLDOWN_DAYS
     }))
 
     // 5. DB Insert

@@ -34,7 +34,7 @@
 import supabaseAdmin from "../supabase/admin"
 import { loadConfig, invalidateConfigCache } from "../instagram/configs"
 import { reconcileFormats } from "../instagram/configs/reconcile"
-import { ensurePostTypes } from "../instagram/service"
+import { ensurePostTypes, DEFAULT_IDEA_COOLDOWN_DAYS } from "../instagram/service"
 import { generateText } from "../instagram/gemini-client"
 import { getModel } from "../instagram/models"
 import { FORMAT_BRIEF_LIMITS } from "../instagram/configs/types"
@@ -247,7 +247,7 @@ async function applyConversion(client: ClientRow, raw: ClientConfig, conv: Conve
                 keywords: [],
                 used_count: 0,
                 is_active: true,
-                cooldown_days: 30,
+                cooldown_days: DEFAULT_IDEA_COOLDOWN_DAYS,
             }))
         if (rows.length > 0) {
             const { error: ideaErr } = await supabaseAdmin.from("ig_post_ideas").insert(rows)

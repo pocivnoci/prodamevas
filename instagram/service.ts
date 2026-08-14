@@ -185,7 +185,7 @@ export async function getAvailableIdeas(category?: string): Promise<PostIdea[]> 
     return (data ?? []).filter(idea => {
         if (!idea.last_used_at) return true;
         const lastUsed = new Date(idea.last_used_at);
-        const cooldownDays = idea.cooldown_days ?? 60;
+        const cooldownDays = idea.cooldown_days ?? DEFAULT_IDEA_COOLDOWN_DAYS;
         const cooldownEnd = new Date(lastUsed.getTime() + cooldownDays * 24 * 60 * 60 * 1000);
         return now > cooldownEnd;
     });
@@ -579,7 +579,7 @@ export async function getWeightedIdeas(limit = 5): Promise<PostIdea[]> {
     const now = Date.now()
     const ideas = (allIdeas ?? []).filter(idea => {
         if (!idea.last_used_at) return true
-        const cooldownDays = idea.cooldown_days ?? 90
+        const cooldownDays = idea.cooldown_days ?? DEFAULT_IDEA_COOLDOWN_DAYS
         return now - new Date(idea.last_used_at).getTime() > cooldownDays * 86_400_000
     }).slice(0, 50)
 
@@ -646,6 +646,20 @@ export async function getWeightedReviews(limit = 3): Promise<Review[]> {
 // ============================================
 // HOOK & BODY DEDUP (moved from dedup.ts)
 // ============================================
+
+/**
+ * Kolik dní nápad odpočívá, než se smí použít znovu — jediný zdroj pravdy.
+ *
+ * Čtenáři se dřív rozcházeli: getAvailableIdeas brala 60, getWeightedIdeas 90,
+ * getWeightedProductIdeas 30 a idea-replenish 90, zatímco DB má default 14
+ * a zapisovatelé nastavují 30. Dokud mají všechny řádky hodnotu vyplněnou,
+ * nic se neprojeví; první řádek s NULL by ale znamenal, že se tentýž nápad
+ * v jedné části pipeline považuje za dostupný a v druhé ne.
+ *
+ * 30 dní = hodnota, kterou zapisovatelé reálně ukládají, takže sjednocení
+ * nemění chování žádného existujícího nápadu.
+ */
+export const DEFAULT_IDEA_COOLDOWN_DAYS = 30
 
 /** Extract normalized topic keywords from a caption */
 export function extractTopicKeywords(text: string): Set<string> {
@@ -912,7 +926,7 @@ export async function getWeightedProductIdeas(
     const ideas = (all ?? []).filter(idea => {
         if (idea.is_active === false) return false
         if (!idea.last_used_at) return true
-        const cooldownDays = idea.cooldown_days ?? 30
+        const cooldownDays = idea.cooldown_days ?? DEFAULT_IDEA_COOLDOWN_DAYS
         return now - new Date(idea.last_used_at).getTime() > cooldownDays * 86_400_000
     }).slice(0, 50)
 
