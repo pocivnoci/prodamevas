@@ -8,7 +8,7 @@
  * Spuštění: npx tsx scripts/test-prompt-assembly.ts
  */
 
-import { buildMegaPrompt, buildVideoSchema, buildCaptionSchema, buildCarouselSchema, buildStorySchema, getPostTypeDef, PROMPT_LIMITS, CAROUSEL_MAX_TOTAL_SLIDES } from "../instagram/caption-generator"
+import { buildMegaPrompt, buildVideoSchema, buildCaptionSchema, buildCarouselSchema, buildStorySchema, getPostTypeDef, buildSmartWeekPlan, PROMPT_LIMITS, CAROUSEL_MAX_TOTAL_SLIDES } from "../instagram/caption-generator"
 import { readFileSync } from "fs"
 import { resolve } from "path"
 import { formatContextForPrompt, type ContextSignals } from "../instagram/context-agent"
@@ -444,6 +444,32 @@ test("mechanismy samy projdou testem invariantu", () => {
         assert(m.structure.length <= FORMAT_BRIEF_LIMITS.structure, `${id}.structure překračuje strop`)
         assert(m.visualStyle.length <= FORMAT_BRIEF_LIMITS.visualStyle, `${id}.visualStyle překračuje strop`)
     }
+})
+
+test("výběr formátu je deterministický, ne losovaný", () => {
+    // Vážení podle paměti značky, naměřeného výkonu a svátků dřív jen naklánělo
+    // kostku — rozhodoval `Math.random()`. Signály tak reálně nerozhodovaly a stejný
+    // vstup dal pokaždé jiný výstup, takže výběr nešlo ani ladit, ani otestovat.
+    // Pestrost nově zajišťuje odpor k nedávno použitému mechanismu, ne los.
+    const a = buildSmartWeekPlan(config, noPerf, 10, 3)
+    const b = buildSmartWeekPlan(config, noPerf, 10, 3)
+    assert(JSON.stringify(a) === JSON.stringify(b),
+        "stejný vstup dal jiný plán — ve výběru zůstala náhoda")
+    // Posun se musí projevit, jinak by se plán otevíral pořád stejně.
+    const wp = config.weekPlan || []
+    if (wp.length > 1) {
+        const shifted = buildSmartWeekPlan(config, noPerf, 10, 3 + 1)
+        assert(JSON.stringify(shifted) !== JSON.stringify(a) || wp.length === 1,
+            "posun podle počtu příspěvků se neprojevil — rotace je zamrzlá")
+    }
+
+    const src = readFileSync(resolve(__dirname, "../instagram/autopilot.ts"), "utf-8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/(^|[^:])\/\/.*$/gm, "$1")
+    const selection = src.slice(src.indexOf("const scoreOf"), src.indexOf("console.log(`   ✓"))
+    assert(selection.length > 0, "blok výběru formátu se nenašel — asserce přestala hlídat, co má")
+    assert(!selection.includes("Math.random"),
+        "do výběru formátu se vrátila náhoda — signály pak zase jen naklánějí kostku")
 })
 
 test("existuje detekce formátů psaných jako storyboard", () => {

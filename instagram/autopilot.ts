@@ -59,6 +59,7 @@ import {
     scorePost,
     rankDrafts,
     resolveCtaPolicyForPost,
+    getPostTypeDef,
 } from "./caption-generator"
 import { getBrandMemories, formatMemoriesForPrompt, learnFromCriticInsights } from "./memory-agent"
 import { reviewPost, reviewContentPlan } from "./editorial-board"
@@ -325,16 +326,61 @@ export async function generateOnePost(options: {
         // Holiday/seasonal signal → bounded ×1.3 bias toward product/promo formats
         // (same name-pattern approach as review-type detection). Deterministic, small.
         const HOLIDAY_BIAS_PATTERN = /product|produkt|drop|limitka|nabidka|promo|akce/i
-        const weighted = selectableTypes.flatMap(type => {
+
+        // Čím dřív byl mechanismus naposled použitý, tím větší odpor. Tohle je to,
+        // co dřív obstarávala náhoda — jenže náhoda umí stejný mechanismus vytáhnout
+        // třikrát po sobě. Odpor k opakování dává pestrost ZARUČENĚ a navíc
+        // vysvětlitelně: v logu je vidět, proč tenhle a ne jiný.
+        const RECENT_WINDOW = 8
+        const recentMechanisms: string[] = []
+        try {
+            const { data: recentPosts } = await supabaseAdmin
+                .from("ig_posts")
+                .select("post_type_id")
+                .eq("client_id", clientUuid)
+                .not("post_type_id", "is", null)
+                .order("created_at", { ascending: false })
+                .limit(RECENT_WINDOW)
+            const idToName = new Map(postTypes.map(t => [t.id, t.name]))
+            for (const p of recentPosts || []) {
+                const name = idToName.get((p as { post_type_id: string }).post_type_id)
+                const def = name ? getPostTypeDef(config, name) : undefined
+                recentMechanisms.push((def?.mechanism || name) ?? "")
+            }
+        } catch {
+            // Bez historie se prostě neuplatní odpor — nikdy to nesmí zablokovat generování.
+        }
+        /** 0 = použitý naposled (nejsilnější odpor), RECENT_WINDOW = dávno/nikdy. */
+        const sinceUsed = (type: PostType): number => {
+            const def = getPostTypeDef(config, type.name)
+            const key = def?.mechanism || type.name
+            const idx = recentMechanisms.indexOf(key)
+            return idx === -1 ? RECENT_WINDOW : idx
+        }
+
+        const scoreOf = (type: PostType): number => {
             const baseWeight = type.frequency === "daily" ? 3 : type.frequency === "weekly" ? 2 : 1
             const boost = postTypeBoosts[type.name] || 0
-            let finalWeight = Math.max(1, Math.round(baseWeight * (1 + boost) * perfFactor(type)))
-            if (hasHoliday && HOLIDAY_BIAS_PATTERN.test(type.name)) {
-                finalWeight = Math.max(1, Math.round(finalWeight * 1.3))
-            }
-            return Array(finalWeight).fill(type)
-        })
-        selectedType = weighted[Math.floor(Math.random() * weighted.length)]
+            const holiday = hasHoliday && HOLIDAY_BIAS_PATTERN.test(type.name) ? 1.3 : 1
+            // Lineární náběh: naposled použitý mechanismus dostane 1/(1+8) ≈ 0,11,
+            // dávno nepoužitý plnou váhu. Nezakazuje — jen odsouvá.
+            const recency = (1 + sinceUsed(type)) / (1 + RECENT_WINDOW)
+            return baseWeight * (1 + boost) * perfFactor(type) * holiday * recency
+        }
+
+        // Deterministicky nejlepší kandidát. Shodu rozhoduje jméno, aby byl výběr
+        // reprodukovatelný — stejný vstup musí dát stejný výstup, jinak nejde ladit.
+        selectedType = [...selectableTypes].sort((a, b) => {
+            const d = scoreOf(b) - scoreOf(a)
+            return d !== 0 ? d : a.name.localeCompare(b.name)
+        })[0]
+
+        const why = selectableTypes
+            .map(t => `${getPostTypeDef(config, t.name)?.mechanism || t.name}=${scoreOf(t).toFixed(2)}`)
+            .sort()
+            .join(", ")
+        console.log(`   🎯 Výběr mechanismu (deterministický): ${why}`)
+        if (recentMechanisms.length > 0) console.log(`   ↩️ Posledních ${recentMechanisms.length}: ${recentMechanisms.join(" → ")}`)
         if (measuredAvg > 0) {
             const shifts = selectableTypes.map(t => `${t.name}=${perfFactor(t).toFixed(2)}`).filter(s => !s.endsWith("=1.00"))
             if (shifts.length > 0) console.log(`   📊 Format performance weights: ${shifts.join(", ")}`)
