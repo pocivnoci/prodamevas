@@ -1,56 +1,50 @@
 /**
- * Otevření platební brány, které nespolkne blokátor oken.
- * =======================================================
- * `window.open(url, "_blank")` volané AŽ PO `await fetch(...)` prohlížeč nepovažuje
- * za akci vyvolanou uživatelem — kliknutí už dávno skončilo — a tiše ho zablokuje.
- * Uživatel klikne na „Přejít na Růst", server v pořádku založí checkout session
- * (ověřeno na produkci: řádek v `payments` vznikl, provider_ref `cs_test_…`),
- * odkaz se vrátí — a nestane se nic. Nerozeznatelné od „tlačítko nefunguje".
+ * Odchod na platební bránu.
+ * =========================
+ * Přesměrovává AKTUÁLNÍ kartu. Vypadá to jako ústupek, ale je to jediná varianta,
+ * která funguje všude — a u platby je to zároveň správné chování.
  *
- * Řešení: okno se otevře PRÁZDNÉ ještě v synchronní části obsluhy kliknutí, kdy na
- * něj gesto uživatele ještě „platí", a adresa se do něj doplní až potom.
+ * PROČ NE NOVÉ OKNO
+ * ─────────────────
+ * Původně tu bylo `window.open(url, "_blank")` volané až po `await fetch(...)`.
+ * V tu chvíli prohlížeč kliknutí už nepovažuje za živé gesto a okno tiše zahodí:
+ * uživatel klikne na tarif, server v pořádku založí checkout session — a nestane
+ * se nic.
  *
- * Když se okno nepodaří otevřít ani tak (přísný blokátor, in-app prohlížeč),
- * přesměrujeme rovnou v aktuální kartě. U platby je odchod z aplikace v pořádku —
- * návrat řeší callback brány — a je to nekonečně lepší než mlčení.
+ * První oprava otevírala okno prázdné ještě v synchronní části obsluhy a adresu
+ * do něj doplnila potom. V prohlížeči to zabralo, v NAINSTALOVANÉ APLIKACI ne:
+ * ve standalone režimu `window.open` buď nic neudělá, nebo vrátí okno, které
+ * nikam nevede — a záloha se nespustí, protože formálně žádná chyba nenastala.
+ * Ověřeno na produkci: kliknutí založilo Stripe session `cs_test_a1G3Ymr…`,
+ * ale uživatel zůstal stát na místě.
+ *
+ * Nové okno má jedinou výhodu — aplikace zůstane otevřená. To za tichý pád
+ * platby nestojí. Brána se po zaplacení i po zrušení vrací zpátky, takže
+ * přesměrování aktuální karty je u checkoutu běžný standard, ne omezení.
  */
 
 export interface CheckoutWindow {
-    /** Doplní adresu do dřív otevřeného okna, nebo přesměruje aktuální kartu. */
+    /** Odejde na bránu. */
     go: (url: string) => void
-    /** Zavře prázdné okno, když platba nakonec nevznikne (chyba serveru). */
+    /** Platba nakonec nevznikla — u přesměrování aktuální karty není co uklízet. */
     abort: () => void
 }
 
 /**
- * Zavolej SYNCHRONNĚ na začátku obsluhy kliknutí, ještě před jakýmkoli `await`.
- * Vrácený objekt použij po dokončení požadavku.
+ * Volá se na začátku obsluhy kliknutí, ještě před `await`. Vrácený objekt se
+ * použije po odpovědi serveru.
+ *
+ * Tvar API zůstal z doby, kdy se otevíralo nové okno: volající si drží handle
+ * přes celý požadavek. Dává smysl i teď — kdyby se sem někdy vracelo chování
+ * závislé na gestu uživatele, je pro něj místo připravené.
  */
 export function openCheckoutWindow(): CheckoutWindow {
-    let win: Window | null = null
-    try {
-        win = window.open("", "_blank")
-        if (win) {
-            // Prázdné okno vypadá jako pád prohlížeče; tohle drží uživatele v obraze,
-            // než brána odpoví. Přepíše se přesměrováním.
-            win.document.write(
-                '<!doctype html><meta charset="utf-8"><title>Přesměrování na platbu…</title>' +
-                '<body style="margin:0;display:grid;place-items:center;height:100vh;' +
-                'background:#050505;color:#fff;font:600 13px/1.6 system-ui,sans-serif">' +
-                'Připravuji platební bránu…</body>'
-            )
-        }
-    } catch {
-        win = null
-    }
-
     return {
         go: (url: string) => {
-            if (win && !win.closed) win.location.href = url
-            else window.location.href = url
+            // `assign` místo přiřazení do `href`: chová se stejně, ale nechává
+            // stránku v historii, takže „zpět" z brány vrátí uživatele do aplikace.
+            window.location.assign(url)
         },
-        abort: () => {
-            try { if (win && !win.closed) win.close() } catch { /* nevadí */ }
-        },
+        abort: () => { /* nic k úklidu — nikam jsme neodešli */ },
     }
 }
