@@ -1,5 +1,6 @@
 "use client"
 
+import { openCheckoutWindow } from "@/lib/open-checkout"
 import { useStudio, type SubscriptionState } from "@/app/(dashboard)/StudioContext"
 import { activateFreePlan } from "@/app/actions/settings-actions"
 import { hasBillingDetails, cancelSubscription, resumeSubscription } from "@/app/actions/billing-actions"
@@ -133,19 +134,28 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
     }
 
     const startPayment = async (planId: string) => {
-        const resp = await fetch("/api/payments/create", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            // projectId is the tenant SLUG — send as clientSlug (the API
-            // resolves it). Sending it as clientId queried clients.id=<slug>
-            // → "Client not found".
-            body: JSON.stringify({ planId, clientSlug: projectId, termMonths: term }),
-        })
-        const data = await resp.json()
-        if (data.redirectUrl) {
-            window.open(data.redirectUrl, "_blank")
-        } else if (data.error) {
-            alert(data.error)
+        // Okno se MUSÍ otevřít ještě před `await` — po něm už ho blokátor zahodí
+        // a kliknutí vypadá jako by nic neudělalo. Viz lib/open-checkout.ts.
+        const checkout = openCheckoutWindow()
+        try {
+            const resp = await fetch("/api/payments/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                // projectId is the tenant SLUG — send as clientSlug (the API
+                // resolves it). Sending it as clientId queried clients.id=<slug>
+                // → "Client not found".
+                body: JSON.stringify({ planId, clientSlug: projectId, termMonths: term }),
+            })
+            const data = await resp.json()
+            if (data.redirectUrl) {
+                checkout.go(data.redirectUrl)
+            } else {
+                checkout.abort()
+                alert(data.error || "Platební bránu se nepodařilo otevřít.")
+            }
+        } catch (err) {
+            checkout.abort()
+            throw err
         }
     }
 

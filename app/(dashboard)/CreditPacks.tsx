@@ -18,6 +18,7 @@
  */
 
 import { useState } from "react"
+import { openCheckoutWindow } from "@/lib/open-checkout"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { CREDIT_PACKS, CREDIT_PACK_PREFIX, EXTRA_CREDIT_HALERU, creditPackPrice, formatCzk } from "@/lib/pricing"
 
@@ -31,6 +32,9 @@ export function CreditPacks({ compact = false }: { compact?: boolean }) {
     const buy = async (credits: number) => {
         if (!projectId) return
         setBusy(credits); setError(null)
+        // Okno napřed, ještě před `await` — jinak ho blokátor zahodí a kliknutí
+        // vypadá jako by nic neudělalo. Viz lib/open-checkout.ts.
+        const checkout = openCheckoutWindow()
         try {
             const resp = await fetch("/api/payments/create", {
                 method: "POST",
@@ -39,13 +43,15 @@ export function CreditPacks({ compact = false }: { compact?: boolean }) {
             })
             const data = await resp.json()
             if (data.redirectUrl) {
-                window.open(data.redirectUrl, "_blank")
+                checkout.go(data.redirectUrl)
                 // Platba dobíhá v jiném okně — po návratu se stav sám neobnoví.
                 setTimeout(refreshSubscription, 3000)
             } else {
+                checkout.abort()
                 setError(data.error || "Platbu se nepodařilo založit.")
             }
         } catch {
+            checkout.abort()
             setError("Platbu se nepodařilo založit.")
         } finally {
             setBusy(null)

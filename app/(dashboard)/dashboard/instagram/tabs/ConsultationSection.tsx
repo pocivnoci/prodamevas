@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useState } from "react"
+import { openCheckoutWindow } from "@/lib/open-checkout"
 import { getConsultationState, getBookingLink, type ConsultationState } from "@/app/actions/consultation-actions"
 import { formatCzk } from "@/lib/pricing"
 
@@ -41,6 +42,8 @@ export function ConsultationSection({ projectId }: { projectId: string }) {
 
     const buy = async () => {
         setBusy(true); setError(null)
+        // Okno napřed, ještě před `await` — viz lib/open-checkout.ts.
+        const checkout = openCheckoutWindow()
         try {
             const resp = await fetch("/api/payments/create", {
                 method: "POST",
@@ -48,9 +51,10 @@ export function ConsultationSection({ projectId }: { projectId: string }) {
                 body: JSON.stringify({ planId: CONSULTATION_PLAN_ID, clientSlug: projectId }),
             })
             const data = await resp.json()
-            if (data.redirectUrl) window.open(data.redirectUrl, "_blank")
-            else setError(data.error || "Platbu se nepodařilo založit.")
+            if (data.redirectUrl) checkout.go(data.redirectUrl)
+            else { checkout.abort(); setError(data.error || "Platbu se nepodařilo založit.") }
         } catch {
+            checkout.abort()
             setError("Platbu se nepodařilo založit.")
         } finally {
             setBusy(false)
