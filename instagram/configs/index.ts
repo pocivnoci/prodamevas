@@ -128,7 +128,10 @@ function warnOnScenicFormats(defs: NonNullable<ClientConfig["postTypeDefs"]>, sl
             // 1) Hotová replika: ≥3 slova v uvozovkách. Uvozovky samy nestačí — nesou
             //    i názvy estetik ('romanticizing your life'), a ty do formátu patří.
             //    Hotovou copy pozná velké počáteční písmeno nebo koncová interpunkce.
-            for (const m of text.matchAll(/[„"'']\s*(\S+(?:\s+\S+){2,}?)\s*[""'']/gu)) {
+            // Třídy znaků MUSÍ obsahovat i ASCII ' a " — modely citují hotovou copy
+            // nejčastěji právě jimi, ne typografickými uvozovkami. Bez nich zůstala
+            // v briefech nezachycená znění typu 'Dokonalá základna. Rezervujte'.
+            for (const m of text.matchAll(/[„"'"']\s*(\S+(?:\s+\S+){2,}?)\s*["""']/gu)) {
                 const quote = m[1]
                 if (/^\p{Lu}/u.test(quote) || /[.!?…]$/u.test(quote)) {
                     signals.push(`${field}: hotová replika „${quote.slice(0, 40)}"`)
@@ -136,18 +139,22 @@ function warnOnScenicFormats(defs: NonNullable<ClientConfig["postTypeDefs"]>, sl
                 }
             }
 
-            // 2) Vlastní jméno uprostřed věty — první slovo věty se přeskakuje.
+            // 2) Vlastní jméno UVNITŘ plynulého textu. Rozhoduje, co slovu předchází:
+            //    skutečné jméno stojí za malým písmenem („na Vinohradech", „kolekce
+            //    Hobnail", „v České Kamenici"), kdežto značka beatu nebo rozkaz stojí
+            //    za interpunkcí nebo na začátku („Beat 2: Kontext", „→ Závěr",
+            //    „1. Uložte"). Dělení na věty tohle v češtině nezvládlo — hlásilo
+            //    rozkazovací tvary a nadpisy, po migraci 31 falešných poplachů na
+            //    0 skutečných nálezů. Validátor s nulovou přesností se přestane číst.
             const properNouns = new Set<string>()
-            // Beaty se v briefech oddělují i šipkou/odrážkou — bez nich by první slovo
-            // každého beatu ("Hodnota", "Závěr") vypadalo jako vlastní jméno.
-            for (const sentence of text.split(/(?<=[.!?:])\s+|\n+|\s*[→•·|]\s*|\s+[-–—]\s+/u)) {
-                const words = sentence.trim().split(/\s+/u)
-                for (const word of words.slice(1)) {
-                    const bare = word.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "")
-                    if (bare.length < 3 || BEAT_MARKERS.test(bare)) continue
-                    if (bare === bare.toUpperCase()) continue // ALL-CAPS = značka beatu
-                    if (/^\p{Lu}\p{Ll}+$/u.test(bare)) properNouns.add(bare)
-                }
+            const tokens = text.split(/\s+/u)
+            for (let i = 1; i < tokens.length; i++) {
+                const bare = tokens[i].replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "")
+                if (bare.length < 3 || BEAT_MARKERS.test(bare)) continue
+                if (bare === bare.toUpperCase()) continue // ALL-CAPS = značka beatu
+                if (!/^\p{Lu}\p{Ll}+$/u.test(bare)) continue
+                if (!/\p{Ll}$/u.test(tokens[i - 1])) continue
+                properNouns.add(bare)
             }
             if (properNouns.size > 0) {
                 signals.push(`${field}: vlastní jméno (${[...properNouns].slice(0, 3).join(", ")})`)

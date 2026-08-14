@@ -42,6 +42,8 @@ import type { ClientConfig, PostTypeDef, PillarCategory } from "../instagram/con
 
 const FIX = process.argv.includes("--fix")
 const ONLY_SLUG = process.argv.find(a => a.startsWith("--slug="))?.split("=")[1]
+/** Přemigruje i klienta, který už převedený je (původní záloha zůstává). */
+const FORCE = process.argv.includes("--force")
 
 interface ClientRow { id: string; slug: string; config: ClientConfig | null }
 
@@ -98,7 +100,16 @@ TEST INVARIANTU — každý přepsaný formát ho musí projít:
 "Vyrobím podle tohohle 30 RŮZNÝCH příspěvků, které nebudou vypadat stejně?"
 
 ZAKÁZÁNO ve formátu: konkrétní scéna, vlastní jméno, místo, příležitost, datum, cena,
-hotová replika v uvozovkách, konkrétní rekvizita.
+konkrétní rekvizita.
+
+⚠️ ZVLÁŠŤ ZAKÁZANÉ: JAKÝKOLI text v uvozovkách. Žádné znění nadpisu, textu na
+obrazovce ani CTA. Tohle jsou CHYBY, které se pořád opakují:
+   ✗ "Slide 5: Vchod + CTA 'Dokonalá základna. Rezervujte'."
+   ✗ "Slide 1: detail + 'Kde to žije: [Téma]'."
+   ✗ "Hook: 'Uložte si inspiraci'"
+Znění vět píše copywriter u KAŽDÉHO postu znovu. Formát smí říct jen ROLI beatu:
+   ✓ "Cover: vizuální háček bez vyzrazení pointy"
+   ✓ "Závěr: výzva k uložení příspěvku"
 
 FORMÁTY K PŘEPSÁNÍ:
 ${catalogue}
@@ -280,8 +291,10 @@ async function main(): Promise<void> {
             console.log(`\n⏭️  ${client.slug}: žádné postTypeDefs — přeskakuji (backfill-post-types.ts)`)
             continue
         }
-        if ((raw as any)._postTypeDefsBackup) {
-            console.log(`\n✅ ${client.slug}: už převedeno (existuje _postTypeDefsBackup) — přeskakuji`)
+        // --force přemigruje i už převedeného klienta. Záloha se NEPŘEPÍŠE (zapisuje se
+        // jen když chybí), takže i po opakovaném běhu drží PŮVODNÍ storyboardy.
+        if ((raw as any)._postTypeDefsBackup && !FORCE) {
+            console.log(`\n✅ ${client.slug}: už převedeno (existuje _postTypeDefsBackup) — přeskakuji (--force přepíše)`)
             continue
         }
 
