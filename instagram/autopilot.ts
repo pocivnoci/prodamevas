@@ -372,7 +372,22 @@ export async function generateOnePost(options: {
             idea = ideas[0]
             console.log(`   ✓ Nápad (weighted): "${idea.title}" (score: ${idea.performance_score || 'N/A'}, ${ideas.length} dostupných)`)
         } else {
-            console.log(`   ℹ️ Všechny nápady v cooldownu — Gemini vymyslí vlastní`)
+            // Od chvíle, kdy formát přestal nést téma, je prázdný zásobník REÁLNÁ
+            // degradace: post se opře jen o brand voice a dopadne genericky. Musí
+            // to být hlasitě vidět a musí být poznat PROČ — prázdná banka a banka
+            // celá v cooldownu jsou dvě různé závady s různou opravou.
+            const { count } = await supabaseAdmin
+                .from("ig_post_ideas")
+                .select("*", { count: "exact", head: true })
+                .eq("client_id", clientUuid)
+                .eq("is_active", true)
+            if ((count ?? 0) === 0) {
+                console.warn(`   ⚠️ ZÁSOBNÍK NÁPADŮ JE PRÁZDNÝ — post nemá téma a vyjde genericky. ` +
+                    `Zkontroluj kategorie pilířů (bez nich nemá generátor z čeho brát úhly) a agenta idea_replenish.`)
+            } else {
+                console.warn(`   ⚠️ Všech ${count} nápadů je v cooldownu — post nemá téma a vyjde genericky. ` +
+                    `Runway zásobníku je pod kadencí klienta; doplní ho agent idea_replenish.`)
+            }
         }
     } else {
         // Explicit topic drives the prompt (buildMegaPrompt ignores the idea when a
