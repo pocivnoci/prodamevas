@@ -13,6 +13,7 @@ import type { HookTemplate } from "./types"
 import type { PerformanceInsight } from "./performance"
 import { getPillarForType, createPillarMapper } from "./service"
 import { buildPsychologistSection } from "./psychologist"
+import { getMechanism } from "./mechanisms"
 import { resolveCtaPolicy, buildCtaPolicySection, buildCtaPolicyJudgeBlock, type CtaPolicy } from "./cta-policy"
 
 // ============================================
@@ -59,11 +60,30 @@ export function getPostFormat(config: ClientConfig, typeName: string): PostForma
     return DEFAULT_FORMAT
 }
 
-/** The format's creative brief from config — the SOURCE OF TRUTH for description/
- *  structure/visualStyle. The `ig_post_types` DB row is a UI-picker copy that can
- *  drift; generation must prefer the config def and fall back to the row. */
+/** The format's creative brief — the SOURCE OF TRUTH for description/structure/
+ *  visualStyle. The `ig_post_types` DB row is a UI-picker copy that can drift;
+ *  generation must prefer this and fall back to the row.
+ *
+ *  Když má formát přiřazený `mechanism`, brief se bere ze sdílené tabulky
+ *  (`instagram/mechanisms.ts`) a per-klientská pole se ignorují. Důvod: formáty
+ *  se generovaly per značku a měly být mechanismy — nebyly. Ani po přepsání
+ *  promptu, zavedení stropů a strojové sanitizaci hotové copy do nich model
+ *  propašoval téma („Průvodce ideálním tarifem"). Sdílená tabulka dělá z invariantu
+ *  vlastnost konstrukce místo pravidla, které musí model dodržet.
+ *
+ *  `name`, `pillar`, `medium`, `aspectRatio`, `uses_product` i `manualOnly`
+ *  zůstávají per klient — mechanismus mění POUZE text briefu. */
 export function getPostTypeDef(config: ClientConfig, typeName: string): PostTypeDef | undefined {
-    return (config?.postTypeDefs ?? []).find(d => d.name === typeName)
+    const def = (config?.postTypeDefs ?? []).find(d => d.name === typeName)
+    if (!def) return undefined
+    const mechanism = getMechanism(def.mechanism)
+    if (!mechanism) return def
+    return {
+        ...def,
+        description: mechanism.description,
+        structure: mechanism.structure,
+        visualStyle: mechanism.visualStyle,
+    }
 }
 
 // ─── Smart Overlay Rotation ─────────────────────────────────
@@ -555,14 +575,26 @@ export function buildStorySchema(config: ClientConfig) {
 // WEEK PLANNER
 // ============================================
 
-export function buildSmartWeekPlan(config: ClientConfig, performance: PerformanceInsight, count: number = 14): string[] {
+export function buildSmartWeekPlan(
+    config: ClientConfig,
+    performance: PerformanceInsight,
+    count: number = 14,
+    /** Kolik příspěvků klient už má. Posouvá vstupní bod rotace deterministicky —
+     *  bez něj se plán otevírá pořád stejně, s náhodou zas nejde reprodukovat. */
+    postsSoFar = 0,
+): string[] {
     if (performance.avgEngagement === 0) {
         const wp = config.weekPlan
         if (!wp || wp.length === 0) return []
-        // Cold start (no performance data yet): rotate the starting offset so two plans
-        // don't open with the identical type rhythm every time. The weekPlan's intended
-        // sequence/proportions are preserved — only the entry point shifts.
-        const offset = Math.floor(Math.random() * wp.length)
+        // Studený start (zatím žádná data o výkonu): vstupní bod rotace se posouvá,
+        // aby dva plány po sobě neotevíraly stejným rytmem. Pořadí a poměry
+        // z weekPlan zůstávají.
+        //
+        // Dřív to byl `Math.random()`. Náhoda tady škodí dvakrát: stejný vstup dá
+        // pokaždé jiný výstup (nejde ladit ani testovat) a nic nebrání tomu, aby
+        // dva plány po sobě vyšly stejně. Počet dosavadních příspěvků je přirozený
+        // deterministický posun — s každým dalším plánem se rytmus posune o kus dál.
+        const offset = wp.length > 0 ? postsSoFar % wp.length : 0
         const staticPlan: string[] = []
         for (let i = 0; i < count; i++) {
             staticPlan.push(wp[(i + offset) % wp.length])

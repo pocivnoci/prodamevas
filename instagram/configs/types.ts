@@ -183,6 +183,16 @@ export interface PostTypeDef {
      *  selection and the content planner must never auto-pick it. Guards formats
      *  with real-world commitments — giveaways, contests, limited drops. */
     manualOnly?: boolean
+    /**
+     * Univerzální rétorický mechanismus (`instagram/mechanisms.ts`).
+     *
+     * Když je vyplněný, brief formátu (description / structure / visualStyle) se
+     * čte ZE SDÍLENÉ TABULKY, ne z polí níž — invariant je pak zaručený
+     * konstrukcí místo nadějí, že model dodrží pravidlo v promptu. Per-klientská
+     * pole zůstávají jen jako lidský popisek a záloha pro formáty, kterým
+     * mechanismus ještě nikdo nepřiřadil.
+     */
+    mechanism?: string
 }
 
 // ─── Audience Persona ───────────────────────────────────────

@@ -232,7 +232,12 @@ export async function generateContentPlan(
         // only reads these ratios once the brand has engagement data; at cold start it walks
         // config.weekPlan verbatim, and the prompt below is what carries the goal instead.
         const planConfig = goal ? applyGoalBias(config, goal) : config
-        const typeSequence = buildSmartWeekPlan(planConfig, performance, count)
+        // Počet dosavadních příspěvků posouvá vstupní bod rotace při studeném startu.
+        // Dřív tam byl Math.random(): stejný vstup dával pokaždé jiný plán, což se
+        // nedalo ani ladit, ani otestovat — a nic nebránilo dvěma stejným plánům po sobě.
+        const { count: postsSoFar } = await supabaseAdmin
+            .from("ig_posts").select("*", { count: "exact", head: true }).eq("client_id", clientId)
+        const typeSequence = buildSmartWeekPlan(planConfig, performance, count, postsSoFar ?? 0)
 
         // ─── Zásobník témat: the idea bank feeds the plan first — weighted (proven/fresh)
         // ideas become plan topics with ideaId attribution; the model invents the rest.
