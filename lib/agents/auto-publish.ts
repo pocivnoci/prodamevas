@@ -127,13 +127,12 @@ export async function armReadyPosts(): Promise<ArmResult[]> {
         .eq("config->>autoPublish", "true")
     if (error) throw new Error(`auto-publish client scan: ${error.message}`)
 
-    const results: ArmResult[] = []
-    for (const c of clients || []) {
-        try {
-            results.push(await armClient(c.id, c.slug, (c.config || {}) as Record<string, unknown>))
-        } catch (err) {
-            results.push({ clientId: c.id, slug: c.slug, armed: 0, queued: 0, skipped: (err as Error)?.message?.slice(0, 200) })
-        }
-    }
+    // Rotované pořadí + časový rozpočet — viz lib/agents/client-sweep.ts.
+    const { sweepClients } = await import("./client-sweep")
+    const { results } = await sweepClients(
+        (clients || []) as { id: string; slug: string; config: unknown }[],
+        c => armClient(c.id, c.slug, (c.config || {}) as Record<string, unknown>),
+        (c, err) => ({ clientId: c.id, slug: c.slug, armed: 0, queued: 0, skipped: err.message?.slice(0, 200) }),
+    )
     return results
 }

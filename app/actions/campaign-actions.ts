@@ -2,6 +2,7 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess } from "@/lib/auth-guard"
+import { DEFAULT_IDEA_COOLDOWN_DAYS } from "@/instagram/service"
 import type { ContentPlanItem } from "./content-plan-actions"
 
 // ─── Durable content-plan campaigns ──────────────────────────────────────────
@@ -140,7 +141,7 @@ export async function startCampaign(
                             keywords: [],
                             used_count: 0,
                             is_active: true,
-                            cooldown_days: 30,
+                            cooldown_days: DEFAULT_IDEA_COOLDOWN_DAYS,
                         })))
                         .select("id")
                     if (deposited?.length === toDeposit.length) {

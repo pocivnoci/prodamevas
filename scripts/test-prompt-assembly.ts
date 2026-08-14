@@ -13,6 +13,8 @@ import { readFileSync } from "fs"
 import { resolve } from "path"
 import { formatContextForPrompt, type ContextSignals } from "../instagram/context-agent"
 import type { ClientConfig } from "../instagram/configs/types"
+import { FORMAT_BRIEF_LIMITS } from "../instagram/configs/types"
+import { findFinishedCopy, stripFinishedCopy } from "../instagram/configs/format-brief"
 import type { PostType } from "../instagram/types"
 import type { PerformanceInsight } from "../instagram/performance"
 
@@ -325,6 +327,92 @@ test("CTA politika je zdroj pravdy pro SVOU doménu, ne globálně", () => {
     assert(!p.includes("při rozporu s čímkoli jiným"),
         "CTA sekce si nárokuje globální přednost — to si odporuje se seznamem PRIORIT, kde je až druhá")
     assert(p.includes("ZDROJ PRAVDY PRO CTA"), "nárok CTA politiky ve své doméně zmizel úplně")
+})
+
+// ─── Formát je INVARIANT, ne hotový příspěvek ───────────────
+
+console.log("\n🧩 Formát je šablona, ne jeden post")
+
+test("popis formátu je mechanismus, ne zadání tématu", () => {
+    // Formát se použije na desítky témat. Když ho prompt uvede jako zadání toho, o čem
+    // post JE, model z něj pokaždé vyrobí tentýž příspěvek — z 8 formátů u `chrlit`
+    // vzniklo 170 postů, tedy ~21× každý. Proto musí prompt oddělit formu od námětu.
+    const p = buildMegaPrompt(
+        { ...config, postTypeDefs: [{ name: "meme", displayName: "Meme", pillar: "dosah",
+                                      description: "Postaví dvě možnosti proti sobě." }] } as any,
+        postType, null, null, [], noPerf,
+    )
+    assert(p.includes("MECHANISMUS formátu, ne téma postu"),
+        "prompt neodlišuje formu od námětu — formát zase diktuje téma")
+})
+
+test("struktura formátu je rytmus, ne závazný obsah", () => {
+    const withStructure = buildMegaPrompt(
+        { ...config,
+          postFormats: { meme: { medium: "carousel", aspectRatio: "4:5" } },
+          postTypeDefs: [{ name: "meme", displayName: "Meme", pillar: "dosah",
+                           structure: "Cover: protiklad. Beat 2-3: argumenty. Závěr: hlasování." }],
+        } as any, postType, null, null, [], noPerf,
+    )
+    assert(!/STRUKTURA TOHOTO FORMÁTU \(závazná/.test(withStructure),
+        "structure se pořád vkládá jako 'závazná' — pak přebije námět a post se opakuje")
+    assert(withStructure.includes("NEZOPAKUJ ji, přenes na ni svůj námět"),
+        "chybí instrukce, že konkrétní scéna v kostře je jen ukázka tempa")
+})
+
+test("contentFocus nesmí být v popisech výstupních polí", () => {
+    // Byl doslova uvnitř definice pole `body` i `imagePrompt` (a v responseSchema),
+    // takže ho model četl jako součást zadání, CO má napsat — u každého jednoho postu.
+    // Jako kontext v hlavičce je v pořádku; jako popis výstupu je to opakovač.
+    const src = readFileSync(resolve(__dirname, "../instagram/caption-generator.ts"), "utf-8")
+    const occurrences = [...src.matchAll(/config\.contentFocus/g)].length
+    assert(occurrences === 1,
+        `config.contentFocus je v caption-generator.ts ${occurrences}× — smí být jen jednou, jako kontext v hlavičce promptu`)
+})
+
+test("brief formátu má stropy, které nepustí storyboard", () => {
+    // 400/600/400 znaků si scénář vynutilo samo. Kategorie pilířů zůstávají zdravé
+    // právě proto, že mají jednu větu — formát potřebuje stejnou disciplínu.
+    assert(FORMAT_BRIEF_LIMITS.description <= 200 && FORMAT_BRIEF_LIMITS.visualStyle <= 200,
+        "strop pro description/visualStyle je tak velký, že se do něj vejde scénář")
+    assert(FORMAT_BRIEF_LIMITS.structure <= 260,
+        "strop pro structure je tak velký, že se do něj vejde storyboard slide-po-slidu")
+    // Sanitizace musí být na KAŽDÉ cestě, která brief zapisuje. Zákaz v promptu
+    // nestačí — i s výslovným zákazem nechal model hotovou copy v 11 z 95 formátů.
+    for (const [file, fn] of [
+        ["../app/onboarding/core.ts", "generateCustomFormats"],
+        ["../app/actions/config-actions.ts", "suggestPostFormat"],
+        ["../scripts/degeneralize-formats.ts", "migrace formátů"],
+    ] as const) {
+        const src = readFileSync(resolve(__dirname, file), "utf-8")
+        assert(src.includes("FORMAT_BRIEF_LIMITS"),
+            `${fn} (${file}) neořezává brief přes FORMAT_BRIEF_LIMITS — stropy se rozejdou`)
+        assert(src.includes("stripFinishedCopy"),
+            `${fn} (${file}) nesanitizuje brief přes stripFinishedCopy — do formátu propadne hotová copy`)
+    }
+})
+
+test("hotová copy se pozná a odstraní stejným predikátem", () => {
+    // Detekce (warnOnScenicFormats) a odstranění (zápisové cesty) musí sdílet
+    // jedno pravidlo, jinak validátor hlásí něco jiného, než sanitizace maže.
+    const copy = "Slide 5: Vchod + CTA 'Dokonalá základna. Rezervujte'."
+    assert(findFinishedCopy(copy).length === 1, "hotová replika v ASCII apostrofech se nepozná")
+    assert(findFinishedCopy(stripFinishedCopy(copy)).length === 0,
+        "po sanitizaci pořád zbývá hotová replika")
+    assert(stripFinishedCopy(copy).includes("CTA"),
+        "sanitizace ukrojila i ROLI beatu, nejen jeho znění")
+    // Název estetiky není replika — do briefu patří a nesmí zmizet.
+    const style = "Měkké světlo, 'romanticizing your life' estetika, plynulý pohyb."
+    assert(findFinishedCopy(style).length === 0, "název stylu se hlásí jako hotová replika")
+    assert(stripFinishedCopy(style) === style, "sanitizace smazala název stylu")
+})
+
+test("existuje detekce formátů psaných jako storyboard", () => {
+    const src = readFileSync(resolve(__dirname, "../instagram/configs/index.ts"), "utf-8")
+    assert(src.includes("function warnOnScenicFormats"),
+        "chybí warnOnScenicFormats — storyboardy by se do configu dostávaly tiše")
+    assert(/postTypeDefs:\s*warnOnScenicFormats\(/.test(src),
+        "warnOnScenicFormats existuje, ale validateConfig ho nevolá")
 })
 
 // ─── Report ─────────────────────────────────────────────────

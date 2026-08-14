@@ -135,11 +135,30 @@ export interface PostFormat {
     reelDuration?: number
 }
 
+/** Stropy délky kreativního briefu formátu — drží formát INVARIANTEM.
+ *
+ *  Původních 400/600/400 znaků si storyboard vynutilo samo: do takového prostoru model
+ *  spolehlivě napíše scénář JEDNOHO konkrétního postu (včetně přesných replik a CTA),
+ *  ten se pak vkládá do promptu u každého postu daného formátu a vrací se donekonečna.
+ *  `PillarCategory.prompt` zůstává zdravý právě proto, že je to jedna věta.
+ *
+ *  Platí na AI-generované briefy (onboarding + fast-path v Nastavení). Ruční editaci
+ *  uživatele neomezujeme — tam jen varuje `warnOnScenicFormats()`. */
+export const FORMAT_BRIEF_LIMITS = {
+    description: 160,
+    structure: 220,
+    visualStyle: 160,
+} as const
+
 /** A brand-specific post format generated at onboarding. Richer than a bare
- *  `postTypes` name: a creative BRIEF — description (copywriter), structure
- *  (content skeleton: carousel slide outline / reel scenes / caption arc) and
- *  visualStyle (AI Designer grounding). The engine reads the def from config
- *  (source of truth); `ig_post_types` rows carry a copy for the UI picker. */
+ *  `postTypes` name: a creative BRIEF describing the format's MECHANISM —
+ *  description (how the format works on the reader), structure (abstract beat
+ *  sequence) and visualStyle (production qualities). The engine reads the def from
+ *  config (source of truth); `ig_post_types` rows carry a copy for the UI picker.
+ *
+ *  ⚠️ INVARIANT: a format is a template instantiated by DOZENS of different posts.
+ *  It must never carry a concrete scene, a proper name, a location, an occasion or
+ *  finished copy — those belong to the IDEA (`ig_post_ideas`). See FORMAT_BRIEF_LIMITS. */
 export interface PostTypeDef {
     /** snake_case slug, no diacritics — the pipeline key (config.postTypes, ig_post_types.name) */
     name: string

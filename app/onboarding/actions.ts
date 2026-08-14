@@ -38,6 +38,9 @@ export interface WebsiteAnalysis {
     companyName: string
     description: string
     industry: string
+    /** Město z kontaktu/adresy. Prázdné = web ho neuvádí (čistě online firma).
+     *  Propisuje se do `ClientConfig.city` — čte ho kontextový agent a počasí. */
+    city?: string
     products: { name: string; type: string; slug: string; price?: string; description?: string }[]
     brandTone: string
     colors: { primary: string; secondary: string; accent: string }
@@ -215,6 +218,7 @@ Analyzuj brand a vrať JSON s těmito poli:
 - companyName: název firmy/značky
 - description: co firma dělá (1-2 věty)
 - industry: odvětví (e-commerce, SaaS, služby, edukace, atd.)
+- city: město, kde firma sídlí nebo působí (z kontaktu/adresy/patičky). Když web žádné neuvádí nebo firma působí čistě online, vrať prázdný řetězec — NEHÁDEJ.
 - products: pole produktů/služeb [{name, type, slug, price, description}] (max 10)
 - brandTone: detekovaný tón komunikace (formální, neformální, drzý, expertní, atd.)
 - colors: {primary, secondary, accent} — HEX barvy detekované z webu (theme-color, CSS, vizuální styl)
@@ -234,6 +238,7 @@ Vrať POUZE platný JSON, bez dalšího textu.`
                 companyName: { type: "string" },
                 description: { type: "string" },
                 industry: { type: "string" },
+                city: { type: "string" },
                 products: {
                     type: "array",
                     items: {
@@ -886,6 +891,10 @@ DŮLEŽITÉ:
         config.id = slug
         config.website = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`
         config.instagram = igHandle.startsWith('@') ? igHandle : `@${igHandle}`
+        // Dvojče core.ts:529 — industry/city se doteď nikdy nepropsaly do configu,
+        // takže kontextový agent i počasí běžely všem na "business" + Praha.
+        if (analysis.industry) config.industry = analysis.industry
+        if (analysis.city?.trim()) config.city = analysis.city.trim()
 
         // Force visual identity from analysis (AI may hallucinate different values)
         if (analysis.overlayGradient) {

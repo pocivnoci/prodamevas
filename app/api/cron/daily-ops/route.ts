@@ -13,6 +13,8 @@ export const maxDuration = 60
  *   lifecycle_scan    → proposes outbound lifecycle e-mails (approval-gated)
  *   auto_publish_arm  → arms ready posts for opted-in clients
  *   idea_replenish    → tops up idea banks
+ *   voice_examples_promote → povyšuje ověřené posty na zlaté příklady hlasu
+ *                       (jediné místo, kde se clients.config mění sám podle výsledků)
  *   incident_watch    → tells customers about background failures they can't see
  *   payment_reconcile → asks the gateway about payments stuck in PENDING
  *   daily_brief       → THE ONE e-mail to the founder; absorbs the former
@@ -70,6 +72,18 @@ export async function GET(req: Request) {
         payload: {},
     })
 
+    // Povýšení ověřených postů na zlaté příklady hlasu — config se konečně učí
+    // sám ze sebe. Internal risk: nic se neposílá ani neúčtuje, jen se z vlastních
+    // naměřených postů klienta staví few-shot kotva pro copywritera.
+    const voiceExamples = await requestAction({
+        agentType: "ops",
+        action: "Denní povýšení zlatých příkladů hlasu",
+        riskTier: "internal",
+        taskType: "voice_examples_promote",
+        clientId: null,
+        payload: {},
+    })
+
     // Tichý support: co selhalo na pozadí, řekne produkt zákazníkovi sám.
     // Internal risk — sken nic neposílá; každé oznámení je vlastní `transactional`
     // akce s dedupe na id postu, takže jeden incident = nejvýš jeden e-mail.
@@ -107,5 +121,5 @@ export async function GET(req: Request) {
         priority: -10,
     })
 
-    return NextResponse.json({ success: true, lifecycle, autoPublish, ideaReplenish, incidents, reconcile, brief })
+    return NextResponse.json({ success: true, lifecycle, autoPublish, ideaReplenish, voiceExamples, incidents, reconcile, brief })
 }

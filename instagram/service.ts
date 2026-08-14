@@ -185,7 +185,7 @@ export async function getAvailableIdeas(category?: string): Promise<PostIdea[]> 
     return (data ?? []).filter(idea => {
         if (!idea.last_used_at) return true;
         const lastUsed = new Date(idea.last_used_at);
-        const cooldownDays = idea.cooldown_days ?? 60;
+        const cooldownDays = idea.cooldown_days ?? DEFAULT_IDEA_COOLDOWN_DAYS;
         const cooldownEnd = new Date(lastUsed.getTime() + cooldownDays * 24 * 60 * 60 * 1000);
         return now > cooldownEnd;
     });
@@ -397,10 +397,19 @@ export async function logGeneration(log: {
  * ig_generation_log.consistency_score. Fire-and-forget + fail-open: a post must
  * never fail (or slow down) over a drift metric.
  */
-export async function scoreConsistencyAndEmbed(postId: string, clientId: string, caption: string): Promise<void> {
+export async function scoreConsistencyAndEmbed(
+    postId: string,
+    clientId: string,
+    caption: string,
+    /** Embedding už spočítaný sémantickou bránou (findSemanticEcho) — ušetří druhé
+     *  volání embed API na tentýž text. Anti-repetice tak nestojí nic navíc. */
+    precomputedEmbedding?: number[] | null,
+): Promise<void> {
     try {
         const { embedText, cosineSimilarity } = await import("./gemini-client");
-        const vec = await embedText(caption.substring(0, 2000));
+        // captionVoiceText musí být ta samá funkce jako ve findSemanticEcho — obě
+        // strany porovnání musí vzniknout ze stejně složeného textu.
+        const vec = precomputedEmbedding ?? await embedText(captionVoiceText(caption));
         await supabaseAdmin
             .from("ig_posts")
             .update({ caption_embedding: JSON.stringify(vec) })
@@ -570,7 +579,7 @@ export async function getWeightedIdeas(limit = 5): Promise<PostIdea[]> {
     const now = Date.now()
     const ideas = (allIdeas ?? []).filter(idea => {
         if (!idea.last_used_at) return true
-        const cooldownDays = idea.cooldown_days ?? 90
+        const cooldownDays = idea.cooldown_days ?? DEFAULT_IDEA_COOLDOWN_DAYS
         return now - new Date(idea.last_used_at).getTime() > cooldownDays * 86_400_000
     }).slice(0, 50)
 
@@ -638,6 +647,20 @@ export async function getWeightedReviews(limit = 3): Promise<Review[]> {
 // HOOK & BODY DEDUP (moved from dedup.ts)
 // ============================================
 
+/**
+ * Kolik dní nápad odpočívá, než se smí použít znovu — jediný zdroj pravdy.
+ *
+ * Čtenáři se dřív rozcházeli: getAvailableIdeas brala 60, getWeightedIdeas 90,
+ * getWeightedProductIdeas 30 a idea-replenish 90, zatímco DB má default 14
+ * a zapisovatelé nastavují 30. Dokud mají všechny řádky hodnotu vyplněnou,
+ * nic se neprojeví; první řádek s NULL by ale znamenal, že se tentýž nápad
+ * v jedné části pipeline považuje za dostupný a v druhé ne.
+ *
+ * 30 dní = hodnota, kterou zapisovatelé reálně ukládají, takže sjednocení
+ * nemění chování žádného existujícího nápadu.
+ */
+export const DEFAULT_IDEA_COOLDOWN_DAYS = 30
+
 /** Extract normalized topic keywords from a caption */
 export function extractTopicKeywords(text: string): Set<string> {
     return new Set(
@@ -671,6 +694,116 @@ export function isBodySimilar(newBody: string, recentBodies: string[], threshold
         const overlap = [...newKeywords].filter(w => existingKeywords.has(w)).length
         return overlap / Math.max(newKeywords.size, existingKeywords.size) > threshold
     })
+}
+
+// ============================================
+// SÉMANTICKÉ ECHO — opakování, které lexikální dedup neuvidí
+// ============================================
+
+/**
+ * Kalibrováno na produkčních captionech (3 063 dvojic napříč 13 klienty, embeddingy
+ * podle captionVoiceText). Rozdělení: medián 0,834 · p95 0,902 · p99 0,928.
+ *
+ * Dva ÚPLNĚ různé posty téže značky si v embedding prostoru sedí kolem 0,80–0,85 —
+ * to je přirozený základ, ne opakování. Skutečné duplikáty leží nad 0,94:
+ *   0,987  „Přeslazený barový drink drtivě prohrává…" × týž hook znovu
+ *   0,977  „Vaše čerstvé květiny už nemusí umírat…"   × týž hook znovu
+ *   0,961  „Označte kámoše, co na výlet balí víc jídla než oblečení."
+ *        × „Označte parťáka, který na výletě sní všechny řízky."
+ * Legitimně odlišné posty končí na ~0,87. Podlaha 0,92 sedí mezi tím, těsně pod p99.
+ *
+ * MARGIN je pojistka pro značky s nadprůměrně úzkým záběrem, kde je základ vysoko:
+ * tam by pevná podlaha propustila i zjevné opakování. U dnešních klientů podlaha
+ * vyhrává, protože medián + 0,06 nikde nepřesáhne 0,92.
+ */
+const SEMANTIC_ECHO_FLOOR = 0.92
+const SEMANTIC_ECHO_MARGIN = 0.06
+/** Pod tímhle počtem sousedů nemá rozdělení dost tvaru, aby z něj šel odvodit práh. */
+const SEMANTIC_ECHO_MIN_NEIGHBOURS = 5
+
+/**
+ * Kanonický text pro VŠECHNY embeddingy captionů — bez hashtagového bloku.
+ *
+ * Hashtagy jsou metadata, ne hlas. Každý post značky sdílí `core` pool, takže uměle
+ * zvedají podobnost VŠECH dvojic (naměřený medián uvnitř značky 0,83–0,89) a tím dusí
+ * přesně ten signál, podle kterého se pozná skutečné opakování.
+ *
+ * Musí se použít na OBOU stranách porovnání. Když jedna strana hashtagy má a druhá ne,
+ * vektory se systematicky rozejdou: ověřený duplikát spadl z 0,974 na 0,843 a brána
+ * by nevystřelila nikdy. Proto to není volba volajícího — aplikuje se uvnitř
+ * findSemanticEcho i scoreConsistencyAndEmbed.
+ */
+export function captionVoiceText(caption: string): string {
+    return caption
+        .split("\n")
+        .filter(line => !/^\s*(?:#\S+\s*)+$/.test(line))
+        .join("\n")
+        .trim()
+        .substring(0, 2000)
+}
+
+export interface SemanticEcho {
+    isEcho: boolean
+    maxSimilarity: number
+    threshold: number
+    /** Hook nejpodobnějšího postu — jde rovnou do promptu při regeneraci. */
+    against: string | null
+    /** Embedding kandidáta. Předej ho scoreConsistencyAndEmbed, ať se neplatí dvakrát. */
+    embedding: number[] | null
+}
+
+const NO_ECHO: SemanticEcho = { isEcho: false, maxSimilarity: 0, threshold: 0, against: null, embedding: null }
+
+/**
+ * Najde sémantické echo kandidáta mezi posledními posty klienta.
+ *
+ * Lexikální dedup (isHookSimilar/isBodySimilar) porovnává překryv SLOV, takže
+ * „za tou krásou je dřina" napsané pokaždé jinými slovy projde — u květinářství
+ * takhle prošly 4 z 5 postů formátu behind_scenes. Tohle je ta chybějící vrstva.
+ *
+ * Fail-open: opakování je vada kvality, ne důvod post zahodit.
+ */
+export async function findSemanticEcho(clientId: string, caption: string, limit = 30): Promise<SemanticEcho> {
+    try {
+        const { embedText, cosineSimilarity } = await import("./gemini-client")
+        const embedding = await embedText(captionVoiceText(caption))
+
+        const { data: recent } = await supabaseAdmin
+            .from("ig_posts")
+            .select("caption, caption_embedding")
+            .eq("client_id", clientId)
+            .not("caption_embedding", "is", null)
+            .order("created_at", { ascending: false })
+            .limit(limit)
+
+        const neighbours = (recent || [])
+            .map(r => {
+                let v: number[] | null = null
+                try { v = typeof r.caption_embedding === "string" ? JSON.parse(r.caption_embedding) : r.caption_embedding } catch { /* skip */ }
+                return Array.isArray(v) && v.length > 0
+                    ? { sim: cosineSimilarity(embedding, v), hook: String(r.caption || "").split("\n")[0].slice(0, 80) }
+                    : null
+            })
+            .filter((n): n is { sim: number; hook: string } => n !== null)
+
+        if (neighbours.length < SEMANTIC_ECHO_MIN_NEIGHBOURS) return { ...NO_ECHO, embedding }
+
+        const sorted = [...neighbours].sort((a, b) => a.sim - b.sim)
+        const median = sorted[Math.floor(sorted.length / 2)].sim
+        const top = sorted[sorted.length - 1]
+        const threshold = Math.max(SEMANTIC_ECHO_FLOOR, median + SEMANTIC_ECHO_MARGIN)
+
+        return {
+            isEcho: top.sim >= threshold,
+            maxSimilarity: top.sim,
+            threshold,
+            against: top.hook,
+            embedding,
+        }
+    } catch (err: any) {
+        console.warn(`⚠️ Sémantická kontrola přeskočena: ${err?.message?.substring(0, 80)}`)
+        return NO_ECHO
+    }
 }
 
 // ============================================
@@ -793,7 +926,7 @@ export async function getWeightedProductIdeas(
     const ideas = (all ?? []).filter(idea => {
         if (idea.is_active === false) return false
         if (!idea.last_used_at) return true
-        const cooldownDays = idea.cooldown_days ?? 30
+        const cooldownDays = idea.cooldown_days ?? DEFAULT_IDEA_COOLDOWN_DAYS
         return now - new Date(idea.last_used_at).getTime() > cooldownDays * 86_400_000
     }).slice(0, 50)
 

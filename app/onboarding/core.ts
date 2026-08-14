@@ -25,6 +25,8 @@ import { ensurePostTypes } from '@/instagram/service'
 import { CAROUSEL_MAX_TOTAL_SLIDES } from '@/instagram/caption-generator'
 import { withRetry } from '@/utils/retry'
 import type { ClientConfig, PostTypeDef } from '@/instagram/configs/types'
+import { FORMAT_BRIEF_LIMITS } from '@/instagram/configs/types'
+import { stripFinishedCopy } from '@/instagram/configs/format-brief'
 import type { WebsiteAnalysis } from './actions'
 
 // ============================================
@@ -527,6 +529,11 @@ DŮLEŽITÉ:
     const slug = slugify(analysis.companyName)
     config.id = slug
     config.website = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`
+    // industry/city se doteď nikdy nepropsaly do configu — žily jen jako řetězec
+    // v onboardingových promptech. Kontextový agent (svátky, sezóna) i počasí je
+    // ale čtou z configu, takže všem tenantům běžely na "business" + Praha.
+    if (analysis.industry) config.industry = analysis.industry
+    if (analysis.city?.trim()) config.city = analysis.city.trim()
     config.instagram = igHandle.startsWith('@') ? igHandle : `@${igHandle}`
 
     // Force visual identity from analysis (AI may hallucinate different values)
@@ -702,7 +709,30 @@ export async function generateCustomFormats(analysis: WebsiteAnalysis, config: C
         }
 
         const productNames = (config.products || []).map(p => p.name).filter(Boolean).slice(0, 8).join(", ")
-        const prompt = `Jsi Instagram stratég. Pro tuhle KONKRÉTNÍ firmu navrhni 7 jedinečných formátů příspěvků — ne obecné "tip/meme/carousel", ale formáty šité na míru téhle značce, jejím produktům a publiku.
+        const prompt = `Jsi Instagram stratég. Pro tuhle firmu navrhni 7 formátů příspěvků.
+
+⚠️ FORMÁT NENÍ PŘÍSPĚVEK. Formát je ŠABLONA, kterou značka použije na DESÍTKY různých
+témat — každý týden znovu, rok co rok. Popisuješ MECHANISMUS, ne jeden konkrétní post.
+
+Test, který musí každý formát projít:
+"Vyrobím podle tohohle 30 RŮZNÝCH příspěvků, které nebudou vypadat stejně?"
+Když ne, je to nápad na jeden post — ne formát. Zahoď ho a vymysli mechanismus.
+
+ŠPATNĚ — tohle jsou hotové posty, ne formáty:
+✗ "Scéna 1: odemčení dveří, cinknutí zvonku. Scéna 2: roztáčení markýzy. Scéna 3:
+   rosení květin. Text: 'Klidné ráno na Vinohradech.'"
+   → jde natočit JEDNOU; podruhé je to totéž video
+✗ "Hook: 'Dnes vážeme pro paní Janu z vedlejší ulice, která slaví 30 let od svatby.'"
+   → jméno a příležitost patří do NÁMĚTU, ne do formátu
+✗ "CTA: 'Ušetříme vám místo i peníze. Rezervujte si termín.'"
+   → hotová copy; tu píše copywriter pokaždé znovu
+
+SPRÁVNĚ — mechanismus, použitelný donekonečna:
+✓ description: "Postaví dvě možnosti proti sobě a nechá publikum hlasovat. Rozhodování
+   vtahuje lidi do komentářů."
+✓ structure: "Cover: obě možnosti proti sobě → beat 2-3: co mluví pro každou → závěr:
+   výzva k hlasování"
+✓ visual_style: "Dělená kompozice, symetrie, obě strany stejně nasvícené"
 
 Firma: ${analysis.companyName} (${analysis.industry})
 Popis: ${analysis.description}
@@ -712,19 +742,23 @@ Pilíře obsahu (povolené klíče): ${pillarKeys.join(', ')}
 
 Vrať POUZE JSON pole 7 objektů:
 [{
-  "name": "snake_case slug bez diakritiky (např. sezonni_kytice)",
-  "display_name": "krátký název formátu, česky (např. Sezónní kytice)",
+  "name": "snake_case slug bez diakritiky (např. dva_proti_sobe)",
+  "display_name": "krátký název formátu, česky (např. Souboj dvou)",
   "emoji": "1 emoji",
-  "description": "1-2 věty česky: CO příspěvek ukazuje a PROČ funguje právě pro tuhle značku",
-  "structure": "kostra obsahu, česky. Pro carousel: osnova slide po slidu (Slide 1 COVER: ..., poslední: CTA) — NEJVÝŠ ${CAROUSEL_MAX_TOTAL_SLIDES} slidů včetně coveru, víc jich engine nevykreslí. Pro reel: osnova scén. Pro obrázek: stavba caption (hook → ... → CTA).",
-  "visual_style": "1-2 věty česky: jak mají posty tohohle formátu VYPADAT (kompozice, nálada, rekvizity) — řídí se tím AI designer",
+  "description": "1 věta česky: JAK formát funguje a proč zabírá. Mechanismus, ne obsah. MAX 160 znaků.",
+  "structure": "sled beatů, česky, ABSTRAKTNĚ. Pro carousel nejvýš ${CAROUSEL_MAX_TOTAL_SLIDES} beatů včetně coveru. NIKDY konkrétní scéna, jméno, místo ani znění věty. MAX 220 znaků.",
+  "visual_style": "1 věta česky: produkční kvality — kompozice, světlo, tempo, odstup kamery. NIKDY konkrétní rekvizita ani lokace. MAX 160 znaků.",
   "pillar": "jeden z povolených klíčů pilířů výše",
   "medium": "image | carousel | reel",
   "aspectRatio": "1:1 | 4:5 | 9:16",
   "uses_product": true/false
 }]
 
-Pravidla: konkrétní pro tenhle obor (ne generické). Mix mediumů. Pokud firma má produkty, aspoň 2 formáty s uses_product=true. name unikátní, snake_case, bez diakritiky.`
+Pravidla: mechanismus ať je pro obor RELEVANTNÍ, ale znovupoužitelný na desítky témat —
+nesmí být svázaný s jednou scénou, jedním místem, jednou příležitostí ani jednou replikou.
+ŽÁDNÁ vlastní jména, konkrétní data, ceny ani hotové repliky v uvozovkách.
+Mix mediumů. Pokud firma má produkty, aspoň 2 formáty s uses_product=true.
+name unikátní, snake_case, bez diakritiky.`
 
         // Retry twice — a transient AI/JSON failure here used to silently leave the
         // client on the GENERIC fallback formats (the "every client looks the same" bug).
@@ -769,9 +803,11 @@ Pravidla: konkrétní pro tenhle obor (ne generické). Mix mediumů. Pokud firma
                 name,
                 display_name: String(d.display_name).slice(0, 60),
                 emoji: d.emoji || "📝",
-                description: String(d.description).slice(0, 400),
-                structure: d.structure ? String(d.structure).slice(0, 600) : undefined,
-                visualStyle: d.visual_style ? String(d.visual_style).slice(0, 400) : undefined,
+                // Stropy drží formát invariantem (FORMAT_BRIEF_LIMITS), stripFinishedCopy
+                // z něj vyhazuje konkrétní znění vět — zákaz v promptu na to nestačí.
+                description: stripFinishedCopy(String(d.description)).slice(0, FORMAT_BRIEF_LIMITS.description),
+                structure: d.structure ? stripFinishedCopy(String(d.structure)).slice(0, FORMAT_BRIEF_LIMITS.structure) : undefined,
+                visualStyle: d.visual_style ? stripFinishedCopy(String(d.visual_style)).slice(0, FORMAT_BRIEF_LIMITS.visualStyle) : undefined,
                 pillar: pillarKeys.includes(d.pillar) ? d.pillar : pillarKeys[0],
                 medium,
                 aspectRatio: normalizeRatio(medium, (RATIOS.includes(d.aspectRatio) ? d.aspectRatio : "4:5")),

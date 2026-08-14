@@ -27,11 +27,28 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { MAX_POSTS_PER_WEEK } from "@/lib/schedule-planner"
+import { DEFAULT_IDEA_COOLDOWN_DAYS } from "@/instagram/service"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-/** How many weeks of the client's cadence the available pool should cover. */
-export const RUNWAY_WEEKS = 2
+/**
+ * Kolik týdnů kadence má dostupná zásoba pokrýt.
+ *
+ * Původní 2 týdny byly matematicky pod hranicí udržitelnosti. Použitý nápad je
+ * `DEFAULT_IDEA_COOLDOWN_DAYS` (30) dní nedostupný, takže aby se banka nevyčerpala,
+ * musí pokrýt CELÉ cooldown okno:
+ *
+ *     potřeba = postsPerWeek × (cooldown / 7)
+ *
+ * Při 30denním cooldownu je to ~4,3 týdne kadence — víc než dvojnásobek toho, co
+ * cíl počítal. Klient s kadencí 14×/týden potřebuje ~60 nápadů na jedno okno,
+ * ale cíl mu jich držel 28. Vážený výběr pak recykloval tu hrstku, co zrovna
+ * vypadla z cooldownu, a feed se opakoval.
+ *
+ * Rezerva navíc: bez ní má výběr na konci okna jediného kandidáta a „vážená
+ * selekce" přestane vybírat — vezme, co zbylo.
+ */
+export const RUNWAY_WEEKS = (DEFAULT_IDEA_COOLDOWN_DAYS / 7) * 1.5
 /** Floor for the runway target — even a 1×/week client keeps a varied pool. */
 export const MIN_TARGET = 10
 /** Skip refills smaller than this — daily 1–2 idea dribbles aren't worth a run. */
@@ -72,7 +89,7 @@ export interface ReplenishPlan {
  */
 export function computeReplenishPlan(perWeek: number, pillars: PillarState[], extraAvailable = 0): ReplenishPlan {
     const cadence = Math.min(MAX_POSTS_PER_WEEK, Math.max(1, Math.round(perWeek || 4)))
-    const target = Math.max(MIN_TARGET, cadence * RUNWAY_WEEKS)
+    const target = Math.max(MIN_TARGET, Math.ceil(cadence * RUNWAY_WEEKS))
     const available = pillars.reduce((s, p) => s + p.available, 0) + extraAvailable
     const need = target - available
 
@@ -112,7 +129,10 @@ export interface ReplenishResult {
 /** Same off-cooldown rule as getWeightedIdeas — an idea on cooldown is not available. */
 function offCooldown(idea: { last_used_at: string | null; cooldown_days: number | null }, now: number): boolean {
     if (!idea.last_used_at) return true
-    const cooldownDays = idea.cooldown_days ?? 90
+    // Jediný zdroj pravdy — agent musí považovat za dostupné přesně to, co
+    // getWeightedIdeas při generování, jinak by doplňoval do banky, která se
+    // z pohledu enginu tváří plná (nebo naopak).
+    const cooldownDays = idea.cooldown_days ?? DEFAULT_IDEA_COOLDOWN_DAYS
     return now - new Date(idea.last_used_at).getTime() > cooldownDays * DAY_MS
 }
 
@@ -197,13 +217,13 @@ export async function replenishIdeaBanks(): Promise<ReplenishResult[]> {
         .eq("is_active", true)
     if (error) throw new Error(`idea-replenish client scan: ${error.message}`)
 
-    const results: ReplenishResult[] = []
-    for (const c of clients || []) {
-        try {
-            results.push(await replenishClient(c.id, c.slug, (c.config || {}) as Record<string, unknown>))
-        } catch (err) {
-            results.push({ clientId: c.id, slug: c.slug, added: 0, available: 0, target: 0, skipped: (err as Error)?.message?.slice(0, 200) })
-        }
-    }
+    // Rotované pořadí + časový rozpočet — viz lib/agents/client-sweep.ts. Bez toho
+    // by zabitý běh pokaždé odřízl tytéž klienty na konci seznamu.
+    const { sweepClients } = await import("./client-sweep")
+    const { results } = await sweepClients(
+        (clients || []) as { id: string; slug: string; config: unknown }[],
+        c => replenishClient(c.id, c.slug, (c.config || {}) as Record<string, unknown>),
+        (c, err) => ({ clientId: c.id, slug: c.slug, added: 0, available: 0, target: 0, skipped: err.message?.slice(0, 200) }),
+    )
     return results
 }

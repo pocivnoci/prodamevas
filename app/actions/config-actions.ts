@@ -4,6 +4,8 @@ import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess } from "@/lib/auth-guard"
 import { reconcileFormats } from "@/instagram/configs/reconcile"
 import type { OverlayStyle } from "@/instagram/configs/types"
+import { FORMAT_BRIEF_LIMITS } from "@/instagram/configs/types"
+import { stripFinishedCopy } from "@/instagram/configs/format-brief"
 import { isMediumType, type MediumType } from "@/lib/credits"
 
 export async function getClientConfig(projectSlug: string): Promise<any> {
@@ -167,7 +169,18 @@ export async function suggestPostFormat(
             .join("\n")
         const productNames = (config.products || []).map((p: any) => p?.name).filter(Boolean).slice(0, 8).join(", ")
 
-        const prompt = `Jsi Instagram stratég. Uživatel chce PŘIDAT jeden formát příspěvku (šablonu) a napsal jen klíčové slovo. Navrhni ho ušitý na míru téhle značce.
+        const prompt = `Jsi Instagram stratég. Uživatel chce PŘIDAT jeden formát příspěvku (šablonu) a napsal jen klíčové slovo.
+
+⚠️ FORMÁT NENÍ PŘÍSPĚVEK. Je to ŠABLONA, kterou značka použije na DESÍTKY různých témat.
+Popisuješ MECHANISMUS, ne jeden konkrétní post.
+
+Test: "Vyrobím podle tohohle 30 RŮZNÝCH příspěvků, které nebudou vypadat stejně?"
+Když ne, je to nápad na jeden post — ne formát.
+
+ŠPATNĚ: "Scéna 1: odemčení dveří. Scéna 2: markýza. Text: 'Klidné ráno na Vinohradech.'"
+        → jde natočit jednou; konkrétní scéna a hotová replika do formátu nepatří
+SPRÁVNĚ: "Postaví dvě možnosti proti sobě a nechá publikum hlasovat."
+        → mechanismus, použitelný donekonečna
 
 Klíčové slovo od uživatele: "${kw}"
 
@@ -180,9 +193,9 @@ Vrať POUZE JSON objekt (bez markdownu):
 {
   "display_name": "krátký název formátu, česky",
   "emoji": "1 emoji vystihující formát",
-  "description": "2-3 věty česky: CO post ukazuje a PROČ funguje pro tuhle značku. U soutěže/giveaway napiš KONKRÉTNÍ mechaniku (dej like, sleduj profil, označ kámoše, co je výhra).",
-  "structure": "kostra obsahu, česky. Pro carousel: osnova slide po slidu (Slide 1 COVER: ..., Slide 2: ..., poslední slide: CTA). Pro reel: osnova scén. Pro obrázek: stavba caption (hook → ... → CTA).",
-  "visual_style": "1-2 věty česky: jak mají posty tohohle formátu VYPADAT — kompozice, nálada, rekvizity, práce s textem. Řídí se tím AI designer.",
+  "description": "1 věta česky: JAK formát funguje a proč zabírá. Mechanismus, ne obsah. MAX 160 znaků.",
+  "structure": "sled beatů, česky, ABSTRAKTNĚ. Pro carousel beaty vč. coveru. NIKDY konkrétní scéna, jméno, místo ani znění věty. MAX 220 znaků.",
+  "visual_style": "1 věta česky: produkční kvality — kompozice, světlo, tempo, odstup kamery. NIKDY konkrétní rekvizita ani lokace. MAX 160 znaků.",
   "pillar": "přesně jeden z povolených klíčů pilířů výše",
   "medium": "image | carousel | reel",
   "aspectRatio": "1:1 | 4:5 | 3:4 | 9:16",
@@ -190,7 +203,14 @@ Vrať POUZE JSON objekt (bez markdownu):
   "manual_only": true/false
 }
 
-Pravidla: konkrétní pro tuhle značku, ne generické. "uses_product" = true jen když formát ukazuje konkrétní produkt. "manual_only" = true pro soutěže, giveawaye, limitky a časově omezené akce (reálné závazky značky — AI je nesmí generovat sama). aspectRatio "9:16" jen pro reel.`
+Pravidla: mechanismus ať je pro značku relevantní, ale znovupoužitelný — nesmí být svázaný
+s jednou scénou, jedním místem, jednou příležitostí ani jednou replikou. ŽÁDNÁ vlastní
+jména, konkrétní data, ceny ani hotové repliky v uvozovkách.
+Výjimka pro soutěže: mechaniku účasti (like / sledování / označení kamaráda) popiš —
+je to mechanismus. Konkrétní výhru ani termín NE, ty patří do námětu.
+"uses_product" = true jen když formát ukazuje konkrétní produkt. "manual_only" = true pro
+soutěže, giveawaye, limitky a časově omezené akce (reálné závazky značky — AI je nesmí
+generovat sama). aspectRatio "9:16" jen pro reel.`
 
         // Same resilient pattern as onboarding's generateCustomFormats: ask for JSON,
         // extract the object, retry once on a transient AI/parse failure.
@@ -225,9 +245,11 @@ Pravidla: konkrétní pro tuhle značku, ne generické. "uses_product" = true je
         const draft: PostFormatInput = {
             display_name: String(parsed.display_name).slice(0, 60),
             emoji: parsed.emoji || "🎁",
-            description: String(parsed.description).slice(0, 400),
-            structure: parsed.structure ? String(parsed.structure).slice(0, 600) : undefined,
-            visualStyle: parsed.visual_style ? String(parsed.visual_style).slice(0, 400) : undefined,
+            // AI cesta drží invariantní stropy; ruční editace níž (upsertPostFormat)
+            // zůstává volnější — tam je autorem uživatel a jen varujeme.
+            description: stripFinishedCopy(String(parsed.description)).slice(0, FORMAT_BRIEF_LIMITS.description),
+            structure: parsed.structure ? stripFinishedCopy(String(parsed.structure)).slice(0, FORMAT_BRIEF_LIMITS.structure) : undefined,
+            visualStyle: parsed.visual_style ? stripFinishedCopy(String(parsed.visual_style)).slice(0, FORMAT_BRIEF_LIMITS.visualStyle) : undefined,
             pillar: pillarKeys.includes(parsed.pillar) ? parsed.pillar : pillarKeys[0],
             medium,
             aspectRatio,

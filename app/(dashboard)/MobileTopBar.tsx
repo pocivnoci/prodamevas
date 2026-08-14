@@ -12,6 +12,11 @@ import { useStudio, useStudioNavigate } from "./StudioContext"
  *
  * Není `sticky` schválně: `SettingsTab` má vlastní přilepenou lištu s Uložit
  * (`sticky top-0`) a dvě přilepené vrstvy nad sebou by se překryly.
+ *
+ * `mt-5` odsazuje lištu od horní hrany. Nalepená úplně nahoře působila rozmazaně —
+ * v nainstalované aplikaci pod ni zasahuje průsvitný stavový řádek (`viewportFit:
+ * cover` + black-translucent) a na tabletu za ni padá dekorativní záře z layoutu.
+ * `env(safe-area-inset-top)` na `main` řeší jen výřez, ne tenhle optický překryv.
  */
 export function MobileTopBar() {
     const { subscription, subscriptionLoading } = useStudio()
@@ -32,7 +37,7 @@ export function MobileTopBar() {
     const isLow = remaining !== null && remaining <= 3
 
     return (
-        <div className="lg:hidden flex items-center justify-between gap-3 mb-4">
+        <div className="lg:hidden flex items-center justify-between gap-3 mt-5 mb-4">
             <button
                 onClick={() => navigate("dashboard")}
                 aria-label="Přehled"
