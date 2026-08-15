@@ -142,10 +142,15 @@ export async function POST(req: NextRequest) {
                 client, plan, payerEmail, termMonths,
                 kind: creditPack ? "credits" : isService ? "service" : "subscription",
                 creditsGranted: creditPack ?? undefined,
+                // Klient si řekne o vestavěnou pokladnu; ComGate ji neumí, takže
+                // se přání uplatní jen na Stripe větvi. Když ji nechce (nebo běží
+                // druhá brána), zůstává hostovaná varianta s přesměrováním.
+                embedded: body.embedded === true,
             })
             return NextResponse.json({
                 success: true, gateway: "stripe",
                 transId: result.providerRef, redirect: result.redirectUrl, redirectUrl: result.redirectUrl,
+                clientSecret: result.clientSecret,
             })
         }
 
