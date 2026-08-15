@@ -95,6 +95,21 @@ test("2.4 payments/create has COMGATE_MOCK branch", () => {
     assert(content.includes("mock-payment"), "Should redirect to mock-payment page")
 })
 
+test("2.4b vestavěná pokladna používá platný ui_mode", () => {
+    // `ui_mode` je v typech Stripe SDK unie končící `OtherString`, takže bere
+    // JAKÝKOLI řetězec — zrušenou hodnotu ani překlep typecheck nechytí a chyba
+    // spadne až za běhu, ve chvíli, kdy zákazník klikne na tarif. Přesně tak
+    // prošlo do produkce `ui_mode: "embedded"`, které Stripe už nepodporuje.
+    const VALID = ["elements", "embedded_page", "form", "hosted_page"]
+    const content = fileContent("lib/payments/checkout.ts")
+    const match = content.match(/EMBEDDED_UI_MODE\s*=\s*"([^"]+)"/)
+    assert(match !== null, "EMBEDDED_UI_MODE konstanta zmizela — hodnota by se zas roztrousila po kódu")
+    assert(VALID.includes(match![1]), `ui_mode "${match![1]}" není platná hodnota Stripe (${VALID.join(", ")})`)
+    // Literál mimo konstantu by aserci obešel.
+    const literals = [...content.matchAll(/ui_mode:\s*"([^"]+)"/g)].map(m => m[1])
+    assert(literals.length === 0, `ui_mode se zapisuje literálem (${literals.join(", ")}) místo přes EMBEDDED_UI_MODE`)
+})
+
 test("2.5 payments/callback has COMGATE_MOCK bypass", () => {
     const content = fileContent("app/api/payments/callback/route.ts")
     assert(content.includes('isMockPaymentMode'), "Should use isMockPaymentMode() (COMGATE_MOCK + prod kill switch)")

@@ -83,12 +83,20 @@ export interface CheckoutInput {
     embedded?: boolean
 }
 
+/**
+ * Režim vestavěné pokladny. Vlastní konstanta schválně: `ui_mode` je v typech SDK
+ * unie končící `OtherString`, takže překlep ani zrušenou hodnotu typecheck nechytí
+ * a chyba spadne až za běhu při volání Stripu — tedy ve chvíli, kdy zákazník
+ * klikl na tarif. Jedno místo se dá pohlídat ascercí, roztroušené literály ne.
+ */
+export const EMBEDDED_UI_MODE = "embedded_page" as const
+
 export interface CheckoutResult {
     /** Adresa hostované pokladny. Prázdné u vestavěné — ta se nikam neodchází. */
     redirectUrl: string
     /** Lokátor, pod kterým platbu najde webhook. */
     providerRef: string
-    /** Klíč pro vykreslení pokladny uvnitř aplikace (`ui_mode: "embedded"`). */
+    /** Klíč pro vykreslení pokladny uvnitř aplikace — viz EMBEDDED_UI_MODE. */
     clientSecret?: string
 }
 
@@ -161,7 +169,11 @@ export async function createStripeCheckout(input: CheckoutInput): Promise<Checko
         // kdy platba skončí. Hostovaná varianta zůstává beze změny.
         ...(input.embedded
             ? {
-                ui_mode: "embedded" as const,
+                // `embedded_page`, ne `embedded` — starší hodnota už není podporovaná.
+                // Typ v SDK to nechytí: unie končí `OtherString`, takže bere jakýkoli
+                // řetězec a chyba spadne až za běhu, při volání Stripu. Proto to hlídá
+                // aserce v test-prompt-assembly.ts proti EMBEDDED_UI_MODE.
+                ui_mode: EMBEDDED_UI_MODE,
                 return_url: `${baseUrl}/dashboard/instagram?platba=ok&session={CHECKOUT_SESSION_ID}`,
             }
             : {
