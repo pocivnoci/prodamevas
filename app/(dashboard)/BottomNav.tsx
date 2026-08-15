@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion, AnimatePresence, useDragControls } from "framer-motion"
 import { Sparkles, MoreHorizontal } from "lucide-react"
 
 import { useStudio, useStudioNavigate, type StudioSection } from "./StudioContext"
@@ -52,6 +52,8 @@ export function BottomNav() {
     const { activeSection, setGenerateIntent } = useStudio()
     const navigate = useStudioNavigate()
     const [sheetOpen, setSheetOpen] = useState(false)
+    /** Tažení panelu spouští jen úchyt — viz `dragListener={false}` níž. */
+    const dragControls = useDragControls()
 
     // Zavřít na Escape (hardwarová klávesnice u tabletu) a při odchodu ze sekce.
     useEffect(() => {
@@ -137,6 +139,13 @@ export function BottomNav() {
                             exit={{ y: "100%" }}
                             transition={{ type: "spring", stiffness: 400, damping: 40 }}
                             drag="y"
+                            // Táhne se JEN za úchyt, ne za celý panel. S taháním za
+                            // celou plochu si framer-motion bral i svislé gesto uvnitř
+                            // seznamu: kdo chtěl doscrollovat dolů, místo toho panel
+                            // zavřel — a na položky na konci (Odhlásit se) se tím pádem
+                            // vůbec nedalo dostat.
+                            dragListener={false}
+                            dragControls={dragControls}
                             dragConstraints={{ top: 0, bottom: 0 }}
                             dragElastic={{ top: 0, bottom: 0.4 }}
                             onDragEnd={(_, info) => {
@@ -144,8 +153,13 @@ export function BottomNav() {
                             }}
                             className="lg:hidden fixed inset-x-0 bottom-0 z-[58] max-h-[85dvh] flex flex-col bg-[#050505]/98 backdrop-blur-2xl border-t border-white/10 rounded-t-sm pb-[env(safe-area-inset-bottom)]"
                         >
-                            {/* Úchyt — zároveň značí, že se dá zavřít stažením dolů. */}
-                            <div className="shrink-0 py-3 flex justify-center cursor-grab active:cursor-grabbing">
+                            {/* Úchyt — zároveň značí, že se dá zavřít stažením dolů.
+                                `touch-none` je nutné: bez něj prohlížeč gesto zpracuje
+                                sám jako scroll a tažení se nespustí. */}
+                            <div
+                                onPointerDown={e => dragControls.start(e)}
+                                className="shrink-0 py-3 flex justify-center cursor-grab active:cursor-grabbing touch-none"
+                            >
                                 <span className="w-10 h-1 rounded-full bg-white/20" />
                             </div>
                             <StudioNavPanel variant="sheet" onNavigate={() => setSheetOpen(false)} />
