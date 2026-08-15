@@ -22,6 +22,17 @@ const nextConfig: NextConfig = {
             bodySizeLimit: "10mb",
         },
     },
+    async rewrites() {
+        return [
+            {
+                // Apple vyžaduje asociační soubor přesně na téhle cestě. Segment
+                // začínající tečkou se v App Routeru jako složka chová nespolehlivě,
+                // takže routa žije v /api a sem se jen přepisuje.
+                source: "/.well-known/apple-developer-merchantid-domain-association",
+                destination: "/api/apple-pay-domain",
+            },
+        ]
+    },
 };
 
 export default nextConfig;

@@ -110,6 +110,20 @@ test("2.4b vestavěná pokladna používá platný ui_mode", () => {
     assert(literals.length === 0, `ui_mode se zapisuje literálem (${literals.join(", ")}) místo přes EMBEDDED_UI_MODE`)
 })
 
+test("2.4c doména servíruje ověřovací soubor pro Apple Pay", () => {
+    // Vestavěná pokladna běží na NAŠÍ doméně, ne na checkout.stripe.com. Bez
+    // asociačního souboru na téhle přesné cestě se Apple Pay ani Google Pay
+    // mlčky nezobrazí — žádná chyba, jen chybějící tlačítko. Přesně tak zmizel
+    // Apple Pay při přechodu z hostované pokladny na vestavěnou.
+    const cfg = fileContent("next.config.ts")
+    assert(cfg.includes("/.well-known/apple-developer-merchantid-domain-association"),
+        "rewrite na asociační soubor zmizel z next.config.ts — Apple Pay tiše zmizí")
+    assert(cfg.includes("/api/apple-pay-domain"), "rewrite nemíří na routu s asociačním souborem")
+    const route = fileContent("app/api/apple-pay-domain/route.ts")
+    assert(route.includes("apple-developer-merchantid-domain-association"),
+        "routa nestahuje asociační soubor od Stripu")
+})
+
 test("2.5 payments/callback has COMGATE_MOCK bypass", () => {
     const content = fileContent("app/api/payments/callback/route.ts")
     assert(content.includes('isMockPaymentMode'), "Should use isMockPaymentMode() (COMGATE_MOCK + prod kill switch)")
