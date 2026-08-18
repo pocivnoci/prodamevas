@@ -5,7 +5,7 @@
  * (env-overridable via GEMINI_MODEL_<ACTION>[_FALLBACK]).
  */
 
-import { GoogleGenAI } from "@google/genai"
+import { GoogleGenAI, VideoGenerationReferenceType } from "@google/genai"
 import { getModel } from "./models"
 import dotenv from "dotenv"
 
@@ -535,25 +535,33 @@ export async function generateVideo(
             ? getModel("videoPremium")
             : getModel("videoFast")
 
-    // Build reference images for Veo (brand photos, product shots, spaces)
+    // Build reference images for Veo (brand photos, product shots, spaces).
+    //
+    // POZOR NA DVĚ MÍSTA, KDE SE TO DÁ TIŠE ZTRATIT: `referenceImages` patří do
+    // `config` (viz `GenerateVideosConfig` v typech SDK), ne na top-level volání,
+    // a každý obrázek MUSÍ nést `referenceType` — bez něj ho API zahodí. Předávané
+    // top-level bez typu se nikam nedostalo, takže Veo klientovu značku ani produkt
+    // nikdy nevidělo a generovalo obecné stock záběry. Nepřidávat sem `as any`:
+    // právě to umlčelo typovou kontrolu, která by obojí odhalila.
     const refImages = referenceImages?.slice(0, 3).map(ref => ({
         image: {
             imageBytes: ref.buffer.toString("base64"),
             mimeType: ref.mimeType || "image/jpeg",
         },
+        referenceType: VideoGenerationReferenceType.ASSET,
     }))
 
     let operation = await ai.models.generateVideos({
         model,
         prompt,
-        ...(refImages?.length ? { referenceImages: refImages } : {}),
         config: {
             durationSeconds: duration,
             aspectRatio,
             resolution: "1080p",
             numberOfVideos: 1,
+            ...(refImages?.length ? { referenceImages: refImages } : {}),
         },
-    } as any)
+    })
 
     // Poll operation until complete (Veo takes 2-5 minutes)
     console.log("   ⏳ Veo 3.1 generating video (this takes 2-5 min)...")
