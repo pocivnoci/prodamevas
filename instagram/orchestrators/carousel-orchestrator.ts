@@ -24,6 +24,7 @@ import { COSTS, getPostTypeDef } from "../caption-generator"
 import { getModel } from "../models"
 import { withRetry } from "../../utils/retry"
 import type { RenderContext, RenderResult } from "./types"
+import { rethrowIfQualityUnavailable } from "./types"
 
 /** Max corrective text-fix edits per carousel — keeps worst case inside the 300s budget */
 const MAX_CORRECTIVE_EDITS = 2
@@ -41,6 +42,7 @@ export async function renderCarousel(ctx: RenderContext): Promise<RenderResult> 
         const native = await renderCarouselNative(ctx)
         if (native) return native
     } catch (err: any) {
+        rethrowIfQualityUnavailable(err, "carousel")
         console.warn(`   ⚠️ Native carousel failed: ${err?.message?.substring(0, 120)}`)
     }
     return { cost: 0 }

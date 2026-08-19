@@ -2154,6 +2154,16 @@ test("28.4 emoji se nezapéká do názvu formátu", () => {
         "ensurePostTypes musí existující řádky srovnávat s configem, ne je jen zakládat")
 })
 
+test("28.6 nedostupná kvalita se nespolkne do postu bez obrázku", () => {
+    const types = codeOnly("instagram/orchestrators/types.ts")
+    assert(/rethrowIfQualityUnavailable/.test(types), "policy musí být na jednom místě")
+    for (const f of ["image", "carousel", "story"]) {
+        const src = codeOnly(`instagram/orchestrators/${f}-orchestrator.ts`)
+        assert(/rethrowIfQualityUnavailable\(err/.test(src),
+            `${f}: catch-all vrací prázdný render, takže by se QualityUnavailable spolklo a uložil by se post bez média`)
+    }
+})
+
 test("28.5 výběr formátu zná rozpočet zakázky", () => {
     const auto = codeOnly("instagram/autopilot.ts")
     assert(/options\.chargedMedium/.test(auto) && /creditsForMedia/.test(auto),

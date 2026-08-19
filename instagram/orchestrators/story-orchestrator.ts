@@ -29,6 +29,7 @@ import { COSTS, getPostTypeDef } from "../caption-generator"
 import { getModel } from "../models"
 import { withRetry } from "../../utils/retry"
 import type { RenderContext, RenderResult } from "./types"
+import { rethrowIfQualityUnavailable } from "./types"
 
 /**
  * Max corrective text-fix edits per story set — one per frame at the 3-frame cap.
@@ -51,6 +52,7 @@ export async function renderStory(ctx: RenderContext): Promise<RenderResult> {
         const native = await renderStoryNative(ctx)
         if (native) return native
     } catch (err: any) {
+        rethrowIfQualityUnavailable(err, "story")
         console.warn(`   ⚠️ Native story failed: ${err?.message?.substring(0, 120)}`)
     }
     return { cost: 0 }
