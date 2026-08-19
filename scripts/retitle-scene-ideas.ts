@@ -92,6 +92,7 @@ async function main() {
     console.log(`   klientů: ${clients?.length ?? 0}\n`)
 
     let total = 0
+    const skipped: string[] = []
 
     for (const c of clients ?? []) {
         const { data: ideas } = await supabaseAdmin
@@ -102,11 +103,20 @@ async function main() {
 
         if (!ideas || ideas.length === 0) continue
 
-        const raw = await generateTextQuality(buildPrompt(c.name, ideas as any), {
-            models,
-            responseSchema: SCHEMA,
-            label: `retitle:${c.slug}`,
-        })
+        // Jeden nedostupný model NESMÍ shodit celou dávku — ostatní klienti za to
+        // nemůžou. Přeskočeného klienta vypíšeme na konec, ať je vidět, co dojet znovu.
+        let raw: string
+        try {
+            raw = await generateTextQuality(buildPrompt(c.name, ideas as any), {
+                models,
+                responseSchema: SCHEMA,
+                label: `retitle:${c.slug}`,
+            })
+        } catch (err: any) {
+            console.warn(`⏭️  ${c.slug}: přeskakuji — ${String(err?.message || err).slice(0, 90)}\n`)
+            skipped.push(c.slug)
+            continue
+        }
 
         let changes: { id: string; title: string; reason: string }[] = []
         try {
@@ -147,9 +157,11 @@ async function main() {
     }
 
     console.log("─".repeat(60))
-    if (total === 0) console.log("Nic k přepsání.\n")
-    else if (FIX) console.log(`Přepsáno ${total} názvů.\n`)
-    else console.log(`Nalezeno ${total} scénických názvů. Zápis: přidej --fix.\n`)
+    if (total === 0) console.log("Nic k přepsání.")
+    else if (FIX) console.log(`Přepsáno ${total} názvů.`)
+    else console.log(`Nalezeno ${total} scénických názvů. Zápis: přidej --fix.`)
+    if (skipped.length > 0) console.log(`Přeskočeno (model nedostupný): ${skipped.join(", ")} — pusť znovu.`)
+    console.log()
 }
 
 void main().catch(err => { console.error("❌", err.message); process.exit(1) })
