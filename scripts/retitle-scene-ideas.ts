@@ -35,6 +35,10 @@ const args = process.argv.slice(2)
 const FIX = args.includes("--fix")
 const SLUG = args.find(a => a.startsWith("--slug="))?.split("=")[1]
 
+/** Kolik nápadů posílat modelu naráz. Víc než tucet = dlouhé přemýšlení nad jedním
+ *  požadavkem, spojení spadne na `fetch failed` a retry je pak drahý. */
+const BATCH = Number(args.find(a => a.startsWith("--batch="))?.split("=")[1]) || 10
+
 const SCHEMA = {
     type: "object",
     properties: {
@@ -103,47 +107,58 @@ async function main() {
 
         if (!ideas || ideas.length === 0) continue
 
-        // Jeden nedostupný model NESMÍ shodit celou dávku — ostatní klienti za to
-        // nemůžou. Přeskočeného klienta vypíšeme na konec, ať je vidět, co dojet znovu.
-        let raw: string
-        try {
-            raw = await generateTextQuality(buildPrompt(c.name, ideas as any), {
-                models,
-                responseSchema: SCHEMA,
-                label: `retitle:${c.slug}`,
-            })
-        } catch (err: any) {
-            console.warn(`⏭️  ${c.slug}: přeskakuji — ${String(err?.message || err).slice(0, 90)}\n`)
-            skipped.push(c.slug)
-            continue
+        // PO DÁVKÁCH. Celý zásobník najednou znamená, že model přemýšlí nad desítkami
+        // nápadů v jednom požadavku — spojení to nevydrží a spadne to na `fetch failed`
+        // až po minutách, takže i retry je drahý. Menší dávka odpoví rychle a případný
+        // výpadek stojí jen ji.
+        //
+        // Jeden nedostupný model navíc NESMÍ shodit zbytek — ostatní klienti za to
+        // nemůžou. Přeskočené vypíšeme na konec, ať je vidět, co dojet znovu.
+        const changes: { id: string; title: string; reason: string }[] = []
+        let batchFailed = false
+
+        for (let i = 0; i < ideas.length; i += BATCH) {
+            const batch = ideas.slice(i, i + BATCH)
+            let raw: string
+            try {
+                raw = await generateTextQuality(buildPrompt(c.name, batch as any), {
+                    models,
+                    responseSchema: SCHEMA,
+                    label: `retitle:${c.slug}:${i / BATCH + 1}`,
+                })
+            } catch (err: any) {
+                console.warn(`   ⏭️  dávka ${i / BATCH + 1}: ${String(err?.message || err).slice(0, 80)}`)
+                batchFailed = true
+                continue
+            }
+            try {
+                changes.push(...(JSON.parse(raw)?.changes ?? []).filter((ch: any) => ch?.id && ch?.title))
+            } catch {
+                console.warn(`   ⏭️  dávka ${i / BATCH + 1}: odpověď nešla rozparsovat`)
+                batchFailed = true
+            }
         }
 
-        let changes: { id: string; title: string; reason: string }[] = []
-        try {
-            changes = (JSON.parse(raw)?.changes ?? []).filter((ch: any) => ch?.id && ch?.title)
-        } catch {
-            console.warn(`⚠️  ${c.slug}: odpověď nešla rozparsovat — přeskakuji`)
-            continue
-        }
+        if (batchFailed) skipped.push(c.slug)
 
         // Model smí navrhnout jen nápady, které dostal — jinak bychom psali cizímu klientovi.
         const known = new Map(ideas.map((i: any) => [i.id, i.title]))
-        changes = changes.filter(ch => known.has(ch.id) && ch.title.trim() !== known.get(ch.id))
+        const accepted = changes.filter(ch => known.has(ch.id) && ch.title.trim() !== known.get(ch.id))
 
-        if (changes.length === 0) {
+        if (accepted.length === 0) {
             console.log(`✅ ${c.slug}: názvy jsou v pořádku (${ideas.length} nápadů)`)
             continue
         }
 
-        total += changes.length
-        console.log(`⚠️  ${c.slug} (${c.name}) — ${changes.length} z ${ideas.length}`)
-        for (const ch of changes) {
+        total += accepted.length
+        console.log(`⚠️  ${c.slug} (${c.name}) — ${accepted.length} z ${ideas.length}`)
+        for (const ch of accepted) {
             console.log(`   „${known.get(ch.id)}"`)
             console.log(`   → „${ch.title}"   (${ch.reason})`)
         }
 
         if (FIX) {
-            for (const ch of changes) {
+            for (const ch of accepted) {
                 const { error: uErr } = await supabaseAdmin
                     .from("ig_post_ideas")
                     .update({ title: ch.title.trim() })
