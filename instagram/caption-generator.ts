@@ -60,6 +60,77 @@ export function getPostFormat(config: ClientConfig, typeName: string): PostForma
     return DEFAULT_FORMAT
 }
 
+/**
+ * Vyčistí hashtagy do podoby, kterou je možné publikovat.
+ *
+ * Model občas vrátí prázdný řetězec nebo samotné „#". Původní kód dělal
+ * `tag.startsWith("#") ? tag : "#" + tag`, takže prázdný vstup prošel jako „#"
+ * a v hotovém postu pak stálo `#chrlitai # #bezagentury #`. Osamocená mřížka
+ * není hashtag, je to vada, kterou na Instagramu uvidí každý.
+ *
+ * Pravidla: ořež, sundej všechny úvodní mřížky, zahoď cokoli bez písmene nebo
+ * číslice, sundej vnitřní mezery (hashtag je jedno slovo), na malá písmena
+ * a odstraň duplicity. Diakritika zůstává — čeština ji v hashtazích běžně má.
+ */
+export function sanitizeHashtags(tags: string[]): string[] {
+    const out: string[] = []
+    const seen = new Set<string>()
+
+    for (const raw of tags ?? []) {
+        if (typeof raw !== "string") continue
+        const body = raw.trim().replace(/^#+/, "").replace(/\s+/g, "")
+        if (!body) continue
+        if (!/[\p{L}\p{N}]/u.test(body)) continue // samotná interpunkce není hashtag
+        const tag = `#${body.toLowerCase()}`
+        if (seen.has(tag)) continue
+        seen.add(tag)
+        out.push(tag)
+    }
+    return out
+}
+
+/**
+ * Složí popisek z hooku, těla, CTA a hashtagů — bez zdvojení.
+ *
+ * Skládalo se natvrdo `hook + body + cta`, jenže copywriter běžně zopakuje hook
+ * jako první větu těla a CTA přilepí i na jeho konec. V hotovém postu pak stálo
+ * „Zase bez agentury?" dvakrát hned po sobě a výzva k akci dvakrát pod sebou.
+ * Kritik to nechytne — hodnotí pole zvlášť, ne výsledný slepenec.
+ *
+ * Řeší se to při skládání, ne promptem: prompt se dá přepsat a model stejně
+ * jednou za čas zopakuje, kdežto tohle je vlastnost konstrukce.
+ */
+export function assembleCaption(hook: string, body: string | undefined, cta: string, hashtags: string[]): string {
+    const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ").replace(/[.!?…]+$/u, "")
+
+    const h = (hook || "").trim()
+    const c = (cta || "").trim()
+    let b = (body || "").trim()
+
+    // Tělo začínající hookem → hook v těle zahodit (nadpis zůstane nahoře).
+    if (h && b) {
+        const firstBreak = b.search(/\n|(?<=[.!?…])\s/u)
+        const firstChunk = firstBreak > 0 ? b.slice(0, firstBreak) : b
+        if (norm(firstChunk) === norm(h)) b = b.slice(firstChunk.length).trim()
+    }
+
+    // Tělo končící CTA → CTA v těle zahodit (přilepí se jednou, níž).
+    if (c && b) {
+        const lines = b.split(/\n+/)
+        const last = lines[lines.length - 1]
+        if (lines.length > 1 && norm(last) === norm(c)) {
+            b = lines.slice(0, -1).join("\n\n").trim()
+        } else if (norm(b).endsWith(norm(c)) && norm(b) !== norm(c)) {
+            b = b.slice(0, b.length - c.length).trim()
+        }
+    }
+
+    // CTA identické s celým tělem — pak tělo nemá co dodat.
+    if (c && b && norm(b) === norm(c)) b = ""
+
+    return [h, b, c, hashtags.join(" ")].filter(Boolean).join("\n\n")
+}
+
 /** The format's creative brief — the SOURCE OF TRUTH for description/structure/
  *  visualStyle. The `ig_post_types` DB row is a UI-picker copy that can drift;
  *  generation must prefer this and fall back to the row.

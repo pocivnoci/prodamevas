@@ -60,6 +60,8 @@ import {
     rankDrafts,
     resolveCtaPolicyForPost,
     getPostTypeDef,
+    sanitizeHashtags,
+    assembleCaption,
 } from "./caption-generator"
 import { getBrandMemories, formatMemoriesForPrompt, learnFromCriticInsights } from "./memory-agent"
 import { reviewPost, reviewContentPlan } from "./editorial-board"
@@ -1059,10 +1061,7 @@ ${feedSummary}
         const pools = config.hashtagPools
         const hashtags = new Set<string>()
         pools.core.forEach(tag => hashtags.add(tag))
-        captionData.hashtags?.slice(0, 4).forEach(tag => {
-            const formatted = tag.startsWith("#") ? tag : `#${tag}`
-            hashtags.add(formatted.toLowerCase())
-        })
+        captionData.hashtags?.slice(0, 4).forEach(tag => hashtags.add(tag))
         const fillTags = [...(pools.niche || []), ...(pools.broad || [])].sort(() => Math.random() - 0.5)
         for (const tag of fillTags) {
             if (hashtags.size >= 10) break
@@ -1071,13 +1070,11 @@ ${feedSummary}
         if (hashtags.size < 10 && pools.trending?.length) {
             hashtags.add(pools.trending[Math.floor(Math.random() * pools.trending.length)])
         }
-        finalHashtags = Array.from(hashtags).slice(0, 10)
+        finalHashtags = sanitizeHashtags([...hashtags]).slice(0, 10)
     } else {
-        finalHashtags = (captionData.hashtags || []).slice(0, 10).map(tag =>
-            tag.startsWith("#") ? tag : `#${tag}`
-        )
+        finalHashtags = sanitizeHashtags(captionData.hashtags || []).slice(0, 10)
     }
-    const fullCaption = `${captionData.hook}\n\n${captionData.body || ""}\n\n${captionData.cta}\n\n${finalHashtags.join(" ")}`
+    const fullCaption = assembleCaption(captionData.hook, captionData.body, captionData.cta, finalHashtags)
     console.log(`   ✓ Caption (${fullCaption.length} znaků)`)
 
     // 7. Generate media — delegate to orchestrators

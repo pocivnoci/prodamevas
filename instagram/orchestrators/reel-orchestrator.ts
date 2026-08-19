@@ -205,6 +205,11 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
             }
 
             if (!coverBuffer) {
+                // Náhradní cover je BEZ HOOKU — v mřížce profilu tedy neprodává,
+                // jen ilustruje. To je degradace a musí být vidět: bez téhle řádky
+                // vypadá log tak, že cover „prostě vznikl", a nikdo nepozná, že
+                // zákazník dostal slabší variantu (CLAUDE.md: kvalita se nedegraduje potichu).
+                console.warn("   ⚠️ Cover bez hooku — návrhový cover neprošel kontrolou, jedu text-free náhradu")
                 const coverPrompt = `Instagram Reel cover image, 9:16 vertical. Scene: ${coverScene}. Style: ${config.feedAesthetic?.feel || "modern, professional"}. NO TEXT in image.`
                 coverBuffer = await generateImage(coverPrompt, { aspectRatio: "9:16" })
             }
