@@ -79,6 +79,28 @@ export interface RenderContext {
     ctaPolicy?: CtaPolicy
 }
 
+/**
+ * Nedostupná kvalita se NESMÍ spolknout do „post bez obrázku".
+ *
+ * Orchestrátory chytají všechno a vracejí prázdný výsledek — u infrastrukturní
+ * chyby (upload spadl, generování vrátilo nesmysl) je to správně: text je hotový
+ * a příspěvek bez obrázku se dá dorenderovat. Jenže `QualityUnavailableError`
+ * neznamená „nepovedlo se", znamená „všechny Pro stupně jsou právě vytížené".
+ *
+ * Naměřeno naostro: běh čekal 15 minut na Pro obrázkový model, vyčerpal retry,
+ * a chyba se tady spolkla → uložil se post BEZ OBRÁZKU. Zákazník tak dostal
+ * něco horšího než flash render, a zaparkování zakázky se vůbec nespustilo,
+ * protože se chyba nikdy nedostala k volajícímu.
+ */
+export function rethrowIfQualityUnavailable(err: unknown, label: string): void {
+    // Lazy require, ať tenhle modul zůstane jen typy + drobná policy.
+    const { isQualityUnavailable } = require("../../utils/retry") as typeof import("../../utils/retry")
+    if (isQualityUnavailable(err)) {
+        console.warn(`   ⏸️ ${label}: kvalita dočasně nedostupná — zakázka se odloží (žádný post bez obrázku)`)
+        throw err
+    }
+}
+
 export interface RenderResult {
     imageUrl?: string
     cost: number

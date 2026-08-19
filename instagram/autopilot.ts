@@ -60,6 +60,8 @@ import {
     rankDrafts,
     resolveCtaPolicyForPost,
     getPostTypeDef,
+    sanitizeHashtags,
+    assembleCaption,
 } from "./caption-generator"
 import { getBrandMemories, formatMemoriesForPrompt, learnFromCriticInsights } from "./memory-agent"
 import { reviewPost, reviewContentPlan } from "./editorial-board"
@@ -295,6 +297,31 @@ export async function generateOnePost(options: {
                 console.log(`   🎯 Zaměření "${options.category}" → ${narrowed.length} formátů`)
             } else {
                 console.warn(`   ⚠️ Zaměření "${options.category}" nemá dostupný formát — vybírám ze všech`)
+            }
+        }
+
+        // Rozpočet zakázky. Kredity se strhávají při ZALOŽENÍ jobu podle zvoleného
+        // média, takže formát, který je dražší, stejně dole spadne clampem
+        // (`format-clamps.ts`) — jenže tím ztratí svůj mechanismus: kvíz postavený
+        // na listování se scvrkne na jeden statický obrázek se třemi nápovědami
+        // a odhalením v jednom rámu. Levnější je takový formát vůbec nevybrat.
+        //
+        // Clamp zůstává jako poslední pojistka (kill-switche ho pořád potřebují),
+        // tohle mu jen bere práci. Filtr NIKDY nesmí vyprázdnit nabídku — stejně
+        // jako u zúžení podle pilíře výš.
+        if (options.chargedMedium) {
+            const { creditsForMedia } = await import("../lib/credits")
+            const budget = creditsForMedia(options.chargedMedium)
+            const mediumOf = new Map((config.postTypeDefs ?? []).map(d => [d.name, d.medium]))
+            const affordable = selectableTypes.filter(t => {
+                const m = mediumOf.get(t.name)
+                return !m || creditsForMedia(m) <= budget
+            })
+            if (affordable.length > 0 && affordable.length < selectableTypes.length) {
+                console.log(`   💳 Rozpočet "${options.chargedMedium}" → ${affordable.length} z ${selectableTypes.length} formátů`)
+                selectableTypes = affordable
+            } else if (affordable.length === 0) {
+                console.warn(`   ⚠️ Žádný formát se nevejde do účtovaného "${options.chargedMedium}" — vybírám ze všech a médium srazí clamp`)
             }
         }
 
@@ -1034,10 +1061,7 @@ ${feedSummary}
         const pools = config.hashtagPools
         const hashtags = new Set<string>()
         pools.core.forEach(tag => hashtags.add(tag))
-        captionData.hashtags?.slice(0, 4).forEach(tag => {
-            const formatted = tag.startsWith("#") ? tag : `#${tag}`
-            hashtags.add(formatted.toLowerCase())
-        })
+        captionData.hashtags?.slice(0, 4).forEach(tag => hashtags.add(tag))
         const fillTags = [...(pools.niche || []), ...(pools.broad || [])].sort(() => Math.random() - 0.5)
         for (const tag of fillTags) {
             if (hashtags.size >= 10) break
@@ -1046,13 +1070,11 @@ ${feedSummary}
         if (hashtags.size < 10 && pools.trending?.length) {
             hashtags.add(pools.trending[Math.floor(Math.random() * pools.trending.length)])
         }
-        finalHashtags = Array.from(hashtags).slice(0, 10)
+        finalHashtags = sanitizeHashtags([...hashtags]).slice(0, 10)
     } else {
-        finalHashtags = (captionData.hashtags || []).slice(0, 10).map(tag =>
-            tag.startsWith("#") ? tag : `#${tag}`
-        )
+        finalHashtags = sanitizeHashtags(captionData.hashtags || []).slice(0, 10)
     }
-    const fullCaption = `${captionData.hook}\n\n${captionData.body || ""}\n\n${captionData.cta}\n\n${finalHashtags.join(" ")}`
+    const fullCaption = assembleCaption(captionData.hook, captionData.body, captionData.cta, finalHashtags)
     console.log(`   ✓ Caption (${fullCaption.length} znaků)`)
 
     // 7. Generate media — delegate to orchestrators

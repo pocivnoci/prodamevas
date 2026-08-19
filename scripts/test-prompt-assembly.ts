@@ -8,7 +8,7 @@
  * Spuštění: npx tsx scripts/test-prompt-assembly.ts
  */
 
-import { buildMegaPrompt, buildVideoSchema, buildCaptionSchema, buildCarouselSchema, buildStorySchema, getPostTypeDef, buildSmartWeekPlan, PROMPT_LIMITS, CAROUSEL_MAX_TOTAL_SLIDES } from "../instagram/caption-generator"
+import { buildMegaPrompt, buildVideoSchema, buildCaptionSchema, buildCarouselSchema, buildStorySchema, getPostTypeDef, buildSmartWeekPlan, PROMPT_LIMITS, CAROUSEL_MAX_TOTAL_SLIDES, sanitizeHashtags, assembleCaption } from "../instagram/caption-generator"
 import { readFileSync } from "fs"
 import { resolve } from "path"
 import { formatContextForPrompt, type ContextSignals } from "../instagram/context-agent"
@@ -478,6 +478,54 @@ test("existuje detekce formátů psaných jako storyboard", () => {
         "chybí warnOnScenicFormats — storyboardy by se do configu dostávaly tiše")
     assert(/postTypeDefs:\s*warnOnScenicFormats\(/.test(src),
         "warnOnScenicFormats existuje, ale validateConfig ho nevolá")
+})
+
+// ─── Skládání hotového popisku ──────────────────────────────
+// Fixtures jsou doslova to, co vylezlo z ostrého běhu — ne vymyšlené případy.
+
+test("hashtagy: osamocená mřížka a prázdný řetězec se zahodí", () => {
+    // Přesně tenhle slepenec byl v ostrém reelu:
+    // „#chrlitai # #bezagentury # #marketingprosalony #"
+    const out = sanitizeHashtags(["#chrlitai", "", "#bezagentury", "#", "  ", "#marketingprosalony", "##"])
+    assert(!out.includes("#"), "samotná mřížka není hashtag")
+    assert(out.every(t => t.length > 1), `prázdný hashtag prošel: ${JSON.stringify(out)}`)
+    assert(out.join(" ") === "#chrlitai #bezagentury #marketingprosalony", `nečekaný výstup: ${out.join(" ")}`)
+})
+
+test("hashtagy: sjednotí tvar, zachovají diakritiku, bez duplicit", () => {
+    const out = sanitizeHashtags(["Kytky", "#kytky", "##KYTKY", "české kytky", "🌸"])
+    assert(out.includes("#kytky"), "chybí základní tvar")
+    assert(out.filter(t => t === "#kytky").length === 1, "duplicita prošla")
+    assert(out.includes("#céskékytky") || out.includes("#českékytky"), `diakritika se ztratila: ${out.join(" ")}`)
+    assert(!out.includes("#🌸"), "emoji není hashtag")
+})
+
+test("popisek: hook zopakovaný v těle se nevypíše dvakrát", () => {
+    const caption = assembleCaption(
+        "Zase bez agentury?",
+        "Zase bez agentury? Máš výčitky, že neplatíš dvacet litrů měsíčně?",
+        "Zkus to na https://chrlit.cz/",
+        ["#chrlit"],
+    )
+    assert(caption.split("Zase bez agentury?").length - 1 === 1, `hook je v popisku dvakrát:\n${caption}`)
+    assert(caption.startsWith("Zase bez agentury?"), "hook musí zůstat nahoře")
+})
+
+test("popisek: CTA na konci těla se nezopakuje", () => {
+    const cta = "Chceš vidět, jak vypadá profi feed bez námahy? Zkus to na https://chrlit.cz/"
+    const caption = assembleCaption("Hook", `Tělo postu.\n\n${cta}`, cta, ["#chrlit"])
+    assert(caption.split(cta).length - 1 === 1, `CTA je v popisku dvakrát:\n${caption}`)
+})
+
+test("popisek: nic se neztratí, když se nic neopakuje", () => {
+    const caption = assembleCaption("Hook", "Tělo.", "CTA.", ["#a", "#b"])
+    assert(caption === "Hook\n\nTělo.\n\nCTA.\n\n#a #b", `nečekané složení:\n${caption}`)
+})
+
+test("popisek: prázdné tělo nevyrobí díru", () => {
+    const caption = assembleCaption("Hook", "", "CTA.", ["#a"])
+    assert(!caption.includes("\n\n\n"), "prázdné tělo nechalo v popisku díru")
+    assert(caption === "Hook\n\nCTA.\n\n#a", `nečekané složení:\n${caption}`)
 })
 
 // ─── Report ─────────────────────────────────────────────────

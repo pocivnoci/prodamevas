@@ -21,6 +21,7 @@ import { loadLogo } from "../logo-loader"
 import { COSTS, getPostTypeDef } from "../caption-generator"
 import { getModel } from "../models"
 import type { RenderContext, RenderResult } from "./types"
+import { rethrowIfQualityUnavailable } from "./types"
 
 type RefImage = { buffer: Buffer; mimeType?: string; label?: string }
 
@@ -75,6 +76,7 @@ export async function renderImage(ctx: RenderContext): Promise<RenderResult> {
         const native = await renderImageNative(ctx)
         if (native) return native
     } catch (err: any) {
+        rethrowIfQualityUnavailable(err, "obrázek")
         console.warn(`   ⚠️ Native engine failed: ${err?.message?.substring(0, 120)}`)
     }
     return { cost: 0 }

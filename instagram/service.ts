@@ -93,7 +93,7 @@ export async function ensurePostTypes(
     // Use admin client to bypass RLS for post type management
     const { data: existing, error } = await supabaseAdmin
         .from("ig_post_types")
-        .select("name")
+        .select("name, display_name, emoji, description, uses_product")
         .eq("client_id", clientId)
 
     if (error) {
@@ -103,6 +103,16 @@ export async function ensurePostTypes(
 
     const existingNames = new Set((existing ?? []).map(t => t.name))
     const missing = configTypes.filter(name => !existingNames.has(name))
+
+    // SROVNÁNÍ EXISTUJÍCÍCH ŘÁDKŮ s configem.
+    //
+    // `config.postTypeDefs` je zdroj pravdy (viz getPostTypeDef v caption-generator.ts);
+    // řádek v `ig_post_types` je jen kopie pro UI. Dokud tahle funkce uměla POUZE
+    // zakládat chybějící, hromadné migrace přepsaly config a řádky zůstaly v minulém
+    // životě — po převodu formátů na invarianty se tak v enginu pořád vypisovalo
+    // „Květinový kvíz z pavlače" místo „Hádejte rostlinu". Zapisujeme jen při
+    // skutečném rozdílu, ať z toho není UPDATE na každém běhu.
+    await reconcilePostTypeRows(existing ?? [], config.postTypeDefs ?? [], clientId)
 
     if (missing.length === 0) return
 
@@ -124,7 +134,10 @@ export async function ensurePostTypes(
             return {
                 client_id: clientId,
                 name,
-                display_name: def.emoji ? `${def.emoji} ${def.display_name}` : def.display_name,
+                // Emoji patří VÝHRADNĚ do sloupce `emoji`. Když se zapékalo i sem,
+                // konzumenti (log enginu, admin UI) skládali `emoji + display_name`
+                // a vyšlo z toho „❓ ❓ Květinový kvíz".
+                display_name: def.display_name,
                 emoji: def.emoji || "📝",
                 description: def.description || null,
                 frequency: "weekly" as const,
@@ -158,6 +171,73 @@ export async function ensurePostTypes(
     } else {
         console.log(`   ✅ Auto-created ${rows.length} post types: ${missing.join(", ")}`)
     }
+}
+
+/** Řádek `ig_post_types` v podobě, v jaké ho srovnáváme s configem. */
+type PostTypeRow = { name: string; display_name?: string | null; emoji?: string | null; description?: string | null; uses_product?: boolean | null }
+type PostTypeDefLite = { name: string; display_name: string; emoji: string; description: string; uses_product?: boolean }
+
+/**
+ * Odloupne emoji prefix z názvu.
+ *
+ * Historické řádky mají emoji zapečené v `display_name` I ve sloupci `emoji`
+ * (obě zapisovací místa to tak dělala), takže se vypisovalo dvakrát. Porovnávat
+ * se proto musí až po odloupnutí — jinak by reconcile hlásil rozdíl navěky.
+ */
+function stripEmojiPrefix(displayName: string, emoji?: string | null): string {
+    let out = displayName.trim()
+    if (emoji && out.startsWith(emoji)) out = out.slice(emoji.length).trim()
+    // Řádky bez shody na konkrétní emoji (změnilo se v configu) — utni cokoli, co
+    // není písmeno/číslice, na začátku. Unicode property escapes, ať to nesebere diakritiku.
+    out = out.replace(/^[^\p{L}\p{N}]+/u, "").trim()
+    return out || displayName.trim()
+}
+
+/**
+ * Srovná existující řádky `ig_post_types` s configem (zdrojem pravdy).
+ * Zapisuje jen tam, kde se skutečně liší.
+ */
+export async function reconcilePostTypeRows(
+    rows: PostTypeRow[],
+    defs: PostTypeDefLite[],
+    clientId: string,
+): Promise<void> {
+    const defMap = new Map(defs.map(d => [d.name, d]))
+    let fixed = 0
+
+    for (const row of rows) {
+        const def = defMap.get(row.name)
+        const currentName = String(row.display_name ?? "")
+        const update: Record<string, unknown> = {}
+
+        if (def) {
+            if (currentName !== def.display_name) update.display_name = def.display_name
+            if ((row.emoji ?? "") !== (def.emoji || "📝")) update.emoji = def.emoji || "📝"
+            if ((row.description ?? null) !== (def.description || null)) update.description = def.description || null
+            if ((row.uses_product ?? false) !== (def.uses_product ?? false)) update.uses_product = def.uses_product ?? false
+        } else {
+            // Formát, který v configu není (starší řádek) — nepřejmenováváme ho podle
+            // ničeho, jen mu sundáme zdvojené emoji, aby se nevypisovalo dvakrát.
+            const stripped = stripEmojiPrefix(currentName, row.emoji)
+            if (stripped !== currentName) update.display_name = stripped
+        }
+
+        if (Object.keys(update).length === 0) continue
+
+        const { error } = await supabaseAdmin
+            .from("ig_post_types")
+            .update(update)
+            .eq("client_id", clientId)
+            .eq("name", row.name)
+
+        if (error) {
+            console.error(`⚠️ Reconcile post type "${row.name}" selhal: ${error.message}`)
+        } else {
+            fixed++
+        }
+    }
+
+    if (fixed > 0) console.log(`   🔄 Srovnáno ${fixed} formátů s configem`)
 }
 
 // ============================================

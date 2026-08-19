@@ -342,7 +342,9 @@ export async function upsertPostFormat(
             .maybeSingle()
 
         const rowData = {
-            display_name: def.emoji ? `${def.emoji} ${def.display_name}` : def.display_name,
+            // Emoji jde jen do svého sloupce — zapečené i do názvu se u konzumentů
+            // (log enginu, admin UI) sčítalo do „❓ ❓ Název".
+            display_name: def.display_name,
             emoji: def.emoji,
             description: def.description,
             uses_product: def.uses_product,
