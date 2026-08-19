@@ -180,7 +180,11 @@ export async function processReelVideo(options: ProcessVideoOptions): Promise<Bu
             filters.push(
                 `[0:a]volume=${videoVol}[vid_audio]`,
                 `[1:a]volume=${voVol}[vo_audio]`,
-                `[vid_audio][vo_audio]amix=inputs=2:duration=shortest[mixed_audio]`
+                // `duration=first` = délka VIDEA, ne toho kratšího ze dvou vstupů.
+                // S `shortest` se osmisekundový klip ořízl na délku namluvení
+                // (naměřeno 8,00 s → 5,64 s) — zákazník platí za reel, ne za jeho
+                // začátek. Voiceover kratší než video se prostě dopoví a dál je ticho.
+                `[vid_audio][vo_audio]amix=inputs=2:duration=first[mixed_audio]`
             )
             audioOutput = "[mixed_audio]"
         }
