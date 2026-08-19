@@ -298,6 +298,31 @@ export async function generateOnePost(options: {
             }
         }
 
+        // Rozpočet zakázky. Kredity se strhávají při ZALOŽENÍ jobu podle zvoleného
+        // média, takže formát, který je dražší, stejně dole spadne clampem
+        // (`format-clamps.ts`) — jenže tím ztratí svůj mechanismus: kvíz postavený
+        // na listování se scvrkne na jeden statický obrázek se třemi nápovědami
+        // a odhalením v jednom rámu. Levnější je takový formát vůbec nevybrat.
+        //
+        // Clamp zůstává jako poslední pojistka (kill-switche ho pořád potřebují),
+        // tohle mu jen bere práci. Filtr NIKDY nesmí vyprázdnit nabídku — stejně
+        // jako u zúžení podle pilíře výš.
+        if (options.chargedMedium) {
+            const { creditsForMedia } = await import("../lib/credits")
+            const budget = creditsForMedia(options.chargedMedium)
+            const mediumOf = new Map((config.postTypeDefs ?? []).map(d => [d.name, d.medium]))
+            const affordable = selectableTypes.filter(t => {
+                const m = mediumOf.get(t.name)
+                return !m || creditsForMedia(m) <= budget
+            })
+            if (affordable.length > 0 && affordable.length < selectableTypes.length) {
+                console.log(`   💳 Rozpočet "${options.chargedMedium}" → ${affordable.length} z ${selectableTypes.length} formátů`)
+                selectableTypes = affordable
+            } else if (affordable.length === 0) {
+                console.warn(`   ⚠️ Žádný formát se nevejde do účtovaného "${options.chargedMedium}" — vybírám ze všech a médium srazí clamp`)
+            }
+        }
+
         // Memory-informed post type weighting
         let postTypeBoosts: Record<string, number> = {}
         try {

@@ -6,7 +6,7 @@
  */
 
 import { GoogleGenAI } from "@google/genai"
-import { getModel } from "./models"
+import { getModel, hasFallback } from "./models"
 import dotenv from "dotenv"
 
 // Load env vars for CLI usage
@@ -123,8 +123,51 @@ export async function generateText(
 }
 
 // ============================================
-// QUALITY LADDER (text) — for quality-critical paths only
+// QUALITY LADDER — for quality-critical paths only
 // ============================================
+
+/**
+ * Projde uspořádaný žebřík KVALITNÍCH modelů a na každém retryuje tvrdě
+ * (`withQualityRetry`), protože vytížený Pro model je pořád ten správný model.
+ * Mrtvé ID (404) hlásí nahlas a přeskočí. Když dojdou všechny stupně, vyhodí
+ * `QualityUnavailableError` — volající pak **odloží** práci, ale NIKDY nesmí
+ * spadnout na flash.
+ *
+ * Smyčka je schválně na jednom místě pro text i pro obraz. Když žila jen
+ * v textové cestě, obrázky si vedle ní držely vlastní `withRetry(…, 1)`
+ * s fallbackem na Nano Banana 2 — a jediné 503 tak stačilo, aby zákazník
+ * dostal flash render bez brandových referencí za plnou cenu.
+ */
+async function runQualityLadder<T>(
+    models: string[],
+    call: (model: string) => Promise<T>,
+    label: string,
+    onModelUsed?: (model: string) => void,
+): Promise<T> {
+    let lastError: unknown = null
+    for (let i = 0; i < models.length; i++) {
+        const model = models[i]
+        const isLastTier = i === models.length - 1
+        try {
+            const out = await withQualityRetry(() => call(model), { label: `${label}:${model}` })
+            // Log the WINNING model so observability reflects reality (the model_used DB
+            // field used to hardcode the flash tier even when a Pro model ran).
+            console.log(`   🧠 ${label}: ${model}${i > 0 ? ` (tier ${i + 1})` : ""}`)
+            onModelUsed?.(model)
+            return out
+        } catch (err: any) {
+            lastError = err
+            if (isPermanentModelError(err)) {
+                // Dead/invalid model ID — surface loudly so it gets fixed (this is exactly
+                // how gemini-3-pro-preview silently rotted behind a flash fallback before).
+                console.error(`🚨 ${label}: model "${model}" is permanently unavailable (${String(err?.message || err).substring(0, 100)}) — check instagram/models.ts`)
+            } else {
+                console.warn(`⚠️ ${label}: "${model}" exhausted transient retries${isLastTier ? "" : " — dropping to next Pro tier"}`)
+            }
+        }
+    }
+    throw new QualityUnavailableError(`${label}: all Pro tiers exhausted [${models.join(", ")}]: ${String((lastError as any)?.message || lastError).substring(0, 120)}`)
+}
 
 /**
  * Run a prompt down an ordered ladder of QUALITY models (e.g. [gemini-pro-latest,
@@ -177,29 +220,7 @@ export async function generateTextQuality(
         return text
     }
 
-    let lastError: unknown = null
-    for (let i = 0; i < models.length; i++) {
-        const model = models[i]
-        const isLastTier = i === models.length - 1
-        try {
-            const out = await withQualityRetry(() => callModel(model), { label: `${label}:${model}` })
-            // Log the WINNING model so observability reflects reality (the model_used DB
-            // field used to hardcode the flash tier even when a Pro model ran).
-            console.log(`   🧠 ${label}: ${model}${i > 0 ? ` (tier ${i + 1})` : ""}`)
-            options.onModelUsed?.(model)
-            return out
-        } catch (err: any) {
-            lastError = err
-            if (isPermanentModelError(err)) {
-                // Dead/invalid model ID — surface loudly so it gets fixed (this is exactly
-                // how gemini-3-pro-preview silently rotted behind a flash fallback before).
-                console.error(`🚨 ${label}: model "${model}" is permanently unavailable (${String(err?.message || err).substring(0, 100)}) — check instagram/models.ts`)
-            } else {
-                console.warn(`⚠️ ${label}: "${model}" exhausted transient retries${isLastTier ? "" : " — dropping to next Pro tier"}`)
-            }
-        }
-    }
-    throw new QualityUnavailableError(`${label}: all Pro tiers exhausted [${models.join(", ")}]: ${String((lastError as any)?.message || lastError).substring(0, 120)}`)
+    return runQualityLadder(models, callModel, label, options.onModelUsed)
 }
 
 // ============================================
@@ -207,66 +228,55 @@ export async function generateTextQuality(
 // Replaces deprecated Imagen 4 Ultra (shutdown June 24, 2026)
 // ============================================
 
+/**
+ * Stupně žebříku pro obraz — jediné místo, které rozhoduje, co je pro render
+ * „dost dobré". Dnes je stupeň jediný (`gemini-3-pro-image`); jakmile v
+ * `instagram/models.ts` přibude druhý **Pro** stupeň jako `fallback`, žebřík ho
+ * vezme sám.
+ *
+ * Flash se sem nepustí ani přes env override. `imageCheap` je samostatný, vědomě
+ * levný tier — kdo ho chce, volá ho přímo. Tady by znamenal render bez brandových
+ * referencí za plnou cenu, což je přesně ta tichá degradace, kterou CLAUDE.md
+ * zakazuje („Pro tiery mají fallback na druhé Pro, nikdy na flash").
+ */
+function imageTiers(): string[] {
+    // `getModel(…, "fallback")` na nedefinovaném stupni vyhazuje — ptáme se přes hasFallback().
+    const tiers = [getModel("image"), ...(hasFallback("image") ? [getModel("image", "fallback")] : [])]
+    return tiers.filter((m, i, all) => m && all.indexOf(m) === i && !/flash/i.test(m))
+}
+
 export async function generateImage(
     prompt: string,
     options: { aspectRatio?: "1:1" | "3:4" | "4:3" | "9:16" | "16:9" } = {}
 ): Promise<Buffer> {
     const { aspectRatio = "1:1" } = options
 
-    // Primary: Nano Banana Pro (highest quality)
-    try {
-        return await withRetry(async () => {
-            const response = await ai.models.generateContent({
-                model: getModel("image"),
-                contents: [{ text: prompt }],
-                config: {
-                    responseModalities: ["IMAGE"],
-                    // ⚠️ Do NOT set imageConfig.imageSize ("2K"/"4K") — it makes gemini-3-pro-image
-                    // return a blurry, defocused blob (verified). aspectRatio alone → sharp renders.
-                    imageConfig: {
-                        aspectRatio,
-                    },
-                } as any,
-            })
+    const callModel = async (model: string): Promise<Buffer> => {
+        const response = await ai.models.generateContent({
+            model,
+            contents: [{ text: prompt }],
+            config: {
+                responseModalities: ["IMAGE"],
+                // ⚠️ Do NOT set imageConfig.imageSize ("2K"/"4K") — it makes gemini-3-pro-image
+                // return a blurry, defocused blob (verified). aspectRatio alone → sharp renders.
+                imageConfig: {
+                    aspectRatio,
+                },
+            } as any,
+        })
 
-            recordUnits(getModel("image"), "images", 1, "image")
+        recordUnits(model, "images", 1, "image")
 
-            const parts = response.candidates?.[0]?.content?.parts || []
-            for (const part of parts) {
-                if ((part as any).inlineData?.data) {
-                    return Buffer.from((part as any).inlineData.data, "base64")
-                }
+        const parts = response.candidates?.[0]?.content?.parts || []
+        for (const part of parts) {
+            if ((part as any).inlineData?.data) {
+                return Buffer.from((part as any).inlineData.data, "base64")
             }
-            throw new Error("Nano Banana Pro returned no image data")
-        }, 1) // max 1 retry
-    } catch (err: any) {
-        // Fallback: Nano Banana 2 (faster, cheaper)
-        const msg = String(err?.message || "")
-        if (msg.includes("503") || msg.includes("UNAVAILABLE") || msg.includes("overloaded") || msg.includes("no image data")) {
-            console.log("⚠️ Nano Banana Pro unavailable — falling back to Nano Banana 2...")
-            return await withRetry(async () => {
-                const response = await ai.models.generateContent({
-                    model: getModel("image", "fallback"),
-                    contents: [{ text: prompt }],
-                    config: {
-                        responseModalities: ["IMAGE"],
-                        imageConfig: {
-                            aspectRatio, // no imageSize — "2K" blurs the output
-                        },
-                    } as any,
-                })
-                recordUnits(getModel("image", "fallback"), "images", 1, "image:fallback")
-                const parts = response.candidates?.[0]?.content?.parts || []
-                for (const part of parts) {
-                    if ((part as any).inlineData?.data) {
-                        return Buffer.from((part as any).inlineData.data, "base64")
-                    }
-                }
-                throw new Error("Nano Banana 2 fallback returned no image data")
-            }, 1)
         }
-        throw err
+        throw new Error("Nano Banana Pro returned no image data")
     }
+
+    return runQualityLadder(imageTiers(), callModel, "image")
 }
 
 /**
@@ -330,16 +340,7 @@ export async function generateImageWithReferences(
         throw new Error("Image generation with references returned no image data")
     }
 
-    try {
-        return await withRetry(() => callModel(getModel("image")), 1)
-    } catch (err: any) {
-        const msg = String(err?.message || "")
-        if (msg.includes("503") || msg.includes("UNAVAILABLE") || msg.includes("overloaded") || msg.includes("no image data")) {
-            console.log("⚠️ Nano Banana Pro (references) unavailable — falling back to Nano Banana 2...")
-            return withRetry(() => callModel(getModel("image", "fallback")), 1)
-        }
-        throw err
-    }
+    return runQualityLadder(imageTiers(), callModel, "image:refs")
 }
 
 // ============================================
@@ -409,16 +410,7 @@ export async function editExistingImage(
         throw new Error("Image editing returned no image data")
     }
 
-    try {
-        return await withRetry(() => callModel(getModel("image")), 1)
-    } catch (err: any) {
-        const msg = String(err?.message || "")
-        if (msg.includes("503") || msg.includes("UNAVAILABLE") || msg.includes("overloaded") || msg.includes("no image data")) {
-            console.log("⚠️ Nano Banana Pro (edit) unavailable — falling back to Nano Banana 2...")
-            return withRetry(() => callModel(getModel("image", "fallback")), 1)
-        }
-        throw err
-    }
+    return runQualityLadder(imageTiers(), callModel, "image:edit")
 }
 
 // ============================================

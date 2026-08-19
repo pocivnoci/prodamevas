@@ -2105,6 +2105,62 @@ test("27.6 cena formátu je vidět tam, kde se formát vybírá", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 28. KVALITA SE NEDEGRADUJE POTICHU + FORMÁT MÁ JEDEN NÁZEV
+// ═══════════════════════════════════════════════════════════
+
+test("28.1 žádný Pro tier nemá fallback na flash", () => {
+    const models = codeOnly("instagram/models.ts")
+    // Vytáhni jen řádky s definicí tieru a zkontroluj ty, jejichž primary je Pro.
+    const entries = [...models.matchAll(/^\s*(\w+):\s*\{([^}]*)\}/gm)]
+    assert(entries.length > 5, "nenašel jsem definice modelů — změnil se tvar registru?")
+    for (const [, action, body] of entries) {
+        const primary = /primary:\s*"([^"]+)"/.exec(body)?.[1] ?? ""
+        const fallback = /fallback:\s*"([^"]+)"/.exec(body)?.[1] ?? ""
+        if (!/pro/i.test(primary) || !fallback) continue
+        assert(!/flash/i.test(fallback),
+            `${action}: Pro tier "${primary}" má fallback na flash ("${fallback}") — CLAUDE.md to zakazuje`)
+    }
+})
+
+test("28.2 obrázky jedou po quality ladderu, ne po krátkém retry s flashem", () => {
+    const client = codeOnly("instagram/gemini-client.ts")
+    assert(/function imageTiers\(\)/.test(client), "obrazové stupně musí být na jednom místě (imageTiers)")
+    assert(/!\/flash\/i\.test\(m\)/.test(client), "imageTiers musí flash vyloučit i proti env override")
+    assert(/runQualityLadder\(imageTiers\(\)/.test(client), "obrázky musí jet po quality ladderu")
+    assert(!/getModel\("image",\s*"fallback"\)\s*,\s*"images"/.test(client), "render nesmí účtovat fallbackový obrazový model")
+})
+
+test("28.3 nedostupná kvalita zakázku odloží, nevrátí ji jako selhání", () => {
+    assert(fileExists("lib/job-park.ts"), "parkování jobu musí mít vlastní modul")
+    const park = codeOnly("lib/job-park.ts")
+    assert(/retry_after/.test(park), "parkovaný job musí nést termín návratu")
+    const run = codeOnly("app/api/ig-run-job/route.ts")
+    assert(/parkJobForQuality/.test(run), "quality-unavailable se musí parkovat, ne rovnou vracet kredit")
+    assert(fileExists("app/api/cron/job-resume/route.ts"), "odložený job musí mít kdo dokončit")
+    const resume = codeOnly("app/api/cron/job-resume/route.ts")
+    // Podmíněný claim, nikdy insert fallback (CLAUDE.md).
+    assert(/\.eq\("status",\s*"failed"\)/.test(resume) && /not\("retry_after",\s*"is",\s*null\)/.test(resume),
+        "sweep musí job zabírat podmíněným claimem, jinak dva ticky vyrobí dva posty za jeden kredit")
+    assert(fileContains("vercel.json", "/api/cron/job-resume"), "sweep musí být v cronu")
+})
+
+test("28.4 emoji se nezapéká do názvu formátu", () => {
+    for (const f of ["instagram/service.ts", "app/actions/config-actions.ts"]) {
+        const src = codeOnly(f)
+        assert(!/display_name:\s*def\.emoji\s*\?/.test(src),
+            `${f}: emoji patří jen do sloupce emoji — zapečené do názvu se vypisuje dvakrát`)
+    }
+    assert(/reconcilePostTypeRows/.test(codeOnly("instagram/service.ts")),
+        "ensurePostTypes musí existující řádky srovnávat s configem, ne je jen zakládat")
+})
+
+test("28.5 výběr formátu zná rozpočet zakázky", () => {
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/options\.chargedMedium/.test(auto) && /creditsForMedia/.test(auto),
+        "formát dražší než účtované médium se nesmí vybrat — clamp by mu vzal mechanismus")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 

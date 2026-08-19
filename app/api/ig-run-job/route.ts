@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     // Fetch job config from DB
     const { data: job } = await supabaseAdmin
         .from("ig_jobs")
-        .select("config, client_id, status, result")
+        .select("config, client_id, status, result, retry_count")
         .eq("id", jobId)
         .single()
 
@@ -92,6 +92,8 @@ export async function POST(req: Request) {
             status: "done",
             progress: 100,
             agent_message: "✅ Hotovo!",
+            // Dokončený job už nikdy nesmí propadnout sweepu odložených zakázek.
+            retry_after: null,
             result: {
                 success: true,
                 postId: result.id,
@@ -113,11 +115,22 @@ export async function POST(req: Request) {
         const msg = err?.message?.substring(0, 500) || "Unknown error"
         console.error("ig-run-job error:", msg)
 
-        // Quality-unavailable = both Pro tiers overloaded. We deliberately did NOT degrade
-        // to flash, so the post failed clean. Surface a retry-friendly message (no silent
-        // low-quality post); the user can re-run when Pro frees up.
+        // Quality-unavailable = všechny Pro stupně vytížené. Vědomě NEDEGRADUJEME na
+        // flash — místo toho se job ZAPARKUJE a dokončí se sám, až Pro uvolní.
+        // Zadání znělo „radši zítra, ale v top kvalitě", takže tohle není selhání,
+        // jen odklad: kredit zůstává (práce se dokončí) a `/api/cron/job-resume` job
+        // zvedne z caption checkpointu, takže druhý pokus stojí jen render.
         const { isQualityUnavailable } = await import("@/utils/retry")
         const quality = isQualityUnavailable(err)
+
+        if (quality) {
+            const { parkJobForQuality } = await import("@/lib/job-park")
+            const parked = await parkJobForQuality(jobId, (job as any).retry_count ?? 0)
+            if (parked) {
+                return NextResponse.json({ success: false, deferred: true, retryAfter: parked.retryAfter, error: msg }, { status: 503 })
+            }
+            // Strop pokusů vyčerpán — teprve teď je to opravdové selhání s vrácením kreditu.
+        }
 
         try {
             const Sentry = await import("@sentry/nextjs")

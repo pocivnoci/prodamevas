@@ -49,8 +49,13 @@ export const MODELS = {
      *  defects flash misses. Fallback is the GA Pro gemini-2.5-pro (never flash) via the quality
      *  ladder; only if BOTH Pro tiers are exhausted does QA fail-open (skip), never flash-judge. */
     visionQA: { primary: "gemini-pro-latest", fallback: "gemini-2.5-pro" },
-    /** Image generation — Nano Banana Pro GA (renders typography natively) */
-    image: { primary: "gemini-3-pro-image", fallback: "gemini-3.1-flash-image" },
+    /** Image generation — Nano Banana Pro GA (renders typography natively).
+     *  ŽÁDNÝ fallback: dřív tu stál `gemini-3.1-flash-image` a jediné 503 stačilo,
+     *  aby zákazník dostal flash render — navíc bez brandových referencí, protože
+     *  ty umí jen Pro cesta — za plnou cenu. Když je Pro nedostupné, render se
+     *  odloží a dokončí později (`QualityUnavailableError` → zaparkovaný job),
+     *  nikdy nedegraduje. Vědomě levný tier je `imageCheap`. */
+    image: { primary: "gemini-3-pro-image" },
     /** Cheap image tier — Nano Banana 2 GA (supports 512px) */
     imageCheap: { primary: "gemini-3.1-flash-image" },
     /** Video tiers for reels */

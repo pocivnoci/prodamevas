@@ -9,6 +9,10 @@
             "schedule": "* * * * *"
         },
         {
+            "path": "/api/cron/job-resume",
+            "schedule": "* * * * *"
+        },
+        {
             "path": "/api/cron/ig-token-refresh",
             "schedule": "0 5 * * *"
         },
