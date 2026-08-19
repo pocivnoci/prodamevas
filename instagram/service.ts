@@ -197,7 +197,7 @@ function stripEmojiPrefix(displayName: string, emoji?: string | null): string {
  * Srovná existující řádky `ig_post_types` s configem (zdrojem pravdy).
  * Zapisuje jen tam, kde se skutečně liší.
  */
-async function reconcilePostTypeRows(
+export async function reconcilePostTypeRows(
     rows: PostTypeRow[],
     defs: PostTypeDefLite[],
     clientId: string,
