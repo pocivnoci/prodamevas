@@ -24,10 +24,18 @@ const BACKOFF_MINUTES = [15, 30, 60, 120, 240, 480] as const
 
 export const MAX_QUALITY_RETRIES = BACKOFF_MINUTES.length
 
-/** Uživatelský text — musí říct, že se nic neztratilo a že nemá klikat znovu. */
-export function parkedMessage(retryAfter: Date): string {
-    const t = retryAfter.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" })
-    return `⏸️ Čekáme na kvalitní model — dokončíme automaticky (další pokus ~${t})`
+/**
+ * Uživatelský text — musí říct, že se nic neztratilo a že nemá klikat znovu.
+ *
+ * Úmyslně RELATIVNÍ čas. Absolutní hodina se formátovala podle časové zóny
+ * procesu, jenže funkce na Vercelu běží v UTC — zákazník v Česku by dostal čas
+ * posunutý o dvě hodiny a čekal marně.
+ */
+export function parkedMessage(minutes: number): string {
+    const human = minutes >= 60
+        ? `${Math.round(minutes / 60)} h`
+        : `${minutes} min`
+    return `⏸️ Čekáme na kvalitní model — dokončíme to automaticky (další pokus za ~${human})`
 }
 
 /**
@@ -53,7 +61,7 @@ export async function parkJobForQuality(
             status: "failed",
             retry_after: retryAfter.toISOString(),
             retry_count: retryCount + 1,
-            agent_message: parkedMessage(retryAfter),
+            agent_message: parkedMessage(minutes),
             error: "Všechny Pro modely jsou právě vytížené. Kvalita má přednost před rychlostí, "
                 + "takže post dokončíme automaticky, jakmile se uvolní — kredit vám zůstává.",
         })
