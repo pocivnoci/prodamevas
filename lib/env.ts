@@ -25,6 +25,8 @@ const OPTIONAL = [
     "FAKTUROID_SLUG",          // název účtu v URL Fakturoidu
     "STRIPE_SECRET_KEY",       // druhá brána — zatím SANDBOX, cesta k penězům není dopojená
     "STRIPE_WEBHOOK_SECRET",   // bez něj webhook odmítne každou událost (podpis nelze ověřit)
+    "RESEND_API_KEY",          // bez něj neodejde uvítání, doklad ani dunning — a sendNotification chybu spolkne
+    "REPORT_FROM_EMAIL",       // bez ověřené domény se posílá z onboarding@resend.dev, který doručí JEN na adresu majitele Resend účtu
 ] as const
 
 export function validateEnv(): void {

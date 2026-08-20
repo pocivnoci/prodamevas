@@ -1,10 +1,15 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
-import { getMailingSegments, getMailingRecipients, sendBroadcast, type MailingSegment, type BroadcastResult } from "@/app/actions/mailing-actions"
+import {
+    getMailingSegments, getMailingRecipients, getMailingTemplates, previewMail, sendBroadcast, sendTestEmail,
+    type MailingSegment, type BroadcastResult, type MailingTemplateInfo, type MailPreview,
+} from "@/app/actions/mailing-actions"
 
 const DAILY_CAP = 100
+/** Hodnota v pickeru pro starou cestu „napíšu si to sám". */
+const CUSTOM = "__custom__"
 
 const SEGMENTS: { id: MailingSegment; label: string; hint: string }[] = [
     { id: "waitlist", label: "Waitlist", hint: "Zájemci čekající na spuštění" },
@@ -24,6 +29,62 @@ export function MailingTab() {
     const [sending, setSending] = useState(false)
     const [result, setResult] = useState<BroadcastResult | null>(null)
     const [error, setError] = useState<string | null>(null)
+
+    const [templates, setTemplates] = useState<MailingTemplateInfo[]>([])
+    const [templateId, setTemplateId] = useState<string>(CUSTOM)
+    const [vars, setVars] = useState<Record<string, string>>({})
+    const [preview, setPreview] = useState<MailPreview | null>(null)
+    const [testing, setTesting] = useState(false)
+    const [notice, setNotice] = useState<string | null>(null)
+
+    const template = useMemo(
+        () => templates.find(t => t.id === templateId) || null,
+        [templates, templateId],
+    )
+
+    useEffect(() => {
+        getMailingTemplates().then(setTemplates).catch(() => { })
+    }, [])
+
+    // Přepnutí šablony předvyplní ukázkovými daty — prázdný formulář o dvanácti
+    // polích nikoho nenaučí, co ta šablona umí.
+    const pickTemplate = (id: string) => {
+        setTemplateId(id)
+        setPreview(null)
+        const t = templates.find(x => x.id === id)
+        setVars(t ? { ...t.sample } : {})
+    }
+
+    /** Náhled renderuje server týmž kódem jako ostré odeslání. */
+    const refreshPreview = useCallback(async () => {
+        try {
+            setPreview(await previewMail(
+                template ? { templateId: template.id, vars } : { subject, body },
+            ))
+            setError(null)
+        } catch (e: any) {
+            setError(e?.message || "Náhled se nepodařilo vykreslit.")
+        }
+    }, [template, vars, subject, body])
+
+    // Debounce — každý stisk klávesy je jinak jeden request na server.
+    useEffect(() => {
+        if (!template && !subject && !body) { setPreview(null); return }
+        const id = setTimeout(refreshPreview, 400)
+        return () => clearTimeout(id)
+    }, [refreshPreview, template, subject, body])
+
+    const doTest = async () => {
+        setTesting(true); setError(null); setNotice(null)
+        try {
+            const to = await sendTestEmail(template ? { templateId: template.id, vars } : { subject, body })
+            setNotice(`Testovací zpráva odeslána na ${to}.`)
+        } catch (e: any) {
+            setError(e?.message || "Testovací odeslání selhalo.")
+        } finally {
+            setTesting(false)
+        }
+    }
 
     useEffect(() => {
         getMailingSegments().then(setCounts).catch(() => setError("Nepodařilo se načíst segmenty (jen pro super-admina)."))
@@ -52,7 +113,10 @@ export function MailingTab() {
         })
 
     const selectedCount = selected.size
-    const canSend = subject.trim().length > 0 && body.trim().length > 0 && selectedCount > 0 && !sending
+    const contentReady = template
+        ? template.fields.every(f => !f.required || (vars[f.key] || "").trim().length > 0)
+        : subject.trim().length > 0 && body.trim().length > 0
+    const canSend = contentReady && selectedCount > 0 && !sending
 
     const doSend = async () => {
         setConfirming(false)
@@ -60,7 +124,11 @@ export function MailingTab() {
         setError(null)
         setResult(null)
         try {
-            const r = await sendBroadcast({ segment, subject, body, recipients: [...selected] })
+            const r = await sendBroadcast({
+                segment,
+                ...(template ? { template: { id: template.id, vars } } : { subject, body }),
+                recipients: [...selected],
+            })
             setResult(r)
             getMailingSegments().then(setCounts).catch(() => {})
         } catch (e: any) {
@@ -154,42 +222,103 @@ export function MailingTab() {
                 </div>
             </div>
 
-            {/* Subject */}
+            {/* Template picker */}
             <div>
-                <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">Předmět</label>
-                <input
-                    value={subject}
-                    onChange={e => setSubject(e.target.value)}
-                    placeholder="Např. Chrlit spouštíme — máte přednostní přístup"
-                    className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white placeholder:text-white/25 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30"
-                />
+                <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">Šablona</label>
+                <select
+                    value={templateId}
+                    onChange={e => pickTemplate(e.target.value)}
+                    className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30"
+                >
+                    <option value={CUSTOM}>Vlastní text</option>
+                    {templates.map(t => (
+                        <option key={t.id} value={t.id}>{t.label}</option>
+                    ))}
+                </select>
             </div>
 
-            {/* Body */}
-            <div>
-                <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">Text (prázdný řádek = nový odstavec)</label>
-                <textarea
-                    value={body}
-                    onChange={e => setBody(e.target.value)}
-                    rows={8}
-                    placeholder={"Dobrý den,\n\nspouštíme Chrlit — AI, která vám vytvoří obsah na Instagram na celý měsíc...\n\nTým Chrlit"}
-                    className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white placeholder:text-white/25 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 resize-none leading-relaxed"
-                />
-            </div>
-
-            {/* Preview */}
-            {(subject || body) && (
-                <div>
-                    <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">Náhled</label>
-                    <div className="bg-[#050505] border border-white/10 rounded-sm p-6">
-                        <h3 className="text-base font-black uppercase tracking-tight text-white mb-4">{subject || "(bez předmětu)"}</h3>
-                        <div className="text-sm text-white/70 space-y-3">
-                            {body.split(/\n{2,}/).filter(Boolean).map((p, i) => (
-                                <p key={i} className="leading-relaxed whitespace-pre-wrap">{p}</p>
-                            ))}
+            {/* Schema-driven fields — nová šablona se tu objeví sama */}
+            {template ? (
+                <div className="space-y-4">
+                    {template.fields.map(f => (
+                        <div key={f.key}>
+                            <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">
+                                {f.label}{f.required && <span className="text-aisummit-cinnabar"> *</span>}
+                            </label>
+                            {f.type === "textarea" ? (
+                                <textarea
+                                    value={vars[f.key] || ""}
+                                    onChange={e => setVars(v => ({ ...v, [f.key]: e.target.value }))}
+                                    rows={6}
+                                    placeholder={f.placeholder}
+                                    className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white placeholder:text-white/25 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 resize-none leading-relaxed font-mono"
+                                />
+                            ) : (
+                                <input
+                                    value={vars[f.key] || ""}
+                                    onChange={e => setVars(v => ({ ...v, [f.key]: e.target.value }))}
+                                    placeholder={f.placeholder}
+                                    className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white placeholder:text-white/25 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30"
+                                />
+                            )}
+                            {f.help && <p className="text-[9px] text-white/30 font-medium mt-1.5">{f.help}</p>}
                         </div>
-                        <p className="text-[10px] text-white/25 mt-6 pt-4 border-t border-white/5">Chrlit · <span className="underline">Odhlásit odběr</span></p>
+                    ))}
+                </div>
+            ) : (
+                <>
+                    <div>
+                        <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">Předmět</label>
+                        <input
+                            value={subject}
+                            onChange={e => setSubject(e.target.value)}
+                            placeholder="Např. Chrlit spouštíme — máte přednostní přístup"
+                            className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white placeholder:text-white/25 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30"
+                        />
                     </div>
+                    <div>
+                        <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">Text (prázdný řádek = nový odstavec)</label>
+                        <textarea
+                            value={body}
+                            onChange={e => setBody(e.target.value)}
+                            rows={8}
+                            placeholder={"Dobrý den,\n\nspouštíme Chrlit — AI, která vám vytvoří obsah na Instagram na celý měsíc...\n\nTým Chrlit"}
+                            className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white placeholder:text-white/25 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 resize-none leading-relaxed"
+                        />
+                    </div>
+                </>
+            )}
+
+            {/* Preview — renderuje server, takže je to doslova to, co odejde */}
+            {preview && (
+                <div>
+                    <div className="flex items-baseline justify-between mb-2">
+                        <label className="text-[10px] text-white/40 uppercase tracking-widest font-bold">
+                            Náhled · {preview.subject}
+                        </label>
+                        <span className={`text-[9px] font-bold uppercase tracking-widest ${preview.kb > 90 ? "text-aisummit-cinnabar" : "text-white/30"}`}>
+                            {Math.round(preview.kb)} KB
+                        </span>
+                    </div>
+                    <iframe
+                        title="Náhled e-mailu"
+                        srcDoc={preview.html}
+                        sandbox=""
+                        loading="lazy"
+                        className="w-full h-[520px] bg-white border border-white/10 rounded-sm"
+                    />
+                    <details className="mt-2">
+                        <summary className="text-[10px] text-white/40 uppercase tracking-widest font-bold cursor-pointer hover:text-white/70">
+                            Textová verze
+                        </summary>
+                        <pre className="mt-2 p-4 bg-[#050505] border border-white/10 rounded-sm text-[11px] text-white/50 whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto">{preview.text}</pre>
+                    </details>
+                </div>
+            )}
+
+            {notice && (
+                <div className="bg-white/5 border border-white/10 rounded-sm p-4">
+                    <p className="text-sm text-white/70 font-bold">✉️ {notice}</p>
                 </div>
             )}
 
@@ -204,7 +333,14 @@ export function MailingTab() {
             )}
 
             {/* Send */}
-            <div className="flex justify-end">
+            <div className="flex justify-end items-center gap-3">
+                <button
+                    disabled={!contentReady || testing}
+                    onClick={doTest}
+                    className="px-5 py-3 bg-white/5 border border-white/10 text-white/70 rounded-sm text-[10px] font-black uppercase tracking-widest hover:text-white hover:bg-white/10 transition-all disabled:opacity-30"
+                >
+                    {testing ? "Odesílám…" : "Poslat test sobě"}
+                </button>
                 <button
                     disabled={!canSend}
                     onClick={() => setConfirming(true)}
@@ -225,7 +361,7 @@ export function MailingTab() {
                     >
                         <h3 className="text-sm font-black uppercase tracking-tight text-white mb-2">Opravdu odeslat?</h3>
                         <p className="text-xs text-white/50 leading-relaxed mb-5">
-                            E-mail „{subject}" půjde na <strong className="text-white/80">{Math.min(selectedCount, DAILY_CAP)}</strong> {selectedCount === 1 ? "vybraného příjemce" : "vybraných příjemců"}. Akce je nevratná.
+                            E-mail „{preview?.subject || subject}" půjde na <strong className="text-white/80">{Math.min(selectedCount, DAILY_CAP)}</strong> {selectedCount === 1 ? "vybraného příjemce" : "vybraných příjemců"}. Akce je nevratná.
                         </p>
                         <div className="flex gap-2 justify-end">
                             <button onClick={() => setConfirming(false)} className="px-4 py-2 rounded-sm text-[10px] font-bold uppercase tracking-widest text-white/50 bg-white/5 border border-white/10 hover:text-white transition-all">Zrušit</button>

@@ -5,6 +5,8 @@
  */
 
 import supabaseAdmin from "@/supabase/admin"
+import { footnote, heading, list } from "@/lib/mail/blocks"
+import { renderEmail } from "@/lib/mail/layout"
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -117,18 +119,17 @@ export async function buildWeeklyReport(): Promise<WeeklyReport> {
 
     const subject = `📊 Chrlit — týdenní report (${fmtRange})`
     const text = `Chrlit týdenní report — ${fmtRange}\n\n` + rows.map(([k, val]) => `${k}: ${val}`).join("\n")
-    const html = `
-      <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#050505;color:#fff;padding:32px;max-width:560px;margin:0 auto">
-        <h1 style="font-size:20px;text-transform:uppercase;letter-spacing:-0.5px;margin:0 0 4px">Chrlit — týdenní report</h1>
-        <p style="color:#888;font-size:12px;margin:0 0 24px">${fmtRange}</p>
-        <table style="width:100%;border-collapse:collapse">
-          ${rows.map(([k, val]) => `<tr>
-            <td style="padding:10px 0;border-bottom:1px solid #1a1a1a;color:#bbb;font-size:14px">${k}</td>
-            <td style="padding:10px 0;border-bottom:1px solid #1a1a1a;text-align:right;font-weight:700;font-size:15px">${val}</td>
-          </tr>`).join("")}
-        </table>
-        <p style="color:#555;font-size:11px;margin-top:24px">Automatický report od Chrlit ops-agenta · ${pendingApprovals > 0 ? `máš ${pendingApprovals} akcí ke schválení v dashboardu` : "nic nečeká na schválení"}</p>
-      </div>`
+    const { html } = renderEmail({
+        subject: "Chrlit — týdenní report",
+        eyebrow: fmtRange,
+        kind: "transactional",
+        variant: "ops",
+        blocks: [
+            heading("Týdenní report"),
+            list(rows.map(([k, val]) => `**${k}** — ${val}`)),
+            footnote(`Automatický report od Chrlit ops-agenta · ${pendingApprovals > 0 ? `máš ${pendingApprovals} akcí ke schválení v dashboardu` : "nic nečeká na schválení"}`),
+        ],
+    })
 
     return { subject, html, text }
 }

@@ -26,6 +26,7 @@ export type StudioSection =
     | "faq"
     | "approvals"
     | "mailing"
+    | "emails"
     | "company"
 
 // Seznam platných sekcí odvozuje registr v `nav.ts` (import nahoře) — ručně

@@ -1,7 +1,7 @@
 import {
     Home, Images, CalendarDays, Sparkles, Lightbulb, Image as ImageIcon, BarChart3,
     Package, Building2, CircleCheck, UserPlus, KeyRound, Mail, Brain,
-    CircleQuestionMark, Settings,
+    CircleQuestionMark, Settings, LayoutTemplate,
     type LucideIcon,
 } from "lucide-react"
 import type { StudioSection } from "./StudioContext"
@@ -71,6 +71,7 @@ export const NAV_ITEMS: NavItem[] = [
     { id: "onboard", label: "Onboarding", icon: UserPlus, group: "admin" },
     { id: "waitlist", label: "Waitlist", icon: KeyRound, group: "admin" },
     { id: "mailing", label: "Mailing", icon: Mail, group: "admin" },
+    { id: "emails", label: "Šablony", icon: LayoutTemplate, group: "admin" },
 ]
 
 /** Sekce, které nemají vlastní položku — dosažitelné jen přes sub-taby nebo prokliky. */

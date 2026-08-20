@@ -11,7 +11,9 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { requireSuperAdmin } from "@/lib/auth-guard"
-import { renderBrandedEmail } from "@/lib/notifications"
+import { renderBrandedEmailParts } from "@/lib/notifications"
+import { BROADCAST_TEMPLATES, EMAIL_TEMPLATES, getTemplate } from "@/lib/mail/registry"
+import type { TemplateField, TemplateVars } from "@/lib/mail/template"
 
 export type MailingSegment = "waitlist" | "activeClients" | "expired"
 
@@ -82,6 +84,104 @@ export async function getMailingRecipients(segment: MailingSegment): Promise<str
 
 export interface BroadcastResult { sent: number; failed: number; skipped: number; remaining: number; total: number }
 
+// ── Šablony ─────────────────────────────────────────────────────────────────
+
+export interface MailingTemplateInfo {
+    id: string
+    label: string
+    group: string
+    kind: "transactional" | "notification"
+    fields: TemplateField[]
+    sample: TemplateVars
+}
+
+/**
+ * Šablony nabízené v panelu. Posílá se jen popis (schéma + ukázka), ne funkce —
+ * `build` zůstává na serveru, takže si klient nemůže vyrobit vlastní zprávu
+ * a poslat ji pod hlavičkou Chrlitu.
+ */
+export async function getMailingTemplates(): Promise<MailingTemplateInfo[]> {
+    await requireSuperAdmin()
+    return BROADCAST_TEMPLATES.map(t => ({
+        id: t.id, label: t.label, group: t.group, kind: t.kind, fields: t.fields, sample: t.sample,
+    }))
+}
+
+export interface MailPreview { subject: string; html: string; text: string; kb: number }
+
+export interface GalleryEntry extends MailPreview {
+    id: string
+    label: string
+    group: string
+    kind: "transactional" | "notification"
+}
+
+/**
+ * Všechny šablony vyrenderované z ukázkových dat — galerie.
+ *
+ * Změnu tokenu je potřeba vidět na všech šablonách naráz, ne na té jedné, co
+ * se zrovna upravuje. Renderuje se **všechno včetně transakčních**, které
+ * v Mailingu nejsou k dispozici, protože chodí samy.
+ */
+export async function getEmailGallery(): Promise<GalleryEntry[]> {
+    await requireSuperAdmin()
+    return EMAIL_TEMPLATES.map(t => {
+        const { subject, html, text } = t.render(t.sample, "ukazka@chrlit.cz")
+        return {
+            id: t.id, label: t.label, group: t.group, kind: t.kind,
+            subject, html, text, kb: Buffer.byteLength(html, "utf8") / 1024,
+        }
+    })
+}
+
+/**
+ * Náhled pro `<iframe srcDoc>` — přesně to, co dorazí do schránky.
+ *
+ * Renderuje se na serveru týmž kódem jako ostré odeslání. Panel dřív náhled
+ * kreslil Tailwindem, takže ukazoval něco jiného, než co odešlo.
+ */
+export async function previewMail(input: {
+    templateId?: string
+    vars?: TemplateVars
+    subject?: string
+    body?: string
+}): Promise<MailPreview> {
+    await requireSuperAdmin()
+    const sample = "ukazka@chrlit.cz"
+
+    if (input.templateId) {
+        const t = getTemplate(input.templateId)
+        if (!t) throw new Error(`Šablona „${input.templateId}" neexistuje.`)
+        const { subject, html, text } = t.render(input.vars || {}, sample)
+        return { subject, html, text, kb: Buffer.byteLength(html, "utf8") / 1024 }
+    }
+
+    const subject = input.subject?.trim() || "(bez předmětu)"
+    const { html, text } = renderBrandedEmailParts(subject, input.body || "", { unsubscribeEmail: sample })
+    return { subject, html, text, kb: Buffer.byteLength(html, "utf8") / 1024 }
+}
+
+/** Odešle zprávu na adresu přihlášeného super-admina — než ji uvidí zákazníci. */
+export async function sendTestEmail(input: { templateId?: string; vars?: TemplateVars; subject?: string; body?: string }): Promise<string> {
+    const { email } = await requireSuperAdmin()
+    const { sendEmail } = await import("@/lib/email")
+
+    if (input.templateId) {
+        const t = getTemplate(input.templateId)
+        if (!t) throw new Error(`Šablona „${input.templateId}" neexistuje.`)
+        const { subject, html, text } = t.render(input.vars || {}, email)
+        await sendEmail({ to: email, subject: `[TEST] ${subject}`, html, text })
+        return email
+    }
+
+    const subject = input.subject?.trim()
+    const body = input.body?.trim()
+    if (!subject || !body) throw new Error("Předmět i text jsou povinné.")
+    const { html, text } = renderBrandedEmailParts(subject, body, { unsubscribeEmail: email })
+    await sendEmail({ to: email, subject: `[TEST] ${subject}`, html, text })
+    return email
+}
+
 /**
  * Send a broadcast to a segment. Throttled, capped at DAILY_CAP per run.
  * Idempotency is the caller's concern (confirm-before-send in the UI); this always sends.
@@ -91,11 +191,32 @@ export interface BroadcastResult { sent: number; failed: number; skipped: number
  * so the client can never smuggle in an address that isn't actually in the segment.
  * Omitted → send to the whole segment (backward-compatible).
  */
-export async function sendBroadcast(input: { segment: MailingSegment; subject: string; body: string; recipients?: string[] }): Promise<BroadcastResult> {
+export async function sendBroadcast(input: {
+    segment: MailingSegment
+    /** Předmět a text — starší cesta, pořád funkční. */
+    subject?: string
+    body?: string
+    /** Šablona z registru. Má přednost před `subject`/`body`. */
+    template?: { id: string; vars: TemplateVars }
+    recipients?: string[]
+}): Promise<BroadcastResult> {
     await requireSuperAdmin()
-    const subject = input.subject?.trim()
+
+    // Zpráva se skládá jednou; per příjemce se mění jen odhlašovací odkaz.
+    const template = input.template ? getTemplate(input.template.id) : null
+    if (input.template && !template) throw new Error(`Šablona „${input.template.id}" neexistuje.`)
+
+    const subject = template
+        ? template.render(input.template!.vars, "ukazka@chrlit.cz").subject
+        : input.subject?.trim()
     const body = input.body?.trim()
-    if (!subject || !body) throw new Error("Předmět i text jsou povinné.")
+    if (!subject) throw new Error("Předmět je povinný.")
+    if (!template && !body) throw new Error("Předmět i text jsou povinné.")
+
+    const renderFor = (email: string): { html: string; text: string } =>
+        template
+            ? template.render(input.template!.vars, email)
+            : renderBrandedEmailParts(subject, body!, { unsubscribeEmail: email })
 
     const resolved = await resolveRecipients(input.segment)
     let recipients = resolved
@@ -112,7 +233,8 @@ export async function sendBroadcast(input: { segment: MailingSegment; subject: s
     let sent = 0, failed = 0
     for (const email of batch) {
         try {
-            await sendEmail({ to: email, subject, html: renderBrandedEmail(subject, body, { unsubscribeEmail: email }) })
+            const { html, text } = renderFor(email)
+            await sendEmail({ to: email, subject, html, text })
             sent++
         } catch (err: any) {
             console.warn(`mailing: send to ${email} failed: ${err?.message?.substring(0, 80)}`)

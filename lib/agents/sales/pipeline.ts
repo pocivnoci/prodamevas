@@ -188,8 +188,11 @@ export async function runOutreach(leadId: string) {
     // ODDĚLENÁ přeprava — nikdy ne přes lib/email.ts. Resend má studené oslovení
     // v pravidlech zakázané a chodí přes něj potvrzení o platbách.
     const { sendOutreach } = await import("./transport")
-    const { signEmail } = await import("@/lib/email-sign")
-    const unsub = `${base}/api/email/unsubscribe?e=${encodeURIComponent(lead.email)}&s=${signEmail(lead.email)}`
+    // Odhlašovací odkaz se skládal na dvou místech zvlášť a tahle kopie stála na
+    // `base`, který padá na nekanonické `chrlit.cz` (308 → www) a neověřuje, že
+    // je to vůbec URL. Sdílený helper drží obojí na jednom místě.
+    const { unsubscribeUrl } = await import("@/lib/mail/links")
+    const unsub = unsubscribeUrl(lead.email)
     const text = `${msg.text}\n\nNechcete-li od nás už nic, odhlaste se tady: ${unsub}`
 
     const sent = await sendOutreach({ to: lead.email, subject: msg.subject, text })

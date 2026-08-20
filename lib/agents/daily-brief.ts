@@ -27,6 +27,9 @@ import supabaseAdmin from "@/supabase/admin"
 import { listPendingApprovals, type PendingAction } from "@/lib/agent-safety"
 import { safe, type HealthProblem } from "@/lib/agents/health-check"
 import { renderApprovalItem } from "@/lib/agents/approval-notify"
+import { footnote, heading, raw } from "@/lib/mail/blocks"
+import { renderEmail } from "@/lib/mail/layout"
+import { COLOR } from "@/lib/mail/tokens"
 import type { ComplianceItem } from "@/lib/agents/compliance-calendar"
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -299,27 +302,31 @@ function renderHtml(b: DailyBrief): string {
     }
     if (b.did.length > 0) parts.push(section("Co jsem udělal sám", b.did.map(lineHtml).join("")))
 
-    return `
-      <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#050505;color:#fff;padding:32px;max-width:600px;margin:0 auto">
-        <h1 style="font-size:20px;text-transform:uppercase;letter-spacing:-0.5px;margin:0 0 4px">Ranní brief</h1>
-        <p style="color:#888;font-size:12px;margin:0 0 28px">${new Date(b.checkedAt).toLocaleString("cs-CZ")}</p>
-        ${parts.join("")}
-        <p style="color:#555;font-size:11px;margin-top:28px">Jeden e-mail denně · když je klid, nepřijde nic · odkazy platí 7 dní</p>
-      </div>`
+    return renderEmail({
+        subject: "Ranní brief",
+        eyebrow: new Date(b.checkedAt).toLocaleString("cs-CZ"),
+        kind: "transactional",
+        variant: "ops",
+        blocks: [
+            heading("Ranní brief"),
+            raw(parts.join("")),
+            footnote("Jeden e-mail denně · když je klid, nepřijde nic · odkazy platí 7 dní"),
+        ],
+    }).html
 }
 
 function section(title: string, inner: string): string {
     return `
-      <h2 style="font-size:10px;text-transform:uppercase;letter-spacing:2px;font-weight:700;color:#666;margin:0 0 10px">${title}</h2>
+      <h2 style="font-size:10px;text-transform:uppercase;letter-spacing:2px;font-weight:700;color:${COLOR.muted};margin:0 0 10px">${title}</h2>
       ${inner}
       <div style="height:22px"></div>`
 }
 
 function lineHtml(l: BriefLine): string {
     return `
-      <div style="border:1px solid #1a1a1a;border-radius:4px;padding:12px 14px;margin:0 0 8px;background:#0a0a0a">
-        <p style="margin:0;font-size:14px;font-weight:600;color:#fff">${l.icon} ${l.text}</p>
-        ${l.detail ? `<p style="margin:4px 0 0;font-size:12px;color:#888">${l.detail}</p>` : ""}
+      <div style="border:1px solid ${COLOR.hairline};border-radius:2px;padding:12px 14px;margin:0 0 8px">
+        <p style="margin:0;font-size:14px;font-weight:600;color:${COLOR.ink}">${l.icon} ${l.text}</p>
+        ${l.detail ? `<p style="margin:4px 0 0;font-size:12px;color:${COLOR.muted}">${l.detail}</p>` : ""}
       </div>`
 }
 

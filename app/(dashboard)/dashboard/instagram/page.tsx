@@ -26,6 +26,7 @@ import { FaqTab } from "./tabs/FaqTab"
 import { ApprovalsTab } from "./tabs/ApprovalsTab"
 import { CompanyTab } from "./tabs/CompanyTab"
 import { MailingTab } from "./tabs/MailingTab"
+import { EmailsTab } from "./tabs/EmailsTab"
 import { TutorialOverlay, useTutorialState } from "./tabs/TutorialOverlay"
 
 // Section labels for header
@@ -116,6 +117,7 @@ export default function InstagramPage() {
                     {activeSection === "approvals" && isAdmin && <ApprovalsTab />}
                     {activeSection === "company" && isAdmin && <CompanyTab />}
                     {activeSection === "mailing" && isAdmin && <MailingTab />}
+                    {activeSection === "emails" && isAdmin && <EmailsTab />}
                 </motion.div>
             </AnimatePresence>
 

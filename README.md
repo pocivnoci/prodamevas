@@ -36,6 +36,10 @@ Open [http://localhost:3000](http://localhost:3000)
 | `META_APP_ID` / `META_APP_SECRET` | Instagram OAuth (propojení účtu); bez nich je IG connect skrytý |
 | `GOOGLE_AUTH_ENABLED=1` | Přihlášení přes Google; bez něj je tlačítko skryté. Zapni až po vytvoření OAuth klienta v Google Cloud a zapnutí provideru v Supabase |
 | `IG_TOKEN_ENCRYPTION_KEY` | AES-256-GCM klíč pro šifrování IG tokenů — `openssl rand -hex 32` |
+| `RESEND_API_KEY` | Odesílání e-mailů (uvítání, doklad, dunning, broadcast). Bez něj se nic neodešle a chyba se jen zaloguje |
+| `REPORT_FROM_EMAIL` | Odesílatel, např. `Chrlit <noreply@chrlit.cz>`. Bez ověřené domény se posílá z `onboarding@resend.dev`, který doručí **jen na adresu majitele Resend účtu** |
+| `REPORT_EMAIL` | Kam chodí ops pošta (ranní brief, schválení). Výchozí: první `SUPER_ADMIN_EMAILS` |
+| `EMAIL_SECRET` | HMAC pro podepsané odkazy (odhlášení, schvalování). Fallback: `CRON_SECRET` → service role key |
 
 ---
 
