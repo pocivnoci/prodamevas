@@ -10,6 +10,7 @@ import { ensurePostTypes } from '@/instagram/service'
 import { generateCustomFormats, seedVoiceExamplesFromIG } from '@/app/onboarding/core'
 import type { ClientConfig } from '@/instagram/configs/types'
 import { fetchInstagramProfile, estimatePostsPerWeek, type IgProfileData } from '@/lib/ig-scraper'
+import { isSuperAdminEmail } from '@/lib/super-admins'
 
 // ============================================
 // TYPES
@@ -1466,8 +1467,7 @@ export async function checkOnboardingStatus(): Promise<{
     if (!user) return { needsOnboarding: false }
 
     // Super-admins never need onboarding — they see all clients
-    const admins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean)
-    if (admins.includes(user.email || "")) {
+    if (isSuperAdminEmail(user.email)) {
         return { needsOnboarding: false }
     }
 

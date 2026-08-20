@@ -2302,6 +2302,51 @@ test("29.10 sdílené odkazy do sebe nepustí přepravu", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 30. ADMINSKÁ BRÁNA
+// ═══════════════════════════════════════════════════════════
+
+/** Soubory, které se ptají, jestli je někdo super-admin. */
+const ADMIN_GATE_FILES = [
+    "lib/auth-guard.ts",
+    "app/actions/admin-actions.ts",
+    "app/onboarding/actions.ts",
+    "lib/subscription.ts",
+    "lib/email.ts",
+    "instagram/configs/index.ts",
+]
+
+test("30.1 SUPER_ADMIN_EMAILS se parsuje na jednom místě", () => {
+    assert(fileExists("lib/super-admins.ts"), "lib/super-admins.ts musí existovat")
+    for (const f of ADMIN_GATE_FILES) {
+        assert(
+            !codeOnly(f).includes("process.env.SUPER_ADMIN_EMAILS"),
+            `${f} si parsuje SUPER_ADMIN_EMAILS sám — má se ptát lib/super-admins.ts`,
+        )
+    }
+})
+
+test("30.2 adminská brána nepadá na velikosti písmen ani uvozovkách", () => {
+    const src = fileContent("lib/super-admins.ts")
+    assert(src.includes("toLowerCase()"), "porovnání musí být nezávislé na velikosti písmen")
+    assert(src.includes(`replace(/["']/g`), "uvozovky z nástěnky Vercelu se musí sundat")
+})
+
+test("30.3 middleware cesta zůstává bez importů, ale normalizuje stejně", () => {
+    const access = codeOnly("lib/beta-access.ts")
+    assert(!/^\s*import\s/m.test(access), "lib/beta-access.ts musí zůstat bez importů")
+    assert(access.includes("toLowerCase()"), "beta-access musí normalizovat stejně jako lib/super-admins.ts")
+    assert(access.includes(`replace(/["']/g`), "beta-access musí sundat uvozovky stejně jako lib/super-admins.ts")
+})
+
+test("30.4 rozbitá hodnota je vidět v logu, ale neshodí aplikaci", () => {
+    const env = fileContent("lib/env.ts")
+    assert(env.includes("checkSuperAdmins"), "validateEnv musí hodnotu zkontrolovat")
+    const fn = env.slice(env.indexOf("function checkSuperAdmins"))
+    assert(fn.includes("console.error"), "rozbitá hodnota se musí ohlásit")
+    assert(!fn.includes("throw "), "kontrola nesmí shodit boot — výpadek je horší než skrytá admin sekce")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 

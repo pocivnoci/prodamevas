@@ -8,6 +8,7 @@
  * Trial = content-gated: 3 full posts + 27 locked.
  */
 
+import { isSuperAdminEmail } from "@/lib/super-admins"
 import supabaseAdmin from "@/supabase/admin"
 import { createClient } from "@/supabase/server"
 import { formatCzk } from "@/lib/pricing"
@@ -19,8 +20,7 @@ async function isSuperAdmin(): Promise<boolean> {
         const supabase = await createClient()
         const { data: { user } } = await supabase.auth.getUser()
         if (!user?.email) return false
-        const admins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean)
-        return admins.includes(user.email)
+        return isSuperAdminEmail(user.email)
     } catch {
         return false
     }

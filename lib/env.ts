@@ -1,3 +1,5 @@
+import { superAdminEmails, looksLikeEmail } from "@/lib/super-admins"
+
 /**
  * Startup env validation — fail fast on missing required vars instead of
  * surfacing cryptic runtime errors mid-request. Called from instrumentation.ts.
@@ -39,4 +41,31 @@ export function validateEnv(): void {
     if (missingOptional.length > 0) {
         console.warn(`⚠️ Volitelné env proměnné nejsou nastavené: ${missingOptional.join(", ")}`)
     }
+
+    checkSuperAdmins()
+}
+
+/**
+ * Adminská brána při neshodě jen tiše vrátí `false` — admin pak nevidí celou
+ * admin sekci a v aplikaci to nevypadá jako chyba, ale jako by ta sekce
+ * neexistovala. Překlep v hodnotě proto musí být vidět při startu.
+ *
+ * Schválně se tu nic nevyhazuje: pokud je hodnota rozbitá už teď, shodil by
+ * `validateEnv()` celou aplikaci při bootu (volá ho `instrumentation.ts`).
+ * Výpadek je horší než chybějící admin sekce.
+ */
+function checkSuperAdmins(): void {
+    const admins = superAdminEmails()
+
+    if (admins.length === 0) {
+        console.error("❌ SUPER_ADMIN_EMAILS je nastavené, ale nezbyl z něj žádný admin — admin sekce bude pro všechny skrytá.")
+        return
+    }
+
+    const malformed = admins.filter(e => !looksLikeEmail(e))
+    if (malformed.length > 0) {
+        console.error(`❌ SUPER_ADMIN_EMAILS obsahuje hodnoty, které nevypadají jako adresa: ${malformed.join(", ")} — tihle se do admin sekce nedostanou.`)
+    }
+
+    console.log(`🔑 Super-adminů načteno: ${admins.length} (${admins.join(", ")})`)
 }
