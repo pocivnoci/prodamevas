@@ -4,6 +4,7 @@
  * Central registry of all available clients. Fetches from DB.
  */
 
+import { isSuperAdminEmail } from "../../lib/super-admins"
 import supabaseAdmin from "../../supabase/admin"
 import type { ClientConfig } from "./types"
 import { FORMAT_BRIEF_LIMITS } from "./types"
@@ -21,8 +22,7 @@ export interface ClientMeta {
 
 // ─── Super-admin check (from ENV, not hardcoded) ─────────────────────
 function isSuperAdmin(email: string | undefined): boolean {
-    const admins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean)
-    return admins.includes(email || "")
+    return isSuperAdminEmail(email)
 }
 
 // ─── Caches ──────────────────────────────────────────────────────────

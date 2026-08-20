@@ -463,8 +463,8 @@ export async function isCurrentUserSuperAdmin(): Promise<boolean> {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user?.email) return false
-    const admins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean)
-    return admins.includes(user.email)
+    const { isSuperAdminEmail } = await import("@/lib/super-admins")
+    return isSuperAdminEmail(user.email)
 }
 
 /**

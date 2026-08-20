@@ -1,5 +1,6 @@
 import { createClient } from '@/supabase/server'
 import supabaseAdmin from '@/supabase/admin'
+import { isSuperAdminEmail, superAdminEmails } from '@/lib/super-admins'
 
 /**
  * Ověří, zda je uživatel přihlášen. Necontroluje admin práva.
@@ -44,8 +45,7 @@ export async function requireClientAccess(clientId: string): Promise<{ userId: s
     }
 
     // Super admins bypass user_clients check
-    const admins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean)
-    if (admins.includes(email)) {
+    if (isSuperAdminEmail(email)) {
         return { userId, clientId, email, isSuperAdmin: true }
     }
 
@@ -71,13 +71,13 @@ export async function requireClientAccess(clientId: string): Promise<{ userId: s
 export async function requireSuperAdmin(): Promise<{ email: string; userId: string }> {
     const { email, userId } = await requireAuth()
 
-    const admins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean)
+    const admins = superAdminEmails()
 
     if (admins.length === 0) {
         throw new Error('Neautorizovaný přístup: Systém nemá definované žádné administrátory (SUPER_ADMIN_EMAILS).')
     }
 
-    if (!admins.includes(email)) {
+    if (!isSuperAdminEmail(email)) {
         throw new Error('Neautorizovaný přístup: Uživatel nemá administrátorská práva.')
     }
 
