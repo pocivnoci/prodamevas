@@ -1696,8 +1696,17 @@ test("24.1 oslovení NIKDY nejde přes transakční poštu", () => {
     const pipeline = codeOnly("lib/agents/sales/pipeline.ts")
     // Resend má studené oslovení v pravidlech zakázané a ruší účty bez varování.
     // Přes tentýž účet chodí potvrzení o platbách — jedna stížnost by je zabila.
-    assert(!/from ["']@\/lib\/email["']/.test(pipeline),
-        "pipeline nesmí importovat lib/email.ts (Resend)")
+    //
+    // Závorka `(\/|["'])` za "email" je schválně. Dokud je lib/email.ts soubor,
+    // stačila uvozovka hned za "email" — jenže kdyby se z něj někdy stal adresář,
+    // `@/lib/email/transport` by aserci obešel a díra by vznikla jako vedlejší
+    // efekt nesouvisejícího refaktoru. Proto e-mailový design systém bydlí
+    // v lib/mail/, ne v lib/email/.
+    for (const f of ["lib/agents/sales/pipeline.ts", "lib/agents/sales/transport.ts",
+                     "lib/agents/sales/templates.ts"]) {
+        assert(!/["']@\/lib\/email(\/|["'])/.test(codeOnly(f)),
+            `${f}: obchodní cesta nesmí sáhnout na transakční kanál — ani přes podmodul`)
+    }
     assert(/sendOutreach/.test(pipeline), "oslovení má vlastní přepravu")
     const transport = codeOnly("lib/agents/sales/transport.ts")
     assert(!/lib\/email/.test(transport), "přeprava oslovení nesmí sáhnout na transakční kanál")
@@ -1755,7 +1764,10 @@ test("24.10 generované odkazy míří na kanonickou doménu", () => {
     // chrlit.cz vrací 308 na www.chrlit.cz. Prohlížeč to přežije, STROJ ne —
     // Stripe webhooky přesměrování nenásledují, takže testovací platba prošla
     // a plán se neaktivoval. Zjištěno naostro 2026-08-11.
-    const code = codeOnly("lib/notifications.ts")
+    //
+    // Pravidlo se nezměnilo, jen se přestěhovalo: siteUrl() žije od e-mailového
+    // design systému v lib/mail/links.ts (lib/notifications.ts ho re-exportuje).
+    const code = codeOnly("lib/mail/links.ts")
     assert(/www\.chrlit\.cz/.test(code), "výchozí doména musí být kanonická (www)")
     assert(!/\|\| "https:\/\/chrlit\.cz"/.test(code), "nekanonická doména se nesmí vrátit jako výchozí")
     // Zástupný text je neprázdný řetězec a projde `||` — stejná past jako [SET_ME]
@@ -2168,6 +2180,125 @@ test("28.5 výběr formátu zná rozpočet zakázky", () => {
     const auto = codeOnly("instagram/autopilot.ts")
     assert(/options\.chargedMedium/.test(auto) && /creditsForMedia/.test(auto),
         "formát dražší než účtované médium se nesmí vybrat — clamp by mu vzal mechanismus")
+})
+
+// ═══════════════════════════════════════════════════════════
+// 29. E-MAILOVÝ DESIGN SYSTÉM — jeden vzhled, dva formáty
+// ═══════════════════════════════════════════════════════════
+// Každý e-mail v produktu prochází jedním rendererem. Rozejitý odstín, zmizelé
+// odhlášení nebo HTML přes limit Gmailu není kosmetika — je to nedoručený
+// doklad nebo stížnost na spam.
+
+test("29.1 render e-mailu nesahá na databázi", () => {
+    // Čistý render jde vykreslit z ukázkových dat, přežije guard bez .env.local
+    // a v náhledu nezáleží na tom, kdo je přihlášený. Import notifications by
+    // navíc uzavřel cyklus, který pod tsx/CJS spadne až za běhu.
+    for (const f of ["blocks", "render-html", "render-text", "layout", "registry", "markdown", "template"]) {
+        const src = codeOnly(`lib/mail/${f}.ts`)
+        assert(!/@\/supabase\//.test(src), `lib/mail/${f}.ts: render nesmí importovat Supabase`)
+        assert(!/@\/lib\/notifications/.test(src), `lib/mail/${f}.ts: cyklus render → notifications → render`)
+    }
+    assert(!/render-html/.test(codeOnly("lib/mail/render-text.ts")),
+        "textový renderer nesmí jít přes HTML — jeden escapuje, druhý dekóduje")
+})
+
+test("29.2 odstín značky má jediný zdroj", () => {
+    // Digest měl #e5533f, zbytek produktu #e63946 — dvě různé červené ve dvou
+    // e-mailech od téhož odesílatele. Barva patří do tokenů, ne do šablony.
+    assert(/#e63946/i.test(fileContent("lib/mail/tokens.ts")), "cinnabar musí být v tokenech")
+    assert(/--color-aisummit-cinnabar:\s*#e63946/i.test(fileContent("app/globals.css")),
+        "web a e-mail musí mít tentýž odstín")
+    for (const f of ["lib/notifications.ts", "lib/mail/render-html.ts", "lib/mail/layout.ts"]) {
+        assert(!/#e5533f/i.test(codeOnly(f)), `${f}: zapečený odstín mimo tokeny`)
+    }
+})
+
+test("29.3 e-mailová slupka existuje jednou", () => {
+    // Tmavý `<div style="…background:#050505…padding:32px">` byl vlastní slupkou
+    // na třech místech. Outlook u něj pozadí zahodí, takže z tmavého designu
+    // zbude bílá stránka s bílým textem.
+    const rogue = ["lib/notifications.ts", "lib/agents/approval-notify.ts",
+        "lib/agents/daily-brief.ts", "lib/agents/weekly-report.ts"]
+        .filter(f => /background:#050505;color:#fff;padding:32px/.test(codeOnly(f)))
+    assert(rogue.length === 0, `vlastní slupka mimo lib/mail/layout.ts: ${rogue.join(", ")}`)
+})
+
+test("29.4 každý e-mail odchází i jako čistý text", () => {
+    const notif = codeOnly("lib/notifications.ts")
+    assert(/sendEmail\(\{[^}]*\btext\b/.test(notif),
+        "sendNotification zahazovala text/plain — e-mail bez textové části je spamový signál")
+    assert(/blocks\?:/.test(notif), "sendNotification musí umět bloky, ne jen HTML string")
+})
+
+test("29.5 oznámení nikdy neodejde bez odhlášení — v OBOU formátech", () => {
+    // Odhlášení žilo jen v HTML patičce. Kdo si zobrazí text/plain, odkaz nenajde
+    // a místo odhlášení klikne na „spam".
+    const { renderEmail } = require("./lib/mail/layout")
+    const { paragraph } = require("./lib/mail/blocks")
+    const n = renderEmail({
+        subject: "T", blocks: [paragraph("Ahoj")], kind: "notification", unsubscribeEmail: "kdo@example.com",
+    })
+    assert(/api\/email\/unsubscribe\?e=/.test(n.html), "HTML patička bez odhlášení")
+    assert(/api\/email\/unsubscribe\?e=/.test(n.text), "textová patička bez odhlášení")
+    const t = renderEmail({ subject: "Doklad", blocks: [paragraph("Děkujeme")], kind: "transactional" })
+    assert(!/unsubscribe/.test(t.html), "z daňového dokladu se nikdo neodhlašuje")
+})
+
+test("29.6 každá šablona se vykreslí z ukázkových dat", () => {
+    // Picker v Mailingu i náhled berou šablony z registru. Šablona, která spadne
+    // nebo pustí do těla „undefined", se jinak pozná až u zákazníka.
+    const { EMAIL_TEMPLATES } = require("./lib/mail/registry")
+    assert(EMAIL_TEMPLATES.length > 0, "registr šablon je prázdný")
+    for (const t of EMAIL_TEMPLATES) {
+        const { subject, html, text } = t.render(t.sample, "ukazka@chrlit.cz")
+        assert(subject.length > 0 && html.length > 0 && text.length > 0, `${t.id}: prázdný render`)
+        assert(!/undefined|\bnull\b|\[object Object\]|NaN/.test(subject + text),
+            `${t.id}: prosákla proměnná — ${(subject + text).slice(0, 120)}`)
+    }
+})
+
+test("29.7 e-mail se vejde pod limit, kde ho Gmail stříhá", () => {
+    // Nad ~102 KB Gmail schová zbytek za „[Zpráva byla zkrácena]" — a stříhá
+    // odspodu, takže první zmizí CTA a odhlašovací patička.
+    const { EMAIL_TEMPLATES } = require("./lib/mail/registry")
+    const { GMAIL_CLIP_LIMIT_KB } = require("./lib/mail/tokens")
+    for (const t of EMAIL_TEMPLATES) {
+        const kb = Buffer.byteLength(t.render(t.sample).html, "utf8") / 1024
+        assert(kb < GMAIL_CLIP_LIMIT_KB, `${t.id}: ${Math.round(kb)} KB — Gmail stříhá nad 102 KB`)
+    }
+})
+
+test("29.8 e-mail s cenou nese větu o DPH", () => {
+    // Neplátce, který uvede cenu bez „Nejsem plátce DPH", vypadá, že DPH zatajil.
+    // Platí i pro e-mail, ne jen pro fakturu a ceník.
+    const { EMAIL_TEMPLATES } = require("./lib/mail/registry")
+    const { vatNotice } = require("./lib/legal")
+    for (const t of EMAIL_TEMPLATES) {
+        const { text } = t.render(t.sample)
+        const quotesPrice = /\d[\d  ]*Kč/.test(text)
+        assert(quotesPrice === Boolean(t.pricing),
+            `${t.id}: příznak pricing=${Boolean(t.pricing)} nesedí s obsahem`)
+        if (t.pricing) assert(text.includes(vatNotice()), `${t.id}: cena bez věty o DPH`)
+    }
+})
+
+test("29.9 světlý e-mail si klient nesmí převrátit", () => {
+    // Hybrid = bílé tělo + černé pruhy. Gmail i Apple Mail si světlý e-mail samy
+    // invertují a z černého pruhu udělají šedý s nečitelným textem.
+    const layout = fileContent("lib/mail/layout.ts")
+    assert(/name="color-scheme"/.test(layout) && /name="supported-color-schemes"/.test(layout),
+        "bez obou meta tagů si klient e-mail invertuje")
+    assert(/<!doctype html>/i.test(layout), "bez doctypu jede Outlook v quirks módu")
+    assert(/only light/i.test(layout), "vzhled je zamčený na světlý, ne 'light dark'")
+})
+
+test("29.10 sdílené odkazy do sebe nepustí přepravu", () => {
+    // links.ts smí importovat obchodní i transakční cesta — proto v něm nesmí
+    // skončit odesílání. Kdyby ano, obešel by se zákaz z aserce 24.1.
+    const links = codeOnly("lib/mail/links.ts")
+    assert(!/sendEmail|RESEND/.test(links), "links.ts je sdílený — nesmí do sebe pustit přepravu")
+    assert(/www\.chrlit\.cz/.test(fileContent("lib/mail/links.ts")),
+        "obrázky v odeslané zprávě musí mířit na kanonickou doménu, ne na preview deployment")
 })
 
 // ═══════════════════════════════════════════════════════════

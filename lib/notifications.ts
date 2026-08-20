@@ -15,35 +15,20 @@
  */
 
 import supabaseAdmin from "@/supabase/admin"
-import { signEmail } from "@/lib/email-sign"
 import { isMediumType, type MediumType } from "@/lib/credits"
 import { parsePostMedia } from "@/lib/media-urls"
+import { renderEmail, type MailKind } from "@/lib/mail/layout"
+import {
+    button, cards, compact, heading, paragraph, raw,
+    type Block, type CardItem,
+} from "@/lib/mail/blocks"
+import { htmlToText } from "@/lib/mail/render-text"
+import { TYPE } from "@/lib/mail/tokens"
 
-/**
- * Základ pro všechny generované odkazy (odhlášení, deep linky, ukázky).
- *
- * Dvě pasti, obě chycené naostro 2026-08-11:
- *
- *  1. **Zástupný text projde `||`.** V `.env.local` bylo `[SENSITIVE]` —
- *     neprázdný řetězec, takže se použil a všechny odkazy vedly na
- *     `[SENSITIVE]/...`. Stejná chyba jako `[SET_ME]` u HikerAPI klíče.
- *  2. **`chrlit.cz` přesměrovává na `www.chrlit.cz` (308).** Prohlížeč to
- *     přežije, STROJ ne — Stripe webhooky přesměrování nenásledují, takže
- *     platba prošla a plán se neaktivoval. Výchozí hodnota je proto kanonická.
- */
-export function siteUrl(): string {
-    const v = (process.env.NEXT_PUBLIC_SITE_URL || "").trim()
-    const usable = v.startsWith("http") ? v.replace(/\/$/, "") : ""
-    if (v && !usable) {
-        console.warn(`⚠️ NEXT_PUBLIC_SITE_URL není URL ("${v.slice(0, 20)}") — používám výchozí doménu`)
-    }
-    return usable || "https://www.chrlit.cz"
-}
-
-/** Deep link into the studio: selects the project (?project=) and opens a tab (#hash). */
-export function studioDeepLink(clientId: string, section: string = "calendar"): string {
-    return `${siteUrl()}/dashboard/instagram?project=${encodeURIComponent(clientId)}#${section}`
-}
+// Odkazy a escapování se přestěhovaly do lib/mail/links.ts, aby na ně dosáhly
+// i cesty, které na transakční poštu sáhnout nesmějí. Re-export tu zůstává,
+// takže všech devět importérů `@/lib/notifications` běží beze změny.
+export { siteUrl, studioDeepLink, escapeHtml, unsubscribeUrl } from "@/lib/mail/links"
 
 /** Plain text (with optional inline HTML like links) → <p> blocks. */
 function paragraphsHtml(body: string): string {
@@ -51,27 +36,44 @@ function paragraphsHtml(body: string): string {
         .split(/\n{2,}/)
         .map(p => p.trim())
         .filter(Boolean)
-        .map(p => `<p style="margin:0 0 16px;line-height:1.6">${p.replace(/\n/g, "<br/>")}</p>`)
+        .map(p => `<p style="${TYPE.body};margin:0 0 16px">${p.replace(/\n/g, "<br/>")}</p>`)
         .join("")
 }
 
-function wrapBranded(subject: string, innerHtml: string, unsubscribeEmail?: string): string {
-    const footer = unsubscribeEmail
-        ? `Chrlit · <a href="${siteUrl()}/api/email/unsubscribe?e=${encodeURIComponent(unsubscribeEmail)}&s=${signEmail(unsubscribeEmail)}" style="color:#777">Odhlásit odběr</a>`
-        : `Chrlit · chrlit.cz`
-    return `
-      <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#050505;color:#fff;padding:32px;max-width:560px;margin:0 auto">
-        <h1 style="font-size:20px;text-transform:uppercase;letter-spacing:-0.5px;margin:0 0 20px">${subject}</h1>
-        <div style="color:#ddd;font-size:15px">${innerHtml}</div>
-        <p style="color:#555;font-size:11px;margin-top:28px;border-top:1px solid #1a1a1a;padding-top:16px">
-          ${footer}
-        </p>
-      </div>`
+/**
+ * Most pro starší volající. `body` je text s **povoleným inline HTML**, `html`
+ * je hotový vnitřek. Obojí se zabalí do jednoho `raw` bloku, takže slupka
+ * existuje jen jedna a nová šablona se dá psát v blocích, aniž by se muselo
+ * naráz přepsat všech deset odesílacích míst.
+ *
+ * Předmět se přidává jako nadpis — dřív ho vypisovala slupka sama a bez něj by
+ * každá stávající zpráva o titulek přišla.
+ */
+function legacyBlocks(subject: string, opts: { html?: string; body?: string }): Block[] {
+    const inner = opts.html ?? paragraphsHtml(opts.body || "")
+    // Text se odvozuje z `body`, ne z vygenerovaného HTML — je v něm míň šumu
+    // a odkazy se z něj rozbalí i s adresou.
+    const text = htmlToText(opts.body ?? inner)
+    return [heading(subject, 1), raw(inner, text)]
 }
 
-/** Branded dark template. With unsubscribeEmail → broadcast footer (unsubscribe link). */
+/** Branded template. With unsubscribeEmail → broadcast footer (unsubscribe link). */
 export function renderBrandedEmail(subject: string, body: string, opts?: { unsubscribeEmail?: string }): string {
-    return wrapBranded(subject, paragraphsHtml(body), opts?.unsubscribeEmail)
+    return renderBrandedEmailParts(subject, body, opts).html
+}
+
+/** Jako `renderBrandedEmail`, ale i s textovou částí — broadcast ji má posílat taky. */
+export function renderBrandedEmailParts(
+    subject: string,
+    body: string,
+    opts?: { unsubscribeEmail?: string },
+): { html: string; text: string } {
+    return renderEmail({
+        subject,
+        blocks: legacyBlocks(subject, { body }),
+        kind: opts?.unsubscribeEmail ? "notification" : "transactional",
+        unsubscribeEmail: opts?.unsubscribeEmail,
+    })
 }
 
 /** Owner e-mail resolution mirrors payments/create: user_clients owner → auth user. */
@@ -89,16 +91,24 @@ export async function getOwnerEmail(clientId: string): Promise<string | null> {
 }
 
 /**
- * Best-effort branded e-mail. `body` is plain text (double newline = paragraph,
- * inline HTML allowed); `html` bypasses the paragraph conversion for pre-built
- * inner markup (e.g. the campaign digest cards). Never throws.
+ * Best-effort branded e-mail. Přednost `blocks → html → body`:
+ *  - `blocks` — typované bloky, renderují HTML i text. Tudy má chodit nové.
+ *  - `html` — hotový vnitřek (digest). Legacy.
+ *  - `body` — text s povoleným inline HTML, prázdný řádek = odstavec. Legacy.
+ *
+ * Never throws.
  */
 export async function sendNotification(opts: {
     to: string | null | undefined
     subject: string
+    blocks?: Block[]
     body?: string
     html?: string
-    kind: "transactional" | "notification"
+    /** Řádek vedle předmětu ve schránce. Bez něj se odvodí z prvního odstavce. */
+    preheader?: string
+    /** Ruční override textové části. Jinak se odvodí z bloků. */
+    text?: string
+    kind: MailKind
 }): Promise<void> {
     const to = opts.to?.trim().toLowerCase()
     if (!to) return
@@ -111,10 +121,17 @@ export async function sendNotification(opts: {
                 .maybeSingle()
             if (optedOut) return
         }
-        const inner = opts.html ?? paragraphsHtml(opts.body || "")
-        const html = wrapBranded(opts.subject, inner, opts.kind === "notification" ? to : undefined)
+        const { html, text } = renderEmail({
+            subject: opts.subject,
+            preheader: opts.preheader,
+            blocks: opts.blocks ?? legacyBlocks(opts.subject, opts),
+            kind: opts.kind,
+            unsubscribeEmail: opts.kind === "notification" ? to : undefined,
+        })
         const { sendEmail } = await import("@/lib/email")
-        await sendEmail({ to, subject: opts.subject, html })
+        // Prázdný řetězec by Resend poslal jako skutečnou prázdnou textovou část
+        // a část klientů pak ukáže prázdnou zprávu místo HTML verze.
+        await sendEmail({ to, subject: opts.subject, html, text: opts.text?.trim() || text || undefined })
     } catch (err: any) {
         console.warn(`notifications: e-mail to ${to} failed: ${err?.message}`)
     }
@@ -163,10 +180,6 @@ export async function getCampaignPosts(campaignId: string, clientId: string): Pr
 const DIGEST_MAX_CARDS = 15       // keep the HTML safely under Gmail's ~102KB clip limit
 const DIGEST_CAPTION_CHARS = 300
 
-export function escapeHtml(s: string): string {
-    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
-}
-
 function truncateAtWord(s: string, max: number): string {
     if (s.length <= max) return s
     const cut = s.slice(0, max)
@@ -198,13 +211,17 @@ function formatScheduled(post: CampaignDigestPost): string {
 
 /**
  * Per-post cards (scheduled time · type · thumbnail · caption preview · hashtags)
- * + intro + one CTA. Returns INNER html — send via sendNotification({ html }).
+ * + intro + one CTA. Vrací **bloky** — pošli přes `sendNotification({ blocks })`.
+ *
+ * Dřív to bylo hotové HTML s vlastními tmavými kartami a CTA v odstínu
+ * `#e5533f`, který se s brandovým `#e63946` rozešel. Přes bloky drží digest
+ * tentýž vzhled jako zbytek pošty a textovou verzi dostane zadarmo.
  */
 export function renderCampaignDigest(
     posts: CampaignDigestPost[],
     opts: { intro: string; ctaUrl: string; ctaLabel: string },
-): string {
-    const cards = posts.slice(0, DIGEST_MAX_CARDS).map(post => {
+): Block[] {
+    const items: CardItem[] = posts.slice(0, DIGEST_MAX_CARDS).map(post => {
         const typeLabel = (isMediumType(post.media_type) && MEDIA_LABELS[post.media_type]) || "📷 Příspěvek"
         // image_url is pipe-joined (carousel slides / story frames / reel video|cover) —
         // parsePostMedia picks the one URL that is safe to put in an <img>.
@@ -212,19 +229,18 @@ export function renderCampaignDigest(
         const caption = truncateAtWord((post.caption || "").trim(), DIGEST_CAPTION_CHARS)
         const hashtags = (post.hashtags || []).filter(Boolean)
             .map(h => (h.startsWith("#") ? h : `#${h}`)).join(" ")
-        return `
-        <div style="border:1px solid #1a1a1a;border-radius:4px;padding:14px;margin:0 0 12px;background:#0a0a0a">
-          <p style="margin:0 0 10px;font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px">${escapeHtml(formatScheduled(post))} · ${typeLabel}</p>
-          ${thumb ? `<img src="${thumb}" alt="" width="120" style="display:block;max-width:120px;border-radius:4px;margin:0 0 10px" />` : ""}
-          <p style="margin:0;font-size:13px;line-height:1.55;color:#ddd;white-space:pre-wrap">${escapeHtml(caption)}</p>
-          ${hashtags ? `<p style="margin:8px 0 0;font-size:12px;color:#8fb4ff">${escapeHtml(hashtags)}</p>` : ""}
-        </div>`
-    }).join("")
+        return {
+            meta: `${formatScheduled(post)} · ${typeLabel}`,
+            text: [caption, hashtags].filter(Boolean).join("\n\n"),
+            imageUrl: thumb || undefined,
+        }
+    })
 
-    const more = posts.length > DIGEST_MAX_CARDS
-        ? `<p style="margin:0 0 16px;font-size:13px;color:#888">…a dalších ${posts.length - DIGEST_MAX_CARDS} příspěvků najdete v aplikaci.</p>`
-        : ""
-    const cta = `<p style="margin:20px 0 0"><a href="${opts.ctaUrl}" style="display:inline-block;background:#e5533f;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:12px 20px;border-radius:4px">${opts.ctaLabel}</a></p>`
-
-    return `${paragraphsHtml(opts.intro)}${cards}${more}${cta}`
+    return compact([
+        ...opts.intro.split(/\n{2,}/).map(p => p.trim()).filter(Boolean).map(paragraph),
+        cards(items),
+        posts.length > DIGEST_MAX_CARDS &&
+            paragraph(`…a dalších ${posts.length - DIGEST_MAX_CARDS} příspěvků najdete v aplikaci.`),
+        button(opts.ctaLabel, opts.ctaUrl),
+    ])
 }

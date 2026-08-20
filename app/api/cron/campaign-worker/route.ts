@@ -510,7 +510,7 @@ Tým Chrlit`,
             to,
             kind: "notification",
             subject: `Váš obsah je připraven — ${info.successes} z ${info.total} příspěvků`,
-            html: renderCampaignDigest(posts, {
+            blocks: renderCampaignDigest(posts, {
                 intro: introParts.join("\n\n"),
                 ctaUrl,
                 ctaLabel: "Otevřít příspěvky v aplikaci →",

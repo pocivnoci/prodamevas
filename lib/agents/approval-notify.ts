@@ -10,6 +10,9 @@ import supabaseAdmin from "@/supabase/admin"
 import { getFounderEmail, sendEmail } from "@/lib/email"
 import { approvalLinkUrl } from "@/lib/agent-approval-link"
 import { escapeHtml, siteUrl } from "@/lib/notifications"
+import { footnote, heading, raw } from "@/lib/mail/blocks"
+import { renderEmail } from "@/lib/mail/layout"
+import { COLOR } from "@/lib/mail/tokens"
 
 const RISK_LABELS: Record<string, string> = {
     outbound: "Odchozí (zákazník)",
@@ -43,29 +46,39 @@ export function renderApprovalItem(input: ApprovalNotifyInput, label: string): s
     const approve = approvalLinkUrl(siteUrl(), input.actionId, "approve")
     const reject = approvalLinkUrl(siteUrl(), input.actionId, "reject")
     const payloadPreview = input.payload && Object.keys(input.payload).length > 0
-        ? `<pre style="background:#0a0a0a;border:1px solid #1a1a1a;border-radius:4px;padding:10px;font-size:11px;color:#999;white-space:pre-wrap;word-break:break-word;margin:10px 0 0">${esc(JSON.stringify(input.payload, null, 2).slice(0, 800))}</pre>`
+        ? `<pre style="background:#f7f7f7;border:1px solid ${COLOR.hairline};border-radius:2px;padding:10px;font-size:11px;color:${COLOR.muted};white-space:pre-wrap;word-break:break-word;margin:10px 0 0">${esc(JSON.stringify(input.payload, null, 2).slice(0, 800))}</pre>`
         : ""
     return `
-      <div style="border:1px solid #1a1a1a;border-radius:4px;padding:16px;margin:0 0 12px;background:#0a0a0a">
-        <p style="margin:0 0 4px;font-size:11px;color:#f59e0b;text-transform:uppercase;letter-spacing:1px">${RISK_LABELS[input.riskTier] || input.riskTier} · ${esc(input.agentType)}</p>
-        <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#fff">${esc(input.action)}</p>
-        <p style="margin:0;font-size:12px;color:#888">Klient: ${esc(label)}</p>
+      <div style="border:1px solid ${COLOR.hairline};border-radius:2px;padding:16px;margin:0 0 12px">
+        <p style="margin:0 0 4px;font-size:11px;color:#7a5510;text-transform:uppercase;letter-spacing:1px">${RISK_LABELS[input.riskTier] || input.riskTier} · ${esc(input.agentType)}</p>
+        <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:${COLOR.ink}">${esc(input.action)}</p>
+        <p style="margin:0;font-size:12px;color:${COLOR.muted}">Klient: ${esc(label)}</p>
         ${payloadPreview}
         <p style="margin:14px 0 0">
-          <a href="${approve}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:10px 18px;border-radius:4px;margin-right:8px">✓ Schválit</a>
-          <a href="${reject}" style="display:inline-block;background:#1a1a1a;border:1px solid #333;color:#ccc;text-decoration:none;font-weight:bold;font-size:13px;padding:10px 18px;border-radius:4px">✕ Zamítnout</a>
+          <a href="${approve}" style="display:inline-block;background:#1c6b45;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:10px 18px;border-radius:2px;margin-right:8px">✓ Schválit</a>
+          <a href="${reject}" style="display:inline-block;background:#fff;border:1px solid ${COLOR.ink};color:${COLOR.ink};text-decoration:none;font-weight:bold;font-size:13px;padding:10px 18px;border-radius:2px">✕ Zamítnout</a>
         </p>
       </div>`
 }
 
+/**
+ * Ops zprávy jedou tou samou slupkou jako zákaznické, jen ve `variant: "ops"` —
+ * bez identifikace podnikatele a bez odhlašovacího odkazu (zakladatel se ze
+ * svého monitoringu neodhlašuje). Dřív tu byla vlastní tmavá slupka; tři kopie
+ * znamenaly tři různé e-maily od jednoho odesílatele.
+ */
 export function wrapOpsEmail(title: string, subtitle: string, innerHtml: string): string {
-    return `
-      <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#050505;color:#fff;padding:32px;max-width:560px;margin:0 auto">
-        <h1 style="font-size:20px;text-transform:uppercase;letter-spacing:-0.5px;margin:0 0 4px">${title}</h1>
-        <p style="color:#888;font-size:12px;margin:0 0 24px">${subtitle}</p>
-        ${innerHtml}
-        <p style="color:#555;font-size:11px;margin-top:24px">Odkazy platí 7 dní · vše najdeš i v dashboardu → Schválení</p>
-      </div>`
+    return renderEmail({
+        subject: title,
+        eyebrow: subtitle,
+        kind: "transactional",
+        variant: "ops",
+        blocks: [
+            heading(title),
+            raw(innerHtml),
+            footnote("Odkazy platí 7 dní · vše najdeš i v dashboardu → Schválení"),
+        ],
+    }).html
 }
 
 export async function notifyPendingApproval(input: ApprovalNotifyInput): Promise<void> {

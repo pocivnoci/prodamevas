@@ -65,3 +65,6 @@ docs/pricing/
 # tenant data dumps written by one-off migration/rebrand scripts before they
 # write — live customer config, never source. Keep local only.
 scripts/backups/
+
+# Vygenerované náhledy e-mailů (scripts/preview-emails.ts)
+.email-preview/
