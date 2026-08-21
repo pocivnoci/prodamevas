@@ -17,6 +17,7 @@ export { type ProductIdea, type DesignConcept }
 import { withRetry } from "@/utils/retry"
 import { creditGuard } from "./credit-guard"
 import { getClientConfig } from "./config-actions"
+import type { ProductUrlDraft, SavableDraft } from "@/lib/product-import"
 
 // ============================================
 // PRODUCT GENERATION ACTIONS
@@ -1096,310 +1097,44 @@ Vrať POUZE platný JSON pole objektů.`
 // co ze stránek přečetl. Uloží se až to, co uživatel v náhledu potvrdí.
 // U jednoho konkrétního produktu je špatná cena horší než klik navíc — a scrape
 // webu, který ukládá rovnou, tuhle kontrolu nemá.
+//
+// Vlastní logika žije v `lib/product-import.ts` bez vazby na session, aby šla
+// spustit i mimo prohlížeč. Tady zbývá jen hranice: přelož slug na `clientId`.
 
-/** Jeden řádek náhledu importu. Pole jsou editovatelná v UI, server je při ukládání znovu validuje. */
-export interface ProductUrlDraft {
-    /** Normalizovaná adresa (bez utm_*), pod kterou se produkt uloží */
-    url: string
-    ok: boolean
-    error?: string
-    /** Název existujícího produktu, kterému by import udělal dvojče */
-    duplicateOf?: string
-    name: string
-    type: string
-    slug: string
-    price: string
-    description: string
-    imageUrls: string[]
-    /** "structured" = odečteno z JSON-LD/OG, "ai" = dopočítal model, "mixed" = obojí */
-    extraction: "structured" | "mixed" | "ai"
-}
+export type { ProductUrlDraft }
 
-/** Strop na jedno vložení. Deset odkazů je ~10 fetchů — pod limitem funkce i s AI fallbackem. */
-const MAX_IMPORT_URLS = 10
-/** Cizí weby jsou pomalé; tři souběžně drží celou dávku pod ~15 s bez toho, aby to vypadalo jako útok. */
-const IMPORT_CONCURRENCY = 3
-
-function productSlugFrom(name: string): string {
-    return name
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 40)
-        .replace(/-+$/, "")
-}
-
-function freeSlug(base: string, taken: Set<string>): string {
-    const seed = base || "produkt"
-    if (!taken.has(seed)) return seed
-    let n = 2
-    while (taken.has(`${seed}-${n}`)) n++
-    return `${seed}-${n}`
-}
-
-/**
- * Přečte produkty z vložených odkazů a vrátí je k potvrzení. **Neukládá.**
- *
- * Strukturovaná data (JSON-LD / OpenGraph) mají přednost před modelem — viz
- * `lib/product-url.ts`. Jeden rozbitý odkaz nezhodí celou dávku: chyba se vrátí
- * u svého řádku a ostatní doběhnou.
- */
+/** Přečte produkty z vložených odkazů a vrátí je k potvrzení. Neukládá. */
 export async function previewProductsFromUrls(
     projectSlug: string,
     rawUrls: string[],
 ): Promise<{ success: boolean; drafts?: ProductUrlDraft[]; error?: string }> {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
-
-        const {
-            normalizeProductUrl,
-            fetchProductPage,
-            extractStructured,
-            needsAiFallback,
-            hasEnoughTextForAi,
-            pageToText,
-            buildProductPrompt,
-            mergeAiResult,
-            PRODUCT_AI_SCHEMA,
-        } = await import("@/lib/product-url")
-
-        // Normalizuj + zahoď duplicity v samotném vstupu (nalepený seznam je má často)
-        const seen = new Set<string>()
-        const urls: string[] = []
-        const invalid: ProductUrlDraft[] = []
-        for (const raw of rawUrls) {
-            if (!raw.trim()) continue
-            const normalized = normalizeProductUrl(raw)
-            if (!normalized) {
-                invalid.push({
-                    url: raw.trim().slice(0, 200),
-                    ok: false,
-                    error: "Tohle nevypadá jako odkaz",
-                    name: "", type: "", slug: "", price: "", description: "",
-                    imageUrls: [], extraction: "structured",
-                })
-                continue
-            }
-            if (seen.has(normalized)) continue
-            seen.add(normalized)
-            urls.push(normalized)
+        const { readProductDrafts } = await import("@/lib/product-import")
+        const result = await readProductDrafts(clientId, rawUrls)
+        if (result.drafts) {
+            console.log(`🔗 Import z odkazů: ${result.drafts.filter(d => d.ok).length}/${result.drafts.length} přečteno pro ${projectSlug}`)
         }
-
-        if (urls.length === 0 && invalid.length === 0) {
-            return { success: false, error: "Vlož aspoň jeden odkaz" }
-        }
-        if (urls.length > MAX_IMPORT_URLS) {
-            return { success: false, error: `Najednou zvládnu ${MAX_IMPORT_URLS} odkazů, vložils ${urls.length}` }
-        }
-
-        // Katalog klienta — kvůli značce „tohle už máš"
-        const { data: existing } = await supabaseAdmin
-            .from("ig_products")
-            .select("name, slug, source_url")
-            .eq("client_id", clientId)
-
-        const bySlug = new Map((existing || []).map((p: any) => [p.slug, p.name]))
-        const bySourceUrl = new Map(
-            (existing || []).filter((p: any) => p.source_url).map((p: any) => [p.source_url, p.name]),
-        )
-
-        const readOne = async (url: string): Promise<ProductUrlDraft> => {
-            const empty = { name: "", type: "", slug: "", price: "", description: "", imageUrls: [] }
-            try {
-                const { html, finalUrl } = await fetchProductPage(url)
-                let data = extractStructured(html, finalUrl)
-
-                const pageText = pageToText(html)
-                const emptyShell = !hasEnoughTextForAi(pageText)
-
-                if (needsAiFallback(data) && !emptyShell) {
-                    try {
-                        const { generateText } = await import("@/instagram/gemini-client")
-                        const raw = await generateText(
-                            buildProductPrompt(pageText, finalUrl, data),
-                            { model: getModel("text"), responseSchema: PRODUCT_AI_SCHEMA },
-                        )
-                        const parsed = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] || "{}")
-                        data = mergeAiResult(data, parsed)
-                    } catch (aiErr: any) {
-                        // Model je záchranná síť, ne podmínka. Co dalo JSON-LD, pořád platí.
-                        console.warn(`   ⚠️ AI fallback selhal pro ${url}: ${aiErr?.message || aiErr}`)
-                    }
-                }
-
-                if (!data.name) {
-                    return {
-                        url,
-                        ok: false,
-                        error: emptyShell
-                            ? "Stránka se skládá až v prohlížeči — přidej produkt ručně"
-                            : "Na stránce jsem nenašel produkt",
-                        ...empty,
-                        extraction: data.extraction,
-                    }
-                }
-
-                const slug = productSlugFrom(data.name)
-                return {
-                    url,
-                    ok: true,
-                    duplicateOf: bySourceUrl.get(url) || bySlug.get(slug) || undefined,
-                    name: data.name,
-                    type: data.type || "produkt",
-                    slug,
-                    price: data.price || "",
-                    description: data.description || "",
-                    imageUrls: data.imageUrls,
-                    extraction: data.extraction,
-                }
-            } catch (err: any) {
-                return { url, ok: false, error: err?.message || String(err), ...empty, extraction: "structured" }
-            }
-        }
-
-        // Malý worker pool — pořadí výsledků drží pořadí vstupu, aby náhled seděl na to, co uživatel nalepil
-        const results: ProductUrlDraft[] = new Array(urls.length)
-        let cursor = 0
-        await Promise.all(
-            Array.from({ length: Math.min(IMPORT_CONCURRENCY, urls.length) }, async () => {
-                while (cursor < urls.length) {
-                    const index = cursor++
-                    results[index] = await readOne(urls[index])
-                }
-            }),
-        )
-
-        console.log(`🔗 Import z odkazů: ${results.filter(r => r.ok).length}/${urls.length} přečteno pro ${projectSlug}`)
-        return { success: true, drafts: [...results, ...invalid] }
+        return result
     } catch (err: any) {
         console.error("previewProductsFromUrls error:", err?.message || err)
         return { success: false, error: err?.message || String(err) }
     }
 }
 
-/**
- * Uloží produkty potvrzené v náhledu — včetně stažení fotek do `product-images`.
- *
- * Fotky se stahují až tady, ne při náhledu: u zahozeného importu by šlo o úložiště
- * za nic. Selhání jedné fotky produkt neshodí, jen se u něj neuloží.
- */
+/** Uloží produkty potvrzené v náhledu — včetně stažení fotek do `product-images`. */
 export async function saveImportedProducts(
     projectSlug: string,
-    drafts: Pick<ProductUrlDraft, "url" | "name" | "type" | "slug" | "price" | "description" | "imageUrls">[],
+    drafts: SavableDraft[],
 ): Promise<{ success: boolean; inserted: number; skipped: number; images: number; error?: string }> {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
-        const usable = drafts.filter(d => d.name?.trim())
-        if (usable.length === 0) return { success: false, inserted: 0, skipped: 0, images: 0, error: "Není co uložit" }
-
-        const { assertFetchableUrl, MAX_PRODUCT_IMAGES } = await import("@/lib/product-url")
-
-        // Náhled mohl mezitím zestárnout — dedup i unikátnost slugu se řeší proti čerstvému katalogu
-        const { data: existing } = await supabaseAdmin
-            .from("ig_products")
-            .select("slug, source_url")
-            .eq("client_id", clientId)
-
-        const takenSlugs = new Set((existing || []).map((p: any) => p.slug))
-        const takenUrls = new Set((existing || []).filter((p: any) => p.source_url).map((p: any) => p.source_url))
-
-        let inserted = 0
-        let skipped = 0
-        let images = 0
-        const sharp = (await import("sharp")).default
-
-        for (const draft of usable) {
-            if (draft.url && takenUrls.has(draft.url)) { skipped++; continue }
-
-            const slug = freeSlug(productSlugFrom(draft.slug || draft.name), takenSlugs)
-            takenSlugs.add(slug)
-            if (draft.url) takenUrls.add(draft.url)
-
-            const { data: row, error: insertError } = await supabaseAdmin
-                .from("ig_products")
-                .insert({
-                    client_id: clientId,
-                    name: draft.name.trim(),
-                    type: draft.type?.trim() || "produkt",
-                    slug,
-                    price: draft.price?.trim() || null,
-                    description: draft.description?.trim() || null,
-                    source_url: draft.url || null,
-                    image_urls: [],
-                })
-                .select("id")
-                .single()
-
-            if (insertError || !row) {
-                console.warn(`   ⚠️ Produkt ${slug} se nepodařilo uložit: ${insertError?.message}`)
-                skipped++
-                continue
-            }
-            inserted++
-
-            const storedUrls: string[] = []
-            for (const [i, imageUrl] of (draft.imageUrls || []).slice(0, MAX_PRODUCT_IMAGES).entries()) {
-                try {
-                    // Seznam fotek se vrací z prohlížeče — adresu je nutné prověřit znovu
-                    await assertFetchableUrl(imageUrl)
-
-                    const ctrl = new AbortController()
-                    const timer = setTimeout(() => ctrl.abort(), 8000)
-                    let resp: Response
-                    try {
-                        resp = await fetch(imageUrl, {
-                            signal: ctrl.signal,
-                            headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" },
-                        })
-                    } finally {
-                        clearTimeout(timer)
-                    }
-                    if (!resp.ok) continue
-
-                    const contentType = resp.headers.get("content-type") || "image/jpeg"
-                    if (!contentType.startsWith("image/")) continue
-
-                    const buffer = Buffer.from(await resp.arrayBuffer())
-                    if (buffer.length < 5000 || buffer.length > 10_000_000) continue
-
-                    // Rozměr rozhoduje, ne jméno souboru — ikony a odznaky sem nepatří
-                    try {
-                        const meta = await sharp(buffer).metadata()
-                        if ((meta.width || 0) < 200 || (meta.height || 0) < 200) continue
-                    } catch { continue }
-
-                    const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg"
-                    const filename = `${clientId}/${slug}-${i}.${ext}`
-
-                    const { error: uploadError } = await supabaseAdmin.storage
-                        .from("product-images")
-                        .upload(filename, buffer, { contentType, cacheControl: "31536000", upsert: true })
-                    if (uploadError) continue
-
-                    const { data: pubUrl } = supabaseAdmin.storage.from("product-images").getPublicUrl(filename)
-                    storedUrls.push(pubUrl.publicUrl)
-                    images++
-                } catch {
-                    // Fotka je bonus, ne podmínka — produkt zůstává uložený i bez ní
-                }
-            }
-
-            if (storedUrls.length > 0) {
-                await supabaseAdmin
-                    .from("ig_products")
-                    .update({ image_urls: storedUrls, updated_at: new Date().toISOString() })
-                    .eq("id", row.id)
-                    .eq("client_id", clientId)
-            }
-        }
-
-        console.log(`✅ Import z odkazů: ${inserted} produktů + ${images} fotek pro ${projectSlug}`)
-        return { success: true, inserted, skipped, images }
+        const { importProductDrafts } = await import("@/lib/product-import")
+        const result = await importProductDrafts(clientId, drafts)
+        console.log(`✅ Import z odkazů: ${result.inserted} produktů + ${result.images} fotek pro ${projectSlug}`)
+        return result
     } catch (err: any) {
         console.error("saveImportedProducts error:", err?.message || err)
         return { success: false, inserted: 0, skipped: 0, images: 0, error: err?.message || String(err) }
     }
 }
-

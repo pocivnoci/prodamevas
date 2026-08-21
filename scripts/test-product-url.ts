@@ -274,6 +274,177 @@ async function main() {
         eq("při shodě rozlišení vyhraje https", d.imageUrls, ["https://cdn.sh.com/bota.png"])
     }
 
+    // ── Microdata: jediný strukturovaný zdroj na Shoptetu ──
+    console.log("\nMicrodata:")
+    {
+        const html = `<div itemscope itemtype="https://schema.org/Product">
+            <h2 itemprop="name">Zrnková káva Torino</h2>
+            <p itemprop="description">Stoprocentní arabica pražená v Itálii.</p>
+            <img itemprop="image" src="/img/torino.jpg">
+            <div itemprop="offers" itemscope itemtype="https://schema.org/Offer">
+                <meta itemprop="price" content="389.00">
+                <meta itemprop="priceCurrency" content="CZK">
+            </div>
+        </div>`
+        const d = extractStructured(html, PAGE)
+        eq("název z itemprop", d.name, "Zrnková káva Torino")
+        eq("popis z itemprop", d.description, "Stoprocentní arabica pražená v Itálii.")
+        // Cena žije ve vnořeném Offer — do vnořených scope se pro ni smí
+        eq("cena z vnořeného Offer", d.price, "389 Kč")
+        eq("fotka z itemprop", d.imageUrls, ["https://obchod.cz/img/torino.jpg"])
+        check("microdata jsou značka produktu", d.isProductPage)
+    }
+    {
+        // Značka výrobce má taky `name` — ale produkt se nejmenuje „Kafista"
+        const html = `<div itemscope itemtype="https://schema.org/Product">
+            <div itemprop="brand" itemscope itemtype="https://schema.org/Brand">
+                <span itemprop="name">Kafista</span>
+            </div>
+            <h1 itemprop="name">Zrnková káva Torino</h1>
+        </div>`
+        eq("název z vnořeného Brand se nebere", extractStructured(html, PAGE).name, "Zrnková káva Torino")
+    }
+    {
+        // Reálný případ megaknihy.cz: uvnitř Book je jen promo hláška, název je mimo
+        const html = `<title>Lost Star: The Life and Loves of Belinda Lee</title>
+            <div itemscope itemtype="https://schema.org/Book">
+                <span itemprop="name">Opravdu máme skvělé ceny a dopravné od 49 Kč!</span>
+            </div>`
+        eq("název bez průniku s titulkem se zahodí a čte se dál",
+            extractStructured(html, PAGE).name, "Lost Star: The Life and Loves of Belinda Lee")
+    }
+    {
+        const html = `<title>Vosk na kola</title>
+            <div itemscope itemtype="https://schema.org/Product">
+                <span itemprop="name">Sleva 20 % na vše!</span>
+                <span itemprop="name">Vosk na kola</span>
+            </div>`
+        eq("z víc kandidátů vyhraje ten, co sedí na titulek",
+            extractStructured(html, PAGE).name, "Vosk na kola")
+    }
+    {
+        // Bez titulku není čemu protiřečit — markup je jediné svědectví
+        const html = `<div itemscope itemtype="https://schema.org/Product">
+            <span itemprop="name">Produkt bez titulku stránky</span></div>`
+        eq("bez titulku se microdata berou bez námitek",
+            extractStructured(html, PAGE).name, "Produkt bez titulku stránky")
+    }
+    {
+        // Rozbité HTML nesmí shodit skenování scope
+        const html = `<div itemscope itemtype="https://schema.org/Product"><span itemprop="name">Nedovřený produkt`
+        eq("nedovřená značka nezhavaruje", extractStructured(html, PAGE).name, "Nedovřený produkt")
+    }
+
+    // ── Kategorie ──
+    console.log("\nKategorie:")
+    {
+        // Shoptet dává do `category` celou cestu ZAKONČENOU názvem produktu
+        const html = `<div itemscope itemtype="https://schema.org/Product">
+            <meta itemprop="name" content="Arašídový krém s bílou čokoládou (500 g)">
+            <meta itemprop="category" content="Úvodní stránka &gt; Produkty &gt; Ořechy &gt; Arašídové máslo &gt; Arašídový krém s bílou čokoládou (500 g)">
+        </div>`
+        const d = extractStructured(html, PAGE)
+        // Naivní „poslední článek" by dal název produktu; ořez cesty před výběrem
+        // listu by dal „Arašídové má…" — obojí se stalo naostro
+        eq("poslední článek cesty je produkt, bere se předchozí", d.type, "Arašídové máslo")
+    }
+    {
+        const html = `<div itemscope itemtype="https://schema.org/Product">
+            <meta itemprop="name" content="Vosk">
+            <meta itemprop="category" content="Autokosmetika">
+        </div>`
+        eq("jednočlenná kategorie projde beze změny", extractStructured(html, PAGE).type, "Autokosmetika")
+    }
+    {
+        const html = `<div itemscope itemtype="https://schema.org/Product">
+            <meta itemprop="name" content="Espresso">
+            <meta itemprop="category" content="Domů &gt; ☕ Káva značky Kafista">
+        </div>`
+        eq("emoji z kategorie i kořen cesty jdou pryč",
+            extractStructured(html, PAGE).type, "Káva značky Kafista")
+    }
+    {
+        const html = `<script type="application/ld+json">${JSON.stringify({
+            "@type": "BreadcrumbList",
+            itemListElement: [
+                { name: "Domů" }, { name: "Nápoje" }, { name: "Čaje" }, { name: "Zelený čaj sencha" },
+            ],
+        })}</script>
+        <script type="application/ld+json">${JSON.stringify({ "@type": "Product", name: "Zelený čaj sencha" })}</script>`
+        eq("kategorie z JSON-LD drobečkové navigace", extractStructured(html, PAGE).type, "Čaje")
+    }
+    {
+        const html = `<div itemscope itemtype="https://schema.org/BreadcrumbList">
+                <span itemprop="name">Domů</span><span itemprop="name">Konvice</span><span itemprop="name">Hrnek Creano</span>
+            </div>
+            <div itemscope itemtype="https://schema.org/Product"><meta itemprop="name" content="Hrnek Creano"></div>`
+        eq("kategorie z microdat drobečkové navigace", extractStructured(html, PAGE).type, "Konvice")
+    }
+    {
+        const html = `<div itemscope itemtype="https://schema.org/Product">
+            <meta itemprop="name" content="X">
+            <meta itemprop="category" content="Domů">
+        </div>`
+        eq("cesta jen s kořenem kategorii nedá", extractStructured(html, PAGE).type, null)
+    }
+
+    // ── Je to vůbec detail produktu? ──
+    console.log("\nRozpoznání detailu produktu:")
+    {
+        // Reálný případ kosik.cz: SPA vrátí slupku a název webu v og:title
+        const html = `<meta property="og:type" content="website">
+            <meta property="og:title" content="Košík.cz | Jednoduše. Velkovýhodně.">
+            <meta property="og:description" content="Nákup potravin online.">`
+        const d = extractStructured(html, PAGE)
+        check("homepage e-shopu není detail produktu", !d.isProductPage)
+        check("bez značky produktu se volá model i s názvem a popisem", needsAiFallback(d))
+    }
+    {
+        const html = `<meta property="og:type" content="product"><h1>Vosk</h1>`
+        check("og:type=product je značka produktu", extractStructured(html, PAGE).isProductPage)
+    }
+    {
+        const html = `<meta property="og:type" content="books.book"><h1>Kniha</h1>`
+        check("og:type=books.book taky", extractStructured(html, PAGE).isProductPage)
+    }
+    {
+        const html = `<meta property="product:price:amount" content="349"><h1>Vosk</h1>`
+        check("cena v meta je značka produktu", extractStructured(html, PAGE).isProductPage)
+    }
+    {
+        const html = `<script type="application/ld+json">${JSON.stringify({ "@type": "Product", name: "Vosk" })}</script>`
+        check("JSON-LD Product je značka produktu", extractStructured(html, PAGE).isProductPage)
+    }
+
+    // ── ProductGroup: cena bývá až u variant ──
+    console.log("\nVarianty:")
+    {
+        const html = `<script type="application/ld+json">${JSON.stringify({
+            "@type": "ProductGroup",
+            name: "Tričko Arrival",
+            hasVariant: [
+                { "@type": "Product", name: "Tričko Arrival S", offers: { price: 22, priceCurrency: "USD" } },
+            ],
+        })}</script>`
+        // Bez čtení hasVariant by produkt zůstal bez ceny (reálně: gymshark.com)
+        eq("cena z hasVariant[].offers", extractStructured(html, PAGE).price, "22 $")
+    }
+
+    // ── Titulek vs. <h1> ──
+    console.log("\nVýběr mezi og:title a <h1>:")
+    {
+        // Shoptet: og:title je pro sdílení, <h1> je čistý název produktu
+        const html = `<meta property="og:title" content="Cold Brew set 7x50 g | Výběrová káva na léto">
+            <h1>KAFISTA Cold Brew set 7x50 g</h1>`
+        eq("ocásek v og:title → bere se <h1>", extractStructured(html, PAGE).name, "KAFISTA Cold Brew set 7x50 g")
+    }
+    {
+        // Megaknihy: naopak — <h1> je hlavička e-shopu
+        const html = `<meta property="og:title" content="Lost Star">
+            <h1>MEGAKNIHY.CZ - Internetové knihkupectví</h1>`
+        eq("ocásek v <h1> → bere se og:title", extractStructured(html, PAGE).name, "Lost Star")
+    }
+
     // ── Model je záchranná síť, ne první volba ──
     console.log("\nSloučení s výsledkem modelu:")
     {
@@ -300,6 +471,27 @@ async function main() {
         const merged = mergeAiResult(structured, null)
         eq("selhání modelu nepřepíše odečtený název na null", merged.name, "Produkt")
         eq("chybějící pole zůstanou prázdná", [merged.price, merged.description], [null, null])
+    }
+    {
+        // Reálný případ: homepage shop.mango.com — model ji sám označil za neproduktovou
+        const structured = extractStructured(`<meta property="og:title" content="MANGO">`, PAGE)
+        const merged = mergeAiResult(structured, { isProductPage: false })
+        eq("model smí zamítnout stránku bez značky produktu", merged.name, null)
+        check("a zůstane zamítnutá", !merged.isProductPage)
+    }
+    {
+        // Na stránce s JSON-LD Product má přednost značka: ta se nedá přehlédnout,
+        // kdežto model se u neobvyklého layoutu splést může
+        const html = `<script type="application/ld+json">${JSON.stringify({ "@type": "Product", name: "Vosk" })}</script>`
+        const merged = mergeAiResult(extractStructured(html, PAGE), { isProductPage: false })
+        eq("proti JSON-LD Product model neuspěje", merged.name, "Vosk")
+        check("stránka zůstává produktová", merged.isProductPage)
+    }
+    {
+        const structured = extractStructured(`<meta property="og:title" content="Vosk na kola">`, PAGE)
+        const merged = mergeAiResult(structured, { isProductPage: true, price: "199 Kč" })
+        check("potvrzení od modelu stránku zproduktovní", merged.isProductPage)
+        eq("a doplněná cena projde", merged.price, "199 Kč")
     }
 
     // ── Text a prompt pro model ──

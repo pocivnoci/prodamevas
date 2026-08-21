@@ -33,6 +33,12 @@ export interface ProductPageData {
     imageUrls: string[]
     /** Odkud data přišla — jde do UI, aby bylo poznat, co je odečtené a co dopočítané */
     extraction: "structured" | "mixed" | "ai"
+    /**
+     * Nese stránka značku produktu (JSON-LD, microdata, `og:type`, cena v meta)?
+     * Když ne, je název nejspíš jen titulek webu — a takový „produkt" je horší
+     * než chyba, protože v katalogu vypadá věrohodně.
+     */
+    isProductPage: boolean
 }
 
 /** Kolik fotek z galerie vůbec nabídnout k uložení. */
@@ -299,6 +305,101 @@ function isProductNode(node: any): boolean {
     return types.some(t => typeof t === "string" && /^(Product|ProductGroup|IndividualProduct|Service)$/i.test(t))
 }
 
+// ============================================
+// Microdata (schema.org v atributech)
+// ============================================
+//
+// Shoptet — nejrozšířenější platforma českých e-shopů — **nevypisuje JSON-LD
+// produktu**, jen microdata (`itemtype="…/Product"`, `itemprop="price"`). Bez
+// tohohle bloku by z něj šlo jen to, co je náhodou i v OpenGraphu: tedy SEO
+// titulek místo názvu, žádná kategorie a fotky z těla popisku.
+
+const PRODUCT_MICRODATA = /^(Product|IndividualProduct|Book|Service|SoftwareApplication)$/i
+
+/** Od otevírací značky na pozici `from` vrátí celý její podstrom včetně značky. */
+function sliceScope(html: string, from: number, maxLength = 300_000): string {
+    const tag = html.slice(from, from + 40).match(/^<([a-z0-9]+)/i)?.[1]
+    if (!tag) return ""
+    const pattern = new RegExp(`<(/?)${tag}\\b`, "gi")
+    pattern.lastIndex = from
+    let depth = 0
+    let match: RegExpExecArray | null
+    while ((match = pattern.exec(html)) !== null) {
+        if (match.index - from > maxLength) break
+        if (match[1]) {
+            depth--
+            if (depth <= 0) return html.slice(from, match.index)
+        } else {
+            depth++
+        }
+    }
+    // Nedovřená značka: ber rozumné okno, ať to nespadne na rozbitém HTML
+    return html.slice(from, Math.min(html.length, from + maxLength))
+}
+
+interface MicroItem {
+    scope: string
+    /** Rozsahy vnořených itemscope — `name` uvnitř Brand ani Review není jméno produktu */
+    nested: [number, number][]
+}
+
+function microdataItems(html: string, type: RegExp): MicroItem[] {
+    const items: MicroItem[] = []
+    for (const match of html.matchAll(/<[a-z0-9]+\b[^>]*\bitemtype=["'][^"']*schema\.org\/([A-Za-z]+)["'][^>]*>/gi)) {
+        if (!type.test(match[1]) || match.index === undefined) continue
+        const scope = sliceScope(html, match.index)
+        if (!scope) continue
+
+        const nested: [number, number][] = []
+        for (const inner of scope.matchAll(/<[a-z0-9]+\b[^>]*\bitemscope\b[^>]*>/gi)) {
+            if (inner.index === undefined || inner.index === 0) continue
+            nested.push([inner.index, inner.index + sliceScope(scope, inner.index).length])
+        }
+        items.push({ scope, nested })
+    }
+    return items
+}
+
+function insideNested(item: MicroItem, index: number): boolean {
+    return item.nested.some(([start, end]) => index >= start && index < end)
+}
+
+/** Hodnota vlastnosti: `content`, `src`/`href` u odkazů a obrázků, jinak vnitřní text. */
+function microValues(item: MicroItem, prop: string, allowNested = false): string[] {
+    const out: string[] = []
+    const pattern = new RegExp(`<([a-z0-9]+)\\b([^>]*\\bitemprop=["']${prop}["'][^>]*)>`, "gi")
+    for (const match of item.scope.matchAll(pattern)) {
+        if (match.index === undefined) continue
+        if (!allowNested && insideNested(item, match.index)) continue
+
+        const [, tag, attrs] = match
+        const content = attrs.match(/\bcontent=["']([^"']*)["']/i)?.[1]
+        if (content) { out.push(content); continue }
+        if (/^(img|source|audio|video|embed)$/i.test(tag)) {
+            const src = attrs.match(/\b(?:data-src|src)=["']([^"']*)["']/i)?.[1]
+            if (src) out.push(src)
+            continue
+        }
+        if (/^(a|link|area)$/i.test(tag)) {
+            const href = attrs.match(/\bhref=["']([^"']*)["']/i)?.[1]
+            if (href) out.push(href)
+            continue
+        }
+        const subtree = sliceScope(item.scope, match.index)
+        const inner = subtree.replace(/^<[a-z0-9]+\b[^>]*>/i, "")
+        if (inner.trim()) out.push(inner)
+    }
+    return out
+}
+
+function microValue(item: MicroItem, prop: string, allowNested = false): string | null {
+    for (const raw of microValues(item, prop, allowNested)) {
+        const value = clean(raw)
+        if (value) return value
+    }
+    return null
+}
+
 function metaContent(html: string, ...names: string[]): string | null {
     for (const name of names) {
         const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
@@ -358,6 +459,134 @@ function stripSiteSuffix(title: string, html: string, pageUrl: string): string {
     return out.trim() || title
 }
 
+/** Rozloží `category` na články cesty. Řetěz i objekt, oboje se v divočině potkává. */
+function splitCategoryPath(raw: unknown): string[] {
+    const value = typeof raw === "object" && raw !== null ? (raw as any).name : raw
+    if (typeof value !== "string" || !value.trim()) return []
+    // Jen jednoznačné oddělovače cesty — lomítko umí být součástí názvu („Voda/led")
+    return value.split(/\s*[>›»]\s*/)
+}
+
+const PATH_ROOTS = /^(dom[uů]|home|[uú]vod|[uú]vodn[ií] str[aá]nka|hlavn[ií] strana)$/i
+
+/**
+ * Z cesty vybere kategorii, do které produkt patří.
+ *
+ * Dvě věci, které to musí ustát a naivní „vezmi poslední článek" ne:
+ *   * **poslední článek bývá sám produkt** (Shoptet: `itemprop="category"` je
+ *     „Úvod > Produkty > Arašídové máslo > Arašídový krém 500 g"),
+ *   * **ořezávat se smí až list**, ne celá cesta — jinak z „…> Arašídové máslo"
+ *     zbude „Arašídové má…".
+ */
+function categoryFromSegments(segments: string[], productName: string | null): string | null {
+    const cleaned = segments
+        .map(segment => clean(segment, 200))
+        .filter((segment): segment is string => Boolean(segment))
+        .filter(segment => !PATH_ROOTS.test(segment))
+    if (cleaned.length === 0) return null
+
+    const key = (value: string) => deburr(value).replace(/[^a-z0-9]+/g, "")
+    const list =
+        productName && cleaned.length > 1 && key(cleaned[cleaned.length - 1]) === key(productName)
+            ? cleaned.slice(0, -1)
+            : cleaned
+
+    const leaf = list[list.length - 1]
+    if (!leaf) return null
+
+    // E-shopy si kategorie zdobí emoji („☕ Káva") — do katalogu patří jen ten název
+    let label = leaf.replace(/^[^\p{L}\p{N}]+/u, "").trim() || leaf
+    // Dvojitě escapované entity ze šablon („Ořechy &amp;amp; Ovoce")
+    if (/&[a-z]+;|&#\d+;/i.test(label)) label = clean(label, 200) || label
+    return label.length > 60 ? `${label.slice(0, 59).trimEnd()}…` : label
+}
+
+function deburr(value: string): string {
+    return value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+}
+
+/**
+ * Vybere z kandidátů na název ten, který koresponduje s titulkem stránky.
+ *
+ * Microdata píšou lidé ručně a `itemprop="name"` se občas ocitne někde úplně jinde
+ * než na produktu. Reálný případ: megaknihy.cz má uvnitř `schema.org/Book` **jen**
+ * větu „Opravdu máme skvělé ceny…", zatímco název knihy je mimo scope. Titulek
+ * stránky je nezávislé druhé svědectví — s názvem produktu se překrývá, s promo
+ * hláškou ne. Nulový průnik proto znamená „tohle není název" a čte se dál z OG.
+ */
+function pickCorroboratedName(candidates: string[], reference: string): string | null {
+    const words = (value: string) => deburr(value).split(/[^a-z0-9]+/).filter(w => w.length >= 4)
+    const ref = new Set(words(reference))
+    // Bez titulku není čemu protiřečit — pak je markup jediné svědectví a platí
+    if (ref.size === 0) return candidates[0] ?? null
+    let best: string | null = null
+    let bestScore = -1
+    for (const candidate of candidates) {
+        const parts = words(candidate)
+        // Krátká jména („Set 5 ks") nemají co skórovat — ber je, jako by seděla
+        const score = parts.length === 0 ? 1 : parts.filter(word => ref.has(word)).length / parts.length
+        if (score > bestScore) {
+            bestScore = score
+            best = candidate
+        }
+    }
+    return bestScore > 0 ? best : null
+}
+
+/** Cena z pole nabídek — `Offer`, `AggregateOffer` i `priceSpecification`. */
+function priceFromOffers(offers: any[]): string | null {
+    for (const offer of offers) {
+        if (!offer || typeof offer !== "object") continue
+        const rawSpec = offer.priceSpecification
+        const spec = Array.isArray(rawSpec) ? rawSpec[0] : rawSpec
+        const price =
+            formatPrice(offer.price, offer.priceCurrency) ||
+            formatPrice(offer.lowPrice, offer.priceCurrency) ||
+            formatPrice(spec?.price, spec?.priceCurrency || offer.priceCurrency)
+        if (price) return price
+    }
+    return null
+}
+
+/**
+ * Kategorie z drobečkové navigace — poslední článek bývá sám produkt, viz
+ * `categoryFromSegments`.
+ */
+function breadcrumbCategory(html: string, productName: string | null): string | null {
+    const collect = (names: string[]): string | null => categoryFromSegments(names, productName)
+
+    for (const node of jsonLdNodes(html)) {
+        const type = node?.["@type"]
+        const types = Array.isArray(type) ? type : [type]
+        if (!types.some(t => typeof t === "string" && /BreadcrumbList/i.test(t))) continue
+        const list = Array.isArray(node.itemListElement) ? node.itemListElement : []
+        const names = list.map((el: any) =>
+            typeof el?.name === "string" ? el.name : typeof el?.item?.name === "string" ? el.item.name : "",
+        )
+        const found = collect(names)
+        if (found) return found
+    }
+
+    for (const list of microdataItems(html, /^BreadcrumbList$/i)) {
+        const found = collect(microValues(list, "name", true))
+        if (found) return found
+    }
+    return null
+}
+
+/**
+ * Vybere mezi `og:title` a `<h1>`. OpenGraph titulek se píše pro sdílení, takže
+ * často nese ocásek („… | Výběrová káva na léto"); `<h1>` na detailu produktu
+ * bývá čistý název. Když ale ocásek má `<h1>` a `og:title` ne, je to naopak —
+ * `<h1>` je hlavička e-shopu, ne produkt.
+ */
+function preferProductHeading(ogTitle: string | null, heading: string | null): string | null {
+    if (!ogTitle) return heading
+    if (!heading) return ogTitle
+    const composed = (value: string) => /\s+[|–—·•]\s+|\s+-\s+/.test(value)
+    return composed(ogTitle) && !composed(heading) ? heading : ogTitle
+}
+
 /** Text stránky bez navigace a skriptů — vstup pro AI záchrannou síť. */
 export function pageToText(html: string, limit = 6000): string {
     return decodeEntities(
@@ -404,43 +633,62 @@ export function extractStructured(html: string, pageUrl: string): ProductPageDat
     let name: string | null = null
     let description: string | null = null
     let price: string | null = null
-    let type: string | null = null
+    let categoryPath: string[] = []
+
+    // Titulky se čtou dopředu: slouží jako rozhodčí, když microdata nabídnou
+    // víc kandidátů na název (viz pickCorroboratedName)
+    const ogTitle = metaContent(html, "og:title", "twitter:title", "product:name")
+    const heading = clean(html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1], 200)
+    const docTitle = clean(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1], 200)
+    const titleHints = [ogTitle, heading, docTitle].filter(Boolean).join(" ")
 
     // 1) JSON-LD — nejspolehlivější zdroj, když ho stránka má
+    let hasProductMarkup = false
     for (const node of jsonLdNodes(html)) {
         if (!isProductNode(node)) continue
+        hasProductMarkup = true
         name ||= clean(node.name, 200)
         description ||= clean(node.description)
         pushImageField(node.image)
+        // Cesta se rozřeže hned, ale kategorie se z ní vybere až dole — potřebuje znát název produktu
+        if (categoryPath.length === 0) categoryPath = splitCategoryPath(Array.isArray(node.category) ? node.category[0] : node.category)
 
-        if (!type) {
-            const category = Array.isArray(node.category) ? node.category[0] : node.category
-            const label = clean(typeof category === "object" ? category?.name : category, 60)
-            // Breadcrumb kategorie „Domů > Oblečení > Košile" — bere se list, ne celá cesta
-            if (label) type = label.split(/\s*[>›|]\s*/).pop()?.trim() || label
-        }
-
-        if (!price) {
-            const offers = Array.isArray(node.offers) ? node.offers : node.offers ? [node.offers] : []
-            for (const offer of offers) {
-                if (!offer || typeof offer !== "object") continue
-                const rawSpec = offer.priceSpecification
-                const spec = Array.isArray(rawSpec) ? rawSpec[0] : rawSpec
-                price =
-                    formatPrice(offer.price, offer.priceCurrency) ||
-                    formatPrice(offer.lowPrice, offer.priceCurrency) ||
-                    formatPrice(spec?.price, spec?.priceCurrency || offer.priceCurrency)
-                if (price) break
-            }
-        }
+        // ProductGroup drží cenu až u variant — bez `hasVariant` zůstane produkt bez ceny
+        const variantOffers = Array.isArray(node.hasVariant)
+            ? node.hasVariant.flatMap((v: any) => (Array.isArray(v?.offers) ? v.offers : v?.offers ? [v.offers] : []))
+            : []
+        price ||= priceFromOffers([
+            ...(Array.isArray(node.offers) ? node.offers : node.offers ? [node.offers] : []),
+            ...variantOffers,
+        ])
     }
 
-    // JSON-LD `name` je jméno produktu — od téhle chvíle už se s titulkem nepracuje
+    // 2) Microdata — jediný strukturovaný zdroj na Shoptetu
+    for (const item of microdataItems(html, PRODUCT_MICRODATA)) {
+        hasProductMarkup = true
+        if (!name) {
+            const candidates = microValues(item, "name")
+                .map(value => clean(value, 200))
+                .filter((value): value is string => Boolean(value))
+            name = pickCorroboratedName(candidates, titleHints)
+        }
+        description ||= clean(microValue(item, "description"))
+        for (const image of microValues(item, "image")) pushImage(image)
+        if (categoryPath.length === 0) categoryPath = splitCategoryPath(microValue(item, "category"))
+        // Cena žije ve vnořeném Offer, takže se do vnořených scope smí
+        price ||= formatPrice(
+            microValue(item, "price", true),
+            microValue(item, "priceCurrency", true) || "CZK",
+        )
+    }
+
+    // `name` z JSON-LD nebo microdat je jméno produktu — s titulkem se dál nepracuje
     const nameFromProductData = Boolean(name)
 
-    // 2) OpenGraph / microdata — spolehlivé pro jméno a hlavní fotku
-    name ||= metaContent(html, "og:title", "twitter:title", "product:name")
+    // 3) OpenGraph — spolehlivé pro hlavní fotku, u názvu často SEO titulek
+    name ||= preferProductHeading(ogTitle, heading)
     description ||= metaContent(html, "og:description", "twitter:description", "description")
+    const hasPriceMeta = Boolean(metaContent(html, "product:price:amount", "og:price:amount"))
     price ||= formatPrice(
         metaContent(html, "product:price:amount", "og:price:amount"),
         metaContent(html, "product:price:currency", "og:price:currency") || "CZK",
@@ -453,12 +701,20 @@ export function extractStructured(html: string, pageUrl: string): ProductPageDat
         pushImage(image)
     }
 
-    // 3) Poslední čtená instance: <h1> a <title>
-    if (!name) name = clean(html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1], 200)
-    if (!name) name = clean(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1], 200)
+    // 4) Poslední čtená instance: <h1> a <title>
+    if (!name) name = heading || docTitle
 
     // Jen u jmen z titulku — „Košile modrá | Obchod.cz" produkt s tím jménem není
     if (name && !nameFromProductData) name = stripSiteSuffix(name, html, pageUrl)
+
+    // Kategorie se řeší až tady: aby šlo poznat, že poslední článek cesty je sám
+    // produkt, musí být název už hotový
+    const type = categoryFromSegments(categoryPath, name) || breadcrumbCategory(html, name)
+
+    // Vypadá stránka vůbec jako detail produktu? Bez tohohle by z homepage e-shopu
+    // vznikl „produkt" jménem webu — a takový se v katalogu pozná až v hotovém postu.
+    const ogType = metaContent(html, "og:type") || ""
+    const isProductPage = hasProductMarkup || hasPriceMeta || /product|book/i.test(ogType)
 
     // Galerie z <img>: doplňkový zdroj, když strukturovaná data dala málo fotek.
     if (images.size < MAX_PRODUCT_IMAGES) {
@@ -481,12 +737,19 @@ export function extractStructured(html: string, pageUrl: string): ProductPageDat
         description,
         imageUrls: [...images.values()].slice(0, MAX_PRODUCT_IMAGES),
         extraction: "structured",
+        isProductPage,
     }
 }
 
-/** True, když se bez modelu nedobralo použitelného výsledku. */
+/**
+ * True, když se bez modelu nedobralo použitelného výsledku.
+ *
+ * Třetí podmínka je ta důležitá: stránka **bez jakékoli značky produktu** dala
+ * jméno jen z titulku, takže to klidně může být homepage e-shopu. Tam se model
+ * neptá na doplnění, ale na potvrzení, že jde vůbec o produkt.
+ */
 export function needsAiFallback(data: ProductPageData): boolean {
-    return !data.name || (!data.description && !data.price)
+    return !data.name || (!data.description && !data.price) || !data.isProductPage
 }
 
 /** Kolik textu musí stránka mít, aby mělo smysl ptát se modelu. */
@@ -504,12 +767,13 @@ export function hasEnoughTextForAi(pageText: string): boolean {
 export const PRODUCT_AI_SCHEMA = {
     type: "object",
     properties: {
+        isProductPage: { type: "boolean" },
         name: { type: "string" },
         type: { type: "string" },
         price: { type: "string" },
         description: { type: "string" },
     },
-    required: ["name"],
+    required: ["isProductPage"],
 }
 
 export function buildProductPrompt(pageText: string, url: string, known: ProductPageData): string {
@@ -529,6 +793,10 @@ ${alreadyKnown}## ÚKOL
 Vrať JSON s údaji o TOM JEDNOM produktu, kterému stránka patří — ne o doporučených
 nebo souvisejících produktech v patičce.
 
+- isProductPage: **false**, pokud tohle není detail jednoho produktu — tedy když je
+  to homepage, výpis kategorie, blog, košík nebo stránka, jejíž obsah se načítá až
+  v prohlížeči. V tom případě ostatní pole vynech. Radši přiznej, že produkt nevidíš,
+  než abys ho odhadl z názvu webu.
 - name: název produktu tak, jak ho píše prodejce (bez názvu e-shopu, bez ceny)
 - type: kategorie česky (produkt, služba, balíček, kurz, menu, pokoj…)
 - price: cena včetně měny tak, jak je na stránce (např. "1 290 Kč"), jinak vynech
@@ -538,8 +806,18 @@ nebo souvisejících produktech v patičce.
 Vrať POUZE platný JSON objekt.`
 }
 
-/** Sloučí odečtená a dopočítaná data. Strukturovaná data mají přednost — jsou přesnější. */
+/**
+ * Sloučí odečtená a dopočítaná data. Strukturovaná data mají přednost — jsou přesnější.
+ *
+ * Když model řekne, že stránka produkt není, jeho slovo platí **jen na stránkách
+ * bez značky produktu**. Na stránce s JSON-LD `Product` má přednost značka: ta se
+ * nedá přehlédnout, kdežto model se u neobvyklého layoutu splést může.
+ */
 export function mergeAiResult(structured: ProductPageData, ai: any): ProductPageData {
+    const rejected = ai?.isProductPage === false && !structured.isProductPage
+    if (rejected) {
+        return { ...structured, name: null, extraction: structured.extraction, isProductPage: false }
+    }
     return {
         name: structured.name || clean(ai?.name, 200),
         type: structured.type || clean(ai?.type, 60),
@@ -547,5 +825,6 @@ export function mergeAiResult(structured: ProductPageData, ai: any): ProductPage
         description: structured.description || clean(ai?.description),
         imageUrls: structured.imageUrls,
         extraction: structured.name ? "mixed" : "ai",
+        isProductPage: structured.isProductPage || ai?.isProductPage === true,
     }
 }
