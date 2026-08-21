@@ -21,9 +21,12 @@ import {
     deleteProducts,
     uploadProductImage,
     scrapeProductsFromWebsite,
+    previewProductsFromUrls,
+    saveImportedProducts,
+    type ProductUrlDraft,
 } from "@/app/actions/product-actions"
 import { getLines, type LineRow } from "@/app/actions/line-actions"
-import { Camera, Package, Pencil, X } from "lucide-react"
+import { Camera, Link2, Package, Pencil, X } from "lucide-react"
 
 const LABEL = "text-[9px] uppercase tracking-widest font-bold text-white/40"
 const INPUT = "w-full bg-[#0a0a0a] border border-white/8 rounded-sm px-3 py-2 text-sm text-white/90 focus:border-amber-500/40 focus:outline-none"
@@ -44,6 +47,16 @@ export function CatalogSection({ projectId }: { projectId: string }) {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
     const [bulkDeleting, setBulkDeleting] = useState(false)
     const [lineFilter, setLineFilter] = useState<string>("all")
+
+    // Import z přímých odkazů — dvoufázový: načti → potvrď → ulož
+    const [showImport, setShowImport] = useState(false)
+    const [importUrls, setImportUrls] = useState("")
+    const [importing, setImporting] = useState(false)
+    const [drafts, setDrafts] = useState<ProductUrlDraft[] | null>(null)
+    const [draftsOff, setDraftsOff] = useState<Set<number>>(new Set())
+    const [savingImport, setSavingImport] = useState(false)
+    const [importError, setImportError] = useState<string | null>(null)
+    const [importResult, setImportResult] = useState<string | null>(null)
 
     const load = useCallback(async () => {
         setLoading(true)
@@ -132,6 +145,63 @@ export function CatalogSection({ projectId }: { projectId: string }) {
         e.target.value = ""
     }
 
+    const resetImport = () => {
+        setShowImport(false)
+        setImportUrls("")
+        setDrafts(null)
+        setDraftsOff(new Set())
+        setImportError(null)
+    }
+
+    const handlePreviewUrls = async () => {
+        // URL nesmí obsahovat mezeru, takže dělení po bílých znacích zvládne
+        // nalepený sloupec odkazů i odkazy oddělené mezerou
+        const urls = importUrls.split(/\s+/).filter(Boolean)
+        if (urls.length === 0) return
+        setImporting(true)
+        setImportError(null)
+        setImportResult(null)
+        const res = await previewProductsFromUrls(projectId, urls)
+        if (res.success && res.drafts) {
+            setDrafts(res.drafts)
+            // Duplicitu nech odškrtnutou — druhý import téhož odkazu je skoro vždy omyl
+            setDraftsOff(new Set(res.drafts.flatMap((d, i) => (d.ok && !d.duplicateOf ? [] : [i]))))
+        } else {
+            setImportError(res.error || "Načtení selhalo")
+        }
+        setImporting(false)
+    }
+
+    const patchDraft = (index: number, patch: Partial<ProductUrlDraft>) =>
+        setDrafts(list => list?.map((d, i) => (i === index ? { ...d, ...patch } : d)) ?? null)
+
+    const handleSaveImport = async () => {
+        if (!drafts) return
+        const chosen = drafts.filter((d, i) => d.ok && d.name.trim() && !draftsOff.has(i))
+        if (chosen.length === 0) return
+        setSavingImport(true)
+        setImportError(null)
+        const res = await saveImportedProducts(projectId, chosen.map(d => ({
+            url: d.url,
+            name: d.name,
+            type: d.type,
+            slug: d.slug,
+            price: d.price,
+            description: d.description,
+            imageUrls: d.imageUrls,
+        })))
+        setSavingImport(false)
+        if (res.success) {
+            setImportResult(
+                `Uloženo ${res.inserted} produktů · ${res.images} fotek${res.skipped ? ` · ${res.skipped} přeskočeno` : ""}`
+            )
+            resetImport()
+            await load()
+        } else {
+            setImportError(res.error || "Uložení selhalo")
+        }
+    }
+
     if (loading) {
         return (
             <div className="flex items-center justify-center py-12">
@@ -154,27 +224,181 @@ export function CatalogSection({ projectId }: { projectId: string }) {
                             <p className="text-[10px] text-white/30 mt-2">{products.length} produktů v katalogu</p>
                         )}
                         {scrapeResult && <p className="text-[10px] text-white/50 mt-1">{scrapeResult}</p>}
+                        {importResult && <p className="text-[10px] text-emerald-400/70 mt-1">{importResult}</p>}
                     </div>
-                    <button
-                        onClick={async () => {
-                            setScraping(true)
-                            setScrapeResult(null)
-                            const res = await scrapeProductsFromWebsite(projectId)
-                            if (res.success) {
-                                setScrapeResult(`Nalezeno ${res.found} · vloženo ${res.inserted} nových · ${res.images} fotek staženo`)
-                                await load()
-                            } else {
-                                setScrapeResult(`Chyba: ${res.error}`)
-                            }
-                            setScraping(false)
-                        }}
-                        disabled={scraping}
-                        className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/20 disabled:opacity-50 whitespace-nowrap transition-all"
-                    >
-                        {scraping ? "Scanuji web…" : "Načíst z webu"}
-                    </button>
+                    <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
+                        <button
+                            onClick={() => {
+                                setImportResult(null)
+                                setShowImport(v => !v)
+                            }}
+                            className={`px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm border whitespace-nowrap transition-all flex items-center justify-center gap-1.5 ${showImport
+                                ? "bg-amber-500/20 text-amber-400 border-amber-500/40"
+                                : "bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border-amber-500/20"}`}
+                        >
+                            <Link2 className="w-3 h-3" />
+                            Vložit odkaz
+                        </button>
+                        <button
+                            onClick={async () => {
+                                setScraping(true)
+                                setScrapeResult(null)
+                                const res = await scrapeProductsFromWebsite(projectId)
+                                if (res.success) {
+                                    setScrapeResult(`Nalezeno ${res.found} · vloženo ${res.inserted} nových · ${res.images} fotek staženo`)
+                                    await load()
+                                } else {
+                                    setScrapeResult(`Chyba: ${res.error}`)
+                                }
+                                setScraping(false)
+                            }}
+                            disabled={scraping}
+                            className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/20 disabled:opacity-50 whitespace-nowrap transition-all"
+                        >
+                            {scraping ? "Scanuji web…" : "Načíst z webu"}
+                        </button>
+                    </div>
                 </div>
             </div>
+
+            {/* Import z přímých odkazů */}
+            {showImport && (
+                <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
+                    className="bg-[#0f0f0f] border border-amber-500/20 rounded-sm p-5 space-y-4">
+                    <div>
+                        <h4 className="text-[11px] uppercase tracking-widest font-bold text-amber-400/80">Import z odkazů</h4>
+                        <p className="text-[10px] text-white/30 mt-1">
+                            Vlož odkaz na konkrétní produkt — jeden na řádek, max 10 najednou. Načtu název,
+                            cenu, popis i fotky a ukážu ti je k potvrzení, než se uloží.
+                        </p>
+                    </div>
+
+                    <textarea
+                        value={importUrls}
+                        onChange={(e) => setImportUrls(e.target.value)}
+                        rows={4}
+                        spellCheck={false}
+                        className={`${INPUT} font-mono text-xs resize-y`}
+                        placeholder={"https://obchod.cz/produkt/keramicka-ochrana\nhttps://obchod.cz/produkt/sampon"}
+                    />
+
+                    {importError && <p className="text-[10px] text-red-400/80">{importError}</p>}
+
+                    <div className="flex items-center justify-end gap-3">
+                        <button onClick={resetImport}
+                            className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors">
+                            Zavřít
+                        </button>
+                        <button onClick={handlePreviewUrls} disabled={importing || !importUrls.trim()}
+                            className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-sm bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30 disabled:opacity-40 transition-all">
+                            {importing ? "Načítám…" : drafts ? "Načíst znovu" : "Načíst produkty"}
+                        </button>
+                    </div>
+
+                    {/* Náhled — nic z tohohle není v katalogu, dokud se to nepotvrdí */}
+                    {drafts && (
+                        <div className="space-y-3 pt-2 border-t border-white/10">
+                            {drafts.map((d, i) => !d.ok ? (
+                                <div key={`${d.url}-${i}`} className="bg-[#0a0a0a] border border-red-500/20 rounded-sm p-4">
+                                    <p className="text-[10px] font-mono text-white/40 truncate">{d.url}</p>
+                                    <p className="text-[10px] text-red-400/80 mt-1">{d.error}</p>
+                                </div>
+                            ) : (
+                                <div key={`${d.url}-${i}`}
+                                    className={`bg-[#0a0a0a] border rounded-sm p-4 space-y-3 transition-all ${draftsOff.has(i) ? "border-white/5 opacity-45" : "border-emerald-500/20"}`}>
+                                    <div className="flex items-start gap-3">
+                                        <input
+                                            type="checkbox"
+                                            checked={!draftsOff.has(i)}
+                                            onChange={() => setDraftsOff(prev => {
+                                                const next = new Set(prev)
+                                                if (next.has(i)) next.delete(i)
+                                                else next.add(i)
+                                                return next
+                                            })}
+                                            className="mt-1 w-4 h-4 accent-emerald-500 cursor-pointer flex-shrink-0"
+                                        />
+                                        <div className="flex-1 min-w-0 space-y-3">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <a href={d.url} target="_blank" rel="noopener noreferrer"
+                                                    className="text-[9px] font-mono text-white/30 hover:text-white/60 truncate max-w-full transition-colors">
+                                                    {d.url}
+                                                </a>
+                                                <Badge tone={d.extraction === "ai" ? "amber" : "neutral"}>
+                                                    {d.extraction === "structured" ? "Odečteno ze stránky" : d.extraction === "mixed" ? "Odečteno + doplněno AI" : "Dopočítala AI"}
+                                                </Badge>
+                                                {d.duplicateOf && <Badge tone="red">Už v katalogu: {d.duplicateOf}</Badge>}
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <div className="space-y-1.5 md:col-span-2">
+                                                    <label className={LABEL}>Název</label>
+                                                    <input value={d.name} className={INPUT}
+                                                        onChange={(e) => patchDraft(i, { name: e.target.value })} />
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <label className={LABEL}>Typ / kategorie</label>
+                                                    <input value={d.type} className={INPUT} placeholder="produkt"
+                                                        onChange={(e) => patchDraft(i, { type: e.target.value })} />
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <label className={LABEL}>Cena</label>
+                                                    <input value={d.price} className={INPUT} placeholder="990 Kč"
+                                                        onChange={(e) => patchDraft(i, { price: e.target.value })} />
+                                                </div>
+                                                <div className="space-y-1.5 md:col-span-2">
+                                                    <label className={LABEL}>Slug (URL)</label>
+                                                    <input value={d.slug} className={`${INPUT} font-mono`}
+                                                        onChange={(e) => patchDraft(i, { slug: e.target.value })} />
+                                                </div>
+                                                <div className="space-y-1.5 md:col-span-2">
+                                                    <label className={LABEL}>Popis</label>
+                                                    <textarea value={d.description} rows={2} className={`${INPUT} resize-y`}
+                                                        placeholder="Co produkt dělá, pro koho je, čím se liší."
+                                                        onChange={(e) => patchDraft(i, { description: e.target.value })} />
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <label className={LABEL}>
+                                                    Fotky {d.imageUrls.length > 0 ? `(${d.imageUrls.length}) — křížkem vyhodíš, co není produkt` : "— žádné nenalezeny"}
+                                                </label>
+                                                {d.imageUrls.length > 0 && (
+                                                    <div className="flex gap-2 flex-wrap">
+                                                        {d.imageUrls.map((url, imgIndex) => (
+                                                            <div key={url} className="relative group">
+                                                                <img src={url} alt="" referrerPolicy="no-referrer"
+                                                                    className="w-16 h-16 object-cover rounded-sm border border-white/10 bg-[#050505]" />
+                                                                <button
+                                                                    onClick={() => patchDraft(i, { imageUrls: d.imageUrls.filter((_, k) => k !== imgIndex) })}
+                                                                    title="Odebrat fotku"
+                                                                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#0a0a0a] border border-white/20 text-white/50 hover:text-red-400 hover:border-red-400/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
+                                                                    <X className="w-3 h-3" />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            <div className="flex items-center justify-between gap-3 pt-1">
+                                <span className="text-[9px] uppercase tracking-widest font-bold text-white/30">
+                                    {drafts.filter((d, i) => d.ok && !draftsOff.has(i)).length} k uložení
+                                </span>
+                                <button onClick={handleSaveImport}
+                                    disabled={savingImport || drafts.every((d, i) => !d.ok || draftsOff.has(i))}
+                                    className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-sm bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 disabled:opacity-40 transition-all">
+                                    {savingImport ? "Ukládám…" : "Uložit do katalogu"}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </motion.div>
+            )}
 
             {/* Line filter */}
             {lines.length > 0 && (
@@ -225,7 +449,7 @@ export function CatalogSection({ projectId }: { projectId: string }) {
 
             {visible.length === 0 && (
                 <p className="text-[10px] text-white/30 text-center py-8 uppercase tracking-widest font-bold">
-                    Žádné produkty — načtěte je z webu, přidejte ručně, nebo nechte AI navrhnout celou řadu.
+                    Žádné produkty — vložte odkaz na produkt, načtěte je z webu, přidejte ručně, nebo nechte AI navrhnout celou řadu.
                 </p>
             )}
 
@@ -379,6 +603,19 @@ export function CatalogSection({ projectId }: { projectId: string }) {
                 </button>
             )}
         </div>
+    )
+}
+
+function Badge({ tone, children }: { tone: "neutral" | "amber" | "red"; children: React.ReactNode }) {
+    const palette = {
+        neutral: "border-white/10 text-white/35",
+        amber: "border-amber-500/30 text-amber-400/80",
+        red: "border-red-500/30 text-red-400/80",
+    }[tone]
+    return (
+        <span className={`px-2 py-0.5 rounded-sm border text-[8px] uppercase tracking-widest font-bold whitespace-nowrap ${palette}`}>
+            {children}
+        </span>
     )
 }
 
