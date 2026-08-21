@@ -17,6 +17,7 @@ export { type ProductIdea, type DesignConcept }
 import { withRetry } from "@/utils/retry"
 import { creditGuard } from "./credit-guard"
 import { getClientConfig } from "./config-actions"
+import type { ProductUrlDraft, SavableDraft } from "@/lib/product-import"
 
 // ============================================
 // PRODUCT GENERATION ACTIONS
@@ -805,7 +806,12 @@ export async function scrapeProductsFromWebsite(
         const origin = new URL(baseUrl).origin
 
         // --- Lightweight scraper ---
+        // Adresa webu jde z konfigurace, kterou plní uživatel — stejná třída rizika
+        // jako import z odkazu, takže stejná pojistka proti sáhnutí na interní síť.
+        const { assertFetchableUrl } = await import("@/lib/product-url")
+
         const fetchWithTimeout = async (url: string, ms = 8000): Promise<string> => {
+            await assertFetchableUrl(url)
             const ctrl = new AbortController()
             const t = setTimeout(() => ctrl.abort(), ms)
             try {
@@ -1082,3 +1088,53 @@ Vrať POUZE platný JSON pole objektů.`
     }
 }
 
+// ============================================
+// IMPORT Z PŘÍMÉHO ODKAZU NA PRODUKT
+// ============================================
+//
+// Třetí cesta do katalogu, vedle ručního formuláře a scrapu celého webu.
+// Je dvoufázová schválně: `previewProductsFromUrls` **nic neukládá**, jen vrátí,
+// co ze stránek přečetl. Uloží se až to, co uživatel v náhledu potvrdí.
+// U jednoho konkrétního produktu je špatná cena horší než klik navíc — a scrape
+// webu, který ukládá rovnou, tuhle kontrolu nemá.
+//
+// Vlastní logika žije v `lib/product-import.ts` bez vazby na session, aby šla
+// spustit i mimo prohlížeč. Tady zbývá jen hranice: přelož slug na `clientId`.
+
+export type { ProductUrlDraft }
+
+/** Přečte produkty z vložených odkazů a vrátí je k potvrzení. Neukládá. */
+export async function previewProductsFromUrls(
+    projectSlug: string,
+    rawUrls: string[],
+): Promise<{ success: boolean; drafts?: ProductUrlDraft[]; error?: string }> {
+    try {
+        const { clientId } = await requireProjectAccess(projectSlug)
+        const { readProductDrafts } = await import("@/lib/product-import")
+        const result = await readProductDrafts(clientId, rawUrls)
+        if (result.drafts) {
+            console.log(`🔗 Import z odkazů: ${result.drafts.filter(d => d.ok).length}/${result.drafts.length} přečteno pro ${projectSlug}`)
+        }
+        return result
+    } catch (err: any) {
+        console.error("previewProductsFromUrls error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}
+
+/** Uloží produkty potvrzené v náhledu — včetně stažení fotek do `product-images`. */
+export async function saveImportedProducts(
+    projectSlug: string,
+    drafts: SavableDraft[],
+): Promise<{ success: boolean; inserted: number; skipped: number; images: number; error?: string }> {
+    try {
+        const { clientId } = await requireProjectAccess(projectSlug)
+        const { importProductDrafts } = await import("@/lib/product-import")
+        const result = await importProductDrafts(clientId, drafts)
+        console.log(`✅ Import z odkazů: ${result.inserted} produktů + ${result.images} fotek pro ${projectSlug}`)
+        return result
+    } catch (err: any) {
+        console.error("saveImportedProducts error:", err?.message || err)
+        return { success: false, inserted: 0, skipped: 0, images: 0, error: err?.message || String(err) }
+    }
+}
