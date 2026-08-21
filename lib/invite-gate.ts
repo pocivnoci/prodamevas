@@ -57,9 +57,23 @@ export type InviteVerdict = { ok: true } | { ok: false; reason: 'invite_required
  * takže se tentýž člověk může vrátit s kódem a projít.
  */
 export async function enforceInviteGate(user: User, pendingCode: string | null): Promise<InviteVerdict> {
-    // Super admin, nebo razítko z registrace — tutéž podmínku čte i middleware
-    // u každého requestu, proto má vlastní modul bez závislostí.
-    if (hasBetaStamp(user)) return { ok: true }
+    // Razítko na účtu už je — dál není co řešit.
+    if (user.app_metadata?.invite_code || user.user_metadata?.invite_code) return { ok: true }
+
+    // Super admina pustit nestačí — **musí dostat razítko jako každý jiný.**
+    //
+    // `SUPER_ADMIN_EMAILS` čte i middleware u každého requestu, jenže z jiného
+    // bundlu než tahle funkce. Jakmile se hodnota do jednoho z nich nepropíše
+    // (překlep ve Vercelu, proměnná přidaná až po buildu), sklapne past:
+    // přihlášení admina pustí — a bez tohohle razítkování ho nechá bez evidence —
+    // načež ho middleware na `/dashboard` pošle zpátky na `/login?error=no_access`
+    // a ještě mu smaže `sb-*` cookies. Účet s nejvyšším oprávněním se tak zamkne
+    // sám před sebou a nemá se z čeho dostat, protože další přihlášení dopadne
+    // stejně. Razítko je jediná evidence, která rozbitou proměnnou přežije.
+    if (hasBetaStamp(user)) {
+        await stampInvite(user, 'ADMIN')
+        return { ok: true }
+    }
 
     // Existující zákazník — má projekt, tedy branou prošel dřív, než razítka byla.
     const { data: link } = await supabaseAdmin

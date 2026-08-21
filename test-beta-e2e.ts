@@ -506,6 +506,23 @@ test("10.7f Živá session bránu neobejde", () => {
     assert(!/supabase/i.test(access), "lib/beta-access.ts se nesmí dotýkat Supabase klientů")
 })
 
+test("10.7h Super admin dostane razítko, ne jen průchod", () => {
+    // Past, která zamkla vlastníka produktu z jeho vlastní aplikace:
+    // `hasBetaStamp` čte `SUPER_ADMIN_EMAILS`, jenže middleware běží z jiného
+    // bundlu než brána. Když se hodnota do jednoho z nich nepropíše, přihlášení
+    // admina pustí, ale middleware ho z /dashboard vyhodí a smaže mu cookies —
+    // a protože ho brána cestou nerazítkovala, dopadne stejně každý další pokus.
+    // Razítko je jediná evidence nezávislá na proměnné, takže ho admin dostat musí.
+    const gate = fileContent("lib/invite-gate.ts")
+    const enforce = gate.slice(gate.indexOf("export async function enforceInviteGate"))
+    const adminBranch = enforce.slice(enforce.indexOf("hasBetaStamp(user)"))
+    const beforeNextReturn = adminBranch.slice(0, adminBranch.indexOf("return { ok: true }"))
+    assert(
+        beforeNextReturn.includes("stampInvite"),
+        "Větev super admina musí razítkovat, ne jen vrátit ok — jinak jeho přístup visí čistě na env proměnné",
+    )
+})
+
 test("10.7d Google se nenabízí, dokud není provider zapnutý", () => {
     // Provider se zapíná v Supabase, ne v repu. Mrtvé tlačítko na přihlašovací
     // stránce je horší než žádné — přepínač proto musí hlídat UI i akci.
