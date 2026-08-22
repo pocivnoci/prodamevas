@@ -23,8 +23,11 @@ import {
     scrapeProductsFromWebsite,
     previewProductsFromUrls,
     saveImportedProducts,
-    type ProductUrlDraft,
 } from "@/app/actions/product-actions"
+// Typ jde přímo ze zdroje, ne přes server action: `"use server"` modul typ
+// re-exportovat nesmí (viz komentář v product-actions.ts). `import type` se
+// smaže při překladu, takže si klient nic serverového nepřitáhne.
+import type { ProductUrlDraft } from "@/lib/product-import"
 import { getLines, type LineRow } from "@/app/actions/line-actions"
 import { Camera, Link2, Package, Pencil, X } from "lucide-react"
 
