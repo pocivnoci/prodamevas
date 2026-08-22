@@ -390,6 +390,11 @@ export function buildNativeImagePrompt(
      *  "render a small 1/5 indicator" — a contradiction the model could only lose, and one
      *  QA then flagged as unwanted extra text, burning the carousel-wide edit budget. */
     allowedExtraText?: string,
+    /** Značka má přiloženou referenci konkrétního člověka (štítek `person`).
+     *  Zapíná blok o věrnosti tváři a o fotografickém realismu.
+     *  POSLEDNÍ parametr schválně — carousel i story předávají allowedExtraText
+     *  pozičně, takže vsunutí před něj by jim navázalo indikátor slajdu sem. */
+    hasPersonPhoto?: boolean,
 ): string {
     const t = brief.typography
     const hasLogo = Boolean(config.logoFile)
@@ -411,11 +416,25 @@ The attached reference image labeled "CLIENT photo" is the client's REAL photo a
 - Allowed: color grading to match the brand, cropping/reframing, extending the background, and compositing the typography/logo over it.
 - Forbidden: redrawing the photo as an illustration, swapping its subject, or using it only as loose style inspiration.` : ""
 
+    // Tvář značky. Vlastní blok, ne odstavec v QUALITY: obličej je to jediné, u čeho
+    // divák AI pozná okamžitě — vygumovaná kůže, souměrné rysy, skleněné oči. A model
+    // má vestavěný sklon člověka „vylepšit", což je přesně to, co ho prozradí.
+    const personBlock = hasPersonPhoto ? `
+
+## REAL PERSON FIDELITY (highest priority — overrides creative interpretation):
+An attached reference labeled "REAL PERSON" is a photograph of the actual human who represents this brand.
+- If this post's composition includes a person representing the brand, it MUST be THIS person: same facial structure, features, hair, skin tone and age. Portrait reference, never style inspiration.
+- Do NOT beautify, slim, de-age, symmetrise or otherwise "improve" them. Keep asymmetry, skin texture, pores, fine lines, stray hairs — that imperfection is what makes a photograph read as real.
+- Photographic realism is mandatory: skin with visible texture and natural subsurface variation, no waxy or plastic sheen, no airbrushed smoothing, no artificial glow, real catchlights in the eyes, anatomically correct hands and fingers.
+- Light must behave like real light: one dominant source, consistent shadow direction and falloff, natural colour temperature. No impossible rim-light halos.
+- If the face cannot be rendered convincingly at this size or angle, reframe so the face is not the subject (hands, back, over-shoulder, mid-distance, cropped at the chin) — that is ALWAYS better than inventing a different face.
+- If the composition contains no person at all, ignore this reference entirely; do not add a person just because the photo is attached.` : ""
+
     return `Design a complete, finished Instagram post image — a professional brand visual with typography composited into the design (like a finished poster from a top design studio).
 
 ## SCENE / COMPOSITION:
 ${brief.composition}
-${productBlock}${userPhotoBlock}
+${productBlock}${userPhotoBlock}${personBlock}
 
 ## NEGATIVE SPACE:
 ${brief.negativeSpace}

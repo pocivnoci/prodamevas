@@ -67,9 +67,15 @@ async function renderCarouselNative(ctx: RenderContext): Promise<RenderResult | 
     // real product exists, and attached to EVERY slide render so any depiction of
     // the product stays faithful (previously carousels got only the logo → the
     // model invented the product on every slide).
+    // Reference se načtou jednou; kromě produktu z nich potřebujeme i tvář značky.
+    const allRefs = await loadReferenceImages(ctx)
     const productRef = selectedProduct
-        ? (await loadReferenceImages(ctx)).find(r => r.label?.startsWith("EXACT product photo")) || null
+        ? allRefs.find(r => r.label?.startsWith("EXACT product photo")) || null
         : null
+    // Tvář značky jde na KAŽDÝ slajd: karusel je vyprávění a člověk se v něm objeví
+    // klidně až na třetím obrázku. Kdyby ji dostal jen cover, zbytek by mu vyrobil
+    // jiný obličej a série by se rozpadla.
+    const personRef = allRefs.find(r => r.label?.startsWith("REAL PERSON")) || null
     const productInfo = selectedProduct ? {
         name: selectedProduct.name,
         type: selectedProduct.type,
@@ -138,7 +144,7 @@ async function renderCarouselNative(ctx: RenderContext): Promise<RenderResult | 
             // and QA, which was never told the indicator was wanted, then reported it as
             // unwanted extra text and spent the carousel-wide edit budget on it.
             const slideIndicator = `${i + 1}/${slideCount}`
-            const prompt = `${buildNativeImagePrompt(brief, { ...config, logoFile: isCover ? config.logoFile : undefined }, productInfo, slideUserPhoto, slideIndicator)}
+            const prompt = `${buildNativeImagePrompt(brief, { ...config, logoFile: isCover ? config.logoFile : undefined }, productInfo, slideUserPhoto, slideIndicator, Boolean(personRef))}
 
 ## CAROUSEL DESIGN SYSTEM (identical across all ${slideCount} slides):
 ${designSystem}
@@ -149,6 +155,7 @@ Place the "${slideIndicator}" indicator in a corner or at an edge, styled to mat
             const refs = isCover && logoRef ? [logoRef] : []
             if (isCover && userPhotoRef) refs.push(userPhotoRef)
             if (productRef) refs.push(productRef)
+            if (personRef) refs.push(personRef)
             let slideModel = getModel("image")
             let imageBuffer = await generateImageWithReferences(prompt, refs, { aspectRatio: format.aspectRatio, resolution: "2K", onModel: m => { slideModel = m } })
             cost += COSTS.imageGeneration
