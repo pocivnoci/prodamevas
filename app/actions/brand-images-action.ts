@@ -2,7 +2,7 @@
 
 import supabaseAdmin from '@/supabase/admin'
 import { requireProjectAccess } from '@/lib/auth-guard'
-import { getConfigBrandImages, type BrandImage } from '@/instagram/configs/types'
+import { getConfigBrandImages, isValidBrandTag, type BrandImage } from '@/instagram/configs/types'
 
 /**
  * Upload a brand/reference image from the dashboard.
@@ -204,9 +204,66 @@ export async function getBrandImageObjects(clientSlug: string): Promise<BrandIma
 }
 
 /**
+ * Přepiš štítky jedné fotky ručně.
+ *
+ * Štítky nejsou popisky do galerie — rozhodují, kdy se fotka k příspěvku vůbec
+ * přiloží (skórování v reel-orchestratoru) a jaká pravidla věrnosti dostane art
+ * director. Vision model přitom nepozná, že zrovna tenhle portrét je tvář značky;
+ * ochotně ho označí za „detail" a fotka pak leží ladem. Tohle je způsob, jak mu to
+ * přebít — a `userTagged` zajistí, že si na ni už nikdy nesáhne.
+ *
+ * Prázdný seznam štítků je odmítnutý: fotka bez štítku je pro pipeline neviditelná,
+ * takže by to tiše znamenalo „smaž ji z výběru".
+ */
+export async function setBrandImageTags(
+    clientSlug: string,
+    imageUrl: string,
+    tags: string[],
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { clientId } = await requireProjectAccess(clientSlug)
+
+        const clean = Array.from(new Set(
+            tags.map(t => t.trim().toLowerCase()).filter(t => t && isValidBrandTag(t))
+        )).slice(0, 4)
+        if (clean.length === 0) {
+            return { success: false, error: 'Vyber aspoň jeden štítek — bez štítku se fotka v příspěvcích nepoužije.' }
+        }
+
+        const { data: client } = await supabaseAdmin
+            .from('clients').select('config').eq('id', clientId).single()
+        if (!client) return { success: false, error: 'Klient nenalezen.' }
+
+        const config = client.config as any
+        const { getConfigBrandImageObjects } = await import('@/instagram/configs/types')
+        const imgs = getConfigBrandImageObjects(config)
+
+        let found = false
+        const updated: BrandImage[] = imgs.map(img => {
+            if (img.url !== imageUrl) return img
+            found = true
+            return { ...img, tags: clean, userTagged: true }
+        })
+        if (!found) return { success: false, error: 'Fotka nenalezena.' }
+
+        await supabaseAdmin
+            .from('clients')
+            .update({ config: { ...config, brandReferenceImages: updated } })
+            .eq('id', clientId)
+
+        const { invalidateConfigCache } = await import('@/instagram/configs')
+        invalidateConfigCache(clientSlug)
+        return { success: true }
+    } catch (err) {
+        return { success: false, error: (err as Error).message }
+    }
+}
+
+/**
  * Re-tag ALL of a client's brand photos with vision AI. Downloads each photo,
  * runs tagBrandImage(), and writes refreshed tags + description back to config.
  * For photos uploaded before tagging existed, or to refresh labels after changes.
+ * Fotky se štítky od člověka (`userTagged`) přeskakuje — ty jsou konečné.
  */
 export async function retagBrandImages(
     clientSlug: string
@@ -226,6 +283,10 @@ export async function retagBrandImages(
         const retagged: BrandImage[] = []
         let count = 0
         for (const img of imgs) {
+            // Ruční oprava je konečná. Vision model nepozná, že zrovna tenhle obličej
+            // je tvář značky — portrét ochotně označí jako „detail" a fotka se pak
+            // v příspěvcích nikdy neobjeví. Kdo to jednou opravil, nesmí o to přijít.
+            if (img.userTagged) { retagged.push(img); continue }
             try {
                 const resp = await fetch(img.url)
                 if (!resp.ok) { retagged.push(img); continue }

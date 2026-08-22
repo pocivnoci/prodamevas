@@ -2599,6 +2599,56 @@ test("31.10 syrové „Failed to fetch\" se k zákazníkovi nedostane", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 32. ŠTÍTKY REFERENČNÍCH FOTEK
+// ═══════════════════════════════════════════════════════════
+
+test("32.1 seznam štítků má jediný zdroj", () => {
+    // Štítky čte prompt taggeru, UI i pravidla věrnosti. Tři kopie by se rozešly
+    // a fotka by pak měla štítek, kterému rozumí jen jedna z nich.
+    const types = codeOnly("instagram/configs/types.ts")
+    assert(/export const BRAND_IMAGE_TAGS/.test(types), "kanonický seznam patří do types.ts")
+    assert(/export function isValidBrandTag/.test(types), "validace štítku musí být sdílená")
+
+    const tagger = codeOnly("instagram/brand-tagger.ts")
+    assert(!/const VALID_TAGS = \[/.test(tagger), "tagger nesmí mít vlastní kopii seznamu")
+    assert(/BRAND_IMAGE_TAGS\.map/.test(tagger), "nabídka do promptu se musí skládat z kanonického seznamu")
+})
+
+test("32.2 konkrétní osoba je vlastní štítek, ne 'detail'", () => {
+    // Tohle byl konkrétní nález: portrét tváře značky vision model označil za
+    // „detail", takže se k příspěvkům nikdy nepřiložil.
+    const types = codeOnly("instagram/configs/types.ts")
+    assert(/id: "person"/.test(types), "štítek pro konkrétního člověka musí existovat")
+
+    const tagger = codeOnly("instagram/brand-tagger.ts")
+    assert(/DŮLEŽITÉ K LIDEM/.test(tagger), "prompt musí obličej explicitně odlišit od detailu")
+
+    // Bez pravidla ve věrnosti je štítek jen nálepka — model by tvář vyměnil za model z banky.
+    const fidelity = codeOnly("instagram/photo-fidelity.ts")
+    assert(/PERSON_TAGS/.test(fidelity), "věrnost musí znát tvář značky")
+    assert(/TVÁŘ ZNAČKY/.test(fidelity), "art director musí dostat pravidlo o konkrétním člověku")
+})
+
+test("32.3 ruční štítek je konečný — AI ho nepřepíše", () => {
+    const types = codeOnly("instagram/configs/types.ts")
+    assert(/userTagged\?: boolean/.test(types), "BrandImage musí umět rozlišit ruční štítek")
+
+    const actions = codeOnly("app/actions/brand-images-action.ts")
+    assert(/export async function setBrandImageTags/.test(actions), "ruční štítkování musí mít vlastní akci")
+
+    const retag = actions.slice(actions.indexOf("export async function retagBrandImages"))
+    assert(/if \(img\.userTagged\)/.test(retag),
+        "„Přeznačit AI\" musí ručně opravené fotky přeskočit, jinak opravu zahodí")
+
+    const setter = actions.slice(actions.indexOf("export async function setBrandImageTags"))
+    const body = setter.slice(0, setter.indexOf("\n}\n"))
+    assert(/isValidBrandTag/.test(body), "ruční štítky se musí validovat proti kanonickému seznamu")
+    assert(/clean\.length === 0/.test(body),
+        "fotka bez štítku je pro pipeline neviditelná — prázdný výběr musí být odmítnutý, ne tiché smazání z výběru")
+    assert(/userTagged: true/.test(body), "ruční zásah se musí označit, jinak ho AI zase přepíše")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 

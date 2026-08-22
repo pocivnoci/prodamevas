@@ -10,16 +10,12 @@
  */
 
 import { GoogleGenAI } from "@google/genai"
-import type { BrandImage } from "./configs/types"
+import { BRAND_IMAGE_TAGS, isValidBrandTag, type BrandImage } from "./configs/types"
 import { getModel } from "./models"
 
-const VALID_TAGS = [
-    "exterior", "interior", "bedroom", "bathroom", "kitchen", "living",
-    "pool", "restaurant", "team", "product", "logo", "food", "nature",
-    "detail", "lobby", "garden", "terrace", "parking", "view", "sport",
-    "wellness", "bar", "conference", "office", "shop", "warehouse",
-    "people", "event", "branding", "packaging", "drink",
-] as const
+/** Seznam pro prompt se skládá z BRAND_IMAGE_TAGS, ať se nemůže rozejít s UI ani
+ *  s pravidly věrnosti. Přidání štítku na jednom místě stačí. */
+const TAG_MENU = BRAND_IMAGE_TAGS.map(t => `- ${t.id}: ${t.hint}`).join("\n")
 
 /**
  * Analyze a brand image and return tags + description.
@@ -42,22 +38,12 @@ export async function tagBrandImage(
 2. Přiřaď 1-3 tagy z tohoto seznamu:
 
 DOSTUPNÉ TAGY:
-- exterior: venkovní záběr budovy, fasáda, vchod
-- interior: vnitřní prostor, pokoj, místnost
-- bedroom/bathroom/kitchen/living: konkrétní místnosti
-- pool/garden/terrace/parking: venkovní areál
-- restaurant/bar/lobby: stravovací a společné prostory
-- shop/warehouse/office/conference: pracovní prostory
-- product: záběr na konkrétní produkt, zboží, výrobek
-- packaging: balení, krabice, obal produktu
-- food/drink: jídlo nebo nápoj
-- logo/branding: logo značky, vizuální identita
-- team/people: lidé, zaměstnanci, zákazníci, skupinové foto
-- event: akce, událost, slavnostní příležitost
-- nature: příroda, krajina, exteriér bez budov
-- detail: detail, textura, macro záběr
-- view: výhled, panorama
-- sport/wellness: sportovní nebo wellness aktivity
+${TAG_MENU}
+
+DŮLEŽITÉ K LIDEM:
+- Je-li na fotce rozpoznatelný obličej JEDNOHO člověka (portrét, hlava, poloportrét),
+  je to "person" — NIKDY ne "detail". "detail" je textura, makro, věc zblízka.
+- Skupina lidí je "team" (zaměstnanci) nebo "people" (zákazníci, dav).
 
 Odpověz PŘESNĚ v tomto formátu (nic jiného):
 POPIS: [popis]
@@ -90,7 +76,7 @@ TAGY: [tag1, tag2]`
 
         const description = descMatch?.[1]?.trim() || ""
         const rawTags = tagsMatch?.[1]?.trim().split(/[,\s]+/).map(t => t.trim().toLowerCase()) || []
-        const tags = rawTags.filter(t => (VALID_TAGS as readonly string[]).includes(t))
+        const tags = rawTags.filter(t => isValidBrandTag(t))
 
         if (!description && tags.length === 0) {
             return { tags: ["detail"], description: "Obrázek značky" }
