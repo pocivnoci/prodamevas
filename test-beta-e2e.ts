@@ -2599,6 +2599,102 @@ test("31.10 syrové „Failed to fetch\" se k zákazníkovi nedostane", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 32. ŠTÍTKY REFERENČNÍCH FOTEK
+// ═══════════════════════════════════════════════════════════
+
+test("32.1 seznam štítků má jediný zdroj", () => {
+    // Štítky čte prompt taggeru, UI i pravidla věrnosti. Tři kopie by se rozešly
+    // a fotka by pak měla štítek, kterému rozumí jen jedna z nich.
+    const types = codeOnly("instagram/configs/types.ts")
+    assert(/export const BRAND_IMAGE_TAGS/.test(types), "kanonický seznam patří do types.ts")
+    assert(/export function isValidBrandTag/.test(types), "validace štítku musí být sdílená")
+
+    const tagger = codeOnly("instagram/brand-tagger.ts")
+    assert(!/const VALID_TAGS = \[/.test(tagger), "tagger nesmí mít vlastní kopii seznamu")
+    assert(/BRAND_IMAGE_TAGS\.map/.test(tagger), "nabídka do promptu se musí skládat z kanonického seznamu")
+})
+
+test("32.2 konkrétní osoba je vlastní štítek, ne 'detail'", () => {
+    // Tohle byl konkrétní nález: portrét tváře značky vision model označil za
+    // „detail", takže se k příspěvkům nikdy nepřiložil.
+    const types = codeOnly("instagram/configs/types.ts")
+    assert(/id: "person"/.test(types), "štítek pro konkrétního člověka musí existovat")
+
+    const tagger = codeOnly("instagram/brand-tagger.ts")
+    assert(/DŮLEŽITÉ K LIDEM/.test(tagger), "prompt musí obličej explicitně odlišit od detailu")
+
+    // Bez pravidla ve věrnosti je štítek jen nálepka — model by tvář vyměnil za model z banky.
+    const fidelity = codeOnly("instagram/photo-fidelity.ts")
+    assert(/PERSON_TAGS/.test(fidelity), "věrnost musí znát tvář značky")
+    assert(/TVÁŘ ZNAČKY/.test(fidelity), "art director musí dostat pravidlo o konkrétním člověku")
+})
+
+test("32.3 ruční štítek je konečný — AI ho nepřepíše", () => {
+    const types = codeOnly("instagram/configs/types.ts")
+    assert(/userTagged\?: boolean/.test(types), "BrandImage musí umět rozlišit ruční štítek")
+
+    const actions = codeOnly("app/actions/brand-images-action.ts")
+    assert(/export async function setBrandImageTags/.test(actions), "ruční štítkování musí mít vlastní akci")
+
+    const retag = actions.slice(actions.indexOf("export async function retagBrandImages"))
+    assert(/if \(img\.userTagged\)/.test(retag),
+        "„Přeznačit AI\" musí ručně opravené fotky přeskočit, jinak opravu zahodí")
+
+    const setter = actions.slice(actions.indexOf("export async function setBrandImageTags"))
+    const body = setter.slice(0, setter.indexOf("\n}\n"))
+    assert(/isValidBrandTag/.test(body), "ruční štítky se musí validovat proti kanonickému seznamu")
+    assert(/clean\.length === 0/.test(body),
+        "fotka bez štítku je pro pipeline neviditelná — prázdný výběr musí být odmítnutý, ne tiché smazání z výběru")
+    assert(/userTagged: true/.test(body), "ruční zásah se musí označit, jinak ho AI zase přepíše")
+})
+
+test("32.4 tvář značky se renderuje jako reálný člověk, ne jako styl", () => {
+    const orch = codeOnly("instagram/orchestrators/image-orchestrator.ts")
+
+    // Bez vlastní větve spadl portrét do generické „match this exact style" —
+    // model tím dostal pokyn okopírovat styl, ne zachovat obličej.
+    const label = orch.slice(orch.indexOf("export function brandRefLabel"))
+    assert(/REAL PERSON reference/.test(label.slice(0, 900)),
+        "fotka konkrétního člověka potřebuje vlastní popisek, ne větev o stylu")
+    assert(/NOT style inspiration/.test(label.slice(0, 900)),
+        "popisek musí výslovně říct, že to není inspirace stylem")
+
+    // Skórování porovnává anglické štítky s převážně českým textem postu, takže
+    // „person" se skoro nikdy netrefí — fotka by propadla do náhodného výběru.
+    assert(/hasPersonRef\(img\.tags\)/.test(orch),
+        "tvář značky se musí přikládat natvrdo, ne přes shodu štítku s textem")
+})
+
+test("32.5 render zakazuje typické AI znaky na tváři", () => {
+    const pipeline = codeOnly("instagram/image-pipeline.ts")
+    const block = pipeline.slice(pipeline.indexOf("REAL PERSON FIDELITY"))
+    const body = block.slice(0, 2200)
+
+    // Obličej je jediné, u čeho divák AI pozná okamžitě.
+    for (const tell of ["waxy", "airbrush", "symmetrise", "texture"]) {
+        assert(new RegExp(tell, "i").test(body), `blok musí zakázat typický AI znak: ${tell}`)
+    }
+    assert(/de-age|beautify/i.test(body),
+        "model ma vestaveny sklon cloveka vylepsit — prave to ho prozradi nejvic")
+    assert(/reframe|not the subject/i.test(body),
+        "když tvář nejde vyrenderovat přesvědčivě, musí být cesta ven přes rámování, ne vymyšlený obličej")
+    assert(/no person at all|ignore this reference/i.test(body),
+        "přiložená reference nesmí do postu vnutit člověka, když tam nepatří")
+})
+
+test("32.6 hasPersonPhoto zůstává POSLEDNÍ parametr", () => {
+    // Past: carousel i story předávají allowedExtraText pozičně. Vsunutí nového
+    // parametru před něj by jim navázalo indikátor slajdu na příznak tváře.
+    const pipeline = codeOnly("instagram/image-pipeline.ts")
+    const sig = pipeline.slice(
+        pipeline.indexOf("export function buildNativeImagePrompt"),
+        pipeline.indexOf("): string {", pipeline.indexOf("export function buildNativeImagePrompt")),
+    )
+    assert(sig.indexOf("allowedExtraText") < sig.indexOf("hasPersonPhoto"),
+        "hasPersonPhoto musí být AŽ ZA allowedExtraText — jinak se poziční volání rozjedou")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 

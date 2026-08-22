@@ -7,8 +7,10 @@ import {
     deleteBrandImage,
     getBrandImageObjects,
     retagBrandImages,
+    setBrandImageTags,
 } from "@/app/actions/brand-images-action"
 import { getClientConfig } from "@/app/actions/settings-actions"
+import { BRAND_IMAGE_TAGS } from "@/instagram/configs/types"
 import type { ImageBriefItem, BrandImage } from "@/instagram/configs/types"
 import { LoadingSpinner } from "./shared"
 import { Camera, Image, TriangleAlert } from "lucide-react"
@@ -22,6 +24,10 @@ export function BrandTab({ projectId }: { projectId: string }) {
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
     const [imageBrief, setImageBrief] = useState<ImageBriefItem[]>([])
     const [briefCollapsed, setBriefCollapsed] = useState(false)
+    // Ruční štítkování: AI nepozná, že zrovna tenhle portrét je tvář značky.
+    const [editing, setEditing] = useState<BrandImage | null>(null)
+    const [draftTags, setDraftTags] = useState<string[]>([])
+    const [savingTags, setSavingTags] = useState(false)
 
     const loadImages = useCallback(async () => {
         if (!projectId) return
@@ -83,6 +89,32 @@ export function BrandTab({ projectId }: { projectId: string }) {
             setMessage({ type: 'error', text: result.error || 'Přeznačení selhalo' })
         }
         setRetagging(false)
+    }
+
+    const openTagEditor = (img: BrandImage) => {
+        setEditing(img)
+        setDraftTags(img.tags || [])
+    }
+
+    const toggleDraftTag = (tag: string) => {
+        setDraftTags(prev => prev.includes(tag)
+            ? prev.filter(t => t !== tag)
+            : prev.length >= 4 ? prev : [...prev, tag])
+    }
+
+    const handleSaveTags = async () => {
+        if (!editing) return
+        setSavingTags(true)
+        const result = await setBrandImageTags(projectId, editing.url, draftTags)
+        if (result.success) {
+            setImages(prev => prev.map(im =>
+                im.url === editing.url ? { ...im, tags: draftTags, userTagged: true } : im))
+            setMessage({ type: 'success', text: 'Štítky uloženy — AI je už nepřepíše' })
+            setEditing(null)
+        } else {
+            setMessage({ type: 'error', text: result.error || 'Uložení selhalo' })
+        }
+        setSavingTags(false)
     }
 
     const handleDrop = (e: React.DragEvent) => {
@@ -247,19 +279,91 @@ export function BrandTab({ projectId }: { projectId: string }) {
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                     </svg>
                                 </button>
-                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-2">
+                                {/* Štítky jsou klikací: rozhodují, kdy se fotka k příspěvku
+                                    vůbec přiloží, takže musí jít opravit. */}
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); openTagEditor(img) }}
+                                    title="Upravit štítky"
+                                    className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-2 text-left cursor-pointer hover:from-black"
+                                >
                                     {img.tags && img.tags.length > 0 ? (
-                                        <div className="flex flex-wrap gap-1">
+                                        <div className="flex flex-wrap gap-1 items-center">
                                             {img.tags.slice(0, 4).map(t => (
-                                                <span key={t} className="text-[8px] bg-white/15 text-white/80 px-1 py-0.5 rounded-sm font-bold uppercase tracking-wider">{t}</span>
+                                                <span key={t} className={`text-[8px] px-1 py-0.5 rounded-sm font-bold uppercase tracking-wider ${t === 'person' ? 'bg-emerald-500/30 text-emerald-200' : 'bg-white/15 text-white/80'}`}>{t}</span>
                                             ))}
+                                            {img.userTagged && (
+                                                <span title="Štítky nastavil člověk — AI je nepřepíše" className="text-[8px] text-emerald-400/80 font-bold">✓</span>
+                                            )}
                                         </div>
                                     ) : (
                                         <span className="inline-flex items-center gap-1.5 text-[8px] text-amber-400/90 font-bold uppercase tracking-wider"><TriangleAlert className="w-3 h-3 shrink-0" />bez štítku</span>
                                     )}
-                                </div>
+                                </button>
                             </div>
                         ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Editor štítků */}
+            {editing && (
+                <div className="bg-[#0a0a0a] border border-white/10 rounded-sm p-4 space-y-4">
+                    <div className="flex items-start gap-3">
+                        <img src={editing.url} alt="" className="w-20 h-20 object-cover rounded-sm border border-white/10 shrink-0" />
+                        <div className="min-w-0">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Štítky fotky</p>
+                            <p className="text-xs text-white/70 mt-1">{editing.description || "Bez popisu"}</p>
+                            <p className="text-[10px] text-white/30 mt-2 tracking-wide">
+                                Podle štítků se rozhoduje, ke kterým příspěvkům se fotka přiloží. Vyber 1–4.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5">
+                        {BRAND_IMAGE_TAGS.map(t => {
+                            const on = draftTags.includes(t.id)
+                            const full = !on && draftTags.length >= 4
+                            return (
+                                <button
+                                    key={t.id}
+                                    onClick={() => toggleDraftTag(t.id)}
+                                    disabled={full}
+                                    title={t.hint}
+                                    className={`px-2 py-1 rounded-sm text-[9px] font-bold uppercase tracking-wider border transition-colors cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed ${
+                                        on
+                                            ? t.id === 'person'
+                                                ? 'bg-emerald-500/25 border-emerald-400/40 text-emerald-200'
+                                                : 'bg-white/20 border-white/30 text-white'
+                                            : 'bg-white/5 border-white/10 text-white/50 hover:border-white/25'
+                                    }`}
+                                >
+                                    {t.label}
+                                </button>
+                            )
+                        })}
+                    </div>
+
+                    {draftTags.includes('person') && (
+                        <p className="text-[10px] text-emerald-300/80 tracking-wide">
+                            👤 Tuhle tvář bude engine držet napříč příspěvky — nenahradí ji fotobankovým modelem.
+                        </p>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={handleSaveTags}
+                            disabled={savingTags || draftTags.length === 0}
+                            className="px-4 py-2 bg-white text-black rounded-sm text-[10px] font-bold uppercase tracking-widest disabled:opacity-40 cursor-pointer"
+                        >
+                            {savingTags ? "Ukládám…" : "Uložit štítky"}
+                        </button>
+                        <button
+                            onClick={() => setEditing(null)}
+                            className="px-4 py-2 bg-white/5 border border-white/10 text-white/60 rounded-sm text-[10px] font-bold uppercase tracking-widest cursor-pointer"
+                        >
+                            Zrušit
+                        </button>
+                        <span className="text-[10px] text-white/25 tracking-wide">{draftTags.length}/4</span>
                     </div>
                 </div>
             )}
@@ -267,7 +371,8 @@ export function BrandTab({ projectId }: { projectId: string }) {
             {/* Info */}
             <div className="bg-[#0a0a0a]/60 border border-white/5 rounded-sm p-4 text-[10px] text-white/30 tracking-wide space-y-1">
                 <p>💡 <strong className="text-white/50">Tip:</strong> Nahraj fotky produktů — AI je zakomponuje do reálných scén místo generování od nuly.</p>
-                <p>👤 <strong className="text-white/50">Lidi:</strong> Fotky lidí se použijí pro konzistentní postavu napříč příspěvky (max 5 referenčních fotek).</p>
+                <p>👤 <strong className="text-white/50">Tvář značky:</strong> Portrét konkrétního člověka označ štítkem <strong className="text-emerald-300/70">Konkrétní osoba</strong> — engine ho pak drží napříč příspěvky místo fotobankového modelu.</p>
+                <p>🏷️ <strong className="text-white/50">Oprava štítků:</strong> Klikni na štítky pod fotkou. Ruční štítek už AI nikdy nepřepíše — ani při „Přeznačit AI“.</p>
                 <p>🏙️ <strong className="text-white/50">Prostředí:</strong> Fotky prodejny/kanceláře pomohou zachovat autentičnost behind-the-scenes postů.</p>
             </div>
         </div>

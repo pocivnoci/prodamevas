@@ -31,13 +31,26 @@ type RefImage = { buffer: Buffer; mimeType?: string; label?: string }
 // the brand's real photos instead of treating them as loose style inspiration.
 const REF_PLACE_TAGS = ["exterior", "interior", "bedroom", "bathroom", "kitchen", "living", "pool", "restaurant", "lobby", "garden", "shop", "store", "location", "room", "space", "venue"]
 const REF_PRODUCT_TAGS = ["product", "food", "drink", "dish", "merch", "bouquet", "kytice", "flower", "outfit"]
-function brandRefLabel(tags: string[] = []): string {
+/** Konkrétní člověk značky — viz BRAND_IMAGE_TAGS. Vlastní větev, protože obličej
+ *  potřebuje jinou instrukci než produkt: ne „reprodukuj věc", ale „je to portrétní
+ *  reference, neměň mu tvář". Bez toho spadl portrét do generické větve o stylu
+ *  a model si klidně vymyslel jiného člověka. */
+const REF_PERSON_TAGS = ["person"]
+
+export function brandRefLabel(tags: string[] = []): string {
     const t = tags.map(x => x.toLowerCase())
+    if (t.some(x => REF_PERSON_TAGS.includes(x)))
+        return "REAL PERSON reference — a photograph of the actual human who represents this brand. Reproduce THIS person's real face (same facial structure, features, hair, skin tone, age). Portrait reference, NOT style inspiration; never substitute a different or stock-looking face"
     if (t.some(x => REF_PRODUCT_TAGS.includes(x)))
         return "EXACT product/subject reference — reproduce this real item faithfully (same colors, shape, details); do NOT invent a different one"
     if (t.some(x => REF_PLACE_TAGS.includes(x)))
         return "real location reference — depict this EXACT place, interior and atmosphere; do NOT invent a different location"
     return "brand visual reference — match this exact style, colors and aesthetic"
+}
+
+/** Má značka referenční fotku konkrétního člověka? */
+export function hasPersonRef(tags: string[] = []): boolean {
+    return tags.some(x => REF_PERSON_TAGS.includes(x.toLowerCase()))
 }
 
 /** The user's own uploaded photo — the mandatory photographic base of this exact post.
@@ -98,6 +111,10 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
         Number(b.label?.startsWith("EXACT product photo") || 0) - Number(a.label?.startsWith("EXACT product photo") || 0)
     )
     const productRef = otherRefs.find(r => r.label?.startsWith("EXACT product photo"))
+    // Blok o věrnosti tváři se zapíná podle toho, co je REÁLNĚ přiložené k tomuhle
+    // renderu — ne podle toho, co má značka v knihovně. Slibovat modelu referenci,
+    // kterou nedostal, je horší než mlčet.
+    const personAttached = otherRefs.some(r => r.label?.startsWith("REAL PERSON"))
     const productInfo = selectedProduct ? {
         name: selectedProduct.name,
         type: selectedProduct.type,
@@ -134,7 +151,7 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
     console.log(`   ✓ Koncept: "${brief.concept}" [${brief.layoutArchetype || "no archetype"}]`)
     console.log(`   ✓ Divergence: ${brief.divergenceNote?.substring(0, 100)}`)
 
-    const prompt = buildNativeImagePrompt(brief, config, productInfo, userPhotoInfo)
+    const prompt = buildNativeImagePrompt(brief, config, productInfo, userPhotoInfo, undefined, personAttached)
 
     // Reference images: logo FIRST, then the user's photo (visual base), then product
     // photo, then brand refs (max 4 total)
@@ -365,6 +382,17 @@ export async function loadReferenceImages(ctx: RenderContext): Promise<RefImage[
             selectedRefs = brandRefObjects.length <= 3
                 ? brandRefObjects
                 : brandRefObjects.sort(() => Math.random() - 0.5).slice(0, 3)
+        }
+
+        // Tvář značky přiloží VŽDYCKY, nikdy ji nenech na skórování. To porovnává
+        // anglické štítky s převážně českým textem postu, takže „person" se skoro
+        // nikdy netrefí a fotka by propadla do náhodného výběru. Když kompozice
+        // člověka nemá, model referenci podle popisku ignoruje — to je levnější
+        // než vygenerovat cizí obličej.
+        const personRefs = brandRefObjects.filter(img => hasPersonRef(img.tags))
+        if (personRefs.length > 0 && !selectedRefs.some(r => hasPersonRef(r.tags))) {
+            selectedRefs = [personRefs[0], ...selectedRefs].slice(0, 4)
+            console.log(`   🧑 Tvář značky přiložena natvrdo (mimo skórování)`)
         }
 
         for (const ref of selectedRefs) {

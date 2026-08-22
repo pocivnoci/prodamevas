@@ -420,15 +420,75 @@ export interface ClientConfig {
 
 // ─── Brand Image Type ────────────────────────────────────────────────
 
+/**
+ * Štítky referenčních fotek — JEDINÝ zdroj pravdy.
+ *
+ * Nejsou to jen popisky do galerie: podle nich se rozhoduje, která fotka se přiloží
+ * ke kterému příspěvku (skórování v reel-orchestratoru) a jaká pravidla věrnosti
+ * dostane art director (photo-fidelity.ts). Špatný štítek = fotka se nikdy nepoužije.
+ *
+ * `hint` jde do promptu taggeru, `label` do UI. Kdyby to byly dva seznamy, rozejdou se.
+ */
+export const BRAND_IMAGE_TAGS = [
+    { id: "person", label: "Konkrétní osoba", hint: "portrét JEDNOHO konkrétního člověka značky (majitel, tvář značky) — ne dav, ne skupina" },
+    { id: "team", label: "Tým", hint: "zaměstnanci, kolektiv při práci" },
+    { id: "people", label: "Lidé obecně", hint: "zákazníci, dav, skupinové foto bez konkrétní tváře značky" },
+    { id: "exterior", label: "Exteriér", hint: "venkovní záběr budovy, fasáda, vchod" },
+    { id: "interior", label: "Interiér", hint: "vnitřní prostor, místnost" },
+    { id: "bedroom", label: "Ložnice", hint: "ložnice" },
+    { id: "bathroom", label: "Koupelna", hint: "koupelna" },
+    { id: "kitchen", label: "Kuchyně", hint: "kuchyně" },
+    { id: "living", label: "Obývací pokoj", hint: "obývací pokoj" },
+    { id: "pool", label: "Bazén", hint: "bazén" },
+    { id: "garden", label: "Zahrada", hint: "zahrada" },
+    { id: "terrace", label: "Terasa", hint: "terasa" },
+    { id: "parking", label: "Parkoviště", hint: "parkoviště" },
+    { id: "restaurant", label: "Restaurace", hint: "restaurace, jídelna" },
+    { id: "bar", label: "Bar", hint: "bar, výčep" },
+    { id: "lobby", label: "Recepce", hint: "recepce, lobby, společný prostor" },
+    { id: "shop", label: "Prodejna", hint: "prodejna, obchod" },
+    { id: "warehouse", label: "Sklad", hint: "sklad" },
+    { id: "office", label: "Kancelář", hint: "kancelář, pracovna" },
+    { id: "conference", label: "Konferenčka", hint: "konferenční či školicí prostor" },
+    { id: "product", label: "Produkt", hint: "záběr na konkrétní produkt, zboží, výrobek" },
+    { id: "packaging", label: "Obal", hint: "balení, krabice, obal produktu" },
+    { id: "food", label: "Jídlo", hint: "jídlo" },
+    { id: "drink", label: "Nápoj", hint: "nápoj" },
+    { id: "logo", label: "Logo", hint: "logo značky" },
+    { id: "branding", label: "Vizuální identita", hint: "vizuální identita, tiskoviny, merch" },
+    { id: "event", label: "Akce", hint: "akce, událost, slavnostní příležitost" },
+    { id: "nature", label: "Příroda", hint: "příroda, krajina, exteriér bez budov" },
+    { id: "view", label: "Výhled", hint: "výhled, panorama" },
+    { id: "sport", label: "Sport", hint: "sportovní aktivita" },
+    { id: "wellness", label: "Wellness", hint: "wellness, relaxace" },
+    { id: "detail", label: "Detail", hint: "detail, textura, makro záběr BEZ rozpoznatelné tváře" },
+] as const
+
+export type BrandImageTag = typeof BRAND_IMAGE_TAGS[number]["id"]
+
+const BRAND_IMAGE_TAG_IDS: readonly string[] = BRAND_IMAGE_TAGS.map(t => t.id)
+
+export function isValidBrandTag(tag: string): boolean {
+    return BRAND_IMAGE_TAG_IDS.includes(tag.toLowerCase())
+}
+
 /** Tagged brand reference image with AI-generated metadata */
 export interface BrandImage {
     /** Public URL in Supabase storage */
     url: string
-    /** AI-generated tags: exterior, interior, bedroom, bathroom, kitchen, living,
-     *  pool, restaurant, team, product, logo, food, nature, detail, lobby, garden */
+    /** Štítky z BRAND_IMAGE_TAGS — řídí, kdy se fotka použije. */
     tags: string[]
-    /** AI-generated one-sentence description in Czech */
+    /** Jednovětý popis česky (AI, nebo od člověka) */
     description: string
+    /**
+     * Štítky nastavil člověk, ne AI. Pak je AI už NIKDY nepřepíše — ani při
+     * „Přeznačit AI", ani při opakovaném onboardingu.
+     *
+     * Proč: vision model nepozná, že tenhle konkrétní obličej je tvář značky —
+     * portrét ochotně označí jako „detail" a pipeline ho pak nikdy nesáhne.
+     * Člověk to ví; jeho oprava je konečná.
+     */
+    userTagged?: boolean
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
