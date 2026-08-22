@@ -9,13 +9,12 @@
  * touches `next/headers` here — that would break headless execution. Only
  * `supabaseAdmin` (service role) + `generateText` + dynamic imports are allowed.
  *
- * This module MIRRORS the config-generation logic in the auth-gated server
- * actions (`./actions.ts`: buildManualAnalysis / generateConfigPreview /
- * saveReviewedConfig). The actions stay the single source of truth for the
- * onboarding UI; this is the headless twin used by seed scripts. If you change
- * a prompt or the config shape in one place, mirror it here. The `WebsiteAnalysis`
- * type is imported type-only from there (erased at runtime, so no `next/headers`
- * is pulled in).
+ * TENHLE SOUBOR JE ZDROJ PRAVDY pro onboarding pipeline. `./actions.ts` je jen
+ * auth-gated obálka (requireAuth + zařazení tasku) a durable worker
+ * (`lib/agents/handlers.ts`) volá rovnou sem — právě proto, že tu není auth vrstva.
+ * Dřív tu žil dvojník a mirrorovalo se ručně; nemirroruj ho zpátky.
+ *
+ * Typy jsou v `./types.ts`, aby mezi tímhle souborem a `actions.ts` nevznikl cyklus.
  */
 
 import supabaseAdmin from '@/supabase/admin'
@@ -27,27 +26,13 @@ import { withRetry } from '@/utils/retry'
 import type { ClientConfig, PostTypeDef } from '@/instagram/configs/types'
 import { FORMAT_BRIEF_LIMITS } from '@/instagram/configs/types'
 import { stripFinishedCopy } from '@/instagram/configs/format-brief'
-import type { WebsiteAnalysis } from './actions'
+import type { WebsiteAnalysis, ManualBusinessInfo } from './types'
 
 // ============================================
 // TYPES
 // ============================================
 
-export interface ManualBusinessInfo {
-    businessName: string
-    category: string
-    description: string
-    products: string
-    tone: string
-    igHandle: string
-    // Enhanced fields (all optional)
-    targetAudience?: string
-    competitors?: string
-    visualStyle?: string
-    followerCount?: number
-    topLocations?: string
-    audienceGender?: 'mostly_female' | 'mostly_male' | 'mixed' | 'unknown'
-}
+export type { ManualBusinessInfo }
 
 export const CATEGORY_DEFAULTS: Record<string, { industry: string; postTypes: string[]; audience: string }> = {
     'kavarna': { industry: 'Gastronomie / Kavárna', postTypes: ['tip', 'behind_scenes', 'product_drop', 'meme'], audience: 'Milovníci kávy, lidé hledající příjemné místo k práci nebo relaxaci, 20-45 let' },

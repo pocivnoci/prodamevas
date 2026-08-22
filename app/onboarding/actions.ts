@@ -11,109 +11,30 @@ import { generateCustomFormats, seedVoiceExamplesFromIG } from '@/app/onboarding
 import type { ClientConfig } from '@/instagram/configs/types'
 import { fetchInstagramProfile, estimatePostsPerWeek, type IgProfileData } from '@/lib/ig-scraper'
 import { isSuperAdminEmail } from '@/lib/super-admins'
+import { humanizeError } from './types'
+import type {
+    WebsiteAnalysis,
+    IgInsights,
+    OnboardingQuestion,
+    ReviewSection,
+    ManualBusinessInfo,
+} from './types'
 
 // ============================================
 // TYPES
 // ============================================
 // IgProfileData lives in lib/ig-scraper.ts ("use server" re-exports break the actions compiler)
 
-export interface IgInsights {
-    topHashtags: string[]
-    avgEngagementRate: number
-    contentMix: Record<string, number>
-    brandToneHint: string
-    visualStyleHint: string
-    bestPostingTimes?: string[]
-    /** Structured brand-voice observations from the real captions — basis for config brandVoice */
-    voiceProfile?: {
-        voiceTraits: string[]
-        hookExamples: string[]
-        captionStyle: string
-        ctaHabits: string
-    }
-    /** 2–4 Czech observations of what demonstrably works — seeds 'pattern' brand memories */
-    provenPatterns?: string[]
-}
-
-export interface WebsiteAnalysis {
-    companyName: string
-    description: string
-    industry: string
-    /** Město z kontaktu/adresy. Prázdné = web ho neuvádí (čistě online firma).
-     *  Propisuje se do `ClientConfig.city` — čte ho kontextový agent a počasí. */
-    city?: string
-    products: { name: string; type: string; slug: string; price?: string; description?: string }[]
-    brandTone: string
-    colors: { primary: string; secondary: string; accent: string }
-    targetAudience: string
-    uniqueSellingPoints: string[]
-    existingContent: string[]
-    instagramBio?: string
-    logoUrl?: string
-    /** Whether logo was successfully downloaded */
-    logoDownloaded?: boolean
-    /** Recommended font: Inter (modern/clean) or BebasNeue (bold/impact) */
-    recommendedFont?: string
-    /** AI-recommended overlay gradient based on brand colors */
-    overlayGradient?: { topColor: string; midColor: string; bottomColor: string }
-    /** Unique visual feel description */
-    visualFeel?: string
-    /** Brand image URLs scraped from the website */
-    brandImageUrls?: string[]
-    /** Scraped Instagram profile data (via HikerAPI) */
-    igProfile?: IgProfileData
-    /** AI-analyzed insights from IG feed */
-    igInsights?: IgInsights
-    /** Gemini vision analysis of the actual feed images (typography, colors, archetypes) */
-    feedVisuals?: import('@/instagram/feed-vision').FeedVisualProfile
-}
-
-export interface OnboardingQuestion {
-    id: string
-    question: string
-    type: 'select' | 'multiselect' | 'text' | 'scale'
-    options?: string[]
-    placeholder?: string
-    required: boolean
-}
-
-// ============================================
-// ERROR HELPERS
-// ============================================
-
-function humanizeError(error: unknown): string {
-    // Node.js wraps network errors: TypeError("fetch failed") with error.cause
-    const cause = (error as any)?.cause
-    const causeMsg = cause?.message || cause?.code || ''
-    const msg = (error as Error)?.message || String(error)
-    const full = `${msg} ${causeMsg}`.toLowerCase()
-
-    if (full.includes('fetch failed') && (causeMsg.includes('ENOTFOUND') || causeMsg.includes('getaddrinfo') || causeMsg.includes('dns'))) {
-        return 'Web nebyl nalezen. Zkontroluj, jestli je URL správná.'
-    }
-    if (full.includes('fetch failed') && causeMsg.includes('ECONNREFUSED')) {
-        return 'Web odmítl připojení. Zkontroluj URL.'
-    }
-    if (full.includes('fetch failed')) {
-        return `Nepodařilo se načíst web${causeMsg ? ': ' + causeMsg : ''}. Zkontroluj URL a zkus to znovu.`
-    }
-    if (full.includes('503') || full.includes('overloaded') || full.includes('unavailable') || full.includes('high demand')) {
-        return 'AI server je momentálně přetížený. Zkus to za chvíli znovu.'
-    }
-    if (full.includes('429') || full.includes('rate limit') || full.includes('quota')) {
-        return 'Překročen limit API požadavků. Zkus to za minutu.'
-    }
-    if (full.includes('timeout') || full.includes('abort') || full.includes('etimedout')) {
-        return 'Připojení k webu vypršelo. Zkontroluj URL a zkus to znovu.'
-    }
-    if (full.includes('enotfound') || full.includes('dns') || full.includes('getaddrinfo')) {
-        return 'Web nebyl nalezen. Zkontroluj, jestli je URL správná.'
-    }
-    if (full.includes('json')) {
-        return 'AI vygenerovalo neplatnou odpověď. Zkus to znovu.'
-    }
-    return msg
-}
+// Typy a humanizeError žijí v ./types.ts — sdílí je UI, tenhle soubor, headless
+// core.ts i durable worker. Re-export drží importy v page.tsx / OnboardTab.tsx
+// beze změny.
+export type {
+    IgInsights,
+    WebsiteAnalysis,
+    OnboardingQuestion,
+    ReviewSection,
+    ManualBusinessInfo,
+} from './types'
 
 // ============================================
 // DB HELPERS
@@ -371,22 +292,6 @@ async function enrichWithInstagram(analysis: WebsiteAnalysis, igHandle: string):
 // ============================================
 // STEP 1B: MANUAL ANALYSIS (no website)
 // ============================================
-
-export interface ManualBusinessInfo {
-    businessName: string
-    category: string
-    description: string
-    products: string
-    tone: string
-    igHandle: string
-    // Enhanced fields (all optional)
-    targetAudience?: string
-    competitors?: string
-    visualStyle?: string
-    followerCount?: number
-    topLocations?: string
-    audienceGender?: 'mostly_female' | 'mostly_male' | 'mixed' | 'unknown'
-}
 
 const CATEGORY_DEFAULTS: Record<string, { industry: string; postTypes: string[]; audience: string }> = {
     'kavarna': { industry: 'Gastronomie / Kavárna', postTypes: ['tip', 'behind_scenes', 'product_drop', 'meme'], audience: 'Milovníci kávy, lidé hledající příjemné místo k práci nebo relaxaci, 20-45 let' },
@@ -735,7 +640,6 @@ export async function generateQuestions(_analysis: WebsiteAnalysis): Promise<{
 // STEP 3A: GENERATE CONFIG PREVIEW (no save)
 // ============================================
 
-export type ReviewSection = 'brand_voice' | 'pillars' | 'products' | 'visual' | 'hooks_cta'
 
 export async function generateConfigPreview(
     analysis: WebsiteAnalysis,

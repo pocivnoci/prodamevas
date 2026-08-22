@@ -2385,6 +2385,39 @@ test("30.4 rozbitá hodnota je vidět v logu, ale neshodí aplikaci", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 31. ONBOARDING NEPŘEŽÍVÁ NA PROHLÍŽEČI
+// ═══════════════════════════════════════════════════════════
+
+test("31.1 runner si drží lease sám, ne přes handlery", () => {
+    // claimNext() zabere každý task se starším lease než LEASE_MS a `attempts` vůbec
+    // nečte — handler běžící déle než lease se tedy zabere PODRUHÉ, zatímco první běh
+    // ještě žije. Není to retry (max_attempts to nezastaví), je to dvojí běh: u AI
+    // handleru dvojí útrata. Cron jede každou minutu s maxDuration 800, takže se
+    // invokace překrývají a závod je běžný stav, ne exotika.
+    const code = codeOnly("lib/agent-runner.ts")
+    assert(/const heartbeat = setInterval\(/.test(code),
+        "lease heartbeat musí být samostatný setInterval v runTask, ne starost handlerů")
+    assert(/\}, 60_000\)/.test(code), "heartbeat musí tepat rychleji, než lease vyprší")
+    assert(/\} finally \{\s*clearInterval\(heartbeat\)/.test(code),
+        "clearInterval(heartbeat) patří do finally — zombie interval na recyklované Fluid instanci re-leasne cizí task")
+    const beat = code.slice(code.indexOf("async function beatLease"))
+    assert(/\.eq\("status", "running"\)/.test(beat.slice(0, 600)),
+        "beat lease musí filtrovat na running, jinak vzkřísí lease, který už patří někomu jinému")
+})
+
+test("31.2 kick z prohlížeče zabírá podmíněně, nikdy nezakládá", () => {
+    const code = codeOnly("lib/agent-runner.ts")
+    assert(/export async function runTaskById/.test(code),
+        "kick z prohlížeče potřebuje běh jednoho tasku podle id, ne drain celé fronty")
+    const fn = code.slice(code.indexOf("export async function runTaskById"))
+    const body = fn.slice(0, fn.indexOf("\n}"))
+    assert(/\.eq\("status", "pending"\)/.test(body) && /\.is\("lease", null\)/.test(body),
+        "claim musí být podmíněný — bez toho kick a cron rozjedou tentýž task dvakrát")
+    assert(/already_claimed/.test(body),
+        "prázdný claim znamená, že task má cron: normální výsledek, ne chyba a rozhodně ne insert")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 

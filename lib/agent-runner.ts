@@ -49,6 +49,12 @@ export async function enqueueTask(opts: {
     scheduledFor?: Date
     priority?: number
     maxAttempts?: number
+    /** Auth user who asked for this task. NULL = system task (cron, webhook).
+     *  Onboarding runs BEFORE a client row exists, so client_id can't authorize the
+     *  poll — this is what the status route checks instead. Typed column, not a
+     *  payload key: payload means "handler input" across all handlers, and a typo in
+     *  a column name is a Postgres error while a typo in payload.userId is invisible. */
+    requestedBy?: string | null
 }): Promise<string> {
     const { data, error } = await supabaseAdmin
         .from("agent_tasks")
@@ -59,6 +65,7 @@ export async function enqueueTask(opts: {
             scheduled_for: (opts.scheduledFor || new Date()).toISOString(),
             priority: opts.priority ?? 0,
             max_attempts: opts.maxAttempts ?? 3,
+            requested_by: opts.requestedBy ?? null,
         })
         .select("id")
         .single()
@@ -105,9 +112,20 @@ async function claimNext(): Promise<AgentTask | null> {
     return null
 }
 
-/** Heartbeat a running task's lease so a long handler can't be reclaimed mid-run. */
-async function heartbeat(id: string): Promise<void> {
-    await supabaseAdmin.from("agent_tasks").update({ lease: nowIso() }).eq("id", id)
+/**
+ * Beat a running task's lease so a long handler can't be reclaimed mid-run.
+ *
+ * The `status = running` filter matters: without it a zombie beat from a worker that
+ * already lost the row (stale interval on a reused Fluid instance) resurrects a lease
+ * somebody else owns, or re-leases a task that already finished.
+ */
+async function beatLease(id: string): Promise<void> {
+    const { error } = await supabaseAdmin
+        .from("agent_tasks")
+        .update({ lease: nowIso() })
+        .eq("id", id)
+        .eq("status", "running")
+    if (error) console.warn(`⚠️ agent-runner lease heartbeat failed (${id}): ${error.message}`)
 }
 
 /** Run one task through its handler; mark done, or failed/retry on error. */
@@ -126,6 +144,22 @@ async function runTask(task: AgentTask): Promise<"done" | "failed" | "retry" | "
     }
 
     const attempts = (task.attempts || 0) + 1
+
+    // ── Independent lease heartbeat ───────────────────────────────────────
+    // claimNext() reclaims any task whose lease is older than LEASE_MS and never reads
+    // `attempts` — so a handler running longer than LEASE_MS gets claimed a SECOND time
+    // while still alive, and both copies run concurrently. That is NOT a retry, so
+    // max_attempts cannot stop it; for an AI handler it simply means paying twice. The
+    // cron fires every minute with maxDuration 800, so invocations overlap and this race
+    // is routine, not exotic.
+    //
+    // Beat the lease here rather than in each handler: the lease belongs to the runner
+    // (AgentTask deliberately doesn't even expose it), and handlers like the onboarding
+    // ones are also called from plain `tsx` scripts that have no task at all. Same shape
+    // as campaign-worker's heartbeat. MUST be cleared on every exit path — a zombie
+    // interval on a reused Fluid instance would re-lease a task the next tick may claim.
+    const heartbeat = setInterval(() => { void beatLease(task.id) }, 60_000)
+
     try {
         const result = await handler(task)
         await supabaseAdmin.from("agent_tasks")
@@ -155,7 +189,37 @@ async function runTask(task: AgentTask): Promise<"done" | "failed" | "retry" | "
             })
         }
         return willRetry ? "retry" : "failed"
+    } finally {
+        clearInterval(heartbeat)
     }
+}
+
+/**
+ * Claim and run exactly ONE task by id. The browser-kick path: a start action enqueues,
+ * the browser POSTs /api/onboarding/run-task, and work begins immediately instead of
+ * waiting up to 60s for the next cron tick. The cron stays the safety net — a kick that
+ * never lands (closed tab, dead lambda, `Failed to fetch`) costs latency, not the task.
+ *
+ * Conditional claim, never an insert fallback (CLAUDE.md): no row back means the cron
+ * already owns it, which is a normal outcome, not an error — the caller polls either way.
+ */
+export async function runTaskById(id: string): Promise<{ ran: boolean; outcome?: string; reason?: string }> {
+    const { data: claimed, error } = await supabaseAdmin
+        .from("agent_tasks")
+        .update({ status: "running", lease: nowIso() })
+        .eq("id", id)
+        .eq("status", "pending")
+        .is("lease", null)
+        .select("*")
+        .maybeSingle()
+
+    if (error) {
+        console.warn(`⚠️ runTaskById claim error (${id}): ${error.message}`)
+        return { ran: false, reason: "claim_error" }
+    }
+    if (!claimed) return { ran: false, reason: "already_claimed" }
+
+    return { ran: true, outcome: await runTask(claimed as AgentTask) }
 }
 
 /**
@@ -170,8 +234,8 @@ export async function drainTasks(budgetMs = 700_000): Promise<{ ran: number; don
         const task = await claimNext()
         if (!task) break // queue empty
         ran++
-        // Heartbeat once mid-flight is overkill for short tasks; the lease covers
-        // LEASE_MS. Long handlers should call heartbeat() themselves if needed.
+        // runTask beats the lease itself on a timer, so a handler that outlives LEASE_MS
+        // can't be reclaimed and double-run. Handlers need do nothing.
         const outcome = await runTask(task)
         if (outcome === "done") done++
         else if (outcome === "retry") retried++
@@ -180,4 +244,4 @@ export async function drainTasks(budgetMs = 700_000): Promise<{ ran: number; don
     return { ran, done, failed, retried }
 }
 
-export { heartbeat }
+export { beatLease }
