@@ -2457,6 +2457,28 @@ test("31.4 jádro onboardingu zůstává bez auth vrstvy", () => {
     assert(core.includes("@/supabase/admin"), "core.ts jede na service-role klientovi")
 })
 
+test("31.5 dotazník na míru nesmí onboarding zablokovat", () => {
+    const core = codeOnly("app/onboarding/core.ts")
+    assert(core.includes("FALLBACK_QUESTIONS"),
+        "pevný dotazník musí zůstat jako záchranná síť, když model selže")
+
+    const fn = core.slice(core.indexOf("export async function generateQuestionsCore"))
+    const body = fn.slice(0, fn.indexOf("\n}\n"))
+    assert(body.includes("catch") && body.includes("return FALLBACK_QUESTIONS"),
+        "selhání modelu musí skončit pevným dotazníkem, ne výjimkou — ptát se hůř je lepší než se nezeptat")
+    assert(body.includes("usable.length < 3"),
+        "schéma hlídá tvar, ne smysl: prázdný select se nedá vyplnit, takže se počítají použitelné otázky")
+
+    // Otázky píše AI, takže id je neprůhledné — bez textu otázky je odpověď v promptu
+    // jen hodnota bez kontextu a učicí smyčka z ní nic nevytěží.
+    assert(core.includes("otazka: q.question"),
+        "do mega promptu musí jít dvojice otázka+odpověď, ne holá mapa id→odpověď")
+
+    const actions = codeOnly("app/onboarding/actions.ts")
+    assert(!actions.includes("ig_goal"),
+        "pevný dotazník patří do core.ts — v actions.ts by byl zase dvojník")
+})
+
 // ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════

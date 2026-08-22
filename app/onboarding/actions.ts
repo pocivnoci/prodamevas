@@ -11,6 +11,7 @@ import {
     analyzeWebsiteCore,
     buildManualAnalysisCore,
     generateConfigCore,
+    generateQuestionsCore,
     generateCustomFormats,
     seedVoiceExamplesFromIG,
     seedMemoriesFromAnalysis,
@@ -171,76 +172,19 @@ Vrať POUZE platný JSON pole.`
     }
 }
 
-export async function generateQuestions(_analysis: WebsiteAnalysis): Promise<{
+export async function generateQuestions(analysis: WebsiteAnalysis): Promise<{
     success: boolean
     questions?: OnboardingQuestion[]
     error?: string
 }> {
-    await requireAuth()
-    // Fixed questions — each maps directly to a ClientConfig field.
-    // No AI call needed, instant response.
-    const questions: OnboardingQuestion[] = [
-        {
-            id: 'ig_goal',
-            question: 'Co je tvůj hlavní cíl na Instagramu?',
-            type: 'select',
-            options: [
-                'Získat nové zákazníky',
-                'Budovat komunitu a důvěru',
-                'Prodávat produkty / služby',
-                'Zvýšit povědomí o značce',
-            ],
-            required: true,
-        },
-        {
-            id: 'ig_tone',
-            question: 'Jakým tónem chceš na Instagramu komunikovat?',
-            type: 'select',
-            options: [
-                'Přátelský a hravý',
-                'Profesionální a expertní',
-                'Drzý a vtipný',
-                'Inspirativní a motivační',
-                'Luxusní a minimalistický',
-            ],
-            required: true,
-        },
-        {
-            id: 'ig_taboo',
-            question: 'Jsou témata, kterým se chceš vyhnout?',
-            type: 'text',
-            placeholder: 'např. politika, konkurence, slevy, vulgarita...',
-            required: false,
-        },
-        {
-            id: 'ig_cta',
-            question: 'Co chceš, aby lidé udělali po přečtení postu?',
-            type: 'multiselect',
-            options: [
-                'Navštívit web / e-shop',
-                'Napsat DM nebo komentář',
-                'Uložit si post na později',
-                'Sdílet s přáteli',
-                'Koupit produkt / objednat službu',
-            ],
-            required: true,
-        },
-        {
-            id: 'ig_visual',
-            question: 'Jaký vizuální styl feedu ti sedí?',
-            type: 'select',
-            options: [
-                'Čistý a minimalistický',
-                'Barevný a energický',
-                'Tmavý a dramatický',
-                'Teplý a útulný',
-                'Luxusní a elegantní',
-            ],
-            required: false,
-        },
-    ]
-
-    return { success: true, questions }
+    try {
+        await requireAuth()
+        // generateQuestionsCore nikdy nehází — když model selže, vrátí pevný dotazník.
+        // Onboarding se nesmí zaseknout na tom, že se nepovedlo se hezky zeptat.
+        return { success: true, questions: await generateQuestionsCore(analysis) }
+    } catch (error) {
+        return { success: false, error: humanizeError(error) }
+    }
 }
 
 
@@ -253,11 +197,12 @@ export async function generateConfigPreview(
     analysis: WebsiteAnalysis,
     answers: Record<string, string | string[]>,
     websiteUrl: string,
-    igHandle: string
+    igHandle: string,
+    questions?: OnboardingQuestion[]
 ): Promise<{ success: boolean; config?: ClientConfig; error?: string }> {
     try {
         await requireAuth()
-        return { success: true, config: await generateConfigCore(analysis, answers, websiteUrl, igHandle) }
+        return { success: true, config: await generateConfigCore(analysis, answers, websiteUrl, igHandle, questions) }
     } catch (error) {
         console.error('Config preview error:', error)
         return { success: false, error: humanizeError(error) }

@@ -27,7 +27,8 @@ import type { ClientConfig, PostTypeDef } from '@/instagram/configs/types'
 import { FORMAT_BRIEF_LIMITS } from '@/instagram/configs/types'
 import { stripFinishedCopy } from '@/instagram/configs/format-brief'
 import { fetchInstagramProfile, estimatePostsPerWeek, type IgProfileData } from '@/lib/ig-scraper'
-import type { WebsiteAnalysis, ManualBusinessInfo, IgInsights } from './types'
+import { Type } from '@google/genai'
+import type { WebsiteAnalysis, ManualBusinessInfo, IgInsights, OnboardingQuestion } from './types'
 
 // ============================================
 // TYPES
@@ -368,6 +369,154 @@ Vrať POUZE platný JSON.`
 }
 
 // ============================================
+// STEP 2: DOTAZNÍK NA MÍRU ZNAČCE
+// ============================================
+
+/** Záchranná síť: pět pevných otázek, které tu byly, než je začala psát AI.
+ *  Onboarding nesmí umřít na nice-to-have — když model selže, ptáme se takhle. */
+const FALLBACK_QUESTIONS: OnboardingQuestion[] = [
+    {
+        id: 'ig_goal',
+        question: 'Co je tvůj hlavní cíl na Instagramu?',
+        type: 'select',
+        options: [
+            'Získat nové zákazníky',
+            'Budovat komunitu a důvěru',
+            'Prodávat produkty / služby',
+            'Zvýšit povědomí o značce',
+        ],
+        required: true,
+    },
+    {
+        id: 'ig_tone',
+        question: 'Jakým tónem chceš na Instagramu komunikovat?',
+        type: 'select',
+        options: [
+            'Přátelský a hravý',
+            'Profesionální a expertní',
+            'Drzý a vtipný',
+            'Inspirativní a motivační',
+            'Luxusní a minimalistický',
+        ],
+        required: true,
+    },
+    {
+        id: 'ig_taboo',
+        question: 'Jsou témata, kterým se chceš vyhnout?',
+        type: 'text',
+        placeholder: 'např. politika, konkurence, slevy, vulgarita...',
+        required: false,
+    },
+    {
+        id: 'ig_cta',
+        question: 'Co chceš, aby lidé udělali po přečtení postu?',
+        type: 'multiselect',
+        options: [
+            'Navštívit web / e-shop',
+            'Napsat DM nebo komentář',
+            'Uložit si post na později',
+            'Sdílet s přáteli',
+            'Koupit produkt / objednat službu',
+        ],
+        required: true,
+    },
+    {
+        id: 'ig_visual',
+        question: 'Jaký vizuální styl feedu ti sedí?',
+        type: 'select',
+        options: [
+            'Čistý a minimalistický',
+            'Barevný a energický',
+            'Tmavý a dramatický',
+            'Teplý a útulný',
+            'Luxusní a elegantní',
+        ],
+        required: false,
+    },
+]
+
+/**
+ * Vygeneruje doplňující otázky na míru TÉHLE značce. Auth-free.
+ *
+ * Nikdy nehází: každé selhání (model, JSON, nesmyslný tvar) končí pevným
+ * dotazníkem. Ptát se hůř je pořád nekonečně lepší než se nezeptat vůbec.
+ */
+export async function generateQuestionsCore(analysis: WebsiteAnalysis): Promise<OnboardingQuestion[]> {
+    const prompt = `Jsi stratég značky. Pro TUHLE konkrétní firmu napiš 5 doplňujících otázek, které se zeptají na to, co z webu nejde vyčíst, a co potřebuješ vědět, než jí začneš psát Instagram.
+
+FIRMA: ${analysis.companyName}
+OBOR: ${analysis.industry}
+POPIS: ${analysis.description}
+PRODUKTY: ${(analysis.products || []).map(p => p.name).slice(0, 12).join(', ') || '—'}
+CÍLOVÁ SKUPINA: ${analysis.targetAudience || '—'}
+TÓN: ${analysis.brandTone || '—'}
+${analysis.igInsights ? `UŽ POSTUJE NA IG: engagement ${(analysis.igInsights.avgEngagementRate * 100).toFixed(2)} %, tón „${analysis.igInsights.brandToneHint}"` : 'NA INSTAGRAMU ZATÍM NENÍ.'}
+
+## PRAVIDLA
+- Ptej se KONKRÉTNĚ na tuhle firmu. „Jaký je tvůj cíl?" umí položit kdokoli — zeptej se tak, aby bylo poznat, že jsi četl, co dělají.
+- Každá otázka musí měnit, jak budou vypadat příspěvky. Na co neumíš navázat obsah, se neptej.
+- Ptej se na to, co z webu NEJDE zjistit: sezónnost, tabu, kdo doopravdy nakupuje, čím se liší od konkurence, co v minulosti nefungovalo.
+- Přesně 5 otázek, česky, tykáním.
+- Nejvýš jedna otázka typu "text" — psaní dá práci. Zbytek dej jako výběr z možností.
+- U "select" a "multiselect" vždy 3–5 konkrétních možností napsaných pro TENHLE obor, plus ať jedna možnost pokrývá „nic z toho".
+- `+"`id`"+` je krátký slug bez diakritiky (např. "sezonnost", "kdo_nakupuje").
+- Aspoň 3 otázky povinné (required: true).`
+
+    try {
+        const raw = await generateText(prompt, {
+            temperature: 0.8,
+            model: getModel("textPro"),
+            fallbackModel: getModel("textPro", "fallback"),
+            responseSchema: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        id: { type: Type.STRING },
+                        question: { type: Type.STRING },
+                        type: { type: Type.STRING, enum: ["select", "multiselect", "text", "scale"] },
+                        options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        placeholder: { type: Type.STRING },
+                        required: { type: Type.BOOLEAN },
+                    },
+                    required: ["id", "question", "type", "required"],
+                },
+            },
+        })
+
+        const parsed = JSON.parse(raw.match(/\[[\s\S]*\]/)?.[0] || raw) as OnboardingQuestion[]
+
+        // Schéma zaručí tvar, ne smysl. Otázka typu select bez možností vykreslí
+        // prázdný ovládací prvek, do kterého se nedá odpovědět — takovou zahoď.
+        const usable = (Array.isArray(parsed) ? parsed : []).filter(q =>
+            q && typeof q.question === "string" && q.question.trim().length > 5 &&
+            ["select", "multiselect", "text", "scale"].includes(q.type) &&
+            (q.type === "text" || q.type === "scale" || (Array.isArray(q.options) && q.options.length >= 2))
+        )
+
+        if (usable.length < 3) {
+            console.warn(`⚠️ Dotazník na míru vrátil jen ${usable.length} použitelných otázek → pevný dotazník`)
+            return FALLBACK_QUESTIONS
+        }
+
+        // id musí být jedinečné, jinak si dvě otázky přepíšou odpověď.
+        const seen = new Set<string>()
+        const questions = usable.slice(0, 6).map((q, i) => {
+            let id = (q.id || `q${i + 1}`).trim()
+            if (!id || seen.has(id)) id = `q${i + 1}`
+            seen.add(id)
+            return { ...q, id, required: Boolean(q.required) }
+        })
+
+        console.log(`✅ Dotazník na míru: ${questions.length} otázek pro ${analysis.companyName}`)
+        return questions
+    } catch (err) {
+        console.warn(`⚠️ Generování dotazníku selhalo, jedu na pevný: ${(err as Error).message}`)
+        return FALLBACK_QUESTIONS
+    }
+}
+
+// ============================================
 // STEP 3: GENERATE CONFIG CORE
 // ============================================
 
@@ -379,8 +528,20 @@ export async function generateConfigCore(
     analysis: WebsiteAnalysis,
     answers: Record<string, string | string[]>,
     websiteUrl: string,
-    igHandle: string
+    igHandle: string,
+    /** Dotazník, na který `answers` odpovídají. Nepovinný: seed skripty a sales
+     *  preview žádný nemají. Když je po ruce, do promptu jde otázka i s odpovědí. */
+    questions?: OnboardingQuestion[]
 ): Promise<ClientConfig> {
+    // Otázky píše AI, takže `id` je neprůhledné („q3") a modelu při skládání configu
+    // samo o sobě neřekne nic. Spáruj ho zpátky s textem otázky — jinak jsou odpovědi
+    // jen hodnoty bez kontextu.
+    const answersBlock = questions?.length
+        ? JSON.stringify(
+            questions.map(q => ({ otazka: q.question, odpoved: answers[q.id] ?? '—' })),
+            null, 2
+        )
+        : JSON.stringify(answers, null, 2)
     // Build the config via AI
     const igContext = analysis.igProfile ? `
 ## INSTAGRAM DATA (${analysis.igProfile.followerCount} followers)
@@ -420,7 +581,7 @@ Doporučení: ${analysis.feedVisuals.visualRecommendations.join(' | ')}` : ''}
 ${JSON.stringify(analysis, null, 2)}
 
 ## ODPOVĚDI Z DOTAZNÍKU
-${JSON.stringify(answers, null, 2)}
+${answersBlock}
 
 ## WEBSITE & IG
 Web: ${websiteUrl}

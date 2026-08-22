@@ -156,7 +156,7 @@ export function OnboardTab() {
         setStep('building')
 
         try {
-            const result = await generateConfigPreview(analysis, answers, url.trim(), igHandle.trim())
+            const result = await generateConfigPreview(analysis, answers, url.trim(), igHandle.trim(), questions)
             if (!result.success || !result.config) {
                 throw new Error(result.error || 'Generování konfigurace selhalo')
             }
