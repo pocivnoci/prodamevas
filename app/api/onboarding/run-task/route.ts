@@ -27,7 +27,13 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, error: "Chybí taskId" }, { status: 400 })
         }
 
-        const { userId, email } = await requireAuth()
+        // Auth PŘED hledáním úlohy, ať 404 vs 401 neprozradí, které id existuje.
+        let userId: string, email: string
+        try {
+            ({ userId, email } = await requireAuth())
+        } catch {
+            return NextResponse.json({ success: false, error: "Neautorizovaný přístup" }, { status: 401 })
+        }
 
         const { data: task } = await supabaseAdmin
             .from("agent_tasks")

@@ -27,6 +27,15 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: "Chybí parametr id" }, { status: 400 })
     }
 
+    // Auth PŘED hledáním úlohy: jinak by nepřihlášený rozeznal existující id od
+    // neexistujícího podle toho, jestli dostane 404 nebo 401.
+    let userId: string, email: string
+    try {
+        ({ userId, email } = await requireAuth())
+    } catch {
+        return NextResponse.json({ error: "Neautorizovaný přístup" }, { status: 401 })
+    }
+
     const { data: task } = await supabaseAdmin
         .from("agent_tasks")
         .select("id, type, status, progress, agent_message, result, error, requested_by, created_at, updated_at")
@@ -36,15 +45,9 @@ export async function GET(req: Request) {
     if (!task) {
         return NextResponse.json({ error: "Úloha nenalezena" }, { status: 404 })
     }
-
-    try {
-        const { userId, email } = await requireAuth()
-        // Fail closed: bez vlastníka (systémový task) se sem nikdo nedostane.
-        if (task.requested_by !== userId && !isSuperAdminEmail(email)) {
-            return NextResponse.json({ error: "Nemáš přístup k této úloze" }, { status: 403 })
-        }
-    } catch {
-        return NextResponse.json({ error: "Neautorizovaný přístup" }, { status: 401 })
+    // Fail closed: bez vlastníka (systémový task) se sem nikdo nedostane.
+    if (task.requested_by !== userId && !isSuperAdminEmail(email)) {
+        return NextResponse.json({ error: "Nemáš přístup k této úloze" }, { status: 403 })
     }
 
     let { status, error } = task
