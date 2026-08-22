@@ -26,7 +26,8 @@ import { withRetry } from '@/utils/retry'
 import type { ClientConfig, PostTypeDef } from '@/instagram/configs/types'
 import { FORMAT_BRIEF_LIMITS } from '@/instagram/configs/types'
 import { stripFinishedCopy } from '@/instagram/configs/format-brief'
-import type { WebsiteAnalysis, ManualBusinessInfo } from './types'
+import { fetchInstagramProfile, estimatePostsPerWeek, type IgProfileData } from '@/lib/ig-scraper'
+import type { WebsiteAnalysis, ManualBusinessInfo, IgInsights } from './types'
 
 // ============================================
 // TYPES
@@ -351,6 +352,18 @@ Vrať POUZE platný JSON.`
         visualFeel: enriched.visualFeel,
     }
 
+    // Enrich with Instagram profile data if handle provided.
+    // Dřív tenhle blok žil jen v actions.ts, takže ruční onboarding přes UI značku
+    // z Instagramu přečetl a headless cesta ne. enrichWithInstagram je non-blocking
+    // (chybu spolkne a analýzu nechá být), takže i neexistující handle je bezpečný.
+    if (info.igHandle) {
+        await enrichWithInstagram(analysis, info.igHandle)
+        // Enrich brand tone if IG analysis gives a hint
+        if (analysis.igInsights?.brandToneHint && analysis.brandTone === info.tone) {
+            analysis.brandTone = analysis.igInsights.brandToneHint
+        }
+    }
+
     return analysis
 }
 
@@ -564,6 +577,24 @@ DŮLEŽITÉ:
             scrapedAt: new Date().toISOString(),
         }
     }
+    // Grid rhythm, derived from what the brand's real feed already does. Deterministic —
+    // a photography-led feed gets "none" rather than having typography posts forced on it.
+    // Guard na feedVisuals: cesty bez scrapu IG (seed skripty, sales preview) sem nikdy
+    // nevlezou a validateConfig jim nechá default "none".
+    if (analysis.feedVisuals) {
+        const { recommendPattern } = await import('@/lib/feed-pattern')
+        config.feedPattern = recommendPattern(analysis.feedVisuals)
+        console.log(`🔲 Feed pattern doporučen: ${config.feedPattern}`)
+    }
+
+    // Seed real posting cadence from the scrape so the content plan matches how often the
+    // brand actually posts (a "week" = this many posts, not 7). Falls back to 4 when the
+    // recent posts don't carry enough dated signal. validateConfig clamps it 1–7.
+    if (analysis.igProfile && analysis.igInsights) {
+        const perWeek = estimatePostsPerWeek(analysis.igProfile.recentPosts.map(p => p.timestamp))
+        if (perWeek) config.postsPerWeek = perWeek
+    }
+
     // Set logo file if it was downloaded
     if (analysis.logoDownloaded) {
         config.logoFile = `logo-${slug}.png`
@@ -582,7 +613,10 @@ DŮLEŽITÉ:
             const imagesToTag: { url: string; buffer: Buffer; mimeType?: string }[] = []
             for (const url of imageUrls) {
                 try {
-                    const resp = await fetch(url)
+                    // Timeout jako všude jinde na téhle cestě: bez něj jediné visící
+                    // storage URL zablokuje celou pipeline na neurčito. Sousední
+                    // downloadProductImages má stejných 8 s.
+                    const resp = await fetch(url, { signal: AbortSignal.timeout(8000) })
                     if (resp.ok) {
                         const buf = Buffer.from(await resp.arrayBuffer())
                         const ct = resp.headers.get('content-type') || 'image/jpeg'
@@ -1002,4 +1036,631 @@ export async function saveConfigCore(
     }
 
     return insertedSlug
+}
+
+// ============================================
+// STEP 1: ANALÝZA WEBU (scraping + AI + IG)
+// ============================================
+// Přesunuto sem z actions.ts, aby to mohl volat durable worker: `lib/agents/handlers.ts`
+// se nesmí dotknout auth vrstvy (HARD RULE nahoře), takže dokud tohle žilo za
+// `requireAuth()`, nešlo analýzu utrhnout od otevřeného spojení s prohlížečem.
+export async function analyzeWebsiteCore(url: string, igHandle: string): Promise<WebsiteAnalysis> {
+    try {
+        // Normalize URL
+        const baseUrl = url.startsWith('http') ? url : `https://${url}`
+
+        // Scrape homepage
+        console.log(`🔍 Scraping ${baseUrl}...`)
+        const homepageHtml = await fetchPage(baseUrl)
+
+        // Discover subpages: sitemap.xml first, then <a href> fallback
+        const sitemapUrls = await fetchSitemapUrls(baseUrl)
+        const linkUrls = extractSubpageUrls(homepageHtml, baseUrl)
+        const allSubUrls = [...new Set([...sitemapUrls, ...linkUrls])].slice(0, 15)
+        console.log(`   📄 Found ${sitemapUrls.length} sitemap + ${linkUrls.length} link URLs → ${allSubUrls.length} to crawl`)
+
+        // Fetch subpages in parallel
+        const subpageTextsArray = await Promise.all(allSubUrls.map(async (subUrl) => {
+            try {
+                const html = await fetchPage(subUrl)
+                return extractStructuredText(html).substring(0, 1500)
+            } catch { return "" }
+        }))
+
+        const subpageTexts = subpageTextsArray.filter(Boolean)
+
+        // Extract metadata, structured text, and CSS colors from homepage
+        const metadata = extractMetadata(homepageHtml)
+        const mainText = extractStructuredText(homepageHtml)
+        const cssColors = extractCSSColors(homepageHtml)
+
+        // Send everything to AI for analysis — including VISUAL identity
+        const analysisPrompt = `Analyzuj tuto webovou stránku a extrahuj klíčové informace pro Instagram marketing.
+
+## HOMEPAGE METADATA
+Title: ${metadata.title}
+Description: ${metadata.description}
+OG Image: ${metadata.ogImage || 'N/A'}
+Theme Color: ${metadata.themeColor || 'N/A'}
+
+## CSS BARVY DETEKOVANÉ Z WEBU
+${cssColors.length > 0 ? cssColors.map(c => `- ${c}`).join('\n') : 'Žádné nalezeny'}
+
+## HOMEPAGE TEXT (strukturovaný)
+${mainText.substring(0, 5000)}
+
+## DALŠÍ STRÁNKY (${allSubUrls.length})
+${subpageTexts.map((t, i) => `### ${allSubUrls[i]}\n${t}`).join('\n\n')}
+
+## ÚKOL
+Analyzuj brand a vrať JSON s těmito poli:
+- companyName: název firmy/značky
+- description: co firma dělá (1-2 věty)
+- industry: odvětví (e-commerce, SaaS, služby, edukace, atd.)
+- city: město, kde firma sídlí nebo působí (z kontaktu/adresy/patičky). Když web žádné neuvádí nebo firma působí čistě online, vrať prázdný řetězec — NEHÁDEJ.
+- products: pole produktů/služeb [{name, type, slug, price, description}] (max 10)
+- brandTone: detekovaný tón komunikace (formální, neformální, drzý, expertní, atd.)
+- colors: {primary, secondary, accent} — HEX barvy detekované z webu (theme-color, CSS, vizuální styl)
+- targetAudience: odhadovaná cílová skupina
+- uniqueSellingPoints: co firmu odlišuje (pole stringů)
+- existingContent: typy existujícího obsahu na webu (blog, recenze, galerie, atd.)
+- recommendedFont: vhodný font pro Instagram overlay — vždy JEDNO z: "Inter" (pro moderní/clean/tech/professional branding) nebo "BebasNeue" (pro bold/dramatic/street/fashion/sport). Vyber podle tónu a brandu.
+- overlayGradient: {topColor, midColor, bottomColor} — 3 HEX barvy pro gradient overlay na Instagramových obrázcích. Barvy MUSÍ být odvozeny z brand palette ale tmavší/syté, aby text (bílý) byl čitelný. Nesmí být neutrálně šedé/černé — musí odrážet brand!
+- visualFeel: 1 věta popisující unikátní vizuální styl feed (např. "Luxusní minimalizmus s deep blue a zlatým akcentem" nebo "Energický street vibe s neonovými barvami")
+- overlayOpacity: doporučená opacity text overlay procenta (např. "35-45%" pro světlé brandy, "50-65%" pro tmavé/kontrastní)
+
+Vrať POUZE platný JSON, bez dalšího textu.`
+
+        const analysisSchema = {
+            type: "object",
+            properties: {
+                companyName: { type: "string" },
+                description: { type: "string" },
+                industry: { type: "string" },
+                city: { type: "string" },
+                products: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            name: { type: "string" },
+                            type: { type: "string" },
+                            slug: { type: "string" },
+                            price: { type: "string" },
+                            description: { type: "string" },
+                        },
+                        required: ["name", "type", "slug"],
+                    },
+                },
+                brandTone: { type: "string" },
+                colors: {
+                    type: "object",
+                    properties: {
+                        primary: { type: "string" },
+                        secondary: { type: "string" },
+                        accent: { type: "string" },
+                    },
+                    required: ["primary", "secondary", "accent"],
+                },
+                targetAudience: { type: "string" },
+                uniqueSellingPoints: { type: "array", items: { type: "string" } },
+                existingContent: { type: "array", items: { type: "string" } },
+                recommendedFont: { type: "string", enum: ["Inter", "BebasNeue"] },
+                overlayGradient: {
+                    type: "object",
+                    properties: {
+                        topColor: { type: "string" },
+                        midColor: { type: "string" },
+                        bottomColor: { type: "string" },
+                    },
+                    required: ["topColor", "midColor", "bottomColor"],
+                },
+                visualFeel: { type: "string" },
+                overlayOpacity: { type: "string" },
+            },
+            required: ["companyName", "description", "industry", "products", "brandTone", "colors", "targetAudience", "uniqueSellingPoints", "existingContent", "recommendedFont", "overlayGradient", "visualFeel", "overlayOpacity"],
+        }
+
+        const rawAnalysis = await generateText(analysisPrompt, { responseSchema: analysisSchema })
+        const jsonMatch = rawAnalysis.match(/\{[\s\S]*\}/)
+        const analysis: WebsiteAnalysis = JSON.parse(jsonMatch?.[0] || rawAnalysis)
+        analysis.logoUrl = metadata.ogImage || undefined
+
+        // Enrich colors: if AI missed them but we have CSS colors, override
+        if (cssColors.length > 0 && analysis.colors.primary === '#000000') {
+            analysis.colors.primary = cssColors[0]
+            if (cssColors[1]) analysis.colors.secondary = cssColors[1]
+            if (cssColors[2]) analysis.colors.accent = cssColors[2]
+        }
+
+        // Extract dominant color from og:image as fallback
+        if (metadata.ogImage && analysis.colors.primary === '#000000') {
+            try {
+                const dominantColor = await extractDominantColor(metadata.ogImage)
+                if (dominantColor) analysis.colors.primary = dominantColor
+            } catch { /* non-critical */ }
+        }
+
+        // Extract brand images from ALL scraped pages (homepage + subpages)
+        const allImages = new Set<string>()
+        for (const imgUrl of extractBrandImages(homepageHtml, baseUrl)) {
+            allImages.add(imgUrl)
+        }
+        // Also extract from subpage HTML — fetch them for images too
+        for (const subUrl of allSubUrls) {
+            try {
+                const subHtml = await fetchPage(subUrl)
+                const subBase = new URL(subUrl).origin
+                for (const imgUrl of extractBrandImages(subHtml, subBase)) {
+                    allImages.add(imgUrl)
+                }
+            } catch { /* subpage fetch failed, skip */ }
+        }
+        analysis.brandImageUrls = Array.from(allImages).slice(0, 50)
+
+        // Try to download logo
+        const slug = slugify(analysis.companyName)
+        const logoUrl = extractLogoUrl(homepageHtml, baseUrl)
+        if (logoUrl) {
+            const logoSaved = await downloadLogo(logoUrl, slug)
+            analysis.logoDownloaded = logoSaved
+            if (logoSaved) {
+                console.log(`✅ Logo saved as logo-${slug}.png`)
+            }
+        }
+
+        // Enrich with Instagram profile data if handle provided
+        if (igHandle) {
+            await enrichWithInstagram(analysis, igHandle)
+        }
+
+        return analysis
+    } catch (error) {
+        console.error('Website analysis error:', error)
+        throw error
+    }
+}
+
+/**
+ * Shared IG enrichment: scrape profile, then in parallel analyze captions
+ * (text insights + voice profile) and the actual feed images (vision).
+ * Non-blocking — any failure leaves the analysis as-is.
+ */
+async function enrichWithInstagram(analysis: WebsiteAnalysis, igHandle: string): Promise<void> {
+    try {
+        const igData = await fetchInstagramProfile(igHandle)
+        if (!igData) return
+        analysis.igProfile = igData
+        analysis.instagramBio = igData.biography
+
+        const { analyzeFeedVisuals } = await import('@/instagram/feed-vision')
+        const [igInsights, feedVisuals] = await Promise.all([
+            analyzeInstagramFeed(igData),
+            analyzeFeedVisuals(igData.recentPosts, analysis.companyName),
+        ])
+        if (igInsights) analysis.igInsights = igInsights
+        if (feedVisuals) analysis.feedVisuals = feedVisuals
+        console.log(`📸 IG enrichment: ${igData.followerCount} followers, ${igData.recentPosts.length} posts${feedVisuals ? ', vision ✓' : ''}`)
+    } catch (igErr) {
+        console.warn('⚠️ IG enrichment failed (non-blocking):', (igErr as Error).message)
+    }
+}
+
+async function analyzeInstagramFeed(igData: IgProfileData): Promise<IgInsights | null> {
+    if (igData.recentPosts.length === 0) return null
+
+    const postsContext = igData.recentPosts.map((p, i) => {
+        const caption = p.caption.slice(0, 300)
+        return `Post ${i + 1}: [${p.mediaType}] ❤️${p.likeCount} 💬${p.commentCount} | "${caption}"`
+    }).join('\n')
+
+    const prompt = `Analyzuj Instagram profil a jeho posty. Extrahuj insights pro nastavení autopilota.
+
+## PROFIL
+Username: @${igData.username}
+Bio: ${igData.biography}
+Followers: ${igData.followerCount} | Following: ${igData.followingCount} | Posts: ${igData.mediaCount}
+Business: ${igData.isBusinessAccount ? `Ano (${igData.businessCategory || 'bez kategorie'})` : 'Ne'}
+
+## POSLEDNÍCH ${igData.recentPosts.length} PŘÍSPĚVKŮ
+${postsContext}
+
+## ÚKOL
+Vrať JSON s těmito poli:
+- topHashtags: pole 10-15 nejpoužívanějších hashtagů z captionů (bez #)
+- avgEngagementRate: průměrný engagement rate (likes+comments / followers), číslo 0-1
+- contentMix: objekt s poměrem typů obsahu, např. {"produkt": 0.4, "behind_scenes": 0.2, "edukace": 0.3, "lifestyle": 0.1}
+- brandToneHint: 1-2 slova popisující detekovaný tón komunikace (česky)
+- visualStyleHint: 1 věta popisující vizuální styl feedu (česky)
+- bestPostingTimes: pole 2-3 optimálních časů pro posting (odhad z timestamps), formát "Po 18:00"
+- voiceProfile: objekt popisující, JAK značka v captionech skutečně mluví:
+  - voiceTraits: 3-5 pozorovaných charakteristik hlasu (česky, např. "hravý", "tyká followerům")
+  - hookExamples: 2-4 skutečné první věty z postů s NEJVYŠŠÍM engagementem (zkrať na max 60 znaků)
+  - captionStyle: 1-2 věty o stylu captionů — délka, emoji, formátování, oslovení (česky)
+  - ctaHabits: 1 věta o tom, jaké CTA reálně používají (česky)
+- provenPatterns: 2-4 pozorování co PROKAZATELNĚ funguje (z porovnání engagement vysoký vs. nízký), česky, každé max 1 věta
+
+Vrať POUZE platný JSON.`
+
+    try {
+        const raw = await generateText(prompt)
+        const jsonMatch = raw.match(/\{[\s\S]*\}/)
+        if (!jsonMatch) return null
+        return JSON.parse(jsonMatch[0]) as IgInsights
+    } catch (err) {
+        console.warn('⚠️ analyzeInstagramFeed error:', (err as Error).message)
+        return null
+    }
+}
+
+async function fetchPage(url: string): Promise<string> {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 10000)
+    try {
+        const resp = await fetch(url, {
+            signal: controller.signal,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            },
+        })
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+        return await resp.text()
+    } finally {
+        clearTimeout(timeout)
+    }
+}
+
+function extractMetadata(html: string): {
+    title: string
+    description: string
+    ogImage: string | null
+    themeColor: string | null
+} {
+    const title = html.match(/<title>([^<]+)<\/title>/i)?.[1] || ''
+    const description = html.match(/<meta[^>]+name="description"[^>]+content="([^"]+)"/i)?.[1]
+        || html.match(/<meta[^>]+property="og:description"[^>]+content="([^"]+)"/i)?.[1]
+        || ''
+    const ogImage = html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i)?.[1] || null
+    const themeColor = html.match(/<meta[^>]+name="theme-color"[^>]+content="([^"]+)"/i)?.[1] || null
+    return { title, description, ogImage, themeColor }
+}
+
+/**
+ * Structured text extraction — preserves semantic meaning.
+ * Returns text with headings marked, prices highlighted, lists preserved.
+ */
+function extractStructuredText(html: string): string {
+    let text = html
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '') // skip navigation
+        .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '') // skip footer
+
+    // Preserve headings as markers
+    text = text.replace(/<h([1-6])[^>]*>(.*?)<\/h\1>/gi, (_, level, content) => {
+        const clean = content.replace(/<[^>]+>/g, '').trim()
+        return clean ? `\n[H${level}] ${clean}\n` : ''
+    })
+
+    // Preserve list items
+    text = text.replace(/<li[^>]*>(.*?)<\/li>/gi, (_, content) => {
+        const clean = content.replace(/<[^>]+>/g, '').trim()
+        return clean ? `• ${clean}\n` : ''
+    })
+
+    // Preserve prices (common Czech patterns)
+    text = text.replace(/(\d[\d\s]*(?:Kč|CZK|,-|€|\$))/gi, ' [CENA: $1] ')
+
+    // Strip remaining tags
+    text = text
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/\s+/g, ' ')
+        .trim()
+
+    return text
+}
+
+/**
+ * Fetch sitemap.xml and extract page URLs.
+ * Tries /sitemap.xml, /sitemap_index.xml, robots.txt Sitemap: directive.
+ */
+async function fetchSitemapUrls(baseUrl: string): Promise<string[]> {
+    const urls = new Set<string>()
+    const sitemapCandidates = [
+        `${baseUrl}/sitemap.xml`,
+        `${baseUrl}/sitemap_index.xml`,
+    ]
+
+    // Check robots.txt for Sitemap: directive
+    try {
+        const robotsTxt = await fetchPage(`${baseUrl}/robots.txt`)
+        const sitemapMatches = robotsTxt.match(/Sitemap:\s*(\S+)/gi)
+        if (sitemapMatches) {
+            for (const m of sitemapMatches) {
+                const url = m.replace(/Sitemap:\s*/i, '').trim()
+                if (url.startsWith('http')) sitemapCandidates.unshift(url)
+            }
+        }
+    } catch { /* no robots.txt */ }
+
+    for (const sitemapUrl of sitemapCandidates) {
+        try {
+            const xml = await fetchPage(sitemapUrl)
+            // Extract <loc> URLs
+            const locRegex = /<loc>([^<]+)<\/loc>/gi
+            let match
+            while ((match = locRegex.exec(xml)) !== null) {
+                const loc = match[1].trim()
+                // Skip assets and non-page URLs
+                if (!loc.match(/\.(jpg|png|gif|svg|pdf|xml|css|js)/i)) {
+                    urls.add(loc)
+                }
+                // If it's a sub-sitemap, fetch it too
+                if (loc.endsWith('.xml')) {
+                    try {
+                        const subXml = await fetchPage(loc)
+                        const subLocRegex = /<loc>([^<]+)<\/loc>/gi
+                        let subMatch
+                        while ((subMatch = subLocRegex.exec(subXml)) !== null) {
+                            const subLoc = subMatch[1].trim()
+                            if (!subLoc.match(/\.(jpg|png|gif|svg|pdf|xml|css|js)/i)) {
+                                urls.add(subLoc)
+                            }
+                        }
+                    } catch { /* sub-sitemap fetch failed */ }
+                }
+            }
+            if (urls.size > 0) break // found a working sitemap
+        } catch { /* sitemap not found, try next */ }
+    }
+
+    // Prioritize content-rich pages
+    const priorityKeywords = /galeri|pokoje|apart|rooms|suite|product|nabid|sluzb|služb|photo|foto|ubytov|akce|cenik|ceník|menu|about|o-nas|kontakt|blog/i
+    return Array.from(urls)
+        .sort((a, b) => {
+            const aPriority = priorityKeywords.test(a) ? 0 : 1
+            const bPriority = priorityKeywords.test(b) ? 0 : 1
+            return aPriority - bPriority
+        })
+        .slice(0, 30)
+}
+
+function extractSubpageUrls(html: string, baseUrl: string): string[] {
+    const urls = new Set<string>()
+    const linkRegex = /href="([^"]+)"/gi
+    let match
+    while ((match = linkRegex.exec(html)) !== null) {
+        const href = match[1]
+        if (href.startsWith('/') && !href.startsWith('//') && href.length > 1) {
+            const full = `${baseUrl}${href}`
+            if (!href.match(/\.(js|css|png|jpg|svg|ico|webp|gif|pdf|xml|json)/i)
+                && !href.includes('#')
+                && !href.includes('?')
+            ) {
+                urls.add(full)
+            }
+        }
+    }
+    const priorityKeywords = /galeri|pokoje|apart|rooms|suite|product|nabid|sluzb|služb|photo|foto|ubytov|akce|cenik|ceník|menu/i
+    const sorted = Array.from(urls).sort((a, b) => {
+        const aPriority = priorityKeywords.test(a) ? 0 : 1
+        const bPriority = priorityKeywords.test(b) ? 0 : 1
+        return aPriority - bPriority
+    })
+    return sorted
+}
+
+/**
+ * Extract colors from CSS: theme-color meta, CSS custom properties, inline styles.
+ * Returns array of unique hex colors found.
+ */
+function extractCSSColors(html: string): string[] {
+    const colors = new Set<string>()
+
+    // 1) theme-color meta tag
+    const themeColorMatch = html.match(/<meta[^>]+name="theme-color"[^>]+content="([^"]+)"/i)
+    if (themeColorMatch) colors.add(themeColorMatch[1])
+
+    // 2) CSS custom properties (--primary-color, --brand-color, etc.)
+    const cssVarRegex = /--(?:primary|secondary|accent|brand|main|theme|color)[^:]*:\s*(#[0-9a-fA-F]{3,8})/gi
+    let match2
+    while ((match2 = cssVarRegex.exec(html)) !== null) {
+        colors.add(match2[1])
+    }
+
+    // 3) Inline style colors (background-color, color, border-color)
+    const inlineColorRegex = /(?:background-color|(?<!-)color|border-color):\s*(#[0-9a-fA-F]{3,8})/gi
+    while ((match2 = inlineColorRegex.exec(html)) !== null) {
+        const hex = match2[1]
+        // Skip black, white, near-black, near-white (too generic)
+        if (!['#000', '#000000', '#fff', '#ffffff', '#333', '#333333', '#666', '#999', '#ccc', '#eee', '#111', '#222'].includes(hex.toLowerCase())) {
+            colors.add(hex)
+        }
+    }
+
+    // 4) CSS gradient colors
+    const gradientRegex = /linear-gradient\([^)]*?(#[0-9a-fA-F]{3,8})/gi
+    while ((match2 = gradientRegex.exec(html)) !== null) {
+        colors.add(match2[1])
+    }
+
+    return Array.from(colors).slice(0, 10)
+}
+
+/**
+ * Extract dominant color from an image URL using sharp.
+ * Returns hex color string or null.
+ */
+async function extractDominantColor(imageUrl: string): Promise<string | null> {
+    try {
+        const sharp = (await import('sharp')).default
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 5000)
+        const resp = await fetch(imageUrl, { signal: controller.signal })
+        clearTimeout(timeout)
+        if (!resp.ok) return null
+
+        const buffer = Buffer.from(await resp.arrayBuffer())
+        const { dominant } = await sharp(buffer).resize(50, 50, { fit: 'cover' }).stats()
+        const hex = `#${dominant.r.toString(16).padStart(2, '0')}${dominant.g.toString(16).padStart(2, '0')}${dominant.b.toString(16).padStart(2, '0')}`
+        console.log(`   🎨 Dominant color from og:image: ${hex}`)
+        return hex
+    } catch {
+        return null
+    }
+}
+
+/**
+ * Find the best logo URL from HTML.
+ * Priority: apple-touch-icon > large favicon > <img> with "logo" > og:image
+ */
+function extractLogoUrl(html: string, baseUrl: string): string | null {
+    const candidates: string[] = []
+
+    // Apple touch icon (usually high-res)
+    const appleTouchMatch = html.match(/<link[^>]+rel="apple-touch-icon"[^>]+href="([^"]+)"/i)
+    if (appleTouchMatch) candidates.push(appleTouchMatch[1])
+
+    // Standard favicon PNG (not .ico)
+    const faviconPngMatch = html.match(/<link[^>]+rel="icon"[^>]+type="image\/png"[^>]+href="([^"]+)"/i)
+        || html.match(/<link[^>]+href="([^"]+)"[^>]+rel="icon"[^>]+type="image\/png"/i)
+    if (faviconPngMatch) candidates.push(faviconPngMatch[1])
+
+    // Any <img> tag with "logo" in src, alt, or class
+    const logoImgRegex = /<img[^>]+(src="([^"]+)")[^>]*(logo|brand)[^>]*>/gi
+    const logoImgRegex2 = /<img[^>]*(logo|brand)[^>]+(src="([^"]+)")[^>]*>/gi
+    let logoMatch
+    while ((logoMatch = logoImgRegex.exec(html)) !== null) {
+        candidates.push(logoMatch[2])
+    }
+    while ((logoMatch = logoImgRegex2.exec(html)) !== null) {
+        candidates.push(logoMatch[3])
+    }
+
+    // og:image as fallback
+    const ogImageMatch = html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i)
+    if (ogImageMatch) candidates.push(ogImageMatch[1])
+
+    // Normalize URLs
+    for (const candidate of candidates) {
+        if (!candidate || candidate.endsWith('.ico')) continue
+        if (candidate.startsWith('http')) return candidate
+        if (candidate.startsWith('//')) return `https:${candidate}`
+        if (candidate.startsWith('/')) return `${baseUrl}${candidate}`
+    }
+
+    return null
+}
+
+/**
+ * Download logo from URL and upload to Supabase storage.
+ * Saved as client-assets/{slug}/logo.png in 'audit-screenshots' bucket.
+ * Returns true if successful.
+ */
+async function downloadLogo(logoUrl: string, slug: string): Promise<boolean> {
+    try {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 8000)
+
+        const resp = await fetch(logoUrl, {
+            signal: controller.signal,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            },
+        })
+        clearTimeout(timeout)
+
+        if (!resp.ok) return false
+
+        const buffer = Buffer.from(await resp.arrayBuffer())
+        if (buffer.length < 100) return false // Too small, probably not a real image
+
+        // Upload to Supabase storage (filesystem is ephemeral on Vercel)
+        const filename = `client-assets/${slug}/logo.png`
+        const { error: uploadError } = await supabaseAdmin.storage
+            .from('audit-screenshots')
+            .upload(filename, buffer, {
+                contentType: 'image/png',
+                cacheControl: '31536000',
+                upsert: true,
+            })
+
+        if (uploadError) {
+            console.warn(`   ⚠️ Logo upload failed: ${uploadError.message}`)
+            return false
+        }
+
+        console.log(`   ✅ Logo uploaded: ${buffer.length} bytes → ${filename}`)
+        return true
+    } catch (err) {
+        console.warn('   ⚠️ Logo download failed:', (err as Error).message)
+        return false
+    }
+}
+
+/**
+ * Extract brand/product images from HTML (product photos, hero images, galleries).
+ * Scrapes: <img src>, <img srcset>, <source srcset>, background-image CSS, og:image.
+ */
+function extractBrandImages(html: string, baseUrl: string): string[] {
+    const images = new Set<string>()
+
+    function addUrl(raw: string) {
+        let url = raw.trim()
+        if (!url || url.length > 500) return
+        // Skip noise
+        if (url.endsWith('.svg') || url.endsWith('.ico') || url.includes('data:image')
+            || url.includes('pixel') || url.includes('tracking') || url.includes('placeholder')
+            || url.includes('facebook.com') || url.includes('twitter.com') || url.includes('google')
+            || url.includes('analytics') || url.includes('widget') || url.includes('gravatar')
+            || url.includes('emoji') || url.includes('spinner') || url.includes('loading')
+            || url.includes('avatar') || /\b(1x1|2x2|spacer)\b/i.test(url)
+        ) return
+
+        if (url.startsWith('//')) url = `https:${url}`
+        else if (url.startsWith('/')) url = `${baseUrl}${url}`
+        else if (!url.startsWith('http')) return
+
+        images.add(url)
+    }
+
+    // 1) <img src="...">
+    const imgSrcRegex = /<img[^>]+src="([^"]+)"[^>]*>/gi
+    let match
+    while ((match = imgSrcRegex.exec(html)) !== null) {
+        addUrl(match[1])
+    }
+
+    // 2) <img srcset="..."> and <source srcset="..."> — pick the largest
+    const srcsetRegex = /(?:srcset|data-srcset)="([^"]+)"/gi
+    while ((match = srcsetRegex.exec(html)) !== null) {
+        const parts = match[1].split(',')
+        // Pick the last (usually largest) descriptor
+        const largest = parts[parts.length - 1]?.trim().split(/\s+/)[0]
+        if (largest) addUrl(largest)
+    }
+
+    // 3) background-image: url(...)
+    const bgRegex = /background-image:\s*url\(['"]?([^'")\s]+)['"]?\)/gi
+    while ((match = bgRegex.exec(html)) !== null) {
+        addUrl(match[1])
+    }
+
+    // 4) <meta property="og:image"> and similar
+    const metaImgRegex = /<meta[^>]+(?:property|name)="(?:og:image|twitter:image)"[^>]+content="([^"]+)"/gi
+    while ((match = metaImgRegex.exec(html)) !== null) {
+        addUrl(match[1])
+    }
+
+    // 5) data-src (lazy loaded images)
+    const dataSrcRegex = /data-src="([^"]+)"/gi
+    while ((match = dataSrcRegex.exec(html)) !== null) {
+        addUrl(match[1])
+    }
+
+    return Array.from(images)
 }

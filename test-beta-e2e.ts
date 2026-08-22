@@ -2417,6 +2417,46 @@ test("31.2 kick z prohlížeče zabírá podmíněně, nikdy nezakládá", () =>
         "prázdný claim znamená, že task má cron: normální výsledek, ne chyba a rozhodně ne insert")
 })
 
+test("31.3 config-gen má jediné tělo, ne dvojníka", () => {
+    // Dvojník actions.ts ↔ core.ts se roky mirroroval ručně a rozešel se: core.ts
+    // znal kategorie 'vinarstvi' a 'app', UI cesta ne. Nic v guardu to nehlídalo,
+    // protože se nedá asertovat "tyhle dva kusy kódu jsou pořád stejné" — jde jen
+    // asertovat, že druhý neexistuje.
+    const actions = codeOnly("app/onboarding/actions.ts")
+    const core = codeOnly("app/onboarding/core.ts")
+
+    assert(core.split("## ODPOVĚDI Z DOTAZNÍKU").length - 1 === 1,
+        "mega prompt konfigurace patří do core.ts právě jednou")
+    assert(!actions.includes("## ODPOVĚDI Z DOTAZNÍKU"),
+        "actions.ts nesmí mít vlastní kopii mega promptu — je to obálka, ne pipeline")
+
+    for (const dup of [
+        "function slugify(",
+        "function insertClient(",
+        "function downloadProductImages(",
+        "function seedMemoriesFromAnalysis(",
+        "function fetchPage(",
+        "function extractBrandImages(",
+        "function analyzeInstagramFeed(",
+        "CATEGORY_DEFAULTS: Record",
+    ]) {
+        assert(!actions.includes(dup), `${dup} má žít jen v core.ts — dvojník se vždycky rozejde`)
+    }
+})
+
+test("31.4 jádro onboardingu zůstává bez auth vrstvy", () => {
+    // Tohle je důvod, proč vůbec šlo onboarding utrhnout od prohlížeče: worker
+    // (lib/agents/handlers.ts → cron route) nesmí sáhnout na next/headers. Dokud
+    // pipeline žila za requireAuth(), durable běh nebyl možný. Pravidlo je v hlavičce
+    // core.ts napsané prózou — tady je vynucené.
+    const core = codeOnly("app/onboarding/core.ts")
+    for (const forbidden of ["@/supabase/server", "requireAuth", "next/headers"]) {
+        assert(!core.includes(forbidden),
+            `core.ts nesmí importovat ${forbidden} — rozbilo by to headless běh (worker i tsx skripty)`)
+    }
+    assert(core.includes("@/supabase/admin"), "core.ts jede na service-role klientovi")
+})
+
 // ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
