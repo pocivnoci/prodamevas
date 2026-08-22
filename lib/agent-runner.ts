@@ -16,6 +16,8 @@ import supabaseAdmin from "@/supabase/admin"
 export interface AgentTask {
     id: string
     client_id: string | null
+    /** Auth user, který si task vyžádal. NULL = systémový task (cron, webhook). */
+    requested_by: string | null
     type: string
     payload: Record<string, unknown>
     attempts: number
@@ -242,6 +244,21 @@ export async function drainTasks(budgetMs = 700_000): Promise<{ ran: number; don
         else failed++
     }
     return { ran, done, failed, retried }
+}
+
+/**
+ * Zapiš, co task právě dělá. Čte to pollovací routa a vykresluje UI.
+ *
+ * Best-effort: hlášení průběhu nesmí shodit práci, kterou hlásí. `status = running`
+ * brání tomu, aby opožděný zápis přepsal už doběhnutý task.
+ */
+export async function reportProgress(id: string, progress: number, message: string): Promise<void> {
+    const { error } = await supabaseAdmin
+        .from("agent_tasks")
+        .update({ progress, agent_message: message })
+        .eq("id", id)
+        .eq("status", "running")
+    if (error) console.warn(`⚠️ agent-runner progress zápis selhal (${id}): ${error.message}`)
 }
 
 export { beatLease }

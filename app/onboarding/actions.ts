@@ -7,32 +7,11 @@ import { withRetry } from '@/utils/retry'
 import { generateText } from '@/instagram/gemini-client'
 import { getModel } from '@/instagram/models'
 import { ensurePostTypes } from '@/instagram/service'
-import {
-    analyzeWebsiteCore,
-    buildManualAnalysisCore,
-    generateConfigCore,
-    generateQuestionsCore,
-    generateCustomFormats,
-    seedVoiceExamplesFromIG,
-    seedMemoriesFromAnalysis,
-    insertClient,
-} from '@/app/onboarding/core'
+import { seedMemoriesFromAnalysis, insertClient } from '@/app/onboarding/core'
 import type { ClientConfig } from '@/instagram/configs/types'
-import { fetchInstagramProfile, estimatePostsPerWeek, type IgProfileData } from '@/lib/ig-scraper'
 import { isSuperAdminEmail } from '@/lib/super-admins'
 import { humanizeError } from './types'
-import type {
-    WebsiteAnalysis,
-    IgInsights,
-    OnboardingQuestion,
-    ReviewSection,
-    ManualBusinessInfo,
-} from './types'
-
-// ============================================
-// TYPES
-// ============================================
-// IgProfileData lives in lib/ig-scraper.ts ("use server" re-exports break the actions compiler)
+import type { WebsiteAnalysis, ReviewSection, ManualBusinessInfo } from './types'
 
 // Typy a humanizeError žijí v ./types.ts — sdílí je UI, tenhle soubor, headless
 // core.ts i durable worker. Re-export drží importy v page.tsx / OnboardTab.tsx
@@ -46,58 +25,55 @@ export type {
 } from './types'
 
 // ============================================
-// DB HELPERS
+// DURABLE ONBOARDING: ZAŘAĎ → SLEDUJ
 // ============================================
+// Analýza webu i skládání configu trvají minuty. Když visely na jednom blokujícím
+// requestu, rozpadlé spojení zahodilo hotovou a zaplacenou práci — server doběhl,
+// odpověď neměla kam dorazit, a UI vyhodilo „Failed to fetch". Práce teď běží jako
+// agent_task; prohlížeč ji jen zařadí, šťouchne a pak se ptá na stav.
+//
+// Tyhle akce jsou schválně KRÁTKÉ. Ať se s nimi stane cokoli, zapsaný task doběhne
+// a výsledek počká v DB.
 
-
-// ============================================
-// STEP 1: ANALYZE WEBSITE
-// ============================================
-
-/**
- * Scrape + AI analýza webu. Celá práce žije v core.ts, aby ji mohl spustit i
- * durable worker — tady zůstává jen auth a překlad chyby do češtiny.
- */
-export async function analyzeWebsite(url: string, igHandle: string): Promise<{
-    success: boolean
-    analysis?: WebsiteAnalysis
-    error?: string
-}> {
+/** Zařadí onboardingový task a vrátí jeho id. */
+async function enqueueOnboarding(
+    type: "onboarding_analyze" | "onboarding_config_preview",
+    payload: Record<string, unknown>,
+): Promise<{ success: boolean; taskId?: string; error?: string }> {
     try {
-        await requireAuth()
-        return { success: true, analysis: await analyzeWebsiteCore(url, igHandle) }
+        const { userId } = await requireAuth()
+        const { enqueueTask } = await import('@/lib/agent-runner')
+        const taskId = await enqueueTask({
+            type,
+            payload,
+            requestedBy: userId,
+            priority: 10, // člověk čeká u obrazovky — má přednost před nočními agenty
+            // Jediný pokus: opakovat víceminutovou práci s Pro modely by tiše utratilo
+            // rozpočet znovu. Když to spadne, ať to člověk vidí a rozhodne sám.
+            maxAttempts: 1,
+        })
+        return { success: true, taskId }
     } catch (error) {
-        console.error('Website analysis error:', error)
         return { success: false, error: humanizeError(error) }
     }
 }
 
-
-
-// ============================================
-// STEP 1B: MANUAL ANALYSIS (no website)
-// ============================================
-
-
-export async function buildManualAnalysis(info: ManualBusinessInfo): Promise<{
-    success: boolean
-    analysis?: WebsiteAnalysis
-    error?: string
-}> {
-    try {
-        await requireAuth()
-        return { success: true, analysis: await buildManualAnalysisCore(info) }
-    } catch (error) {
-        console.error('Manual analysis error:', error)
-        return { success: false, error: humanizeError(error) }
-    }
+export async function startWebsiteAnalysis(url: string, igHandle: string) {
+    return enqueueOnboarding("onboarding_analyze", { mode: "website", url, igHandle })
 }
 
-// ============================================
-// INSTAGRAM PROFILE SCRAPING (HikerAPI)
-// ============================================
-// fetchInstagramProfile moved to lib/ig-scraper.ts (shared with growth cron)
+export async function startManualAnalysis(info: ManualBusinessInfo) {
+    return enqueueOnboarding("onboarding_analyze", { mode: "manual", info })
+}
 
+export async function startConfigPreview(
+    analyzeTaskId: string,
+    answers: Record<string, string | string[]>,
+    websiteUrl: string,
+    igHandle: string,
+) {
+    return enqueueOnboarding("onboarding_config_preview", { analyzeTaskId, answers, websiteUrl, igHandle })
+}
 
 // ============================================
 // IMAGE BRIEF (SHOT LIST) GENERATOR
@@ -172,42 +148,6 @@ Vrať POUZE platný JSON pole.`
     }
 }
 
-export async function generateQuestions(analysis: WebsiteAnalysis): Promise<{
-    success: boolean
-    questions?: OnboardingQuestion[]
-    error?: string
-}> {
-    try {
-        await requireAuth()
-        // generateQuestionsCore nikdy nehází — když model selže, vrátí pevný dotazník.
-        // Onboarding se nesmí zaseknout na tom, že se nepovedlo se hezky zeptat.
-        return { success: true, questions: await generateQuestionsCore(analysis) }
-    } catch (error) {
-        return { success: false, error: humanizeError(error) }
-    }
-}
-
-
-// ============================================
-// STEP 3A: GENERATE CONFIG PREVIEW (no save)
-// ============================================
-
-
-export async function generateConfigPreview(
-    analysis: WebsiteAnalysis,
-    answers: Record<string, string | string[]>,
-    websiteUrl: string,
-    igHandle: string,
-    questions?: OnboardingQuestion[]
-): Promise<{ success: boolean; config?: ClientConfig; error?: string }> {
-    try {
-        await requireAuth()
-        return { success: true, config: await generateConfigCore(analysis, answers, websiteUrl, igHandle, questions) }
-    } catch (error) {
-        console.error('Config preview error:', error)
-        return { success: false, error: humanizeError(error) }
-    }
-}
 
 // ============================================
 // STEP 3B: REFINE ONE SECTION (based on user feedback)
@@ -561,19 +501,6 @@ export async function startOnboardingBootstrap(clientSlug: string): Promise<{
 // STEP 3 (LEGACY WRAPPER): BUILD AND SAVE CONFIG
 // ============================================
 
-export async function buildAndSaveConfig(
-    analysis: WebsiteAnalysis,
-    answers: Record<string, string | string[]>,
-    websiteUrl: string,
-    igHandle: string
-): Promise<{ success: boolean; clientSlug?: string; error?: string }> {
-    await requireAuth()
-    const preview = await generateConfigPreview(analysis, answers, websiteUrl, igHandle)
-    if (!preview.success || !preview.config) {
-        return { success: false, error: preview.error || 'Config generation failed' }
-    }
-    return saveReviewedConfig(preview.config, analysis)
-}
 
 // ============================================
 // HELPER: Check if user needs onboarding
@@ -620,20 +547,8 @@ export async function checkOnboardingStatus(): Promise<{
 // ============================================
 
 
-
-
-
-
-
-
-
-
-
 // ============================================
 // BRAND ASSET FUNCTIONS
 // ============================================
-
-
-
 
 

@@ -36,6 +36,10 @@ import type { WebsiteAnalysis, ManualBusinessInfo, IgInsights, OnboardingQuestio
 
 export type { ManualBusinessInfo }
 
+/** Hlášení průběhu dlouhé práce. Durable worker sem zapisuje do agent_tasks,
+ *  synchronní volání (skripty, sales preview) ho prostě nepředají. */
+export type ProgressFn = (progress: number, message: string) => void | Promise<void>
+
 export const CATEGORY_DEFAULTS: Record<string, { industry: string; postTypes: string[]; audience: string }> = {
     'kavarna': { industry: 'Gastronomie / Kavárna', postTypes: ['tip', 'behind_scenes', 'product_drop', 'meme'], audience: 'Milovníci kávy, lidé hledající příjemné místo k práci nebo relaxaci, 20-45 let' },
     'restaurace': { industry: 'Gastronomie / Restaurace', postTypes: ['product_drop', 'behind_scenes', 'tip', 'recenze'], audience: 'Foodie komunita, páry na rande, rodiny, 25-55 let' },
@@ -531,8 +535,10 @@ export async function generateConfigCore(
     igHandle: string,
     /** Dotazník, na který `answers` odpovídají. Nepovinný: seed skripty a sales
      *  preview žádný nemají. Když je po ruce, do promptu jde otázka i s odpovědí. */
-    questions?: OnboardingQuestion[]
+    questions?: OnboardingQuestion[],
+    onProgress?: ProgressFn
 ): Promise<ClientConfig> {
+    const say = async (p: number, m: string) => { await onProgress?.(p, m) }
     // Otázky píše AI, takže `id` je neprůhledné („q3") a modelu při skládání configu
     // samo o sobě neřekne nic. Spáruj ho zpátky s textem otázky — jinak jsou odpovědi
     // jen hodnoty bez kontextu.
@@ -678,6 +684,7 @@ DŮLEŽITÉ:
     // Brand DNA (voice + pillars) is the foundation every post inherits — generate it on the
     // Pro tier (fallback is a second Pro, never flash). Onboarding is one-time, so the latency
     // is acceptable. The cheap/structural calls (analysis, formats, style) stay on flash.
+    await say(15, 'Skládám konfiguraci značky…')
     const rawConfig = await generateText(configPrompt, { temperature: 0.7, model: getModel("textPro"), fallbackModel: getModel("textPro", "fallback") })
     const jsonMatch = rawConfig.match(/\{[\s\S]*\}/)
     if (!jsonMatch) throw new Error('AI nevygenerovalo platný JSON config')
@@ -764,6 +771,7 @@ DŮLEŽITÉ:
     config.storageBucket = `ig-posts-${slug}`
 
     // Download brand/product images from website → Supabase storage
+    await say(40, 'Stahuju obrázky z webu…')
     const imageUrls = await downloadProductImages(
         analysis.brandImageUrls || [],
         slug
@@ -786,6 +794,7 @@ DŮLEŽITÉ:
                 } catch { /* skip failed fetches */ }
             }
             if (imagesToTag.length > 0) {
+                await say(55, 'Popisuju, co je na obrázcích…')
                 const tagged = await tagBrandImages(imagesToTag, analysis.companyName)
                 config.brandReferenceImages = tagged
             } else {
@@ -822,6 +831,7 @@ Pravidla:
 - Pain points a triggers MUSÍ být specifické pro ${analysis.industry}
 - Vrať POUZE platný JSON pole.`
 
+        await say(70, 'Kreslím persony publika…')
         const rawPersonas = await generateText(personaPrompt, { temperature: 0.8, model: getModel("textPro"), fallbackModel: getModel("textPro", "fallback") })
         const personaMatch = rawPersonas.match(/\[[\s\S]*\]/)
         if (personaMatch) {
@@ -852,6 +862,7 @@ Vrať POUZE platný JSON objekt:
 
 Pravidla: buď konkrétní, ne generický. Žádné prázdné fráze typu 'buďte autentičtí'. Mluv přímo k téhle firmě.`
 
+        await say(82, 'Ladím styl komunikace…')
         const rawStyle = await generateText(stylePrompt, { temperature: 0.7 })
         const styleMatch = rawStyle.match(/\{[\s\S]*\}/)
         if (styleMatch) {
@@ -869,6 +880,7 @@ Pravidla: buď konkrétní, ne generický. Žádné prázdné fráze typu 'buďt
 
     // Generate brand-specific post formats (best-effort) — replaces the generic
     // "tip/meme/carousel" set with formats tailored to this brand, each described.
+    await say(90, 'Vymýšlím formáty příspěvků na míru…')
     await generateCustomFormats(analysis, config)
 
     return config
@@ -1205,16 +1217,19 @@ export async function saveConfigCore(
 // Přesunuto sem z actions.ts, aby to mohl volat durable worker: `lib/agents/handlers.ts`
 // se nesmí dotknout auth vrstvy (HARD RULE nahoře), takže dokud tohle žilo za
 // `requireAuth()`, nešlo analýzu utrhnout od otevřeného spojení s prohlížečem.
-export async function analyzeWebsiteCore(url: string, igHandle: string): Promise<WebsiteAnalysis> {
+export async function analyzeWebsiteCore(url: string, igHandle: string, onProgress?: ProgressFn): Promise<WebsiteAnalysis> {
+    const say = async (p: number, m: string) => { await onProgress?.(p, m) }
     try {
         // Normalize URL
         const baseUrl = url.startsWith('http') ? url : `https://${url}`
 
         // Scrape homepage
+        await say(10, 'Čtu web…')
         console.log(`🔍 Scraping ${baseUrl}...`)
         const homepageHtml = await fetchPage(baseUrl)
 
         // Discover subpages: sitemap.xml first, then <a href> fallback
+        await say(20, 'Hledám podstránky…')
         const sitemapUrls = await fetchSitemapUrls(baseUrl)
         const linkUrls = extractSubpageUrls(homepageHtml, baseUrl)
         const allSubUrls = [...new Set([...sitemapUrls, ...linkUrls])].slice(0, 15)
@@ -1322,6 +1337,7 @@ Vrať POUZE platný JSON, bez dalšího textu.`
             required: ["companyName", "description", "industry", "products", "brandTone", "colors", "targetAudience", "uniqueSellingPoints", "existingContent", "recommendedFont", "overlayGradient", "visualFeel", "overlayOpacity"],
         }
 
+        await say(45, 'Učím se značku z toho, co jsem přečetl…')
         const rawAnalysis = await generateText(analysisPrompt, { responseSchema: analysisSchema })
         const jsonMatch = rawAnalysis.match(/\{[\s\S]*\}/)
         const analysis: WebsiteAnalysis = JSON.parse(jsonMatch?.[0] || rawAnalysis)
@@ -1363,6 +1379,7 @@ Vrať POUZE platný JSON, bez dalšího textu.`
         const slug = slugify(analysis.companyName)
         const logoUrl = extractLogoUrl(homepageHtml, baseUrl)
         if (logoUrl) {
+            await say(75, 'Stahuju logo…')
             const logoSaved = await downloadLogo(logoUrl, slug)
             analysis.logoDownloaded = logoSaved
             if (logoSaved) {
@@ -1372,6 +1389,7 @@ Vrať POUZE platný JSON, bez dalšího textu.`
 
         // Enrich with Instagram profile data if handle provided
         if (igHandle) {
+            await say(85, 'Koukám na váš Instagram…')
             await enrichWithInstagram(analysis, igHandle)
         }
 

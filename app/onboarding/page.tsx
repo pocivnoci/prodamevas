@@ -2,8 +2,10 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { analyzeWebsite, generateQuestions, generateConfigPreview, refineConfigSection, saveReviewedConfig, buildManualAnalysis } from './actions'
-import type { WebsiteAnalysis, OnboardingQuestion, ReviewSection } from './actions'
+import { startWebsiteAnalysis, startManualAnalysis, startConfigPreview, refineConfigSection, saveReviewedConfig } from './actions'
+import type { WebsiteAnalysis, OnboardingQuestion, ReviewSection } from './types'
+import { awaitOnboardingTask } from './task-client'
+import { TaskProgress } from './TaskProgress'
 import type { ClientConfig } from '@/instagram/configs/types'
 import { trackEvent } from '@/lib/analytics'
 import { Anchor, Check, CircleCheck, Landmark, MessageCircle, Mic, Package, Palette, Rocket, ThumbsUp, X, type LucideIcon } from "lucide-react"
@@ -43,6 +45,12 @@ function OnboardingContent() {
     const [analysis, setAnalysis] = useState<WebsiteAnalysis | null>(null)
     const [questions, setQuestions] = useState<OnboardingQuestion[]>([])
     const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
+    // Analýza žije jako agent_task; config si z něj pak vstup vezme sám na serveru,
+    // takže se ~100–300 KB objekt neposílá do prohlížeče a zpátky.
+    const [analyzeTaskId, setAnalyzeTaskId] = useState<string | null>(null)
+
+    // Co zrovna běží na serveru (progress + hláška z agent_tasks)
+    const [taskProgress, setTaskProgress] = useState<{ progress: number; message: string }>({ progress: 0, message: '' })
 
     // Review state
     const [configPreview, setConfigPreview] = useState<ClientConfig | null>(null)
@@ -76,24 +84,39 @@ function OnboardingContent() {
         loadExisting()
     }, [reonboardSlug])
 
+    // ─── Durable úloha: šťouchni a ptej se ───────────────────
+    const awaitTask = <T,>(taskId: string) => awaitOnboardingTask<T>(taskId, setTaskProgress)
+
+    type AnalyzeResult = { analysis: WebsiteAnalysis; questions: OnboardingQuestion[] }
+
+    /** Společný konec obou cest analýzy (web i ruční zadání). */
+    async function awaitAnalysis(taskId: string, backTo: Step) {
+        try {
+            setAnalyzeTaskId(taskId)
+            const { analysis, questions } = await awaitTask<AnalyzeResult>(taskId)
+            setAnalysis(analysis)
+            setQuestions(questions)
+            setStep('questions')
+        } catch (err) {
+            setError((err as Error).message)
+            setStep(backTo)
+        }
+    }
+
     // ─── Step 1A: Submit URL & IG ────────────────────────────
     async function handleAnalyze(e: React.FormEvent) {
         e.preventDefault()
         if (!url.trim()) return
         setError(null)
+        setTaskProgress({ progress: 0, message: '' })
         setStep('analyzing')
-        try {
-            const result = await analyzeWebsite(url.trim(), igHandle.trim())
-            if (!result.success || !result.analysis) throw new Error(result.error || 'Analýza selhala')
-            setAnalysis(result.analysis)
-            const qResult = await generateQuestions(result.analysis)
-            if (!qResult.success || !qResult.questions) throw new Error(qResult.error || 'Generování dotazníku selhalo')
-            setQuestions(qResult.questions)
-            setStep('questions')
-        } catch (err) {
-            setError((err as Error).message)
+        const started = await startWebsiteAnalysis(url.trim(), igHandle.trim())
+        if (!started.success || !started.taskId) {
+            setError(started.error || 'Analýza selhala')
             setStep('input')
+            return
         }
+        await awaitAnalysis(started.taskId, 'input')
     }
 
     // ─── Step 1B: Manual form submit ────────────────────────────
@@ -101,42 +124,40 @@ function OnboardingContent() {
         e.preventDefault()
         if (!businessName.trim() || !category || !description.trim()) return
         setError(null)
+        setTaskProgress({ progress: 0, message: '' })
         setStep('analyzing')
-        try {
-            const result = await buildManualAnalysis({
-                businessName: businessName.trim(),
-                category,
-                description: description.trim(),
-                products: products.trim(),
-                tone: tone || 'přátelský',
-                igHandle: igHandle.trim(),
-            })
-            if (!result.success || !result.analysis) throw new Error(result.error || 'Analýza selhala')
-            setAnalysis(result.analysis)
-            const qResult = await generateQuestions(result.analysis)
-            if (!qResult.success || !qResult.questions) throw new Error(qResult.error || 'Generování dotazníku selhalo')
-            setQuestions(qResult.questions)
-            setStep('questions')
-        } catch (err) {
-            setError((err as Error).message)
+        const started = await startManualAnalysis({
+            businessName: businessName.trim(),
+            category,
+            description: description.trim(),
+            products: products.trim(),
+            tone: tone || 'přátelský',
+            igHandle: igHandle.trim(),
+        })
+        if (!started.success || !started.taskId) {
+            setError(started.error || 'Analýza selhala')
             setStep('manual')
+            return
         }
+        await awaitAnalysis(started.taskId, 'manual')
     }
 
     // ─── Step 3 → 4: Submit Answers → Generate preview ────────
     async function handleSubmitAnswers(e: React.FormEvent) {
         e.preventDefault()
-        if (!analysis) return
+        if (!analysis || !analyzeTaskId) return
 
         setError(null)
+        setTaskProgress({ progress: 0, message: '' })
         setStep('building')
 
         try {
-            const result = await generateConfigPreview(analysis, answers, url.trim(), igHandle.trim(), questions)
-            if (!result.success || !result.config) {
-                throw new Error(result.error || 'Generování konfigurace selhalo')
+            const started = await startConfigPreview(analyzeTaskId, answers, url.trim(), igHandle.trim())
+            if (!started.success || !started.taskId) {
+                throw new Error(started.error || 'Generování konfigurace selhalo')
             }
-            setConfigPreview(result.config)
+            const { config } = await awaitTask<{ config: ClientConfig }>(started.taskId)
+            setConfigPreview(config)
             // Reset review states
             setSectionStatuses({
                 brand_voice: 'pending',
@@ -426,14 +447,9 @@ function OnboardingContent() {
                             <div className="w-10 h-10 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
                         </div>
                         <h2 className="text-2xl font-bold mb-4">AI analyzuje tvůj web</h2>
-                        <p className="text-gray-400 mb-8">Scrapuji obsah, detekuji brand, analyzuji tón...</p>
+                        <p className="text-gray-400 mb-8">Čtu obsah, učím se značku, chystám otázky na míru.</p>
 
-                        <div className="max-w-sm mx-auto space-y-3 text-left">
-                            <LoadingStep label="Stahuji homepage" active />
-                            <LoadingStep label="Analyzuji produkty & služby" />
-                            <LoadingStep label="Detekuji brand voice" />
-                            <LoadingStep label="Generuji dotazník na míru" />
-                        </div>
+                        <TaskProgress {...taskProgress} accent="bg-blue-400" />
                     </div>
                 )}
 
@@ -562,14 +578,9 @@ function OnboardingContent() {
                             <div className="w-10 h-10 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
                         </div>
                         <h2 className="text-2xl font-bold mb-4">Generuji konfiguraci</h2>
-                        <p className="text-gray-400 mb-8">AI staví tvůj brand voice, content pilíře, hashtag strategie...</p>
+                        <p className="text-gray-400 mb-8">Stavím hlas značky, pilíře obsahu a vizuální styl.</p>
 
-                        <div className="max-w-sm mx-auto space-y-3 text-left">
-                            <LoadingStep label="Brand voice & persona" active />
-                            <LoadingStep label="Content pilíře & strategie" />
-                            <LoadingStep label="Hook templates & CTA" />
-                            <LoadingStep label="Feed aesthetic & vizuální styl" />
-                        </div>
+                        <TaskProgress {...taskProgress} accent="bg-purple-400" />
                     </div>
                 )}
 
@@ -853,18 +864,7 @@ function ErrorBanner({ message }: { message: string }) {
     )
 }
 
-function LoadingStep({ label, active }: { label: string; active?: boolean }) {
-    return (
-        <div className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all ${active ? 'bg-white/5 border border-white/10' : 'opacity-40'}`}>
-            {active ? (
-                <div className="w-4 h-4 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
-            ) : (
-                <div className="w-4 h-4 rounded-full border border-white/20" />
-            )}
-            <span className="text-sm text-gray-300">{label}</span>
-        </div>
-    )
-}
+
 
 function ReviewField({ label, value }: { label: string; value?: string }) {
     if (!value) return null

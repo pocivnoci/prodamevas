@@ -2479,6 +2479,51 @@ test("31.5 dotazník na míru nesmí onboarding zablokovat", () => {
         "pevný dotazník patří do core.ts — v actions.ts by byl zase dvojník")
 })
 
+test("31.6 onboarding neběží v prohlížeči, ale jako durable task", () => {
+    const actions = codeOnly("app/onboarding/actions.ts")
+    assert(actions.includes("enqueueTask"), "dlouhá práce se musí zařadit, ne rozjet v requestu")
+    assert(!actions.includes("await generateConfigCore("),
+        "server action nesmí pipeline spustit inline — přesně to shodilo onboarding na Failed to fetch")
+    assert(!actions.includes("await analyzeWebsiteCore("),
+        "analýza webu patří do workera, ne do blokujícího requestu")
+    // Opakovat víceminutovou práci s Pro modely by tiše utratilo rozpočet znovu.
+    assert(/maxAttempts: 1/.test(actions), "onboardingové tasky se nesmí samy opakovat")
+
+    const handlers = codeOnly("lib/agents/handlers.ts")
+    for (const t of ["onboarding_analyze", "onboarding_config_preview"]) {
+        assert(handlers.includes(`registerHandler("${t}"`), `chybí handler pro ${t}`)
+    }
+    // Cron routa tenhle soubor importuje — auth vrstva by rozbila headless běh.
+    for (const forbidden of ["@/supabase/server", "requireAuth", "next/headers"]) {
+        assert(!handlers.includes(forbidden), `handlers.ts nesmí importovat ${forbidden}`)
+    }
+
+    // UI nesmí spadnout zpátky na blokující volání.
+    for (const ui of ["app/onboarding/page.tsx", "app/(dashboard)/dashboard/instagram/tabs/OnboardTab.tsx"]) {
+        const code = codeOnly(ui)
+        assert(code.includes("awaitOnboardingTask"), `${ui} musí čekat na task, ne na blokující action`)
+        assert(!code.includes("generateConfigPreview("), `${ui} nesmí volat synchronní generování configu`)
+    }
+})
+
+test("31.7 na cizí onboardingovou úlohu se nikdo nedostane", () => {
+    for (const route of ["app/api/onboarding/run-task/route.ts", "app/api/onboarding/task-status/route.ts"]) {
+        const code = codeOnly(route)
+        assert(code.includes("requireAuth"), `${route} musí ověřit přihlášení`)
+        // Onboarding běží dřív, než existuje klient — vlastnictví visí na requested_by,
+        // ne na client_id. Systémový task (NULL) se z prohlížeče nesmí spustit ani přečíst.
+        assert(code.includes("requested_by"), `${route} musí kontrolovat vlastníka úlohy`)
+        assert(/task\.requested_by !== userId/.test(code),
+            `${route} musí porovnat vlastníka s přihlášeným uživatelem (fail closed na NULL)`)
+    }
+
+    // Reaper nesmí uživateli nechat věčně se točící kolečko, ale ani sáhnout cizím agentům.
+    const status = codeOnly("app/api/onboarding/task-status/route.ts")
+    assert(status.includes("ONBOARDING_TYPES"), "reaper se smí dotknout jen onboardingových typů")
+    assert(/STUCK_AFTER_MS = 15/.test(status),
+        "práh musí přesahovat maxDuration běhu (800 s), jinak označí živou práci za mrtvou")
+})
+
 // ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
