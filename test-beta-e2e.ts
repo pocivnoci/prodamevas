@@ -515,16 +515,34 @@ test("0.1 Server action nesmí re-exportovat typ", () => {
     // protože typy mizí až za ním; projeví se to až v běžící aplikaci.
     //
     // Typ patří klientovi přímo ze zdrojového modulu, ne přes server action.
+    // Past má DVĚ dna, na obě se dalo naletět: server actions nežijí jen
+    // v app/actions (onboarding má vlastní actions.ts) a direktiva se píše
+    // v obou uvozovkách. Původní aserce hlídala jen app/actions + "use server",
+    // takže 'use server' v app/onboarding/actions.ts prošel oběma dírami.
     const fs = require("fs") as typeof import("fs")
-    const dir = "app/actions"
-    for (const file of fs.readdirSync(dir).filter((f: string) => f.endsWith(".ts"))) {
-        const content = fileContent(`${dir}/${file}`)
-        if (!content.includes('"use server"')) continue
+
+    const walk = (dir: string): string[] => {
+        const out: string[] = []
+        for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+            if (e.name === "node_modules" || e.name.startsWith(".")) continue
+            const full = `${dir}/${e.name}`
+            if (e.isDirectory()) out.push(...walk(full))
+            else if (e.name.endsWith(".ts") || e.name.endsWith(".tsx")) out.push(full)
+        }
+        return out
+    }
+
+    let checked = 0
+    for (const file of [...walk("app"), ...walk("lib")]) {
+        const content = fileContent(file)
+        if (!/^\s*['"]use server['"]/m.test(content)) continue
+        checked++
         assert(
             !/^\s*export\s+type\s*\{/m.test(content),
-            `${dir}/${file}: "use server" modul nesmí obsahovat 'export type { … }' — typ ber přímo ze zdroje`,
+            `${file}: 'use server' modul nesmí obsahovat 'export type { … }' — typ ber přímo ze zdroje`,
         )
     }
+    assert(checked > 5, `aserce musí reálně něco kontrolovat (našla jen ${checked} server modulů)`)
 })
 
 test("10.7h Super admin dostane razítko, ne jen průchod", () => {
@@ -2558,6 +2576,26 @@ test("31.7 na cizí onboardingovou úlohu se nikdo nedostane", () => {
     assert(status.includes("ONBOARDING_TYPES"), "reaper se smí dotknout jen onboardingových typů")
     assert(/STUCK_AFTER_MS = 15/.test(status),
         "práh musí přesahovat maxDuration běhu (800 s), jinak označí živou práci za mrtvou")
+})
+
+test("31.10 syrové „Failed to fetch\" se k zákazníkovi nedostane", () => {
+    // Tuhle větu zákazník reálně viděl. Je to hláška prohlížeče o rozpadlém spojení,
+    // ne něco, čemu má rozumět — a hlavně po durable přestavbě už ani není pravdivá:
+    // práce běží dál na serveru.
+    const client = codeOnly("app/onboarding/task-client.ts")
+    assert(/export function humanizeClientError/.test(client), "překlad chyby musí být sdílený, ne v každém průvodci zvlášť")
+    assert(/failed to fetch/i.test(client), "překlad musí tuhle konkrétní hlášku zachytit")
+
+    for (const ui of ["app/onboarding/page.tsx", "app/(dashboard)/dashboard/instagram/tabs/OnboardTab.tsx"]) {
+        const code = codeOnly(ui)
+        assert(!/setError\(\(err as Error\)\.message\)/.test(code),
+            `${ui}: chyba do UI musí projít humanizeClientError, jinak tam skončí anglický technický text`)
+        // Zařazení tasku je taky fetch. Když viselo mimo try, rozpadlé spojení na něm
+        // vyletělo neošetřené a průvodce zamrzl na točícím se kolečku.
+        assert(!/const started = await start(Website|Manual)Analysis/.test(code),
+            `${ui}: zařazení analýzy musí běžet uvnitř runAnalysis (try/catch), ne holé před ním`)
+        assert(code.includes("runAnalysis("), `${ui} musí analýzu spouštět přes runAnalysis`)
+    }
 })
 
 // ═══════════════════════════════════════════════════════════

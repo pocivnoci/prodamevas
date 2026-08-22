@@ -13,16 +13,11 @@ import { isSuperAdminEmail } from '@/lib/super-admins'
 import { humanizeError } from './types'
 import type { WebsiteAnalysis, ReviewSection, ManualBusinessInfo } from './types'
 
-// Typy a humanizeError žijí v ./types.ts — sdílí je UI, tenhle soubor, headless
-// core.ts i durable worker. Re-export drží importy v page.tsx / OnboardTab.tsx
-// beze změny.
-export type {
-    IgInsights,
-    WebsiteAnalysis,
-    OnboardingQuestion,
-    ReviewSection,
-    ManualBusinessInfo,
-} from './types'
+// POZOR: tenhle soubor NESMÍ re-exportovat typy (`export type { … } from`).
+// V modulu s 'use server' z toho Turbopack udělá BĚHOVÝ re-export na binding,
+// který po smazání typů neexistuje — modul spadne při vyhodnocení a s ním celá
+// stránka. `npm run build` to nechytí, typy mizí až za ním. Viz aserce 0.1.
+// Typy berou UI i worker přímo z ./types.
 
 // ============================================
 // DURABLE ONBOARDING: ZAŘAĎ → SLEDUJ

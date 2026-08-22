@@ -10,7 +10,7 @@ import {
     saveReviewedConfig,
     generateImageBrief,
 } from '@/app/onboarding/actions'
-import { awaitOnboardingTask } from '@/app/onboarding/task-client'
+import { awaitOnboardingTask, humanizeClientError } from '@/app/onboarding/task-client'
 import { TaskProgress } from '@/app/onboarding/TaskProgress'
 import type { WebsiteAnalysis, OnboardingQuestion, ReviewSection } from '@/app/onboarding/types'
 import type { ClientConfig, ImageBriefItem } from '@/instagram/configs/types'
@@ -89,17 +89,24 @@ export function OnboardTab() {
     const awaitTask = <T,>(taskId: string) => awaitOnboardingTask<T>(taskId, setTaskProgress)
 
     type AnalyzeResult = { analysis: WebsiteAnalysis; questions: OnboardingQuestion[] }
+    type StartResult = { success: boolean; taskId?: string; error?: string }
 
-    /** Společný konec obou cest analýzy (web i ruční zadání). */
-    async function awaitAnalysis(taskId: string, backTo: Step) {
+    /**
+     * Společný běh obou cest analýzy. Zařazení MUSÍ být uvnitř try: i krátká server
+     * action je fetch, a když se rozpadne, vyletí syrové „Failed to fetch" jako
+     * neošetřená chyba a průvodce zamrzne na točícím se kolečku.
+     */
+    async function runAnalysis(start: () => Promise<StartResult>, backTo: Step) {
         try {
-            setAnalyzeTaskId(taskId)
-            const { analysis, questions } = await awaitTask<AnalyzeResult>(taskId)
+            const started = await start()
+            if (!started.success || !started.taskId) throw new Error(started.error || 'Analýza selhala')
+            setAnalyzeTaskId(started.taskId)
+            const { analysis, questions } = await awaitTask<AnalyzeResult>(started.taskId)
             setAnalysis(analysis)
             setQuestions(questions)
             setStep('questions')
         } catch (err) {
-            setError((err as Error).message)
+            setError(humanizeClientError(err))
             setStep(backTo)
         }
     }
@@ -112,13 +119,7 @@ export function OnboardTab() {
         setTaskProgress({ progress: 0, message: '' })
         setStep('analyzing')
 
-        const started = await startWebsiteAnalysis(url.trim(), igHandle.trim())
-        if (!started.success || !started.taskId) {
-            setError(started.error || 'Analýza selhala')
-            setStep('input')
-            return
-        }
-        await awaitAnalysis(started.taskId, 'input')
+        await runAnalysis(() => startWebsiteAnalysis(url.trim(), igHandle.trim()), 'input')
     }
 
     // ─── Step 1B → 2: Manual analyze ──────────────────────────
@@ -130,7 +131,7 @@ export function OnboardTab() {
         setTaskProgress({ progress: 0, message: '' })
         setStep('analyzing')
 
-        const started = await startManualAnalysis({
+        await runAnalysis(() => startManualAnalysis({
             businessName: businessName.trim(),
             category,
             description: manualDescription.trim(),
@@ -143,13 +144,7 @@ export function OnboardTab() {
             followerCount: followerCount ? parseInt(followerCount) : undefined,
             topLocations: topLocations.trim() || undefined,
             audienceGender: (audienceGender as any) || undefined,
-        })
-        if (!started.success || !started.taskId) {
-            setError(started.error || 'Analýza selhala')
-            setStep('manual')
-            return
-        }
-        await awaitAnalysis(started.taskId, 'manual')
+        }), 'manual')
     }
 
     // ─── Step 3 → 4: Generate config preview ─────────────────
@@ -174,7 +169,7 @@ export function OnboardTab() {
             setRefineCounts({ brand_voice: 0, pillars: 0, products: 0, visual: 0, hooks_cta: 0 })
             setStep('review')
         } catch (err) {
-            setError((err as Error).message)
+            setError(humanizeClientError(err))
             setStep('questions')
         }
     }
@@ -240,7 +235,7 @@ export function OnboardTab() {
                 }
             }).finally(() => setBriefLoading(false))
         } catch (err) {
-            setError((err as Error).message)
+            setError(humanizeClientError(err))
             setStep('review')
         }
     }

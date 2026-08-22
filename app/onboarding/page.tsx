@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { startWebsiteAnalysis, startManualAnalysis, startConfigPreview, refineConfigSection, saveReviewedConfig } from './actions'
 import type { WebsiteAnalysis, OnboardingQuestion, ReviewSection } from './types'
-import { awaitOnboardingTask } from './task-client'
+import { awaitOnboardingTask, humanizeClientError } from './task-client'
 import { TaskProgress } from './TaskProgress'
 import type { ClientConfig } from '@/instagram/configs/types'
 import { trackEvent } from '@/lib/analytics'
@@ -88,17 +88,26 @@ function OnboardingContent() {
     const awaitTask = <T,>(taskId: string) => awaitOnboardingTask<T>(taskId, setTaskProgress)
 
     type AnalyzeResult = { analysis: WebsiteAnalysis; questions: OnboardingQuestion[] }
+    type StartResult = { success: boolean; taskId?: string; error?: string }
 
-    /** Společný konec obou cest analýzy (web i ruční zadání). */
-    async function awaitAnalysis(taskId: string, backTo: Step) {
+    /**
+     * Společný běh obou cest analýzy (web i ruční zadání).
+     *
+     * Zařazení MUSÍ být uvnitř try: i krátká server action je fetch, a když se
+     * rozpadne, vyletí syrové „Failed to fetch" jako neošetřená chyba a průvodce
+     * zamrzne na točícím se kolečku.
+     */
+    async function runAnalysis(start: () => Promise<StartResult>, backTo: Step) {
         try {
-            setAnalyzeTaskId(taskId)
-            const { analysis, questions } = await awaitTask<AnalyzeResult>(taskId)
+            const started = await start()
+            if (!started.success || !started.taskId) throw new Error(started.error || 'Analýza selhala')
+            setAnalyzeTaskId(started.taskId)
+            const { analysis, questions } = await awaitTask<AnalyzeResult>(started.taskId)
             setAnalysis(analysis)
             setQuestions(questions)
             setStep('questions')
         } catch (err) {
-            setError((err as Error).message)
+            setError(humanizeClientError(err))
             setStep(backTo)
         }
     }
@@ -110,13 +119,7 @@ function OnboardingContent() {
         setError(null)
         setTaskProgress({ progress: 0, message: '' })
         setStep('analyzing')
-        const started = await startWebsiteAnalysis(url.trim(), igHandle.trim())
-        if (!started.success || !started.taskId) {
-            setError(started.error || 'Analýza selhala')
-            setStep('input')
-            return
-        }
-        await awaitAnalysis(started.taskId, 'input')
+        await runAnalysis(() => startWebsiteAnalysis(url.trim(), igHandle.trim()), 'input')
     }
 
     // ─── Step 1B: Manual form submit ────────────────────────────
@@ -126,20 +129,14 @@ function OnboardingContent() {
         setError(null)
         setTaskProgress({ progress: 0, message: '' })
         setStep('analyzing')
-        const started = await startManualAnalysis({
+        await runAnalysis(() => startManualAnalysis({
             businessName: businessName.trim(),
             category,
             description: description.trim(),
             products: products.trim(),
             tone: tone || 'přátelský',
             igHandle: igHandle.trim(),
-        })
-        if (!started.success || !started.taskId) {
-            setError(started.error || 'Analýza selhala')
-            setStep('manual')
-            return
-        }
-        await awaitAnalysis(started.taskId, 'manual')
+        }), 'manual')
     }
 
     // ─── Step 3 → 4: Submit Answers → Generate preview ────────
@@ -170,7 +167,7 @@ function OnboardingContent() {
             setRefineCounts({})
             setStep('review')
         } catch (err) {
-            setError((err as Error).message)
+            setError(humanizeClientError(err))
             setStep('questions')
         }
     }
@@ -201,7 +198,7 @@ function OnboardingContent() {
             setSectionFeedback(prev => { const n = { ...prev }; delete n[section]; return n })
             setRefineCounts(prev => ({ ...prev, [section]: (prev[section] || 0) + 1 }))
         } catch (err) {
-            setError((err as Error).message)
+            setError(humanizeClientError(err))
             setSectionStatuses(prev => ({ ...prev, [section]: 'rejected' }))
         }
         setRefiningSection(null)
@@ -259,7 +256,7 @@ function OnboardingContent() {
             setStep('done')
             trackEvent('onboarding_completed', { method: mode || 'unknown' })
         } catch (err) {
-            setError((err as Error).message)
+            setError(humanizeClientError(err))
             setStep('review')
         }
     }

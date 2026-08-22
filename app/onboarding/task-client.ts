@@ -13,6 +13,21 @@ export interface TaskProgressUpdate {
     message: string
 }
 
+/**
+ * Přeloží selhání do věty, které zákazník rozumí.
+ *
+ * „Failed to fetch" je hláška prohlížeče o rozpadlém spojení — technický detail
+ * v angličtině, který se k zákazníkovi nikdy neměl dostat. Právě tuhle větu lidi
+ * z onboardingu hlásili. Ostatní hlášky už česky jsou, ty pusť beze změny.
+ */
+export function humanizeClientError(err: unknown): string {
+    const msg = (err as Error)?.message || String(err)
+    if (/failed to fetch|networkerror|load failed|network request failed/i.test(msg)) {
+        return 'Ztratilo se spojení se serverem. Zkus to prosím znovu — rozdělaná práce se neztratila, běží dál na serveru.'
+    }
+    return msg
+}
+
 /** Jak často se ptáme na stav. Stejné tempo jako u generování příspěvků. */
 const POLL_MS = 2000
 
