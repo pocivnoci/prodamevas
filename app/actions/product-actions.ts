@@ -1101,7 +1101,12 @@ Vrať POUZE platný JSON pole objektů.`
 // Vlastní logika žije v `lib/product-import.ts` bez vazby na session, aby šla
 // spustit i mimo prohlížeč. Tady zbývá jen hranice: přelož slug na `clientId`.
 
-export type { ProductUrlDraft }
+// POZOR: tenhle soubor má `"use server"`, a v takovém modulu se **typ nesmí
+// re-exportovat**. Stálo tu `export type { ProductUrlDraft }` a Turbopack z toho
+// v serverovém chunku udělal běhový re-export na binding, který po smazání typů
+// neexistuje: modul spadl hned při vyhodnocení („ProductUrlDraft is not defined")
+// a s ním celý obsah dashboardu. Build to nechytí — typy mizí až za ním.
+// Typ si klient bere přímo z `@/lib/product-import`.
 
 /** Přečte produkty z vložených odkazů a vrátí je k potvrzení. Neukládá. */
 export async function previewProductsFromUrls(

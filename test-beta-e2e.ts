@@ -506,6 +506,27 @@ test("10.7f Živá session bránu neobejde", () => {
     assert(!/supabase/i.test(access), "lib/beta-access.ts se nesmí dotýkat Supabase klientů")
 })
 
+test("0.1 Server action nesmí re-exportovat typ", () => {
+    // Produkční výpadek: v `app/actions/product-actions.ts` stálo
+    // `export type { ProductUrlDraft }`. V modulu s `"use server"` z toho
+    // Turbopack udělal běhový re-export na binding, který po smazání typů
+    // neexistuje — modul spadl při vyhodnocení („ProductUrlDraft is not
+    // defined") a s ním celý obsah dashboardu. `npm run build` to nechytí,
+    // protože typy mizí až za ním; projeví se to až v běžící aplikaci.
+    //
+    // Typ patří klientovi přímo ze zdrojového modulu, ne přes server action.
+    const fs = require("fs") as typeof import("fs")
+    const dir = "app/actions"
+    for (const file of fs.readdirSync(dir).filter((f: string) => f.endsWith(".ts"))) {
+        const content = fileContent(`${dir}/${file}`)
+        if (!content.includes('"use server"')) continue
+        assert(
+            !/^\s*export\s+type\s*\{/m.test(content),
+            `${dir}/${file}: "use server" modul nesmí obsahovat 'export type { … }' — typ ber přímo ze zdroje`,
+        )
+    }
+})
+
 test("10.7h Super admin dostane razítko, ne jen průchod", () => {
     // Past, která zamkla vlastníka produktu z jeho vlastní aplikace:
     // `hasBetaStamp` čte `SUPER_ADMIN_EMAILS`, jenže middleware běží z jiného
