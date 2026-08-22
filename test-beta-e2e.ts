@@ -2479,6 +2479,42 @@ test("31.5 dotazník na míru nesmí onboarding zablokovat", () => {
         "pevný dotazník patří do core.ts — v actions.ts by byl zase dvojník")
 })
 
+test("31.8 dotazník musí pokrýt osy, které se z webu vyčíst nedají", () => {
+    // Model umí vymyslet pět skvělých otázek, které shodou okolností všechny míří na
+    // publikum — a config si pak antiPatterns nebo ctaVariations jen vymyslí, protože
+    // se na ně nikdo nezeptal. Pokrytí os je proto vynucené, ne doufané.
+    const types = codeOnly("app/onboarding/types.ts")
+    assert(/REQUIRED_AXES/.test(types), "povinné osy musí být pojmenované na jednom místě")
+    for (const axis of ["cil", "tabu", "cta", "vizual"]) {
+        assert(types.includes(`'${axis}'`), `osa ${axis} chybí — sytí pole, které web neprozradí`)
+    }
+
+    const core = codeOnly("app/onboarding/core.ts")
+    const fn = core.slice(core.indexOf("export async function generateQuestionsCore"))
+    const body = fn.slice(0, fn.indexOf("\n}\n"))
+    assert(body.includes("REQUIRED_AXES.filter"), "chybějící osu musí kód detekovat, ne jen prompt poprosit")
+    assert(/FALLBACK_QUESTIONS.find\(q => q.covers === axis\)/.test(body),
+        "chybějící osa se zalepí pevnou otázkou — obecná otázka je lepší než žádná")
+    // Každá pevná otázka musí mít osu, jinak není čím díru zalepit.
+    const fixed = core.slice(core.indexOf("const FALLBACK_QUESTIONS"))
+    const block = fixed.slice(0, fixed.indexOf("\n]\n"))
+    assert((block.match(/covers:/g) || []).length === 5, "všech 5 pevných otázek musí nést osu")
+})
+
+test("31.9 mega prompt s odpověďmi něco udělá, ne že je jen zobrazí", () => {
+    // Odpovědi byly dřív pod nadpisem vysypané do promptu a pak už je nic nezmínilo —
+    // jediná věta „obsah musí odpovídat odpovědím" nesváže odpověď s polem.
+    const core = codeOnly("app/onboarding/core.ts")
+    const i = core.indexOf("const configPrompt =")
+    const prompt = core.slice(i, core.indexOf("const rawConfig", i))
+    assert(prompt.includes("JAK NALOŽIT S ODPOVĚĎMI"), "prompt musí mít sekci o tom, co s odpověďmi dělat")
+    for (const field of ["antiPatterns", "ctaVariations", "contentPillars", "feedAesthetic"]) {
+        assert(prompt.includes(field), `pravidla musí vázat odpovědi na konkrétní pole (${field})`)
+    }
+    assert(prompt.includes("platí odpověď"),
+        "když si web a odpověď protiřečí, musí být jasné, co vyhrává — majitel ví víc než jeho web")
+})
+
 test("31.6 onboarding neběží v prohlížeči, ale jako durable task", () => {
     const actions = codeOnly("app/onboarding/actions.ts")
     assert(actions.includes("enqueueTask"), "dlouhá práce se musí zařadit, ne rozjet v requestu")

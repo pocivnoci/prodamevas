@@ -67,6 +67,24 @@ export interface WebsiteAnalysis {
     feedVisuals?: import('@/instagram/feed-vision').FeedVisualProfile
 }
 
+/**
+ * Osa configu, kterou otázka sytí.
+ *
+ * Otázky píše AI, takže bez tohohle můžou vyjít krásné a přesto minout pole, které
+ * se z webu vyčíst NEDÁ — a to pole pak model při skládání configu jen hádá.
+ * Čtyři osy jsou povinné, pátá (`volna`) patří modelu: tam se ptá na to, co u téhle
+ * konkrétní značky považuje za nejcennější (sezónnost, námitka, kdo doopravdy platí).
+ */
+export type QuestionAxis =
+    | 'cil'     // → contentPillars (poměry pilířů, ctaStrategy)
+    | 'tabu'    // → brandVoice.antiPatterns
+    | 'cta'     // → brandVoice.ctaVariations
+    | 'vizual'  // → feedAesthetic
+    | 'volna'   // → cokoli, co model u téhle značky považuje za nejcennější
+
+/** Osy, bez kterých se config neobejde — vždycky musí zaznít. */
+export const REQUIRED_AXES: QuestionAxis[] = ['cil', 'tabu', 'cta', 'vizual']
+
 export interface OnboardingQuestion {
     id: string
     question: string
@@ -74,6 +92,8 @@ export interface OnboardingQuestion {
     options?: string[]
     placeholder?: string
     required: boolean
+    /** Které pole configu tahle otázka sytí. Viz QuestionAxis. */
+    covers?: QuestionAxis
 }
 
 export type ReviewSection = 'brand_voice' | 'pillars' | 'products' | 'visual' | 'hooks_cta'

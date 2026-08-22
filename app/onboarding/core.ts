@@ -28,7 +28,8 @@ import { FORMAT_BRIEF_LIMITS } from '@/instagram/configs/types'
 import { stripFinishedCopy } from '@/instagram/configs/format-brief'
 import { fetchInstagramProfile, estimatePostsPerWeek, type IgProfileData } from '@/lib/ig-scraper'
 import { Type } from '@google/genai'
-import type { WebsiteAnalysis, ManualBusinessInfo, IgInsights, OnboardingQuestion } from './types'
+import type { WebsiteAnalysis, ManualBusinessInfo, IgInsights, OnboardingQuestion, QuestionAxis } from './types'
+import { REQUIRED_AXES } from './types'
 
 // ============================================
 // TYPES
@@ -381,6 +382,7 @@ Vrať POUZE platný JSON.`
 const FALLBACK_QUESTIONS: OnboardingQuestion[] = [
     {
         id: 'ig_goal',
+        covers: 'cil',
         question: 'Co je tvůj hlavní cíl na Instagramu?',
         type: 'select',
         options: [
@@ -393,6 +395,7 @@ const FALLBACK_QUESTIONS: OnboardingQuestion[] = [
     },
     {
         id: 'ig_tone',
+        covers: 'volna',
         question: 'Jakým tónem chceš na Instagramu komunikovat?',
         type: 'select',
         options: [
@@ -406,6 +409,7 @@ const FALLBACK_QUESTIONS: OnboardingQuestion[] = [
     },
     {
         id: 'ig_taboo',
+        covers: 'tabu',
         question: 'Jsou témata, kterým se chceš vyhnout?',
         type: 'text',
         placeholder: 'např. politika, konkurence, slevy, vulgarita...',
@@ -413,6 +417,7 @@ const FALLBACK_QUESTIONS: OnboardingQuestion[] = [
     },
     {
         id: 'ig_cta',
+        covers: 'cta',
         question: 'Co chceš, aby lidé udělali po přečtení postu?',
         type: 'multiselect',
         options: [
@@ -426,6 +431,7 @@ const FALLBACK_QUESTIONS: OnboardingQuestion[] = [
     },
     {
         id: 'ig_visual',
+        covers: 'vizual',
         question: 'Jaký vizuální styl feedu ti sedí?',
         type: 'select',
         options: [
@@ -461,6 +467,17 @@ ${analysis.igInsights ? `UŽ POSTUJE NA IG: engagement ${(analysis.igInsights.av
 - Každá otázka musí měnit, jak budou vypadat příspěvky. Na co neumíš navázat obsah, se neptej.
 - Ptej se na to, co z webu NEJDE zjistit: sezónnost, tabu, kdo doopravdy nakupuje, čím se liší od konkurence, co v minulosti nefungovalo.
 - Přesně 5 otázek, česky, tykáním.
+
+## CO MUSÍ ZAZNÍT
+Každá odpověď sytí konkrétní pole konfigurace, takže se musí ptát právě jedna otázka na každou z těchto os. Formulaci si ale vymysli pro TUHLE firmu — osa říká, NA CO se ptáš, ne JAK.
+- "cil" — čeho má Instagram dosáhnout (řídí poměr prodejních a budovacích příspěvků)
+- "tabu" — čemu se v komunikaci vyhnout (stane se z toho seznam zakázaných věcí)
+- "cta" — co má člověk po přečtení udělat a kam ho poslat (řídí výzvy k akci)
+- "vizual" — jak má feed vypadat
+- "volna" — jedna otázka navíc podle tvého uvážení: zeptej se na to, co je u téhle konkrétní značky nejcennější a z webu to nejde vyčíst (sezónnost, kdo doopravdy platí, nejčastější námitka, co v minulosti nefungovalo)
+
+Osu zapiš do pole "covers".
+
 - Nejvýš jedna otázka typu "text" — psaní dá práci. Zbytek dej jako výběr z možností.
 - U "select" a "multiselect" vždy 3–5 konkrétních možností napsaných pro TENHLE obor, plus ať jedna možnost pokrývá „nic z toho".
 - `+"`id`"+` je krátký slug bez diakritiky (např. "sezonnost", "kdo_nakupuje").
@@ -482,8 +499,9 @@ ${analysis.igInsights ? `UŽ POSTUJE NA IG: engagement ${(analysis.igInsights.av
                         options: { type: Type.ARRAY, items: { type: Type.STRING } },
                         placeholder: { type: Type.STRING },
                         required: { type: Type.BOOLEAN },
+                        covers: { type: Type.STRING, enum: ["cil", "tabu", "cta", "vizual", "volna"] },
                     },
-                    required: ["id", "question", "type", "required"],
+                    required: ["id", "question", "type", "required", "covers"],
                 },
             },
         })
@@ -512,7 +530,21 @@ ${analysis.igInsights ? `UŽ POSTUJE NA IG: engagement ${(analysis.igInsights.av
             return { ...q, id, required: Boolean(q.required) }
         })
 
-        console.log(`✅ Dotazník na míru: ${questions.length} otázek pro ${analysis.companyName}`)
+        // Pokrytí os, ne jen počet. Model umí vymyslet pět skvělých otázek, které
+        // shodou okolností všechny míří na publikum — a pak si config pole jako
+        // antiPatterns nebo ctaVariations jen vymyslí, protože se na ně nikdo nezeptal.
+        // Chybějící osu zalep pevnou otázkou: obecná otázka je pořád lepší než žádná.
+        const covered = new Set(questions.map(q => q.covers).filter(Boolean) as QuestionAxis[])
+        const missing = REQUIRED_AXES.filter(a => !covered.has(a))
+        if (missing.length) {
+            console.warn(`⚠️ Dotazníku chybí osa: ${missing.join(", ")} → doplňuju pevnou otázkou`)
+            for (const axis of missing) {
+                const fixed = FALLBACK_QUESTIONS.find(q => q.covers === axis)
+                if (fixed && !seen.has(fixed.id)) { questions.push(fixed); seen.add(fixed.id) }
+            }
+        }
+
+        console.log(`✅ Dotazník na míru: ${questions.length} otázek pro ${analysis.companyName} (osy: ${questions.map(q => q.covers ?? "?").join(", ")})`)
         return questions
     } catch (err) {
         console.warn(`⚠️ Generování dotazníku selhalo, jedu na pevný: ${(err as Error).message}`)
@@ -668,6 +700,15 @@ Vygeneruj kompletní ClientConfig JSON. Buď kreativní ale přesný.
   "overlayGradient": ${JSON.stringify(analysis.overlayGradient || { topColor: analysis.colors.primary, midColor: analysis.colors.secondary, bottomColor: analysis.colors.primary })}${analysis.products.length > 0 ? `,
   "products": ${JSON.stringify(analysis.products.map(p => ({ name: p.name, type: p.type, slug: p.slug, price: p.price, description: p.description })))}` : ''}
 }
+
+## JAK NALOŽIT S ODPOVĚĎMI Z DOTAZNÍKU
+Odpovědi výše nejsou kontext na okrasu — jsou to jediné věci, které se z webu vyčíst NEDAJÍ, protože je ví jenom majitel. Kde si analýza webu a odpověď protiřečí, **platí odpověď**.
+- Co klient označil za tabu, MUSÍ skončit v \`brandVoice.antiPatterns\` — konkrétně, jeho slovy, ne obecně.
+- Kam chce klient lidi posílat, MUSÍ řídit \`brandVoice.ctaVariations\` a \`ctaStrategy\` u pilířů.
+- Cíl, který klient zvolil, MUSÍ posunout poměry v \`contentPillars\` (prodejní cíl = vyšší ratio u "sales", budování značky = vyšší u "reach" a "community").
+- Vizuální styl z odpovědi MUSÍ být znát ve \`feedAesthetic\`.
+- Volnou odpověď (sezónnost, kdo doopravdy platí, námitka, co nefungovalo) promítni do \`contentPillars.categories\` a \`hookTemplates\` — tam je z ní největší užitek.
+- Když klient na něco neodpověděl nebo zvolil „nic z toho", nic si nevymýšlej a řiď se analýzou webu.
 
 DŮLEŽITÉ:
 - Všechny texty psány česky, moderní hovorovou češtinou
