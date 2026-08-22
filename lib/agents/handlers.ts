@@ -7,7 +7,7 @@
  */
 
 import supabaseAdmin from "@/supabase/admin"
-import { registerHandler, type AgentTask } from "@/lib/agent-runner"
+import { registerHandler, reportProgress, type AgentTask } from "@/lib/agent-runner"
 import { getFounderEmail } from "@/lib/email"
 
 // Health-check / smoke task: does nothing but confirm the runner executes it.
@@ -171,6 +171,82 @@ registerHandler("voice_examples_promote", async () => {
     const results = await promoteVoiceExamples()
     const promoted = results.reduce((s, r) => s + r.promoted, 0)
     return { ok: true, clients: results.length, promoted, results }
+})
+
+// ── Onboarding ─────────────────────────────────────────────────────────────────
+// Analýza webu i skládání configu trvají minuty. Dokud visely na otevřeném spojení
+// s prohlížečem, každý rozpadlý fetch zahodil hotovou — a zaplacenou — práci: server
+// doběhl, jen odpověď neměla kam dorazit. Přesně tak vypadalo „Failed to fetch".
+// Handler smí volat jen core.ts; tenhle soubor si importuje cron routa, takže se
+// nesmí dotknout auth vrstvy (viz HARD RULE v app/onboarding/core.ts).
+
+registerHandler("onboarding_analyze", async (task: AgentTask) => {
+    const { analyzeWebsiteCore, buildManualAnalysisCore, generateQuestionsCore } =
+        await import("@/app/onboarding/core")
+    const p = task.payload as {
+        mode?: "website" | "manual"
+        url?: string
+        igHandle?: string
+        info?: Parameters<typeof buildManualAnalysisCore>[0]
+    }
+    const say = (n: number, m: string) => reportProgress(task.id, n, m)
+
+    let analysis
+    if (p.mode === "manual") {
+        if (!p.info) throw new Error("onboarding_analyze: chybí info pro ruční zadání")
+        await say(20, "Skládám profil značky z toho, cos vyplnil…")
+        analysis = await buildManualAnalysisCore(p.info)
+    } else {
+        if (!p.url) throw new Error("onboarding_analyze: chybí url")
+        analysis = await analyzeWebsiteCore(p.url, p.igHandle || "", say)
+    }
+
+    // Otázky se odvozují z analýzy, takže se generují rovnou tady. Jinak by musel
+    // celý objekt (~100–300 KB) doletět do prohlížeče a hned se vrátit zpátky.
+    await say(93, "Připravuju otázky na míru…")
+    const questions = await generateQuestionsCore(analysis)
+
+    await say(100, "Hotovo")
+    return { analysis, questions }
+})
+
+registerHandler("onboarding_config_preview", async (task: AgentTask) => {
+    const { generateConfigCore } = await import("@/app/onboarding/core")
+    const p = task.payload as {
+        analyzeTaskId?: string
+        answers?: Record<string, string | string[]>
+        websiteUrl?: string
+        igHandle?: string
+    }
+    if (!p.analyzeTaskId) throw new Error("onboarding_config_preview: chybí analyzeTaskId")
+
+    // Analýza se čte ze zdrojového tasku, ne od klienta: ušetří to velký round-trip
+    // a zároveň nejde podvrhnout cizí vstup. Vlastník musí sedět — jinak by si kdokoli
+    // přihrál analýzu jiného uživatele.
+    const { data: src } = await supabaseAdmin
+        .from("agent_tasks")
+        .select("result, status, requested_by")
+        .eq("id", p.analyzeTaskId)
+        .maybeSingle()
+    if (!src || src.status !== "done") throw new Error("Analýza webu ještě není hotová.")
+    if (src.requested_by !== task.requested_by) throw new Error("Analýza patří někomu jinému.")
+
+    const { analysis, questions } = (src.result || {}) as {
+        analysis?: Parameters<typeof generateConfigCore>[0]
+        questions?: Parameters<typeof generateConfigCore>[4]
+    }
+    if (!analysis) throw new Error("Zdrojová analýza je prázdná.")
+
+    const config = await generateConfigCore(
+        analysis,
+        p.answers || {},
+        p.websiteUrl || "",
+        p.igHandle || "",
+        questions,
+        (n, m) => reportProgress(task.id, n, m),
+    )
+    await reportProgress(task.id, 100, "Hotovo")
+    return { config, analysis }
 })
 
 // ── Obchodní agent ─────────────────────────────────────────────────────────────

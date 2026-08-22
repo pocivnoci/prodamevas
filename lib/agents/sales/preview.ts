@@ -25,7 +25,7 @@ import { generateDesignBrief, buildNativeImagePrompt } from "@/instagram/image-p
 import { generateConfigCore } from "@/app/onboarding/core"
 import { scrapeBrandBasics, type BrandBasics } from "./brand-scrape"
 import type { ClientConfig } from "@/instagram/configs/types"
-import type { WebsiteAnalysis } from "@/app/onboarding/actions"
+import type { WebsiteAnalysis } from "@/app/onboarding/types"
 import type { PostType } from "@/instagram/types"
 import type { PerformanceInsight } from "@/instagram/performance"
 
