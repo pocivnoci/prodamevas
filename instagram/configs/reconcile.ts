@@ -19,6 +19,16 @@
  *
  * It is PURE (no DB, no AI), DETERMINISTIC, and IDEMPOTENT — running it twice
  * yields the same result — so it is safe on the hot config-load path.
+ *
+ * SEM NEPATŘÍ `brandVoice.hookTemplates[].bestFor` ani `brandVoice.toneByPostType`,
+ * i když názvy formátů odkazují taky. Dva důvody:
+ *   1. Nejsou to projekce `postTypeDefs` — jsou to AUTORSKÁ data, která se nedají
+ *      zahodit a přegenerovat. Celý předpoklad téhle funkce na nich neplatí.
+ *   2. Výstup se ukládá zpátky do `clients.config` (app/actions/config-actions.ts
+ *      a čtyři skripty). Zahazování „mrtvých" názvů by tedy při prvním uložení
+ *      Nastavení nevratně smazalo hook šablony všech klientů.
+ * Normalizují se u konzumenta — `getHookTemplates` / `getToneDescription`
+ * v instagram/caption-generator.ts.
  */
 
 import type { ClientConfig, PostFormat, PostMedium, AspectRatio, OverlayStyle } from "./types"

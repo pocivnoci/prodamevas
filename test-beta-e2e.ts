@@ -2695,6 +2695,49 @@ test("32.6 hasPersonPhoto zůstává POSLEDNÍ parametr", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 33. HOOK ŠABLONY SE MUSÍ DOSTAT DO PROMPTU
+// ═══════════════════════════════════════════════════════════
+
+test("33.1 chybějící pole v brandVoice nesmí shodit generaci", () => {
+    // Onboarding zapisuje surový výstup modelu bez kontroly tvaru. Když AI jednou
+    // vynechá hookTemplates, `undefined.filter` shodí KAŽDOU generaci toho klienta.
+    const idx = codeOnly("instagram/configs/index.ts")
+    const bv = idx.slice(idx.indexOf("brandVoice: {"), idx.indexOf("contentPillars:"))
+    assert(/hookTemplates: config\.brandVoice\?\.hookTemplates \?\? \[\]/.test(bv),
+        "brandVoice se musí doplňovat po polích, ne jen celý když chybí")
+    assert(/toneByPostType: config\.brandVoice\?\.toneByPostType \?\? \{\}/.test(bv),
+        "toneByPostType potřebuje stejnou pojistku jako hookTemplates")
+
+    const gen = codeOnly("instagram/caption-generator.ts")
+    assert(/config\.brandVoice\?\.hookTemplates \?\? \[\]/.test(gen), "čtení šablon musí být odolné")
+    assert(/config\.brandVoice\?\.toneByPostType \?\? \{\}/.test(gen), "čtení tónu musí být odolné")
+})
+
+test("33.2 přepis formátů překlíčuje i to, co na ně odkazuje", () => {
+    // generateCustomFormats přepíše postTypes na formáty na míru. Když s nimi
+    // nepřeklíčuje bestFor a toneByPostType, zůstanou viset na názvech, které
+    // přestaly existovat — naměřeno na produkci: 0 z ~7 sedělo u všech 6 klientů.
+    const core = codeOnly("app/onboarding/core.ts")
+    const fn = core.slice(core.indexOf("export async function generateCustomFormats"))
+    assert(/pillarOfOldSlug/.test(fn),
+        "most mezi starým a novým názvoslovím vede přes pilíř — jméno na jméno přeložit nejde")
+    assert(/t\.bestFor = /.test(fn), "bestFor se musí překlíčovat")
+    assert(/toneByPostType/.test(fn), "toneByPostType má stejnou vadu a musí se překlíčovat taky")
+    // Snímek pilířů MUSÍ vzniknout dřív, než se contentPillars přepíšou.
+    assert(fn.indexOf("pillarOfOldSlug") < fn.indexOf("config.postTypes = defs.map"),
+        "snímek starých názvů musí vzniknout PŘED přepisem, jinak už most neexistuje")
+})
+
+test("33.3 mrtvé cílení se normalizuje u konzumenta, ne v reconcile", () => {
+    // reconcileFormats se ukládá zpátky do clients.config, takže zahazování
+    // „mrtvých" názvů by při prvním uložení Nastavení smazalo hook šablony všech
+    // klientů. Je to autorský obsah, ne přegenerovatelná projekce.
+    const rec = codeOnly("instagram/configs/reconcile.ts")
+    assert(!/hookTemplates|toneByPostType/.test(rec.replace(/NEPATŘÍ[\s\S]*?\*\//, "")),
+        "reconcileFormats nesmí sahat na autorská data — smazal by je při prvním uložení")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 

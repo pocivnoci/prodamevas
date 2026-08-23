@@ -507,6 +507,15 @@ function HookTemplatesEditor({ config, updateField }: { config: any; updateField
         updateField(["brandVoice", "hookTemplates"], templates.filter((_: any, i: number) => i !== idx))
     }
 
+    const postTypes: string[] = config.postTypes || []
+
+    const toggleBestFor = (idx: number, postType: string) => {
+        const current: string[] = templates[idx]?.bestFor || []
+        updateTemplate(idx, "bestFor", current.includes(postType)
+            ? current.filter(p => p !== postType)
+            : [...current, postType])
+    }
+
     return (
         <div className="space-y-4">
             {templates.length === 0 && (
@@ -541,6 +550,33 @@ function HookTemplatesEditor({ config, updateField }: { config: any; updateField
                                             : "border-white/5 text-white/30 hover:text-white/60"
                                     }`}>
                                     {TRIGGER_LABELS[tr].emoji} {TRIGGER_LABELS[tr].label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    {/* Pole `bestFor` se dřív vůbec nezobrazovalo, takže ručně přidaná
+                        šablona měla prázdný seznam formátů a nešlo ho vyplnit. Prázdné
+                        je v pořádku (= platí všude), ale musí to jít nastavit. */}
+                    <div>
+                        <FieldLabel hint="Nevybráno = šablona platí pro všechny formáty">Pro které formáty</FieldLabel>
+                        <div className="flex flex-wrap gap-1.5">
+                            {postTypes.map((pt: string) => {
+                                const on = (t.bestFor || []).includes(pt)
+                                return (
+                                    <button key={pt} onClick={() => toggleBestFor(idx, pt)}
+                                        className={`px-2.5 py-1.5 rounded-sm text-[9px] font-bold uppercase tracking-widest border transition-all ${
+                                            on ? "bg-white/10 border-white/20 text-white" : "border-white/5 text-white/30 hover:text-white/60"
+                                        }`}>
+                                        {pt}
+                                    </button>
+                                )
+                            })}
+                            {/* Formáty, které už neexistují — ať se při uložení tiše neztratí. */}
+                            {(t.bestFor || []).filter((b: string) => !postTypes.includes(b)).map((stale: string) => (
+                                <button key={stale} onClick={() => toggleBestFor(idx, stale)}
+                                    title="Tenhle formát už neexistuje — klikni pro odebrání"
+                                    className="px-2.5 py-1.5 rounded-sm text-[9px] font-bold uppercase tracking-widest border border-amber-500/30 bg-amber-500/10 text-amber-300/70">
+                                    {stale} ✕
                                 </button>
                             ))}
                         </div>
