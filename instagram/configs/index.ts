@@ -186,14 +186,20 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         name: config.name || slug,
         website: config.website || "",
         instagram: config.instagram || "",
-        brandVoice: config.brandVoice || {
-            persona: "Přátelský poradce",
-            hookTemplates: [],
-            ctaVariations: [],
-            voiceTraits: ["přátelský"],
-            values: [],
-            antiPatterns: [],
-            toneByPostType: {},
+        // Doplňuje se PO POLÍCH, ne vcelku. Dřív se default použil jen když `brandVoice`
+        // úplně chyběl — jenže onboarding zapisuje surový výstup modelu bez kontroly
+        // tvaru (app/onboarding/actions.ts), takže stačilo, aby AI jednou vynechala
+        // `hookTemplates`, a `getHookTemplates` pak na `undefined.filter` shodilo
+        // KAŽDOU generaci toho klienta. Chybějící pole nesmí být výbušnina.
+        brandVoice: {
+            ...(config.brandVoice ?? {}),
+            persona: config.brandVoice?.persona || "Přátelský poradce",
+            hookTemplates: config.brandVoice?.hookTemplates ?? [],
+            ctaVariations: config.brandVoice?.ctaVariations ?? [],
+            voiceTraits: config.brandVoice?.voiceTraits?.length ? config.brandVoice.voiceTraits : ["přátelský"],
+            values: config.brandVoice?.values ?? [],
+            antiPatterns: config.brandVoice?.antiPatterns ?? [],
+            toneByPostType: config.brandVoice?.toneByPostType ?? {},
         },
         contentPillars: config.contentPillars || {},
         // Voice anchor (few-shot). Optional feature — default to empty so the copywriter

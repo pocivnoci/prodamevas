@@ -528,6 +528,58 @@ test("popisek: prázdné tělo nevyrobí díru", () => {
     assert(caption === "Hook\n\nCTA.\n\n#a", `nečekané složení:\n${caption}`)
 })
 
+// ─── Hook šablony značky se MUSÍ dostat do promptu ──────────
+
+console.log("\n🪝 Hook šablony a tón")
+
+const tpl = (pattern: string, bestFor: string[]) =>
+    ({ pattern, example: `Příklad: ${pattern}`, bestFor, trigger: "curiosity" })
+
+/** Postaví prompt nad configem s upravenými hook šablonami / typy. */
+const buildWith = (over: Record<string, any>) =>
+    buildMegaPrompt({ ...config, ...over, brandVoice: { ...config.brandVoice, ...(over.brandVoice || {}) } } as any,
+        postType, null, null, [], fakePerf)
+
+test("mrtvé bestFor neznamená prázdnou sekci", () => {
+    // Přesný stav produkce: šablony oklíčované zástupnými názvy, které
+    // generateCustomFormats dávno přepsal. Dřív => 0 šablon a prázdný nadpis.
+    const p = buildWith({
+        postTypes: ["pribeh_jednoho_stonku", "sousedsky_pokec"],
+        brandVoice: { hookTemplates: [tpl("Věděli jste, že {{t}}?", ["tip"]), tpl("Upřímně?", ["behind_scenes"])] },
+    })
+    assert(p.includes("INSPIRACE PRO HOOKY"), "sekce chybí, i když značka šablony má")
+    assert(p.includes("Věděli jste"), "šablona se do promptu nedostala")
+})
+
+test("funkční bestFor neleaká do cizího formátu", () => {
+    // Značka, která má cílení napsané správně (viz rebrand-hanzgarage), nesmí
+    // dostat šablonu psanou pro jiný formát jen proto, že pro tenhle žádná není.
+    const p = buildWith({
+        postTypes: ["meme", "krok_za_krokem"],
+        brandVoice: { hookTemplates: [tpl("Krok za krokem: {{t}}", ["krok_za_krokem"])] },
+    })
+    assert(!p.includes("Krok za krokem"), "šablona pro jiný formát prosákla do meme postu")
+})
+
+test("bez šablon se nadpis vůbec nevykreslí", () => {
+    const p = buildWith({ brandVoice: { hookTemplates: [] } })
+    assert(!p.includes("INSPIRACE PRO HOOKY"), "prázdný nadpis je pokyn, který si model musí vyložit")
+})
+
+test("prázdný tón se do promptu nedostane", () => {
+    const p = buildWith({ brandVoice: { toneByPostType: {} } })
+    assert(!/## TÓN:\s*\n/.test(p) && !p.includes("## TÓN: \n"), "vykreslil se holý nadpis TÓN bez hodnoty")
+})
+
+test("výběr šablon je deterministický, ne náhodný", () => {
+    const code = readFileSync(resolve(__dirname, "../instagram/caption-generator.ts"), "utf-8")
+    const from = code.indexOf("export function getHookTemplates")
+    const body = code.slice(from, code.indexOf("\n}\n", from))
+    assert(!/Math\.random/.test(body),
+        "náhodný výběr střídá rytmus značky post od postu — stejný důvod, proč ho nemá ani výběr persony")
+    assert(/pickStable\(/.test(body), "výběr musí jít přes deterministický pickStable")
+})
+
 // ─── Report ─────────────────────────────────────────────────
 
 console.log("\n" + "─".repeat(60))

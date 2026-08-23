@@ -9,7 +9,7 @@ import { judgeText } from "./judge"
 import { getModel, hasFallback, getTemperature } from "./models"
 import type { ClientConfig, PostFormat, PostTypeDef, AudiencePersona, BrandVoiceExample } from "./configs/types"
 import type { PostType, PostIdea, Review } from "./types"
-import type { HookTemplate } from "./types"
+import type { HookTemplate, ToneModifier } from "./types"
 import type { PerformanceInsight } from "./performance"
 import { getPillarForType, createPillarMapper } from "./service"
 import { buildPsychologistSection } from "./psychologist"
@@ -234,8 +234,35 @@ export const IDEA_COOLDOWN_DAYS = 90
 
 
 
+/** Průměrný tón značky přes všechny zapsané typy — záchrana, když typ v mapě chybí. */
+function averageTone(byType: Record<string, ToneModifier>): ToneModifier | undefined {
+    const tones = Object.values(byType).filter(Boolean)
+    if (tones.length === 0) return undefined
+    const avg = (pick: (t: ToneModifier) => number) =>
+        Math.round(tones.reduce((s, t) => s + (pick(t) || 3), 0) / tones.length) as 1 | 2 | 3 | 4 | 5
+    return {
+        humorLevel: avg(t => t.humorLevel),
+        urgencyLevel: avg(t => t.urgencyLevel),
+        intimacyLevel: avg(t => t.intimacyLevel),
+        educationalLevel: avg(t => t.educationalLevel),
+    }
+}
+
+/**
+ * Popis tónu pro daný typ příspěvku.
+ *
+ * `toneByPostType` má stejnou vadu jako `hookTemplates.bestFor`: onboarding ho klíčuje
+ * zástupnými názvy typů a `generateCustomFormats` je pak přepíše. Naměřeno u všech 6
+ * produkčních klientů — 0 klíčů sedí na skutečné typy, takže tahle funkce vracela ""
+ * a v promptu se tisklo holé „## TÓN: ".
+ *
+ * Když typ chybí, spočítá se PRŮMĚRNÝ tón značky ze všech zapsaných. Je to pořád
+ * informace o značce — a rozhodně víc než prázdný nadpis, který si model musí nějak
+ * vyložit sám.
+ */
 export function getToneDescription(config: ClientConfig, postType: string): string {
-    const tone = config.brandVoice.toneByPostType[postType]
+    const byType = config.brandVoice?.toneByPostType ?? {}
+    const tone = byType[postType] ?? averageTone(byType)
     if (!tone) return ""
 
     const descriptions: string[] = []
@@ -259,11 +286,58 @@ export function getToneDescription(config: ClientConfig, postType: string): stri
     return descriptions.join(", ")
 }
 
+/**
+ * Hook šablony značky pro daný typ příspěvku.
+ *
+ * PROČ TO NENÍ JEN `filter(bestFor.includes(...))`:
+ * Onboarding generuje `hookTemplates` proti ZÁSTUPNÉMU seznamu typů („tip", „meme"…),
+ * protože v tu chvíli žádné skutečné formáty ještě neexistují. `generateCustomFormats`
+ * je pak přepíše na formáty na míru. `bestFor` tím osiří a průnik s reálnými typy je
+ * prázdný — naměřeno u všech 6 produkčních klientů: 6–7 šablon, 0 použitelných.
+ * Copywriter tedy dostával prázdnou sekci a psal hooky bez jediného vzoru značky.
+ *
+ * Rozhoduje se podle CELÉ konfigurace, ne podle jednoho typu. Naivní „když je prázdno,
+ * vem všechny" by rozbil značku, která `bestFor` má napsané správně (viz
+ * scripts/rebrand-hanzgarage.ts): u typu, který žádná šablona nejmenuje, by do promptu
+ * nasypal všechny a vzor „krok za krokem" by prosákl do hot-take postu.
+ */
 export function getHookTemplates(config: ClientConfig, postType: string, count: number = 3): HookTemplate[] {
-    const applicable = config.brandVoice.hookTemplates.filter(
-        template => template.bestFor.includes(postType)
-    )
-    return applicable.sort(() => Math.random() - 0.5).slice(0, count)
+    const templates = config.brandVoice?.hookTemplates ?? []
+    if (templates.length === 0) return []
+
+    const scopeOf = (t: HookTemplate) => t?.bestFor ?? []
+
+    // 1. Šablony psané přímo pro tenhle typ.
+    const exact = templates.filter(t => scopeOf(t).includes(postType))
+    if (exact.length > 0) return pickStable(exact, postType, count)
+
+    // 2. Funguje cílení u téhle značky vůbec? Když ano, je prázdno legitimní odpověď
+    //    a smí se sáhnout jen po skutečně necílených šablonách.
+    const activeSlugs = new Set(config.postTypes ?? [])
+    const anyValidlyScoped = templates.some(t => scopeOf(t).some(s => activeSlugs.has(s)))
+    if (anyValidlyScoped) {
+        return pickStable(templates.filter(t => scopeOf(t).length === 0), postType, count)
+    }
+
+    // 3. Celá dimenze `bestFor` je mrtvá → cílení nenese žádnou informaci, takže
+    //    ho ignoruj. Mírně nesedící vzor je nekonečně lepší než prázdná sekce.
+    return pickStable(templates, postType, count)
+}
+
+/**
+ * Deterministický výběr N z pole, odvozený od názvu typu.
+ *
+ * Dřív tu bylo `.sort(() => Math.random() - 0.5)`. Jakmile šablony začnou reálně téct,
+ * dostal by stejný typ příspěvku pokaždé jiné čtyři ze sedmi a značka by od postu
+ * k postu měnila rytmus. Přesně z tohohle důvodu se náhoda ruší i u výběru persony —
+ * viz selectPersonaForPost níž.
+ */
+function pickStable<T>(items: T[], seed: string, count: number): T[] {
+    if (items.length <= count) return items
+    let hash = 0
+    for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0
+    const start = hash % items.length
+    return Array.from({ length: count }, (_, i) => items[(start + i) % items.length])
 }
 
 export function getRandomCTAs(config: ClientConfig, count: number = 3): string[] {
@@ -367,7 +441,7 @@ export function buildCaptionSchema(config: ClientConfig) {
             },
             hook: {
                 type: Type.STRING,
-                description: "First sentence that stops scrolling — bold, shocking (max 15 words). NO EMOJI in hook.",
+                description: `First sentence that stops scrolling — bold, shocking. Best hooks are 3-7 words; ${PROMPT_LIMITS.hookWords} is the ceiling, not the target. NO EMOJI in hook.`,
             },
             body: {
                 type: Type.STRING,
@@ -574,6 +648,13 @@ export const PROMPT_LIMITS = {
      *  Ten pokus o opravu stál $0,134, tedy 13 % ceny celého postu.
      *  Celý návod patří do captionu, ne na slide — slide je plakát. */
     slideSubtextWords: 12,
+    /** Hook = první věta postu a zároveň headline vypálený do obrázku.
+     *  Strop, ne cíl — prompt vedle toho říká ideální pásmo 3–7 slov. Model totiž
+     *  čte „max N" jako zadání a poctivě si ho vyplní; patnáctislovný nadpis na
+     *  formátu 4:5 je pak nečitelný. Cover karuselu má za tutéž práci 8 slov.
+     *  12 sjednocuje s plánovací vrstvou, která tentýž hook slibuje na 12
+     *  (plan-pipeline.ts, content-plan-actions.ts). */
+    hookWords: 12,
     /** Hlavní caption. */
     bodyWords: 120,
     /** Vnitřní slidy karuselu (BEZ coveru). Strop 6 = 7 slidů celkem: cover + 4 kroky
@@ -929,7 +1010,7 @@ Názvy produktů, kolekcí a brand names ponechej V ANGLIČTINĚ! Příklady:
 - ✅ "Zero Fucks Given" — SPRÁVNĚ (originální název)
 - ❌ "Nula fucků na rozdávání" — ŠPATNĚ (přeložený do CZ)
 
-## TÓN: ${toneDesc}
+${toneDesc ? `## TÓN: ${toneDesc}` : ""}
 
 ${productsSection}
 ${idea && !userTopic ? (() => {
@@ -963,8 +1044,8 @@ ${goldExamplesSection}
 ${learningSection}
 ${personaSection}
 ${psychologySection}
-## INSPIRACE PRO HOOKY
-${hookTemplates.map(h => `- Vzor: "${h.pattern}" → Příklad: "${h.example}" (trigger: ${h.trigger})`).join("\n")}
+${hookTemplates.length > 0 ? `## INSPIRACE PRO HOOKY
+${hookTemplates.map(h => `- Vzor: "${h.pattern}" → Příklad: "${h.example}" (trigger: ${h.trigger})`).join("\n")}` : ""}
 
 ${buildCtaPolicySection(policy, config.ctaStrategies[policy.mode] || [], config.contentPillars[policy.pillarLabel]?.description)}
 
@@ -1154,7 +1235,7 @@ ${(() => {
 ## VÝSTUP — vrať POUZE validní JSON:
 {
   "angle": "1 věta — zvolený úhel a čím se liší od nedávných postů",
-  "hook": "První věta co zastaví scrollování (max 15 slov). ŽÁDNÉ EMOJI.",
+  "hook": "První věta co zastaví scrollování. Nejlepší hooky mají 3–7 slov; ${PROMPT_LIMITS.hookWords} je strop, ne cíl. ŽÁDNÉ EMOJI.",
   "body": "Hlavní text (max ${PROMPT_LIMITS.bodyWords} slov).",
   "cta": "CTA podle CTA POLITIKY výše",
   "hashtags": ["8-10", "relevantních", "hashtagů"],
@@ -1244,7 +1325,7 @@ CTA: "${captionData.cta}"
 Hashtags: ${captionData.hashtags.join(", ")}
 
 ## KRITÉRIA (celkem max 10 bodů):
-1. **Hook (0-3 body):** Zastaví scrollování? Krátký (max 15 slov)? Bez emoji?
+1. **Hook (0-3 body):** Zastaví scrollování? Je úderný — ideál 3–7 slov (strop ${PROMPT_LIMITS.hookWords})? Bez emoji?
 2. **Body (0-3 body):** Dává čtenáři konkrétní hodnotu, sedí k brand voice a personě výše, čte se lehce?${carouselBodyNote}
 3. **CTA (0-2 body):** ${ctaPolicy ? "Plní CTA politiku výše a vede k akci?" : "Jasná výzva k akci odpovídající typu postu?"}
 4. **Originalita (0-2 body):** Drží post deklarovaný úhel? Nepůsobí genericky? Nepoužívá anti-patterns?
@@ -1357,7 +1438,7 @@ ${renderDraft(draftA)}
 ${renderDraft(draftB)}
 
 ## KRITÉRIA (celkem max 10 bodů, hodnoť OBA návrhy):
-1. **Hook (0-3 body):** Zastaví scrollování? Krátký (max 15 slov)? Bez emoji?
+1. **Hook (0-3 body):** Zastaví scrollování? Je úderný — ideál 3–7 slov (strop ${PROMPT_LIMITS.hookWords})? Bez emoji?
 2. **Body (0-3 body):** Dává čtenáři konkrétní hodnotu, sedí k brand voice a personě výše, čte se lehce?
 3. **CTA (0-2 body):** ${ctaPolicy ? "Plní CTA politiku výše a vede k akci?" : "Jasná výzva k akci odpovídající typu postu?"}
 4. **Originalita (0-2 body):** Drží návrh deklarovaný úhel? Nepůsobí genericky? Nepoužívá anti-patterns?
@@ -1487,7 +1568,7 @@ ${hashtagSection}
 1. Přepiš caption PŘESNĚ podle feedbacku — ale zachovej brand voice a styl
 2. ${input.keepHook
         ? `Hook je VYPÁLENÝ V OBRÁZKU a obrázek se teď nemění — vrať ho ZNAKOVĚ SHODNĚ: "${input.renderedHook || input.originalCaption.split("\n")[0]}". Uprav jen tělo, CTA a hashtagy.`
-        : "Hook (první řádek) musí stále zastavit scrollování — max 15 slov, bez emoji"}
+        : `Hook (první řádek) musí stále zastavit scrollování — ideál 3–7 slov, max ${PROMPT_LIMITS.hookWords}, bez emoji`}
 3. ${policy && !policy.allowWebsite ? "CTA zůstává engagement (komentář / uložení / sdílení) — NEPŘIDÁVEJ web ani URL" : `CTA musí směřovat na ${config.website || "web značky"}`}
 4. Zachovej strukturu: hook → body → CTA → hashtags
 5. Pokud feedback říká "zkrátit" — zkrať. Pokud "přidat humor" — přidej. Buď DOSLOVNÝ.
@@ -1504,7 +1585,7 @@ ${input.keepHook
         : `{
   "caption": "kompletní nový text příspěvku (hook + body + CTA)",
   "hashtags": ["#hashtag1", "#hashtag2", "..."],
-  "hook": "první řádek captiony — hook text pro overlay na obrázku (max 15 slov, bez emoji)",
+  "hook": "první řádek captiony — hook text pro overlay na obrázku (ideál 3–7 slov, max ${PROMPT_LIMITS.hookWords}, bez emoji)",
   "imagePrompt": "English prompt for AI image generation — describe the background photo. NO TEXT in image. Photorealistic, editorial quality.",
   "imageSubtext": "krátký podtext pod hook na obrázku (max ${PROMPT_LIMITS.coverSubtextWords} slov, česky)"
 }`}`

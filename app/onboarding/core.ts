@@ -1049,6 +1049,17 @@ name unikátní, snake_case, bez diakritiky.`
         }
         if (defs.length === 0) return
 
+        // Snímek PŘED přepisem: contentPillars ještě drží zástupné názvy typů
+        // („tip", „meme"…) — tytéž, kterými model o pár set řádků výš oklíčoval
+        // hookTemplates.bestFor a toneByPostType. Je to jediný most mezi starým
+        // a novým názvoslovím; po přepisu níž už neexistuje.
+        const pillarOfOldSlug = new Map<string, string>()
+        for (const key of pillarKeys) {
+            for (const oldSlug of config.contentPillars?.[key]?.postTypes || []) {
+                pillarOfOldSlug.set(oldSlug, key)
+            }
+        }
+
         config.postTypeDefs = defs
         config.postTypes = defs.map(d => d.name)
         config.postFormats = config.postFormats || {}
@@ -1067,6 +1078,35 @@ name unikátní, snake_case, bez diakritiky.`
         }
         // Keep weekPlan consistent with the new format names (7-day cycle)
         config.weekPlan = Array.from({ length: 7 }, (_, i) => defs[i % defs.length].name)
+
+        // ── Překlíčovat, co ještě odkazuje na staré názvy ─────────────────────
+        // Bez tohohle zůstaly hookTemplates.bestFor a toneByPostType viset na
+        // zástupných názvech, které právě přestaly existovat. Naměřeno na produkci:
+        // u všech 6 klientů sedělo 0 z ~7 — copywriter tedy nedostal ani jeden vzor
+        // hooku značky a v promptu měl místo tónu prázdno.
+        //
+        // Jméno na jméno přeložit nejde („tip" → který ze tří formátů?), takže se jede
+        // přes pilíř. Když z toho nevyjde nic, pole se VYČISTÍ — mrtvý název je horší
+        // než prázdno, protože prázdno znamená „platí univerzálně" a mrtvý název
+        // znamená „neplatí nikde".
+        const newNamesForOldSlug = (oldSlug: string): string[] => {
+            const pillar = pillarOfOldSlug.get(oldSlug)
+            return pillar ? defs.filter(d => d.pillar === pillar).map(d => d.name) : []
+        }
+
+        for (const t of config.brandVoice?.hookTemplates || []) {
+            const mapped = new Set((t.bestFor || []).flatMap(newNamesForOldSlug))
+            t.bestFor = [...mapped]
+        }
+
+        if (config.brandVoice?.toneByPostType) {
+            const remapped: typeof config.brandVoice.toneByPostType = {}
+            for (const [oldSlug, tone] of Object.entries(config.brandVoice.toneByPostType)) {
+                for (const name of newNamesForOldSlug(oldSlug)) remapped[name] = tone
+            }
+            // Prázdná mapa je v pořádku — getToneDescription si dopočítá průměr.
+            if (Object.keys(remapped).length > 0) config.brandVoice.toneByPostType = remapped
+        }
 
         console.log(`   ✅ Generated ${defs.length} brand-specific post formats: ${defs.map(d => d.name).join(", ")}`)
     } catch (err) {
