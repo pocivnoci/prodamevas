@@ -2738,6 +2738,48 @@ test("33.3 mrtvé cílení se normalizuje u konzumenta, ne v reconcile", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 34. ÚTRATA ZA MODELY JE VIDĚT CELÁ
+// ═══════════════════════════════════════════════════════════
+
+test("34.1 měření žije mimo generování příspěvků", () => {
+    // Naměřeno 23. 8. 2026: Google za týden 411,78 Kč, aplikace uměla vysvětlit ~100.
+    // Měřič obaloval jedinou cestu (generateOnePost), takže největší položka týdne
+    // — 400 nápadů jedním hromadným během — nebyla v datech vůbec.
+    assert(fileExists("instagram/spend-tracker.ts"), "chybí měření útraty mimo posty")
+    const t = codeOnly("instagram/spend-tracker.ts")
+    assert(/export async function trackSpend/.test(t), "obal na měření musí být sdílený")
+    assert(/ai_spend/.test(t), "útrata se musí někam ukládat")
+
+    // Neúspěšný běh je ten nejdražší druh — zaplatí se a nic z něj není.
+    const fn = t.slice(t.indexOf("export async function trackSpend"))
+    assert(/finally/.test(fn.slice(0, 900)) && /currentUsage\(\)/.test(fn.slice(0, 900)),
+        "spotřeba se musí zapsat i když práce spadne — jinak jsou nejdražší běhy v datech nejlevnější")
+})
+
+test("34.2 nápady a onboarding se měří", () => {
+    // Obojí byly v účetnictví slepé skvrny; nápady dokonce největší položka týdne.
+    const ideas = codeOnly("instagram/idea-generator.ts")
+    assert(/trackSpend\(\s*"ideas"/.test(ideas),
+        "generování nápadů se měří UVNITŘ — volají ho CLI, UI i noční cron a každý by mohl zapomenout")
+
+    const handlers = codeOnly("lib/agents/handlers.ts")
+    for (const op of ["onboarding_analyze", "onboarding_config"]) {
+        assert(new RegExp(`trackSpend\\(\\s*"${op}"`).test(handlers), `onboarding krok ${op} se neměří`)
+    }
+})
+
+test("34.3 neznámá sazba se nesmí tvářit jako nula", () => {
+    const t = codeOnly("instagram/spend-tracker.ts")
+    assert(/cost_usd: cost/.test(t) && !/cost_usd: cost \?\? 0/.test(t),
+        "neoceněný běh musí zůstat null — vymyšlená nula vypadá v datech jako levný běh")
+})
+
+test("34.4 hromadný běh nápadů se neprovede potichu", () => {
+    const cli = codeOnly("instagram/cli.ts")
+    assert(/BULK_WARN_THRESHOLD/.test(cli), "velký běh musí člověka varovat, než utratí stovky")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 

@@ -191,20 +191,28 @@ registerHandler("onboarding_analyze", async (task: AgentTask) => {
     }
     const say = (n: number, m: string) => reportProgress(task.id, n, m)
 
+    // Onboarding byl v účetnictví neviditelný — scrape, analýza značky, popis fotek
+    // i dotazník jdou přes model a nikde se nesčítaly. Měří se tady, protože jen tady
+    // je po ruce i task id, přes které se běh dohledá.
+    const { trackSpend } = await import("@/instagram/spend-tracker")
+
     let analysis
     if (p.mode === "manual") {
         if (!p.info) throw new Error("onboarding_analyze: chybí info pro ruční zadání")
         await say(20, "Skládám profil značky z toho, cos vyplnil…")
-        analysis = await buildManualAnalysisCore(p.info)
+        analysis = await trackSpend("onboarding_analyze", { refId: task.id },
+            () => buildManualAnalysisCore(p.info!))
     } else {
         if (!p.url) throw new Error("onboarding_analyze: chybí url")
-        analysis = await analyzeWebsiteCore(p.url, p.igHandle || "", say)
+        analysis = await trackSpend("onboarding_analyze", { refId: task.id },
+            () => analyzeWebsiteCore(p.url!, p.igHandle || "", say))
     }
 
     // Otázky se odvozují z analýzy, takže se generují rovnou tady. Jinak by musel
     // celý objekt (~100–300 KB) doletět do prohlížeče a hned se vrátit zpátky.
     await say(93, "Připravuju otázky na míru…")
-    const questions = await generateQuestionsCore(analysis)
+    const questions = await trackSpend("onboarding_analyze", { refId: task.id },
+        () => generateQuestionsCore(analysis))
 
     await say(100, "Hotovo")
     return { analysis, questions }
@@ -237,14 +245,15 @@ registerHandler("onboarding_config_preview", async (task: AgentTask) => {
     }
     if (!analysis) throw new Error("Zdrojová analýza je prázdná.")
 
-    const config = await generateConfigCore(
+    const { trackSpend } = await import("@/instagram/spend-tracker")
+    const config = await trackSpend("onboarding_config", { refId: task.id }, () => generateConfigCore(
         analysis,
         p.answers || {},
         p.websiteUrl || "",
         p.igHandle || "",
         questions,
         (n, m) => reportProgress(task.id, n, m),
-    )
+    ))
     await reportProgress(task.id, 100, "Hotovo")
     return { config, analysis }
 })

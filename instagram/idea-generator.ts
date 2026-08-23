@@ -4,15 +4,31 @@ import { resolveClientId } from "./configs"
 import { DEFAULT_IDEA_COOLDOWN_DAYS } from "./service"
 import supabaseAdmin from "../supabase/admin"
 
+/**
+ * Generování nápadů — měřená obálka.
+ *
+ * Měří se UVNITŘ, ne u volajících: nápady se pouštějí z CLI, z UI i z nočního
+ * doplňování a každé z těch míst by na účtování mohlo zapomenout. Právě tahle cesta
+ * byla 18. 8. 2026 největší položkou týdne (400 nápadů jedním hromadným během,
+ * ~250 Kč) a v účetnictví o ní nebylo ani slovo.
+ */
 export async function generateAIIdeas(config: ClientConfig, pillarId: string, count: number = 10, categoryId?: string) {
+    const clientId = await resolveClientId(config.id)
+    const { trackSpend } = await import("./spend-tracker")
+    return trackSpend(
+        "ideas",
+        { clientId, refId: categoryId ? `${pillarId}:${categoryId}` : pillarId },
+        () => generateAIIdeasInner(config, pillarId, count, categoryId, clientId),
+    )
+}
+
+async function generateAIIdeasInner(config: ClientConfig, pillarId: string, count: number, categoryId: string | undefined, clientId: string) {
     // 1. Validate pillar
     const pillar = config.contentPillars?.[pillarId]
     if (!pillar) throw new Error(`Pillar ${pillarId} not found in config.`)
 
     // Resolve category if specified
     const category = categoryId ? pillar.categories?.find(c => c.id === categoryId) : undefined
-
-    const clientId = await resolveClientId(config.id)
 
     // 2. Build prompt — products from the LIVE catalog (ig_products), not the frozen
     // config.products onboarding snapshot: ideas naming deleted products would flow
