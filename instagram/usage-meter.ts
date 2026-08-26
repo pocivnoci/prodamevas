@@ -47,8 +47,17 @@ export interface UsageTotals {
 class UsageAccumulator {
     readonly calls: ModelCall[] = []
 
+    /** Nadřazený scope, když se měří uvnitř jiného měření. */
+    constructor(private readonly parent: UsageAccumulator | null = null) {}
+
     record(call: ModelCall) {
         this.calls.push(call)
+        // Vnořený scope si volání zapíše k sobě A pošle ho i ven. Bez toho by vnitřní
+        // měření tiše okradlo to nadřazené — `usageStorage.run()` totiž nadřazený
+        // akumulátor zastíní, takže by se příspěvek v `ig_generation_log` tvářil
+        // levnější, než ve skutečnosti byl. Přesně ten druh tiché chyby, kvůli které
+        // se celá `ai_spend` stavěla.
+        this.parent?.record(call)
     }
 
     totals(): UsageTotals {
@@ -80,7 +89,7 @@ const usageStorage = new AsyncLocalStorage<UsageAccumulator>()
  * nedotčená a naměřené se zahodí spolu se scope.
  */
 export async function withUsageMeter<T>(fn: () => Promise<T>): Promise<{ result: T; usage: UsageTotals }> {
-    const acc = new UsageAccumulator()
+    const acc = new UsageAccumulator(usageStorage.getStore() ?? null)
     const result = await usageStorage.run(acc, fn)
     return { result, usage: acc.totals() }
 }
@@ -90,7 +99,7 @@ export async function withUsageMeter<T>(fn: () => Promise<T>): Promise<{ result:
  * ještě zevnitř (`currentUsage()`), typicky protože se loguje před koncem generace.
  */
 export function withUsageScope<T>(fn: () => Promise<T>): Promise<T> {
-    return usageStorage.run(new UsageAccumulator(), fn)
+    return usageStorage.run(new UsageAccumulator(usageStorage.getStore() ?? null), fn)
 }
 
 /** Součet naměřený *doteď* v aktuálním scope. Mimo scope `null`. */

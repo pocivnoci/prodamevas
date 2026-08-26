@@ -63,7 +63,27 @@ export interface PostEditResult {
 
 // ─── Edit ────────────────────────────────────────────────────
 
+/**
+ * Retuš stojí jedno až dvě volání obrázkového modelu — tedy zhruba tolik co nový
+ * příspěvek, jen to tak nevypadá. Účtování je proto na celé akci; tenant se překládá
+ * ze slugu zvlášť (cachovaně) a neobchází to autorizaci uvnitř: když `editPostInner`
+ * spadne na `requireProjectAccess`, žádné volání modelu neproběhlo a `trackSpend`
+ * nemá co zapsat.
+ */
 export async function editPost(
+    projectSlug: string,
+    postId: string,
+    edit: PostEditInput,
+): Promise<PostEditResult> {
+    const { trackSpend, spendClientId } = await import("@/instagram/spend-tracker")
+    return trackSpend(
+        "post_edit",
+        { clientId: await spendClientId(projectSlug), refId: postId },
+        () => editPostInner(projectSlug, postId, edit),
+    )
+}
+
+async function editPostInner(
     projectSlug: string,
     postId: string,
     edit: PostEditInput,

@@ -23,9 +23,34 @@ export type SpendOperation =
     | "onboarding_config"     // skládání ClientConfig včetně štítkování fotek
     | "product_ideas"         // produktové studio — nápady
     | "product_design"        // produktové studio — grafika a mockupy
-    | "print"                 // tiskový engine
+    | "product_line"          // produktová řada — návrh i revize SKU
+    | "product_import"        // čtení produktů z odkazů (AI fallback nad stránkou)
+    | "print"                 // tiskový engine — brief, artwork, mockup
+    | "content_plan"          // hluboká pipeline obsahového plánu
+    | "post_edit"             // retuš hotového příspěvku (edit obrázku)
+    | "learn"                 // učení z metrik (analyzeAndLearn)
     | "sales_preview"         // ukázka pro obchodního agenta
     | "other"
+
+/**
+ * Slug → UUID klienta pro účely účtování.
+ *
+ * Vrací `null`, když se tenant nepodaří přeložit — a to je tady schválně, na rozdíl
+ * od zbytku aplikace, kde chybějící identifikátor musí vyhodit výjimku. Účtovací
+ * řádek bez klienta je pořád pravdivý (`ai_spend.client_id` je nullable kvůli
+ * systémovým běhům); zahodit kvůli neznámému tenantovi celou informaci o útratě by
+ * znamenalo vrátit se přesně k té slepé skvrně, kterou tahle tabulka zavírá.
+ * Nikdy se tu nedosazuje náhradní tenant — jen se přizná, že není známý.
+ */
+export async function spendClientId(slug: string | null | undefined): Promise<string | null> {
+    if (!slug) return null
+    try {
+        const { resolveClientId } = await import("./configs")
+        return await resolveClientId(slug)
+    } catch {
+        return null
+    }
+}
 
 /**
  * Spustí `fn` v měřicím scope a naměřenou spotřebu uloží do `ai_spend`.

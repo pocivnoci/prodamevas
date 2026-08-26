@@ -153,6 +153,18 @@ export async function suggestPostFormat(
     projectSlug: string,
     keyword: string
 ): Promise<{ success: boolean; draft?: PostFormatInput; error?: string }> {
+    const { trackSpend, spendClientId } = await import("@/instagram/spend-tracker")
+    return trackSpend(
+        "other",
+        { clientId: await spendClientId(projectSlug), refId: `návrh_formátu:${keyword}` },
+        () => suggestPostFormatInner(projectSlug, keyword),
+    )
+}
+
+async function suggestPostFormatInner(
+    projectSlug: string,
+    keyword: string
+): Promise<{ success: boolean; draft?: PostFormatInput; error?: string }> {
     try {
         await requireProjectAccess(projectSlug)
         const kw = (keyword || "").trim()
@@ -505,7 +517,7 @@ export async function uploadClientLogo(
  * every client), so it describes our randomiser, not the brand. The client's real feed is the
  * only honest signal for what their identity already looks like.
  */
-export async function recommendFeedPattern(projectSlug: string): Promise<{
+interface FeedPatternRecommendation {
     success: boolean
     patternId?: string
     label?: string
@@ -513,7 +525,23 @@ export async function recommendFeedPattern(projectSlug: string): Promise<{
     archetypes?: string[]
     summary?: string
     error?: string
-}> {
+}
+
+/**
+ * Vision pass přes reálný feed — obrázkový model, tedy ne zadarmo. Obal je tady,
+ * a ne v `analyzeFeedVisuals`: tu samou funkci volá i onboarding, kde už měření běží,
+ * a druhý scope uvnitř by v `ai_spend` vyrobil dvojitý záznam téhož.
+ */
+export async function recommendFeedPattern(projectSlug: string): Promise<FeedPatternRecommendation> {
+    const { trackSpend, spendClientId } = await import("@/instagram/spend-tracker")
+    return trackSpend(
+        "other",
+        { clientId: await spendClientId(projectSlug), refId: "feed_pattern" },
+        () => recommendFeedPatternInner(projectSlug),
+    )
+}
+
+async function recommendFeedPatternInner(projectSlug: string): Promise<FeedPatternRecommendation> {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
         const { data: client } = await supabaseAdmin

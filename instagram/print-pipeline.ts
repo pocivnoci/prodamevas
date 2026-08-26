@@ -218,25 +218,45 @@ const KIND_GUIDE: Record<ArtworkKind, string> = {
     poster: "Samostatný tiskový list. Funguje jako plakát na zdi — hierarchie čitelná z dálky.",
 }
 
+export interface PrintBriefOptions {
+    category: PrintCategory
+    theme: string
+    /** Product this artwork belongs to (name/role/step/specs) */
+    product?: { name: string; role?: string; step?: number; description?: string; specs?: Record<string, any> }
+    /** Line context so sibling SKUs stay visually related but distinguishable */
+    line?: { name: string; namingConvention?: string; systemLogic?: string; siblings?: string[] }
+    /** Explicit copy the user wants on the artwork */
+    overlayText?: string
+    /** Free-text steer from the UI (this field used to be silently ignored) */
+    designDescription?: string
+    /** Recent briefs for anti-repetition */
+    recentBriefs?: string[]
+    /** For A/B: instruct this variant to diverge from its sibling */
+    divergeFrom?: string
+}
+
+/**
+ * Brief i render se účtují zvlášť, jako sourozenci — `generatePrintDesign` v UI je
+ * volá za sebou, ne do sebe. Dva řádky v `ai_spend` za jeden design jsou proto
+ * správně a v součtu se nepřekrývají.
+ */
 export async function generatePrintBrief(
     config: ClientConfig,
     clientId: string,
-    opts: {
-        category: PrintCategory
-        theme: string
-        /** Product this artwork belongs to (name/role/step/specs) */
-        product?: { name: string; role?: string; step?: number; description?: string; specs?: Record<string, any> }
-        /** Line context so sibling SKUs stay visually related but distinguishable */
-        line?: { name: string; namingConvention?: string; systemLogic?: string; siblings?: string[] }
-        /** Explicit copy the user wants on the artwork */
-        overlayText?: string
-        /** Free-text steer from the UI (this field used to be silently ignored) */
-        designDescription?: string
-        /** Recent briefs for anti-repetition */
-        recentBriefs?: string[]
-        /** For A/B: instruct this variant to diverge from its sibling */
-        divergeFrom?: string
-    },
+    opts: PrintBriefOptions,
+): Promise<PrintBrief> {
+    const { trackSpend } = await import("./spend-tracker")
+    return trackSpend(
+        "print",
+        { clientId, refId: `brief:${opts.category.slug}` },
+        () => generatePrintBriefInner(config, clientId, opts),
+    )
+}
+
+async function generatePrintBriefInner(
+    config: ClientConfig,
+    clientId: string,
+    opts: PrintBriefOptions,
 ): Promise<PrintBrief> {
     const geo = resolvePrintGeometry(opts.category)
     const bv = config.brandVoice
@@ -684,6 +704,21 @@ export async function renderProductMockup(
     artwork: Buffer,
     category: PrintCategory,
     brief: PrintBrief,
+    /** Jen kvůli účtování — mockup jinak tenanta nepotřebuje. */
+    clientId?: string | null,
+): Promise<Buffer> {
+    const { trackSpend } = await import("./spend-tracker")
+    return trackSpend(
+        "print",
+        { clientId: clientId ?? null, refId: `mockup:${brief.name}` },
+        () => renderProductMockupInner(artwork, category, brief),
+    )
+}
+
+async function renderProductMockupInner(
+    artwork: Buffer,
+    category: PrintCategory,
+    brief: PrintBrief,
 ): Promise<Buffer> {
     const geo = resolvePrintGeometry(category)
     const base = category.mockup_prompt
@@ -732,7 +767,26 @@ export interface PrintRunResult {
  * publish the best-scoring buffer rather than nothing. An empty result is only ever
  * a true infrastructure failure (every render threw).
  */
+/**
+ * Nejdražší krok tiskového enginu — až tři obrázkové rendery plus vision QA ke
+ * každému. Obal je uvnitř, protože tudy chodí UI i testovací skripty.
+ */
 export async function runPrintArtwork(
+    config: ClientConfig,
+    category: PrintCategory,
+    brief: PrintBrief,
+    logoBuffer: Buffer | null,
+    onProgress?: (m: string) => void,
+): Promise<PrintRunResult> {
+    const { trackSpend, spendClientId } = await import("./spend-tracker")
+    return trackSpend(
+        "print",
+        { clientId: await spendClientId(config.id), refId: `artwork:${brief.name}` },
+        () => runPrintArtworkInner(config, category, brief, logoBuffer, onProgress),
+    )
+}
+
+async function runPrintArtworkInner(
     config: ClientConfig,
     category: PrintCategory,
     brief: PrintBrief,

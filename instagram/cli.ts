@@ -203,7 +203,26 @@ function buildIdeasSchema(pillarKey?: string): object {
     }
 }
 
+/**
+ * POZOR: tohle je vlastní cesta CLI, ne `generateAIIdeas` z idea-generator.ts.
+ * Právě tudy šel běh z 18. 8. 2026 (400 nápadů, ~250 Kč, 60 % útraty za týden),
+ * takže měření patří i sem — jinak zůstane nejdražší známý běh v datech neviditelný.
+ */
 async function generateIdeas(
+    pillar: string,
+    count: number,
+    performance: PerformanceInsight,
+    existingIdeas: PostIdea[]
+): Promise<any[]> {
+    const { trackSpend, spendClientId } = await import("./spend-tracker")
+    return trackSpend(
+        "ideas",
+        { clientId: await spendClientId(CLI_CONFIG!.id), refId: `cli:${pillar}` },
+        () => generateIdeasInner(pillar, count, performance, existingIdeas),
+    )
+}
+
+async function generateIdeasInner(
     pillar: string,
     count: number,
     performance: PerformanceInsight,

@@ -236,6 +236,19 @@ export async function editPrintDesign(
     designId: string,
     instruction: string,
 ): Promise<{ success: boolean; design?: PrintDesignRow; error?: string }> {
+    const { trackSpend, spendClientId } = await import("@/instagram/spend-tracker")
+    return trackSpend(
+        "print",
+        { clientId: await spendClientId(projectSlug), refId: `edit:${designId}` },
+        () => editPrintDesignInner(projectSlug, designId, instruction),
+    )
+}
+
+async function editPrintDesignInner(
+    projectSlug: string,
+    designId: string,
+    instruction: string,
+): Promise<{ success: boolean; design?: PrintDesignRow; error?: string }> {
     const guard = await creditGuard(projectSlug, "product_mockup") // edit = one image call
     if (!guard.ok) return { success: false, error: guard.error }
     const clientId = guard.clientId
@@ -321,7 +334,7 @@ export async function generateMockup(
         if (!category) return { success: false, error: "Kategorie designu neexistuje." }
 
         const artwork = await fetchBuffer(design.artwork_url)
-        const mockup = await renderProductMockup(artwork, category, design.brief as PrintBrief)
+        const mockup = await renderProductMockup(artwork, category, design.brief as PrintBrief, clientId)
         const mockupUrl = await upload(mockup, `${clientId}/${slugForFile((design.brief as any)?.name || "design")}_${Date.now()}_mockup.png`)
 
         await supabaseAdmin

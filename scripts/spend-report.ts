@@ -5,7 +5,8 @@
  *
  * Read-only. Sčítá OBĚ místa, kde se spotřeba měří:
  *   - `ig_generation_log` — generování příspěvků
- *   - `ai_spend`          — všechno ostatní (nápady, onboarding, produkty, tisk)
+ *   - `ai_spend`          — všechno ostatní (nápady, onboarding, produkty, tisk,
+ *                           plány, retuše, import produktů, ukázky pro prospekty…)
  *
  * Vzniklo 23. 8. 2026, když Google za týden ukázal 411,78 Kč a aplikace uměla
  * vysvětlit ~100 Kč. Chyběl přehled, ne data — největší položka týdne (400 nápadů
@@ -35,7 +36,7 @@ async function main() {
         .gte("created_at", since)
     const { data: other } = await supabaseAdmin
         .from("ai_spend")
-        .select("cost_usd, model_calls, created_at, operation, client_id")
+        .select("cost_usd, model_calls, created_at, operation, client_id, ref_id")
         .gte("created_at", since)
 
     const p = posts || []
@@ -64,6 +65,24 @@ async function main() {
     }
     console.log("─".repeat(56))
     console.log(`${"CELKEM".padEnd(24)}${String(p.length + o.length).padStart(6)}${"".padStart(8)}${czk(total).padStart(10)}\n`)
+
+    // „other" je sběrný koš pro drobné cesty (návrh formátu, promo post, recenze…).
+    // Bez rozpadu by z něj byla nová slepá skvrna — přesně to, co tenhle přehled ruší.
+    const drobne = o.filter(r => r.operation === "other")
+    if (drobne.length > 0) {
+        const byRef: Record<string, { usd: number; n: number }> = {}
+        for (const r of drobne) {
+            const key = String(r.ref_id || "?").split(":")[0]
+            byRef[key] ||= { usd: 0, n: 0 }
+            byRef[key].usd += r.cost_usd || 0
+            byRef[key].n += 1
+        }
+        console.log("z toho drobnosti (operace \"other\"):")
+        for (const [k, v] of Object.entries(byRef).sort((x, y) => y[1].usd - x[1].usd)) {
+            console.log(`  ${k.padEnd(22)}${String(v.n).padStart(6)}${czk(v.usd).padStart(10)} Kč`)
+        }
+        console.log("")
+    }
 
     // Po dnech — jeden hromadný běh je v součtu neviditelný, ve dni trčí.
     const byDay: Record<string, number> = {}

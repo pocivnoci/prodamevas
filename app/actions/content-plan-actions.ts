@@ -168,10 +168,7 @@ function applyGoalBias(config: ClientConfig, goal: CampaignGoal): ClientConfig {
     return { ...config, contentPillars: biased }
 }
 
-export async function generateContentPlan(
-    projectSlug: string,
-    brief: PlanBriefOptions
-): Promise<{
+interface ContentPlanResult {
     success: boolean
     plan?: ContentPlanItem[]
     strategySummary?: string
@@ -180,7 +177,29 @@ export async function generateContentPlan(
      *  when the user adds/removes items instead of round-tripping to the planner. */
     feedPattern?: { id: FeedPatternId; seqBase: number }
     error?: string
-}> {
+}
+
+/**
+ * Plán je vícekrokový běh (stratég → koncepty → soudce → dopisování), takže volání
+ * modelu je tu spousta a všechna patří pod jeden řádek útraty. Obal je na celé akci,
+ * ne na `runPlanPipeline`, protože dopisování chybějících konceptů se děje až tady.
+ */
+export async function generateContentPlan(
+    projectSlug: string,
+    brief: PlanBriefOptions
+): Promise<ContentPlanResult> {
+    const { trackSpend, spendClientId } = await import("@/instagram/spend-tracker")
+    return trackSpend(
+        "content_plan",
+        { clientId: await spendClientId(projectSlug), refId: brief.planRunId ?? null },
+        () => generateContentPlanInner(projectSlug, brief),
+    )
+}
+
+async function generateContentPlanInner(
+    projectSlug: string,
+    brief: PlanBriefOptions
+): Promise<ContentPlanResult> {
     const { count, topic: userTopic, goal, carouselShare, productIds, planRunId } = brief
     // ─── Durable observability: a breadcrumb row in ig_jobs proves the action started and
     // shows where it stops/fails. Instrumentation must NEVER break generation (all wrapped). ──
@@ -833,6 +852,20 @@ export async function generateCategoryPrompt(
     pillarLabel: string,
     pillarDescription: string
 ): Promise<{ success: boolean; prompt?: string; error?: string }> {
+    const { trackSpend, spendClientId } = await import("@/instagram/spend-tracker")
+    return trackSpend(
+        "other",
+        { clientId: await spendClientId(projectSlug), refId: `prompt_kategorie:${categoryLabel}` },
+        () => generateCategoryPromptInner(projectSlug, categoryLabel, pillarLabel, pillarDescription),
+    )
+}
+
+async function generateCategoryPromptInner(
+    projectSlug: string,
+    categoryLabel: string,
+    pillarLabel: string,
+    pillarDescription: string
+): Promise<{ success: boolean; prompt?: string; error?: string }> {
     try {
         await requireProjectAccess(projectSlug)
         const { loadConfig } = await import("@/instagram/configs")
@@ -865,6 +898,21 @@ Příklad pro kategorii "Tipy" v pilíři "Edukace":
 }
 
 export async function regeneratePlanItem(
+    projectSlug: string,
+    postType: string,
+    existingHooks: string[],
+    userTopic?: string,
+    medium?: "image" | "carousel" | "reel"
+): Promise<{ success: boolean; item?: { hookPreview: string; angle: string; topic: string }; error?: string }> {
+    const { trackSpend, spendClientId } = await import("@/instagram/spend-tracker")
+    return trackSpend(
+        "content_plan",
+        { clientId: await spendClientId(projectSlug), refId: `regenerace:${postType}` },
+        () => regeneratePlanItemInner(projectSlug, postType, existingHooks, userTopic, medium),
+    )
+}
+
+async function regeneratePlanItemInner(
     projectSlug: string,
     postType: string,
     existingHooks: string[],

@@ -325,7 +325,7 @@ export async function triggerAIReviewsGeneration(options: {
 
 import { createPost, setActiveProject } from "@/instagram/service"
 
-export async function createPromoPost(options: {
+interface PromoPostOptions {
     configName: string
     ideaName: string
     ideaTagline: string
@@ -333,7 +333,26 @@ export async function createPromoPost(options: {
     ideaType: string
     ideaPriceRange?: string
     designUrl: string
-}): Promise<{ success: boolean; postId?: string; caption?: string; error?: string }> {
+}
+
+/**
+ * Promo post si píše caption sám, mimo `generateOnePost` — tedy i mimo měřič, který
+ * plní `ig_generation_log`. Bez tohohle obalu by to byl příspěvek, co nikde nestojí nic.
+ */
+export async function createPromoPost(
+    options: PromoPostOptions,
+): Promise<{ success: boolean; postId?: string; caption?: string; error?: string }> {
+    const { trackSpend, spendClientId } = await import("@/instagram/spend-tracker")
+    return trackSpend(
+        "other",
+        { clientId: await spendClientId(options.configName), refId: `promo:${options.ideaName}` },
+        () => createPromoPostInner(options),
+    )
+}
+
+async function createPromoPostInner(
+    options: PromoPostOptions,
+): Promise<{ success: boolean; postId?: string; caption?: string; error?: string }> {
     try {
         const { clientId } = await requireProjectAccess(options.configName)
         const config = await loadConfig(options.configName)
