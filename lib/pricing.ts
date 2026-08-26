@@ -151,36 +151,90 @@ export function formatCzkAmount(haleru: number): string {
     return Math.round(haleru / 100).toLocaleString("cs-CZ")
 }
 
+// ─── Priorita ve frontě ──────────────────────────────────────────────────────
+
+/**
+ * Stupně priority generování. Vyšší číslo jde z fronty dřív.
+ *
+ * Do 8/2026 to byl boolean a měl dvě vady najednou: nečetl ho nikdo (fronta jela
+ * čistě FIFO, takže „Prioritní generování" byl placený slib bez implementace),
+ * a i po implementaci by Dominance vyšla stejně jako Impérium — přestože Impérium
+ * inzeruje „nejvyšší prioritu". Stupnice dělá z obou tvrzení pravdu.
+ */
+export const PRIORITY = { none: 0, high: 10, highest: 20 } as const
+
+/**
+ * Priorita tarifu jako číslo, ať už je v DB uložená jakkoliv.
+ *
+ * Legacy tarify (`pro`, `agency`, `business`…) pořád nesou `priority: true`.
+ * Kdyby se `true` dostalo do `ORDER BY` nad integer sloupcem, fronta generování
+ * by spadla — a to je poslední místo, které smí shodit marketingové pole.
+ */
+export function planPriority(features: { priority?: number | boolean | null } | null | undefined): number {
+    const raw = features?.priority
+    if (typeof raw === "number" && Number.isFinite(raw)) return raw
+    return raw === true ? PRIORITY.high : PRIORITY.none
+}
+
 // ─── Marketingová kopie tarifů ───────────────────────────────────────────────
+
+/**
+ * Odrážka na kartě tarifu.
+ *
+ * `requiresReels` znamená „tohle platí, jen když jsou reels zapnuté". Reels mají
+ * tvrdý vypínač (`REELS_ENABLED`), který `reel` potichu přepíše na `carousel` —
+ * bez tohohle příznaku by ceník sliboval médium, které se nevyrobí. Ceník to proto
+ * neřeší textem, ale stavem: odznak „připravujeme" zmizí sám ve chvíli, kdy se
+ * vypínač zapne, a nikdo nemusí hlídat, že se změnila i marketingová věta.
+ */
+export type PlanBullet = string | { text: string; requiresReels: true }
 
 export interface PlanCopy {
     tagline: string
     /** Odrážky na landingu. Kredity a limity se dopisují z DB `features`. */
-    bullets: string[]
+    bullets: PlanBullet[]
     highlight?: boolean
 }
 
 /**
  * Kopie, ne ceny. Ceny a kredity chodí z `subscription_plans` — tady je jenom to,
  * co se do JSONB sloupce nevejde a co se ladí podle toho, jak se prodává.
+ *
+ * Čísla objemu tu schválně NEJSOU: kolik čeho se za kredity pořídí, dopisuje
+ * `creditExample()` z reálných vah v `lib/credits.ts`. Dřív tu stálo „Až 20
+ * příspěvků" vedle „Carousel posty" — jenže carousel stojí tři kredity, takže to
+ * platilo jen pro samé obrázky. Objem patří k výpočtu, ne do marketingové věty.
  */
 export const PLAN_COPY: Record<string, PlanCopy> = {
     chrlit_start: {
         tagline: "Nakopni profil",
-        bullets: ["Až 20 příspěvků (~4–5 týdně)", "Unikátní AI obrázky", "Carousel posty", "Nápady na obsah"],
+        bullets: ["Unikátní AI obrázky", "Carousel posty", "Nápady na obsah"],
     },
     chrlit_rust: {
         tagline: "Rosteme spolu",
-        bullets: ["Obsah na každý den", "Reels — AI video", "A/B varianty příspěvků", "Sledování růstu followerů"],
+        bullets: [
+            "Až na denní obsah",
+            { text: "Reels — AI video", requiresReels: true },
+            "A/B varianty příspěvků",
+            "Sledování růstu followerů",
+        ],
         highlight: true,
     },
     chrlit_dominance: {
         tagline: "Ovládni svůj trh",
-        bullets: ["Maximum obsahu vč. reels", "Produktové vizualizace", "Prioritní generování"],
+        bullets: [
+            { text: "Reels — AI video", requiresReels: true },
+            "Produktové vizualizace a mockupy",
+            "Prioritní generování",
+        ],
     },
     chrlit_imperium: {
+        // Dřív „Plný objem pro agentury a e-shopy" — jenže víceprofilovost nikdy
+        // nebyla implementovaná ani vynucovaná (`max_projects` nečetl žádný kód),
+        // takže agentura kupovala něco, co nedostala. Impérium je nejvyšší úroveň
+        // pro JEDNU značku: největší objem a skutečně nejvyšší priorita ve frontě.
         tagline: "Postav impérium",
-        bullets: ["Plný objem pro agentury a e-shopy", "Vše z Dominance", "Nejvyšší priorita ve frontě"],
+        bullets: ["Nejvyšší objem pro jednu značku", "Vše z Dominance", "Nejvyšší priorita ve frontě"],
     },
 }
 
@@ -192,6 +246,15 @@ export interface PricingPlan {
     /** MĚSÍČNÍ cena v haléřích. */
     monthlyHaleru: number
     creditsPerMonth: number
+    /**
+     * Umí tenhle tarif reels? Chodí z `features.allowed_media` v DB.
+     *
+     * Ceník bez toho počítal přepočet kreditů globálně a Startu nabízel „nebo
+     * 4 reels", přestože Start reels v `allowed_media` nemá a engine mu je odmítne.
+     * Vypínač `REELS_ENABLED` je otázka JINÁ — ten říká, jestli reels umí kdokoliv.
+     * Nabídnout je smí jen tarif, kde platí obojí.
+     */
+    allowsReels: boolean
 }
 
 /**
@@ -203,10 +266,10 @@ export interface PricingPlan {
  * rozejdou, a tohle je ta chvíle, kdy to spadne v testu, ne u zákazníka.
  */
 export const FALLBACK_PLANS: readonly PricingPlan[] = [
-    { id: "chrlit_start", name: "Start", monthlyHaleru: 99000, creditsPerMonth: 20 },
-    { id: "chrlit_rust", name: "Růst", monthlyHaleru: 199000, creditsPerMonth: 45 },
-    { id: "chrlit_dominance", name: "Dominance", monthlyHaleru: 399000, creditsPerMonth: 100 },
-    { id: "chrlit_imperium", name: "Impérium", monthlyHaleru: 799000, creditsPerMonth: 220 },
+    { id: "chrlit_start", name: "Start", monthlyHaleru: 99000, creditsPerMonth: 20, allowsReels: false },
+    { id: "chrlit_rust", name: "Růst", monthlyHaleru: 199000, creditsPerMonth: 45, allowsReels: true },
+    { id: "chrlit_dominance", name: "Dominance", monthlyHaleru: 399000, creditsPerMonth: 100, allowsReels: true },
+    { id: "chrlit_imperium", name: "Impérium", monthlyHaleru: 799000, creditsPerMonth: 220, allowsReels: true },
 ] as const
 
 /**

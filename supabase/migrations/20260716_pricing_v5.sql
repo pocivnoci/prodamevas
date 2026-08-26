@@ -22,7 +22,7 @@ VALUES ('chrlit_start', 'Start', 'Nakopni profil — 20 kreditů/měs, obrázky 
     "allowed_media": ["image", "story", "carousel"],
     "growth_tracking": false,
     "analytics": "basic",
-    "priority": false,
+    "priority": 0,
     "label": "Start",
     "highlight": false,
     "plan_posts_limit": 30,
@@ -44,7 +44,7 @@ VALUES ('chrlit_rust', 'Růst', 'Rosteme spolu — 45 kreditů/měs vč. reels, 
     "allowed_media": ["image", "story", "carousel", "reel"],
     "growth_tracking": true,
     "analytics": "full",
-    "priority": false,
+    "priority": 0,
     "label": "Růst",
     "highlight": true,
     "plan_posts_limit": 30,
@@ -58,7 +58,7 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- 3. Dominance — 3 990 Kč, 100 kreditů, + product studio + priorita
 INSERT INTO subscription_plans (id, name, description, price_czk, interval, features, is_active)
-VALUES ('chrlit_dominance', 'Dominance', 'Ovládni svůj trh — 100 kreditů/měs vč. reels, product studio, priorita', 399000, 'month', '{
+VALUES ('chrlit_dominance', 'Dominance', 'Ovládni svůj trh — 100 kreditů/měs vč. reels, product studio, přednost ve frontě', 399000, 'month', '{
     "credits_per_month": 100,
     "max_projects": 1,
     "extra_credit_price": 4900,
@@ -66,7 +66,7 @@ VALUES ('chrlit_dominance', 'Dominance', 'Ovládni svůj trh — 100 kreditů/m�
     "allowed_media": ["image", "story", "carousel", "reel"],
     "growth_tracking": true,
     "analytics": "full",
-    "priority": true,
+    "priority": 10,
     "label": "Dominance",
     "highlight": false,
     "plan_posts_limit": 30,
@@ -80,15 +80,15 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- 4. Impérium — 7 990 Kč, 220 kreditů, kotva pro agentury a e-shopy (NOVÝ tier)
 INSERT INTO subscription_plans (id, name, description, price_czk, interval, features, is_active)
-VALUES ('chrlit_imperium', 'Impérium', 'Postav impérium — 220 kreditů/měs, plný objem, product studio, priorita', 799000, 'month', '{
+VALUES ('chrlit_imperium', 'Impérium', 'Postav impérium — 220 kreditů/měs pro jednu značku, product studio, nejvyšší přednost ve frontě', 799000, 'month', '{
     "credits_per_month": 220,
-    "max_projects": 3,
+    "max_projects": 1,
     "extra_credit_price": 4900,
     "allowed_actions": ["post", "post_variant", "idea_generate", "product_ideas", "product_visual", "product_design", "product_mockup", "product_brief"],
     "allowed_media": ["image", "story", "carousel", "reel"],
     "growth_tracking": true,
     "analytics": "full",
-    "priority": true,
+    "priority": 20,
     "label": "Impérium",
     "highlight": false,
     "plan_posts_limit": 30,

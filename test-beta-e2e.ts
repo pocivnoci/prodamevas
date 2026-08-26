@@ -545,6 +545,100 @@ test("0.1 Server action nesmí re-exportovat typ", () => {
     assert(checked > 5, `aserce musí reálně něco kontrolovat (našla jen ${checked} server modulů)`)
 })
 
+test("13.9 kopie tarifu nesmí slibovat médium, které tarif nemá", () => {
+    // Ceník je psaný ručně (PLAN_COPY), média povoluje seed (allowed_media). Dvě
+    // místa = dřív nebo později dvě pravdy, a rozejdou se směrem „slíbíme víc".
+    const { PLAN_COPY } = require("./lib/pricing")
+    const seed = fileContent("supabase/migrations/20260716_pricing_v5.sql")
+
+    let overeno = 0
+    for (const [planId, copy] of Object.entries(PLAN_COPY as Record<string, { bullets: unknown[] }>)) {
+        const at = seed.indexOf(`'${planId}'`)
+        if (at < 0) continue // tarif bez řádku v seedu (legacy) — nekontroluje se
+        overeno++
+        const media = seed.slice(at).match(/"allowed_media": \[([^\]]*)\]/)?.[1] || ""
+        const slibujeReels = copy.bullets.some(b =>
+            /reel/i.test(typeof b === "string" ? b : String((b as { text?: string }).text || "")),
+        )
+        if (slibujeReels) {
+            assert(media.includes('"reel"'),
+                `${planId}: kopie slibuje reels, ale allowed_media je [${media}] — tarif je neumí vyrobit`)
+        }
+    }
+    assert(overeno >= 4, `aserce musí reálně něco kontrolovat (našla ${overeno} tarifů)`)
+})
+
+test("13.10 reels v ceníku visí na vypínači, ne na textu", () => {
+    // REELS_ENABLED potichu překlápí `reel` na `carousel`. Dokud je vypnutý, je
+    // každá odrážka „Reels" prodejem něčeho, co zákazník nedostane — a přesně to
+    // se dělo na Růstu, Dominanci i Impériu. Odznak „připravujeme" musí viset na
+    // stavu vypínače, aby zmizel sám a nikdo nemusel hlídat marketingovou větu.
+    const { PLAN_COPY } = require("./lib/pricing")
+    for (const [planId, copy] of Object.entries(PLAN_COPY as Record<string, { bullets: unknown[] }>)) {
+        for (const b of copy.bullets) {
+            if (typeof b === "string") {
+                assert(!/reel/i.test(b),
+                    `${planId}: reels jako holý řetězec — musí být { text, requiresReels: true }`)
+            }
+        }
+    }
+    assert(codeOnly("app/page.tsx").includes("REELS_ENABLED"),
+        "landing musí stav vypínače přečíst na serveru (klient k proměnné nemá přístup)")
+    assert(codeOnly("components/Landing.tsx").includes("reelsEnabled"),
+        "karty na landingu musí vypínač respektovat")
+    assert(codeOnly("app/(dashboard)/dashboard/instagram/tabs/SubscriptionSection.tsx").includes("reelsEnabled"),
+        "seznam funkcí v aplikaci musí vypínač respektovat")
+})
+
+test("13.11 váhy kreditů se v UI nepíšou číslem", () => {
+    // Do 8/2026 stálo v aplikaci natvrdo „obrázek 1 kredit · carousel 3", zatímco
+    // skutečné váhy žijí v MEDIA_CREDITS — a na landingu nebylo ani to, takže
+    // „20 kreditů" vedle „Carousel posty" vypadalo na 20 carouselů místo šesti.
+    for (const f of [
+        "components/Landing.tsx",
+        "app/(dashboard)/dashboard/instagram/tabs/SubscriptionSection.tsx",
+    ]) {
+        const src = codeOnly(f)
+        assert(src.includes("creditExample"), `${f}: přepočet kreditů musí jít přes creditExample()`)
+        assert(!/carousel\s*3|obrázek\s*1\s*kredit/i.test(src),
+            `${f}: váha kreditu napsaná ručně — jediná pravda je MEDIA_CREDITS v lib/credits.ts`)
+    }
+})
+
+test("13.12 přednost ve frontě existuje, nejen svítí na kartě", () => {
+    // `features.priority` do 8/2026 nečetl nikdo kromě řádku, který vykreslil
+    // popisek — fronta jela čistě FIFO. „Prioritní generování" byl placený slib
+    // bez implementace, a to hned na dvou tarifech.
+    const worker = codeOnly("app/api/cron/campaign-worker/route.ts")
+    assert(/\.order\("priority",\s*\{\s*ascending:\s*false/.test(worker),
+        "campaign worker musí řadit podle priority, jinak je přednost jen popisek")
+
+    const actions = codeOnly("app/actions/campaign-actions.ts")
+    assert(/priority:\s*queuePriority/.test(actions),
+        "kampaň musí prioritu dostat při vstupu do fronty — worker neumí join na tarif")
+
+    // Boolean by Dominanci od Impéria neodlišil, přestože Impérium slibuje NEJVYŠŠÍ.
+    const seed = fileContent("supabase/migrations/20260716_pricing_v5.sql")
+    assert(!/"priority":\s*(true|false)/.test(seed),
+        "priorita v seedu musí být číslo (0/10/20), ne boolean")
+})
+
+test("13.13 Impérium neslibuje agentury, dokud je víc profilů nevynucených", () => {
+    // `max_projects` nečetl žádný kód, takže „plný objem pro agentury a e-shopy"
+    // prodával víceprofilovost, kterou nikdo nedostal ani nevynutil. Předplatné
+    // navíc visí na client_id, ne na účtu — víc profilů je přestavba fakturace.
+    const { PLAN_COPY } = require("./lib/pricing")
+    const kopie = JSON.stringify(PLAN_COPY.chrlit_imperium)
+    assert(!/agentur/i.test(kopie), "Impérium nesmí slibovat agentury, dokud víc profilů nefunguje")
+
+    const enforced = codeOnly("app/onboarding/actions.ts").includes("max_projects")
+    if (!enforced) {
+        const seed = fileContent("supabase/migrations/20260716_pricing_v5.sql")
+        assert(!/"max_projects":\s*([2-9]|\d{2,})/.test(seed),
+            "žádný tarif nesmí slibovat víc profilů, dokud to onboarding nevynucuje")
+    }
+})
+
 test("10.7h Super admin dostane razítko, ne jen průchod", () => {
     // Past, která zamkla vlastníka produktu z jeho vlastní aplikace:
     // `hasBetaStamp` čte `SUPER_ADMIN_EMAILS`, jenže middleware běží z jiného

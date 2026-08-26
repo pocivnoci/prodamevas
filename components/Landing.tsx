@@ -3,12 +3,13 @@
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion"
-import { ArrowRight, Camera, Check, CheckCircle2, ChevronDown, Cpu, Menu, TrendingUp, X } from "lucide-react"
+import { ArrowRight, Camera, Check, CheckCircle2, ChevronDown, Clock, Cpu, Menu, TrendingUp, X } from "lucide-react"
 import { PostWall, type WallPost } from "@/components/PostWall"
 import { SeedToFlower } from "@/components/SeedToFlower"
 import { WaitlistForm } from "@/components/WaitlistForm"
 import { Reveal } from "@/components/Reveal"
 import { fadeUp, SPRING, EASE_OUT } from "@/lib/motion"
+import { creditExample } from "@/lib/credits"
 import { REFERENCE_BRANDS } from "@/lib/reference-data"
 import { LEGAL, formatAddress, vatNotice } from "@/lib/legal"
 import {
@@ -77,7 +78,16 @@ const WALL_POSTS: WallPost[] = (() => {
  * dál lhát. Pravidlo pro období (kolik měsíců se platí) žije v `lib/pricing.ts`
  * a sdílí ho landing, dashboard i cron obnovy.
  */
-export function Landing({ plans }: { plans: readonly PricingPlan[] }) {
+export function Landing({
+  plans,
+  /** Stav `REELS_ENABLED` ze serveru. Vypnuté reels se na kartách ukážou jako
+   *  „připravujeme" — prodávat médium, které se potichu překlopí na carousel,
+   *  je jediný nález ceníkového auditu, který byl skutečný mis-sale. */
+  reelsEnabled,
+}: {
+  plans: readonly PricingPlan[]
+  reelsEnabled: boolean
+}) {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [term, setTerm] = useState<TermMonths>(DEFAULT_TERM_MONTHS)
@@ -457,14 +467,41 @@ export function Landing({ plans }: { plans: readonly PricingPlan[] }) {
                 </p>
 
                 <ul className="space-y-2.5 mb-8 relative z-10 flex-1">
-                  {/* Kredity chodí z DB, zbytek je marketingová kopie — cena ani
-                      objem se nesmí psát na dvou místech. */}
-                  {[`${plan.creditsPerMonth} kreditů měsíčně`, ...copy.bullets].map((f, i) => (
-                    <li key={i} className="flex items-center gap-2.5 text-xs text-white/70">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-aisummit-cinnabar shrink-0" />
-                      {f}
-                    </li>
-                  ))}
+                  {/* Kredity chodí z DB, přepočet na kusy z vah v lib/credits.ts.
+                      Cena, objem ani váha kreditu se nesmí psát na dvou místech —
+                      do teď tu stálo jen „20 kreditů" a kupující netušil, že
+                      carousel stojí tři. */}
+                  <li className="flex items-start gap-2.5 text-xs text-white/70">
+                    <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 text-aisummit-cinnabar shrink-0" />
+                    <span>
+                      {plan.creditsPerMonth} kreditů měsíčně
+                      <span className="block text-[10px] text-white/35 font-medium mt-0.5">
+                        {creditExample(plan.creditsPerMonth, { reels: reelsEnabled && plan.allowsReels })}
+                      </span>
+                    </span>
+                  </li>
+                  {copy.bullets.map((bullet, i) => {
+                    const text = typeof bullet === "string" ? bullet : bullet.text
+                    const pending = typeof bullet !== "string" && !reelsEnabled
+                    return (
+                      <li
+                        key={i}
+                        className={`flex items-center gap-2.5 text-xs ${pending ? "text-white/30" : "text-white/70"}`}
+                      >
+                        {pending ? (
+                          <Clock className="w-3.5 h-3.5 text-white/25 shrink-0" />
+                        ) : (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-aisummit-cinnabar shrink-0" />
+                        )}
+                        {text}
+                        {pending && (
+                          <span className="text-[8px] uppercase tracking-widest font-bold text-white/40 border border-white/15 rounded-sm px-1.5 py-0.5 shrink-0">
+                            připravujeme
+                          </span>
+                        )}
+                      </li>
+                    )
+                  })}
                 </ul>
 
                 {/* Volba tarifu a období jde s uživatelem dál — do waitlistu
