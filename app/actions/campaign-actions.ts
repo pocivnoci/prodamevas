@@ -190,6 +190,15 @@ export async function startCampaign(
             adminBypass: isSuperAdmin || undefined,
         }
 
+        // Priorita se na kampaň STAMPUJE, nedohledává se za běhu. PostgREST neumí
+        // řadit přes join a worker běží každou minutu — číst tarif ke každému
+        // kandidátovi zvlášť by z jednoho dotazu udělalo N+1. Stejný vzor jako
+        // `agent_tasks.priority`, který se řadí v lib/agent-runner.ts.
+        // Stampuje se až tady, při vstupu do fronty: draft, který nikdo neschválil,
+        // o žádné místo ve frontě nesoutěží.
+        const { getClientSubscription, planPriority } = await import("@/lib/subscription")
+        const queuePriority = planPriority((await getClientSubscription(clientId))?.features)
+
         let campaignId: string
         if (options.draftId) {
             // Approve the draft in place. The status='draft' filter makes this a single-use
@@ -204,6 +213,7 @@ export async function startCampaign(
                     plan: planRows,
                     options: campaignOptions,
                     total: planRows.length,
+                    priority: queuePriority,
                     updated_at: new Date().toISOString(),
                 })
                 .eq("id", options.draftId)
@@ -223,6 +233,7 @@ export async function startCampaign(
                     plan: planRows,
                     options: campaignOptions,
                     total: planRows.length,
+                    priority: queuePriority,
                 })
                 .select("id")
                 .single()

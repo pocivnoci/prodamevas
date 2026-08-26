@@ -48,12 +48,18 @@ async function loadPlans(): Promise<readonly PricingPlan[]> {
         if (error) throw error
         if (!data || data.length === 0) return FALLBACK_PLANS
 
-        return data.map((p) => ({
-            id: p.id,
-            name: p.name,
-            monthlyHaleru: p.price_czk,
-            creditsPerMonth: (p.features as { credits_per_month?: number } | null)?.credits_per_month ?? 0,
-        }))
+        return data.map((p) => {
+            const features = p.features as { credits_per_month?: number; allowed_media?: string[] } | null
+            return {
+                id: p.id,
+                name: p.name,
+                monthlyHaleru: p.price_czk,
+                creditsPerMonth: features?.credits_per_month ?? 0,
+                // Chybějící allowed_media = legacy tarif bez omezení (stejné pravidlo
+                // jako `canUseMedium` na backendu) — ne „žádná média".
+                allowsReels: !features?.allowed_media || features.allowed_media.includes("reel"),
+            }
+        })
     } catch (err: any) {
         console.warn(`landing: ceník z DB se nenačetl, beru statickou kopii — ${err?.message}`)
         return FALLBACK_PLANS
@@ -62,5 +68,8 @@ async function loadPlans(): Promise<readonly PricingPlan[]> {
 
 export default async function Home() {
     const plans = await loadPlans()
-    return <Landing plans={plans} />
+    // Stav vypínače se čte TADY, na serveru: `REELS_ENABLED` je serverová proměnná
+    // a klientský landing k ní nemá přístup. `revalidate = 3600` znamená, že se
+    // přepnutí propíše do hodiny — ceník se nemusí sahat, odznak zmizí sám.
+    return <Landing plans={plans} reelsEnabled={process.env.REELS_ENABLED === "1"} />
 }

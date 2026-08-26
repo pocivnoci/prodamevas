@@ -8,7 +8,8 @@ import { hasBillingDetails, cancelSubscription, resumeSubscription } from "@/app
 import { BillingModal } from "./BillingSection"
 import { Hint, HINTS } from "./Hint"
 import { CreditPacks } from "@/app/(dashboard)/CreditPacks"
-import { CheckCircle2 } from "lucide-react"
+import { CheckCircle2, Clock } from "lucide-react"
+import { creditExample } from "@/lib/credits"
 import { useEffect, useState } from "react"
 import {
     BILLING_TERMS,
@@ -20,6 +21,8 @@ import {
     termLabel,
     termPrice,
     termSavings,
+    planPriority,
+    PRIORITY,
     type TermMonths,
 } from "@/lib/pricing"
 
@@ -34,7 +37,7 @@ interface PlanRow {
         allowed_media?: string[]
         growth_tracking?: boolean
         analytics: "basic" | "full"
-        priority: boolean
+        priority: number | boolean
         highlight: boolean
         extra_credit_price: number
     }
@@ -48,19 +51,39 @@ const PLAN_TAGLINES: Record<string, string> = {
     chrlit_imperium: "Postav impérium",
 }
 
-function planFeatureList(p: PlanRow): string[] {
+/** `pending` = tarif to obsahuje, ale zatím to nejde použít (dnes jen reels). */
+interface PlanFeatureItem {
+    text: string
+    pending?: boolean
+}
+
+function planFeatureList(p: PlanRow, reelsEnabled: boolean): PlanFeatureItem[] {
     const f = p.features
-    const items = [
-        `${f.credits_per_month} kreditů měsíčně`,
-        "AI posty — obrázek 1 kredit · carousel 3",
+    const hasReels = !f.allowed_media || f.allowed_media.includes("reel")
+
+    const items: PlanFeatureItem[] = [
+        { text: `${f.credits_per_month} kreditů měsíčně` },
+        // Váhy se sem nepíšou číslem — do teď tu stálo „obrázek 1 kredit · carousel 3"
+        // ručně, zatímco skutečné váhy žijí v MEDIA_CREDITS. Dvě pravdy o ceně.
+        { text: creditExample(f.credits_per_month, { reels: hasReels && reelsEnabled }) },
     ]
-    if (!f.allowed_media || f.allowed_media.includes("reel")) items.push("Reels (AI video) — 5 kreditů")
-    if (f.allowed_actions.includes("post_variant")) items.push("A/B varianty příspěvků")
-    if (f.allowed_actions.includes("idea_generate")) items.push("AI nápady na obsah")
-    if (f.growth_tracking) items.push("Růstový dashboard — sledování followerů")
-    if (f.allowed_actions.some(a => a.startsWith("product_"))) items.push("Product studio — vizualizace & mockupy")
-    items.push(f.analytics === "full" ? "Plná analytika výkonu" : "Základní analytika")
-    if (f.priority) items.push("Prioritní generování")
+
+    // Reels se nezamlčují, jen se přiznají: vypínač REELS_ENABLED je potichu
+    // překlápí na carousel, takže je nabídnout jako hotovou funkci by byl mis-sale.
+    if (hasReels) items.push({ text: "Reels (AI video) — 5 kreditů", pending: !reelsEnabled })
+
+    if (f.allowed_actions.includes("post_variant")) items.push({ text: "A/B varianty příspěvků" })
+    if (f.allowed_actions.includes("idea_generate")) items.push({ text: "AI nápady na obsah" })
+    if (f.growth_tracking) items.push({ text: "Růstový dashboard — sledování followerů" })
+    if (f.allowed_actions.some(a => a.startsWith("product_"))) items.push({ text: "Product studio — vizualizace & mockupy" })
+    items.push({ text: f.analytics === "full" ? "Plná analytika výkonu" : "Základní analytika" })
+
+    // Dva stupně, ne jeden příznak — jinak by Impérium slibovalo „nejvyšší"
+    // prioritu a dostalo přesně tu samou frontu jako Dominance.
+    const prio = planPriority(f)
+    if (prio >= PRIORITY.highest) items.push({ text: "Nejvyšší priorita ve frontě" })
+    else if (prio > PRIORITY.none) items.push({ text: "Prioritní generování" })
+
     return items
 }
 
@@ -326,10 +349,22 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                                     )}
                                 </p>
                                 <ul className="space-y-1.5 mb-4 flex-1">
-                                    {planFeatureList(plan).map((f, i) => (
-                                        <li key={i} className="flex items-center gap-1.5 text-[10px] text-white/50">
-                                            <CheckCircle2 className="w-3 h-3 text-aisummit-cinnabar/60 shrink-0" />
-                                            {f}
+                                    {planFeatureList(plan, subscription?.reelsEnabled === true).map((f, i) => (
+                                        <li
+                                            key={i}
+                                            className={`flex items-center gap-1.5 text-[10px] ${f.pending ? "text-white/25" : "text-white/50"}`}
+                                        >
+                                            {f.pending ? (
+                                                <Clock className="w-3 h-3 text-white/20 shrink-0" />
+                                            ) : (
+                                                <CheckCircle2 className="w-3 h-3 text-aisummit-cinnabar/60 shrink-0" />
+                                            )}
+                                            {f.text}
+                                            {f.pending && (
+                                                <span className="text-[8px] uppercase tracking-widest font-bold text-white/35 border border-white/10 rounded-sm px-1 py-0.5 shrink-0">
+                                                    připravujeme
+                                                </span>
+                                            )}
                                         </li>
                                     ))}
                                 </ul>

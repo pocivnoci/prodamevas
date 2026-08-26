@@ -47,3 +47,49 @@ export function isMediumType(v: unknown): v is MediumType {
 export function creditsForMedia(medium?: string | null): number {
     return MEDIA_CREDITS[medium as MediumType] ?? MEDIA_CREDITS.image
 }
+
+/**
+ * Česká množná čísla: 1 / 2–4 / 5+. Bez toho vyjde „6 carousel" nebo „20 obrázek",
+ * což na ceníku vypadá jako strojový překlad zrovna ve chvíli, kdy si člověk ověřuje,
+ * co za svoje peníze dostane.
+ */
+function plural(n: number, one: string, few: string, many: string): string {
+    if (n === 1) return one
+    if (n >= 2 && n <= 4) return few
+    return many
+}
+
+/**
+ * „≈ 20 obrázků nebo 6 carouselů" — co si za daný počet kreditů reálně koupím.
+ *
+ * PROČ TO EXISTUJE: ceník do teď říkal jen „20 kreditů měsíčně" a vedle toho
+ * sliboval „Až 20 příspěvků" i „Carousel posty". Jenže carousel stojí tři kredity,
+ * takže tentýž tarif je 20 obrázků NEBO 6 carouselů — a kupující se to nedozvěděl,
+ * dokud nezaplatil. Aplikace váhy uváděla, marketing ne.
+ *
+ * Počítá se z `MEDIA_CREDITS`, nikdy se nepíše ručně. Když se váha změní, změní se
+ * i věta na ceníku — druhá pravda o ceně je přesně to, co tenhle modul zavírá.
+ *
+ * Reels se přidávají jen když jsou zapnuté (`REELS_ENABLED`): slibovat počet reelů
+ * u funkce, která se potichu překlopí na carousel, je horší než ji nezmínit.
+ */
+export function creditExample(credits: number, opts?: { reels?: boolean }): string {
+    const kusu = (medium: MediumType) => Math.floor(credits / MEDIA_CREDITS[medium])
+
+    const obrazky = kusu("image")
+    const carousely = kusu("carousel")
+    const reely = kusu("reel")
+
+    // Obrázky jsou vždycky — je to nejlevnější médium, takže jich nikdy nevyjde nula.
+    // Dražší média se vypisují jen když si jich tarif dovolí aspoň jedno: „0 carouselů"
+    // není informace, je to jenom ošklivé místo na ceníku.
+    const casti = [`${obrazky} ${plural(obrazky, "obrázek", "obrázky", "obrázků")}`]
+    if (carousely > 0) casti.push(`${carousely} ${plural(carousely, "carousel", "carousely", "carouselů")}`)
+    // „reels" zůstává nesklonné — tak se ta funkce jmenuje i v UI a na Instagramu.
+    if (opts?.reels && reely > 0) casti.push(`${reely} reels`)
+
+    if (casti.length === 1) return `≈ ${casti[0]}`
+
+    const posledni = casti.pop()
+    return `≈ ${casti.join(", ")} nebo ${posledni}`
+}

@@ -68,6 +68,8 @@ export const ACTION_CREDITS: Record<ActionType, number> = {
  * Weights live in lib/credits.ts (client-safe) — re-exported here for the backend.
  */
 export { MEDIA_CREDITS, creditsForMedia, ALL_MEDIA, isMediumType } from "@/lib/credits"
+/** Priorita tarifu — čistá funkce v lib/pricing.ts, ať ji smí volat i klient. */
+export { planPriority, PRIORITY } from "@/lib/pricing"
 import { creditsForMedia as _creditsForMedia } from "@/lib/credits"
 
 /** Weighted credit cost for an action: post/post_variant scale with medium, the rest are flat. */
@@ -101,7 +103,20 @@ export interface PlanFeatures {
     extra_credit_price: number // haléře per credit
     allowed_actions: ActionType[]
     analytics: "basic" | "full"
-    priority: boolean
+    /**
+     * Přednost ve frontě generování. **Číslo, ne boolean** — vyšší jde dřív.
+     *   0 = Start/Růst · 10 = Dominance („prioritní generování") · 20 = Impérium
+     *   („nejvyšší priorita ve frontě")
+     *
+     * Boolean tu byl do 8/2026 a měl dvě vady najednou: nikdo ho nečetl (fronta
+     * jela FIFO, takže šlo o placený slib bez implementace) a i po implementaci by
+     * Dominance s Impériem vyšly stejně, přestože Impérium inzeruje „nejvyšší".
+     * Číslo řeší obojí — kopie obou tarifů je tím pádem pravdivá.
+     *
+     * Čte se přes `planPriority()`, ne přímo: v DB jsou i legacy tarify, kde je
+     * pořád `true`/`false`.
+     */
+    priority: number | boolean
     label: string
     highlight: boolean
     // v2: plan post limits

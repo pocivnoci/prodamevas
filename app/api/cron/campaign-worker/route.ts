@@ -39,11 +39,17 @@ export async function GET(req: Request) {
     const staleBefore = new Date(Date.now() - LEASE_MS).toISOString()
 
     // ── Claim one campaign (atomic lease) ───────────────────────────────────
+    // Pořadí: nejdřív priorita tarifu, uvnitř stejné priority FIFO. Do 8/2026 se
+    // řadilo jen podle `created_at`, takže „Prioritní generování" na Dominanci
+    // a „Nejvyšší priorita ve frontě" na Impériu byly placené sliby bez jakékoliv
+    // implementace. Priorita je stampnutá na řádku (viz campaign-actions.ts),
+    // protože PostgREST neumí řadit přes join na tarif.
     const { data: candidates } = await supabaseAdmin
         .from("ig_campaigns")
         .select("id")
         .in("status", ["pending", "running"])
         .or(`worker_lease.is.null,worker_lease.lt.${staleBefore}`)
+        .order("priority", { ascending: false })
         .order("created_at", { ascending: true })
         .limit(5)
 
