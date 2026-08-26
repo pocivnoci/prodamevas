@@ -24,6 +24,17 @@ for (const line of fs.readFileSync(".env.local", "utf-8").split("\n")) {
 
 const DAYS = Number(process.argv[2]) || 7
 
+/**
+ * Den, kdy se do produkce dostalo měření VŠECH cest (PR #31, commit e30c1d1c).
+ * Starší dny obsahují jen `ig_generation_log` — útratu mimo příspěvky tehdy nikdo
+ * nezapisoval a zpětně ji dopočítat nejde.
+ *
+ * Bez tohohle údaje přehled u starších oken tvrdí, že chybí měření na nějaké cestě,
+ * a pošle člověka hledat chybu, která tam není. Rozdíl proti Googlu je v těch dnech
+ * historie, ne slepá skvrna.
+ */
+const PLNE_MERENI_OD = "2026-08-26"
+
 async function main() {
     const supabaseAdmin = (await import("../supabase/admin")).default
     const { USD_TO_CZK } = await import("../lib/model-pricing")
@@ -100,8 +111,19 @@ async function main() {
         console.log(`\n⚠️  ${unpriced} běhů bez ceny — některý model nemá sazbu v lib/model-pricing.ts.`)
         console.log("   Součet je proto NIŽŠÍ než skutečnost (raději null než vymyšlená nula).")
     }
-    console.log("\nPorovnej s Googlem: aistudio.google.com → Spend. Když se to rozchází,")
-    console.log("chybí měření na nějaké cestě — hledej volání modelu mimo trackSpend().\n")
+    const oknoOd = since.slice(0, 10)
+    const zasahujeDoHistorie = oknoOd < PLNE_MERENI_OD
+
+    console.log("\nPorovnej s Googlem: aistudio.google.com → Spend.")
+    if (zasahujeDoHistorie) {
+        console.log(`⚠️  Okno sahá do ${oknoOd}, ale všechny cesty se měří až od ${PLNE_MERENI_OD}.`)
+        console.log("   Starší dny ukazují JEN příspěvky, takže součet bude proti Googlu nižší.")
+        console.log("   To je historie, ne chybějící měření — porovnávej až dny od zapnutí.")
+    } else {
+        console.log("Když se to rozchází, chybí měření na nějaké cestě — hledej volání")
+        console.log("modelu mimo trackSpend().")
+    }
+    console.log("")
 }
 
 main().catch(e => { console.error("PADLO:", e); process.exit(1) })
