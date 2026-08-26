@@ -167,11 +167,30 @@ ${disliked.length ? `### Tohle bylo ODMÍTNUTO — nenabízej to znovu ani v jin
     }
 }
 
+/**
+ * Měří se UVNITŘ, ne u volajících: produktové nápady pouští CLI (`--product-idea`)
+ * i studio v UI, a každé z těch míst by na účtování mohlo zapomenout. Stejný důvod
+ * jako u `generateAIIdeas` v idea-generator.ts.
+ */
 export async function generateProductIdeas(
     config: ClientConfig,
     count: number = 5,
     theme?: string,
     /** Explicit tenant — enables the live catalog + the 👍/👎 feedback loop */
+    clientId?: string,
+): Promise<ProductIdea[]> {
+    const { trackSpend, spendClientId } = await import("./spend-tracker")
+    return trackSpend(
+        "product_ideas",
+        { clientId: clientId ?? await spendClientId(config.id), refId: theme ?? null },
+        () => generateProductIdeasInner(config, count, theme, clientId),
+    )
+}
+
+async function generateProductIdeasInner(
+    config: ClientConfig,
+    count: number = 5,
+    theme?: string,
     clientId?: string,
 ): Promise<ProductIdea[]> {
     const bv = config.brandVoice
@@ -292,7 +311,24 @@ Generuj PŘESNĚ ${count} nápadů.`
 // PIPELINE 2B: PRODUCT CONCEPT VISUALIZATION
 // ============================================
 
+/**
+ * Vizualizace produktu — obrázkový model, tedy nejdražší položka produktového studia.
+ * Obal je uvnitř, protože akce v UI ji volá ze tří míst (nápad, vlastní zadání, revize).
+ */
 export async function generateProductDesign(
+    config: ClientConfig,
+    idea: ProductIdea,
+    referenceImageUrl?: string
+): Promise<{ designUrl: string } | null> {
+    const { trackSpend, spendClientId } = await import("./spend-tracker")
+    return trackSpend(
+        "product_design",
+        { clientId: await spendClientId(config.id), refId: idea.name ?? null },
+        () => generateProductDesignInner(config, idea, referenceImageUrl),
+    )
+}
+
+async function generateProductDesignInner(
     config: ClientConfig,
     idea: ProductIdea,
     referenceImageUrl?: string

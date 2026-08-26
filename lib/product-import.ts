@@ -145,7 +145,24 @@ async function readOne(url: string, knownBySlug: Map<string, string>, knownByUrl
  *
  * Jeden rozbitý odkaz nezhodí celou dávku: chyba se vrátí u svého řádku a ostatní doběhnou.
  */
+/**
+ * Účtuje se celá dávka, ne jednotlivé odkazy: model tu je jen fallback pro stránky
+ * bez strukturovaných dat, takže z deseti URL ho může potřebovat jedna i všechny.
+ * Jeden řádek za dávku říká pravdu o tom, co uživatel spustil.
+ */
 export async function readProductDrafts(
+    clientId: string,
+    rawUrls: string[],
+): Promise<{ success: boolean; drafts?: ProductUrlDraft[]; error?: string }> {
+    const { trackSpend } = await import("@/instagram/spend-tracker")
+    return trackSpend(
+        "product_import",
+        { clientId, refId: `${rawUrls.length} odkazů` },
+        () => readProductDraftsInner(clientId, rawUrls),
+    )
+}
+
+async function readProductDraftsInner(
     clientId: string,
     rawUrls: string[],
 ): Promise<{ success: boolean; drafts?: ProductUrlDraft[]; error?: string }> {

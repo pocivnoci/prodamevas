@@ -4,6 +4,15 @@ import { resolveClientId } from "./configs"
 import supabaseAdmin from "../supabase/admin"
 
 export async function generateAIReviews(config: ClientConfig, count: number = 5) {
+    const { trackSpend, spendClientId } = await import("./spend-tracker")
+    return trackSpend(
+        "other",
+        { clientId: await spendClientId(config.id), refId: "recenze" },
+        () => generateAIReviewsInner(config, count),
+    )
+}
+
+async function generateAIReviewsInner(config: ClientConfig, count: number = 5) {
     // 1. Build prompt — products from the LIVE catalog (ig_products), not the frozen
     // config.products onboarding snapshot: a synthetic review naming a deleted product
     // would ship straight into customer-facing content.

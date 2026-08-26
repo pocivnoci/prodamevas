@@ -295,6 +295,20 @@ export async function generateProductLine(
     brief: ProductLineBrief,
     onProgress?: (message: string) => void,
 ): Promise<{ line: GeneratedLine; issues: LineValidationIssue[] }> {
+    const { trackSpend } = await import("./spend-tracker")
+    return trackSpend(
+        "product_line",
+        { clientId, refId: brief.category },
+        () => generateProductLineInner(config, clientId, brief, onProgress),
+    )
+}
+
+async function generateProductLineInner(
+    config: ClientConfig,
+    clientId: string,
+    brief: ProductLineBrief,
+    onProgress?: (message: string) => void,
+): Promise<{ line: GeneratedLine; issues: LineValidationIssue[] }> {
     const report = (m: string) => { onProgress?.(m); console.log(`   ${m}`) }
 
     report("Načítám katalog a značku…")
@@ -450,6 +464,20 @@ function parseLine(raw: string): GeneratedLine {
  * the user loses work they already approved.
  */
 export async function reviseSku(
+    config: ClientConfig,
+    line: GeneratedLine,
+    skuIndex: number,
+    feedback: string,
+): Promise<LineSku> {
+    const { trackSpend, spendClientId } = await import("./spend-tracker")
+    return trackSpend(
+        "product_line",
+        { clientId: await spendClientId(config.id), refId: `revize:${line.line.name}` },
+        () => reviseSkuInner(config, line, skuIndex, feedback),
+    )
+}
+
+async function reviseSkuInner(
     config: ClientConfig,
     line: GeneratedLine,
     skuIndex: number,

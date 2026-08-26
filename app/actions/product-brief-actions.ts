@@ -83,22 +83,36 @@ const ANALYSIS_SCHEMA = {
     required: ["estimatedUnitCost", "recommendedRetailPrice", "marginPerUnit", "marginPercent", "moqRecommendation", "firstBatchSize", "firstBatchCost", "breakEvenUnits", "revenueScenarios", "targetAudience", "competitorAnalysis", "launchStrategy", "risks", "timeline"],
 }
 
+interface ProductBriefIdea {
+    name: string
+    type: string
+    description: string
+    material: string
+    dimensions: string
+    manufacturingMethod: string
+    priceRange: string
+    variants: string[]
+    supplierMessage: string
+    viralAngle: string
+    whyItWorks: string
+    productionNotes: string
+}
+
 export async function analyzeProductForBrief(
     configName: string,
-    idea: {
-        name: string
-        type: string
-        description: string
-        material: string
-        dimensions: string
-        manufacturingMethod: string
-        priceRange: string
-        variants: string[]
-        supplierMessage: string
-        viralAngle: string
-        whyItWorks: string
-        productionNotes: string
-    }
+    idea: ProductBriefIdea
+): Promise<{ success: boolean; analysis?: ProductAnalysis; error?: string }> {
+    const { trackSpend, spendClientId } = await import("@/instagram/spend-tracker")
+    return trackSpend(
+        "other",
+        { clientId: await spendClientId(configName), refId: `brief:${idea.name}` },
+        () => analyzeProductForBriefInner(configName, idea),
+    )
+}
+
+async function analyzeProductForBriefInner(
+    configName: string,
+    idea: ProductBriefIdea
 ): Promise<{ success: boolean; analysis?: ProductAnalysis; error?: string }> {
     try {
         // Credit check — brief costs 5 credits

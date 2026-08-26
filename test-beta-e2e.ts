@@ -2738,6 +2738,125 @@ test("33.3 mrtvé cílení se normalizuje u konzumenta, ne v reconcile", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 34. ÚTRATA ZA MODELY JE VIDĚT CELÁ
+// ═══════════════════════════════════════════════════════════
+
+test("34.1 měření žije mimo generování příspěvků", () => {
+    // Naměřeno 23. 8. 2026: Google za týden 411,78 Kč, aplikace uměla vysvětlit ~100.
+    // Měřič obaloval jedinou cestu (generateOnePost), takže největší položka týdne
+    // — 400 nápadů jedním hromadným během — nebyla v datech vůbec.
+    assert(fileExists("instagram/spend-tracker.ts"), "chybí měření útraty mimo posty")
+    const t = codeOnly("instagram/spend-tracker.ts")
+    assert(/export async function trackSpend/.test(t), "obal na měření musí být sdílený")
+    assert(/ai_spend/.test(t), "útrata se musí někam ukládat")
+
+    // Neúspěšný běh je ten nejdražší druh — zaplatí se a nic z něj není.
+    const fn = t.slice(t.indexOf("export async function trackSpend"))
+    assert(/finally/.test(fn.slice(0, 900)) && /currentUsage\(\)/.test(fn.slice(0, 900)),
+        "spotřeba se musí zapsat i když práce spadne — jinak jsou nejdražší běhy v datech nejlevnější")
+})
+
+test("34.2 nápady a onboarding se měří", () => {
+    // Obojí byly v účetnictví slepé skvrny; nápady dokonce největší položka týdne.
+    const ideas = codeOnly("instagram/idea-generator.ts")
+    assert(/trackSpend\(\s*"ideas"/.test(ideas),
+        "generování nápadů se měří UVNITŘ — volají ho CLI, UI i noční cron a každý by mohl zapomenout")
+
+    const handlers = codeOnly("lib/agents/handlers.ts")
+    for (const op of ["onboarding_analyze", "onboarding_config"]) {
+        assert(new RegExp(`trackSpend\\(\\s*"${op}"`).test(handlers), `onboarding krok ${op} se neměří`)
+    }
+})
+
+test("34.3 neznámá sazba se nesmí tvářit jako nula", () => {
+    const t = codeOnly("instagram/spend-tracker.ts")
+    assert(/cost_usd: cost/.test(t) && !/cost_usd: cost \?\? 0/.test(t),
+        "neoceněný běh musí zůstat null — vymyšlená nula vypadá v datech jako levný běh")
+})
+
+test("34.4 hromadný běh nápadů se neprovede potichu", () => {
+    const cli = codeOnly("instagram/cli.ts")
+    assert(/BULK_WARN_THRESHOLD/.test(cli), "velký běh musí člověka varovat, než utratí stovky")
+})
+
+test("34.5 každý volající modelu má jasno, kdo ho účtuje", () => {
+    // Původní chyba nebyla ve výpočtu, ale v POKRYTÍ: měřič obaloval jednu cestu
+    // a nikdo nehlídal, že jich je dvacet. Tahle aserce je proto seznam, ne vzorec —
+    // kdo sáhne na model, musí se objevit buď s vlastním `trackSpend`, nebo tady,
+    // s důvodem, proč ho účtuje někdo nad ním. Nový soubor propadne a vynutí rozhodnutí.
+    const fs = require("fs") as typeof import("fs")
+
+    /** Soubory, které model volají, ale útratu za ně zapisuje nadřazený scope. */
+    const UVNITR_CIZIHO_SCOPE: Record<string, string> = {
+        "instagram/gemini-client.ts": "sama brána k modelům — měří tudy všichni ostatní",
+        "instagram/usage-meter.ts": "měřič samotný",
+        "instagram/autopilot.ts": "withUsageScope → ig_generation_log (příspěvky mají vlastní účetnictví)",
+        "instagram/caption-generator.ts": "uvnitř generateOnePost",
+        "instagram/context-agent.ts": "uvnitř generateOnePost",
+        "instagram/editorial-board.ts": "uvnitř generateOnePost",
+        "instagram/judge.ts": "uvnitř generateOnePost",
+        "instagram/image-pipeline.ts": "uvnitř generateOnePost",
+        "instagram/orchestrators/image-orchestrator.ts": "uvnitř generateOnePost",
+        "instagram/orchestrators/carousel-orchestrator.ts": "uvnitř generateOnePost",
+        "instagram/orchestrators/story-orchestrator.ts": "uvnitř generateOnePost",
+        "instagram/orchestrators/reel-orchestrator.ts": "uvnitř generateOnePost",
+        "instagram/plan-pipeline.ts": "uvnitř generateContentPlan (content_plan)",
+        "instagram/feed-vision.ts": "uvnitř onboarding_config nebo recommendFeedPattern",
+        "instagram/memory-agent.ts": "uvnitř generace příspěvku nebo operace learn",
+        "instagram/service.ts": "jen embedText nad captionem — haléře, běží uvnitř ukládání postu",
+        "app/onboarding/actions.ts": "onboarding měří lib/agents/handlers.ts",
+        "app/onboarding/core.ts": "onboarding měří lib/agents/handlers.ts",
+    }
+
+    const VOLANI = /\b(generateText|generateTextQuality|generateImage|generateImageWithReferences|editExistingImage|detectLogoPlacementArea|analyzeImagesWithText|generateVideo|generateVoiceover|embedTexts|embedText)\s*\(/
+
+    const walk = (dir: string): string[] => {
+        const out: string[] = []
+        for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+            if (e.name === "node_modules" || e.name.startsWith(".")) continue
+            const full = `${dir}/${e.name}`
+            if (e.isDirectory()) out.push(...walk(full))
+            else if (e.name.endsWith(".ts") || e.name.endsWith(".tsx")) out.push(full)
+        }
+        return out
+    }
+
+    let volajicich = 0
+    for (const file of [...walk("app"), ...walk("lib"), ...walk("instagram")]) {
+        const src = codeOnly(file)
+        if (!VOLANI.test(src)) continue
+        volajicich++
+        if (/trackSpend\(/.test(src)) continue
+        assert(
+            file in UVNITR_CIZIHO_SCOPE,
+            `${file} volá model, ale nikde se neúčtuje — buď ho obal do trackSpend(), ` +
+            `nebo ho zapiš do UVNITR_CIZIHO_SCOPE s důvodem, kdo za něj platí`,
+        )
+    }
+    assert(volajicich > 20, `aserce musí reálně něco kontrolovat (našla jen ${volajicich} volajících)`)
+})
+
+test("34.6 vnořené měření nesmí okrást to nadřazené", () => {
+    // `usageStorage.run()` nadřazený akumulátor ZASTÍNÍ. Kdyby si vnitřní scope
+    // volání nechal jen pro sebe, příspěvek by v ig_generation_log vyšel levnější,
+    // než byl — tichá chyba přesně toho druhu, kvůli kterému ai_spend vzniklo.
+    const m = codeOnly("instagram/usage-meter.ts")
+    assert(/parent\?\.record\(call\)/.test(m),
+        "vnořený scope musí volání poslat i nadřazenému akumulátoru")
+    assert(/new UsageAccumulator\(usageStorage\.getStore\(\) \?\? null\)/.test(m),
+        "nový scope si musí zapamatovat rodiče, jinak nemá komu propagovat")
+})
+
+test("34.7 hromadný běh nápadů z CLI se měří", () => {
+    // Regrese na konkrétní incident: měření se přidalo do idea-generator.ts, jenže
+    // běh z 18. 8. (400 nápadů, ~250 Kč) šel VLASTNÍ cestou v cli.ts. Nejdražší známý
+    // běh v historii produktu tak zůstal neměřený i po opravě, která ho měla pokrýt.
+    const cli = codeOnly("instagram/cli.ts")
+    assert(/trackSpend\(\s*"ideas"/.test(cli),
+        "vlastní generátor nápadů v cli.ts se musí měřit — tudy šel ten čtvrt tisíce")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 

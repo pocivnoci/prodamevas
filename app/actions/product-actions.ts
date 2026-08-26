@@ -792,6 +792,17 @@ export async function syncConfigProductsToDb(): Promise<{ success: boolean; sync
 export async function scrapeProductsFromWebsite(
     projectSlug: string
 ): Promise<{ success: boolean; found: number; inserted: number; images: number; error?: string }> {
+    const { trackSpend, spendClientId } = await import("@/instagram/spend-tracker")
+    return trackSpend(
+        "product_import",
+        { clientId: await spendClientId(projectSlug), refId: "sken webu" },
+        () => scrapeProductsFromWebsiteInner(projectSlug),
+    )
+}
+
+async function scrapeProductsFromWebsiteInner(
+    projectSlug: string
+): Promise<{ success: boolean; found: number; inserted: number; images: number; error?: string }> {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 

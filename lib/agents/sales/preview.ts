@@ -130,13 +130,26 @@ async function uploadPreview(buf: Buffer, key: string): Promise<string> {
  *
  * Selhání jednoho příspěvku nezhodí celou ukázku — lepší dva příspěvky než nic.
  */
-export async function generatePreview(opts: {
+export interface PreviewOptions {
     website: string
     igHandle?: string
     count?: number
     token: string
     onProgress?: (step: string) => void
-}): Promise<PreviewResult> {
+}
+
+export async function generatePreview(opts: PreviewOptions): Promise<PreviewResult> {
+    const { trackSpend } = await import("@/instagram/spend-tracker")
+    // Bez klienta schválně: ukázka běží pro zájemce, který tenant ještě není.
+    // `ai_spend.client_id` je proto nullable — útrata bez tenanta je pořád útrata.
+    return trackSpend(
+        "sales_preview",
+        { clientId: null, refId: opts.website },
+        () => generatePreviewInner(opts),
+    )
+}
+
+async function generatePreviewInner(opts: PreviewOptions): Promise<PreviewResult> {
     const count = Math.max(1, Math.min(3, opts.count ?? 3))
     const say = opts.onProgress ?? (() => {})
 

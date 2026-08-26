@@ -66,7 +66,15 @@ export async function POST(req: Request) {
                 link_clicks: p.link_clicks || 0,
             }))
 
-            const result = await analyzeAndLearn(postsForLearning, clientId)
+            // Obal je tady, ne v `analyzeAndLearn`: memory-agent volají i kroky uvnitř
+            // generace příspěvku, kde už měření běží. Tohle je jediná cesta, kde je
+            // učení samostatný běh se samostatnou útratou.
+            const { trackSpend } = await import("@/instagram/spend-tracker")
+            const result = await trackSpend(
+                "learn",
+                { clientId, refId: `${postsForLearning.length} příspěvků` },
+                () => analyzeAndLearn(postsForLearning, clientId),
+            )
             memoriesCreated = result.memoriesCreated
             memoriesUpdated = result.memoriesUpdated
         }

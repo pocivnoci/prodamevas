@@ -203,7 +203,26 @@ function buildIdeasSchema(pillarKey?: string): object {
     }
 }
 
+/**
+ * POZOR: tohle je vlastní cesta CLI, ne `generateAIIdeas` z idea-generator.ts.
+ * Právě tudy šel běh z 18. 8. 2026 (400 nápadů, ~250 Kč, 60 % útraty za týden),
+ * takže měření patří i sem — jinak zůstane nejdražší známý běh v datech neviditelný.
+ */
 async function generateIdeas(
+    pillar: string,
+    count: number,
+    performance: PerformanceInsight,
+    existingIdeas: PostIdea[]
+): Promise<any[]> {
+    const { trackSpend, spendClientId } = await import("./spend-tracker")
+    return trackSpend(
+        "ideas",
+        { clientId: await spendClientId(CLI_CONFIG!.id), refId: `cli:${pillar}` },
+        () => generateIdeasInner(pillar, count, performance, existingIdeas),
+    )
+}
+
+async function generateIdeasInner(
     pillar: string,
     count: number,
     performance: PerformanceInsight,
@@ -273,6 +292,9 @@ Každý nápad musí mít: title (krátký název), content (text nápadu/captio
     }
 }
 
+/** Nad tolik nápadů v jednom běhu se člověka zeptáme, jestli to fakt chce. */
+const BULK_WARN_THRESHOLD = 40
+
 async function runGenerateIdeas() {
     const args = process.argv.slice(2)
     const countArg = args.find(a => a.startsWith("--count="))
@@ -290,14 +312,26 @@ async function runGenerateIdeas() {
     const performance = await analyzePerformance(config, _getPillarForType)
     const existingIdeas = await getAvailableIdeas()
 
-    console.log(`   📊 Existujících nápadů: ${existingIdeas.length}`)
-    console.log(`   🎯 Generuji: ${count} per pillar`)
-    console.log("")
-
     const clientPillars = Object.keys(config.contentPillars)
     const pillarsToGenerate: string[] = pillar === "all"
         ? clientPillars
         : [pillar]
+
+    console.log(`   📊 Existujících nápadů: ${existingIdeas.length}`)
+    console.log(`   🎯 Generuji: ${count} per pillar`)
+
+    // Varování před velkým během. 18. 8. 2026 tenhle příkaz vyrobil 80 nápadů na
+    // klienta krát pět klientů = 400 nápadů za ~250 Kč, tedy 60 % útraty celého
+    // týdne — a nikdo se to nedozvěděl, dokud se ručně neporovnala faktura.
+    const celkem = count * pillarsToGenerate.length
+    if (celkem > BULK_WARN_THRESHOLD) {
+        console.log("")
+        console.log(`   ⚠️  Chystáš se vygenerovat ${celkem} nápadů (${pillarsToGenerate.length} pilířů × ${count}).`)
+        console.log(`      Orientačně to vyjde na desítky až stovky korun. Menší běh: --count=5`)
+        console.log(`      Pokračuju za 5 s — Ctrl+C to zastaví.`)
+        await new Promise(r => setTimeout(r, 5000))
+    }
+    console.log("")
 
     let totalGenerated = 0
 
