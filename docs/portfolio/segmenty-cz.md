@@ -199,6 +199,27 @@ npx tsx scripts/seed-portfolio-clients.ts                    # projekty + 12 pos
 npx tsx scripts/seed-portfolio-clients.ts --only=portu --count=1   # změř cenu, než pustíš zbytek
 ```
 
+### Provozní pasti (ověřeno během prvního běhu)
+
+**Jeden post trvá 10–15 minut.** Sekvenčně by 12 postů na deset značek běželo přes
+dvacet hodin. Proto `--parallel=` — souběh přes značky je bezpečný, protože každé
+volání CLI je vlastní proces a modulově globální `setActiveProject()` kříží tenanty
+jen uvnitř jednoho procesu.
+
+**`--count` u `--generate-ideas` je NA PILÍŘ, ne celkem.** Pilíře jsou čtyři, takže
+`--count=12` vyrobí ~48 nápadů. `cli.ts` na to má varování u velkých běhů; portfolio
+si o počet říká přepočtem, ne přímo.
+
+**Cenu za post nejde odečíst z `ai_spend`.** Plný běh enginu tam nezapisuje —
+trackují se jen `ideas` a `sales_preview`. Rozpočet se dá odhadnout jen z logu
+(`💰 …`), ne dotazem do tabulky. Lehký preview post stál 8,30 Kč; plný běh
+s researcherem, kritikem a editorial boardem je dráž.
+
+**Reely přes Veo jsou nejdražší položka.** Když je `REELS_ENABLED=1`, část postů
+vyjde jako video — na portfolio je to to nejsilnější, co jde ukázat, ale cenu to
+zvedá skokově. Levnější běh: `REELS_ENABLED=0 npx tsx scripts/seed-portfolio-clients.ts …`,
+reely se tím potichu přepíšou na karusely.
+
 ### Nález: kvalifikace leadů vyřazuje živnostníky
 
 `isRoleAddress()` v `lib/agents/sales/qualify.ts` pustí dál jen adresy začínající
