@@ -3,13 +3,14 @@
  * =============================================================
  * Z webu veřejně známé firmy udělá plnohodnotného klienta: engine se učí ze
  * skutečné stránky (barvy, produkty, tón), takže feed jde v aplikaci procházet,
- * upravovat i po jednom přegenerovat. To je ten rozdíl proti `portfolio-previews.ts`,
- * které vyrobí jen tři obrázky mimo dashboard.
+ * upravovat i po jednom přegenerovat. Fiktivní značky
+ * (`seed-reference-clients.ts`) ukazují obor; tyhle ukazují schopnost.
  *
  *   npx tsx scripts/seed-portfolio-clients.ts --dry-run           # co by běželo
  *   npx tsx scripts/seed-portfolio-clients.ts --configs-only      # jen klienti, bez postů
  *   npx tsx scripts/seed-portfolio-clients.ts                     # klienti + 12 postů each
  *   npx tsx scripts/seed-portfolio-clients.ts --only=portu,znovin --count=4
+ *   npx tsx scripts/seed-portfolio-clients.ts --parallel=5     # kolik značek najednou (výchozí 3)
  *
  * ⚠️ TYHLE FIRMY NEJSOU KLIENTI a nevědí o tom. Zakládají se s
  * `config.isPortfolio = true` a ZÁMĚRNĚ BEZ `isReference` — ten příznak sbírá
@@ -22,7 +23,10 @@
  * ověř jedním během `--only=<slug> --count=1`, ne odhadem.
  */
 
-import { spawnSync } from "child_process"
+import { spawn } from "child_process"
+import { createWriteStream, mkdirSync } from "fs"
+import { tmpdir } from "os"
+import { join } from "path"
 import supabaseAdmin from "../supabase/admin"
 import { scrapeBrandBasics } from "../lib/agents/sales/brand-scrape"
 import { analyzeBrand } from "../lib/agents/sales/preview"
@@ -83,16 +87,39 @@ async function existingSlugFor(website: string): Promise<string | null> {
     return data?.slug ?? null
 }
 
-function runCli(slug: string, extraArgs: string[]): void {
-    const args = ["tsx", "instagram/cli.ts", `--config=${slug}`, ...extraArgs]
-    console.log(`   ▶ npx ${args.join(" ")}`)
-    const res = spawnSync("npx", args, { stdio: "inherit", env: process.env })
-    if (res.status !== 0) {
-        console.warn(`   ⚠️ CLI skončilo se statusem ${res.status} pro ${slug} (${extraArgs.join(" ")})`)
-    }
+/**
+ * Pustí CLI a počká na konec. Výstup jde do souboru, ne na terminál — při
+ * souběžném běhu by se hlášky deseti značek proplétaly do nečitelné kaše.
+ */
+function runCli(slug: string, extraArgs: string[], logPath: string): Promise<number> {
+    return new Promise(resolve => {
+        const args = ["tsx", "instagram/cli.ts", `--config=${slug}`, ...extraArgs]
+        const log = createWriteStream(logPath, { flags: "a" })
+        log.write(`\n$ npx ${args.join(" ")}\n`)
+        const child = spawn("npx", args, { env: process.env, stdio: ["ignore", "pipe", "pipe"] })
+        child.stdout.pipe(log)
+        child.stderr.pipe(log)
+        child.on("close", code => { log.end(); resolve(code ?? 1) })
+    })
 }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+/**
+ * Zpracuje značky souběžně. Každé volání CLI je vlastní proces, takže modulově
+ * globální `setActiveProject()` nemůže zkřížit tenanty — to platí jen uvnitř
+ * jednoho procesu. Sekvenčně by 12 postů na 10 značek běželo přes dvacet hodin.
+ */
+async function pool<T>(items: T[], limit: number, worker: (item: T) => Promise<void>): Promise<void> {
+    let next = 0
+    const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (next < items.length) {
+            const i = next++
+            await worker(items[i])
+        }
+    })
+    await Promise.all(runners)
+}
 
 async function main() {
     const args = process.argv.slice(2)
@@ -100,6 +127,8 @@ async function main() {
     const configsOnly = args.includes("--configs-only")
     const countArg = args.find(a => a.startsWith("--count="))
     const count = countArg ? parseInt(countArg.split("=")[1], 10) : 12
+    const parallelArg = args.find(a => a.startsWith("--parallel="))
+    const parallel = Math.max(1, parallelArg ? parseInt(parallelArg.split("=")[1], 10) : 3)
     const onlyArg = args.find(a => a.startsWith("--only="))
     const only = onlyArg ? onlyArg.split("=")[1].split(",").map(v => v.trim()).filter(Boolean) : null
 
@@ -159,20 +188,31 @@ async function main() {
         }
     }
 
-    // ── Fáze 2: nápady + posty ──
+    // ── Fáze 2: nápady + posty, souběžně přes značky ──
     if (!configsOnly && readySlugs.length > 0) {
+        const logDir = join(tmpdir(), "chrlit-portfolio")
+        mkdirSync(logDir, { recursive: true })
+
         console.log("\n" + "═".repeat(66))
-        console.log(`🎨 GENERUJI — ${count} postů na značku (trvá dlouho a stojí peníze)`)
+        console.log(`🎨 GENERUJI — ${count} postů na značku, ${parallel} značek souběžně`)
         console.log("═".repeat(66))
-        for (const slug of readySlugs) {
-            console.log(`\n🏢 ${slug}`)
-            console.log("   💡 Plním zásobník nápadů…")
-            runCli(slug, ["--generate-ideas", `--count=${Math.max(count, 10)}`])
-            await sleep(3000)
-            console.log(`   📸 Generuji ${count} postů…`)
-            runCli(slug, [`--count=${count}`])
-            await sleep(3000)
-        }
+        console.log(`   Logy: ${logDir}/<slug>.log`)
+        console.log("   Trvá to hodiny a stojí to peníze. Průběh sleduj v logách.\n")
+
+        const started = Date.now()
+        let done = 0
+        await pool(readySlugs, parallel, async slug => {
+            const logPath = join(logDir, `${slug}.log`)
+            console.log(`   ▶ ${slug} — start`)
+            const a = await runCli(slug, ["--generate-ideas", `--count=${Math.max(count, 10)}`], logPath)
+            if (a !== 0) console.warn(`   ⚠️ ${slug}: nápady skončily se statusem ${a}`)
+            await sleep(2000)
+            const b = await runCli(slug, [`--count=${count}`], logPath)
+            if (b !== 0) console.warn(`   ⚠️ ${slug}: posty skončily se statusem ${b}`)
+            done++
+            const min = ((Date.now() - started) / 60000).toFixed(0)
+            console.log(`   ✅ ${slug} — hotovo (${done}/${readySlugs.length}, ${min} min od startu)`)
+        })
     }
 
     console.log("\n" + "═".repeat(66))
