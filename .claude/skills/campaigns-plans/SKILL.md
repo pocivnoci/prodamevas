@@ -71,6 +71,26 @@ Strategický oblouk se ukládá do `options.strategySummary` a předává se **k
 postu včetně prvního — jeho injektáž v `autopilot.ts` nesmí být gatovaná na
 `previousPosts.length > 0`.
 
+## Produkt patří k tomu, o čem post mluví
+
+Hook jmenuje konkrétní produkt — a připojení produktu k postu dlouho řešilo úplně jiné
+pravidlo (round-robin přes kampaňové produkty, cooldown v enginu). Ta dvě pravidla se
+nepotkala, takže popisek mluvil o jednom produktu a vyrenderovala se fotka jiného.
+
+Pořadí důkazů (`generateContentPlan`, stejně i `autopilot`):
+
+1. **Text sám** — `matchProductInText()` (`lib/product-match.ts`) najde produkt jmenovaný
+   v hooku/tématu. Popisek to jméno vysloví, takže tohle **nesmí nic přebít**. Párování je
+   schválně přísné (musí sedět všechna obsahová slova) a stemuje kvůli české deklinaci.
+2. **`productIndex`** — číslo ze **číslovaného** seznamu produktů v promptu, mapované zpátky
+   na `ig_products.id` s clampem. Přesně jako `ideaIndex`; prompt bez seznamu (fill, revize)
+   musí index **strippnout**, jinak ukazuje na seznam, který model nikdy neviděl.
+3. **Round-robin** přes kampaňové produkty — až poslední instance a jen pro typy
+   s `uses_product`.
+
+Nový zdroj konceptů (fill, regenerace položky, jiný plánovač) musí projít stejným pořadím —
+jinak se štítek produktu rozejde s textem. Hlídá `scripts/test-product-link.ts`.
+
 ## Hloubkový plán běží na Pro ladderu
 
 `runPlanPipeline` (`instagram/plan-pipeline.ts`) = stratég → koncepty → cross-family

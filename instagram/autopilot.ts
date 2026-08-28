@@ -531,7 +531,8 @@ export async function generateOnePost(options: {
     const _getPillarForType = createPillarMapper(config)
     const performance = options.performance || await analyzePerformance(config, _getPillarForType)
 
-    // 4b. Smart product selection — cooldown-based from ig_products
+    // 4b. Which product is this post about: explicit link → named in the approved copy
+    //     → cooldown pick from ig_products (see lib/product-match.ts for why)
     let selectedProduct: SelectedProduct | undefined = undefined
     let linkedProductId: string | undefined = undefined
 
