@@ -785,8 +785,20 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         if (result.success && result.item) {
             setContentPlan(prev => prev.map(p =>
                 p.id === itemId
-                    // Regenerated concept no longer represents the bank idea — drop the link
-                    ? { ...p, hookPreview: result.item!.hookPreview, angle: result.item!.angle, topic: result.item!.topic, ideaId: undefined, ideaTitle: undefined }
+                    // Regenerated concept no longer represents the bank idea — drop the link.
+                    // Same for the product: the new hook is about a different one (or none),
+                    // so the server re-resolves it and we take its answer, undefined included.
+                    ? {
+                        ...p,
+                        hookPreview: result.item!.hookPreview,
+                        angle: result.item!.angle,
+                        topic: result.item!.topic,
+                        ideaId: undefined,
+                        ideaTitle: undefined,
+                        productId: result.item!.productId,
+                        productName: result.item!.productName,
+                        productImage: result.item!.productImage,
+                    }
                     : p
             ))
         }

@@ -31,6 +31,10 @@ export interface PlanConcept {
     topic: string
     qualityScore?: number
     ideaIndex?: number
+    /** 1-based index into the numbered product list in contextBlock — which catalog
+     *  product this post is actually built on. The action maps it to a real
+     *  ig_products id; without it the product attached to a post is a coin flip. */
+    productIndex?: number
 }
 
 export interface PlanPipelineInput {
@@ -75,6 +79,9 @@ export const conceptSchema = {
             qualityScore: { type: Type.INTEGER },
             // 1-based index into the idea bank when the post builds on a bank idea
             ideaIndex: { type: Type.INTEGER },
+            // 1-based index into the brand's numbered product list when the post is
+            // built on one of them (see productFocusSection / product catalog block)
+            productIndex: { type: Type.INTEGER },
         },
         required: ["hookPreview", "angle", "topic", "qualityScore"],
     },
@@ -313,7 +320,7 @@ Vrať POUZE validní JSON pole s PŘESNĚ ${weak.length} položkami:
                 await stage(88, "⚖️ Kritik znovu hodnotí přepsané hooky…")
                 const reVerdicts = await judgeConcepts(
                     input,
-                    candidates.map(c => ({ ...c.rev, ideaIndex: undefined })),
+                    candidates.map(c => ({ ...c.rev, ideaIndex: undefined, productIndex: undefined })),
                     candidates.map(c => formatLines[c.orig.i] || ""),
                     "plan-rejudge",
                 )
@@ -329,6 +336,10 @@ Vrať POUZE validní JSON pole s PŘESNĚ ${weak.length} položkami:
                             topic: c.rev.topic,
                             qualityScore: newScore ?? c.orig.score,
                             ideaIndex: concepts[c.orig.i].ideaIndex,
+                            // Revision rewrites wording, not substance — the post is still
+                            // about the same product. (If the rewrite happens to name a
+                            // different one, the action's copy-level match overrides this.)
+                            productIndex: concepts[c.orig.i].productIndex,
                         }
                         console.log(`   ✅ hook #${c.orig.i + 1} revised: ${c.orig.score} → ${newScore ?? "?"} "${c.rev.hookPreview}"`)
                     } else {

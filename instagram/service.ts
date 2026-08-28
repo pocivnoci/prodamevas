@@ -935,6 +935,18 @@ export interface ProductCategory {
     bleed_mm: number | null
 }
 
+/** Live catalog row, thinned to what prompts and plan linking need. `id` is present
+ *  for real ig_products rows and absent for the config.products fallback. */
+export interface CatalogProduct {
+    id?: string
+    name: string
+    type: string
+    slug: string
+    price?: string
+    description?: string
+    imageUrl?: string
+}
+
 /**
  * Live product catalog for AI prompt grounding — the single source of truth is the
  * ig_products TABLE (SettingsTab CRUD + the deep scraper write there); config.products
@@ -948,23 +960,27 @@ export async function getCatalogProducts(
     clientId: string,
     fallback?: { name: string; type?: string; slug?: string; price?: string; description?: string }[],
     limit = 20,
-): Promise<{ name: string; type: string; slug: string; price?: string; description?: string }[]> {
+): Promise<CatalogProduct[]> {
     const { data } = await supabaseAdmin
         .from("ig_products")
-        .select("name, type, slug, price, description")
+        .select("id, name, type, slug, price, description, image_urls")
         .eq("client_id", clientId)
         .order("created_at", { ascending: false })
         .limit(limit)
 
     if (data && data.length > 0) {
         return data.map(p => ({
+            id: p.id,
             name: p.name,
             type: p.type || "product",
             slug: p.slug,
             price: p.price || undefined,
             description: p.description || undefined,
+            imageUrl: p.image_urls?.[0] || undefined,
         }))
     }
+    // Frozen onboarding snapshot: good enough to ground a prompt, but it has no row in
+    // ig_products — hence no id, hence nothing a post can actually be linked to.
     return (fallback || []).map(p => ({
         name: p.name,
         type: p.type || "product",
