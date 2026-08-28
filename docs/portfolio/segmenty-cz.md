@@ -157,7 +157,64 @@ profesionálně. Karusel a tip jsou jejich přirozený formát.
 | Květinářství, svatební dodavatelé | Obsahově ideální, ale trh je malý a tvrdě sezónní. |
 | SaaS a aplikace | V portfoliu zůstávají (`Flowtask`, `Brevia`) jako ukázka pro tech publikum, ale nejsou to *časté* české obory. |
 
-## Jak portfolio vyrobit
+## Dvě portfolia, ne jedno
+
+Ukázalo se, že „portfolio" znamená dvě různé věci a každá chce jiný nástroj.
+
+**Fiktivní značky** (`scripts/seed-reference-clients.ts`) ukazují *obor*. Kavárna Zrno
+nikoho nemate a smí viset na marketingové zdi jako případová studie —
+`config.isReference = true`, sbírá je `export-references.ts`.
+
+**Skutečné známé značky** (`scripts/seed-portfolio-clients.ts`) ukazují *schopnost*:
+engine se učí z opravdového webu, takže výsledek je důkaz, ne cvičení. Zakládají se
+jako plnohodnotné projekty v dashboardu, aby se daly procházet a přegenerovat —
+s `config.isPortfolio = true` a **záměrně bez `isReference`**, protože tyhle firmy
+o ničem nevědí a nejsou klienty. Kdekoli se jejich posty ukážou, musí u nich být
+řečeno, že jde o nevyžádaný koncept.
+
+### Deset značek, jedna na obor
+
+Všechny ověřené `scrapeBrandBasics()` — vracejí titulek i použitelný text.
+
+| Obor | Značka | Web |
+|---|---|---|
+| Gastronomie | Ambiente | ambi.cz |
+| Beauty | Kadeřnictví Klier | klier.cz |
+| E-shop | Rohlik.cz | rohlik.cz |
+| Řemeslo / bydlení | Koupelny Ptáček | koupelny-ptacek.cz |
+| Fitness | Form Factory | formfactory.cz |
+| Ubytování | Grandhotel Pupp | pupp.cz |
+| Vinařství | Znovín Znojmo | znovin.cz |
+| Zdraví a estetika | Asklepion | asklepion.cz |
+| Reality | Svoboda & Williams | svoboda-williams.com |
+| Finance | Portu | portu.cz |
+
+Nepoužitelné a proč: **Notino** a **SIKO** vracejí 403, **Košík** renderuje až
+v prohlížeči (35 znaků textu), **Baťa** a **Sonberk** timeoutují.
+
+```bash
+npx tsx scripts/seed-portfolio-clients.ts --dry-run          # co by běželo
+npx tsx scripts/seed-portfolio-clients.ts --configs-only     # jen projekty, bez postů
+npx tsx scripts/seed-portfolio-clients.ts                    # projekty + 12 postů each
+npx tsx scripts/seed-portfolio-clients.ts --only=portu --count=1   # změř cenu, než pustíš zbytek
+```
+
+### Nález: kvalifikace leadů vyřazuje živnostníky
+
+`isRoleAddress()` v `lib/agents/sales/qualify.ts` pustí dál jen adresy začínající
+`info`, `kontakt`, `recepce`… Všechno ostatní dostane `rejectReason: "personal_email"`.
+
+Jenže u OSVČ **je** osobní adresa firemním kontaktem: `filip@fkr.cz` (realitní makléř),
+`mir.sasek@seznam.cz` (řemeslník), `dopita@dopitafinance.cz` (poradce). Trychtýř tak
+systematicky vyřazuje právě obory, kde je majitel zároveň značka — řemeslo, reality,
+poradenství i menší salony. Čtyři z deseti oborů výše.
+
+Možná oprava: brát adresu jako firemní i tehdy, když se její doména shoduje s doménou
+webu firmy (a není to freemail). `filip@fkr.cz` na `fkr.cz` je firemní kontakt;
+`jan.novak@gmail.com` není. **Neopraveno záměrně** — mění to, komu odchází studená
+pošta, a to není změna, která se dělá mimochodem.
+
+### Fiktivní značky (obory)
 
 Značky jsou v `scripts/seed-reference-clients.ts` (13 celkem: 11 oborových + 2 SaaS).
 Založení configu je levné, generování postů je ta drahá část — proto `--only=`.

@@ -416,6 +416,13 @@ export interface ClientConfig {
      *  Its generated posts are surfaced as case-study references on the marketing site.
      *  Not a real paying customer. */
     isReference?: boolean
+
+    /** Marks a REAL, publicly known brand seeded as an unsolicited concept
+     *  (scripts/seed-portfolio-clients.ts). The company did not ask for this and
+     *  is NOT a customer — anything surfacing these posts must say so.
+     *  Deliberately separate from `isReference`, which feeds the marketing wall:
+     *  mixing the two would present strangers' brands as case studies. */
+    isPortfolio?: boolean
 }
 
 // ─── Brand Image Type ────────────────────────────────────────────────
