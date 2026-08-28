@@ -204,7 +204,11 @@ async function main() {
         await pool(readySlugs, parallel, async slug => {
             const logPath = join(logDir, `${slug}.log`)
             console.log(`   ▶ ${slug} — start`)
-            const a = await runCli(slug, ["--generate-ideas", `--count=${Math.max(count, 10)}`], logPath)
+            // POZOR: u --generate-ideas je --count NA PILÍŘ, ne celkem. Pilíře jsou
+            // čtyři, takže tohle vyrobí ~4× tolik nápadů — dost na `count` postů
+            // s rezervou, ale ne stovky nápadů za stovky korun.
+            const perPillar = Math.max(3, Math.ceil(count / 3))
+            const a = await runCli(slug, ["--generate-ideas", `--count=${perPillar}`], logPath)
             if (a !== 0) console.warn(`   ⚠️ ${slug}: nápady skončily se statusem ${a}`)
             await sleep(2000)
             const b = await runCli(slug, [`--count=${count}`], logPath)
