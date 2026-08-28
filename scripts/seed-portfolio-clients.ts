@@ -80,6 +80,26 @@ async function resolveAdminUserId(): Promise<string | undefined> {
     return admin.id
 }
 
+/**
+ * Kolik původních postů značka už má. Počítají se jen originály (`revision_of`
+ * je null) — revize a A/B varianty odkazují na týž nápad a jako obsah portfolia
+ * se nepočítají dvakrát.
+ *
+ * Bez tohohle by opakovaný běh přidal dalších `count` postů místo dopočtu
+ * chybějících, což při hodinovém běhu, který se dá přerušit, není teorie.
+ */
+async function existingPostCount(slug: string): Promise<number> {
+    const { data: client } = await supabaseAdmin
+        .from("clients").select("id").eq("slug", slug).maybeSingle()
+    if (!client) return 0
+    const { count } = await supabaseAdmin
+        .from("ig_posts")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", client.id)
+        .is("revision_of", null)
+    return count ?? 0
+}
+
 /** Hledá podle webu, ne podle jména — slug se odvozuje z názvu, který může driftovat. */
 async function existingSlugFor(website: string): Promise<string | null> {
     const { data } = await supabaseAdmin
@@ -203,15 +223,28 @@ async function main() {
         let done = 0
         await pool(readySlugs, parallel, async slug => {
             const logPath = join(logDir, `${slug}.log`)
-            console.log(`   ▶ ${slug} — start`)
-            // POZOR: u --generate-ideas je --count NA PILÍŘ, ne celkem. Pilíře jsou
-            // čtyři, takže tohle vyrobí ~4× tolik nápadů — dost na `count` postů
-            // s rezervou, ale ne stovky nápadů za stovky korun.
-            const perPillar = Math.max(3, Math.ceil(count / 3))
-            const a = await runCli(slug, ["--generate-ideas", `--count=${perPillar}`], logPath)
-            if (a !== 0) console.warn(`   ⚠️ ${slug}: nápady skončily se statusem ${a}`)
-            await sleep(2000)
-            const b = await runCli(slug, [`--count=${count}`], logPath)
+
+            const have = await existingPostCount(slug)
+            const missing = Math.max(0, count - have)
+            if (missing === 0) {
+                done++
+                console.log(`   ⏭  ${slug} — už má ${have}/${count} postů, přeskakuji (${done}/${readySlugs.length})`)
+                return
+            }
+
+            console.log(`   ▶ ${slug} — start (má ${have}, dogeneruje ${missing})`)
+
+            // Nápady se doplňují jen tomu, kdo je nemá — zásobník z přerušeného
+            // běhu je pořád dobrý. POZOR: u --generate-ideas je --count NA PILÍŘ,
+            // ne celkem; pilíře jsou čtyři.
+            if (have === 0) {
+                const perPillar = Math.max(3, Math.ceil(count / 3))
+                const a = await runCli(slug, ["--generate-ideas", `--count=${perPillar}`], logPath)
+                if (a !== 0) console.warn(`   ⚠️ ${slug}: nápady skončily se statusem ${a}`)
+                await sleep(2000)
+            }
+
+            const b = await runCli(slug, [`--count=${missing}`], logPath)
             if (b !== 0) console.warn(`   ⚠️ ${slug}: posty skončily se statusem ${b}`)
             done++
             const min = ((Date.now() - started) / 60000).toFixed(0)
