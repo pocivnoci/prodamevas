@@ -129,6 +129,9 @@ export function Landing({
           </Link>
 
           <div className="flex items-center gap-2 sm:gap-6">
+            <Link href="/portfolio" className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors hidden sm:block">
+              Portfolio
+            </Link>
             <Link href="#reference" className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors hidden sm:block">
               Ukázky
             </Link>
@@ -165,6 +168,7 @@ export function Landing({
             >
               <nav className="max-w-7xl mx-auto px-6 py-3 flex flex-col">
                 {[
+                  { href: "/portfolio", label: "Portfolio" },
                   { href: "#reference", label: "Ukázky" },
                   { href: "#pricing", label: "Ceník" },
                   { href: "/login", label: "Přihlásit se" },
@@ -572,6 +576,7 @@ export function Landing({
           <div>
             <h4 className="font-bold mb-5 text-white/70 tracking-widest uppercase text-[10px]">Produkt</h4>
             <ul className="space-y-3 text-[10px] tracking-wider uppercase text-white/30 font-bold">
+              <li><Link href="/portfolio" className="hover:text-white transition-colors">Portfolio</Link></li>
               <li><Link href="#reference" className="hover:text-white transition-colors">Ukázky</Link></li>
               <li><Link href="#pricing" className="hover:text-white transition-colors">Ceník</Link></li>
               <li><Link href="/blog" className="hover:text-white transition-colors">Blog</Link></li>

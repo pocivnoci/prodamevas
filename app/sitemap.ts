@@ -1,5 +1,6 @@
 import { MetadataRoute } from 'next'
 import { getAllArticleMeta } from '@/lib/blog'
+import { PORTFOLIO_BRANDS } from '@/lib/portfolio-data'
 
 export default function sitemap(): MetadataRoute.Sitemap {
     const baseUrl = 'https://chrlit.cz'
@@ -15,6 +16,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
             url: `${baseUrl}/blog`,
             lastModified: new Date(),
             changeFrequency: 'weekly',
+            priority: 0.7,
+        },
+        {
+            url: `${baseUrl}/portfolio`,
+            lastModified: new Date(),
+            changeFrequency: 'monthly',
             priority: 0.7,
         },
         {
@@ -56,5 +63,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
         priority: 0.6,
     }))
 
-    return [...staticRoutes, ...articleRoutes]
+    const portfolioRoutes: MetadataRoute.Sitemap = PORTFOLIO_BRANDS
+        .filter(b => b.posts.length > 0)
+        .map(b => ({
+            url: `${baseUrl}/portfolio/${b.slug}`,
+            lastModified: new Date(),
+            changeFrequency: 'monthly' as const,
+            priority: 0.6,
+        }))
+
+    return [...staticRoutes, ...articleRoutes, ...portfolioRoutes]
 }
