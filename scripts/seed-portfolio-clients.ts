@@ -98,7 +98,36 @@ async function existingPostCount(slug: string): Promise<number> {
         .select("id", { count: "exact", head: true })
         .eq("client_id", client.id)
         .is("revision_of", null)
+        // Reely se v portfoliu nezobrazují, takže se ani nepočítají. Kdyby se
+        // počítaly, značka se 4 viditelnými a 8 skrytými reely by vypadala hotově.
+        .neq("media_type", "reel")
+        .not("image_url", "is", null)
     return count ?? 0
+}
+
+/**
+ * Připne VŠECHNY formáty značky na jednoduchý obrázek.
+ *
+ * Portfolio ukazuje jen obrázkové příspěvky — karusel ani reel tam nepatří.
+ * `config.postFormats[typ]` je v `getPostFormat()` nejvyšší priorita, takže
+ * přebije i konvenci podle názvu formátu (`carousel_*` by jinak vyrobil karusel
+ * bez ohledu na cokoli jiného).
+ */
+async function pinFormatsToImage(slug: string): Promise<void> {
+    const { data: client } = await supabaseAdmin
+        .from("clients").select("id, config").eq("slug", slug).maybeSingle()
+    if (!client) return
+
+    const cfg = (client.config as any) || {}
+    const types: string[] = cfg.postTypes ?? []
+    if (types.length === 0) return
+
+    const formats: Record<string, unknown> = { ...(cfg.postFormats ?? {}) }
+    for (const t of types) {
+        formats[t] = { aspectRatio: "4:5", medium: "image", overlayStyle: "default" }
+    }
+    cfg.postFormats = formats
+    await supabaseAdmin.from("clients").update({ config: cfg }).eq("id", client.id)
 }
 
 /** Hledá podle webu, ne podle jména — slug se odvozuje z názvu, který může driftovat. */
@@ -279,6 +308,7 @@ async function main() {
             }
 
             console.log(`   ▶ ${slug} — start (má ${have}, dogeneruje ${missing})`)
+            await pinFormatsToImage(slug)
 
             // Nápady se doplňují jen tomu, kdo je nemá — zásobník z přerušeného
             // běhu je pořád dobrý. POZOR: u --generate-ideas je --count NA PILÍŘ,
