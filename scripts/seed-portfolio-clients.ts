@@ -11,6 +11,7 @@
  *   npx tsx scripts/seed-portfolio-clients.ts                     # klienti + 12 postů each
  *   npx tsx scripts/seed-portfolio-clients.ts --only=portu,znovin --count=4
  *   npx tsx scripts/seed-portfolio-clients.ts --parallel=5     # kolik značek najednou (výchozí 3)
+ *   npx tsx scripts/seed-portfolio-clients.ts --reels          # ZAPNE reely (neprodáváme je, výchozí je bez nich)
  *
  * ⚠️ TYHLE FIRMY NEJSOU KLIENTI a nevědí o tom. Zakládají se s
  * `config.isPortfolio = true` a ZÁMĚRNĚ BEZ `isReference` — ten příznak sbírá
@@ -24,7 +25,7 @@
  */
 
 import { spawn } from "child_process"
-import { createWriteStream, mkdirSync } from "fs"
+import { createWriteStream, mkdirSync, existsSync, readFileSync, writeFileSync, unlinkSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
 import supabaseAdmin from "../supabase/admin"
@@ -111,12 +112,16 @@ async function existingSlugFor(website: string): Promise<string | null> {
  * Pustí CLI a počká na konec. Výstup jde do souboru, ne na terminál — při
  * souběžném běhu by se hlášky deseti značek proplétaly do nečitelné kaše.
  */
-function runCli(slug: string, extraArgs: string[], logPath: string): Promise<number> {
+function runCli(slug: string, extraArgs: string[], logPath: string, reelsEnabled: boolean): Promise<number> {
     return new Promise(resolve => {
         const args = ["tsx", "instagram/cli.ts", `--config=${slug}`, ...extraArgs]
         const log = createWriteStream(logPath, { flags: "a" })
         log.write(`\n$ npx ${args.join(" ")}\n`)
-        const child = spawn("npx", args, { env: process.env, stdio: ["ignore", "pipe", "pipe"] })
+        // REELY VYPNUTÉ. Neprodáváme je, takže portfolio nemá důvod je vyrábět —
+        // a stojí ~34 Kč za kus proti ~5 Kč za obrázek. Engine je tímhle vypínačem
+        // potichu přepíše na karusely. Zapnout jde přes `--reels`.
+        const env = reelsEnabled ? process.env : { ...process.env, REELS_ENABLED: "0" }
+        const child = spawn("npx", args, { env, stdio: ["ignore", "pipe", "pipe"] })
         child.stdout.pipe(log)
         child.stderr.pipe(log)
         child.on("close", code => { log.end(); resolve(code ?? 1) })
@@ -124,6 +129,44 @@ function runCli(slug: string, extraArgs: string[], logPath: string): Promise<num
 }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+const LOCK = join(tmpdir(), "chrlit-portfolio.lock")
+
+/**
+ * Zámek proti souběžnému běhu.
+ *
+ * Dopočet chybějících postů čte stav z databáze na začátku značky. Když běží dva
+ * průchody naráz, oba si spočítají tentýž schodek a oba ho zaplní — značka pak
+ * skončí se šestnácti posty místo dvanácti a zaplatí se to dvakrát. Přesně tohle
+ * se stalo při prvním ostrém běhu (13 postů navíc).
+ *
+ * Zámek drží PID, takže po pádu procesu se sám uvolní — jinak by stačilo jedno
+ * zabití úlohy a skript by šel spustit až po ručním smazání souboru.
+ */
+function acquireLock(): boolean {
+    if (existsSync(LOCK)) {
+        const pid = Number(readFileSync(LOCK, "utf-8").trim())
+        if (pid && pid !== process.pid) {
+            try {
+                process.kill(pid, 0)  // jen test existence, signál 0 nic nedělá
+                console.error(`❌ Portfolio už generuje jiný proces (PID ${pid}).`)
+                console.error("   Souběžný běh by dopočítal chybějící posty dvakrát a zaplatil je dvakrát.")
+                console.error(`   Když víš, že ten proces neběží: rm ${LOCK}`)
+                return false
+            } catch {
+                console.warn(`⚠️ Zámek po mrtvém procesu (PID ${pid}) — přebírám ho.`)
+            }
+        }
+    }
+    writeFileSync(LOCK, String(process.pid), "utf-8")
+    return true
+}
+
+function releaseLock(): void {
+    try {
+        if (existsSync(LOCK) && readFileSync(LOCK, "utf-8").trim() === String(process.pid)) unlinkSync(LOCK)
+    } catch { /* uvolnění zámku nesmí přebít výsledek běhu */ }
+}
 
 /**
  * Zpracuje značky souběžně. Každé volání CLI je vlastní proces, takže modulově
@@ -149,6 +192,7 @@ async function main() {
     const count = countArg ? parseInt(countArg.split("=")[1], 10) : 12
     const parallelArg = args.find(a => a.startsWith("--parallel="))
     const parallel = Math.max(1, parallelArg ? parseInt(parallelArg.split("=")[1], 10) : 3)
+    const reels = args.includes("--reels")
     const onlyArg = args.find(a => a.startsWith("--only="))
     const only = onlyArg ? onlyArg.split("=")[1].split(",").map(v => v.trim()).filter(Boolean) : null
 
@@ -170,6 +214,8 @@ async function main() {
         console.log("\n   Nic nezaloženo. Spusť bez --dry-run.\n")
         return
     }
+
+    if (!acquireLock()) process.exit(1)
 
     const adminUserId = await resolveAdminUserId()
     const readySlugs: string[] = []
@@ -239,12 +285,12 @@ async function main() {
             // ne celkem; pilíře jsou čtyři.
             if (have === 0) {
                 const perPillar = Math.max(3, Math.ceil(count / 3))
-                const a = await runCli(slug, ["--generate-ideas", `--count=${perPillar}`], logPath)
+                const a = await runCli(slug, ["--generate-ideas", `--count=${perPillar}`], logPath, reels)
                 if (a !== 0) console.warn(`   ⚠️ ${slug}: nápady skončily se statusem ${a}`)
                 await sleep(2000)
             }
 
-            const b = await runCli(slug, [`--count=${missing}`], logPath)
+            const b = await runCli(slug, [`--count=${missing}`], logPath, reels)
             if (b !== 0) console.warn(`   ⚠️ ${slug}: posty skončily se statusem ${b}`)
             done++
             const min = ((Date.now() - started) / 60000).toFixed(0)
@@ -265,7 +311,14 @@ async function main() {
     console.log("")
 }
 
-main().catch(err => {
-    console.error("💥 Portfolio selhalo:", err)
-    process.exit(1)
-})
+process.on("exit", releaseLock)
+process.on("SIGINT", () => { releaseLock(); process.exit(130) })
+process.on("SIGTERM", () => { releaseLock(); process.exit(143) })
+
+main()
+    .then(releaseLock)
+    .catch(err => {
+        releaseLock()
+        console.error("💥 Portfolio selhalo:", err)
+        process.exit(1)
+    })

@@ -138,9 +138,13 @@ async function main() {
                     ...(p.content_pillar ? { pillar: p.content_pillar as string } : {}),
                 }
             })
-            // Reel se dá přehrát i bez obálky, takže stačí video. Vypadává jen to,
-            // z čeho nezbylo vůbec nic — tedy záznam po selhaném renderu.
-            .filter(p => p.images.length > 0 || !!p.videoUrl)
+            // REELY SE DO PORTFOLIA NEDÁVAJÍ. Neprodáváme je (viz commit „přestat
+            // prodávat reels, které nefungují"), takže ukázat je zákazníkovi slibuje
+            // formát, který si nekoupí. Že jsou zároveň nejdražší na výrobu, je až
+            // druhý důvod.
+            .filter(p => p.mediaType !== "reel")
+            // Bez snímku není co ukázat — zbytek jsou záznamy po selhaném renderu.
+            .filter(p => p.images.length > 0)
 
         brands.push({
             slug: c.slug,
