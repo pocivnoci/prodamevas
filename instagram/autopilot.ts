@@ -36,6 +36,7 @@ import {
 } from "./service"
 import { withUsageScope, currentUsage } from "./usage-meter"
 import { computeSlotIntent, type SlotIntent } from "../lib/feed-pattern"
+import { matchProductInText } from "../lib/product-match"
 import { loadConfig } from "./configs"
 import type { ClientConfig, PostFormat, PostMedium } from "./configs/types"
 import { applyFormatClamps, liveKillSwitches, FEED_SAFE_RATIOS } from "./format-clamps"
@@ -126,6 +127,10 @@ async function getUsedIdeaIds(): Promise<Set<string>> {
 // ============================================
 // SINGLE POST GENERATION
 // ============================================
+
+/** Everything toSelectedProduct() needs. One list, three selects — a column added to
+ *  one branch but not the others is a product that renders without its line context. */
+const PRODUCT_COLUMNS = "id, name, type, slug, price, description, image_urls, line_id, line_step, line_role, specs, ig_product_lines(name)"
 
 /**
  * Intra-post checkpoint persisted to ig_jobs.result after the caption phase
@@ -526,7 +531,8 @@ export async function generateOnePost(options: {
     const _getPillarForType = createPillarMapper(config)
     const performance = options.performance || await analyzePerformance(config, _getPillarForType)
 
-    // 4b. Smart product selection — cooldown-based from ig_products
+    // 4b. Which product is this post about: explicit link → named in the approved copy
+    //     → cooldown pick from ig_products (see lib/product-match.ts for why)
     let selectedProduct: SelectedProduct | undefined = undefined
     let linkedProductId: string | undefined = undefined
 
@@ -540,7 +546,7 @@ export async function generateOnePost(options: {
         // otherwise render a foreign product into this client's post.
         const { data: dbProduct } = await supabaseAdmin
             .from("ig_products")
-            .select("id, name, type, slug, price, description, image_urls, line_id, line_step, line_role, specs, ig_product_lines(name)")
+            .select(PRODUCT_COLUMNS)
             .eq("id", explicitProductId)
             .eq("client_id", clientUuid)
             .single()
@@ -549,28 +555,50 @@ export async function generateOnePost(options: {
             linkedProductId = dbProduct.id
             console.log(`   🛍️ Explicit product (from DB): "${selectedProduct.name}"`)
         }
-    } else if (!ck && selectedType.uses_product) {
-        // Smart: cooldown-based selection from ig_products
-        const cooldownDays = config.productCooldownDays ?? 14
-        const cooldownDate = new Date()
-        cooldownDate.setDate(cooldownDate.getDate() - cooldownDays)
+    } else if (!ck) {
+        // The copy may already have named the product. A plan post arrives with its hook
+        // and topic ALREADY WRITTEN, so a cooldown pick here would attach whatever product
+        // happens to be least-recently-used — that is how a caption about the antinicotine
+        // programme got rendered with a children's session. If the approved copy names a
+        // catalog product, that product is the answer; cooldown never gets a vote.
+        const approvedCopy = [options.approvedHook, options.topic].filter(Boolean).join("\n")
+        if (approvedCopy.trim()) {
+            const { data: all } = await supabaseAdmin
+                .from("ig_products")
+                .select(PRODUCT_COLUMNS)
+                .eq("client_id", clientUuid)
+                .limit(50)
+            const hit = matchProductInText(all || [], approvedCopy)
+            if (hit) {
+                selectedProduct = toSelectedProduct(hit)
+                linkedProductId = hit.id
+                console.log(`   🛍️ Product named in copy: "${selectedProduct.name}"`)
+            }
+        }
 
-        const { data: candidates } = await supabaseAdmin
-            .from("ig_products")
-            .select("id, name, type, slug, price, description, image_urls, line_id, line_step, line_role, specs, ig_product_lines(name)")
-            .eq("client_id", clientUuid)
-            .or(`last_used_at.is.null,last_used_at.lt.${cooldownDate.toISOString()}`)
-            .order("last_used_at", { ascending: true, nullsFirst: true })
-            .limit(5)
+        if (!selectedProduct && selectedType.uses_product) {
+            // Smart: cooldown-based selection from ig_products
+            const cooldownDays = config.productCooldownDays ?? 14
+            const cooldownDate = new Date()
+            cooldownDate.setDate(cooldownDate.getDate() - cooldownDays)
 
-        if (candidates && candidates.length > 0) {
-            // Pick from top 3 least-recently-used (slight randomness to avoid predictability)
-            const pick = candidates[Math.floor(Math.random() * Math.min(3, candidates.length))]
-            selectedProduct = toSelectedProduct(pick)
-            linkedProductId = pick.id
-            console.log(`   🛍️ Smart product (cooldown ${cooldownDays}d): "${selectedProduct.name}"`)
-        } else {
-            console.log(`   ℹ️ All products in cooldown (${cooldownDays}d) — generating without product`)
+            const { data: candidates } = await supabaseAdmin
+                .from("ig_products")
+                .select(PRODUCT_COLUMNS)
+                .eq("client_id", clientUuid)
+                .or(`last_used_at.is.null,last_used_at.lt.${cooldownDate.toISOString()}`)
+                .order("last_used_at", { ascending: true, nullsFirst: true })
+                .limit(5)
+
+            if (candidates && candidates.length > 0) {
+                // Pick from top 3 least-recently-used (slight randomness to avoid predictability)
+                const pick = candidates[Math.floor(Math.random() * Math.min(3, candidates.length))]
+                selectedProduct = toSelectedProduct(pick)
+                linkedProductId = pick.id
+                console.log(`   🛍️ Smart product (cooldown ${cooldownDays}d): "${selectedProduct.name}"`)
+            } else {
+                console.log(`   ℹ️ All products in cooldown (${cooldownDays}d) — generating without product`)
+            }
         }
     }
 

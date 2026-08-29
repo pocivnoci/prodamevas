@@ -52,6 +52,9 @@ export const CATEGORY_DEFAULTS: Record<string, { industry: string; postTypes: st
     'poradce': { industry: 'Poradenství / Koučink', postTypes: ['tip', 'carousel', 'meme', 'behind_scenes'], audience: 'Podnikatelé, manažeři, lidé hledající osobní rozvoj, 25-50 let' },
     'fotograf': { industry: 'Fotografie / Kreativa', postTypes: ['behind_scenes', 'tip', 'product_drop', 'carousel'], audience: 'Páry, rodiny, firmy hledající profesionální foto, 25-45 let' },
     'app': { industry: 'Aplikace / SaaS', postTypes: ['product_drop', 'tip', 'carousel', 'behind_scenes'], audience: 'Tech-savvy uživatelé, freelanceři, startupy a malé týmy, 22-45 let' },
+    'ubytovani': { industry: 'Ubytování / Penzion', postTypes: ['tip', 'behind_scenes', 'recenze', 'product_drop'], audience: 'Páry na prodloužený víkend, rodiny s dětmi, turisté hledající klid mimo město, 28-60 let' },
+    'zdravi': { industry: 'Zdraví / Estetika', postTypes: ['before_after', 'tip', 'faq', 'behind_scenes'], audience: 'Lidé pečující o zdraví a vzhled, 25-60 let, rozhodují se podle důvěry a referencí' },
+    'reality': { industry: 'Reality / Realitní služby', postTypes: ['tip', 'carousel', 'recenze', 'behind_scenes'], audience: 'Lidé prodávající či kupující nemovitost, investoři, 28-55 let' },
     'jine': { industry: 'Služby', postTypes: ['tip', 'behind_scenes', 'product_drop', 'meme'], audience: 'Lokální komunita, potenciální zákazníci v okolí' },
 }
 

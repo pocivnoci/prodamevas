@@ -386,6 +386,10 @@ function OnboardingContent() {
                                             { id: 'remeslnik', label: 'Řemeslník' },
                                             { id: 'poradce', label: 'Poradce' },
                                             { id: 'fotograf', label: 'Fotograf' },
+                                            { id: 'ubytovani', label: 'Ubytování' },
+                                            { id: 'zdravi', label: 'Zdraví / estetika' },
+                                            { id: 'reality', label: 'Reality' },
+                                            { id: 'vinarstvi', label: 'Vinařství' },
                                             { id: 'jine', label: 'Jiné' },
                                         ].map(cat => (
                                             <button key={cat.id} type="button" onClick={() => setCategory(cat.id)}

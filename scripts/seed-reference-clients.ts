@@ -5,6 +5,7 @@
  *   npx tsx scripts/seed-reference-clients.ts                 # create configs + buckets only
  *   npx tsx scripts/seed-reference-clients.ts --generate      # also seed ideas + generate 7 posts/brand
  *   npx tsx scripts/seed-reference-clients.ts --generate --count=3
+ *   npx tsx scripts/seed-reference-clients.ts --generate --only=lnenka,nove-jadro
  *
  * Config creation is idempotent (skips brands whose slug already exists).
  * Generation is the slow/expensive part (real Gemini spend) — it spawns the
@@ -87,6 +88,97 @@ const BRANDS: Brand[] = [
     },
     {
         info: {
+            businessName: "Bistro Kořen",
+            category: "restaurace",
+            description: "Sezónní bistro, které vaří z toho, co zrovna roste. Krátký lístek, denní menu podle trhu a poctivé suroviny od lokálních farmářů. Bez zbytečné parády — jen dobré jídlo.",
+            products: "Denní menu, Sezónní předkrm, Burger z lokálního masa, Rybí speciál, Domácí limonáda, Nedělní brunch",
+            tone: "přímý, chutný, sousedský, bez pozlátka",
+            igHandle: "bistro.koren",
+            targetAudience: "Foodie komunita, kanceláře na obědy, páry na večeři, 25-50 let",
+        },
+        website: "https://bistro-koren.cz",
+        city: "Praha",
+    },
+    {
+        info: {
+            businessName: "Lněnka",
+            category: "eshop",
+            description: "Český e-shop s praným lnem — ložní prádlo, ubrusy a bytový textil, které stárnou hezky. Šijeme v malé dílně z evropského lnu, bez chemie a bez sezónních výprodejů.",
+            products: "Lněné povlečení, Lněné prostěradlo, Ubrus, Zástěra, Utěrky, Dárkový poukaz",
+            tone: "klidný, řemeslný, poctivý, hřejivý",
+            igHandle: "lnenka.cz",
+            targetAudience: "Ženy 28-55, které řeší domov, kvalitu a přírodní materiály; hledači dárků",
+        },
+        website: "https://lnenka.cz",
+        city: "Brno",
+    },
+    {
+        info: {
+            businessName: "Nové Jádro",
+            category: "remeslnik",
+            description: "Rekonstrukce koupelen a bytových jader na klíč. Jeden tým, jeden termín, jedna cena — od bourání po poslední silikon. Děláme to, co slíbíme, a uklidíme po sobě.",
+            products: "Rekonstrukce koupelny na klíč, Bytové jádro, Obklady a dlažba, Instalatérské práce, Návrh koupelny 3D, Cenová nabídka zdarma",
+            tone: "věcný, spolehlivý, řemeslný, bez keců",
+            igHandle: "nove.jadro",
+            targetAudience: "Majitelé bytů a domů před rekonstrukcí, 30-60 let, panelákové byty i novostavby",
+        },
+        website: "https://nove-jadro.cz",
+        city: "Plzeň",
+    },
+    {
+        info: {
+            businessName: "Penzion Tichá Voda",
+            category: "ubytovani",
+            description: "Malý penzion kousek od vody na Šumavě. Osm pokojů, sauna, snídaně z okolních statků a ticho, které se nedá koupit ve městě. Pes je vítaný.",
+            products: "Dvoulůžkový pokoj, Rodinný apartmán, Snídaně, Privátní sauna, Půjčovna kol, Víkendový balíček",
+            tone: "klidný, pohostinný, přírodní, nenucený",
+            igHandle: "penzion.tichavoda",
+            targetAudience: "Páry na prodloužený víkend, rodiny s dětmi, lidé utíkající z města, 28-60 let",
+        },
+        website: "https://penzion-ticha-voda.cz",
+        city: "Lipno nad Vltavou",
+    },
+    {
+        info: {
+            businessName: "Dentální studio Perla",
+            category: "zdravi",
+            description: "Zubní ordinace a dentální hygiena, kde se nikdo nebojí. Bereme čas na vysvětlování, ukazujeme, co děláme, a plán péče říkáme dopředu i s cenou.",
+            products: "Vstupní prohlídka, Dentální hygiena, Bělení zubů, Keramické fazety, Implantát, Neviditelná rovnátka",
+            tone: "vlídný, srozumitelný, odborný, uklidňující",
+            igHandle: "dentalni.perla",
+            targetAudience: "Lidé 25-60, kteří odkládají zubaře, rodiče řešící děti, zájemci o estetiku úsměvu",
+        },
+        website: "https://dentalni-studio-perla.cz",
+        city: "Hradec Králové",
+    },
+    {
+        info: {
+            businessName: "Klíč Reality",
+            category: "reality",
+            description: "Malá realitní kancelář pro Prahu a okolí. Prodáváme byty a domy tak, že víme, komu je prodáváme — příprava nemovitosti, fotky, staging a jednání za vás. Jedna zakázka, jeden makléř.",
+            products: "Prodej bytu, Prodej domu, Pronájem, Odhad ceny zdarma, Home staging, Hypoteční poradenství",
+            tone: "srozumitelný, férový, konkrétní, bez realitního žargonu",
+            igHandle: "klic.reality",
+            targetAudience: "Lidé prodávající zděděný nebo první byt, kupující rodiny, drobní investoři, 28-55 let",
+        },
+        website: "https://klic-reality.cz",
+        city: "Praha",
+    },
+    {
+        info: {
+            businessName: "Peníze v klidu",
+            category: "poradce",
+            description: "Finanční poradenství pro rodiny a OSVČ, které nezačíná pojistkou. Nejdřív se podíváme, kam peníze tečou, pak stavíme plán — rezerva, hypotéka, investice, důchod. Srozumitelně a bez provizních triků.",
+            products: "Finanční plán, Investiční portfolio, Hypotéka, Revize pojištění, Renta a důchod, Konzultace 60 minut",
+            tone: "klidný, vzdělávací, přímý, důvěryhodný",
+            igHandle: "penize.vklidu",
+            targetAudience: "Rodiny 28-45, OSVČ a mladí profesionálové, kteří chtějí mít ve financích systém",
+        },
+        website: "https://penize-v-klidu.cz",
+        city: "Brno",
+    },
+    {
+        info: {
             businessName: "Flowtask",
             category: "app",
             description: "Česká aplikace na řízení úkolů a projektů pro freelancery a malé týmy. Přehledné plánování, sdílené nástěnky a chytré připomínky — bez zbytečné složitosti. Vše na jednom místě, ať máte čas na práci, ne na organizování práce.",
@@ -159,16 +251,29 @@ async function main() {
     const countArg = args.find(a => a.startsWith("--count="))
     const count = countArg ? parseInt(countArg.split("=")[1], 10) : 7
 
+    // `--only=` drží náklady pod kontrolou: portfolio má 13 značek a generování
+    // je ta drahá část. Filtruje se slugem značky i kategorií (`--only=eshop`).
+    const onlyArg = args.find(a => a.startsWith("--only="))
+    const only = onlyArg ? onlyArg.split("=")[1].split(",").map(v => v.trim()).filter(Boolean) : null
+    const brands = only
+        ? BRANDS.filter(b => only.includes(slugify(b.info.businessName)) || only.includes(b.info.category))
+        : BRANDS
+    if (only && brands.length === 0) {
+        console.error(`❌ --only=${only.join(",")} nesedí na žádnou značku ani kategorii.`)
+        console.error(`   Dostupné: ${BRANDS.map(b => `${slugify(b.info.businessName)} (${b.info.category})`).join(", ")}`)
+        process.exit(1)
+    }
+
     console.log("\n" + "═".repeat(64))
     console.log("🌱 SEED REFERENCE BRANDS")
     console.log("═".repeat(64))
-    console.log(`   Brands: ${BRANDS.length} | Generate: ${doGenerate ? `yes (${count} posts each)` : "no (configs only)"}`)
+    console.log(`   Brands: ${brands.length}${only ? ` of ${BRANDS.length}` : ""} | Generate: ${doGenerate ? `yes (${count} posts each)` : "no (configs only)"}`)
 
     const adminUserId = await resolveAdminUserId()
     const createdSlugs: string[] = []
 
     // ── Phase 1: create configs + buckets ──
-    for (const brand of BRANDS) {
+    for (const brand of brands) {
         const slug = slugify(brand.info.businessName)
         console.log(`\n── ${brand.info.businessName} (${slug}) ──`)
 

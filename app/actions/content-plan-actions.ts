@@ -3,6 +3,7 @@
 import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess } from "@/lib/auth-guard"
 import { computeSlotIntents, ghostRolesForPreview, getPatternDef, type SlotIntent, type FeedPatternId, type VisualMode } from "@/lib/feed-pattern"
+import type { CatalogProduct } from "@/instagram/service"
 import type { ClientConfig } from "@/instagram/configs/types"
 
 // ─── Content Plan Preview (cheap text-only plan before expensive generation) ──
@@ -443,27 +444,31 @@ PRAVIDLA: Každý nápad použij MAXIMÁLNĚ jednou. Když se žádný nehodí, 
         // ─── Live product catalog (ig_products) — NOT config.products (frozen onboarding
         // snapshot): grounding the plan on the snapshot produced hooks naming deleted
         // products while the worker then picked a different live product at render time. ──
-        let catalogProducts: { name: string; type: string; price?: string; description?: string }[] = []
+        let catalogProducts: CatalogProduct[] = []
         try {
             const { getCatalogProducts } = await import("@/instagram/service")
             catalogProducts = await getCatalogProducts(clientId, config.products)
         } catch (e) {
             console.warn(`📋 [content-plan] catalog read failed — falling back to config snapshot: ${(e as Error)?.message}`)
-            catalogProducts = config.products || []
+            catalogProducts = (config.products || []).map(p => ({ ...p, type: p.type || "product", slug: p.slug || "" }))
         }
 
         // ─── Product focus: the campaign revolves around these. Ownership-validated against
         // ig_products (never trust ids from the browser — an unfiltered id is another
         // tenant's product leaking into this brand's plan). ──
-        let focusProducts: { id: string; name: string }[] = []
+        let focusProducts: { id: string; name: string; type?: string; price?: string; description?: string; imageUrl?: string }[] = []
         if (productIds?.length) {
             try {
                 const { data: owned } = await supabaseAdmin
                     .from("ig_products")
-                    .select("id, name")
+                    .select("id, name, type, price, description, image_urls")
                     .eq("client_id", clientId)
                     .in("id", productIds.slice(0, 10))
-                focusProducts = owned || []
+                focusProducts = (owned || []).map(p => ({
+                    id: p.id, name: p.name, type: p.type || undefined,
+                    price: p.price || undefined, description: p.description || undefined,
+                    imageUrl: p.image_urls?.[0] || undefined,
+                }))
                 if (focusProducts.length !== productIds.length) {
                     console.warn(`📋 [content-plan] product focus: ${productIds.length - focusProducts.length} id(s) rejected (not this client's)`)
                 }
@@ -471,8 +476,23 @@ PRAVIDLA: Každý nápad použij MAXIMÁLNĚ jednou. Když se žádný nehodí, 
                 console.warn(`📋 [content-plan] product focus skipped: ${e?.message}`)
             }
         }
+        // ─── The numbered list the planner links against. Focus products first (a campaign
+        // built around them must see them even if they sit past the catalog's display cut),
+        // then the rest of the live catalog. The NUMBER is the contract: the model returns
+        // `productIndex` and we turn it back into a real ig_products id — which is how a
+        // hook about the antinicotine programme stops arriving with a children's session
+        // attached. Only rows with an id are linkable (config.products snapshot has none). ──
+        const focusIds = new Set(focusProducts.map(p => p.id))
+        const plannerProducts: { id?: string; name: string; type?: string; price?: string; description?: string; imageUrl?: string }[] = [
+            ...focusProducts.filter(f => !catalogProducts.some(c => c.id === f.id)),
+            ...[...catalogProducts].sort((a, b) => Number(focusIds.has(b.id || "")) - Number(focusIds.has(a.id || ""))),
+        ].slice(0, 10)
+        const productNumbering = plannerProducts.length > 0
+            ? `## PRODUKTY ZNAČKY (${plannerProducts.length})\n${plannerProducts.map((p, i) => `${i + 1}. **${p.name}**${p.type ? ` (${p.type})` : ""}${p.price ? ` — ${p.price}` : ""}${p.description ? `: ${p.description.substring(0, 60)}` : ""}`).join("\n")}\n⚠️ Pro posty typu product_drop/produkt MUSÍŠ zmínit KONKRÉTNÍ produkt z tohoto seznamu v hooku!\n⚠️ Když post staví na některém z těchto produktů, vrať jeho ČÍSLO z tohoto seznamu v poli "productIndex" (jinak pole vynech). Podle tohoto čísla se k postu připojí správná produktová fotka — musí to být ten produkt, o kterém hook doopravdy mluví.\n`
+            : ""
+
         const productFocusSection = focusProducts.length > 0
-            ? `\n## 🎯 KAMPAŇ SE TOČÍ KOLEM TĚCHTO PRODUKTŮ (priorita nad ostatními):\n${focusProducts.map(p => `- **${p.name}**`).join("\n")}\n⚠️ Většina postů má stavět na některém z těchto produktů — každý ale z jiného úhlu (problém, který řeší; detail; použití; výsledek).\n`
+            ? `\n## 🎯 KAMPAŇ SE TOČÍ KOLEM TĚCHTO PRODUKTŮ (priorita nad ostatními):\n${focusProducts.map(p => `- **${p.name}** (č. ${plannerProducts.findIndex(pp => pp.id === p.id) + 1})`).join("\n")}\n⚠️ Většina postů má stavět na některém z těchto produktů — každý ale z jiného úhlu (problém, který řeší; detail; použití; výsledek).\n`
             : ""
 
         const goalSection = goal
@@ -489,7 +509,7 @@ Tón: ${config.brandVoice.voiceTraits?.join(", ")}
 ## ANTI-PATTERNS (NEPOUŽÍVEJ)
 ${config.brandVoice.antiPatterns?.join(", ")}
 
-${catalogProducts.length ? `## PRODUKTY ZNAČKY (${catalogProducts.length})\n${catalogProducts.slice(0, 10).map(p => `- **${p.name}** (${p.type})${p.price ? ` — ${p.price}` : ""}${p.description ? `: ${p.description.substring(0, 60)}` : ""}`).join("\n")}\n⚠️ Pro posty typu product_drop/produkt MUSÍŠ zmínit KONKRÉTNÍ produkt z tohoto seznamu v hooku!\n` : ""}
+${productNumbering}
 ${config.audiencePersonas?.length ? `## CÍLOVÉ PERSONY\n${config.audiencePersonas.map(p => `- **${p.label}** (${p.ageRange} let): Pain points: ${p.painPoints.slice(0, 2).join(", ")}`).join("\n")}\n` : ""}
 ${brandGroundingSection}${ideaBankSection}${topHooksSection}${deduplicationSection}${goalSection}${productFocusSection}${topicInstruction}
 ${count > 14 ? "\n## STRUKTURA\nRozděl do týdnů — každý týden má vlastní mini-téma.\n" : ""}`
@@ -504,7 +524,7 @@ ${count > 14 ? "\n## STRUKTURA\nRozděl do týdnů — každý týden má vlastn
             recentHooks,
             onStage: (progress, message) => planBreadcrumb({ progress, agent_message: message }),
         })
-        const concepts: { hookPreview: string; angle: string; topic: string; qualityScore?: number; ideaIndex?: number }[] = pipelineResult.concepts
+        const concepts: { hookPreview: string; angle: string; topic: string; qualityScore?: number; ideaIndex?: number; productIndex?: number }[] = pipelineResult.concepts
         const strategySummary = pipelineResult.strategySummary || undefined
         await planBreadcrumb({ progress: 92, agent_message: `📝 Plán: ${concepts.length}/${count}${pipelineResult.judged ? " · oponentura ✓" : ""}` })
 
@@ -545,8 +565,10 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
                     responseSchema: conceptSchema,
                 })
                 const fillMatch = fillRaw.match(/\[[\s\S]*\]/)
-                // Fill prompts have no bank section — strip any hallucinated ideaIndex
-                const stripIdeaIndex = (arr: any[]) => arr.map(c => ({ ...c, ideaIndex: undefined }))
+                // Fill prompts carry neither the idea bank nor the numbered product list —
+                // any index the model returns here points at a list it never saw. The copy
+                // still gets linked, just by the name it actually mentions.
+                const stripIdeaIndex = (arr: any[]) => arr.map(c => ({ ...c, ideaIndex: undefined, productIndex: undefined }))
                 if (fillMatch) {
                     const fillConcepts = JSON.parse(fillMatch[0])
                     if (Array.isArray(fillConcepts) && fillConcepts.length > 0) {
@@ -625,20 +647,44 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
             }
         })
 
-        // ─── Product focus: hand the chosen products to the posts that actually show a
-        // product, round-robin so a multi-product campaign spreads across them instead of
-        // hammering the first one. Post types that don't use a product (tips, behind-the-
-        // scenes…) are left alone — forcing a product into them is how you get a caption
-        // that mentions a product the image never shows. ──
-        if (focusProducts.length > 0) {
+        // ─── Link each post to the product it is actually ABOUT ────────────────────
+        // This used to be a blind round-robin over the focus products, which meant the
+        // attached product agreed with the hook only by luck ("Náš termobox udrží Brownie
+        // na čtyřech stupních" arriving with a different dessert's photo). Three sources,
+        // strongest evidence first:
+        //   1. the copy itself — the hook/topic literally names a catalog product, and the
+        //      caption will say that name, so nothing else may win;
+        //   2. the planner's own `productIndex` — what it MEANT the post to be about, even
+        //      when the hook stays coy about the name;
+        //   3. round-robin over the focus products — last resort, and only for post types
+        //      that show a product at all (forcing one into a behind-the-scenes post is how
+        //      you get a caption naming a product the image never shows).
+        const linkable = plannerProducts.filter((p): p is typeof p & { id: string } => !!p.id)
+        if (linkable.length > 0) {
+            const { matchProductInText } = await import("@/lib/product-match")
+            const stats = { named: 0, declared: 0, roundRobin: 0 }
             let rr = 0
-            for (const item of plan) {
-                if (!ptMap.get(item.postType)?.uses_product) continue
-                const p = focusProducts[rr++ % focusProducts.length]
-                item.productId = p.id
-                item.productName = p.name
-            }
-            console.log(`📋 [content-plan] product focus: ${focusProducts.length} product(s) across ${plan.filter(p => p.productId).length} post(s)`)
+            plan.forEach((item, i) => {
+                const ix = concepts[i]?.productIndex
+                const declared = typeof ix === "number" && Number.isInteger(ix) && ix >= 1 && ix <= plannerProducts.length
+                    ? plannerProducts[ix - 1]
+                    : undefined
+                const named = matchProductInText(linkable, `${item.hookPreview}\n${item.topic}\n${item.angle}`)
+                const usesProduct = !!ptMap.get(item.postType)?.uses_product
+
+                let chosen: { id?: string; name: string; imageUrl?: string } | undefined =
+                    named || (declared?.id ? declared : undefined)
+                if (chosen) { if (named) stats.named++; else stats.declared++ }
+                else if (focusProducts.length > 0 && usesProduct) {
+                    chosen = focusProducts[rr++ % focusProducts.length]
+                    stats.roundRobin++
+                }
+                if (!chosen?.id) return
+                item.productId = chosen.id
+                item.productName = chosen.name
+                item.productImage = chosen.imageUrl
+            })
+            console.log(`📋 [content-plan] product link: ${stats.named} podle textu · ${stats.declared} podle plánovače · ${stats.roundRobin} round-robin · ${plan.filter(p => !p.productId).length} bez produktu`)
         }
 
         // ─── Durable preview: persist as a 'draft' campaign so a refresh / closed tab doesn't
@@ -897,13 +943,24 @@ Příklad pro kategorii "Tipy" v pilíři "Edukace":
     }
 }
 
+/** A regenerated concept, plus the product it turned out to be about — the caller must
+ *  re-link, or the item keeps the chip of the product the OLD hook talked about. */
+export interface RegeneratedPlanItem {
+    hookPreview: string
+    angle: string
+    topic: string
+    productId?: string
+    productName?: string
+    productImage?: string
+}
+
 export async function regeneratePlanItem(
     projectSlug: string,
     postType: string,
     existingHooks: string[],
     userTopic?: string,
     medium?: "image" | "carousel" | "reel"
-): Promise<{ success: boolean; item?: { hookPreview: string; angle: string; topic: string }; error?: string }> {
+): Promise<{ success: boolean; item?: RegeneratedPlanItem; error?: string }> {
     const { trackSpend, spendClientId } = await import("@/instagram/spend-tracker")
     return trackSpend(
         "content_plan",
@@ -918,7 +975,7 @@ async function regeneratePlanItemInner(
     existingHooks: string[],
     userTopic?: string,
     medium?: "image" | "carousel" | "reel"
-): Promise<{ success: boolean; item?: { hookPreview: string; angle: string; topic: string }; error?: string }> {
+): Promise<{ success: boolean; item?: RegeneratedPlanItem; error?: string }> {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
         const { loadConfig } = await import("@/instagram/configs")
@@ -933,9 +990,13 @@ async function regeneratePlanItemInner(
             : ""
 
         // Live catalog, not the frozen config.products snapshot (see generateContentPlan)
-        const catalogProducts = await getCatalogProducts(clientId, config.products).catch(() => config.products || [])
-        const productsSection = catalogProducts.length
-            ? `## PRODUKTY (${catalogProducts.length})\n${catalogProducts.slice(0, 6).map(p => `- ${p.name} (${p.type})${p.price ? ` — ${p.price}` : ""}`).join("\n")}\n`
+        const catalogProducts: CatalogProduct[] = await getCatalogProducts(clientId, config.products)
+            .catch(() => (config.products || []).map(p => ({ ...p, type: p.type || "product", slug: p.slug || "" })))
+        // Numbered for the same reason as the full plan: a regenerated hook is about a
+        // DIFFERENT product than the one it replaces, so the item has to be re-linked.
+        const regenProducts = catalogProducts.slice(0, 6)
+        const productsSection = regenProducts.length
+            ? `## PRODUKTY (${regenProducts.length})\n${regenProducts.map((p, i) => `${i + 1}. ${p.name} (${p.type})${p.price ? ` — ${p.price}` : ""}`).join("\n")}\n⚠️ Když post staví na některém z nich, vrať jeho ČÍSLO v poli "productIndex" (jinak pole vynech).\n`
             : ""
 
         const prompt = `Jsi content stratég pro "${config.name}" (${config.website}).
@@ -968,7 +1029,7 @@ ${existingHooks.map(h => `- "${h}"`).join("\n")}
 ${medium && medium !== "reel" ? `- ⚠️ Tohle je ${medium === "carousel" ? "KARUSEL" : "JEDEN OBRÁZEK"} — hook ani angle NESMÍ slibovat "video", "Reel", "scénář" ani "za 60 sekund ti ukážu". Mluv o tom, co bude na obrázcích.` : ""}
 
 Vrať POUZE validní JSON:
-{ "hookPreview": "český hook max 12 slov BEZ emoji", "angle": "1 věta o přístupu", "topic": "3-5 slov" }`
+{ "hookPreview": "český hook max 12 slov BEZ emoji", "angle": "1 věta o přístupu", "topic": "3-5 slov"${regenProducts.length ? `, "productIndex": číslo produktu nebo vynech` : ""} }`
 
         // Single-item regen goes through the same Pro ladder as the plan itself —
         // a regenerated hook must not be weaker than the plan it replaces an item of.
@@ -982,9 +1043,30 @@ Vrať POUZE validní JSON:
         })
         const jsonMatch = raw.match(/\{[\s\S]*\}/)
         if (!jsonMatch) throw new Error("Invalid JSON response")
-        const item = JSON.parse(jsonMatch[0])
+        const parsed = JSON.parse(jsonMatch[0])
 
-        return { success: true, item }
+        // Same evidence order as generateContentPlan: what the copy names beats what the
+        // model declared. `productId: undefined` is a real answer — it clears a stale chip.
+        const { matchProductInText } = await import("@/lib/product-match")
+        const linkable = regenProducts.filter((p): p is CatalogProduct & { id: string } => !!p.id)
+        const ix = parsed.productIndex
+        const declared = typeof ix === "number" && Number.isInteger(ix) && ix >= 1 && ix <= regenProducts.length
+            ? regenProducts[ix - 1]
+            : undefined
+        const named = matchProductInText(linkable, `${parsed.hookPreview}\n${parsed.topic}\n${parsed.angle}`)
+        const product = named || (declared?.id ? declared : undefined)
+
+        return {
+            success: true,
+            item: {
+                hookPreview: parsed.hookPreview,
+                angle: parsed.angle,
+                topic: parsed.topic,
+                productId: product?.id,
+                productName: product?.id ? product.name : undefined,
+                productImage: product?.id ? product.imageUrl : undefined,
+            },
+        }
     } catch (err: any) {
         return { success: false, error: err?.message || String(err) }
     }

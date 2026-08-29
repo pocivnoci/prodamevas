@@ -59,7 +59,7 @@ const NO_PERF: PerformanceInsight = {
  * Jedno volání modelu; `responseSchema` je whitelist, takže co tu není, model
  * nevrátí (viz pravidlo „schéma a prompt se mění SPOLU").
  */
-async function analyzeBrand(b: BrandBasics): Promise<WebsiteAnalysis> {
+export async function analyzeBrand(b: BrandBasics): Promise<WebsiteAnalysis> {
     const schema = {
         type: "OBJECT" as any,
         properties: {

@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "guard": "tsx test-beta-e2e.ts && tsx scripts/test-prompt-assembly.ts && tsx scripts/test-feed-pattern.ts && tsx scripts/test-schedule-planner.ts && tsx scripts/test-product-lines.ts && tsx scripts/test-product-url.ts &&tsx scripts/test-print-pipeline.ts && tsx scripts/test-usage-meter.ts && tsx scripts/test-customer-notices.ts && tsx scripts/test-sales-agent.ts && tsx scripts/test-super-admins.ts && tsx scripts/check-legal-identity.ts"
+    "guard": "tsx test-beta-e2e.ts && tsx scripts/test-prompt-assembly.ts && tsx scripts/test-feed-pattern.ts && tsx scripts/test-schedule-planner.ts && tsx scripts/test-product-lines.ts && tsx scripts/test-product-url.ts && tsx scripts/test-product-link.ts && tsx scripts/test-portfolio-reels.ts &&tsx scripts/test-print-pipeline.ts && tsx scripts/test-usage-meter.ts && tsx scripts/test-customer-notices.ts && tsx scripts/test-sales-agent.ts && tsx scripts/test-super-admins.ts && tsx scripts/check-legal-identity.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.109.0",

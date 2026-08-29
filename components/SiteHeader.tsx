@@ -21,6 +21,9 @@ export function SiteHeader() {
                     <Link href="/blog" className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors hidden sm:block">
                         Blog
                     </Link>
+                    <Link href="/portfolio" className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors hidden sm:block">
+                        Portfolio
+                    </Link>
                     <Link href="/#reference" className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors hidden sm:block">
                         Ukázky
                     </Link>
