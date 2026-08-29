@@ -138,13 +138,14 @@ async function main() {
                     ...(p.content_pillar ? { pillar: p.content_pillar as string } : {}),
                 }
             })
-            // REELY SE DO PORTFOLIA NEDÁVAJÍ. Neprodáváme je (viz commit „přestat
-            // prodávat reels, které nefungují"), takže ukázat je zákazníkovi slibuje
-            // formát, který si nekoupí. Že jsou zároveň nejdražší na výrobu, je až
-            // druhý důvod.
-            .filter(p => p.mediaType !== "reel")
-            // Bez snímku není co ukázat — zbytek jsou záznamy po selhaném renderu.
-            .filter(p => p.images.length > 0)
+            // Reely v portfoliu ZŮSTÁVAJÍ, ale stránka je označuje jako beta —
+            // neprodávají se (viz commit „přestat prodávat reels, které nefungují"),
+            // takže bez štítku by slibovaly formát, který si zákazník nekoupí.
+            // Vyrábět nové je pořád zbytečné: generátor jede s REELS_ENABLED=0.
+            //
+            // Vypadává jen to, z čeho nezbylo nic — záznam po selhaném renderu.
+            // Reel se dá přehrát i bez obálky, takže tomu stačí video.
+            .filter(p => p.images.length > 0 || !!p.videoUrl)
 
         brands.push({
             slug: c.slug,

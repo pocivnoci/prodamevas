@@ -1,15 +1,16 @@
 /**
- * Portfolio nesmí vyrábět ani ukazovat reely — statické kontroly (bez sítě, bez DB).
+ * Reely v portfoliu musí být označené jako beta — statické kontroly (bez sítě, bez DB).
  *   npx tsx scripts/test-portfolio-reels.ts
  *
- * Reely se neprodávají (viz „přestat prodávat reels, které nefungují"). Portfolio
- * je přesto jednou vyrobilo a vystavilo: 46 ze 118 příspěvků, 39 % obsahu, který
- * si zákazník nemůže koupit — a ~1 376 Kč, protože reel stojí ~34 Kč proti ~5 Kč
- * za obrázek.
+ * Reely se neprodávají (viz „přestat prodávat reels, které nefungují"), ale
+ * v portfoliu zůstávají, protože je čím ukázat, co engine umí. Bez štítku by ale
+ * slibovaly formát, který si zákazník nekoupí — stejná past jako tvrdit, že ty
+ * značky jsou klienti.
  *
- * Ta chyba nebyla v kódu, ale v úsudku: `REELS_ENABLED=1` v env vypadalo jako
- * pokyn. Env říká, co engine UMÍ, ne co se prodává — proto to hlídá aserce a ne
- * komentář, který se dá přečíst a přejít.
+ * Vyrábět nové je věc jiná: reel stojí ~34 Kč proti ~5 Kč za obrázek a jednou už
+ * si portfolio takhle vzalo ~1 376 Kč, protože `REELS_ENABLED=1` v env vypadalo
+ * jako pokyn. Env říká, co engine UMÍ, ne co je v nabídce — proto to hlídá aserce
+ * a ne komentář, který se dá přečíst a přejít.
  */
 
 import { readFileSync } from "fs"
@@ -26,43 +27,58 @@ function check(name: string, cond: boolean, detail?: string) {
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf-8")
 
-console.log("\n🎬 PORTFOLIO BEZ REELŮ\n")
+console.log("\n🎬 REELY V PORTFOLIU JSOU BETA\n")
 
-// ── 1. Vygenerovaná data ────────────────────────────────────────────────────
-const reels = PORTFOLIO_BRANDS.flatMap(b =>
-    b.posts.filter(p => p.mediaType === "reel").map(p => `${b.slug}/${p.id.slice(0, 8)}`)
+// ── 1. Stránky musí štítek vykreslit ────────────────────────────────────────
+const detail = read("app/portfolio/[slug]/page.tsx")
+check(
+    "detail značky vykresluje BETA štítek u reelu",
+    /mediaType\s*===\s*"reel"\s*&&\s*<BetaBadge\s*\/>/.test(detail) && /BETA/.test(detail)
 )
 check(
-    "v portfolio-data.ts není žádný reel",
-    reels.length === 0,
-    reels.length ? `${reels.length} reelů: ${reels.slice(0, 3).join(", ")}…` : undefined
+    "detail vysvětluje, že reely nejsou v nabídce",
+    /Reely jsou beta/.test(detail) && /nemáme v nabídce/.test(detail)
 )
 
-const withVideo = PORTFOLIO_BRANDS.flatMap(b => b.posts.filter(p => !!p.videoUrl))
-check("žádný příspěvek nenese video", withVideo.length === 0, `${withVideo.length} s videem`)
-
-// ── 2. Export je nesmí pustit dál ───────────────────────────────────────────
-const exporter = read("scripts/export-portfolio.ts")
+const index = read("app/portfolio/page.tsx")
 check(
-    "export filtruje mediaType !== \"reel\"",
-    /\.filter\(\s*p\s*=>\s*p\.mediaType\s*!==\s*"reel"\s*\)/.test(exporter)
+    "přehled značí reely jako beta",
+    /reel \(beta\)/.test(index) && /zatím nejsou v nabídce/.test(index)
 )
 
-// ── 3. Generátor je nesmí vyrobit ───────────────────────────────────────────
+// ── 2. Generátor je nesmí vyrábět bez vědomého pokynu ───────────────────────
 const seeder = read("scripts/seed-portfolio-clients.ts")
 check(
     "generátor spouští CLI s REELS_ENABLED=0",
     /REELS_ENABLED:\s*"0"/.test(seeder)
 )
 check(
-    "zapnutí reelů je vědomé (--reels), ne výchozí",
+    "zapnutí reelů vyžaduje vědomé --reels",
     /args\.includes\("--reels"\)/.test(seeder) && /reelsEnabled\s*\?\s*process\.env/.test(seeder)
 )
 
-// ── 4. Souběžný běh, který zaplatil posty dvakrát ───────────────────────────
+// ── 3. Souběžný běh, který zaplatil posty dvakrát ───────────────────────────
 check(
     "generátor drží zámek proti souběžnému běhu",
     /acquireLock\(\)/.test(seeder) && /releaseLock\(\)/.test(seeder)
+)
+
+// ── 4. Data musí zůstat zobrazitelná ────────────────────────────────────────
+const broken = PORTFOLIO_BRANDS.flatMap(b =>
+    b.posts.filter(p => p.images.length === 0 && !p.videoUrl).map(p => `${b.slug}/${p.id.slice(0, 8)}`)
+)
+check(
+    "žádný příspěvek není bez média",
+    broken.length === 0,
+    broken.length ? `${broken.length}: ${broken.slice(0, 3).join(", ")}…` : undefined
+)
+
+const reels = PORTFOLIO_BRANDS.flatMap(b => b.posts.filter(p => p.mediaType === "reel"))
+const reelsWithoutVideo = reels.filter(p => !p.videoUrl)
+check(
+    "každý reel nese video",
+    reelsWithoutVideo.length === 0,
+    `${reelsWithoutVideo.length} z ${reels.length} bez videa`
 )
 
 console.log("\n" + "─".repeat(50))

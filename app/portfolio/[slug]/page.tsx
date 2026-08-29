@@ -43,6 +43,21 @@ const TYPE_LABEL: Record<PortfolioPost["mediaType"], string> = {
     post: "Příspěvek",
 }
 
+/**
+ * Reely jsou v nabídce jako beta a stránka to musí říct.
+ *
+ * Ukázat je bez štítku znamená slíbit formát, který si zákazník zatím nekoupí —
+ * stejná past jako tvrdit, že tyhle značky jsou klienti. Štítek je proto u typu,
+ * ne schovaný v poznámce pod čarou.
+ */
+function BetaBadge() {
+    return (
+        <span className="px-2 py-0.5 bg-white/10 text-white/70 rounded-sm text-[8px] tracking-[0.2em]">
+            BETA
+        </span>
+    )
+}
+
 /** Médium příspěvku v plné velikosti. */
 function Media({ post, alt }: { post: PortfolioPost; alt: string }) {
     if (post.mediaType === "reel" && post.videoUrl) {
@@ -128,6 +143,18 @@ export default async function BrandPortfolio({ params }: { params: Promise<{ slu
                     <p className="text-white/50 text-xs leading-relaxed">{PORTFOLIO_DISCLAIMER}</p>
                 </div>
 
+                {brand.posts.some(p => p.mediaType === "reel") && (
+                    <div className="border-l-2 border-white/10 bg-white/[0.02] px-5 py-4 mb-10">
+                        <div className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5">
+                            Reely jsou beta
+                        </div>
+                        <p className="text-white/50 text-xs leading-relaxed">
+                            Video příspěvky zkoušíme a zatím je nemáme v nabídce. Texty, obrázky
+                            a karusely jsou běžná součást tarifů.
+                        </p>
+                    </div>
+                )}
+
                 <div className="space-y-16">
                     {brand.posts.map((post, i) => (
                         <article key={post.id} className="border-t border-white/5 pt-8">
@@ -135,6 +162,7 @@ export default async function BrandPortfolio({ params }: { params: Promise<{ slu
                                 <span className="text-white/50">{String(i + 1).padStart(2, "0")}</span>
                                 <span>·</span>
                                 <span>{TYPE_LABEL[post.mediaType]}</span>
+                                {post.mediaType === "reel" && <BetaBadge />}
                                 {post.pillar && (
                                     <>
                                         <span>·</span>

@@ -35,1141 +35,33 @@ export const PORTFOLIO_DISCLAIMER = "Nevyžádané koncepty. Příspěvky vygene
 
 export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
   {
-    "slug": "portu",
-    "company": "Portu",
-    "industry": "Online investování a finanční technologie",
-    "website": "https://www.portu.cz/",
-    "posts": [
-      {
-        "id": "9dd9b6ed-8c35-4b3c-a4b0-9f4ebfa8c42e",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787924856593-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787924889749-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787924918192-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787924948831-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787924979544-slide4.webp"
-        ],
-        "hook": "Konec léta, začátek starostí o portfolio? Ptáte se na totéž, co ostatní.",
-        "body": "Konec srpna znamená návrat do reality. Výdaje za školu rostou, účty po dovolené hlásí průvan a trhy se hýbou. Naše zákaznická podpora v čele s Kačkou teď denně řeší s desítkami z vás, jak v této situaci optimalizovat portfolia. Nejčastější dotaz? Dlouhodobý investiční produkt (DIP). Doporučujeme nenechávat ho až na konec roku. Včasnější nastavení vám umožní čerpat daňové výhody i případné příspěvky od zaměstnavatele postupně a rovnoměrně. Často s vámi také probíráme, že správná diverzifikace sice negarantuje absolutní ochranu, ale pomáhá spolehlivě zmírnit dopady tržních výkyvů. V Portu věříme, že i když je platforma automatizovaná a strategie se rebalancují samy, lidský přístup nenahradíš. Proto jsme tu pro vás na chatu i telefonu, připraveni rozebrat detailní strukturu vašeho portfolia a pomoct vám s efektivním nastavením.",
-        "cta": "Chcete si nastavit DIP tak, abyste mohli v klidu čerpat daňové výhody i příspěvky od zaměstnavatele? Zeptejte se naší podpory na https://www.portu.cz/",
-        "hashtags": [
-          "#portu",
-          "#portucz",
-          "#investujemesportu",
-          "#portuportfolio",
-          "#investovani",
-          "#dip",
-          "#osobnifinance",
-          "#uspech",
-          "#pasivniinvestovani"
-        ]
-      },
-      {
-        "id": "15bdb7e9-33ae-4733-9bb6-b860c6e0418a",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787931715639-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787931753058-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787931786415-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787931826910-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787931890534-slide4.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787931924707-slide5.webp"
-        ],
-        "hook": "Mýtus: Úspěšné investování zabere hodiny času denně",
-        "body": "Začátek školního roku znamená hromadu zařizování. Nákupy sešitů, placení obědů a kroužků. Kdo má v tomhle shonu čas ještě sledovat, jak se vyvíjí finanční trhy?\n\nČasto si myslíme, že investování znamená sedět hodiny u počítače a analyzovat data. Realita je ale jinde. Dnes už můžete využít chytré technologie, které pracují za vás.\n\nKdyž si nastavíte automatické investování, systém za vás hlídá takzvané rebalancování. Co to je? Když jedna část vašich investic vyroste a jiná klesne, systém je sám dorovná do původního, vámi zvoleného poměru. Vy tak nemusíte nic hlídat, ani se stresovat každým výkyvem trhu.\n\nVaše peníze se mohou zhodnocovat samy a vy máte čas na to podstatné – na rodinu.",
-        "cta": "Uložte si tento příspěvek jako připomínku, že investování nemusí být stres, a dejte nám do komentářů vědět, jaký mýtus o penězích jste dřív brali jako fakt.",
-        "hashtags": [
-          "#portu",
-          "#portucz",
-          "#investujemesportu",
-          "#portuportfolio",
-          "#investovani",
-          "#osobnifinance",
-          "#financnigramotnost",
-          "#rodinnefinance",
-          "#investice",
-          "#byznys"
-        ]
-      },
-      {
-        "id": "ab875bdf-321f-4880-a4c8-cc2e3c1fd713",
-        "mediaType": "post",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-posts/1787932449588.webp"
-        ],
-        "hook": "Nejčastější chyba začátečníků při prvním poklesu.",
-        "body": "Otevřeš apku a svítí tam minus pár stovek. Konec světa? Jak vidíš na grafice, existují dva tábory. Na jedné straně stojí Panikář. Vidí červená čísla, lekne se, hned vybírá peníze a se ztrátou odchází. Strach z trhů prostě vyhrál. Na druhé straně je Klidný stratég. Chápe, že krátkodobé výkyvy k investování přirozeně patří. Místo stresu vezme peníze z čerstvé výplaty a pošle další vklad, protože se soustředí na svůj cíl za pět nebo deset let. Trhy občas klesnou, to je fakt. Rozhoduje ale tvoje reakce.",
-        "cta": "Do kterého tábora patříš ty? Napiš nám do komentářů, jak si udržuješ chladnou hlavu. A pokud chceš začít budovat portfolio v klidu a bez stresu, mrkni na https://www.portu.cz/",
-        "hashtags": [
-          "#portu",
-          "#portucz",
-          "#investujemesportu",
-          "#portuportfolio",
-          "#investovani",
-          "#osobnifinance",
-          "#dlouhodobeinvestovani",
-          "#fintechcz",
-          "#vzdelavani"
-        ]
-      },
-      {
-        "id": "a2331904-2dd5-43e5-ac4d-26860fa13c71",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787949467363-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787953199104-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787956756679-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787960570073-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787963109507-slide4.webp"
-        ],
-        "hook": "Jak začít investovat do nemovitostí s pár stovkami",
-        "body": "„Hledal jsem způsob, jak ochránit úspory pro rodinu. Chtěl jsem do realit, ale myslel jsem, že potřebuju miliony,“ říká třicátník Marek. Zní ti to povědomě? Konec srpna po dovolených často ukáže, jak rychle peníze mizí. Nechat je ležet na běžném účtu znamená jistou ztrátu.\n\nInvestice do realit přes Portu tohle řeší. Jak to funguje? Nemusíš kupovat celý byt. V aplikaci si jednoduše zapneš realitní strategii, nastavíš trvalý příkaz hned po výplatě a systém tvé peníze rozloží do skutečných budov. Získáš tak stabilní podíl na trhu s nemovitostmi a chráníš své finance před inflací bez obří hypotéky.",
-        "cta": "Začni stavět své realitní portfolio dřív, než tvé úspory ztratí hodnotu. Zjisti víc na https://www.portu.cz/p/investice-do-realit",
-        "hashtags": [
-          "#portu",
-          "#portucz",
-          "#investujemesportu",
-          "#portuportfolio",
-          "#investovani",
-          "#nemovitosti",
-          "#osobnifinance",
-          "#financnigramotnost",
-          "#slozenourocesni",
-          "#pasivniinvestovani"
-        ]
-      },
-      {
-        "id": "01723c93-8a08-4a74-9bd6-7220e87e525c",
-        "mediaType": "post",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-posts/1787970482929.webp"
-        ],
-        "hook": "Jak testujeme novinky dřív než vy.",
-        "body": "Často se ptáte: „Kdy už spustíte tu novou funkci v aplikaci?“ Zvlášť teď na konci léta, kdy mnozí po dovolených znovu optimalizují svá portfolia, je tlak na nové nástroje obrovský. My ale nehledáme zkratky. Každý detail prochází rukama našeho týmu vývojářů a nekompromisním zátěžovým testováním. Chceme si být absolutně jistí, že vaše správa financí zůstane bleskově rychlá, intuitivní a hlavně stoprocentně bezpečná. Raději investujeme dny do interního ladění kódu, než abychom riskovali sebemenší výpadek vaší platformy. Protože když jde o vaše peníze, polovičatá řešení prostě nebereme.",
-        "cta": "Co byste v aplikaci rádi viděli jako další vylepšení? Napište nám svůj nápad do komentářů hned teď, ať ho naši vývojáři mohou rovnou zařadit do plánu.",
-        "hashtags": [
-          "#portu",
-          "#portucz",
-          "#investujemesportu",
-          "#portuportfolio",
-          "#investovani",
-          "#vyvoj",
-          "#komunita",
-          "#budoucnost",
-          "#osobnifinance"
-        ]
-      },
-      {
-        "id": "ae578a64-b088-4619-8d88-5f8061e64d0c",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787973915350-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787973948720-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787973983474-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974019376-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974051364-slide4.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974082874-slide5.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974119999-slide6.webp"
-        ],
-        "hook": "Tvrdá data: Jak si reálně vede portfolio na míru?",
-        "body": "Konec srpna znamená návrat do reality a novou výplatu na účtu. Zatímco trhy po létě občas kolísají, my se díváme na tvrdá data. Jak si reálně vede Portu portfolio na míru? Historická data potvrzují, že akciová portfolia u nás dlouhodobě dosahují průměrného zhodnocení kolem 8–10 % p.a. Při dlouhodobém horizontu navíc široká diverzifikace pomáhá mírnit výkyvy a usiluje o dlouhodobý růst. Nemusíš nic manuálně rebalancovat, náš algoritmus to řeší za tebe. Jako racionální investor víš, že čas jsou peníze. Přidej k tomu Dlouhodobý investiční produkt (DIP) a maximalizuješ daňové odpočty i příspěvky od zaměstnavatele. Vše máš navíc neustále pod kontrolou přímo v naší mobilní aplikaci. Jaký rizikový profil sedí tobě? Dej nám vědět do komentářů.",
-        "cta": "Spočítej si, kolik můžeš získat. Nečekej a rovnou vyzkoušej kalkulačku na https://www.portu.cz/",
-        "hashtags": [
-          "#portu",
-          "#portucz",
-          "#investujemesportu",
-          "#portuportfolio",
-          "#investovani",
-          "#osobnifinance",
-          "#dip",
-          "#bohatstvi",
-          "#penize"
-        ]
-      },
-      {
-        "id": "f2f92e13-43b4-420a-b8ec-f3ccbf16b4ac",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974307843-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974345556-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974380311-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974415061-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974449497-slide4.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974482167-slide5.webp"
-        ],
-        "hook": "Mýtus: Pro výnos musíte kupovat jednotlivé akcie",
-        "body": "O víkendu nakoupíte sešity a dojde vám to. Děti rostou a za pár let budou potřebovat statisíce na vysokou školu nebo první bydlení. Jenže kdo z rodičů má čas denně analyzovat trhy? Mýtus říká, že musíte umět vybírat ty správné akcie. Omyl.\n\nŘešením je ETF. Představte si ho jako luxusní dárkový koš. Místo abyste sázeli všechno na jednu čokoládu (akcii), koupíte rovnou obří koš plný stovek nejlepších světových firem. Když jedna klopýtne, ostatní ji podrží. Získáte okamžitou diverzifikaci bez stresu.\n\nHistorický průměrný výnos globálních trhů se pohybuje kolem 8–10 % ročně. Zkrátka nastavíte trvalý příkaz a zbytek funguje sám, bez drahých a netransparentních poplatků tradičních bank.",
-        "cta": "Uložte si tento post hned teď, ať víte, jak na to, a napište nám do komentářů: Už dětem investujete do ETF, nebo se teprve chystáte začít?",
-        "hashtags": [
-          "#portu",
-          "#portucz",
-          "#investujemesportu",
-          "#portuportfolio",
-          "#investovani",
-          "#financnigramotnost",
-          "#rodinnefinance",
-          "#investice",
-          "#budoucnost",
-          "#slozenourocesni"
-        ]
-      },
-      {
-        "id": "2c9f732f-720a-4db2-b253-6af4d675539e",
-        "mediaType": "post",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-posts/1787975122196.webp"
-        ],
-        "hook": "Tohle Einstein nazval osmým divem.",
-        "body": "Máte po létě na účtu čerstvou výplatu. Skvělá chvíle zamyslet se, co s ní dál.\n\nSlyšeli jste někdy o složeném úročení? Slavný fyzik ho prý označil za osmý div světa. Ale víte, co to reálně znamená pro vaše peníze?\n\nPojďme si to otestovat. Co je podstatou složeného úročení?\n\nA) Získáváte úroky nejen ze svého vkladu, ale i z už připsaných úroků.\nB) Dostanete jednorázový finanční bonus za věrnost.\nC) Jde o garantovaný státní příspěvek.\n\nPochopení tohoto principu je klíčem k tomu, proč k investování nepotřebujete miliony. Stačí začít s málem a nechat čas pracovat.",
-        "cta": "Schválně, jaká je správná odpověď? Napište nám svůj tip do komentářů. A pokud chcete vidět reálná čísla, spočítejte si svůj potenciální výnos na kalkulačce na https://www.portu.cz/.",
-        "hashtags": [
-          "#portu",
-          "#portucz",
-          "#investujemesportu",
-          "#portuportfolio",
-          "#investovani",
-          "#osobnifinance",
-          "#slozeneuroceni",
-          "#financnigramotnost",
-          "#slozenourocesni",
-          "#penize"
-        ]
-      }
-    ]
-  },
-  {
-    "slug": "ambiente",
-    "company": "Ambiente",
-    "industry": "Gastronomie",
-    "website": "https://www.ambi.cz/",
-    "posts": [
-      {
-        "id": "0bd95a75-7054-46c2-92ec-99349338eccc",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787926579376-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787926609614-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787926638417-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787926668454-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787926701956-slide4.webp"
-        ],
-        "hook": "Svíčková nebo koprovka? Zvolte svého absolutního favorita",
-        "body": "Ať už jste tým svíčková, nebo nedáte dopustit na koprovku, obě spojuje jedno kuchařské tajemství. Jak na dokonale sametovou omáčku? Fígl našich šéfkuchařů tkví v chladném másle. Těsně před podáváním, když už omáčka nevaří, do ní rychle zašleháme kostičky ledového másla. To ji krásně zahustí, zjemní a dodá jí nepřekonatelný lesk. Vyzkoušejte tento trik doma! Nebo si ušetřete práci a nechte vaření na nás. Poslední srpnový pátek je tady, lidé se vrací do Prahy a naše zahrádky se rychle plní. Nenechte si ujít perfektní večeři a vyhněte se frustraci z beznadějně obsazených podniků. Která omáčka to u vás dnes vyhraje?",
-        "cta": "Rezervuj si svůj stůl ještě dnes na ambi.cz",
-        "hashtags": [
-          "#ambiente",
-          "#ambicz",
-          "#klubambiente",
-          "#jidlojezazitek",
-          "#svickova",
-          "#koprovka",
-          "#sefkuchar",
-          "#restaurace",
-          "#restauracepraha",
-          "#skvelejidlo"
-        ]
-      },
-      {
-        "id": "5666cda7-9ef3-4243-beea-a0e4ed366984",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787926953798-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787926993296-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787927028528-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787927069823-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787927107499-slide4.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787927144066-slide5.webp"
-        ],
-        "hook": "Tajemství steaku, který ohromí každou návštěvu",
-        "body": "Chystáš výjimečnou oslavu nebo výročí a chceš mít jistotu, že vše dopadne na jedničku? Klíčem k nezapomenutelnému večeru je poctivé řemeslo a suroviny, které mluví samy za sebe. Stařené hovězí je přesně ten zážitek, který tvé hosty zaručeně ohromí.\n\nOd pečlivého zrání, přes precizní řez, až po žár grilu a ten správný odpočinek masa – každý krok hraje roli. A to nejlepší? Když si u nás tenhle dokonalý kousek vychutnáš, sbíráš body za každé sousto v našem věrnostním klubu. Ty pak snadno proměníš za další gastronomické odměny.\n\nKonec léta si žádá pořádnou oslavu na jedné z našich zahrádek.",
-        "cta": "Kdo z tvých přátel ti dluží pořádný steak za odměnu? Označ ho v komentářích!",
-        "hashtags": [
-          "#ambiente",
-          "#ambicz",
-          "#klubambiente",
-          "#jidlojezazitek",
-          "#milujemejidlo",
-          "#starenehovezi",
-          "#anatomiechuti",
-          "#foodie",
-          "#vecere",
-          "#sefkuchar"
-        ]
-      },
-      {
-        "id": "bfecfbcb-42c7-40e9-9be1-7cd6582a3772",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787927951678-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787927990604-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787928032040-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787928066800-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787928104225-slide4.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787928137205-slide5.webp"
-        ],
-        "hook": "Anatomie chuti: Tajemství pečených letních rajčat",
-        "body": "Konec srpna je tady a s ním i poslední šance vychutnat si léto naplno. Než se přesuneme k těžším podzimním surovinám, chceme ti ukázat, jak z obyčejného rajčete děláme zážitek. Základem je nechat ho dozrát na slunci. Pak rajčata pomalu pečeme na 120 stupňů, dokud nezkaramelizují a nepustí tu nejsladší šťávu, kterou následně redukujeme na silnou esenci. Výsledek? Večeře na naší zahrádce, která chutná přesně jako to nejlepší z léta. Je to ideální kulisa pro rande nebo páteční setkání s přáteli po návratu z dovolené. Zastav se u nás a užij si večer, kde se o všechno postaráme my.",
-        "cta": "Kde letos plánuješ tu úplně poslední letní večeři pod širým nebem? Dej nám vědět do komentářů a ulož si tenhle post jako inspiraci pro svoje další rande.",
-        "hashtags": [
-          "#ambiente",
-          "#ambicz",
-          "#klubambiente",
-          "#jidlojezazitek",
-          "#ambienterestaurace",
-          "#anatomiechuti",
-          "#konecleta",
-          "#vecerevpraze",
-          "#restauracepraha",
-          "#skvelejidlo"
-        ]
-      },
-      {
-        "id": "c967b3e1-1518-4907-9338-87f87a842ff0",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787928373802-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787928412266-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787928448320-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787928483564-slide3.webp"
-        ],
-        "hook": "Hovězí z grilu, nebo radši neapolská pizza?",
-        "body": "Konec srpna je tady a s ním návrat z dovolených. Někdo se těší na poctivý kus masa z grilu, jiný nutně potřebuje pravou italskou pizzu. Který tábor jsi ty? Napiš nám to do komentářů! Blíží se oslava a ty si lámeš hlavu s dárkem, protože nevíš, do kterého tábora patří oslavenec? S dárkovou kartou Ambiente to nemusíš řešit. Daruješ mu totiž radost a svobodu volby. Pořídíš ji online za pár vteřin a oslavenec si už sám s úsměvem vybere, na co má zrovna chuť a kam vyrazí.",
-        "cta": "Pořiď dárkovou kartu ještě dnes na ambi.cz a nech výběr na nich.",
-        "hashtags": [
-          "#ambiente",
-          "#ambicz",
-          "#klubambiente",
-          "#jidlojezazitek",
-          "#darkovakarta",
-          "#darek",
-          "#kamvpraze",
-          "#dnesjem",
-          "#vecere"
-        ]
-      },
-      {
-        "id": "ac34e0fc-2765-4cb8-91ec-5f75d9a4e1eb",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787929062769-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787929093535-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787929125610-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787929158877-slide3.webp"
-        ],
-        "hook": "„Byl to nejlepší tatarák mého života!“",
-        "body": "Když nám hosté píšou podobné zprávy, máme radost na celý týden. Chceš přesně tenhle pocit dopřát někomu blízkému? Zvlášť teď, když se všichni vracejí z dovolených a chtějí si prodloužit léto u dobrého jídla. Zapomeň na zdlouhavé vymýšlení. Věrnostní karta klubu Ambiente je perfektní dárek, který vyřešíš za dvě minuty. Nabiješ ji na libovolnou částku a obdarovaný s ní zaplatí ve všech našich podnicích. Navíc získá přednostní přístup k novinkám a uvolněným místům na rezervace. Je to radost, kterou můžeš poslat e-mailem hned teď.",
-        "cta": "Pořiď Věrnostní kartu klubu Ambiente online a vyřeš dárek hned teď na https://www.ambi.cz/p/v-rnostn-karta-klubu-ambiente",
-        "hashtags": [
-          "#ambiente",
-          "#ambicz",
-          "#klubambiente",
-          "#jidlojezazitek",
-          "#darek",
-          "#gastrozazitek",
-          "#milujemejidlo",
-          "#restauracepraha",
-          "#restaurace",
-          "#sefkuchar"
-        ]
-      },
-      {
-        "id": "abf5e3de-5233-40c6-b1d7-14d0cd5760e8",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787929684831-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787929719083-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787929756280-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787929795479-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787929837532-slide4.webp"
-        ],
-        "hook": "Tajemství dokonalé omáčky? Čas.",
-        "body": "Chystáš výjimečnou večeři na závěr prázdnin a chceš, aby všechno bylo dokonalé? Základem každého silného zážitku na talíři je omáčka. Profíci vědí, že tajemství neleží v přidávání surovin, ale v čase. Náš demi-glace táhneme desítky hodin na mírném ohni. Voda se pomalu odpařuje a chuť se koncentruje do tmavé, silné esence, která promění jakékoliv maso v mistrovské dílo. Je to poctivé řemeslo, které zkrátka nejde uspěchat. Zkus si doma svůj oblíbený vývar svařit na třetinu objemu a uvidíš ten obrovský rozdíl.",
-        "cta": "Nech zdlouhavé vaření na nás a užij si s přáteli bezstarostný večer. Inspiraci pro svůj další kulinářský zážitek najdeš na ambi.cz.",
-        "hashtags": [
-          "#ambiente",
-          "#ambicz",
-          "#klubambiente",
-          "#jidlojezazitek",
-          "#ambiente.cz",
-          "#poctiveremeslo",
-          "#demiglace",
-          "#kulinarskyzazitek",
-          "#jidlo",
-          "#restaurace"
-        ]
-      },
-      {
-        "id": "2aff9875-c601-4902-a4d0-340c30a713c8",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930073679-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930108898-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930151384-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930189677-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930226767-slide4.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930266132-slide5.webp"
-        ],
-        "hook": "Syrové řemeslo, nebo hodiny v krémové omáčce?",
-        "body": "Konec srpna je tady, město se plní po dovolených a páteční večer si žádá pořádnou tečku za létem. Stoly se plní smíchem a před tebou i tvými přáteli leží to nejtěžší rozhodnutí. Zatímco tatarák vyžaduje nekompromisně čerstvé maso a precizní ruční škrábání, svíčková je ztělesněním trpělivosti. Hodiny pomalého pečení, restování zeleniny do zlatova a redukování omáčky, dokud není absolutně sametová. Jsou to dva naprosto odlišné přístupy k řemeslu, ale oba zaručí zážitek a atmosféru, na kterou se nezapomíná. Ideální moment svolat partu a nechat promluvit chuťové buňky.",
-        "cta": "Která z těchto dvou legend by u tebe vyhrála dnešní slavnostní večeři? Napiš nám svého favorita do komentářů a označ toho, s kým vyrazíš!",
-        "hashtags": [
-          "#ambiente",
-          "#ambicz",
-          "#klubambiente",
-          "#jidlojezazitek",
-          "#ambiente','#poctiveremeslo','#tatarak','#svickova','#patecnivecere",
-          "#poctivejidlo",
-          "#foodie",
-          "#dnesjem",
-          "#sefkuchar",
-          "#jidlo"
-        ]
-      },
-      {
-        "id": "5c051678-5698-485f-9708-ee8aeebac595",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930587002-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930624162-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930662299-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930694105-slide3.webp"
-        ],
-        "hook": "Klasická pečená husa, nebo odlehčené podzimní menu?",
-        "body": "Zlatavá kůrka, vůně poctivého výpeku a cinkání skleniček s mladým vínem ohlašují letošní Svatomartinské hody. U našich stolů tě čeká dokonalá souhra chutí a hřejivá atmosféra. Někdo nedá dopustit na křupavou husu s poctivým zelím, jiný raději objevuje odlehčené sezónní menu plné nových nápadů. Ať už patříš do jakéhokoliv týmu, ten nejlepší zážitek začíná u stolu, na který nemusíš čekat. Místa na tyhle oblíbené večery mizí rychle, ale zajistit si to své je otázka pár kliknutí. Napiš nám do komentářů, která varianta u tebe vítězí, a rovnou si naplánuj další skvělou večeři.",
-        "cta": "Rezervuj si svůj stůl ještě dnes na https://www.ambi.cz/",
-        "hashtags": [
-          "#ambiente",
-          "#ambicz",
-          "#klubambiente",
-          "#jidlojezazitek",
-          "#svatomartinskehody",
-          "#pecenahusa",
-          "#podzimnimenu",
-          "#gastronomie",
-          "#skvelejidlo"
-        ]
-      }
-    ]
-  },
-  {
-    "slug": "kadernictvi-klier",
-    "company": "Kadeřnictví Klier",
-    "industry": "Kadeřnictví a vlasová péče",
-    "website": "https://www.klier.cz/",
-    "posts": [
-      {
-        "id": "13b04b1b-2cf9-4ce6-af5a-3273b3338d10",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787926611133-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787926642373-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787926672307-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787926700205-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787926731712-slide4.webp"
-        ],
-        "hook": "Uhlazený culík nebo messy drdol do práce?",
-        "body": "Září je za dveřmi a s ním návrat do plného pracovního nasazení. Konec léta ale dává vlasům zabrat – slunce a voda je vysušují. Jak po ránu stihnout schůzky a vypadat skvěle, i když nestíháte?\n\nTajemství je ve správné přípravě. Před fénováním nedáme dopustit na Kérastase Blond Guard. Tahle bezoplachová péče okamžitě hydratuje vysušené délky, chrání blond barvu a funguje jako termoochrana. Vlasy jsou pak poddajné pro elegantní vysoký culík i ležérní messy drdol.\n\nPotřebujete po létě zastřihnout konečky nebo oživit barvu? V Klier jsme tu pro vás každý den, klidně i o víkendu. Zastavte se, kdykoliv vám to rozvrh dovolí.",
-        "cta": "Hlasujte v komentářích: vyhrává u vás pro běžný den plný schůzek spíše uhlazený culík, nebo ležérní messy drdol? 👇",
-        "hashtags": [
-          "#kadernictvi-klier",
-          "#kliercz",
-          "#kadernictviklier",
-          "#vlasovapece",
-          "#rannirutual",
-          "#kerastase",
-          "#zdravevlasy",
-          "#strihani",
-          "#peceosebe",
-          "#kadernictvi"
-        ]
-      },
-      {
-        "id": "77f3302a-f04e-47ee-993f-9f7a9b082b14",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787926868398-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787926925145-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787926964086-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787926998216-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787927036375-slide4.webp"
-        ],
-        "hook": "Který ranní styl do práce vyhraje?",
-        "body": "Konec srpna znamená jediné – návrat do plného pracovního nasazení. Ale co vaše vlasy po létě plném slunce a chlóru? Ať už do kanceláře zvolíte nedbalé vlny nebo uhlazený elegantní look, základem jsou zdravé vlasy. Pro vytížené profesionálky máme tajnou zbraň: Kérastase Chronologiste Overnight Sérum. Pracuje za vás, zatímco vy spíte. Intenzivně hydratuje vysušené konečky a ráno se probudíte s hebkými vlasy připravenými na jakýkoliv styling. Bez zdržování a bez stresu. Který účes (A nebo B) je váš favorit pro první zářijový týden? Dejte nám vědět do komentářů!",
-        "cta": "Zjistěte více o správné regeneraci po létě na našem webu https://www.klier.cz/ nebo se zastavte klidně o víkendu v našem salonu – bez objednání!",
-        "hashtags": [
-          "#kadernictvi-klier",
-          "#kliercz",
-          "#kadernictviklier",
-          "#vlasovapece",
-          "#zdravevlasy",
-          "#kerastase",
-          "#barvenivlasu",
-          "#peceosebe",
-          "#vlasy",
-          "#krasnevlasy"
-        ]
-      },
-      {
-        "id": "509e8df8-291f-45af-832a-e758b36b94ba",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787927948320-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787927989120-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928028216-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928062540-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928096208-slide4.webp"
-        ],
-        "hook": "Záchrana barvy na poslední chvíli: Peach Fuzz",
-        "body": "Kadeřník vám zrušil termín nebo domácí barvení nedopadlo podle představ? Do pondělního návratu do kanceláře zbývají 4 dny. Nenechte si zkazit první dojem. Záchrana existuje a nemusíte na ni čekat týdny.\n\nTrendy odstín Peach Fuzz je ideální pro rychlé oživení vybledlé letní blond i sjednocení nepovedené barvy. Tyhle teplé pastelové tóny sluší téměř každému a naši stylisté přesně ví, jak je namíchat pro váš tón pleti. Výsledek? Zářivé a zdravě vypadající vlasy plné života.\n\nPřijďte k nám do Klieru ještě dnes. Vezmeme vás okamžitě, bez objednání, ať můžete víkend začít s dokonalým pocitem.",
-        "cta": "Nečekejte na volný termín u kadeřníka, vezmeme vás hned! Najděte nejbližší pobočku na https://www.klier.cz/ a zachraňte svou barvu ještě dnes.",
-        "hashtags": [
-          "#kadernictvi-klier",
-          "#kliercz",
-          "#kadernictviklier",
-          "#peachfuzz",
-          "#vlasovetrendy",
-          "#barvenivlasu",
-          "#profesionalnikosmetika",
-          "#kadernik",
-          "#kadernictvi",
-          "#kerastasecz"
-        ]
-      },
-      {
-        "id": "41da8fb6-4c76-43bd-bc95-f74adb1065f5",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928317135-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928349085-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928391473-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928429882-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928500525-slide4.webp"
-        ],
-        "hook": "Dlouhé zničené konce nebo zdravý plný střih?",
-        "body": "Letní slunce dalo vlasům zabrat a vy se bojíte nůžek, abyste nepřišli o těžce vydřenou délku? Tady je pravda o největším vlasovém mýtu: pravidelné stříhání vlasy od kořínků neurychlí. Zastřižení ale funguje jako stopka pro roztřepené konce. Pokud je nezkrátíte, zlomí se samy výš a účes bude působit zplihle a řídce. Zvolte raději zdravý objem. Návrat do kanceláře po dovolené si žádá reprezentativní vzhled a vy nemáte čas čekat týdny na termín. V Klieru vás vezmeme hned, klidně po práci nebo o víkendu. Naši profíci zachrání vaše délky a dodají vlasům plnost. Který přístup preferujete vy? Napište nám do komentářů!",
-        "cta": "Rádi vám poradíme, jak zachránit délky. Zastavte se u nás, kdykoliv se vám to hodí. Svůj nejbližší salon najdete na https://www.klier.cz/",
-        "hashtags": [
-          "#kadernictvi-klier",
-          "#kliercz",
-          "#kadernictviklier",
-          "#zdravevlasy",
-          "#peceovlasy",
-          "#bezobjednani",
-          "#profesionalnikosmetika",
-          "#strihani",
-          "#kadernik",
-          "#krasa"
-        ]
-      },
-      {
-        "id": "328ac3ed-11bd-41a0-b591-927c7d30e823",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928650304-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928686029-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928726332-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928763232-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928803994-slide4.webp"
-        ],
-        "hook": "Mýtus: O víkendu dobrého kadeřníka neseženete",
-        "body": "Pondělí se blíží, návrat do kanceláře klepe na dveře a váš kadeřník na poslední chvíli zrušil termín? Nebo prostě jen zrcadlo hlásí, že ty letní experimenty potřebují okamžitý zásah odborníka?\n\nMýtus, že o víkendu kvalitní péči neseženete, rovnou mažeme. V našich salonech to v sobotu i v neděli žije pozitivní energií. Žádný stres, žádné čekání na volné okénko v diáři. Zastavte se u nás cestou z nákupu, dejte si skvělou kávu a nechte nás vykouzlit perfektní střih. Pracujeme na plné obrátky 7 dní v týdnu, abyste v pondělí zazářili.",
-        "cta": "Zastavte se v nejbližším salonu ještě tento víkend a zachraňte svůj pondělní start. Těšíme se na vás!",
-        "hashtags": [
-          "#kadernictvi-klier",
-          "#kliercz",
-          "#kadernictviklier",
-          "#klier",
-          "#vlasybezobjednani",
-          "#vikendovapece",
-          "#kadernik",
-          "#peceosebe",
-          "#krasa",
-          "#kerastasecz"
-        ]
-      },
-      {
-        "id": "74d21718-f94a-4180-a594-6189e30d7829",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787930013788-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787930050850-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787930084962-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787930124958-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787930196685-slide4.webp"
-        ],
-        "hook": "Ranní boj s drdolem nevyhrajete bez správného střihu.",
-        "body": "Znáte ten pocit? Ráno nestíháte, zkusíte vykouzlit ležérní drdol, ale v zrcadle vidíte spíš následky letního slunce a chlóru. Tvar je pryč a konečky volají o pomoc. Místo každodenního maskování problému to chce trvalé řešení. Základem bezstarostných rán je totiž precizní střih. Zastavte se u nás klidně cestou z kanceláře nebo o víkendu – vezmeme vás hned, bez stresu z objednávání. Čeká vás profesionální Konzultace účesu, kde společně vymyslíme styl, který se bude upravovat skoro sám. Vaše vlasy si zaslouží vypadat skvěle každý den.",
-        "cta": "Jaký je váš oblíbený záchranný ranní účes, když opravdu nestíháte? Podělte se s námi v komentářích!",
-        "hashtags": [
-          "#kadernictvi-klier",
-          "#kliercz",
-          "#kadernictviklier",
-          "#krasnevlasy",
-          "#vlasovapece",
-          "#bezobjednani",
-          "#promena",
-          "#barvenivlasu",
-          "#zdravevlasy",
-          "#strihani"
-        ]
-      },
-      {
-        "id": "523cdb28-069d-42e7-9197-554eabcbc660",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787930604846-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787930641830-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787930678731-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787930717166-slide3.webp"
-        ],
-        "hook": "Denní mytí vs dvakrát týdně. Co vyhraje?",
-        "body": "Konec srpna klepe na dveře a s ním i návrat do plného pracovního tempa. Ráno nestíháte a mytí vlasů je často rychlá záchrana. Ale je to správně?\n\nTým A myje denně. Pocit absolutní čistoty je super, ale po létě plném slunce a chlóru to může už tak suché konečky ještě víc vysušit.\n\nTým B myje 2-3x týdně. Za nás zlatý standard. Pokožka má čas vytvořit přirozený film, který unavené délky chrání a hydratuje.\n\nZáleží hlavně na vaší pokožce, ale kvalitní šampon je základ v obou případech. Do jakého týmu patříte vy? Hlasujte v komentářích! A pokud vaše vlasy po dovolené volají o pomoc, naše dveře jsou otevřené klidně i o víkendu.",
-        "cta": "Prozkoumejte tipy na správnou péči na https://www.klier.cz/ nebo se rovnou stavte na bezplatnou konzultaci.",
-        "hashtags": [
-          "#kadernictvi-klier",
-          "#kliercz",
-          "#kadernictviklier",
-          "#peceovlasy",
-          "#zdravevlasy",
-          "#vlasovaporadna",
-          "#kadernik",
-          "#promena",
-          "#vlasy",
-          "#strihani"
-        ]
-      }
-    ]
-  },
-  {
-    "slug": "rohlik-cz",
-    "company": "Rohlik.cz",
-    "industry": "Online prodej potravin a rychloobrátkového zboží",
-    "website": "https://www.rohlik.cz/",
-    "posts": [
-      {
-        "id": "dbb17268-8e02-41e5-aee8-ed388d3eaadf",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787927952436-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787927989425-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787928026001-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787928061425-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787928098125-slide4.webp"
-        ],
-        "hook": "Tajemství perfektního avokáda bez mačkání v obchodě",
-        "body": "Konec prázdnin se blíží, lednice po návratu z chalupy zeje prázdnotou a ty potřebuješ klidný víkendový brunch, než vypukne školní chaos. Znáš ten pocit, kdy máš chuť na avokádový toast se ztraceným vejcem, ale v obchodě najdeš jen tvrdé kameny nebo hnědou kaši?\n\nPřesně proto naši pickeři vybírají čerstvé ovoce a zeleninu s chirurgickou přesností za tebe. Zvládají hmatový test dlaní i kontrolu stopky, abys dostal kousky rovnou k nakousnutí a ušetřený čas mohl věnovat rodině nebo spánku.\n\nJaký je tvůj vysněný víkendový brunch? Napiš nám do komentářů, co budeš kuchtit ty!",
-        "cta": "Sdílej s námi svůj recept a to nejlepší ovoce a zeleninu na víkend pořídíš rovnou tady: https://www.rohlik.cz/p/ovoce-a-zelenina",
-        "hashtags": [
-          "#rohlikcz",
-          "#bozisluzba",
-          "#rohlik",
-          "#nakupdomu",
-          "#vikendovybrunch",
-          "#avokado",
-          "#cerstvezelenina",
-          "#bezstarosti",
-          "#casprosebe",
-          "#onlinepotraviny"
-        ]
-      },
-      {
-        "id": "6b869dd0-ab10-4f36-b1b9-f5ddc7e5eb5e",
-        "mediaType": "post",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-posts/1787928996870.webp"
-        ],
-        "hook": "Který košík tě dneska zachrání?",
-        "body": "Pátek večer a ty padáš únavou. Najednou pípne zpráva, že se blíží návštěva, nebo na tebe koukají hladové děti, které nutně potřebují rychlou večeři.\n\nKošík A: Sýrové prkénko, prosciutto a vychlazené prosecco pro nečekané hosty.\nKošík B: Hromada jogurtů, čerstvé mléko a mozzarella na bleskové těstoviny pro tvoji smečku.\n\nAť už řešíš cokoliv, nemusíš se oblékat a tahat těžké tašky s dětmi v závěsu. My za tebe pečlivě vybereme ty nejlepší kousky a do 60 minut zvoníme u dveří.",
-        "cta": "Napiš nám do komentářů, jestli jsi dneska tým A, nebo tým B! A pro bleskové doplnění zásob mrkni na https://www.rohlik.cz/p/ml-n-a-chlazen-",
-        "hashtags": [
-          "#rohlikcz",
-          "#bozisluzba",
-          "#rohlik",
-          "#nakupdomu",
-          "#soubojkosiku",
-          "#rychlynakup",
-          "#rodicovstvi",
-          "#farmarsketrhyonline",
-          "#casprosebe",
-          "#bezstarosti"
-        ]
-      },
-      {
-        "id": "cc3b3225-2d8b-4d35-8d46-55545d570674",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787929145747-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787929180722-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787929218605-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787929251770-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787929288004-slide4.webp"
-        ],
-        "hook": "Mýtus: Velký nákup znamená vždycky zničená záda",
-        "body": "Konec prázdnin, vracíš se z práce a doma prázdná lednice. Představa, že se potáhneš s balíky vody, těžkým melounem a taškami plnými jídla na víkend do třetího patra bez výtahu? Ne, díky.\n\nMýtus, že si pro pořádný nákup musíš dojít a odtahat si ho, je dávno pasé. Kurýr ti všechno vynese až ke dveřím v přesném 15minutovém okně. Ty ho zatím můžeš sledovat na mapě. A to nejlepší? Přiveze ti i čerstvé pečivo od lokálních pekařů a maso na gril, které dole na rohu neseženeš. Ušetřenou energii si schovej na víkend!",
-        "cta": "Jaký nejtěžší nákup jsi kdy musel tahat do schodů? Napiš nám to do komentářů! 👇",
-        "hashtags": [
-          "#rohlikcz",
-          "#bozisluzba",
-          "#rohlik",
-          "#nakupdomu",
-          "#bezstarosti",
-          "#nakupovani",
-          "#konecprazdnin",
-          "#dovozpotravin",
-          "#kvalitnijidlo",
-          "#onlinepotraviny"
-        ]
-      },
-      {
-        "id": "19db40f1-6ef3-4fdf-9746-f522bcaf3350",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787930598341-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787930627291-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787930665740-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787930699494-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787930734022-slide4.webp"
-        ],
-        "hook": "Tajemství sladkého melounu bez tahání do schodů",
-        "body": "Konec srpna, děti se chystají do školy a ty máš chuť na pořádně vychlazený meloun. Ale představa, že se s tou patnáctikilovou koulí táhneš do pátého patra bez výtahu? Peklo. Naštěstí na to máš nás. Náš kurýr ti tenhle sladký poklad vynese až ke dveřím s úsměvem. A jak víme, že bude dokonalý? Naši pickeři znají anatomii čerstvosti nazpaměť. Vybírají kusy s výrazným žlutým flekem, což znamená, že se meloun dlouho slunil, a se suchou stopkou zaručující hromadu cukru uvnitř. Doma ho pak nech v celku klidně na lince, rozkrojený zabal do fólie a šup s ním do lednice. Ušetři si záda pro to podstatné.",
-        "cta": "Nech tahání těžkých tašek na nás. Naplň lednici bez stresu na https://www.rohlik.cz/ a dej nám do komentářů vědět, jestli jsi tým meloun s peckami, nebo bez pecek!",
-        "hashtags": [
-          "#rohlikcz",
-          "#bozisluzba",
-          "#rohlik",
-          "#nakupdomu",
-          "#anatomiecerstvosti",
-          "#meloun",
-          "#leto",
-          "#dnesjim",
-          "#vikendovevareni",
-          "#dnesjem"
-        ]
-      }
-    ]
-  },
-  {
-    "slug": "koupelny-ptacek",
-    "company": "Koupelny Ptáček",
-    "industry": "Koupelnové vybavení a design",
-    "website": "https://www.koupelny-ptacek.cz/",
-    "posts": [
-      {
-        "id": "5c0aecc8-9d74-4dad-88ca-e7e369368196",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787926850640-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787926880604-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787926951117-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787926986932-slide3.webp"
-        ],
-        "hook": "Rychlá sprcha v bezúdržbové koupelně, nebo dlouhá relaxace ve vlastní wellness oáze.",
-        "body": "Řemeslníci už mají v kalendáři termín a vy pořád váháte. Rozumíme vám, vybrat ten správný styl pod tlakem blížící se rekonstrukce umí potrápit. Láká vás spíš praktický minimalismus s velkoformátovými obklady, které udržíte čisté za pár minut? Nebo sníte o luxusní hotelové oáze s volně stojící vanou, kde hodíte starosti za hlavu? Než k vám nastoupí obkladači, ujasněte si svou vizi v klidu a bez stresu. Který styl u vás vítězí? Napište nám do komentářů!",
-        "cta": "Ujasněte si vizi dřív, než u vás zazvoní řemeslníci. Objednejte si tištěný Katalog koupelen zdarma ještě dnes a urychlete svou rekonstrukci: https://www.koupelny-ptacek.cz/p/katalog-koupelen",
-        "hashtags": [
-          "#koupelnyptacek",
-          "#koupelny",
-          "#koupelnysnu",
-          "#koupelnovestudio",
-          "#rekonstrukcekoupelny",
-          "#koupelna",
-          "#inspirace",
-          "#inspiracebydleni",
-          "#dlazba",
-          "#keramikacatalano"
-        ]
-      },
-      {
-        "id": "237d1293-e8e2-49fd-878a-a43e174e2a45",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787927949451-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787927983931-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787928017565-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787928051393-slide3.webp"
-        ],
-        "hook": "Bílá klasika nebo odvážný mat? Co vyhrává?",
-        "body": "Září se blíží, ranní provoz v rodinné koupelně houstne a řemeslníci tlačí na termíny před topnou sezónou. Chápeme, že vybírat pod tlakem není ideální. Ať už jste zastánci nadčasové bílé, nebo vás láká italská elegance v matném provedení, sanitární keramika Catalano vyřeší obojí.\n\nJejí čisté linie zaručují bleskovou údržbu, takže ranní zmatek rychle uklidíte. A co je pro vás teď klíčové? Nemusíte na ni čekat týdny. Většinu modelů držíme skladem, aby vaše stavba nestála ani den zbytečně.\n\nJste spíš tým lesk, nebo mat? Dejte nám vědět do komentářů!",
-        "cta": "Řemeslníci nepočkají. Klikněte na odkaz a zajistěte si, že sanitární keramika Catalano dorazí včas, ať můžete plynule pokračovat v rekonstrukci: https://www.koupelny-ptacek.cz/p/sanit-rn-keramika-catalano",
-        "hashtags": [
-          "#koupelnyptacek",
-          "#koupelny",
-          "#koupelnysnu",
-          "#koupelnovestudio",
-          "#rekonstrukcekoupelny",
-          "#koupelna",
-          "#sanita",
-          "#koupelnovyobklad",
-          "#designinterieru",
-          "#sanitarnikeramika"
-        ]
-      },
-      {
-        "id": "50f1494d-cdb6-41e9-8dfb-20f70e0c67c4",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787928471909-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787928509204-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787928606989-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787928641894-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787928743795-slide4.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787928781379-slide5.webp"
-        ],
-        "hook": "Tahle chyba s osvětlením vám zkazí každé ráno.",
-        "body": "Školní rok je za dveřmi a ranní provoz v rodinné koupelně brzy otestuje vaše nervy. Pokud právě plánujete rekonstrukci, myslete na detaily, které nejdou vzít zpět. Spoléhat se jen na jedno centrální světlo na stropě znamená, že si u zrcadla budete stínit vlastním tělem. Holení nebo líčení se tak změní v každodenní boj.\n\nJak na to správně? Rozdělte koupelnu do tří zón. Potřebujete jasné denní světlo (okolo 4000K) zepředu u zrcadla, silné stropní pro úklid a teplé tlumené podsvícení (kolem 2700K) pro večerní vanu. Hlavní pravidlo: kabely se musí natáhnout ještě před pokládkou obkladů. Dodatečné úpravy znamenají zničený materiál a peníze navíc. Promyslete rozvody včas a ušetřete si starosti.",
-        "cta": "Plánujete novou koupelnu a nechcete udělat chybu hned na startu? Uložte si tenhle příspěvek, ať máte tahák pro elektrikáře po ruce, až na to přijde.",
-        "hashtags": [
-          "#koupelnyptacek",
-          "#koupelny",
-          "#koupelnysnu",
-          "#koupelnovestudio",
-          "#rekonstrukcekoupelny",
-          "#koupelna",
-          "#osvetleni",
-          "#bydleni",
-          "#inspiracebydleni",
-          "#rekonstrukce"
-        ]
-      },
-      {
-        "id": "39a279bf-62ed-44c1-9086-a8dfa4fd015b",
-        "mediaType": "post",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-posts/1787928902102.webp"
-        ],
-        "hook": "Řemeslníci tlačí a vy řešíte podkroví?",
-        "body": "Paní Lucie bojovala s každým centimetrem pod šikmým stropem. Řemeslníci měli nastoupit za týden a finální řešení chybělo. Znáte ten stres?\n\nNavrhli jsme vzdušný prostor s asymetrickou vanou, která chytře využívá sklon střechy. Tady jsou dvě cesty, jak tohoto vzhledu dosáhnout.\n\nPrvní volba? Prémiová italská sanita Catalano s minimalistickými liniemi pro maximální luxus.\n\nDruhá cesta? Cenově dostupnější, ale designově srovnatelná alternativa.\n\nTo hlavní: obě varianty máme skladem. Vaši stavbaři nebudou čekat ani den. Získejte jistotu dřív, než se poprvé kopne do zdi a vyhněte se zpoždění.",
-        "cta": "Rezervujte si termín pro přesný 3D návrh a zjistěte finální cenu materiálu na https://www.koupelny-ptacek.cz/ ještě dnes.",
-        "hashtags": [
-          "#koupelnyptacek",
-          "#koupelny",
-          "#koupelnysnu",
-          "#koupelnovestudio",
-          "#podkrovnikoupelna",
-          "#rekonstrukcekoupelny",
-          "#koupelnanaklic",
-          "#malakoupelna",
-          "#koupelnovyobklad",
-          "#rekonstrukce"
-        ]
-      },
-      {
-        "id": "ba7c0c5c-4f9c-4822-8d58-ca26712bc1d4",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787929128280-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787929162419-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787929194480-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787929231448-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787929268098-slide4.webp"
-        ],
-        "hook": "Jak opticky nafouknout malou koupelnu bez bourání",
-        "body": "Řemeslníci mají nastoupit co nevidět a vy pořád nevíte, jak do panelákového jádra vměstnat vše potřebné? Chápu vás. Každý centimetr hraje roli a rozpočet není nafukovací. Prostor ale nafouknout jde. Alespoň opticky. Tajemství tkví ve třech krocích z našeho katalogu: 1. Velkoformátové obklady ve světlých tónech. Zredukují počet spár. Stěny se vizuálně slijí v jednu plochu. 2. Velké zrcadlo bez masivního rámu. Odráží světlo a klame mozek. Místnost najednou působí dvakrát tak hluboká. 3. Závěsná sanita a nábytek. Když vidíte podlahu až ke zdi, prostor dýchá. A navíc se skvěle udržuje. Všechny tyto prvky máme skladem, takže můžete začít s realizací bez zbytečného čekání na materiál.",
-        "cta": "Inspirujte se konkrétními řešeními pro malé koupelny v našem online katalogu a ušetřete si starosti s plánováním na https://www.koupelny-ptacek.cz/",
-        "hashtags": [
-          "#koupelnyptacek",
-          "#koupelny",
-          "#koupelnysnu",
-          "#koupelnovestudio",
-          "#malakoupelna",
-          "#rekonstrukce",
-          "#koupelnovainspirace",
-          "#sanitarnikeramika",
-          "#koupelnovyobklad"
-        ]
-      },
-      {
-        "id": "7649bab8-96cc-47ae-8127-b9c35dc1efad",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787929979619-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787930017164-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787930052759-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787930086800-slide3.webp"
-        ],
-        "hook": "Řemeslníci za dveřmi. Rychlá sprcha, nebo pomalá vana?",
-        "body": "Září klepe na dveře a s ním i každodenní ranní shon. Navíc řemeslníci už mají termín a vy pořád váháte nad finálním rozložením? Chápeme vás. Vybrat mezi praktickým sprchovým koutem pro rychlá rána a volně stojící vanou pro večerní únik před stresem není snadné. Každé řešení má své kouzlo. Důležité ale je, že u nás nemusíte dělat kompromisy kvůli termínům. Ať už se rozhodnete pro jakýkoliv tým, obě varianty máme skladem a připravené k okamžitému odběru. Která varianta vyhraje u vás doma? Hlasujte v komentářích! Pokud si nejste jistí, naši specialisté vám zdarma připraví přesný 3D návrh.",
-        "cta": "Nenechávejte rozhodnutí na poslední chvíli. Prolistujte si náš online katalog na https://www.koupelny-ptacek.cz/ ještě dnes a rezervujte si schůzku.",
-        "hashtags": [
-          "#koupelnyptacek",
-          "#koupelny",
-          "#koupelnysnu",
-          "#koupelnovestudio",
-          "#rekonstrukcekoupelny",
-          "#koupelna",
-          "#sprchovykout",
-          "#koupelnovydesign",
-          "#rekonstrukce",
-          "#sanitarnikeramika"
-        ]
-      },
-      {
-        "id": "5df6962d-57ef-48f4-89de-32548b550a52",
-        "mediaType": "post",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-posts/1787982805720.webp"
-        ],
-        "hook": "Přírodní koupelna pro dva různé rozpočty.",
-        "body": "Konec srpna znamená jediné. Ranní shon se vrací a vaši řemeslníci už nutně potřebují materiál. Toužíte po hřejivé kombinaci dřevodekoru a kamene, ale rozpočet po dovolené není nafukovací?\n\nMáme řešení. Připravili jsme dvě cenové cesty pro naprosto stejný prémiový vzhled.\n\nCesta A: Autentická italská dlažba s hlubokou texturou pro maximální detail.\nCesta B: Chytrá keramická alternativa za zlomek ceny, která je na pohled k nerozeznání.\n\nVýsledek? Oáza klidu, která nestojí víc, než si můžete dovolit. Hlavně ale držíme obě varianty skladem. Vaši řemeslníci tak můžou začít pracovat hned a vy nepřijdete o nasmlouvaný termín.",
-        "cta": "Rezervujte si termín pro 3D návrh vaší nové koupelny na https://www.koupelny-ptacek.cz/ ještě dnes a zajistěte si materiál dřív, než zmizí ze skladu.",
-        "hashtags": [
-          "#koupelnyptacek",
-          "#koupelny",
-          "#koupelnysnu",
-          "#koupelnovestudio",
-          "#rekonstrukcekoupelny",
-          "#koupelnanaklic",
-          "#drevodekor",
-          "#dlazba",
-          "#inspiracebydleni",
-          "#koupelnovydesign"
-        ]
-      },
-      {
-        "id": "c2213e32-8c59-438b-9a87-e60ffd05dfb3",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787982954388-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787982985561-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787983015567-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787983047564-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787983077094-slide4.webp"
-        ],
-        "hook": "Plánujete domácí wellness? Tahle chyba vás vyjde draho.",
-        "body": "Konec srpna, děti jdou za pár dní do školy a ranní shon v koupelně bude zase testovat vaše nervy. Možná právě teď držíte v ruce výplatu a říkáte si, že je čas tu starou koupelnu konečně proměnit. Ale pozor. Nejčastější chybou, kterou při rekonstrukci vidíme, je nákup jednotlivých kousků bez hlubšího plánu. Výsledek? Rozpočet letí nahoru, údržba je peklo a místo relaxu vás čeká jen drhnutí spár. Klíčem k opravdovému odpočinku je harmonie. Čisté linie sanitární keramiky Catalano v kombinaci s jemnými texturami obkladů, které se snadno udržují. Přesně takové promyšlené a technicky funkční sestavy jsme pro vás připravili v našem novém podzimním katalogu.",
-        "cta": "Napište nám do komentářů, jaká barva obkladů vás uklidňuje nejvíc. My vám do zpráv pošleme tip na konkrétní sérii z nového katalogu, která přesně sedne vašemu rozpočtu.",
-        "hashtags": [
-          "#koupelnyptacek",
-          "#koupelny",
-          "#koupelnysnu",
-          "#koupelnovestudio",
-          "#rekonstrukcekoupelny",
-          "#domaciwellness",
-          "#modernikoupelna",
-          "#keramikacatalano",
-          "#koupelnovydesign",
-          "#interier"
-        ]
-      },
-      {
-        "id": "aad452d6-b93b-4714-b7ae-0c47fe6a1763",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787985164674-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787985196197-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787985250182-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787985279592-slide3.webp"
-        ],
-        "hook": "Řemeslníci čekají. Čistá bílá, nebo hřejivá terakota?",
-        "body": "Za tři dny začíná školní shon a vaši řemeslníci už netrpělivě podupávají. Je ten nejlepší čas rozlousknout otázku designu a posunout vaši vysněnou koupelnu o krok blíž k realitě. Jaký styl zvolíte? Zatímco čistá bílá je sázka na jistotu, hitem letošního podzimu je zemitá paleta. Terakota, pískové tóny a hřejivá šedá na velkoformátových obkladech vytvoří útulný prostor, který vás spolehlivě ochrání před ranním stresem. A ta nejlepší zpráva? Ať už fandíte hřejivým tónům, nebo minimalistické bílé, obě varianty držíme skladem. Zpracujeme přesný 3D návrh a rovnou dodáme materiál. Hlasujte v komentářích: Jste Tým Terakota, nebo Tým Bílá?",
-        "cta": "Nenechte řemeslníky čekat a vyberte si svůj styl včas. Rezervujte si termín pro 3D návrh na https://www.koupelny-ptacek.cz/ a spolehněte se na materiál, který je ihned k odběru.",
-        "hashtags": [
-          "#koupelnyptacek",
-          "#koupelny",
-          "#koupelnysnu",
-          "#koupelnovestudio",
-          "#designkoupelny",
-          "#tymterakota",
-          "#tymbila",
-          "#rekonstrukcekoupelny",
-          "#malakoupelna"
-        ]
-      }
-    ]
-  },
-  {
-    "slug": "form-factory",
-    "company": "Form Factory",
-    "industry": "Fitness a wellness",
-    "website": "https://www.formfactory.cz/",
-    "posts": [
-      {
-        "id": "71f5df6d-be0a-4e26-af36-2f164687f50b",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787926861463-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787926904732-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787926960625-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927001483-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927047445-slide4.webp"
-        ],
-        "hook": "Mýtus: Čím víc dřeš, tím rychleji rosteš.",
-        "body": "Konec prázdnin a návrat na koleje neznamená, že se musíš zničit v gymu, abys dohnal letní hříchy. Znáš ten mýtus, že bez bolesti není progres? Blbost.\n\nTvoje tělo se mění, když odpočívá. Místo toho, abys po přednáškách jen bezmyšlenkovitě dřel na strojích, to trochu oživ. Dej si s partou dynamickou Les Mills lekci a pak rovnou zalezte do finské sauny.\n\nTo nejlepší? Jestli máš MultiSport kartu, neplatíš ani korunu navíc. Cvičení i relax máš v ceně. Takže žádné výmluvy na omezený studentský budget.\n\nJak to máš ty? Radši po tréninku hned běžíš domů, nebo si dopřeješ saunu? Dej vědět do komentářů!",
-        "cta": "Vyber si z více než 40 typů cvičení na https://www.formfactory.cz/ a napiš nám, čím začneš nový semestr!",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#fitnessmyty",
-          "#multisport",
-          "#regenerace",
-          "#fitness",
-          "#posilovna",
-          "#fitnessczech"
-        ]
-      },
-      {
-        "id": "080b7c90-2159-4808-8d88-f77a08b2f3fe",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927268240-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927309233-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927350031-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927403688-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927443269-slide4.webp"
-        ],
-        "hook": "Dřeš naslepo? Zjisti přesně, co tvoje tělo potřebuje.",
-        "body": "Léto končí a ty se vracíš do režimu. Chceš dohnat ztracený čas, ale dřeš naslepo? Zastav. Než se zničíš na strojích, potřebuješ vědět, na čem reálně jsi. Tohle je rychlý tip od našich trenérů: začni tím, že si uděláš jasno. Analýza těla InBody ti za minutu ukáže, kolik jsi přes léto nabral tuku, kolik svalů šlo dolů a jak je na tom tvoje hydratace. Díky těmhle datům ti trenér sestaví plán, který funguje od prvního dne. Žádný ztracený čas. A navíc hned uvidíš, jestli nepotřebuješ spíš den v sauně na srovnání disbalancí.",
-        "cta": "Jaký je tvůj hlavní cíl pro tenhle podzim? Napiš mi ho hned do komentářů a ukaž, že to s návratem myslíš vážně!",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#inbody",
-          "#fitnesscile",
-          "#podzimnirezim",
-          "#cviceni",
-          "#fitnessczech"
-        ]
-      },
-      {
-        "id": "41229e8d-47fb-4387-8929-244a9094712a",
-        "mediaType": "post",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-posts/1787927926725.webp"
-        ],
-        "hook": "Co tě po škole nakopne víc?",
-        "body": "Lucka včera oslavila svůj první shyb. Byla to dřina, ale potréninkový rituál má jasný – okamžitý přesun do tepla. Konec srpna znamená návrat do reality a ty potřebuješ balanc. S MultiSportkou máš u nás obě varianty bez doplatku.\n\nMůžeš překonávat limity na hrazdě s naší komunitou, nebo prostě jen vypnout hlavu před začátkem semestru v relaxační zóně.\n\nJsi Tým Dřina, nebo Tým Sauna? Hlasuj v komentářích!",
-        "cta": "Prozkoumej naši oázu klidu na https://www.formfactory.cz/p/sauna-a-relaxa-n-z-ny a nezapomeň hodit svůj hlas dolů pod příspěvek!",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#multisport",
-          "#studentskyzivot",
-          "#regenerace",
-          "#fitnessczech",
-          "#osobnitrener",
-          "#skupinovelekce"
-        ]
-      },
-      {
-        "id": "810ba4d5-e657-4895-8e99-d5d1246c86eb",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787928137333-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787928241223-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787928287647-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787928334602-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787928372543-slide4.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787928410394-slide5.webp"
-        ],
-        "hook": "Největší mýtus o dřepu který tě brzdí",
-        "body": "Zatažené břicho při dřepu? Klasika z hodin tělocviku, co tě v gymu akorát zraní. Za pár dní začíná semestr a ty se po létě vracíš k těžkým vahám. Než si naložíš osu, srovnej si dýchání. Náš trenér to říká jasně: břicho nezatáhnout, ale nafouknout!\n\nVytvoříš tak vnitřní tlak, který funguje jako přírodní opasek a chrání tvá bedra. Postup je easy:\n1. Nahoře se zhluboka nadechni do břicha.\n2. Zpevni střed, jako bys čekal ránu.\n3. Jdi do dřepu.\n4. Vydechni až při cestě nahoru.\n\nMáš MultiSportku? Stav se po přednášce vyzkoušet tenhle trik v praxi u nás, nebo ho rovnou otestuj na Les Mills lekci.",
-        "cta": "Jakou techniku dýchání používáš ty? Napiš nám to do komentářů! A pokud hledáš profi vedení k lepším výkonům, vyber si osobního trenéra na https://www.formfactory.cz/.",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#drep",
-          "#technika",
-          "#fitnessmyty",
-          "#lesmillscz",
-          "#fitnessczech",
-          "#inbodycz"
-        ]
-      },
-      {
-        "id": "1179efbf-e2bd-4e37-b1ec-69246716b5d1",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929060575-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929091293-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929131219-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929165750-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929202594-slide4.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929242326-slide5.webp"
-        ],
-        "hook": "Plán zněl jasně: jen lehké kardio",
-        "body": "Znáš to. Za pár dní začíná semestr, ty si chceš dát jen „lehký pás“ na vyčištění hlavy, ale ta energie ve Form Factory tě prostě strhne. Najednou jsi uprostřed zóny a jedeš na maximum. A víš co? Je to přesně to, co před začátkem školy potřebuješ!\n\nUlož si tenhle rychlý HYROX okruh na dny, kdy potřebuješ vypnout hlavu a pořádně se zapotit. Rychlé střídání cviků tě nenechá vydechnout a po tréninku tě čeká ta nejlepší část – sauna. Vše v ceně tvého vstupu.",
-        "cta": "Kdy tě naposledy strhla atmosféra tak, že jsi odjel úplně jiný trénink? Napiš nám do komentářů!",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#hyrox",
-          "#dnescvicim",
-          "#multisport",
-          "#hyroxcz",
-          "#fitnessczech",
-          "#posilovna"
-        ]
-      },
-      {
-        "id": "3ff18d7c-c663-4723-bd8b-ec6ebc8c064b",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929560668-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929598411-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929632493-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929667896-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929705687-slide4.webp"
-        ],
-        "hook": "Kdy ti trénink po létě přinese nejvíc",
-        "body": "Letní volno končí a září klepe na dveře. Vracíš se do režimu, ale tělo stávkuje? Zastav, než ztratíš motivaci hned v prvním týdnu. Klíčem není dřít víc, ale chytřeji. Zjisti, kdy máš nejvíc energie. Ranní trénink tě nakopne na celý den a vyhneš se odpolední špičce. Večer naopak skvěle odplavíš stres z práce. Nejsi na to sám. Osobní tréninky s trenérem ti zaručí, že každá minuta v gymu bude mít smysl, ať už dorazíš v 6 ráno nebo v 8 večer. Náš expert ti sestaví plán na míru a pohlídá i to nejdůležitější – následnou regeneraci v sauně. Čas je drahý, neplýtvej jím.",
-        "cta": "Kdy ti to ve Form Factory nejvíc šlape? Neztrácej čas a napiš nám hned teď do komentářů, jestli jsi ranní ptáče, nebo spíš noční sova!",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#fitness",
-          "#zpetdoformy",
-          "#osobnitrener",
-          "#skupinovelekce",
-          "#fitnessczech"
-        ]
-      },
-      {
-        "id": "23481b76-b73a-4729-9d1d-fdee481ebfff",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787930184882-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787930221588-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787930255011-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787930294814-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787930334454-slide4.webp"
-        ],
-        "hook": "Opasek tvoje záda při dřepu automaticky nezachrání",
-        "body": "Za pár dní začíná semestr a ty se vracíš do režimu s cílem naložit si na osu. Mnoho lidí si myslí, že když si utáhnou fitness opasek, mají záda v bezpečí. Omyl! Trenér Jirka varuje: pás tě nespasí, pokud neumíš dýchat.\n\nTajemství bezpečné páteře je vnitrobřišní tlak. Zpevni střed těla hlubokým nádechem do břicha ještě předtím, než jdeš do dřepu. Tenhle tlak podrž a vydechni až při cestě nahoru, když překonáš nejtěžší bod. Pás slouží jen jako zeď, do které tenhle vzduch opřeš.\n\nA po těžkém tréninku noh? Nezapomeň na saunu, kterou máš s MultiSportkou u nás v ceně.",
-        "cta": "Dej nám vědět do komentářů – cvičíš dřepy s opaskem, nebo bez? Pro další tipy a rozvrh lekcí mrkni na https://www.formfactory.cz/.",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#drep",
-          "#fitnessmyty",
-          "#spravnatechnika",
-          "#osobnitrener",
-          "#motivace",
-          "#hyroxcz"
-        ]
-      }
-    ]
-  },
-  {
     "slug": "grandhotel-pupp",
     "company": "Grandhotel Pupp",
     "industry": "Hotelnictví a gastronomie",
     "website": "https://www.pupp.cz/",
     "posts": [
+      {
+        "id": "e76d9409-84f5-4010-a0c9-79d5e5340530",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787930778508-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787930778508.mp4",
+        "hook": "Vaše tečka za létem.",
+        "body": "Léto končí, ale ty nejlepší momenty na vás teprve čekají. Nenechte si ujít poslední srpnový víkend v Karlových Varech. Ulice utichly a Becher's Bar nabízí komorní atmosféru pro ty, kteří vyžadují absolutní standard. Náš šéfbarman pro vás připraví legendární koktejl, ve kterém se mísí precizní řemeslo s karlovarskou historií. Tento neopakovatelný smyslový zážitek, umocněný naší nenucenou a pozornou péčí, je chvílí, kterou stojí za to sdílet. Pokud hledáte způsob, jak takový okamžik věnovat svým blízkým, naše dárkové vouchery představují to nejelegantnější řešení. Koho pozvete na poslední letní drink?",
+        "cta": "Označte v komentáři osobu, se kterou musíte tento víkend zažít dokonalý večer.",
+        "hashtags": [
+          "#grandhotelpupp",
+          "#pupp",
+          "#puppkarlovyvary",
+          "#karlovyvary",
+          "#bechersbar",
+          "#konecleta",
+          "#luxuryspa",
+          "#finediningprague",
+          "#zazitek"
+        ]
+      },
       {
         "id": "bf064622-e598-4248-870d-0a35d4cbfbe4",
         "mediaType": "carousel",
@@ -1216,6 +108,28 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
           "#michelinguidecz",
           "#historichotel",
           "#dovolenavcesku"
+        ]
+      },
+      {
+        "id": "e1822d8a-bb80-42a1-9d74-d397eb13bd61",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787931788761-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787931788761.mp4",
+        "hook": "Klid před zářím.",
+        "body": "Zatímco se blíží zářijový shon, Karlovy Vary na konci srpna nabízejí vzácný klid. Proměňte poslední letní dny v dokonalý únik. Náš tým concierge za vás naplánuje vše do posledního detailu. Vydejte se na prémiových elektrokolech podél řeky Ohře až k monumentálním Svatošským skalám, které kdysi učarovaly i Goethovi. Až se nabažíte ticha přírody, nechte zážitek z celého dne doznít tam, kde se rodí ty nejlepší večerní příběhy – v křesle legendárního Becher's Baru u vaší oblíbené sklenky.",
+        "cta": "Jaký je váš nejoblíbenější způsob, jak se rozloučit s létem? Podělte se s námi v komentářích.",
+        "hashtags": [
+          "#grandhotelpupp",
+          "#pupp",
+          "#puppkarlovyvary",
+          "#karlovyvary",
+          "#klidpredzarim",
+          "#bechersbar",
+          "#wellness",
+          "#michelinguidecz",
+          "#historichotel"
         ]
       },
       {
@@ -1477,6 +391,2226 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
     ]
   },
   {
+    "slug": "kadernictvi-klier",
+    "company": "Kadeřnictví Klier",
+    "industry": "Kadeřnictví a vlasová péče",
+    "website": "https://www.klier.cz/",
+    "posts": [
+      {
+        "id": "13b04b1b-2cf9-4ce6-af5a-3273b3338d10",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787926611133-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787926642373-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787926672307-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787926700205-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787926731712-slide4.webp"
+        ],
+        "hook": "Uhlazený culík nebo messy drdol do práce?",
+        "body": "Září je za dveřmi a s ním návrat do plného pracovního nasazení. Konec léta ale dává vlasům zabrat – slunce a voda je vysušují. Jak po ránu stihnout schůzky a vypadat skvěle, i když nestíháte?\n\nTajemství je ve správné přípravě. Před fénováním nedáme dopustit na Kérastase Blond Guard. Tahle bezoplachová péče okamžitě hydratuje vysušené délky, chrání blond barvu a funguje jako termoochrana. Vlasy jsou pak poddajné pro elegantní vysoký culík i ležérní messy drdol.\n\nPotřebujete po létě zastřihnout konečky nebo oživit barvu? V Klier jsme tu pro vás každý den, klidně i o víkendu. Zastavte se, kdykoliv vám to rozvrh dovolí.",
+        "cta": "Hlasujte v komentářích: vyhrává u vás pro běžný den plný schůzek spíše uhlazený culík, nebo ležérní messy drdol? 👇",
+        "hashtags": [
+          "#kadernictvi-klier",
+          "#kliercz",
+          "#kadernictviklier",
+          "#vlasovapece",
+          "#rannirutual",
+          "#kerastase",
+          "#zdravevlasy",
+          "#strihani",
+          "#peceosebe",
+          "#kadernictvi"
+        ]
+      },
+      {
+        "id": "77f3302a-f04e-47ee-993f-9f7a9b082b14",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787926868398-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787926925145-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787926964086-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787926998216-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787927036375-slide4.webp"
+        ],
+        "hook": "Který ranní styl do práce vyhraje?",
+        "body": "Konec srpna znamená jediné – návrat do plného pracovního nasazení. Ale co vaše vlasy po létě plném slunce a chlóru? Ať už do kanceláře zvolíte nedbalé vlny nebo uhlazený elegantní look, základem jsou zdravé vlasy. Pro vytížené profesionálky máme tajnou zbraň: Kérastase Chronologiste Overnight Sérum. Pracuje za vás, zatímco vy spíte. Intenzivně hydratuje vysušené konečky a ráno se probudíte s hebkými vlasy připravenými na jakýkoliv styling. Bez zdržování a bez stresu. Který účes (A nebo B) je váš favorit pro první zářijový týden? Dejte nám vědět do komentářů!",
+        "cta": "Zjistěte více o správné regeneraci po létě na našem webu https://www.klier.cz/ nebo se zastavte klidně o víkendu v našem salonu – bez objednání!",
+        "hashtags": [
+          "#kadernictvi-klier",
+          "#kliercz",
+          "#kadernictviklier",
+          "#vlasovapece",
+          "#zdravevlasy",
+          "#kerastase",
+          "#barvenivlasu",
+          "#peceosebe",
+          "#vlasy",
+          "#krasnevlasy"
+        ]
+      },
+      {
+        "id": "85ff6222-a83b-4623-a5eb-d1d261ac96fe",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787927353223-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787927353223.mp4",
+        "hook": "Zničené vlasy z léta nepočkají týdny na volný termín u kadeřníka.",
+        "body": "Slunce a chlór si vybírají svou daň, ale u nás v Klier vás zachráníme klidně hned. Vaše vlasy zbavíme suchých konců svěžím střihem a dodáme jim okamžitou hloubkovou péči bez objednání. Náš tajný tip pro domácí wow efekt? Kérastase Chronologiste Overnight Sérum. Tahle luxusní noční péče regeneruje vlasové vlákno do hloubky, zatímco vy spíte.",
+        "cta": "Probuďte se s dokonalými a vyživenými vlasy už zítra. Objednejte si noční sérum ještě dnes na https://www.klier.cz/p/k-rastase-chronologiste-overnight-s-",
+        "hashtags": [
+          "#kadernictvi-klier",
+          "#kliercz",
+          "#kadernictviklier",
+          "#bezobjednani",
+          "#kerastase",
+          "#pecovlasy",
+          "#barvenivlasu",
+          "#promena",
+          "#kadernictvi"
+        ]
+      },
+      {
+        "id": "509e8df8-291f-45af-832a-e758b36b94ba",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787927948320-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787927989120-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928028216-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928062540-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928096208-slide4.webp"
+        ],
+        "hook": "Záchrana barvy na poslední chvíli: Peach Fuzz",
+        "body": "Kadeřník vám zrušil termín nebo domácí barvení nedopadlo podle představ? Do pondělního návratu do kanceláře zbývají 4 dny. Nenechte si zkazit první dojem. Záchrana existuje a nemusíte na ni čekat týdny.\n\nTrendy odstín Peach Fuzz je ideální pro rychlé oživení vybledlé letní blond i sjednocení nepovedené barvy. Tyhle teplé pastelové tóny sluší téměř každému a naši stylisté přesně ví, jak je namíchat pro váš tón pleti. Výsledek? Zářivé a zdravě vypadající vlasy plné života.\n\nPřijďte k nám do Klieru ještě dnes. Vezmeme vás okamžitě, bez objednání, ať můžete víkend začít s dokonalým pocitem.",
+        "cta": "Nečekejte na volný termín u kadeřníka, vezmeme vás hned! Najděte nejbližší pobočku na https://www.klier.cz/ a zachraňte svou barvu ještě dnes.",
+        "hashtags": [
+          "#kadernictvi-klier",
+          "#kliercz",
+          "#kadernictviklier",
+          "#peachfuzz",
+          "#vlasovetrendy",
+          "#barvenivlasu",
+          "#profesionalnikosmetika",
+          "#kadernik",
+          "#kadernictvi",
+          "#kerastasecz"
+        ]
+      },
+      {
+        "id": "41da8fb6-4c76-43bd-bc95-f74adb1065f5",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928317135-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928349085-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928391473-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928429882-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928500525-slide4.webp"
+        ],
+        "hook": "Dlouhé zničené konce nebo zdravý plný střih?",
+        "body": "Letní slunce dalo vlasům zabrat a vy se bojíte nůžek, abyste nepřišli o těžce vydřenou délku? Tady je pravda o největším vlasovém mýtu: pravidelné stříhání vlasy od kořínků neurychlí. Zastřižení ale funguje jako stopka pro roztřepené konce. Pokud je nezkrátíte, zlomí se samy výš a účes bude působit zplihle a řídce. Zvolte raději zdravý objem. Návrat do kanceláře po dovolené si žádá reprezentativní vzhled a vy nemáte čas čekat týdny na termín. V Klieru vás vezmeme hned, klidně po práci nebo o víkendu. Naši profíci zachrání vaše délky a dodají vlasům plnost. Který přístup preferujete vy? Napište nám do komentářů!",
+        "cta": "Rádi vám poradíme, jak zachránit délky. Zastavte se u nás, kdykoliv se vám to hodí. Svůj nejbližší salon najdete na https://www.klier.cz/",
+        "hashtags": [
+          "#kadernictvi-klier",
+          "#kliercz",
+          "#kadernictviklier",
+          "#zdravevlasy",
+          "#peceovlasy",
+          "#bezobjednani",
+          "#profesionalnikosmetika",
+          "#strihani",
+          "#kadernik",
+          "#krasa"
+        ]
+      },
+      {
+        "id": "328ac3ed-11bd-41a0-b591-927c7d30e823",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928650304-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928686029-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928726332-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928763232-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787928803994-slide4.webp"
+        ],
+        "hook": "Mýtus: O víkendu dobrého kadeřníka neseženete",
+        "body": "Pondělí se blíží, návrat do kanceláře klepe na dveře a váš kadeřník na poslední chvíli zrušil termín? Nebo prostě jen zrcadlo hlásí, že ty letní experimenty potřebují okamžitý zásah odborníka?\n\nMýtus, že o víkendu kvalitní péči neseženete, rovnou mažeme. V našich salonech to v sobotu i v neděli žije pozitivní energií. Žádný stres, žádné čekání na volné okénko v diáři. Zastavte se u nás cestou z nákupu, dejte si skvělou kávu a nechte nás vykouzlit perfektní střih. Pracujeme na plné obrátky 7 dní v týdnu, abyste v pondělí zazářili.",
+        "cta": "Zastavte se v nejbližším salonu ještě tento víkend a zachraňte svůj pondělní start. Těšíme se na vás!",
+        "hashtags": [
+          "#kadernictvi-klier",
+          "#kliercz",
+          "#kadernictviklier",
+          "#klier",
+          "#vlasybezobjednani",
+          "#vikendovapece",
+          "#kadernik",
+          "#peceosebe",
+          "#krasa",
+          "#kerastasecz"
+        ]
+      },
+      {
+        "id": "7bbd2739-5d20-4549-a7e6-03406672ea71",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787929093029-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787929093029.mp4",
+        "hook": "Zkroťte letní chaos na hlavě.",
+        "body": "Slunce, voda a odkládání návštěvy kadeřníka znamenají jediné – ztrátu tvaru vašeho účesu. Získejte zpět svůj styl přesně ve chvíli, kdy si vzpomenete. Naše Pánské stříhání není jen o zkrácení délek. Je to kompletní péče: od relaxačního mytí, přes precizní střih na míru vašim rysům, až po profi styling, který zvládnete udržet i doma. Nemusíte nic plánovat týdny dopředu. Stačí jít kolem a posadit se do křesla. Zastavte se u nás ještě dnes a odejděte s dokonalým účesem bez čekání. Zjistěte víc na https://www.klier.cz/p/p-nsk-st-h-n- #Klier #KadernictviKlier #PanskeStrihani #BezObjednani",
+        "cta": "Zastavte se u nás ještě dnes a odejděte s dokonalým účesem bez čekání. Zjistěte víc na https://www.klier.cz/p/p-nsk-st-h-n-",
+        "hashtags": [
+          "#kadernictvi-klier",
+          "#kliercz",
+          "#kadernictviklier",
+          "#klier.cz",
+          "#panskestrihani",
+          "#bezobjednani",
+          "#peceosebe",
+          "#zdravevlasy",
+          "#barvenivlasu"
+        ]
+      },
+      {
+        "id": "24b3bcd2-e990-4f2b-b1ab-5b0a19415e4a",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787929371260-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787929371260.mp4",
+        "hook": "Ztratily vlasy lesk?",
+        "body": "Ráno nestíháte a vlasy vypadají unaveně? Máme pro vás expresní tip přímo z našich salonů. Stačí na úplný konec mytí přepnout na studenou vodu. Chlad totiž okamžitě uzavře vlasovou kutikulu, uzamkne uvnitř hydrataci a dodá vlasům přirozený lesk, jako byste právě odešli od kadeřníka. Zabere to vteřinu, ale rozdíl je obrovský.\n\nA když potřebujete víc než jen rychlý trik? Jsme tu pro vás. Otevřeno máme 7 dní v týdnu a vezmeme vás i bez objednání – třeba hned dnes po práci.",
+        "cta": "Znáte tenhle trik se studenou vodou? Napište nám do komentářů, jestli ho už zkoušíte!",
+        "hashtags": [
+          "#kadernictvi-klier",
+          "#kliercz",
+          "#kadernictviklier",
+          "#lesklevlasy",
+          "#vlasovytip",
+          "#peceovlasy",
+          "#vlasovapece",
+          "#zdravevlasy",
+          "#peceosebe",
+          "#barvenivlasu"
+        ]
+      },
+      {
+        "id": "b5140d6e-1d22-458f-891a-c2f9d735d606",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787929700283-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787929700283.mp4",
+        "hook": "Strach z nových nůžek?",
+        "body": "Konec srpna znamená jediné – návrat do reality. A s ním i pohled na vlasy, které po létě volají o pomoc. Slunce a chlor si vybraly daň, ale to neznamená, že musíte čekat týdny na záchranu. Víme, že najít kadeřníka, kterému svěříte zničené délky, je stres. U nás se bát nemusíte. Naši experti přesně ví, jak vlasy ozdravit. Co takhle vyzkoušet šik mikádo? Je to perfektní osvěžující podzimní střih, který elegantně vyřeší zničené konečky po létě a dodá vlasům nový šmrnc. A to nejlepší? Můžete přijít hned, klidně o víkendu a zcela bez objednání. Jaký účes vám dodává největší sebevědomí? Dejte nám vědět do komentářů! 👇 #kadernictviklier #bezobjednani #mikado #zdravevlasy #novevlasy #podzimniuces",
+        "cta": "Jaký účes vám dodává největší sebevědomí? Dejte nám vědět do komentářů! 👇",
+        "hashtags": [
+          "#kadernictvi-klier",
+          "#kliercz",
+          "#kadernictviklier",
+          "#bezobjednani",
+          "#mikado",
+          "#zdravevlasy",
+          "#kerastasecz",
+          "#vlasovapece",
+          "#peceosebe",
+          "#kadernictvi"
+        ]
+      },
+      {
+        "id": "74d21718-f94a-4180-a594-6189e30d7829",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787930013788-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787930050850-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787930084962-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787930124958-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787930196685-slide4.webp"
+        ],
+        "hook": "Ranní boj s drdolem nevyhrajete bez správného střihu.",
+        "body": "Znáte ten pocit? Ráno nestíháte, zkusíte vykouzlit ležérní drdol, ale v zrcadle vidíte spíš následky letního slunce a chlóru. Tvar je pryč a konečky volají o pomoc. Místo každodenního maskování problému to chce trvalé řešení. Základem bezstarostných rán je totiž precizní střih. Zastavte se u nás klidně cestou z kanceláře nebo o víkendu – vezmeme vás hned, bez stresu z objednávání. Čeká vás profesionální Konzultace účesu, kde společně vymyslíme styl, který se bude upravovat skoro sám. Vaše vlasy si zaslouží vypadat skvěle každý den.",
+        "cta": "Jaký je váš oblíbený záchranný ranní účes, když opravdu nestíháte? Podělte se s námi v komentářích!",
+        "hashtags": [
+          "#kadernictvi-klier",
+          "#kliercz",
+          "#kadernictviklier",
+          "#krasnevlasy",
+          "#vlasovapece",
+          "#bezobjednani",
+          "#promena",
+          "#barvenivlasu",
+          "#zdravevlasy",
+          "#strihani"
+        ]
+      },
+      {
+        "id": "c247e0e1-3881-477b-b314-e92d66d11efa",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787930394650-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787930394650.mp4",
+        "hook": "Záchrana vlasů na počkání.",
+        "body": "Konec léta a blížící se návrat do kanceláře znamená jediné – vaše vlasy potřebují profesionální péči. Chápeme, že s plným diářem nemáte čas plánovat kadeřníka týdny dopředu. A proto jsme tu. Naši školení specialisté jsou připraveni vašim vlasům vrátit zdravý vzhled, precizní tvar a lesk přesně ve chvíli, kdy to potřebujete. Bez objednání, bez stresu, klidně i o víkendu. Zastavte se u nás a vykročte do září s novým sebevědomím.",
+        "cta": "Jaký je váš vysněný podzimní střih? Napište nám do komentářů!",
+        "hashtags": [
+          "#kadernictvi-klier",
+          "#kliercz",
+          "#kadernictviklier",
+          "#vlasovatransformace",
+          "#krasnevlasy",
+          "#bezobjednani",
+          "#peceosebe",
+          "#vlasy",
+          "#profesionalnikosmetika",
+          "#promena"
+        ]
+      },
+      {
+        "id": "523cdb28-069d-42e7-9197-554eabcbc660",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787930604846-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787930641830-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787930678731-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-carousel/1787930717166-slide3.webp"
+        ],
+        "hook": "Denní mytí vs dvakrát týdně. Co vyhraje?",
+        "body": "Konec srpna klepe na dveře a s ním i návrat do plného pracovního tempa. Ráno nestíháte a mytí vlasů je často rychlá záchrana. Ale je to správně?\n\nTým A myje denně. Pocit absolutní čistoty je super, ale po létě plném slunce a chlóru to může už tak suché konečky ještě víc vysušit.\n\nTým B myje 2-3x týdně. Za nás zlatý standard. Pokožka má čas vytvořit přirozený film, který unavené délky chrání a hydratuje.\n\nZáleží hlavně na vaší pokožce, ale kvalitní šampon je základ v obou případech. Do jakého týmu patříte vy? Hlasujte v komentářích! A pokud vaše vlasy po dovolené volají o pomoc, naše dveře jsou otevřené klidně i o víkendu.",
+        "cta": "Prozkoumejte tipy na správnou péči na https://www.klier.cz/ nebo se rovnou stavte na bezplatnou konzultaci.",
+        "hashtags": [
+          "#kadernictvi-klier",
+          "#kliercz",
+          "#kadernictviklier",
+          "#peceovlasy",
+          "#zdravevlasy",
+          "#vlasovaporadna",
+          "#kadernik",
+          "#promena",
+          "#vlasy",
+          "#strihani"
+        ]
+      },
+      {
+        "id": "4d87c39d-2f91-413b-b4f9-fa6479454f11",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-posts/1787988247383.webp"
+        ],
+        "hook": "Proč vlasy po dovolené ztrácí lesk? Běžný šampon na chlór totiž nestačí.",
+        "body": "Konec srpna je tady a po návratu z dovolené si vaše vlasy zaslouží extra péči. Slunce a chlór na nich zanechaly stopy, proto potřebují hloubkový detox. Doma sáhněte po profesionálním čisticím šamponu. Vmasírujte ho, nechte působit o minutu déle a důkladně opláchněte. Následně dodejte extrémní hydrataci. Nechcete doma experimentovat? Pondělní návrat do kanceláře se blíží, ale my máme otevřeno i teď o víkendu. Zastavte se v Klier klidně hned, cestou z města, zcela bez objednání. Během bezplatné konzultace navrhneme tu nejlepší péči a rovnou vašim vlasům vrátíme vitalitu.",
+        "cta": "Uložte si tento tip pro víkendovou záchranu vlasů!",
+        "hashtags": [
+          "#kadernictvi-klier",
+          "#kliercz",
+          "#kadernictviklier",
+          "#peceovlasy",
+          "#vlasypolete",
+          "#bezobjednani",
+          "#peceosebe",
+          "#kerastasecz",
+          "#kadernictvi"
+        ]
+      },
+      {
+        "id": "e8a73f79-8045-4675-8e11-43256a1a3e4a",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-posts/1787988357454.webp"
+        ],
+        "hook": "Který dětský střih zachrání vaše ráno?",
+        "body": "První září je za rohem a ranní boj s hřebenem nechce zažívat nikdo. Sluncem zacuchané dětské vlasy znamenají zbytečný stres pro obě strany. Jak to vyřešit? Varianta A: Praktické mikádo. Nula zacuchaných pramenů, ranní úprava trvá přesně minutu. Varianta B: Zastřižené dlouhé konečky. Stačí pár centimetrů dolů a hřeben vlasy projede naprosto hladce. Známe váš nabitý rozvrh. U nás to zvládnete vyřešit ještě tento víkend, a to úplně bez objednání. Vy si na chvíli oddechnete, my se postaráme o perfektní výsledek.",
+        "cta": "Zajímá vás, kde nás o víkendu najdete? Prozkoumejte naše salony na https://www.klier.cz/ a napište nám do komentářů, která varianta letos vyhraje u vás.",
+        "hashtags": [
+          "#kadernictvi-klier",
+          "#kliercz",
+          "#kadernictviklier",
+          "#prvniskolniden",
+          "#konecprazdnin",
+          "#detskystrih",
+          "#vlasovapece",
+          "#peceosebe",
+          "#zdravevlasy",
+          "#krasnevlasy"
+        ]
+      },
+      {
+        "id": "299d7dde-ac18-4dc3-b553-c980050f305c",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-posts/1787988457151.webp"
+        ],
+        "hook": "Mýtus: Kvalitní kadeřník vás hned nevezme.",
+        "body": "Většina lidí věří, že když původní kadeřník na poslední chvíli zruší termín, nezbývá než improvizovat. Zvlášť teď, pár dní před návratem do kanceláří a školního shonu.\n\nFakt je ale jinde. Precizní střih a špičková péče nevyžadují týdny plánování. U nás v Klier víme, že nečekané situace potřebují okamžitá řešení. Ať už chcete sjednotit tón, upravit délku nebo vytvořit úplně nový look před pondělní poradou, naši experti jsou připraveni.\n\nZastavte se rovnou během víkendových nákupů. Postaráme se o vás okamžitě, s úsměvem a profesionálními produkty.",
+        "cta": "Jsme tu pro vás celý víkend. Zastavte se u nás ještě dnes a vkročte do nového týdne sebevědomě!",
+        "hashtags": [
+          "#kadernictvi-klier",
+          "#kliercz",
+          "#kadernictviklier",
+          "#bezobjednani",
+          "#vlasovapece",
+          "#krasnevlasy",
+          "#vlasy",
+          "#barvenivlasu",
+          "#kadernik",
+          "#peceosebe"
+        ]
+      },
+      {
+        "id": "0fc9e177-6009-4cee-9a56-64545b34d986",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-posts/1787988558710.webp"
+        ],
+        "hook": "Proměňte rozlítané vlasy v uhlazený office look.",
+        "body": "Pondělí se neúprosně blíží a vaše vlasy si stále žijí vlastním plážovým životem. Zkrotit poletující unavené konečky do elegantního účesu nevyřešíte domácím experimentem. Zastavte se u nás. Nejdřív vlasům dodáme hloubkovou hydrataci speciální kúrou, odstřihneme zničené konce a následně zapracujeme profesionální styling. Ukážeme vám, jak vytvořit dokonale uhlazený nízký uzel do kanceláře. Žádné slepené prameny, jen zdravý lesk a pevná fixace, která vydrží celý den. Získáte zpět svůj profesionální vzhled a odnesete si tipy, jak tento look zvládnout za pět minut i doma.",
+        "cta": "Zastavte se u nás ještě tento víkend – vezmeme vás hned bez objednání! Připravte své vlasy na pondělí. Detaily služby najdete na https://www.klier.cz/p/d-msk-st-h-n-barven-styling-a-speci-",
+        "hashtags": [
+          "#kadernictvi-klier",
+          "#kliercz",
+          "#kadernictviklier",
+          "#vlasybezobjednani",
+          "#damskystrih",
+          "#vlasovystyling",
+          "#kadernik",
+          "#vlasy",
+          "#promena",
+          "#peceosebe"
+        ]
+      },
+      {
+        "id": "749add71-e64f-41ff-ab9d-d332208e66ba",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-posts/1787988684431.webp"
+        ],
+        "hook": "Jak bleskově zchladit žlutou blond z dovolené?",
+        "body": "Máte před sebou plný zářijový rozvrh a vaše blond chytla u moře teplý mosazný nádech? Řešení je rychlejší, než si myslíte. Nemusíte složitě plánovat termín – zastavte se u nás klidně o víkendu. Během krátké chvíle vlasy natónujeme a vrátíme jim ten správný chladný odstín a lesk.\n\nAby vám čistá barva vydržela co nejdéle i v pracovním shonu, zařaďte do své domácí péče kvalitní fialový nebo stříbrný šampon pro blond vlasy. Ten účinně neutralizuje nežádoucí odlesky a udrží váš odstín dokonale ledový. Získáte zpět svůj sebevědomý look, a to zcela bez čekání.",
+        "cta": "Uložte si tento tip pro svou další vlasovou rutinu, nebo nám do komentářů napište, jaký odstín blond je váš vysněný!",
+        "hashtags": [
+          "#kadernictvi-klier",
+          "#kliercz",
+          "#kadernictviklier",
+          "#blondvlasy",
+          "#peceovlasy",
+          "#kadernictvibezobjednani",
+          "#kerastasecz",
+          "#vlasovapece",
+          "#kadernik",
+          "#profesionalnikosmetika"
+        ]
+      },
+      {
+        "id": "4439a6df-a248-4a27-8843-ba35226e07f6",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-kadernictvi-klier/ig-posts/1787988798733.webp"
+        ],
+        "hook": "Co zachránit dřív: barvu, nebo konečky?",
+        "body": "Září klepe na dveře a vy přemýšlíte, čím začít. Tajemství dlouhotrvající barvy spočívá ve správném postupu. Krok 1: Odstranění ztenčených konců. Na pevném základu barva lépe chytne a nevymývá se. Krok 2: Nový odstín, který rozzáří vaši tvář. Krok 3: Domácí péče. Aby výsledek z kadeřnictví vydržel, je klíčová profesionální vlasová kosmetika, která pramenům dodá ztracenou hydrataci po letním slunci. Bojíte se radikální změny? Naše bezplatná Konzultace účesu probíhá vždy před samotným úkonem. Vyslechneme vaše představy a společně najdeme cestu. A to nejlepší? Nemusíte nic plánovat týdny dopředu. Zastavte se klidně ještě tento víkend, vezmeme vás hned.",
+        "cta": "Jakou barvou přivítáte září vy? Napište nám do komentářů nebo rovnou přijďte. Krásný víkend přeje tým Klier.",
+        "hashtags": [
+          "#kadernictvi-klier",
+          "#kliercz",
+          "#kadernictviklier",
+          "#vlasovapece",
+          "#vlasovakosmetika",
+          "#zdravevlasy",
+          "#kadernictvi",
+          "#promena",
+          "#barvenivlasu",
+          "#vlasy"
+        ]
+      }
+    ]
+  },
+  {
+    "slug": "rohlik-cz",
+    "company": "Rohlik.cz",
+    "industry": "Online prodej potravin a rychloobrátkového zboží",
+    "website": "https://www.rohlik.cz/",
+    "posts": [
+      {
+        "id": "4e105ad5-ceca-4e0c-8df3-0eda5f279a4d",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787926929556-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787926929556.mp4",
+        "hook": "Vyschlá řasenka po létě?",
+        "body": "Konec prázdnin a ranní školní chaos se blíží! 🎒 Než s dětmi vyrazíš z domu, počítá se každá minuta. Znáš ten pocit, když sáhneš po oblíbené řasence a ona je úplně vyschlá? Zkus tenhle rychlý hack s roztokem na čočky. Šetří to peníze a zachrání tě před ranní krizí. A když zjistíš, že ti doma chybí i další kosmetika a drogerie, ušetři si cestu do obchodu plného lidí. Nech si vše dovézt až ke dveřím, zatímco v klidu chystáš dětem svačiny. 🥐",
+        "cta": "Jak to máš ty – jsi ráno tým „full makeup“, „jen řasenka“ nebo „nestíhám vůbec nic“? Hlasuj v komentářích! 👇",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#rychlyhack",
+          "#kosmetikaadrogerie",
+          "#rannirutina",
+          "#kvalitnijidlo",
+          "#cerstvepotraviny",
+          "#onlinepotraviny"
+        ]
+      },
+      {
+        "id": "1ef574af-a5a2-4117-a19f-9b542d0792db",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787927211634-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787927211634.mp4",
+        "hook": "Návrat do prázdné lednice?",
+        "body": "Poslední prázdninový víkend je tady a ty ses právě vrátil do bytu, kde na tebe čeká jen prázdná lednice a stres ze začátku školy? Zastav. Tenhle víkend si ještě užiješ! Naše taška na víkend tě zachrání. Maso a ryby balíme jako mistři v Tetrisu – s maximální péčí, odděleně od ostatního nákupu a hlavně v perfektním chladu. Doručíme ti to až ke dveřím do 90 minut, takže můžeš rovnou žhavit gril. Nenech si vzít poslední letní pohodu!",
+        "cta": "Objednej hned na https://www.rohlik.cz/p/maso-a-ryby a za 90 minut zvoníme!",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#masoaryby",
+          "#grilovani",
+          "#konecprazdnin",
+          "#casprosebe",
+          "#onlinepotraviny",
+          "#dnesjem"
+        ]
+      },
+      {
+        "id": "dbb17268-8e02-41e5-aee8-ed388d3eaadf",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787927952436-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787927989425-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787928026001-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787928061425-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787928098125-slide4.webp"
+        ],
+        "hook": "Tajemství perfektního avokáda bez mačkání v obchodě",
+        "body": "Konec prázdnin se blíží, lednice po návratu z chalupy zeje prázdnotou a ty potřebuješ klidný víkendový brunch, než vypukne školní chaos. Znáš ten pocit, kdy máš chuť na avokádový toast se ztraceným vejcem, ale v obchodě najdeš jen tvrdé kameny nebo hnědou kaši?\n\nPřesně proto naši pickeři vybírají čerstvé ovoce a zeleninu s chirurgickou přesností za tebe. Zvládají hmatový test dlaní i kontrolu stopky, abys dostal kousky rovnou k nakousnutí a ušetřený čas mohl věnovat rodině nebo spánku.\n\nJaký je tvůj vysněný víkendový brunch? Napiš nám do komentářů, co budeš kuchtit ty!",
+        "cta": "Sdílej s námi svůj recept a to nejlepší ovoce a zeleninu na víkend pořídíš rovnou tady: https://www.rohlik.cz/p/ovoce-a-zelenina",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#vikendovybrunch",
+          "#avokado",
+          "#cerstvezelenina",
+          "#bezstarosti",
+          "#casprosebe",
+          "#onlinepotraviny"
+        ]
+      },
+      {
+        "id": "b7b97d5b-050f-4a9d-a0c6-80c260e1a66a",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787928375479-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787928375479.mp4",
+        "hook": "Už žádná plastová rajčata",
+        "body": "Už žádná plastová rajčata 🍅 Konec prázdnin klepe na dveře a s ním i ten klasický ranní shon. Nemáš čas lítat po trzích nebo se prohrabovat unavenou zeleninou v supermarketu? Chápeme. Naše sezónní farmářské kousky putují z pole přímo k tobě domů v rekordním čase. Žádné mačkání v davu, žádné tahání tašek. Jen vitamíny nabitá zelenina, která chutná přesně tak, jak má – jako bys ji právě utrhl na zahradě. Ušetřené hodiny radši věnuj dětem nebo poslednímu letnímu grilování.",
+        "cta": "Bez jaké zeleniny si doma neumíš představit podzimní svačiny? Napiš nám to do komentářů! 👇",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#zfarmynastul",
+          "#svaciny",
+          "#cerstvazelenina",
+          "#farmarsketrhyonline",
+          "#rodina"
+        ]
+      },
+      {
+        "id": "55d6300a-d268-41cd-91a6-900af60147d4",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787928793085-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787928793085.mp4",
+        "hook": "Prázdná lednice i miska?",
+        "body": "Návrat z dovolené a doma není co do pusy? Nemusíš panikařit, Rohlík tě zachrání klidně do 90 minut! Uvař rychlovku v podobě čerstvých těstovin s naší hotovou rajčatovou omáčkou a parmazánem. A zatímco se bude vařit voda, nasypeš granulky do prázdné misky svému chlupáčovi. Vše pro rodinu i mazlíčky, tedy Dítě a Zvíře, ti totiž dovezeme v jedné tašce.",
+        "cta": "Zachraň dnešní večer sobě i mazlíčkům. Nakupuj ihned na https://www.rohlik.cz/p/d-t-a-zv-e a hoď si nohy nahoru!",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#rohlikczplayedditeazvire",
+          "#rychlavecere",
+          "#bezstarosti",
+          "#vikendovevareni",
+          "#rychlynakup",
+          "#kvalitnijidlo"
+        ]
+      },
+      {
+        "id": "6b869dd0-ab10-4f36-b1b9-f5ddc7e5eb5e",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-posts/1787928996870.webp"
+        ],
+        "hook": "Který košík tě dneska zachrání?",
+        "body": "Pátek večer a ty padáš únavou. Najednou pípne zpráva, že se blíží návštěva, nebo na tebe koukají hladové děti, které nutně potřebují rychlou večeři.\n\nKošík A: Sýrové prkénko, prosciutto a vychlazené prosecco pro nečekané hosty.\nKošík B: Hromada jogurtů, čerstvé mléko a mozzarella na bleskové těstoviny pro tvoji smečku.\n\nAť už řešíš cokoliv, nemusíš se oblékat a tahat těžké tašky s dětmi v závěsu. My za tebe pečlivě vybereme ty nejlepší kousky a do 60 minut zvoníme u dveří.",
+        "cta": "Napiš nám do komentářů, jestli jsi dneska tým A, nebo tým B! A pro bleskové doplnění zásob mrkni na https://www.rohlik.cz/p/ml-n-a-chlazen-",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#soubojkosiku",
+          "#rychlynakup",
+          "#rodicovstvi",
+          "#farmarsketrhyonline",
+          "#casprosebe",
+          "#bezstarosti"
+        ]
+      },
+      {
+        "id": "cc3b3225-2d8b-4d35-8d46-55545d570674",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787929145747-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787929180722-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787929218605-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787929251770-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787929288004-slide4.webp"
+        ],
+        "hook": "Mýtus: Velký nákup znamená vždycky zničená záda",
+        "body": "Konec prázdnin, vracíš se z práce a doma prázdná lednice. Představa, že se potáhneš s balíky vody, těžkým melounem a taškami plnými jídla na víkend do třetího patra bez výtahu? Ne, díky.\n\nMýtus, že si pro pořádný nákup musíš dojít a odtahat si ho, je dávno pasé. Kurýr ti všechno vynese až ke dveřím v přesném 15minutovém okně. Ty ho zatím můžeš sledovat na mapě. A to nejlepší? Přiveze ti i čerstvé pečivo od lokálních pekařů a maso na gril, které dole na rohu neseženeš. Ušetřenou energii si schovej na víkend!",
+        "cta": "Jaký nejtěžší nákup jsi kdy musel tahat do schodů? Napiš nám to do komentářů! 👇",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#bezstarosti",
+          "#nakupovani",
+          "#konecprazdnin",
+          "#dovozpotravin",
+          "#kvalitnijidlo",
+          "#onlinepotraviny"
+        ]
+      },
+      {
+        "id": "27c5ac38-83be-4d23-8ef9-9776379124f3",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787929644033-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787929644033.mp4",
+        "hook": "Když vezu jen kakao, prášek a mléko, jde o minuty.",
+        "body": "⏱️ Je mi jasné, co se u tebe děje. Bábovka napůl v troubě, těsto rozdělané a najednou zjistíš, že chybí to hlavní. 🍫 Místo zdlouhavého oblékání dětí a cesty do obchodu ale přijedu já. Záchrannou čokoládu ti dovezu dřív, než vůbec stihneš uklidit tu rozsypanou mouku z podlahy. Co byla tvoje poslední chybějící surovina, kvůli které jsi musel přerušit vaření? Poděl se s námi v komentářích! 👇 #rohlikcz #rohlikkuryr #peceni #zachranavminutach",
+        "cta": "Co byla tvoje poslední chybějící surovina, kvůli které jsi musel přerušit vaření? Poděl se s námi v komentářích!",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#rohlikkuryr",
+          "#peceni",
+          "#zachranavminutach",
+          "#onlinepotraviny",
+          "#cerstvepotraviny",
+          "#dnesjem"
+        ]
+      },
+      {
+        "id": "c3174941-37aa-44da-b234-a4f2d1db4d8b",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787930065423-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787930065423.mp4",
+        "hook": "Ztvrdlý chleba? Zadrž.",
+        "body": "Ztvrdlý chleba? Zadrž. Konec prázdnin a návrat do prázdné lednice? Než vypukne ten pravý ranní chaos s chystáním školních svačin, máme pro tebe záchranu. Pokud ti doma zbyl tvrdší chleba, rozhodně ho nevyhazuj. Řemeslné pečivo snese jednoduchý lázeňský trik: chleba zlehka potři nebo postříkej vodou a šup s ním na 5 minut do trouby rozehřáté na 180 °C. Po vytažení bude vonět a křupat, jako by ho pekař zrovna vytáhl z pece. Děti dostanou super svačinu a ty ušetříš. Ty nejlepší poctivé kousky s dovozem až ke dveřím mimochodem jistí naše Pekárna a cukrárna.",
+        "cta": "Jaký je tvůj oblíbený trik na záchranu surovin? Napiš nám ho do komentářů nebo si tenhle rovnou ulož na pondělní ráno! 👇",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#neplytvejjidlem",
+          "#foodhack",
+          "#svacina",
+          "#onlinepotraviny",
+          "#jidlo"
+        ]
+      },
+      {
+        "id": "5f2d6650-60c1-4188-9d0b-86cb247632c2",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787930386533-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787930386533.mp4",
+        "hook": "Kdo to snědl?",
+        "body": "Konec prázdnin, návrat z chalupy a doma jen prázdné police? Všichni známe toho jednoho člena rodiny, co záhadně vyluxuje lednici, jakmile se nedíváš. Místo toho, abys po cestě s unavenými dětmi jela ještě do přeplněného obchodu a tahala těžké tašky, udělej si to jednodušší. Za chvíli máš doma ty nejkřupavější svačiny na první školní dny.",
+        "cta": "Označ v komentářích svého lednicového fantoma! Pokud se neozve do hodiny, dluží ti pořádný nákup.",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#nakupy",
+          "#rodina",
+          "#svaciny",
+          "#cerstvepotraviny",
+          "#dovozpotravin"
+        ]
+      },
+      {
+        "id": "19db40f1-6ef3-4fdf-9746-f522bcaf3350",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787930598341-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787930627291-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787930665740-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787930699494-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-carousel/1787930734022-slide4.webp"
+        ],
+        "hook": "Tajemství sladkého melounu bez tahání do schodů",
+        "body": "Konec srpna, děti se chystají do školy a ty máš chuť na pořádně vychlazený meloun. Ale představa, že se s tou patnáctikilovou koulí táhneš do pátého patra bez výtahu? Peklo. Naštěstí na to máš nás. Náš kurýr ti tenhle sladký poklad vynese až ke dveřím s úsměvem. A jak víme, že bude dokonalý? Naši pickeři znají anatomii čerstvosti nazpaměť. Vybírají kusy s výrazným žlutým flekem, což znamená, že se meloun dlouho slunil, a se suchou stopkou zaručující hromadu cukru uvnitř. Doma ho pak nech v celku klidně na lince, rozkrojený zabal do fólie a šup s ním do lednice. Ušetři si záda pro to podstatné.",
+        "cta": "Nech tahání těžkých tašek na nás. Naplň lednici bez stresu na https://www.rohlik.cz/ a dej nám do komentářů vědět, jestli jsi tým meloun s peckami, nebo bez pecek!",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#anatomiecerstvosti",
+          "#meloun",
+          "#leto",
+          "#dnesjim",
+          "#vikendovevareni",
+          "#dnesjem"
+        ]
+      },
+      {
+        "id": "df7e8c4a-5e26-4015-99a6-71ebb552d5c3",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787930921856-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787930921856.mp4",
+        "hook": "Páteční fronta nebo burgery?",
+        "body": "Znáš ten pocit. Pátek večer, padáš únavou a před tebou v supermarketu rodinka s nákupem na měsíc. Ušetři si nervy. Z naší víkendové tašky vykouzlíš luxusní smash burgery dřív, než bys vůbec dojel k pokladně. Mleté maso, máslové bulky, vyzrálý cheddar a čerstvá zelenina – všechno ti přivezeme až ke dveřím klidně do 90 minut. Žádné fronty, žádný stres. Stačí jen rozpálit pánev.",
+        "cta": "Objednej hned a za 90 minut zvoníme: https://www.rohlik.cz/",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#bezfront",
+          "#smashburger",
+          "#vikendovetipy",
+          "#cerstvepotraviny",
+          "#rychlynakup",
+          "#vikendovevareni"
+        ]
+      },
+      {
+        "id": "182cf422-fd52-4116-b714-578561fa729d",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-posts/1787987334793.webp"
+        ],
+        "hook": "Která snídaně tě ráno zachrání?",
+        "body": "Kufry z chalupy vybalené, ale lednice zeje prázdnotou a škola klepe na dveře? Rozumím ti. Místo toho, abys teď s dětmi v závěsu stála nekonečnou frontu a tahala těžké tašky do schodů, nech ranní záchranu na nás.\n\nKurýr ti čerstvé suroviny, které na depu pečlivě vybral, vynese až ke dveřím. Ty si jen zvol svůj ideální start dne.\n\nTým Sladká: Křupavé loupáky, čerstvé máslo, jahodový džem a kakao.\nTým Slaná: Čerstvý chléb, poctivá šunka, sýr a farmářská vajíčka.",
+        "cta": "Hlasuj v komentářích pro svůj tým a naplň rodinnou lednici bez stresu na https://www.rohlik.cz/",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#soubojkosiku",
+          "#snidane",
+          "#zpatkydoskoly",
+          "#bezstarosti",
+          "#kvalitnijidlo",
+          "#rychlynakup"
+        ]
+      },
+      {
+        "id": "7dc8e685-ab50-4fa6-bef6-54bb82757b66",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-posts/1787987451038.webp"
+        ],
+        "hook": "Jak zachránit pomlácená rajčata z prasklé tašky",
+        "body": "Neseš pět tašek naráz, protože jít dvakrát je zkrátka prohra. U dveří jedna praskne a rajčata se kutálí po schodech. Známe to.\n\nTady je záchranný hack na potlučená rajčata: Hoď je na pekáč s rozkrojenou palicí česneku, štědře zalij oliváčem a peč 25 minut na 200 °C. Rozmixuj a máš dokonalou rychlou omáčku na těstoviny.\n\nA ten skutečný trik pro hektický konec prázdnin? Nenech gravitaci vyhrát. Ať už jde o suroviny na školní svačiny nebo těžké balíky vod, kurýr tenhle boj odmaká za tebe. Vynese všechno až ke dveřím, klidně do pátého patra bez výtahu. Ty jen v klidu vybalíš.",
+        "cta": "Ulož si tenhle záchranný recept na horší časy a do komentářů nám napiš, co se z nákupu nejčastěji rozkutálí tobě! 👇",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#rychlyhack",
+          "#vareni",
+          "#bezstresu",
+          "#rodice",
+          "#rychlynakup",
+          "#vikendovevareni"
+        ]
+      },
+      {
+        "id": "87acf0fc-22a3-43f7-a861-7df29f4fbc8f",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-posts/1787987602612.webp"
+        ],
+        "hook": "Co vezu rodičům nejčastěji před sedmou?",
+        "body": "Znáš ty objednávky před sedmou ranní. V tašce často jen tortilly, šunka a sýr. Je mi jasné, že zachraňujeme školní svačiny na poslední chvíli. Sám mám děti, takže tenhle stres chápu. Když ráno zjistíš, že krabička zeje prázdnotou, my už startujeme. A tady je můj oblíbený hack: Vezmi tortillu, nařízni ji do středu. Do čtyř čtvrtin dej čerstvý sýr, šunku nejvyšší jakosti, baby špenát a plátky rajčat. Slož do trojúhelníku, šup s tím na chvíli do toustovače a za tři minuty máš hotovo. Ty ušetříš nervy a my ti čerstvé suroviny hodíme ke dveřím dřív, než si školáci vyčistí zuby.",
+        "cta": "Jaký je tvůj tajný trik na bleskovou svačinu, když ráno absolutně nestíháš? Napiš nám ho do komentářů.",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#skolnisvacina",
+          "#rannistres",
+          "#foodhack",
+          "#farmarsketrhyonline",
+          "#casprosebe"
+        ]
+      },
+      {
+        "id": "f1293baf-aa10-4a56-8341-b9aff5d10e2e",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-posts/1787987709302.webp"
+        ],
+        "hook": "Tajemství křupavé večeře po návratu.",
+        "body": "Kufry v předsíni, lednice prázdná a představa cesty do obchodu tě děsí? Rozumíme.\n\nZatímco ty vybaluješ, my ti doručíme tašku na bleskovou letní večeři: čerstvý baby špenát, šťavnaté jahody, krémovou burratu a balsamico.\n\nTajemství jejich dokonalé chuti? Naše jahody a saláty si v depu hoví ve speciální klimatizované fresh zóně. Teplotu hlídáme na desetiny stupně, takže k tobě dorazí absolutně křupavé a v té nejlepší kondici. Žádné unavené lístky z rozpáleného regálu.\n\nStačí jen vše smíchat na talíři. Hoď si nohy nahoru a ušetři si nervy před začátkem školy.",
+        "cta": "Objednej hned a za 90 minut zvoníme: https://www.rohlik.cz/",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#krupavavecere",
+          "#freshzona",
+          "#cerstvepotraviny",
+          "#casprosebe",
+          "#onlinepotraviny",
+          "#rodina"
+        ]
+      },
+      {
+        "id": "68f94b6b-4211-485c-b667-9012e04d5a03",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-posts/1787987821623.webp"
+        ],
+        "hook": "Kdo v noci vypil to poslední mléko?",
+        "body": "Znáš to. Za tři dny začíná škola, budík zvoní a ty se těšíš na kávu. Jenže v krabici zbývá přesně jedna smutná kapka. Tajná noční miska cereálií si vybrala svou daň.\n\nŽádná panika, do obchodu běhat nemusíš.\n\nJak poznáš kvalitní farmářské mléko, které ti přivezeme klidně už v 6:00 ráno?\n1. Vůně: Čistá, nasládlá, bez umělého ocasu.\n2. Textura: Pravé plnotučné nechává na skle jemný smetanový povlak.\n3. Původ: Od lokálních farmářů rovnou k tobě, žádné zbytečné cestování.\n\nTip pro tebe: Mléko nepatří do dvířek lednice, kde neustále kolísá teplota. Šup s ním dozadu!",
+        "cta": "Naplň lednici bez stresu na https://www.rohlik.cz/ a schválně nám do komentářů napiš, kdo u vás doma nejčastěji tajně luxuje zásoby!",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#rannikava",
+          "#cerstvepotraviny",
+          "#farmarskemleko",
+          "#jidlo",
+          "#bezstarosti",
+          "#kvalitnijidlo"
+        ]
+      },
+      {
+        "id": "f82f5354-6bfe-43fa-bf28-bc2812a5ad56",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-posts/1787987951290.webp"
+        ],
+        "hook": "Zatímco jiní stojí frontu, ty už pečeš.",
+        "body": "Konec srpna, návrat z chalupy a doma samozřejmě prázdná lednice. Děti začínají být protivné. Máš dvě možnosti. Buď se teď sbalíte a půjdete se mačkat do supermarketu o poslední unavenou zeleninu. Nebo si to načasuješ jako profík. Než vůbec odemkneš dveře, kurýr ti předá čerstvou farmářskou klobásku, brambory a papriky. Ty jen všechno nakrájíš, hodíš na jeden plech, zakápneš oliváčem a zapneš troubu. Žádné složité vaření ani hromada špinavého nádobí. Zatímco se večeře dělá úplně sama, ty máš konečně čas na horkou sprchu a vybalení kufrů. Ušetřené nervy a spousta času k dobru.",
+        "cta": "Jaká rychlovka z jednoho plechu zachraňuje večery u vás doma? Poděl se o svůj tip v komentářích!",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#rychlavecere",
+          "#foodhack",
+          "#vecerezjednohohrnce",
+          "#kvalitnijidlo",
+          "#farmarsketrhyonline",
+          "#dnesjem"
+        ]
+      },
+      {
+        "id": "8148f5f4-ed06-4afe-afc7-cddaa16e1397",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-posts/1787988151148.webp"
+        ],
+        "hook": "Dneska nech parkovací tetris raději jiným.",
+        "body": "Konec srpna, děti se hádají na zadní sedačce a před supermarketem prostě nezaparkuješ. Znáš to kroužení a zoufalství? Místo toho si dej nohy nahoru.\n\nBojíš se, že ti dovezeme pomlácené ovoce, když si ho nevybereš sám? Zbytečně. Vybíráme ho podle přísné anatomie čerstvosti:\n\n1. Pevná a napnutá slupka bez jediné otlačeniny.\n2. Intenzivní sladká vůně už u stopky.\n3. Šťavnatá křupavost ideální do školních krabiček.\n\nZatímco ty z gauče sleduješ kurýra na mapě, my vezeme čerstvé maso na večeři i sešity pro děti. A za kvalitu ručíme okamžitým vrácením peněz.",
+        "cta": "Jaké ovoce nesmí letos chybět v první školní svačině u vás? Napiš nám to do komentářů a naplň lednici bez stresu na https://www.rohlik.cz/",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#parkovacitetris",
+          "#skolavola",
+          "#konecprázdnin",
+          "#kvalitnijidlo",
+          "#rodina",
+          "#cerstvepotraviny"
+        ]
+      },
+      {
+        "id": "6598f35a-a6a2-46f4-90c7-44d487c80d52",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-posts/1787988261660.webp"
+        ],
+        "hook": "Prázdná lednice tři dny před školou.",
+        "body": "Kufry z prázdnin vybalené, ale co zabalíš v pondělí dětem k svačině? Ušetři si poslední prázdninový víkend předlouhé fronty v supermarketech.\n\nZ jedné doručovací tašky právě taháme záchranu pro celou rodinu. Zastánci nesmrtelné klasiky ocení poctivý kváskový chleba, čerstvé máslo a krůtí šunku. Moderní tábor zase potěší barevný tortilla wrap s hummusem a křupavou paprikou.\n\nRozložit, namazat, zarolovat a šup s tím do krabičky. Ať už u vás doma vyhrává jakýkoliv tým, obě varianty připravíš mrknutím oka. My ti všechny čerstvé suroviny přivezeme až ke dveřím klidně už za 90 minut.",
+        "cta": "Objednej hned a za 60 minut zvoníme: https://www.rohlik.cz/",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#zpatkydoskoly",
+          "#skolnivolaji",
+          "#svacina",
+          "#cerstvepotraviny",
+          "#rychlynakup",
+          "#kvalitnijidlo"
+        ]
+      },
+      {
+        "id": "35836f1c-7275-41c0-ac60-155bde25276c",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-posts/1787988419942.webp"
+        ],
+        "hook": "Patří koriandr do jídla, nebo do koupelny?",
+        "body": "Kufry v předsíni, do školy zbývají tři dny a vaše lednice je prázdná. Potřebuješ bleskovou večeři, ale představa fronty v supermarketu bolí. Ušetři si nervy. My ti ty nejčerstvější suroviny vybereme a vyneseme až ke dveřím. Ty jen musíš rozseknout odvěký rodinný spor. Košík A: Rychlá Asie plná čerstvého koriandru. Košík B: Klasika s petrželkou, protože koriandr vám chutná jako mýdlo. Jak to máte doma vy? Hlasuj do komentářů!",
+        "cta": "Naplň lednici bez stresu na https://www.rohlik.cz/",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#soubojkosiku",
+          "#koriandr",
+          "#rychlavecere",
+          "#bezstarosti",
+          "#kvalitnijidlo",
+          "#rychlynakup"
+        ]
+      },
+      {
+        "id": "59fb102e-814d-45f2-83e0-a85ccc0b8860",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-posts/1787988532771.webp"
+        ],
+        "hook": "Kdo zase potáhne ty prázdné lahve?",
+        "body": "Kufry vybalené, do školy chybí tři dny a ty s hrůzou koukáš na hromadu prázdných obalů. Máš dvě možnosti. Buď popadneš děti, půjdeš hledat poloprázdný kontejner a potáhneš tašky plné plastů. Nebo si uvaříš kávu a nákup vyřešíš chytře.\n\nS programem Otoč obal ti dovezeme jogurty, mléko i drogerii ve vratném skle. Až dojdou, prázdné lahve jednoduše vrátíš kurýrovi rovnou mezi dveřmi při dalším nákupu. Žádné tahání těžkých tašek s tříděným odpadem, žádné zbytečné plasty. Jen čistá úspora času a nervů, ať můžeš v klidu dořešit školní penály.",
+        "cta": "Napiš nám do komentářů, kdo u vás doma nejčastěji vynáší tříděný odpad! 👇",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#otocobal",
+          "#udrzitelnost",
+          "#bezplastu",
+          "#zpatkydoskoly",
+          "#kvalitnijidlo",
+          "#onlinepotraviny"
+        ]
+      },
+      {
+        "id": "8dbcb5cb-7479-4d36-8c6e-e941f936ff4a",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-rohlik-cz/ig-posts/1787988643550.webp"
+        ],
+        "hook": "Tohle tě zachrání před pondělním chaosem.",
+        "body": "Sedím za volantem a koukám do tašek. Je tu poslední srpnový víkend a ty i ostatní rodiče objednáváte to samé: dýně, quinou a kuřecí. Nedivím se. Do školy zbývají tři dny a ty víš, že pondělí bude masakr.\n\nMám pro tebe tip. Ušetři si nervy a připrav si jídlo dopředu. Zatímco já ti vynesu těžké tašky až ke dveřím, ty můžeš naházet zeleninu na plech nebo rozvonět kuřecí kari. Připravíš si krabičky a ráno jen sáhneš do plné lednice. Žádný stres po návratu z chalupy. My zařídíme perfektní suroviny, ty svůj klid.",
+        "cta": "Co dobrého si do krabiček na ten první školní týden chystáš ty? Napiš mi do komentářů, ať se zítra na trase inspiruju.",
+        "hashtags": [
+          "#rohlikcz",
+          "#bozisluzba",
+          "#rohlik",
+          "#nakupdomu",
+          "#pohledzavolant",
+          "#kuryr",
+          "#mealprepcz",
+          "#dnesjim",
+          "#onlinepotraviny",
+          "#jidlo"
+        ]
+      }
+    ]
+  },
+  {
+    "slug": "koupelny-ptacek",
+    "company": "Koupelny Ptáček",
+    "industry": "Koupelnové vybavení a design",
+    "website": "https://www.koupelny-ptacek.cz/",
+    "posts": [
+      {
+        "id": "eb763cfb-99a8-4cd4-945b-3cf2b87a7a4e",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787926621100-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787926621100.mp4",
+        "hook": "Konec dovolenkové idyly?",
+        "body": "Návrat z letní dovolené zpátky do reality bývá tvrdý. Zvlášť, když luxusní hotelovou koupelnu vyměníte za tu svou starou. Ale jde to i jinak! Tajemství optického zvětšení a sjednocení malé koupelny tkví ve správném základu. Kvalitní keramické obklady a dlažby v italském designu dokážou zázraky. Minimalistický vzhled s minimem spár prostor nadechne a ta údržba? Zvládnete ji za pár minut. Kousek dovolenkové oázy tak můžete mít doma každý den.",
+        "cta": "Uložte si tento tip pro vaši budoucí rekonstrukci a napište nám do komentářů – jaká barva obkladů je pro vás ta pravá?",
+        "hashtags": [
+          "#koupelnyptacek",
+          "#koupelny",
+          "#koupelnysnu",
+          "#koupelnovestudio",
+          "#koupelna",
+          "#rekonstrukcekoupelny",
+          "#obkladyadlazby",
+          "#keramickeobklady",
+          "#sanitarnikeramika",
+          "#rekonstrukce"
+        ]
+      },
+      {
+        "id": "5c0aecc8-9d74-4dad-88ca-e7e369368196",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787926850640-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787926880604-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787926951117-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787926986932-slide3.webp"
+        ],
+        "hook": "Rychlá sprcha v bezúdržbové koupelně, nebo dlouhá relaxace ve vlastní wellness oáze.",
+        "body": "Řemeslníci už mají v kalendáři termín a vy pořád váháte. Rozumíme vám, vybrat ten správný styl pod tlakem blížící se rekonstrukce umí potrápit. Láká vás spíš praktický minimalismus s velkoformátovými obklady, které udržíte čisté za pár minut? Nebo sníte o luxusní hotelové oáze s volně stojící vanou, kde hodíte starosti za hlavu? Než k vám nastoupí obkladači, ujasněte si svou vizi v klidu a bez stresu. Který styl u vás vítězí? Napište nám do komentářů!",
+        "cta": "Ujasněte si vizi dřív, než u vás zazvoní řemeslníci. Objednejte si tištěný Katalog koupelen zdarma ještě dnes a urychlete svou rekonstrukci: https://www.koupelny-ptacek.cz/p/katalog-koupelen",
+        "hashtags": [
+          "#koupelnyptacek",
+          "#koupelny",
+          "#koupelnysnu",
+          "#koupelnovestudio",
+          "#rekonstrukcekoupelny",
+          "#koupelna",
+          "#inspirace",
+          "#inspiracebydleni",
+          "#dlazba",
+          "#keramikacatalano"
+        ]
+      },
+      {
+        "id": "ecadfe60-8d98-4010-980a-ab8e401c7f6a",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787927342274-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787927342274.mp4",
+        "hook": "Úzká koupelna? Bourat nosné zdi nemusíte.",
+        "body": "Úzká koupelna? Bourat nosné zdi nemusíte. Častý strašák, ze kterého vás při plánování rekonstrukce zbytečně polévá pot. V dnešním díle „Zeptej se designéra“ řešíme, jak z úzké nudle udělat vzdušný prostor. Tajemství neleží v drahém bourání nosných zdí. Jde o techniku: velkoformátové světlé obklady znamenají méně spár. Výsledek? Stěny se opticky nerozbíjí, prostor působí širší a vy strávíte mnohem méně času údržbou. Když přidáte vrstvené osvětlení, stísněnost je pryč a vy se vejdete do rozpočtu. Napište nám do komentářů, s jakým prostorovým limitem bojujete vy, a v dalším videu vám náš designér poradí. #KoupelnyPtacek #ZeptejSeDesignera #UzkaKoupelna #RekonstrukceKoupelny #KoupelnovaInspirace",
+        "cta": "Napište nám do komentářů, s jakým prostorovým limitem bojujete vy, a v dalším videu vám náš designér poradí.",
+        "hashtags": [
+          "#koupelnyptacek",
+          "#koupelny",
+          "#koupelnysnu",
+          "#koupelnovestudio",
+          "#zeptejsedesignera",
+          "#uzkakoupelna",
+          "#rekonstrukcekoupelny",
+          "#dlazba",
+          "#malakoupelna"
+        ]
+      },
+      {
+        "id": "237d1293-e8e2-49fd-878a-a43e174e2a45",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787927949451-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787927983931-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787928017565-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787928051393-slide3.webp"
+        ],
+        "hook": "Bílá klasika nebo odvážný mat? Co vyhrává?",
+        "body": "Září se blíží, ranní provoz v rodinné koupelně houstne a řemeslníci tlačí na termíny před topnou sezónou. Chápeme, že vybírat pod tlakem není ideální. Ať už jste zastánci nadčasové bílé, nebo vás láká italská elegance v matném provedení, sanitární keramika Catalano vyřeší obojí.\n\nJejí čisté linie zaručují bleskovou údržbu, takže ranní zmatek rychle uklidíte. A co je pro vás teď klíčové? Nemusíte na ni čekat týdny. Většinu modelů držíme skladem, aby vaše stavba nestála ani den zbytečně.\n\nJste spíš tým lesk, nebo mat? Dejte nám vědět do komentářů!",
+        "cta": "Řemeslníci nepočkají. Klikněte na odkaz a zajistěte si, že sanitární keramika Catalano dorazí včas, ať můžete plynule pokračovat v rekonstrukci: https://www.koupelny-ptacek.cz/p/sanit-rn-keramika-catalano",
+        "hashtags": [
+          "#koupelnyptacek",
+          "#koupelny",
+          "#koupelnysnu",
+          "#koupelnovestudio",
+          "#rekonstrukcekoupelny",
+          "#koupelna",
+          "#sanita",
+          "#koupelnovyobklad",
+          "#designinterieru",
+          "#sanitarnikeramika"
+        ]
+      },
+      {
+        "id": "2e38e658-ecca-4268-93ec-2a5e4ddd897a",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787928261385-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787928261385.mp4",
+        "hook": "Bojíte se kombinovat?",
+        "body": "Zářijová rána se blíží a boj o zrcadlo začíná. Zvládnout rodinný provoz ale neznamená rezignovat na čistý design. Tajemství vizuálního klidu tkví ve správných texturách. Kombinace matných obkladů a jemně strukturovaného dřeva prostor zútulní, tlumí odlesky a navíc skvěle maskuje zaschlé kapky vody. Nemusíte mít diplom z designu, abyste si doma vytvořili harmonické místo, kde vás ranní shon nerozhodí.",
+        "cta": "Uložte si tento tip pro vaši rekonstrukci a napište nám do komentářů, jaká barva by u vás doma vyhrála.",
+        "hashtags": [
+          "#koupelnyptacek",
+          "#koupelny",
+          "#koupelnysnu",
+          "#koupelnovestudio",
+          "#rekonstrukcekoupelny",
+          "#koupelnovainspirace",
+          "#modernikoupelna",
+          "#koupelnovyobklad",
+          "#sanitarnikeramika",
+          "#bydleni"
+        ]
+      },
+      {
+        "id": "50f1494d-cdb6-41e9-8dfb-20f70e0c67c4",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787928471909-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787928509204-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787928606989-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787928641894-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787928743795-slide4.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787928781379-slide5.webp"
+        ],
+        "hook": "Tahle chyba s osvětlením vám zkazí každé ráno.",
+        "body": "Školní rok je za dveřmi a ranní provoz v rodinné koupelně brzy otestuje vaše nervy. Pokud právě plánujete rekonstrukci, myslete na detaily, které nejdou vzít zpět. Spoléhat se jen na jedno centrální světlo na stropě znamená, že si u zrcadla budete stínit vlastním tělem. Holení nebo líčení se tak změní v každodenní boj.\n\nJak na to správně? Rozdělte koupelnu do tří zón. Potřebujete jasné denní světlo (okolo 4000K) zepředu u zrcadla, silné stropní pro úklid a teplé tlumené podsvícení (kolem 2700K) pro večerní vanu. Hlavní pravidlo: kabely se musí natáhnout ještě před pokládkou obkladů. Dodatečné úpravy znamenají zničený materiál a peníze navíc. Promyslete rozvody včas a ušetřete si starosti.",
+        "cta": "Plánujete novou koupelnu a nechcete udělat chybu hned na startu? Uložte si tenhle příspěvek, ať máte tahák pro elektrikáře po ruce, až na to přijde.",
+        "hashtags": [
+          "#koupelnyptacek",
+          "#koupelny",
+          "#koupelnysnu",
+          "#koupelnovestudio",
+          "#rekonstrukcekoupelny",
+          "#koupelna",
+          "#osvetleni",
+          "#bydleni",
+          "#inspiracebydleni",
+          "#rekonstrukce"
+        ]
+      },
+      {
+        "id": "39a279bf-62ed-44c1-9086-a8dfa4fd015b",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-posts/1787928902102.webp"
+        ],
+        "hook": "Řemeslníci tlačí a vy řešíte podkroví?",
+        "body": "Paní Lucie bojovala s každým centimetrem pod šikmým stropem. Řemeslníci měli nastoupit za týden a finální řešení chybělo. Znáte ten stres?\n\nNavrhli jsme vzdušný prostor s asymetrickou vanou, která chytře využívá sklon střechy. Tady jsou dvě cesty, jak tohoto vzhledu dosáhnout.\n\nPrvní volba? Prémiová italská sanita Catalano s minimalistickými liniemi pro maximální luxus.\n\nDruhá cesta? Cenově dostupnější, ale designově srovnatelná alternativa.\n\nTo hlavní: obě varianty máme skladem. Vaši stavbaři nebudou čekat ani den. Získejte jistotu dřív, než se poprvé kopne do zdi a vyhněte se zpoždění.",
+        "cta": "Rezervujte si termín pro přesný 3D návrh a zjistěte finální cenu materiálu na https://www.koupelny-ptacek.cz/ ještě dnes.",
+        "hashtags": [
+          "#koupelnyptacek",
+          "#koupelny",
+          "#koupelnysnu",
+          "#koupelnovestudio",
+          "#podkrovnikoupelna",
+          "#rekonstrukcekoupelny",
+          "#koupelnanaklic",
+          "#malakoupelna",
+          "#koupelnovyobklad",
+          "#rekonstrukce"
+        ]
+      },
+      {
+        "id": "ba7c0c5c-4f9c-4822-8d58-ca26712bc1d4",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787929128280-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787929162419-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787929194480-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787929231448-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787929268098-slide4.webp"
+        ],
+        "hook": "Jak opticky nafouknout malou koupelnu bez bourání",
+        "body": "Řemeslníci mají nastoupit co nevidět a vy pořád nevíte, jak do panelákového jádra vměstnat vše potřebné? Chápu vás. Každý centimetr hraje roli a rozpočet není nafukovací. Prostor ale nafouknout jde. Alespoň opticky. Tajemství tkví ve třech krocích z našeho katalogu: 1. Velkoformátové obklady ve světlých tónech. Zredukují počet spár. Stěny se vizuálně slijí v jednu plochu. 2. Velké zrcadlo bez masivního rámu. Odráží světlo a klame mozek. Místnost najednou působí dvakrát tak hluboká. 3. Závěsná sanita a nábytek. Když vidíte podlahu až ke zdi, prostor dýchá. A navíc se skvěle udržuje. Všechny tyto prvky máme skladem, takže můžete začít s realizací bez zbytečného čekání na materiál.",
+        "cta": "Inspirujte se konkrétními řešeními pro malé koupelny v našem online katalogu a ušetřete si starosti s plánováním na https://www.koupelny-ptacek.cz/",
+        "hashtags": [
+          "#koupelnyptacek",
+          "#koupelny",
+          "#koupelnysnu",
+          "#koupelnovestudio",
+          "#malakoupelna",
+          "#rekonstrukce",
+          "#koupelnovainspirace",
+          "#sanitarnikeramika",
+          "#koupelnovyobklad"
+        ]
+      },
+      {
+        "id": "ec79424a-dac9-4ddd-aa3c-55e5554fa2d6",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787929602888-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787929602888.mp4",
+        "hook": "Velkoformát v panelákovém jádru?",
+        "body": "Plánujete vybourat staré umakartové jádro a bojíte se, že luxusní materiály do paneláku zkrátka nepatří? Omyl.\n\nDnes odpovídám na váš nejčastější dotaz ohledně limitů malých prostor. Velkoformátová dlažba malou koupelnu opticky sjednotí a zvětší. A co víc? Méně spár znamená mnohem méně drhnutí, což oceníte hlavně teď, když začíná zářijový ranní shon. Když k tomu přidáme minimalistickou závěsnou sanitární keramiku Catalano, ušetříte cenné centimetry a vytvoříte skutečnou oázu klidu i na pár metrech čtverečních bez překročení rozpočtu.",
+        "cta": "Řešíte při plánování rekonstrukce nějaký konkrétní zádrhel? Napište mi ho do komentářů a v dalším videu ze série 'Zeptej se designéra' odpovím přímo na váš problém.",
+        "hashtags": [
+          "#koupelnyptacek",
+          "#koupelny",
+          "#koupelnysnu",
+          "#koupelnovestudio",
+          "#rekonstrukcekoupelny",
+          "#koupelnavpanelaku",
+          "#zeptejsedesignera",
+          "#designinterieru",
+          "#rekonstrukce",
+          "#dlazba"
+        ]
+      },
+      {
+        "id": "7649bab8-96cc-47ae-8127-b9c35dc1efad",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787929979619-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787930017164-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787930052759-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787930086800-slide3.webp"
+        ],
+        "hook": "Řemeslníci za dveřmi. Rychlá sprcha, nebo pomalá vana?",
+        "body": "Září klepe na dveře a s ním i každodenní ranní shon. Navíc řemeslníci už mají termín a vy pořád váháte nad finálním rozložením? Chápeme vás. Vybrat mezi praktickým sprchovým koutem pro rychlá rána a volně stojící vanou pro večerní únik před stresem není snadné. Každé řešení má své kouzlo. Důležité ale je, že u nás nemusíte dělat kompromisy kvůli termínům. Ať už se rozhodnete pro jakýkoliv tým, obě varianty máme skladem a připravené k okamžitému odběru. Která varianta vyhraje u vás doma? Hlasujte v komentářích! Pokud si nejste jistí, naši specialisté vám zdarma připraví přesný 3D návrh.",
+        "cta": "Nenechávejte rozhodnutí na poslední chvíli. Prolistujte si náš online katalog na https://www.koupelny-ptacek.cz/ ještě dnes a rezervujte si schůzku.",
+        "hashtags": [
+          "#koupelnyptacek",
+          "#koupelny",
+          "#koupelnysnu",
+          "#koupelnovestudio",
+          "#rekonstrukcekoupelny",
+          "#koupelna",
+          "#sprchovykout",
+          "#koupelnovydesign",
+          "#rekonstrukce",
+          "#sanitarnikeramika"
+        ]
+      },
+      {
+        "id": "de2564ee-4894-48e6-85fb-b034b71dbee4",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787930300419-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787930300419.mp4",
+        "hook": "Děsí vás napjatý rozpočet?",
+        "body": "Konec srpna, výdaje za školu rostou a vy potřebujete dotáhnout rekonstrukci? Nemusíte slevovat z nároků na vzhled. Tajemství prémiového designu netkví v cenovce, ale ve sjednocení materiálů. Pokud zvolíte kvalitní keramickou dlažbu v jednom nadčasovém odstínu, malý prostor se opticky zklidní a propojí bez zbytečného vizuálního šumu. A to nejlepší? Tyhle kousky startují už na 199 Kč za metr.",
+        "cta": "Napište nám do komentářů, do jaké barvy ladíte vaši koupelnu vy!",
+        "hashtags": [
+          "#koupelnyptacek",
+          "#koupelny",
+          "#koupelnysnu",
+          "#koupelnovestudio",
+          "#rekonstrukcekoupelny",
+          "#modernibydleni",
+          "#dostupnydesign",
+          "#koupelnovyobklad",
+          "#designinterieru",
+          "#keramikacatalano"
+        ]
+      },
+      {
+        "id": "d2d0ca97-be78-4ec8-8559-514f8f6d41f5",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787982582095-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787982582095.mp4",
+        "hook": "Studená dlažba po ránu?",
+        "body": "Zářijová rána dokážou být neúprosná. Když se rozespalí ploužíte do koupelny, ledová dlažba je to poslední, co potřebujete. Moderní velkoformátové obklady v dekoru kamene nebo betonu vypadají skvěle a díky minimu spár se snadno udržují. Mají ale jednu nevýhodu – na dotek jsou přirozeně studené. Pokud právě teď plánujete rekonstrukci, myslete na podlahové vytápění. Keramika teplo perfektně vede a udrží ho. Získáte tak čistý minimalistický design bez kompromisů v pohodlí.",
+        "cta": "Zvládáte ranní chlad, nebo byste vyhřátou podlahu brali všemi deseti? Napište nám do komentářů.",
+        "hashtags": [
+          "#koupelnyptacek",
+          "#koupelny",
+          "#koupelnysnu",
+          "#koupelnovestudio",
+          "#rekonstrukcekoupelny",
+          "#koupelna",
+          "#velkoformatovadlazba",
+          "#podlahovetopeni",
+          "#interier",
+          "#koupelnovyinterier"
+        ]
+      },
+      {
+        "id": "5df6962d-57ef-48f4-89de-32548b550a52",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-posts/1787982805720.webp"
+        ],
+        "hook": "Přírodní koupelna pro dva různé rozpočty.",
+        "body": "Konec srpna znamená jediné. Ranní shon se vrací a vaši řemeslníci už nutně potřebují materiál. Toužíte po hřejivé kombinaci dřevodekoru a kamene, ale rozpočet po dovolené není nafukovací?\n\nMáme řešení. Připravili jsme dvě cenové cesty pro naprosto stejný prémiový vzhled.\n\nCesta A: Autentická italská dlažba s hlubokou texturou pro maximální detail.\nCesta B: Chytrá keramická alternativa za zlomek ceny, která je na pohled k nerozeznání.\n\nVýsledek? Oáza klidu, která nestojí víc, než si můžete dovolit. Hlavně ale držíme obě varianty skladem. Vaši řemeslníci tak můžou začít pracovat hned a vy nepřijdete o nasmlouvaný termín.",
+        "cta": "Rezervujte si termín pro 3D návrh vaší nové koupelny na https://www.koupelny-ptacek.cz/ ještě dnes a zajistěte si materiál dřív, než zmizí ze skladu.",
+        "hashtags": [
+          "#koupelnyptacek",
+          "#koupelny",
+          "#koupelnysnu",
+          "#koupelnovestudio",
+          "#rekonstrukcekoupelny",
+          "#koupelnanaklic",
+          "#drevodekor",
+          "#dlazba",
+          "#inspiracebydleni",
+          "#koupelnovydesign"
+        ]
+      },
+      {
+        "id": "c2213e32-8c59-438b-9a87-e60ffd05dfb3",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787982954388-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787982985561-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787983015567-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787983047564-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787983077094-slide4.webp"
+        ],
+        "hook": "Plánujete domácí wellness? Tahle chyba vás vyjde draho.",
+        "body": "Konec srpna, děti jdou za pár dní do školy a ranní shon v koupelně bude zase testovat vaše nervy. Možná právě teď držíte v ruce výplatu a říkáte si, že je čas tu starou koupelnu konečně proměnit. Ale pozor. Nejčastější chybou, kterou při rekonstrukci vidíme, je nákup jednotlivých kousků bez hlubšího plánu. Výsledek? Rozpočet letí nahoru, údržba je peklo a místo relaxu vás čeká jen drhnutí spár. Klíčem k opravdovému odpočinku je harmonie. Čisté linie sanitární keramiky Catalano v kombinaci s jemnými texturami obkladů, které se snadno udržují. Přesně takové promyšlené a technicky funkční sestavy jsme pro vás připravili v našem novém podzimním katalogu.",
+        "cta": "Napište nám do komentářů, jaká barva obkladů vás uklidňuje nejvíc. My vám do zpráv pošleme tip na konkrétní sérii z nového katalogu, která přesně sedne vašemu rozpočtu.",
+        "hashtags": [
+          "#koupelnyptacek",
+          "#koupelny",
+          "#koupelnysnu",
+          "#koupelnovestudio",
+          "#rekonstrukcekoupelny",
+          "#domaciwellness",
+          "#modernikoupelna",
+          "#keramikacatalano",
+          "#koupelnovydesign",
+          "#interier"
+        ]
+      },
+      {
+        "id": "aad452d6-b93b-4714-b7ae-0c47fe6a1763",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787985164674-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787985196197-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787985250182-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-carousel/1787985279592-slide3.webp"
+        ],
+        "hook": "Řemeslníci čekají. Čistá bílá, nebo hřejivá terakota?",
+        "body": "Za tři dny začíná školní shon a vaši řemeslníci už netrpělivě podupávají. Je ten nejlepší čas rozlousknout otázku designu a posunout vaši vysněnou koupelnu o krok blíž k realitě. Jaký styl zvolíte? Zatímco čistá bílá je sázka na jistotu, hitem letošního podzimu je zemitá paleta. Terakota, pískové tóny a hřejivá šedá na velkoformátových obkladech vytvoří útulný prostor, který vás spolehlivě ochrání před ranním stresem. A ta nejlepší zpráva? Ať už fandíte hřejivým tónům, nebo minimalistické bílé, obě varianty držíme skladem. Zpracujeme přesný 3D návrh a rovnou dodáme materiál. Hlasujte v komentářích: Jste Tým Terakota, nebo Tým Bílá?",
+        "cta": "Nenechte řemeslníky čekat a vyberte si svůj styl včas. Rezervujte si termín pro 3D návrh na https://www.koupelny-ptacek.cz/ a spolehněte se na materiál, který je ihned k odběru.",
+        "hashtags": [
+          "#koupelnyptacek",
+          "#koupelny",
+          "#koupelnysnu",
+          "#koupelnovestudio",
+          "#designkoupelny",
+          "#tymterakota",
+          "#tymbila",
+          "#rekonstrukcekoupelny",
+          "#malakoupelna"
+        ]
+      },
+      {
+        "id": "5cd29943-adf0-4605-8759-2385cddf274c",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-posts/1787988187422.webp"
+        ],
+        "hook": "Tlačí vás čas při výběru topení?",
+        "body": "Konec srpna hlásí chladnější rána. Pokud zrovna finišujete plány a řemeslníci netrpělivě podupávají, je čas rozlousknout zásadní otázku.\n\nTým podlahovka: Milujete čistý minimalismus a slastný pocit, když stoupnete na prohřátou dlažbu.\n\nTým žebřík: Chcete výrazný designový prvek, který dodá šmrnc a bleskově usuší ručníky pro celou rodinu.\n\nDobrá zpráva? Nemusíte se stresovat dodáním. Obě varianty umíme chytře zkombinovat a držíme je skladem. Vaši mistři mohou rovnou pracovat.\n\nCo je pro vás po ránu důležitější? Teplo od nohou, nebo suchý ručník po sprše? Napište nám do komentářů.",
+        "cta": "Nenechte řemeslníky čekat a vyberte si ještě dnes. Prolistujte si náš online katalog plný inspirace a objevte to pravé řešení pro váš domov. Odkaz v biu.",
+        "hashtags": [
+          "#koupelnyptacek",
+          "#koupelny",
+          "#koupelnysnu",
+          "#koupelnovestudio",
+          "#rekonstrukcekoupelny",
+          "#koupelnanaklic",
+          "#podlahovetopeni",
+          "#rekonstrukce",
+          "#sanitarnikeramika",
+          "#koupelnovyinterier"
+        ]
+      },
+      {
+        "id": "998e92d1-8976-4854-a56b-bd10ae3ac284",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-posts/1787988299639.webp"
+        ],
+        "hook": "Chyba při rekonstrukci, která přitahuje plíseň.",
+        "body": "Léto končí a vy právě teď ladíte detaily rekonstrukce. Častý omyl? Spoléhat na to, že novou koupelnu uprostřed bytu vyhřeje okolní teplo.\n\nRealita je tvrdá. Jakmile přijdou sychravé dny, v prostoru bez okna se začne držet vlhkost. Ručníky neschnou a do koutů se potichu plíží plíseň. A ten pocit, když bosou nohou stoupnete na ledovou dlažbu, vám ranní shon rozhodně nezpříjemní.\n\nŘešení je přitom nenáročné. Tenká elektrická topná rohož pod dlažbou zajistí bleskově suchou podlahu a hřejivý krok. Když k ní přidáte elegantní designový radiátor, máte jistotu, že prostor zůstane celoročně útulný a zdravý.",
+        "cta": "Uložte si tento tip, ať na něj při plánování nezapomenete. Jaké topení plánujete u vás doma vy?",
+        "hashtags": [
+          "#koupelnyptacek",
+          "#koupelny",
+          "#koupelnysnu",
+          "#koupelnovestudio",
+          "#rekonstrukcekoupelny",
+          "#koupelnabezokna",
+          "#podlahovetopeni",
+          "#koupelnovainspirace",
+          "#koupelnovyobklad",
+          "#designinterieru"
+        ]
+      },
+      {
+        "id": "27263fab-605c-4e57-84ed-0e8a68dfc56d",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-posts/1787988393613.webp"
+        ],
+        "hook": "Bourat beton kvůli topení? Naprostý nesmysl.",
+        "body": "Za tři dny začíná školní kolotoč. Pokud právě finišujete plány na rekonstrukci a škrtáte podlahové topení kvůli strachu z rozpočtu a času, zadržte. Nejčastější chyba? Lidé si myslí, že instalace znamená vysekat podlahu do hloubky a zalévat ji tunami těžkého betonu. Řemeslníci pak nemají čas a vy nervy.\n\nRealita je ale jinde. Ultra tenké elektrické topné rohože se pokládají přímo do flexibilního lepidla pod dlažbu. Výška podlahy se zvedne jen o milimetry. Žádné týdny čekání na vyschnutí, žádné zruinování rozpočtu. Zvládnete to rychle a s přehledem ještě před podzimními plískanicemi.",
+        "cta": "Uložte si tento příspěvek jako rychlý tahák pro své řemeslníky, až s nimi budete o víkendu ladit finální výšku podlahy.",
+        "hashtags": [
+          "#koupelnyptacek",
+          "#koupelny",
+          "#koupelnysnu",
+          "#koupelnovestudio",
+          "#rekonstrukcekoupelny",
+          "#podlahovetopeni",
+          "#modernikoupelna",
+          "#sanitarnikeramika",
+          "#koupelnovydesign",
+          "#koupelnovyinterier"
+        ]
+      },
+      {
+        "id": "615fbc84-6f8e-4e1a-bcdc-b36005475bb3",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-koupelny-ptacek/ig-posts/1787988502321.webp"
+        ],
+        "hook": "Boj o centimetry právě začíná.",
+        "body": "Řemeslníci mají nastoupit už za pár dní a vy stále řešíte toaletu. V panelákové koupelně se počítá každý milimetr. Jakou cestu zvolit?\n\nCesta A: Závěsné WC s modulem. Čistý design, opticky zvětší prostor a podlahu vytřete jedním tahem. Vyžaduje ale stavební úpravy.\n\nCesta B: Moderní stojící kombi WC. Odpadá složité bourání, instalace je blesková a rozpočet si oddechne. Dnešní kousky navíc vypadají skvěle.\n\nObě varianty máme skladem. Vaši řemeslníci tak nebudou čekat ani minutu. Nechte starosti na nás a získejte jasnou cenovou nabídku okamžitě.",
+        "cta": "Rezervujte si termín pro 3D návrh vaší nové koupelny na https://www.koupelny-ptacek.cz/ ještě dnes a zajistěte si materiál včas.",
+        "hashtags": [
+          "#koupelnyptacek",
+          "#koupelny",
+          "#koupelnysnu",
+          "#koupelnovestudio",
+          "#rekonstrukcekoupelny",
+          "#bytovejádro",
+          "#zavesnewc",
+          "#koupelnovyobklad",
+          "#designinterieru",
+          "#koupelnovydesign"
+        ]
+      }
+    ]
+  },
+  {
+    "slug": "form-factory",
+    "company": "Form Factory",
+    "industry": "Fitness a wellness",
+    "website": "https://www.formfactory.cz/",
+    "posts": [
+      {
+        "id": "34282a89-5204-4d83-ad47-62e2d2069af0",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787926677588-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787926677588.mp4",
+        "hook": "Nejlepší část tréninku?",
+        "body": "Dlouho jsem se posilovně vyhýbala. Představa plného fitka mě děsila a nevěděla jsem, kde začít. Zlom přišel, když mi kamarádka ukázala klub na Václaváku. Cvičení si teď dávám svým tempem a hlavně vím, co mě čeká potom. Dokonalá finská sauna a relax zóna. Zjistila jsem totiž, že klasické fitness členství zahrnuje i tenhle luxusní odpočinek. Svaly zregenerují, hlava vypne a já odcházím s čistým štítem, připravená na zářijový návrat do reality. Zkuste to taky, posilovna fakt není jen o zvedání železa.",
+        "cta": "Zajímá mě, co pomáhá po náročném dni zrelaxovat vám? Zastavíte se radši v sauně, nebo si dáte po tréninku oblíbené jídlo? Napište mi to do komentářů!",
+        "hashtags": [
+          "#formfactory",
+          "#formfactorycz",
+          "#ff",
+          "#formfactoryfitness",
+          "#fitnessclenstvi",
+          "#relaxace",
+          "#regenerace",
+          "#fitnessczech",
+          "#skupinovelekce",
+          "#inbodycz"
+        ]
+      },
+      {
+        "id": "71f5df6d-be0a-4e26-af36-2f164687f50b",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787926861463-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787926904732-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787926960625-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927001483-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927047445-slide4.webp"
+        ],
+        "hook": "Mýtus: Čím víc dřeš, tím rychleji rosteš.",
+        "body": "Konec prázdnin a návrat na koleje neznamená, že se musíš zničit v gymu, abys dohnal letní hříchy. Znáš ten mýtus, že bez bolesti není progres? Blbost.\n\nTvoje tělo se mění, když odpočívá. Místo toho, abys po přednáškách jen bezmyšlenkovitě dřel na strojích, to trochu oživ. Dej si s partou dynamickou Les Mills lekci a pak rovnou zalezte do finské sauny.\n\nTo nejlepší? Jestli máš MultiSport kartu, neplatíš ani korunu navíc. Cvičení i relax máš v ceně. Takže žádné výmluvy na omezený studentský budget.\n\nJak to máš ty? Radši po tréninku hned běžíš domů, nebo si dopřeješ saunu? Dej vědět do komentářů!",
+        "cta": "Vyber si z více než 40 typů cvičení na https://www.formfactory.cz/ a napiš nám, čím začneš nový semestr!",
+        "hashtags": [
+          "#formfactory",
+          "#formfactorycz",
+          "#ff",
+          "#formfactoryfitness",
+          "#fitnessmyty",
+          "#multisport",
+          "#regenerace",
+          "#fitness",
+          "#posilovna",
+          "#fitnessczech"
+        ]
+      },
+      {
+        "id": "080b7c90-2159-4808-8d88-f77a08b2f3fe",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927268240-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927309233-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927350031-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927403688-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927443269-slide4.webp"
+        ],
+        "hook": "Dřeš naslepo? Zjisti přesně, co tvoje tělo potřebuje.",
+        "body": "Léto končí a ty se vracíš do režimu. Chceš dohnat ztracený čas, ale dřeš naslepo? Zastav. Než se zničíš na strojích, potřebuješ vědět, na čem reálně jsi. Tohle je rychlý tip od našich trenérů: začni tím, že si uděláš jasno. Analýza těla InBody ti za minutu ukáže, kolik jsi přes léto nabral tuku, kolik svalů šlo dolů a jak je na tom tvoje hydratace. Díky těmhle datům ti trenér sestaví plán, který funguje od prvního dne. Žádný ztracený čas. A navíc hned uvidíš, jestli nepotřebuješ spíš den v sauně na srovnání disbalancí.",
+        "cta": "Jaký je tvůj hlavní cíl pro tenhle podzim? Napiš mi ho hned do komentářů a ukaž, že to s návratem myslíš vážně!",
+        "hashtags": [
+          "#formfactory",
+          "#formfactorycz",
+          "#ff",
+          "#formfactoryfitness",
+          "#inbody",
+          "#fitnesscile",
+          "#podzimnirezim",
+          "#cviceni",
+          "#fitnessczech"
+        ]
+      },
+      {
+        "id": "41229e8d-47fb-4387-8929-244a9094712a",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-posts/1787927926725.webp"
+        ],
+        "hook": "Co tě po škole nakopne víc?",
+        "body": "Lucka včera oslavila svůj první shyb. Byla to dřina, ale potréninkový rituál má jasný – okamžitý přesun do tepla. Konec srpna znamená návrat do reality a ty potřebuješ balanc. S MultiSportkou máš u nás obě varianty bez doplatku.\n\nMůžeš překonávat limity na hrazdě s naší komunitou, nebo prostě jen vypnout hlavu před začátkem semestru v relaxační zóně.\n\nJsi Tým Dřina, nebo Tým Sauna? Hlasuj v komentářích!",
+        "cta": "Prozkoumej naši oázu klidu na https://www.formfactory.cz/p/sauna-a-relaxa-n-z-ny a nezapomeň hodit svůj hlas dolů pod příspěvek!",
+        "hashtags": [
+          "#formfactory",
+          "#formfactorycz",
+          "#ff",
+          "#formfactoryfitness",
+          "#multisport",
+          "#studentskyzivot",
+          "#regenerace",
+          "#fitnessczech",
+          "#osobnitrener",
+          "#skupinovelekce"
+        ]
+      },
+      {
+        "id": "810ba4d5-e657-4895-8e99-d5d1246c86eb",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787928137333-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787928241223-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787928287647-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787928334602-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787928372543-slide4.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787928410394-slide5.webp"
+        ],
+        "hook": "Největší mýtus o dřepu který tě brzdí",
+        "body": "Zatažené břicho při dřepu? Klasika z hodin tělocviku, co tě v gymu akorát zraní. Za pár dní začíná semestr a ty se po létě vracíš k těžkým vahám. Než si naložíš osu, srovnej si dýchání. Náš trenér to říká jasně: břicho nezatáhnout, ale nafouknout!\n\nVytvoříš tak vnitřní tlak, který funguje jako přírodní opasek a chrání tvá bedra. Postup je easy:\n1. Nahoře se zhluboka nadechni do břicha.\n2. Zpevni střed, jako bys čekal ránu.\n3. Jdi do dřepu.\n4. Vydechni až při cestě nahoru.\n\nMáš MultiSportku? Stav se po přednášce vyzkoušet tenhle trik v praxi u nás, nebo ho rovnou otestuj na Les Mills lekci.",
+        "cta": "Jakou techniku dýchání používáš ty? Napiš nám to do komentářů! A pokud hledáš profi vedení k lepším výkonům, vyber si osobního trenéra na https://www.formfactory.cz/.",
+        "hashtags": [
+          "#formfactory",
+          "#formfactorycz",
+          "#ff",
+          "#formfactoryfitness",
+          "#drep",
+          "#technika",
+          "#fitnessmyty",
+          "#lesmillscz",
+          "#fitnessczech",
+          "#inbodycz"
+        ]
+      },
+      {
+        "id": "03c9a4f3-722a-4a3d-bf8b-986262fdb2c5",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787928592091-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787928592091.mp4",
+        "hook": "Proč tě všechno bolí",
+        "body": "Návrat do fitka po letní pauze bolí. Ale vůbec nemusí. Nejčastější chyba? Rychle to odcvičit a utéct domů. Tvoje tělo ale potřebuje signál, že je konec. Trenérka Klára doporučuje zařadit po každé lekci alespoň 10 minut statického strečinku. Zpomalíš, prodýcháš to a snížíš svalové napětí. Druhý den díky tomu v pohodě vstaneš z postele a vyhneš se zbytečným zraněním. Pokud nevíš, jak na to, skupinové lekce Bodybalance jsou přesně ten bezpečný a klidný start, který po prázdninách hledáš. Žádný stres, jen plynulý pohyb a uvolnění.",
+        "cta": "Jsi tým rychlý úprk do sprchy, nebo si dáváš poctivý strečink? Dej nám vědět do komentářů!",
+        "hashtags": [
+          "#formfactory",
+          "#formfactorycz",
+          "#ff",
+          "#formfactoryfitness",
+          "#fitnessczech",
+          "#bodybalance",
+          "#strecink",
+          "#skupinovelekce",
+          "#regenerace",
+          "#inbodycz"
+        ]
+      },
+      {
+        "id": "a3c88405-276f-4f67-a6ee-ab839c4b265b",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787928838790-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787928838790.mp4",
+        "hook": "Nenávidíš čekání na stroje?",
+        "body": "Konec srpna znamená návrat do režimu. Pokud tě nebaví ztrácet čas čekáním na volnou osu, máme pro tebe řešení. Ve Form Factory tvůj trénink začíná rychlým pípnutím MultiSportky – bez jakýchkoliv doplatků. Krok jedna: pípneš a jdeš. Krok dva: odjedeš naplno skupinovou lekci jako je HYROX, Pilates Reformer nebo Bodypump, kde máš své místo předem jisté. Krok tři: přesun do sauny, kterou máš automaticky v ceně. Čistý progres, nula stresu a maximální využití tvého času.",
+        "cta": "Naskoč zpátky do režimu bez čekání. Zarezervuj si své místo na lekci hned teď: https://www.formfactory.cz/p/skupinov-lekce-nap-hyrox-pilates-ref",
+        "hashtags": [
+          "#formfactory",
+          "#formfactorycz",
+          "#ff",
+          "#formfactoryfitness",
+          "#multisport",
+          "#skupinovelekce",
+          "#hyroxcz",
+          "#zdravyzivotnistyl",
+          "#osobnitrener",
+          "#inbodycz"
+        ]
+      },
+      {
+        "id": "1179efbf-e2bd-4e37-b1ec-69246716b5d1",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929060575-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929091293-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929131219-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929165750-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929202594-slide4.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929242326-slide5.webp"
+        ],
+        "hook": "Plán zněl jasně: jen lehké kardio",
+        "body": "Znáš to. Za pár dní začíná semestr, ty si chceš dát jen „lehký pás“ na vyčištění hlavy, ale ta energie ve Form Factory tě prostě strhne. Najednou jsi uprostřed zóny a jedeš na maximum. A víš co? Je to přesně to, co před začátkem školy potřebuješ!\n\nUlož si tenhle rychlý HYROX okruh na dny, kdy potřebuješ vypnout hlavu a pořádně se zapotit. Rychlé střídání cviků tě nenechá vydechnout a po tréninku tě čeká ta nejlepší část – sauna. Vše v ceně tvého vstupu.",
+        "cta": "Kdy tě naposledy strhla atmosféra tak, že jsi odjel úplně jiný trénink? Napiš nám do komentářů!",
+        "hashtags": [
+          "#formfactory",
+          "#formfactorycz",
+          "#ff",
+          "#formfactoryfitness",
+          "#hyrox",
+          "#dnescvicim",
+          "#multisport",
+          "#hyroxcz",
+          "#fitnessczech",
+          "#posilovna"
+        ]
+      },
+      {
+        "id": "3ff18d7c-c663-4723-bd8b-ec6ebc8c064b",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929560668-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929598411-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929632493-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929667896-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929705687-slide4.webp"
+        ],
+        "hook": "Kdy ti trénink po létě přinese nejvíc",
+        "body": "Letní volno končí a září klepe na dveře. Vracíš se do režimu, ale tělo stávkuje? Zastav, než ztratíš motivaci hned v prvním týdnu. Klíčem není dřít víc, ale chytřeji. Zjisti, kdy máš nejvíc energie. Ranní trénink tě nakopne na celý den a vyhneš se odpolední špičce. Večer naopak skvěle odplavíš stres z práce. Nejsi na to sám. Osobní tréninky s trenérem ti zaručí, že každá minuta v gymu bude mít smysl, ať už dorazíš v 6 ráno nebo v 8 večer. Náš expert ti sestaví plán na míru a pohlídá i to nejdůležitější – následnou regeneraci v sauně. Čas je drahý, neplýtvej jím.",
+        "cta": "Kdy ti to ve Form Factory nejvíc šlape? Neztrácej čas a napiš nám hned teď do komentářů, jestli jsi ranní ptáče, nebo spíš noční sova!",
+        "hashtags": [
+          "#formfactory",
+          "#formfactorycz",
+          "#ff",
+          "#formfactoryfitness",
+          "#fitness",
+          "#zpetdoformy",
+          "#osobnitrener",
+          "#skupinovelekce",
+          "#fitnessczech"
+        ]
+      },
+      {
+        "id": "c1ede564-8032-4c8d-8660-aaf43af9fdf1",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787929892432-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787929892432.mp4",
+        "hook": "Bála jsem se činek.",
+        "body": "Tohle je příběh naší členky Kláry. Znáte to – blíží se září, návrat do režimu a s ním pocit, že pro hubnutí musíte trávit hodiny na běžeckém páse.\n\nKlára to měla stejně, dokud nezjistila pravdu. Silový trénink totiž buduje svaly, které zrychlují metabolismus a pálí energii, i když už dávno sedíte doma. Nebo ještě lépe – když odpočíváte v naší sauně po tréninku. Fitko není jen pro profíky, každý z nás někdy začínal.\n\nNebojte se činek a zkuste po létě změnu.",
+        "cta": "Jaký mýtus o cvičení brzdil v začátcích tebe? Poděl se s námi v komentářích a inspiruj ostatní, kteří zrovna sbírají odvahu.",
+        "hashtags": [
+          "#formfactory",
+          "#formfactorycz",
+          "#ff",
+          "#formfactoryfitness",
+          "#fitnesskomunita",
+          "#silovyrozvoj",
+          "#hubnuti",
+          "#fitnessczech",
+          "#skupinovelekce",
+          "#motivace"
+        ]
+      },
+      {
+        "id": "23481b76-b73a-4729-9d1d-fdee481ebfff",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787930184882-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787930221588-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787930255011-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787930294814-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787930334454-slide4.webp"
+        ],
+        "hook": "Opasek tvoje záda při dřepu automaticky nezachrání",
+        "body": "Za pár dní začíná semestr a ty se vracíš do režimu s cílem naložit si na osu. Mnoho lidí si myslí, že když si utáhnou fitness opasek, mají záda v bezpečí. Omyl! Trenér Jirka varuje: pás tě nespasí, pokud neumíš dýchat.\n\nTajemství bezpečné páteře je vnitrobřišní tlak. Zpevni střed těla hlubokým nádechem do břicha ještě předtím, než jdeš do dřepu. Tenhle tlak podrž a vydechni až při cestě nahoru, když překonáš nejtěžší bod. Pás slouží jen jako zeď, do které tenhle vzduch opřeš.\n\nA po těžkém tréninku noh? Nezapomeň na saunu, kterou máš s MultiSportkou u nás v ceně.",
+        "cta": "Dej nám vědět do komentářů – cvičíš dřepy s opaskem, nebo bez? Pro další tipy a rozvrh lekcí mrkni na https://www.formfactory.cz/.",
+        "hashtags": [
+          "#formfactory",
+          "#formfactorycz",
+          "#ff",
+          "#formfactoryfitness",
+          "#drep",
+          "#fitnessmyty",
+          "#spravnatechnika",
+          "#osobnitrener",
+          "#motivace",
+          "#hyroxcz"
+        ]
+      },
+      {
+        "id": "f69df0e7-7062-49fc-8e59-01b146af363e",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787930671209-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787930671209.mp4",
+        "hook": "Tvůj první trénink nemusí být chaos.",
+        "body": "Ve Form Factory z něj uděláme sebevědomý start, který tě dovede až ke sté návštěvě. Žádné zmatky na recepci, prostě pípneš aplikaci a jdeš rovnou do obrovské posilovací zóny. Nečekáš na volnou osu, makáš. A po tréninku tě čeká to nejdůležitější – prémiová sauna pro maximální regeneraci. Září je za rohem, odstartuj ho naplno!",
+        "cta": "Předběhni zářijový shon a zajisti si svůj prostor pro trénink. Kup si roční VIP členství na https://www.formfactory.cz/ právě teď a získej okamžitý přístup do všech zón!",
+        "hashtags": [
+          "#formfactory",
+          "#formfactorycz",
+          "#ff",
+          "#formfactoryfitness",
+          "#fitnesscesta",
+          "#regenerace",
+          "#vipclenstvi",
+          "#cviceni",
+          "#hyroxcz"
+        ]
+      },
+      {
+        "id": "9df29455-1651-472d-876a-1b43189cd630",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-posts/1787988191295.webp"
+        ],
+        "hook": "Trénink, nebo čekání na zázrak?",
+        "body": "Za tři dny začíná semestr a ty potřebuješ naskočit zpět do režimu. Jenže realita ve sklepním fitku? Dvacet minut čekáš na volnou osu a nálada padá k bodu mrazu.\n\nProti tomu stojí vzdušný prostor ve Form Factory. Desítky moderních strojů, obrovská kardio zóna a k tomu nadupané skupinovky jako Les Mills, když tě činky přestanou bavit. Vše navíc na tvoji MultiSportku bez doplatků. Tvůj čas je po škole cenný, tak ho netrav ve frontě. A po tréninku rovnou do sauny, protože kvalitní relax je nedílnou součástí progresu.\n\nCo je tvůj styl? Hlasuj níže!",
+        "cta": "Napiš nám do komentářů, jestli radši jedeš sólo gym, nebo skupinovku! Svůj nejbližší klub objevíš na https://www.formfactory.cz/.",
+        "hashtags": [
+          "#formfactory",
+          "#formfactorycz",
+          "#ff",
+          "#formfactoryfitness",
+          "#zpatkydorezimu",
+          "#studentskyzivot",
+          "#multisport",
+          "#cviceni",
+          "#skupinovelekce",
+          "#zdravyzivotnistyl"
+        ]
+      },
+      {
+        "id": "1cc16542-9fe0-46cb-866f-c764b135c8ef",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-posts/1787988306615.webp"
+        ],
+        "hook": "Proč ti obyčejná váha po létě lže.",
+        "body": "Konec srpna je tady a ty chceš po pauze naskočit do tvrdého režimu. Než to ale naslepo napálíš, udělej si dokonalý restart.\n\nKrok 1: Analýza. Zastav se na InBody. Za 60 vteřin přesně víš, jaký je tvůj poměr svalů a tuku. Žádné dohady, čistá data.\n\nKrok 2: Akce. S jasným cílem v hlavě míříš do obrovské silové zóny. Žádné čekání na volnou osu, tvoje série jedou plynule.\n\nKrok 3: Odměna. Trénink končí, ale progres pokračuje. Přímý přesun do vyhřáté sauny urychlí regeneraci, abys zítra mohl makat naplno.",
+        "cta": "Zarezervuj si termín na InBody a pořiď si členství online právě teď na https://www.formfactory.cz/. Tvůj nový režim začíná ještě dnes!",
+        "hashtags": [
+          "#formfactory",
+          "#formfactorycz",
+          "#ff",
+          "#formfactoryfitness",
+          "#inbody",
+          "#fitnesspraha",
+          "#silovytrenink",
+          "#regenerace",
+          "#posilovna",
+          "#inbodycz"
+        ]
+      },
+      {
+        "id": "6fe6b841-fcd1-46db-adf8-e427f671709f",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-posts/1787988455485.webp"
+        ],
+        "hook": "Než zvedneš první činku, udělej tohle.",
+        "body": "Znáš ten pocit. Září je za rohem, ty přijdeš poprvé do fitka a naslepo zkoušíš stroje, co jsi viděl na sítích. Výsledek? Stres, že na tebe ostatní koukají, a strach ze zranění.\n\nSprávný start ale vypadá jinak. Než vůbec zvedneš závaží, stoupni si u nás na InBody. Přátelský trenér ti v klidu vysvětlí tvůj poměr svalů, tuku a vody. Žádné hádání, žádné extrémy. Získáš jasný plán na míru a sebevědomí, že od první minuty cvičíš správně a bezpečně.\n\nA ten nejlepší pocit? Když svůj první úspěšný trénink zakončíš v naší sauně s úplně čistou hlavou.",
+        "cta": "Máš už svůj plán na září, nebo zatím nevíš, kde začít? Napiš nám do komentářů, rádi poradíme!",
+        "hashtags": [
+          "#formfactory",
+          "#formfactorycz",
+          "#ff",
+          "#formfactoryfitness",
+          "#inbody",
+          "#zacatecnik",
+          "#cviceni",
+          "#skupinovelekce",
+          "#hyroxcz",
+          "#zdravyzivotnistyl"
+        ]
+      },
+      {
+        "id": "bba14aec-c357-477d-887a-25d96d30484c",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-posts/1787988627246.webp"
+        ],
+        "hook": "Na dokonalý zářijový rozvrh se vykašli.",
+        "body": "Semestr začíná za tři dny a ty si možná právě píšeš striktní sólo plán, abys dohnal letní pauzu. Mýtus: Výsledky ti přinese jen tvrdá rutina a sluchátka na uších. Realita: Pokud tě to nebaví, do konce září vyhoříš. Klíčem je pestrost. Jdi zvedat železo, další den vyzkoušej dynamický Les Mills a nakonec zregeneruj v sauně. S MultiSportkou máš u nás vše pod jednou střechou bez nesmyslných doplatků. Jsi spíš pečlivý plánovač, nebo to necháváš plynout? Najdi si v komentářích parťáka, se kterým ten návrat do režimu zvládnete společně.",
+        "cta": "Napiš do komentářů, jaký jsi typ, a rovnou si na webu Form Factory vyber společnou lekci.",
+        "hashtags": [
+          "#formfactory",
+          "#formfactorycz",
+          "#ff",
+          "#formfactoryfitness",
+          "#zpatkydorezimu",
+          "#fitnessspolu",
+          "#lesmillscz",
+          "#skupinovelekce",
+          "#fitnessczech"
+        ]
+      },
+      {
+        "id": "00081cd5-422f-45ad-a140-a127612fb479",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-posts/1787988728562.webp"
+        ],
+        "hook": "Chtěl jsem začít až v září.",
+        "body": "„Roky jsem si sliboval, že začnu cvičit po prázdninách. Jenže představa narvaného fitka plného profíků prvního září mě vždycky vyděsila. Bál jsem se, že se ztrapním hned u prvního stroje.\n\nLetos jsem ten kruh rozsekl. Šel jsem už o víkendu, pár dní před koncem srpna. Klub byl klidný. V tichosti jsem si prošel kardio, osahal pár základních strojů a zjistil, že si mě vlastně nikdo nevšímá.\n\nTen obrovský stres prostě zmizel. Místo paniky jsem svůj první den zakončil v sauně s čistou hlavou. Zářijový restart se dá zvládnout úplně v pohodě, když nečekáš na magické datum.“",
+        "cta": "Jaký byl tvůj úplně první den ve fitku? Sdílej s námi v komentářích, co ti tehdy pomohlo překonat ten počáteční respekt k činkám.",
+        "hashtags": [
+          "#formfactory",
+          "#formfactorycz",
+          "#ff",
+          "#formfactoryfitness",
+          "#hlaskomunity",
+          "#poprvevefitku",
+          "#osobnitrener",
+          "#cviceni",
+          "#inbodycz",
+          "#hyroxcz"
+        ]
+      }
+    ]
+  },
+  {
+    "slug": "ambiente",
+    "company": "Ambiente",
+    "industry": "Gastronomie",
+    "website": "https://www.ambi.cz/",
+    "posts": [
+      {
+        "id": "0bd95a75-7054-46c2-92ec-99349338eccc",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787926579376-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787926609614-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787926638417-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787926668454-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787926701956-slide4.webp"
+        ],
+        "hook": "Svíčková nebo koprovka? Zvolte svého absolutního favorita",
+        "body": "Ať už jste tým svíčková, nebo nedáte dopustit na koprovku, obě spojuje jedno kuchařské tajemství. Jak na dokonale sametovou omáčku? Fígl našich šéfkuchařů tkví v chladném másle. Těsně před podáváním, když už omáčka nevaří, do ní rychle zašleháme kostičky ledového másla. To ji krásně zahustí, zjemní a dodá jí nepřekonatelný lesk. Vyzkoušejte tento trik doma! Nebo si ušetřete práci a nechte vaření na nás. Poslední srpnový pátek je tady, lidé se vrací do Prahy a naše zahrádky se rychle plní. Nenechte si ujít perfektní večeři a vyhněte se frustraci z beznadějně obsazených podniků. Která omáčka to u vás dnes vyhraje?",
+        "cta": "Rezervuj si svůj stůl ještě dnes na ambi.cz",
+        "hashtags": [
+          "#ambiente",
+          "#ambicz",
+          "#klubambiente",
+          "#jidlojezazitek",
+          "#svickova",
+          "#koprovka",
+          "#sefkuchar",
+          "#restaurace",
+          "#restauracepraha",
+          "#skvelejidlo"
+        ]
+      },
+      {
+        "id": "5666cda7-9ef3-4243-beea-a0e4ed366984",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787926953798-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787926993296-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787927028528-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787927069823-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787927107499-slide4.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787927144066-slide5.webp"
+        ],
+        "hook": "Tajemství steaku, který ohromí každou návštěvu",
+        "body": "Chystáš výjimečnou oslavu nebo výročí a chceš mít jistotu, že vše dopadne na jedničku? Klíčem k nezapomenutelnému večeru je poctivé řemeslo a suroviny, které mluví samy za sebe. Stařené hovězí je přesně ten zážitek, který tvé hosty zaručeně ohromí.\n\nOd pečlivého zrání, přes precizní řez, až po žár grilu a ten správný odpočinek masa – každý krok hraje roli. A to nejlepší? Když si u nás tenhle dokonalý kousek vychutnáš, sbíráš body za každé sousto v našem věrnostním klubu. Ty pak snadno proměníš za další gastronomické odměny.\n\nKonec léta si žádá pořádnou oslavu na jedné z našich zahrádek.",
+        "cta": "Kdo z tvých přátel ti dluží pořádný steak za odměnu? Označ ho v komentářích!",
+        "hashtags": [
+          "#ambiente",
+          "#ambicz",
+          "#klubambiente",
+          "#jidlojezazitek",
+          "#milujemejidlo",
+          "#starenehovezi",
+          "#anatomiechuti",
+          "#foodie",
+          "#vecere",
+          "#sefkuchar"
+        ]
+      },
+      {
+        "id": "bfecfbcb-42c7-40e9-9be1-7cd6582a3772",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787927951678-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787927990604-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787928032040-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787928066800-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787928104225-slide4.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787928137205-slide5.webp"
+        ],
+        "hook": "Anatomie chuti: Tajemství pečených letních rajčat",
+        "body": "Konec srpna je tady a s ním i poslední šance vychutnat si léto naplno. Než se přesuneme k těžším podzimním surovinám, chceme ti ukázat, jak z obyčejného rajčete děláme zážitek. Základem je nechat ho dozrát na slunci. Pak rajčata pomalu pečeme na 120 stupňů, dokud nezkaramelizují a nepustí tu nejsladší šťávu, kterou následně redukujeme na silnou esenci. Výsledek? Večeře na naší zahrádce, která chutná přesně jako to nejlepší z léta. Je to ideální kulisa pro rande nebo páteční setkání s přáteli po návratu z dovolené. Zastav se u nás a užij si večer, kde se o všechno postaráme my.",
+        "cta": "Kde letos plánuješ tu úplně poslední letní večeři pod širým nebem? Dej nám vědět do komentářů a ulož si tenhle post jako inspiraci pro svoje další rande.",
+        "hashtags": [
+          "#ambiente",
+          "#ambicz",
+          "#klubambiente",
+          "#jidlojezazitek",
+          "#ambienterestaurace",
+          "#anatomiechuti",
+          "#konecleta",
+          "#vecerevpraze",
+          "#restauracepraha",
+          "#skvelejidlo"
+        ]
+      },
+      {
+        "id": "c967b3e1-1518-4907-9338-87f87a842ff0",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787928373802-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787928412266-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787928448320-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787928483564-slide3.webp"
+        ],
+        "hook": "Hovězí z grilu, nebo radši neapolská pizza?",
+        "body": "Konec srpna je tady a s ním návrat z dovolených. Někdo se těší na poctivý kus masa z grilu, jiný nutně potřebuje pravou italskou pizzu. Který tábor jsi ty? Napiš nám to do komentářů! Blíží se oslava a ty si lámeš hlavu s dárkem, protože nevíš, do kterého tábora patří oslavenec? S dárkovou kartou Ambiente to nemusíš řešit. Daruješ mu totiž radost a svobodu volby. Pořídíš ji online za pár vteřin a oslavenec si už sám s úsměvem vybere, na co má zrovna chuť a kam vyrazí.",
+        "cta": "Pořiď dárkovou kartu ještě dnes na ambi.cz a nech výběr na nich.",
+        "hashtags": [
+          "#ambiente",
+          "#ambicz",
+          "#klubambiente",
+          "#jidlojezazitek",
+          "#darkovakarta",
+          "#darek",
+          "#kamvpraze",
+          "#dnesjem",
+          "#vecere"
+        ]
+      },
+      {
+        "id": "77baff3e-c3a6-4277-a28e-e7fd12f1b088",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787928771563-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787928771563.mp4",
+        "hook": "Proč omáčka září?",
+        "body": "Základ každé špičkové kuchyně? Žádné složité triky, ale poctivá surovina. Naše omáčky voní po lokálním másle od prověřených farmářů. Právě tahle na první pohled obyčejná kostka dává jídlu nezaměnitelnou jemnost a dokonalý lesk. Když kuchař v samém závěru opatrně zašlehává studené kousky másla do horké redukce, omáčka se nádherně spojí, zhoustne a získá tu správnou sametovou texturu. Je to poctivé řemeslo v přímém přenosu, které povýší každý chod na zážitek.",
+        "cta": "Napiš nám hned teď do komentářů, do jaké naší omáčky si nejraději namáčíš kousek čerstvého chleba!",
+        "hashtags": [
+          "#ambiente",
+          "#ambicz",
+          "#klubambiente",
+          "#jidlojezazitek",
+          "#poctiveremeslo",
+          "#dobrejidlo",
+          "#lokalnisuroviny",
+          "#dnesjem",
+          "#skvelejidlo",
+          "#vecere"
+        ]
+      },
+      {
+        "id": "ac34e0fc-2765-4cb8-91ec-5f75d9a4e1eb",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787929062769-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787929093535-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787929125610-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787929158877-slide3.webp"
+        ],
+        "hook": "„Byl to nejlepší tatarák mého života!“",
+        "body": "Když nám hosté píšou podobné zprávy, máme radost na celý týden. Chceš přesně tenhle pocit dopřát někomu blízkému? Zvlášť teď, když se všichni vracejí z dovolených a chtějí si prodloužit léto u dobrého jídla. Zapomeň na zdlouhavé vymýšlení. Věrnostní karta klubu Ambiente je perfektní dárek, který vyřešíš za dvě minuty. Nabiješ ji na libovolnou částku a obdarovaný s ní zaplatí ve všech našich podnicích. Navíc získá přednostní přístup k novinkám a uvolněným místům na rezervace. Je to radost, kterou můžeš poslat e-mailem hned teď.",
+        "cta": "Pořiď Věrnostní kartu klubu Ambiente online a vyřeš dárek hned teď na https://www.ambi.cz/p/v-rnostn-karta-klubu-ambiente",
+        "hashtags": [
+          "#ambiente",
+          "#ambicz",
+          "#klubambiente",
+          "#jidlojezazitek",
+          "#darek",
+          "#gastrozazitek",
+          "#milujemejidlo",
+          "#restauracepraha",
+          "#restaurace",
+          "#sefkuchar"
+        ]
+      },
+      {
+        "id": "f29affa7-72d8-4fa3-b058-b8300db2a79a",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787929361598-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787929361598.mp4",
+        "hook": "Poslední volný stůl?",
+        "body": "Poslední prázdninový víkend si žádá pořádnou tečku. Město ožívá, vzduchem voní oheň z grilu a na stole přistává to nejlepší vyzrálé maso z rukou našich kuchařů. Žádný shon, jen poctivé řemeslo, skvělé jídlo a radost ze setkání s přáteli. Zahrádky se plní a volné stoly rychle mizí. Tohle je ten večer, kdy chceš mít jistotu, že sedíš na správném místě.",
+        "cta": "S kým dnes vyrazíš na večeři? Označ ho hned teď v komentářích, ať vám to nejlepší místo neuteče!",
+        "hashtags": [
+          "#ambiente",
+          "#ambicz",
+          "#klubambiente",
+          "#jidlojezazitek",
+          "#poctivejidlo",
+          "#vyzralemaso",
+          "#vecerevpraze",
+          "#foodie",
+          "#dnesjem",
+          "#zazitek"
+        ]
+      },
+      {
+        "id": "abf5e3de-5233-40c6-b1d7-14d0cd5760e8",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787929684831-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787929719083-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787929756280-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787929795479-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787929837532-slide4.webp"
+        ],
+        "hook": "Tajemství dokonalé omáčky? Čas.",
+        "body": "Chystáš výjimečnou večeři na závěr prázdnin a chceš, aby všechno bylo dokonalé? Základem každého silného zážitku na talíři je omáčka. Profíci vědí, že tajemství neleží v přidávání surovin, ale v čase. Náš demi-glace táhneme desítky hodin na mírném ohni. Voda se pomalu odpařuje a chuť se koncentruje do tmavé, silné esence, která promění jakékoliv maso v mistrovské dílo. Je to poctivé řemeslo, které zkrátka nejde uspěchat. Zkus si doma svůj oblíbený vývar svařit na třetinu objemu a uvidíš ten obrovský rozdíl.",
+        "cta": "Nech zdlouhavé vaření na nás a užij si s přáteli bezstarostný večer. Inspiraci pro svůj další kulinářský zážitek najdeš na ambi.cz.",
+        "hashtags": [
+          "#ambiente",
+          "#ambicz",
+          "#klubambiente",
+          "#jidlojezazitek",
+          "#ambiente.cz",
+          "#poctiveremeslo",
+          "#demiglace",
+          "#kulinarskyzazitek",
+          "#jidlo",
+          "#restaurace"
+        ]
+      },
+      {
+        "id": "2aff9875-c601-4902-a4d0-340c30a713c8",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930073679-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930108898-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930151384-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930189677-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930226767-slide4.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930266132-slide5.webp"
+        ],
+        "hook": "Syrové řemeslo, nebo hodiny v krémové omáčce?",
+        "body": "Konec srpna je tady, město se plní po dovolených a páteční večer si žádá pořádnou tečku za létem. Stoly se plní smíchem a před tebou i tvými přáteli leží to nejtěžší rozhodnutí. Zatímco tatarák vyžaduje nekompromisně čerstvé maso a precizní ruční škrábání, svíčková je ztělesněním trpělivosti. Hodiny pomalého pečení, restování zeleniny do zlatova a redukování omáčky, dokud není absolutně sametová. Jsou to dva naprosto odlišné přístupy k řemeslu, ale oba zaručí zážitek a atmosféru, na kterou se nezapomíná. Ideální moment svolat partu a nechat promluvit chuťové buňky.",
+        "cta": "Která z těchto dvou legend by u tebe vyhrála dnešní slavnostní večeři? Napiš nám svého favorita do komentářů a označ toho, s kým vyrazíš!",
+        "hashtags": [
+          "#ambiente",
+          "#ambicz",
+          "#klubambiente",
+          "#jidlojezazitek",
+          "#ambiente','#poctiveremeslo','#tatarak','#svickova','#patecnivecere",
+          "#poctivejidlo",
+          "#foodie",
+          "#dnesjem",
+          "#sefkuchar",
+          "#jidlo"
+        ]
+      },
+      {
+        "id": "5c051678-5698-485f-9708-ee8aeebac595",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930587002-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930624162-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930662299-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-carousel/1787930694105-slide3.webp"
+        ],
+        "hook": "Klasická pečená husa, nebo odlehčené podzimní menu?",
+        "body": "Zlatavá kůrka, vůně poctivého výpeku a cinkání skleniček s mladým vínem ohlašují letošní Svatomartinské hody. U našich stolů tě čeká dokonalá souhra chutí a hřejivá atmosféra. Někdo nedá dopustit na křupavou husu s poctivým zelím, jiný raději objevuje odlehčené sezónní menu plné nových nápadů. Ať už patříš do jakéhokoliv týmu, ten nejlepší zážitek začíná u stolu, na který nemusíš čekat. Místa na tyhle oblíbené večery mizí rychle, ale zajistit si to své je otázka pár kliknutí. Napiš nám do komentářů, která varianta u tebe vítězí, a rovnou si naplánuj další skvělou večeři.",
+        "cta": "Rezervuj si svůj stůl ještě dnes na https://www.ambi.cz/",
+        "hashtags": [
+          "#ambiente",
+          "#ambicz",
+          "#klubambiente",
+          "#jidlojezazitek",
+          "#svatomartinskehody",
+          "#pecenahusa",
+          "#podzimnimenu",
+          "#gastronomie",
+          "#skvelejidlo"
+        ]
+      },
+      {
+        "id": "1037e660-4581-4edd-9c0a-95f95c974bfc",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787930974881-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787930974881.mp4",
+        "hook": "Tohle trvalo týdny.",
+        "body": "Zatímco naše hovězí zraje týdny, aby získalo neskutečnou křehkost a oříškovou chuť, ty můžeš mít tenhle zážitek v kapse za pár vteřin. Konec srpna je tady a stoly se rychle plní lidmi, co se vrací z dovolených. Nečekej, až bude všude plno. Ať už chceš potěšit sebe po náročném návratu do reality, nebo sháníš dokonalý dárek na poslední chvíli pro opravdového masožravce, naše gastronomické služby v restauracích vyřeší obojí bleskově. Vyřeš dárek nebo rezervaci bleskově ještě dnes, ať ti neuteče volný stůl: https://www.ambi.cz/p/gastronomick-slu-by-v-restaurac-ch #ambiente #zranemaso #darekpromuze #skvelejidlo #gastrozazitek",
+        "cta": "Vyřeš dárek nebo rezervaci bleskově ještě dnes, ať ti neuteče volný stůl: https://www.ambi.cz/p/gastronomick-slu-by-v-restaurac-ch",
+        "hashtags": [
+          "#ambiente",
+          "#ambicz",
+          "#klubambiente",
+          "#jidlojezazitek",
+          "#zranemaso",
+          "#darekpromuze",
+          "#skvelejidlo",
+          "#restauracepraha",
+          "#gastronomie",
+          "#dnesjem"
+        ]
+      },
+      {
+        "id": "99e39743-50a8-4a09-9c11-95999d62db14",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787931322599-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787931322599.mp4",
+        "hook": "Proč talíře mizí.",
+        "body": "Znáš ten pocit, když ochutnáš něco tak dobrého, že nezbyde ani drobek? Za tímhle zážitkem stojí kuchař Petr. Jeho tajnou zbraní je poctivé máslo. Když dopadne na rozpálenou pánev, začne divoce pěnit, oříškově zavoní a dokonale obalí každý kousek do zlatavé glazury. Právě tahle řemeslná práce dává jídlu ten nezaměnitelný lesk a chuť. Konec srpna je tady a město se po dovolených znovu plní. Poslední letní stoly mizí. Označ v komentáři toho, s kým o víkendu vyškrábeš talíř do čista! #ambiente #poctiveremeslo #dobrejidlo #vikendoveplany",
+        "cta": "Poslední letní stoly mizí. Označ v komentáři toho, s kým o víkendu vyškrábeš talíř do čista!",
+        "hashtags": [
+          "#ambiente",
+          "#ambicz",
+          "#klubambiente",
+          "#jidlojezazitek",
+          "#poctiveremeslo",
+          "#dobrejidlo",
+          "#vikendoveplany",
+          "#skvelejidlo",
+          "#sefkuchar",
+          "#restauracepraha"
+        ]
+      },
+      {
+        "id": "932f41a4-8487-4c39-9d38-a95deeb5418a",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-posts/1787988157969.webp"
+        ],
+        "hook": "Proč čerstvé lišky nikdy nemyjeme vodou",
+        "body": "Z lesa rovnou na stůl. Jakmile nám sběrači přivezou srpnovou úrodu, začíná piplačka. Na hřiby a lišky nikdy nepouštíme vodu. Nasály by ji totiž jako houba a ztratily to hlavní – intenzivní vůni lesa. Každý kus čistíme ručně jen jemným štětečkem. Je to pomalé, ale nutné. Jen tak si surovina udrží zemitou chuť a pevnou texturu. Když chystáš výjimečnou večeři na oslavu konce léta, nesmíš dělat kompromisy. Na talíři se pak tahle péče potká s naším sezónním menu a ty víš, že tenhle večer bude perfektní. Doma to zkus stejně. Vodu vyměň za trpělivost.",
+        "cta": "Ulož si tenhle tip na víkendové vaření a do komentářů nám napiš – s čím lišky nejraději páruješ ty?",
+        "hashtags": [
+          "#ambiente",
+          "#ambicz",
+          "#klubambiente",
+          "#jidlojezazitek",
+          "#anatomiechuti",
+          "#cerstvehouby",
+          "#lisky",
+          "#restauracepraha",
+          "#zazitek",
+          "#foodie"
+        ]
+      },
+      {
+        "id": "7371cdc7-d9ce-4ae4-b12e-cb8ae618541e",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-posts/1787988307991.webp"
+        ],
+        "hook": "Rajčata, nebo cuketa?",
+        "body": "Konec srpna je tady a zelenina má teď tu nejintenzivnější chuť z celého roku. Na jedné straně stojí sladká pečená rajčata, která se dokonale rozplývají na jazyku. Na druhé osvěžující cuketové carpaccio s bylinkovým olejem a čerstvou bazalkou. Obě jídla z našeho poledního menu tě okamžitě vrátí do prázdninové pohody. Která z těchto chutí ti bude na podzim chybět víc? Hlasuj v komentářích. Město po dovolených ožívá a stoly na poslední letní víkend rychle mizí.",
+        "cta": "Rezervuj si stůl na ambi.cz a přijď si vychutnat konec léta.",
+        "hashtags": [
+          "#ambiente",
+          "#ambicz",
+          "#klubambiente",
+          "#jidlojezazitek",
+          "#konecletha",
+          "#sezonnimenu",
+          "#pecenarajcata",
+          "#gastronomie",
+          "#skvelejidlo",
+          "#dnesjem"
+        ]
+      },
+      {
+        "id": "8041f252-aaec-4461-93ef-b88de6036cd0",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-posts/1787988414883.webp"
+        ],
+        "hook": "Křupnutí karamelu, nebo dotek hladkého marcipánu?",
+        "body": "Zavři oči a zaposlouchej se. Cukrářský sáček s tichým šustěním nanáší nadýchaný krém. Následuje tenké, uspokojivé křupnutí, když se vršek větrníku z Myšáka noří do lesklé fondánové polevy.\n\nStřih. Nůž precizně uhlazuje hutnou čokoládovou ganáž. Ruce mistra s milimetrovou přesností pokládají plát mandlového marcipánu na legendární dort Savoy.\n\nTohle je čisté řemeslo. Poslední srpnový víkend si žádá výjimečnou tečku, než v pondělí vypukne školní chaos. Stoly v cukrárnách se plní a místa rychle mizí. Nenech rodinu přijít o to nejlepší rozloučení s létem.",
+        "cta": "Napiš nám hned teď do komentářů: vyhraje u vás o víkendu karamelový větrník, nebo čokoládový Savoy?",
+        "hashtags": [
+          "#ambiente",
+          "#ambicz",
+          "#klubambiente",
+          "#jidlojezazitek",
+          "#cukrarna",
+          "#vetrnik",
+          "#dortsavoy",
+          "#poctivejidlo",
+          "#restauracepraha",
+          "#skvelejidlo"
+        ]
+      },
+      {
+        "id": "25521fa3-27d4-4d6b-968d-1bdf624b6e9b",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-ambiente/ig-posts/1787988519661.webp"
+        ],
+        "hook": "Hodiny tažený vývar daruješ za vteřinu.",
+        "body": "Kosti se napřed pečou v troubě dozlatova, zelenina se přidává až v polovině. Výsledek? Vývar čistý jako křišťál a plný chuti. Zatímco náš šéfkuchař mu věnuje hodiny péče, ty tenhle zážitek můžeš někomu předat okamžitě. Konec srpna je tady a s ním i návraty z dovolených. Nestíháš vymýšlet dárek k blížícímu se výročí nebo oslavě před začátkem školního shonu? Fyzická karta nebo online poukázka vyřeší všechno za tebe. Při placení ji obdarovaný jen pípne. Žádný stres, jen čistá radost z poctivého jídla.",
+        "cta": "Pořiď dárkovou kartu online na https://www.ambi.cz/p/d-rkov-pouk-zky-a-karty a vyřeš dokonalý dárek bez čekání ještě před koncem víkendu.",
+        "hashtags": [
+          "#ambiente",
+          "#ambicz",
+          "#klubambiente",
+          "#jidlojezazitek",
+          "#ambientecz",
+          "#poctivejidlo",
+          "#darkovakarta",
+          "#dareknaazitky",
+          "#foodie",
+          "#jidlo"
+        ]
+      }
+    ]
+  },
+  {
     "slug": "znovin-znojmo",
     "company": "ZNOVÍN ZNOJMO",
     "industry": "Vinařství a víno",
@@ -1505,6 +2639,29 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
           "#terroir",
           "#moravskevino",
           "#znojemsko"
+        ]
+      },
+      {
+        "id": "25045ec2-0dba-40a5-bb41-52c8c329df3c",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787931808929-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787931808929.mp4",
+        "hook": "Štvou vás vyprodané degustace?",
+        "body": "Léto se nám pomalu chýlí ke konci a s ním bohužel mizí i poslední volná místa na naše podzimní putování po vinicích. Zvlášť náš milovaný Šobes bývá plný mrknutím oka. Jak se k nám dostat, když už je všude plno? Tajemství našich stálých hostů se jmenuje Klub přátel dobrého vína Znovín. S ním totiž nezískáváte jen skvělá vína do své rodinné vinotéky, ale hlavně přednostní přístup k vyprodaným akcím, vzácným limitkám a archivním ročníkům, které na běžném pultu prostě nenajdete. Nenechte si utéct ty nejkrásnější chvíle u nás na jižní Moravě. Na jaké naší vinici byste si chtěli užít nezapomenutelný košt? Napište mi to hned do komentářů a uložte si tenhle post! #znovin #znovinznojmo #sobes #jiznimorava #milujemevino #vinice",
+        "cta": "Na jaké naší vinici byste si chtěli užít nezapomenutelný košt? Napište mi to hned do komentářů a uložte si tenhle post!",
+        "hashtags": [
+          "#znovinznojmo",
+          "#znovin",
+          "#vinarstviznovin",
+          "#znovinky",
+          "#sobes",
+          "#jiznimorava",
+          "#moravskevino",
+          "#pohoda",
+          "#znojemsko",
+          "#relax"
         ]
       },
       {
@@ -1556,6 +2713,29 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
         ]
       },
       {
+        "id": "e711dd50-727b-4ea3-91b0-9f74c3842a81",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787932544823-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787932544823.mp4",
+        "hook": "Tohle vytesal jednou rukou.",
+        "body": "Zavřete oči a zaposlouchejte se. Křup... ťuk. Představte si ten tlumený zvuk dláta, které se zakusuje do chladného pískovce. Přesně takhle, úder za úderem, vytesal jednoruký lidový umělec úžasné plastické reliéfy v našem Malovaném sklepě v Šatově. Ta podzemní atmosféra je magická, úplně cítíte tu vlhkost a historii ve vzduchu. A když se pak vrátíte nahoru na sluníčko? Uslyšíte jen nádherné cinknutí skleničky a osvěžující zvuk nalévání ledově vychlazeného Sauvignonu Ještěrka zelená. Jeho svěží kyselinka vás po téhle historické pecce krásně probere.",
+        "cta": "Koho vezmete s sebou na poslední letní výlet na Znojemsko? Označte svého parťáka do komentářů!",
+        "hashtags": [
+          "#znovinznojmo",
+          "#znovin",
+          "#vinarstviznovin",
+          "#znovinky",
+          "#malovanysklep",
+          "#satov",
+          "#moravskevino",
+          "#milujemevino",
+          "#znojemsko",
+          "#relax"
+        ]
+      },
+      {
         "id": "d00fdc53-a6b7-4d1f-8840-15055f88719f",
         "mediaType": "carousel",
         "images": [
@@ -1603,6 +2783,27 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
           "#vino",
           "#znojemsko",
           "#vikend"
+        ]
+      },
+      {
+        "id": "cb98387c-a4f7-41f4-b776-5fc3f91d741d",
+        "mediaType": "reel",
+        "images": [],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787965171991.mp4",
+        "hook": "Teplé víno? Vinařův trik.",
+        "body": "Poslední srpnová grilovačka v plném proudu, zazvoní nečekaní hosté a vy zjistíte, že ta schovaná lahev je úplně teplá. Žádná panika. Zkuste starý vinařský trik. Vezměte kbelík, nasypte led, zalijte ho studenou vodou a přidejte pořádnou lžíci soli. Sůl prudce sníží bod tání ledu a voda se bleskově ochladí pod nulu. Váš Müller Thurgau Naše klenoty, pozdní sběr, bude perfektně vychlazený dřív, než hosté dojedí první klobásu. Zachováte v něm tak tu krásnou šťavnatost a svěžest.",
+        "cta": "Znali jste tenhle trik se solí, nebo dáváte víno do mrazáku? Dejte mi vědět do komentářů a video si raději uložte, ať ho máte při další oslavě po ruce.",
+        "hashtags": [
+          "#znovinznojmo",
+          "#znovin",
+          "#vinarstviznovin",
+          "#znovinky",
+          "#mullerthurgau",
+          "#naseklenoty",
+          "#relax",
+          "#moravskevino",
+          "#znojemsko",
+          "#vino"
         ]
       },
       {
@@ -1679,6 +2880,29 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
         ]
       },
       {
+        "id": "54122822-0429-4483-a45e-5fce75109a14",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787982949084-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787982949084.mp4",
+        "hook": "Tady čas neexistuje",
+        "body": "Labyrint v Šatově není jen další sklep. Je to srdce Znovínu, kde v hlubokých pískovcových chodbách v naprostém klidu dozrávají ta nejvzácnější vína. Stabilní teplota a staletá tradice dávají každé lahvi unikátní charakter, který nikde jinde nenajdete. Konec prázdnin a začátek vinobraní je ideální čas se sem schovat a zažít tu magickou atmosféru na vlastní kůži, než se podzimní termíny prohlídek úplně vyprodají.",
+        "cta": "Označte do komentářů parťáka, se kterým byste tenhle podzemní archiv chtěli co nejdřív prozkoumat!",
+        "hashtags": [
+          "#znovinznojmo",
+          "#znovin",
+          "#vinarstviznovin",
+          "#znovinky",
+          "#satov",
+          "#vinarskaturistika",
+          "#moravskevino",
+          "#degustace",
+          "#znojemsko",
+          "#vinice"
+        ]
+      },
+      {
         "id": "93691963-c49e-412c-aa4d-5243aa86e805",
         "mediaType": "carousel",
         "images": [
@@ -1722,6 +2946,94 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
           "#vino",
           "#milujemevino"
         ]
+      },
+      {
+        "id": "5a323e50-bc1f-4186-955b-3f8a2b779116",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-znovin-znojmo/ig-posts/1787988672085.webp"
+        ],
+        "hook": "Tvoje terasa mění chuť vína.",
+        "body": "Víš, že stejná lahev chutná pokaždé jinak? Není to kouzlo. Je to fyzika a tvoje smysly.\n\nKdyž si dáš skleničku přímo u našeho stánku na Šobesu, vítr z údolí Dyje a slunce tě nutí vnímat ostřejší mineralitu. Ochutnáváš surový terroir v přímém přenosu.\n\nKdyž tu samou lahev otevřeš večer v klidu na vlastní terase, víno se chová jinak. Bez větru se vůně drží ve sklenici a naplno vyniknou sladké ovocné tóny.\n\nDvě místa. Dva úplně odlišné zážitky. Poslední srpnový víkend si žádá ten správný.",
+        "cta": "Kde se s létem loučíš raději? Jsi tým divoký Šobes v sedle kola, nebo volíš tichou domácí pohodu? Napiš mi to do komentářů.",
+        "hashtags": [
+          "#znovinznojmo",
+          "#znovin",
+          "#vinarstviznovin",
+          "#znovinky",
+          "#sobes",
+          "#znojemsko",
+          "#degustace",
+          "#milujemevino",
+          "#pohoda",
+          "#vinarstvi"
+        ]
+      },
+      {
+        "id": "f0bc61ce-7e40-4d5a-b4e9-52d6fa05b905",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-znovin-znojmo/ig-posts/1787988785406.webp"
+        ],
+        "hook": "Tohle párování překoná i drahé francouzské sýry.",
+        "body": "Konec srpna si žádá poctivou tečku. Dnes rozbalíme pravý moravský zážitek.\n\nZákladem je kvalitní domácí uzené maso. Jemně vyuzené, zemité a plné chuti. K němu otevíráme náš Müller Thurgau z kolekce Naše klenoty. Proč zrovna ten?\n\nJeho typická svěží kyselinka a lehká ovocnost dokonale vyváží tučnost masa. Vytvoří na patře harmonii, která ve skvělé společnosti rychle zmizí z prkénka. Ukazujeme, že špičková gastronomie nemusí být složitá – stačí poctivé lokální suroviny a víno s jasným znojemským rukopisem.\n\nCo mimochodem nesmí chybět na vašem prkénku? Škvarkovka, nebo nakládaný sýr?",
+        "cta": "Připravte si na víkend pravou moravskou hostinu. Objednejte si své lahve z kolekce Naše klenoty ještě dnes na e-shopu https://www.znovin.cz/",
+        "hashtags": [
+          "#znovinznojmo",
+          "#znovin",
+          "#vinarstviznovin",
+          "#znovinky",
+          "#naseklenoty",
+          "#mullerthurgau",
+          "#parovanivina",
+          "#moravskevino",
+          "#vino",
+          "#znojemsko"
+        ]
+      },
+      {
+        "id": "c6aab5ab-01c7-4cd4-afc2-a892f97146e3",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-znovin-znojmo/ig-posts/1787988893665.webp"
+        ],
+        "hook": "Věčný spor u nás ve sklepě právě ožívá.",
+        "body": "Léto vysálo vaše domácí zásoby a je nejvyšší čas je spolehlivě doplnit. Právě balíme první podzimní předplatné Znovínky a u nás se tábory jasně rozdělily.\n\nPrvní varianta nabízí svěží a mladé kousky. Ideální na prodloužení letní pohody s lehkým vínem.\n\nDruhá varianta staví na plných a vyzrálých odrůdách VOC Znojmo. Těžší kalibr pro opravdové znalce, který zahřeje během chladnějších večerů.\n\nKartony doručíme bezpečně a vcelku až k vám. Kapacity první zářijové vlny ale rychle mizí. Co u vás vyhraje? Jste tým svěžest, nebo tým vyzrálost?",
+        "cta": "Hlasujte v komentářích! A pokud už máte jasno, zajistěte si své Znovínky dřív, než se vyprodají, na https://www.znovin.cz/",
+        "hashtags": [
+          "#znovinznojmo",
+          "#znovin",
+          "#vinarstviznovin",
+          "#znovinky",
+          "#znojemsko",
+          "#vocznojmo",
+          "#vino",
+          "#vinar",
+          "#vikend",
+          "#pohoda"
+        ]
+      },
+      {
+        "id": "5695f656-6751-4174-bbf3-33ebe66abf3a",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-znovin-znojmo/ig-posts/1787988996359.webp"
+        ],
+        "hook": "Tohle stvoření hlídá náš nejlepší Sauvignon.",
+        "body": "Šlápnete do pedálů. Kolem vás jen nekonečné řádky znojemských vinic a poctivý srpnový vzduch. Zastavíte u staré kamenné zídky. Na rozpáleném kameni se mihne smaragdový záblesk. Ještěrka zelená.\n\nTenhle chráněný tvor žije jen tam, kde je příroda naprosto čistá. Právě ona hlídá hrozny pro náš vyhlášený Sauvignon. Zlatá hodinka barví krajinu a vy víte, že tenhle letní klid brzy vystřídá ruch vinobraní.\n\nZkušení znalci vědí, že podzimní putování po našich vinicích bývá vyprodané týdny dopředu. O exkluzivní degustace přímo u vinohradu je teď obrovský zájem a poslední místa rychle mizí. Nečekejte, až vám tahle příležitost proklouzne mezi prsty.",
+        "cta": "Který ročník Sauvignonu s ještěrkou vám utkvěl v paměti nejvíc? Napište nám to do komentářů a označte parťáka, se kterým si letos ulovíte místo na vinicích, než bude úplně plno!",
+        "hashtags": [
+          "#znovinznojmo",
+          "#znovin",
+          "#vinarstviznovin",
+          "#znovinky",
+          "#jesterkazelena",
+          "#sauvignon",
+          "#degustace",
+          "#vikend",
+          "#vinarstvi",
+          "#dnespijem"
+        ]
       }
     ]
   },
@@ -1753,6 +3065,28 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
           "#peceoplet",
           "#zdraviakrasa",
           "#krasaaplet"
+        ]
+      },
+      {
+        "id": "3efb1f69-b24b-4f61-bfc2-96f2fa4af93f",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787931610537-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787931610537.mp4",
+        "hook": "Laser a dlouhé hojení? Zbytečná obava.",
+        "body": "Laser a dlouhé hojení? Zbytečná obava. Máte po létě pleť plnou pigmentových skvrn a chybí jí jiskra? Návrat do práce se blíží a vy váháte s ošetřením, protože se bojíte zdlouhavého hojení. Naše klientka měla stejné obavy. Zvolili jsme moderní laserové ošetření na oddělení dermatologie. Výsledek? První den mírné zarudnutí, třetí den jemné olupování a pátý den už výrazně sjednocená a zářivější pleť. Špičkové technologie v Asklepionu znamenají maximální efekt s minimální dobou rekonvalescence.",
+        "cta": "Stihněte rychlé hojení ještě před návratem do kanceláře. Objednejte se na konzultaci přímo přes https://www.asklepion.cz/p/dermatologie.",
+        "hashtags": [
+          "#asklepion",
+          "#asklepionclinic",
+          "#asklepionprague",
+          "#institutasklepion",
+          "#dermatologie",
+          "#krasnaplet",
+          "#laseroveosetreni",
+          "#omlazeni",
+          "#peceosebe"
         ]
       },
       {
@@ -1806,6 +3140,29 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
         ]
       },
       {
+        "id": "625c7fdd-809b-4b9a-b612-72653a797026",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787932794193-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787932794193.mp4",
+        "hook": "Strach ze zmrzlé tváře?",
+        "body": "Poprvé na aplikaci botulotoxinu? Chápeme, že máte respekt. Nejčastější obavou našich klientek je ztráta přirozené mimiky a strach z nepřirozeného výrazu. V Asklepionu je ale naším cílem naprostá harmonie.\n\nLékař s vámi nejprve detailně probere vaše přání. Samotná aplikace trvá jen pár minut a je velmi šetrná. Výsledkem není maska, ale odpočatý a svěží vzhled. Vaše emoce zůstanou, zmizí jen unavené vrásky po náročném létě. Přesně to vaše pleť potřebuje před návratem do podzimního pracovního shonu.",
+        "cta": "Zajistěte si odpočatý vzhled před začátkem podzimní sezóny a rezervujte si svou konzultaci ještě dnes na https://www.asklepion.cz/.",
+        "hashtags": [
+          "#asklepion",
+          "#asklepionclinic",
+          "#asklepionprague",
+          "#institutasklepion",
+          "#estetickamedicina",
+          "#botulotoxin",
+          "#prirozenakrasa",
+          "#zdravi",
+          "#krasa",
+          "#dermatologie"
+        ]
+      },
+      {
         "id": "528c38ad-b1ef-4630-87b4-6edc179a70b2",
         "mediaType": "carousel",
         "images": [
@@ -1829,6 +3186,52 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
           "#klinika",
           "#laserovamedicina",
           "#plastickachirurgie"
+        ]
+      },
+      {
+        "id": "947d87a6-50d1-4a00-b71c-c2ce7f5a1c62",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787977733575-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787977733575.mp4",
+        "hook": "Jak vypadá úspěšné hubnutí, když máte po boku špičkové odborníky?",
+        "body": "„Do Asklepionu se vracím opakovaně kvůli neuvěřitelně milému přístupu celého personálu,“ napsala nám klientka Lucie. Hubnutí totiž není jen o čísle na váze. Je to cesta, na které potřebujete podporu, pochopení a špičkové odborníky. Od první konzultace až po finální výsledek vás provedeme každým krokem. Žádný stres z neznámého, jen jasný plán a bezpečná péče. Každá velká změna začíná prvním krokem v prostředí, kde se cítíte dobře. Svěřte se do rukou profesionálů a získejte zpět své sebevědomí. Udělejte první krok k lepšímu pocitu ze sebe sama. Objednejte se na konzultaci a zjistěte, jaký plán připravíme přímo pro vás: https://www.asklepion.cz/p/hubnut- #asklepion #hubnuti #estetickamedicina #krasaazdravi #sebevedomi",
+        "cta": "Udělejte první krok k lepšímu pocitu ze sebe sama. Objednejte se na konzultaci a zjistěte, jaký plán připravíme přímo pro vás: https://www.asklepion.cz/p/hubnut-",
+        "hashtags": [
+          "#asklepion",
+          "#asklepionclinic",
+          "#asklepionprague",
+          "#institutasklepion",
+          "#hubnuti",
+          "#estetickamedicina",
+          "#krasaazdravi",
+          "#zdraviakrasa",
+          "#krasaaplet",
+          "#omlazeni"
+        ]
+      },
+      {
+        "id": "8751d50b-73df-4ff1-9598-1f5c2535c4e3",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787977966667-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787977966667.mp4",
+        "hook": "Stačí jen rychlé odlíčení?",
+        "body": "Zářijový návrat do pracovního tempa se blíží a vaše pleť po létě volá po hydrataci. Často se našich lékařů ptáte, jestli je nutné trávit večer v koupelně dlouhé minuty. Odpověď zní: ne, pokud víte, co děláte. Místo složitých rituálů stačí pleti dodat koncentrovanou péči a věnovat minutu jemné masáži. Ta podpoří krevní oběh a vstřebávání aktivních látek, které pleť po slunění nezbytně potřebuje k rychlé regeneraci.",
+        "cta": "Napište nám do komentářů, jaký krok ve své večerní péči nikdy nevynecháte, a uložte si toto video jako připomínku pro dnešní chvilku pro sebe.",
+        "hashtags": [
+          "#asklepion",
+          "#asklepionclinic",
+          "#asklepionprague",
+          "#institutasklepion",
+          "#peceoplet",
+          "#dermatologie",
+          "#krasnaplet",
+          "#plastickachirurgie",
+          "#peceosebe",
+          "#krasaaplet"
         ]
       },
       {
@@ -1878,6 +3281,29 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
           "#zdravi",
           "#plastickachirurgie",
           "#omlazeni"
+        ]
+      },
+      {
+        "id": "11f96ff9-7ac1-408b-81fd-7598c9458d93",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787978798272-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787978798272.mp4",
+        "hook": "Poprvé na laserovém liftingu?",
+        "body": "Návrat do kanceláře po létě si žádá svěží vzhled, ale obavy z neznámého vás brzdí? Ošetření prémiovým laserem Fotona není důvod k nervozitě. Celým procesem vás provedeme krok za krokem. Od úvodní konzultace, přes samotný neinvazivní lifting, až po instrukce k následné péči. Fotona šetrně stimuluje váš vlastní kolagen a zpevňuje pleť bez nutnosti schovávat se dny doma. Ošetření je naprosto komfortní a vy můžete po odchodu z kliniky rovnou pokračovat ve svém dni. Získejte zpět mladistvou pevnost pleti s maximální péčí a bezpečností.",
+        "cta": "Nečekejte a objednejte se na konzultaci přímo přes https://www.asklepion.cz/.",
+        "hashtags": [
+          "#asklepion",
+          "#asklepionclinic",
+          "#asklepionprague",
+          "#institutasklepion",
+          "#laserfotona",
+          "#estetickamedicina",
+          "#omlazeni",
+          "#peceosebe",
+          "#krasa",
+          "#dermatologie"
         ]
       },
       {
@@ -1931,6 +3357,114 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
           "#dermatologie",
           "#plastickachirurgie"
         ]
+      },
+      {
+        "id": "b0e7e84c-dc4c-43d2-91fe-65a6b193b51a",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-asklepion-institut-klinicke-a-/ig-posts/1787988769835.webp"
+        ],
+        "hook": "Pořád nafouklí po dovolené?",
+        "body": "Návrat do kanceláře se blíží a vy se po letních grilovačkách necítíte ve své kůži. Únava a těžké břicho vás ale brzdit nemusí. Náš gastroenterolog radí tři rychlé kroky pro okamžitý restart. Za prvé: zařaďte fermentované potraviny jako pravý kefír. Za druhé: zvyšte příjem rozpustné vlákniny pro výživu střevního mikrobiomu. Za třetí: pijte výhradně čistou neperlivou vodu. Vaše tělo rychle získá zpět ztracenou rovnováhu. Pokud ovšem diskomfort přetrvává déle než pár dní, věnujte pozornost svému tělu a zvažte konzultaci s odborníkem.",
+        "cta": "Uložte si tyto tři kroky pro případ nouze a napište nám do komentářů, který z nich zařadíte do své rutiny jako první.",
+        "hashtags": [
+          "#asklepion",
+          "#asklepionclinic",
+          "#asklepionprague",
+          "#institutasklepion",
+          "#zdravastreva",
+          "#gastroenterologie",
+          "#nadymani",
+          "#estetickamedicina",
+          "#plastickachirurgie",
+          "#omlazeni"
+        ]
+      },
+      {
+        "id": "8a1136de-3e16-4528-9583-c2449827f8f5",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-asklepion-institut-klinicke-a-/ig-posts/1787988872692.webp"
+        ],
+        "hook": "Laser nebo sklerotizace? Zjistěte, co funguje lépe.",
+        "body": "Léto dalo vašim nohám zabrat. Horko a dlouhé cestování často zviditelní metličkové žilky. Před zářijovým návratem do pracovního tempa je ideální čas tento problém vyřešit. Která metoda je pro vás ta pravá?\n\nKlasická sklerotizace je osvědčený standard. Jemnou jehličkou aplikujeme účinnou látku přímo do žilky. Hojení vyžaduje poctivé nošení kompresních punčoch.\n\nOproti tomu moderní cévní laser působí přes kůži. Ošetření je bleskové, bez jehel a rekonvalescence je minimální.\n\nObě metody vrací nohám zdravý a bezchybný vzhled. Výběr vždy závisí na konkrétním nálezu.",
+        "cta": "Prohlédněte si detaily obou metod a objednejte se na konzultaci přes https://www.asklepion.cz/p/c-vn-chirurgie.",
+        "hashtags": [
+          "#asklepion",
+          "#asklepionclinic",
+          "#asklepionprague",
+          "#institutasklepion",
+          "#cevnichirurgie",
+          "#krecovezily",
+          "#zdravenohy",
+          "#estetickamedicina",
+          "#krasa"
+        ]
+      },
+      {
+        "id": "5756a6e7-d864-4c87-87f7-b8528a7dbf2b",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-asklepion-institut-klinicke-a-/ig-posts/1787988975153.webp"
+        ],
+        "hook": "Vymažte kruhy pod očima bez modřin.",
+        "body": "Zářijový kolotoč se blíží a váš pohled prozrazuje únavu. Ranní masáž vychlazeným gua sha válečkem pomůže, ale hluboké kruhy vyřeší až šetrná aplikace kyseliny hyaluronové. Jak to u nás probíhá? Na recepci vás přivítáme s úsměvem a lékař nejprve pečlivě zhodnotí anatomii vašeho očního okolí. Samotná aplikace je maximálně bezpečná. Používáme speciální kanylu, která minimalizuje riziko modřin a diskomfortu. Zákrok trvá jen pár minut a výsledek vidíte okamžitě. Po ošetření můžete vyrazit rovnou do kanceláře. Získáte od nás přesné instrukce k domácí péči a tipy na kofeinové krémy z našeho e-shopu, které svěží efekt dlouhodobě udrží.",
+        "cta": "Rezervujte si svůj termín konzultace ještě dnes na https://www.asklepion.cz/ a vstupte do září s odpočatým pohledem.",
+        "hashtags": [
+          "#asklepion",
+          "#asklepionclinic",
+          "#asklepionprague",
+          "#institutasklepion",
+          "#kruhypodocima",
+          "#kyselinahyaluronova",
+          "#estetickamedicina",
+          "#omlazeni",
+          "#zdraviakrasa",
+          "#sebevedomi"
+        ]
+      },
+      {
+        "id": "ebe13eb7-0950-4843-9238-d7e588ec749c",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-asklepion-institut-klinicke-a-/ig-posts/1787989105086.webp"
+        ],
+        "hook": "Jsou infuze vitamínu C jen drahé placebo?",
+        "body": "Slyšíte to ze všech stran. Prý je to jen předražená voda a tělo všechno hned vyloučí. Kde je pravda? Zásadní rozdíl je ve vstřebávání. Když spolknete tabletku, vaše střeva pustí do krve jen zlomek účinné látky. Zbytek tělo opravdu bez užitku vyloučí. Infuzní terapie v Asklepionu tento limit obchází. Vitamín C jde přímo do krevního oběhu v maximální koncentraci. Výsledek? Intenzivní podpora imunitního systému, pomoc při potlačení skrytých zánětů a celkový pocit svěžesti. Právě tato cílená péče je ideální prevencí před podzimním ochlazením a hektickým návratem do pracovního i školního kolotoče. Samotná aplikace je téměř bezbolestná a probíhá v klidu našeho relaxačního zázemí. Žádný stres, jen čas pro vás.",
+        "cta": "Zjistěte detaily o průběhu infuzní terapie a jejích benefitech na https://www.asklepion.cz/.",
+        "hashtags": [
+          "#asklepion",
+          "#asklepionclinic",
+          "#asklepionprague",
+          "#institutasklepion",
+          "#infuzniterapie",
+          "#vitaminc",
+          "#podporaimunity",
+          "#estetickamedicina",
+          "#omlazeni"
+        ]
+      },
+      {
+        "id": "cb9fc53a-e4b8-4806-b437-3719081da7e3",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-asklepion-institut-klinicke-a-/ig-posts/1787989284232.webp"
+        ],
+        "hook": "Přirozená korekce rtů krok za krokem.",
+        "body": "Chtěla vrátit rtům ztracenou plnost a hydrataci, ale děsila se umělého vzhledu. Náš tým specialistů proto zvolil prémiovou kyselinu hyaluronovou a maximálně jemný přístup. Den 1: Těsně po aplikaci. Otok je minimální, tvar už nyní působí harmonicky. Den 3: Otok zcela ustupuje. Klientka se bez obav vrací do plného pracovního tempa. Den 14: Finální výsledek. Rty jsou hloubkově hydratované, symetrické a šťavnaté. Žádné extrémy, jen svěží vzhled, který naprosto přirozeně ladí s rysy obličeje. Precizní práce a absolutní respekt k vaší anatomii jsou u nás standardem.",
+        "cta": "Stihněte rychlé hojení ještě před rušným podzimem. Rezervujte si termín vaší proměny na https://www.asklepion.cz/p/plastick-chirurgie.",
+        "hashtags": [
+          "#asklepion",
+          "#asklepionclinic",
+          "#asklepionprague",
+          "#institutasklepion",
+          "#estetickamedicina",
+          "#korekcertu",
+          "#kyselinahyaluronova",
+          "#krasa",
+          "#krasaaplet",
+          "#zdravi"
+        ]
       }
     ]
   },
@@ -1965,6 +3499,27 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
         ]
       },
       {
+        "id": "f95bdcec-770b-4ad1-8d4d-5716d93efe79",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787931981524-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787931981524.mp4",
+        "hook": "Nový domov ještě před začátkem září?",
+        "body": "Teplý minimalismus, přírodní materiály jako masivní dřevo a travertin, a to nejdůležitější – dokonalá lokalita. Pokud se vracíte z letní dovolené a potřebujete zajistit prémiové bydlení pro vaši rodinu poblíž mezinárodních škol v Bubenči, rádi vám s tímto krokem pomůžeme. Nástup do nového školního roku se blíží a my vám zajistíme hladký přechod do nového domova díky diskrétnímu a maximálně efektivnímu procesu. Objevte prostor, který vám poskytne absolutní klid a zázemí pro celou rodinu.",
+        "cta": "Zajistěte si prémiové bydlení včas. Sjednejte si soukromou prohlídku ještě dnes na https://www.svoboda-williams.com/p/pron-jem-pr-miov-ch-nemovitost-",
+        "hashtags": [
+          "#svobodawilliams",
+          "#svobodaandwilliams",
+          "#premiumrealestate",
+          "#christiesrealestate",
+          "#bubenec",
+          "#luxusnibydleni",
+          "#property",
+          "#realitnikancelar"
+        ]
+      },
+      {
         "id": "fdc0f97f-9209-48c2-8b6c-23506b37ed13",
         "mediaType": "carousel",
         "images": [
@@ -1984,6 +3539,52 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
           "#orechovka",
           "#luxusnibydleni",
           "#premiovenemovitosti"
+        ]
+      },
+      {
+        "id": "77cdcbde-0fd7-46b2-8fb2-1a3c175d1c20",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787932623779-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787932623779.mp4",
+        "hook": "Architektonický skvost našel majitele.",
+        "body": "S potěšením oznamujeme úspěšné zprostředkování prodeje památkově chráněné vily v prestižní čtvrti Bubeneč. Prodej podobných architektonických unikátů vyžaduje nejen hlubokou znalost trhu, ale především absolutní diskrétnost a efektivní proces, který plně respektuje čas našich klientů. Velmi si vážíme důvěry, kterou v nás obě strany vložily. Poptávka po prémiovém rodinném bydlení v dosahu mezinárodních škol před začátkem podzimní sezóny roste. Hledáte-li podobně výjimečnou nemovitost, naši makléři jsou vám k dispozici. Zajistěte si své nové prémiové bydlení ještě před vrcholem podzimní sezóny. Sjednejte si privátní konzultaci a získejte přístup k našim exkluzivním off-market nabídkám na https://www.svoboda-williams.com/. #svobodawilliams #premiovenemovitosti #luxusnibydleni #bubenec #realestateprague",
+        "cta": "Zajistěte si své nové prémiové bydlení ještě před vrcholem podzimní sezóny. Sjednejte si privátní konzultaci a získejte přístup k našim exkluzivním off-market nabídkám na https://www.svoboda-williams.com/.",
+        "hashtags": [
+          "#svobodawilliams",
+          "#svobodaandwilliams",
+          "#premiumrealestate",
+          "#christiesrealestate",
+          "#premiovenemovitosti",
+          "#luxusnibydleni",
+          "#bubenec",
+          "#realestate",
+          "#bydlenisnu",
+          "#architektura"
+        ]
+      },
+      {
+        "id": "dea1a49b-1ba8-4e6d-b1df-978a43e7e100",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787932885185-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787932885185.mp4",
+        "hook": "Skutečný luxus je klid.",
+        "body": "Skutečný luxus spočívá v detailech, které nejsou na první pohled vidět. Patří mezi ně i absolutní diskrétnost při rozšiřování vašeho portfolia. Chápeme, že prémiové off-market akvizice vyžadují maximální soukromí a neprůstřelný právní servis. Konec srpna nabízí ideální prostor pro tichá a strategická rozhodnutí před začátkem podzimní sezóny. Vaše zájmy chráníme s maximální pečlivostí, abyste se vy mohli soustředit jen na to podstatné.",
+        "cta": "Jaký parametr je pro vás při výběru bezpečné investiční nemovitosti zcela zásadní? Podělte se o své zkušenosti v komentářích.",
+        "hashtags": [
+          "#svobodawilliams",
+          "#svobodaandwilliams",
+          "#premiumrealestate",
+          "#christiesrealestate",
+          "#luxusnibydleni",
+          "#investice",
+          "#nemovitosti",
+          "#realestate",
+          "#premiovenemovitosti",
+          "#architecture"
         ]
       },
       {
@@ -2083,6 +3684,27 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
         ]
       },
       {
+        "id": "25000f84-c85b-4def-8dd0-46fbf56c3f07",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787977652228-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787977652228.mp4",
+        "hook": "Rozhodují skryté detaily.",
+        "body": "Skutečně luxusní prostor nepoznáte podle velikosti, ale podle nekompromisního zpracování každého milimetru. V této moderní kuchyni hraje hlavní roli precizně frézovaný přírodní kámen a architektonické osvětlení, které vytváří nezaměnitelnou atmosféru. Nároční klienti vědí, že chladivý dotek broušeného povrchu a jemná hra světla a stínu na hranách kamene rozhodují o pocitu naprosté výjimečnosti. Nemovitostí s takto bezprecedentní úrovní řemeslného detailu je na trhu absolutní minimum. Spolehněte se na náš diskrétní proces koupě.",
+        "cta": "Sjednejte si soukromou prohlídku ještě dnes na https://www.svoboda-williams.com/ a zajistěte si své nové sídlo s maximální prioritou.",
+        "hashtags": [
+          "#svobodawilliams",
+          "#svobodaandwilliams",
+          "#premiumrealestate",
+          "#christiesrealestate",
+          "#luxuryliving",
+          "#interiordesign",
+          "#luxuryhomes",
+          "#realestate"
+        ]
+      },
+      {
         "id": "cebea346-e5d9-4ae3-bfd1-f3414a7bd3a2",
         "mediaType": "carousel",
         "images": [
@@ -2126,6 +3748,469 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
           "#luxusnibydleni",
           "#architektura",
           "#realestate"
+        ]
+      },
+      {
+        "id": "8fef4b99-516b-4c79-821c-4b3320c45137",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-svoboda-williams/ig-posts/1787988850933.webp"
+        ],
+        "hook": "Skutečná exkluzivita nevyžaduje pozornost.",
+        "body": "Konec srpna v Bubenči. Zatímco se metropole chystá na zářijový ruch, diplomatická čtvrť zůstává tichým útočištěm. Právě zde, v sousedství mezinárodních škol a staletých kaštanů, se nacházejí ty nejstřeženější investiční příležitosti.\n\nRanní espresso v kavárně na Pelléově ulici, odpolední procházka Stromovkou a večerní klid za zdmi historických vil z 20. let od architektů formátu Antonína Engela. Získat zde nemovitost ale vyžaduje víc než jen kapitál. Vyžaduje to absolutní diskrétnost a přednostní přístup k off-market nabídkám.\n\nNáš klientský servis vás provede celým procesem. Od vyhledání skrytých klenotů až po bezchybné právní zajištění, abyste se mohli soustředit jen na to podstatné.",
+        "cta": "Znáte Bubenči lépe než my? Sdílejte s námi vaše oblíbené skryté místo v této čtvrti do komentářů.",
+        "hashtags": [
+          "#svobodawilliams",
+          "#svobodaandwilliams",
+          "#premiumrealestate",
+          "#christiesrealestate",
+          "#bubenec",
+          "#luxusnibydleni",
+          "#investice",
+          "#property",
+          "#architecture"
+        ]
+      },
+      {
+        "id": "98ea80ee-eb07-432a-9e2e-fdba63eb8d89",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-svoboda-williams/ig-posts/1787988955186.webp"
+        ],
+        "hook": "Funkcionalismus je lékem na chaos.",
+        "body": "Tato myšlenka rezonuje brněnskou Masarykovou čtvrtí už od třicátých let. Zatímco se koncem srpna vracíte k plnému manažerskému tempu, prostor bez zbytečných ornamentů nabízí přesně to, co nejvíce postrádáte: absolutní soustředění a vizuální ticho.\n\nNová nabídka vily v této prestižní lokalitě ukazuje, proč jsou čisté linie tou nejbezpečnější investicí. Nejde jen o zachování historického odkazu. Jde o promyšlenou dispozici, která šetří váš čas a dokonale odráží váš status. Každý detail tu má svou funkci, každý průhled do zahrady zklidňuje mysl.",
+        "cta": "Který prvek meziválečné architektury nejvíce oslovuje vás – nekompromisní čistota prostoru, nebo velkorysé propojení s exteriérem? Podělte se s námi o svůj pohled.",
+        "hashtags": [
+          "#svobodawilliams",
+          "#svobodaandwilliams",
+          "#premiumrealestate",
+          "#christiesrealestate",
+          "#masarykovactvrt",
+          "#brno",
+          "#funkcionalismus",
+          "#luxusnibydleni",
+          "#realitnikancelar"
+        ]
+      },
+      {
+        "id": "43e5c831-e3df-4442-a003-4ebc3ccc19a8",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-svoboda-williams/ig-posts/1787989108117.webp"
+        ],
+        "hook": "O charakteru rezidence rozhoduje kuchyňský ostrov.",
+        "body": "Podzimní společenská sezóna se blíží. Její centrum? Solitérní kuchyňský ostrov. Výběr materiálu definuje atmosféru celé rezidence. Na jedné straně stojí monumentální přírodní travertin. Jeho organická textura vnáší do prostoru teplo a nadčasovou stabilitu. Na straně druhé čistá, profesionální nerezová ocel, která interiéru propůjčuje nekompromisní industriální ráz. Oba přístupy ztělesňují absolutní luxus, ale vyzařují zcela jinou energii. Ty nejexkluzivnější nemovitosti s podobně promyšlenými detaily si nároční kupující rezervují ještě před zářijovým vrcholem sezóny. Volba ústředního materiálu tak dávno není jen estetickou preferencí, ale především jasnou deklarací životního stylu majitele.",
+        "cta": "Prohlédněte si aktuální kolekci výjimečných nemovitostí na https://www.svoboda-williams.com/ a sjednejte si svou privátní prohlídku ještě dnes.",
+        "hashtags": [
+          "#svobodawilliams",
+          "#svobodaandwilliams",
+          "#premiumrealestate",
+          "#christiesrealestate",
+          "#luxuryliving",
+          "#interiordesign",
+          "#realestate",
+          "#luxusnibydleni"
+        ]
+      },
+      {
+        "id": "53ed762e-299f-495d-a9a4-892b60b968bd",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-svoboda-williams/ig-posts/1787989252298.webp"
+        ],
+        "hook": "Zlatá hodina nad Vinohrady právě začíná.",
+        "body": "Otevíráte dveře a prostor vás okamžitě pohltí. Pozdní srpnové slunce dopadá skrze velkoformátová okna na masivní dubové podlahy a precizní detaily z travertinu. Každý krok obývacím pokojem vás vede k hlavní dominantě tohoto nově zařazeného penthousu – velkorysé střešní terase. Zatímco se metropole o tomto víkendu připravuje na zářijové tempo, vy zde nacházíte tiché útočiště s panoramatickým výhledem na Prahu. Podobně unikátní prostory na Vinohradech nacházejí své majitele velmi rychle. Zajistíme vám naprosto diskrétní a efektivní proces akvizice, abyste novou sezónu zahájili bez kompromisů.",
+        "cta": "Sjednejte si soukromou prohlídku ještě dnes na https://www.svoboda-williams.com/ a zajistěte si tuto exkluzivní adresu před začátkem podzimní sezóny.",
+        "hashtags": [
+          "#svobodawilliams",
+          "#svobodaandwilliams",
+          "#premiumrealestate",
+          "#christiesrealestate",
+          "#praguerealestate",
+          "#penthouseprague",
+          "#vinohrady",
+          "#architecture",
+          "#luxusnibydleni"
+        ]
+      }
+    ]
+  },
+  {
+    "slug": "portu",
+    "company": "Portu",
+    "industry": "Online investování a finanční technologie",
+    "website": "https://www.portu.cz/",
+    "posts": [
+      {
+        "id": "9dd9b6ed-8c35-4b3c-a4b0-9f4ebfa8c42e",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787924856593-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787924889749-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787924918192-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787924948831-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787924979544-slide4.webp"
+        ],
+        "hook": "Konec léta, začátek starostí o portfolio? Ptáte se na totéž, co ostatní.",
+        "body": "Konec srpna znamená návrat do reality. Výdaje za školu rostou, účty po dovolené hlásí průvan a trhy se hýbou. Naše zákaznická podpora v čele s Kačkou teď denně řeší s desítkami z vás, jak v této situaci optimalizovat portfolia. Nejčastější dotaz? Dlouhodobý investiční produkt (DIP). Doporučujeme nenechávat ho až na konec roku. Včasnější nastavení vám umožní čerpat daňové výhody i případné příspěvky od zaměstnavatele postupně a rovnoměrně. Často s vámi také probíráme, že správná diverzifikace sice negarantuje absolutní ochranu, ale pomáhá spolehlivě zmírnit dopady tržních výkyvů. V Portu věříme, že i když je platforma automatizovaná a strategie se rebalancují samy, lidský přístup nenahradíš. Proto jsme tu pro vás na chatu i telefonu, připraveni rozebrat detailní strukturu vašeho portfolia a pomoct vám s efektivním nastavením.",
+        "cta": "Chcete si nastavit DIP tak, abyste mohli v klidu čerpat daňové výhody i příspěvky od zaměstnavatele? Zeptejte se naší podpory na https://www.portu.cz/",
+        "hashtags": [
+          "#portu",
+          "#portucz",
+          "#investujemesportu",
+          "#portuportfolio",
+          "#investovani",
+          "#dip",
+          "#osobnifinance",
+          "#uspech",
+          "#pasivniinvestovani"
+        ]
+      },
+      {
+        "id": "888160ae-6d50-4561-9a98-e755d571df2e",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787925250781-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787925250781.mp4",
+        "hook": "Investování není kasino.",
+        "body": "Zářijové nákupy do školy nám často připomenou, jak rychle děti rostou a jak se jejich potřeby prodražují. Možná už přemýšlíte, jak jim usnadnit start do dospělosti, ale bojíte se investovat. Ve skutečnosti je ale mnohem větším hazardem nechat dětské úspory ležet na běžném účtu, kde je požírá inflace. S Dětským účtem od Portu s poplatkem pouhých 0,25 % ročně se peníze automaticky rozloží do široké škály investic. Výnosy navíc generují další výnosy, takže úspory v čase rostou mnohem rychleji. Stačí nastavit trvalý příkaz a my se postaráme o zbytek.",
+        "cta": "Spočítejte si, kolik můžete dětem do dospělosti připravit. Založte Dětský účet ještě dnes na https://www.portu.cz/p/d-tsk-et",
+        "hashtags": [
+          "#portu",
+          "#portucz",
+          "#investujemesportu",
+          "#portuportfolio",
+          "#investovaniprodeti",
+          "#osobnifinance",
+          "#detskyucet",
+          "#byznys",
+          "#investice"
+        ]
+      },
+      {
+        "id": "15bdb7e9-33ae-4733-9bb6-b860c6e0418a",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787931715639-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787931753058-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787931786415-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787931826910-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787931890534-slide4.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787931924707-slide5.webp"
+        ],
+        "hook": "Mýtus: Úspěšné investování zabere hodiny času denně",
+        "body": "Začátek školního roku znamená hromadu zařizování. Nákupy sešitů, placení obědů a kroužků. Kdo má v tomhle shonu čas ještě sledovat, jak se vyvíjí finanční trhy?\n\nČasto si myslíme, že investování znamená sedět hodiny u počítače a analyzovat data. Realita je ale jinde. Dnes už můžete využít chytré technologie, které pracují za vás.\n\nKdyž si nastavíte automatické investování, systém za vás hlídá takzvané rebalancování. Co to je? Když jedna část vašich investic vyroste a jiná klesne, systém je sám dorovná do původního, vámi zvoleného poměru. Vy tak nemusíte nic hlídat, ani se stresovat každým výkyvem trhu.\n\nVaše peníze se mohou zhodnocovat samy a vy máte čas na to podstatné – na rodinu.",
+        "cta": "Uložte si tento příspěvek jako připomínku, že investování nemusí být stres, a dejte nám do komentářů vědět, jaký mýtus o penězích jste dřív brali jako fakt.",
+        "hashtags": [
+          "#portu",
+          "#portucz",
+          "#investujemesportu",
+          "#portuportfolio",
+          "#investovani",
+          "#osobnifinance",
+          "#financnigramotnost",
+          "#rodinnefinance",
+          "#investice",
+          "#byznys"
+        ]
+      },
+      {
+        "id": "ec54fc78-b860-44dd-ba84-0ee3e37166ef",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787932180045-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787932180045.mp4",
+        "hook": "Spoříte dětem v bance?",
+        "body": "Za patnáct let budou vaše děti potřebovat peníze na studia nebo první bydlení. Pokud jim odkládáte finance na běžný účet, zbytečně se připravujete o lepší zhodnocení. Podívejte se na srovnání, jaký obrovský rozdíl to v čase udělá. Investiční rezerva od Portu je ideální pro rodiče, kteří chtějí peníze úročit stabilně a bez zbytečného rizika. Vše funguje automaticky. Vyhnete se nesmyslným bankovním poplatkům a díky úročení samotných výnosů peníze dlouhodobě pracují za vás. Stačí nastavit trvalý příkaz a můžete to pustit z hlavy. Spočítejte si, kolik dětem naspoříte, a založte jim Investiční rezervu na https://www.portu.cz/p/investi-n-rezerva #Portu #InvestovaniProDeti #InvesticniRezerva #FinancniGramotnost",
+        "cta": "Spočítejte si, kolik dětem naspoříte, a založte jim Investiční rezervu na https://www.portu.cz/p/investi-n-rezerva",
+        "hashtags": [
+          "#portu",
+          "#portucz",
+          "#investujemesportu",
+          "#portuportfolio",
+          "#investovaniprodeti",
+          "#investicnirezerva",
+          "#financnigramotnost",
+          "#vzdelavani",
+          "#osobnifinance"
+        ]
+      },
+      {
+        "id": "ab875bdf-321f-4880-a4c8-cc2e3c1fd713",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-posts/1787932449588.webp"
+        ],
+        "hook": "Nejčastější chyba začátečníků při prvním poklesu.",
+        "body": "Otevřeš apku a svítí tam minus pár stovek. Konec světa? Jak vidíš na grafice, existují dva tábory. Na jedné straně stojí Panikář. Vidí červená čísla, lekne se, hned vybírá peníze a se ztrátou odchází. Strach z trhů prostě vyhrál. Na druhé straně je Klidný stratég. Chápe, že krátkodobé výkyvy k investování přirozeně patří. Místo stresu vezme peníze z čerstvé výplaty a pošle další vklad, protože se soustředí na svůj cíl za pět nebo deset let. Trhy občas klesnou, to je fakt. Rozhoduje ale tvoje reakce.",
+        "cta": "Do kterého tábora patříš ty? Napiš nám do komentářů, jak si udržuješ chladnou hlavu. A pokud chceš začít budovat portfolio v klidu a bez stresu, mrkni na https://www.portu.cz/",
+        "hashtags": [
+          "#portu",
+          "#portucz",
+          "#investujemesportu",
+          "#portuportfolio",
+          "#investovani",
+          "#osobnifinance",
+          "#dlouhodobeinvestovani",
+          "#fintechcz",
+          "#vzdelavani"
+        ]
+      },
+      {
+        "id": "253b16ea-f837-40be-8903-8b0666774d0a",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787932725720-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787932725720.mp4",
+        "hook": "Co je správcovský poplatek?",
+        "body": "Září klepe na dveře a s ním i výdaje na kroužky a sešity. 🎒 Možná právě s výplatou řešíte, jak dětem efektivně odkládat peníze na budoucnost, aby je nesežraly skryté náklady. Pojem „správcovský poplatek“ zní složitě, ale v praxi je to ten neviditelný dílek pizzy, který si tradiční instituce berou za to, že vaše peníze vůbec spravují. Letos slavíme 6. narozeniny a už od začátku proto nabízíme dětské účty se zvýhodněným poplatkem. Složené úročení tak funguje naplno pro vaše děti, ne pro cizí kapsu. Do čeho investujete dětem nejčastěji vy? Napište nám to do komentářů! 👇 #investovani #financnigramotnost #prodeti #portuczech #osobnifinance",
+        "cta": "Do čeho investujete dětem nejčastěji vy? Napište nám to do komentářů!",
+        "hashtags": [
+          "#portu",
+          "#portucz",
+          "#investujemesportu",
+          "#portuportfolio",
+          "#investovani",
+          "#financnigramotnost",
+          "#prodeti",
+          "#portuczech",
+          "#pasivniinvestovani",
+          "#byznys"
+        ]
+      },
+      {
+        "id": "a2331904-2dd5-43e5-ac4d-26860fa13c71",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787949467363-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787953199104-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787956756679-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787960570073-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787963109507-slide4.webp"
+        ],
+        "hook": "Jak začít investovat do nemovitostí s pár stovkami",
+        "body": "„Hledal jsem způsob, jak ochránit úspory pro rodinu. Chtěl jsem do realit, ale myslel jsem, že potřebuju miliony,“ říká třicátník Marek. Zní ti to povědomě? Konec srpna po dovolených často ukáže, jak rychle peníze mizí. Nechat je ležet na běžném účtu znamená jistou ztrátu.\n\nInvestice do realit přes Portu tohle řeší. Jak to funguje? Nemusíš kupovat celý byt. V aplikaci si jednoduše zapneš realitní strategii, nastavíš trvalý příkaz hned po výplatě a systém tvé peníze rozloží do skutečných budov. Získáš tak stabilní podíl na trhu s nemovitostmi a chráníš své finance před inflací bez obří hypotéky.",
+        "cta": "Začni stavět své realitní portfolio dřív, než tvé úspory ztratí hodnotu. Zjisti víc na https://www.portu.cz/p/investice-do-realit",
+        "hashtags": [
+          "#portu",
+          "#portucz",
+          "#investujemesportu",
+          "#portuportfolio",
+          "#investovani",
+          "#nemovitosti",
+          "#osobnifinance",
+          "#financnigramotnost",
+          "#slozenourocesni",
+          "#pasivniinvestovani"
+        ]
+      },
+      {
+        "id": "01723c93-8a08-4a74-9bd6-7220e87e525c",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-posts/1787970482929.webp"
+        ],
+        "hook": "Jak testujeme novinky dřív než vy.",
+        "body": "Často se ptáte: „Kdy už spustíte tu novou funkci v aplikaci?“ Zvlášť teď na konci léta, kdy mnozí po dovolených znovu optimalizují svá portfolia, je tlak na nové nástroje obrovský. My ale nehledáme zkratky. Každý detail prochází rukama našeho týmu vývojářů a nekompromisním zátěžovým testováním. Chceme si být absolutně jistí, že vaše správa financí zůstane bleskově rychlá, intuitivní a hlavně stoprocentně bezpečná. Raději investujeme dny do interního ladění kódu, než abychom riskovali sebemenší výpadek vaší platformy. Protože když jde o vaše peníze, polovičatá řešení prostě nebereme.",
+        "cta": "Co byste v aplikaci rádi viděli jako další vylepšení? Napište nám svůj nápad do komentářů hned teď, ať ho naši vývojáři mohou rovnou zařadit do plánu.",
+        "hashtags": [
+          "#portu",
+          "#portucz",
+          "#investujemesportu",
+          "#portuportfolio",
+          "#investovani",
+          "#vyvoj",
+          "#komunita",
+          "#budoucnost",
+          "#osobnifinance"
+        ]
+      },
+      {
+        "id": "ae578a64-b088-4619-8d88-5f8061e64d0c",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787973915350-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787973948720-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787973983474-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974019376-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974051364-slide4.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974082874-slide5.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974119999-slide6.webp"
+        ],
+        "hook": "Tvrdá data: Jak si reálně vede portfolio na míru?",
+        "body": "Konec srpna znamená návrat do reality a novou výplatu na účtu. Zatímco trhy po létě občas kolísají, my se díváme na tvrdá data. Jak si reálně vede Portu portfolio na míru? Historická data potvrzují, že akciová portfolia u nás dlouhodobě dosahují průměrného zhodnocení kolem 8–10 % p.a. Při dlouhodobém horizontu navíc široká diverzifikace pomáhá mírnit výkyvy a usiluje o dlouhodobý růst. Nemusíš nic manuálně rebalancovat, náš algoritmus to řeší za tebe. Jako racionální investor víš, že čas jsou peníze. Přidej k tomu Dlouhodobý investiční produkt (DIP) a maximalizuješ daňové odpočty i příspěvky od zaměstnavatele. Vše máš navíc neustále pod kontrolou přímo v naší mobilní aplikaci. Jaký rizikový profil sedí tobě? Dej nám vědět do komentářů.",
+        "cta": "Spočítej si, kolik můžeš získat. Nečekej a rovnou vyzkoušej kalkulačku na https://www.portu.cz/",
+        "hashtags": [
+          "#portu",
+          "#portucz",
+          "#investujemesportu",
+          "#portuportfolio",
+          "#investovani",
+          "#osobnifinance",
+          "#dip",
+          "#bohatstvi",
+          "#penize"
+        ]
+      },
+      {
+        "id": "f2f92e13-43b4-420a-b8ec-f3ccbf16b4ac",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974307843-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974345556-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974380311-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974415061-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974449497-slide4.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-carousel/1787974482167-slide5.webp"
+        ],
+        "hook": "Mýtus: Pro výnos musíte kupovat jednotlivé akcie",
+        "body": "O víkendu nakoupíte sešity a dojde vám to. Děti rostou a za pár let budou potřebovat statisíce na vysokou školu nebo první bydlení. Jenže kdo z rodičů má čas denně analyzovat trhy? Mýtus říká, že musíte umět vybírat ty správné akcie. Omyl.\n\nŘešením je ETF. Představte si ho jako luxusní dárkový koš. Místo abyste sázeli všechno na jednu čokoládu (akcii), koupíte rovnou obří koš plný stovek nejlepších světových firem. Když jedna klopýtne, ostatní ji podrží. Získáte okamžitou diverzifikaci bez stresu.\n\nHistorický průměrný výnos globálních trhů se pohybuje kolem 8–10 % ročně. Zkrátka nastavíte trvalý příkaz a zbytek funguje sám, bez drahých a netransparentních poplatků tradičních bank.",
+        "cta": "Uložte si tento post hned teď, ať víte, jak na to, a napište nám do komentářů: Už dětem investujete do ETF, nebo se teprve chystáte začít?",
+        "hashtags": [
+          "#portu",
+          "#portucz",
+          "#investujemesportu",
+          "#portuportfolio",
+          "#investovani",
+          "#financnigramotnost",
+          "#rodinnefinance",
+          "#investice",
+          "#budoucnost",
+          "#slozenourocesni"
+        ]
+      },
+      {
+        "id": "d514a6d3-981e-40ae-bb23-afafdc9ba847",
+        "mediaType": "reel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787974740147-cover.webp"
+        ],
+        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787974740147.mp4",
+        "hook": "Firma vydělává, peníze spí.",
+        "body": "Září se blíží a nákupy pomůcek připomínají, jak rychle děti rostou. Jako rodiče a podnikatelé jistě myslíte na jejich budoucnost. Proč ale nechávat volnou firemní hotovost ležet na běžném účtu s nulovým úrokem? Jak ukazuje rostoucí křivka ve videu, peníze ladem ztrácí svou reálnou hodnotu. Přesuňte je na Firemní účet. Zhodnocují se vám nejen vložené peníze, ale i samotné výnosy. Vaše firemní rezerva tak může za pár let pokrýt třeba vysokoškolská studia dětí. Jednou nastavíte a dál neřešíte.",
+        "cta": "Nechte svou firmu pracovat na budoucnosti rodiny a začněte budovat silnou rezervu. Založte si účet na https://www.portu.cz/p/firemn-et",
+        "hashtags": [
+          "#portu",
+          "#portucz",
+          "#investujemesportu",
+          "#portuportfolio",
+          "#portu.cz",
+          "#firemniucet",
+          "#podnikani",
+          "#investovani",
+          "#slozenourocesni",
+          "#uspech"
+        ]
+      },
+      {
+        "id": "2c9f732f-720a-4db2-b253-6af4d675539e",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-posts/1787975122196.webp"
+        ],
+        "hook": "Tohle Einstein nazval osmým divem.",
+        "body": "Máte po létě na účtu čerstvou výplatu. Skvělá chvíle zamyslet se, co s ní dál.\n\nSlyšeli jste někdy o složeném úročení? Slavný fyzik ho prý označil za osmý div světa. Ale víte, co to reálně znamená pro vaše peníze?\n\nPojďme si to otestovat. Co je podstatou složeného úročení?\n\nA) Získáváte úroky nejen ze svého vkladu, ale i z už připsaných úroků.\nB) Dostanete jednorázový finanční bonus za věrnost.\nC) Jde o garantovaný státní příspěvek.\n\nPochopení tohoto principu je klíčem k tomu, proč k investování nepotřebujete miliony. Stačí začít s málem a nechat čas pracovat.",
+        "cta": "Schválně, jaká je správná odpověď? Napište nám svůj tip do komentářů. A pokud chcete vidět reálná čísla, spočítejte si svůj potenciální výnos na kalkulačce na https://www.portu.cz/.",
+        "hashtags": [
+          "#portu",
+          "#portucz",
+          "#investujemesportu",
+          "#portuportfolio",
+          "#investovani",
+          "#osobnifinance",
+          "#slozeneuroceni",
+          "#financnigramotnost",
+          "#slozenourocesni",
+          "#penize"
+        ]
+      },
+      {
+        "id": "288b47aa-5e0c-4750-b2b6-60c24f3bc7c5",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-posts/1787988900260.webp"
+        ],
+        "hook": "Mýtus: Grafy musíte hlídat vy sami.",
+        "body": "Za tři dny začíná škola. Místo abyste teď o víkendu studovali finanční výkazy a stresovali se, co udělá inflace, běháte po obchodech a sháníte sešity. A tak je to správně. Realita je taková, že úspěšné investování na dětský účet nepotřebuje vaši každodenní pozornost. Od toho máte nás. Zatímco vy řešíte kroužky, náš analytický tým denně sleduje globální trhy, vyhodnocuje data a hlídá, aby vaše portfolia fungovala přesně tak, jak mají. Bez skrytých poplatků a s maximální transparentností. Vy jen na začátku nastavíte trvalý příkaz a o zbytek se starají naše algoritmy a analytici. Vyhnete se tak drahým podílovým fondům v bance a získáte zpět svůj volný čas.",
+        "cta": "Napište nám do komentářů, co vám aktuálně zabírá víc času: nákup školních pomůcek, nebo řešení rodinných financí?",
+        "hashtags": [
+          "#portu",
+          "#portucz",
+          "#investujemesportu",
+          "#portuportfolio",
+          "#investovani",
+          "#osobnifinance",
+          "#investovaniprodeti",
+          "#rodicovstvi",
+          "#budoucnost",
+          "#byznys"
+        ]
+      },
+      {
+        "id": "f391d2c4-df1d-432d-9acc-5a1b99da2d0c",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-posts/1787989040656.webp"
+        ],
+        "hook": "Váš důchod nevyžaduje finanční diplom.",
+        "body": "Zatímco teď o víkendu řešíte školní pomůcky a kroužky pro děti, na vlastní budoucnost nezbývá čas ani energie. Panuje mýtus, že pro klidné stáří musíte denně sledovat trhy a rozumět složitým grafům. Opak je pravdou. Pokud si začnete odkládat 2 000 Kč měsíčně na běžný účet, inflace z nich do konce školní docházky vašich dětí ukrojí velkou část. Když ale stejnou částku pošlete na Důchodový účet (DIP) od Portu, vaše peníze se začnou automaticky investovat do široce diverzifikovaných portfolií. Díky složenému úročení, kdy se vaše výnosy v čase samy dále zhodnocují, pracují finance za vás. Vy se tak můžete plně věnovat rodině a dalším podzimním povinnostem s vědomím, že je o vaši budoucnost postaráno.",
+        "cta": "Vyřešte svou budoucnost chytře. Nastavte si Důchodový účet (DIP) dřív, než se naplno rozběhne podzimní shon, na https://www.portu.cz/p/d-chodov-et-dip-",
+        "hashtags": [
+          "#portu",
+          "#portucz",
+          "#investujemesportu",
+          "#portuportfolio",
+          "#dip",
+          "#investovani",
+          "#osobnifinance",
+          "#slozenourocesni",
+          "#byznys"
+        ]
+      },
+      {
+        "id": "85de6a19-8b31-44e6-80f5-53f75740e636",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-posts/1787989166968.webp"
+        ],
+        "hook": "Sázka na jednu akcii, nebo klid?",
+        "body": "Na účtu přistála srpnová výplata. Teď stojíte před volbou. Na jedné straně je lákavá sázka na jednu populární akcii s vidinou rychlého zisku. Na straně druhé stojí široké portfolio stovek firem. První možnost připomíná všechna vejce v jednom košíku – když spadne, máte po snídani. Druhá možnost je diverzifikace. Rozložením peněz do různých aktiv výrazně snižujete celkové riziko ztráty. Místo stresu z výkyvů jedné firmy získáváte jistotu a klidný spánek, i když trhy po létě občas zakolísají.",
+        "cta": "Který tábor jste vy – riskujete s favority, nebo raději diverzifikujete? Napište nám to do komentářů. Sestavte si bezpečnější portfolio na míru na https://www.portu.cz/",
+        "hashtags": [
+          "#portu",
+          "#portucz",
+          "#investujemesportu",
+          "#portuportfolio",
+          "#investovani",
+          "#osobnifinance",
+          "#diverzifikace",
+          "#financnigramotnost",
+          "#etfinvesting",
+          "#pasivniinvestovani"
+        ]
+      },
+      {
+        "id": "e691502c-0115-4584-8818-36a9bd6e6ad4",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-portu/ig-posts/1787989329279.webp"
+        ],
+        "hook": "Na první investici ti stačí pětistovka.",
+        "body": "Srpnová výplata je na účtu. Možná si myslíš, že k budování majetku potřebuješ statisíce. Není to pravda. Takhle funguje Portfolio od Portu krok za krokem: 1. Vyplníš krátký dotazník. Zjistíme tvůj profil a toleranci k riziku. 2. Systém ti navrhne Portfolio na míru. Složité vybírání akcií odpadá. 3. Pošleš první vklad. Stačí pouhých 500 Kč. 4. Nastavíš trvalý příkaz. Tím zautomatizuješ budoucí vklady. Tvé peníze se okamžitě rozloží do tisíců firem po celém světě. Získáš tak masivní diverzifikaci, na kterou bys dřív potřeboval miliony. Konec prázdnin je ideální chvíle pro finanční restart.",
+        "cta": "Zjisti, jaké portfolio na míru náš systém navrhne přímo pro tebe. Svůj investiční profil si můžeš nezávazně vyzkoušet na https://www.portu.cz/p/portfolio-od-portu",
+        "hashtags": [
+          "#portu",
+          "#portucz",
+          "#investujemesportu",
+          "#portuportfolio",
+          "#investovani",
+          "#osobnifinance",
+          "#financnigramotnost",
+          "#vzdelavani",
+          "#slozenourocesni"
         ]
       }
     ]

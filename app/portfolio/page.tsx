@@ -67,6 +67,9 @@ export default function PortfolioIndex() {
                 <p className="text-white/40 text-sm font-bold uppercase tracking-widest mb-8">
                     {total} příspěvků · {brands.length} značek · texty, obrázky, karusely i reely
                 </p>
+                <p className="text-white/30 text-xs mb-8">
+                    Video reely jsou označené jako beta — zkoušíme je a zatím nejsou v nabídce.
+                </p>
 
                 <p className="text-white/60 text-sm leading-relaxed max-w-2xl mb-6">
                     Tohle nejsou mockupy. Každou značku se engine naučil z jejího skutečného webu — barvy,
@@ -116,7 +119,7 @@ export default function PortfolioIndex() {
                                         </div>
                                         <div className="flex flex-wrap gap-x-3 gap-y-1 text-[9px] font-bold uppercase tracking-widest text-white/40">
                                             <span>{b.posts.length} příspěvků</span>
-                                            {c.reel > 0 && <span>· {c.reel} reel</span>}
+                                            {c.reel > 0 && <span>· {c.reel} reel (beta)</span>}
                                             {c.carousel > 0 && <span>· {c.carousel} karusel</span>}
                                             {c.post > 0 && <span>· {c.post} obrázek</span>}
                                         </div>
