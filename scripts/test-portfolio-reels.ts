@@ -29,24 +29,37 @@ const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf-8")
 
 console.log("\n🎬 REELY V PORTFOLIU JSOU BETA\n")
 
-// ── 1. Stránky musí štítek vykreslit ────────────────────────────────────────
-const detail = read("app/portfolio/[slug]/page.tsx")
+// ── 1. Štítek tam, kde je reel vidět ────────────────────────────────────────
+const grid = read("components/portfolio/PostGrid.tsx")
 check(
-    "detail značky vykresluje BETA štítek u reelu",
-    /mediaType\s*===\s*"reel"\s*&&\s*<BetaBadge\s*\/>/.test(detail) && /BETA/.test(detail)
+    "dlaždice reelu nese BETA",
+    /mediaType\s*===\s*"reel"/.test(grid) && /BETA/.test(grid)
 )
+
+const modal = read("components/portfolio/PostModal.tsx")
 check(
-    "detail vysvětluje, že reely nejsou v nabídce",
-    /Reely jsou beta/.test(detail) && /nemáme v nabídce/.test(detail)
+    "detail příspěvku nese BETA",
+    /mediaType\s*===\s*"reel"/.test(modal) && /BETA/.test(modal)
+)
+
+const brandPage = read("app/portfolio/[slug]/page.tsx")
+check(
+    "stránka značky vysvětluje, že reely nejsou v nabídce",
+    /beta/i.test(brandPage) && /v nabídce zatím nejsou/.test(brandPage)
 )
 
 const index = read("app/portfolio/page.tsx")
 check(
     "přehled značí reely jako beta",
-    /reel \(beta\)/.test(index) && /zatím nejsou v nabídce/.test(index)
+    /\(beta\)/.test(index) && /v nabídce zatím nejsou/.test(index)
 )
 
-// ── 2. Generátor je nesmí vyrábět bez vědomého pokynu ───────────────────────
+// ── 2. iOS: reel se nesmí vytrhnout na celou obrazovku ──────────────────────
+// Bez `playsInline` spustí Safari na iPhonu video fullscreen a uživatel vypadne
+// z galerie. Portfolio se posílá prospektům do telefonu, takže to není detail.
+check("video má playsInline (jinak iOS přehraje fullscreen)", /playsInline/.test(modal))
+
+// ── 3. Generátor je nesmí vyrábět bez vědomého pokynu ───────────────────────
 const seeder = read("scripts/seed-portfolio-clients.ts")
 check(
     "generátor spouští CLI s REELS_ENABLED=0",
@@ -57,13 +70,13 @@ check(
     /args\.includes\("--reels"\)/.test(seeder) && /reelsEnabled\s*\?\s*process\.env/.test(seeder)
 )
 
-// ── 3. Souběžný běh, který zaplatil posty dvakrát ───────────────────────────
+// ── 4. Souběžný běh, který zaplatil posty dvakrát ───────────────────────────
 check(
     "generátor drží zámek proti souběžnému běhu",
     /acquireLock\(\)/.test(seeder) && /releaseLock\(\)/.test(seeder)
 )
 
-// ── 4. Data musí zůstat zobrazitelná ────────────────────────────────────────
+// ── 5. Data musí zůstat zobrazitelná ────────────────────────────────────────
 const broken = PORTFOLIO_BRANDS.flatMap(b =>
     b.posts.filter(p => p.images.length === 0 && !p.videoUrl).map(p => `${b.slug}/${p.id.slice(0, 8)}`)
 )
@@ -74,11 +87,18 @@ check(
 )
 
 const reels = PORTFOLIO_BRANDS.flatMap(b => b.posts.filter(p => p.mediaType === "reel"))
-const reelsWithoutVideo = reels.filter(p => !p.videoUrl)
 check(
     "každý reel nese video",
-    reelsWithoutVideo.length === 0,
-    `${reelsWithoutVideo.length} z ${reels.length} bez videa`
+    reels.every(p => !!p.videoUrl),
+    `${reels.filter(p => !p.videoUrl).length} z ${reels.length} bez videa`
+)
+
+// Mřížka bere `images[0]` jako náhled, jenže obálku render občas nevyrobí (dnes
+// jeden reel). Video se přehraje i tak, takže se příspěvek nezahazuje — mřížka
+// ale musí umět prázdnou obálku, jinak je v ní rozbitý obrázek.
+check(
+    "mřížka ustojí reel bez obálky",
+    /post\.images\[0\]\s*\?/.test(grid)
 )
 
 console.log("\n" + "─".repeat(50))

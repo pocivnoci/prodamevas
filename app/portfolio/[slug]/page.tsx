@@ -1,13 +1,14 @@
 /**
- * /portfolio/<slug> — všechny příspěvky jedné značky, celé.
+ * /portfolio/<slug> — příspěvky jedné značky jako instagramový profil.
  *
- * Zeď na landingu ukazuje jeden čtverec na příspěvek; tahle stránka je opak —
- * médium v plné velikosti, celý text, výzva k akci i hashtagy, aby si člověk mohl
- * příspěvek přečíst tak, jak by ho viděl na Instagramu.
+ * Do minule to byl svislý výpis v plné velikosti: 18–23 příspěvků, tedy přes
+ * dvacet obrazovek scrollu bez navigace. Prospekt si ale nekupuje texty, kupuje
+ * si vzhled feedu — a ten mřížka ukáže na první obrazovce. Celý příspěvek
+ * (karusel, video, text, výzva, hashtagy) se otevře po kliknutí.
  *
- * Karusel je pruh se `scroll-snap`, ne komponenta s JS: listování zvládne prohlížeč
- * sám a stránka může zůstat serverová. Reel je `<video controls>` s obálkou jako
- * `poster` — a když obálka chybí (render ji občas nevyrobí), přehrávač funguje dál.
+ * Stránka zůstává SERVEROVÁ a interaktivitu předává do `components/portfolio/`.
+ * Je to konvence celého webu: mimo dashboard není v `app/` ani jedno
+ * `"use client"` — viz `components/PostWall.tsx` na landingu.
  *
  * ⚠️ Uvedené firmy NEJSOU zákazníci. `PORTFOLIO_DISCLAIMER` je proto nahoře.
  */
@@ -16,11 +17,10 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { SiteHeader } from "@/components/SiteHeader"
-import {
-    PORTFOLIO_BRANDS,
-    PORTFOLIO_DISCLAIMER,
-    type PortfolioPost,
-} from "@/lib/portfolio-data"
+import { SiteFooter } from "@/components/SiteFooter"
+import { PostGrid } from "@/components/portfolio/PostGrid"
+import { PORTFOLIO_BRANDS, PORTFOLIO_DISCLAIMER } from "@/lib/portfolio-data"
+import { countLabel, POSTS, CAROUSELS, REELS, IMAGES } from "@/lib/plural"
 
 export function generateStaticParams() {
     return PORTFOLIO_BRANDS.filter(b => b.posts.length > 0).map(b => ({ slug: b.slug }))
@@ -30,71 +30,22 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     const { slug } = await params
     const brand = PORTFOLIO_BRANDS.find(b => b.slug === slug)
     if (!brand) return {}
+
+    // Vizuální portfolio se bez náhledu sdílí jako prázdná karta — vezmi první snímek.
+    const cover = brand.posts.find(p => p.images[0])?.images[0]
+
     return {
         title: `${brand.company} — ukázka obsahu | Chrlit`,
-        description: `${brand.posts.length} příspěvků, které Chrlit vyrobil ze skutečného webu značky ${brand.company}. Nevyžádaný koncept, ne zakázka.`,
+        description: `${countLabel(brand.posts.length, POSTS)}, které Chrlit vyrobil ze skutečného webu značky ${brand.company}. Nevyžádaný koncept, ne zakázka.`,
         alternates: { canonical: `https://chrlit.cz/portfolio/${brand.slug}` },
+        openGraph: {
+            title: `${brand.company} očima Chrlitu`,
+            description: `Jak by vypadal Instagram značky ${brand.company}. Nevyžádaný koncept.`,
+            url: `https://chrlit.cz/portfolio/${brand.slug}`,
+            type: "website",
+            ...(cover ? { images: [{ url: cover }] } : {}),
+        },
     }
-}
-
-const TYPE_LABEL: Record<PortfolioPost["mediaType"], string> = {
-    reel: "Reel",
-    carousel: "Karusel",
-    post: "Příspěvek",
-}
-
-/**
- * Reely jsou v nabídce jako beta a stránka to musí říct.
- *
- * Ukázat je bez štítku znamená slíbit formát, který si zákazník zatím nekoupí —
- * stejná past jako tvrdit, že tyhle značky jsou klienti. Štítek je proto u typu,
- * ne schovaný v poznámce pod čarou.
- */
-function BetaBadge() {
-    return (
-        <span className="px-2 py-0.5 bg-white/10 text-white/70 rounded-sm text-[8px] tracking-[0.2em]">
-            BETA
-        </span>
-    )
-}
-
-/** Médium příspěvku v plné velikosti. */
-function Media({ post, alt }: { post: PortfolioPost; alt: string }) {
-    if (post.mediaType === "reel" && post.videoUrl) {
-        return (
-            <video
-                controls
-                preload="none"
-                poster={post.images[0]}
-                className="w-full rounded-sm bg-white/5"
-            >
-                <source src={post.videoUrl} type="video/mp4" />
-            </video>
-        )
-    }
-
-    if (post.images.length > 1) {
-        return (
-            <div>
-                <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory pb-2">
-                    {post.images.map((src, i) => (
-                        <img
-                            key={i}
-                            src={src}
-                            alt={`${alt} — snímek ${i + 1} z ${post.images.length}`}
-                            loading="lazy"
-                            className="w-full shrink-0 snap-start rounded-sm bg-white/5"
-                        />
-                    ))}
-                </div>
-                <div className="text-[9px] font-bold uppercase tracking-widest text-white/30">
-                    {post.images.length} snímků — posuňte do strany
-                </div>
-            </div>
-        )
-    }
-
-    return <img src={post.images[0]} alt={alt} loading="lazy" className="w-full rounded-sm bg-white/5" />
 }
 
 export default async function BrandPortfolio({ params }: { params: Promise<{ slug: string }> }) {
@@ -105,22 +56,28 @@ export default async function BrandPortfolio({ params }: { params: Promise<{ slu
     const others = PORTFOLIO_BRANDS.filter(b => b.slug !== slug && b.posts.length > 0)
     const host = (brand.website || "").replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")
 
+    const n = {
+        carousel: brand.posts.filter(p => p.mediaType === "carousel").length,
+        reel: brand.posts.filter(p => p.mediaType === "reel").length,
+        post: brand.posts.filter(p => p.mediaType === "post").length,
+    }
+
     return (
         <div className="min-h-screen bg-[#050505] text-white">
             <SiteHeader />
 
-            <div className="max-w-3xl mx-auto px-6 pt-32 pb-24">
+            <div className="max-w-3xl mx-auto px-6 pt-32 pb-20">
                 <Link
                     href="/portfolio"
-                    className="text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white transition-colors mb-12 inline-block"
+                    className="text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white transition-colors mb-10 inline-block"
                 >
                     ← Zpět na portfolio
                 </Link>
 
+                {/* Hlavička jako profil */}
                 <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tighter mb-3">{brand.company}</h1>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold uppercase tracking-widest text-white/30 mb-8">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold uppercase tracking-widest text-white/30 mb-4">
                     {brand.industry && <span>{brand.industry}</span>}
-                    <span>· {brand.posts.length} příspěvků</span>
                     {host && (
                         <>
                             <span>·</span>
@@ -136,71 +93,47 @@ export default async function BrandPortfolio({ params }: { params: Promise<{ slu
                     )}
                 </div>
 
-                <div className="border-l-2 border-white/20 bg-white/[0.03] px-5 py-4 mb-16">
+                {/* Počty ve stylu profilových statistik */}
+                <div className="flex flex-wrap gap-x-5 gap-y-1 text-[10px] font-bold uppercase tracking-widest text-white/40 mb-8 tabular-nums">
+                    <span className="text-white/70">{countLabel(brand.posts.length, POSTS)}</span>
+                    {n.post > 0 && <span>{countLabel(n.post, IMAGES)}</span>}
+                    {n.carousel > 0 && <span>{countLabel(n.carousel, CAROUSELS)}</span>}
+                    {n.reel > 0 && <span>{countLabel(n.reel, REELS)} · beta</span>}
+                </div>
+
+                {/* JEDEN disclaimer. Dřív tu byly dva skoro stejné boxy a k tomu odznak
+                    u každého reelu — trojí opakování téhož ještě před prvním obrázkem.
+                    „Beta" teď nese odznak na dlaždici a v detailu, kde je to k věci. */}
+                <div className="border-l-2 border-white/20 bg-white/[0.03] px-5 py-4 mb-8">
                     <div className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5">
                         Nevyžádaný koncept
                     </div>
-                    <p className="text-white/50 text-xs leading-relaxed">{PORTFOLIO_DISCLAIMER}</p>
+                    <p className="text-white/50 text-xs leading-relaxed">
+                        {PORTFOLIO_DISCLAIMER}
+                        {n.reel > 0 && " Video reely jsou navíc beta — zkoušíme je a v nabídce zatím nejsou."}
+                    </p>
                 </div>
 
-                {brand.posts.some(p => p.mediaType === "reel") && (
-                    <div className="border-l-2 border-white/10 bg-white/[0.02] px-5 py-4 mb-10">
-                        <div className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5">
-                            Reely jsou beta
-                        </div>
-                        <p className="text-white/50 text-xs leading-relaxed">
-                            Video příspěvky zkoušíme a zatím je nemáme v nabídce. Texty, obrázky
-                            a karusely jsou běžná součást tarifů.
-                        </p>
-                    </div>
-                )}
+                <PostGrid posts={brand.posts} company={brand.company} />
 
-                <div className="space-y-16">
-                    {brand.posts.map((post, i) => (
-                        <article key={post.id} className="border-t border-white/5 pt-8">
-                            <div className="flex items-center gap-3 text-[9px] font-bold uppercase tracking-widest text-white/30 mb-5">
-                                <span className="text-white/50">{String(i + 1).padStart(2, "0")}</span>
-                                <span>·</span>
-                                <span>{TYPE_LABEL[post.mediaType]}</span>
-                                {post.mediaType === "reel" && <BetaBadge />}
-                                {post.pillar && (
-                                    <>
-                                        <span>·</span>
-                                        <span>{post.pillar}</span>
-                                    </>
-                                )}
-                            </div>
-
-                            <Media post={post} alt={`${brand.company}: ${post.hook}`} />
-
-                            <div className="mt-6 space-y-4">
-                                <h2 className="text-xl font-black text-white/90 leading-snug">{post.hook}</h2>
-
-                                {post.body && (
-                                    <p className="text-white/60 text-sm leading-relaxed whitespace-pre-wrap">{post.body}</p>
-                                )}
-
-                                {post.cta && (
-                                    <div className="border-l-2 border-white/10 pl-4">
-                                        <div className="text-[9px] font-bold uppercase tracking-widest text-white/30 mb-1">
-                                            Výzva k akci
-                                        </div>
-                                        <p className="text-white/70 text-sm leading-relaxed break-words">{post.cta}</p>
-                                    </div>
-                                )}
-
-                                {post.hashtags.length > 0 && (
-                                    <p className="text-white/30 text-xs leading-relaxed break-words">
-                                        {post.hashtags.join(" ")}
-                                    </p>
-                                )}
-                            </div>
-                        </article>
-                    ))}
+                {/* CTA v okamžiku největšího zájmu — dřív stránka končila zdí pilulek */}
+                <div className="mt-16 pt-10 border-t border-white/5 text-center">
+                    <h2 className="text-2xl font-black uppercase tracking-tighter mb-3">
+                        Chcete tohle pro svoji značku?
+                    </h2>
+                    <p className="text-white/40 text-sm leading-relaxed max-w-md mx-auto mb-6">
+                        Zadejte svůj web a uvidíte první příspěvky dřív, než se rozhodnete.
+                    </p>
+                    <Link
+                        href="/#waitlist"
+                        className="inline-flex items-center px-8 py-4 bg-white text-black rounded-sm font-black text-xs uppercase tracking-widest hover:bg-white/90 transition-all"
+                    >
+                        Zkusit na svém webu
+                    </Link>
                 </div>
 
                 {others.length > 0 && (
-                    <div className="mt-20 pt-8 border-t border-white/5">
+                    <div className="mt-16 pt-8 border-t border-white/5">
                         <div className="text-[9px] font-bold uppercase tracking-widest text-white/30 mb-4">
                             Další značky
                         </div>
@@ -218,6 +151,8 @@ export default async function BrandPortfolio({ params }: { params: Promise<{ slu
                     </div>
                 )}
             </div>
+
+            <SiteFooter />
         </div>
     )
 }
