@@ -220,6 +220,49 @@ vyjde jako video — na portfolio je to to nejsilnější, co jde ukázat, ale c
 zvedá skokově. Levnější běh: `REELS_ENABLED=0 npx tsx scripts/seed-portfolio-clients.ts …`,
 reely se tím potichu přepíšou na karusely.
 
+### Změřeno: co portfolio doopravdy stojí
+
+Z logů prvního ostrého běhu (`💰 Celkem` na konci každé značky):
+
+| Položka | Cena |
+|---|---|
+| Post celkem, průměr | ~26 Kč |
+| Reel přes Veo | $1,59 ≈ 34 Kč |
+| Obrázkový post | $0,25 ≈ 5 Kč |
+| Značka (7–10 postů) | 142–289 Kč |
+| Celé portfolio, 10 značek × 12 postů | ~3 000 Kč |
+
+Do `ai_spend` se z toho nedostane nic — čísla existují jen v logu běhu.
+
+### Nález: jeden běh nedá víc než ~7 postů
+
+Značka, která si řekla o `--count=12`, dostala „✅ 7/7 postů“; požadavky na 9–10
+projdou celé. Generátor je zastropovaný počtem formátů, které má značka
+vygenerované z onboardingu (typicky 7). Portfolio na 12 postů proto potřebuje
+**dva průchody** — druhý dopočítá rozdíl.
+
+### Nález: zdravotnický obsah jmenuje léky na předpis
+
+Asklepionu vyšel post „Strach ze zmrzlé tváře?“, který jinak drží edukační režim
+správně: neslibuje výsledek, zdůrazňuje konzultaci s lékařem, CTA vede na rezervaci.
+Jenže **jmenuje botulotoxin** a přidá `#botulotoxin`.
+
+Reklama na léčivé přípravky vázané na lékařský předpis je vůči veřejnosti zakázaná
+(zákon o regulaci reklamy). Tohle není vada jednoho postu, ale díra v briefu pro
+obor zdraví: kromě „bez slibů výsledků“ tam patří i **zákaz jmenovat účinné látky
+na předpis**. Pro skutečného klienta z oboru je to jinak otázka pokuty.
+
+### Nález: Claude judge tiše spadl na Gemini kvůli kreditu
+
+Během běhu došel kredit na Anthropic API a v logách je 582 hlášek
+`Claude judge … failed — falling back to Gemini: Your credit balance is too low`.
+Kritik, editorial board i vision QA tak celé portfolio odbavily Geminim.
+
+Fallback je vidět v logu, takže invariant „kvalita se nedegraduje potichu“ drží —
+ale znamená to, že obsah prošel slabší kontrolou, než na jakou je pipeline stavěná.
+Před ostrým během (portfolio i platící klienti) se vyplatí kredit ověřit; jinak se
+zaplatí Pro cena za Gemini kontrolu.
+
 ### Nález: kvalifikace leadů vyřazuje živnostníky
 
 `isRoleAddress()` v `lib/agents/sales/qualify.ts` pustí dál jen adresy začínající
