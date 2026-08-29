@@ -241,6 +241,26 @@ projdou celé. Generátor je zastropovaný počtem formátů, které má značka
 vygenerované z onboardingu (typicky 7). Portfolio na 12 postů proto potřebuje
 **dva průchody** — druhý dopočítá rozdíl.
 
+### Nález: dvě systémové vady promptu (audit 115 postů)
+
+Přesouzení celého portfolia Claudem (`scripts/audit-portfolio-quality.ts`) dalo
+průměr **7,84/10** a 16 postů pod laťkou 7. Ty nálezy ale nejsou náhodné — schovávají
+se v nich dvě vady, které se týkají **každého klienta**, ne jen portfolia.
+
+**Copywriter si vymýšlí časový tlak (8 z 16).** „Řemeslníci nepočkají", „ještě před
+podzimem", „stihněte rychlé hojení", „ještě před vrcholem sezóny", „VIP členství,
+právě teď". Kritik to konzistentně strhává jako rozpor s brand voice a má pravdu:
+je to urgence, kterou si značka nezadala. U Asklepionu to srazilo post na 4/10 —
+tlačit na termín u zdravotního zákroku je navíc eticky sporné, ne jen mimo tón.
+
+**Hooky přetahují délku (5 z 16).** `PROMPT_LIMITS.hookWords` míří na 3–7 slov,
+tyhle mají 10–12: „Zastavte čas ještě před koncem srpna. Vaše smysly probudí…".
+Kritik délku hlídá, ale generátor ji rutinně překračuje — laťka je v hodnocení,
+ne v psaní.
+
+Oprava patří do mega promptu (`caption-generator.ts`), ne do jednotlivých postů:
+přegenerovat těch 16 stojí ~420 Kč a vada se vrátí u dalšího klienta.
+
 ### Nález: zdravotnický obsah jmenuje léky na předpis
 
 Asklepionu vyšel post „Strach ze zmrzlé tváře?“, který jinak drží edukační režim
