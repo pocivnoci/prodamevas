@@ -649,12 +649,19 @@ export const PROMPT_LIMITS = {
      *  Celý návod patří do captionu, ne na slide — slide je plakát. */
     slideSubtextWords: 12,
     /** Hook = první věta postu a zároveň headline vypálený do obrázku.
-     *  Strop, ne cíl — prompt vedle toho říká ideální pásmo 3–7 slov. Model totiž
-     *  čte „max N" jako zadání a poctivě si ho vyplní; patnáctislovný nadpis na
-     *  formátu 4:5 je pak nečitelný. Cover karuselu má za tutéž práci 8 slov.
-     *  12 sjednocuje s plánovací vrstvou, která tentýž hook slibuje na 12
-     *  (plan-pipeline.ts, content-plan-actions.ts). */
-    hookWords: 12,
+     *  Strop, ne cíl — prompt vedle toho říká ideální pásmo 3–7 slov.
+     *
+     *  Bylo 12 a komentář tu tehdy správně předpověděl, co se stane: „model čte
+     *  ‚max N' jako zadání a poctivě si ho vyplní". Audit 115 postů to potvrdil —
+     *  pět z šestnácti slabých mělo hook na 10–12 slovech, tedy přesně na stropu.
+     *  „Zastavte čas ještě před koncem srpna. Vaše smysly probudí…" scrollování
+     *  nezastaví, to je odstavec.
+     *
+     *  8 = tolik, co má cover karuselu za tutéž práci, a jen slovo nad ideálem,
+     *  takže ukotvení na stropu už tolik nevadí. Plánovací vrstva slibuje tentýž
+     *  hook (plan-pipeline.ts, content-plan-actions.ts) a musí říkat totéž —
+     *  hlídá to aserce v scripts/test-prompt-assembly.ts. */
+    hookWords: 8,
     /** Hlavní caption. */
     bodyWords: 120,
     /** Vnitřní slidy karuselu (BEZ coveru). Strop 6 = 7 slidů celkem: cover + 4 kroky
