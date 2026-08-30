@@ -227,7 +227,7 @@ ${strategy.postFocus.slice(0, input.count).map((f, i) => `${i + 1}. ${f}`).join(
 
 ## ÚKOL
 Vytvoř content plan na ${input.count} postů. Pro každý post napiš:
-- hookPreview: český hook (první věta postu, max 12 slov, poutavá, BEZ emoji)
+- hookPreview: český hook (první věta postu, max 8 slov, poutavá, BEZ emoji)
 - angle: 1 věta popisující úhel/přístup k tématu (česky)
 - topic: krátké téma v 3-5 slovech (česky)
 - qualityScore: 1-10 — ohodnoť kvalitu vlastního hooku (10 = zastaví scrollování, 1 = generické)
@@ -289,7 +289,7 @@ ${weak.map((w, k) => `${k + 1}. Formát postu: ${formatLines[w.i] || "?"}
 ${concepts.map(c => `- "${c.hookPreview}"`).join("\n")}
 
 ## PRAVIDLA
-- Nový hook musí přímo řešit výtku kritika, max 12 slov, BEZ emoji, česky
+- Nový hook musí přímo řešit výtku kritika, max 8 slov, BEZ emoji, česky
 - Hook je ČISTÝ TEXT věty — NIKDY nezačínej hranatou závorkou, názvem formátu ani jiným prefixem
 - Téma a podstata postu se NEMĚNÍ — přepisuješ znění, ne obsah
 - Respektuj formát postu (obrázek/karusel nesmí slibovat video), ale formát do textu hooku NEPIŠ

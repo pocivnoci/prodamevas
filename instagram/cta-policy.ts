@@ -58,7 +58,7 @@ export function resolveCtaPolicy(input: {
         : undefined
 
     const toneHint = input.personaCtaStyle === "hard"
-        ? " Tón CTA: přímý a urgentní."
+        ? " Tón CTA: přímý a konkrétní."
         : input.personaCtaStyle === "medium"
             ? " Tón CTA: motivující — ukaž hodnotu."
             : input.personaCtaStyle === "soft"
@@ -66,7 +66,7 @@ export function resolveCtaPolicy(input: {
                 : ""
 
     const ctaInstruction = ({
-        hard: `CTA přímo odkazuje na ${productUrl || input.website} a dává konkrétní důvod jednat TEĎ — benefit, zvědavost nebo omezení.`,
+        hard: `CTA přímo odkazuje na ${productUrl || input.website} a dává konkrétní důvod kliknout — benefit nebo zvědavost. Termín, sezónu ani omezené množství si NEVYMÝŠLEJ; zmiň je jen tehdy, když je zadání skutečně obsahuje.`,
         medium: `Hodnota první — CTA smí zmínit ${input.website} jako přirozený další krok, bez tlaku.`,
         soft: `CTA je čistě engagement: otázka, výzva ke komentáři, uložení nebo sdílení. Web ani URL NIKDE nezmiňuj.`,
         none: `Žádné CTA na web — post buduje vztah a komunitu. Web ani URL nikde nezmiňuj.`,
@@ -105,6 +105,11 @@ export function buildCtaPolicySection(policy: CtaPolicy, ctaPool: string[], pill
         !policy.allowWebsite
             ? `**Zákaz:** NIKDE v postu (hook, body, CTA, scény) nezmiňuj web ani URL.`
             : "",
+        // Prompt si o vymyšlenou urgenci dřív sám říkal („důvod jednat TEĎ —
+        // benefit, zvědavost nebo omezení" + tón „urgentní"), zatímco kritik ji
+        // srážel jako rozpor s brand voice. Pisatel a soudce si odporovali a
+        // v auditu 115 postů to byla nejčastější vada — 8 z 16 slabých postů.
+        `**Zákaz vymyšlené naléhavosti:** Nevyráběj časový tlak ani vzácnost, které v zadání nejsou — „poslední šance“, „než bude pozdě“, „řemeslníci nepočkají“, „stihněte to ještě před sezónou“, „právě teď“. Skutečný termín, sezónu nebo limit smíš zmínit JEN tehdy, když je zadání obsahuje. Naléhavost bez opory čtenář pozná a značce ubírá důvěru — u zdravotních a finančních služeb je navíc nevhodná.`,
         ctaPool.length > 0
             ? `**Doporučené CTA (vyber nebo uprav):**\n${ctaPool.map(c => `- ${c}`).join("\n")}`
             : "",
@@ -132,6 +137,10 @@ export function buildCtaPolicyJudgeBlock(policy: CtaPolicy): string {
         policy.productMention === "natural"
             ? "Produkt má být zmíněn přirozeně BEZ odkazu — odkaz navíc = porušení politiky."
             : "",
+        // Musí sedět se zákazem, který dostal pisatel o pár set řádků výš —
+        // proto obojí z jednoho modulu. Kdyby to hlídal jen soudce, prompt by
+        // dál vyráběl vady, které pak sám sráží.
+        `Vymyšlená naléhavost nebo umělá vzácnost bez opory v zadání („poslední šance“, „nepočkají“, „ještě před sezónou“, „právě teď“) = sraž ctaScore.`,
     ].filter(Boolean)
     return `## CTA POLITIKA POSTU (CTA hodnoť proti ní, ne proti obecným pravidlům)
 **Režim:** ${MODE_LABELS[policy.mode]} (pilíř ${policy.pillarLabel.toUpperCase()})

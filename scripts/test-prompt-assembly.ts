@@ -18,6 +18,7 @@ import { findFinishedCopy, stripFinishedCopy } from "../instagram/configs/format
 import { MECHANISMS, MECHANISM_IDS } from "../instagram/mechanisms"
 import type { PostType } from "../instagram/types"
 import type { PerformanceInsight } from "../instagram/performance"
+import { resolveCtaPolicy, buildCtaPolicyJudgeBlock } from "../instagram/cta-policy"
 
 let passed = 0
 let failed = 0
@@ -138,6 +139,64 @@ test("soft pilíř nikde nenabízí web", () => {
     const p = build(noPerf)
     assert(p.includes("CTA POLITIKA"), "CTA politika v promptu chybí")
     assert(p.includes("NIKDE v postu"), "chybí explicitní zákaz webu u soft pilíře")
+})
+
+test("prompt zakazuje vymyšlenou naléhavost", () => {
+    const p = build(noPerf)
+    assert(p.includes("Zákaz vymyšlené naléhavosti"),
+        "pisatel nedostal zákaz vymyšlené urgence — audit ji našel v 8 z 16 slabých postů")
+})
+
+test("hard režim si neříká o vymyšlené omezení ani urgentní tón", () => {
+    const policy = resolveCtaPolicy({
+        pillarCtaStrategy: "hard",
+        pillarKey: "sales",
+        selectedProduct: { name: "Kurz", slug: "kurz" },
+        personaCtaStyle: "hard",
+        website: "https://example.cz",
+    })
+    // Dřív tu stálo „důvod jednat TEĎ — benefit, zvědavost nebo omezení" a tón
+    // „přímý a urgentní". Pisatel to poslušně plnil a kritik ho za to srážel.
+    assert(!/urgentní/i.test(policy.ctaInstruction),
+        "tón CTA znovu žádá urgenci")
+    assert(/NEVYMÝŠLEJ/.test(policy.ctaInstruction),
+        "hard režim znovu zve k vymýšlení termínu nebo omezení")
+})
+
+test("soudce vymyšlenou naléhavost sráží", () => {
+    const policy = resolveCtaPolicy({
+        pillarCtaStrategy: "hard", pillarKey: "sales",
+        selectedProduct: null, personaCtaStyle: "medium", website: "https://example.cz",
+    })
+    // Kdyby to hlídal jen soudce, prompt by dál vyráběl vady, které sám sráží —
+    // a naopak. Obojí proto vzniká z jednoho modulu.
+    assert(/naléhavost/i.test(buildCtaPolicyJudgeBlock(policy)),
+        "soudce nedostal pravidlo o vymyšlené naléhavosti")
+})
+
+// ─── Délka hooku: strop se nesmí rozejít s plánovací vrstvou ──────────
+
+console.log("\n✂️  Délka hooku")
+
+test("plánovací vrstva slibuje tentýž strop hooku jako copywriter", () => {
+    // Model čte „max N" jako zadání a vyplní si ho. Když plán slíbí 12 a
+    // copywriter 8, hook z plánu projde plánem a spadne až u kritika.
+    const files = ["instagram/plan-pipeline.ts", "app/actions/content-plan-actions.ts"]
+    for (const f of files) {
+        const src = readFileSync(resolve(process.cwd(), f), "utf-8")
+        const promised = [...src.matchAll(/hook[^\n]{0,60}?max (\d+) slov/gi)].map(m => Number(m[1]))
+        assert(promised.length > 0, `${f}: nenašel jsem žádný slib délky hooku`)
+        for (const n of promised) {
+            assert(n === PROMPT_LIMITS.hookWords,
+                `${f} slibuje hook na ${n} slov, copywriter má strop ${PROMPT_LIMITS.hookWords}`)
+        }
+    }
+})
+
+test("strop hooku je blízko ideálu 3–7 slov", () => {
+    // Strop daleko nad ideálem se chová jako cíl — to byla přesně vada s 12.
+    assert(PROMPT_LIMITS.hookWords <= 8,
+        `strop hooku ${PROMPT_LIMITS.hookWords} je zase daleko nad ideálem 3–7`)
 })
 
 // ─── K1/K2: schéma musí unést všechna pole, o která si prompt řekne ──

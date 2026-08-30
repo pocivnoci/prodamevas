@@ -1023,13 +1023,13 @@ ${existingHooks.map(h => `- "${h}"`).join("\n")}
 ## PRAVIDLA:
 - Hook musí zastavit scrollování — provokativní, překvapivý, specifický pro "${config.name}"
 - ŽÁDNÉ emoji v hooku
-- Hook max 12 slov, česky
+- Hook max 8 slov, česky
 - Angle musí být konkrétní — ne "zajímavý pohled" ale "srovnání cen s konkurencí"
 - Topic: 3-5 slov shrnující o čem post bude
 ${medium && medium !== "reel" ? `- ⚠️ Tohle je ${medium === "carousel" ? "KARUSEL" : "JEDEN OBRÁZEK"} — hook ani angle NESMÍ slibovat "video", "Reel", "scénář" ani "za 60 sekund ti ukážu". Mluv o tom, co bude na obrázcích.` : ""}
 
 Vrať POUZE validní JSON:
-{ "hookPreview": "český hook max 12 slov BEZ emoji", "angle": "1 věta o přístupu", "topic": "3-5 slov"${regenProducts.length ? `, "productIndex": číslo produktu nebo vynech` : ""} }`
+{ "hookPreview": "český hook max 8 slov BEZ emoji", "angle": "1 věta o přístupu", "topic": "3-5 slov"${regenProducts.length ? `, "productIndex": číslo produktu nebo vynech` : ""} }`
 
         // Single-item regen goes through the same Pro ladder as the plan itself —
         // a regenerated hook must not be weaker than the plan it replaces an item of.
