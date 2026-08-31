@@ -173,6 +173,28 @@ registerHandler("voice_examples_promote", async () => {
     return { ok: true, clients: results.length, promoted, results }
 })
 
+// Sken webu do katalogu produktů — ten samý, co v Katalogu dělá tlačítko „Načíst
+// z webu". Zařazuje ho onboarding hned po založení klienta: brand analýza z webu
+// vytáhne nanejvýš deset produktů a žádnou fotku, tenhle sken jich najde až třicet
+// a fotky k nim stáhne. Durable, protože je to minuty práce — prohlížeč mezitím
+// dávno pokračuje na dashboard. Tělo je v lib/product-scrape.ts (bez session).
+registerHandler("product_scrape", async (task: AgentTask) => {
+    const clientId = task.client_id
+    if (!clientId) throw new Error("product_scrape: chybí client_id")
+    const website = String((task.payload as { website?: string })?.website || "").trim()
+    // Klient bez webu není chyba, jen není co skenovat.
+    if (!website) return { ok: true, skipped: "klient nemá web" }
+
+    const { scrapeProductsIntoCatalog } = await import("@/lib/product-scrape")
+    const { trackSpend } = await import("@/instagram/spend-tracker")
+    const result = await trackSpend("product_import", { clientId, refId: task.id }, () =>
+        scrapeProductsIntoCatalog(clientId, website, (n, m) => reportProgress(task.id, n, m)))
+    if (!result.success) throw new Error(result.error || "sken webu se nepovedl")
+
+    await reportProgress(task.id, 100, "Hotovo")
+    return { ok: true, found: result.found, inserted: result.inserted, images: result.images }
+})
+
 // ── Onboarding ─────────────────────────────────────────────────────────────────
 // Analýza webu i skládání configu trvají minuty. Dokud visely na otevřeném spojení
 // s prohlížečem, každý rozpadlý fetch zahodil hotovou — a zaplacenou — práci: server

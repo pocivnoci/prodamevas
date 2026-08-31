@@ -226,8 +226,13 @@ async function readProductDraftsInner(
 
 export type SavableDraft = Pick<ProductUrlDraft, "url" | "name" | "type" | "slug" | "price" | "description" | "imageUrls">
 
-/** Stáhne a uloží fotku do bucketu. `null` = fotka nepoužitelná, produkt tím nepadá. */
-async function storeImage(clientId: string, slug: string, index: number, imageUrl: string): Promise<string | null> {
+/**
+ * Stáhne a uloží fotku do bucketu. `null` = fotka nepoužitelná, produkt tím nepadá.
+ *
+ * Sdílené s `lib/product-scrape.ts`: obě cesty do katalogu ukládají fotky stejně —
+ * stejný bucket, stejná pojistka proti interní síti, stejná hranice „tohle je ikona".
+ */
+export async function storeProductImage(clientId: string, slug: string, index: number, imageUrl: string): Promise<string | null> {
     const { assertFetchableUrl } = await import("@/lib/product-url")
     // Seznam fotek se vrací z prohlížeče — adresu je nutné prověřit znovu
     await assertFetchableUrl(imageUrl)
@@ -328,7 +333,7 @@ export async function importProductDrafts(
         const storedUrls: string[] = []
         for (const [index, imageUrl] of (draft.imageUrls || []).slice(0, MAX_PRODUCT_IMAGES).entries()) {
             try {
-                const stored = await storeImage(clientId, slug, index, imageUrl)
+                const stored = await storeProductImage(clientId, slug, index, imageUrl)
                 if (stored) { storedUrls.push(stored); images++ }
             } catch {
                 // Fotka je bonus, ne podmínka — produkt zůstává uložený i bez ní

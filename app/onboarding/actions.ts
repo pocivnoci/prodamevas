@@ -3,11 +3,8 @@
 import { createClient } from '@/supabase/server'
 import supabaseAdmin from '@/supabase/admin'
 import { requireAuth, requireProjectAccess } from '@/lib/auth-guard'
-import { withRetry } from '@/utils/retry'
 import { generateText } from '@/instagram/gemini-client'
 import { getModel } from '@/instagram/models'
-import { ensurePostTypes } from '@/instagram/service'
-import { seedMemoriesFromAnalysis, insertClient } from '@/app/onboarding/core'
 import type { ClientConfig } from '@/instagram/configs/types'
 import { isSuperAdminEmail } from '@/lib/super-admins'
 import { humanizeError } from './types'
@@ -265,164 +262,13 @@ export async function saveReviewedConfig(
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return { success: false, error: 'Nepřihlášený uživatel' }
 
-        const clientSlug = existingClientSlug || config.id
-
-        // ── RE-ONBOARDING: preserve slug-bound assets BEFORE anything derives from the
-        // fresh config. generateConfigPreview recomputes id/storageBucket/logoFile from the
-        // freshly re-scraped company name — a failed logo re-download or a name drift would
-        // otherwise clobber the working logo pointer (logo gone from every future post) or
-        // fork post uploads into a brand-new empty bucket while history stays in the old one.
-        // Rule: prefer fresh data, never replace a real value with nothing.
-        let existingClientId: string | null = null
-        if (existingClientSlug) {
-            const { resolveClientId } = await import('@/instagram/configs')
-            existingClientId = await resolveClientId(existingClientSlug)
-            const { data: existingRow } = await supabaseAdmin
-                .from('clients')
-                .select('config')
-                .eq('id', existingClientId)
-                .single()
-            const prev = (existingRow?.config || {}) as Partial<ClientConfig>
-            config.id = existingClientSlug
-            config.storageBucket = prev.storageBucket || `ig-posts-${existingClientSlug}`
-            if (!config.logoFile && prev.logoFile) config.logoFile = prev.logoFile
-            if (config.postsPerWeek == null && prev.postsPerWeek != null) config.postsPerWeek = prev.postsPerWeek
-            if (!config.igBaseline && prev.igBaseline) config.igBaseline = prev.igBaseline
-            if (!(config.brandVoiceExamples?.length) && prev.brandVoiceExamples?.length) {
-                config.brandVoiceExamples = prev.brandVoiceExamples
-            }
-            if (!(config.brandReferenceImages?.length) && prev.brandReferenceImages?.length) {
-                config.brandReferenceImages = prev.brandReferenceImages
-            }
-        }
-
-        // Ensure Storage Bucket
-        const bucketName = config.storageBucket || `ig-posts-${config.id}`
-        const { error: bucketError } = await supabaseAdmin.storage.createBucket(bucketName, {
-            public: true,
-            allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp'],
-            fileSizeLimit: 10485760
-        })
-        if (bucketError && !bucketError.message.includes('already exists') && !bucketError.message.includes('Duplicate')) {
-            console.warn(`⚠️ Failed to create bucket ${bucketName}:`, bucketError.message)
-        }
-
-        if (existingClientSlug) {
-            // ── RE-ONBOARDING: Update existing client ──
-            // (clientId already resolved by the asset-preservation block above)
-            const clientId = existingClientId!
-
-            const { error: updateError } = await supabaseAdmin
-                .from('clients')
-                .update({
-                    config: config,
-                    name: config.name,
-                    website: config.website,
-                })
-                .eq('id', clientId)
-
-            if (updateError) throw updateError
-
-            // Sync products → ig_products (upsert — keep existing, add new)
-            if (config.products && config.products.length > 0) {
-                try {
-                    for (const p of config.products) {
-                        const { error: prodError } = await supabaseAdmin
-                            .from('ig_products')
-                            .upsert({
-                                client_id: clientId,
-                                name: p.name,
-                                type: p.type || 'product',
-                                slug: p.slug,
-                                price: p.price || null,
-                                description: p.description || null,
-                            }, { onConflict: 'client_id,slug' })
-                        if (prodError) console.warn(`⚠️ Product upsert failed for ${p.name}:`, prodError.message)
-                    }
-                } catch (prodErr) {
-                    console.warn('⚠️ Product sync exception:', (prodErr as Error).message)
-                }
-            }
-
-            await seedMemoriesFromAnalysis(clientId, analysis)
-            await ensurePostTypes(config, clientId)
-
-            console.log(`✅ Re-onboarding complete: ${existingClientSlug} (${clientId})`)
-            // Invalidate config cache so Settings tab picks up new data
-            const { invalidateConfigCache } = await import('@/instagram/configs')
-            invalidateConfigCache(existingClientSlug)
-            return { success: true, clientSlug: existingClientSlug }
-        }
-
-        // ── NEW CLIENT: Insert ──
-        const { id: insertedClientId, slug: insertedSlug } = await insertClient(clientSlug, config)
-
-        // RBAC link FIRST and FATALLY — user_clients membership is the ONLY ownership
-        // signal. A client without it is unreachable forever: checkOnboardingStatus keeps
-        // reporting "needs onboarding", and the user's retry then creates a DUPLICATE
-        // tenant while the first stays an invisible orphan (bucket + trial leaked).
-        // Retry once, then compensate by deleting the just-created bare client row
-        // (ig_* FKs cascade; nothing else references it yet) so a clean retry can't collide.
-        try {
-            await withRetry(async () => {
-                const { error: linkError } = await supabaseAdmin
-                    .from('user_clients')
-                    .insert({ user_id: user.id, client_id: insertedClientId, role: 'owner' })
-                if (linkError) throw new Error(linkError.message)
-            }, 1, 'user_clients link')
-        } catch (linkErr) {
-            console.error('🚨 user_clients link failed — rolling back client insert:', (linkErr as Error).message)
-            await supabaseAdmin.from('clients').delete().eq('id', insertedClientId)
-            return { success: false, error: 'Nepodařilo se propojit tvůj účet s novým profilem. Zkus uložení prosím znovu.' }
-        }
-
-        // Warm-start brand memory from the scraped feed (guarded — only when empty)
-        await seedMemoriesFromAnalysis(insertedClientId, analysis)
-        await ensurePostTypes(config, insertedClientId)
-
-        // Sync products → ig_products. Slugs are AI-generated with NO cross-item
-        // uniqueness guarantee and ig_products has UNIQUE(client_id, slug) — a single
-        // collision in a bulk INSERT rolled back the WHOLE statement, leaving the client
-        // with a full config.products but an EMPTY catalog (and only a console.warn).
-        // Dedup within the batch, then upsert (resilient to pre-existing rows too).
-        if (config.products && config.products.length > 0) {
-            try {
-                const seenSlugs = new Set<string>()
-                const productRows = config.products.map((p: any) => {
-                    const base = String(p.slug || 'produkt').substring(0, 36) || 'produkt'
-                    let slug = base
-                    for (let n = 2; seenSlugs.has(slug); n++) slug = `${base}-${n}`
-                    seenSlugs.add(slug)
-                    return {
-                        client_id: insertedClientId,
-                        name: p.name,
-                        type: p.type || 'product',
-                        slug,
-                        price: p.price || null,
-                        description: p.description || null,
-                        image_urls: [],
-                    }
-                })
-                const { error: prodError } = await supabaseAdmin
-                    .from('ig_products')
-                    .upsert(productRows, { onConflict: 'client_id,slug' })
-                if (prodError) console.warn('⚠️ Product sync failed:', prodError.message)
-            } catch (prodErr) {
-                console.warn('⚠️ Product sync exception:', (prodErr as Error).message)
-            }
-        }
-
-        // Create content-gated trial subscription (v2 — no time limit). Retried; a
-        // persistent failure is NOT fatal — access fails safe to "no subscription"
-        // (canPerformAction denies) and the user can activate a plan from billing.
-        try {
-            const { createTrialSubscription } = await import('@/lib/subscription')
-            await withRetry(() => createTrialSubscription(insertedClientId), 1, 'trial subscription')
-        } catch (trialErr) {
-            console.error(`🚨 Trial creation failed for client ${insertedClientId} — user will see "no subscription" until a plan is activated:`, (trialErr as Error).message)
-        }
-
-        return { success: true, clientSlug: insertedSlug }
+        // Ukládání má JEDNO tělo — v core.ts. Tenhle dvojník se roky mirroroval ručně
+        // a rozcházel se (viz aserce 31.3): bucket, RBAC link, produkty, trial i seed
+        // paměti musí být všude stejné, jinak se onboarding z UI a onboarding z workera
+        // chovají jinak. Tady zůstává jen session — core ji vidět nesmí.
+        const { saveConfigCore } = await import('@/app/onboarding/core')
+        const savedSlug = await saveConfigCore(config, analysis, { userId: user.id, existingClientSlug })
+        return { success: true, clientSlug: savedSlug }
     } catch (error) {
         console.error('Save config error:', error)
         return { success: false, error: humanizeError(error) }
