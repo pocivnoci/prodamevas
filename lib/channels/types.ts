@@ -135,6 +135,16 @@ export interface ChannelMetricsResult {
     permalink?: string
 }
 
+/** One post's numbers in a batch read, addressed by its native platform id. */
+export interface ChannelPostMetrics {
+    /** Native platform post id — the same value publish() returns as externalId. */
+    externalId: string
+    metrics: ChannelMetrics
+    permalink?: string
+    /** When the transport last refreshed these numbers from the platform, if it says. */
+    capturedAt?: string
+}
+
 export interface ChannelAdapter {
     channel: Channel
     /** Which transport this implementation speaks. Registry key is `${channel}:${transport}`. */
@@ -144,9 +154,21 @@ export interface ChannelAdapter {
     formatDraft(draft: ContentDraft): FormattedContent
     /** Publish to the channel. May throw NotEnabledError until the channel is live. */
     publish(connection: ChannelConnection, content: FormattedContent): Promise<PublishResult>
-    /** Pull post metrics. `externalId` is whatever THIS transport addresses a post by:
-     *  `meta` → the native IG media id, `uploadpost` → the `request_id` from publish. */
+    /** Pull ONE post's metrics, addressed by its native platform id. */
     fetchMetrics(connection: ChannelConnection, externalId: string): Promise<ChannelMetricsResult>
+
+    /**
+     * Pull metrics for MANY posts in one round trip, when the transport offers it.
+     *
+     * Graph has no such edge — insights are per media — so `instagramAdapter` omits
+     * this and the caller falls back to `fetchMetrics` per post. upload-post has
+     * only the batch form, and using it turns a whole tenant's sync into a single
+     * request instead of one per post.
+     */
+    fetchMetricsBatch?(
+        connection: ChannelConnection,
+        opts?: { limit?: number; since?: string },
+    ): Promise<ChannelPostMetrics[]>
 }
 
 /** Thrown by adapters whose publish/metrics aren't enabled yet (e.g. awaiting App Review,

@@ -88,3 +88,15 @@ export function uploadPostJson(path: string, body: unknown, label: string, metho
         body: JSON.stringify(body),
     })
 }
+
+/**
+ * POST multipart/form-data.
+ *
+ * The publish endpoints take form data, NOT JSON — a JSON body is rejected with
+ * "Username required in form data" even when the field is present. Note there is
+ * no explicit Content-Type header: fetch must set it itself so the multipart
+ * boundary matches the body.
+ */
+export function uploadPostForm(path: string, form: FormData, label: string) {
+    return uploadPostCall(path, { label, method: "POST", body: form })
+}

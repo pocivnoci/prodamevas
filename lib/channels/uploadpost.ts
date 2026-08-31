@@ -8,22 +8,18 @@
  * an approved app, so a tenant can connect their account there and publish today.
  * This adapter is the bridge; `instagramAdapter` (transport `meta`) stays the target.
  *
- * Addressing model — the important asymmetry vs. the Graph adapter:
+ * Addressing model — the asymmetry vs. the Graph adapter:
  *   - the API key is GLOBAL (ours, one per installation, from env)
  *   - the per-tenant part is a PROFILE USERNAME, carried in `connection.accessToken`
- *   - a published post is addressed by upload-post's `request_id` (→ `providerRef`),
- *     while the NATIVE Instagram media id arrives later as `platform_post_id`
+ *   - a published post is addressed by its NATIVE Instagram id, same as on Graph,
+ *     so metrics keep resolving after a tenant switches transport
  *
- * ─────────────────────────────────────────────────────────────────────────────
- * ⚠️  UNVERIFIED UNTIL FÁZE 0 (scripts/spike-uploadpost.ts) HAS BEEN RUN.
- *
- * The profile and analytics endpoints below are taken from upload-post's published
- * docs. The PUBLISH endpoint's exact path and field names are NOT documented
- * publicly at the level of detail this file needs, and carousel support is not
- * confirmed at all. Everything the spike must pin down is gathered in PUBLISH_API
- * and the response readers, so confirming it is an edit in one place — not a hunt.
- * Do not enable this transport for a paying tenant before the spike is green.
- * ─────────────────────────────────────────────────────────────────────────────
+ * Shapes below were verified against the live API and upload-post's OpenAPI spec
+ * (2026-08-31), not inferred from prose. Three things that cost a rewrite to learn:
+ *   1. publish takes multipart/form-data, NOT JSON ("Username required in form data")
+ *   2. the caption field is `title`, and the profile field is `user` (not `username`)
+ *   3. per-post analytics is a BATCH endpoint keyed by native post id; the
+ *      `request_id` from an async upload only polls upload status, never metrics
  */
 
 import {
@@ -31,91 +27,53 @@ import {
     type ChannelConnection,
     type ChannelMetrics,
     type ChannelMetricsResult,
+    type ChannelPostMetrics,
     type ContentDraft,
     type FormattedContent,
     type PublishResult,
     ChannelNotEnabledError,
     ChannelPermanentError,
 } from "./types"
-import { uploadPostGet, uploadPostJson } from "./uploadpost-client"
+import { uploadPostForm, uploadPostGet } from "./uploadpost-client"
 
-/** Endpoints the spike must confirm. Kept together so confirming them is one edit. */
-const PUBLISH_API = {
-    /** Multi-photo publish. Carousel = several urls in one call — THE open question. */
-    photos: "/api/upload_photos",
-    /** Video publish (reels). Only reachable once the spike proves it. */
-    video: "/api/upload",
-    /** Field names on the publish request. */
-    fields: {
-        profile: "user",
-        platforms: "platform",
-        caption: "caption",
-        photos: "photos",
-        video: "video",
-    },
-} as const
+const PHOTOS_PATH = "/api/upload_photos"
+const CACHED_ANALYTICS_PATH = "/api/uploadposts/post-analytics/cached"
 
-/** Documented endpoints — these came from upload-post's API reference. */
-const ANALYTICS_PATH = (requestId: string) => `/api/uploadposts/post-analytics/${encodeURIComponent(requestId)}`
+/** Default page size for a batch metrics read (endpoint max is 200). */
+const ANALYTICS_PAGE = 100
 
-/** Live analytics is rate limited to 100 requests / 5 minutes across the whole key.
- *  Callers sweeping many posts must respect this; see metrics-sync's per-run cap. */
-export const UPLOADPOST_LIVE_ANALYTICS_LIMIT = { requests: 100, windowMs: 5 * 60 * 1000 }
+/** Per-platform result of a synchronous publish, keyed by platform name. */
+function readPlatformResult(json: any): any {
+    return json?.results?.instagram ?? null
+}
 
-/**
- * Pull upload-post's own handle for a publish out of a response.
+/** Map upload-post's metric keys onto ChannelMetrics.
  *
- * Defensive on purpose: the API is async and documents `request_id` at the top
- * level, but wraps per-platform detail in a `results`/`platforms` map whose exact
- * nesting the spike must confirm. Losing this id means losing the ability to read
- * the post's metrics forever, so we look in every plausible place rather than
- * trusting one shape.
- */
-function readRequestId(json: any): string | undefined {
-    const direct = json?.request_id ?? json?.requestId ?? json?.id
-    if (direct) return String(direct)
-    const ig = json?.results?.instagram ?? json?.platforms?.instagram
-    const nested = ig?.request_id ?? ig?.requestId
-    return nested ? String(nested) : undefined
-}
-
-/** Native Instagram media id, when the response already carries it. */
-function readNativeId(json: any): string | undefined {
-    const ig = json?.results?.instagram ?? json?.platforms?.instagram ?? json
-    const id = ig?.platform_post_id ?? ig?.post_id ?? ig?.media_id
-    return id ? String(id) : undefined
-}
-
-function readPermalink(json: any): string | undefined {
-    const ig = json?.results?.instagram ?? json?.platforms?.instagram ?? json
-    const url = ig?.post_url ?? ig?.permalink ?? ig?.url
-    return url ? String(url) : undefined
-}
-
-/** Map upload-post's unified metric names onto ChannelMetrics. */
+ *  The spec says explicitly to "read the keys present rather than assuming a fixed
+ *  schema" — keys vary per platform and change over time, so every field is optional
+ *  and an absent one is left absent. That matters downstream: writeIGPostMetrics
+ *  writes only what it is handed and never nulls, so a metric this transport does
+ *  not carry keeps whatever the manual form recorded. */
 function readMetrics(raw: any): ChannelMetrics {
     const m: ChannelMetrics = {}
+    const src = raw ?? {}
     const num = (v: any): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined)
-    const src = raw?.post_metrics ?? raw?.metrics ?? raw ?? {}
 
-    const likes = num(src.likes)
-    const comments = num(src.comments)
-    const shares = num(src.shares)
-    const saves = num(src.saves)
-    const reach = num(src.reach)
-    const impressions = num(src.impressions)
-    const views = num(src.views)
-
-    if (likes !== undefined) m.likes = likes
-    if (comments !== undefined) m.comments = comments
-    if (shares !== undefined) m.shares = shares
-    if (saves !== undefined) m.saves = saves
-    if (reach !== undefined) m.reach = reach
-    if (impressions !== undefined) m.impressions = impressions
-    if (views !== undefined) m.views = views
-    // `profile_visits` is not part of upload-post's unified schema. Leaving the field
-    // absent (rather than 0) matters: writeIGPostMetrics only writes what it is given
-    // and never nulls, so a missing metric keeps whatever the manual form recorded.
+    const map: [keyof ChannelMetrics, any][] = [
+        ["likes", src.likes],
+        ["comments", src.comments],
+        ["shares", src.shares],
+        ["saves", src.saves],
+        ["reach", src.reach],
+        ["impressions", src.impressions],
+        ["views", src.views],
+        // Instagram reports this as profileViews on upload-post's unified schema.
+        ["profile_visits", src.profileViews ?? src.profile_visits],
+    ]
+    for (const [key, value] of map) {
+        const n = num(value)
+        if (n !== undefined) (m as any)[key] = n
+    }
     return m
 }
 
@@ -129,7 +87,7 @@ export const uploadPostAdapter: ChannelAdapter = {
         maxCaptionChars: 2200,
         supportsHashtags: true,
         hashtagSweetSpot: [8, 15],
-        mediaTypes: ["image", "carousel"], // widened once Fáze 0 proves reel/story
+        mediaTypes: ["image", "carousel"], // widened once reels are proven end-to-end
         aspectRatios: ["1:1", "4:5", "9:16"],
     },
 
@@ -154,14 +112,12 @@ export const uploadPostAdapter: ChannelAdapter = {
             throw new ChannelPermanentError("upload-post: žádné mediální URL k publikování.")
         }
 
-        const { fields } = PUBLISH_API
-
         switch (content.mediaType) {
             case "reel":
             case "video":
             case "story":
-                // Not proven by Fáze 0 yet. Refusing loudly beats silently posting the
-                // cover image as a feed post and calling it a reel.
+                // Not proven end-to-end yet. Refusing loudly beats silently posting a
+                // reel's cover image as a feed post and calling it a success.
                 throw new ChannelNotEnabledError("instagram", `publikování '${content.mediaType}'`, "uploadpost")
 
             case "text":
@@ -169,30 +125,45 @@ export const uploadPostAdapter: ChannelAdapter = {
 
             case "image":
             case "carousel": {
-                const json = await uploadPostJson(
-                    PUBLISH_API.photos,
-                    {
-                        [fields.profile]: profile,
-                        [fields.platforms]: ["instagram"],
-                        [fields.caption]: caption,
-                        [fields.photos]: mediaUrls,
-                    },
-                    content.mediaType,
-                )
+                const form = new FormData()
+                form.append("user", profile)
+                form.append("platform[]", "instagram")
+                // A carousel is simply several photos[] entries in one call. The API
+                // fetches each URL itself, so our public Supabase links go straight in
+                // and it transcodes (the response's `changes` lists what it did — which
+                // is also why WebP is not the problem here that it is on Graph).
+                for (const url of mediaUrls) form.append("photos[]", url)
+                // `title` is the caption field. `caption` is silently ignored.
+                form.append("title", caption)
 
-                const providerRef = readRequestId(json)
-                if (!providerRef) {
-                    // Without it we can never read this post's metrics. Treat it as a
-                    // failure rather than recording a post we've gone blind to.
-                    throw new Error(
-                        `upload-post: odpověď publikace neobsahuje request_id: ${JSON.stringify(json).slice(0, 300)}`,
-                    )
+                // Deliberately SYNCHRONOUS (no async_upload): the sync response carries
+                // the native post_id and permalink, so ig_media_id is correct the moment
+                // the row flips to `posted`. Async would hand back a request_id that only
+                // polls upload status and is useless for metrics.
+                const json = await uploadPostForm(PHOTOS_PATH, form, content.mediaType)
+
+                const ig = readPlatformResult(json)
+                if (!ig) {
+                    throw new Error(`upload-post: odpověď neobsahuje výsledek pro instagram: ${JSON.stringify(json).slice(0, 300)}`)
+                }
+                if (ig.success === false || ig.error) {
+                    // The HTTP call succeeded but Instagram refused the post. Retrying
+                    // an outright rejection just burns the budget and delays the truth.
+                    throw new ChannelPermanentError(`upload-post: Instagram odmítl příspěvek: ${String(ig.error || "neznámý důvod").slice(0, 300)}`)
+                }
+
+                const postId = ig.post_id ? String(ig.post_id) : undefined
+                if (!postId) {
+                    // Without the native id we cannot ever match this post to its metrics.
+                    throw new Error(`upload-post: odpověď neobsahuje post_id: ${JSON.stringify(ig).slice(0, 300)}`)
                 }
 
                 return {
-                    providerRef,
-                    externalId: readNativeId(json), // often absent — metrics-sync backfills
-                    permalink: readPermalink(json),
+                    externalId: postId,
+                    permalink: ig.url ? String(ig.url) : undefined,
+                    // upload-post's own handle for the publish — recorded for support and
+                    // for retry/unpublish calls. Metrics do NOT use it.
+                    providerRef: ig.publish_id ? String(ig.publish_id) : undefined,
                 }
             }
 
@@ -206,18 +177,63 @@ export const uploadPostAdapter: ChannelAdapter = {
     },
 
     /**
-     * `externalId` here is upload-post's `request_id` (the transport's handle), NOT
-     * the native media id — that is the whole reason ig_posts carries both.
+     * Batch read — the only per-post analytics upload-post offers.
+     *
+     * One request covers a whole tenant, which is why metrics-sync prefers this over
+     * looping `fetchMetrics`. Numbers come from upload-post's snapshot cache, and
+     * `capturedAt` says how stale each row is; nothing refreshes it in the background.
      */
-    async fetchMetrics(_connection: ChannelConnection, externalId: string): Promise<ChannelMetricsResult> {
-        const json = await uploadPostGet(`${ANALYTICS_PATH(externalId)}?platform=instagram`, "analytics")
+    async fetchMetricsBatch(
+        connection: ChannelConnection,
+        opts?: { limit?: number; since?: string },
+    ): Promise<ChannelPostMetrics[]> {
+        const profile = connection.accessToken
+        if (!profile) throw new ChannelPermanentError("upload-post: chybí profil tenanta na řádku připojení.")
 
-        const ig = json?.platforms?.instagram ?? json?.instagram ?? json
+        const out: ChannelPostMetrics[] = []
+        const limit = Math.min(opts?.limit ?? ANALYTICS_PAGE, 200)
+        let cursor: string | undefined
 
-        return {
-            metrics: readMetrics(ig),
-            nativeId: readNativeId(ig),
-            permalink: readPermalink(ig),
+        // Paginate, but bounded: a runaway cursor loop inside a cron would eat the
+        // whole function budget and starve every tenant after this one.
+        for (let page = 0; page < 10; page++) {
+            const params = new URLSearchParams({
+                user: profile,
+                platform: "instagram",
+                limit: String(limit),
+            })
+            if (opts?.since) params.set("since", opts.since)
+            if (cursor) params.set("cursor", cursor)
+
+            const json = await uploadPostGet(`${CACHED_ANALYTICS_PATH}?${params}`, "analytics")
+
+            for (const row of json?.posts ?? []) {
+                const id = row?.post_id
+                if (!id) continue
+                out.push({
+                    externalId: String(id),
+                    metrics: readMetrics(row?.metrics),
+                    permalink: row?.post_url ? String(row.post_url) : undefined,
+                    capturedAt: row?.captured_at ? String(row.captured_at) : undefined,
+                })
+            }
+
+            if (!json?.has_more || !json?.next_cursor) break
+            cursor = String(json.next_cursor)
         }
+
+        return out
+    },
+
+    /**
+     * Single-post read, kept so the adapter satisfies the interface and so a caller
+     * that only wants one post is not forced to page the whole account. It is served
+     * from the same batch endpoint, so prefer fetchMetricsBatch for a sweep.
+     */
+    async fetchMetrics(connection: ChannelConnection, externalId: string): Promise<ChannelMetricsResult> {
+        const all = await this.fetchMetricsBatch!(connection)
+        const hit = all.find(p => p.externalId === externalId)
+        if (!hit) return { metrics: {} }
+        return { metrics: hit.metrics, nativeId: hit.externalId, permalink: hit.permalink }
     },
 }

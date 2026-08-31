@@ -16,13 +16,14 @@ import supabaseAdmin from "@/supabase/admin"
 import { withRetry } from "@/utils/retry"
 import { getConnection } from "./ig-connection"
 import { getChannelAdapter } from "@/lib/channels"
-import type { ChannelConnection } from "@/lib/channels/types"
+import type { ChannelConnection, ChannelMetrics } from "@/lib/channels/types"
 
 const IG_GRAPH_BASE = "https://graph.instagram.com"
 
-/** Per-tenant cap when reading through upload-post, whose live analytics endpoint
- *  allows 100 requests / 5 minutes for the whole API key. */
-const UPLOADPOST_POSTS_PER_SYNC = 30
+/** How many recent posts a batch-reading transport covers per tenant per run.
+ *  The bridge's analytics endpoint pages at 200; 100 keeps a tenant's sweep to a
+ *  single request while still covering more than a month of any real cadence. */
+const UPLOADPOST_POSTS_PER_SYNC = 100
 
 export type IGPostMetricsInput = {
     likes: number
@@ -180,21 +181,20 @@ export async function syncPostMetrics(clientId: string): Promise<SyncResult> {
     // The transport decides which adapter reads metrics. Without this the Graph
     // adapter would receive an upload-post profile username as an access token.
     const adapter = getChannelAdapter("instagram", conn.transport)
+    const adapterSupportsBatch = typeof adapter.fetchMetricsBatch === "function"
     const channelConnection: ChannelConnection = {
         accessToken: conn.accessToken,
         externalUserId: conn.igUserId,
         transport: conn.transport,
     }
 
-    // upload-post's live analytics allows 100 requests per 5 minutes ACROSS THE KEY,
-    // and the cron walks tenants sequentially — so an unbounded sweep would starve
-    // whoever comes last. Cap each tenant at its most recent posts (which is where
-    // the learning signal is anyway) and let the next daily run pick up the rest.
-    const budget = conn.transport === "uploadpost" ? UPLOADPOST_POSTS_PER_SYNC : 100
+    // Cap each tenant at its most recent posts — that is where the learning signal
+    // lives anyway, and the cron walks tenants sequentially inside one function budget.
+    const budget = adapterSupportsBatch ? UPLOADPOST_POSTS_PER_SYNC : 100
 
     const { data: posts } = await supabaseAdmin
         .from("ig_posts")
-        .select("id, caption, posted_at, ig_media_id, publish_request_id")
+        .select("id, caption, posted_at, ig_media_id, permalink, publish_request_id")
         .eq("client_id", clientId)
         .eq("status", "posted")
         .order("posted_at", { ascending: false })
@@ -202,10 +202,10 @@ export async function syncPostMetrics(clientId: string): Promise<SyncResult> {
     if (!posts || posts.length === 0) return result
 
     // Caption matching is a GRAPH-only affair: it exists to link handoff posts the
-    // user published by hand, and it needs the account's media list. On the bridge
-    // the equivalent link is the request_id we stored at publish time.
+    // user published by hand, and it needs the account's media list — which only the
+    // Graph path can list. A batch transport already returns rows keyed by native id.
     let media: IgMedia[] = []
-    if (conn.transport === "meta" && posts.some(p => !p.ig_media_id)) {
+    if (!adapterSupportsBatch && posts.some(p => !p.ig_media_id)) {
         try {
             media = await listRecentMedia(conn.igUserId, conn.accessToken)
         } catch (err) {
@@ -213,67 +213,80 @@ export async function syncPostMetrics(clientId: string): Promise<SyncResult> {
         }
     }
 
-    let anySignificant = false
+    // ── Gather: each transport resolves posts→numbers its own way. ──────────────
+    // Both branches produce the SAME shape and nothing writes here, so the cascade
+    // below stays single. A fork at the write would quietly halve what the engine
+    // learns (CLAUDE.md: feedback loops are sacred).
+    const pending: { postId: string; metrics: ChannelMetrics }[] = []
 
-    for (const post of posts) {
+    if (adapter.fetchMetricsBatch) {
+        // Bridge shape: one request per tenant, keyed by native post id. Looping
+        // per post would be both slower and rate-limited.
+        let byId = new Map<string, { metrics: ChannelMetrics; permalink?: string }>()
         try {
-            // How THIS transport addresses the post. Graph wants the native media id;
-            // upload-post wants its own request_id.
-            let ref: string | null =
-                conn.transport === "meta"
-                    ? (post.ig_media_id as string | null)
-                    : (post.publish_request_id as string | null)
-
-            if (!ref && conn.transport === "meta") {
-                // Handoff/manual post: link it by caption match, then backfill.
-                const hit = matchMedia(post.caption, media)
-                if (!hit) { result.skipped++; continue }
-                ref = hit.id
-                await supabaseAdmin
-                    .from("ig_posts")
-                    .update({ ig_media_id: hit.id, permalink: hit.permalink || null })
-                    .eq("id", post.id)
-                result.matched++
-            }
-
-            if (!ref) {
-                // On the bridge, a post with no request_id was published some other way
-                // (handoff, or before the transport existed). The manual MetricsInputForm
-                // still covers it — we just have nothing to query.
-                result.skipped++
-                continue
-            }
-
-            const { metrics: cm, nativeId, permalink } = await adapter.fetchMetrics(channelConnection, ref)
-
-            // Backfill identity from the same response that carried the metrics: an
-            // async transport reports the native id only once the network took the post.
-            if (!post.ig_media_id && nativeId) {
-                await supabaseAdmin
-                    .from("ig_posts")
-                    .update({ ig_media_id: nativeId, ...(permalink ? { permalink } : {}) })
-                    .eq("id", post.id)
-                result.matched++
-            }
-
-            // Write only the fields the API actually returned.
-            const metrics: Partial<IGPostMetricsInput> = {}
-            if (cm.likes != null) metrics.likes = cm.likes
-            if (cm.comments != null) metrics.comments = cm.comments
-            if (cm.saves != null) metrics.saves = cm.saves
-            if (cm.reach != null) metrics.reach = cm.reach
-            if (cm.shares != null) metrics.shares = cm.shares
-            if (cm.profile_visits != null) metrics.profile_visits = cm.profile_visits
-            if (Object.keys(metrics).length === 0) { result.skipped++; continue }
-
-            // ── The one cascade. Both transports land here; nothing forks below. ──
-            const w = await writeIGPostMetrics(post.id, metrics)
-            if (w.ok) result.synced++
-            if (w.significant) anySignificant = true
+            const batch = await adapter.fetchMetricsBatch(channelConnection, { limit: budget })
+            byId = new Map(batch.map(b => [b.externalId, { metrics: b.metrics, permalink: b.permalink }]))
         } catch (err) {
-            console.warn(`metrics-sync: post ${post.id} failed:`, (err as Error).message)
-            result.skipped++
+            console.warn(`metrics-sync: batch read failed for ${clientId}:`, (err as Error).message)
         }
+
+        for (const post of posts) {
+            const mediaId = post.ig_media_id as string | null
+            // Bridge posts get their native id at publish time. One without it was
+            // published some other way (handoff, or before this transport existed) —
+            // the manual MetricsInputForm still covers those.
+            if (!mediaId) { result.skipped++; continue }
+            const hit = byId.get(mediaId)
+            if (!hit) { result.skipped++; continue }
+            if (hit.permalink && !post.permalink) {
+                await supabaseAdmin.from("ig_posts").update({ permalink: hit.permalink }).eq("id", post.id)
+                result.matched++
+            }
+            pending.push({ postId: post.id, metrics: hit.metrics })
+        }
+    } else {
+        for (const post of posts) {
+            try {
+                let mediaId = post.ig_media_id as string | null
+
+                // Handoff/manual post: link it by caption match, then backfill.
+                if (!mediaId) {
+                    const hit = matchMedia(post.caption, media)
+                    if (!hit) { result.skipped++; continue }
+                    mediaId = hit.id
+                    await supabaseAdmin
+                        .from("ig_posts")
+                        .update({ ig_media_id: hit.id, permalink: hit.permalink || null })
+                        .eq("id", post.id)
+                    result.matched++
+                }
+
+                const { metrics } = await adapter.fetchMetrics(channelConnection, mediaId)
+                pending.push({ postId: post.id, metrics })
+            } catch (err) {
+                console.warn(`metrics-sync: post ${post.id} failed:`, (err as Error).message)
+                result.skipped++
+            }
+        }
+    }
+
+    // ── The one cascade. Both transports land here; nothing forks below. ────────
+    let anySignificant = false
+    for (const { postId, metrics: cm } of pending) {
+        // Write only the fields the transport actually returned — a missing metric
+        // must not overwrite what the manual form recorded.
+        const metrics: Partial<IGPostMetricsInput> = {}
+        if (cm.likes != null) metrics.likes = cm.likes
+        if (cm.comments != null) metrics.comments = cm.comments
+        if (cm.saves != null) metrics.saves = cm.saves
+        if (cm.reach != null) metrics.reach = cm.reach
+        if (cm.shares != null) metrics.shares = cm.shares
+        if (cm.profile_visits != null) metrics.profile_visits = cm.profile_visits
+        if (Object.keys(metrics).length === 0) { result.skipped++; continue }
+
+        const w = await writeIGPostMetrics(postId, metrics)
+        if (w.ok) result.synced++
+        if (w.significant) anySignificant = true
     }
 
     // Fire learning ONCE per sync — analyzeAndLearn is an AI call; per-post would thrash it.

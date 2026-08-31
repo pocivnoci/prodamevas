@@ -55,7 +55,9 @@ async function call(path: string, init: RequestInit = {}): Promise<any> {
         ...init,
         headers: {
             Authorization: `Apikey ${API_KEY}`,
-            ...(init.body ? { "Content-Type": "application/json" } : {}),
+            // Only for JSON bodies. FormData must set its OWN Content-Type so the
+            // multipart boundary matches the body — forcing JSON here breaks upload.
+            ...(typeof init.body === "string" ? { "Content-Type": "application/json" } : {}),
             ...(init.headers || {}),
         },
     })
@@ -104,52 +106,47 @@ async function publishPhotos(urls: string[]) {
     console.log(`\n🚀 Publikuji ${urls.length} ${urls.length > 1 ? "obrázků (CAROUSEL)" : "obrázek"}…`)
     console.log("   URL:", urls.join("\n        "))
 
-    const json = await call("/api/upload_photos", {
-        method: "POST",
-        body: JSON.stringify({
-            user: PROFILE,
-            platform: ["instagram"],
-            caption: `Chrlit spike ${new Date().toISOString()}`,
-            photos: urls,
-        }),
-    })
+    // multipart/form-data, NOT JSON — a JSON body is rejected with "Username
+    // required in form data" even when the field is there. Caption goes in `title`.
+    const form = new FormData()
+    form.append("user", PROFILE)
+    form.append("platform[]", "instagram")
+    for (const u of urls) form.append("photos[]", u)
+    form.append("title", `Chrlit spike ${new Date().toISOString()}`)
 
+    const json = await call("/api/upload_photos", { method: "POST", body: form })
+
+    const ig = json?.results?.instagram
     console.log("\n📋 CO SI Z TÉHLE ODPOVĚDI ZAPSAT:")
+    console.log(`   • post_id (= ig_media_id):  ${ig?.post_id ?? "❌ CHYBÍ — bez něj se post nespáruje s metrikami"}`)
+    console.log(`   • url (= permalink):        ${ig?.url ?? "—"}`)
+    console.log(`   • changes (transkódování):  ${JSON.stringify(ig?.changes ?? [])}`)
     console.log("   • BOD 3: vznikl na profilu opravdu CAROUSEL, nebo jen první obrázek?")
     console.log("            → ZKONTROLUJ TO OČIMA NA INSTAGRAMU, ne jen podle odpovědi.")
-    console.log("   • BOD 5: prošla vzdálená HTTPS URL (a .webp), nebo chce API upload souboru?")
-    console.log("   • BOD 6: je `request_id` v odpovědi hned? A `platform_post_id`/`post_url`?")
-    console.log("            → tohle rozhoduje, jestli publish vrací externalId, nebo ho")
-    console.log("              musí dobackfillovat metrics-sync.")
-
-    const requestId = json?.request_id ?? json?.requestId ?? json?.id
-    if (requestId) {
-        console.log(`\n   Za pár hodin spusť: npx tsx scripts/spike-uploadpost.ts analytics ${requestId}`)
-    } else {
-        console.log("\n   ⚠️ V odpovědi NENÍ request_id — bez něj se nedá číst analytika. Najdi, kde je.")
-    }
+    console.log("   • BOD 5: prošla vzdálená HTTPS URL (a .webp) bez uploadu souboru?")
+    console.log("\n   Za pár hodin spusť: npx tsx scripts/spike-uploadpost.ts analytics")
 }
 
-/** BOD 7 — druhá STOP/GO branka: bez per-post metrik se přetrhne učicí smyčka. */
-async function analytics(requestId: string) {
-    if (!requestId) {
-        console.error("❌ Zadej request_id z publikace.")
-        process.exit(1)
-    }
-    const json = await call(`/api/uploadposts/post-analytics/${encodeURIComponent(requestId)}?platform=instagram`)
+/** BOD 7 — druhá STOP/GO branka: bez per-post metrik se přetrhne učicí smyčka.
+ *  Per-post analytika je JEN dávková a klíčuje se NATIVNÍM post_id (žádný request_id). */
+async function analytics() {
+    const json = await call(`/api/uploadposts/post-analytics/cached?user=${encodeURIComponent(PROFILE)}&platform=instagram&limit=50`)
 
-    const ig = json?.platforms?.instagram ?? json?.instagram ?? json
-    const m = ig?.post_metrics ?? ig?.metrics ?? {}
+    const posts = json?.posts ?? []
+    console.log(`\n📊 Vráceno ${posts.length} příspěvků (source: ${json?.source ?? "—"})`)
+
     const want = ["likes", "comments", "reach", "saves", "shares", "views", "impressions"]
-
-    console.log("\n📊 METRIKY, KTERÉ POTŘEBUJE UČICÍ SMYČKA:")
-    for (const k of want) {
-        const v = (m as any)[k]
-        console.log(`   ${v === undefined ? "❌ chybí " : "✅ "}${k}: ${v ?? "—"}`)
+    for (const p of posts.slice(0, 5)) {
+        console.log(`\n   post_id: ${p.post_id}   captured_at: ${p.captured_at ?? "—"}`)
+        console.log(`   post_url: ${p.post_url ?? "—"}`)
+        for (const k of want) {
+            const v = p?.metrics?.[k]
+            console.log(`     ${v === undefined ? "❌ chybí " : "✅ "}${k}: ${v ?? "—"}`)
+        }
     }
-    console.log(`\n   platform_post_id: ${ig?.platform_post_id ?? "❌ chybí (nutné pro backfill ig_media_id)"}`)
-    console.log(`   post_url:         ${ig?.post_url ?? "—"}`)
+
     console.log("\n📋 BOD 7: ZAPIŠ, JAK DLOUHO PO PUBLIKACI JSOU ČÍSLA NENULOVÁ.")
+    console.log("   `captured_at` říká, jak čerstvá data jsou — nic je na pozadí neobnovuje.")
     console.log("   Pokud je zpoždění delší než den, denní cron /api/cron/ig-metrics-sync")
     console.log("   trefí prázdno a smyčka se nenakrmí — pak je potřeba druhý sběr po ~72 h.")
 }
@@ -166,7 +163,7 @@ async function main() {
         case "status":    return status()
         case "image":     return publishPhotos(args.slice(0, 1))
         case "carousel":  return publishPhotos(args)
-        case "analytics": return analytics(args[0])
+        case "analytics": return analytics()
         case "cleanup":   return cleanup()
         default:
             console.log("Použití: npx tsx scripts/spike-uploadpost.ts <connect|status|image|carousel|analytics|cleanup> [args]")

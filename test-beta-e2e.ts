@@ -1041,13 +1041,18 @@ test("13b.3 both metric transports end in ONE learning cascade", () => {
     )
     // The whole point of the rewrite: a forked cascade would split performance_score
     // and quietly halve what the engine learns from.
-    const writes = (c.match(/writeIGPostMetrics\(post\.id/g) || []).length
-    assert(writes === 1, `writeIGPostMetrics must be called from exactly ONE place in the sync loop, found ${writes}`)
+    const writes = (c.match(/await writeIGPostMetrics\(/g) || []).length
+    assert(writes === 1, `writeIGPostMetrics must be called from exactly ONE place in the sync, found ${writes}`)
     const fires = (c.match(/await fireMetricsLearning\(clientId\)/g) || []).length
     assert(fires === 1, `fireMetricsLearning must fire once per sync, found ${fires} call sites`)
-    // Caption matching is Graph-only (it needs the account's media list); the bridge
-    // links posts by the request_id stored at publish time instead.
-    assert(c.includes("publish_request_id"), "the sync must address bridge posts by publish_request_id")
+    // A transport that can read many posts at once must not be looped per post:
+    // upload-post's only per-post endpoint is the batch one, so a per-post loop
+    // would re-page the whole account for every single row.
+    assert(c.includes("adapter.fetchMetricsBatch"), "the sync must prefer a transport's batch read when it has one")
+    assert(
+        c.includes("byId.get(mediaId)"),
+        "batch metrics must be matched on the NATIVE media id — the transport's own publish handle is not an analytics key",
+    )
 })
 
 test("13b.4 upload-post credentials and host live in exactly one module", () => {
@@ -1069,9 +1074,14 @@ test("13b.5 the bridge refuses media it has not been proven to carry", () => {
     // Silently posting a reel's cover image as a feed post would look like success.
     assert(c.includes("ChannelNotEnabledError"), "unproven media must be refused loudly")
     assert(c.includes("const _never: never = content.mediaType"), "publish() must be exhaustive on mediaType")
-    // Without request_id the post's metrics are unreachable forever — better to fail
-    // the publish than to record a post we have gone blind to.
-    assert(c.includes("neobsahuje request_id"), "a publish with no request_id must fail, not be recorded")
+    // Without the native post_id the post can never be matched to its metrics —
+    // better to fail the publish than to record a post we have gone blind to.
+    assert(c.includes("neobsahuje post_id"), "a publish with no native post_id must fail, not be recorded")
+    // The publish endpoints reject JSON ("Username required in form data"), and the
+    // caption field is `title`. Both cost a rewrite to discover; pin them down.
+    assert(c.includes("new FormData()"), "publish must send multipart/form-data, not JSON")
+    assert(c.includes('form.append("title"'), "the caption goes in `title` — `caption` is silently ignored")
+    assert(!codeOnly("lib/channels/uploadpost.ts").includes("async_upload"), "publish must stay synchronous, or post_id never comes back")
     const pub = fileContent("app/api/cron/ig-publisher/route.ts")
     assert(pub.includes("ChannelPermanentError"), "the publisher must fail permanent errors fast instead of retrying them")
 })
