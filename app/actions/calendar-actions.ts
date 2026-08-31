@@ -399,3 +399,90 @@ export async function schedulePostAction(
         return { success: false, error: (err as Error)?.message || "Plánování selhalo" }
     }
 }
+
+// ─── Publish Outlook ─────────────────────────────────────
+//
+// Co auto-publikování reálně čeká, spočítané z PLÁNU — ne z nějaké frekvence
+// nastavené vedle plánu. Nastavení dřív nabízelo „jak často publikovat", jenže
+// termín každého příspěvku vzniká jednou při generování a žije v kalendáři;
+// druhé číslo v Nastavení tedy nemělo co řídit a jen lhalo o tom, kdy co vyjde.
+// Tahle akce je jeho náhrada: místo volby ukazuje pravdu.
+
+export interface PublishOutlook {
+    /** Naostřené (status 'scheduled') s termínem v budoucnu — vyjdou samy. */
+    armed: number
+    /** Hotové s termínem, které ještě čekají na potvrzení/naostření. */
+    waiting: number
+    /** Propadlé termíny — agent je schválně neposouvá, čekají na člověka. */
+    overdue: number
+    /** Nejbližší termín, ať už naostřený nebo čekající. */
+    next: { at: string; armed: boolean } | null
+    /** Poslední skutečně zveřejněný příspěvek. */
+    lastPosted: { at: string; permalink: string | null } | null
+}
+
+export async function getPublishOutlook(projectSlug: string): Promise<PublishOutlook> {
+    const { clientId } = await requireProjectAccess(projectSlug)
+    const nowIso = new Date().toISOString()
+
+    const base = () => supabaseAdmin
+        .from("ig_posts")
+        .select("scheduled_for", { count: "exact", head: true })
+        .eq("client_id", clientId)
+
+    const [armedRes, waitingRes, overdueRes, nextArmed, nextWaiting, lastRes] = await Promise.all([
+        base().eq("status", "scheduled").gt("scheduled_for", nowIso),
+        base().eq("status", "ready").gt("scheduled_for", nowIso),
+        // Propadlé = mělo vyjít a nevyšlo. Naostřené propadlé řeší publisher sám
+        // (běží každou minutu), takže tady jde o ty, co uvázly v `ready`.
+        base().eq("status", "ready").lte("scheduled_for", nowIso),
+        supabaseAdmin.from("ig_posts").select("scheduled_for").eq("client_id", clientId)
+            .eq("status", "scheduled").gt("scheduled_for", nowIso)
+            .order("scheduled_for", { ascending: true }).limit(1).maybeSingle(),
+        supabaseAdmin.from("ig_posts").select("scheduled_for").eq("client_id", clientId)
+            .eq("status", "ready").gt("scheduled_for", nowIso)
+            .order("scheduled_for", { ascending: true }).limit(1).maybeSingle(),
+        supabaseAdmin.from("ig_posts").select("posted_at, permalink").eq("client_id", clientId)
+            .eq("status", "posted").not("posted_at", "is", null)
+            .order("posted_at", { ascending: false }).limit(1).maybeSingle(),
+    ])
+
+    const a = nextArmed.data?.scheduled_for as string | undefined
+    const w = nextWaiting.data?.scheduled_for as string | undefined
+    let next: PublishOutlook["next"] = null
+    if (a && w) next = new Date(a) <= new Date(w) ? { at: a, armed: true } : { at: w, armed: false }
+    else if (a) next = { at: a, armed: true }
+    else if (w) next = { at: w, armed: false }
+
+    return {
+        armed: armedRes.count || 0,
+        waiting: waitingRes.count || 0,
+        overdue: overdueRes.count || 0,
+        next,
+        lastPosted: lastRes.data?.posted_at
+            ? { at: lastRes.data.posted_at as string, permalink: (lastRes.data.permalink as string | null) ?? null }
+            : null,
+    }
+}
+
+/**
+ * Naostřit hotové příspěvky hned — volá se, když člověk zapne auto-publikování
+ * nebo právě dokončil připojení účtu.
+ *
+ * Denní agent `auto_publish_arm` dělá totéž jednou za den; tohle jen zkracuje
+ * ticho mezi činem a účinkem, aby se nově připojený klient nedozvěděl až zítra,
+ * že to funguje. Sám o sobě nic nepřepíše: uvnitř běží týž podmíněný claim
+ * `ready → scheduled` a termíny z plánu zůstávají beze změny.
+ */
+export async function armAutoPublishNow(
+    projectSlug: string,
+): Promise<{ success: boolean; armed?: number; skipped?: string; error?: string }> {
+    try {
+        const { clientId } = await requireProjectAccess(projectSlug)
+        const { armClientNow } = await import("@/lib/agents/auto-publish")
+        const res = await armClientNow(clientId)
+        return { success: true, armed: res.armed, skipped: res.skipped }
+    } catch (err) {
+        return { success: false, error: (err as Error)?.message || "Naostření selhalo" }
+    }
+}
