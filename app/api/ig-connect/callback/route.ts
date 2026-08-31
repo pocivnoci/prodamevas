@@ -52,6 +52,10 @@ export async function GET(request: Request) {
             igUsername: profile.username,
             accessToken: long.accessToken,
             expiresAt,
+            // This is OUR OAuth flow, so the row is a Graph connection. A tenant who
+            // reconnects here after using the bridge overwrites their upload-post row,
+            // which is exactly the migration path back to our own app.
+            transport: "meta",
         })
 
         return NextResponse.redirect(`${dashboard}?ig=connected#settings`)

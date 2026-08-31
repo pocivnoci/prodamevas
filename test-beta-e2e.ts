@@ -984,6 +984,117 @@ test("13.8 every plan grants story (seed must not drift)", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 13b. TRANSPORT (publikace přes službu třetí strany)
+// ═══════════════════════════════════════════════════════════
+
+test("13b.1 transport is read from the DB, never guessed", () => {
+    // A guessed transport hands the Graph API an upload-post profile username — the
+    // failure is silent (a "posted" row that never appeared) and per-tenant.
+    const reg = fileContent("lib/channels/index.ts")
+    assert(
+        /getChannelAdapter\(channel: Channel, transport: Transport\)/.test(reg),
+        "getChannelAdapter must REQUIRE a transport — a default parameter would let a bridge tenant fall through to Graph",
+    )
+    assert(
+        !/transport: Transport = /.test(codeOnly("lib/channels/index.ts")),
+        "transport must have no default value in the registry",
+    )
+
+    const conn = fileContent("instagram/ig-connection.ts")
+    assert(conn.includes("function readTransport"), "the connection layer must validate transport on read")
+    assert(
+        /readTransport[\s\S]{0,600}throw new Error/.test(conn),
+        "an unknown transport must throw, not fall back to 'meta'",
+    )
+    // saveConnection takes it as a required field: a caller that forgets which pipe
+    // it just connected is a bug we want at the call site.
+    assert(
+        /transport: Transport\n/.test(conn) || conn.includes("transport: Transport"),
+        "saveConnection must take transport explicitly",
+    )
+
+    const cron = fileContent("app/api/cron/ig-publisher/route.ts")
+    assert(cron.includes("conn.transport"), "the publisher must select its adapter from the connection's transport")
+    assert(
+        !codeOnly("app/api/cron/ig-publisher/route.ts").includes("instagramAdapter"),
+        "the publisher must go through the registry, not import one adapter directly",
+    )
+})
+
+test("13b.2 a bridge connection is never refreshed as if it held a Graph token", () => {
+    // refreshConnection POSTs access_token to graph.instagram.com and marks the row
+    // `expired` when that fails. For an upload-post row access_token is a profile
+    // username, so the daily cron would silently kill that tenant's publishing.
+    const c = fileContent("instagram/ig-connection.ts")
+    assert(
+        /refreshConnection[\s\S]{0,800}conn\.transport !== "meta"/.test(c),
+        "refreshConnection must bail out for non-meta transports before calling Graph",
+    )
+})
+
+test("13b.3 both metric transports end in ONE learning cascade", () => {
+    const c = fileContent("instagram/metrics-sync.ts")
+    assert(c.includes("getChannelAdapter"), "metrics-sync must resolve its adapter by transport")
+    assert(
+        !codeOnly("instagram/metrics-sync.ts").includes("instagramAdapter"),
+        "metrics-sync must not reach past the registry to the Graph adapter",
+    )
+    // The whole point of the rewrite: a forked cascade would split performance_score
+    // and quietly halve what the engine learns from.
+    const writes = (c.match(/await writeIGPostMetrics\(/g) || []).length
+    assert(writes === 1, `writeIGPostMetrics must be called from exactly ONE place in the sync, found ${writes}`)
+    const fires = (c.match(/await fireMetricsLearning\(clientId\)/g) || []).length
+    assert(fires === 1, `fireMetricsLearning must fire once per sync, found ${fires} call sites`)
+    // A transport that can read many posts at once must not be looped per post:
+    // upload-post's only per-post endpoint is the batch one, so a per-post loop
+    // would re-page the whole account for every single row.
+    assert(c.includes("adapter.fetchMetricsBatch"), "the sync must prefer a transport's batch read when it has one")
+    assert(
+        c.includes("byId.get(mediaId)"),
+        "batch metrics must be matched on the NATIVE media id — the transport's own publish handle is not an analytics key",
+    )
+})
+
+test("13b.4 upload-post credentials and host live in exactly one module", () => {
+    assert(fileExists("lib/channels/uploadpost-client.ts"), "the bridge needs a single HTTP client module")
+    for (const f of [
+        "lib/channels/uploadpost.ts",
+        "lib/channels/uploadpost-profiles.ts",
+        "app/actions/ig-connection-actions.ts",
+        "app/api/cron/ig-publisher/route.ts",
+        "instagram/metrics-sync.ts",
+    ]) {
+        assert(!codeOnly(f).includes("UPLOADPOST_API_KEY"), `${f} must not read the API key directly`)
+        assert(!codeOnly(f).includes("api.upload-post.com"), `${f} must not hardcode the upload-post host`)
+    }
+})
+
+test("13b.5 the bridge refuses media it has not been proven to carry", () => {
+    const c = fileContent("lib/channels/uploadpost.ts")
+    // Silently posting a reel's cover image as a feed post would look like success.
+    assert(c.includes("ChannelNotEnabledError"), "unproven media must be refused loudly")
+    assert(c.includes("const _never: never = content.mediaType"), "publish() must be exhaustive on mediaType")
+    // Without the native post_id the post can never be matched to its metrics —
+    // better to fail the publish than to record a post we have gone blind to.
+    assert(c.includes("neobsahuje post_id"), "a publish with no native post_id must fail, not be recorded")
+    // The publish endpoints reject JSON ("Username required in form data"), and the
+    // caption field is `title`. Both cost a rewrite to discover; pin them down.
+    assert(c.includes("new FormData()"), "publish must send multipart/form-data, not JSON")
+    assert(c.includes('form.append("title"'), "the caption goes in `title` — `caption` is silently ignored")
+    assert(!codeOnly("lib/channels/uploadpost.ts").includes("async_upload"), "we never ASK for async; the hand-off below is the API's own doing")
+    // The dangerous one. A long sync request is silently "handed off to the upload
+    // worker" and answers 200 with a message instead of results. The post still goes
+    // live, so treating that as an error means the retry publishes it a SECOND time
+    // on a customer's real profile. Observed on the very first live publish.
+    assert(c.includes("readHandoffRequestId"), "publish must recognise the background hand-off, not mistake it for a failure")
+    assert(c.includes("return { providerRef: requestId }"), "an unfinished hand-off must report success without an id — never a retryable error")
+    const sync = fileContent("instagram/metrics-sync.ts")
+    assert(sync.includes("pollUploadStatus"), "a post whose id was unknown at publish time must get it resolved later")
+    const pub = fileContent("app/api/cron/ig-publisher/route.ts")
+    assert(pub.includes("ChannelPermanentError"), "the publisher must fail permanent errors fast instead of retrying them")
+})
+
+// ═══════════════════════════════════════════════════════════
 // 14. FAKTURACE A PRÁVNÍ IDENTITA (v8.5)
 // ═══════════════════════════════════════════════════════════
 

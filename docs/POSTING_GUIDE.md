@@ -2,7 +2,22 @@
 
 Praktický návod, jak dostat vygenerovaný post na Instagram **bez copy-paste pekla** a jak posty plánovat dopředu.
 
-> **Proč to není plně automatické?** Auto-publish engine v aplikaci **existuje** (`/api/cron/ig-publisher` umí image + carousel), ale publikování na **cizí** účty potřebuje Meta App Review pro scope `instagram_business_content_publish` — to je běh na týdny (viz `docs/META_APP_REVIEW_PLAN.md`). Do schválení funguje auto-publish jen na našem testovacím účtu. **Tahle „handoff" cesta funguje hned, pro libovolný účet, a zvládne i reels.**
+> **Proč to není plně automatické?** Auto-publish engine v aplikaci **existuje** (`/api/cron/ig-publisher` umí image + carousel), ale publikování na **cizí** účty přes *naši* Meta appku potřebuje App Review pro scope `instagram_business_content_publish` — běh na týdny (viz `docs/META_APP_REVIEW_PLAN.md`). **Tahle „handoff" cesta funguje hned, pro libovolný účet, a zvládne i reels.**
+
+> **Dvě cesty připojení účtu.** Studio umí publikovat dvěma trubkami a zákazník mezi nimi nepozná rozdíl — v Nastavení vidí pořád jen „Připojit Instagram":
+>
+> | Transport | Co to je | Kdy |
+> |---|---|---|
+> | `meta` | naše vlastní Meta appka, Graph API napřímo | cílový stav; pro cizí účty čeká na 2. App Review |
+> | `uploadpost` | most přes upload-post.com, který schválenou Meta appku už má | funguje pro cizí účty **hned**; stojí peníze za profil |
+>
+> Kterou trubku připojený účet používá, je zapsané na řádku `ig_connections.transport` a **nikdy se nehádá**. Publisher ji čte až v okamžiku odeslání, takže přepnutí zákazníka z mostu na naši appku naplánované posty nijak nerozhodí. Nabídku pro nepřipojené tenanty řídí `ClientConfig.publishTransport` (default z `UPLOADPOST_DEFAULT_TRANSPORT`).
+>
+> **Most nejen publikuje, ale i měří** — statistiky příspěvků tečou přes stejný adaptér zpátky do učicí smyčky (`instagram/metrics-sync.ts`), takže se engine učí i u tenantů, kteří na App Review nečekají.
+>
+> ⚠️ Most je **neověřený, dokud neproběhne Fáze 0** (`npx tsx scripts/spike-uploadpost.ts`) — hlavně podpora carouselu a zpoždění metrik. Nezapínej ho platícímu zákazníkovi před tím.
+
+> **Když je účet propojený:** v okně publikace svítí **⚡ Publikovat hned** — zveřejní image/carousel rovnou, bez otevírání Instagramu.
 
 > **Když je účet propojený** (viz `docs/INSTAGRAM_SETUP_GUIDE.md`): v okně publikace navíc svítí **⚡ Publikovat hned** — zveřejní image/carousel **rovnou přes API, bez otevírání Instagramu** (do ~minuty). Pro reels použij dál ruční sdílení. Telefon — Publikovat hned vs. iOS Zkratka: `docs/IOS_SHORTCUT_HANDOFF.md`.
 

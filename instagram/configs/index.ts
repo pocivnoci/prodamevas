@@ -225,6 +225,16 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // Hands-free publishing — opt-in, default OFF so arming stays a human step
         // unless a tenant deliberately turns it on (and only fires with a live connection).
         autoPublish: config.autoPublish ?? false,
+        // Which connect flow Settings OFFERS. Clamped, not defaulted-through: an
+        // unknown value must never reach getChannelAdapter as a transport. The env
+        // default lets the whole fleet be flipped to the bridge without a migration;
+        // a live connection still publishes by ig_connections.transport, not this.
+        publishTransport:
+            config.publishTransport === "uploadpost" || config.publishTransport === "meta"
+                ? config.publishTransport
+                : process.env.UPLOADPOST_DEFAULT_TRANSPORT === "uploadpost"
+                    ? "uploadpost"
+                    : "meta",
         // Idea-bank auto-replenishment — default ON (inert bank rows, free, bounded);
         // false is an explicit per-client opt-out (lib/agents/idea-replenish.ts).
         autoReplenishIdeas: config.autoReplenishIdeas ?? true,

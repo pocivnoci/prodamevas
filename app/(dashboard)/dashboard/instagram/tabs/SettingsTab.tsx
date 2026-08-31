@@ -7,7 +7,7 @@ import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient,
 import { syncConfigProductsToDb } from "@/app/actions/product-actions"
 import { CatalogSection } from "./products/CatalogSection"
 import { generateCategoryPrompt } from "@/app/actions/content-plan-actions"
-import { getConnectionStatus, disconnectInstagram, type ConnectionStatus } from "@/app/actions/ig-connection-actions"
+import { getConnectionStatus, disconnectInstagram, startUploadPostConnect, syncUploadPostConnection, type ConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { SubscriptionSection } from "./SubscriptionSection"
 import { BillingSection } from "./BillingSection"
 import { ConsultationSection } from "./ConsultationSection"
@@ -1621,6 +1621,7 @@ function InstagramConnectionSection({ projectId }: { projectId: string }) {
     const [status, setStatus] = useState<ConnectionStatus | null>(null)
     const [loading, setLoading] = useState(true)
     const [disconnecting, setDisconnecting] = useState(false)
+    const [connecting, setConnecting] = useState(false)
     // OAuth callback redirects back with ?ig=connected|denied|error — show a banner.
     const [flash, setFlash] = useState<string | null>(null)
 
@@ -1643,6 +1644,47 @@ function InstagramConnectionSection({ projectId }: { projectId: string }) {
             else if (ig === "error") setFlash("Připojení se nezdařilo, zkus to znovu")
         }
     }, [load])
+
+    const isBridge = status?.transport === "uploadpost"
+
+    /**
+     * The bridge authorizes on upload-post's own hosted page, so there is no redirect
+     * back into the app to hook. Reconcile when the tab regains focus instead — that
+     * is the moment the tenant has finished over there and come back.
+     */
+    useEffect(() => {
+        if (!isBridge) return
+        const onFocus = async () => {
+            const res = await syncUploadPostConnection(projectId)
+            if (res.connected) {
+                setFlash("Instagram úspěšně připojen")
+                await load()
+            }
+        }
+        window.addEventListener("focus", onFocus)
+        return () => window.removeEventListener("focus", onFocus)
+    }, [isBridge, projectId, load])
+
+    const handleBridgeConnect = async () => {
+        setConnecting(true)
+        const res = await startUploadPostConnect(projectId)
+        setConnecting(false)
+        if (!res.success || !res.url) {
+            setFlash(res.error || "Nepodařilo se otevřít propojení, zkus to znovu")
+            return
+        }
+        // New tab, not a redirect: the tenant keeps Chrlit open, and coming back here
+        // is what triggers the focus reconcile above.
+        window.open(res.url, "_blank", "noopener,noreferrer")
+    }
+
+    const handleVerify = async () => {
+        setConnecting(true)
+        const res = await syncUploadPostConnection(projectId)
+        setConnecting(false)
+        setFlash(res.connected ? "Instagram úspěšně připojen" : "Připojení zatím nevidím — dokonči ho v otevřeném okně")
+        await load()
+    }
 
     const handleDisconnect = async () => {
         setDisconnecting(true)
@@ -1668,7 +1710,9 @@ function InstagramConnectionSection({ projectId }: { projectId: string }) {
                             Připojeno {status.username ? `· @${status.username}` : ""}
                         </p>
                         <p className="text-[9px] text-white/30 mt-0.5">
-                            Token platí do {expiry || "—"} · obnovuje se automaticky
+                            {isBridge
+                                ? "Propojení nevyprchává · publikování i metriky běží automaticky"
+                                : `Token platí do ${expiry || "—"} · obnovuje se automaticky`}
                         </p>
                     </div>
                     <button
@@ -1691,17 +1735,43 @@ function InstagramConnectionSection({ projectId }: { projectId: string }) {
                                 : "Instagram propojení zatím není v této instalaci nakonfigurováno"}
                         </p>
                     </div>
-                    <a
-                        href={status?.configured ? `/api/ig-connect/start?slug=${encodeURIComponent(projectId)}` : undefined}
-                        aria-disabled={!status?.configured}
-                        className={`px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all border whitespace-nowrap ${
-                            status?.configured
-                                ? "bg-pink-500/10 text-pink-400 hover:bg-pink-500/20 border-pink-500/20"
-                                : "bg-white/5 text-white/20 border-white/5 pointer-events-none"
-                        }`}
-                    >
-                        <span className="inline-flex items-center gap-1.5"><Camera className="w-3.5 h-3.5 shrink-0" />Připojit</span>
-                    </a>
+                    {isBridge ? (
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleVerify}
+                                disabled={!status?.configured || connecting}
+                                className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm text-white/40 hover:text-white/70 hover:bg-white/5 transition-all border border-white/5 whitespace-nowrap disabled:opacity-40"
+                            >
+                                Ověřit
+                            </button>
+                            <button
+                                onClick={handleBridgeConnect}
+                                disabled={!status?.configured || connecting}
+                                className={`px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all border whitespace-nowrap ${
+                                    status?.configured
+                                        ? "bg-pink-500/10 text-pink-400 hover:bg-pink-500/20 border-pink-500/20"
+                                        : "bg-white/5 text-white/20 border-white/5 pointer-events-none"
+                                }`}
+                            >
+                                <span className="inline-flex items-center gap-1.5">
+                                    <Camera className="w-3.5 h-3.5 shrink-0" />
+                                    {connecting ? "Otevírám…" : "Připojit"}
+                                </span>
+                            </button>
+                        </div>
+                    ) : (
+                        <a
+                            href={status?.configured ? `/api/ig-connect/start?slug=${encodeURIComponent(projectId)}` : undefined}
+                            aria-disabled={!status?.configured}
+                            className={`px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all border whitespace-nowrap ${
+                                status?.configured
+                                    ? "bg-pink-500/10 text-pink-400 hover:bg-pink-500/20 border-pink-500/20"
+                                    : "bg-white/5 text-white/20 border-white/5 pointer-events-none"
+                            }`}
+                        >
+                            <span className="inline-flex items-center gap-1.5"><Camera className="w-3.5 h-3.5 shrink-0" />Připojit</span>
+                        </a>
+                    )}
                 </div>
             )}
         </SectionCard>

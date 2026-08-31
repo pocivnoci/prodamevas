@@ -155,6 +155,7 @@ export default function PrivacyPage() {
                             <li><strong className="text-white/80">Přístupový token:</strong> uchováváme jej v šifrované podobě (AES-256-GCM) a používáme výhradně pro výše uvedené účely</li>
                         </ul>
                         <p className="mt-3">Tyto údaje nesdílíme s dalšími třetími stranami nad rámec uvedených zpracovatelů a nepoužíváme je k profilování ani cílené reklamě.</p>
+                        <p className="mt-3"><strong className="text-white/80">Propojení přes službu Upload-Post:</strong> u některých projektů probíhá propojení Instagramu přes službu Upload-Post LLC (USA), která pro nás zajišťuje publikování příspěvků a čtení jejich statistik. V takovém případě udělujete souhlas na jejich autorizační stránce a rozsah zpracovávaných údajů je stejný jako výše. Kterou cestu váš projekt používá, poznáte v Nastavení projektu; propojení lze i zde kdykoli zrušit a profil je pak u Upload-Post smazán.</p>
                         <p className="mt-3"><strong className="text-white/80">Odpojení a výmaz:</strong> propojení můžete kdykoli zrušit v Nastavení projektu. Tím dojde k odstranění uloženého tokenu. O výmaz dat získaných z Instagramu můžete rovněž požádat prostřednictvím <Link href="/api/data-deletion" className="text-white/80 underline">našeho data deletion endpointu</Link> nebo na e-mailu <a href={`mailto:${LEGAL.email}`} className="text-white/80 underline">{LEGAL.email}</a>.</p>
                     </Section>
 

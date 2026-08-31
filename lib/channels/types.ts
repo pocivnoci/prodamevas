@@ -16,6 +16,21 @@ import type { MediumType } from "@/lib/credits"
 
 export type Channel = "instagram" | "linkedin" | "facebook"
 
+/**
+ * HOW we reach a channel — orthogonal to WHICH channel it is.
+ *
+ * `meta`       — our own Meta app, Graph API direct. Publishing to a TENANT account
+ *                needs the `instagram_business_content_publish` scope (2nd App Review).
+ * `uploadpost` — upload-post.com, which already owns an approved Meta app. The bridge
+ *                that lets tenant profiles publish before our own review clears.
+ *
+ * Never guessed at runtime. A connection row records the transport it was created
+ * with and publishing reads it back — a guessed transport would mean handing the
+ * Graph API something that is not a Graph token. Same reasoning as "chybějící
+ * identifikátor nikdy nedefaultuj na skutečného tenanta" in CLAUDE.md.
+ */
+export type Transport = "meta" | "uploadpost"
+
 /** What a channel can be asked to publish. Deliberately a SUPERSET of the engine's
  *  MediumType — it also carries shapes other channels need (bare `video`, text-only
  *  posts) that the IG pipeline never produces. The guard below makes the subset
@@ -53,9 +68,20 @@ export interface FormattedContent {
 }
 
 export interface PublishResult {
-    /** The media object to treat as THE post — for a multi-object publish (story set)
-     *  this is the FIRST one: the natural anchor for the permalink and for metrics. */
-    externalId: string
+    /** The NATIVE platform id of the object to treat as THE post — for a multi-object
+     *  publish (story set) the FIRST one: the natural anchor for permalink and metrics.
+     *
+     *  Optional because not every transport knows the native id at publish time.
+     *  upload-post accepts the post and only reports `platform_post_id` once the
+     *  network has actually taken it. When absent, metrics-sync backfills it — the
+     *  same mechanism that already backfills handoff posts by caption match. */
+    externalId?: string
+    /** The TRANSPORT's own handle for this publish (upload-post: `request_id`).
+     *
+     *  Kept beside `externalId` rather than folded into it: the native id must stay
+     *  transport-independent, or metrics stop resolving for old posts the moment a
+     *  tenant switches transport. */
+    providerRef?: string
     permalink?: string
     /** Every media object created, in order. Only multi-object publishes set this. */
     externalIds?: string[]
@@ -86,25 +112,85 @@ export interface ChannelMetrics {
 
 /** Minimal shape of a stored connection (lib/connections / ig-connection). */
 export interface ChannelConnection {
+    /** The per-tenant credential. `meta`: the decrypted IG access token.
+     *  `uploadpost`: the upload-post profile username — the API key is global,
+     *  so the profile IS the per-tenant part of the address. */
     accessToken: string
+    /** `meta`: the IG user id. `uploadpost`: the connected IG handle. */
     externalUserId: string
+    /** Which adapter may act on this connection. Read from the DB, never inferred. */
+    transport: Transport
+}
+
+/** What a metrics read yields: the numbers, plus any identity the transport can
+ *  report alongside them.
+ *
+ *  `nativeId`/`permalink` exist so a post whose native id was unknown at publish
+ *  time gets backfilled from the SAME response that carried its metrics — one
+ *  round trip instead of two, which matters under upload-post's 100-per-5-minutes
+ *  live analytics limit. */
+export interface ChannelMetricsResult {
+    metrics: ChannelMetrics
+    nativeId?: string
+    permalink?: string
+}
+
+/** One post's numbers in a batch read, addressed by its native platform id. */
+export interface ChannelPostMetrics {
+    /** Native platform post id — the same value publish() returns as externalId. */
+    externalId: string
+    metrics: ChannelMetrics
+    permalink?: string
+    /** When the transport last refreshed these numbers from the platform, if it says. */
+    capturedAt?: string
 }
 
 export interface ChannelAdapter {
     channel: Channel
+    /** Which transport this implementation speaks. Registry key is `${channel}:${transport}`. */
+    transport: Transport
     constraints: ChannelConstraints
     /** Adapt a channel-agnostic draft into this channel's body+media. */
     formatDraft(draft: ContentDraft): FormattedContent
     /** Publish to the channel. May throw NotEnabledError until the channel is live. */
     publish(connection: ChannelConnection, content: FormattedContent): Promise<PublishResult>
-    /** Pull post metrics from the channel. */
-    fetchMetrics(connection: ChannelConnection, externalId: string): Promise<ChannelMetrics>
+    /** Pull ONE post's metrics, addressed by its native platform id. */
+    fetchMetrics(connection: ChannelConnection, externalId: string): Promise<ChannelMetricsResult>
+
+    /**
+     * Pull metrics for MANY posts in one round trip, when the transport offers it.
+     *
+     * Graph has no such edge — insights are per media — so `instagramAdapter` omits
+     * this and the caller falls back to `fetchMetrics` per post. upload-post has
+     * only the batch form, and using it turns a whole tenant's sync into a single
+     * request instead of one per post.
+     */
+    fetchMetricsBatch?(
+        connection: ChannelConnection,
+        opts?: { limit?: number; since?: string },
+    ): Promise<ChannelPostMetrics[]>
 }
 
-/** Thrown by adapters whose publish/metrics aren't enabled yet (e.g. awaiting App Review). */
+/** Thrown by adapters whose publish/metrics aren't enabled yet (e.g. awaiting App Review,
+ *  or a medium the transport has not been proven to handle). */
 export class ChannelNotEnabledError extends Error {
-    constructor(channel: Channel, what: string) {
-        super(`Channel '${channel}' ${what} not enabled yet.`)
+    constructor(channel: Channel, what: string, transport?: Transport) {
+        super(`Channel '${channel}'${transport ? ` via '${transport}'` : ""} ${what} not enabled yet.`)
         this.name = "ChannelNotEnabledError"
+    }
+}
+
+/**
+ * Thrown for a failure that retrying cannot fix: the tenant revoked the connection
+ * at the provider, the media was rejected as invalid, the account is ineligible.
+ *
+ * The publisher retries anything it does not recognise, which is the right default
+ * for network faults — but it means an adapter has to SAY when a retry is pointless,
+ * or a dead post burns MAX_ATTEMPTS ticks and reports a misleading error.
+ */
+export class ChannelPermanentError extends Error {
+    constructor(message: string) {
+        super(message)
+        this.name = "ChannelPermanentError"
     }
 }

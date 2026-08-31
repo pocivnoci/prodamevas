@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
 import { getConnection } from "@/instagram/ig-connection"
-import { instagramAdapter } from "@/lib/channels/instagram"
-import type { FormattedContent, MediaType } from "@/lib/channels/types"
+import { getChannelAdapter } from "@/lib/channels"
+import type { Channel, FormattedContent, MediaType } from "@/lib/channels/types"
 import { isMediumType } from "@/lib/credits"
 import { parsePostMedia } from "@/lib/media-urls"
 
@@ -56,7 +56,7 @@ export async function GET(req: Request) {
     // Due posts: approved + armed (status='scheduled') and their time has arrived.
     const { data: due, error } = await supabaseAdmin
         .from("ig_posts")
-        .select("id, client_id, caption, image_url, media_type, publish_attempts")
+        .select("id, client_id, caption, image_url, media_type, publish_attempts, channel")
         .eq("status", "scheduled")
         .lte("scheduled_for", nowIso())
         .order("scheduled_for", { ascending: true })
@@ -133,8 +133,17 @@ export async function GET(req: Request) {
                 mediaType,
             }
 
-            const result = await instagramAdapter.publish(
-                { accessToken: conn.accessToken, externalUserId: conn.igUserId },
+            // Which pipe carries this post is decided by the connection row, not here.
+            // A tenant on the upload-post bridge and a tenant on our own Meta app are
+            // the same code path right up to this line.
+            const adapter = getChannelAdapter((post.channel as Channel) || "instagram", conn.transport)
+
+            const result = await adapter.publish(
+                {
+                    accessToken: conn.accessToken,
+                    externalUserId: conn.igUserId,
+                    transport: conn.transport,
+                },
                 content,
             )
 
@@ -145,7 +154,12 @@ export async function GET(req: Request) {
             await supabaseAdmin.from("ig_posts").update({
                 status: "posted",
                 posted_at: nowIso(),
-                ig_media_id: result.externalId,
+                // `externalId` (native IG media id) can be absent on an async transport:
+                // upload-post accepts the post now and reports platform_post_id later.
+                // Only write it when we actually have it — never null out a real id —
+                // and let metrics-sync backfill the rest.
+                ...(result.externalId ? { ig_media_id: result.externalId } : {}),
+                ...(result.providerRef ? { publish_request_id: result.providerRef } : {}),
                 permalink: result.permalink || null,
                 publish_attempts: attempts,
                 publish_error: result.partial
@@ -159,9 +173,14 @@ export async function GET(req: Request) {
             published++
         } catch (err: any) {
             const msg = err?.message || String(err)
-            // ChannelNotEnabledError = unsupported media (e.g. reel) — never retry.
-            if (err?.name === "ChannelNotEnabledError") await failPermanent(msg)
-            else await failTransient(msg)
+            // ChannelNotEnabledError = unsupported media (e.g. reel).
+            // ChannelPermanentError = revoked profile, rejected media, missing config.
+            // Both are pointless to retry; anything else gets the backoff.
+            if (err?.name === "ChannelNotEnabledError" || err?.name === "ChannelPermanentError") {
+                await failPermanent(msg)
+            } else {
+                await failTransient(msg)
+            }
         }
     }
 
