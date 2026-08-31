@@ -68,6 +68,11 @@ Top-down estimate of **Instagram-relevant SMBs** (B2C retail/e-shop/gastro/servi
 
 **The fix (mandatory):** today every post costs 1 credit regardless of media, which sells **reels at ~40% of cost** and makes reel-heavy Růst/Dominance customers net-negative (full analysis in the unit-econ doc). Weight credits by cost and **make reels the tier line** (reels are both the biggest cost *and* the top upgrade reason):
 
+> ⚠️ **Ceny v tomhle dokumentu jsou z éry v4 a už neplatí.** Aktuální ceník je
+> v6 (Start 999 · Růst 2 999 · Dominance 4 999 · Impérium 8 999 Kč) —
+> `supabase/migrations/20260901_pricing_v6.sql` a `lib/pricing.ts`. Marže níž
+> odpovídají starým cenám; přepočet je samostatná práce.
+
 | Tier | Price/mo | Credits | Media | Reels | Extras |
 |---|---|---|---|---|---|
 | **Start** | 490 Kč | 20 | image + carousel | ❌ | content ideas |

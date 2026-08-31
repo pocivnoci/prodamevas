@@ -14,6 +14,11 @@
 | Reel tier | `fast` (default) | `lite`/`premium` swing reel cost 2–3× (see §6). |
 | Post mix | stated per scenario | The single biggest driver of margin. |
 
+> ⚠️ **Ceny v tomhle dokumentu jsou z éry v4 a už neplatí.** Aktuální ceník je
+> v6 (Start 999 · Růst 2 999 · Dominance 4 999 · Impérium 8 999 Kč) —
+> `supabase/migrations/20260901_pricing_v6.sql` a `lib/pricing.ts`. Marže níž
+> odpovídají starým cenám; přepočet je samostatná práce.
+
 Plan prices: **Start 490 Kč ≈ $21.3 · Růst 990 Kč ≈ $43.0 · Dominance 1990 Kč ≈ $86.5.**
 
 ---

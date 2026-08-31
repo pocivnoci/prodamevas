@@ -9,7 +9,7 @@
  *   BOOKING_RESCHEDULED přesunutý          → přepsat čas (podklad zůstává)
  *   BOOKING_CANCELLED   zrušený            → vrátit nárok zpět do fronty
  *
- * ⚠️ **Peníze tudy nikdy nechodí.** 990 Kč inkasujeme vlastní platební cestou,
+ * ⚠️ **Peníze tudy nikdy nechodí.** 999 Kč inkasujeme vlastní platební cestou,
  *    protože jen tak vznikne daňový doklad ve Fakturoidu. Cal.com o ceně nemusí
  *    vědět vůbec — dostane rezervaci až po zaplacení nebo z nároku.
  *

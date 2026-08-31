@@ -101,11 +101,18 @@ export function normalizeTermMonths(raw: unknown): TermMonths {
 /**
  * Cena celého období v haléřích.
  *
- * Zaokrouhluje se **dolů na celých 10 Kč** — skutečná sleva je proto vždy
- * ≥ inzerovaná, nikdy naopak. Celočíselná aritmetika až do jediného dělení,
- * aby 990 × 2,85 nevyšlo jako 2821,4999999.
+ * Delší období se zaokrouhluje **dolů na celých 10 Kč** — skutečná sleva je proto
+ * vždy ≥ inzerovaná, nikdy naopak. Celočíselná aritmetika až do jediného dělení,
+ * aby 999 × 2,85 nevyšlo jako 2847,1499999.
+ *
+ * **Měsíc se ale nezaokrouhluje vůbec.** Není z čeho: žádná sleva se nepočítá,
+ * takže by zaokrouhlení jen umazalo konec ceníkové ceny. Dokud ceny končily nulou,
+ * nebylo to vidět; ceník v6 (999 · 2 999 · 4 999 · 8 999) by tím tiše účtoval
+ * 990 · 2 990 · 4 990 · 8 990 — devět korun měsíčně pod tím, co je na kartě,
+ * na dokladu i v databázi. Měsíční cena je vstup, ne výsledek výpočtu.
  */
 export function termPrice(monthlyHaleru: number, months: TermMonths): number {
+    if (months === 1) return monthlyHaleru
     const { payMonthsX100 } = getTerm(months)
     return Math.floor((monthlyHaleru * payMonthsX100) / 100_000) * 1000
 }
@@ -258,18 +265,18 @@ export interface PricingPlan {
 }
 
 /**
- * Statická kopie ceníku v5 pro případ, že se landingu nepodaří přečíst DB.
+ * Statická kopie ceníku v6 pro případ, že se landingu nepodaří přečíst DB.
  * Prázdná sekce s cenami je na marketingové stránce horší než vteřinu stará cena.
  *
  * Aserce v `npm run guard` porovnává tahle čísla s migrací
- * `20260716_pricing_v5.sql` — dvě pravdy o ceně jsou tu jen do té chvíle, než se
+ * `20260901_pricing_v6.sql` — dvě pravdy o ceně jsou tu jen do té chvíle, než se
  * rozejdou, a tohle je ta chvíle, kdy to spadne v testu, ne u zákazníka.
  */
 export const FALLBACK_PLANS: readonly PricingPlan[] = [
-    { id: "chrlit_start", name: "Start", monthlyHaleru: 99000, creditsPerMonth: 20, allowsReels: false },
-    { id: "chrlit_rust", name: "Růst", monthlyHaleru: 199000, creditsPerMonth: 45, allowsReels: true },
-    { id: "chrlit_dominance", name: "Dominance", monthlyHaleru: 399000, creditsPerMonth: 100, allowsReels: true },
-    { id: "chrlit_imperium", name: "Impérium", monthlyHaleru: 799000, creditsPerMonth: 220, allowsReels: true },
+    { id: "chrlit_start", name: "Start", monthlyHaleru: 99900, creditsPerMonth: 20, allowsReels: false },
+    { id: "chrlit_rust", name: "Růst", monthlyHaleru: 299900, creditsPerMonth: 45, allowsReels: true },
+    { id: "chrlit_dominance", name: "Dominance", monthlyHaleru: 499900, creditsPerMonth: 100, allowsReels: true },
+    { id: "chrlit_imperium", name: "Impérium", monthlyHaleru: 899900, creditsPerMonth: 220, allowsReels: true },
 ] as const
 
 /**
@@ -279,7 +286,7 @@ export const FALLBACK_PLANS: readonly PricingPlan[] = [
  */
 export const LOWEST_MONTHLY_HALERU = monthlyEquivalent(FALLBACK_PLANS[0].monthlyHaleru, DEFAULT_TERM_MONTHS)
 
-/** „od 825 Kč měsíčně při roční platbě" */
+/** „od 833 Kč měsíčně při roční platbě" */
 export function lowestPriceClaim(): string {
     return `od ${formatCzk(LOWEST_MONTHLY_HALERU)} měsíčně při roční platbě`
 }
@@ -300,7 +307,7 @@ export function lowestPriceClaim(): string {
 export const CONSULTATION = {
     id: "nastaveni-znacky",
     name: "Nastavení značky na míru",
-    priceHaleru: 99000,
+    priceHaleru: 99900,
     durationMinutes: 30,
     /**
      * Období, ke kterým se dodává v ceně. Delší závazek tím dostane důvod navíc,
@@ -323,6 +330,12 @@ export function consultationIncluded(termMonths: number): boolean {
  * tarifu, takže dokupování nikdy nevyjde líp než přejít o tarif výš. Sleva na
  * velkém balíčku by tenhle žebřík obrátila a lidi by zůstávali na Startu
  * a dokupovali — s horší marží pro nás i horší cenou pro ně.
+ *
+ * ⚠️ Ceník v6 ten žebřík porušil, a ne tudy: Růst vyšel na 66,6 Kč/kredit (2 999
+ * za 45), zatímco Start dává 50,0 a dokoupení stojí 49. Zákazníkovi na Startu se
+ * teď vyplatí dokupovat místo přechodu na Růst. Narovnat to jde jen kredity
+ * (Růst by potřeboval ~70), což je cenové rozhodnutí majitele, ne oprava kódu —
+ * proto to tu stojí napsané, dokud nepadne.
  *
  * Jediná pravda o ceně je `features.extra_credit_price` v tarifu; tohle je
  * záloha pro případ, že tarif hodnotu nenese (legacy řádky).

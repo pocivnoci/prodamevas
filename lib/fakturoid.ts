@@ -9,7 +9,7 @@
  * bere se vždy znovu. Cache je per-instance (Fluid Compute recykluje instance,
  * takže se tím ušetří většina volání), ale správnost na ní nestojí.
  *
- * ⚠️ Částky: `payments.amount` je v HALÉŘÍCH (99000 = 990 Kč), Fakturoid chce
+ * ⚠️ Částky: `payments.amount` je v HALÉŘÍCH (99900 = 999 Kč), Fakturoid chce
  * korunu jako jednotku. Převod dělá `haleruToCzk()` — nikdy neposílej surové
  * `amount`, jinak vystavíš fakturu na stonásobek.
  *
