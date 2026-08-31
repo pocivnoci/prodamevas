@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
-import { getWeekPosts, approvePost } from "@/app/actions/calendar-actions"
+import { useEffect, useState, useCallback, useRef } from "react"
+import { getWeekPosts, approvePost, confirmPlanAction, movePost } from "@/app/actions/calendar-actions"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
-import { CalendarDays, CircleCheck, Clock, CloudSun, FileText, Send, Wand, type LucideIcon } from "lucide-react"
+import { CalendarDays, CircleCheck, Clock, CloudSun, FileText, Send, TriangleAlert, Wand, type LucideIcon } from "lucide-react"
 
 interface CalendarPost {
     id: string
@@ -14,6 +14,35 @@ interface CalendarPost {
     time_slot: string | null
     created_at: string
     post_type?: { name: string; display_name: string; emoji: string }
+}
+
+/** Barva podle stavu. `scheduled` je růžová jako zbytek publikační cesty ve studiu —
+ *  je to jediný stav, který znamená „tohle opravdu vyjde". */
+const STATUS_COLORS: Record<string, string> = {
+    draft: "border-amber-500/30 bg-amber-500/5",
+    ready: "border-emerald-500/30 bg-emerald-500/5",
+    scheduled: "border-pink-500/40 bg-pink-500/10",
+    posting: "border-pink-500/60 bg-pink-500/15",
+    posted: "border-blue-500/30 bg-blue-500/5",
+    failed: "border-red-500/40 bg-red-500/10",
+}
+
+const STATUS_ICON: Record<string, LucideIcon> = {
+    draft: FileText,
+    ready: CircleCheck,
+    scheduled: Clock,
+    posting: Send,
+    posted: Send,
+    failed: TriangleAlert,
+}
+
+const STATUS_LABEL: Record<string, string> = {
+    draft: "Koncept",
+    ready: "Čeká na potvrzení",
+    scheduled: "Naplánováno",
+    posting: "Publikuje se",
+    posted: "Publikováno",
+    failed: "Selhalo",
 }
 
 const DAY_NAMES = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"]
@@ -38,6 +67,11 @@ export function CalendarTab({ projectId }: { projectId: string }) {
     const [posts, setPosts] = useState<CalendarPost[]>([])
     const [loading, setLoading] = useState(true)
     const [selectedPost, setSelectedPost] = useState<CalendarPost | null>(null)
+    const [confirming, setConfirming] = useState(false)
+    const [moving, setMoving] = useState(false)
+    const [notice, setNotice] = useState<string | null>(null)
+    const moveDateRef = useRef<string>("")
+    const moveTimeRef = useRef<string>("")
 
     const weekStartStr = formatDate(weekStart)
 
@@ -74,6 +108,40 @@ export function CalendarTab({ projectId }: { projectId: string }) {
         setSelectedPost(null)
     }
 
+    // Potvrzení plánu: `ready` příspěvky s termínem v tomhle týdnu se naostří.
+    // Do téhle chvíle byly termíny jen návrh a publisher si jich nevšímal.
+    const handleConfirmWeek = async () => {
+        setConfirming(true)
+        const end = new Date(weekStart)
+        end.setDate(end.getDate() + 6)
+        const res = await confirmPlanAction(projectId, weekStartStr, formatDate(end))
+        setConfirming(false)
+
+        if (!res.success) {
+            setNotice(res.error || "Potvrzení se nezdařilo")
+            return
+        }
+        const parts = [`Naplánováno: ${res.confirmed ?? 0}`]
+        if (res.shifted) parts.push(`${res.shifted} s propadlým termínem posunuto dopředu`)
+        if (res.skipped) parts.push(`${res.skipped} přeskočeno`)
+        setNotice(parts.join(" · "))
+        await loadPosts()
+    }
+
+    // Posun termínu. `movePost` v akcích existoval od začátku, ale nic ho nevolalo —
+    // takže termín nešlo změnit, jen smazat a vygenerovat znovu.
+    const handleMove = async (postId: string, newDate: string, newTime: string) => {
+        setMoving(true)
+        const res = await movePost(postId, newDate, newTime)
+        setMoving(false)
+        if (res.success) {
+            setSelectedPost(null)
+            await loadPosts()
+        } else {
+            setNotice("Posun se nezdařil")
+        }
+    }
+
     const prevWeek = () => {
         const d = new Date(weekStart)
         d.setDate(d.getDate() - 7)
@@ -101,6 +169,15 @@ export function CalendarTab({ projectId }: { projectId: string }) {
     const weekEndDate = new Date(weekStart)
     weekEndDate.setDate(weekEndDate.getDate() + 6)
 
+    // Přehled týdne. `ready` s termínem = návrh čekající na potvrzení; propadlý
+    // termín znamená, že ho nikdo nepotvrdil včas a agent ho schválně nechal být.
+    const nowMs = Date.now()
+    const pending = posts.filter(p => p.status === "ready" && p.scheduled_for)
+    const pendingCount = pending.length
+    const overdueCount = pending.filter(p => new Date(p.scheduled_for as string).getTime() <= nowMs).length
+    const scheduledCount = posts.filter(p => p.status === "scheduled").length
+    const failedCount = posts.filter(p => p.status === "failed").length
+
     return (
         <div className="space-y-6">
             {/* Header — na telefonu pod sebou, ať přepínač týdne dostane plnou šířku.
@@ -127,12 +204,34 @@ export function CalendarTab({ projectId }: { projectId: string }) {
             </div>
 
             {/* Plan button — opens the campaign flow pre-set to one week */}
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <button
                     onClick={handlePlanWeek}
                     className="inline-flex items-center gap-1.5 justify-center w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-emerald-600/20 to-emerald-500/10 border border-emerald-500/30 rounded-sm text-emerald-400 text-xs font-bold uppercase tracking-widest hover:from-emerald-600/30 hover:to-emerald-500/20 transition-all shadow-lg shadow-emerald-900/20 cursor-pointer"
                 ><Wand className="w-3.5 h-3.5 shrink-0" />Naplánovat týden →</button>
+
+                {/* Bez tohohle kroku byl termín v kalendáři jen návrh: publisher bere
+                    výhradně `scheduled`, takže `ready` příspěvek termín prošvihl. */}
+                {pendingCount > 0 && (
+                    <button
+                        onClick={handleConfirmWeek}
+                        disabled={confirming}
+                        className="inline-flex items-center gap-1.5 justify-center w-full sm:w-auto px-6 py-3 bg-pink-500/10 border border-pink-500/30 rounded-sm text-pink-400 text-xs font-bold uppercase tracking-widest hover:bg-pink-500/20 transition-all cursor-pointer disabled:opacity-50"
+                    ><Clock className="w-3.5 h-3.5 shrink-0" />{confirming ? "Potvrzuji…" : `Potvrdit plán (${pendingCount})`}</button>
+                )}
             </div>
+
+            {/* Stav týdne — kolik z něj doopravdy vyjde */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-bold uppercase tracking-widest">
+                <span className="text-emerald-400/70">{pendingCount} čeká na potvrzení</span>
+                <span className="text-pink-400/70">{scheduledCount} naplánováno</span>
+                {overdueCount > 0 && <span className="text-amber-400/80">{overdueCount} s propadlým termínem</span>}
+                {failedCount > 0 && <span className="text-red-400/80">{failedCount} selhalo</span>}
+            </div>
+
+            {notice && (
+                <p className="text-[10px] text-white/60 bg-white/5 border border-white/10 rounded-sm px-3 py-2">{notice}</p>
+            )}
 
             {/* Calendar Grid */}
             {loading ? (
@@ -162,9 +261,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                         key={post.id}
                                         onClick={() => setSelectedPost(post)}
                                         className={`w-full flex items-center gap-3 p-2 border rounded-sm text-left transition-colors active:bg-white/5 cursor-pointer ${
-                                            post.status === "ready" ? "border-emerald-500/30 bg-emerald-500/5"
-                                                : post.status === "posted" ? "border-blue-500/30 bg-blue-500/5"
-                                                    : "border-amber-500/30 bg-amber-500/5"
+                                            STATUS_COLORS[post.status] || "border-white/10"
                                         }`}
                                     >
                                         {post.image_url ? (
@@ -231,16 +328,11 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                             {/* Posts */}
                             <div className="space-y-2">
                                 {day.dayPosts.map(post => {
-                                    const statusColors: Record<string, string> = {
-                                        draft: "border-amber-500/30 bg-amber-500/5",
-                                        ready: "border-emerald-500/30 bg-emerald-500/5",
-                                        posted: "border-blue-500/30 bg-blue-500/5",
-                                    }
-                                    const StatusIcon: Record<string, LucideIcon> = {
-                                        draft: FileText,
-                                        ready: CircleCheck,
-                                        posted: Send,
-                                    }
+                                    // Naostřený příspěvek MUSÍ vypadat jinak než návrh — jinak
+                                    // se nepozná, co doopravdy vyjde. Dřív scheduled/posting/
+                                    // failed padaly do žluté jako draft.
+                                    const statusColors = STATUS_COLORS
+                                    const StatusIcon = STATUS_ICON
 
                                     return (
                                         <div
@@ -297,14 +389,14 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                         <div className="p-6 space-y-4">
                             {/* Status + Type */}
                             <div className="flex items-center gap-2">
-                                <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm border ${
-                                    selectedPost.status === "ready"
-                                        ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10"
-                                        : selectedPost.status === "posted"
-                                            ? "text-blue-400 border-blue-500/30 bg-blue-500/10"
-                                            : "text-amber-400 border-amber-500/30 bg-amber-500/10"
+                                <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm border ${STATUS_COLORS[selectedPost.status] || "border-white/10"} ${
+                                    selectedPost.status === "ready" ? "text-emerald-400"
+                                        : selectedPost.status === "posted" ? "text-blue-400"
+                                        : selectedPost.status === "scheduled" || selectedPost.status === "posting" ? "text-pink-400"
+                                        : selectedPost.status === "failed" ? "text-red-400"
+                                        : "text-amber-400"
                                 }`}>
-                                    {selectedPost.status}
+                                    {STATUS_LABEL[selectedPost.status] || selectedPost.status}
                                 </span>
                                 {selectedPost.post_type && (
                                     <span className="text-[9px] text-white/40 font-bold uppercase tracking-widest">
@@ -320,6 +412,40 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                             <p className="text-white/80 text-sm leading-relaxed whitespace-pre-line">
                                 {selectedPost.caption}
                             </p>
+
+                            {/* Posun termínu. Datum a čas místo přetahování: kalendář má
+                                vlastní mobilní rozvržení a drag&drop se na dotyku ovládá
+                                mizerně — tohle funguje všude a čte se to i hlasovým odečtem. */}
+                            {selectedPost.status !== "posted" && selectedPost.scheduled_for && (
+                                <div className="pt-4 border-t border-white/10 space-y-2">
+                                    <label className="block text-[9px] font-bold uppercase tracking-widest text-white/40">Přesunout termín</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="date"
+                                            defaultValue={selectedPost.scheduled_for.slice(0, 10)}
+                                            onChange={e => { moveDateRef.current = e.target.value }}
+                                            className="flex-1 min-h-[44px] px-3 bg-white/5 border border-white/10 rounded-sm text-white/80 text-xs"
+                                        />
+                                        <input
+                                            type="time"
+                                            defaultValue={selectedPost.time_slot || "09:00"}
+                                            onChange={e => { moveTimeRef.current = e.target.value }}
+                                            className="w-32 min-h-[44px] px-3 bg-white/5 border border-white/10 rounded-sm text-white/80 text-xs"
+                                        />
+                                        <button
+                                            onClick={() => handleMove(
+                                                selectedPost.id,
+                                                moveDateRef.current || (selectedPost.scheduled_for as string).slice(0, 10),
+                                                moveTimeRef.current || selectedPost.time_slot || "09:00",
+                                            )}
+                                            disabled={moving}
+                                            className="min-h-[44px] px-4 bg-white/5 border border-white/10 rounded-sm text-white/60 text-[10px] font-bold uppercase tracking-widest hover:bg-white/10 hover:text-white transition-all cursor-pointer disabled:opacity-50"
+                                        >
+                                            {moving ? "…" : "Posunout"}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Actions */}
                             <div className="flex gap-2 pt-4 border-t border-white/10">
