@@ -566,6 +566,16 @@ export async function propagateMetricsToSources(explicitClientId?: string): Prom
     const typeMetrics: Record<string, number[]> = {}
 
     for (const post of posts) {
+        // Váhy: uložení > komentář > lajk, protože stoupá cena, kterou za ně divák
+        // zaplatí pozorností.
+        //
+        // Zhlédnutí a dosah tu SCHVÁLNĚ nejsou, i když je od 2026-08-31 ukládáme.
+        // Jsou o řád jinde (u tohohle klienta 2264 zhlédnutí proti 90 lajkům), takže
+        // přičtené by skóre přebily a udělaly by z něj měřítko velikosti publika
+        // místo měřítka kvality obsahu — a navíc by rozbily srovnatelnost se všemi
+        // dřív spočítanými skóre. Kdyby mělo dávat smysl měřit poměr (engagement na
+        // zhlédnutí), je to jiný vzorec a chce vlastní rozhodnutí + přepočet historie,
+        // ne tichý přírůstek sem. Analyzátor zhlédnutí dostává zvlášť (fireMetricsLearning).
         const engagement = (post.likes || 0) + (post.comments || 0) * 3 + (post.saves || 0) * 5
         if (post.idea_id) {
             if (!ideaMetrics[post.idea_id]) ideaMetrics[post.idea_id] = []

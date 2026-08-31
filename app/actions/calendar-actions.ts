@@ -89,14 +89,21 @@ export async function movePost(
         // Prague-local wall time → UTC instant (same helper as scheduling), so a
         // moved post fires at the intended local time, not +2h.
         scheduled_for: toScheduledFor(newDate, newTime || "12:00"),
+        // Přesun je nový pokus v novém čase — stará chyba a spotřebované pokusy
+        // by jinak visely na příspěvku a publisher by ho po jednom selhání vzdal.
+        publish_error: null,
+        publish_attempts: 0,
         updated_at: new Date().toISOString(),
     }
     if (newTime) update.time_slot = newTime
 
+    // Publikovaný příspěvek nemá termín co posouvat a `posting` je zrovna v letu —
+    // přepsat mu čas by znamenalo závod s publisherem.
     const { error } = await supabaseAdmin
         .from("ig_posts")
         .update(update)
         .eq("id", postId)
+        .not("status", "in", '("posted","posting")')
 
     return { success: !error }
 }
@@ -222,6 +229,119 @@ export async function getPostPublishStatus(
 }
 
 // ─── Schedule a single post (from the generate result or posts list) ─────────
+
+/**
+ * Potvrzení plánu — překlopí NAVRŽENÉ termíny na naostřené.
+ * =========================================================
+ * Generátor razítkuje `scheduled_for` už při tvorbě příspěvku, ale se stavem
+ * `ready`. Publisher bere jen `scheduled`, takže návrh sám o sobě nic nezveřejní —
+ * a přesně proto kalendář dlouho vypadal jako plán, aniž by plánem byl.
+ *
+ * Tohle je ten chybějící krok: člověk se na týden podívá a jedním kliknutím ho
+ * potvrdí. Termíny se přitom NEPŘEPOČÍTÁVAJÍ — až na propadlé, viz níže.
+ */
+export async function confirmPlanAction(
+    projectSlug: string,
+    fromDate: string, // "2026-09-01" včetně
+    toDate: string,   // "2026-09-07" včetně
+): Promise<{ success: boolean; confirmed?: number; shifted?: number; skipped?: number; error?: string }> {
+    try {
+        const { clientId } = await requireProjectAccess(projectSlug)
+
+        const { getConnectionMeta } = await import("@/instagram/ig-connection")
+        const conn = await getConnectionMeta(clientId)
+        if (!conn || conn.status !== "connected") {
+            return { success: false, error: "Nejdřív připojte Instagram účet v Nastavení." }
+        }
+
+        // Konec dne u `toDate` — jinak by poslední den v rozsahu vypadl.
+        const fromIso = new Date(`${fromDate}T00:00:00.000Z`).toISOString()
+        const toIso = new Date(`${toDate}T23:59:59.999Z`).toISOString()
+
+        // Reels a stories most publikovat neumí; potvrdit je by znamenalo naostřit
+        // něco, co skončí jako `failed`. Null větev je tu schválně: media_type přišlo
+        // migrací bez backfillu, takže bez ní vypadnou všechny starší řádky.
+        const { data: proposed, error: readErr } = await supabaseAdmin
+            .from("ig_posts")
+            .select("id, scheduled_for, time_slot")
+            .eq("client_id", clientId)
+            .eq("status", "ready")
+            .not("image_url", "is", null)
+            .not("scheduled_for", "is", null)
+            .gte("scheduled_for", fromIso)
+            .lte("scheduled_for", toIso)
+            .or("media_type.is.null,and(media_type.neq.reel,media_type.neq.story)")
+            .order("scheduled_for", { ascending: true })
+        if (readErr) return { success: false, error: readErr.message }
+        if (!proposed || proposed.length === 0) {
+            return { success: true, confirmed: 0, shifted: 0, skipped: 0 }
+        }
+
+        // Propadlé termíny: příspěvek k pátečnímu provozu nemá vyjít zpětně v úterý.
+        // Přeplánujeme je dopředu — a je to v pořádku, protože si o to člověk právě
+        // řekl kliknutím. Tiché přepočítávání dělal agent a právě to bylo špatně.
+        const now = Date.now()
+        const overdue = proposed.filter(p => new Date(p.scheduled_for as string).getTime() <= now)
+        const onTime = proposed.filter(p => new Date(p.scheduled_for as string).getTime() > now)
+
+        let shiftSlots: { date: string; time: string }[] = []
+        if (overdue.length > 0) {
+            const { loadConfig } = await import("@/instagram/configs")
+            const { distributeSchedule } = await import("@/lib/schedule-planner")
+            let perWeek = 4
+            let times: string[] | undefined
+            try {
+                const config = await loadConfig(projectSlug)
+                perWeek = Number(config?.postsPerWeek) || 4
+                times = Array.isArray(config?.postingTimes) && config.postingTimes.length > 0
+                    ? (config.postingTimes as string[]) : undefined
+            } catch { /* výchozí kadence stačí, tohle nesmí potvrzení shodit */ }
+            shiftSlots = distributeSchedule(overdue.length, { postsPerWeek: perWeek, timeSlots: times })
+        }
+
+        const { toScheduledFor } = await import("@/lib/schedule-planner")
+        let confirmed = 0
+        let shifted = 0
+        let skipped = 0
+
+        const arm = async (postId: string, scheduledFor: string, timeSlot: string | null) => {
+            // Podmíněný flip: souběžnou ruční změnu ani smazání nesmíme přepsat.
+            const { data } = await supabaseAdmin
+                .from("ig_posts")
+                .update({
+                    status: "scheduled",
+                    scheduled_for: scheduledFor,
+                    time_slot: timeSlot,
+                    publish_error: null,
+                    publish_attempts: 0,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("id", postId)
+                .eq("status", "ready")
+                .select("id")
+                .maybeSingle()
+            if (data) return true
+            skipped++
+            return false
+        }
+
+        for (const p of onTime) {
+            if (await arm(p.id, p.scheduled_for as string, p.time_slot)) confirmed++
+        }
+        for (let i = 0; i < overdue.length; i++) {
+            const slot = shiftSlots[i]
+            if (!slot) { skipped++; continue }
+            if (await arm(overdue[i].id, toScheduledFor(slot.date, slot.time), slot.time)) {
+                confirmed++
+                shifted++
+            }
+        }
+
+        return { success: true, confirmed, shifted, skipped }
+    } catch (err) {
+        return { success: false, error: (err as Error)?.message || "Potvrzení plánu selhalo" }
+    }
+}
 
 /**
  * Assign a posting time to one already-generated post and add it to the calendar.

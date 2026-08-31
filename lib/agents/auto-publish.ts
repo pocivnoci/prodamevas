@@ -1,11 +1,16 @@
 /**
  * Auto-publish arming agent — the last mile of the content flywheel.
  * ==================================================================
- * The pipeline generates posts to status `ready` (generated, NOT armed — nothing
- * publishes without a human moving ready→scheduled). For a client that has opted
- * into hands-free publishing (`config.autoPublish`) AND connected Instagram, this
- * agent arms `ready` posts onto the brand's `postsPerWeek` cadence, keeping a
- * bounded forward buffer so the account posts by itself.
+ * The pipeline generates posts to status `ready` WITH a proposed `scheduled_for`
+ * (the cadence is applied once, at generation, by distributeSchedule). Nothing
+ * publishes until someone moves ready→scheduled. For a client opted into hands-free
+ * publishing (`config.autoPublish`) AND connected, this agent does that confirming
+ * step automatically — it is the machine equivalent of the "Potvrdit plán" button.
+ *
+ * It CONFIRMS the plan; it does not make one. The dates come from the generator and
+ * are never recomputed here. Until 2026-08-31 this agent ordered by `created_at` and
+ * recomputed every date with distributeSchedule, which silently overwrote what the
+ * calendar showed — two schedulers that disagreed. One scheduler now: the generator.
  *
  * Safety by construction:
  *  - opt-in: does nothing unless `config.autoPublish === true`
@@ -15,11 +20,12 @@
  *    flood the account — it drains at cadence and the founder can veto any
  *    still-future scheduled post in the dashboard before it goes out
  *  - reels excluded: auto-publish has no video path (they use the manual handoff)
- *  - FIFO: oldest `ready` first, so nothing is stranded forever
+ *  - overdue posts are left alone: shifting them silently would publish content
+ *    outside the moment it was written for. They stay visible for a human.
  */
 
 import supabaseAdmin from "@/supabase/admin"
-import { distributeSchedule, toScheduledFor, MAX_POSTS_PER_WEEK } from "@/lib/schedule-planner"
+import { MAX_POSTS_PER_WEEK } from "@/lib/schedule-planner"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const FORWARD_BUFFER_WEEKS = 2 // keep ~2 weeks of posts armed ahead
@@ -60,51 +66,53 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
 
     const need = target - queuedCount
 
-    // Oldest ready posts with real media, excluding reels (no auto-publish path) and
-    // stories (this agent arms FEED posts on the postsPerWeek cadence — a story would
-    // eat a feed slot it never appears in, and desync the schedule).
+    // Ready posts s NAVRŽENÝM termínem, seřazené podle toho termínu.
     //
-    // CAREFUL: `.neq()` compiles to SQL `<>`, and `NULL <> 'reel'` is NULL — the row
-    // drops out. media_type was added by 20260622_ig_publishing.sql with no backfill,
-    // so the previous bare `.neq("media_type", "reel")` silently excluded EVERY post
-    // created before that date from auto-publish arming. The null branch fixes that.
+    // Dřív tenhle agent bral nejstarší podle `created_at` a termíny si POČÍTAL SÁM
+    // přes distributeSchedule — čímž přepsal to, co generátor naplánoval a co člověk
+    // viděl v kalendáři. Byly to dva plánovače, které se neshodly: co jsi viděl,
+    // nebylo co vyšlo, ani v jakém pořadí. Agent teď plán jen POTVRZUJE.
+    //
+    // Horní mez okna = konec dopředného zásobníku; co je naplánované dál, počká na
+    // některý z dalších běhů.
+    //
+    // POZOR: `.neq()` je v SQL `<>`, a `NULL <> 'reel'` je NULL — řádek vypadne.
+    // media_type přišlo migrací 20260622 bez backfillu, takže bez null větve by se
+    // vynechal každý příspěvek vzniklý dřív.
+    const nowMs = Date.now()
+    const windowEnd = new Date(nowMs + FORWARD_BUFFER_WEEKS * 7 * DAY_MS).toISOString()
+
     const { data: ready, error: rErr } = await supabaseAdmin
         .from("ig_posts")
-        .select("id, media_type")
+        .select("id, scheduled_for, time_slot")
         .eq("client_id", clientId)
         .eq("status", "ready")
         .not("image_url", "is", null)
+        .not("scheduled_for", "is", null)
+        // Propadlé termíny agent NEOSTŘÍ. Posunout je potichu dopředu by znamenalo
+        // vydat obsah mimo okamžik, pro který byl napsaný. Zůstanou v kalendáři
+        // viditelně propadlé a člověk je posune nebo potvrdí sám.
+        .gt("scheduled_for", new Date(nowMs).toISOString())
+        .lte("scheduled_for", windowEnd)
         .or("media_type.is.null,and(media_type.neq.reel,media_type.neq.story)")
-        .order("created_at", { ascending: true })
+        .order("scheduled_for", { ascending: true })
         .limit(need)
     if (rErr) throw new Error(`auto-publish ready read (${slug}): ${rErr.message}`)
     if (!ready || ready.length === 0) return { clientId, slug, armed: 0, queued: queuedCount }
 
-    // Append to the queue: start the day after the last armed slot (distributeSchedule
-    // clamps to ≥ tomorrow, so an empty queue starts tomorrow).
-    const lastQueued = queued && queued.length > 0 ? new Date(queued[0].scheduled_for) : null
-    const startDate = lastQueued ? new Date(lastQueued.getTime() + DAY_MS) : undefined
-    // Per-client posting times (Prague local); empty → engine defaults.
-    const times = Array.isArray(config.postingTimes) && (config.postingTimes as string[]).length > 0
-        ? (config.postingTimes as string[]) : undefined
-    const slots = distributeSchedule(ready.length, { postsPerWeek: perWeek, startDate, timeSlots: times })
-
     let armed = 0
-    for (let i = 0; i < ready.length; i++) {
-        const slot = slots[i]
+    for (const post of ready) {
         // Conditional flip: only arm if the post is still `ready` (a concurrent
-        // manual schedule/delete can't be clobbered).
+        // manual schedule/delete can't be clobbered). `scheduled_for` se NEMĚNÍ.
         const { data, error } = await supabaseAdmin
             .from("ig_posts")
             .update({
                 status: "scheduled",
-                scheduled_for: toScheduledFor(slot.date, slot.time),
-                time_slot: slot.time,
                 publish_error: null,
                 publish_attempts: 0,
                 updated_at: new Date().toISOString(),
             })
-            .eq("id", ready[i].id)
+            .eq("id", post.id)
             .eq("status", "ready")
             .select("id")
             .maybeSingle()

@@ -974,6 +974,45 @@ test("13.7 auto-publish skips stories AND keeps legacy NULL rows", () => {
     assert(!codeOnly("lib/agents/auto-publish.ts").includes('.neq("media_type"'), "the old NULL-dropping .neq() must stay removed")
 })
 
+test("13.7b jeden plánovač: agent plán potvrzuje, nepočítá ho znovu", () => {
+    const c = fileContent("lib/agents/auto-publish.ts")
+    // Dva plánovače = kalendář lže. Agent dřív bral posty podle created_at a termíny
+    // si přepočítal, takže co uživatel viděl, nebylo co vyšlo — ani v jakém pořadí.
+    assert(
+        !codeOnly("lib/agents/auto-publish.ts").includes("distributeSchedule"),
+        "auto-publish nesmí počítat termíny — ty vznikají jednou, při generování",
+    )
+    assert(
+        !codeOnly("lib/agents/auto-publish.ts").includes("scheduled_for:"),
+        "auto-publish nesmí scheduled_for přepisovat, jen překlopit stav",
+    )
+    // Pozor na slabou aserci: v souboru je i druhé `.order("scheduled_for")` u čtení
+    // fronty, takže pouhá přítomnost toho řetězce regresi nechytí. Rozhoduje, že tam
+    // NENÍ řazení podle created_at — to bylo staré chování.
+    assert(
+        !codeOnly("lib/agents/auto-publish.ts").includes('.order("created_at"'),
+        "agent musí brát posty podle navrženého termínu, ne podle created_at",
+    )
+    // Propadlý termín se nesmí posunout potichu: obsah psaný na pátek nemá vyjít
+    // v úterý jen proto, že ho nikdo nepotvrdil včas.
+    assert(c.includes(".gt(\"scheduled_for\""), "agent musí propadlé termíny nechat být, ne je tiše posunout")
+})
+
+test("13.7c potvrzení plánu je vědomý krok a nepřepíše souběžnou změnu", () => {
+    const c = fileContent("app/actions/calendar-actions.ts")
+    assert(c.includes("export async function confirmPlanAction"), "kalendář potřebuje hromadné potvrzení plánu")
+    // Bez podmíněného flipu by potvrzení přepsalo i to, co mezitím někdo smazal
+    // nebo naplánoval ručně.
+    assert(
+        /confirmPlanAction[\s\S]{0,3000}\.eq\("status", "ready"\)/.test(c),
+        "potvrzení musí být podmíněné na status='ready'",
+    )
+    assert(
+        /confirmPlanAction[\s\S]{0,3000}getConnectionMeta/.test(c),
+        "naostřit bez živého připojení znamená jen odložené selhání",
+    )
+})
+
 test("13.8 every plan grants story (seed must not drift)", () => {
     // 20260716_pricing_v5.sql is a declarative seed with ON CONFLICT DO UPDATE SET
     // features = EXCLUDED.features — leaving it stale means the next run STRIPS story.

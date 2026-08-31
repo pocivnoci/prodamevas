@@ -210,7 +210,7 @@ export async function getIGPostsList(
             .select(`
                 id, caption, hashtags, call_to_action, image_url, image_prompt,
                 scheduled_for, time_slot, status, posted_at, likes, comments, saves,
-                reach, shares, profile_visits, link_clicks, content_pillar,
+                reach, shares, profile_visits, views, link_clicks, content_pillar,
                 created_at, updated_at, client_id,
                 media_type, ig_media_id, permalink, publish_error,
                 feedback, revision_of, image_style, edit_history,
@@ -644,7 +644,7 @@ export async function getPerformanceInsights(projectSlug: string) {
             .from("ig_posts")
             .select(`
                 id, caption, image_url, status, likes, comments, saves,
-                reach, shares, profile_visits, link_clicks, content_pillar,
+                reach, shares, profile_visits, views, link_clicks, content_pillar,
                 posted_at, created_at,
                 ig_post_types ( name, display_name, emoji )
             `)

@@ -36,6 +36,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                 reach: p.reach || 0,
                 shares: p.shares || 0,
                 profile_visits: p.profile_visits || 0,
+                views: p.views || 0,
                 link_clicks: p.link_clicks || 0,
             }
         }
