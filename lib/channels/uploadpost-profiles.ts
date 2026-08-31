@@ -87,9 +87,15 @@ export async function ensureProfile(clientId: string): Promise<string> {
  * A single-use URL where the tenant connects their own Instagram.
  *
  * upload-post signs a 48-hour JWT into it, so it is a CREDENTIAL: never log it,
- * never store it, hand it straight to the browser that asked for it.
+ * never store it, hand it straight to the browser that asked for it — which is why
+ * the only caller is a route that redirects to it (app/api/ig-connect/bridge).
+ *
+ * `returnUrl` is what turns this from a dead end into a flow: without it the tenant
+ * finishes on upload-post's page with no way back, and we only notice the connection
+ * if they happen to return to the tab. With it, upload-post offers a button home and
+ * that route reconciles the row — the same shape as our own OAuth callback.
  */
-export async function generateConnectUrl(clientId: string): Promise<string> {
+export async function generateConnectUrl(clientId: string, returnUrl?: string): Promise<string> {
     const username = await ensureProfile(clientId)
     const json = await uploadPostJson(
         `${USERS}/generate-jwt`,
@@ -98,6 +104,13 @@ export async function generateConnectUrl(clientId: string): Promise<string> {
             // Show the tenant only what we actually support today. Offering TikTok
             // here would let them connect an account nothing in Chrlit can publish to.
             platforms: ["instagram"],
+            ...(returnUrl ? { redirect_url: returnUrl, redirect_button_text: "Zpět do Chrlitu" } : {}),
+            connect_title: "Připoj svůj Instagram",
+            connect_description:
+                "Přihlas se k účtu, na který má Chrlit publikovat. Účet musí být Business nebo Creator a propojený s Facebook stránkou.",
+            // upload-post shows its own posting calendar by default. Plánování žije
+            // v Chrlitu; druhý kalendář na cizí doméně by tvrdil něco jiného.
+            show_calendar: false,
         },
         "generate-jwt",
     )

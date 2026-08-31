@@ -1179,6 +1179,34 @@ test("13b.5 the bridge refuses media it has not been proven to carry", () => {
     assert(pub.includes("ChannelPermanentError"), "the publisher must fail permanent errors fast instead of retrying them")
 })
 
+test("13b.6 připojení mostu je navigace, ne popup po awaitu", () => {
+    // Nahlášeno z ostrého provozu: kliknutí založilo profil na upload-postu, ale
+    // přihlašovací stránka se nikdy neotevřela. Adresu podepisuje upload-post až po
+    // dvou voláních API, takže window.open() se dostane ke slovu s promlčeným
+    // uživatelským gestem a prohlížeč okno zahodí — bez jediné chybové hlášky.
+    const ui = codeOnly("app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx")
+    assert(!ui.includes("window.open"), "připojení se nesmí otevírat skriptem — popup blocker ho zahodí")
+    assert(ui.includes("/api/ig-connect/bridge?slug="), "tlačítko musí být odkaz na routu, která přesměruje")
+
+    const route = fileContent("app/api/ig-connect/bridge/route.ts")
+    assert(route.includes("requireProjectAccess"), "routa mostu musí ověřit přístup k projektu")
+    assert(route.includes("generateConnectUrl"), "routa mostu si nechává adresu podepsat u upload-postu")
+    // Bez redirect_url končí uživatel na cizí stránce bez cesty zpátky a připojení
+    // se dozvíme, jen když se náhodou vrátí na záložku.
+    assert(route.includes("/api/ig-connect/bridge/return"), "musí předat návratovou adresu")
+    const back = fileContent("app/api/ig-connect/bridge/return/route.ts")
+    assert(back.includes("syncUploadPostConnection"), "návrat musí srovnat stav dřív, než uživatel uvidí Nastavení")
+
+    const profiles = fileContent("lib/channels/uploadpost-profiles.ts")
+    assert(profiles.includes("redirect_url"), "generate-jwt musí dostat návratovou adresu")
+    // Adresa nese podepsaný JWT — nesmí zůstat viset v cache ani v historii.
+    assert(route.includes("no-store"), "přesměrování s podepsanou adresou nesmí být cachovatelné")
+
+    // Server action, která adresu vrací do JS, je přesně ta cesta zpátky k popupu.
+    const actions = codeOnly("app/actions/ig-connection-actions.ts")
+    assert(!actions.includes("generateConnectUrl"), "podepsaná adresa nesmí téct přes server action do prohlížeče")
+})
+
 // ═══════════════════════════════════════════════════════════
 // 14. FAKTURACE A PRÁVNÍ IDENTITA (v8.5)
 // ═══════════════════════════════════════════════════════════

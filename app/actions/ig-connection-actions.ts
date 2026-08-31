@@ -66,25 +66,10 @@ export async function getConnectionStatus(projectSlug: string): Promise<Connecti
     }
 }
 
-/**
- * Start the bridge connect flow: returns a hosted URL where the tenant authorizes
- * their own Instagram.
- *
- * The URL carries a signed 48-hour JWT — it is a credential. Hand it to the caller's
- * browser and neither log nor persist it.
- */
-export async function startUploadPostConnect(
-    projectSlug: string,
-): Promise<{ success: boolean; url?: string; error?: string }> {
-    try {
-        const { clientId } = await requireProjectAccess(projectSlug)
-        const { generateConnectUrl } = await import("@/lib/channels/uploadpost-profiles")
-        const url = await generateConnectUrl(clientId)
-        return { success: true, url }
-    } catch (err) {
-        return { success: false, error: (err as Error).message }
-    }
-}
+// Připojení mostu ZAČÍNÁ v routě /api/ig-connect/bridge, ne tady. Server action by
+// musela adresu vrátit do JS, které by ji pak otevřelo — jenže než ji upload-post
+// podepíše, je uživatelské gesto promlčené a popup blocker okno zahodí. Odkaz na
+// routu je navigace, kterou zablokovat nejde.
 
 /**
  * Reconcile our row with upload-post's view of the tenant's profile.
