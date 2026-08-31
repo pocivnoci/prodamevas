@@ -114,9 +114,9 @@ export async function syncUploadPostConnection(
         }
 
         await saveConnection(clientId, {
-            // upload-post addresses the account by handle; there is no numeric IG user
-            // id in this flow. The handle is what every later call needs.
-            igUserId: status.instagramUsername || uploadPostProfileName(clientId),
+            // upload-post reports Instagram's numeric user id under `username` and the
+            // @name under `handle` — the opposite of what the field names suggest.
+            igUserId: status.instagramUserId || uploadPostProfileName(clientId),
             igUsername: status.instagramUsername,
             // The per-tenant credential IS the profile name — the API key is global.
             accessToken: uploadPostProfileName(clientId),
@@ -124,12 +124,16 @@ export async function syncUploadPostConnection(
             // them (instagram/ig-connection.ts guards on transport as well).
             expiresAt: null,
             transport: "uploadpost",
+            // Linked but needing re-authorization is NOT connected: publishing would
+            // fail and the tenant would only find out from a dead post.
+            status: status.reauthRequired ? "expired" : "connected",
             metadata: {
                 profileUsername: uploadPostProfileName(clientId),
                 igUsername: status.instagramUsername,
+                igUserId: status.instagramUserId,
             },
         })
-        return { success: true, connected: true, username: status.instagramUsername }
+        return { success: true, connected: !status.reauthRequired, username: status.instagramUsername }
     } catch (err) {
         return { success: false, connected: false, error: (err as Error).message }
     }

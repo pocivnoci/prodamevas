@@ -1081,7 +1081,15 @@ test("13b.5 the bridge refuses media it has not been proven to carry", () => {
     // caption field is `title`. Both cost a rewrite to discover; pin them down.
     assert(c.includes("new FormData()"), "publish must send multipart/form-data, not JSON")
     assert(c.includes('form.append("title"'), "the caption goes in `title` — `caption` is silently ignored")
-    assert(!codeOnly("lib/channels/uploadpost.ts").includes("async_upload"), "publish must stay synchronous, or post_id never comes back")
+    assert(!codeOnly("lib/channels/uploadpost.ts").includes("async_upload"), "we never ASK for async; the hand-off below is the API's own doing")
+    // The dangerous one. A long sync request is silently "handed off to the upload
+    // worker" and answers 200 with a message instead of results. The post still goes
+    // live, so treating that as an error means the retry publishes it a SECOND time
+    // on a customer's real profile. Observed on the very first live publish.
+    assert(c.includes("readHandoffRequestId"), "publish must recognise the background hand-off, not mistake it for a failure")
+    assert(c.includes("return { providerRef: requestId }"), "an unfinished hand-off must report success without an id — never a retryable error")
+    const sync = fileContent("instagram/metrics-sync.ts")
+    assert(sync.includes("pollUploadStatus"), "a post whose id was unknown at publish time must get it resolved later")
     const pub = fileContent("app/api/cron/ig-publisher/route.ts")
     assert(pub.includes("ChannelPermanentError"), "the publisher must fail permanent errors fast instead of retrying them")
 })

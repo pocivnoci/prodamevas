@@ -119,6 +119,10 @@ export async function saveConnection(
         expiresAt: string | null
         transport: Transport
         metadata?: Record<string, unknown>
+        /** Defaults to 'connected'. Pass 'expired' when the provider says the tenant
+         *  must re-authorize — the account is linked but publishing would fail, and
+         *  showing "Připojeno" then is a lie the tenant only discovers on a dead post. */
+        status?: "connected" | "expired" | "revoked"
     },
 ): Promise<void> {
     const { error } = await supabaseAdmin
@@ -131,7 +135,7 @@ export async function saveConnection(
                 ig_username: conn.igUsername,
                 access_token: encryptToken(conn.accessToken),
                 token_expires_at: conn.expiresAt,
-                status: "connected",
+                status: conn.status ?? "connected",
                 transport: conn.transport,
                 metadata: conn.metadata ?? {},
                 refreshed_at: new Date().toISOString(),
@@ -252,6 +256,8 @@ export async function refreshConnection(clientId: string): Promise<{ refreshed: 
                 access_token: encryptToken(json.access_token),
                 token_expires_at: expiresAt,
                 refreshed_at: new Date().toISOString(),
+                // A successful refresh RECOVERS an expired row — do not carry the old
+                // status forward, or a connection that healed stays marked broken.
                 status: "connected",
             })
             .eq("client_id", clientId)

@@ -59,14 +59,96 @@ async function main() {
                 process.exit(1)
             }
             await saveConnection(client.id, {
-                igUserId: s.instagramUsername || uploadPostProfileName(client.id),
+                igUserId: s.instagramUserId || uploadPostProfileName(client.id),
                 igUsername: s.instagramUsername,
                 accessToken: uploadPostProfileName(client.id),
                 expiresAt: null,
                 transport: "uploadpost",
-                metadata: { profileUsername: uploadPostProfileName(client.id), igUsername: s.instagramUsername },
+                status: s.reauthRequired ? "expired" : "connected",
+                metadata: {
+                    profileUsername: uploadPostProfileName(client.id),
+                    igUsername: s.instagramUsername,
+                    igUserId: s.instagramUserId,
+                },
             })
-            console.log(`✅ Uloženo: @${s.instagramUsername} přes transport 'uploadpost'.`)
+            console.log(`✅ Uloženo: @${s.instagramUsername} (IG id ${s.instagramUserId}) přes transport 'uploadpost'.`)
+            if (s.reauthRequired) console.log("⚠️  upload-post hlásí reauth_required → uloženo jako 'expired'.")
+            break
+        }
+        case "metrics": {
+            // Read-only: what the adapter would hand metrics-sync, without writing.
+            const { getConnection } = await import("@/instagram/ig-connection")
+            const { getChannelAdapter } = await import("@/lib/channels")
+            const conn = await getConnection(client.id)
+            if (!conn) { console.log("(žádné připojení)"); break }
+
+            const adapter = getChannelAdapter("instagram", conn.transport)
+            if (!adapter.fetchMetricsBatch) { console.log("(transport nemá dávkové čtení)"); break }
+
+            const rows = await adapter.fetchMetricsBatch(
+                { accessToken: conn.accessToken, externalUserId: conn.igUserId, transport: conn.transport },
+                { limit: 50 },
+            )
+            console.log(`Vráceno ${rows.length} příspěvků:\n`)
+            for (const r of rows.slice(0, 15)) {
+                const m = r.metrics
+                console.log(`  ${r.externalId}  ${r.capturedAt ?? "—"}`)
+                console.log(`     likes=${m.likes ?? "—"} comments=${m.comments ?? "—"} reach=${m.reach ?? "—"} saves=${m.saves ?? "—"} shares=${m.shares ?? "—"} views=${m.views ?? "—"}`)
+                console.log(`     ${r.permalink ?? "—"}`)
+            }
+            break
+        }
+        case "publish": {
+            // Publishes ONE post, by explicit id, through the real adapter and the same
+            // helpers the cron uses — so this exercises the production path rather than
+            // a parallel one. Requires the id on purpose: no argument, nothing happens.
+            const postId = process.argv[4]
+            if (!postId) { console.log("Chybí id příspěvku: ... publish <slug> <post-id>"); process.exit(1) }
+
+            const { getConnection } = await import("@/instagram/ig-connection")
+            const { getChannelAdapter } = await import("@/lib/channels")
+            const { parsePostMedia } = await import("@/lib/media-urls")
+            const { isMediumType } = await import("@/lib/credits")
+
+            const { data: post } = await supabaseAdmin
+                .from("ig_posts")
+                .select("id, client_id, caption, image_url, media_type, status")
+                .eq("id", postId)
+                .single()
+            if (!post) { console.log("Příspěvek neexistuje."); process.exit(1) }
+            if (post.client_id !== client.id) { console.log("Příspěvek patří jinému klientovi — končím."); process.exit(1) }
+            if (post.status === "posted") { console.log("Už je publikovaný — končím."); process.exit(1) }
+
+            const conn = await getConnection(client.id)
+            if (!conn || conn.status !== "connected") { console.log("Není živé připojení."); process.exit(1) }
+
+            const mediaType = isMediumType(post.media_type)
+                ? post.media_type
+                : (String(post.image_url || "").includes("|") ? "carousel" : "image")
+            const mediaUrls = parsePostMedia(post.image_url, post.media_type).urls
+
+            console.log(`Typ: ${mediaType}, médií: ${mediaUrls.length}`)
+            console.log(`Popisek: ${String(post.caption || "").replace(/\s+/g, " ").slice(0, 120)}…\n`)
+
+            const adapter = getChannelAdapter("instagram", conn.transport)
+            const result = await adapter.publish(
+                { accessToken: conn.accessToken, externalUserId: conn.igUserId, transport: conn.transport },
+                { channel: "instagram", body: post.caption || "", mediaUrls, mediaType: mediaType as any },
+            )
+
+            await supabaseAdmin.from("ig_posts").update({
+                status: "posted",
+                posted_at: new Date().toISOString(),
+                ...(result.externalId ? { ig_media_id: result.externalId } : {}),
+                ...(result.providerRef ? { publish_request_id: result.providerRef } : {}),
+                permalink: result.permalink || null,
+                updated_at: new Date().toISOString(),
+            }).eq("id", post.id)
+
+            console.log("✅ Publikováno")
+            console.log(`   ig_media_id: ${result.externalId}`)
+            console.log(`   permalink:   ${result.permalink ?? "—"}`)
+            console.log(`   providerRef: ${result.providerRef ?? "—"}`)
             break
         }
         case "show": {

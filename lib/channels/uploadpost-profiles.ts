@@ -28,21 +28,44 @@ export function uploadPostProfileName(clientId: string): string {
 
 export interface UploadPostProfileStatus {
     exists: boolean
-    /** The tenant's Instagram handle at upload-post, when connected. */
+    /** The tenant's @handle, for display. */
     instagramUsername: string | null
+    /** Instagram's numeric user id for the account, when reported. */
+    instagramUserId: string | null
     connected: boolean
+    /** True when upload-post says the tenant must re-authorize. The account is
+     *  linked but publishing will fail, so we mark our row `expired` rather than
+     *  telling the tenant everything is fine. */
+    reauthRequired: boolean
 }
 
-/** Pull the Instagram entry out of a profile payload, whatever it is keyed by. */
-function readInstagram(profile: any): { connected: boolean; username: string | null } {
+/**
+ * Pull the Instagram entry out of a profile payload.
+ *
+ * Field names verified against a live connected profile: `handle` is the @name,
+ * while `username` holds Instagram's NUMERIC user id — the opposite of what the
+ * names suggest, and the reason a naive read shows "Připojeno · @28526130263657463".
+ */
+function readInstagram(profile: any): {
+    connected: boolean
+    handle: string | null
+    userId: string | null
+    reauthRequired: boolean
+} {
     const accounts = profile?.social_accounts ?? profile?.socialAccounts ?? {}
     const ig = accounts?.instagram
-    if (!ig) return { connected: false, username: null }
-    // The API reports an unconnected platform as null; a connected one as an object
-    // (or, on some responses, just the handle string).
-    if (typeof ig === "string") return { connected: true, username: ig }
-    const username = ig?.username ?? ig?.handle ?? ig?.display_name ?? null
-    return { connected: true, username: username ? String(username) : null }
+    // An unconnected platform comes back as an empty string (or is absent entirely).
+    if (!ig) return { connected: false, handle: null, userId: null, reauthRequired: false }
+    if (typeof ig === "string") return { connected: true, handle: ig, userId: null, reauthRequired: false }
+
+    const handle = ig?.handle ?? ig?.display_name ?? null
+    const userId = ig?.username ?? null
+    return {
+        connected: true,
+        handle: handle ? String(handle) : null,
+        userId: userId ? String(userId) : null,
+        reauthRequired: Boolean(ig?.reauth_required),
+    }
 }
 
 /** Create the tenant's profile. Idempotent: an existing profile is not an error. */
@@ -92,11 +115,17 @@ export async function getProfileStatus(clientId: string): Promise<UploadPostProf
         const json = await uploadPostGet(`${USERS}/${encodeURIComponent(username)}`, "get-profile")
         const profile = json?.profile ?? json?.user ?? json
         const ig = readInstagram(profile)
-        return { exists: true, instagramUsername: ig.username, connected: ig.connected }
+        return {
+            exists: true,
+            instagramUsername: ig.handle,
+            instagramUserId: ig.userId,
+            connected: ig.connected,
+            reauthRequired: ig.reauthRequired,
+        }
     } catch (err: any) {
         // An unknown profile is a legitimate answer ("never connected"), not a fault.
         if (/\b404\b/.test(String(err?.message || ""))) {
-            return { exists: false, instagramUsername: null, connected: false }
+            return { exists: false, instagramUsername: null, instagramUserId: null, connected: false, reauthRequired: false }
         }
         throw err
     }

@@ -220,6 +220,26 @@ export async function syncPostMetrics(clientId: string): Promise<SyncResult> {
     const pending: { postId: string; metrics: ChannelMetrics }[] = []
 
     if (adapter.fetchMetricsBatch) {
+        // A publish that upload-post handed to its background worker returns without a
+        // native id — the post goes live, we just don't know its id yet. Resolve those
+        // first, or they can never be matched to their numbers.
+        for (const post of posts) {
+            if (post.ig_media_id || !post.publish_request_id) continue
+            try {
+                const { pollUploadStatus } = await import("@/lib/channels/uploadpost")
+                const settled = await pollUploadStatus(String(post.publish_request_id))
+                if (!settled?.platform_post_id) continue
+                await supabaseAdmin.from("ig_posts").update({
+                    ig_media_id: String(settled.platform_post_id),
+                    ...(settled.post_url ? { permalink: String(settled.post_url) } : {}),
+                }).eq("id", post.id)
+                post.ig_media_id = String(settled.platform_post_id)
+                result.matched++
+            } catch (err) {
+                console.warn(`metrics-sync: resolve id for ${post.id} failed:`, (err as Error).message)
+            }
+        }
+
         // Bridge shape: one request per tenant, keyed by native post id. Looping
         // per post would be both slower and rate-limited.
         let byId = new Map<string, { metrics: ChannelMetrics; permalink?: string }>()

@@ -38,6 +38,12 @@ import { uploadPostForm, uploadPostGet } from "./uploadpost-client"
 
 const PHOTOS_PATH = "/api/upload_photos"
 const CACHED_ANALYTICS_PATH = "/api/uploadposts/post-analytics/cached"
+const STATUS_PATH = "/api/uploadposts/status"
+
+/** How long to wait for a background hand-off to finish before giving up on
+ *  learning the post id. Observed hand-offs complete in seconds. */
+const STATUS_POLL_ATTEMPTS = 20
+const STATUS_POLL_DELAY_MS = 3000
 
 /** Default page size for a batch metrics read (endpoint max is 200). */
 const ANALYTICS_PAGE = 100
@@ -45,6 +51,28 @@ const ANALYTICS_PAGE = 100
 /** Per-platform result of a synchronous publish, keyed by platform name. */
 function readPlatformResult(json: any): any {
     return json?.results?.instagram ?? null
+}
+
+/**
+ * upload-post's own id for a publish that was handed to its background worker.
+ *
+ * The hand-off is NOT opt-in: a plain synchronous request that runs long is
+ * "durably handed off to the upload worker" and answers 200 with a message instead
+ * of results. Missing this is dangerous rather than merely wrong — the post still
+ * goes live, so treating it as a failure means the retry publishes it a second time.
+ * The id sometimes arrives as a field and sometimes only inside the message text.
+ */
+function readHandoffRequestId(json: any): string | undefined {
+    const direct = json?.request_id ?? json?.requestId
+    if (direct) return String(direct)
+    const m = String(json?.message || "").match(/request_id=([A-Za-z0-9_-]+)/)
+    return m ? m[1] : undefined
+}
+
+/** Pull the Instagram row out of a status response, whatever it is wrapped in. */
+function readStatusResult(json: any): any {
+    const rows = Array.isArray(json?.results) ? json.results : []
+    return rows.find((r: any) => r?.platform === "instagram") ?? rows[0] ?? null
 }
 
 /** Map upload-post's metric keys onto ChannelMetrics.
@@ -75,6 +103,24 @@ function readMetrics(raw: any): ChannelMetrics {
         if (n !== undefined) (m as any)[key] = n
     }
     return m
+}
+
+/**
+ * Wait for a handed-off upload to settle. Returns the Instagram row once the job
+ * reports `completed`/`failed`, or null if it is still running when we run out of
+ * patience — which the caller must treat as "published, id unknown", never as a
+ * failure to retry.
+ */
+export async function pollUploadStatus(requestId: string): Promise<any | null> {
+    for (let attempt = 0; attempt < STATUS_POLL_ATTEMPTS; attempt++) {
+        const json = await uploadPostGet(`${STATUS_PATH}?request_id=${encodeURIComponent(requestId)}`, "status")
+        const state = String(json?.status || "")
+        if (state === "completed" || state === "failed" || state === "error") {
+            return readStatusResult(json)
+        }
+        await new Promise(r => setTimeout(r, STATUS_POLL_DELAY_MS))
+    }
+    return null
 }
 
 export const uploadPostAdapter: ChannelAdapter = {
@@ -142,10 +188,37 @@ export const uploadPostAdapter: ChannelAdapter = {
                 // polls upload status and is useless for metrics.
                 const json = await uploadPostForm(PHOTOS_PATH, form, content.mediaType)
 
-                const ig = readPlatformResult(json)
+                let ig = readPlatformResult(json)
+
                 if (!ig) {
-                    throw new Error(`upload-post: odpověď neobsahuje výsledek pro instagram: ${JSON.stringify(json).slice(0, 300)}`)
+                    // No per-platform results: the request was handed to the background
+                    // worker. From here the post WILL go live, so every path below must
+                    // avoid raising a retryable error — a retry would double-post.
+                    const requestId = readHandoffRequestId(json)
+                    if (!requestId) {
+                        throw new Error(`upload-post: odpověď neobsahuje ani výsledek, ani request_id: ${JSON.stringify(json).slice(0, 300)}`)
+                    }
+
+                    const settled = await pollUploadStatus(requestId)
+                    if (!settled) {
+                        // Still running. Report success WITHOUT a native id: the caller
+                        // records the post as published and keeps `providerRef`, which
+                        // metrics-sync uses later to resolve the id. Failing here would
+                        // re-arm a post that is already on its way to the profile.
+                        return { providerRef: requestId }
+                    }
+                    if (settled.success === false || settled.error_message) {
+                        throw new ChannelPermanentError(
+                            `upload-post: Instagram odmítl příspěvek: ${String(settled.error_message || "neznámý důvod").slice(0, 300)}`,
+                        )
+                    }
+                    return {
+                        externalId: settled.platform_post_id ? String(settled.platform_post_id) : undefined,
+                        permalink: settled.post_url ? String(settled.post_url) : undefined,
+                        providerRef: requestId,
+                    }
                 }
+
                 if (ig.success === false || ig.error) {
                     // The HTTP call succeeded but Instagram refused the post. Retrying
                     // an outright rejection just burns the budget and delays the truth.
