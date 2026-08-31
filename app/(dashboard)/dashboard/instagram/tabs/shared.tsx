@@ -88,6 +88,7 @@ export function MetricsInputForm({ post, onUpdate }: { post: IGPost; onUpdate: (
         reach: post.reach || 0,
         shares: post.shares || 0,
         profile_visits: post.profile_visits || 0,
+        views: post.views || 0,
         link_clicks: post.link_clicks || 0,
     })
     const [saving, setSaving] = useState(false)
@@ -123,6 +124,7 @@ export function MetricsInputForm({ post, onUpdate }: { post: IGPost; onUpdate: (
 
                 {/* Growth Engine metrics */}
                 <MetricInput label="Dosah" value={metrics.reach} onChange={(v) => setMetrics({ ...metrics, reach: v })} />
+                <MetricInput label="Zhlédnutí" value={metrics.views} onChange={(v) => setMetrics({ ...metrics, views: v })} />
                 <MetricInput label="↗️ Sdílení" value={metrics.shares} onChange={(v) => setMetrics({ ...metrics, shares: v })} />
                 <MetricInput label="Návštěvy profilu" value={metrics.profile_visits} onChange={(v) => setMetrics({ ...metrics, profile_visits: v })} />
                 <MetricInput label="Prokliknutí" value={metrics.link_clicks} onChange={(v) => setMetrics({ ...metrics, link_clicks: v })} />

@@ -32,6 +32,7 @@ export interface IGPost {
     reach: number | null
     shares: number | null
     profile_visits: number | null
+    views: number | null
     link_clicks: number | null
     quality_score?: number | null
     feedback?: string | null

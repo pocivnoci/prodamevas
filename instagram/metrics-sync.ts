@@ -32,6 +32,7 @@ export type IGPostMetricsInput = {
     reach: number
     shares: number
     profile_visits: number
+    views: number
     link_clicks: number
 }
 
@@ -79,7 +80,7 @@ export async function fireMetricsLearning(clientId: string): Promise<void> {
     try {
         const { data: postsWithMetrics } = await supabaseAdmin
             .from("ig_posts")
-            .select("id, caption, likes, comments, saves, reach, shares, link_clicks, post_type_id, ig_post_types(name)")
+            .select("id, caption, likes, comments, saves, reach, shares, views, link_clicks, post_type_id, ig_post_types(name)")
             .eq("client_id", clientId)
             .eq("status", "posted")
             .not("likes", "is", null)
@@ -97,6 +98,10 @@ export async function fireMetricsLearning(clientId: string): Promise<void> {
                 saves: p.saves || 0,
                 reach: p.reach || 0,
                 shares: p.shares || 0,
+                // Zhlédnutí jdou analyzátorovi jako kontext (jak velké publikum
+                // příspěvek vůbec vidělo), ale do performance_score záměrně ne —
+                // viz komentář u propagateMetricsToSources.
+                views: p.views || 0,
                 link_clicks: p.link_clicks || 0,
             }))
 
@@ -302,6 +307,7 @@ export async function syncPostMetrics(clientId: string): Promise<SyncResult> {
         if (cm.reach != null) metrics.reach = cm.reach
         if (cm.shares != null) metrics.shares = cm.shares
         if (cm.profile_visits != null) metrics.profile_visits = cm.profile_visits
+        if (cm.views != null) metrics.views = cm.views
         if (Object.keys(metrics).length === 0) { result.skipped++; continue }
 
         const w = await writeIGPostMetrics(postId, metrics)
