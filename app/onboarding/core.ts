@@ -1122,6 +1122,38 @@ name unikátní, snake_case, bez diakritiky.`
 // ============================================
 
 /**
+ * Zařadí sken webu do katalogu produktů — ten samý, co v Katalogu dělá tlačítko
+ * „Načíst z webu" (`lib/product-scrape.ts`).
+ *
+ * Proč vedle produktů z brand analýzy: mega prompt analýzy řeší celou značku a
+ * produkty jsou v něm jen jedno pole ze čtrnácti — vejde se jich deset a fotku
+ * nemají žádnou. Sken je oproti tomu jeden úkol: projde podstránky, vytáhne až
+ * třicet položek a ke každé stáhne fotku. Klient tak nezačíná s prázdným katalogem.
+ *
+ * Durable task, ne inline volání: sken je minuty práce a onboarding se od prohlížeče
+ * schválně utrhl. Selhání nesmí shodit uložení configu — bez katalogu klient funguje,
+ * bez configu ne.
+ */
+async function queueProductScrape(clientId: string, website?: string): Promise<void> {
+    if (!website) return
+    try {
+        const { enqueueTask } = await import('@/lib/agent-runner')
+        await enqueueTask({
+            type: 'product_scrape',
+            payload: { website },
+            clientId,
+            // Člověk čeká na svůj katalog — před nočními agenty, za onboardingovými tasky.
+            priority: 8,
+            // Opakovat sken znamená zaplatit model za totéž podruhé; když se nepovede,
+            // je v Katalogu tlačítko „Načíst z webu".
+            maxAttempts: 1,
+        })
+    } catch (scrapeErr) {
+        console.warn('⚠️ Product scrape enqueue failed (non-fatal):', (scrapeErr as Error).message)
+    }
+}
+
+/**
  * Persist a reviewed config. Auth-free — the caller supplies `userId` (for the
  * RBAC link) instead of reading the session. Handles both new clients and
  * re-onboarding (when `existingClientSlug` is given). Returns the client slug.
@@ -1215,6 +1247,9 @@ export async function saveConfigCore(
         await seedMemoriesFromAnalysis(clientId, analysis)
         await ensurePostTypes(config, clientId)
 
+        // Web se právě četl znovu — ať se z něj doplní i katalog (dvojčata sken pozná).
+        await queueProductScrape(clientId, config.website)
+
         console.log(`✅ Re-onboarding complete: ${existingClientSlug} (${clientId})`)
         // Invalidate config cache so Settings tab picks up new data
         const { invalidateConfigCache } = await import('@/instagram/configs')
@@ -1281,6 +1316,10 @@ export async function saveConfigCore(
             console.warn('⚠️ Product sync exception:', (prodErr as Error).message)
         }
     }
+
+    // …a hned za tím plný sken webu: doplní produkty, na které se do analýzy nevešlo
+    // místo, a k těm už uloženým dotáhne fotky.
+    await queueProductScrape(insertedClientId, config.website)
 
     // Create content-gated trial subscription (v2 — no time limit). Retried; a
     // persistent failure is NOT fatal — access fails safe to "no subscription"

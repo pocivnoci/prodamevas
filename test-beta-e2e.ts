@@ -2752,6 +2752,69 @@ test("31.3 config-gen má jediné tělo, ne dvojníka", () => {
     }
 })
 
+test("31.3b uložení configu má taky jediné tělo", () => {
+    // Druhý dvojník vedle config-genu: saveReviewedConfig si roky vedl vlastní kopii
+    // ukládání (bucket, RBAC link, produkty, trial). Onboarding z UI a onboarding
+    // z workera tak dělaly každý něco jiného — a nové kroky se přidávaly jen do jednoho.
+    const actions = codeOnly("app/onboarding/actions.ts")
+    assert(actions.includes("saveConfigCore("),
+        "saveReviewedConfig musí delegovat na core.ts, ne mít vlastní tělo")
+    for (const dup of ["createBucket(", "createTrialSubscription", "ig_products"]) {
+        assert(!actions.includes(dup), `${dup} patří do saveConfigCore — obálka se vždycky rozejde`)
+    }
+})
+
+test("31.3c onboarding plní katalog stejným skenem jako tlačítko v Katalogu", () => {
+    // Brand analýza řeší celou značku a produkty jsou v ní jedno pole z mnoha: deset
+    // položek, žádná fotka. Klient tak po onboardingu koukal na skoro prázdný katalog,
+    // zatímco tlačítko „Načíst z webu" umělo třicet produktů i s fotkami. Ten sken má
+    // proto jedno tělo bez session a spouští ho obojí.
+    const lib = codeOnly("lib/product-scrape.ts")
+    const action = codeOnly("app/actions/product-actions.ts")
+    const core = codeOnly("app/onboarding/core.ts")
+    const handlers = codeOnly("lib/agents/handlers.ts")
+
+    assert(lib.includes("[IMG:"), "prompt skenu (a s ním mapování fotek) patří do lib/product-scrape.ts")
+    assert(!action.includes("[IMG:"), "server action nesmí mít vlastní kopii promptu — dvojník se rozejde")
+    assert(action.includes("scrapeProductsIntoCatalog"), "tlačítko Načíst z webu musí volat sdílené jádro")
+    assert(core.includes("product_scrape"), "onboarding musí sken zařadit hned po založení klienta")
+    assert(handlers.includes('registerHandler("product_scrape"'), "chybí handler pro product_scrape")
+    assert(!core.includes("await scrapeProductsIntoCatalog("),
+        "sken je minuty práce — patří do durable tasku, ne do ukládání configu")
+
+    // Jádro pouští cron worker, takže se nesmí dotknout auth vrstvy (stejné pravidlo jako core.ts).
+    for (const forbidden of ["requireProjectAccess", "requireAuth", "next/headers", "@/supabase/server"]) {
+        assert(!lib.includes(forbidden), `lib/product-scrape.ts nesmí sáhnout na ${forbidden}`)
+    }
+    assert(lib.includes('.eq("client_id", clientId)'), "každý dotaz i zápis musí filtrovat client_id")
+
+    // Onboarding zapíše produkty z analýzy s vlastními slugy. Kdyby sken porovnával jen
+    // slugy, založil by ty samé produkty podruhé místo aby jim doplnil fotku.
+    assert(lib.includes("productSlugFrom(p.name)") && lib.includes("productSlugFrom(row.name"),
+        "dvojče se musí poznat i podle názvu, nejen podle slugu")
+    assert(lib.includes("storeProductImage("),
+        "fotky se ukládají sdíleným helperem — jinak se rozejde bucket i kontrola adresy")
+})
+
+test("31.3d ukázkové příspěvky počkají na fotky produktů", () => {
+    // První tři příspěvky jsou to jediné, podle čeho klient po onboardingu soudí celý
+    // produkt. Sken webu běží durable a plní katalog fotkami; kdyby kampaň startovala
+    // souběžně, renderer by neměl co vzít jako „EXACT product photo" a ukázal by
+    // vymyšlený produkt místo skutečného.
+    const actions = codeOnly("app/onboarding/actions.ts")
+    const worker = codeOnly("app/api/cron/campaign-worker/route.ts")
+
+    assert(actions.includes("product_scrape") && /gate:\s*\{\s*taskId/.test(actions),
+        "showcase kampaň musí nést bránu na běžící sken webu")
+    assert(worker.includes("gate?.taskId"), "worker musí bránu číst z options kampaně")
+    assert(/status:\s*"pending",\s*worker_lease:\s*null/.test(worker),
+        "zavřená brána musí kampaň vrátit do fronty — zabraná kampaň by blokovala i cizí tenanty")
+    assert(worker.includes("GATE_MAX_WAIT_MS"),
+        "čekání musí mít strop: zaseknutá práce nesmí ukázkový obsah zabít úplně")
+    assert(/\(c\.cursor \|\| 0\) > 0/.test(worker),
+        "brána platí jen na nezačatou kampaň — rozdělaná se nesmí zastavit uprostřed")
+})
+
 test("31.4 jádro onboardingu zůstává bez auth vrstvy", () => {
     // Tohle je důvod, proč vůbec šlo onboarding utrhnout od prohlížeče: worker
     // (lib/agents/handlers.ts → cron route) nesmí sáhnout na next/headers. Dokud
@@ -3095,6 +3158,7 @@ test("34.5 každý volající modelu má jasno, kdo ho účtuje", () => {
         "instagram/memory-agent.ts": "uvnitř generace příspěvku nebo operace learn",
         "instagram/service.ts": "jen embedText nad captionem — haléře, běží uvnitř ukládání postu",
         "app/onboarding/actions.ts": "onboarding měří lib/agents/handlers.ts",
+        "lib/product-scrape.ts": "sken webu měří jeho volající — tlačítko v Katalogu i task product_scrape",
         "app/onboarding/core.ts": "onboarding měří lib/agents/handlers.ts",
     }
 

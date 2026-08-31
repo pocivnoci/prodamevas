@@ -785,314 +785,32 @@ export async function syncConfigProductsToDb(): Promise<{ success: boolean; sync
 // ─── Scrape Products from Website ────────────────────────────────────
 
 /**
- * Scrape client's website, extract products/services via AI, insert into ig_products.
- * Also downloads product images and uploads to Supabase storage.
- * Max 30 products. Dedup by slug — safe to run multiple times.
+ * Projde web klienta, vytáhne z něj modelem produkty/služby a uloží je do katalogu
+ * včetně fotek. Bezpečné pouštět opakovaně — dvojčata se poznají podle slugu i názvu.
+ *
+ * Tělo žije v `lib/product-scrape.ts` bez session: **stejný sken spouští i onboarding**
+ * (durable task `product_scrape`), který se auth vrstvy dotknout nesmí. Tady zůstává jen
+ * ověření přístupu, adresa webu z konfigurace a účtování.
  */
 export async function scrapeProductsFromWebsite(
-    projectSlug: string
-): Promise<{ success: boolean; found: number; inserted: number; images: number; error?: string }> {
-    const { trackSpend, spendClientId } = await import("@/instagram/spend-tracker")
-    return trackSpend(
-        "product_import",
-        { clientId: await spendClientId(projectSlug), refId: "sken webu" },
-        () => scrapeProductsFromWebsiteInner(projectSlug),
-    )
-}
-
-async function scrapeProductsFromWebsiteInner(
     projectSlug: string
 ): Promise<{ success: boolean; found: number; inserted: number; images: number; error?: string }> {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
-        // Get website URL from config
         const config = await getClientConfig(projectSlug)
         const website = config?.website
         if (!website) {
             return { success: false, found: 0, inserted: 0, images: 0, error: "Klient nemá nastavený web" }
         }
 
-        const baseUrl = website.startsWith("http") ? website : `https://${website}`
-        const origin = new URL(baseUrl).origin
-
-        // --- Lightweight scraper ---
-        // Adresa webu jde z konfigurace, kterou plní uživatel — stejná třída rizika
-        // jako import z odkazu, takže stejná pojistka proti sáhnutí na interní síť.
-        const { assertFetchableUrl } = await import("@/lib/product-url")
-
-        const fetchWithTimeout = async (url: string, ms = 8000): Promise<string> => {
-            await assertFetchableUrl(url)
-            const ctrl = new AbortController()
-            const t = setTimeout(() => ctrl.abort(), ms)
-            try {
-                const r = await fetch(url, {
-                    signal: ctrl.signal,
-                    headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" },
-                })
-                if (!r.ok) throw new Error(`HTTP ${r.status}`)
-                return await r.text()
-            } finally { clearTimeout(t) }
-        }
-
-        // Preserve <img> tags as [IMG: url] markers so AI can map images to products
-        const stripHtml = (html: string, pageBaseUrl: string): string => {
-            return html
-                .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-                .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-                .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, "")
-                .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, "")
-                .replace(/<h([1-6])[^>]*>(.*?)<\/h\1>/gi, (_, lvl, c) => `\n[H${lvl}] ${c.replace(/<[^>]+>/g, "").trim()}\n`)
-                .replace(/<img[^>]+(?:src|data-src)="([^"]+)"[^>]*>/gi, (_, src) => {
-                    // Skip tiny icons, trackers, SVGs
-                    if (src.endsWith('.svg') || src.endsWith('.ico') || src.includes('data:image')
-                        || src.includes('pixel') || src.includes('tracking') || src.includes('placeholder')
-                        || src.includes('spinner') || src.includes('loading') || src.includes('avatar')
-                        || src.includes('emoji') || src.includes('widget') || /\b(1x1|2x2|spacer)\b/i.test(src)) return ""
-                    let url = src
-                    if (url.startsWith("//")) url = `https:${url}`
-                    else if (url.startsWith("/")) url = `${pageBaseUrl}${url}`
-                    return ` [IMG: ${url}] `
-                })
-                .replace(/<li[^>]*>(.*?)<\/li>/gi, (_, c) => `• ${c.replace(/<[^>]+>/g, "").trim()}\n`)
-                .replace(/(\d[\d\s]*(?:Kč|CZK|,-|€|\$))/gi, " [CENA: $1] ")
-                .replace(/<[^>]+>/g, " ")
-                .replace(/&nbsp;/gi, " ")
-                .replace(/&amp;/gi, "&")
-                .replace(/\s+/g, " ")
-                .trim()
-        }
-
-        // Scrape homepage
-        console.log(`🔍 Scraping products from ${baseUrl}...`)
-        let homepageHtml: string
-        try {
-            homepageHtml = await fetchWithTimeout(baseUrl)
-        } catch (e: any) {
-            return { success: false, found: 0, inserted: 0, images: 0, error: `Web se nepodařilo načíst: ${e.message}` }
-        }
-        const homepageText = stripHtml(homepageHtml, origin).substring(0, 6000)
-
-        // Discover subpages from <a href>
-        const subUrls = new Set<string>()
-        const linkRegex = /href="([^"]+)"/gi
-        let m: RegExpExecArray | null
-        while ((m = linkRegex.exec(homepageHtml)) !== null) {
-            const href = m[1]
-            if (href.startsWith("/") && !href.startsWith("//") && href.length > 1 && !href.match(/\.(js|css|png|jpg|svg|ico|webp|gif|pdf|xml|json)/i) && !href.includes("#")) {
-                subUrls.add(`${origin}${href}`)
-            }
-        }
-
-        // Prioritize product/service/pricing pages
-        const priority = /produk|sluzb|služb|cenik|ceník|nabid|shop|store|menu|katalog|balic|balíč|price|offer|obchod/i
-        const sortedSubs = Array.from(subUrls)
-            .sort((a, b) => (priority.test(a) ? 0 : 1) - (priority.test(b) ? 0 : 1))
-            .slice(0, 10)
-
-        // Scrape subpages (keep raw HTML for image extraction)
-        const subTexts: string[] = []
-        for (const url of sortedSubs) {
-            try {
-                const html = await fetchWithTimeout(url)
-                subTexts.push(`### ${url}\n${stripHtml(html, origin).substring(0, 2000)}`)
-            } catch { /* skip */ }
-        }
-
-        // --- AI extraction (with image URLs) ---
-        const { generateText } = await import("@/instagram/gemini-client")
-
-        const prompt = `Analyzuj obsah tohoto webu a extrahuj VŠECHNY produkty, služby, balíčky, nabídky a cenové položky.
-
-Obsah obsahuje značky [IMG: url] označující obrázky nalezené na stránce.
-
-## HOMEPAGE
-${homepageText}
-
-## PODSTRÁNKY (${sortedSubs.length})
-${subTexts.join("\n\n")}
-
-## ÚKOL
-Extrahuj pole produktů/služeb. Pro KAŽDÝ nalezený produkt/službu vrať:
-- name: název produktu/služby (česky)
-- type: kategorie (produkt, služba, balíček, menu, pokoj, kurz, atd.)
-- slug: URL-friendly verze názvu (lowercase, bez diakritiky, pomlčky místo mezer)
-- price: cena pokud nalezena (např. "990 Kč", "od 1500 Kč/hod") nebo null
-- description: stručný popis (1-2 věty) nebo null
-- imageUrl: URL obrázku produktu z nejbližší [IMG: url] značky, nebo null
-
-PRAVIDLA:
-- Maximálně 30 položek
-- Zahrň i služby, balíčky, kategorie menu, typy pokojů atd.
-- Nezahrnuj navigační položky, stránky, nebo interní odkazy
-- Slug: bez diakritiky, lowercase, max 40 znaků
-- imageUrl: vyber obrázek který nejlépe odpovídá danému produktu (nejbližší [IMG:] tag). Pokud žádný vhodný není, nastav null
-- Pokud na webu žádné produkty/služby nejsou, vrať prázdné pole
-
-Vrať POUZE platný JSON pole objektů.`
-
-        const productSchema = {
-            type: "object",
-            properties: {
-                products: {
-                    type: "array",
-                    items: {
-                        type: "object",
-                        properties: {
-                            name: { type: "string" },
-                            type: { type: "string" },
-                            slug: { type: "string" },
-                            price: { type: "string" },
-                            description: { type: "string" },
-                            imageUrl: { type: "string" },
-                        },
-                        required: ["name", "type", "slug"],
-                    },
-                },
-            },
-            required: ["products"],
-        }
-
-        const raw = await generateText(prompt, { model: getModel("text"), responseSchema: productSchema })
-        let products: any[] = []
-
-        // Parse — handle both {products: [...]} and bare [...]
-        const jsonObjMatch = raw.match(/\{[\s\S]*\}/)
-        const jsonArrMatch = raw.match(/\[[\s\S]*\]/)
-        if (jsonObjMatch) {
-            const parsed = JSON.parse(jsonObjMatch[0])
-            products = parsed.products || parsed
-        } else if (jsonArrMatch) {
-            products = JSON.parse(jsonArrMatch[0])
-        }
-
-        if (!Array.isArray(products)) products = []
-        products = products.slice(0, 30) // enforce limit
-
-        if (products.length === 0) {
-            return { success: true, found: 0, inserted: 0, images: 0 }
-        }
-
-        // --- Dedup + insert ---
-        const { data: existing } = await supabaseAdmin
-            .from("ig_products")
-            .select("id, slug, image_urls")
-            .eq("client_id", clientId)
-
-        const existingBySlug = new Map((existing || []).map((p: any) => [p.slug, p]))
-
-        const newProducts = products.filter(p => p.slug && !existingBySlug.has(p.slug))
-
-        let insertedRows: any[] = []
-        if (newProducts.length > 0) {
-            const toInsert = newProducts.map(p => ({
-                client_id: clientId,
-                name: p.name,
-                type: p.type || "product",
-                slug: p.slug.substring(0, 40),
-                price: p.price || null,
-                description: p.description || null,
-                image_urls: [],
-            }))
-
-            const { data, error: insertError } = await supabaseAdmin
-                .from("ig_products")
-                .insert(toInsert)
-                .select("id, slug")
-
-            if (insertError) throw insertError
-            insertedRows = data || []
-        }
-
-        // --- Download and upload product images ---
-        // Build map of products that need images (newly inserted + existing without images)
-        let totalImages = 0
-        const sharp = (await import("sharp")).default
-
-        const slugToData = new Map<string, { id: string; imageUrl: string }>()
-        for (const p of products) {
-            if (!p.imageUrl || typeof p.imageUrl !== "string" || !p.imageUrl.startsWith("http")) continue
-            const slug = p.slug.substring(0, 40)
-
-            // Check if this is a newly inserted product
-            const newRow = insertedRows.find((r: any) => r.slug === slug)
-            if (newRow) {
-                slugToData.set(slug, { id: newRow.id, imageUrl: p.imageUrl })
-                continue
-            }
-
-            // Check if this is an existing product WITHOUT images
-            const existingProduct = existingBySlug.get(slug)
-            if (existingProduct && (!existingProduct.image_urls || existingProduct.image_urls.length === 0)) {
-                slugToData.set(slug, { id: existingProduct.id, imageUrl: p.imageUrl })
-            }
-        }
-
-        if (slugToData.size > 0) {
-            console.log(`📷 Downloading images for ${slugToData.size} products...`)
-
-            for (const [slug, { id: productId, imageUrl }] of slugToData) {
-                try {
-                    const ctrl = new AbortController()
-                    const t = setTimeout(() => ctrl.abort(), 8000)
-                    const resp = await fetch(imageUrl, {
-                        signal: ctrl.signal,
-                        headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" },
-                    })
-                    clearTimeout(t)
-
-                    if (!resp.ok) continue
-
-                    const contentType = resp.headers.get("content-type") || "image/jpeg"
-                    if (!contentType.startsWith("image/")) continue
-
-                    const buffer = Buffer.from(await resp.arrayBuffer())
-
-                    // Skip tiny (<5KB) and huge (>10MB)
-                    if (buffer.length < 5000 || buffer.length > 10_000_000) continue
-
-                    // Validate dimensions — skip icons/badges
-                    try {
-                        const metadata = await sharp(buffer).metadata()
-                        if ((metadata.width || 0) < 200 || (metadata.height || 0) < 200) continue
-                    } catch { continue }
-
-                    const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg"
-                    const filename = `${clientId}/${slug}-0.${ext}`
-
-                    const { error: uploadError } = await supabaseAdmin.storage
-                        .from("product-images")
-                        .upload(filename, buffer, {
-                            contentType,
-                            cacheControl: "31536000",
-                            upsert: true,
-                        })
-
-                    if (uploadError) {
-                        console.warn(`   ⚠️ Upload failed for ${slug}: ${uploadError.message}`)
-                        continue
-                    }
-
-                    const { data: pubUrl } = supabaseAdmin.storage
-                        .from("product-images")
-                        .getPublicUrl(filename)
-
-                    // Update product record with image URL
-                    await supabaseAdmin
-                        .from("ig_products")
-                        .update({ image_urls: [pubUrl.publicUrl], updated_at: new Date().toISOString() })
-                        .eq("id", productId)
-
-                    totalImages++
-                    console.log(`   📸 ${slug}: ${(buffer.length / 1024).toFixed(0)}KB ✓`)
-                } catch {
-                    // Skip failed image downloads silently
-                }
-            }
-        }
-
-        console.log(`✅ ${newProducts.length} products + ${totalImages} images scraped for ${projectSlug}`)
-        return { success: true, found: products.length, inserted: newProducts.length, images: totalImages }
+        const { trackSpend } = await import("@/instagram/spend-tracker")
+        const { scrapeProductsIntoCatalog } = await import("@/lib/product-scrape")
+        return await trackSpend(
+            "product_import",
+            { clientId, refId: "sken webu" },
+            () => scrapeProductsIntoCatalog(clientId, website),
+        )
     } catch (err: any) {
         console.error("scrapeProductsFromWebsite error:", err?.message || err)
         return { success: false, found: 0, inserted: 0, images: 0, error: err?.message || String(err) }
