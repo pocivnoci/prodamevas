@@ -2796,6 +2796,25 @@ test("31.3c onboarding plní katalog stejným skenem jako tlačítko v Katalogu"
         "fotky se ukládají sdíleným helperem — jinak se rozejde bucket i kontrola adresy")
 })
 
+test("31.3d ukázkové příspěvky počkají na fotky produktů", () => {
+    // První tři příspěvky jsou to jediné, podle čeho klient po onboardingu soudí celý
+    // produkt. Sken webu běží durable a plní katalog fotkami; kdyby kampaň startovala
+    // souběžně, renderer by neměl co vzít jako „EXACT product photo" a ukázal by
+    // vymyšlený produkt místo skutečného.
+    const actions = codeOnly("app/onboarding/actions.ts")
+    const worker = codeOnly("app/api/cron/campaign-worker/route.ts")
+
+    assert(actions.includes("product_scrape") && /gate:\s*\{\s*taskId/.test(actions),
+        "showcase kampaň musí nést bránu na běžící sken webu")
+    assert(worker.includes("gate?.taskId"), "worker musí bránu číst z options kampaně")
+    assert(/status:\s*"pending",\s*worker_lease:\s*null/.test(worker),
+        "zavřená brána musí kampaň vrátit do fronty — zabraná kampaň by blokovala i cizí tenanty")
+    assert(worker.includes("GATE_MAX_WAIT_MS"),
+        "čekání musí mít strop: zaseknutá práce nesmí ukázkový obsah zabít úplně")
+    assert(/\(c\.cursor \|\| 0\) > 0/.test(worker),
+        "brána platí jen na nezačatou kampaň — rozdělaná se nesmí zastavit uprostřed")
+})
+
 test("31.4 jádro onboardingu zůstává bez auth vrstvy", () => {
     // Tohle je důvod, proč vůbec šlo onboarding utrhnout od prohlížeče: worker
     // (lib/agents/handlers.ts → cron route) nesmí sáhnout na next/headers. Dokud

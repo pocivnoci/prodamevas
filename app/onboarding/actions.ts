@@ -317,13 +317,35 @@ export async function startOnboardingBootstrap(clientSlug: string): Promise<{
 
         // 3) Durable showcase campaign — 3 auto posts. Empty plan items = the engine picks
         //    type/topic itself, exactly like the old generateOnePost({ configName }) loop.
+        //
+        //    Ale až po fotkách: sken webu (`product_scrape`, zařazený v saveConfigCore)
+        //    teprve plní katalog a stahuje fotky produktů. Renderer bere
+        //    `ig_products.image_urls[0]` jako „EXACT product photo" — kdyby první tři
+        //    příspěvky vznikly během skenu, ukázaly by vymyšlený produkt místo toho
+        //    skutečného. Brána visí na tasku a vyhodnocuje ji worker proti jeho živému
+        //    stavu; když sken doběhne dřív (nebo klient nemá web), nezdrží nic.
+        const { data: scrapeTask } = await supabaseAdmin
+            .from('agent_tasks')
+            .select('id')
+            .eq('client_id', clientId)
+            .eq('type', 'product_scrape')
+            .in('status', ['pending', 'running'])
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
         const { data: campaign, error } = await supabaseAdmin
             .from('ig_campaigns')
             .insert({
                 client_id: clientId,
                 status: 'pending',
                 plan: [{}, {}, {}],
-                options: { configName: clientSlug, adminBypass: true, showcase: true },
+                options: {
+                    configName: clientSlug,
+                    adminBypass: true,
+                    showcase: true,
+                    ...(scrapeTask ? { gate: { taskId: scrapeTask.id, reason: 'product_scrape' } } : {}),
+                },
                 total: 3,
             })
             .select('id')

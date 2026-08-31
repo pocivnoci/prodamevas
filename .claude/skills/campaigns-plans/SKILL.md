@@ -39,6 +39,16 @@ Co na tom drží trvanlivost:
 - Každý post nese `config.campaignId` na svém `ig_jobs` řádku. UI polluje
   `getCampaignStatus()` a po mountu se přes `localStorage` připojí zpět k běžící
   kampani — tab se může zavřít.
+- **Brána `options.gate`.** Kampaň může čekat na cizí durable práci:
+  `options.gate = { taskId }` a worker ji pustí, teprve až je ten `agent_tasks` řádek
+  `done`/`failed`/pryč. Stav se čte **živě**, takže bránu nikdo neotevírá — když
+  hlídaná práce doběhne dřív, nezdrží se nic. Zavřená brána kampaň **vrátí do fronty**
+  (`status:'pending'`, `worker_lease:null`) a tick si vezme další, ať čekání nezdrží
+  cizí tenanty. Platí jen na kampaň s `cursor = 0` a má strop
+  `CAMPAIGN_GATE_MAX_WAIT_MS` (20 min) — zaseknutá práce nesmí obsah zabít úplně.
+  Jediný dnešní uživatel: ukázkové příspěvky z onboardingu čekají na `product_scrape`,
+  protože renderer bere `ig_products.image_urls[0]` jako „EXACT product photo" a bez
+  fotek by první tři příspěvky ukázaly vymyšlený produkt.
 
 ## Draft nemůže generovat ani účtovat
 

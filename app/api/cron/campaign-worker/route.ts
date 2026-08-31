@@ -26,6 +26,10 @@ const MAX_CAMPAIGN_AGE_MS = Number(process.env.CAMPAIGN_MAX_AGE_MS || 6 * 60 * 6
 // Plan previews the user generated but never approved. Kept long enough to survive a
 // "I'll finish this next week", then collected — otherwise every plan run leaks a row.
 const DRAFT_TTL_MS = 14 * 24 * 60 * 60 * 1000
+// Jak dlouho smí kampaň čekat na bránu (`options.gate`), než se pustí i tak. Čekání
+// nesmí být nekonečné: když se hlídaná práce zasekne, je pozdější obsah pořád lepší
+// než žádný.
+const GATE_MAX_WAIT_MS = Number(process.env.CAMPAIGN_GATE_MAX_WAIT_MS || 20 * 60 * 1000)
 
 export async function GET(req: Request) {
     const secret = process.env.CRON_SECRET
@@ -69,10 +73,49 @@ export async function GET(req: Request) {
         return data
     }
 
+    // ── Brána: kampaň, která čeká na cizí práci ─────────────────────────────
+    // Ukázkové příspěvky z onboardingu se nesmí vyrobit dřív, než sken webu stáhne
+    // fotky produktů — renderer bere `ig_products.image_urls[0]` jako „EXACT product
+    // photo" (instagram/orchestrators/image-orchestrator.ts). Bez fotky vznikne
+    // vymyšlený produkt a přesně první tři příspěvky jsou to, podle čeho klient soudí
+    // celý produkt. Stav se čte ŽIVĚ z hlídaného tasku, takže brána nepotřebuje, aby ji
+    // kdokoli „otevřel" — když práce doběhne dřív, nic se nezdrží, a když task zmizí,
+    // kampaň se pustí taky.
+    //
+    // Vrací důvod, proč se má počkat, nebo null. Rozdělaná kampaň (cursor > 0) se
+    // nezastavuje — brána platí jen na tu, co ještě nic nevygenerovala.
+    const gateReason = async (c: any): Promise<string | null> => {
+        const taskId = (c.options as Record<string, any> | null)?.gate?.taskId
+        if (!taskId || (c.cursor || 0) > 0) return null
+        if (Date.now() - new Date(c.created_at).getTime() > GATE_MAX_WAIT_MS) return null
+        const { data: task } = await supabaseAdmin
+            .from("agent_tasks")
+            .select("type, status")
+            .eq("id", taskId)
+            .maybeSingle()
+        if (!task || !["pending", "running"].includes(task.status)) return null
+        return `${task.type} (${task.status})`
+    }
+
     let campaign: any = null
     for (const c of candidates || []) {
         const claimed = (await tryClaim(c.id, true)) || (await tryClaim(c.id, false))
-        if (claimed) { campaign = claimed; break }
+        if (!claimed) continue
+
+        const waitingFor = await gateReason(claimed)
+        if (waitingFor) {
+            // Zpátky do fronty — a tick si vezme další kampaň, ať čekání nezdrží cizí tenanty.
+            const { error } = await supabaseAdmin
+                .from("ig_campaigns")
+                .update({ status: "pending", worker_lease: null })
+                .eq("id", claimed.id)
+            if (error) console.warn(`⚠️ campaign-worker gate release failed (${claimed.id}): ${error.message}`)
+            console.log(`⏳ campaign ${claimed.id} čeká na ${waitingFor}`)
+            continue
+        }
+
+        campaign = claimed
+        break
     }
 
     if (!campaign) {
