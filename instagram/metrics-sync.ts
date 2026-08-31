@@ -15,9 +15,14 @@
 import supabaseAdmin from "@/supabase/admin"
 import { withRetry } from "@/utils/retry"
 import { getConnection } from "./ig-connection"
-import { instagramAdapter } from "@/lib/channels/instagram"
+import { getChannelAdapter } from "@/lib/channels"
+import type { ChannelConnection } from "@/lib/channels/types"
 
 const IG_GRAPH_BASE = "https://graph.instagram.com"
+
+/** Per-tenant cap when reading through upload-post, whose live analytics endpoint
+ *  allows 100 requests / 5 minutes for the whole API key. */
+const UPLOADPOST_POSTS_PER_SYNC = 30
 
 export type IGPostMetricsInput = {
     likes: number
@@ -172,18 +177,35 @@ export async function syncPostMetrics(clientId: string): Promise<SyncResult> {
     const conn = await getConnection(clientId)
     if (!conn || conn.status !== "connected") return result
 
+    // The transport decides which adapter reads metrics. Without this the Graph
+    // adapter would receive an upload-post profile username as an access token.
+    const adapter = getChannelAdapter("instagram", conn.transport)
+    const channelConnection: ChannelConnection = {
+        accessToken: conn.accessToken,
+        externalUserId: conn.igUserId,
+        transport: conn.transport,
+    }
+
+    // upload-post's live analytics allows 100 requests per 5 minutes ACROSS THE KEY,
+    // and the cron walks tenants sequentially — so an unbounded sweep would starve
+    // whoever comes last. Cap each tenant at its most recent posts (which is where
+    // the learning signal is anyway) and let the next daily run pick up the rest.
+    const budget = conn.transport === "uploadpost" ? UPLOADPOST_POSTS_PER_SYNC : 100
+
     const { data: posts } = await supabaseAdmin
         .from("ig_posts")
-        .select("id, caption, posted_at, ig_media_id")
+        .select("id, caption, posted_at, ig_media_id, publish_request_id")
         .eq("client_id", clientId)
         .eq("status", "posted")
         .order("posted_at", { ascending: false })
-        .limit(100)
+        .limit(budget)
     if (!posts || posts.length === 0) return result
 
-    // Only list media if at least one post still needs linking.
+    // Caption matching is a GRAPH-only affair: it exists to link handoff posts the
+    // user published by hand, and it needs the account's media list. On the bridge
+    // the equivalent link is the request_id we stored at publish time.
     let media: IgMedia[] = []
-    if (posts.some(p => !p.ig_media_id)) {
+    if (conn.transport === "meta" && posts.some(p => !p.ig_media_id)) {
         try {
             media = await listRecentMedia(conn.igUserId, conn.accessToken)
         } catch (err) {
@@ -195,13 +217,18 @@ export async function syncPostMetrics(clientId: string): Promise<SyncResult> {
 
     for (const post of posts) {
         try {
-            let mediaId = post.ig_media_id as string | null
+            // How THIS transport addresses the post. Graph wants the native media id;
+            // upload-post wants its own request_id.
+            let ref: string | null =
+                conn.transport === "meta"
+                    ? (post.ig_media_id as string | null)
+                    : (post.publish_request_id as string | null)
 
-            // Link handoff/manual posts by caption match; backfill id + permalink.
-            if (!mediaId) {
+            if (!ref && conn.transport === "meta") {
+                // Handoff/manual post: link it by caption match, then backfill.
                 const hit = matchMedia(post.caption, media)
                 if (!hit) { result.skipped++; continue }
-                mediaId = hit.id
+                ref = hit.id
                 await supabaseAdmin
                     .from("ig_posts")
                     .update({ ig_media_id: hit.id, permalink: hit.permalink || null })
@@ -209,10 +236,25 @@ export async function syncPostMetrics(clientId: string): Promise<SyncResult> {
                 result.matched++
             }
 
-            const cm = await instagramAdapter.fetchMetrics(
-                { accessToken: conn.accessToken, externalUserId: conn.igUserId },
-                mediaId,
-            )
+            if (!ref) {
+                // On the bridge, a post with no request_id was published some other way
+                // (handoff, or before the transport existed). The manual MetricsInputForm
+                // still covers it — we just have nothing to query.
+                result.skipped++
+                continue
+            }
+
+            const { metrics: cm, nativeId, permalink } = await adapter.fetchMetrics(channelConnection, ref)
+
+            // Backfill identity from the same response that carried the metrics: an
+            // async transport reports the native id only once the network took the post.
+            if (!post.ig_media_id && nativeId) {
+                await supabaseAdmin
+                    .from("ig_posts")
+                    .update({ ig_media_id: nativeId, ...(permalink ? { permalink } : {}) })
+                    .eq("id", post.id)
+                result.matched++
+            }
 
             // Write only the fields the API actually returned.
             const metrics: Partial<IGPostMetricsInput> = {}
@@ -224,6 +266,7 @@ export async function syncPostMetrics(clientId: string): Promise<SyncResult> {
             if (cm.profile_visits != null) metrics.profile_visits = cm.profile_visits
             if (Object.keys(metrics).length === 0) { result.skipped++; continue }
 
+            // ── The one cascade. Both transports land here; nothing forks below. ──
             const w = await writeIGPostMetrics(post.id, metrics)
             if (w.ok) result.synced++
             if (w.significant) anySignificant = true

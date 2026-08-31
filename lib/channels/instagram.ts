@@ -17,6 +17,7 @@ import {
     type FormattedContent,
     type ChannelConnection,
     type ChannelMetrics,
+    type ChannelMetricsResult,
     type PublishResult,
     ChannelNotEnabledError,
 } from "./types"
@@ -95,6 +96,7 @@ async function publishContainer(igUserId: string, accessToken: string, creationI
 
 export const instagramAdapter: ChannelAdapter = {
     channel: "instagram",
+    transport: "meta",
     constraints: {
         maxCaptionChars: 2200,
         supportsHashtags: true,
@@ -223,7 +225,7 @@ export const instagramAdapter: ChannelAdapter = {
         return { externalId: mediaId, permalink }
     },
 
-    async fetchMetrics(connection: ChannelConnection, externalId: string): Promise<ChannelMetrics> {
+    async fetchMetrics(connection: ChannelConnection, externalId: string): Promise<ChannelMetricsResult> {
         const accessToken = connection.accessToken
         const metrics: ChannelMetrics = {}
 
@@ -263,6 +265,8 @@ export const instagramAdapter: ChannelAdapter = {
             }
         }
 
-        return metrics
+        // For `meta` the caller already holds the native id (it passed it in), so there
+        // is nothing to backfill — only the numbers come back.
+        return { metrics }
     },
 }

@@ -186,4 +186,10 @@ export const SUBPROCESSORS: ReadonlyArray<{
     { name: "Resend, Inc.", purpose: "odesílání transakčních e-mailů", location: "EU / USA" },
     { name: "Fakturoid s.r.o.", purpose: "vystavování a archivace faktur", location: "Česká republika" },
     { name: "Meta Platforms Ireland Ltd.", purpose: "publikování na Instagram (jen při propojení účtu)", location: "EU / USA" },
+    // Most pro publikaci na cizí profily, dokud neprojde 2. App Review u Mety.
+    // Uvedený stejnou logikou jako druhá platební brána výš: `publishTransport`
+    // na něj umí přepnout změnou env proměnné, a při propojení mu projde jak
+    // přístup k účtu zákazníka, tak jeho obsah a čísla o výkonu. Mlčet o něm by
+    // bylo porušení informační povinnosti.
+    { name: "Upload-Post LLC", purpose: "publikování na Instagram a čtení statistik příspěvků (jen při propojení účtu přes tuto cestu)", location: "USA" },
 ] as const

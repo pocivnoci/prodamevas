@@ -29,6 +29,8 @@ const OPTIONAL = [
     "STRIPE_WEBHOOK_SECRET",   // bez něj webhook odmítne každou událost (podpis nelze ověřit)
     "RESEND_API_KEY",          // bez něj neodejde uvítání, doklad ani dunning — a sendNotification chybu spolkne
     "REPORT_FROM_EMAIL",       // bez ověřené domény se posílá z onboarding@resend.dev, který doručí JEN na adresu majitele Resend účtu
+    "UPLOADPOST_API_KEY",      // most k publikaci na cizí profily, dokud neprojde 2. App Review — bez něj se volba v UI neukáže
+    "UPLOADPOST_DEFAULT_TRANSPORT", // "uploadpost" přepne výchozí nabídku připojení pro nové tenanty; jinak platí "meta"
 ] as const
 
 export function validateEnv(): void {

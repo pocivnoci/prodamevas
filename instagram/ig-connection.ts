@@ -13,6 +13,7 @@
 import supabaseAdmin from "@/supabase/admin"
 import { encryptToken, decryptToken } from "@/lib/ig-token-crypto"
 import { withRetry } from "@/utils/retry"
+import type { Transport } from "@/lib/channels/types"
 
 const IG_GRAPH_BASE = "https://graph.instagram.com"
 const IG_OAUTH_TOKEN_URL = "https://api.instagram.com/oauth/access_token"
@@ -24,9 +25,12 @@ const PROVIDER = "instagram"
 export interface IgConnection {
     igUserId: string
     igUsername: string | null
-    accessToken: string // decrypted
+    /** Decrypted. `meta`: the IG access token. `uploadpost`: the profile username. */
+    accessToken: string
     tokenExpiresAt: string | null
     status: "connected" | "expired" | "revoked"
+    /** How this connection publishes. Read from the row — never inferred. */
+    transport: Transport
 }
 
 export interface IgConnectionMeta {
@@ -35,6 +39,22 @@ export interface IgConnectionMeta {
     tokenExpiresAt: string | null
     refreshedAt: string | null
     status: "connected" | "expired" | "revoked"
+    transport: Transport
+}
+
+/**
+ * Read the transport off a row.
+ *
+ * The column is NOT NULL with a DB-level default of 'meta', so a missing value
+ * means the row was written by code that did not know about transports — which is
+ * exactly the bug this guard exists to surface. Publishing with a guessed transport
+ * would hand the Graph API an upload-post profile username.
+ */
+function readTransport(value: unknown, clientId: string): Transport {
+    if (value === "meta" || value === "uploadpost") return value
+    throw new Error(
+        `ig_connections: neznámý transport '${String(value)}' pro klienta ${clientId} — transport se nesmí odhadovat.`,
+    )
 }
 
 /**
@@ -44,7 +64,7 @@ export interface IgConnectionMeta {
 export async function getConnectionMeta(clientId: string): Promise<IgConnectionMeta | null> {
     const { data } = await supabaseAdmin
         .from("ig_connections")
-        .select("ig_user_id, ig_username, token_expires_at, refreshed_at, status")
+        .select("ig_user_id, ig_username, token_expires_at, refreshed_at, status, transport")
         .eq("client_id", clientId)
         .eq("provider", PROVIDER)
         .maybeSingle()
@@ -55,6 +75,7 @@ export async function getConnectionMeta(clientId: string): Promise<IgConnectionM
         tokenExpiresAt: data.token_expires_at,
         refreshedAt: data.refreshed_at,
         status: data.status,
+        transport: readTransport(data.transport, clientId),
     }
 }
 
@@ -65,7 +86,7 @@ export async function getConnectionMeta(clientId: string): Promise<IgConnectionM
 export async function getConnection(clientId: string): Promise<IgConnection | null> {
     const { data } = await supabaseAdmin
         .from("ig_connections")
-        .select("ig_user_id, ig_username, access_token, token_expires_at, status")
+        .select("ig_user_id, ig_username, access_token, token_expires_at, status, transport")
         .eq("client_id", clientId)
         .eq("provider", PROVIDER)
         .maybeSingle()
@@ -76,13 +97,29 @@ export async function getConnection(clientId: string): Promise<IgConnection | nu
         accessToken: decryptToken(data.access_token),
         tokenExpiresAt: data.token_expires_at,
         status: data.status,
+        transport: readTransport(data.transport, clientId),
     }
 }
 
-/** Upsert a tenant's connection (one per client). Encrypts the token before write. */
+/**
+ * Upsert a tenant's connection (one per client, whichever transport it uses).
+ * Encrypts the credential before write.
+ *
+ * `transport` is a REQUIRED argument with no default: a tenant reconnecting through
+ * a different transport must overwrite the old row, and a caller that forgets to
+ * say which pipe it just connected is a bug we want at the call site, not a silent
+ * 'meta' that later sends a profile username to the Graph API.
+ */
 export async function saveConnection(
     clientId: string,
-    conn: { igUserId: string; igUsername: string | null; accessToken: string; expiresAt: string | null },
+    conn: {
+        igUserId: string
+        igUsername: string | null
+        accessToken: string
+        expiresAt: string | null
+        transport: Transport
+        metadata?: Record<string, unknown>
+    },
 ): Promise<void> {
     const { error } = await supabaseAdmin
         .from("ig_connections")
@@ -95,11 +132,24 @@ export async function saveConnection(
                 access_token: encryptToken(conn.accessToken),
                 token_expires_at: conn.expiresAt,
                 status: "connected",
+                transport: conn.transport,
+                metadata: conn.metadata ?? {},
                 refreshed_at: new Date().toISOString(),
             },
             { onConflict: "client_id,provider" },
         )
     if (error) throw new Error(`Uložení IG připojení selhalo: ${error.message}`)
+}
+
+/** Read a connection's stored provider-specific extras (upload-post profile, …). */
+export async function getConnectionMetadata(clientId: string): Promise<Record<string, any>> {
+    const { data } = await supabaseAdmin
+        .from("ig_connections")
+        .select("metadata")
+        .eq("client_id", clientId)
+        .eq("provider", PROVIDER)
+        .maybeSingle()
+    return (data?.metadata as Record<string, any>) ?? {}
 }
 
 /** Mark a connection revoked (e.g. on data-deletion or when IG rejects the token). */
@@ -180,6 +230,13 @@ export async function fetchIgProfile(
 export async function refreshConnection(clientId: string): Promise<{ refreshed: boolean }> {
     const conn = await getConnection(clientId)
     if (!conn) return { refreshed: false }
+
+    // Only Meta issues tokens that expire. An upload-post row's `access_token` holds
+    // a profile username, so refreshing it would POST that to graph.instagram.com,
+    // fail, and land in the catch below — which marks the connection `expired` and
+    // silently stops that tenant's publishing. The daily cron would do it every day.
+    if (conn.transport !== "meta") return { refreshed: false }
+
     try {
         const url = `${IG_GRAPH_BASE}/refresh_access_token?grant_type=ig_refresh_token&access_token=${encodeURIComponent(conn.accessToken)}`
         const json = await withRetry(async () => {

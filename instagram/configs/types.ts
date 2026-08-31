@@ -296,6 +296,16 @@ export interface ClientConfig {
      *  auto-armed (no auto-publish video path). validateConfig defaults false. */
     autoPublish?: boolean
 
+    /** Which connect flow this tenant is OFFERED in Settings — our own Meta OAuth,
+     *  or the upload-post bridge that works before the 2nd App Review clears.
+     *
+     *  It decides the OFFER only. How an ALREADY connected account publishes is read
+     *  from `ig_connections.transport`, which is stamped at connect time: two sources
+     *  of truth for a live connection would be a way to send a profile username to
+     *  the Graph API. validateConfig defaults it from UPLOADPOST_DEFAULT_TRANSPORT,
+     *  falling back to "meta". */
+    publishTransport?: "meta" | "uploadpost"
+
     /** Idea-bank auto-replenishment: the daily-ops agent tops the available
      *  (active, off-cooldown) pool of ig_post_ideas up to a cadence-derived runway
      *  when it drops low (free, bounded — see lib/agents/idea-replenish.ts). ON by

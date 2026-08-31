@@ -6,6 +6,19 @@
 
 **Key mindset:** This is a **one-time bureaucratic gate per app**, not per tenant. It runs in the background; the manual `MetricsInputForm` keeps the learning loop alive the whole time, so we are never blocked.
 
+> ## ⚠️ Tenants are no longer blocked on this plan
+>
+> Publishing to a **tenant's** account (and reading its metrics) now has a second
+> route: the **upload-post transport**, which rides that vendor's already-approved
+> Meta app. See `docs/POSTING_GUIDE.md`. It exists because the `content_publish`
+> submission below is the *slow* half, and a paying customer should not wait on it.
+>
+> **This plan does not stop.** The bridge costs money per profile and puts a third
+> party between us and our customers' accounts; our own app stays the target. When
+> Advanced Access lands, a tenant reconnects through our OAuth, `ig_connections.transport`
+> flips to `meta`, and nothing else changes — the publisher reads the transport per
+> post at send time, so scheduled posts are untouched.
+
 ---
 
 ## The two gates (and why they're separate)
