@@ -3,8 +3,33 @@
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown } from "lucide-react"
+import { EXTRA_CREDIT_HALERU, FALLBACK_PLANS, formatCzk } from "@/lib/pricing"
 
 // ─── FAQ Data ────────────────────────────────────────────────
+
+/**
+ * Věta o tarifech se skládá z ceníku, ne z ruky.
+ *
+ * Do 9/2026 tu stály ceny natvrdo a přežily přecenění na v6 — zákazník tak četl
+ * v nápovědě jinou cenu, než jakou mu naúčtovala pokladna. Copy zůstává tady
+ * (je to marketingový text, ne data), čísla chodí z `lib/pricing.ts`.
+ */
+const PLAN_BLURB: Record<string, string> = {
+    chrlit_start: "obrázky a carousely",
+    chrlit_rust: "navíc A/B varianty, reels a růstový dashboard",
+    chrlit_dominance: "navíc product studio a prioritní generování",
+    // Ne „pro agentury a e-shopy": víc profilů na účet není implementované ani
+    // vynucované, takže by to prodávalo něco, co zákazník nedostane.
+    chrlit_imperium: "nejvyšší objem pro jednu značku",
+}
+
+function plansSentence(): string {
+    const list = FALLBACK_PLANS.map(
+        (p) => `${p.name} (${formatCzk(p.monthlyHaleru)}, ${p.creditsPerMonth} kreditů — ${PLAN_BLURB[p.id] ?? ""})`,
+    )
+    const last = list.pop()
+    return `Čtyři plány: ${list.join(", ")} a ${last}.`
+}
 
 interface FaqItem {
     q: string
@@ -77,7 +102,7 @@ const FAQ_CATEGORIES: FaqCategory[] = [
             },
             {
                 q: "Jaké jsou plány a jak si dobiju kredity?",
-                a: "Čtyři plány: Start (990 Kč, 20 kreditů — obrázky a carousely), Růst (1 990 Kč, 45 kreditů — navíc A/B varianty, reels a růstový dashboard), Dominance (3 990 Kč, 100 kreditů — navíc product studio a prioritní generování) a Impérium (7 990 Kč, 220 kreditů — plný objem pro agentury a e-shopy). Ceny jsou měsíční; při delším období platíte míň. Když kredity dojdou, dobijete si je za 49 Kč/ks v Nastavení → Předplatné.",
+                a: `${plansSentence()} Ceny jsou měsíční; při delším období platíte míň. Když kredity dojdou, dobijete si je za ${formatCzk(EXTRA_CREDIT_HALERU)}/ks v Nastavení → Předplatné.`,
             },
             {
                 q: "Jak funguje placení na 3, 6 nebo 12 měsíců?",

@@ -141,7 +141,7 @@ export async function createStripeCheckout(input: CheckoutInput): Promise<Checko
     // do ComGate). Stripe chce nejmenší jednotku měny → předává se beze změny.
     //
     // Jednorázová služba jede v režimu `payment`: není co obnovovat, a předplatné
-    // by u ní znamenalo strhávat 990 Kč každý měsíc za schůzku, která byla jednou.
+    // by u ní znamenalo strhávat 999 Kč každý měsíc za schůzku, která byla jednou.
     const session = await getStripe().checkout.sessions.create({
         mode: isService ? "payment" : "subscription",
         line_items: [{

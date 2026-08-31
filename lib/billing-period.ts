@@ -67,7 +67,7 @@ export function resolveTermMonths(
 /**
  * How many days before the renewal charge the customer gets a heads-up.
  *
- * Three days is fine for 990 Kč. Announcing a 19 900 Kč charge three days out is
+ * Three days is fine for a 999 Kč month. Announcing a 29 990 Kč yearly charge three days out is
  * an invitation to a chargeback — a yearly customer has long forgotten the sign-up
  * and needs time to cancel deliberately rather than by disputing the payment.
  */

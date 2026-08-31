@@ -10,6 +10,16 @@ import { resolve } from "path"
 import { execSync } from "child_process"
 
 const ROOT = resolve(__dirname)
+
+/**
+ * Seed s aktuálním ceníkem.
+ *
+ * Přecenění zakládá NOVOU migraci (staré se nepřepisují — jsou to už proběhlé
+ * kroky), takže aserce musí umět ukázat jinam. Dřív byla cesta na pěti místech
+ * a přecenění by tiše kontrolovalo mrtvý ceník. Jedna konstanta = jedno místo,
+ * které se u příštího přecenění mění.
+ */
+const PRICING_SEED = "supabase/migrations/20260901_pricing_v6.sql"
 let passed = 0
 let failed = 0
 const results: { name: string; status: "PASS" | "FAIL"; detail?: string }[] = []
@@ -549,7 +559,7 @@ test("13.9 kopie tarifu nesmí slibovat médium, které tarif nemá", () => {
     // Ceník je psaný ručně (PLAN_COPY), média povoluje seed (allowed_media). Dvě
     // místa = dřív nebo později dvě pravdy, a rozejdou se směrem „slíbíme víc".
     const { PLAN_COPY } = require("./lib/pricing")
-    const seed = fileContent("supabase/migrations/20260716_pricing_v5.sql")
+    const seed = fileContent(PRICING_SEED)
 
     let overeno = 0
     for (const [planId, copy] of Object.entries(PLAN_COPY as Record<string, { bullets: unknown[] }>)) {
@@ -618,7 +628,7 @@ test("13.12 přednost ve frontě existuje, nejen svítí na kartě", () => {
         "kampaň musí prioritu dostat při vstupu do fronty — worker neumí join na tarif")
 
     // Boolean by Dominanci od Impéria neodlišil, přestože Impérium slibuje NEJVYŠŠÍ.
-    const seed = fileContent("supabase/migrations/20260716_pricing_v5.sql")
+    const seed = fileContent(PRICING_SEED)
     assert(!/"priority":\s*(true|false)/.test(seed),
         "priorita v seedu musí být číslo (0/10/20), ne boolean")
 })
@@ -633,7 +643,7 @@ test("13.13 Impérium neslibuje agentury, dokud je víc profilů nevynucených",
 
     const enforced = codeOnly("app/onboarding/actions.ts").includes("max_projects")
     if (!enforced) {
-        const seed = fileContent("supabase/migrations/20260716_pricing_v5.sql")
+        const seed = fileContent(PRICING_SEED)
         assert(!/"max_projects":\s*([2-9]|\d{2,})/.test(seed),
             "žádný tarif nesmí slibovat víc profilů, dokud to onboarding nevynucuje")
     }
@@ -1060,9 +1070,9 @@ test("13.7e připojení účtu je první věc v Nastavení, ne poslední", () =>
 })
 
 test("13.8 every plan grants story (seed must not drift)", () => {
-    // 20260716_pricing_v5.sql is a declarative seed with ON CONFLICT DO UPDATE SET
+    // The pricing seed is declarative with ON CONFLICT DO UPDATE SET
     // features = EXCLUDED.features — leaving it stale means the next run STRIPS story.
-    const seed = fileContent("supabase/migrations/20260716_pricing_v5.sql")
+    const seed = fileContent(PRICING_SEED)
     const media = seed.match(/"allowed_media": \[[^\]]*\]/g) || []
     assert(media.length === 4, `expected 4 allowed_media literals, found ${media.length}`)
     assert(media.every(m => m.includes('"story"')), "every plan's allowed_media must include story, or the seed re-run removes it")
@@ -2200,7 +2210,7 @@ test("25.3 ceník na landingu a v migraci se shodují", () => {
     // Landing má statickou kopii ceníku pro případ výpadku DB. Dvě pravdy o ceně
     // vydrží přesně do první změny ceníku — pak jedna z nich lže zákazníkovi.
     const pricing = fileContent("lib/pricing.ts")
-    const mig = fileContent("supabase/migrations/20260716_pricing_v5.sql")
+    const mig = fileContent(PRICING_SEED)
 
     const fromCode = [...pricing.matchAll(/id: "(chrlit_\w+)", name: "[^"]+", monthlyHaleru: (\d+)/g)]
         .map(m => `${m[1]}=${m[2]}`)
@@ -2209,7 +2219,29 @@ test("25.3 ceník na landingu a v migraci se shodují", () => {
     for (const entry of fromCode) {
         const [id, price] = entry.split("=")
         const re = new RegExp(`'${id}',\\s*'[^']+',\\s*'[^']*',\\s*${price},`)
-        assert(re.test(mig), `${id}: cena ${price} haléřů nesedí s migrací pricing_v5`)
+        assert(re.test(mig), `${id}: cena ${price} haléřů nesedí s ${PRICING_SEED}`)
+    }
+})
+
+test("25.3b cena tarifu nesmí být napsaná v textu aplikace", () => {
+    // Přecenění na v6 našlo v nápovědě ceny z v5: FAQ tvrdilo „Start (990 Kč)",
+    // zatímco pokladna účtovala 999. Text o tarifech se skládá z ceníku, jinak
+    // každé další přecenění nechá někde v aplikaci viset starou cenu.
+    const { FALLBACK_PLANS } = require("./lib/pricing")
+    const ceny = FALLBACK_PLANS.map((p: { monthlyHaleru: number }) => Math.round(p.monthlyHaleru / 100))
+
+    for (const f of [
+        "app/(dashboard)/dashboard/instagram/tabs/FaqTab.tsx",
+        "components/Landing.tsx",
+        "app/page.tsx",
+    ]) {
+        const src = codeOnly(f)
+        for (const cena of ceny) {
+            // Hledá se jen zápis s měnou — samotné číslo může být cokoliv (rozměr,
+            // timeout), a falešný poplach by aserci časem odstavil.
+            const re = new RegExp(`${cena}\\s*Kč|${String(cena).replace(/(\d)(\d{3})$/, "$1 $2")}\\s*Kč`)
+            assert(!re.test(src), `${f}: cena ${cena} Kč napsaná natvrdo — musí jít z lib/pricing.ts`)
+        }
     }
 })
 
@@ -2222,8 +2254,16 @@ test("25.4 delší období nesmí vyjít dráž", () => {
         for (const t of BILLING_TERMS) {
             const perMonth = monthlyEquivalent(plan.monthlyHaleru, t.months)
             assert(perMonth <= prev, `${plan.name}/${t.months}: ${perMonth} > ${prev} haléřů za měsíc`)
-            assert(termPrice(plan.monthlyHaleru, t.months) % 1000 === 0,
-                `${plan.name}/${t.months}: cena není celých 10 Kč`)
+            // Zaokrouhlení na 10 Kč platí jen tam, kde se počítá sleva. Měsíc se
+            // musí rovnat ceníkové ceně NA HALÉŘ: dokud ceny končily nulou, floor
+            // nebyl vidět, u 999 Kč by tiše účtoval 990 — devět korun pod kartou.
+            if (t.months === 1) {
+                assert(termPrice(plan.monthlyHaleru, 1) === plan.monthlyHaleru,
+                    `${plan.name}: měsíční cena se nesmí zaokrouhlovat (${termPrice(plan.monthlyHaleru, 1)} ≠ ${plan.monthlyHaleru})`)
+            } else {
+                assert(termPrice(plan.monthlyHaleru, t.months) % 1000 === 0,
+                    `${plan.name}/${t.months}: cena není celých 10 Kč`)
+            }
             prev = perMonth
         }
         // Slib „dva měsíce zdarma" musí platit doslova — zákazník si to spočítá.

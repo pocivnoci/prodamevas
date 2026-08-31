@@ -303,7 +303,7 @@ ne identifikovaných osob. `[OVĚŘIT s účetní]`
 ### Co to znamená (a co ne)
 
 ✅ **Zůstáváš neplátcem DPH vůči zákazníkům.** Faktury pro české zákazníky se dál
-vystavují bez DPH, ceny 990 / 1 990 / 3 990 / 7 990 Kč zůstávají konečné.
+vystavují bez DPH, ceny 999 / 2 999 / 4 999 / 8 999 Kč zůstávají konečné.
 
 ❌ **Ale z nákupů ze zahraničí odvádíš českou DPH 21 %** v režimu přenesené daňové
 povinnosti — a **bez nároku na odpočet**.
@@ -380,8 +380,8 @@ Pro živé platby je potřeba:
 4. Nahradit test klíče živými v env pro `production`.
 
 **Poplatky a DPH:** provize Stripe je služba z irské entity → přenesená daňová
-povinnost → připočti si k ní 21 % (viz kapitola 4). Reálný náklad z platby 990 Kč je
-tedy ~25,40 Kč, ne ~21 Kč. U ComGate tenhle příplatek nevzniká.
+povinnost → připočti si k ní 21 % (viz kapitola 4). Reálný náklad z platby 999 Kč je
+tedy ~25,60 Kč, ne ~21,20 Kč. U ComGate tenhle příplatek nevzniká.
 
 ## 6b. ComGate — smlouva na IČO (odloženo)
 

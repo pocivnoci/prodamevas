@@ -7,13 +7,13 @@
  *             podklad pro hovor.
  *   Cal.com:  volné termíny, časová pásma, video hovor, připomínky.
  *
- * **Peníze přes Cal.com nikdy nejdou.** Kdyby 990 Kč inkasoval on svým Stripem,
+ * **Peníze přes Cal.com nikdy nejdou.** Kdyby 999 Kč inkasoval on svým Stripem,
  * nevystaví se doklad ve Fakturoidu — a to je zákonná povinnost, ne detail.
  * Cal.com dostane rezervaci až po zaplacení (nebo z nároku), takže o ceně
  * nemusí vědět vůbec.
  *
  * Schůzka vzniká dvěma cestami a obě končí ve stejném stavovém automatu:
- *   – jednorázový nákup za 990 Kč      → `paid`
+ *   – jednorázový nákup za 999 Kč      → `paid`
  *   – předplatné na 6 nebo 12 měsíců   → `entitled` (v ceně, peníze se nehýbou)
  */
 
