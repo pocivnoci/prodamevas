@@ -7,7 +7,7 @@ import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient,
 import { syncConfigProductsToDb } from "@/app/actions/product-actions"
 import { CatalogSection } from "./products/CatalogSection"
 import { generateCategoryPrompt } from "@/app/actions/content-plan-actions"
-import { getConnectionStatus, disconnectInstagram, startUploadPostConnect, syncUploadPostConnection, type ConnectionStatus } from "@/app/actions/ig-connection-actions"
+import { getConnectionStatus, disconnectInstagram, syncUploadPostConnection, type ConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { SubscriptionSection } from "./SubscriptionSection"
 import { BillingSection } from "./BillingSection"
 import { ConsultationSection } from "./ConsultationSection"
@@ -1676,6 +1676,10 @@ function InstagramConnectionSection({ projectId, onConnected }: { projectId: str
                 armAutoPublishNow(projectId).catch(() => null)
             }
             else if (ig === "denied") setFlash("Připojení zrušeno na straně Instagramu")
+            // Návrat z mostu, kde účet ještě propojený nebyl — uživatel se vrátil dřív,
+            // než to dokončil. To není chyba, jen nedodělek, a rada musí být jiná.
+            else if (ig === "pending") setFlash("Připojení zatím nevidím — dokonči ho a klikni na Ověřit")
+            else if (ig === "limit") setFlash("Na upload-postu je vyčerpaný limit profilů — bez navýšení tarifu další účet nepřipojíš")
             else if (ig === "error") setFlash("Připojení se nezdařilo, zkus to znovu")
         }
     }, [load, projectId])
@@ -1713,19 +1717,6 @@ function InstagramConnectionSection({ projectId, onConnected }: { projectId: str
         window.addEventListener("focus", onFocus)
         return () => window.removeEventListener("focus", onFocus)
     }, [isBridge, projectId, afterConnect])
-
-    const handleBridgeConnect = async () => {
-        setConnecting(true)
-        const res = await startUploadPostConnect(projectId)
-        setConnecting(false)
-        if (!res.success || !res.url) {
-            setFlash(res.error || "Nepodařilo se otevřít propojení, zkus to znovu")
-            return
-        }
-        // New tab, not a redirect: the tenant keeps Chrlit open, and coming back here
-        // is what triggers the focus reconcile above.
-        window.open(res.url, "_blank", "noopener,noreferrer")
-    }
 
     const handleVerify = async () => {
         setConnecting(true)
@@ -1794,20 +1785,22 @@ function InstagramConnectionSection({ projectId, onConnected }: { projectId: str
                             >
                                 Ověřit
                             </button>
-                            <button
-                                onClick={handleBridgeConnect}
-                                disabled={!status?.configured || connecting}
+                            {/* Odkaz, ne tlačítko s window.open(): adresu podepisuje upload-post
+                                až po dvou voláních svého API, takže než by se okno otevřelo, je
+                                uživatelské gesto promlčené a popup blocker ho zahodí — profil
+                                vznikne, ale přihlašovací stránka se neukáže. Přesměrování dělá
+                                /api/ig-connect/bridge, stejně jako u našeho vlastního OAuth. */}
+                            <a
+                                href={status?.configured ? `/api/ig-connect/bridge?slug=${encodeURIComponent(projectId)}` : undefined}
+                                aria-disabled={!status?.configured}
                                 className={`px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all border whitespace-nowrap ${
                                     status?.configured
                                         ? "bg-pink-500/10 text-pink-400 hover:bg-pink-500/20 border-pink-500/20"
                                         : "bg-white/5 text-white/20 border-white/5 pointer-events-none"
                                 }`}
                             >
-                                <span className="inline-flex items-center gap-1.5">
-                                    <Camera className="w-3.5 h-3.5 shrink-0" />
-                                    {connecting ? "Otevírám…" : "Připojit"}
-                                </span>
-                            </button>
+                                <span className="inline-flex items-center gap-1.5"><Camera className="w-3.5 h-3.5 shrink-0" />Připojit</span>
+                            </a>
                         </div>
                     ) : (
                         <a
