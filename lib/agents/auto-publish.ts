@@ -119,6 +119,62 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
         if (!error && data) armed++
     }
 
+    // ── Příspěvky BEZ navrženého termínu ────────────────────────────────────
+    //
+    // Termín razítkuje jen kampaňový worker. Jednotlivé generování, varianty ani
+    // produktové řady ho nenastavují, takže většina `ready` postů žádný plán nemá.
+    // Kdyby je agent ignoroval, auto-publikování by u nich potichu přestalo fungovat
+    // — což se stalo, když tenhle agent poprvé začal vyžadovat `scheduled_for`.
+    //
+    // Přesná hranice tedy není „agent nesmí počítat termíny", ale:
+    // AGENT SMÍ TERMÍN DOPLNIT TOMU, KDO ŽÁDNÝ NEMÁ, A NIKDY NESMÍ PŘEPSAT EXISTUJÍCÍ.
+    // Vynucuje to podmínka `.is("scheduled_for", null)` na updatu níž — ne komentář.
+    const stillNeeded = need - armed
+    if (stillNeeded <= 0) return { clientId, slug, armed, queued: queuedCount + armed }
+
+    const { data: undated } = await supabaseAdmin
+        .from("ig_posts")
+        .select("id")
+        .eq("client_id", clientId)
+        .eq("status", "ready")
+        .not("image_url", "is", null)
+        .is("scheduled_for", null)
+        .or("media_type.is.null,and(media_type.neq.reel,media_type.neq.story)")
+        .order("created_at", { ascending: true })
+        .limit(stillNeeded)
+    if (!undated || undated.length === 0) return { clientId, slug, armed, queued: queuedCount + armed }
+
+    const { distributeSchedule, toScheduledFor } = await import("@/lib/schedule-planner")
+    // Navazujeme za poslední už naostřený slot, ať se fronta nekříží sama se sebou.
+    const lastQueued = queued && queued.length > 0 ? new Date(queued[0].scheduled_for) : null
+    const startDate = lastQueued ? new Date(lastQueued.getTime() + DAY_MS) : undefined
+    const times = Array.isArray(config.postingTimes) && (config.postingTimes as string[]).length > 0
+        ? (config.postingTimes as string[]) : undefined
+    const slots = distributeSchedule(undated.length, { postsPerWeek: perWeek, startDate, timeSlots: times })
+
+    for (let i = 0; i < undated.length; i++) {
+        const slot = slots[i]
+        if (!slot) break
+        const { data } = await supabaseAdmin
+            .from("ig_posts")
+            .update({
+                status: "scheduled",
+                scheduled_for: toScheduledFor(slot.date, slot.time),
+                time_slot: slot.time,
+                publish_error: null,
+                publish_attempts: 0,
+                updated_at: new Date().toISOString(),
+            })
+            .eq("id", undated[i].id)
+            .eq("status", "ready")
+            // Tvrdá pojistka proti přepsání plánu: kdyby mezitím termín někdo
+            // nastavil, tenhle update neprojde a post zůstane jeho.
+            .is("scheduled_for", null)
+            .select("id")
+            .maybeSingle()
+        if (data) armed++
+    }
+
     return { clientId, slug, armed, queued: queuedCount + armed }
 }
 

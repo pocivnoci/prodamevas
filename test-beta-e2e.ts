@@ -976,23 +976,25 @@ test("13.7 auto-publish skips stories AND keeps legacy NULL rows", () => {
 
 test("13.7b jeden plánovač: agent plán potvrzuje, nepočítá ho znovu", () => {
     const c = fileContent("lib/agents/auto-publish.ts")
-    // Dva plánovače = kalendář lže. Agent dřív bral posty podle created_at a termíny
-    // si přepočítal, takže co uživatel viděl, nebylo co vyšlo — ani v jakém pořadí.
+    const code = codeOnly("lib/agents/auto-publish.ts")
+
+    // Dva plánovače = kalendář lže. Agent dřív bral posty podle created_at a KAŽDÝ
+    // termín si přepočítal, takže co uživatel viděl, nebylo co vyšlo.
+    //
+    // Hranice není "agent nesmí počítat termíny" — termín razítkuje jen kampaňový
+    // worker, takže posty z jednotlivého generování žádný nemají a agent by je
+    // musel ignorovat navždy. Hranice je: DOPLNIT SMÍ, PŘEPSAT NE.
+    assert(c.includes('.order("scheduled_for", { ascending: true })'), "agent musí brát naplánované posty podle jejich termínu")
+    // Pojistka musí viset na TOM UPDATU, který termín zapisuje. Pouhý výskyt
+    // `.is("scheduled_for", null)` v souboru nestačí — je i v SELECTu, takže by
+    // aserce prošla i s odstraněnou ochranou (ověřeno, tahle chyba tu byla).
+    const writes = (code.match(/scheduled_for: toScheduledFor/g) || []).length
+    const guarded = (code.match(/scheduled_for: toScheduledFor[\s\S]{0,700}?\.is\("scheduled_for", null\)/g) || []).length
     assert(
-        !codeOnly("lib/agents/auto-publish.ts").includes("distributeSchedule"),
-        "auto-publish nesmí počítat termíny — ty vznikají jednou, při generování",
+        writes > 0 && writes === guarded,
+        `${writes} zápisů termínu, z toho krytých podmínkou jen ${guarded} — každý zápis musí být podmíněný na chybějící termín`,
     )
-    assert(
-        !codeOnly("lib/agents/auto-publish.ts").includes("scheduled_for:"),
-        "auto-publish nesmí scheduled_for přepisovat, jen překlopit stav",
-    )
-    // Pozor na slabou aserci: v souboru je i druhé `.order("scheduled_for")` u čtení
-    // fronty, takže pouhá přítomnost toho řetězce regresi nechytí. Rozhoduje, že tam
-    // NENÍ řazení podle created_at — to bylo staré chování.
-    assert(
-        !codeOnly("lib/agents/auto-publish.ts").includes('.order("created_at"'),
-        "agent musí brát posty podle navrženého termínu, ne podle created_at",
-    )
+
     // Propadlý termín se nesmí posunout potichu: obsah psaný na pátek nemá vyjít
     // v úterý jen proto, že ho nikdo nepotvrdil včas.
     assert(c.includes(".gt(\"scheduled_for\""), "agent musí propadlé termíny nechat být, ne je tiše posunout")
