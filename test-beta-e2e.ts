@@ -1015,6 +1015,50 @@ test("13.7c potvrzení plánu je vědomý krok a nepřepíše souběžnou změnu
     )
 })
 
+test("13.7d kadence žije jen v plánu — Nastavení druhou nenabízí", () => {
+    // Termín každého příspěvku vzniká jednou při generování a od té chvíle žije
+    // v kalendáři. Volba „jak často publikovat" v Nastavení tedy neřídila nic —
+    // jen tvrdila něco jiného, než co uživatel viděl v plánu, a agent podle ní
+    // ostřil jiný počet příspěvků, než kolik jich na daný týden bylo naplánováno.
+    const settings = codeOnly("app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx")
+    assert(!/postsPerWeek/.test(settings),
+        "Nastavení nesmí nabízet druhou frekvenci publikování — kadence patří tam, kde vzniká plán")
+    assert(!/postingTimes/.test(settings),
+        "časy publikování patří konkrétnímu příspěvku v plánu, ne globálnímu nastavení")
+
+    // Zásobník auto-publikování je omezený OKNEM (termíny z plánu), ne počtem
+    // odvozeným z kadence. Limit na počtu se smí týkat jen příspěvků, kterým
+    // termín teprve vymýšlí sám agent.
+    const arm = codeOnly("lib/agents/auto-publish.ts")
+    const datedRead = arm.slice(arm.indexOf('.eq("status", "ready")'), arm.indexOf("undated"))
+    assert(!/\.limit\(/.test(datedRead),
+        "posty s termínem z plánu se nesmí ořezávat počtem — bound je časové okno")
+
+    // Prázdná várka s termínem nesmí běh ukončit: klient, který generuje
+    // jednotlivé příspěvky (ty termín nedostávají), by se auto-publikování nikdy
+    // nedočkal.
+    assert(!/if \(!ready \|\| ready\.length === 0\) return/.test(arm),
+        "žádné posty s termínem neznamená konec — větev pro posty bez termínu musí doběhnout")
+})
+
+test("13.7e připojení účtu je první věc v Nastavení, ne poslední", () => {
+    const settings = fileContent("app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx")
+    const tabs = settings.slice(settings.indexOf("const TABS_MAIN"), settings.indexOf("const TABS_ADVANCED"))
+    const ids = [...tabs.matchAll(/id: "([a-z]+)"/g)].map(m => m[1])
+    assert(ids[0] === "publish",
+        `publikování musí být první záložka Nastavení, je ${ids[0] || "žádná"} — bez připojeného účtu nemá zbytek konfigurace kam vyústit`)
+    assert(/useState<string>\("publish"\)/.test(settings),
+        "Nastavení se musí otevírat na publikování")
+
+    // Zapnutí i připojení musí být vidět hned; denní agent by frontu naostřil až
+    // zítra a člověk by neměl jak poznat, že to funguje.
+    assert(/armAutoPublishNow/.test(settings), "zapnutí auto-publikování musí frontu naostřit hned")
+    const actions = fileContent("app/actions/calendar-actions.ts")
+    assert(/export async function armAutoPublishNow/.test(actions), "chybí akce pro okamžité naostření")
+    assert(/config\.autoPublish !== true/.test(fileContent("lib/agents/auto-publish.ts")),
+        "okamžité naostření musí kontrolovat opt-in — jinak naostří i tomu, kdo o to nestojí")
+})
+
 test("13.8 every plan grants story (seed must not drift)", () => {
     // 20260716_pricing_v5.sql is a declarative seed with ON CONFLICT DO UPDATE SET
     // features = EXCLUDED.features — leaving it stale means the next run STRIPS story.

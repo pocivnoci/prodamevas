@@ -13,7 +13,9 @@ import { BillingSection } from "./BillingSection"
 import { ConsultationSection } from "./ConsultationSection"
 import { FEED_PATTERNS, computeSlotIntent, type FeedPatternId } from "@/lib/feed-pattern"
 import { Hint, HINTS } from "./Hint"
-import { Ban, Camera, ClipboardList, Hand, Hash, Landmark, Megaphone, Mic, Palette, Puzzle, RefreshCw, Settings, ShoppingBag, Trash2, TriangleAlert, User, Users } from "lucide-react"
+import { getPublishOutlook, armAutoPublishNow, type PublishOutlook } from "@/app/actions/calendar-actions"
+import { useStudioNavigate } from "@/app/(dashboard)/StudioContext"
+import { Ban, CalendarDays, Camera, ClipboardList, Hand, Hash, Landmark, Megaphone, Mic, Palette, Puzzle, RefreshCw, Send, Settings, ShoppingBag, Trash2, TriangleAlert, User, Users } from "lucide-react"
 
 // ═══════════════════════════════════════════════════════════
 // SETTINGS TAB
@@ -25,7 +27,9 @@ export function SettingsTab({ projectId }: { projectId: string }) {
     const [saving, setSaving] = useState(false)
     const [logoUploading, setLogoUploading] = useState(false)
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-    const [activeSection, setActiveSection] = useState<string>("basic")
+    // Otevírá se na Publikování — jediné místo, kde se rozhoduje, jestli z toho
+    // všeho vůbec něco vyleze na Instagram.
+    const [activeSection, setActiveSection] = useState<string>("publish")
 
     const loadData = useCallback(async () => {
         if (!projectId) return
@@ -128,6 +132,10 @@ export function SettingsTab({ projectId }: { projectId: string }) {
 
     // Ikona je komponenta, ne emoji: záložky nastavení jsou rozhraní, ne obsah.
     const TABS_MAIN = [
+        // Publikování je první schválně: dokud není připojený účet, celý zbytek
+        // konfigurace nemá kam vyústit. Dřív se schovávalo úplně vzadu ve „Správě",
+        // takže nejdůležitější krok onboardingu byl ten nejhůř dosažitelný.
+        { id: "publish", label: "Publikování", Icon: Send },
         { id: "basic", label: "Základní", Icon: ClipboardList },
         { id: "voice", label: "Styl textu", Icon: Mic },
         { id: "pillars", label: "Témata", Icon: Landmark },
@@ -264,6 +272,9 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.15 }}
                 >
+                    {activeSection === "publish" && (
+                        <PublishSection projectId={projectId} />
+                    )}
                     {activeSection === "basic" && (
                         <BasicSection config={config} updateField={updateField} />
                     )}
@@ -295,11 +306,7 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                         <CTASection config={config} setConfig={setConfig} />
                     )}
                     {activeSection === "manage" && (
-                        <>
-                            <InstagramConnectionSection projectId={projectId} />
-                            <AutoPublishSection projectId={projectId} />
-                            <ClientManagementSection projectId={projectId} config={config} setConfig={setConfig} onReload={loadData} />
-                        </>
+                        <ClientManagementSection projectId={projectId} config={config} setConfig={setConfig} onReload={loadData} />
                     )}
                 </motion.div>
             </AnimatePresence>
@@ -1617,7 +1624,30 @@ function CTASection({ config, setConfig }: { config: any; setConfig: (fn: any) =
 // 8. CLIENT MANAGEMENT (Rescan + Delete)
 // ═══════════════════════════════════════════════════════════
 
-function InstagramConnectionSection({ projectId }: { projectId: string }) {
+/**
+ * Publikování — první karta v Nastavení, protože dokud není připojený účet, nemá
+ * zbytek konfigurace kam vyústit.
+ *
+ * Drží jen jeden kus stavu: „účet se právě připojil". Připojení totiž mění, co má
+ * ukazovat karta POD ním (fronta se dá naostřit, termíny začnou platit), a bez
+ * tohohle pojítka by po připojení zůstala viset na starých číslech, dokud by
+ * člověk stránku nepřenačetl — přesně v ten okamžik, kdy chce vidět, že to jede.
+ */
+function PublishSection({ projectId }: { projectId: string }) {
+    const [connectedTick, setConnectedTick] = useState(0)
+    // Memoizované schválně: karta připojení si ho bere do závislostí efektu, který
+    // poslouchá návrat do okna. Nová funkce při každém renderu = odhlásit a znovu
+    // přihlásit posluchače pokaždé.
+    const handleConnected = useCallback(() => setConnectedTick(t => t + 1), [])
+    return (
+        <>
+            <InstagramConnectionSection projectId={projectId} onConnected={handleConnected} />
+            <AutoPublishSection projectId={projectId} refreshKey={connectedTick} />
+        </>
+    )
+}
+
+function InstagramConnectionSection({ projectId, onConnected }: { projectId: string; onConnected?: () => void }) {
     const [status, setStatus] = useState<ConnectionStatus | null>(null)
     const [loading, setLoading] = useState(true)
     const [disconnecting, setDisconnecting] = useState(false)
@@ -1639,13 +1669,32 @@ function InstagramConnectionSection({ projectId }: { projectId: string }) {
         load()
         if (typeof window !== "undefined") {
             const ig = new URLSearchParams(window.location.search).get("ig")
-            if (ig === "connected") setFlash("Instagram úspěšně připojen")
+            if (ig === "connected") {
+                setFlash("Instagram úspěšně připojen")
+                // Návrat z našeho OAuth (transport `meta`) — stejný okamžik jako
+                // dokončené připojení přes most, tak i stejná reakce.
+                armAutoPublishNow(projectId).catch(() => null)
+            }
             else if (ig === "denied") setFlash("Připojení zrušeno na straně Instagramu")
             else if (ig === "error") setFlash("Připojení se nezdařilo, zkus to znovu")
         }
-    }, [load])
+    }, [load, projectId])
 
     const isBridge = status?.transport === "uploadpost"
+
+    /**
+     * Co se má stát v okamžiku, kdy je účet konečně připojený.
+     *
+     * Naostření tady není kosmetika: klient, který si auto-publikování zapnul dřív,
+     * než připojil účet (agent tehdy skončil na „no live Instagram connection"), by
+     * jinak čekal na denní běh. Když je auto-publikování vypnuté, akce sama nic
+     * neudělá — opt-in se kontroluje na serveru.
+     */
+    const afterConnect = useCallback(async () => {
+        await armAutoPublishNow(projectId).catch(() => null)
+        await load()
+        onConnected?.()
+    }, [projectId, load, onConnected])
 
     /**
      * The bridge authorizes on upload-post's own hosted page, so there is no redirect
@@ -1658,12 +1707,12 @@ function InstagramConnectionSection({ projectId }: { projectId: string }) {
             const res = await syncUploadPostConnection(projectId)
             if (res.connected) {
                 setFlash("Instagram úspěšně připojen")
-                await load()
+                await afterConnect()
             }
         }
         window.addEventListener("focus", onFocus)
         return () => window.removeEventListener("focus", onFocus)
-    }, [isBridge, projectId, load])
+    }, [isBridge, projectId, afterConnect])
 
     const handleBridgeConnect = async () => {
         setConnecting(true)
@@ -1683,7 +1732,8 @@ function InstagramConnectionSection({ projectId }: { projectId: string }) {
         const res = await syncUploadPostConnection(projectId)
         setConnecting(false)
         setFlash(res.connected ? "Instagram úspěšně připojen" : "Připojení zatím nevidím — dokonči ho v otevřeném okně")
-        await load()
+        if (res.connected) await afterConnect()
+        else await load()
     }
 
     const handleDisconnect = async () => {
@@ -1778,68 +1828,79 @@ function InstagramConnectionSection({ projectId }: { projectId: string }) {
     )
 }
 
-// Frequency presets → posts/week. 7 = daily, 14 = 2×/day (see distributeSchedule).
-const AUTOPUB_CADENCES = [
-    { v: 3, label: "3× týdně" },
-    { v: 5, label: "5× týdně" },
-    { v: 7, label: "Denně" },
-    { v: 14, label: "2× denně" },
-] as const
-const DEFAULT_POST_TIMES = ["09:00", "17:00", "19:00"]
-
 /**
- * Auto-publikování — per-client self-service for the auto-publish flywheel:
- * on/off (config.autoPublish), cadence (config.postsPerWeek) and posting times
- * (config.postingTimes). Saves via updateClientConfig; the daily auto_publish_arm
- * agent + distributeSchedule read these straight from the config. No DB poking.
+ * Auto-publikování — jediný přepínač: publikovat samo, nebo ne.
+ *
+ * Frekvence a časy tu BÝVALY (config.postsPerWeek + config.postingTimes) a byly to
+ * druhé kormidlo vedle plánu: termín každého příspěvku vzniká jednou při generování
+ * a od té chvíle žije v kalendáři, takže „jak často publikovat" v Nastavení nemělo
+ * co řídit — jen tvrdilo něco jiného, než co uživatel viděl v plánu. Kadence patří
+ * tam, kde plán vzniká (Tvořit → délka plánu), a čas patří konkrétnímu příspěvku.
+ *
+ * Zbývá tedy jedna otázka, na kterou plán odpovědět neumí: smí to ven bez klikání?
+ * Zbytek karty jen ukazuje, co plán říká — přes getPublishOutlook.
  */
-function AutoPublishSection({ projectId }: { projectId: string }) {
+function AutoPublishSection({ projectId, refreshKey = 0 }: { projectId: string; refreshKey?: number }) {
     const [enabled, setEnabled] = useState(false)
-    const [cadence, setCadence] = useState(4)
-    const [times, setTimes] = useState<string[]>(DEFAULT_POST_TIMES)
     const [connected, setConnected] = useState(false)
+    const [outlook, setOutlook] = useState<PublishOutlook | null>(null)
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [msg, setMsg] = useState<string | null>(null)
+    const navigate = useStudioNavigate()
 
     useEffect(() => {
         let cancelled = false
-        Promise.all([getClientConfig(projectId), getConnectionStatus(projectId)])
-            .then(([cfg, conn]) => {
+        Promise.all([
+            getClientConfig(projectId),
+            getConnectionStatus(projectId),
+            getPublishOutlook(projectId).catch(() => null),
+        ])
+            .then(([cfg, conn, out]) => {
                 if (cancelled) return
                 setEnabled(Boolean(cfg?.autoPublish))
-                setCadence(Math.min(14, Math.max(1, Number(cfg?.postsPerWeek) || 4)))
-                if (Array.isArray(cfg?.postingTimes) && cfg.postingTimes.length > 0) setTimes(cfg.postingTimes)
                 setConnected(Boolean(conn?.connected))
+                setOutlook(out)
             })
             .catch(() => { /* leave defaults */ })
             .finally(() => { if (!cancelled) setLoading(false) })
         return () => { cancelled = true }
-    }, [projectId])
+        // refreshKey: karta nad námi právě připojila účet — čísla i varování se
+        // musí přepočítat, jinak zůstane svítit „účet není připojený".
+    }, [projectId, refreshKey])
 
-    // How many posts/day this cadence implies, and therefore how many distinct times matter.
-    const perDay = Math.max(1, Math.ceil(cadence / 7))
-    const usedTimes = Math.min(perDay, times.length)
-
-    const setTimeAt = (i: number, val: string) => setTimes(prev => prev.map((t, j) => j === i ? val : t))
-
-    const save = async () => {
+    const save = async (next: boolean) => {
         setSaving(true); setMsg(null)
-        const clean = times.map(t => t.trim()).filter(Boolean)
-        // 2×/day needs ≥2 distinct times; fall back to defaults if the user cleared too many.
-        const finalTimes = clean.length >= perDay ? clean : DEFAULT_POST_TIMES.slice(0, Math.max(perDay, clean.length || 1))
-        const res = await updateClientConfig(projectId, {
-            autoPublish: enabled,
-            postsPerWeek: cadence,
-            postingTimes: finalTimes,
-        })
+        setEnabled(next)
+        const res = await updateClientConfig(projectId, { autoPublish: next })
+        if (!res.success) {
+            setSaving(false)
+            setEnabled(!next) // vrátit přepínač, když se uložení nepovedlo
+            setMsg(res.error || "Uložení selhalo")
+            return
+        }
+
+        // Zapnutí musí být VIDĚT hned. Denní agent by frontu naostřil až zítra ráno,
+        // takže by se člověk po zapnutí koukal na nezměněná čísla a nevěděl, jestli
+        // to vůbec něco udělalo.
+        if (next) {
+            await armAutoPublishNow(projectId).catch(() => null)
+            setOutlook(await getPublishOutlook(projectId).catch(() => null))
+        }
         setSaving(false)
-        setMsg(res.success ? "Uloženo" : (res.error || "Uložení selhalo"))
-        if (res.success) setTimes(finalTimes)
+        setMsg(next ? "Zapnuto — příspěvky vyjdou podle plánu" : "Vypnuto")
     }
 
+    const fmt = (iso: string) => new Date(iso).toLocaleString("cs-CZ", {
+        day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit",
+    })
+
     return (
-        <SectionCard title="Auto-publikování" description="Ať účet postuje sám v čase — obsah se vydává postupně podle zvolené frekvence a časů (český čas)." why={HINTS.autoPublish}>
+        <SectionCard
+            title="Auto-publikování"
+            description="Příspěvky vycházejí samy — v den a hodinu, které mají v plánu. Frekvenci určuje plán, ne tahle stránka."
+            why={HINTS.autoPublish}
+        >
             {loading ? (
                 <p className="text-[10px] text-white/30">Načítám…</p>
             ) : (
@@ -1848,70 +1909,63 @@ function AutoPublishSection({ projectId }: { projectId: string }) {
                     <div className="flex items-center justify-between gap-4">
                         <div>
                             <p className="text-xs text-white/70 font-bold">Publikovat automaticky</p>
-                            <p className="text-[9px] text-white/30 mt-0.5">Hotové příspěvky se samy naplánují a vydají — bez klikání.</p>
+                            <p className="text-[9px] text-white/30 mt-0.5">Hotové příspěvky se samy vydají v naplánovaný čas — bez klikání.</p>
                         </div>
                         <button
-                            onClick={() => setEnabled(v => !v)}
+                            onClick={() => save(!enabled)}
+                            disabled={saving}
                             role="switch"
                             aria-checked={enabled}
-                            className={`relative w-12 h-6 rounded-full transition-colors border ${enabled ? "bg-emerald-500/30 border-emerald-500/50" : "bg-white/5 border-white/15"}`}
+                            aria-label="Publikovat automaticky"
+                            className={`relative w-12 h-6 rounded-full transition-colors border disabled:opacity-50 ${enabled ? "bg-emerald-500/30 border-emerald-500/50" : "bg-white/5 border-white/15"}`}
                         >
                             <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${enabled ? "left-6 bg-emerald-400" : "left-0.5 bg-white/40"}`} />
                         </button>
                     </div>
 
+                    {msg && <p className="text-[10px] text-white/60">{msg}</p>}
+
                     {!connected && (
                         <p className="inline-flex items-center gap-1.5 text-[10px] text-amber-400/80 bg-amber-500/5 border border-amber-500/20 rounded-sm px-3 py-2"><TriangleAlert className="w-3 h-3 shrink-0" />Účet zatím není připojený — nastavení se uloží, ale publikovat se začne až po připojení Instagramu (sekce výše).</p>
                     )}
 
-                    {/* Frequency */}
-                    <div>
-                        <label className="block text-[8px] text-white/40 font-bold uppercase tracking-widest mb-2">Frekvence</label>
-                        <div className="mb-2"><Hint label="kolik to stojí">{HINTS.cadence}</Hint></div>
-                        <div className="flex flex-wrap gap-2">
-                            {AUTOPUB_CADENCES.map(c => (
-                                <button
-                                    key={c.v}
-                                    onClick={() => setCadence(c.v)}
-                                    className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm border transition-all ${cadence === c.v ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/40" : "bg-white/5 text-white/50 border-white/10 hover:bg-white/10"}`}
-                                >
-                                    {c.label}
-                                </button>
-                            ))}
-                        </div>
-                        <p className="text-[9px] text-white/30 mt-2">
-                            {cadence >= 8 ? `${perDay}× denně` : `${cadence}× týdně`} · drží se ~2 týdny naplánováno dopředu.
-                        </p>
-                    </div>
-
-                    {/* Times */}
-                    <div>
-                        <label className="block text-[8px] text-white/40 font-bold uppercase tracking-widest mb-2">
-                            Časy (ČR) {perDay > 1 ? `— první ${perDay} = posty dne` : "— střídají se"}
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                            {times.map((t, i) => (
-                                <input
-                                    key={i}
-                                    type="time"
-                                    value={t}
-                                    onChange={e => setTimeAt(i, e.target.value)}
-                                    className={`px-3 py-1.5 bg-[#050505] border rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500/50 ${i < usedTimes ? "border-emerald-500/30" : "border-white/15 opacity-50"}`}
-                                />
-                            ))}
-                        </div>
-                        <p className="text-[9px] text-white/30 mt-2">Zelené časy se použijí pro zvolenou frekvenci. Mimo pracovní špičku doporučeno (9:00 / 17:00 / 19:00).</p>
-                    </div>
-
-                    <div className="flex items-center gap-3 pt-2 border-t border-white/10">
+                    {/* Co plán říká. Tohle je náhrada za bývalou volbu frekvence:
+                        místo dalšího čísla k nastavení ukazujeme skutečný stav fronty. */}
+                    <div className="border-t border-white/10 pt-4">
+                        <label className="block text-[8px] text-white/40 font-bold uppercase tracking-widest mb-2">Podle plánu</label>
+                        {outlook ? (
+                            <div className="space-y-1.5">
+                                <p className="text-xs text-white/60">
+                                    {outlook.next
+                                        ? <>Nejbližší příspěvek vyjde <span className="text-emerald-400 font-bold">{fmt(outlook.next.at)}</span></>
+                                        : "V plánu zatím není žádný budoucí termín."}
+                                </p>
+                                <p className="text-[9px] text-white/30">
+                                    {outlook.armed} naostřeno · {outlook.waiting} čeká na potvrzení
+                                    {outlook.overdue > 0 ? ` · ${outlook.overdue} propadlo` : ""}
+                                </p>
+                                {outlook.overdue > 0 && (
+                                    <p className="text-[9px] text-amber-400/70">Propadlé termíny se samy neposouvají — obsah psaný na konkrétní den nemá vyjít o týden později. Potvrď nebo přesuň je v plánu.</p>
+                                )}
+                                {outlook.lastPosted && (
+                                    <p className="text-[9px] text-white/30">
+                                        Naposledy zveřejněno {fmt(outlook.lastPosted.at)}
+                                        {outlook.lastPosted.permalink && (
+                                            <> · <a href={outlook.lastPosted.permalink} target="_blank" rel="noopener noreferrer" className="text-white/50 hover:text-white/80 underline">otevřít na Instagramu</a></>
+                                        )}
+                                    </p>
+                                )}
+                            </div>
+                        ) : (
+                            <p className="text-[10px] text-white/30">Plán se nepodařilo načíst.</p>
+                        )}
                         <button
-                            onClick={save}
-                            disabled={saving}
-                            className="px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 transition-all disabled:opacity-50"
+                            onClick={() => navigate("plan")}
+                            className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-white/5 text-white/60 border border-white/10 hover:bg-white/10 hover:text-white/80 transition-all"
                         >
-                            {saving ? "Ukládám…" : "Uložit"}
+                            <CalendarDays className="w-3 h-3 shrink-0" />
+                            Otevřít plán
                         </button>
-                        {msg && <span className="text-[10px] text-white/60">{msg}</span>}
                     </div>
                 </div>
             )}

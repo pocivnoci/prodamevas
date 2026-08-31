@@ -23,6 +23,7 @@ import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPostType, IGCategory, IGPostFormat } from "./types"
 import { creditsForMedia } from "@/lib/credits"
+import { Hint, HINTS } from "./Hint"
 import { trackEvent } from "@/lib/analytics"
 import { Award, Bot, CalendarDays, ChartColumn, Check, ClipboardList, Compass, Film, Lightbulb, MessageCircle, Package, PenLine, Pencil, Pin, RefreshCw, Rocket, Ruler, Search, Sparkles, Star, Trash2, TriangleAlert, X } from "lucide-react"
 
@@ -1202,6 +1203,11 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     subscription affords for the selected duration. */}
                                 <div>
                                     <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Příspěvků týdně</label>
+                                    {/* Vysvětlivka „kolik to stojí" sedí TADY, protože tohle je
+                                        jediné místo, kde se kadence volí. V Nastavení bývala druhá
+                                        volba frekvence, která ale plán neřídila — jen si s ním
+                                        odporovala. */}
+                                    <div className="mb-3"><Hint label="kolik to stojí">{HINTS.cadence}</Hint></div>
                                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                                         {CADENCE_OPTIONS.map(c => {
                                             const overBudget = planDuration !== "trial" && subscription != null

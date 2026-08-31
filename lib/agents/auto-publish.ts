@@ -16,9 +16,11 @@
  *  - opt-in: does nothing unless `config.autoPublish === true`
  *  - connection-guarded: no live ig_connection → no-op (the publisher would only
  *    fail the post anyway)
- *  - bounded buffer: only tops up to ~2 weeks ahead, so a 149-post backlog can't
- *    flood the account — it drains at cadence and the founder can veto any
- *    still-future scheduled post in the dashboard before it goes out
+ *  - bounded by the WINDOW: only posts dated within ~2 weeks are armed, so a
+ *    149-post backlog can't flood the account — it drains as the plan's own dates
+ *    come round, and the founder can veto any still-future scheduled post in the
+ *    dashboard before it goes out. Posts the agent dates ITSELF (no proposed
+ *    `scheduled_for`) are additionally capped at the brand's cadence.
  *  - reels excluded: auto-publish has no video path (they use the manual handoff)
  *  - overdue posts are left alone: shifting them silently would publish content
  *    outside the moment it was written for. They stay visible for a human.
@@ -47,7 +49,6 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
     }
 
     const perWeek = Math.min(MAX_POSTS_PER_WEEK, Math.max(1, Math.round(Number(config.postsPerWeek) || 4)))
-    const target = perWeek * FORWARD_BUFFER_WEEKS
     const nowIso = new Date().toISOString()
 
     // Posts already armed for the future = the current buffer. Newest first so
@@ -62,9 +63,6 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
     if (qErr) throw new Error(`auto-publish queue read (${slug}): ${qErr.message}`)
 
     const queuedCount = queued?.length || 0
-    if (queuedCount >= target) return { clientId, slug, armed: 0, queued: queuedCount }
-
-    const need = target - queuedCount
 
     // Ready posts s NAVRŽENÝM termínem, seřazené podle toho termínu.
     //
@@ -75,6 +73,12 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
     //
     // Horní mez okna = konec dopředného zásobníku; co je naplánované dál, počká na
     // některý z dalších běhů.
+    //
+    // Zásobník je omezený OKNEM, ne počtem. Dřív se strop počítal jako
+    // `postsPerWeek * 2 týdny`, takže při konfiguraci „4× týdně" se z plánu na měsíc
+    // naostřilo osm příspěvků a zbytek zůstal ležet — číslo v Nastavení tiše
+    // přebíjelo termíny v kalendáři. Termíny už rozdělil generátor a schválil je
+    // člověk; pojistkou proti zaplavení účtu je tedy sám plán, ne druhá kadence.
     //
     // POZOR: `.neq()` je v SQL `<>`, a `NULL <> 'reel'` je NULL — řádek vypadne.
     // media_type přišlo migrací 20260622 bez backfillu, takže bez null větve by se
@@ -96,12 +100,14 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
         .lte("scheduled_for", windowEnd)
         .or("media_type.is.null,and(media_type.neq.reel,media_type.neq.story)")
         .order("scheduled_for", { ascending: true })
-        .limit(need)
     if (rErr) throw new Error(`auto-publish ready read (${slug}): ${rErr.message}`)
-    if (!ready || ready.length === 0) return { clientId, slug, armed: 0, queued: queuedCount }
 
+    // Prázdný výsledek NENÍ konec běhu. Dřív se tady vracelo, takže větev pro
+    // příspěvky bez termínu se spustila jen tehdy, když existoval aspoň jeden
+    // příspěvek s termínem — a klientovi, který si vygeneroval jednotlivé posty
+    // (ty termín nedostávají), se auto-publikování nikdy nerozjelo.
     let armed = 0
-    for (const post of ready) {
+    for (const post of ready || []) {
         // Conditional flip: only arm if the post is still `ready` (a concurrent
         // manual schedule/delete can't be clobbered). `scheduled_for` se NEMĚNÍ.
         const { data, error } = await supabaseAdmin
@@ -129,7 +135,11 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
     // Přesná hranice tedy není „agent nesmí počítat termíny", ale:
     // AGENT SMÍ TERMÍN DOPLNIT TOMU, KDO ŽÁDNÝ NEMÁ, A NIKDY NESMÍ PŘEPSAT EXISTUJÍCÍ.
     // Vynucuje to podmínka `.is("scheduled_for", null)` na updatu níž — ne komentář.
-    const stillNeeded = need - armed
+    //
+    // Tady strop na počtu smysl dává — na rozdíl od plánu si termíny vymýšlí agent,
+    // takže se drží kadence značky a naplní jen dopředný zásobník.
+    const target = perWeek * FORWARD_BUFFER_WEEKS
+    const stillNeeded = target - (queuedCount + armed)
     if (stillNeeded <= 0) return { clientId, slug, armed, queued: queuedCount + armed }
 
     const { data: undated } = await supabaseAdmin
@@ -176,6 +186,32 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
     }
 
     return { clientId, slug, armed, queued: queuedCount + armed }
+}
+
+/**
+ * Naostřit JEDNOHO klienta hned — týž krok, který dělá denní agent, jen spuštěný
+ * lidským činem: zapnutím auto-publikování nebo dokončeným připojením účtu.
+ *
+ * Bez tohohle je mezi „zapnul jsem to" a „něco se děje" až celý den ticha
+ * (`auto_publish_arm` běží jednou denně v daily-ops) — a klient, který si právě
+ * připojil Instagram, nemá jak poznat, že to funguje.
+ *
+ * Opt-in se kontroluje TADY: podmínku `config->>autoPublish` jinak nese jen scan
+ * v armReadyPosts, takže by tahle cesta uměla naostřit i tomu, kdo o to nestojí.
+ */
+export async function armClientNow(clientId: string): Promise<ArmResult> {
+    const { data: client, error } = await supabaseAdmin
+        .from("clients")
+        .select("id, slug, config")
+        .eq("id", clientId)
+        .maybeSingle()
+    if (error || !client) throw new Error(`auto-publish: klient ${clientId} nenalezen`)
+
+    const config = (client.config || {}) as Record<string, unknown>
+    if (config.autoPublish !== true) {
+        return { clientId, slug: client.slug, armed: 0, queued: 0, skipped: "auto-publikování je vypnuté" }
+    }
+    return armClient(clientId, client.slug, config)
 }
 
 /**
