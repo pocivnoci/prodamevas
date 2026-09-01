@@ -269,14 +269,14 @@ export interface PricingPlan {
  * Prázdná sekce s cenami je na marketingové stránce horší než vteřinu stará cena.
  *
  * Aserce v `npm run guard` porovnává tahle čísla s migrací
- * `20260901_pricing_v6.sql` — dvě pravdy o ceně jsou tu jen do té chvíle, než se
+ * `20260901_pricing_v6_kredity.sql` — dvě pravdy o ceně jsou tu jen do té chvíle, než se
  * rozejdou, a tohle je ta chvíle, kdy to spadne v testu, ne u zákazníka.
  */
 export const FALLBACK_PLANS: readonly PricingPlan[] = [
     { id: "chrlit_start", name: "Start", monthlyHaleru: 99900, creditsPerMonth: 20, allowsReels: false },
-    { id: "chrlit_rust", name: "Růst", monthlyHaleru: 299900, creditsPerMonth: 45, allowsReels: true },
-    { id: "chrlit_dominance", name: "Dominance", monthlyHaleru: 499900, creditsPerMonth: 100, allowsReels: true },
-    { id: "chrlit_imperium", name: "Impérium", monthlyHaleru: 899900, creditsPerMonth: 220, allowsReels: true },
+    { id: "chrlit_rust", name: "Růst", monthlyHaleru: 299900, creditsPerMonth: 70, allowsReels: true },
+    { id: "chrlit_dominance", name: "Dominance", monthlyHaleru: 499900, creditsPerMonth: 130, allowsReels: true },
+    { id: "chrlit_imperium", name: "Impérium", monthlyHaleru: 899900, creditsPerMonth: 260, allowsReels: true },
 ] as const
 
 /**
@@ -331,11 +331,10 @@ export function consultationIncluded(termMonths: number): boolean {
  * velkém balíčku by tenhle žebřík obrátila a lidi by zůstávali na Startu
  * a dokupovali — s horší marží pro nás i horší cenou pro ně.
  *
- * ⚠️ Ceník v6 ten žebřík porušil, a ne tudy: Růst vyšel na 66,6 Kč/kredit (2 999
- * za 45), zatímco Start dává 50,0 a dokoupení stojí 49. Zákazníkovi na Startu se
- * teď vyplatí dokupovat místo přechodu na Růst. Narovnat to jde jen kredity
- * (Růst by potřeboval ~70), což je cenové rozhodnutí majitele, ne oprava kódu —
- * proto to tu stojí napsané, dokud nepadne.
+ * Pravidlo má dvě poloviny a **obě hlídá aserce 25.3c**: Kč/kredit musí klesat
+ * celým žebříkem, a každý krok o tarif výš musí vyjít levněji než dobití. Ceník
+ * v6 to na chvíli porušil (Růst 66,6 Kč/kredit proti dobití za 49, krok ze Startu
+ * stál 80 Kč/kredit) — narovnáno kredity 20/70/130/260, ne cenou.
  *
  * Jediná pravda o ceně je `features.extra_credit_price` v tarifu; tohle je
  * záloha pro případ, že tarif hodnotu nenese (legacy řádky).
