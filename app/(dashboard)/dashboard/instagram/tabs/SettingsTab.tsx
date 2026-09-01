@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, upsertPostFormat, removePostFormat, suggestPostFormat, recommendFeedPattern, type PostFormatInput } from "@/app/actions/config-actions"
@@ -1647,6 +1647,23 @@ function PublishSection({ projectId }: { projectId: string }) {
     )
 }
 
+/** Média pro `standalone` níž. Reference musí být stabilní, jinak se
+ *  `useSyncExternalStore` odebírá znovu při každém renderu. */
+const standaloneQuery = () => window.matchMedia("(display-mode: standalone)")
+
+function subscribeStandalone(onChange: () => void): () => void {
+    const mq = standaloneQuery()
+    mq.addEventListener("change", onChange)
+    return () => mq.removeEventListener("change", onChange)
+}
+
+function isStandalone(): boolean {
+    // `navigator.standalone` je iOS-only a na appce přidané na plochu je jediné,
+    // co tam spolehlivě sedí; `display-mode` pokrývá Android a desktop.
+    if ((window.navigator as Navigator & { standalone?: boolean }).standalone === true) return true
+    return standaloneQuery().matches
+}
+
 function InstagramConnectionSection({ projectId, onConnected }: { projectId: string; onConnected?: () => void }) {
     const [status, setStatus] = useState<ConnectionStatus | null>(null)
     const [loading, setLoading] = useState(true)
@@ -1654,6 +1671,19 @@ function InstagramConnectionSection({ projectId, onConnected }: { projectId: str
     const [connecting, setConnecting] = useState(false)
     // OAuth callback redirects back with ?ig=connected|denied|error — show a banner.
     const [flash, setFlash] = useState<string | null>(null)
+    /**
+     * Běžíme jako appka přidaná na plochu (`display: standalone`)?
+     *
+     * iOS v tom režimu drží i odchozí navigaci ve svém WKWebView a Meta v embedded
+     * prohlížečích přihlášení blokuje — uživatel dojde na stránku upload-postu,
+     * klepne na Instagram a dostane „something went wrong". Ověřeno 2026-09-01:
+     * tentýž účet stejným odkazem na desktopu projde. Když to víme dopředu, řekneme
+     * to routě a ta poslední krok předá Safari (viz /api/ig-connect/bridge).
+     *
+     * `useSyncExternalStore`, ne stav v efektu: serverový snapshot je natvrdo
+     * `false`, takže se hydratace nerozejde, a médium si React odebírá sám.
+     */
+    const standalone = useSyncExternalStore(subscribeStandalone, isStandalone, () => false)
 
     const load = useCallback(async () => {
         setLoading(true)
@@ -1707,15 +1737,26 @@ function InstagramConnectionSection({ projectId, onConnected }: { projectId: str
      */
     useEffect(() => {
         if (!isBridge) return
-        const onFocus = async () => {
+        const reconcile = async () => {
             const res = await syncUploadPostConnection(projectId)
             if (res.connected) {
                 setFlash("Instagram úspěšně připojen")
                 await afterConnect()
             }
         }
-        window.addEventListener("focus", onFocus)
-        return () => window.removeEventListener("focus", onFocus)
+        // `visibilitychange` vedle `focus`: při návratu z jiné APLIKACE (Safari zpět
+        // do appky na ploše) iOS `focus` na window spolehlivě nevystřelí, a to je
+        // přesně cesta, kterou mobilní připojení chodí. Sesouhlasení je idempotentní,
+        // takže dvojí spuštění nevadí.
+        const onVisible = () => {
+            if (document.visibilityState === "visible") void reconcile()
+        }
+        window.addEventListener("focus", reconcile)
+        document.addEventListener("visibilitychange", onVisible)
+        return () => {
+            window.removeEventListener("focus", reconcile)
+            document.removeEventListener("visibilitychange", onVisible)
+        }
     }, [isBridge, projectId, afterConnect])
 
     const handleVerify = async () => {
@@ -1791,7 +1832,7 @@ function InstagramConnectionSection({ projectId, onConnected }: { projectId: str
                                 vznikne, ale přihlašovací stránka se neukáže. Přesměrování dělá
                                 /api/ig-connect/bridge, stejně jako u našeho vlastního OAuth. */}
                             <a
-                                href={status?.configured ? `/api/ig-connect/bridge?slug=${encodeURIComponent(projectId)}` : undefined}
+                                href={status?.configured ? `/api/ig-connect/bridge?slug=${encodeURIComponent(projectId)}${standalone ? "&external=1" : ""}` : undefined}
                                 aria-disabled={!status?.configured}
                                 className={`px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all border whitespace-nowrap ${
                                     status?.configured

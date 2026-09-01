@@ -106,8 +106,13 @@ export async function generateConnectUrl(clientId: string, returnUrl?: string): 
             platforms: ["instagram"],
             ...(returnUrl ? { redirect_url: returnUrl, redirect_button_text: "Zpět do Chrlitu" } : {}),
             connect_title: "Připoj svůj Instagram",
+            // Podmínka je JEDNA: profesní účet. upload-post posílá uživatele přes
+            // „Instagram API with Instagram Login" (`enable_fb_login=0` v jejich
+            // autorizační adrese, scopes `instagram_business_*`), kde propojená
+            // Facebook stránka potřeba NENÍ. Když ji tady vyžadujeme, posíláme lidi
+            // řešit něco, co jim připojení neodblokuje.
             connect_description:
-                "Přihlas se k účtu, na který má Chrlit publikovat. Účet musí být Business nebo Creator a propojený s Facebook stránkou.",
+                "Přihlas se k účtu, na který má Chrlit publikovat. Musí to být profesní účet — Business nebo Creator; osobní účet Instagram odmítne.",
             // upload-post shows its own posting calendar by default. Plánování žije
             // v Chrlitu; druhý kalendář na cizí doméně by tvrdil něco jiného.
             show_calendar: false,
