@@ -16,8 +16,8 @@ import { EXTRA_CREDIT_HALERU, FALLBACK_PLANS, formatCzk } from "@/lib/pricing"
  */
 const PLAN_BLURB: Record<string, string> = {
     chrlit_start: "obrázky a carousely",
-    chrlit_rust: "navíc A/B varianty, reels a růstový dashboard",
-    chrlit_dominance: "navíc product studio a prioritní generování",
+    chrlit_rust: "navíc úprava hotových příspěvků, A/B varianty a růstový dashboard",
+    chrlit_dominance: "navíc reels, product studio a prioritní generování",
     // Ne „pro agentury a e-shopy": víc profilů na účet není implementované ani
     // vynucované, takže by to prodávalo něco, co zákazník nedostane.
     chrlit_imperium: "nejvyšší objem pro jednu značku",
