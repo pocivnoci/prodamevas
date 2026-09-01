@@ -19,7 +19,7 @@ const ROOT = resolve(__dirname)
  * a přecenění by tiše kontrolovalo mrtvý ceník. Jedna konstanta = jedno místo,
  * které se u příštího přecenění mění.
  */
-const PRICING_SEED = "supabase/migrations/20260901_pricing_v6_kredity.sql"
+const PRICING_SEED = "supabase/migrations/20260901_odemknuti_funkci.sql"
 let passed = 0
 let failed = 0
 const results: { name: string; status: "PASS" | "FAIL"; detail?: string }[] = []
@@ -631,6 +631,26 @@ test("13.12 přednost ve frontě existuje, nejen svítí na kartě", () => {
     const seed = fileContent(PRICING_SEED)
     assert(!/"priority":\s*(true|false)/.test(seed),
         "priorita v seedu musí být číslo (0/10/20), ne boolean")
+})
+
+test("13.14 postavená funkce nesmí být zakázaná všem tarifům", () => {
+    // Do 9/2026 nesměl `post_edit` ani `product_line` NIKDO: obě akce měly cenu
+    // v kreditech, obrazovku v UI a `post_edit` i vlastní dokumentaci, ale
+    // nebyly v allowed_actions ani jednoho tarifu. canPerformAction() posílal
+    // platícího zákazníka hláškou „Funkce vyžaduje předplatné Chrlit" — tedy
+    // zaplať si to, co už zaplacené máš. Postavené, účtovatelné, nedostupné.
+    const { ACTION_CREDITS } = require("./lib/subscription")
+    const seed = fileContent(PRICING_SEED)
+    const povolene = new Set<string>()
+    for (const m of seed.matchAll(/"allowed_actions": \[([^\]]*)\]/g)) {
+        for (const a of m[1].split(",")) povolene.add(a.trim().replace(/"/g, ""))
+    }
+    assert(povolene.size > 0, "seed musí nějaké akce povolovat — jinak aserce nic nekontroluje")
+
+    for (const action of Object.keys(ACTION_CREDITS)) {
+        assert(povolene.has(action),
+            `akce '${action}' stojí kredity, ale nepovoluje ji žádný tarif — postavené a neprodejné`)
+    }
 })
 
 test("13.13 Impérium neslibuje agentury, dokud je víc profilů nevynucených", () => {
