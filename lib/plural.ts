@@ -35,3 +35,5 @@ export const CAROUSELS: PluralForms = { one: "karusel", few: "karusely", many: "
 export const REELS: PluralForms = { one: "reel", few: "reely", many: "reelů" }
 export const IMAGES: PluralForms = { one: "obrázek", few: "obrázky", many: "obrázků" }
 export const BRANDS: PluralForms = { one: "značka", few: "značky", many: "značek" }
+export const CREDITS: PluralForms = { one: "kredit", few: "kredity", many: "kreditů" }
+export const MONTHS: PluralForms = { one: "měsíc", few: "měsíce", many: "měsíců" }
