@@ -210,7 +210,7 @@ export function Landing({
             </h1>
 
             <p className="text-lg text-white/45 font-medium mb-8 max-w-md leading-relaxed">
-              Profesionální příspěvky — fotky, texty i hashtagy. Hotové. Vy je jen zveřejníte.
+              Profesionální příspěvky — fotky, texty i hashtagy. Hotové. A zveřejní se samy ve chvíli, kterou naplánujete.
             </p>
 
             <div id="waitlist" className="w-full sm:max-w-md mt-2 relative z-20">
@@ -250,7 +250,7 @@ export function Landing({
 
           <Reveal stagger className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {[
-              { Icon: Cpu, title: "Měsíc obsahu dopředu", desc: "Desítky hotových příspěvků připravených ke zveřejnění. Stáhnete a zveřejníte sami — máte poslední slovo." },
+              { Icon: Cpu, title: "Měsíc obsahu dopředu", desc: "Desítky hotových příspěvků a termín ke každému. Propojíte Instagram a Chrlit je zveřejní sám — nebo počkají, až je potvrdíte." },
               { Icon: Camera, title: "Fotky produktů bez focení", desc: "Realistické vizuály vašich produktů. Bez fotografa, bez ateliéru." },
               { Icon: TrendingUp, title: "Učí se, co vaše lidi baví", desc: "Označíte, co fungovalo — a další příspěvky tím směrem ladí. Čím víc mu řeknete, tím přesnější je." },
             ].map(({ Icon, title, desc }, i) => (
@@ -338,7 +338,7 @@ export function Landing({
                   ["Váš profil usnul", "Poslední příspěvek před půl rokem. Zákazník to čte jako zavřeno."],
                   ["Agentura je mimo rozpočet", "15–20 tisíc měsíčně nedává smysl, ale mlčet taky ne."],
                   ["Nemáte fotografa ani ateliér", "Vizuály produktů vzniknou bez focení. Vlastní fotky můžete přidat."],
-                  ["Chcete mít poslední slovo", "Obsah dostanete hotový. Co vyjde ven, schvalujete vy."],
+                  ["Chcete mít poslední slovo", "Bez potvrzení neodejde nic. Automatické publikování si zapnete, až budete chtít."],
                 ].map(([t, d]) => (
                   <li key={t} className="flex gap-3">
                     <Check className="w-3.5 h-3.5 text-emerald-400/60 mt-0.5 shrink-0" />
@@ -364,7 +364,7 @@ export function Landing({
               </div>
               <ul className="space-y-5">
                 {[
-                  ["Chcete se na to už nikdy nepodívat", "Schválení a zveřejnění zůstává na vás. Pár minut týdně to zabere."],
+                  ["Chcete obsah i na Facebook nebo TikTok", "Chrlit dělá Instagram. Na jinou síť zatím nepublikuje."],
                   ["Máte grafika a vlastní art direction", "Když máte funkční vizuální systém, budeme si spíš překážet."],
                   ["Potřebujete reportáž z akce", "Nikdo k vám nepřijede fotit včerejší svatbu ani otevíračku."],
                   ["Čekáte 10 000 sledujících za měsíc", "Tohle je pravidelnost, ne růstový trik. Účet roste pomalu."],
@@ -571,7 +571,7 @@ export function Landing({
             <div className="flex items-center gap-2 mb-6">
               <img src="/chrlit-logo-transparent.svg" alt="Chrlit" className="h-6" />
             </div>
-            <p className="text-white/30 text-xs font-medium max-w-sm leading-relaxed">Hotový Instagram bez grafika, bez agentury, bez stresu. Vy zveřejníte, my uděláme zbytek.</p>
+            <p className="text-white/30 text-xs font-medium max-w-sm leading-relaxed">Hotový Instagram bez grafika, bez agentury, bez stresu. Propojíte účet, my uděláme zbytek.</p>
           </div>
           <div>
             <h4 className="font-bold mb-5 text-white/70 tracking-widest uppercase text-[10px]">Produkt</h4>
@@ -624,7 +624,11 @@ const FAQ_ITEMS = [
   },
   {
     q: "Potřebuje to přístup k mému Instagramu?",
-    a: "Ne, k tvorbě obsahu ne. Posty si stáhnete nebo zkopírujete a zveřejníte sami — Chrlit za vás nepostuje, máte poslední slovo. Účet jde volitelně propojit jen kvůli statistikám, nikdy ne kvůli publikování bez vašeho svolení.",
+    a: "Když má Chrlit publikovat za vás, tak ano. Účet propojíte přes upload-post.com — přihlásíte se na jejich stránce ke svému Instagramu, k vašemu heslu se nedostaneme a propojení kdykoliv zrušíte jedním klikem. Musí to být profesní účet, Business nebo Creator; osobní účet Instagram k publikování nepustí. Bez propojení Chrlit funguje dál: posty si stáhnete a zveřejníte sami.",
+  },
+  {
+    q: "Zveřejňuje Chrlit příspěvky sám?",
+    a: "Jen když mu to dovolíte. Ve výchozím stavu vám plán připraví a čeká, až ho potvrdíte. Jedním přepínačem v nastavení zapnete automatické publikování — pak příspěvky odcházejí samy podle kalendáře, zhruba dva týdny dopředu, a do každého, který ještě nevyšel, můžete zasáhnout. Vypnout to jde stejně rychle.",
   },
   {
     q: "Můžu to zrušit kdykoliv?",

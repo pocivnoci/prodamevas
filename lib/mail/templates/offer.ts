@@ -134,7 +134,7 @@ export const offer: EmailTemplate = {
                 list([
                     "**Zadáte adresu webu.** Chrlit si ho přečte a naučí se vaši značku — barvy, tón, produkty.",
                     "**Dostanete hotové příspěvky.** Text, obrázek, hashtagy i termín. Carousely a stories taky.",
-                    "**Schválíte a zveřejníte.** Přístup k vašemu Instagramu k tomu nepotřebujeme — poslední slovo máte vy.",
+                    "**Zveřejní se to samo.** Propojíte Instagram přes upload-post.com a Chrlit publikuje podle kalendáře — nebo počká, až každý příspěvek potvrdíte.",
                 ], true),
 
                 divider(),
@@ -192,7 +192,7 @@ export const offer: EmailTemplate = {
                     "**3 příspěvky zdarma** na vyzkoušení — bez kreditky a bez časového limitu.",
                     "**Garance vrácení peněz do 30 dnů** od první platby, bez udání důvodu. Platí i pro roční předplatné.",
                     "**Měsíční předplatné zrušíte jedním klikem**, doběhne do konce zaplaceného období.",
-                    "**Bez přístupu k vašemu Instagramu.** Propojit jde volitelně jen kvůli statistikám.",
+                    "**Nic neodejde bez vašeho svolení.** Automatické publikování je přepínač, který zapnete, až budete chtít.",
                 ]),
 
                 v.expiresOn && callout("warning", `Tahle nabídka platí do **${v.expiresOn}**.`, "Do kdy"),
