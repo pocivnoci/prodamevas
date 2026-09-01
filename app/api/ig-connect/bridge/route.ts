@@ -135,8 +135,9 @@ function interstitial(url: string): NextResponse {
 <main>
   <p class="label">Připojení Instagramu</p>
   <h1>Poslední krok otevři v prohlížeči</h1>
-  <p class="text">Instagram odmítá přihlášení uvnitř aplikace přidané na plochu. Tlačítko níž otevře přihlášení v Safari. Kdyby přesto naskočila appka Instagramu, zavři ji a zkus to znovu.</p>
+  <p class="text">Instagram odmítá přihlášení uvnitř aplikace přidané na plochu. Tlačítko níž otevře přihlášení v Safari.</p>
   <a class="btn" href="${escapeHtml(url)}" target="_blank" rel="noopener">Otevřít přihlášení</a>
+  <p class="hint"><strong>Na iPhonu:</strong> když místo Safari naskočí appka Instagramu a napíše „something went wrong", <strong>podrž tlačítko prstem</strong> a vyber <strong>Otevřít na nové kartě</strong> — přes dlouhý stisk iOS appku neotevírá. Kdyby to nepomohlo, dokonči připojení na počítači; stačí jednou.</p>
   <p class="hint">Až připojení dokončíš, přepni se zpátky do Chrlitu — účet se tu ověří sám.</p>
 </main>
 </body>
