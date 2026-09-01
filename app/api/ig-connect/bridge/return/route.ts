@@ -28,15 +28,19 @@ export async function GET(request: Request) {
     // jako selhání přesně v momentě, kdy se to povedlo.
     const external = searchParams.get("external") === "1"
 
+    // Přímá autorizační cesta (viz generateAuthorizeUrl) přidá k návratové adrese
+    // vlastní výsledek. Bez něj o výsledku nic netvrdíme.
+    const failed = searchParams.get("connect_status") === "error"
+
     if (!slug) {
-        return external ? handoffBack() : NextResponse.redirect(`${dashboard}?ig=error#settings`)
+        return external ? handoffBack(failed) : NextResponse.redirect(`${dashboard}?ig=error#settings`)
     }
 
     // Sesouhlasení se bez session neprojde. `syncUploadPostConnection` chybu polyká
     // a vrací `success: false`, takže tady není co ošetřovat — u externího návratu
     // stav stejně dorovná appka sama, jakmile se do ní uživatel přepne.
     const res = await syncUploadPostConnection(slug)
-    if (external) return handoffBack()
+    if (external) return handoffBack(failed)
 
     // `connected: false` není chyba, jen nedokončené připojení: uživatel se mohl
     // vrátit dřív, než účet skutečně propojil. Vlastní stav proto, aby mu Nastavení
@@ -53,7 +57,11 @@ export async function GET(request: Request) {
  * udělá otevřená appka při návratu (listener na `focus` + `visibilitychange`
  * v SettingsTab). Stránka jen řekne uživateli, že má přepnout zpátky.
  */
-function handoffBack(): NextResponse {
+function handoffBack(failed = false): NextResponse {
+    const heading = failed ? "Připojení se nedokončilo" : "Hotovo — přepni se zpátky do Chrlitu"
+    const body = failed
+        ? "Instagram autorizaci nedokončil. Vrať se do Chrlitu a zkus Připojit znovu; účet musí být profesní (Business nebo Creator)."
+        : "Tuhle záložku můžeš zavřít. V aplikaci se stav připojení ověří sám; kdyby ne, klepni v Nastavení na „Ověřit“."
     const html = `<!doctype html>
 <html lang="cs">
 <head>
@@ -73,8 +81,8 @@ function handoffBack(): NextResponse {
 <body>
 <main>
   <p class="label">Připojení Instagramu</p>
-  <h1>Hotovo — přepni se zpátky do Chrlitu</h1>
-  <p>Tuhle záložku můžeš zavřít. V aplikaci se stav připojení ověří sám; kdyby ne, klepni v Nastavení na „Ověřit".</p>
+  <h1>${heading}</h1>
+  <p>${body}</p>
 </main>
 </body>
 </html>`
