@@ -44,7 +44,7 @@ export const promo: EmailTemplate = {
         planName: "Růst",
         planPrice: "2 099 Kč",
         planPeriod: "měsíčně místo 2 999 Kč",
-        planFeatures: "45 kreditů měsíčně\nReely a stories\nPlán na celý měsíc dopředu",
+        planFeatures: "70 kreditů měsíčně\nReely a stories\nPlán na celý měsíc dopředu",
         expiresOn: "31. 8. 2026",
         ctaLabel: "Využít akci",
         ctaUrl: `${siteUrl()}/cenik`,

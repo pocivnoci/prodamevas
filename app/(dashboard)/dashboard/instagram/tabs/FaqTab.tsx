@@ -23,6 +23,11 @@ const PLAN_BLURB: Record<string, string> = {
     chrlit_imperium: "nejvyšší objem pro jednu značku",
 }
 
+/** „Start 20, Růst 70, Dominance 130, Impérium 260" — také z ceníku, ne z ruky. */
+function creditsSentence(): string {
+    return FALLBACK_PLANS.map((p) => `${p.name} ${p.creditsPerMonth}`).join(", ")
+}
+
 function plansSentence(): string {
     const list = FALLBACK_PLANS.map(
         (p) => `${p.name} (${formatCzk(p.monthlyHaleru)}, ${p.creditsPerMonth} kreditů — ${PLAN_BLURB[p.id] ?? ""})`,
@@ -94,7 +99,7 @@ const FAQ_CATEGORIES: FaqCategory[] = [
             },
             {
                 q: "Převádí se nevyčerpané kredity do dalšího měsíce?",
-                a: "Ne. Každý měsíc dostanete kredity podle svého plánu (Start 20, Růst 45, Dominance 100, Impérium 220). Nevyčerpané kredity propadnou. Pokud potřebujete víc, dobijte si je za 49 Kč/ks.",
+                a: `Ne. Každý měsíc dostanete kredity podle svého plánu (${creditsSentence()}). Nevyčerpané kredity propadnou. Pokud potřebujete víc, dobijte si je za ${formatCzk(EXTRA_CREDIT_HALERU)}/ks.`,
             },
             {
                 q: "Jak funguje trial?",

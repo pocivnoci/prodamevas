@@ -19,7 +19,7 @@ const ROOT = resolve(__dirname)
  * a přecenění by tiše kontrolovalo mrtvý ceník. Jedna konstanta = jedno místo,
  * které se u příštího přecenění mění.
  */
-const PRICING_SEED = "supabase/migrations/20260901_pricing_v6.sql"
+const PRICING_SEED = "supabase/migrations/20260901_pricing_v6_kredity.sql"
 let passed = 0
 let failed = 0
 const results: { name: string; status: "PASS" | "FAIL"; detail?: string }[] = []
@@ -2240,14 +2240,45 @@ test("25.3 ceník na landingu a v migraci se shodují", () => {
     const pricing = fileContent("lib/pricing.ts")
     const mig = fileContent(PRICING_SEED)
 
-    const fromCode = [...pricing.matchAll(/id: "(chrlit_\w+)", name: "[^"]+", monthlyHaleru: (\d+)/g)]
-        .map(m => `${m[1]}=${m[2]}`)
+    const fromCode = [...pricing.matchAll(/id: "(chrlit_\w+)", name: "[^"]+", monthlyHaleru: (\d+), creditsPerMonth: (\d+)/g)]
+        .map(m => ({ id: m[1], price: m[2], credits: m[3] }))
     assert(fromCode.length === 4, `lib/pricing.ts musí mít 4 tarify, má ${fromCode.length}`)
 
-    for (const entry of fromCode) {
-        const [id, price] = entry.split("=")
+    for (const { id, price, credits } of fromCode) {
         const re = new RegExp(`'${id}',\\s*'[^']+',\\s*'[^']*',\\s*${price},`)
         assert(re.test(mig), `${id}: cena ${price} haléřů nesedí s ${PRICING_SEED}`)
+
+        // Kredity se dřív nekontrolovaly vůbec: záložní ceník mohl slibovat jiný
+        // příděl než ten, který zákazník po zaplacení dostane z DB.
+        const at = mig.indexOf(`'${id}'`)
+        const seedCredits = mig.slice(at).match(/"credits_per_month": (\d+)/)?.[1]
+        assert(seedCredits === credits,
+            `${id}: kredity ${credits} v lib/pricing.ts nesedí se seedem (${seedCredits})`)
+    }
+})
+
+test("25.3c vyšší tarif musí být lepší nákup než dobití kreditů", () => {
+    // Ceník v6 tohle na chvíli porušil: Růst vyšel na 66,6 Kč/kredit, zatímco
+    // dobití stojí 49 — zákazníkovi na Startu se vyplatilo zůstat a dokupovat.
+    // Žebřík není estetika, je to jediný důvod, proč někdo přejde o tarif výš.
+    const { FALLBACK_PLANS, EXTRA_CREDIT_HALERU } = require("./lib/pricing")
+    const plans = [...FALLBACK_PLANS].sort((a: any, b: any) => a.monthlyHaleru - b.monthlyHaleru)
+
+    for (let i = 1; i < plans.length; i++) {
+        const niz = plans[i - 1], vys = plans[i]
+
+        // 1. Průměrná cena kreditu musí klesat — vyšší tarif je lepší nákup.
+        const prumNiz = niz.monthlyHaleru / niz.creditsPerMonth
+        const prumVys = vys.monthlyHaleru / vys.creditsPerMonth
+        assert(prumVys < prumNiz,
+            `${vys.name}: ${prumVys.toFixed(1)} Kč/kredit není míň než ${niz.name} (${prumNiz.toFixed(1)})`)
+
+        // 2. Rozhodující je ale cena kreditů NAVÍC: přesně ji zákazník porovnává
+        //    s dobitím. Když je vyšší, upgrade je nabídka, kterou nemá brát.
+        const krok = (vys.monthlyHaleru - niz.monthlyHaleru) / (vys.creditsPerMonth - niz.creditsPerMonth)
+        assert(krok < EXTRA_CREDIT_HALERU,
+            `${niz.name}→${vys.name}: kredit navíc stojí ${(krok / 100).toFixed(1)} Kč, ` +
+            `dobití jen ${EXTRA_CREDIT_HALERU / 100} Kč — upgrade se nevyplatí`)
     }
 })
 
@@ -2270,6 +2301,12 @@ test("25.3b cena tarifu nesmí být napsaná v textu aplikace", () => {
             const re = new RegExp(`${cena}\\s*Kč|${String(cena).replace(/(\d)(\d{3})$/, "$1 $2")}\\s*Kč`)
             assert(!re.test(src), `${f}: cena ${cena} Kč napsaná natvrdo — musí jít z lib/pricing.ts`)
         }
+
+        // A totéž pro kredity. První verze téhle aserce hlídala jen ceny a hned
+        // vedle jí utekla věta „Start 20, Růst 45, Dominance 100, Impérium 220",
+        // která přecenění nepřežila. Číslo hned za názvem tarifu = ruční příděl.
+        assert(!/(Start|Růst|Dominance|Impérium)[\s(]+\d/.test(src),
+            `${f}: počet kreditů napsaný za názvem tarifu — musí jít z lib/pricing.ts`)
     }
 })
 

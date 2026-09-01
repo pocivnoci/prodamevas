@@ -1,23 +1,32 @@
 -- ═══════════════════════════════════════════════════════════════
--- Migration: Pricing v6 — přecenění (Start 999 · Růst 2 999 · Dominance 4 999 · Impérium 8 999)
+-- Migration: Pricing v6 — narovnání kreditů (Růst 70 · Dominance 130 · Impérium 260)
 -- ═══════════════════════════════════════════════════════════════
--- Obchodní rozhodnutí majitele: ceny nahoru, kredity beze změny.
+-- Dokončení přecenění v6. Ceny se NEMĚNÍ (999 · 2 999 · 4 999 · 8 999 Kč);
+-- mění se jen kredity, protože v6 nechal žebřík obrácený:
 --
--- Ceny:    Start 999 · Růst 2 999 · Dominance 4 999 · Impérium 8 999 Kč
--- Kredity: 20 · 45 · 100 · 220 (proti v5 nezměněné)
+--            cena   kredity   Kč/kredit   krok proti nižšímu tarifu
+--   PŘED     999      20        50,0            —
+--            2 999    45        66,6          80,0   ← dražší než dobití (49)
+--            4 999   100        50,0          36,4
+--            8 999   220        40,9          33,3
 --
--- ⚠️ Důsledek, který je vidět až po vydělení: cena za kredit přestala klesat
---    směrem nahoru žebříkem. Start 50,0 · Růst 66,6 · Dominance 50,0 ·
---    Impérium 40,9 Kč/kredit. Zákazník na Startu, kterému dojdou kredity, si je
---    teď dokoupí levněji (49 Kč/ks), než kdyby přešel na Růst — přesně obrácený
---    tah, než jaký žebřík chce. Narovnat to jde JEN kredity (Růst by potřeboval
---    ~70 místo 45), a to je další cenové rozhodnutí, ne technická oprava; do
---    doby, než padne, tenhle komentář drží pravdu na místě, kde ji uvidí každý,
---    kdo sáhne na ceník.
---    → VYŘEŠENO: `20260901_pricing_v6_kredity.sql` (kredity 20/70/130/260).
+--   PO       999      20        50,0            —
+--            2 999    70        42,8          40,0
+--            4 999   130        38,5          33,3
+--            8 999   260        34,6          30,8
 --
--- Extra kredit zůstává 4900 haléřů (49 Kč) ve features všech tarifů.
--- Interní unit-economics podklad je mimo repo (docs/pricing/, gitignored).
+-- Dvě pravidla, která teď platí a hlídá je aserce 25.3c:
+--   1. Kč/kredit KLESÁ celým žebříkem — vyšší tarif je vždy lepší nákup.
+--   2. Každý krok nahoru vyjde levněji než dobití kreditu (49 Kč), takže
+--      zákazníkovi se nikdy nevyplatí zůstat níž a dokupovat. Přesně tohle
+--      v6 porušil: ze Startu na Růst stálo 80 Kč za kredit navíc.
+--
+-- Struktura je záměrně čitelná: Dominance = 2× Růst, Impérium = 2× Dominance.
+-- Marže při plném vyčerpání 81–87 % (1 kredit ≈ $0,31 COGS, 21,2 Kč/$) —
+-- Růst byl předtím outlier na 90 %, protože za trojnásobek ceny dával jen
+-- o polovinu víc kreditů.
+--
+-- Nahrazuje `20260901_pricing_v6.sql` (ten zůstává jako historie).
 -- Run: Supabase Management API / SQL editor. Bezpečné re-run (ON CONFLICT).
 -- ═══════════════════════════════════════════════════════════════
 
@@ -43,10 +52,10 @@ ON CONFLICT (id) DO UPDATE SET
     description = EXCLUDED.description,
     price_czk = EXCLUDED.price_czk;
 
--- 2. Růst — 2 999 Kč, 45 kreditů, + reels + A/B varianty + růstový dashboard
+-- 2. Růst — 2 999 Kč, 70 kreditů, + reels + A/B varianty + růstový dashboard
 INSERT INTO subscription_plans (id, name, description, price_czk, interval, features, is_active)
-VALUES ('chrlit_rust', 'Růst', 'Rosteme spolu — 45 kreditů/měs vč. reels, A/B varianty, růstový dashboard', 299900, 'month', '{
-    "credits_per_month": 45,
+VALUES ('chrlit_rust', 'Růst', 'Rosteme spolu — 70 kreditů/měs vč. reels, A/B varianty, růstový dashboard', 299900, 'month', '{
+    "credits_per_month": 70,
     "max_projects": 1,
     "extra_credit_price": 4900,
     "allowed_actions": ["post", "post_variant", "idea_generate"],
@@ -65,10 +74,10 @@ ON CONFLICT (id) DO UPDATE SET
     description = EXCLUDED.description,
     price_czk = EXCLUDED.price_czk;
 
--- 3. Dominance — 4 999 Kč, 100 kreditů, + product studio + priorita
+-- 3. Dominance — 4 999 Kč, 130 kreditů, + product studio + priorita
 INSERT INTO subscription_plans (id, name, description, price_czk, interval, features, is_active)
-VALUES ('chrlit_dominance', 'Dominance', 'Ovládni svůj trh — 100 kreditů/měs vč. reels, product studio, přednost ve frontě', 499900, 'month', '{
-    "credits_per_month": 100,
+VALUES ('chrlit_dominance', 'Dominance', 'Ovládni svůj trh — 130 kreditů/měs vč. reels, product studio, přednost ve frontě', 499900, 'month', '{
+    "credits_per_month": 130,
     "max_projects": 1,
     "extra_credit_price": 4900,
     "allowed_actions": ["post", "post_variant", "idea_generate", "product_ideas", "product_visual", "product_design", "product_mockup", "product_brief"],
@@ -87,10 +96,10 @@ ON CONFLICT (id) DO UPDATE SET
     description = EXCLUDED.description,
     price_czk = EXCLUDED.price_czk;
 
--- 4. Impérium — 8 999 Kč, 220 kreditů, nejvyšší úroveň pro jednu značku
+-- 4. Impérium — 8 999 Kč, 260 kreditů, nejvyšší úroveň pro jednu značku
 INSERT INTO subscription_plans (id, name, description, price_czk, interval, features, is_active)
-VALUES ('chrlit_imperium', 'Impérium', 'Postav impérium — 220 kreditů/měs pro jednu značku, product studio, nejvyšší přednost ve frontě', 899900, 'month', '{
-    "credits_per_month": 220,
+VALUES ('chrlit_imperium', 'Impérium', 'Postav impérium — 260 kreditů/měs pro jednu značku, product studio, nejvyšší přednost ve frontě', 899900, 'month', '{
+    "credits_per_month": 260,
     "max_projects": 1,
     "extra_credit_price": 4900,
     "allowed_actions": ["post", "post_variant", "idea_generate", "product_ideas", "product_visual", "product_design", "product_mockup", "product_brief"],
