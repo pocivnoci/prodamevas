@@ -639,6 +639,16 @@ export async function getPerformanceInsights(projectSlug: string) {
 
         const insights = await analyzePerformance(config, getPillarForType)
 
+        // Ořez podle tarifu. Děje se to TEĎ a TADY — až za enginem: `analyzePerformance`
+        // dodává tytéž závěry copywriterovi, a ořezat je i jemu by znamenalo horší
+        // obsah pro levnější tarif. Tarif rozhoduje o tom, co zákazník vidí, ne o tom,
+        // jak dobře se mu generuje (lib/analytics-depth.ts).
+        const { getClientSubscription } = await import("@/lib/subscription")
+        const { normalizeDepth, trimInsightsForDepth } = await import("@/lib/analytics-depth")
+        const sub = await getClientSubscription(clientId)
+        const depth = normalizeDepth(sub?.features?.analytics)
+        const visibleInsights = trimInsightsForDepth(insights as unknown as Record<string, unknown>, depth)
+
         // Fetch posted/ready posts with metrics for the manual input table
         const { data: posts } = await supabaseAdmin
             .from("ig_posts")
@@ -661,7 +671,7 @@ export async function getPerformanceInsights(projectSlug: string) {
             }
         }
 
-        return { insights, posts: posts || [], pillarLabels }
+        return { insights: visibleInsights, posts: posts || [], pillarLabels, analyticsDepth: depth }
     } catch (err: any) {
         console.error("getPerformanceInsights error:", err?.message || err)
         return {
@@ -676,6 +686,9 @@ export async function getPerformanceInsights(projectSlug: string) {
             },
             posts: [],
             pillarLabels: {},
+            // Když se stav tarifu nepodařilo přečíst, nepředstírej plnou analytiku:
+            // zamčená karta je pravdivější než prázdné závěry tvářící se jako měření.
+            analyticsDepth: "basic" as const,
         }
     }
 }

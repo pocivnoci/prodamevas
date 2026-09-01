@@ -4,8 +4,11 @@ import { useEffect, useState, useCallback } from "react"
 import { getPerformanceInsights, updateIGPostMetrics, syncMetricsAction } from "@/app/actions/admin-actions"
 import { getConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { getGrowthData, type GrowthData } from "@/app/actions/growth-actions"
+import { getVariantDuels } from "@/app/actions/ab-actions"
+import type { Duel } from "@/lib/ab-duel"
+import { LOCKED_ANALYTICS_COPY, type AnalyticsDepth } from "@/lib/analytics-depth"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
-import { Anchor, Bookmark, Brain, ChartColumn, Check, Eye, Heart, Link, LockOpen, MessageCircle, Search, Share2, TrendingUp } from "lucide-react"
+import { Anchor, Bookmark, Brain, ChartColumn, Check, Eye, Heart, Link, Lock, LockOpen, MessageCircle, Search, Share2, Swords, TrendingUp } from "lucide-react"
 
 export function PerformanceTab({ projectId }: { projectId: string }) {
     const [posts, setPosts] = useState<any[]>([])
@@ -18,6 +21,9 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
     const [connected, setConnected] = useState(false)
     const [syncing, setSyncing] = useState(false)
     const [syncMsg, setSyncMsg] = useState<string | null>(null)
+    // Hloubka chodí ze SERVERU spolu s daty — kdyby si ji UI odvozovalo samo,
+    // je to zase jen schovaná sekce, ne placená hranice.
+    const [depth, setDepth] = useState<AnalyticsDepth>("full")
 
     const loadData = useCallback(async (spinner = true) => {
         if (!projectId) return
@@ -26,6 +32,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
         setPosts(data.posts)
         setInsights(data.insights)
         setPillarLabels(data.pillarLabels || {})
+        setDepth((data as { analyticsDepth?: AnalyticsDepth }).analyticsDepth ?? "full")
         // Init editing state from existing post metrics
         const metrics: Record<string, any> = {}
         for (const p of data.posts) {
@@ -109,6 +116,9 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
             {/* ── Růst profilu ───────────────────────────────── */}
             <GrowthSection projectId={projectId} />
 
+            {/* ── A/B souboje ────────────────────────────────── */}
+            <AbDuelsSection projectId={projectId} />
+
             {/* ── Statistiky výkonu ──────────────────────────── */}
             <div>
                 <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
@@ -137,21 +147,28 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                                 <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">Průměrná interakce</div>
                                 <div className="text-2xl font-black text-white">{Math.round(insights.avgEngagement)}</div>
                             </div>
-                            <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
-                                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">Konverzní poměr</div>
-                                <div className="text-2xl font-black text-white">{(insights.conversionRate * 100).toFixed(1)}%</div>
-                            </div>
-                            <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
-                                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">Nejlepší čas</div>
-                                <div className="text-2xl font-black text-white">{insights.bestTimeSlots?.[0] || "—"}</div>
-                            </div>
+                            {depth === "full" && (
+                                <>
+                                    <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
+                                        <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">Konverzní poměr</div>
+                                        <div className="text-2xl font-black text-white">{(insights.conversionRate * 100).toFixed(1)}%</div>
+                                    </div>
+                                    <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
+                                        <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">Nejlepší čas</div>
+                                        <div className="text-2xl font-black text-white">{insights.bestTimeSlots?.[0] || "—"}</div>
+                                    </div>
+                                </>
+                            )}
                             <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
                                 <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">Postů s daty</div>
                                 <div className="text-2xl font-black text-white">{posts.filter((p: any) => p.likes !== null && p.likes > 0).length}</div>
                             </div>
                         </div>
 
-                        {/* Two Columns: Best Types + Top Patterns */}
+                        {/* Závěry z čísel — od tarifu Růst výš (lib/analytics-depth.ts) */}
+                        {depth === "basic" && <LockedInsights />}
+
+                        {depth === "full" && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                             {/* Best Hooks */}
                             <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
@@ -184,9 +201,10 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                                 </div>
                             </div>
                         </div>
+                        )}
 
                         {/* Per-Pillar Performance */}
-                        {insights.pillarPerformance && Object.keys(insights.pillarPerformance).length > 0 && (
+                        {depth === "full" && insights.pillarPerformance && Object.keys(insights.pillarPerformance).length > 0 && (
                             <div>
                                 <div className="inline-flex items-center gap-1.5 text-[10px] text-white/40 uppercase tracking-wider mb-3"><ChartColumn className="w-3 h-3 shrink-0" />Výkon podle témat</div>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -324,6 +342,114 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
 }
 
 // ── Růst profilu — follower graf z týdenních snapshotů ─────────────
+/**
+ * Zamčené závěry.
+ *
+ * Záměrně se NEskrývá, že tam něco je. Zmizelá sekce vypadá jako chyba nebo jako
+ * „nemáme data"; pojmenovaný zámek říká, co za to zákazník dostane, a nechává mu
+ * rozhodnutí. Čísla u příspěvků zůstávají celá — platí se za jejich vyhodnocení.
+ */
+function LockedInsights() {
+    return (
+        <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-5 mb-4 flex items-start gap-3">
+            <Lock className="w-4 h-4 shrink-0 text-white/30 mt-0.5" />
+            <div>
+                <div className="text-[10px] text-white/40 uppercase tracking-widest font-bold mb-1.5">
+                    {LOCKED_ANALYTICS_COPY.title}
+                </div>
+                <p className="text-xs text-white/50 leading-relaxed max-w-xl">{LOCKED_ANALYTICS_COPY.body}</p>
+            </div>
+        </div>
+    )
+}
+
+/**
+ * A/B souboje.
+ *
+ * Varianty se generovaly od vzniku tarifu Růst, ale nikdo je nikdy neporovnal —
+ * zákazník dostal dvě verze, jednu vybral a tím to skončilo. Tahle sekce je ta
+ * chybějící druhá půlka: co z toho vlastně vyšlo.
+ *
+ * Sekce se nevykreslí vůbec, když tarif na varianty nemá (server vrátí
+ * `allowed: false`) nebo když zákazník žádnou variantu nevytvořil — prázdný
+ * nadpis „A/B souboje" u někoho, kdo je nikdy nepoužil, je jen šum.
+ */
+function AbDuelsSection({ projectId }: { projectId: string }) {
+    const [duels, setDuels] = useState<Duel[]>([])
+    const [allowed, setAllowed] = useState(false)
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        if (!projectId) return
+        let zruseno = false
+        getVariantDuels(projectId).then((res) => {
+            if (zruseno) return
+            setAllowed(res.allowed)
+            setDuels(res.duels)
+            setLoading(false)
+        })
+        return () => { zruseno = true }
+    }, [projectId])
+
+    if (loading || !allowed || duels.length === 0) return null
+
+    const rozhodnute = duels.filter((d) => d.verdict === "rozhodnuto").length
+
+    return (
+        <div>
+            <h2 className="text-lg font-black uppercase tracking-tight text-white flex items-center gap-2 mb-1">
+                <span className="inline-flex items-center gap-1.5"><Swords className="w-3.5 h-3.5 shrink-0" />A/B souboje</span>
+            </h2>
+            <p className="text-[10px] text-white/30 mb-4">
+                {rozhodnute > 0
+                    ? `${rozhodnute} z ${duels.length} už má jasný výsledek.`
+                    : "Zatím žádný souboj nemá průkazný rozdíl."}
+            </p>
+
+            <div className="space-y-3">
+                {duels.map((d) => (
+                    <div key={d.variant.id} className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
+                        <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+                            <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm border ${
+                                d.verdict === "rozhodnuto"
+                                    ? "text-emerald-400 border-emerald-500/25 bg-emerald-500/10"
+                                    : d.verdict === "tesne"
+                                        ? "text-white/45 border-white/10 bg-white/5"
+                                        : "text-white/30 border-white/5 bg-white/[0.02]"
+                            }`}>
+                                {d.verdict === "rozhodnuto" ? "Rozhodnuto" : d.verdict === "tesne" ? "Bez rozdílu" : "Čeká na data"}
+                            </span>
+                            <span className="text-[11px] text-white/50">{d.summary}</span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            {([["original", "Původní"], ["variant", "Varianta"]] as const).map(([klic, popis]) => {
+                                const post = d[klic]
+                                const vyhral = d.winner === klic
+                                return (
+                                    <div key={klic} className={`rounded-sm border p-3 ${
+                                        vyhral ? "border-emerald-500/30 bg-emerald-500/[0.06]" : "border-white/10 bg-white/[0.02]"
+                                    }`}>
+                                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                                            <span className="text-[9px] uppercase tracking-widest font-bold text-white/40">{popis}</span>
+                                            <span className={`text-sm font-black ${vyhral ? "text-emerald-400" : "text-white/70"}`}>
+                                                {post.score}
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-white/45 leading-snug line-clamp-2">
+                                            {(post.caption || "").slice(0, 90) || "—"}
+                                        </p>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
+}
+
 function GrowthSection({ projectId }: { projectId: string }) {
     const { subscription, setActiveSection } = useStudio()
     const [growth, setGrowth] = useState<GrowthData | null>(null)

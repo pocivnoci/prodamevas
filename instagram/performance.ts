@@ -1,6 +1,7 @@
 import supabase from "../supabase/admin"
 import { getActiveProject } from "./service"
 import type { ClientConfig } from "./configs/types"
+import { engagementScore } from "../lib/engagement"
 
 // ============================================
 // TYPES
@@ -89,7 +90,7 @@ export async function analyzePerformance(
 
     // Calculate engagement + reach + conversion scores per post
     const scored = postedPosts.map(p => {
-        const engagement = (p.likes || 0) + (p.comments || 0) * 3 + (p.saves || 0) * 5
+        const engagement = engagementScore(p)
         const reachScore = (p.saves || 0) * 5 + (p.shares || 0) * 8 + (p.reach || 0) * 0.01 + (p.comments || 0) * 2
         const conversionScore = (p.link_clicks || 0) * 10 + (p.profile_visits || 0) * 3 + (p.saves || 0)
         return { ...p, engagement, reachScore, conversionScore }

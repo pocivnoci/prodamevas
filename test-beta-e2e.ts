@@ -3336,6 +3336,93 @@ test("34.7 hromadný běh nápadů z CLI se měří", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 35. ANALYTIKA A A/B SOUBOJE (v9)
+// ═══════════════════════════════════════════════════════════
+
+test("35.1 síla příspěvku má jediný vzorec", () => {
+    // Žebříček výkonu a vyhodnocení A/B soubojů mluví o TÝCHŽ příspěvcích. Kdyby
+    // každý počítal po svém, aplikace by uměla prohlásit vítězem post, který má
+    // v žebříčku níž — dvě pravdy o jedné fotce a zákazník neví, které věřit.
+    assert(fileExists("lib/engagement.ts"), "vzorec potřebuje vlastní modul")
+    const perf = codeOnly("instagram/performance.ts")
+    assert(perf.includes("engagementScore"), "performance.ts musí vzorec importovat, ne mít vlastní")
+    assert(!/\(p\.likes \|\| 0\) \+ \(p\.comments \|\| 0\) \* 3/.test(perf),
+        "vzorec nesmí být rozepsaný v performance.ts — jediný zdroj je lib/engagement.ts")
+    const duel = codeOnly("lib/ab-duel.ts")
+    assert(duel.includes("engagementScore"), "souboj musí počítat týmž vzorcem jako žebříček")
+})
+
+test("35.2 A/B nesmí prohlásit vítěze na šumu", () => {
+    // Běhová aserce nad skutečnou funkcí. Dvě fotky s 12 a 13 lajky nejsou vítěz
+    // a poražený — a doporučení postavené na náhodě je horší než mlčení.
+    const { evaluateDuel, MIN_MARGIN_PCT, MIN_TOTAL_ENGAGEMENT } = require("./lib/ab-duel")
+    const posted = (id: string, likes: number) => ({ id, status: "posted", likes, comments: 0, saves: 0 })
+
+    const tesny = evaluateDuel(posted("a", 20), posted("b", 22))
+    assert(tesny.verdict === "tesne", `rozdíl 10 % musí být 'tesne', je '${tesny.verdict}'`)
+    assert(tesny.winner === null, "u těsného výsledku se vítěz NEURČUJE")
+
+    const maloDat = evaluateDuel(posted("a", 1), posted("b", 3))
+    assert(maloDat.verdict === "tesne", "pár lajků nestačí, i když je rozdíl procentuálně velký")
+    assert(maloDat.winner === null, "na 4 interakcích se vítěz neprohlašuje")
+
+    const jasny = evaluateDuel(posted("a", 20), posted("b", 60))
+    assert(jasny.verdict === "rozhodnuto" && jasny.winner === "variant",
+        "trojnásobný rozdíl musí mít vítěze")
+
+    // Nezveřejněný nebo nezměřený protivník = není co porovnávat.
+    const ceka = evaluateDuel(posted("a", 20), { id: "b", status: "ready", likes: null })
+    assert(ceka.verdict === "ceka" && ceka.winner === null,
+        "dokud nejsou obě verze venku a naměřené, souboj čeká")
+
+    assert(MIN_MARGIN_PCT >= 10 && MIN_TOTAL_ENGAGEMENT >= 5,
+        "prahy nesmí klesnout tak nízko, že vítěze udělá jeden lajk")
+})
+
+test("35.3 'plná analytika' něco doopravdy omezuje", () => {
+    // Do 9/2026 byl přepínač `analytics` placený slib bez krytí: nikde se nečetl,
+    // jen se vypsal na kartu tarifu. Start platil míň a viděl identickou obrazovku.
+    // Stejná vada jako priorita generování do srpna — a stejná oprava.
+    assert(fileExists("lib/analytics-depth.ts"), "hloubka analytiky potřebuje jediné pravidlo")
+    const action = codeOnly("app/actions/admin-actions.ts")
+    assert(action.includes("trimInsightsForDepth"),
+        "čtecí cesta do UI musí payload ořezat — schování v komponentě není placená hranice")
+    assert(action.includes("analyticsDepth"),
+        "UI musí dostat hloubku ze serveru, ne si ji domýšlet")
+    // Volat ořez a pak stejně vrátit neořezaná data je díra, která vypadá opravená.
+    // Tahle půlka aserce vznikla proto, že přesně tak šla první verze obejít.
+    assert(!/return\s*\{\s*insights,/.test(action),
+        "vrací se neořezané `insights` — ořez pak nemá žádný účinek")
+
+    // Ořez ověřený nad skutečnou funkcí, ne nad textem.
+    const { trimInsightsForDepth, FULL_ONLY_FIELDS } = require("./lib/analytics-depth")
+    const plne = { avgEngagement: 42, conversionRate: 0.1, bestTimeSlots: ["18:00"], topPatterns: ["POV"] }
+    const orezane = trimInsightsForDepth(plne, "basic")
+    assert(orezane.avgEngagement === 42, "průměrná interakce zůstává i základnímu tarifu")
+    for (const f of FULL_ONLY_FIELDS) {
+        assert(!(f in orezane), `${f} se musí SMAZAT, ne vynulovat — nula vypadá jako naměřený výsledek`)
+    }
+    assert(trimInsightsForDepth(plne, "full").conversionRate === 0.1, "plný tarif nepřichází o nic")
+})
+
+test("35.4 tarif nesmí zhoršit obsah, jen výhled", () => {
+    // Nejnebezpečnější způsob, jak tuhle funkci pokazit: ořezat závěry i enginu.
+    // Copywriter i plánovač z nich píšou, takže by levnější tarif dostával horší
+    // obsah — tichá degradace kvality, kterou CLAUDE.md zakazuje.
+    const engine = codeOnly("instagram/performance.ts")
+    for (const zakazane of ["analytics-depth", "trimInsightsForDepth", "getClientSubscription", "features.analytics"]) {
+        assert(!engine.includes(zakazane),
+            `instagram/performance.ts nesmí znát tarify (${zakazane}) — ořez patří jen do čtecí cesty UI`)
+    }
+
+    // A/B akce musí mít bránu na serveru, ne jen schovanou sekci.
+    const ab = codeOnly("app/actions/ab-actions.ts")
+    assert(ab.includes("requireProjectAccess"), "akce musí ověřit přístup k projektu")
+    assert(/allowed_actions[\s\S]{0,40}post_variant/.test(ab),
+        "souboje smí dostat jen tarif, který varianty vůbec umí")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 
