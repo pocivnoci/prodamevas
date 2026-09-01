@@ -19,7 +19,7 @@ const ROOT = resolve(__dirname)
  * a přecenění by tiše kontrolovalo mrtvý ceník. Jedna konstanta = jedno místo,
  * které se u příštího přecenění mění.
  */
-const PRICING_SEED = "supabase/migrations/20260901_odemknuti_funkci.sql"
+const PRICING_SEED = "supabase/migrations/20260901_reels_dominance.sql"
 let passed = 0
 let failed = 0
 const results: { name: string; status: "PASS" | "FAIL"; detail?: string }[] = []

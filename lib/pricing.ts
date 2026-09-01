@@ -218,10 +218,14 @@ export const PLAN_COPY: Record<string, PlanCopy> = {
         bullets: ["Unikátní AI obrázky", "Carousel posty", "Nápady na obsah"],
     },
     chrlit_rust: {
+        // Reels odsud zmizely 9/2026 — drží je až Dominance, aby to byla skutečná
+        // hranice a ne odrážka na třech kartách ze čtyř. Na uvolněné místo šla
+        // úprava hotového příspěvku: Růst ji od `20260901_odemknuti_funkci.sql`
+        // opravdu dostal a do té doby ji neuváděl žádný text.
         tagline: "Rosteme spolu",
         bullets: [
             "Až na denní obsah",
-            { text: "Reels — AI video", requiresReels: true },
+            "Úprava hotového příspěvku",
             "A/B varianty příspěvků",
             "Sledování růstu followerů",
         ],
@@ -232,6 +236,7 @@ export const PLAN_COPY: Record<string, PlanCopy> = {
         bullets: [
             { text: "Reels — AI video", requiresReels: true },
             "Produktové vizualizace a mockupy",
+            "Celá produktová řada na zadání",
             "Prioritní generování",
         ],
     },
@@ -274,7 +279,7 @@ export interface PricingPlan {
  */
 export const FALLBACK_PLANS: readonly PricingPlan[] = [
     { id: "chrlit_start", name: "Start", monthlyHaleru: 99900, creditsPerMonth: 20, allowsReels: false },
-    { id: "chrlit_rust", name: "Růst", monthlyHaleru: 299900, creditsPerMonth: 70, allowsReels: true },
+    { id: "chrlit_rust", name: "Růst", monthlyHaleru: 299900, creditsPerMonth: 70, allowsReels: false },
     { id: "chrlit_dominance", name: "Dominance", monthlyHaleru: 499900, creditsPerMonth: 130, allowsReels: true },
     { id: "chrlit_imperium", name: "Impérium", monthlyHaleru: 899900, creditsPerMonth: 260, allowsReels: true },
 ] as const
