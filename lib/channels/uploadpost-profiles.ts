@@ -126,6 +126,37 @@ export async function generateConnectUrl(clientId: string, returnUrl?: string): 
     return String(url)
 }
 
+/**
+ * Autorizační adresa Instagramu — BEZ hostované stránky upload-postu.
+ *
+ * `POST /api/uploadposts/oauth/instagram/start` vrátí rovnou `authorize_url`
+ * s jejich jednorázovým `state` (platnost 15 minut). Autentizaci callbacku nese
+ * ten `state`, takže prohlížeč koncového uživatele nepotřebuje session ani u nás,
+ * ani u upload-postu.
+ *
+ * Proč to chceme vedle `generateConnectUrl`: jejich hostovaná stránka nabízí
+ * Instagram jako ODKAZ, a klepnutí na odkaz na instagram.com iOS odchytí přes
+ * Universal Links a otevře nativní aplikaci, která autorizaci neobslouží
+ * („something went wrong", nahlášeno 2026-09-01). Na tuhle adresu umíme
+ * přesměrovat — a redirect Universal Links nespouští.
+ *
+ * `redirectUrl` je stránka, kam upload-post pošle uživatele po dokončení; přidá
+ * k ní `connect_status` a `platform`.
+ */
+export async function generateAuthorizeUrl(clientId: string, redirectUrl?: string): Promise<string> {
+    const username = await ensureProfile(clientId)
+    const json = await uploadPostJson(
+        "/api/uploadposts/oauth/instagram/start",
+        { profile: username, ...(redirectUrl ? { redirect_url: redirectUrl } : {}) },
+        "oauth-start",
+    )
+    const url = json?.authorize_url ?? json?.authorizeUrl
+    if (!url) {
+        throw new Error(`upload-post: oauth/start nevrátil authorize_url: ${JSON.stringify(json).slice(0, 300)}`)
+    }
+    return String(url)
+}
+
 /** Current connection state at upload-post, for reconciling our own row. */
 export async function getProfileStatus(clientId: string): Promise<UploadPostProfileStatus> {
     const username = uploadPostProfileName(clientId)

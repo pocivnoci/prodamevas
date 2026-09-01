@@ -42,15 +42,33 @@ export async function GET(request: Request) {
     }
 
     try {
-        const { generateConnectUrl } = await import("@/lib/channels/uploadpost-profiles")
+        const { generateConnectUrl, generateAuthorizeUrl } = await import("@/lib/channels/uploadpost-profiles")
         let returnUrl = `${siteUrl}/api/ig-connect/bridge/return?slug=${encodeURIComponent(slug)}`
         // Návrat z externího prohlížeče nemá naši session (viz return routa), takže
         // musí vědět, že se nemá pokoušet o redirect do dashboardu.
         if (external) returnUrl += "&external=1"
+
+        if (external) {
+            // Mimo webview míříme rovnou na Instagram, ne na hostovanou stránku
+            // upload-postu: tam je Instagram ODKAZ, a klepnutí na odkaz na
+            // instagram.com iOS odchytí přes Universal Links a otevře nativní
+            // aplikaci, která autorizaci neobslouží („something went wrong",
+            // nahlášeno 2026-09-01). Přes /go se na tutéž adresu PŘESMĚRUJE,
+            // a na redirect Universal Links nereagují.
+            try {
+                const { signHandoff } = await import("@/lib/ig-connect-handoff")
+                const authorizeUrl = await generateAuthorizeUrl(clientId, returnUrl)
+                return interstitial(`${siteUrl}/api/ig-connect/bridge/go?t=${encodeURIComponent(signHandoff(authorizeUrl))}`)
+            } catch (err) {
+                // Přímá cesta je novější z těch dvou. Když jejich oauth/start
+                // odejde, je pořád lepší poslat uživatele na hostovanou stránku
+                // (funguje, jen na iOS naráží) než mu nenabídnout nic.
+                console.error(`ig-connect/bridge: oauth/start selhal, padám na hostovanou stránku — ${(err as Error).message}`)
+                return interstitial(await generateConnectUrl(clientId, returnUrl))
+            }
+        }
+
         const url = await generateConnectUrl(clientId, returnUrl)
-
-        if (external) return interstitial(url)
-
         const res = NextResponse.redirect(url)
         // Adresa je jednorázová a podepsaná; cache by ji nechala viset v historii
         // i proxy dávno po vypršení JWT.
@@ -83,9 +101,13 @@ function escapeHtml(s: string): string {
  * otevře v Safari. Kliknout na něj musí uživatel — proto mezistránka, ne redirect,
  * a proto se nic neotevírá skriptem.
  *
- * Míří rovnou na adresu upload-postu, ne zpátky na naši routu: Safari má vlastní
- * cookie jar, takže naše session tam není a `requireProjectAccess` by uživatele
- * poslal na login. Podepsaný odkaz upload-postu žádnou naši session nepotřebuje.
+ * Odkaz míří na NAŠI routu /go, ne na instagram.com: klepnutí na odkaz vedoucí na
+ * instagram.com iOS odchytí přes Universal Links a otevře nativní aplikaci
+ * Instagramu, která autorizaci neobslouží (druhá hlášená podoba „something went
+ * wrong", 2026-09-01). /go na tutéž adresu teprve PŘESMĚRUJE a na redirect
+ * Universal Links nereagují. Session přitom nepotřebuje ani /go (podepsaný token),
+ * ani cíl (jednorázový `state` upload-postu) — Safari má vlastní cookie jar, takže
+ * cokoli chráněného `requireProjectAccess` by tam skončilo na loginu.
  */
 function interstitial(url: string): NextResponse {
     const html = `<!doctype html>
@@ -113,7 +135,7 @@ function interstitial(url: string): NextResponse {
 <main>
   <p class="label">Připojení Instagramu</p>
   <h1>Poslední krok otevři v prohlížeči</h1>
-  <p class="text">Instagram odmítá přihlášení uvnitř aplikace přidané na plochu. Tlačítko níž otevře přihlášení v Safari.</p>
+  <p class="text">Instagram odmítá přihlášení uvnitř aplikace přidané na plochu. Tlačítko níž otevře přihlášení v Safari. Kdyby přesto naskočila appka Instagramu, zavři ji a zkus to znovu.</p>
   <a class="btn" href="${escapeHtml(url)}" target="_blank" rel="noopener">Otevřít přihlášení</a>
   <p class="hint">Až připojení dokončíš, přepni se zpátky do Chrlitu — účet se tu ověří sám.</p>
 </main>
