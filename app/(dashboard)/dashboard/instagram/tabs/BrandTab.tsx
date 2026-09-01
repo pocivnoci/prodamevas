@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { motion } from "framer-motion"
 import {
     uploadBrandImage,
@@ -10,6 +10,7 @@ import {
     setBrandImageTags,
 } from "@/app/actions/brand-images-action"
 import { getClientConfig } from "@/app/actions/settings-actions"
+import { ensureImageBrief } from "@/app/onboarding/actions"
 import { BRAND_IMAGE_TAGS } from "@/instagram/configs/types"
 import type { ImageBriefItem, BrandImage } from "@/instagram/configs/types"
 import { LoadingSpinner } from "./shared"
@@ -24,6 +25,10 @@ export function BrandTab({ projectId }: { projectId: string }) {
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
     const [imageBrief, setImageBrief] = useState<ImageBriefItem[]>([])
     const [briefCollapsed, setBriefCollapsed] = useState(false)
+    const [briefLoading, setBriefLoading] = useState(false)
+    // Jeden pokus na jedno otevření sekce — bez téhle pojistky by StrictMode
+    // (a každý re-run loadImages) pouštěl generování shot listu znovu.
+    const briefRequested = useRef(false)
     // Ruční štítkování: AI nepozná, že zrovna tenhle portrét je tvář značky.
     const [editing, setEditing] = useState<BrandImage | null>(null)
     const [draftTags, setDraftTags] = useState<string[]>([])
@@ -37,9 +42,33 @@ export function BrandTab({ projectId }: { projectId: string }) {
             getClientConfig(projectId),
         ])
         setImages(imgs)
-        if (config?.imageBrief?.length) setImageBrief(config.imageBrief)
+        if (config?.imageBrief?.length) {
+            setImageBrief(config.imageBrief)
+        } else if (config && !briefRequested.current) {
+            // Shot list dosud nikdo nevygeneroval (klient ze self-serve onboardingu,
+            // nebo se zavřela karta během adminského). Dogeneruj ho na pozadí a ulož —
+            // jinak zůstane „Co ještě chybí" u takového klienta prázdné navždy.
+            briefRequested.current = true
+            setBriefLoading(true)
+            ensureImageBrief(projectId)
+                .then(res => { if (res.success && res.brief) setImageBrief(res.brief) })
+                .finally(() => setBriefLoading(false))
+        }
         setLoading(false)
     }, [projectId])
+
+    const handleRegenerateBrief = async () => {
+        setBriefLoading(true)
+        setMessage(null)
+        const res = await ensureImageBrief(projectId, { force: true })
+        if (res.success && res.brief) {
+            setImageBrief(res.brief)
+            setMessage({ type: 'success', text: 'Shot list přegenerován podle aktuální značky' })
+        } else {
+            setMessage({ type: 'error', text: res.error || 'Generování shot listu selhalo' })
+        }
+        setBriefLoading(false)
+    }
 
     useEffect(() => { loadImages() }, [loadImages])
 
@@ -135,21 +164,41 @@ export function BrandTab({ projectId }: { projectId: string }) {
             </div>
 
             {/* Shot list — "Co ještě chybí" */}
+            {imageBrief.length === 0 && briefLoading && (
+                <div className="bg-[#0a0a0a]/90 border border-blue-500/20 rounded-sm p-4 flex items-center gap-3">
+                    <div className="w-4 h-4 border-2 border-white/10 border-t-blue-400/70 rounded-full animate-spin shrink-0" />
+                    <span className="text-xs text-white/50">Skládám shot list — co ještě dofotit, aby AI měla z čeho brát…</span>
+                </div>
+            )}
             {imageBrief.length > 0 && (
                 <div className="bg-[#0a0a0a]/90 border border-blue-500/20 rounded-sm overflow-hidden">
-                    <button
-                        onClick={() => setBriefCollapsed(!briefCollapsed)}
-                        className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 transition-colors"
-                    >
-                        <div className="flex items-center gap-2">
-                            <Camera className="w-5 h-5" />
+                    <div className="w-full flex items-center justify-between p-4 gap-3">
+                        <button
+                            onClick={() => setBriefCollapsed(!briefCollapsed)}
+                            className="flex items-center gap-2 cursor-pointer min-w-0"
+                        >
+                            <Camera className="w-5 h-5 shrink-0" />
                             <span className="text-sm font-bold text-white">Co ještě chybí</span>
                             <span className="text-[10px] text-blue-400/60 font-mono">
                                 {imageBrief.reduce((sum, cat) => sum + cat.items.length, 0)} položek
                             </span>
+                        </button>
+                        <div className="flex items-center gap-3 shrink-0">
+                            <button
+                                onClick={handleRegenerateBrief}
+                                disabled={briefLoading}
+                                className="text-[9px] uppercase tracking-widest font-bold text-white/30 hover:text-white/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                            >
+                                {briefLoading ? 'Generuji…' : 'Přegenerovat'}
+                            </button>
+                            <button
+                                onClick={() => setBriefCollapsed(!briefCollapsed)}
+                                className="text-white/30 text-xs cursor-pointer hover:text-white/60 transition-colors"
+                            >
+                                {briefCollapsed ? '▼' : '▲'}
+                            </button>
                         </div>
-                        <span className="text-white/30 text-xs">{briefCollapsed ? '▼' : '▲'}</span>
-                    </button>
+                    </div>
                     {!briefCollapsed && (
                         <div className="px-4 pb-4 space-y-3">
                             {imageBrief.map((cat, i) => (

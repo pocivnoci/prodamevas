@@ -8,7 +8,7 @@ import {
     startConfigPreview,
     refineConfigSection,
     saveReviewedConfig,
-    generateImageBrief,
+    ensureImageBrief,
 } from '@/app/onboarding/actions'
 import { awaitOnboardingTask, humanizeClientError } from '@/app/onboarding/task-client'
 import { TaskProgress } from '@/app/onboarding/TaskProgress'
@@ -220,20 +220,13 @@ export function OnboardTab() {
             setHistory(prev => [...prev, client])
             setStep('done')
 
-            // Generate image brief in background and save to config
+            // Shot list na pozadí. Generování i zápis do configu drží server
+            // (ensureImageBrief) — dřív se to skládalo ze tří volání odsud a zavřená
+            // karta znamenala, že se brief nikdy neuložil.
             setBriefLoading(true)
-            generateImageBrief(configPreview).then(async (res) => {
-                if (res.success && res.brief) {
-                    setImageBrief(res.brief)
-                    // Persist brief to config in DB
-                    const { updateClientConfig } = await import('@/app/actions/settings-actions')
-                    const { getClientConfig } = await import('@/app/actions/settings-actions')
-                    const currentConfig = await getClientConfig(client.slug)
-                    if (currentConfig) {
-                        await updateClientConfig(client.slug, { ...currentConfig, imageBrief: res.brief })
-                    }
-                }
-            }).finally(() => setBriefLoading(false))
+            ensureImageBrief(client.slug, { force: true })
+                .then(res => { if (res.success && res.brief) setImageBrief(res.brief) })
+                .finally(() => setBriefLoading(false))
         } catch (err) {
             setError(humanizeClientError(err))
             setStep('review')

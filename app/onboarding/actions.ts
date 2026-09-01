@@ -140,6 +140,73 @@ Vrať POUZE platný JSON pole.`
     }
 }
 
+/**
+ * Shot list pro KONKRÉTNÍHO klienta: přečti config, když brief chybí, dogeneruj
+ * ho a rovnou ulož.
+ *
+ * Předtím se brief skládal jen v adminském onboardingu a persistoval se ze tří
+ * volání v prohlížeči (`generateImageBrief` → `getClientConfig` →
+ * `updateClientConfig`). Zavřená karta během generování = brief nikde, a klienti
+ * ze self-serve onboardingu ho nedostali vůbec — „Co ještě chybí" ve Fotkách
+ * značky tak bylo u většiny klientů navždy prázdné, protože se schovává
+ * podmínkou `imageBrief.length > 0`. Tady je jedno tělo a běží celé na serveru.
+ *
+ * Read-modify-write celého JSONB je záměrný: `clients.config` se všude ukládá
+ * takhle a okno mezi čtením a zápisem je jeden AI call dlouhé jen u `force`.
+ */
+export async function ensureImageBrief(
+    projectId: string,
+    opts: { force?: boolean } = {},
+): Promise<{ success: boolean; brief?: ImageBriefItem[]; error?: string }> {
+    try {
+        const { clientId } = await requireProjectAccess(projectId)
+
+        const { data: row, error: readError } = await supabaseAdmin
+            .from('clients')
+            .select('config')
+            .eq('id', clientId)
+            .single()
+        if (readError || !row) {
+            return { success: false, error: readError?.message || 'Klient nenalezen' }
+        }
+
+        const config = (row.config || {}) as ClientConfig
+        if (!opts.force && config.imageBrief?.length) {
+            return { success: true, brief: config.imageBrief }
+        }
+
+        const generated = await generateImageBrief(config)
+        if (!generated.success || !generated.brief?.length) {
+            return { success: false, error: generated.error || 'Model vrátil prázdný shot list.' }
+        }
+
+        // Config se mezitím mohl změnit (jiná karta, jiný agent) — ber čerstvý
+        // řádek a měň v něm jediný klíč, ať zápis nepřepíše cizí práci.
+        const { data: fresh } = await supabaseAdmin
+            .from('clients')
+            .select('config')
+            .eq('id', clientId)
+            .single()
+        const base = (fresh?.config || config) as ClientConfig
+
+        const { error: writeError } = await supabaseAdmin
+            .from('clients')
+            .update({ config: { ...base, imageBrief: generated.brief } })
+            .eq('id', clientId)
+        if (writeError) {
+            return { success: false, error: writeError.message }
+        }
+
+        const { invalidateConfigCache } = await import('@/instagram/configs')
+        invalidateConfigCache(projectId)
+
+        return { success: true, brief: generated.brief }
+    } catch (error) {
+        console.error('ensureImageBrief error:', error)
+        return { success: false, error: humanizeError(error) }
+    }
+}
+
 
 // ============================================
 // STEP 3B: REFINE ONE SECTION (based on user feedback)
