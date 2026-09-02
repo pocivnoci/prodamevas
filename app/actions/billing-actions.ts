@@ -237,6 +237,43 @@ export interface CancelResult {
 }
 
 /** Živé předplatné klienta, na které se dá vypovědět. */
+/**
+ * Odkaz do zákaznického portálu Stripu — samoobsluha karty, dokladů a výpovědi.
+ *
+ * Vrací `null` místo chyby ve třech případech, které NEJSOU poruchou: klient
+ * nemá živé předplatné, pohání ho ComGate (portál je stripová věc), nebo Stripe
+ * není nakonfigurovaný. UI podle toho tlačítko prostě nenabídne — nabídnout
+ * odkaz, který skončí chybou, je horší než ho neukázat.
+ *
+ * Skutečné selhání (nenakonfigurovaný portál v dashboardu Stripu) se vrací jako
+ * `error`, protože to je stav k opravě, ne normální situace.
+ */
+export async function billingPortalUrl(
+    projectSlug: string,
+): Promise<{ url?: string; error?: string }> {
+    try {
+        const { requireProjectAccess } = await import("@/lib/auth-guard")
+        const { clientId } = await requireProjectAccess(projectSlug)
+
+        const sub = await liveSubscription(clientId)
+        if (!sub || sub.provider !== "stripe" || !sub.provider_ref) return {}
+
+        const { isStripeConfigured } = await import("@/lib/payments/stripe")
+        if (!isStripeConfigured()) return {}
+
+        const { createBillingPortalSession } = await import("@/lib/payments/stripe-billing")
+        const { siteUrl } = await import("@/lib/notifications")
+        const url = await createBillingPortalSession(
+            sub.provider_ref,
+            `${siteUrl()}/dashboard/instagram#settings`,
+        )
+        return { url }
+    } catch (err: any) {
+        console.error(`billingPortalUrl: ${err?.message}`)
+        return { error: "Správu předplatného se teď nepodařilo otevřít. Zkuste to prosím znovu." }
+    }
+}
+
 async function liveSubscription(clientId: string) {
     const { data } = await supabaseAdmin
         .from("subscriptions")

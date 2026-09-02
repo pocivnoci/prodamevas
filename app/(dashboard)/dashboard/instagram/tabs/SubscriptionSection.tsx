@@ -4,7 +4,7 @@ import { openCheckoutWindow } from "@/lib/open-checkout"
 import { EmbeddedCheckoutModal, isEmbeddedCheckoutAvailable } from "@/app/(dashboard)/EmbeddedCheckoutModal"
 import { useStudio, type SubscriptionState } from "@/app/(dashboard)/StudioContext"
 import { activateFreePlan } from "@/app/actions/settings-actions"
-import { hasBillingDetails, cancelSubscription, resumeSubscription } from "@/app/actions/billing-actions"
+import { hasBillingDetails, cancelSubscription, resumeSubscription, billingPortalUrl } from "@/app/actions/billing-actions"
 import { BillingModal } from "./BillingSection"
 import { Hint, HINTS } from "./Hint"
 import { CreditPacks } from "@/app/(dashboard)/CreditPacks"
@@ -396,6 +396,36 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
         </div>
     )
 }
+/**
+ * Odkaz do zákaznického portálu Stripu — karta, doklady, výpověď.
+ *
+ * Vykreslí se, až když server potvrdí, že portál pro tohohle klienta dává smysl
+ * (živé Stripe předplatné + nakonfigurovaná brána). Ukázat tlačítko a teprve po
+ * kliknutí zjistit, že nikam nevede, je horší než ho neukázat — proto se odkaz
+ * načítá dopředu a při prázdné odpovědi se nevykreslí nic.
+ */
+function ManageBillingLink({ projectId }: { projectId: string }) {
+    const [url, setUrl] = useState<string | null>(null)
+
+    useEffect(() => {
+        let alive = true
+        void billingPortalUrl(projectId)
+            .then(r => { if (alive && r.url) setUrl(r.url) })
+            .catch(() => { /* portál je bonus, ne podmínka — mlčky přeskočit */ })
+        return () => { alive = false }
+    }, [projectId])
+
+    if (!url) return null
+    return (
+        <a
+            href={url}
+            className="text-[9px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
+        >
+            Platební karta a doklady →
+        </a>
+    )
+}
+
 function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState; onRefresh: () => void; projectId: string }) {
     const isTrial = sub.status === "trialing"
     // The v2 trial has NO monthly credits (credits_per_month=0) — its real quota is
@@ -565,12 +595,15 @@ function CancelControl({ sub, projectId, onRefresh }: { sub: SubscriptionState; 
     return (
         <div className="mt-5 pt-4 border-t border-white/5">
             {!confirming ? (
-                <button
-                    onClick={() => setConfirming(true)}
-                    className="text-[9px] font-bold uppercase tracking-widest text-white/25 hover:text-white/50 transition-colors"
-                >
-                    Zrušit předplatné
-                </button>
+                <div className="flex flex-wrap items-center gap-4">
+                    <button
+                        onClick={() => setConfirming(true)}
+                        className="text-[9px] font-bold uppercase tracking-widest text-white/25 hover:text-white/50 transition-colors"
+                    >
+                        Zrušit předplatné
+                    </button>
+                    <ManageBillingLink projectId={projectId} />
+                </div>
             ) : (
                 <div className="flex flex-wrap items-center gap-3">
                     <p className="text-[10px] text-white/50 font-bold">

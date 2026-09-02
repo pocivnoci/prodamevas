@@ -111,6 +111,40 @@ export async function expireStripeSubscription(stripeSubscriptionId: string): Pr
 }
 
 /**
+ * Odkaz do zákaznického portálu Stripu — karta, historie faktur, výpověď.
+ *
+ * Portál je nejlevnější způsob, jak dát zákazníkovi samoobsluhu: změnu karty,
+ * stažení dokladů i zrušení řeší Stripe svým rozhraním, které je lokalizované
+ * a splňuje jeho vlastní požadavky. Bez něj každá změna karty znamená e-mail
+ * a ruční zásah — a expirovaná karta je nejčastější důvod ztraceného předplatného.
+ *
+ * `customer` se nedrží u nás: dá se přečíst z předplatného, takže na to není
+ * potřeba sloupec ani migrace. Kdyby ho Stripe u předplatného nevrátil, je to
+ * chyba a ne důvod ukazovat rozbité tlačítko.
+ *
+ * ⚠️ Portál musí být v Stripu **nakonfigurovaný** (Settings → Billing → Customer
+ * portal), jinak API vrátí chybu o chybějící konfiguraci. Je to jednorázové
+ * nastavení v dashboardu, ne něco, co jde dodat kódem.
+ */
+export async function createBillingPortalSession(
+    stripeSubscriptionId: string,
+    returnUrl: string,
+): Promise<string> {
+    if (!isStripeConfigured()) throw new Error("Stripe není nakonfigurovaná")
+    const stripe = getStripe()
+
+    const sub = await stripe.subscriptions.retrieve(stripeSubscriptionId)
+    const customer = typeof sub.customer === "string" ? sub.customer : sub.customer?.id
+    if (!customer) throw new Error(`předplatné ${stripeSubscriptionId} nemá zákazníka`)
+
+    const session = await stripe.billingPortal.sessions.create({
+        customer,
+        return_url: returnUrl,
+    })
+    return session.url
+}
+
+/**
  * Vrátí peníze u Stripu k platbě, kterou známe pod `payments.provider_ref`.
  *
  * `provider_ref` je podle fáze buď id Checkout Session (první platba), nebo id
