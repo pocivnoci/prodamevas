@@ -2184,13 +2184,25 @@ test("24.9 brána bez webhooku nesmí brát peníze", () => {
     // webhookem. Nalezeno na produkci: ComGate creds chyběly, Stripe klíč byl,
     // a výběr brány tiše směroval platby na bránu, která nedokáže plán aktivovat.
     // Zaplacený a neaktivovaný zákazník je horší než platba, která nezačne.
-    const code = codeOnly("lib/payments/checkout.ts")
-    assert(/STRIPE_WEBHOOK_SECRET/.test(code),
+    // Rozhodnutí se 2. 9. 2026 přestěhovalo do `lib/payments/gateway.ts` jako
+    // čistá funkce nad předaným prostředím — právě proto, aby šlo otestovat
+    // chováním, ne čtením zdrojáku. Skutečné případy (vynucený Stripe bez
+    // webhooku, poloviční údaje, velikost písmen) hlídá
+    // `scripts/test-credits-billing.ts`; tady zůstává jen to, co behaviorální
+    // test ověřit neumí: že se rozhodnutí nevrátilo zpátky do čtení `process.env`.
+    const gw = codeOnly("lib/payments/gateway.ts")
+    assert(/STRIPE_WEBHOOK_SECRET/.test(gw),
         "výběr brány musí vědět o webhooku, ne jen o tajném klíči")
-    assert(/stripeCanCompletePayment/.test(code), "podmínka musí být pojmenovaná a sdílená")
-    // I vynucená volba přes PAYMENT_GATEWAY musí projít touž kontrolou.
-    assert(/forced === "stripe" && stripeCanCompletePayment\(\)/.test(code),
+    assert(/stripeCanComplete/.test(gw), "podmínka musí být pojmenovaná a sdílená")
+    assert(/forced === "stripe" && stripeCanComplete\(env\)/.test(gw),
         "překlep v PAYMENT_GATEWAY nesmí obejít kontrolu úplnosti brány")
+    assert(!/process\.env/.test(gw),
+        "gateway.ts musí zůstat čistý — jakmile sáhne na process.env, přestane jít testovat")
+
+    // A že produkční cesta pořád vede přes sdílené rozhodnutí, ne přes vlastní kopii.
+    const checkout = codeOnly("lib/payments/checkout.ts")
+    assert(/chooseGateway\(/.test(checkout),
+        "activeGateway() musí delegovat na chooseGateway, ne mít druhou kopii pravidel")
 })
 
 test("24.8 obě platební brány čtou tarify z téže tabulky", () => {
