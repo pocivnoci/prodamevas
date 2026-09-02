@@ -1338,6 +1338,37 @@ test("13b.10 plný účet na mostu se pozná při připojování, ne až při pu
     assert(h.includes("getProfileOccupancy"), "kontrola čte skutečný počet profilů, ne odhad")
 })
 
+test("13b.11 testovací klíče v produkci se ozvou samy", () => {
+    // Nejdražší tichá porucha, jakou tenhle projekt má: aplikace běží, pokladna
+    // se otevře, zákazník „zaplatí" — a peníze nikde, protože klíč je sk_test.
+    // Audit takovou věc najde jednou; kontrola ji hlídá každé ráno.
+    const h = fileContent("lib/agents/health-check.ts")
+    assert(h.includes("isSandboxKey"), "denní kontrola musí poznat testovací klíč")
+    assert(h.includes("stripeCanComplete"), "brána, co umí platbu začít a ne dokončit, je horší než žádná")
+    // `payments/checkout` je server-only a v samostatném skriptu se ani nenačte —
+    // rozhodnutí o bráně proto žije v gateway.ts jako čistá funkce. Kontrola musí
+    // sáhnout tam, jinak se sama nahlásí jako „selhala".
+    assert(
+        !/import\("@\/lib\/payments\/checkout"\)/.test(h),
+        "kontrola nesmí tahat server-only modul — mimo request se nenačte",
+    )
+    // Bez téhle podmínky by lokál i preview alarmovaly denně, protože testovací
+    // klíče tam jsou SPRÁVNĚ — a naučily by všechny kontrolu ignorovat.
+    assert(
+        (h.match(/VERCEL_ENV !== "production"/g) || []).length >= 2,
+        "kontroly připravenosti smí střílet jen v produkci",
+    )
+
+    // Tarif, který prodává formát vypnutý přepínačem, se liší cenou za něco,
+    // co nevzniká — engine reel tiše překlopí na carousel.
+    assert(h.includes("REELS_ENABLED"), "prodávaný a vypnutý formát musí být vidět")
+    assert(
+        h.includes('from("subscription_plans")'),
+        "tarify žijí v subscription_plans — dotaz na 'plans' by kontrolu jen denně shazoval",
+    )
+    assert(h.includes("allowed_media"), "allowed_media je uvnitř features JSONB, filtruje se v paměti")
+})
+
 // ═══════════════════════════════════════════════════════════
 // 14. FAKTURACE A PRÁVNÍ IDENTITA (v8.5)
 // ═══════════════════════════════════════════════════════════
