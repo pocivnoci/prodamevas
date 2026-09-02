@@ -2277,6 +2277,36 @@ test("25.3 ceník na landingu a v migraci se shodují", () => {
     }
 })
 
+test("25.3d placený tarif nesmí rozdávat příspěvky zdarma", () => {
+    // NASTRAŽENÁ MINA, ne kosmetika.
+    //
+    // Tarify nesou `plan_posts_limit: 30` a `plan_posts_total: 30`, což vypadá
+    // jako „30 příspěvků v ceně". Jenže `activatePaidPlan()` nastaví čítač
+    // `plan_posts_unlocked` rovnou na 30 a brána v `canPerformAction` zní
+    // `planPostsUnlocked < planLimit`, tedy 30 < 30 — vždy nepravda. Placený
+    // zákazník tak platí kredity za KAŽDÝ příspěvek a UI mu nic jiného neslibuje
+    // (kreditový pruh, `usePostQuota` je jen pro trial).
+    //
+    // Marže 81–83 % stojí na tomhle stavu. Kdyby někdo v dobré víře „opravil"
+    // aktivaci na `plan_posts_unlocked: 0`, každý tarif najednou rozdá 30 postů
+    // zdarma — u Startu ~229 Kč nákladu proti 999 Kč tržby, tedy marže dolů
+    // o víc než dvacet bodů, a nikde by to nespadlo.
+    //
+    // Tahle aserce je tedy záměrně napsaná na SOUČASNÉ chování. Kdyby se někdy
+    // rozhodlo příspěvky v ceně skutečně dávat, musí se změnit vědomě i tady —
+    // spolu s přepočtem marží, ne omylem.
+    const src = fileContent("lib/subscription.ts")
+
+    const aktivace = src.match(/plan_posts_unlocked:\s*(\d+)\s*,?\s*\/\/\s*unlock all plan posts/)
+    assert(aktivace?.[1] === "30",
+        "activatePaidPlan už nenastavuje plan_posts_unlocked na 30 — placené tarify můžou začít " +
+        "rozdávat příspěvky zdarma. Pokud je to záměr, přepočítej marže a uprav tuhle aserci.")
+
+    assert(/planPostsUnlocked\s*<\s*planLimit/.test(src),
+        "brána plánovaných příspěvků v canPerformAction se změnila — ověř, jestli placený tarif " +
+        "pořád neúčtuje kredity za každý příspěvek.")
+})
+
 test("25.3c vyšší tarif musí být lepší nákup než dobití kreditů", () => {
     // Ceník v6 tohle na chvíli porušil: Růst vyšel na 66,6 Kč/kredit, zatímco
     // dobití stojí 49 — zákazníkovi na Startu se vyplatilo zůstat a dokupovat.

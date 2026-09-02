@@ -107,6 +107,67 @@ async function main() {
         console.log(`  ${d}  ${czk(usd).padStart(9)} Kč  ${bar}`)
     }
 
+    // ── Po klientech: jediné číslo, které dává smysl porovnat s tarifem ──────
+    //
+    // Přehled uměl říct, KAM peníze tečou (nápady, obrázky, video), ale ne NA KOHO.
+    // Bez toho se nedá odpovědět na otázku „kolik nás stojí jeden zákazník", a marže
+    // se počítala jen z ceny za příspěvek — tedy z části útraty, ne z celku.
+    //
+    // Řádky bez klienta (obchodní ukázky, onboarding před založením tenanta) se
+    // sčítají zvlášť: je to skutečná útrata, ale není to náklad na zákazníka.
+    const byClient: Record<string, { usd: number; n: number }> = {}
+    let bezKlienta = 0
+    for (const r of [...p, ...o]) {
+        if (!r.client_id) { bezKlienta += r.cost_usd || 0; continue }
+        byClient[r.client_id] ||= { usd: 0, n: 0 }
+        byClient[r.client_id].usd += r.cost_usd || 0
+        byClient[r.client_id].n += 1
+    }
+
+    const clientIds = Object.keys(byClient)
+    if (clientIds.length > 0) {
+        const { data: klienti } = await supabaseAdmin
+            .from("clients").select("id, name").in("id", clientIds)
+        const jmeno: Record<string, string> = {}
+        for (const k of klienti || []) jmeno[k.id] = k.name
+
+        // Cena tarifu k porovnání. Bereme živé předplatné; kdo ho nemá, nemá ani
+        // s čím srovnávat — u něj se ukáže jen útrata.
+        const { data: subs } = await supabaseAdmin
+            .from("subscriptions")
+            .select("client_id, plan_id, subscription_plans(price_czk)")
+            .in("client_id", clientIds)
+            .in("status", ["active", "trialing"])
+        const tarif: Record<string, { plan: string; mesicneKc: number }> = {}
+        for (const s of subs || []) {
+            const plan = Array.isArray(s.subscription_plans) ? s.subscription_plans[0] : s.subscription_plans
+            const halere = (plan as { price_czk?: number } | null)?.price_czk
+            if (s.client_id) tarif[s.client_id] = { plan: s.plan_id || "?", mesicneKc: halere ? halere / 100 : 0 }
+        }
+
+        console.log(`\npo klientech (${DAYS} dní):`)
+        console.log(`${"klient".padEnd(22)}${"běhů".padStart(6)}${"útrata".padStart(10)}${"tarif".padStart(10)}${"podíl".padStart(8)}`)
+        console.log("─".repeat(56))
+        for (const [id, v] of Object.entries(byClient).sort((x, y) => y[1].usd - x[1].usd)) {
+            const t = tarif[id]
+            // Útrata za okno přepočtená na měsíc — jinak by se 7 dní porovnávalo
+            // s měsíčním tarifem a marže by vypadala čtyřikrát líp, než je.
+            const mesicne = (v.usd * USD_TO_CZK) * (30 / DAYS)
+            const podil = t?.mesicneKc ? `${Math.round(mesicne / t.mesicneKc * 100)} %` : "—"
+            console.log(
+                `${(jmeno[id] || id.slice(0, 8)).slice(0, 21).padEnd(22)}` +
+                `${String(v.n).padStart(6)}${czk(v.usd).padStart(10)}` +
+                `${(t?.mesicneKc ? `${t.mesicneKc}` : "—").padStart(10)}${podil.padStart(8)}`,
+            )
+        }
+        console.log("─".repeat(56))
+        console.log("   „podíl\" = útrata přepočtená na 30 dní / měsíční cena tarifu. To je COGS, ne marže:")
+        console.log("   marže je zbytek do 100 % mínus most na Instagram a fixní provoz.\n")
+    }
+    if (bezKlienta > 0) {
+        console.log(`mimo zákazníky (ukázky pro prospekty, onboarding před založením): ${czk(bezKlienta)} Kč\n`)
+    }
+
     if (unpriced > 0) {
         console.log(`\n⚠️  ${unpriced} běhů bez ceny — některý model nemá sazbu v lib/model-pricing.ts.`)
         console.log("   Součet je proto NIŽŠÍ než skutečnost (raději null než vymyšlená nula).")
