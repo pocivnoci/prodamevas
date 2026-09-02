@@ -26,7 +26,7 @@
  * k soukromí.
  */
 
-import { useEffect, useState } from "react"
+import { useSyncExternalStore, useCallback } from "react"
 import Link from "next/link"
 
 export const CONSENT_KEY = "chrlit-cookie-consent"
@@ -60,24 +60,35 @@ function applyConsent(v: ConsentValue): void {
     }
 }
 
+/**
+ * Odběratelé změny rozhodnutí. `useSyncExternalStore` je tu správný nástroj:
+ * hodnota žije MIMO React (v `localStorage`) a na serveru neexistuje vůbec.
+ * Čtení v efektu by znamenalo `setState` hned po prvním renderu, tedy zbytečné
+ * překreslení a bliknutí lišty i u toho, kdo se dávno rozhodl.
+ */
+const listeners = new Set<() => void>()
+
+function subscribe(fn: () => void): () => void {
+    listeners.add(fn)
+    return () => { listeners.delete(fn) }
+}
+
+/** Na serveru se lišta nikdy nevykresluje — vrací se hodnota „už rozhodnuto". */
+function serverSnapshot(): ConsentValue | null {
+    return "denied"
+}
+
 export function CookieConsent() {
-    // `null` = ještě nevíme (první render na serveru i před přečtením úložiště).
-    // Bez tohohle stavu by lišta blikla i tomu, kdo už dávno rozhodl.
-    const [decided, setDecided] = useState<ConsentValue | null | "unknown">("unknown")
+    const decided = useSyncExternalStore(subscribe, readConsent, serverSnapshot)
 
-    useEffect(() => {
-        const stored = readConsent()
-        setDecided(stored)
-        if (stored) applyConsent(stored)
-    }, [])
-
-    if (decided === "unknown" || decided !== null) return null
-
-    const choose = (v: ConsentValue) => {
+    const choose = useCallback((v: ConsentValue) => {
         writeConsent(v)
         applyConsent(v)
-        setDecided(v)
-    }
+        listeners.forEach((fn) => fn())
+    }, [])
+
+    // Rozhodnuto (nebo server) → lišta se nezobrazuje.
+    if (decided !== null) return null
 
     return (
         <div
