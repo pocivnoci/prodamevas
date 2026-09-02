@@ -1374,6 +1374,30 @@ test("13b.11 testovací klíče v produkci se ozvou samy", () => {
     assert(h.includes("allowed_media"), "allowed_media je uvnitř features JSONB, filtruje se v paměti")
 })
 
+test("13b.12 co Stripe událost znamená, rozhoduje testovatelná funkce", () => {
+    // Druhé nejdražší rozhodnutí v aplikaci hned po výběru brány. Dokud bylo
+    // zadrátované v routě, nešlo ho ověřit jinak než nasazením a skutečnou
+    // platbou — a přesně tahle netestovatelnost stála incident z 11. 8. 2026.
+    assert(fileExists("lib/payments/stripe-events.ts"), "klasifikace událostí musí být čistá funkce")
+    assert(fileExists("scripts/test-stripe-events.ts"), "…a musí mít behaviorální testy")
+    assert(fileContains("package.json", "test-stripe-events.ts"), "testy patří do npm run guard")
+
+    const route = codeOnly("app/api/payments/stripe/webhook/route.ts")
+    assert(route.includes("classifyStripeEvent"), "routa si nechá událost klasifikovat, nerozhoduje sama")
+
+    // Kdyby se rozhodování vrátilo do routy, testy by dál procházely a chránily
+    // by kód, který se nepoužívá. Tyhle tři řetězce jsou jeho otisk.
+    for (const inlined of ['payment_status !== "paid"', '"subscription_create"', "invoice.amount_paid"]) {
+        assert(!route.includes(inlined), `rozhodnutí '${inlined}' patří do stripe-events.ts, ne do routy`)
+    }
+
+    // Čistá funkce nesmí začít sahat na svět — tím by přestala být testovatelná.
+    const pure = codeOnly("lib/payments/stripe-events.ts")
+    for (const forbidden of ["supabase", "process.env", "fetch(", "await "]) {
+        assert(!pure.includes(forbidden), `stripe-events.ts musí zůstat čistá — '${forbidden}' tam nepatří`)
+    }
+})
+
 // ═══════════════════════════════════════════════════════════
 // 14. FAKTURACE A PRÁVNÍ IDENTITA (v8.5)
 // ═══════════════════════════════════════════════════════════
@@ -2567,13 +2591,21 @@ test("25.7 Stripe předplatné neobnovuje náš cron", () => {
     assert(/sub\.provider === "stripe"/.test(worker) && /continue/.test(worker),
         "worker musí Stripe předplatná přeskočit")
 
+    // Rozhodnutí „co která událost znamená" se od 9/2026 dělá v čisté funkci
+    // (viz 13b.12), takže se tyhle invarianty hlídají TAM. Routa zůstává tím,
+    // kdo je vykoná.
     const hook = codeOnly("app/api/payments/stripe/webhook/route.ts")
-    assert(/invoice\.paid/.test(hook) && /applyProviderInvoice/.test(hook),
+    assert(/applyProviderInvoice/.test(hook),
         "obnovy ze Stripu musí mít obsluhu, jinak předplatné tiše skončí")
-    assert(/subscription_create/.test(hook),
-        "první faktura patří Checkout Session — jinak vzniknou dvě platby a dva doklady")
-    assert(/customer\.subscription\.deleted/.test(hook),
+    assert(/expireStripeSubscription/.test(hook),
         "ukončení u brány se musí propsat, jinak zůstane aktivní předplatné bez plateb")
+
+    const events = codeOnly("lib/payments/stripe-events.ts")
+    assert(/invoice\.paid/.test(events), "obnova musí mít vlastní větev v klasifikaci")
+    assert(/subscription_create/.test(events),
+        "první faktura patří Checkout Session — jinak vzniknou dvě platby a dva doklady")
+    assert(/customer\.subscription\.deleted/.test(events),
+        "konec předplatného u brány musí klasifikace poznat")
 })
 
 test("25.8 zrušení se propíše do brány, která fakturuje", () => {
