@@ -131,6 +131,32 @@ export async function buildHealthCheck(): Promise<HealthReport> {
             const oldestDays = Math.floor((Date.now() - new Date(data[0].created_at).getTime()) / DAY_MS)
             return { icon: "⏳", title: `${data.length}× akce čeká na schválení déle než den`, detail: `Nejstarší ${oldestDays} d — dashboard → Schválení.` }
         }),
+
+        // Volné sloty na mostu. Strop profilů je tvrdá hranice růstu, kterou nejde
+        // vidět v našich datech: dojde-li, další zákazník si Instagram nepřipojí a
+        // dozvíme se to od NĚJ. Tarif upload-postu strop nehlásí, takže ho bere z
+        // env — bez něj se kontrola neozve vůbec, radši ticho než falešný poplach.
+        safe("sloty na mostu", async () => {
+            const { isUploadPostConfigured } = await import("@/lib/channels/uploadpost-client")
+            const limit = Number(process.env.UPLOADPOST_PROFILE_LIMIT || 0)
+            if (!isUploadPostConfigured() || !Number.isFinite(limit) || limit <= 0) return null
+
+            const { getProfileOccupancy } = await import("@/lib/channels/uploadpost-profiles")
+            const { used } = await getProfileOccupancy()
+            const free = limit - used
+            if (free > 1) return null
+            return free <= 0
+                ? {
+                    icon: "🛑",
+                    title: `Most nemá volný profil (${used}/${limit})`,
+                    detail: "Další zákazník si Instagram NEPŘIPOJÍ. Navyš tarif u upload-postu, nebo uvolni profil po odešlém zákazníkovi.",
+                }
+                : {
+                    icon: "⚠️",
+                    title: `Na mostu zbývá poslední profil (${used}/${limit})`,
+                    detail: "Navyš tarif dřív, než na strop narazí zákazník při připojování.",
+                }
+        }),
     ]
 
     const problems = (await Promise.all(checks)).filter((p): p is HealthProblem => p !== null)

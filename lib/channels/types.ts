@@ -63,6 +63,19 @@ export interface ContentDraft {
 export interface FormattedContent {
     channel: Channel
     body: string
+    /**
+     * Media for this post, in the order `parsePostMedia` yields them — which is NOT
+     * uniform across media types, and every adapter reads it the same way:
+     *
+     *   image     — [url]
+     *   carousel  — [slide, slide, …] in display order
+     *   story     — [frame, frame, …] in display order; a frame may be a video
+     *   reel/video— [videoUrl] or [videoUrl, coverUrl]
+     *
+     * The reel shape is the one that bites: index 1 is the COVER, not a second video.
+     * Treating a reel like a carousel would publish the cover image as a feed post and
+     * report success. Spelled out here because `string[]` cannot say it.
+     */
     mediaUrls: string[]
     mediaType: MediaType
 }

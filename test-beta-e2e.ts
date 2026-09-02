@@ -1237,6 +1237,107 @@ test("13b.6 připojení mostu je navigace, ne popup po awaitu", () => {
     assert(!actions.includes("generateConnectUrl"), "podepsaná adresa nesmí téct přes server action do prohlížeče")
 })
 
+test("13b.7 video jede svým endpointem a reel končí v mřížce", () => {
+    // Reels se prodávají od tarifu Růst a popis tarifu je slibuje. Do 9/2026 se
+    // ale publikovat nedaly vůbec — zákazník za 2 999 Kč dostal reel vygenerovaný
+    // a musel ho sdílet ručně, tedy dělat přesně tu práci, kterou si předplatil.
+    const c = fileContent("lib/channels/uploadpost.ts")
+    const code = codeOnly("lib/channels/uploadpost.ts")
+
+    // Foto a video mají u upload-postu ODDĚLENÉ endpointy. Poslat video na
+    // `/api/upload_photos` v lepším případě selže, v horším projde jako still.
+    assert(c.includes('const VIDEO_PATH = "/api/upload"'), "video má vlastní endpoint, ne foto endpoint")
+    assert(/form\.append\("video"/.test(code), "reel se posílá v poli `video`")
+    assert(/form\.append\("media_type", "REELS"\)/.test(code), "reel potřebuje media_type=REELS")
+    assert(/form\.append\("media_type", "STORIES"\)/.test(code), "story potřebuje media_type=STORIES")
+
+    // Reel mimo feed zmizí v okamžiku, kdy ho Instagram přestane servírovat v Reels
+    // — a cover se generuje právě pro mřížku profilu.
+    assert(/form\.append\("share_to_feed", "true"\)/.test(code), "reel musí jít i do mřížky profilu")
+
+    // mediaUrls[1] je COVER, ne druhé video. Kdo to splete, publikuje still.
+    assert(c.includes("const [videoUrl, coverUrl] = mediaUrls"), "reel čte [video, cover?] konvenci z media-urls")
+    assert(code.includes("isVideoUrl"), "před odesláním na video endpoint se ověřuje, že médium video opravdu je")
+
+    // Story se posílá SNÍMEK PO SNÍMKU. Dávka by visela na tom, jak si upload-post
+    // přečte „několik fotek + media_type=STORIES" — a jejich vlastní dokumentace
+    // říká, že to může přečíst jako CAROUSEL. Karusel místo tří stories je trvalý
+    // příspěvek na cizím profilu, ne chyba, kterou lze vzít zpět.
+    assert(
+        /case "story"[\s\S]{0,1200}for \(const \[i, url\] of mediaUrls\.entries\(\)\)/.test(c),
+        "story se publikuje po jednom snímku, ne jednou dávkou",
+    )
+
+    // Reel se u Grafu transkóduje, než ho jde publikovat; při fotorozpočtu by každý
+    // reel spadl na timeout a publisher by ho zbytečně opakoval.
+    assert(c.includes("VIDEO_STATUS_POLL_ATTEMPTS"), "video potřebuje delší čekání než fotka")
+
+    // Chybějící post_id znamená u fotky chybu, u videa NE: upload-post ho může
+    // doplnit až po odpovědi, a výjimka by publisher poslala publikovat reel podruhé.
+    assert(c.includes("strictId: true"), "u fotky je chybějící post_id chyba")
+    assert(c.includes("strictId: false"), "u videa se chybějící post_id doplní později, jinak hrozí druhá publikace")
+})
+
+test("13b.8 deklarované formáty a skutečná publikace se nesmí rozejít", () => {
+    // `constraints.mediaTypes` je smlouva, switch je implementace. Bez křížové
+    // kontroly by zúžení seznamu (typicky při incidentu) formát nevyplo — jen by
+    // lhalo, zatímco by se dál publikovalo.
+    for (const f of ["lib/channels/uploadpost.ts", "lib/channels/instagram.ts"]) {
+        const c = fileContent(f)
+        assert(
+            c.includes("this.constraints.mediaTypes.includes(content.mediaType)"),
+            `${f}: publish() musí formát ověřit proti constraints, ne jen proti switchi`,
+        )
+        assert(c.includes("ChannelNotEnabledError"), `${f}: nepodporovaný formát se odmítá nahlas`)
+        assert(c.includes("const _never: never = content.mediaType"), `${f}: publish() musí být vyčerpávající`)
+    }
+
+    // Graph si obrázky STAHUJE a bere jen JPEG — včetně `cover_url` u reelu.
+    // Renderer píše WebP, takže cover se musí ověřit, ne předpokládat: nepodporovaný
+    // cover neshodí jen náhled, shodí celý kontejner i s reelem.
+    const ig = fileContent("lib/channels/instagram.ts")
+    assert(ig.includes("function isJpegUrl"), "cover pro Graph se musí ověřit na JPEG")
+    assert(/cover_url = coverUrl/.test(ig) && ig.includes("thumb_offset"), "bez JPEG coveru se bere snímek z videa")
+    // Náhradní cover je horší produkt (nenese hook) — degradace musí být v logu.
+    assert(/console\.warn\([\s\S]{0,200}cover/.test(ig), "zahozený cover je degradace kvality a musí být vidět")
+})
+
+test("13b.9 reels naostří agent, stories ne", () => {
+    const c = fileContent("lib/agents/auto-publish.ts")
+    // Reel JE obsah do mřížky a zákazník si předplatil, že ho publikovat nemusí.
+    assert(!c.includes("media_type.neq.reel"), "reels už publikační cestu mají — agent je nesmí vynechávat")
+    // Story je efemérní a v mřížce není; naostřit ji podle FEEDOVÉHO tempa by jí
+    // dalo slot, který patří trvalému obsahu.
+    assert(c.includes("media_type.neq.story"), "feedová kadence stories neplánuje")
+
+    // Tlačítko „Publikovat hned" reels odmítalo. Smí odmítnout jen reel BEZ videa
+    // — tedy řádek, kde render spadl na still a media_type zůstal 'reel'.
+    const cal = fileContent("app/actions/calendar-actions.ts")
+    assert(!cal.includes("Reels zatím nejdou publikovat"), "plošné odmítnutí reelů musí zmizet")
+    assert(cal.includes('media.kind === "reel" && !media.videoUrl'), "reel bez videa se odmítne dřív, než ho cron 4× zkusí")
+})
+
+test("13b.10 plný účet na mostu se pozná při připojování, ne až při publikaci", () => {
+    const p = fileContent("lib/channels/uploadpost-profiles.ts")
+    // 400 znamená u upload-postu DVĚ různé věci: „profil už máš" a „tarif nemá
+    // volný slot". Brát obojí jako úspěch vrátí jméno profilu, který neexistuje —
+    // zákazník uvidí „připojeno" a pravda vyplave až z publikačního logu.
+    assert(
+        !/alreadyExists = \/\\b\(400\|409\)/.test(p),
+        "400 se nesmí paušálně považovat za „profil už existuje“",
+    )
+    assert(p.includes("listProfileNames"), "nejednoznačné selhání se musí OVĚŘIT seznamem, ne uhodnout")
+    assert(
+        /ChannelPermanentError\([\s\S]{0,200}volný slot/.test(p),
+        "vyčerpaný tarif musí říct česky, co se stalo a co s tím",
+    )
+    // Strop nehlásí API ani ceník, který se může změnit — bere se z env, a bez něj
+    // kontrola mlčí (falešný poplach je horší než žádný).
+    const h = fileContent("lib/agents/health-check.ts")
+    assert(h.includes("UPLOADPOST_PROFILE_LIMIT"), "obsazenost mostu musí hlídat denní kontrola")
+    assert(h.includes("getProfileOccupancy"), "kontrola čte skutečný počet profilů, ne odhad")
+})
+
 // ═══════════════════════════════════════════════════════════
 // 14. FAKTURACE A PRÁVNÍ IDENTITA (v8.5)
 // ═══════════════════════════════════════════════════════════

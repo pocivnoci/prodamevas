@@ -12,6 +12,7 @@
  */
 
 import { uploadPostGet, uploadPostJson } from "./uploadpost-client"
+import { ChannelPermanentError } from "./types"
 
 const USERS = "/api/uploadposts/users"
 
@@ -68,19 +69,75 @@ function readInstagram(profile: any): {
     }
 }
 
-/** Create the tenant's profile. Idempotent: an existing profile is not an error. */
+/**
+ * Create the tenant's profile. Idempotent: an existing profile is not an error.
+ *
+ * The subtle part is what a 400 means. Two very different things answer 400 here:
+ * "you already have this profile" (the happy path on every reconnect) and "your plan
+ * is out of profile slots". Treating both as success — which this did until 9/2026 —
+ * hands back a username for a profile that does not exist, and the truth only
+ * surfaces much later as a foreign API error in a publish log, long after the tenant
+ * has been told they are connected.
+ *
+ * So a failure that is not an explicit 409 is CHECKED rather than assumed: list the
+ * profiles and look. One extra call, on the error path only, and it turns the
+ * plan-limit case into a sentence the operator can act on.
+ */
 export async function ensureProfile(clientId: string): Promise<string> {
     const username = uploadPostProfileName(clientId)
     try {
         await uploadPostJson(USERS, { username }, "create-profile")
+        return username
     } catch (err: any) {
-        // Re-creating an existing profile answers 400/409. That is the happy path on
-        // every reconnect, so it must not surface as a failure to the tenant.
         const msg = String(err?.message || "")
-        const alreadyExists = /\b(400|409)\b/.test(msg) || /exist/i.test(msg)
-        if (!alreadyExists) throw err
+        // 409 is documented as "a profile with this username already exists" — no
+        // ambiguity, no extra round trip needed.
+        if (/\b409\b/.test(msg) || /exist/i.test(msg)) return username
+
+        // Anything else: did the profile end up there or not?
+        let existing: string[]
+        try {
+            existing = await listProfileNames()
+        } catch {
+            // The list call failed too — we genuinely cannot tell. Surface the
+            // original error rather than inventing a diagnosis.
+            throw err
+        }
+        if (existing.includes(username)) return username
+
+        throw new ChannelPermanentError(
+            `Účet upload-post nemá volný slot pro další profil (obsazeno ${existing.length}). ` +
+            `Připojení Instagramu proto nelze dokončit — navyš tarif u upload-postu, nebo uvolni ` +
+            `profil po zákazníkovi, který odešel. Původní odpověď: ${msg.slice(0, 200)}`,
+        )
     }
-    return username
+}
+
+/**
+ * Every profile name our upload-post account currently holds.
+ *
+ * Used to tell "already exists" from "out of slots", and by the operational check
+ * that reports how full the account is BEFORE a customer is turned away at signup.
+ */
+export async function listProfileNames(): Promise<string[]> {
+    const json = await uploadPostGet(USERS, "list-profiles")
+    const rows = json?.profiles ?? json?.users ?? json?.data ?? []
+    if (!Array.isArray(rows)) return []
+    return rows
+        .map((r: any) => (typeof r === "string" ? r : r?.username ?? r?.profile ?? null))
+        .filter((n: any): n is string => typeof n === "string" && n.length > 0)
+}
+
+/**
+ * How full the bridge account is — for the health check, not for the publish path.
+ *
+ * upload-post does not report the plan's profile cap, so this reports the OCCUPANCY
+ * and leaves the cap to config: a number we would otherwise be hardcoding from a
+ * pricing page that can change without telling us.
+ */
+export async function getProfileOccupancy(): Promise<{ used: number; profiles: string[] }> {
+    const profiles = await listProfileNames()
+    return { used: profiles.length, profiles }
 }
 
 /**
