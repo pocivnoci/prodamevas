@@ -7,8 +7,9 @@
  * Two things about the video path that are not obvious from the Graph docs:
  *   1. a REELS container is transcoded before it is publishable, so it needs minutes
  *      of polling, not the seconds an image needs;
- *   2. `cover_url` must be JPEG. Our renderer emits WebP, so the cover is checked and
- *      dropped (loudly) rather than sent — an unsupported cover fails the whole reel.
+ *   2. a rejected `cover_url` fails the WHOLE container, so the cover is retried away
+ *      rather than assumed good — Meta documents "JPEG only" while happily accepting
+ *      the WebP this renderer produces, so neither trusting nor refusing it is safe.
  *
  * Publishing requires the `instagram_business_content_publish` scope (2nd App
  * Review). Until that clears, it only works for the chrlit account whose connecting
@@ -48,16 +49,40 @@ const CONTAINER_POLL_DELAY_MS = 3000
 const VIDEO_CONTAINER_POLL_ATTEMPTS = 100 // × 3 s = 5 min
 
 /**
- * Instagram accepts JPEG and nothing else for images it fetches by URL — including a
- * reel's `cover_url`. Our renderer writes WebP (smaller, and the bridge transcodes it
- * for us), so on THIS transport a cover has to be checked rather than assumed: an
- * unsupported cover_url does not degrade to a default thumbnail, it fails the whole
- * container and takes the reel with it.
+ * Create a REELS container, and if the custom cover is what Instagram refuses, create
+ * it again without one.
+ *
+ * Meta's docs say JPEG is the only image format it accepts by URL, and our renderer
+ * writes WebP. But 40 WebP feed images have published through this exact transport
+ * with zero failures, so the documented rule is clearly not enforced the way it reads
+ * — refusing to send our cover on the strength of the doc alone would throw away a
+ * working, designed cover on every single reel.
+ *
+ * Nor can we simply send it and hope: an unsupported `cover_url` does not degrade to a
+ * default thumbnail, it fails the whole container and takes the reel with it.
+ *
+ * So: send the cover, and treat a rejection as a reason to drop the COVER, not the
+ * REEL. The retry is deliberately narrow — only when a cover was actually sent, only
+ * once — so a genuinely broken video still fails fast instead of being attempted twice.
  */
-function isJpegUrl(url: string | null | undefined): boolean {
-    if (!url) return false
-    const path = url.split(/[?#]/)[0].toLowerCase()
-    return path.endsWith(".jpg") || path.endsWith(".jpeg")
+async function createReelContainer(
+    igUserId: string,
+    accessToken: string,
+    params: Record<string, string>,
+): Promise<string> {
+    try {
+        return await createContainer(igUserId, accessToken, params)
+    } catch (err: any) {
+        if (!params.cover_url) throw err
+        // Losing the designed cover is a REAL degradation — it carries the hook, and
+        // the grid is where a reel sells itself. It must be visible in the log, never
+        // a silent downgrade.
+        console.warn(
+            `   ⚠️ IG reel: Instagram odmítl cover (${params.cover_url.split(".").pop()}) — publikuji s prvním snímkem videa. Původní chyba: ${String(err?.message || err).slice(0, 160)}`,
+        )
+        const { cover_url: _dropped, ...withoutCover } = params
+        return createContainer(igUserId, accessToken, { ...withoutCover, thumb_offset: "0" })
+    }
 }
 
 // Per-media insights we try to read (likes/comments come from direct fields below).
@@ -190,21 +215,12 @@ export const instagramAdapter: ChannelAdapter = {
                     // The tenant paid for grid content; the cover is rendered for that slot.
                     share_to_feed: "true",
                 }
-                if (isJpegUrl(coverUrl)) {
-                    params.cover_url = coverUrl
-                } else {
-                    // Falling back to a frame from the video is a REAL degradation: the
-                    // designed cover carries the hook, and the grid is where a reel sells
-                    // itself. It must be visible in the log, never a silent downgrade.
-                    if (coverUrl) {
-                        console.warn(
-                            `   ⚠️ IG reel: navržený cover je ${coverUrl.split(".").pop()}, Graph bere jen JPEG — publikuji s prvním snímkem videa místo coveru`,
-                        )
-                    }
-                    params.thumb_offset = "0"
-                }
+                // Cover jde s sebou; když ho Instagram odmítne, spadne se na snímek
+                // z videa a reel se publikuje dál (viz createReelContainer).
+                if (coverUrl) params.cover_url = coverUrl
+                else params.thumb_offset = "0"
 
-                creationId = await createContainer(igUserId, accessToken, params)
+                creationId = await createReelContainer(igUserId, accessToken, params)
                 containerPollAttempts = VIDEO_CONTAINER_POLL_ATTEMPTS
                 break
             }

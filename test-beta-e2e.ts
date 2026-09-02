@@ -1292,12 +1292,17 @@ test("13b.8 deklarované formáty a skutečná publikace se nesmí rozejít", ()
         assert(c.includes("const _never: never = content.mediaType"), `${f}: publish() musí být vyčerpávající`)
     }
 
-    // Graph si obrázky STAHUJE a bere jen JPEG — včetně `cover_url` u reelu.
-    // Renderer píše WebP, takže cover se musí ověřit, ne předpokládat: nepodporovaný
-    // cover neshodí jen náhled, shodí celý kontejner i s reelem.
+    // Odmítnutý `cover_url` neshodí jen náhled — shodí celý kontejner i s reelem.
+    // Meta přitom dokumentuje „jen JPEG" a WebP z našeho rendereru bere (40 příspěvků
+    // publikovaných přes tenhle transport, 0 selhání), takže cover nejde ani slepě
+    // věřit, ani ho paušálně zahazovat. Odmítnutí smí stát COVER, ne REEL.
     const ig = fileContent("lib/channels/instagram.ts")
-    assert(ig.includes("function isJpegUrl"), "cover pro Graph se musí ověřit na JPEG")
-    assert(/cover_url = coverUrl/.test(ig) && ig.includes("thumb_offset"), "bez JPEG coveru se bere snímek z videa")
+    assert(ig.includes("function createReelContainer"), "cover se při odmítnutí zkusí zahodit, ne shodit celý reel")
+    assert(
+        /if \(!params\.cover_url\) throw err/.test(ig),
+        "opakovat se smí JEN kvůli coveru — rozbité video musí selhat rychle",
+    )
+    assert(ig.includes("thumb_offset"), "bez coveru se bere snímek z videa")
     // Náhradní cover je horší produkt (nenese hook) — degradace musí být v logu.
     assert(/console\.warn\([\s\S]{0,200}cover/.test(ig), "zahozený cover je degradace kvality a musí být vidět")
 })
