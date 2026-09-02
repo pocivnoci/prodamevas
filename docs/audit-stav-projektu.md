@@ -100,7 +100,7 @@ ošetření, ověření nebo je to za přepínačem · **NEEXISTUJE**.
 | Funkce | Stav | Důkaz |
 |---|---|---|
 | Obchodní podmínky | HOTOVO | `app/terms/page.tsx` — 18 článků vč. odstoupení a ADR |
-| Zásady zpracování osobních údajů | ROZDĚLANÉ | `app/privacy/page.tsx` — jmenuje jen 3 zpracovatele z ~9 |
+| Zásady zpracování osobních údajů | HOTOVO | `app/privacy/page.tsx`; seznam 10 zpracovatelů v `lib/legal.ts:172` |
 | Cookie lišta s opt-in | NEEXISTUJE | žádná komponenta; `components/GoogleAnalytics.tsx:22` nastavuje souhlas natvrdo |
 | Zpracovatelská smlouva (DPA) | NEEXISTUJE | žádný dokument v repozitáři |
 | Právní identita na dokladech | HOTOVO | `lib/legal.ts`, ověřeno skriptem `check-legal-identity.ts` |
@@ -166,12 +166,12 @@ Odstranitelné, ale **ne bezpodmínečně** — pozor na dvě závislosti:
 
 | Soubor | Řádků | Poznámka |
 |---|---|---|
-| `lib/comgate.ts` | 265 | ⚠️ **Stripe cesta z něj importuje `generateRefId`** (`checkout.ts:16`). Funkci nejdřív přestěhovat do `lib/payments/ref-id.ts`. |
+| `lib/comgate.ts` | 265 | ✅ **Vyřešeno 2. 9. 2026.** `generateRefId` už bydlel v `lib/payments/ref-id.ts` a `comgate.ts` ho jen re-exportoval; `checkout.ts:16` teď importuje přímo odtud. Poslední vazba je **jen typová** (`ComgateStatusResponse` v reconcileru), a ta se při buildu zahodí. |
 | `app/api/payments/create/route.ts` | 268 | Comgate větev; Stripe má vlastní `/stripe/create` |
 | `app/api/payments/callback/route.ts` | 82 | Comgate callback |
 | `app/api/payments/return/route.ts` | 39 | Comgate návratová stránka |
 | `app/mock-payment/page.tsx` | 137 | Mock pokladna (`COMGATE_MOCK=true`) |
-| `lib/agents/payment-reconcile.ts` | 161 | ⚠️ Importuje typ `ComgateStatusResponse`. Reconciler zaseklých plateb má smysl i pro Stripe — přepsat, ne smazat. |
+| `lib/agents/payment-reconcile.ts` | 161 | Importuje **jen typ** `ComgateStatusResponse` (mizí při buildu). Reconciler zaseklých plateb má smysl i pro Stripe — přepsat, ne smazat. |
 | `app/api/cron/billing-worker/route.ts` | ~150 z 294 | Kroky 2–5 (stržení tokenem) jsou po Stripu zbytečné; krok 0 (posun kreditových oken) a krok 6 (oznámení dopředu) musí zůstat. |
 
 **Celkem ~950 řádků k odstranění**, z toho ~430 vyžaduje předchozí refaktor.
@@ -228,12 +228,19 @@ To je pro české prostředí správná volba — Stripe Invoicing české nále
 ✅ zdaňovací období na dokladu pro časové rozlišení (`on-paid.ts:265–268`).
 `npm run guard` identitu kontroluje a hlásí ji jako kompletní.
 
-🟠 **Jedna vada:** když zákazník nevyplní fakturační údaje, doklad se vystaví
-s hodnotami `"Neuvedeno"` a PSČ `"00000"` (`lib/invoicing.ts:68–77`). Komentář to
-obhajuje tím, že „zákon nezná výmluvu, že jsme neměli adresu" — to je pravda, ale
-doklad s fiktivní adresou je vadný daňový doklad, který podnikatelský odběratel
-nemůže použít. **Správné řešení: vynutit fakturační údaje před pokladnou**, ne po ní.
-Odhad 0,5 dne.
+🟠 **Jedna vada (upřesněno po druhém čtení):** UI si fakturační údaje **před
+pokladnou vyžádá** (`SubscriptionSection.tsx:148`, `hasBillingDetails`), takže
+běžný zákazník doklad s náhradní adresou nedostane. Zbývají dvě mezery:
+kontrola je jen klientská (přímý POST na `/api/payments/create` ji obejde)
+a záměrně selhává propustně (`.catch(() => true)` — „neprodat je horší než
+dovyplnit potom"). Když se tedy přesto vystaví doklad s `"Neuvedeno"` a PSČ
+`"00000"` (`lib/invoicing.ts:68–77`), je to **vadný daňový doklad v nevratné
+číselné řadě**, který podnikatelský odběratel nemůže uplatnit.
+
+**Opraveno 2. 9. 2026:** takový doklad teď zakládá provozní úkol
+(`proposeBillingDetailsFix`) místo řádku v logu, takže se na něj přijde hned
+a dá se vystavit opravný doklad. Vynucení na serveru zůstává jako úkol —
+je to obchodní rozhodnutí, ne technické.
 
 ---
 
@@ -772,6 +779,8 @@ K tomu tři drobnosti, které stejný obrázek dokreslují:
 - **Ceník v zadání nesouhlasí s produktem.** Uvádíte 990/1990/3990/7990 Kč; v databázi,
   migracích i ve statické záloze ceníku je **999/2999/4999/8999 Kč**. Rozdíl u nejvyššího
   tarifu je 1 009 Kč měsíčně. Ověřte to, než to řeknete nahlas — investor si ceník otevře.
+  Tohle je jediný bod, který **nejde opravit v kódu** — kód je konzistentní sám se sebou
+  a nevím, které z těch dvou čísel je to zamýšlené.
 - **`docs/UNIT_ECONOMICS_AND_PRICING.md` sám sebe označuje za neplatný** („ceny z éry v4
   a už neplatí"), přesto je to jediný dokument o marži, který v repozitáři existuje.
 
