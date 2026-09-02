@@ -781,9 +781,45 @@ export async function refundPayment(paymentId: string, reason?: string): Promise
     }
 
     const amountCzk = Math.round(payment.amount / 100).toLocaleString("cs-CZ")
+
+    // 3b. Peníze zpátky. U Stripu to jde přes API, takže se to nemá dělat ručně —
+    // ruční krok znamená prodlevu a riziko, že se na něj zapomene, zatímco
+    // předplatné už je ukončené a zákazník bez služby.
+    //
+    // ComGate se tudy neřeší: brána se opouští a poloviční automatika na cestě,
+    // která má zmizet, je horší než jasný ruční krok.
+    let refunded = false
+    if (payment.provider === "stripe" && payment.provider_ref) {
+        try {
+            const { refundStripePayment } = await import("@/lib/payments/stripe-billing")
+            const refundId = await refundStripePayment(payment.provider_ref, payment.amount)
+            refunded = true
+            console.log(`💸 Stripe refundace ${refundId} k platbě ${paymentId} (${amountCzk} Kč)`)
+        } catch (err: any) {
+            steps.push(
+                `⚠️ Vrátit ${amountCzk} ${payment.currency || "CZK"} ručně v portálu Stripu ` +
+                `(ref ${payment.provider_ref}) — automaticky selhalo: ${err?.message}`,
+            )
+        }
+    } else {
+        steps.push(
+            `Vrátit ${amountCzk} ${payment.currency || "CZK"} v portálu brány (${payment.provider}, ref ${payment.provider_ref || paymentId})`,
+        )
+    }
+
+    // Dobropis zůstává ruční záměrně: je to nevratný účetní doklad v číselné řadě
+    // a jeho API se tu nikdy neověřilo. Špatně vystavený dobropis se opravuje hůř
+    // než ten, který zatím není. Odkaz je konkrétní, aby se nehledal.
+    const { data: doklad } = await supabaseAdmin
+        .from("invoices")
+        .select("number, public_url")
+        .eq("payment_id", paymentId)
+        .eq("status", "issued")
+        .maybeSingle()
     steps.push(
-        `Vrátit ${amountCzk} ${payment.currency || "CZK"} v portálu brány (${payment.provider}, ref ${payment.provider_ref || paymentId})`,
-        `Vystavit dobropis ve Fakturoidu k dokladu za „${payment.label || "předplatné"}"`,
+        doklad?.number
+            ? `Vystavit dobropis ve Fakturoidu k dokladu č. ${doklad.number}${doklad.public_url ? ` (${doklad.public_url})` : ""}`
+            : `Vystavit dobropis ve Fakturoidu k dokladu za „${payment.label || "předplatné"}"`,
     )
 
     // 4. Připomínka s konkrétními kroky. Bez ní se na dobropis zapomene a
@@ -795,8 +831,10 @@ export async function refundPayment(paymentId: string, reason?: string): Promise
             await sendNotification({
                 to: adminEmail,
                 kind: "transactional",
-                subject: `Vrácení peněz: ${amountCzk} Kč — zbývají ruční kroky`,
-                body: `Platba <strong>${paymentId}</strong> je v systému označená jako vrácená a předplatné je ukončené.
+                subject: refunded
+                    ? `Vrácení peněz: ${amountCzk} Kč odesláno — zbývá dobropis`
+                    : `Vrácení peněz: ${amountCzk} Kč — zbývají ruční kroky`,
+                body: `Platba <strong>${paymentId}</strong> je v systému označená jako vrácená a předplatné je ukončené.${refunded ? `\n\n<strong>Peníze už jsou na cestě zpět</strong> — refundace u Stripu proběhla automaticky.` : ""}
 
 Zbývá dodělat ručně:
 ${steps.map(s => `• ${s}`).join("\n")}
@@ -810,6 +848,9 @@ Důvod: ${reason || "garance vrácení peněz do 30 dnů"}
         console.warn(`refundPayment: připomínka se neodeslala: ${err?.message}`)
     }
 
-    console.log(`💸 Platba ${paymentId} vrácena (${amountCzk} Kč) — zbývají ruční kroky v bráně a ve Fakturoidu`)
+    console.log(
+        `💸 Platba ${paymentId} vrácena (${amountCzk} Kč) — ` +
+        `${refunded ? "peníze odeslány automaticky, zbývá dobropis" : "zbývají ruční kroky v bráně a ve Fakturoidu"}`,
+    )
     return { success: true, manualSteps: steps }
 }

@@ -111,6 +111,69 @@ export async function expireStripeSubscription(stripeSubscriptionId: string): Pr
 }
 
 /**
+ * Vrátí peníze u Stripu k platbě, kterou známe pod `payments.provider_ref`.
+ *
+ * `provider_ref` je podle fáze buď id Checkout Session (první platba), nebo id
+ * faktury (obnova) — viz `PaymentLocator` v `on-paid.ts`. Obojí se musí přeložit
+ * na platební záměr, protože refundovat jde jen ten.
+ *
+ * Čtení je **záměrně obranné**: Stripe mezi verzemi API stěhuje, kde platební
+ * záměr na faktuře leží (stejně jako to udělal s `subscription`). Číst víc míst
+ * je levnější než tichá ztráta schopnosti vracet peníze po upgradu verze.
+ *
+ * Částka se předává **explicitně**, i když jde o celou platbu: kdyby se u brány
+ * lišila (jiná měna, částečná platba), plná refundace bez částky by vrátila
+ * jiné peníze, než jaké má náš doklad.
+ *
+ * Dvojímu vrácení brání podmíněný claim `PAID → REFUNDED` u volajícího — sem se
+ * tahle funkce podruhé nedostane.
+ */
+export async function refundStripePayment(providerRef: string, amountHaleru: number): Promise<string> {
+    if (!isStripeConfigured()) throw new Error("Stripe není nakonfigurovaná")
+    const stripe = getStripe()
+
+    /** Vytáhne id platebního záměru z faktury napříč verzemi API. */
+    const intentOfInvoice = (inv: any): string | null => {
+        const direct = inv?.payment_intent
+        if (typeof direct === "string") return direct
+        if (direct?.id) return direct.id
+        // Novější verze drží platby v poli; bereme první uhrazenou.
+        const fromPayments = inv?.payments?.data?.[0]?.payment?.payment_intent
+        if (typeof fromPayments === "string") return fromPayments
+        return fromPayments?.id ?? null
+    }
+
+    let intentId: string | null = null
+
+    if (providerRef.startsWith("cs_")) {
+        const session: any = await stripe.checkout.sessions.retrieve(providerRef)
+        intentId = typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : session.payment_intent?.id ?? null
+        // Předplatné neplatí Session, ale její první faktura.
+        if (!intentId && session.invoice) {
+            const invoiceId = typeof session.invoice === "string" ? session.invoice : session.invoice?.id
+            if (invoiceId) intentId = intentOfInvoice(await stripe.invoices.retrieve(invoiceId))
+        }
+    } else if (providerRef.startsWith("in_")) {
+        intentId = intentOfInvoice(await stripe.invoices.retrieve(providerRef))
+    } else if (providerRef.startsWith("pi_")) {
+        intentId = providerRef
+    }
+
+    if (!intentId) {
+        throw new Error(`k ${providerRef} se nepodařilo najít platební záměr`)
+    }
+
+    const refund = await stripe.refunds.create({
+        payment_intent: intentId,
+        amount: amountHaleru,
+        reason: "requested_by_customer",
+    })
+    return refund.id
+}
+
+/**
  * Stripe id předplatného klienta — pro zrušení a obnovení ze server action.
  * `null` znamená „tohle předplatné pohání ComGate", ne chybu.
  */
