@@ -411,11 +411,12 @@ Cena: **neověřeno** — v repozitáři není žádný sazebník.
 
 ### Měsíc plného vyčerpání kreditů
 
-⚠️ **Tarify v kódu se liší od tarifů uvedených v zadání.** Zadání uvádí
-990 / 1 990 / 3 990 / 7 990 Kč. Kód, migrace i statická záloha ceníku shodně uvádějí
-**999 / 2 999 / 4 999 / 8 999 Kč** (`supabase/migrations/20260901_pricing_v6_kredity.sql`,
-`lib/pricing.ts:281–284`). Počítám podle kódu; **rozpor je nutné vyjasnit před jednáním**
-(viz §7).
+✅ **Ceník potvrzen: 999 / 2 999 / 4 999 / 8 999 Kč.** V zadání auditu zaznělo
+990 / 1 990 / 3 990 / 7 990 Kč, což vypadalo jako rozpor — majitel 2. 9. 2026
+potvrdil, že platí čísla z kódu a chybný byl podklad. Kód je konzistentní:
+`supabase/migrations/20260901_pricing_v6_kredity.sql` (DB), `lib/pricing.ts:281–284`
+(statická záloha) a aserce v `npm run guard`, která obojí porovnává. Marže níž
+tedy počítají se správnými cenami.
 
 Nejhorší případ pro nás = samé **obrázky** (nejhorší poměr Kč/kredit — 7,63 Kč).
 Nejlepší = samé karusely (6,08 Kč).
