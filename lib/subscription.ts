@@ -486,6 +486,63 @@ export async function rollLapsedCreditWindows(limit = 200): Promise<number> {
  * Check if a client can perform a specific action.
  * For "post" actions: checks if it's a plan post (free) or extra post (costs credits).
  */
+// ════════════════════════════════════════════════════════════════════════════
+// Strop tempa — pojistka nezávislá na kreditech
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Kontrola kreditů je `check-then-act`: `canPerformAction` zůstatek jen PŘEČTE
+// a `deductCredits` zapisuje až po dokončení AI operace. Mezi tím není zámek,
+// takže N souběžných požadavků přečte týž zůstatek a všechny projdou. Zákazník
+// s jedním kreditem tak umí spustit padesát paralelních generování.
+//
+// Skutečná oprava je atomická rezervace na straně databáze (jeden příkaz, který
+// pod zámkem ověří zůstatek a rovnou zapíše odpočet) — ta potřebuje migraci
+// s Postgres funkcí, viz `docs/audit-stav-projektu.md`.
+//
+// Do té doby tohle: strop na POČET zpoplatněných akcí za okno, počítaný z už
+// existující knihy `credit_transactions`. Závod tím nezmizí — dva požadavky ve
+// stejné milisekundě napočítají totéž — ale trvalé pálení kreditů skriptem
+// zastaví po prvním okně, a to je rozdíl mezi „účet za tisíce" a „účet za pár
+// korun". Je to strop TEMPA, ne náhrada účtování.
+const BURST_WINDOW_MS = 60_000
+/** Kolik zpoplatněných akcí smí klient spustit za minutu. */
+const MAX_ACTIONS_PER_MINUTE = Number(process.env.CREDIT_BURST_PER_MINUTE) || 12
+/** Denní strop jako druhá pojistka — chrání i před pomalým, vytrvalým skriptem. */
+const MAX_ACTIONS_PER_DAY = Number(process.env.CREDIT_ACTIONS_PER_DAY) || 400
+
+/**
+ * Kolik zpoplatněných akcí klient provedl od `since`.
+ *
+ * Dobití (`TOPUP_ACTION`) se nepočítá — je to přírůstek, ne spotřeba, a zákazník,
+ * který si právě koupil kredity, nesmí být za nákup potrestaný zpomalením.
+ */
+async function chargedActionsSince(clientId: string, since: Date): Promise<number> {
+    const { count } = await supabaseAdmin
+        .from("credit_transactions")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", clientId)
+        .neq("action", TOPUP_ACTION)
+        .gt("credits", 0)
+        .gte("created_at", since.toISOString())
+    return count || 0
+}
+
+/** `null` = smí pokračovat; jinak důvod k zablokování. */
+async function rateLimitReason(clientId: string): Promise<string | null> {
+    const now = Date.now()
+    const [burst, daily] = await Promise.all([
+        chargedActionsSince(clientId, new Date(now - BURST_WINDOW_MS)),
+        chargedActionsSince(clientId, new Date(now - 24 * 60 * 60 * 1000)),
+    ])
+    if (burst >= MAX_ACTIONS_PER_MINUTE) {
+        return `Příliš mnoho požadavků za sebou (${burst}/min). Počkejte chvíli a zkuste to znovu.`
+    }
+    if (daily >= MAX_ACTIONS_PER_DAY) {
+        return `Vyčerpán denní limit generování (${MAX_ACTIONS_PER_DAY}/den). Ozvěte se nám, pokud potřebujete víc.`
+    }
+    return null
+}
+
 export async function canPerformAction(
     clientId: string,
     action: ActionType,
@@ -498,6 +555,26 @@ export async function canPerformAction(
     if (await isSuperAdmin()) return ADMIN_BYPASS
 
     const creditsRequired = creditsForAction(action, medium)
+
+    // Strop tempa se kontroluje PŘED předplatným: je to ochrana našeho účtu
+    // u AI providera, ne součást produktu, a platí i pro klienta s kredity.
+    // Selhání téhle kontroly nesmí zablokovat prodej ani práci — při chybě
+    // dotazu se pokračuje dál a rozhoduje účtování jako dřív.
+    try {
+        const limited = await rateLimitReason(clientId)
+        if (limited) {
+            const sub = await getClientSubscription(clientId)
+            return {
+                allowed: false,
+                reason: limited,
+                creditsRequired,
+                creditsRemaining: sub?.creditsRemaining ?? 0,
+            }
+        }
+    } catch (err: any) {
+        console.warn(`canPerformAction: kontrola tempa selhala (pokračuji): ${err?.message}`)
+    }
+
     const sub = await getClientSubscription(clientId)
 
     // No subscription at all
@@ -879,13 +956,52 @@ export async function activatePaidPlan(
             })
             .eq("id", sub.id)
 
-        // Exactly one live subscription per client
-        await supabaseAdmin
+        // Exactly one live subscription per client.
+        //
+        // `select()` je tu kvůli tomu, co následuje: potřebujeme vědět, KTERÁ
+        // předplatná jsme právě odstavili, abychom je uměli zrušit i u brány.
+        const { data: superseded } = await supabaseAdmin
             .from("subscriptions")
             .update({ status: "cancelled", cancelled_at: now.toISOString(), updated_at: now.toISOString() })
             .eq("client_id", clientId)
             .neq("id", sub.id)
             .in("status", ["trialing", "pending", "active"])
+            .select("id, provider, provider_ref")
+
+        // Zrušení odstavených předplatných U BRÁNY.
+        //
+        // Bez tohohle kroku byl náš řádek `cancelled`, ale Stripe o tom nevěděl
+        // a fakturoval dál — zákazník, který přešel ze Startu na Dominanci,
+        // platil OBOJE a přišlo se na to až třicátý den. Lokální zrušení
+        // a zrušení u brány jsou dvě různé věci a musí se dít spolu.
+        //
+        // ComGate se tudy neřeší schválně: jeho obnovy strhává náš cron podle
+        // `status='active'`, takže odstavený řádek se přestane účtovat sám.
+        // U Stripu je iniciátorem brána, a ta se musí dozvědět explicitně.
+        //
+        // Selhání NIKDY neshodí aktivaci: zákazník právě zaplatil a musí
+        // dostat, co si koupil. Křičí se do logu i do Sentry, protože je to
+        // chyba, která stojí peníze a nespraví se sama.
+        for (const old of superseded || []) {
+            if (old.provider !== "stripe" || !old.provider_ref) continue
+            try {
+                const { cancelStripeSubscriptionNow } = await import("@/lib/payments/stripe-billing")
+                await cancelStripeSubscriptionNow(old.provider_ref)
+                console.log(`💳 Staré Stripe předplatné ${old.provider_ref} zrušeno u brány (přechod na ${planId})`)
+            } catch (err: any) {
+                console.error(
+                    `🚨 Staré Stripe předplatné ${old.provider_ref} (klient ${clientId}) se NEPODAŘILO zrušit u brány — ` +
+                    `hrozí dvojí účtování, zruš ho ručně v dashboardu Stripu: ${err?.message}`,
+                )
+                try {
+                    const Sentry = await import("@sentry/nextjs")
+                    Sentry.captureException(err, {
+                        tags: { area: "payments", provider: "stripe" },
+                        extra: { clientId, staleSubscriptionId: old.id, stripeRef: old.provider_ref, newPlanId: planId },
+                    })
+                } catch { /* Sentry je volitelný */ }
+            }
+        }
     }
 
     // plan_locked rows are onboarding TEASER PLACEHOLDERS (fake hooks from

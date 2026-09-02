@@ -7,6 +7,7 @@ import { Type } from "@google/genai"
 import { generateTextQuality } from "./gemini-client"
 import { judgeText } from "./judge"
 import { getModel, hasFallback, getTemperature } from "./models"
+import { unitRate } from "@/lib/model-pricing"
 import type { ClientConfig, PostFormat, PostTypeDef, AudiencePersona, BrandVoiceExample } from "./configs/types"
 import type { PostType, PostIdea, Review } from "./types"
 import type { HookTemplate, ToneModifier } from "./types"
@@ -24,7 +25,19 @@ import { resolveCtaPolicy, buildCtaPolicySection, buildCtaPolicyJudgeBlock, type
 // - Caption/critic/editorial run the Pro quality ladder (gemini-pro-latest → gemini-2.5-pro)
 // - Gemini 3.1 Pro (AI Designer): $2.00/M input + $12/M output (~$0.03 per request)
 // - Nano Banana Pro (gemini-3-pro-image, 2K): ~$0.134 per image — see instagram/models.ts
-// - Veo 3.1: Lite ~$0.06/s · Fast $0.15/s · Standard $0.40/s
+//
+// ⚠️ Sazby za VIDEO se tady schválně nepíšou. Držel je tu druhý sazebník, který
+//    se s `lib/model-pricing.ts` rozešel (Fast 0,15 vs 0,12 USD/s, Lite 0,06 vs
+//    0,08), takže odhad ceny reelu neseděl ani sám se sebou. Cena teď má jediný
+//    zdroj — ten, který u sazeb vede datum ověření a odkaz na ceník Googlu.
+
+/** Sazba za vteřinu videa podle tieru — čtená z jediného sazebníku. */
+function videoRate(tier: "lite" | "fast" | "premium", fallback: number): number {
+    const key = tier === "lite" ? "videoLite" : tier === "fast" ? "videoFast" : "videoPremium"
+    // Neznámá sazba nesmí tiše vyrobit nulu: odhad „zadarmo" je horší než hrubý odhad.
+    return unitRate(getModel(key), "seconds") ?? fallback
+}
+
 export const COSTS = {
     textGeneration: 0.025,
     promptRefinement: 0.025,
@@ -33,13 +46,19 @@ export const COSTS = {
     imageGeneration: 0.134,      // Nano Banana Pro GA 2K
     imageQA: 0.01,               // flash vision verify (native engine)
     imageCorrectiveEdit: 0.134,  // corrective text/logo edit retry (native engine, worst case 1×)
-    videoPerSecond: 0.15,        // @deprecated — use videoPerSecondByTier
-    videoPerSecondByTier: { lite: 0.06, fast: 0.15, premium: 0.40 } as Record<"lite" | "fast" | "premium", number>,
+    videoPerSecond: videoRate("fast", 0.12),   // @deprecated — use videoPerSecondByTier
+    videoPerSecondByTier: {
+        lite: videoRate("lite", 0.08),
+        fast: videoRate("fast", 0.12),
+        premium: videoRate("premium", 0.40),
+    } as Record<"lite" | "fast" | "premium", number>,
     ttsVoiceover: 0.02,          // Gemini 3.1 Flash TTS (~$0.02 per request)
     perPost: 0.27,       // 3× text ($0.075) + context ($0.025) + designer ($0.03) + image ($0.134) + QA ($0.01)
     perStory: 0.56,      // 3× text + context + 1 designer (shared) + 3× image ($0.402) + 3× QA
     perCarousel: 0.75,   // 3× text + context + designer + 4× image ($0.536) + 4× QA + overhead
-    perReel: 1.45,       // 3× text + context + Veo 3.1 Fast 8s ($1.20) + TTS ($0.02) + cover ($0.134) + QA
+    // Veo 8 s se sazbou z `lib/model-pricing.ts`; při 0,12 USD/s je to 0,96 USD,
+    // ne 1,20 jako podle staré, rozešlé sazby. Reel tím vychází o ~0,24 levněji.
+    perReel: 1.22,       // 3× text + context + Veo 3.1 Fast 8s ($0.96) + TTS ($0.02) + cover ($0.134) + QA
 }
 
 // ============================================

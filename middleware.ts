@@ -104,8 +104,24 @@ export async function middleware(request: NextRequest) {
         return supabaseResponse
     } catch (e) {
         console.error('Middleware exception:', e);
-        // Fallback to allowing the request to pass through rather than returning 500
-        return NextResponse.next({ request });
+
+        // Autentizace musí selhávat ZAVŘENĚ. Dřív se tady propouštělo dál „ať
+        // to nespadne", jenže tím se z výpadku Supabase Auth (nebo z poškozené
+        // cookie) stávala cesta na /dashboard i /onboarding bez přihlášení
+        // a bez brány bety. Stránky mají vlastní guardy, takže data neunikala —
+        // ale směr toho selhání byl obrácený, než má být.
+        //
+        // Veřejné trasy (landing, ceník, /ukazka, právní stránky) se propouštějí
+        // dál: tam se stejně nic nechrání a rozbít marketing kvůli chybě
+        // v ověřování session by byla vlastní gólová šance.
+        const path = request.nextUrl.pathname
+        const isProtectedPath = path.startsWith('/dashboard') || path.startsWith('/onboarding')
+        if (!isProtectedPath) return NextResponse.next({ request });
+
+        const url = request.nextUrl.clone()
+        url.pathname = '/login'
+        url.search = '?error=session_error'
+        return NextResponse.redirect(url)
     }
 }
 

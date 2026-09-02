@@ -718,9 +718,18 @@ export async function uploadProductImage(
 /**
  * One-shot migration: sync config.products JSONB → ig_products table
  * for all active clients. Safe to run multiple times (dedup by slug).
+ *
+ * **Jen super admin.** Tahle akce jako jediná v souboru nepracuje s JEDNÍM
+ * tenantem — iteruje přes všechny aktivní klienty a zapisuje jim produkty.
+ * `requireProjectAccess` proto nestačí (nemá co dostat) a bez guardu byla
+ * volatelná POSTem s hlavičkou `Next-Action` z libovolné trasy, tedy
+ * i nepřihlášeným. Middleware to nechytí: chrání cesty, ne server actions.
  */
 export async function syncConfigProductsToDb(): Promise<{ success: boolean; synced: number; skipped: number; error?: string }> {
     try {
+        const { requireSuperAdmin } = await import("@/lib/auth-guard")
+        await requireSuperAdmin()
+
         const { data: clients, error } = await supabaseAdmin
             .from("clients")
             .select("id, slug, config")

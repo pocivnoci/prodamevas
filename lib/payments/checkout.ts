@@ -13,7 +13,9 @@
 import "server-only"
 import supabaseAdmin from "@/supabase/admin"
 import { getStripe, isStripeConfigured, isStripeSandbox } from "./stripe"
-import { generateRefId } from "@/lib/comgate"
+// Přímo z neutrálního modulu, ne přes re-export v `lib/comgate.ts`: Stripe cesta
+// nesmí mít jedinou vazbu na klienta druhé brány, jinak se ComGate nedá smazat.
+import { generateRefId } from "@/lib/payments/ref-id"
 import { termPrice, termLabel, stripeRecurring, type TermMonths } from "@/lib/pricing"
 
 export type Gateway = "comgate" | "stripe"

@@ -63,6 +63,35 @@ export async function setStripeCancelAtPeriodEnd(stripeSubscriptionId: string, c
 }
 
 /**
+ * Zruší předplatné u Stripu OKAMŽITĚ, ne ke konci období.
+ *
+ * Tohle je pro **změnu tarifu**, ne pro výpověď. Rozdíl je zásadní: výpověď
+ * nechává zaplacené období doběhnout (`cancel_at_period_end`), kdežto při
+ * přechodu na jiný tarif nové předplatné začíná HNED a zbytek starého období
+ * propadá (`activatePaidPlan`, bez proration). Kdyby se staré předplatné rušilo
+ * až ke konci období, Stripe by za ně mezitím vystavil ještě jednu fakturu —
+ * zákazník by platil dva tarify najednou.
+ *
+ * `customer.subscription.deleted` se vrátí webhookem a `expireStripeSubscription`
+ * na něm neudělá nic navíc: náš řádek je v tu chvíli už `cancelled`, a ten
+ * podmíněný UPDATE bere jen živé stavy.
+ *
+ * Neexistující předplatné (ručně smazané, jiné prostředí) není chyba — vrací
+ * `false`, protože cílový stav „u brány neběží" už platí.
+ */
+export async function cancelStripeSubscriptionNow(stripeSubscriptionId: string): Promise<boolean> {
+    if (!isStripeConfigured()) throw new Error("Stripe není nakonfigurovaná")
+    try {
+        await getStripe().subscriptions.cancel(stripeSubscriptionId)
+        return true
+    } catch (err: any) {
+        // 404 = u brány už neexistuje. Cílového stavu je dosaženo jinou cestou.
+        if (err?.statusCode === 404 || err?.code === "resource_missing") return false
+        throw err
+    }
+}
+
+/**
  * Předplatné u brány definitivně skončilo (`customer.subscription.deleted`).
  *
  * Podmíněný zápis: expiruje se jen to, co ještě žije. Bez podmínky by pozdní

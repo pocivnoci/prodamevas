@@ -139,7 +139,10 @@ export default function PrivacyPage() {
                     </Section>
 
                     <Section n={8} title="Cookies">
-                        <p>Používáme pouze technicky nezbytné cookies pro přihlášení uživatele (relace Supabase Auth). Nepoužíváme marketingové ani analytické cookies třetích stran, a proto nevyžadujeme souhlas s cookies.</p>
+                        <p><strong className="text-white/90">Technicky nezbytné cookies</strong> používáme vždy — jde o relaci Supabase Auth, bez které se nelze přihlásit. Souhlas k nim zákon nevyžaduje, protože bez nich by služba nefungovala.</p>
+                        <p className="mt-3"><strong className="text-white/90">Analytické cookies</strong> (Google Analytics, správce Google Ireland Ltd.) používáme k měření návštěvnosti webu. Spustí se <strong className="text-white/90">až poté, co k nim dáte souhlas</strong> v cookie liště; do té doby je měření vypnuté. Právním základem je váš souhlas podle čl. 6 odst. 1 písm. a) GDPR a § 89 odst. 3 zákona č. 127/2005 Sb.</p>
+                        <p className="mt-3">Souhlas můžete kdykoli odvolat — smazáním dat webu v prohlížeči se lišta zobrazí znovu a můžete zvolit „Odmítnout". Odvolání souhlasu nemá vliv na zákonnost zpracování před jeho odvoláním.</p>
+                        <p className="mt-3">Marketingové ani reklamní cookies nepoužíváme a data z analytiky nepředáváme inzertním sítím.</p>
                     </Section>
 
                     <Section n={9} title="Děti">

@@ -101,6 +101,21 @@ const UNIT_PRICES: Record<string, { perSecond?: number; perImage?: number; sourc
     "gemini-3.1-flash-image": { perImage: 0.067, source: `${GOOGLE} (1K)` },
 }
 
+/**
+ * Jednotková sazba modelu, nebo `null`, když ji neznáme.
+ *
+ * Existuje proto, aby engine nemusel držet vlastní kopii cen. Do 9/2026 měl
+ * `instagram/caption-generator.ts` v `COSTS` druhý sazebník za video a ten se
+ * s tímhle souborem ROZEŠEL (Veo Fast 0,15 vs 0,12 USD/s, Lite 0,06 vs 0,08).
+ * Dvě pravdy o ceně znamenají, že žádný výpočet marže nesedí — a rozhoduje
+ * ta, která má zdroj a datum, tedy tenhle soubor.
+ */
+export function unitRate(model: string, kind: "seconds" | "images"): number | null {
+    const up = UNIT_PRICES[resolveModelAlias(model)]
+    const rate = kind === "seconds" ? up?.perSecond : up?.perImage
+    return rate ?? null
+}
+
 const warned = new Set<string>()
 
 function envKey(model: string): string {
