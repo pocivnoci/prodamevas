@@ -1,0 +1,829 @@
+<title>Podklad na večerní hovor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+
+<style>
+:root {
+  --paper:      #EFF1EF;
+  --surface:    #FFFFFF;
+  --surface-2:  #F7F8F7;
+  --ink:        #15181A;
+  --ink-2:      #565E5C;
+  --ink-3:      #7C8683;
+  --rule:       #D6DBD8;
+  --rule-soft:  #E4E8E5;
+  --stamp:      #A8342A;
+  --stamp-bg:   #F7E9E7;
+  --go:         #1E6046;
+  --go-bg:      #E5F0EA;
+  --hold:       #7A5A0E;
+  --hold-bg:    #F6EEDA;
+  --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --cond: "IBM Plex Sans Condensed", "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:     #0E100F;
+    --surface:   #151918;
+    --surface-2: #1B201E;
+    --ink:       #E7EAE7;
+    --ink-2:     #9AA4A0;
+    --ink-3:     #6F7B77;
+    --rule:      #2A302E;
+    --rule-soft: #212725;
+    --stamp:     #E97A6C;
+    --stamp-bg:  #2A1714;
+    --go:        #63C094;
+    --go-bg:     #10241B;
+    --hold:      #D6AC50;
+    --hold-bg:   #26200E;
+  }
+}
+:root[data-theme="dark"] {
+  --paper:     #0E100F;
+  --surface:   #151918;
+  --surface-2: #1B201E;
+  --ink:       #E7EAE7;
+  --ink-2:     #9AA4A0;
+  --ink-3:     #6F7B77;
+  --rule:      #2A302E;
+  --rule-soft: #212725;
+  --stamp:     #E97A6C;
+  --stamp-bg:  #2A1714;
+  --go:        #63C094;
+  --go-bg:     #10241B;
+  --hold:      #D6AC50;
+  --hold-bg:   #26200E;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.bar {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
+  padding: 10px 24px;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px;
+}
+.bar .clock {
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--stamp);
+  white-space: nowrap;
+}
+.bar .thesis {
+  font-family: var(--sans); font-size: 13.5px; color: var(--ink-2);
+  flex: 1 1 320px; min-width: 0;
+}
+
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px 96px; }
+
+section { padding-top: 52px; }
+.sec-head {
+  display: grid; grid-template-columns: 1fr; gap: 4px;
+  border-top: 2px solid var(--ink); padding-top: 14px; margin-bottom: 22px;
+}
+.sec-label {
+  font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3);
+}
+.sec-head h2 {
+  font-family: var(--cond); font-weight: 700; font-size: clamp(26px, 4.2vw, 38px);
+  line-height: 1.08; letter-spacing: -.015em; margin: 0; text-wrap: balance;
+}
+.sec-head p.sub {
+  margin: 6px 0 0; color: var(--ink-2); font-size: 15px; max-width: 68ch;
+}
+
+.col { max-width: 74ch; }
+p { margin: 0 0 14px; }
+strong { font-weight: 600; }
+em { font-style: italic; color: var(--ink-2); }
+
+h3 {
+  font-family: var(--cond); font-weight: 700; font-size: 20px;
+  letter-spacing: -.01em; margin: 30px 0 10px; text-wrap: balance;
+}
+h4 {
+  font-family: var(--mono); font-weight: 600; font-size: 11px;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
+  margin: 26px 0 8px;
+}
+
+.hero { padding: 64px 0 8px; }
+.hero .kicker {
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3);
+  margin-bottom: 18px;
+}
+.hero h1 {
+  font-family: var(--cond); font-weight: 700;
+  font-size: clamp(38px, 7vw, 68px); line-height: 1.02; letter-spacing: -.025em;
+  margin: 0 0 20px; text-wrap: balance;
+}
+.opener {
+  background: var(--surface); border: 1px solid var(--rule);
+  border-left: 4px solid var(--stamp);
+  padding: 20px 22px; margin: 26px 0 0; max-width: 72ch;
+}
+.opener .tag {
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--stamp);
+  display: block; margin-bottom: 8px;
+}
+.opener q {
+  font-family: var(--cond); font-weight: 600; font-size: clamp(19px, 2.6vw, 24px);
+  line-height: 1.28; letter-spacing: -.01em;
+  display: block;
+}
+
+.stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px; background: var(--rule); border: 1px solid var(--rule);
+  margin: 34px 0 0;
+}
+.stat { background: var(--surface); padding: 16px 18px; }
+.stat .n {
+  font-family: var(--mono); font-weight: 600; font-size: 25px;
+  letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1.1;
+}
+.stat .l {
+  font-size: 12.5px; color: var(--ink-2); margin-top: 5px; line-height: 1.4;
+}
+.stat.bad .n { color: var(--stamp); }
+.stat.good .n { color: var(--go); }
+
+ol.blockers { list-style: none; margin: 0; padding: 0; counter-reset: b; }
+ol.blockers > li {
+  counter-increment: b;
+  display: grid; grid-template-columns: 34px 1fr; gap: 0 14px;
+  background: var(--surface); border: 1px solid var(--rule);
+  border-left: 3px solid var(--rule);
+  padding: 15px 18px; margin-bottom: 8px;
+}
+ol.blockers > li::before {
+  content: counter(b);
+  font-family: var(--mono); font-weight: 600; font-size: 13px;
+  color: var(--ink-3); padding-top: 2px; font-variant-numeric: tabular-nums;
+}
+ol.blockers > li.crit { border-left-color: var(--stamp); }
+ol.blockers > li.warn { border-left-color: var(--hold); }
+ol.blockers .t {
+  font-family: var(--cond); font-weight: 700; font-size: 17.5px;
+  letter-spacing: -.01em; line-height: 1.24; margin-bottom: 4px;
+}
+ol.blockers .d { font-size: 14.5px; color: var(--ink-2); line-height: 1.52; }
+ol.blockers .meta {
+  font-family: var(--mono); font-size: 10.5px; font-weight: 500;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3);
+  margin-top: 7px;
+}
+
+.pill {
+  display: inline-block; font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 2px; vertical-align: 1.5px; white-space: nowrap;
+}
+.pill.stamp { background: var(--stamp-bg); color: var(--stamp); }
+.pill.go    { background: var(--go-bg);    color: var(--go); }
+.pill.hold  { background: var(--hold-bg);  color: var(--hold); }
+
+.tw { overflow-x: auto; border: 1px solid var(--rule); background: var(--surface); margin: 16px 0 8px; }
+table { width: 100%; border-collapse: collapse; font-size: 14.5px; min-width: 460px; }
+th {
+  text-align: left; font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
+  padding: 11px 16px; border-bottom: 1px solid var(--rule); background: var(--surface-2);
+  white-space: nowrap;
+}
+td { padding: 11px 16px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+td.num, th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.total td { border-top: 2px solid var(--ink); font-weight: 600; background: var(--surface-2); }
+td small { display: block; color: var(--ink-3); font-size: 12.5px; line-height: 1.4; margin-top: 2px; }
+
+.split {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin: 20px 0;
+}
+.share { background: var(--surface); padding: 22px 20px; }
+.share .who {
+  font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
+}
+.share .pct {
+  font-family: var(--cond); font-weight: 700; font-size: 54px; line-height: 1;
+  letter-spacing: -.03em; margin: 6px 0 4px; font-variant-numeric: tabular-nums;
+}
+.share.mine .pct { color: var(--stamp); }
+.share .role { font-size: 14px; color: var(--ink-2); line-height: 1.45; }
+.share .vest {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-3);
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--rule-soft);
+}
+
+.board {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin: 18px 0;
+}
+.lane { background: var(--surface); padding: 18px 20px 22px; }
+.lane .name {
+  font-family: var(--cond); font-weight: 700; font-size: 20px; letter-spacing: -.01em;
+}
+.lane .job {
+  font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ink-3); margin: 3px 0 14px;
+}
+.lane ul { list-style: none; margin: 0; padding: 0; }
+.lane li {
+  font-size: 14px; line-height: 1.48; padding: 9px 0 9px 17px;
+  border-top: 1px solid var(--rule-soft); position: relative; color: var(--ink);
+}
+.lane li:first-child { border-top: none; }
+.lane li::before {
+  content: "—"; position: absolute; left: 0; top: 9px;
+  color: var(--ink-3); font-family: var(--mono); font-size: 12px;
+}
+.lane li b { font-weight: 600; }
+.lane li span.when {
+  display: block; font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink-3); margin-top: 3px;
+}
+
+.qa { border-top: 1px solid var(--rule); margin-top: 18px; }
+.qa .row { border-bottom: 1px solid var(--rule); padding: 16px 0; }
+.qa .q {
+  font-family: var(--cond); font-weight: 700; font-size: 17.5px;
+  letter-spacing: -.01em; margin-bottom: 6px; line-height: 1.28;
+}
+.qa .q::before { content: "?"; color: var(--stamp); font-family: var(--mono); margin-right: 8px; }
+.qa .a { font-size: 15px; color: var(--ink-2); line-height: 1.56; max-width: 72ch; }
+.qa .a b { color: var(--ink); font-weight: 600; }
+
+ol.ask { counter-reset: q; list-style: none; margin: 0; padding: 0; }
+ol.ask li {
+  counter-increment: q; position: relative; padding: 14px 0 14px 46px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+ol.ask li::before {
+  content: counter(q); position: absolute; left: 0; top: 13px;
+  font-family: var(--mono); font-weight: 600; font-size: 12px; color: var(--surface);
+  background: var(--ink); width: 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center;
+}
+ol.ask .qq { font-size: 16.5px; font-weight: 500; line-height: 1.45; margin-bottom: 4px; }
+ol.ask .why { font-size: 13.5px; color: var(--ink-3); line-height: 1.45; }
+
+.note {
+  background: var(--surface-2); border: 1px solid var(--rule);
+  border-left: 3px solid var(--hold); padding: 16px 20px; margin: 20px 0;
+  font-size: 14.5px; line-height: 1.55; max-width: 76ch;
+}
+.note.red { border-left-color: var(--stamp); background: var(--stamp-bg); }
+.note .lbl {
+  font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--hold); display: block; margin-bottom: 6px;
+}
+.note.red .lbl { color: var(--stamp); }
+
+ul.plain { list-style: none; margin: 0 0 14px; padding: 0; max-width: 74ch; }
+ul.plain li {
+  position: relative; padding: 7px 0 7px 20px; font-size: 15px; line-height: 1.5;
+  border-bottom: 1px solid var(--rule-soft);
+}
+ul.plain li::before {
+  content: "›"; position: absolute; left: 2px; top: 7px;
+  color: var(--ink-3); font-family: var(--mono);
+}
+
+footer {
+  margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--rule);
+  font-family: var(--mono); font-size: 11px; letter-spacing: .06em;
+  color: var(--ink-3); line-height: 1.7;
+}
+
+@media (min-width: 940px) {
+  .sec-head { grid-template-columns: 190px 1fr; gap: 0 32px; align-items: start; }
+  .sec-label { padding-top: 9px; }
+  .sec-head .htext { grid-column: 2; }
+  .sec-body { padding-left: 222px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  a { transition: color .15s ease; }
+}
+a { color: var(--stamp); text-underline-offset: 2px; }
+a:focus-visible { outline: 2px solid var(--stamp); outline-offset: 3px; }
+</style>
+
+<div class="bar">
+  <span class="clock">Hovor · dnes 20:00 · ve třech</span>
+  <span class="thesis">Produkt je hotový a publikuje na ostro. Chybí právo brát peníze a lidi, kteří seženou zákazníky.</span>
+</div>
+
+<div class="wrap">
+
+<div class="hero">
+  <div class="kicker">Podklad pro Thomase · 3. září 2026</div>
+  <h1>Rozdělení firmy a co dělat dál</h1>
+
+  <div class="opener">
+    <span class="tag">Čím hovor otevřít</span>
+    <q>Postavil jsem celý produkt, publikuje na ostro na cizí instagramový účet a marže sedí. Neumím ale ještě vzít peníze a neumím sehnat zákazníky — a přesně na to jste tady vy dva. Chci dneska dohodnout podíly a rozjet to.</q>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="n">75&nbsp;000</div><div class="l">řádků kódu, 545 commitů, build zelený</div></div>
+    <div class="stat good"><div class="n">78–88 %</div><div class="l">hrubá marže na jeden příspěvek (změřená)</div></div>
+    <div class="stat bad"><div class="n">0</div><div class="l">platících zákazníků zvenčí · 0 transakcí</div></div>
+    <div class="stat bad"><div class="n">2</div><div class="l">strop profilů u dodavatele publikování</div></div>
+    <div class="stat"><div class="n">~10</div><div class="l">zákazníků pokryje všechny fixní náklady</div></div>
+  </div>
+</div>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-label">Prvních pět minut</div>
+    <div class="htext">
+      <h2>Čtyři věci řekni dřív, než se na ně zeptají</h2>
+      <p class="sub">Každou z nich najdou sami do deseti minut. Řečené tebou je to ohraničený úkol; nalezené jimi je to červená vlajka o tom, jak odhaduješ hotovost.</p>
+    </div>
+  </div>
+  <div class="sec-body">
+  <div class="col">
+
+  <h3>1. Nula transakcí. Ne „skoro hotovo“ — doslova nula korun.</h3>
+  <p>Stripe běží na testovacích klíčích a účet ještě není aktivovaný k příjmu plateb. Celý řetěz — pokladna, webhook, aktivace tarifu, daňový doklad — je napsaný pečlivě, s idempotencí a podmíněnými claimy, ale <strong>nikdy neproběhl s reálnými penězi</strong>. Je to dvoudenní práce plus externí lhůta na aktivaci účtu.</p>
+
+  <h3>2. Publikování jede přes cizí firmu na jejím bezplatném tarifu.</h3>
+  <p>Věc, kterou zákazník kupuje, jde přes upload-post.com. Tarif Free má strop <strong>2 profily, jeden je obsazený</strong> — třetí zákazník se dnes nepřipojí. Náhrada přes vlastní aplikaci u Mety je v kódu hotová, ale čeká na App Review: 2–8 týdnů mimo naši kontrolu. A ta firma drží přístup k instagramovým účtům zákazníků, přičemž s ní nemáme zpracovatelskou smlouvu.</p>
+  <p><em>Formulace, která z toho udělá sílu: „Publikování máme vyřešené obchvatem, protože oficiální cesta má byrokratickou lhůtu. Obchvat funguje a přepnutí zpátky je v kódu hotové. Placený tarif je jedna z prvních věcí, na kterou půjdou peníze — je to 50 dolarů měsíčně za 25 profilů.“</em></p>
+
+  <h3>3. Marže je změřená na příspěvek, ne na zákazníka.</h3>
+  <p>78–88 % hrubé marže na jeden příspěvek platí a přepočítal to i nezávislý audit. Ale <strong>ekonomika na zákazníka změřená není</strong> — a mám doložený případ z 23. srpna, kdy Google fakturoval 411,78 Kč za týden a vlastní účetnictví umělo vysvětlit jen ~100 Kč. Tabulka na to existuje, do 30 dnů to bude změřené.</p>
+
+  <h3>4. Reels se prodávají na dvou tarifech a nefungují.</h3>
+  <p>Dominance (4 999 Kč) a Impérium (8 999 Kč) mají reels v nabídce, ale přepínač je v produkci vypnutý a engine reel tiše překlápí na karusel. Je to <strong>jediný skutečný mis-sale v ceníku</strong> a je to zároveň nejlepší úkol, který můžeš dnes někomu rozdat.</p>
+
+  </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-label">Aktiva</div>
+    <div class="htext">
+      <h2>Co je hotové a proti čemu to obstojí</h2>
+      <p class="sub">Ne seznam funkcí — jen to, co u stolu obhájíš a čím se lišíme od nástrojů, které si dneska může koupit kdokoli.</p>
+    </div>
+  </div>
+  <div class="sec-body">
+  <div class="col">
+
+  <h4>Důkaz, ne slib</h4>
+  <p>Chrlit <strong>publikoval čtyři příspěvky na skutečný cizí instagramový profil</strong> (@kvetinynadmuseem) s reálnými permalinky — obrázek i karusel, karusel potvrzený jako album. To není demo na localhostu. Ukaž ten feed. Je to nejsilnější věc, kterou dnes večer máš.</p>
+
+  <h4>V čem jsme lepší</h4>
+  <ul class="plain">
+    <li><strong>Děláme to za zákazníka, ne s ním.</strong> Buffer, Later a Hootsuite plánují — obsah si musíš vyrobit sám. Predis.ai a Ocoya vyrobí draft — a ten pak sám publikuješ. Chrlit se naučí značku z webu, vyrobí hotový příspěvek a sám ho vydá. Zákazník neudělá nic.</li>
+    <li><strong>Čeština, včetně diakritiky v obraze.</strong> Globální generátory na české typografii v obrázku pohoří — vypadnou z toho zkomolené háčky a čárky. Tohle je desetivteřinové demo, které u stolu prostě ukážeš. Je to nejtvrdší praktická bariéra, jakou máme.</li>
+    <li><strong>Učí se z toho, co skutečně fungovalo.</strong> Metriky z Instagramu se vracejí zpátky do generování přes paměť konkrétní značky, takže výstup se v čase zpřesňuje. Konkurence generuje bezstavově — zítra neví, co dělala včera. Tohle drží zákazníka.</li>
+    <li><strong>Cena.</strong> 999 Kč měsíčně proti 15–20 000 Kč za grafika a copywritera. Ne o dvacet procent levněji — dvacetkrát.</li>
+    <li><strong>Není to prototyp.</strong> 60 databázových migrací, 10 automatických úloh, ~425 statických asercí nad invarianty, které procházejí. Platební vrstva má podmíněné claimy a idempotenci — nezávislý audit ji označil za lepší než průměrná produkční integrace.</li>
+  </ul>
+
+  <h4>Co už běží samo, aniž by u toho někdo seděl</h4>
+  <p>Denní brief zakladateli, kontrola zdraví systému, hlídání daňových lhůt, dorovnávání zásobníku nápadů, oznámení zákazníkovi při selhání publikace, a <strong>hotová obchodní pipeline</strong> (kvalifikace leadu → ukázka → oslovení). Ta poslední je zajímavá pro dnešek — vrátím se k ní u propagace.</p>
+
+  </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-label">Brzdy · řazeno podle toho, co blokuje první</div>
+    <div class="htext">
+      <h2>Co nás brzdí teď</h2>
+      <p class="sub">Pořadí není podle důležitosti, ale podle toho, o co zakopneme dřív. První tři stojí mezi námi a první korunou.</p>
+    </div>
+  </div>
+  <div class="sec-body">
+
+  <ol class="blockers">
+    <li class="crit">
+      <div>
+        <div class="t">Stripe účet není aktivovaný k příjmu plateb</div>
+        <div class="d">Klíče jsou testovací a účet nemá povolené platby. Dokud se to nezmění, pokladna se otevře, zákazník „zaplatí“ a peníze nikde. Nejde to obejít kódem.</div>
+        <div class="meta">Já · půl dne práce + externí lhůta ve dnech</div>
+      </div>
+    </li>
+    <li class="crit">
+      <div>
+        <div class="t">Strop dvou profilů u dodavatele publikování</div>
+        <div class="d">Free tarif, jeden slot obsazený. Zákazník číslo tři dostane chybu od cizího API a my se to dozvíme z logu. Professional za 50 USD měsíčně = 25 profilů. Musí to být hotové <strong>dřív</strong>, než přijde třetí zájemce, ne až narazí.</div>
+        <div class="meta">Já · půl dne + platební karta · ~1 060 Kč/měs</div>
+      </div>
+    </li>
+    <li class="crit">
+      <div>
+        <div class="t">Živnost nekryje software ani reklamu</div>
+        <div class="d">Chrlit dnes stojí na živnosti, jejíž zapsané obory jsou květinářské. Prodávat pod ní SaaS by bylo neoprávněné podnikání. <strong>Tohle je důvod, proč se zakládá firma</strong> — s.r.o. si obory zapíše rovnou správně.</div>
+        <div class="meta">Luděk · vyřeší se založením s.r.o.</div>
+      </div>
+    </li>
+    <li class="warn">
+      <div>
+        <div class="t">Uniklý přístupový token v git historii</div>
+        <div class="d">Repozitář byl dlouho veřejný a v historii zůstal reálný token k Metě. Dokud se nerotuje, nevíme, kdo k tomu má přístup. Je to půl dne a je to typ nálezu, který investorovi rozbije důvěru ve všechno ostatní.</div>
+        <div class="meta">Já · půl dne</div>
+      </div>
+    </li>
+    <li class="warn">
+      <div>
+        <div class="t">Cookie lišta neexistuje, ale analytika běží</div>
+        <div class="d">Google Analytics je nasazená se souhlasem nastaveným natvrdo na „udělen“, zatímco zásady ochrany údajů na webu tvrdí, že žádné analytické cookies nepoužíváme. Auditor to najde za pět minut a zpochybní tím i právní dokumenty, které jsou v pořádku. Oprava je jeden den.</div>
+        <div class="meta">Já · 1 den</div>
+      </div>
+    </li>
+    <li class="warn">
+      <div>
+        <div class="t">Chybí zpracovatelské smlouvy</div>
+        <div class="d">Zpracováváme data zákazníků i jejich publika bez smlouvy podle článku 28 GDPR — s dodavatelem publikování, s Googlem, s Anthropikem. Potřebuje to právníka, ne mě.</div>
+        <div class="meta">Luděk + právník · ~1 den + honorář</div>
+      </div>
+    </li>
+    <li class="warn">
+      <div>
+        <div class="t">Reels: prodávané, nefunkční</div>
+        <div class="d">Dva tarify je mají v nabídce, engine je překlápí na karusel. Buď se do sedmi dnů najde generátor, který dá použitelnou kvalitu, nebo se reels z tarifů odeberou. Třetí možnost není.</div>
+        <div class="meta">Hanz rozhodne · 7 dnů · rozpočet na test ~2 000 Kč</div>
+      </div>
+    </li>
+    <li>
+      <div>
+        <div class="t">Šestnáct commitů oprav leží nenasazených</div>
+        <div class="d">Atomická rezervace kreditů, zákaznický portál Stripu, automatické refundace, měření nákladů na zákazníka, publikování reels a stories, denní kontrola připravenosti na tržbu. Hotové, otestované, jen ne v produkci.</div>
+        <div class="meta">Já · 1 den včetně ověření</div>
+      </div>
+    </li>
+    <li>
+      <div>
+        <div class="t">Bus factor je jedna</div>
+        <div class="d">Všech 545 commitů má jednoho autora. 75 000 řádků, žádný testovací framework — jen vlastní statické aserce, které ale procházejí. Nezastírat to; je to argument pro to, proč rozhodovací právo patří tomu, kdo to umí udržet.</div>
+        <div class="meta">Řeší se penězi na testy, ne dnes</div>
+      </div>
+    </li>
+  </ol>
+
+  <h3>Co bude chybět, až zákazníci přijdou</h3>
+  <div class="col">
+  <p>Jiná sada problémů: ne „jde to vůbec“, ale „unese to zátěž, nekrade to peníze a nespadne to o víkendu“. Meta App Review (2–8 týdnů lhůty), skutečná COGS na zákazníka (30 dnů měření), automatizované testy nad platební cestou, zátěžový test fronty generování, a onboarding, který zvládne zákazník bez asistence.</p>
+  <p>Nezávislý audit to vyčíslil takhle: <strong>do stavu „můžu vzít peníze od cizího člověka“ 8–12 člověkodnů. Do stavu „obsloužím 100 zákazníků“ 35–50 dnů.</strong> Kritická cesta ale není v člověkodnech — je to App Review u Mety, na který se čeká.</p>
+  </div>
+
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-label">První várka peněz</div>
+    <div class="htext">
+      <h2>Na co a kolik</h2>
+      <p class="sub">Dobrá zpráva do vyjednávání: potřebujeme málo. To je síla, ne slabina — nikdo nemusí prodat podíl za nesmyslnou cenu, protože firma nehoří.</p>
+    </div>
+  </div>
+  <div class="sec-body">
+
+  <h4>A · Jednorázově — abychom vůbec směli prodávat</h4>
+  <div class="tw"><table>
+    <thead><tr><th>Položka</th><th class="num">Kč</th><th>Kdo</th></tr></thead>
+    <tbody>
+      <tr><td>Právník — zpracovatelské smlouvy + revize obchodních podmínek<small>Bez toho prodáváme se smluvní vadou, kterou najde první vážný zákazník.</small></td><td class="num">15–25 000</td><td>Luděk</td></tr>
+      <tr><td>Založení s.r.o. — notář, zápis, správní poplatky</td><td class="num">10–15 000</td><td>Luděk</td></tr>
+      <tr><td>Daňový poradce — forma podnikání, hranice DPH, převod majetku</td><td class="num">5–10 000</td><td>Luděk</td></tr>
+      <tr class="total"><td>Celkem jednorázově</td><td class="num">30–50 000</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <h4>B · Měsíčně — provoz bez jediného platu</h4>
+  <div class="tw"><table>
+    <thead><tr><th>Položka</th><th class="num">Kč/měs</th><th>Pozn.</th></tr></thead>
+    <tbody>
+      <tr><td>upload-post Professional — 25 profilů</td><td class="num">1 060</td><td>50 USD</td></tr>
+      <tr><td>Vercel, Supabase, Sentry, Resend, doména</td><td class="num">~1 500</td><td>běží dnes</td></tr>
+      <tr><td>Scraping profilů při onboardingu</td><td class="num">400–1 100</td><td><span class="pill hold">neověřeno</span></td></tr>
+      <tr><td>Externí účetní</td><td class="num">2 000–3 000</td><td>od založení firmy</td></tr>
+      <tr><td>SMTP a doména na obchodní oslovení</td><td class="num">~500</td><td>viz propagace</td></tr>
+      <tr class="total"><td>Celkem provoz</td><td class="num">5 500–7 200</td><td>bez AI a bez platů</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note">
+    <span class="lbl">Číslo, které si zapamatuj</span>
+    Fixní náklady jsou pod <strong>7 000 Kč měsíčně</strong>. Při marži ~85 % přináší jeden zákazník na Startu ~850 Kč měsíčně. <strong>Devět až deset zákazníků a firma se živí sama.</strong> Sto zákazníků na Růstu je ~300 000 Kč tržby a ~250 000 Kč hrubé marže měsíčně.
+  </div>
+
+  <h4>C · Celková první várka</h4>
+  <div class="col">
+  <p><strong>100 000 až 150 000 Kč.</strong> To pokryje: právo prodávat (A), šest měsíců provozu (B), rozpočet na oslovení zhruba pěti set firem, test generátoru videa a rezervu na to, co se objeví při ostrém testu platby — a něco se objeví vždycky.</p>
+  <p><strong>Žádné platy.</strong> Řekni to nahlas a hned: do prvních tržeb nebere nikdo nic. Když někdo potřebuje být placený od začátku, je to jiná dohoda a jiná čísla — a je lepší to vědět dnes večer než za tři měsíce.</p>
+  </div>
+
+  <div class="note red">
+    <span class="lbl">Otázka, která dnes musí padnout</span>
+    Podle toho, co jsi mi řekl, <strong>ani jeden z nich nepřináší peníze</strong> — Luděk kontakty, komunikaci a administrativu, Hanz dosah a kontakty. Když to tak zůstane, těch 100–150 tisíc financuješ ty, z vlastního. To je legitimní, ale <strong>musí to u stolu zaznít</strong>, protože kdo platí rozjezd, má jiný nárok na podíl než kdo ho neplatí. Zeptej se rovnou: <em>„Kdo do toho dá první peníze?“</em>
+  </div>
+
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-label">Propagace · konkrétní čísla</div>
+    <div class="htext">
+      <h2>E-mail se třemi příspěvky — co to stojí a co k tomu chybí</h2>
+      <p class="sub">Tohle už je postavené. Není to nápad na příští kvartál, je to kód, kterému chybí jedna doména.</p>
+    </div>
+  </div>
+  <div class="sec-body">
+  <div class="col">
+
+  <p>Obchodní pipeline běží ve třech krocích: <strong>kvalifikace</strong> (stáhne web firmy, oboduje, rozhodne, jestli má smysl) → <strong>ukázka</strong> (vygeneruje tři <em>skutečné</em> příspěvky značkou té firmy, z jejího vlastního webu) → <strong>oslovení</strong> (složí zprávu, nechá ji projít kontrolou kvality, odešle). Prospekt se přitom nikdy nestane záznamem v databázi klientů — zákazníkem se stane, až se sám zaregistruje.</p>
+
+  <h4>Cena za oslovení</h4>
+  <div class="tw"><table>
+    <thead><tr><th>Rozsah</th><th class="num">Ukázky</th><th class="num">Cena AI</th><th>Při konverzi 1–3 %</th></tr></thead>
+    <tbody>
+      <tr><td>Jeden prospekt</td><td class="num">3 příspěvky</td><td class="num">18 Kč</td><td>—</td></tr>
+      <tr><td>100 firem</td><td class="num">300</td><td class="num">1 800 Kč</td><td>1–3 zákazníci</td></tr>
+      <tr><td>500 firem</td><td class="num">1 500</td><td class="num">9 000 Kč</td><td>5–15 zákazníků</td></tr>
+      <tr><td>Plný strop, měsíc<small>30 zpráv denně — limit je doručitelnost, ne rozpočet</small></td><td class="num">2 700</td><td class="num">16 200 Kč</td><td>9–27 zákazníků</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><strong>Náklad na získání zákazníka vychází na 600–1 800 Kč</strong> podle konverze. Na tarifu Start (999 Kč, marže ~850 Kč) se to vrátí za jeden až dva měsíce. To je zdravé číslo a je to nejlevnější kanál, jaký máme — vedle Hanze.</p>
+
+  <h4>Co k zapnutí chybí</h4>
+  <p>Jedna věc: <strong>vyhrazená doména a vlastní SMTP poskytovatel.</strong> Nesmí to jít přes Resend, přes který chodí daňové doklady — jejich pravidla studené oslovení výslovně zakazují a účet ruší bez varování. Jedna stížnost by zabila doručování dokladů platícím zákazníkům. Kód to hlídá sám: dokud není nastavená vlastní cesta, neodešle se nic a je to vidět v denním briefu.</p>
+
+  <div class="note">
+    <span class="lbl">Hanzův dosah přebíjí celý ten rozpočet</span>
+    Šest milionů zhlédnutí měsíčně. <strong>Jeden jeho příspěvek s reálnou ukázkou má větší dosah než 900 studených mailů a stojí nula korun.</strong> To je jeho hlavní vklad do firmy — ne kontakty. Kontakty má spousta lidí; distribuci ne. Tohle mu u stolu řekni takhle, protože to je zároveň důvod, proč dostává větší podíl než Luděk.
+  </div>
+
+  </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-label">Rozdělení firmy</div>
+    <div class="htext">
+      <h2>Majorita bez administrativy — jak to udělat</h2>
+      <p class="sub">Chceš rozhodovat a nechceš papíry. To jsou dvě různé věci a každá má vlastní páku. Nezaměňuj je — většina lidí si myslí, že podíl řeší obojí, a pak se diví.</p>
+    </div>
+  </div>
+  <div class="sec-body">
+
+  <div class="col">
+  <h3>Tři páky, které to zařídí</h3>
+  <ul class="plain">
+    <li><strong>Podíl 67 %, ne 51 %.</strong> Změna společenské smlouvy potřebuje dvoutřetinovou většinu. S 51 % ovládáš běžný provoz, ale ne dokumenty, kterými se dá firma přepsat. Sedmašedesát procent je hranice, pod kterou nejdi — je to celý rozdíl mezi „mám hlavní slovo“ a „mám ho, dokud se ti dva nedomluví“.</li>
+    <li><strong>Jednatelem je Luděk, ne ty.</strong> Jednatel podepisuje, jedná s úřady, dělá administrativu. Jmenuje a odvolává ho valná hromada prostou většinou — takže ho máš na vodítku a papíry dělá on. Přesně to, co chceš.</li>
+    <li><strong>Vyhrazené věci ve společenské smlouvě.</strong> Co jednatel nesmí sám: prodat nebo licencovat kód, vzít úvěr, změnit ceník, přijmout zaměstnance, uzavřít jakýkoli závazek nad 50 000 Kč. Bez téhle klauzule může administrativní partner podepsat cokoli a ty se to dozvíš potom.</li>
+  </ul>
+  <p>K tomu <strong>externí účetní</strong> za 2–3 tisíce měsíčně. Administrativu nemá dělat ani jeden z vás — Luďkova role je zákazníci a jednání s úřady, ne účtování dokladů.</p>
+  </div>
+
+  <h3>Návrh, se kterým jdi ke stolu</h3>
+
+  <div class="split">
+    <div class="share mine">
+      <div class="who">Ty</div>
+      <div class="pct">70 %</div>
+      <div class="role">Produkt, technologie, rozhodovací právo. Jediný, kdo umí systém udržet.</div>
+      <div class="vest">Plně splaceno · bez vestingu</div>
+    </div>
+    <div class="share">
+      <div class="who">Hanz</div>
+      <div class="pct">18 %</div>
+      <div class="role">Distribuce (40 tis. sledujících, 6 mil. zhlédnutí měsíčně) a kontakty na podnikatele.</div>
+      <div class="vest">Vesting podle výkonu · 4 roky</div>
+    </div>
+    <div class="share">
+      <div class="who">Luděk</div>
+      <div class="pct">12 %</div>
+      <div class="role">Jednatel, administrativa, komunikace se zákazníky, placené vstupní schůzky.</div>
+      <div class="vest">Vesting časový · 4 roky · cliff 1 rok</div>
+    </div>
+  </div>
+
+  <div class="col">
+  <h4>Věta, kterou to obhájíš</h4>
+  <p>„<strong>Můj podíl je splacený věcí, která existuje. Váš je za práci, kterou teprve uděláte — proto vaše podíly vestují a můj ne.</strong> Vkládám čtrnáct měsíců práce a hotový produkt, který dnes publikuje na ostro. Vy vkládáte slib. To není urážka, je to jenom jiné načasování — a vesting je způsob, jak to srovnat, aniž bych vám musel věřit na slovo.“</p>
+
+  <p>A na rozdíl mezi Hanzem a Luďkem: „<strong>Dosah se nedá koupit, administrativa ano.</strong>“ Za dvanáct procent firmy se dá najmout externí správa na roky. Šest milionů zhlédnutí měsíčně si nekoupíš za žádné peníze, které dnes máme.</p>
+
+  <div class="note">
+    <span class="lbl">Když se u stolu strhne hádka o ten rozdíl</span>
+    Ustup na <strong>70 / 15 / 15</strong> a jdi dál. Tři procenta za klidný stůl je dobrý obchod a ty tři procenta ti nikdy nebudou chybět. <strong>Pod 67 % nejdi ani o půl procenta</strong> — tam už neustupuješ v penězích, ale v tom, jestli firma zůstane tvoje.
+  </div>
+
+  <h4>Podmínky pro každou stranu</h4>
+  </div>
+
+  <div class="tw"><table>
+    <thead><tr><th>Strana</th><th>Co dostane</th><th>Co musí přijmout</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Ty</strong></td>
+        <td>Rozhodovací právo nad vším podstatným. Nulovou administrativu. Produkt se dál vyvíjí podle tebe.</td>
+        <td>Kód a značka přestanou být tvoje osobně — vloží se do firmy. Financuješ rozjezd, dokud někdo jiný nepřinese peníze. A jsi jediný, kdo to umí udržet, takže tvoje nemoc je výpadek firmy.</td>
+      </tr>
+      <tr>
+        <td><strong>Hanz</strong></td>
+        <td>Podíl, který si zvedne výkonem, ne vyjednáváním. První slovo u toho, jak Chrlit vypadá navenek.</td>
+        <td>Měřitelný závazek, ne „mám dosah“: <strong>kolik příspěvků o Chrlitu za první tři měsíce a kdy vyjde první</strong>. Vesting po čtvrtinách za každých 10 přivedených platících zákazníků — do čtyřiceti má celý podíl.</td>
+      </tr>
+      <tr>
+        <td><strong>Luděk</strong></td>
+        <td>Podíl, funkci jednatele a později odměnu za její výkon. Vlastní doménu — zákazníky a provoz.</td>
+        <td>Odpovědnost jednatele je <strong>osobní</strong>, a to je potřeba říct nahlas dřív, než to podepíše. Vyhrazené věci nesmí sám. Vesting běží, jen dokud tu práci opravdu dělá — přestane dělat, přestane vestovat.</td>
+      </tr>
+    </tbody>
+  </table></div>
+
+  <div class="col">
+  <h3>Právní forma — rozhodl jsem to za tebe: s.r.o., a začni tento týden</h3>
+  <p>Neptal jsem se tě na to znovu, protože argumenty jsou jednosměrné:</p>
+  <ul class="plain">
+    <li><strong>Tři lidi nemůžou spoluvlastnit živnost.</strong> Cokoli dnes večer dohodnete, je až do založení firmy nevymahatelné. Je to hezká dohoda, ne právní stav.</li>
+    <li><strong>Živnost, na které to stojí, nekryje software ani reklamu</strong> — prodávat pod ní by bylo neoprávněné podnikání. S.r.o. si obory zapíše rovnou správně a problém zmizí.</li>
+    <li><strong>Hranice DPH dvou milionů se počítá za osobu, ne za činnost.</strong> Dnes se obrat Chrlitu sčítá s obratem květinářství pod stejným IČO. S.r.o. to odděluje.</li>
+    <li><strong>Cena je 10–15 000 Kč a asi dva týdny</strong> — proti tomu, co řeší, je to levné.</li>
+  </ul>
+
+  <div class="note red">
+    <span class="lbl">Tohle vyřeš dřív než rozdělení podílů</span>
+    Chrlit dnes právně patří <strong>IČO 21263990 „Adela Mužátková“</strong> — tedy člověku, který u toho stolu nesedí. Dokud se to nepřevede na firmu, <strong>nemáš co rozdělovat</strong> a jakákoli dnešní dohoda visí na souhlasu čtvrté osoby. Investor nebo vážný zákazník to najde v obchodním rejstříku za minutu. Ať to zazní od tebe: <em>„Majetek je dnes na jiném IČO, převod je součást založení firmy a je to první věc na seznamu.“</em>
+  </div>
+
+  <h4>Co stačí podepsat dnes večer</h4>
+  <p>Jednostránkové memorandum: <strong>kdo má kolik procent, jak to vestuje, kdo je jednatel, kdo platí založení, a do kdy firma vznikne.</strong> Nic víc. Společenskou smlouvu píše právník podle memoranda — když se ho budete snažit napsat dnes ve třech, nedopadne to a hovor skončí bez výsledku.</p>
+  </div>
+
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-label">Po hovoru · 14 dnů</div>
+    <div class="htext">
+      <h2>Kdo dělá co</h2>
+      <p class="sub">Každý sloupec má jednu věc, na které se pozná, jestli ten člověk do firmy patří. Nejsou to úkoly na doplnění — jsou to zkoušky.</p>
+    </div>
+  </div>
+  <div class="sec-body">
+
+  <div class="board">
+    <div class="lane">
+      <div class="name">Ty</div>
+      <div class="job">Produkt · peníze na účet</div>
+      <ul>
+        <li><b>Aktivovat ostrý Stripe</b> a zaplatit sám sobě 999 Kč vlastní kartou — celý řetěz od pokladny po daňový doklad.<span class="when">Zkouška sloupce · do 7 dnů</span></li>
+        <li><b>upload-post Professional</b> — 25 profilů, dřív než přijde třetí zákazník.<span class="when">do 3 dnů</span></li>
+        <li>Rotovat uniklý token k Metě.<span class="when">do 3 dnů</span></li>
+        <li>Nasadit šestnáct commitů oprav, které leží na větvi.<span class="when">do 7 dnů</span></li>
+        <li>Cookie lišta a narovnání zásad ochrany údajů.<span class="when">do 14 dnů</span></li>
+        <li>Podle Hanzova verdiktu: buď zapnout reels, nebo je z tarifů odebrat.<span class="when">do 10 dnů</span></li>
+      </ul>
+    </div>
+    <div class="lane">
+      <div class="name">Hanz</div>
+      <div class="job">Distribuce · kvalita videa</div>
+      <ul>
+        <li><b>Deset konkrétních jmen</b> podnikatelů s webem a mrtvým Instagramem. Ne „mám kontakty“ — seznam.<span class="when">Zkouška sloupce · do 7 dnů</span></li>
+        <li><b>Jeden příspěvek nebo story o Chrlitu</b> s reálnou ukázkou pro nějakou značku. Nejlevnější akvizice, jakou firma má.<span class="when">do 14 dnů</span></li>
+        <li><b>Verdikt na reels.</b> Otestovat higgsfield proti dnešnímu generátoru a rozhodnout, jestli je kvalita prodejná. On ví, jak vypadá dobré video — proto to rozhoduje on, ne já.<span class="when">7 dnů · rozpočet 2 000 Kč</span></li>
+      </ul>
+    </div>
+    <div class="lane">
+      <div class="name">Luděk</div>
+      <div class="job">Firma · zákazníci · úřady</div>
+      <ul>
+        <li><b>Sehnat notáře a založit s.r.o.</b>, včetně převodu majetku z živnosti.<span class="when">Zkouška sloupce · do 14 dnů</span></li>
+        <li>Právník na zpracovatelské smlouvy a revizi obchodních podmínek.<span class="when">do 14 dnů</span></li>
+        <li>Daňový poradce: forma, hranice DPH, převod nákladů.<span class="when">do 14 dnů</span></li>
+        <li><b>Převzít placené vstupní schůzky</b> (999 Kč, „Nastavení značky na míru“). Rezervace, videohovor i automaticky generovaný podklad jsou hotové — chybí jen člověk, který u toho bude sedět.<span class="when">hned, jak přijde první</span></li>
+        <li>Ozvat se třem lidem z waitlistu, kteří tam čekají od 25. července.<span class="when">do 3 dnů</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="col">
+  <div class="note">
+    <span class="lbl">Proč jsou to zkoušky</span>
+    Za čtrnáct dní budeš vědět víc než z celého dnešního hovoru. Kdo svůj první úkol neudělá, ten ho neudělá ani za rok — a to je přesně ta informace, kvůli které vesting existuje. Nemusíš to u stolu říkat nahlas; stačí, že to víš.
+  </div>
+  </div>
+
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-label">Ptej se ty</div>
+    <div class="htext">
+      <h2>Pět otázek, které dnes musí padnout</h2>
+      <p class="sub">Chceš odejít s dohodou. Tyhle otázky rozhodují, jestli je na čem dohodu stavět — polož je dřív, než se začnou dohadovat procenta.</p>
+    </div>
+  </div>
+  <div class="sec-body">
+
+  <ol class="ask">
+    <li>
+      <div class="qq">Kdo dá první peníze na rozjezd — a když nikdo, souhlasíte, že je dám já?</div>
+      <div class="why">Jde o 100–150 tisíc. Kdo platí rozjezd, má jiný nárok na podíl. Tohle nesmí zůstat nedořečené.</div>
+    </li>
+    <li>
+      <div class="qq">Hanzi, kolik příspěvků o Chrlitu uděláš za první tři měsíce a kdy vyjde první?</div>
+      <div class="why">Dosah bez závazku není vklad. Konkrétní číslo a datum, nebo je to jen hezky znějící slib.</div>
+    </li>
+    <li>
+      <div class="qq">Luďku, jsi ochotný být jednatel? Víš, že za to ručíš osobně?</div>
+      <div class="why">Celá konstrukce „já rozhoduju, on dělá papíry“ stojí na tomhle „ano“. Když zaváhá, potřebuješ jiný plán.</div>
+    </li>
+    <li>
+      <div class="qq">Souhlasíte, že vaše podíly vestují a můj ne?</div>
+      <div class="why">Jádro celé dohody. Když tohle neprojde, nejednáte o spolupráci, ale o tom, kolik ti z tvojí práce zbude.</div>
+    </li>
+    <li>
+      <div class="qq">Co se stane, když do tří měsíců nebude ani jeden platící zákazník — kdo odchází a s čím?</div>
+      <div class="why">Nejlepší čas domluvit se na rozchodu je před svatbou. Odpověď ti taky ukáže, jak vážně to oba myslí.</div>
+    </li>
+  </ol>
+
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-label">Připravené odpovědi</div>
+    <div class="htext">
+      <h2>Co se tě zeptají a co na to</h2>
+      <p class="sub">Přečti si to jednou před hovorem. Nejde o to říct to doslova — jde o to, aby tě žádná z nich nezaskočila.</p>
+    </div>
+  </div>
+  <div class="sec-body">
+
+  <div class="qa">
+    <div class="row">
+      <div class="q">Kolik máte zákazníků?</div>
+      <div class="a"><b>Zvenčí nula.</b> Dva vlastní účty, tři zkušební, tři lidi na waitlistu od července. Produkt publikuje na ostro na cizí profil, ale peníze zatím brát neumíme — to je dvoudenní práce plus aktivace účtu u Stripu. Nezastírám to, protože je to ohraničený úkol, ne díra v produktu.</div>
+    </div>
+    <div class="row">
+      <div class="q">Tak proč to ještě neprodáváte?</div>
+      <div class="a">Protože živnost, na které to dnes stojí, software ani reklamu nekryje. Prodávat pod ní by bylo neoprávněné podnikání. <b>Proto zakládáme firmu — je to první úkol z dnešního hovoru</b>, ne odklad.</div>
+    </div>
+    <div class="row">
+      <div class="q">Proč bys měl mít sedmdesát procent?</div>
+      <div class="a">Protože vkládám věc, která existuje a stála čtrnáct měsíců práce, a vy vkládáte práci, kterou teprve uděláte. <b>Vaše podíly vestují, můj ne</b> — to je ta symetrie. A druhý důvod: jsem jediný, kdo ten systém umí udržet. Rozhodovací právo musí být tam, kde je schopnost to dodělat.</div>
+    </div>
+    <div class="row">
+      <div class="q">Co když tě přejede autobus?</div>
+      <div class="a">Rozbije se to a nebudu předstírat opak — všech 545 commitů má jednoho autora. Proto jsou první peníze mimo jiné na testy a na dokumentaci. <b>Je to argument pro rozhodovací právo, ne proti němu:</b> riziko nese ten, kdo ho umí snížit.</div>
+    </div>
+    <div class="row">
+      <div class="q">Neudělá to za rok Meta nebo OpenAI zadarmo?</div>
+      <div class="a">V češtině, s typografií v obraze a s publikováním na cizí účty ne — to je práce, kterou globální hráč pro devět milionů lidí dělat nebude. A i kdyby, je to riziko každého v tomhle oboru. <b>Naše výhoda je jazyk a rychlost, ne že to nikdo jiný neumí.</b></div>
+    </div>
+    <div class="row">
+      <div class="q">Kolik na tom vyděláme?</div>
+      <div class="a">Fixní náklady jsou pod 7 000 Kč měsíčně, takže <b>deset zákazníků a firma se živí sama</b>. Sto zákazníků na prostředním tarifu je ~300 000 Kč tržby a ~250 000 Kč hrubé marže měsíčně. Marže na příspěvek je změřená a je 78–88 %; marže na zákazníka změřená není a do třiceti dnů bude.</div>
+    </div>
+    <div class="row">
+      <div class="q">Jak dlouho do první koruny?</div>
+      <div class="a">Rozhoduje aktivace platebního účtu, což je externí lhůta ve dnech. <b>Realisticky dva až tři týdny</b> od dneška k první ostré platbě — a první platba bude moje vlastní kartou, protože to je jediný způsob, jak si ověřit, že celý řetěz včetně daňového dokladu opravdu funguje.</div>
+    </div>
+  </div>
+
+  </div>
+</section>
+
+<footer>
+  Podklad sestavený 3. 9. 2026 z kódu, migrací a nezávislého technického due diligence (docs/audit-stav-projektu.md).<br>
+  Čísla označená „neověřeno“ pocházejí z odhadu, ne z měření — u stolu je tak i podávej.
+</footer>
+
+</div>
