@@ -233,6 +233,31 @@ td small { display: block; color: var(--ink-3); font-size: 12.5px; line-height: 
   text-transform: uppercase; color: var(--ink-3);
   margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--rule-soft);
 }
+.share .cash {
+  font-size: 13px; color: var(--go); font-weight: 500;
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule-soft);
+  line-height: 1.4;
+}
+
+/* waterfall */
+ol.fall { list-style: none; margin: 18px 0; padding: 0; counter-reset: f; }
+ol.fall > li {
+  counter-increment: f; position: relative;
+  background: var(--surface); border: 1px solid var(--rule);
+  border-left: 3px solid var(--go);
+  padding: 14px 18px 14px 54px; margin-bottom: 6px;
+}
+ol.fall > li::before {
+  content: counter(f); position: absolute; left: 16px; top: 14px;
+  font-family: var(--mono); font-weight: 600; font-size: 12px; color: var(--surface);
+  background: var(--go); width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center;
+}
+ol.fall .t {
+  font-family: var(--cond); font-weight: 700; font-size: 17px;
+  letter-spacing: -.01em; margin-bottom: 3px; line-height: 1.25;
+}
+ol.fall .d { font-size: 14.5px; color: var(--ink-2); line-height: 1.5; }
 
 .board {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -292,11 +317,13 @@ ol.ask .why { font-size: 13.5px; color: var(--ink-3); line-height: 1.45; }
   font-size: 14.5px; line-height: 1.55; max-width: 76ch;
 }
 .note.red { border-left-color: var(--stamp); background: var(--stamp-bg); }
+.note.green { border-left-color: var(--go); background: var(--go-bg); }
 .note .lbl {
   font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .14em;
   text-transform: uppercase; color: var(--hold); display: block; margin-bottom: 6px;
 }
 .note.red .lbl { color: var(--stamp); }
+.note.green .lbl { color: var(--go); }
 
 ul.plain { list-style: none; margin: 0 0 14px; padding: 0; max-width: 74ch; }
 ul.plain li {
@@ -306,6 +333,18 @@ ul.plain li {
 ul.plain li::before {
   content: "›"; position: absolute; left: 2px; top: 7px;
   color: var(--ink-3); font-family: var(--mono);
+}
+
+ol.setup { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+ol.setup li {
+  counter-increment: s; position: relative; padding: 12px 0 12px 42px;
+  border-bottom: 1px solid var(--rule-soft); font-size: 15px; line-height: 1.5;
+}
+ol.setup li::before {
+  content: counter(s); position: absolute; left: 0; top: 13px;
+  font-family: var(--mono); font-weight: 600; font-size: 11.5px; color: var(--ink-3);
+  border: 1px solid var(--rule); width: 26px; height: 26px; border-radius: 2px;
+  display: grid; place-items: center; background: var(--surface);
 }
 
 footer {
@@ -328,7 +367,7 @@ a:focus-visible { outline: 2px solid var(--stamp); outline-offset: 3px; }
 </style>
 
 <div class="bar">
-  <span class="clock">Hovor · dnes 20:00 · ve třech</span>
+  <span class="clock">Podklad · aktualizováno</span>
   <span class="thesis">Produkt je hotový a publikuje na ostro. Chybí právo brát peníze a lidi, kteří seženou zákazníky.</span>
 </div>
 
@@ -340,18 +379,216 @@ a:focus-visible { outline: 2px solid var(--stamp); outline-offset: 3px; }
 
   <div class="opener">
     <span class="tag">Čím hovor otevřít</span>
-    <q>Postavil jsem celý produkt, publikuje na ostro na cizí instagramový účet a marže sedí. Neumím ale ještě vzít peníze a neumím sehnat zákazníky — a přesně na to jste tady vy dva. Chci dneska dohodnout podíly a rozjet to.</q>
+    <q>Postavil jsem celý produkt, publikuje na ostro na cizí instagramový účet a marže sedí. Dal jsem do toho 350 tisíc vlastních a devět měsíců denní práce. Neumím ale ještě vzít peníze a neumím sehnat zákazníky — a přesně na to jste tady vy dva.</q>
   </div>
 
   <div class="stats">
-    <div class="stat"><div class="n">75&nbsp;000</div><div class="l">řádků kódu, 545 commitů, build zelený</div></div>
+    <div class="stat"><div class="n">350&nbsp;000</div><div class="l">Kč tvých vlastních, už utracených</div></div>
+    <div class="stat"><div class="n">~1&nbsp;350</div><div class="l">hodin práce · 9 měsíců, 4–6 h denně</div></div>
     <div class="stat good"><div class="n">78–88 %</div><div class="l">hrubá marže na jeden příspěvek (změřená)</div></div>
     <div class="stat bad"><div class="n">0</div><div class="l">platících zákazníků zvenčí · 0 transakcí</div></div>
-    <div class="stat bad"><div class="n">2</div><div class="l">strop profilů u dodavatele publikování</div></div>
-    <div class="stat"><div class="n">~10</div><div class="l">zákazníků pokryje všechny fixní náklady</div></div>
+    <div class="stat"><div class="n">~11</div><div class="l">zákazníků pokryje všechny fixní náklady</div></div>
   </div>
 </div>
 
+<!-- ============ ROZDĚLENÍ — nahoru, je to jádro hovoru ============ -->
+<section>
+  <div class="sec-head">
+    <div class="sec-label">Jádro dohody</div>
+    <div class="htext">
+      <h2>Kdo kolik vlastní a kdo kolik bere</h2>
+      <p class="sub">Tři věci, které se běžně slepí dohromady a pak z toho vzniká hádka: <strong>vlastnictví</strong>, <strong>vrácení vložených peněz</strong> a <strong>odměna za práci</strong>. Rozděl je hned na začátku a zbytek jednání je snadný.</p>
+    </div>
+  </div>
+  <div class="sec-body">
+
+  <div class="split">
+    <div class="share mine">
+      <div class="who">Ty</div>
+      <div class="pct">70 %</div>
+      <div class="role">Produkt, vývoj, know-how, rozhodovací právo. Jediný, kdo umí systém udržet a stavět dál.</div>
+      <div class="cash">+ vrácených 350 000 Kč ze zisku</div>
+      <div class="vest">Plně splaceno · bez vestingu</div>
+    </div>
+    <div class="share">
+      <div class="who">Hanz</div>
+      <div class="pct">23 %</div>
+      <div class="role">Kapitál na provoz a vývoj, dosah (40 tis. sledujících, 6 mil. zhlédnutí měsíčně), kontakty na podnikatele.</div>
+      <div class="cash">+ vrácený vklad s prémií 1,2×</div>
+      <div class="vest">Vesting podle výkonu · 4 roky</div>
+    </div>
+    <div class="share">
+      <div class="who">Luděk</div>
+      <div class="pct">7 %</div>
+      <div class="role">Jednatel, administrativa, komunikace se zákazníky, placené vstupní schůzky.</div>
+      <div class="cash">+ 20 % z každého klienta, kterého odbavuje</div>
+      <div class="vest">Vesting časový · 4 roky · cliff 1 rok</div>
+    </div>
+  </div>
+
+  <div class="col">
+
+  <div class="note green">
+    <span class="lbl">Proč má Luděk nejmíň procent a přesto vydělá nejdřív</span>
+    Protože jeho práce je <strong>opakovaná a měřitelná</strong> — každý měsíc odbavuje konkrétní klienty. Taková práce se platí průběžně, ne slibem. Dostane <strong>míň papíru a víc peněz</strong>, a to je pro něj v prvních dvou letech výhodnější: podíl je slib, provize chodí každý měsíc. U stolu to řekni přesně takhle, protože to není trik — je to pravda a on si to spočítá.
+  </div>
+
+  <h3>Peníze do firmy jdou jako <em>zápůjčka</em>, ne jako podíl</h3>
+  <p>Tohle je nejdůležitější věta celé dohody. Kdyby tvých 350 tisíc bylo „zaplaceno podílem“, kupuješ si za vlastní peníze vlastní procenta — <strong>platíš dvakrát</strong>. Když jsou to zápůjčky, firma je splatí z prvních zisků a podíly se dělí jen podle toho, co penězi není.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Kdo</th><th class="num">Vklad</th><th>Forma</th><th>Jak se vrací</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Ty</strong></td><td class="num">350 000 Kč</td><td>Zápůjčka, bezúročná</td><td>Ze zisku, přednostně před dividendou</td></tr>
+      <tr><td><strong>Hanz</strong></td><td class="num">200–500 000 Kč</td><td>Zápůjčka s prémií za riziko</td><td>Vrátí se mu <strong>1,2×</strong> vložené částky (nebo úrok ~8 % p.a.)</td></tr>
+      <tr class="total"><td>Kapitál firmy</td><td class="num">550–850 000 Kč</td><td>Bez ředění podílů</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <p><strong>Proč Hanz dostane prémii, a ne procenta navíc:</strong> riskuje hotovost a to se musí zaplatit. Ale zaplatí se to <em>penězi</em>, ne kusem firmy — jinak by ti 300 tisíc sebralo kontrolu, kterou potřebuješ, abys to vůbec dostavěl.</p>
+
+  <div class="note">
+    <span class="lbl">Věta, kterou to u stolu obhájíš — a je doslova pravdivá</span>
+    „<strong>Dávám do toho víc peněz než ty</strong> — 350 proti tvým 300 — <strong>a k tomu devět měsíců denní práce a hotový produkt. Obě půjčky se vrátí úplně stejně.</strong> Podíly dělíme za to, co penězi není: u mě produkt a vývoj, u tebe dosah, u Luďka provoz.“
+  </div>
+
+  <h3>Tvůj skutečný dosavadní vklad — číslo, které musí zaznít</h3>
+  </div>
+
+  <div class="tw"><table>
+    <thead><tr><th>Co</th><th class="num">Hodnota</th><th>Jak je to spočítané</th></tr></thead>
+    <tbody>
+      <tr><td>Hotovost, už utracená</td><td class="num">350 000 Kč</td><td>tvoje vlastní peníze</td></tr>
+      <tr><td>Práce</td><td class="num">~1 215 000 Kč</td><td>~1 350 h (9 měs. × 5 h denně) × 900 Kč/h</td></tr>
+      <tr class="total"><td>Prokazatelný vklad</td><td class="num">~1 565 000 Kč</td><td>bez ocenění produktu a know-how</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="col">
+  <p>Hanz vkládá 200–500 tisíc. Ty jsi vložil <strong>trojnásobek až osminásobek</strong> a produkt navíc funguje. Tohle číslo je tvoje nejsilnější karta a doteď jsi ho nikdy neřekl nahlas.</p>
+
+  <div class="note red">
+    <span class="lbl">Podlaha, pod kterou se nejde</span>
+    <strong>67 %.</strong> Změna společenské smlouvy potřebuje dvoutřetinovou většinu — s 51 % ovládáš provoz, ale ti dva se můžou domluvit a firmu ti přepsat. Návrh 70 / 23 / 7 ti dává tři procenta rezervy na vyjednávání. Když bude Hanz tlačit, ustup nejdřív z Luďkových procent (má za ně provizi), pak ze svých max. na 67 — a tam skonči.
+  </div>
+  </div>
+
+  </div>
+</section>
+
+<!-- ============ ZISK ============ -->
+<section>
+  <div class="sec-head">
+    <div class="sec-label">Rozdělení zisku</div>
+    <div class="htext">
+      <h2>Zisk se nedělí podle podílů — aspoň ne hned</h2>
+      <p class="sub">Čtyři patra, vždy v tomhle pořadí. Dokud není nižší patro plné, do vyššího nic neteče.</p>
+    </div>
+  </div>
+  <div class="sec-body">
+
+  <ol class="fall">
+    <li>
+      <div class="t">Provoz a rezerva</div>
+      <div class="d">Firma nejdřív zaplatí své náklady a nechá si <strong>20 % rezervu</strong> na účtu. Než je tohle pokryté, nerozděluje se nic. Bez rezervy stačí jeden zpožděný zákazník a firma nemá na Vercel.</div>
+    </li>
+    <li>
+      <div class="t">Odměna za skutečně odvedenou práci — jako NÁKLAD</div>
+      <div class="d"><strong>Tohle je nejdůležitější pravidlo celé dohody.</strong> Luďkova provize z klientů a odměna jednatele, tvoje vývojářská odměna, Hanzova odměna za placené kampaně. Kdyby se práce platila ze zisku, ten kdo dělá nejvíc dotuje ty ostatní — a to jsi ty.</div>
+    </li>
+    <li>
+      <div class="t">Splátky vkladů — tobě a Hanzovi poměrně</div>
+      <div class="d">Dokud nejsou vklady splacené, jde <strong>60 % rozdělitelného zisku na splátky</strong> a 40 % se dělí podle podílů. Nikdo tak nečeká roky s nulou a kapitál se vrací rychle. Splácí se v poměru vložených částek.</div>
+    </li>
+    <li>
+      <div class="t">Zbytek podle podílů: 70 / 23 / 7</div>
+      <div class="d">Po splacení vkladů se rozděluje celý zisk podle podílů. Od té chvíle je to normální firma.</div>
+    </li>
+  </ol>
+
+  <div class="col">
+  <p><strong>Jednoduchá věta, kterou to řekneš:</strong> „Práce se platí jako náklad, vklady se vracejí přednostně, a teprve co zbyde je zisk. Do splacení vkladů jde na splátky šedesát procent a čtyřicet se dělí normálně.“</p>
+  </div>
+
+  <h3>Luďkova provize — konkrétní čísla</h3>
+  <div class="col">
+  <p>Dvě složky, obě vázané na jeho skutečnou práci:</p>
+  <ul class="plain">
+    <li><strong>Vstupní konzultace 999 Kč = celá jemu.</strong> Je to jeho hovor, jeho čas. Firma z ní nic nechce — účel té platby je filtr proti neúčasti, ne tržba.</li>
+    <li><strong>20 % z měsíčního předplatného</strong> každého klienta, kterého odbavuje, po celou dobu, co ho odbavuje. Přestane ho odbavovat → provize končí. Vynucuje se to samo.</li>
+    <li><strong>Odměna jednatele</strong> zvlášť, symbolicky (~5 000 Kč/měs), jakmile to tržby unesou. Je to za osobní odpovědnost, ne za klientskou práci.</li>
+  </ul>
+  </div>
+
+  <div class="tw"><table>
+    <thead><tr><th>Tarif</th><th class="num">Cena</th><th class="num">Luďkovi (20 %)</th><th class="num">COGS</th><th class="num">Zbyde firmě</th></tr></thead>
+    <tbody>
+      <tr><td>Start</td><td class="num">999</td><td class="num">200</td><td class="num">153</td><td class="num">646</td></tr>
+      <tr><td>Růst</td><td class="num">2 999</td><td class="num">600</td><td class="num">534</td><td class="num">1 865</td></tr>
+      <tr><td>Dominance</td><td class="num">4 999</td><td class="num">1 000</td><td class="num">992</td><td class="num">3 007</td></tr>
+      <tr><td>Impérium</td><td class="num">8 999</td><td class="num">1 800</td><td class="num">1 984</td><td class="num">5 215</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="col">
+  <p>Provize posouvá bod zlomu z devíti zákazníků na <strong>jedenáct</strong>. To je přijatelná cena za to, že klientskou práci nemusíš dělat ty.</p>
+  </div>
+
+  <h4>Co si tím Luděk vydělá</h4>
+  <div class="tw"><table>
+    <thead><tr><th class="num">Klientů</th><th class="num">Prům. tarif</th><th class="num">Provize/měs</th><th class="num">+ konzultace</th><th class="num">Celkem/měs</th></tr></thead>
+    <tbody>
+      <tr><td class="num">20</td><td class="num">2 000</td><td class="num">8 000</td><td class="num">~5 000</td><td class="num">13 000</td></tr>
+      <tr><td class="num">50</td><td class="num">2 500</td><td class="num">25 000</td><td class="num">~10 000</td><td class="num">35 000</td></tr>
+      <tr><td class="num">100</td><td class="num">2 500</td><td class="num">50 000</td><td class="num">~10 000</td><td class="num">60 000</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="col">
+  <div class="note">
+    <span class="lbl">Tohle mu ukaž, když bude protestovat proti sedmi procentům</span>
+    Při stovce zákazníků má z provizí <strong>60 000 Kč měsíčně</strong>. Kdyby místo toho měl 12 % a žádnou provizi, dostal by z dividend zlomek toho — a až za roky, protože nejdřív se splácejí vklady. <strong>Vyměnil pět procent papíru za plat.</strong> To je pro něj lepší obchod a on to po téhle tabulce uvidí.
+  </div>
+  </div>
+
+  </div>
+</section>
+
+<!-- ============ FIREMNÍ NASTAVENÍ ============ -->
+<section>
+  <div class="sec-head">
+    <div class="sec-label">Nastavení firmy</div>
+    <div class="htext">
+      <h2>Deset bodů do memoranda</h2>
+      <p class="sub">Dnes večer podepište jednu stránku s těmihle body. Společenskou smlouvu píše právník podle nich — když ji budete psát ve třech, hovor skončí bez výsledku.</p>
+    </div>
+  </div>
+  <div class="sec-body">
+
+  <ol class="setup">
+    <li><strong>s.r.o.</strong>, základní kapitál 100 000 Kč splacený v poměru podílů. Provozní peníze jdou <strong>zápůjčkou</strong>, ne kapitálem — kapitál se z firmy dostává ven špatně, půjčka snadno.</li>
+    <li><strong>Podíly 70 / 23 / 7</strong>, jeden druh podílu. Sedmdesát procent ti dává i dvoutřetinovou většinu, takže nepotřebuješ žádné exotické třídy podílů.</li>
+    <li><strong>Jednatel Luděk</strong>, samostatně jednající. Ty nejsi jednatel — proto neděláš papíry.</li>
+    <li><strong>Vyhrazené věci</strong> jen se souhlasem valné hromady: prodej nebo licence kódu a značky, úvěr, jakýkoli závazek nad 50 000 Kč, změna ceníku, přijetí zaměstnance, prodej podílu třetí osobě. Bez téhle klauzule může jednatel podepsat cokoli a ty se to dozvíš potom.</li>
+    <li><strong>Písemné smlouvy o zápůjčce</strong> na obě částky, se splátkovým pravidlem ze čtvrtého patra. Bez papíru je to daňová i právní díra.</li>
+    <li><strong>Smlouva o Luďkově provizi</strong> — 20 % z předplatného odbavovaných klientů + celá vstupní konzultace, vázané na to, že tu práci opravdu dělá.</li>
+    <li><strong>Vesting:</strong> Hanz a Luděk 4 roky, cliff 12 měsíců, po čtvrtinách. Ty bez vestingu. Kdo odejde před cliffem, firma odkoupí jeho podíl za 1 Kč.</li>
+    <li><strong>Předkupní právo</strong> ostatních společníků a <strong>zákaz konkurence</strong> po dobu účasti a rok po ní.</li>
+    <li><strong>Smlouva o převodu</strong> kódu, značky a domény od ségry na s.r.o. Písemně, i v rodině — neformální dohoda o majetku se při první valuaci mění ve spor.</li>
+    <li><strong>Externí účetní</strong> za 2–3 tisíce měsíčně. Administrativu nedělá ani jeden z vás.</li>
+  </ol>
+
+  <div class="col">
+  <div class="note red">
+    <span class="lbl">Bez tohohle se nedá prodávat</span>
+    Chrlit dnes stojí na <strong>IČO 21263990</strong>, jehož zapsané obory jsou květinářské — <strong>živnost nekryje software ani reklamu</strong>, takže prodej pod ní by byl neoprávněné podnikání. S.r.o. si obory zapíše rovnou správně. Zároveň se tím oddělí hranice DPH, která se dnes Chrlitu sčítá s obratem květinářství. <strong>Dokud firma nevznikne, neprodáváme.</strong>
+  </div>
+  </div>
+
+  </div>
+</section>
+
+<!-- ============ CO ŘÍCT PRVNÍ ============ -->
 <section>
   <div class="sec-head">
     <div class="sec-label">Prvních pět minut</div>
@@ -380,6 +617,7 @@ a:focus-visible { outline: 2px solid var(--stamp); outline-offset: 3px; }
   </div>
 </section>
 
+<!-- ============ AKTIVA ============ -->
 <section>
   <div class="sec-head">
     <div class="sec-label">Aktiva</div>
@@ -404,12 +642,13 @@ a:focus-visible { outline: 2px solid var(--stamp); outline-offset: 3px; }
   </ul>
 
   <h4>Co už běží samo, aniž by u toho někdo seděl</h4>
-  <p>Denní brief zakladateli, kontrola zdraví systému, hlídání daňových lhůt, dorovnávání zásobníku nápadů, oznámení zákazníkovi při selhání publikace, a <strong>hotová obchodní pipeline</strong> (kvalifikace leadu → ukázka → oslovení). Ta poslední je zajímavá pro dnešek — vrátím se k ní u propagace.</p>
+  <p>Denní brief zakladateli, kontrola zdraví systému, hlídání daňových lhůt, dorovnávání zásobníku nápadů, oznámení zákazníkovi při selhání publikace, a <strong>hotová obchodní pipeline</strong> (kvalifikace leadu → ukázka → oslovení).</p>
 
   </div>
   </div>
 </section>
 
+<!-- ============ BRZDY ============ -->
 <section>
   <div class="sec-head">
     <div class="sec-label">Brzdy · řazeno podle toho, co blokuje první</div>
@@ -495,23 +734,24 @@ a:focus-visible { outline: 2px solid var(--stamp); outline-offset: 3px; }
   </div>
 </section>
 
+<!-- ============ PENÍZE ============ -->
 <section>
   <div class="sec-head">
-    <div class="sec-label">První várka peněz</div>
+    <div class="sec-label">Na co půjdou peníze</div>
     <div class="htext">
-      <h2>Na co a kolik</h2>
-      <p class="sub">Dobrá zpráva do vyjednávání: potřebujeme málo. To je síla, ne slabina — nikdo nemusí prodat podíl za nesmyslnou cenu, protože firma nehoří.</p>
+      <h2>Rozpočet první várky</h2>
+      <p class="sub">Hanzových 200–500 tisíc pokryje tohle celé s velkou rezervou. Firma nehoří — a to je vyjednávací výhoda, ne slabina.</p>
     </div>
   </div>
   <div class="sec-body">
 
   <h4>A · Jednorázově — abychom vůbec směli prodávat</h4>
   <div class="tw"><table>
-    <thead><tr><th>Položka</th><th class="num">Kč</th><th>Kdo</th></tr></thead>
+    <thead><tr><th>Položka</th><th class="num">Kč</th><th>Kdo to zařídí</th></tr></thead>
     <tbody>
       <tr><td>Právník — zpracovatelské smlouvy + revize obchodních podmínek<small>Bez toho prodáváme se smluvní vadou, kterou najde první vážný zákazník.</small></td><td class="num">15–25 000</td><td>Luděk</td></tr>
       <tr><td>Založení s.r.o. — notář, zápis, správní poplatky</td><td class="num">10–15 000</td><td>Luděk</td></tr>
-      <tr><td>Daňový poradce — forma podnikání, hranice DPH, převod majetku</td><td class="num">5–10 000</td><td>Luděk</td></tr>
+      <tr><td>Daňový poradce — forma, hranice DPH, převod majetku od ségry</td><td class="num">5–10 000</td><td>Luděk</td></tr>
       <tr class="total"><td>Celkem jednorázově</td><td class="num">30–50 000</td><td></td></tr>
     </tbody>
   </table></div>
@@ -529,25 +769,20 @@ a:focus-visible { outline: 2px solid var(--stamp); outline-offset: 3px; }
     </tbody>
   </table></div>
 
-  <div class="note">
+  <div class="note green">
     <span class="lbl">Číslo, které si zapamatuj</span>
-    Fixní náklady jsou pod <strong>7 000 Kč měsíčně</strong>. Při marži ~85 % přináší jeden zákazník na Startu ~850 Kč měsíčně. <strong>Devět až deset zákazníků a firma se živí sama.</strong> Sto zákazníků na Růstu je ~300 000 Kč tržby a ~250 000 Kč hrubé marže měsíčně.
+    Fixní náklady jsou pod <strong>7 000 Kč měsíčně</strong>. Po Luďkově provizi zbývá firmě ze Startu ~646 Kč na zákazníka, takže <strong>jedenáct zákazníků a firma se živí sama</strong>. Sto zákazníků na prostředním tarifu je ~300 000 Kč tržby měsíčně.
   </div>
 
-  <h4>C · Celková první várka</h4>
   <div class="col">
-  <p><strong>100 000 až 150 000 Kč.</strong> To pokryje: právo prodávat (A), šest měsíců provozu (B), rozpočet na oslovení zhruba pěti set firem, test generátoru videa a rezervu na to, co se objeví při ostrém testu platby — a něco se objeví vždycky.</p>
-  <p><strong>Žádné platy.</strong> Řekni to nahlas a hned: do prvních tržeb nebere nikdo nic. Když někdo potřebuje být placený od začátku, je to jiná dohoda a jiná čísla — a je lepší to vědět dnes večer než za tři měsíce.</p>
-  </div>
-
-  <div class="note red">
-    <span class="lbl">Otázka, která dnes musí padnout</span>
-    Podle toho, co jsi mi řekl, <strong>ani jeden z nich nepřináší peníze</strong> — Luděk kontakty, komunikaci a administrativu, Hanz dosah a kontakty. Když to tak zůstane, těch 100–150 tisíc financuješ ty, z vlastního. To je legitimní, ale <strong>musí to u stolu zaznít</strong>, protože kdo platí rozjezd, má jiný nárok na podíl než kdo ho neplatí. Zeptej se rovnou: <em>„Kdo do toho dá první peníze?“</em>
+  <p><strong>Celková potřeba: 100–150 tisíc na prvních šest měsíců</strong> — právo prodávat, provoz, rozpočet na oslovení pěti set firem, test generátoru videa a rezerva na to, co se objeví při ostrém testu platby. Hanzův vklad to pokrývá s přehledem; zbytek zůstane jako polštář.</p>
+  <p><strong>Žádné platy do prvních tržeb.</strong> Řekni to nahlas a hned. Ty svou vývojářskou odměnu <strong>odkládáš, dokud nejsou splacené vklady</strong> — to je konkrétní podoba toho, že ti nevadí vydělávat míň, a u stolu to má váhu.</p>
   </div>
 
   </div>
 </section>
 
+<!-- ============ PROPAGACE ============ -->
 <section>
   <div class="sec-head">
     <div class="sec-label">Propagace · konkrétní čísla</div>
@@ -572,120 +807,21 @@ a:focus-visible { outline: 2px solid var(--stamp); outline-offset: 3px; }
     </tbody>
   </table></div>
 
-  <p><strong>Náklad na získání zákazníka vychází na 600–1 800 Kč</strong> podle konverze. Na tarifu Start (999 Kč, marže ~850 Kč) se to vrátí za jeden až dva měsíce. To je zdravé číslo a je to nejlevnější kanál, jaký máme — vedle Hanze.</p>
+  <p><strong>Náklad na získání zákazníka vychází na 600–1 800 Kč</strong> podle konverze. Na tarifu Start se to vrátí za jeden až dva měsíce. To je zdravé číslo a je to nejlevnější kanál, jaký máme — vedle Hanze.</p>
 
   <h4>Co k zapnutí chybí</h4>
   <p>Jedna věc: <strong>vyhrazená doména a vlastní SMTP poskytovatel.</strong> Nesmí to jít přes Resend, přes který chodí daňové doklady — jejich pravidla studené oslovení výslovně zakazují a účet ruší bez varování. Jedna stížnost by zabila doručování dokladů platícím zákazníkům. Kód to hlídá sám: dokud není nastavená vlastní cesta, neodešle se nic a je to vidět v denním briefu.</p>
 
   <div class="note">
     <span class="lbl">Hanzův dosah přebíjí celý ten rozpočet</span>
-    Šest milionů zhlédnutí měsíčně. <strong>Jeden jeho příspěvek s reálnou ukázkou má větší dosah než 900 studených mailů a stojí nula korun.</strong> To je jeho hlavní vklad do firmy — ne kontakty. Kontakty má spousta lidí; distribuci ne. Tohle mu u stolu řekni takhle, protože to je zároveň důvod, proč dostává větší podíl než Luděk.
+    Šest milionů zhlédnutí měsíčně. <strong>Jeden jeho příspěvek s reálnou ukázkou má větší dosah než 900 studených mailů a stojí nula korun.</strong> Spolu s kapitálem je to důvod, proč má 23 % — peníze se mu vrátí, dosah ne.
   </div>
 
   </div>
   </div>
 </section>
 
-<section>
-  <div class="sec-head">
-    <div class="sec-label">Rozdělení firmy</div>
-    <div class="htext">
-      <h2>Majorita bez administrativy — jak to udělat</h2>
-      <p class="sub">Chceš rozhodovat a nechceš papíry. To jsou dvě různé věci a každá má vlastní páku. Nezaměňuj je — většina lidí si myslí, že podíl řeší obojí, a pak se diví.</p>
-    </div>
-  </div>
-  <div class="sec-body">
-
-  <div class="col">
-  <h3>Tři páky, které to zařídí</h3>
-  <ul class="plain">
-    <li><strong>Podíl 67 %, ne 51 %.</strong> Změna společenské smlouvy potřebuje dvoutřetinovou většinu. S 51 % ovládáš běžný provoz, ale ne dokumenty, kterými se dá firma přepsat. Sedmašedesát procent je hranice, pod kterou nejdi — je to celý rozdíl mezi „mám hlavní slovo“ a „mám ho, dokud se ti dva nedomluví“.</li>
-    <li><strong>Jednatelem je Luděk, ne ty.</strong> Jednatel podepisuje, jedná s úřady, dělá administrativu. Jmenuje a odvolává ho valná hromada prostou většinou — takže ho máš na vodítku a papíry dělá on. Přesně to, co chceš.</li>
-    <li><strong>Vyhrazené věci ve společenské smlouvě.</strong> Co jednatel nesmí sám: prodat nebo licencovat kód, vzít úvěr, změnit ceník, přijmout zaměstnance, uzavřít jakýkoli závazek nad 50 000 Kč. Bez téhle klauzule může administrativní partner podepsat cokoli a ty se to dozvíš potom.</li>
-  </ul>
-  <p>K tomu <strong>externí účetní</strong> za 2–3 tisíce měsíčně. Administrativu nemá dělat ani jeden z vás — Luďkova role je zákazníci a jednání s úřady, ne účtování dokladů.</p>
-  </div>
-
-  <h3>Návrh, se kterým jdi ke stolu</h3>
-
-  <div class="split">
-    <div class="share mine">
-      <div class="who">Ty</div>
-      <div class="pct">70 %</div>
-      <div class="role">Produkt, technologie, rozhodovací právo. Jediný, kdo umí systém udržet.</div>
-      <div class="vest">Plně splaceno · bez vestingu</div>
-    </div>
-    <div class="share">
-      <div class="who">Hanz</div>
-      <div class="pct">18 %</div>
-      <div class="role">Distribuce (40 tis. sledujících, 6 mil. zhlédnutí měsíčně) a kontakty na podnikatele.</div>
-      <div class="vest">Vesting podle výkonu · 4 roky</div>
-    </div>
-    <div class="share">
-      <div class="who">Luděk</div>
-      <div class="pct">12 %</div>
-      <div class="role">Jednatel, administrativa, komunikace se zákazníky, placené vstupní schůzky.</div>
-      <div class="vest">Vesting časový · 4 roky · cliff 1 rok</div>
-    </div>
-  </div>
-
-  <div class="col">
-  <h4>Věta, kterou to obhájíš</h4>
-  <p>„<strong>Můj podíl je splacený věcí, která existuje. Váš je za práci, kterou teprve uděláte — proto vaše podíly vestují a můj ne.</strong> Vkládám čtrnáct měsíců práce a hotový produkt, který dnes publikuje na ostro. Vy vkládáte slib. To není urážka, je to jenom jiné načasování — a vesting je způsob, jak to srovnat, aniž bych vám musel věřit na slovo.“</p>
-
-  <p>A na rozdíl mezi Hanzem a Luďkem: „<strong>Dosah se nedá koupit, administrativa ano.</strong>“ Za dvanáct procent firmy se dá najmout externí správa na roky. Šest milionů zhlédnutí měsíčně si nekoupíš za žádné peníze, které dnes máme.</p>
-
-  <div class="note">
-    <span class="lbl">Když se u stolu strhne hádka o ten rozdíl</span>
-    Ustup na <strong>70 / 15 / 15</strong> a jdi dál. Tři procenta za klidný stůl je dobrý obchod a ty tři procenta ti nikdy nebudou chybět. <strong>Pod 67 % nejdi ani o půl procenta</strong> — tam už neustupuješ v penězích, ale v tom, jestli firma zůstane tvoje.
-  </div>
-
-  <h4>Podmínky pro každou stranu</h4>
-  </div>
-
-  <div class="tw"><table>
-    <thead><tr><th>Strana</th><th>Co dostane</th><th>Co musí přijmout</th></tr></thead>
-    <tbody>
-      <tr>
-        <td><strong>Ty</strong></td>
-        <td>Rozhodovací právo nad vším podstatným. Nulovou administrativu. Produkt se dál vyvíjí podle tebe.</td>
-        <td>Kód a značka přestanou být tvoje osobně — vloží se do firmy. Financuješ rozjezd, dokud někdo jiný nepřinese peníze. A jsi jediný, kdo to umí udržet, takže tvoje nemoc je výpadek firmy.</td>
-      </tr>
-      <tr>
-        <td><strong>Hanz</strong></td>
-        <td>Podíl, který si zvedne výkonem, ne vyjednáváním. První slovo u toho, jak Chrlit vypadá navenek.</td>
-        <td>Měřitelný závazek, ne „mám dosah“: <strong>kolik příspěvků o Chrlitu za první tři měsíce a kdy vyjde první</strong>. Vesting po čtvrtinách za každých 10 přivedených platících zákazníků — do čtyřiceti má celý podíl.</td>
-      </tr>
-      <tr>
-        <td><strong>Luděk</strong></td>
-        <td>Podíl, funkci jednatele a později odměnu za její výkon. Vlastní doménu — zákazníky a provoz.</td>
-        <td>Odpovědnost jednatele je <strong>osobní</strong>, a to je potřeba říct nahlas dřív, než to podepíše. Vyhrazené věci nesmí sám. Vesting běží, jen dokud tu práci opravdu dělá — přestane dělat, přestane vestovat.</td>
-      </tr>
-    </tbody>
-  </table></div>
-
-  <div class="col">
-  <h3>Právní forma — rozhodl jsem to za tebe: s.r.o., a začni tento týden</h3>
-  <p>Neptal jsem se tě na to znovu, protože argumenty jsou jednosměrné:</p>
-  <ul class="plain">
-    <li><strong>Tři lidi nemůžou spoluvlastnit živnost.</strong> Cokoli dnes večer dohodnete, je až do založení firmy nevymahatelné. Je to hezká dohoda, ne právní stav.</li>
-    <li><strong>Živnost, na které to stojí, nekryje software ani reklamu</strong> — prodávat pod ní by bylo neoprávněné podnikání. S.r.o. si obory zapíše rovnou správně a problém zmizí.</li>
-    <li><strong>Hranice DPH dvou milionů se počítá za osobu, ne za činnost.</strong> Dnes se obrat Chrlitu sčítá s obratem květinářství pod stejným IČO. S.r.o. to odděluje.</li>
-    <li><strong>Cena je 10–15 000 Kč a asi dva týdny</strong> — proti tomu, co řeší, je to levné.</li>
-  </ul>
-
-  <div class="note red">
-    <span class="lbl">Tohle vyřeš dřív než rozdělení podílů</span>
-    Chrlit dnes právně patří <strong>IČO 21263990 „Adela Mužátková“</strong> — tedy člověku, který u toho stolu nesedí. Dokud se to nepřevede na firmu, <strong>nemáš co rozdělovat</strong> a jakákoli dnešní dohoda visí na souhlasu čtvrté osoby. Investor nebo vážný zákazník to najde v obchodním rejstříku za minutu. Ať to zazní od tebe: <em>„Majetek je dnes na jiném IČO, převod je součást založení firmy a je to první věc na seznamu.“</em>
-  </div>
-
-  <h4>Co stačí podepsat dnes večer</h4>
-  <p>Jednostránkové memorandum: <strong>kdo má kolik procent, jak to vestuje, kdo je jednatel, kdo platí založení, a do kdy firma vznikne.</strong> Nic víc. Společenskou smlouvu píše právník podle memoranda — když se ho budete snažit napsat dnes ve třech, nedopadne to a hovor skončí bez výsledku.</p>
-  </div>
-
-  </div>
-</section>
-
+<!-- ============ ÚKOLY ============ -->
 <section>
   <div class="sec-head">
     <div class="sec-label">Po hovoru · 14 dnů</div>
@@ -711,21 +847,22 @@ a:focus-visible { outline: 2px solid var(--stamp); outline-offset: 3px; }
     </div>
     <div class="lane">
       <div class="name">Hanz</div>
-      <div class="job">Distribuce · kvalita videa</div>
+      <div class="job">Kapitál · distribuce · video</div>
       <ul>
-        <li><b>Deset konkrétních jmen</b> podnikatelů s webem a mrtvým Instagramem. Ne „mám kontakty“ — seznam.<span class="when">Zkouška sloupce · do 7 dnů</span></li>
+        <li><b>Poslat vklad</b> na účet firmy, jakmile vznikne, proti smlouvě o zápůjčce.<span class="when">Zkouška sloupce · do 14 dnů</span></li>
+        <li><b>Deset konkrétních jmen</b> podnikatelů s webem a mrtvým Instagramem. Ne „mám kontakty“ — seznam.<span class="when">do 7 dnů</span></li>
         <li><b>Jeden příspěvek nebo story o Chrlitu</b> s reálnou ukázkou pro nějakou značku. Nejlevnější akvizice, jakou firma má.<span class="when">do 14 dnů</span></li>
-        <li><b>Verdikt na reels.</b> Otestovat higgsfield proti dnešnímu generátoru a rozhodnout, jestli je kvalita prodejná. On ví, jak vypadá dobré video — proto to rozhoduje on, ne já.<span class="when">7 dnů · rozpočet 2 000 Kč</span></li>
+        <li><b>Verdikt na reels.</b> Otestovat higgsfield proti dnešnímu generátoru a rozhodnout, jestli je kvalita prodejná. On ví, jak vypadá dobré video — proto to rozhoduje on.<span class="when">7 dnů · rozpočet 2 000 Kč</span></li>
       </ul>
     </div>
     <div class="lane">
       <div class="name">Luděk</div>
       <div class="job">Firma · zákazníci · úřady</div>
       <ul>
-        <li><b>Sehnat notáře a založit s.r.o.</b>, včetně převodu majetku z živnosti.<span class="when">Zkouška sloupce · do 14 dnů</span></li>
+        <li><b>Sehnat notáře a založit s.r.o.</b>, včetně převodu majetku od ségry.<span class="when">Zkouška sloupce · do 14 dnů</span></li>
         <li>Právník na zpracovatelské smlouvy a revizi obchodních podmínek.<span class="when">do 14 dnů</span></li>
         <li>Daňový poradce: forma, hranice DPH, převod nákladů.<span class="when">do 14 dnů</span></li>
-        <li><b>Převzít placené vstupní schůzky</b> (999 Kč, „Nastavení značky na míru“). Rezervace, videohovor i automaticky generovaný podklad jsou hotové — chybí jen člověk, který u toho bude sedět.<span class="when">hned, jak přijde první</span></li>
+        <li><b>Převzít placené vstupní schůzky</b> (999 Kč, „Nastavení značky na míru“ — celá jeho odměna). Rezervace, videohovor i automaticky generovaný podklad jsou hotové.<span class="when">hned, jak přijde první</span></li>
         <li>Ozvat se třem lidem z waitlistu, kteří tam čekají od 25. července.<span class="when">do 3 dnů</span></li>
       </ul>
     </div>
@@ -741,32 +878,29 @@ a:focus-visible { outline: 2px solid var(--stamp); outline-offset: 3px; }
   </div>
 </section>
 
+<!-- ============ OTÁZKY NA NĚ ============ -->
 <section>
   <div class="sec-head">
     <div class="sec-label">Ptej se ty</div>
     <div class="htext">
-      <h2>Pět otázek, které dnes musí padnout</h2>
-      <p class="sub">Chceš odejít s dohodou. Tyhle otázky rozhodují, jestli je na čem dohodu stavět — polož je dřív, než se začnou dohadovat procenta.</p>
+      <h2>Čtyři otázky, které dnes musí padnout</h2>
+      <p class="sub">Rozhodují, jestli je na čem dohodu stavět — polož je dřív, než se začnou dohadovat procenta.</p>
     </div>
   </div>
   <div class="sec-body">
 
   <ol class="ask">
     <li>
-      <div class="qq">Kdo dá první peníze na rozjezd — a když nikdo, souhlasíte, že je dám já?</div>
-      <div class="why">Jde o 100–150 tisíc. Kdo platí rozjezd, má jiný nárok na podíl. Tohle nesmí zůstat nedořečené.</div>
+      <div class="qq">Hanzi, kolik přesně pošleš a kdy — a souhlasíš, že to jde jako zápůjčka s prémií 1,2×, ne za procenta?</div>
+      <div class="why">Tohle je celá konstrukce. Když bude trvat na tom, že si za peníze kupuje podíl, jsi u jiné dohody a musíš přepočítat.</div>
     </li>
     <li>
-      <div class="qq">Hanzi, kolik příspěvků o Chrlitu uděláš za první tři měsíce a kdy vyjde první?</div>
-      <div class="why">Dosah bez závazku není vklad. Konkrétní číslo a datum, nebo je to jen hezky znějící slib.</div>
+      <div class="qq">Luďku, bereš 7 % a k tomu 20 % z každého klienta, kterého odbavuješ, plus celou vstupní konzultaci?</div>
+      <div class="why">Ukaž mu tabulku výdělku. Při stovce klientů je to 60 tisíc měsíčně — víc, než by kdy dostal z dividend.</div>
     </li>
     <li>
       <div class="qq">Luďku, jsi ochotný být jednatel? Víš, že za to ručíš osobně?</div>
       <div class="why">Celá konstrukce „já rozhoduju, on dělá papíry“ stojí na tomhle „ano“. Když zaváhá, potřebuješ jiný plán.</div>
-    </li>
-    <li>
-      <div class="qq">Souhlasíte, že vaše podíly vestují a můj ne?</div>
-      <div class="why">Jádro celé dohody. Když tohle neprojde, nejednáte o spolupráci, ale o tom, kolik ti z tvojí práce zbude.</div>
     </li>
     <li>
       <div class="qq">Co se stane, když do tří měsíců nebude ani jeden platící zákazník — kdo odchází a s čím?</div>
@@ -777,6 +911,7 @@ a:focus-visible { outline: 2px solid var(--stamp); outline-offset: 3px; }
   </div>
 </section>
 
+<!-- ============ NEPŘÍJEMNÉ OTÁZKY ============ -->
 <section>
   <div class="sec-head">
     <div class="sec-label">Připravené odpovědi</div>
@@ -789,16 +924,24 @@ a:focus-visible { outline: 2px solid var(--stamp); outline-offset: 3px; }
 
   <div class="qa">
     <div class="row">
+      <div class="q">Proč bys měl mít sedmdesát procent?</div>
+      <div class="a">Protože jsem do toho dal <b>350 tisíc vlastních peněz — víc než kdokoli z vás — a devět měsíců denní práce</b>, což je dohromady přes půldruhého milionu prokazatelné hodnoty. A produkt existuje a funguje. <b>Vaše podíly vestují, můj ne</b>, protože vy vkládáte práci, kterou teprve uděláte. Druhý důvod: jsem jediný, kdo ten systém umí udržet a stavět dál.</div>
+    </div>
+    <div class="row">
+      <div class="q">Proč se ti mají vracet peníze, když jsi zakladatel?</div>
+      <div class="a">Protože <b>vracejí se i tobě</b>. Obě půjčky se splácejí ze stejného patra a ve stejném poměru. Kdyby se nevracely, kupoval bych si za vlastních 350 tisíc vlastní procenta — platil bych dvakrát. Tohle není výsada, je to symetrie.</div>
+    </div>
+    <div class="row">
+      <div class="q">Luděk: proč mám nejmenší podíl, když budu dělat nejvíc provozu?</div>
+      <div class="a"><b>Protože tvoje práce se platí, ne slibuje.</b> Bereš 20 % z každého klienta a celou vstupní konzultaci — při stovce klientů 60 tisíc měsíčně, každý měsíc, hned. Z dvanácti procent dividend bys tolik nedostal ani za pár let, protože se nejdřív splácejí vklady. <b>Vyměnil jsi papír za plat</b> a v prvních letech je to lepší obchod.</div>
+    </div>
+    <div class="row">
       <div class="q">Kolik máte zákazníků?</div>
-      <div class="a"><b>Zvenčí nula.</b> Dva vlastní účty, tři zkušební, tři lidi na waitlistu od července. Produkt publikuje na ostro na cizí profil, ale peníze zatím brát neumíme — to je dvoudenní práce plus aktivace účtu u Stripu. Nezastírám to, protože je to ohraničený úkol, ne díra v produktu.</div>
+      <div class="a"><b>Zvenčí nula.</b> Dva vlastní účty, tři zkušební, tři lidi na waitlistu od července. Produkt publikuje na ostro na cizí profil, ale peníze zatím brát neumíme — to je dvoudenní práce plus aktivace účtu u Stripu.</div>
     </div>
     <div class="row">
       <div class="q">Tak proč to ještě neprodáváte?</div>
       <div class="a">Protože živnost, na které to dnes stojí, software ani reklamu nekryje. Prodávat pod ní by bylo neoprávněné podnikání. <b>Proto zakládáme firmu — je to první úkol z dnešního hovoru</b>, ne odklad.</div>
-    </div>
-    <div class="row">
-      <div class="q">Proč bys měl mít sedmdesát procent?</div>
-      <div class="a">Protože vkládám věc, která existuje a stála čtrnáct měsíců práce, a vy vkládáte práci, kterou teprve uděláte. <b>Vaše podíly vestují, můj ne</b> — to je ta symetrie. A druhý důvod: jsem jediný, kdo ten systém umí udržet. Rozhodovací právo musí být tam, kde je schopnost to dodělat.</div>
     </div>
     <div class="row">
       <div class="q">Co když tě přejede autobus?</div>
@@ -806,15 +949,15 @@ a:focus-visible { outline: 2px solid var(--stamp); outline-offset: 3px; }
     </div>
     <div class="row">
       <div class="q">Neudělá to za rok Meta nebo OpenAI zadarmo?</div>
-      <div class="a">V češtině, s typografií v obraze a s publikováním na cizí účty ne — to je práce, kterou globální hráč pro devět milionů lidí dělat nebude. A i kdyby, je to riziko každého v tomhle oboru. <b>Naše výhoda je jazyk a rychlost, ne že to nikdo jiný neumí.</b></div>
+      <div class="a">V češtině, s typografií v obraze a s publikováním na cizí účty ne — to je práce, kterou globální hráč pro devět milionů lidí dělat nebude. <b>Naše výhoda je jazyk a rychlost, ne že to nikdo jiný neumí.</b></div>
     </div>
     <div class="row">
       <div class="q">Kolik na tom vyděláme?</div>
-      <div class="a">Fixní náklady jsou pod 7 000 Kč měsíčně, takže <b>deset zákazníků a firma se živí sama</b>. Sto zákazníků na prostředním tarifu je ~300 000 Kč tržby a ~250 000 Kč hrubé marže měsíčně. Marže na příspěvek je změřená a je 78–88 %; marže na zákazníka změřená není a do třiceti dnů bude.</div>
+      <div class="a">Fixní náklady jsou pod 7 000 Kč měsíčně, takže <b>jedenáct zákazníků a firma se živí sama</b>. Sto zákazníků na prostředním tarifu je ~300 000 Kč tržby měsíčně. Marže na příspěvek je změřená a je 78–88 %; marže na zákazníka změřená není a do třiceti dnů bude.</div>
     </div>
     <div class="row">
       <div class="q">Jak dlouho do první koruny?</div>
-      <div class="a">Rozhoduje aktivace platebního účtu, což je externí lhůta ve dnech. <b>Realisticky dva až tři týdny</b> od dneška k první ostré platbě — a první platba bude moje vlastní kartou, protože to je jediný způsob, jak si ověřit, že celý řetěz včetně daňového dokladu opravdu funguje.</div>
+      <div class="a">Rozhoduje aktivace platebního účtu, což je externí lhůta ve dnech. <b>Realisticky dva až tři týdny</b> od dneška — a první platba bude moje vlastní kartou, protože to je jediný způsob, jak si ověřit, že celý řetěz včetně daňového dokladu opravdu funguje.</div>
     </div>
   </div>
 
@@ -823,7 +966,8 @@ a:focus-visible { outline: 2px solid var(--stamp); outline-offset: 3px; }
 
 <footer>
   Podklad sestavený 3. 9. 2026 z kódu, migrací a nezávislého technického due diligence (docs/audit-stav-projektu.md).<br>
-  Čísla označená „neověřeno“ pocházejí z odhadu, ne z měření — u stolu je tak i podávej.
+  Čísla označená „neověřeno“ pocházejí z odhadu, ne z měření — u stolu je tak i podávej.<br>
+  Podíly a odměny jsou návrh k jednání, ne právní dokument. Společenskou smlouvu píše právník.
 </footer>
 
 </div>
