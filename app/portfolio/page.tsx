@@ -2,7 +2,8 @@
  * /portfolio — přehled značek, pro které engine vyrobil ukázkový obsah.
  *
  * Data jsou statická (`lib/portfolio-data.ts`, generuje `scripts/export-portfolio.ts`),
- * takže stránka nesahá při requestu na databázi ani na engine.
+ * takže stránka nesahá při requestu na databázi ani na engine. Čte je přes
+ * `lib/portfolio.ts` — ten vyřadí formáty, které nejsou v nabídce (reely).
  *
  * ⚠️ Uvedené firmy NEJSOU zákazníci a o ničem nevědí. Popisek to musí říct —
  * proto `PORTFOLIO_DISCLAIMER` hned pod nadpisem, ne schovaný v patičce. Bez něj
@@ -15,15 +16,15 @@ import Link from "next/link"
 import type { Metadata } from "next"
 import { SiteHeader } from "@/components/SiteHeader"
 import { SiteFooter } from "@/components/SiteFooter"
-import { PORTFOLIO_BRANDS, PORTFOLIO_DISCLAIMER, type PortfolioBrand } from "@/lib/portfolio-data"
-import { countLabel, POSTS, CAROUSELS, REELS, IMAGES, BRANDS } from "@/lib/plural"
+import { PORTFOLIO_VISIBLE_BRANDS, PORTFOLIO_DISCLAIMER, type PortfolioBrand } from "@/lib/portfolio"
+import { countLabel, POSTS, CAROUSELS, IMAGES, BRANDS } from "@/lib/plural"
 
-const COVER = PORTFOLIO_BRANDS.flatMap(b => b.posts).find(p => p.images[0])?.images[0]
+const COVER = PORTFOLIO_VISIBLE_BRANDS.flatMap(b => b.posts).find(p => p.images[0])?.images[0]
 
 export const metadata: Metadata = {
     title: "Portfolio — ukázky obsahu pro známé značky | Chrlit",
     description:
-        "Příspěvky, které Chrlit vyrobil ze skutečných webů známých českých značek — texty, obrázky, karusely i reely. Nevyžádané koncepty, ne zakázky.",
+        "Příspěvky, které Chrlit vyrobil ze skutečných webů známých českých značek — texty, obrázky i karusely. Nevyžádané koncepty, ne zakázky.",
     alternates: { canonical: "https://chrlit.cz/portfolio" },
     openGraph: {
         title: "Portfolio Chrlit — obsah pro známé české značky",
@@ -36,7 +37,6 @@ export const metadata: Metadata = {
 
 function counts(b: PortfolioBrand) {
     return {
-        reel: b.posts.filter(p => p.mediaType === "reel").length,
         carousel: b.posts.filter(p => p.mediaType === "carousel").length,
         post: b.posts.filter(p => p.mediaType === "post").length,
     }
@@ -47,16 +47,16 @@ function counts(b: PortfolioBrand) {
  * a čtyři výřezy vedle sebe už nejdou přečíst.
  */
 function previews(b: PortfolioBrand, n: number) {
-    const out: { src: string; isReel: boolean }[] = []
+    const out: string[] = []
     for (const p of b.posts) {
-        if (p.images[0]) out.push({ src: p.images[0], isReel: p.mediaType === "reel" })
+        if (p.images[0]) out.push(p.images[0])
         if (out.length >= n) break
     }
     return out
 }
 
 export default function PortfolioIndex() {
-    const brands = PORTFOLIO_BRANDS.filter(b => b.posts.length > 0)
+    const brands = PORTFOLIO_VISIBLE_BRANDS
     const total = brands.reduce((n, b) => n + b.posts.length, 0)
 
     return (
@@ -89,7 +89,7 @@ export default function PortfolioIndex() {
                         Nevyžádané koncepty
                     </div>
                     <p className="text-white/50 text-xs leading-relaxed">
-                        {PORTFOLIO_DISCLAIMER} Video reely jsou navíc beta — zkoušíme je a v nabídce zatím nejsou.
+                        {PORTFOLIO_DISCLAIMER}
                     </p>
                 </div>
 
@@ -107,23 +107,14 @@ export default function PortfolioIndex() {
                                     className="block border border-white/5 hover:border-white/15 bg-[#0a0a0a] rounded-sm overflow-hidden transition-colors group"
                                 >
                                     <div className="grid grid-cols-3 gap-px bg-white/5">
-                                        {thumbs.map((t, i) => (
+                                        {thumbs.map((src, i) => (
                                             <div key={i} className="relative aspect-square bg-white/5">
                                                 <img
-                                                    src={t.src}
+                                                    src={src}
                                                     alt=""
                                                     loading="lazy"
                                                     className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
                                                 />
-                                                {t.isReel && (
-                                                    <svg
-                                                        viewBox="0 0 24 24"
-                                                        className="absolute top-1.5 right-1.5 w-3.5 h-3.5 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
-                                                        fill="currentColor"
-                                                    >
-                                                        <path d="M8 5v14l11-7z" />
-                                                    </svg>
-                                                )}
                                             </div>
                                         ))}
                                     </div>
@@ -138,7 +129,6 @@ export default function PortfolioIndex() {
                                             <span className="text-white/60">{countLabel(b.posts.length, POSTS)}</span>
                                             {c.post > 0 && <span>· {countLabel(c.post, IMAGES)}</span>}
                                             {c.carousel > 0 && <span>· {countLabel(c.carousel, CAROUSELS)}</span>}
-                                            {c.reel > 0 && <span>· {countLabel(c.reel, REELS)} (beta)</span>}
                                         </div>
                                     </div>
                                 </Link>

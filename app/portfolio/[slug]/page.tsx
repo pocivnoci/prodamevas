@@ -4,13 +4,16 @@
  * Do minule to byl svislý výpis v plné velikosti: 18–23 příspěvků, tedy přes
  * dvacet obrazovek scrollu bez navigace. Prospekt si ale nekupuje texty, kupuje
  * si vzhled feedu — a ten mřížka ukáže na první obrazovce. Celý příspěvek
- * (karusel, video, text, výzva, hashtagy) se otevře po kliknutí.
+ * (karusel, text, výzva, hashtagy) se otevře po kliknutí.
  *
  * Stránka zůstává SERVEROVÁ a interaktivitu předává do `components/portfolio/`.
  * Je to konvence celého webu: mimo dashboard není v `app/` ani jedno
  * `"use client"` — viz `components/PostWall.tsx` na landingu.
  *
  * ⚠️ Uvedené firmy NEJSOU zákazníci. `PORTFOLIO_DISCLAIMER` je proto nahoře.
+ *
+ * Příspěvky chodí přes `lib/portfolio.ts`, ne rovnou z exportu — formáty mimo
+ * nabídku (reely) se na web nedostanou.
  */
 
 import Link from "next/link"
@@ -19,16 +22,16 @@ import type { Metadata } from "next"
 import { SiteHeader } from "@/components/SiteHeader"
 import { SiteFooter } from "@/components/SiteFooter"
 import { PostGrid } from "@/components/portfolio/PostGrid"
-import { PORTFOLIO_BRANDS, PORTFOLIO_DISCLAIMER } from "@/lib/portfolio-data"
-import { countLabel, POSTS, CAROUSELS, REELS, IMAGES } from "@/lib/plural"
+import { PORTFOLIO_VISIBLE_BRANDS, PORTFOLIO_DISCLAIMER } from "@/lib/portfolio"
+import { countLabel, POSTS, CAROUSELS, IMAGES } from "@/lib/plural"
 
 export function generateStaticParams() {
-    return PORTFOLIO_BRANDS.filter(b => b.posts.length > 0).map(b => ({ slug: b.slug }))
+    return PORTFOLIO_VISIBLE_BRANDS.map(b => ({ slug: b.slug }))
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
     const { slug } = await params
-    const brand = PORTFOLIO_BRANDS.find(b => b.slug === slug)
+    const brand = PORTFOLIO_VISIBLE_BRANDS.find(b => b.slug === slug)
     if (!brand) return {}
 
     // Vizuální portfolio se bez náhledu sdílí jako prázdná karta — vezmi první snímek.
@@ -50,15 +53,14 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function BrandPortfolio({ params }: { params: Promise<{ slug: string }> }) {
     const { slug } = await params
-    const brand = PORTFOLIO_BRANDS.find(b => b.slug === slug)
-    if (!brand || brand.posts.length === 0) notFound()
+    const brand = PORTFOLIO_VISIBLE_BRANDS.find(b => b.slug === slug)
+    if (!brand) notFound()
 
-    const others = PORTFOLIO_BRANDS.filter(b => b.slug !== slug && b.posts.length > 0)
+    const others = PORTFOLIO_VISIBLE_BRANDS.filter(b => b.slug !== slug)
     const host = (brand.website || "").replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")
 
     const n = {
         carousel: brand.posts.filter(p => p.mediaType === "carousel").length,
-        reel: brand.posts.filter(p => p.mediaType === "reel").length,
         post: brand.posts.filter(p => p.mediaType === "post").length,
     }
 
@@ -98,19 +100,16 @@ export default async function BrandPortfolio({ params }: { params: Promise<{ slu
                     <span className="text-white/70">{countLabel(brand.posts.length, POSTS)}</span>
                     {n.post > 0 && <span>{countLabel(n.post, IMAGES)}</span>}
                     {n.carousel > 0 && <span>{countLabel(n.carousel, CAROUSELS)}</span>}
-                    {n.reel > 0 && <span>{countLabel(n.reel, REELS)} · beta</span>}
                 </div>
 
                 {/* JEDEN disclaimer. Dřív tu byly dva skoro stejné boxy a k tomu odznak
-                    u každého reelu — trojí opakování téhož ještě před prvním obrázkem.
-                    „Beta" teď nese odznak na dlaždici a v detailu, kde je to k věci. */}
+                    u každého reelu — trojí opakování téhož ještě před prvním obrázkem. */}
                 <div className="border-l-2 border-white/20 bg-white/[0.03] px-5 py-4 mb-8">
                     <div className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5">
                         Nevyžádaný koncept
                     </div>
                     <p className="text-white/50 text-xs leading-relaxed">
                         {PORTFOLIO_DISCLAIMER}
-                        {n.reel > 0 && " Video reely jsou navíc beta — zkoušíme je a v nabídce zatím nejsou."}
                     </p>
                 </div>
 
