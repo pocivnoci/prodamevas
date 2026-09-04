@@ -66,9 +66,10 @@ const PRICES: Record<string, TokenPrice> = {
     "gemini-2.5-flash-preview-tts": { in: 0.50, out: 10.00, cachedIn: 0.05, source: GOOGLE },
 
     // ── Cross-family judge ─────────────────────────────────────────────────────
-    // models.ts: „intro pricing $2/$10 per MTok through 2026-08-31" — po tomhle datu
-    // ověřit znovu, sazba se skokem změní.
-    "claude-sonnet-5": { in: 2, out: 10, cachedIn: 0.20, source: "instagram/models.ts, intro pricing do 2026-08-31" },
+    // Žádný skok nebude: $2/$10 byla vypsaná jako úvodní cena do 2026-08-31, ale
+    // Anthropic ji k tomu datu udělal STANDARDNÍ a plánované zdražení na $3/$15
+    // od 2026-09-01 zrušil. cachedIn 0.20 = řádek „Cache Hits & Refreshes".
+    "claude-sonnet-5": { in: 2, out: 10, cachedIn: 0.20, source: "platform.claude.com/docs/en/about-claude/pricing, ověřeno 2026-08-31 (standardní sazba)" },
 }
 
 /**
