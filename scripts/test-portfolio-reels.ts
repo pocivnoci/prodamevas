@@ -1,11 +1,12 @@
 /**
- * Reely v portfoliu musí být označené jako beta — statické kontroly (bez sítě, bez DB).
+ * Reely se z portfolia neukazují — statické kontroly (bez sítě, bez DB).
  *   npx tsx scripts/test-portfolio-reels.ts
  *
- * Reely se neprodávají (viz „přestat prodávat reels, které nefungují"), ale
- * v portfoliu zůstávají, protože je čím ukázat, co engine umí. Bez štítku by ale
- * slibovaly formát, který si zákazník nekoupí — stejná past jako tvrdit, že ty
- * značky jsou klienti.
+ * Reely se neprodávají (viz „přestat prodávat reels, které nefungují"). Dřív
+ * v portfoliu zůstávaly s odznakem „BETA", jenže odznak je pořád slib formátu,
+ * který si zákazník neobjedná — jen menším písmem. Teď se filtrují v
+ * `lib/portfolio.ts` a stránky čtou jenom ten filtrovaný pohled. Data v exportu
+ * zůstávají; až reely do nabídky přibudou, vrátí je jeden řádek.
  *
  * Vyrábět nové je věc jiná: reel stojí ~34 Kč proti ~5 Kč za obrázek a jednou už
  * si portfolio takhle vzalo ~1 376 Kč, protože `REELS_ENABLED=1` v env vypadalo
@@ -16,6 +17,7 @@
 import { readFileSync } from "fs"
 import { resolve } from "path"
 import { PORTFOLIO_BRANDS } from "../lib/portfolio-data"
+import { PORTFOLIO_VISIBLE_BRANDS, PORTFOLIO_VISIBLE_MEDIA } from "../lib/portfolio"
 
 let passed = 0
 let failed = 0
@@ -27,39 +29,75 @@ function check(name: string, cond: boolean, detail?: string) {
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf-8")
 
-console.log("\n🎬 REELY V PORTFOLIU JSOU BETA\n")
+console.log("\n🎬 REELY SE Z PORTFOLIA NEUKAZUJÍ\n")
 
-// ── 1. Štítek tam, kde je reel vidět ────────────────────────────────────────
+// ── 1. Filtr sám ────────────────────────────────────────────────────────────
+check(
+    "viditelné formáty neobsahují reel",
+    !PORTFOLIO_VISIBLE_MEDIA.includes("reel"),
+    PORTFOLIO_VISIBLE_MEDIA.join(", ")
+)
+
+const leaked = PORTFOLIO_VISIBLE_BRANDS.flatMap(b =>
+    b.posts.filter(p => p.mediaType === "reel").map(p => `${b.slug}/${p.id.slice(0, 8)}`)
+)
+check(
+    "žádný reel se nedostane do viditelného portfolia",
+    leaked.length === 0,
+    leaked.length ? `${leaked.length}: ${leaked.slice(0, 3).join(", ")}…` : undefined
+)
+
+// Filtr nesmí vysypat celou stránku — kdyby značka zůstala bez příspěvků,
+// vypadne, a portfolio bez značek neprodává nic.
+check(
+    "po odfiltrování zbývá co ukazovat",
+    PORTFOLIO_VISIBLE_BRANDS.length > 0 && PORTFOLIO_VISIBLE_BRANDS.every(b => b.posts.length > 0),
+    `${PORTFOLIO_VISIBLE_BRANDS.length} z ${PORTFOLIO_BRANDS.length} značek`
+)
+
+// ── 2. Filtr se nedá obejít ─────────────────────────────────────────────────
+// Tohle je celá podstata: kdo si naimportuje surový export, dostane i reely.
+const consumers = ["app/portfolio/page.tsx", "app/portfolio/[slug]/page.tsx", "app/sitemap.ts"]
+for (const file of consumers) {
+    const src = read(file)
+    check(
+        `${file} čte filtrovaný pohled, ne surový export`,
+        /PORTFOLIO_VISIBLE_BRANDS/.test(src) && !/\bPORTFOLIO_BRANDS\b/.test(src)
+    )
+}
+
+const brandPage = read("app/portfolio/[slug]/page.tsx")
+const index = read("app/portfolio/page.tsx")
+check(
+    "stránky už reely nepočítají ani neinzerují",
+    !/mediaType\s*===\s*"reel"/.test(brandPage) &&
+    !/mediaType\s*===\s*"reel"/.test(index) &&
+    !/beta/i.test(index.replace(/^[\s\S]*?\*\//, "")) &&
+    !/\bREELS\b/.test(brandPage) && !/\bREELS\b/.test(index)
+)
+
+// ── 3. Záchranná síť v mřížce ───────────────────────────────────────────────
+// Komponenty umí reel vykreslit dál (data existují a jednou se vrátí). Dokud to
+// umí, musí u toho držet i štítek — jinak by návrat reelů tiše slíbil formát,
+// který v nabídce není.
 const grid = read("components/portfolio/PostGrid.tsx")
 check(
-    "dlaždice reelu nese BETA",
+    "dlaždice reelu by nesla BETA, kdyby reel přišel",
     /mediaType\s*===\s*"reel"/.test(grid) && /BETA/.test(grid)
 )
 
 const modal = read("components/portfolio/PostModal.tsx")
 check(
-    "detail příspěvku nese BETA",
+    "detail příspěvku by nesl BETA",
     /mediaType\s*===\s*"reel"/.test(modal) && /BETA/.test(modal)
 )
 
-const brandPage = read("app/portfolio/[slug]/page.tsx")
-check(
-    "stránka značky vysvětluje, že reely nejsou v nabídce",
-    /beta/i.test(brandPage) && /v nabídce zatím nejsou/.test(brandPage)
-)
-
-const index = read("app/portfolio/page.tsx")
-check(
-    "přehled značí reely jako beta",
-    /\(beta\)/.test(index) && /v nabídce zatím nejsou/.test(index)
-)
-
-// ── 2. iOS: reel se nesmí vytrhnout na celou obrazovku ──────────────────────
+// ── 4. iOS: reel se nesmí vytrhnout na celou obrazovku ──────────────────────
 // Bez `playsInline` spustí Safari na iPhonu video fullscreen a uživatel vypadne
 // z galerie. Portfolio se posílá prospektům do telefonu, takže to není detail.
 check("video má playsInline (jinak iOS přehraje fullscreen)", /playsInline/.test(modal))
 
-// ── 3. Generátor je nesmí vyrábět bez vědomého pokynu ───────────────────────
+// ── 5. Generátor je nesmí vyrábět bez vědomého pokynu ───────────────────────
 const seeder = read("scripts/seed-portfolio-clients.ts")
 check(
     "generátor spouští CLI s REELS_ENABLED=0",
@@ -70,34 +108,34 @@ check(
     /args\.includes\("--reels"\)/.test(seeder) && /reelsEnabled\s*\?\s*process\.env/.test(seeder)
 )
 
-// ── 4. Souběžný běh, který zaplatil posty dvakrát ───────────────────────────
+// ── 6. Souběžný běh, který zaplatil posty dvakrát ───────────────────────────
 check(
     "generátor drží zámek proti souběžnému běhu",
     /acquireLock\(\)/.test(seeder) && /releaseLock\(\)/.test(seeder)
 )
 
-// ── 5. Data musí zůstat zobrazitelná ────────────────────────────────────────
-const broken = PORTFOLIO_BRANDS.flatMap(b =>
-    b.posts.filter(p => p.images.length === 0 && !p.videoUrl).map(p => `${b.slug}/${p.id.slice(0, 8)}`)
+// ── 7. Data musí zůstat zobrazitelná ────────────────────────────────────────
+const broken = PORTFOLIO_VISIBLE_BRANDS.flatMap(b =>
+    b.posts.filter(p => p.images.length === 0).map(p => `${b.slug}/${p.id.slice(0, 8)}`)
 )
 check(
-    "žádný příspěvek není bez média",
+    "žádný viditelný příspěvek není bez obrázku",
     broken.length === 0,
     broken.length ? `${broken.length}: ${broken.slice(0, 3).join(", ")}…` : undefined
 )
 
 const reels = PORTFOLIO_BRANDS.flatMap(b => b.posts.filter(p => p.mediaType === "reel"))
 check(
-    "každý reel nese video",
+    "každý reel v datech nese video (kdyby se vrátil)",
     reels.every(p => !!p.videoUrl),
     `${reels.filter(p => !p.videoUrl).length} z ${reels.length} bez videa`
 )
 
-// Mřížka bere `images[0]` jako náhled, jenže obálku render občas nevyrobí (dnes
-// jeden reel). Video se přehraje i tak, takže se příspěvek nezahazuje — mřížka
-// ale musí umět prázdnou obálku, jinak je v ní rozbitý obrázek.
+// Mřížka bere `images[0]` jako náhled, jenže obálku render občas nevyrobí.
+// Video se přehraje i tak — mřížka ale musí umět prázdnou obálku, jinak je v ní
+// rozbitý obrázek.
 check(
-    "mřížka ustojí reel bez obálky",
+    "mřížka ustojí příspěvek bez obálky",
     /post\.images\[0\]\s*\?/.test(grid)
 )
 

@@ -53,7 +53,7 @@ const TARGETS: Target[] = [
     { key: "klier", company: "Kadeřnictví Klier", industry: "Beauty / Kadeřnictví", website: "https://www.klier.cz/", city: "Praha", igHandle: "kadernictvi_klier" },
     { key: "rohlik", company: "Rohlik.cz", industry: "E-commerce", website: "https://www.rohlik.cz/", city: "Praha", igHandle: "rohlik.cz" },
     { key: "koupelny-ptacek", company: "Koupelny Ptáček", industry: "Řemeslo / Bydlení", website: "https://www.koupelny-ptacek.cz/", city: "Praha", igHandle: "koupelnyptacek" },
-    { key: "form-factory", company: "Form Factory", industry: "Fitness / Wellness", website: "https://www.formfactory.cz/", city: "Praha", igHandle: "formfactory" },
+    { key: "olympia-fitness", company: "Olympia Fitness", industry: "Fitness / Wellness", website: "https://www.olympiafitness.cz", city: "Praha", igHandle: "olympiafitnesspraha" },
     { key: "grandhotel-pupp", company: "Grandhotel Pupp", industry: "Ubytování / Hotel", website: "https://www.pupp.cz/", city: "Karlovy Vary", igHandle: "grandhotelpupp" },
     { key: "znovin", company: "Znovín Znojmo", industry: "Vinařství", website: "https://www.znovin.cz/", city: "Znojmo", igHandle: "znovinznojmo" },
     { key: "asklepion", company: "Asklepion", industry: "Zdraví / Estetika", website: "https://www.asklepion.cz/", city: "Praha", igHandle: "asklepion" },

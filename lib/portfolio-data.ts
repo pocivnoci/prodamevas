@@ -1808,415 +1808,6 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
     ]
   },
   {
-    "slug": "form-factory",
-    "company": "Form Factory",
-    "industry": "Fitness a wellness",
-    "website": "https://www.formfactory.cz/",
-    "posts": [
-      {
-        "id": "34282a89-5204-4d83-ad47-62e2d2069af0",
-        "mediaType": "reel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787926677588-cover.webp"
-        ],
-        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787926677588.mp4",
-        "hook": "Nejlepší část tréninku?",
-        "body": "Dlouho jsem se posilovně vyhýbala. Představa plného fitka mě děsila a nevěděla jsem, kde začít. Zlom přišel, když mi kamarádka ukázala klub na Václaváku. Cvičení si teď dávám svým tempem a hlavně vím, co mě čeká potom. Dokonalá finská sauna a relax zóna. Zjistila jsem totiž, že klasické fitness členství zahrnuje i tenhle luxusní odpočinek. Svaly zregenerují, hlava vypne a já odcházím s čistým štítem, připravená na zářijový návrat do reality. Zkuste to taky, posilovna fakt není jen o zvedání železa.",
-        "cta": "Zajímá mě, co pomáhá po náročném dni zrelaxovat vám? Zastavíte se radši v sauně, nebo si dáte po tréninku oblíbené jídlo? Napište mi to do komentářů!",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#fitnessclenstvi",
-          "#relaxace",
-          "#regenerace",
-          "#fitnessczech",
-          "#skupinovelekce",
-          "#inbodycz"
-        ]
-      },
-      {
-        "id": "71f5df6d-be0a-4e26-af36-2f164687f50b",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787926861463-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787926904732-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787926960625-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927001483-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927047445-slide4.webp"
-        ],
-        "hook": "Mýtus: Čím víc dřeš, tím rychleji rosteš.",
-        "body": "Konec prázdnin a návrat na koleje neznamená, že se musíš zničit v gymu, abys dohnal letní hříchy. Znáš ten mýtus, že bez bolesti není progres? Blbost.\n\nTvoje tělo se mění, když odpočívá. Místo toho, abys po přednáškách jen bezmyšlenkovitě dřel na strojích, to trochu oživ. Dej si s partou dynamickou Les Mills lekci a pak rovnou zalezte do finské sauny.\n\nTo nejlepší? Jestli máš MultiSport kartu, neplatíš ani korunu navíc. Cvičení i relax máš v ceně. Takže žádné výmluvy na omezený studentský budget.\n\nJak to máš ty? Radši po tréninku hned běžíš domů, nebo si dopřeješ saunu? Dej vědět do komentářů!",
-        "cta": "Vyber si z více než 40 typů cvičení na https://www.formfactory.cz/ a napiš nám, čím začneš nový semestr!",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#fitnessmyty",
-          "#multisport",
-          "#regenerace",
-          "#fitness",
-          "#posilovna",
-          "#fitnessczech"
-        ]
-      },
-      {
-        "id": "080b7c90-2159-4808-8d88-f77a08b2f3fe",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927268240-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927309233-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927350031-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927403688-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787927443269-slide4.webp"
-        ],
-        "hook": "Dřeš naslepo? Zjisti přesně, co tvoje tělo potřebuje.",
-        "body": "Léto končí a ty se vracíš do režimu. Chceš dohnat ztracený čas, ale dřeš naslepo? Zastav. Než se zničíš na strojích, potřebuješ vědět, na čem reálně jsi. Tohle je rychlý tip od našich trenérů: začni tím, že si uděláš jasno. Analýza těla InBody ti za minutu ukáže, kolik jsi přes léto nabral tuku, kolik svalů šlo dolů a jak je na tom tvoje hydratace. Díky těmhle datům ti trenér sestaví plán, který funguje od prvního dne. Žádný ztracený čas. A navíc hned uvidíš, jestli nepotřebuješ spíš den v sauně na srovnání disbalancí.",
-        "cta": "Jaký je tvůj hlavní cíl pro tenhle podzim? Napiš mi ho hned do komentářů a ukaž, že to s návratem myslíš vážně!",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#inbody",
-          "#fitnesscile",
-          "#podzimnirezim",
-          "#cviceni",
-          "#fitnessczech"
-        ]
-      },
-      {
-        "id": "41229e8d-47fb-4387-8929-244a9094712a",
-        "mediaType": "post",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-posts/1787927926725.webp"
-        ],
-        "hook": "Co tě po škole nakopne víc?",
-        "body": "Lucka včera oslavila svůj první shyb. Byla to dřina, ale potréninkový rituál má jasný – okamžitý přesun do tepla. Konec srpna znamená návrat do reality a ty potřebuješ balanc. S MultiSportkou máš u nás obě varianty bez doplatku.\n\nMůžeš překonávat limity na hrazdě s naší komunitou, nebo prostě jen vypnout hlavu před začátkem semestru v relaxační zóně.\n\nJsi Tým Dřina, nebo Tým Sauna? Hlasuj v komentářích!",
-        "cta": "Prozkoumej naši oázu klidu na https://www.formfactory.cz/p/sauna-a-relaxa-n-z-ny a nezapomeň hodit svůj hlas dolů pod příspěvek!",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#multisport",
-          "#studentskyzivot",
-          "#regenerace",
-          "#fitnessczech",
-          "#osobnitrener",
-          "#skupinovelekce"
-        ]
-      },
-      {
-        "id": "810ba4d5-e657-4895-8e99-d5d1246c86eb",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787928137333-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787928241223-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787928287647-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787928334602-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787928372543-slide4.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787928410394-slide5.webp"
-        ],
-        "hook": "Největší mýtus o dřepu který tě brzdí",
-        "body": "Zatažené břicho při dřepu? Klasika z hodin tělocviku, co tě v gymu akorát zraní. Za pár dní začíná semestr a ty se po létě vracíš k těžkým vahám. Než si naložíš osu, srovnej si dýchání. Náš trenér to říká jasně: břicho nezatáhnout, ale nafouknout!\n\nVytvoříš tak vnitřní tlak, který funguje jako přírodní opasek a chrání tvá bedra. Postup je easy:\n1. Nahoře se zhluboka nadechni do břicha.\n2. Zpevni střed, jako bys čekal ránu.\n3. Jdi do dřepu.\n4. Vydechni až při cestě nahoru.\n\nMáš MultiSportku? Stav se po přednášce vyzkoušet tenhle trik v praxi u nás, nebo ho rovnou otestuj na Les Mills lekci.",
-        "cta": "Jakou techniku dýchání používáš ty? Napiš nám to do komentářů! A pokud hledáš profi vedení k lepším výkonům, vyber si osobního trenéra na https://www.formfactory.cz/.",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#drep",
-          "#technika",
-          "#fitnessmyty",
-          "#lesmillscz",
-          "#fitnessczech",
-          "#inbodycz"
-        ]
-      },
-      {
-        "id": "03c9a4f3-722a-4a3d-bf8b-986262fdb2c5",
-        "mediaType": "reel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787928592091-cover.webp"
-        ],
-        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787928592091.mp4",
-        "hook": "Proč tě všechno bolí",
-        "body": "Návrat do fitka po letní pauze bolí. Ale vůbec nemusí. Nejčastější chyba? Rychle to odcvičit a utéct domů. Tvoje tělo ale potřebuje signál, že je konec. Trenérka Klára doporučuje zařadit po každé lekci alespoň 10 minut statického strečinku. Zpomalíš, prodýcháš to a snížíš svalové napětí. Druhý den díky tomu v pohodě vstaneš z postele a vyhneš se zbytečným zraněním. Pokud nevíš, jak na to, skupinové lekce Bodybalance jsou přesně ten bezpečný a klidný start, který po prázdninách hledáš. Žádný stres, jen plynulý pohyb a uvolnění.",
-        "cta": "Jsi tým rychlý úprk do sprchy, nebo si dáváš poctivý strečink? Dej nám vědět do komentářů!",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#fitnessczech",
-          "#bodybalance",
-          "#strecink",
-          "#skupinovelekce",
-          "#regenerace",
-          "#inbodycz"
-        ]
-      },
-      {
-        "id": "a3c88405-276f-4f67-a6ee-ab839c4b265b",
-        "mediaType": "reel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787928838790-cover.webp"
-        ],
-        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787928838790.mp4",
-        "hook": "Nenávidíš čekání na stroje?",
-        "body": "Konec srpna znamená návrat do režimu. Pokud tě nebaví ztrácet čas čekáním na volnou osu, máme pro tebe řešení. Ve Form Factory tvůj trénink začíná rychlým pípnutím MultiSportky – bez jakýchkoliv doplatků. Krok jedna: pípneš a jdeš. Krok dva: odjedeš naplno skupinovou lekci jako je HYROX, Pilates Reformer nebo Bodypump, kde máš své místo předem jisté. Krok tři: přesun do sauny, kterou máš automaticky v ceně. Čistý progres, nula stresu a maximální využití tvého času.",
-        "cta": "Naskoč zpátky do režimu bez čekání. Zarezervuj si své místo na lekci hned teď: https://www.formfactory.cz/p/skupinov-lekce-nap-hyrox-pilates-ref",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#multisport",
-          "#skupinovelekce",
-          "#hyroxcz",
-          "#zdravyzivotnistyl",
-          "#osobnitrener",
-          "#inbodycz"
-        ]
-      },
-      {
-        "id": "1179efbf-e2bd-4e37-b1ec-69246716b5d1",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929060575-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929091293-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929131219-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929165750-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929202594-slide4.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929242326-slide5.webp"
-        ],
-        "hook": "Plán zněl jasně: jen lehké kardio",
-        "body": "Znáš to. Za pár dní začíná semestr, ty si chceš dát jen „lehký pás“ na vyčištění hlavy, ale ta energie ve Form Factory tě prostě strhne. Najednou jsi uprostřed zóny a jedeš na maximum. A víš co? Je to přesně to, co před začátkem školy potřebuješ!\n\nUlož si tenhle rychlý HYROX okruh na dny, kdy potřebuješ vypnout hlavu a pořádně se zapotit. Rychlé střídání cviků tě nenechá vydechnout a po tréninku tě čeká ta nejlepší část – sauna. Vše v ceně tvého vstupu.",
-        "cta": "Kdy tě naposledy strhla atmosféra tak, že jsi odjel úplně jiný trénink? Napiš nám do komentářů!",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#hyrox",
-          "#dnescvicim",
-          "#multisport",
-          "#hyroxcz",
-          "#fitnessczech",
-          "#posilovna"
-        ]
-      },
-      {
-        "id": "3ff18d7c-c663-4723-bd8b-ec6ebc8c064b",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929560668-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929598411-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929632493-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929667896-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787929705687-slide4.webp"
-        ],
-        "hook": "Kdy ti trénink po létě přinese nejvíc",
-        "body": "Letní volno končí a září klepe na dveře. Vracíš se do režimu, ale tělo stávkuje? Zastav, než ztratíš motivaci hned v prvním týdnu. Klíčem není dřít víc, ale chytřeji. Zjisti, kdy máš nejvíc energie. Ranní trénink tě nakopne na celý den a vyhneš se odpolední špičce. Večer naopak skvěle odplavíš stres z práce. Nejsi na to sám. Osobní tréninky s trenérem ti zaručí, že každá minuta v gymu bude mít smysl, ať už dorazíš v 6 ráno nebo v 8 večer. Náš expert ti sestaví plán na míru a pohlídá i to nejdůležitější – následnou regeneraci v sauně. Čas je drahý, neplýtvej jím.",
-        "cta": "Kdy ti to ve Form Factory nejvíc šlape? Neztrácej čas a napiš nám hned teď do komentářů, jestli jsi ranní ptáče, nebo spíš noční sova!",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#fitness",
-          "#zpetdoformy",
-          "#osobnitrener",
-          "#skupinovelekce",
-          "#fitnessczech"
-        ]
-      },
-      {
-        "id": "c1ede564-8032-4c8d-8660-aaf43af9fdf1",
-        "mediaType": "reel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787929892432-cover.webp"
-        ],
-        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787929892432.mp4",
-        "hook": "Bála jsem se činek.",
-        "body": "Tohle je příběh naší členky Kláry. Znáte to – blíží se září, návrat do režimu a s ním pocit, že pro hubnutí musíte trávit hodiny na běžeckém páse.\n\nKlára to měla stejně, dokud nezjistila pravdu. Silový trénink totiž buduje svaly, které zrychlují metabolismus a pálí energii, i když už dávno sedíte doma. Nebo ještě lépe – když odpočíváte v naší sauně po tréninku. Fitko není jen pro profíky, každý z nás někdy začínal.\n\nNebojte se činek a zkuste po létě změnu.",
-        "cta": "Jaký mýtus o cvičení brzdil v začátcích tebe? Poděl se s námi v komentářích a inspiruj ostatní, kteří zrovna sbírají odvahu.",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#fitnesskomunita",
-          "#silovyrozvoj",
-          "#hubnuti",
-          "#fitnessczech",
-          "#skupinovelekce",
-          "#motivace"
-        ]
-      },
-      {
-        "id": "23481b76-b73a-4729-9d1d-fdee481ebfff",
-        "mediaType": "carousel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787930184882-slide0.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787930221588-slide1.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787930255011-slide2.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787930294814-slide3.webp",
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-carousel/1787930334454-slide4.webp"
-        ],
-        "hook": "Opasek tvoje záda při dřepu automaticky nezachrání",
-        "body": "Za pár dní začíná semestr a ty se vracíš do režimu s cílem naložit si na osu. Mnoho lidí si myslí, že když si utáhnou fitness opasek, mají záda v bezpečí. Omyl! Trenér Jirka varuje: pás tě nespasí, pokud neumíš dýchat.\n\nTajemství bezpečné páteře je vnitrobřišní tlak. Zpevni střed těla hlubokým nádechem do břicha ještě předtím, než jdeš do dřepu. Tenhle tlak podrž a vydechni až při cestě nahoru, když překonáš nejtěžší bod. Pás slouží jen jako zeď, do které tenhle vzduch opřeš.\n\nA po těžkém tréninku noh? Nezapomeň na saunu, kterou máš s MultiSportkou u nás v ceně.",
-        "cta": "Dej nám vědět do komentářů – cvičíš dřepy s opaskem, nebo bez? Pro další tipy a rozvrh lekcí mrkni na https://www.formfactory.cz/.",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#drep",
-          "#fitnessmyty",
-          "#spravnatechnika",
-          "#osobnitrener",
-          "#motivace",
-          "#hyroxcz"
-        ]
-      },
-      {
-        "id": "f69df0e7-7062-49fc-8e59-01b146af363e",
-        "mediaType": "reel",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787930671209-cover.webp"
-        ],
-        "videoUrl": "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/audit-screenshots/ig-reels/1787930671209.mp4",
-        "hook": "Tvůj první trénink nemusí být chaos.",
-        "body": "Ve Form Factory z něj uděláme sebevědomý start, který tě dovede až ke sté návštěvě. Žádné zmatky na recepci, prostě pípneš aplikaci a jdeš rovnou do obrovské posilovací zóny. Nečekáš na volnou osu, makáš. A po tréninku tě čeká to nejdůležitější – prémiová sauna pro maximální regeneraci. Září je za rohem, odstartuj ho naplno!",
-        "cta": "Předběhni zářijový shon a zajisti si svůj prostor pro trénink. Kup si roční VIP členství na https://www.formfactory.cz/ právě teď a získej okamžitý přístup do všech zón!",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#fitnesscesta",
-          "#regenerace",
-          "#vipclenstvi",
-          "#cviceni",
-          "#hyroxcz"
-        ]
-      },
-      {
-        "id": "9df29455-1651-472d-876a-1b43189cd630",
-        "mediaType": "post",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-posts/1787988191295.webp"
-        ],
-        "hook": "Trénink, nebo čekání na zázrak?",
-        "body": "Za tři dny začíná semestr a ty potřebuješ naskočit zpět do režimu. Jenže realita ve sklepním fitku? Dvacet minut čekáš na volnou osu a nálada padá k bodu mrazu.\n\nProti tomu stojí vzdušný prostor ve Form Factory. Desítky moderních strojů, obrovská kardio zóna a k tomu nadupané skupinovky jako Les Mills, když tě činky přestanou bavit. Vše navíc na tvoji MultiSportku bez doplatků. Tvůj čas je po škole cenný, tak ho netrav ve frontě. A po tréninku rovnou do sauny, protože kvalitní relax je nedílnou součástí progresu.\n\nCo je tvůj styl? Hlasuj níže!",
-        "cta": "Napiš nám do komentářů, jestli radši jedeš sólo gym, nebo skupinovku! Svůj nejbližší klub objevíš na https://www.formfactory.cz/.",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#zpatkydorezimu",
-          "#studentskyzivot",
-          "#multisport",
-          "#cviceni",
-          "#skupinovelekce",
-          "#zdravyzivotnistyl"
-        ]
-      },
-      {
-        "id": "1cc16542-9fe0-46cb-866f-c764b135c8ef",
-        "mediaType": "post",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-posts/1787988306615.webp"
-        ],
-        "hook": "Proč ti obyčejná váha po létě lže.",
-        "body": "Konec srpna je tady a ty chceš po pauze naskočit do tvrdého režimu. Než to ale naslepo napálíš, udělej si dokonalý restart.\n\nKrok 1: Analýza. Zastav se na InBody. Za 60 vteřin přesně víš, jaký je tvůj poměr svalů a tuku. Žádné dohady, čistá data.\n\nKrok 2: Akce. S jasným cílem v hlavě míříš do obrovské silové zóny. Žádné čekání na volnou osu, tvoje série jedou plynule.\n\nKrok 3: Odměna. Trénink končí, ale progres pokračuje. Přímý přesun do vyhřáté sauny urychlí regeneraci, abys zítra mohl makat naplno.",
-        "cta": "Zarezervuj si termín na InBody a pořiď si členství online právě teď na https://www.formfactory.cz/. Tvůj nový režim začíná ještě dnes!",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#inbody",
-          "#fitnesspraha",
-          "#silovytrenink",
-          "#regenerace",
-          "#posilovna",
-          "#inbodycz"
-        ]
-      },
-      {
-        "id": "6fe6b841-fcd1-46db-adf8-e427f671709f",
-        "mediaType": "post",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-posts/1787988455485.webp"
-        ],
-        "hook": "Než zvedneš první činku, udělej tohle.",
-        "body": "Znáš ten pocit. Září je za rohem, ty přijdeš poprvé do fitka a naslepo zkoušíš stroje, co jsi viděl na sítích. Výsledek? Stres, že na tebe ostatní koukají, a strach ze zranění.\n\nSprávný start ale vypadá jinak. Než vůbec zvedneš závaží, stoupni si u nás na InBody. Přátelský trenér ti v klidu vysvětlí tvůj poměr svalů, tuku a vody. Žádné hádání, žádné extrémy. Získáš jasný plán na míru a sebevědomí, že od první minuty cvičíš správně a bezpečně.\n\nA ten nejlepší pocit? Když svůj první úspěšný trénink zakončíš v naší sauně s úplně čistou hlavou.",
-        "cta": "Máš už svůj plán na září, nebo zatím nevíš, kde začít? Napiš nám do komentářů, rádi poradíme!",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#inbody",
-          "#zacatecnik",
-          "#cviceni",
-          "#skupinovelekce",
-          "#hyroxcz",
-          "#zdravyzivotnistyl"
-        ]
-      },
-      {
-        "id": "bba14aec-c357-477d-887a-25d96d30484c",
-        "mediaType": "post",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-posts/1787988627246.webp"
-        ],
-        "hook": "Na dokonalý zářijový rozvrh se vykašli.",
-        "body": "Semestr začíná za tři dny a ty si možná právě píšeš striktní sólo plán, abys dohnal letní pauzu. Mýtus: Výsledky ti přinese jen tvrdá rutina a sluchátka na uších. Realita: Pokud tě to nebaví, do konce září vyhoříš. Klíčem je pestrost. Jdi zvedat železo, další den vyzkoušej dynamický Les Mills a nakonec zregeneruj v sauně. S MultiSportkou máš u nás vše pod jednou střechou bez nesmyslných doplatků. Jsi spíš pečlivý plánovač, nebo to necháváš plynout? Najdi si v komentářích parťáka, se kterým ten návrat do režimu zvládnete společně.",
-        "cta": "Napiš do komentářů, jaký jsi typ, a rovnou si na webu Form Factory vyber společnou lekci.",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#zpatkydorezimu",
-          "#fitnessspolu",
-          "#lesmillscz",
-          "#skupinovelekce",
-          "#fitnessczech"
-        ]
-      },
-      {
-        "id": "00081cd5-422f-45ad-a140-a127612fb479",
-        "mediaType": "post",
-        "images": [
-          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-form-factory/ig-posts/1787988728562.webp"
-        ],
-        "hook": "Chtěl jsem začít až v září.",
-        "body": "„Roky jsem si sliboval, že začnu cvičit po prázdninách. Jenže představa narvaného fitka plného profíků prvního září mě vždycky vyděsila. Bál jsem se, že se ztrapním hned u prvního stroje.\n\nLetos jsem ten kruh rozsekl. Šel jsem už o víkendu, pár dní před koncem srpna. Klub byl klidný. V tichosti jsem si prošel kardio, osahal pár základních strojů a zjistil, že si mě vlastně nikdo nevšímá.\n\nTen obrovský stres prostě zmizel. Místo paniky jsem svůj první den zakončil v sauně s čistou hlavou. Zářijový restart se dá zvládnout úplně v pohodě, když nečekáš na magické datum.“",
-        "cta": "Jaký byl tvůj úplně první den ve fitku? Sdílej s námi v komentářích, co ti tehdy pomohlo překonat ten počáteční respekt k činkám.",
-        "hashtags": [
-          "#formfactory",
-          "#formfactorycz",
-          "#ff",
-          "#formfactoryfitness",
-          "#hlaskomunity",
-          "#poprvevefitku",
-          "#osobnitrener",
-          "#cviceni",
-          "#inbodycz",
-          "#hyroxcz"
-        ]
-      }
-    ]
-  },
-  {
     "slug": "ambiente",
     "company": "Ambiente",
     "industry": "Gastronomie",
@@ -4211,6 +3802,286 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
           "#financnigramotnost",
           "#vzdelavani",
           "#slozenourocesni"
+        ]
+      }
+    ]
+  },
+  {
+    "slug": "olympia-fitness",
+    "company": "Olympia Fitness",
+    "industry": "Fitness a wellness",
+    "website": "https://www.olympiafitness.cz",
+    "posts": [
+      {
+        "id": "d53946b4-e1ca-4429-8885-b918980c573f",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-carousel/1788523926239-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-carousel/1788523974485-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-carousel/1788524000928-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-carousel/1788524024971-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-carousel/1788524051390-slide4.webp"
+        ],
+        "hook": "Zničená záda z mrtvoly? Děláš tuhle chybu.",
+        "body": "Rozjíždí se podzimní objemovka a všichni najednou chtějí tahat nesmysly. Jasně, chceme tam naložit všechny železné kotouče, co ve fitku máme. Ale jestli ti u mrtvoly jako první vyletí zadek ke stropu a celou váhu rveš nahoru čistě přes spodní záda, říkáš si o průšvih.\n\nZákladní pravidlo? Mrtvý tah není jenom o zádech. Je to tlak nohama do země. Přilep osu k holením, zpevni střed těla, zatáhni ramena dolů a místo tahání činky nahoru prostě odtlač podlahu od sebe. Zkrátíš páku, ušetříš bedra a hlavně zvedneš víc. Takhle se to dělá u nás.",
+        "cta": "Kolik teď taháš na mrtvolu? Napiš nám to do komentářů a ulož si tenhle post na další trénink.",
+        "hashtags": [
+          "#olympiafitness",
+          "#olympiafitnesspraha",
+          "#olympiafitnesshostivar",
+          "#gympraha",
+          "#mrtvytah",
+          "#deadlift",
+          "#kulturistika",
+          "#fitnesszivot",
+          "#thaiboxpraha",
+          "#bojovesporty"
+        ]
+      },
+      {
+        "id": "aa09159a-8517-4ccb-b41d-75fe9220ecab",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-carousel/1788524224539-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-carousel/1788524254630-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-carousel/1788524280503-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-carousel/1788524306261-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-carousel/1788524333290-slide4.webp"
+        ],
+        "hook": "Třídenní split: 4 cviky, 12 opakování a čistý růst.",
+        "body": "Minule jsme řešili techniku mrtvoly. Dneska ti dáme systém. Největší chyba nováčků? Přijdou do fitka a bezcílně bloudí od stroje ke stroji. Z toho rostou jen rozpaky, ne svaly. Tenhle třídenní split je tvůj nový nejlepší kámoš pro začátek objemovky. Funguje jednoduše: 3 dny v týdnu, 4 základní cviky na partii, 4 série a přesně 12 opakování. Tohle číslo je ideální pro svalový růst. Pauza mezi sériemi? Striktně 90 vteřin. Bojíš se plného gymu? Vyber si klidnější čas mimo špičku, vezmi si tenhle plán, nahoď sluchátka a v klidu si všechno osahej. Ulož si ho na příště.",
+        "cta": "Ulož si plán, pošli ho parťákovi a koukni na https://www.olympiafitness.cz. Rádi tě u nás uvidíme.",
+        "hashtags": [
+          "#olympiafitness",
+          "#olympiafitnesspraha",
+          "#olympiafitnesshostivar",
+          "#gympraha",
+          "#treningovyplan",
+          "#objemovka",
+          "#kulturistika",
+          "#fitko",
+          "#silovytrenink",
+          "#bojovesporty"
+        ]
+      },
+      {
+        "id": "32b48adf-2a71-49af-b9b4-e7c70aaa411b",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-posts/1788524458741.webp"
+        ],
+        "hook": "10x vstup BOX+FITNESS Hostivař: Boxuj i zvedej.",
+        "body": "Záda máš srovnaná, třídenní split šlape. Ale cítíš, že to chce nový impulz. Běžný fitko tě začíná nudit.\n\nChceš budovat hrubou sílu, ale zároveň vypustit páru v ringu. V Hostivaři nemusíš dělat kompromisy. Těžký osy, špičkový stroje a plně vybavená zóna pro bojový sporty. Všechno pod jednou střechou.\n\nDáš si těžký dřepy a hned potom zničíš pytel. Žádný omezování. Od vstupu přes recepci až po tréninkovou zónu je to tvůj prostor.\n\nTenhle balíček ti dává absolutní svobodu. Deset tréninků, kde kombinuješ obě disciplíny přesně podle sebe.",
+        "cta": "Kup si Permanentku 10x vstup BOX+FITNESS Hostivař online nebo přímo na recepci a začni makat bez kompromisů ještě dnes. https://www.olympiafitness.cz/p/perm-10x-box-fitness",
+        "hashtags": [
+          "#olympiafitness",
+          "#olympiafitnesspraha",
+          "#olympiafitnesshostivar",
+          "#gympraha",
+          "#boxpraha",
+          "#fitnesspraha",
+          "#bojovesporty",
+          "#gym",
+          "#motivace",
+          "#fitko"
+        ]
+      },
+      {
+        "id": "e6729cee-1061-4028-9425-a781e45f8a00",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-carousel/1788525024596-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-carousel/1788525048942-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-carousel/1788525074735-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-carousel/1788525099719-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-carousel/1788525126110-slide4.webp"
+        ],
+        "hook": "Z gauče až do prvního amatérského zápasu.",
+        "body": "Zářijový návrat do režimu bolí všechny. Ale tenhle příběh tě nakopne. Michal k nám přišel před rokem. Bez kondice, s respektem k těžkým vahám a pytlům v rohu. Nejdřív jen sledoval profíky. Pak zvedl první osu. Postupně přidal box. Pět tréninků týdně, brzké vstávání a nekonečná kola na lapách. Žádné výmluvy, čistá disciplína. Minulý víkend stál poprvé v ringu. A vyhrál. Když ladil formu těsně před zápasem, driloval úhyby se sparing partnery a dřel na těžkém pytli, dokud neměl ruce jako z olova. Vypadal jako mašina. Tohle je Olympia. Tady se z obyčejných kluků stávají bojovníci. Dřina, pot a podpora komunity, která tě nenechá padnout.",
+        "cta": "Máš v plánu letos na podzim posunout svoje limity nebo se chystáš na prkna? Napiš nám svůj cíl do komentářů a jdeme do toho společně.",
+        "hashtags": [
+          "#olympiafitness",
+          "#olympiafitnesspraha",
+          "#olympiafitnesshostivar",
+          "#gympraha",
+          "#bojovesporty",
+          "#cistadisciplina",
+          "#zadnevymluvy",
+          "#fitnesszivot",
+          "#gym"
+        ]
+      },
+      {
+        "id": "07bd0773-2297-4b59-a087-de3e5df3299b",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-posts/1788525253014.webp"
+        ],
+        "hook": "Bojíš se těžkých vah? Děláš velkou chybu.",
+        "body": "Myslíš si, že když sáhneš po těžké ose, probudíš se zítra jako kulturista? Zažitý nesmysl.\n\nŽenské tělo nemá přirozeně tolik testosteronu, aby bez extrémů vybudovalo obrovské objemy. Realita je jinde. Dřepy, tahy a pořádné váhy jsou jediným klíčem k pevné a zdravé postavě. Těžké železo tvaruje hýždě, zpevní střed těla a zrychlí metabolismus tak, že pálíš kalorie ještě hodiny po sprše.\n\nVenku se ochlazuje a workoutová hřiště už nestačí. Pokud máš z činek respekt, páteční podvečery jsou u nás paradoxně nejklidnější. Máš prostor si všechno osahat bez davů.",
+        "cta": "Který cvik s volnou váhou tě baví nejvíc? Napiš nám to do komentářů, nebo post pošli kámošce, co se pořád bojí činek.",
+        "hashtags": [
+          "#olympiafitness",
+          "#olympiafitnesspraha",
+          "#olympiafitnesshostivar",
+          "#gympraha",
+          "#fitnesspraha",
+          "#zenyvefitku",
+          "#silovytrenink",
+          "#fitnesszivot",
+          "#fitko",
+          "#gym"
+        ]
+      },
+      {
+        "id": "c10b02e2-5d1e-4bd6-a247-67e2014b7f8a",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-posts/1788525341072.webp"
+        ],
+        "hook": "Těžký dřep: Kdy vzít osu a kdy stroj?",
+        "body": "Venkovní workout je fajn, ale pořádný objem nohou nevybuduje. Takže co zvolit?\n\nOsa (klasický dřep): Buduje hrubou sílu, zapojí střed těla a prověří tvoji stabilitu. Absolutní základ pro komplexní rozvoj.\n\nStroj (Hacken dřep): Perfektní izolace kvadricepsů bez přetížení spodních zad. Můžeš jít do totálního selhání s maximální oporou.\n\nNeexistuje jedna správná cesta. Záleží, jestli dneska potřebuješ zvedat surové železo, nebo chceš cíleně zničit stehna.",
+        "cta": "Co u tebe vítězí? Klasika s velkou činkou, nebo izolace na mašině? Hoď nám to do komentářů a koukni na https://www.olympiafitness.cz, kde najdeš obojí.",
+        "hashtags": [
+          "#olympiafitness",
+          "#olympiafitnesspraha",
+          "#olympiafitnesshostivar",
+          "#gympraha",
+          "#legday",
+          "#drep",
+          "#kulturistika",
+          "#osobnitrenerpraha",
+          "#motivace",
+          "#thaiboxpraha"
+        ]
+      },
+      {
+        "id": "a9430eaf-1321-42f9-8ad7-d1a0d48b1082",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-posts/1788525467992.webp"
+        ],
+        "hook": "Nejtěžší cvik? Otevřít dveře.",
+        "body": "Víme, že plná činkárna, profi osy a těžké jednoručky budí respekt. Zkušení borci to milují, ale pro nováčka to může být stres. Každý z nás tu ale jednou stál poprvé. Tady jsou tři jednoduché kroky, jak začít: 1. V mobilu si pořídíš jednorázový vstup. 2. Na recepci tě přátelsky uvítáme a ukážeme šatny. 3. Jdeš makat. Žádné soudy, jen podpora od komunity.",
+        "cta": "Kup si Základní vstupné do fitness a překonej ten první krok. Začni makat hned po kliknutí na https://www.olympiafitness.cz/p/zakladni-vstup-fitness",
+        "hashtags": [
+          "#olympiafitness",
+          "#olympiafitnesspraha",
+          "#olympiafitnesshostivar",
+          "#gympraha",
+          "#zacnimakat",
+          "#fitnessmotivace",
+          "#prvnikrok",
+          "#fitko",
+          "#thaiboxpraha"
+        ]
+      },
+      {
+        "id": "c7a776fe-af70-42dd-8042-c1b4d3850593",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-posts/1788525560725.webp"
+        ],
+        "hook": "Tvůj úder nemá sílu? Změň svůj postoj.",
+        "body": "Zvedáš na bench nesmysly, ale do pytle boucháš bez energie. Proč? Protože síla úderu nezačíná v ramenou. Začíná v nohách.\n\nKdyž stojíš v jedné linii a jen mácháš rukama, pálíš energii zbytečně. Správná technika? Nohy na šířku ramen, zadní patu mírně odlepit. Při úderu rotuj bokem – jako bys zadní nohou típal cigaretu. Tím přeneseš hrubou sílu z nohou přes střed těla až do pěsti.\n\nJe pátek podvečer, fitko je teď klidnější. Ideální čas stoupnout si k pytli a vypilovat základy.",
+        "cta": "Ulož si tenhle detail na další trénink a v komentářích dej vědět, jestli cítíš ten rozdíl.",
+        "hashtags": [
+          "#olympiafitness",
+          "#olympiafitnesspraha",
+          "#olympiafitnesshostivar",
+          "#gympraha",
+          "#boxpraha",
+          "#technikauderu",
+          "#fitnesspraha",
+          "#fitness",
+          "#osobnitrenerpraha",
+          "#fitko"
+        ]
+      },
+      {
+        "id": "0b1e2898-736f-497e-b9f1-e572b55f3290",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-posts/1788525662088.webp"
+        ],
+        "hook": "Dáš sto shybů za jediný týden?",
+        "body": "Zní to šíleně? Vůbec ne. Venkovní workoutová hřiště chladnou, je čas se přesunout dovnitř a makat systematicky. Rozděl si to na menší části. V pondělí a ve středu dej 5 sérií po 5 opakováních. V pátek, kdy je u nás fitko nejklidnější a máš absolutní klid pro sebe, zkus 10 sérií po 3. V neděli doraz zbytek do stovky. Nejde o to, abys to urval čistou silou hned první den. Klidně použij expandér nebo asistenční stroj. Zásadní je technika. Lopatky stáhni dolů, hrudník tlač k hrazdě a vyhni se trhání. Velké cíle padají po malých kouscích.",
+        "cta": "Ulož si tenhle plán pro svůj další trénink. Koukni na https://www.olympiafitness.cz a přijď si zacvičit k nám.",
+        "hashtags": [
+          "#olympiafitness",
+          "#olympiafitnesspraha",
+          "#olympiafitnesshostivar",
+          "#gympraha",
+          "#fitnesspraha",
+          "#shyby",
+          "#silovytrenink",
+          "#cviceni"
+        ]
+      },
+      {
+        "id": "4a826cbf-6426-4397-b5fd-17298b1b7a48",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-posts/1788525844354.webp"
+        ],
+        "hook": "Měsíční permanentka Hostivař. Neomezený tvrdý trénink.",
+        "body": "Přestaneš počítat vstupy. Přestaneš hledat výmluvy.\n\nVenkovní hřiště chladnou, podzim si žádá těžké železo. Pípneš kartou na recepci a jsi doma. Každý den.\n\nTohle není o občasném zpestření. Tohle je měsíc, kdy z Hostivaře uděláš svou základnu. Ráno zničíš nohy na špičkových biomechanických strojích, večer přijdeš vypustit tlak do pytle. Žádné limity počtu návštěv, jen tvá disciplína, syrová atmosféra a naše komunita, která tě nenechá stagnovat.",
+        "cta": "Tvoje Permanentka 1x měsíc BOX+FITNESS Hostivař čeká. Pořiď si ji rovnou tady a začni makat ještě dnes: https://www.olympiafitness.cz/p/perm-1m-box-fitness",
+        "hashtags": [
+          "#olympiafitness",
+          "#olympiafitnesspraha",
+          "#olympiafitnesshostivar",
+          "#gympraha",
+          "#fitnesspraha",
+          "#hostivar",
+          "#silovytrenink",
+          "#fitness",
+          "#kulturistika",
+          "#osobnitrenerpraha"
+        ]
+      },
+      {
+        "id": "5d18e189-a27a-48d4-a925-70d186ef43d5",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-posts/1788526080747.webp"
+        ],
+        "hook": "Dřepni o dvacet kilo navíc.",
+        "body": "Zasekl ses na mrtvém bodě. Nohy se klepou, osa tě drtí a těch 150 kilo prostě nevstaneš. Známe to všichni. Přesně tady nastupuje trénink s osobním trenérem. Nejde o to, že bys neuměl cvičit. Jde o mikroskopické detaily. Špatný úhel kyčlí, propadlý hrudník, ztráta tenze v břiše. Náš profík vidí to, co ty v zrcadle ne. Srovná ti postoj, upraví dýchání a najednou ta činka letí nahoru. Díky těmhle úpravám dokázali někteří naši klienti přidat na osu i dvacet kilo za pouhý měsíc. Bez zranění. S čistou technikou. Je čas opřít se do železa a vybudovat brutální sílu.",
+        "cta": "Kdy jsi naposledy posunul svou maximálku na dřepu? Napiš nám do komentářů svoje aktuální PR. 👇",
+        "hashtags": [
+          "#olympiafitness",
+          "#olympiafitnesspraha",
+          "#olympiafitnesshostivar",
+          "#gympraha",
+          "#osobnitrener",
+          "#drep",
+          "#silovytrenink",
+          "#bojovesporty",
+          "#kulturistika",
+          "#fitko"
+        ]
+      },
+      {
+        "id": "3f657986-581e-4118-b1a4-01843ef7b4d6",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-olympia-fitness/ig-posts/1788526178130.webp"
+        ],
+        "hook": "Cvičíš do selhání každý den? Brzdíš růst.",
+        "body": "Mýtus: „Když neodpadneš, netrénoval jsi.“ Nesmysl.\n\nKdyž jdeš každou sérii do mrtva, neničíš jen svalová vlákna. Odpaluješ hlavně svůj centrální nervový systém. Výsledek? Tělo nestíhá regenerovat, síla klesá a ty pod osou stagnuješ.\n\nRealita: Nech si v nádrži 1 až 2 opakování. Svaly dostanou maximální impuls k růstu, ale nervovka se neusmaží. Do naprostého selhání běž jen u poslední série izolovaných cviků na strojích. Těžké dřepy do mrtva tě akorát odstaví z tréninku.\n\nChceš budovat čistý objem? Musíš zvedat chytře, ne jen tvrdě.",
+        "cta": "Ulož si tenhle post na další trénink. Jedeš každou sérii do plných, nebo si hlídáš rezervu? Dej nám vědět do komentářů.",
+        "hashtags": [
+          "#olympiafitness",
+          "#olympiafitnesspraha",
+          "#olympiafitnesshostivar",
+          "#gympraha",
+          "#fitnesspraha",
+          "#kulturistika",
+          "#svalovyrost",
+          "#bojovesporty",
+          "#cviceni",
+          "#fitnesszivot"
         ]
       }
     ]

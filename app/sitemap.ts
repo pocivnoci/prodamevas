@@ -1,6 +1,6 @@
 import { MetadataRoute } from 'next'
 import { getAllArticleMeta } from '@/lib/blog'
-import { PORTFOLIO_BRANDS } from '@/lib/portfolio-data'
+import { PORTFOLIO_VISIBLE_BRANDS } from '@/lib/portfolio'
 
 export default function sitemap(): MetadataRoute.Sitemap {
     const baseUrl = 'https://chrlit.cz'
@@ -63,8 +63,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
         priority: 0.6,
     }))
 
-    const portfolioRoutes: MetadataRoute.Sitemap = PORTFOLIO_BRANDS
-        .filter(b => b.posts.length > 0)
+    const portfolioRoutes: MetadataRoute.Sitemap = PORTFOLIO_VISIBLE_BRANDS
         .map(b => ({
             url: `${baseUrl}/portfolio/${b.slug}`,
             lastModified: new Date(),
