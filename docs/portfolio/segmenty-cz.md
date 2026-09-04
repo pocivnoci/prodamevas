@@ -182,7 +182,7 @@ Všechny ověřené `scrapeBrandBasics()` — vracejí titulek i použitelný te
 | Beauty | Kadeřnictví Klier | klier.cz |
 | E-shop | Rohlik.cz | rohlik.cz |
 | Řemeslo / bydlení | Koupelny Ptáček | koupelny-ptacek.cz |
-| Fitness | Form Factory | formfactory.cz |
+| Fitness | Olympia Fitness | olympiafitness.cz |
 | Ubytování | Grandhotel Pupp | pupp.cz |
 | Vinařství | Znovín Znojmo | znovin.cz |
 | Zdraví a estetika | Asklepion | asklepion.cz |
