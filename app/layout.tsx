@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { GoogleAnalytics } from "@/components/GoogleAnalytics";
+import { CookieConsent } from "@/components/CookieConsent";
 import { lowestPriceClaim } from "@/lib/pricing";
 import "./globals.css";
 
@@ -83,6 +84,7 @@ export default function RootLayout({
         className={`${inter.className} antialiased selection:bg-aisummit-cinnabar/30 selection:text-white bg-aisummit-bg text-aisummit-text`}
       >
         <GoogleAnalytics />
+        <CookieConsent />
         {/* PWA Splash Screen — Premium */}
         <div id="splash" style={{
           position: 'fixed', inset: 0, zIndex: 9999,

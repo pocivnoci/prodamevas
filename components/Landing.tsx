@@ -397,7 +397,7 @@ export function Landing({
           </div>
 
           {/* Přepínač období. Předvybraný je ROK: karta pak ukazuje nejnižší
-              možnou měsíční cenu, což je nižší číslo než dnešních 990 — delší
+              možnou měsíční cenu, což je nižší číslo než měsíčních 999 — delší
               závazek tedy cenu opticky nezvedá, naopak. */}
           <div className="flex justify-center mb-10">
             <div className="grid grid-cols-2 sm:flex bg-[#0a0a0a] p-1 rounded-sm border border-white/10 gap-1">

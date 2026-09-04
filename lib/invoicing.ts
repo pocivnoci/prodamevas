@@ -80,6 +80,44 @@ async function loadBillingDetails(
     }
 }
 
+/**
+ * Návrh na doplnění fakturačních údajů po dokladu s náhradními hodnotami.
+ *
+ * Dedupe na `paymentId`: jeden doklad = jeden úkol, i kdyby se `issueInvoiceForPayment`
+ * z jakéhokoli důvodu zavolalo znovu. Nikdy nevyhazuje — fakturace je best-effort
+ * vůči potvrzení platby a tenhle krok je best-effort i vůči fakturaci.
+ */
+async function proposeBillingDetailsFix(
+    clientId: string,
+    paymentId: string,
+    payerEmail: string | null,
+): Promise<void> {
+    try {
+        const { count } = await supabaseAdmin
+            .from("agent_actions")
+            .select("id", { count: "exact", head: true })
+            .eq("task_type", "fix_billing_details")
+            .eq("payload->>paymentId", paymentId)
+            .in("status", ["proposed", "approved", "executed"])
+        if ((count || 0) > 0) return
+
+        const { requestAction } = await import("@/lib/agent-safety")
+        await requestAction({
+            clientId,
+            agentType: "billing",
+            action: "Doklad vystaven s náhradní adresou — doplnit údaje a vystavit opravný doklad",
+            // Nápravou je OPRAVNÝ doklad v nevratné číselné řadě, ne přepsání
+            // toho původního — proto `irreversible`. Bez `taskType` se nic samo
+            // nespustí: je to záznam, který čeká na člověka.
+            riskTier: "irreversible",
+            payload: { paymentId, clientId, payerEmail },
+            notify: true,
+        })
+    } catch (err: any) {
+        console.warn(`invoicing: návrh na doplnění fakturačních údajů se nepodařilo založit: ${err?.message}`)
+    }
+}
+
 export interface IssueForPaymentInput {
     paymentId: string
     clientId: string
@@ -213,6 +251,15 @@ export async function issueInvoiceForPayment(
         const { billing, isFallback } = await loadBillingDetails(input.clientId, input.payerEmail || null)
         if (isFallback) {
             console.warn(`⚠️ invoicing: klient ${input.clientId} nemá fakturační údaje — doklad jde s náhradními`)
+            // Varování v logu nikdo nečte. Doklad přitom právě odešel do NEVRATNÉ
+            // číselné řady s adresou „Neuvedeno" a PSČ „00000" — pro podnikatelského
+            // odběratele je to vadný daňový doklad, který si nemůže uplatnit,
+            // a opravit se dá jen opravným dokladem, ne přepsáním.
+            //
+            // Prodej se kvůli tomu nezastavuje (UI si údaje vyžádá před pokladnou
+            // a ta kontrola smí selhat propustně — neprodat je horší). Ale zůstat
+            // o tom zticha znamená, že se na to přijde až při kontrole účetnictví.
+            await proposeBillingDetailsFix(input.clientId, input.paymentId, input.payerEmail || null)
         }
 
         const invoice = await issueInvoice({

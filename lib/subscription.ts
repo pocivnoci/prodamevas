@@ -385,6 +385,24 @@ export async function getCreditsUsedThisPeriod(
     return (await getCreditLedger(clientId, window)).used
 }
 
+/**
+ * Kreditové okno klienta — stejná cesta, jakou si ho dopočítává `getCreditLedger`.
+ *
+ * Vytažené zvlášť, aby rezervace i kniha četly TÝŽ interval. Kdyby se rozešly,
+ * kontrola zůstatku by se dělala nad jiným obdobím, než ve kterém se účtuje.
+ */
+export async function resolveClientCreditWindow(clientId: string): Promise<{ start: Date; end: Date }> {
+    const { data: row } = await supabaseAdmin
+        .from("subscriptions")
+        .select("credit_period_start, credit_period_end, current_period_start, created_at")
+        .eq("client_id", clientId)
+        .in("status", ["active", "trialing", "pending", "expired"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    return resolveCreditWindow(row || {})
+}
+
 /** Akce, pod kterou se do knihy zapisuje DOBITÍ (záporný řádek). */
 export const TOPUP_ACTION = "credit_topup"
 
@@ -486,6 +504,63 @@ export async function rollLapsedCreditWindows(limit = 200): Promise<number> {
  * Check if a client can perform a specific action.
  * For "post" actions: checks if it's a plan post (free) or extra post (costs credits).
  */
+// ════════════════════════════════════════════════════════════════════════════
+// Strop tempa — pojistka nezávislá na kreditech
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Kontrola kreditů je `check-then-act`: `canPerformAction` zůstatek jen PŘEČTE
+// a `deductCredits` zapisuje až po dokončení AI operace. Mezi tím není zámek,
+// takže N souběžných požadavků přečte týž zůstatek a všechny projdou. Zákazník
+// s jedním kreditem tak umí spustit padesát paralelních generování.
+//
+// Skutečná oprava je atomická rezervace na straně databáze (jeden příkaz, který
+// pod zámkem ověří zůstatek a rovnou zapíše odpočet) — ta potřebuje migraci
+// s Postgres funkcí, viz `docs/audit-stav-projektu.md`.
+//
+// Do té doby tohle: strop na POČET zpoplatněných akcí za okno, počítaný z už
+// existující knihy `credit_transactions`. Závod tím nezmizí — dva požadavky ve
+// stejné milisekundě napočítají totéž — ale trvalé pálení kreditů skriptem
+// zastaví po prvním okně, a to je rozdíl mezi „účet za tisíce" a „účet za pár
+// korun". Je to strop TEMPA, ne náhrada účtování.
+const BURST_WINDOW_MS = 60_000
+/** Kolik zpoplatněných akcí smí klient spustit za minutu. */
+const MAX_ACTIONS_PER_MINUTE = Number(process.env.CREDIT_BURST_PER_MINUTE) || 12
+/** Denní strop jako druhá pojistka — chrání i před pomalým, vytrvalým skriptem. */
+const MAX_ACTIONS_PER_DAY = Number(process.env.CREDIT_ACTIONS_PER_DAY) || 400
+
+/**
+ * Kolik zpoplatněných akcí klient provedl od `since`.
+ *
+ * Dobití (`TOPUP_ACTION`) se nepočítá — je to přírůstek, ne spotřeba, a zákazník,
+ * který si právě koupil kredity, nesmí být za nákup potrestaný zpomalením.
+ */
+async function chargedActionsSince(clientId: string, since: Date): Promise<number> {
+    const { count } = await supabaseAdmin
+        .from("credit_transactions")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", clientId)
+        .neq("action", TOPUP_ACTION)
+        .gt("credits", 0)
+        .gte("created_at", since.toISOString())
+    return count || 0
+}
+
+/** `null` = smí pokračovat; jinak důvod k zablokování. */
+async function rateLimitReason(clientId: string): Promise<string | null> {
+    const now = Date.now()
+    const [burst, daily] = await Promise.all([
+        chargedActionsSince(clientId, new Date(now - BURST_WINDOW_MS)),
+        chargedActionsSince(clientId, new Date(now - 24 * 60 * 60 * 1000)),
+    ])
+    if (burst >= MAX_ACTIONS_PER_MINUTE) {
+        return `Příliš mnoho požadavků za sebou (${burst}/min). Počkejte chvíli a zkuste to znovu.`
+    }
+    if (daily >= MAX_ACTIONS_PER_DAY) {
+        return `Vyčerpán denní limit generování (${MAX_ACTIONS_PER_DAY}/den). Ozvěte se nám, pokud potřebujete víc.`
+    }
+    return null
+}
+
 export async function canPerformAction(
     clientId: string,
     action: ActionType,
@@ -498,6 +573,26 @@ export async function canPerformAction(
     if (await isSuperAdmin()) return ADMIN_BYPASS
 
     const creditsRequired = creditsForAction(action, medium)
+
+    // Strop tempa se kontroluje PŘED předplatným: je to ochrana našeho účtu
+    // u AI providera, ne součást produktu, a platí i pro klienta s kredity.
+    // Selhání téhle kontroly nesmí zablokovat prodej ani práci — při chybě
+    // dotazu se pokračuje dál a rozhoduje účtování jako dřív.
+    try {
+        const limited = await rateLimitReason(clientId)
+        if (limited) {
+            const sub = await getClientSubscription(clientId)
+            return {
+                allowed: false,
+                reason: limited,
+                creditsRequired,
+                creditsRemaining: sub?.creditsRemaining ?? 0,
+            }
+        }
+    } catch (err: any) {
+        console.warn(`canPerformAction: kontrola tempa selhala (pokračuji): ${err?.message}`)
+    }
+
     const sub = await getClientSubscription(clientId)
 
     // No subscription at all
@@ -588,6 +683,170 @@ export async function deductCredits(
         description: description || ACTION_LABELS[action],
         reference_id: referenceId,
     })
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Atomická rezervace — kontrola a odpočet jako JEDNA operace
+// ════════════════════════════════════════════════════════════════════════════
+
+export interface CreditReservation {
+    reserved: boolean
+    /** Zůstatek po rezervaci; -1 znamená „nepočítáno" (idempotentní zásah). */
+    remaining: number
+    /** Řádek k případnému vrácení. `null` = nic se nevložilo, není co vracet. */
+    reservationId: string | null
+    /** false = běželo se náhradní cestou bez zámku (migrace ještě nedoběhla). */
+    atomic: boolean
+}
+
+/** Hlásí se jednou za běh procesu, ne u každého volání. */
+let warnedMissingRpc = false
+
+/**
+ * Zarezervuje kredity PŘED prací — kontrola zůstatku a zápis odpočtu proběhnou
+ * pod zámkem na klienta jako jedna operace (`reserve_credits`, migrace
+ * `20260902_atomicka_rezervace_kreditu.sql`).
+ *
+ * Tím padá závod, kvůli kterému souběžné požadavky přečetly týž zůstatek
+ * a prošly všechny. Cena za to je, že se kredity strhávají dopředu — proto
+ * `releaseCredits()` a automatické vrácení v `creditGuard`, když práce selže.
+ *
+ * **Degraduje bezpečně.** Když funkce v databázi ještě není (kód se nasazuje
+ * dřív než migrace), spadne to na dnešní chování: přečti a zapiš. To je pořád
+ * lepší než tvrdá chyba, ale závod v té chvíli trvá — proto se to hlásí do logu
+ * a `atomic: false` propaguje ven, aby to šlo změřit.
+ */
+export async function reserveCredits(input: {
+    clientId: string
+    action: ActionType
+    credits: number
+    /** Měsíční příděl z tarifu — počítá aplikace, ne SQL (viz komentář v migraci). */
+    monthly: number
+    /** Nepovinné — bez něj se okno dopočítá stejně jako v `getCreditLedger`. */
+    window?: { start: Date; end: Date }
+    description?: string
+    referenceId?: string | null
+}): Promise<CreditReservation> {
+    const window = input.window ?? (await resolveClientCreditWindow(input.clientId))
+    const { data, error } = await supabaseAdmin.rpc("reserve_credits", {
+        p_client_id: input.clientId,
+        p_action: input.action,
+        p_credits: input.credits,
+        p_monthly: input.monthly,
+        p_window_start: window.start.toISOString(),
+        p_window_end: window.end.toISOString(),
+        p_description: input.description ?? ACTION_LABELS[input.action],
+        p_reference_id: input.referenceId ?? null,
+    })
+
+    if (!error) {
+        const row = Array.isArray(data) ? data[0] : data
+        return {
+            reserved: Boolean(row?.reserved),
+            remaining: Number(row?.remaining ?? 0),
+            reservationId: row?.reservation_id ?? null,
+            atomic: true,
+        }
+    }
+
+    // 42883 = funkce neexistuje, PGRST202 = PostgREST ji nenašel ve schématu.
+    const missing = error.code === "42883" || error.code === "PGRST202"
+    if (!missing) {
+        console.error(`🚨 reserve_credits selhalo (${error.code}): ${error.message}`)
+        return { reserved: false, remaining: 0, reservationId: null, atomic: true }
+    }
+
+    if (!warnedMissingRpc) {
+        warnedMissingRpc = true
+        console.warn(
+            "⚠️ Funkce reserve_credits v databázi není — kredity se účtují bez zámku a souběžné " +
+            "požadavky můžou přečíst týž zůstatek. Spusť migraci 20260902_atomicka_rezervace_kreditu.sql.",
+        )
+    }
+
+    // Náhradní cesta: přečti a zapiš. Odpočet jde pořád DOPŘEDU, takže se aspoň
+    // nečeká na dokončení práce; chybí jen serializace mezi souběžnými běhy.
+    const { used, purchased } = await getCreditLedger(input.clientId, window)
+    const remaining = Math.max(0, input.monthly + purchased - used)
+    if (remaining < input.credits) {
+        return { reserved: false, remaining, reservationId: null, atomic: false }
+    }
+    const { data: inserted } = await supabaseAdmin
+        .from("credit_transactions")
+        .insert({
+            client_id: input.clientId,
+            action: input.action,
+            credits: input.credits,
+            description: input.description || ACTION_LABELS[input.action],
+            reference_id: input.referenceId ?? null,
+        })
+        .select("id")
+        .maybeSingle()
+
+    return {
+        reserved: true,
+        remaining: remaining - input.credits,
+        reservationId: inserted?.id ?? null,
+        atomic: false,
+    }
+}
+
+/**
+ * Vrátí nevyčerpanou rezervaci — řádek se SMAŽE, ne kompenzuje protizápisem.
+ *
+ * Nevyčerpaná rezervace není obchodní událost: zákazník nic nedostal a nic
+ * nezaplatil. Dva řádky (odpočet + vrácení) by z každé selhané generace udělaly
+ * záznam v knize, který nic neznamená a jen ztěžuje čtení. U skutečné refundace
+ * po DODANÉ práci to platí naopak — tam je protizápis správně (`refundJobCharge`).
+ */
+export async function releaseCredits(reservationId: string | null): Promise<void> {
+    if (!reservationId) return
+    const { error } = await supabaseAdmin.from("credit_transactions").delete().eq("id", reservationId)
+    if (error) console.warn(`releaseCredits: rezervaci ${reservationId} se nepodařilo vrátit: ${error.message}`)
+}
+
+/**
+ * Sníží rezervaci na skutečně spotřebovanou částku — pro dávky, kde se dopředu
+ * rezervuje celý běh a teprve po něm se ví, kolik položek prošlo.
+ *
+ * Jen SNIŽUJE. Kdyby dávka doručila víc, než na kolik má klient kredity,
+ * dodatečné zvýšení by obešlo kontrolu zůstatku — a to je přesně ta díra,
+ * kterou rezervace zavírá. Nula znamená „nic neprošlo" → rezervace se maže.
+ */
+export async function shrinkReservation(reservationId: string | null, credits: number): Promise<void> {
+    if (!reservationId) return
+    if (credits <= 0) return releaseCredits(reservationId)
+    const { error } = await supabaseAdmin
+        .from("credit_transactions")
+        .update({ credits })
+        .eq("id", reservationId)
+        .gte("credits", credits) // pojistka proti zvýšení
+    if (error) console.warn(`shrinkReservation: ${error.message}`)
+}
+
+/**
+ * Dopíše k rezervaci popis a odkaz na výsledek práce.
+ *
+ * Odkaz (`referenceId`) je typicky id řádku, který při rezervaci ještě
+ * neexistoval — proto se doplňuje až tady. Kolize na `ux_credit_transactions_action_ref`
+ * znamená, že za tutéž práci se už jednou účtovalo: pak se rezervace **smaže**,
+ * což je přesně to, co dřív dělal idempotentní insert (druhý pokus nic nestrhl).
+ */
+export async function settleReservation(
+    reservationId: string | null,
+    description: string,
+    referenceId?: string | null,
+): Promise<void> {
+    if (!reservationId) return
+    const patch: Record<string, unknown> = { description }
+    if (referenceId) patch.reference_id = referenceId
+
+    const { error } = await supabaseAdmin.from("credit_transactions").update(patch).eq("id", reservationId)
+    if (error?.code === "23505") {
+        await releaseCredits(reservationId)
+        return
+    }
+    if (error) console.warn(`settleReservation: ${error.message}`)
 }
 
 /**
@@ -879,13 +1138,52 @@ export async function activatePaidPlan(
             })
             .eq("id", sub.id)
 
-        // Exactly one live subscription per client
-        await supabaseAdmin
+        // Exactly one live subscription per client.
+        //
+        // `select()` je tu kvůli tomu, co následuje: potřebujeme vědět, KTERÁ
+        // předplatná jsme právě odstavili, abychom je uměli zrušit i u brány.
+        const { data: superseded } = await supabaseAdmin
             .from("subscriptions")
             .update({ status: "cancelled", cancelled_at: now.toISOString(), updated_at: now.toISOString() })
             .eq("client_id", clientId)
             .neq("id", sub.id)
             .in("status", ["trialing", "pending", "active"])
+            .select("id, provider, provider_ref")
+
+        // Zrušení odstavených předplatných U BRÁNY.
+        //
+        // Bez tohohle kroku byl náš řádek `cancelled`, ale Stripe o tom nevěděl
+        // a fakturoval dál — zákazník, který přešel ze Startu na Dominanci,
+        // platil OBOJE a přišlo se na to až třicátý den. Lokální zrušení
+        // a zrušení u brány jsou dvě různé věci a musí se dít spolu.
+        //
+        // ComGate se tudy neřeší schválně: jeho obnovy strhává náš cron podle
+        // `status='active'`, takže odstavený řádek se přestane účtovat sám.
+        // U Stripu je iniciátorem brána, a ta se musí dozvědět explicitně.
+        //
+        // Selhání NIKDY neshodí aktivaci: zákazník právě zaplatil a musí
+        // dostat, co si koupil. Křičí se do logu i do Sentry, protože je to
+        // chyba, která stojí peníze a nespraví se sama.
+        for (const old of superseded || []) {
+            if (old.provider !== "stripe" || !old.provider_ref) continue
+            try {
+                const { cancelStripeSubscriptionNow } = await import("@/lib/payments/stripe-billing")
+                await cancelStripeSubscriptionNow(old.provider_ref)
+                console.log(`💳 Staré Stripe předplatné ${old.provider_ref} zrušeno u brány (přechod na ${planId})`)
+            } catch (err: any) {
+                console.error(
+                    `🚨 Staré Stripe předplatné ${old.provider_ref} (klient ${clientId}) se NEPODAŘILO zrušit u brány — ` +
+                    `hrozí dvojí účtování, zruš ho ručně v dashboardu Stripu: ${err?.message}`,
+                )
+                try {
+                    const Sentry = await import("@sentry/nextjs")
+                    Sentry.captureException(err, {
+                        tags: { area: "payments", provider: "stripe" },
+                        extra: { clientId, staleSubscriptionId: old.id, stripeRef: old.provider_ref, newPlanId: planId },
+                    })
+                } catch { /* Sentry je volitelný */ }
+            }
+        }
     }
 
     // plan_locked rows are onboarding TEASER PLACEHOLDERS (fake hooks from

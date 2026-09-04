@@ -13,10 +13,13 @@
 import "server-only"
 import supabaseAdmin from "@/supabase/admin"
 import { getStripe, isStripeConfigured, isStripeSandbox } from "./stripe"
-import { generateRefId } from "@/lib/comgate"
+// Přímo z neutrálního modulu, ne přes re-export v `lib/comgate.ts`: Stripe cesta
+// nesmí mít jedinou vazbu na klienta druhé brány, jinak se ComGate nedá smazat.
+import { generateRefId } from "@/lib/payments/ref-id"
 import { termPrice, termLabel, stripeRecurring, type TermMonths } from "@/lib/pricing"
+import { chooseGateway, stripeCanComplete, type Gateway, type GatewayEnv } from "./gateway"
 
-export type Gateway = "comgate" | "stripe"
+export type { Gateway }
 
 /**
  * Která brána vezme peníze.
@@ -40,18 +43,27 @@ export type Gateway = "comgate" | "stripe"
  * a tenhle výběr proto tiše směroval platby na bránu bez webhooku.
  */
 export function stripeCanCompletePayment(): boolean {
-    return isStripeConfigured() && Boolean(process.env.STRIPE_WEBHOOK_SECRET)
+    return stripeCanComplete(gatewayEnv())
+}
+
+/**
+ * Rozhodnutí samo žije v `lib/payments/gateway.ts` jako čistá funkce nad
+ * předaným prostředím — jinak by se nedalo otestovat jinak než nasazením,
+ * a přesně to stálo za incidentem z 11. 8. 2026. Tady zbývá jen přečíst
+ * skutečné `process.env`.
+ */
+function gatewayEnv(): GatewayEnv {
+    return {
+        PAYMENT_GATEWAY: process.env.PAYMENT_GATEWAY,
+        STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+        STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+        COMGATE_MERCHANT_ID: process.env.COMGATE_MERCHANT_ID,
+        COMGATE_SECRET: process.env.COMGATE_SECRET,
+    }
 }
 
 export function activeGateway(): Gateway {
-    const forced = (process.env.PAYMENT_GATEWAY || "").toLowerCase()
-    // I vynucená volba musí umět dojet do konce — jinak by se překlep v env
-    // proměnné projevil až tím, že zákazník zaplatí a nic nedostane.
-    if (forced === "stripe" && stripeCanCompletePayment()) return "stripe"
-    if (forced === "comgate") return "comgate"
-    const comgateReady = Boolean(process.env.COMGATE_MERCHANT_ID && process.env.COMGATE_SECRET)
-    if (!comgateReady && stripeCanCompletePayment()) return "stripe"
-    return "comgate"
+    return chooseGateway(gatewayEnv())
 }
 
 export interface CheckoutInput {

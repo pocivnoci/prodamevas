@@ -21,7 +21,10 @@
  *    come round, and the founder can veto any still-future scheduled post in the
  *    dashboard before it goes out. Posts the agent dates ITSELF (no proposed
  *    `scheduled_for`) are additionally capped at the brand's cadence.
- *  - reels excluded: auto-publish has no video path (they use the manual handoff)
+ *  - stories excluded: they are ephemeral and never appear in the grid, so arming
+ *    them on the FEED cadence would spend a slot that belongs to permanent content.
+ *    They still publish — by button, or from a date someone set — just not from here.
+ *    Reels ARE armed: they are grid content, and the publisher carries video.
  *  - overdue posts are left alone: shifting them silently would publish content
  *    outside the moment it was written for. They stay visible for a human.
  */
@@ -80,9 +83,16 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
     // přebíjelo termíny v kalendáři. Termíny už rozdělil generátor a schválil je
     // člověk; pojistkou proti zaplavení účtu je tedy sám plán, ne druhá kadence.
     //
-    // POZOR: `.neq()` je v SQL `<>`, a `NULL <> 'reel'` je NULL — řádek vypadne.
+    // POZOR: `.neq()` je v SQL `<>`, a `NULL <> 'story'` je NULL — řádek vypadne.
     // media_type přišlo migrací 20260622 bez backfillu, takže bez null větve by se
     // vynechal každý příspěvek vzniklý dřív.
+    //
+    // REELS SEM PATŘÍ, STORIES NE. Reel je obsah do mřížky profilu — prodává se od
+    // tarifu Růst a zákazník si předplatil, že ho publikovat nemusí; do 9/2026 ho
+    // agent vynechával jen proto, že publikační cesta neuměla video. Umí.
+    // Story je jiná kadence: je efemérní, v mřížce není a naostřit ji podle
+    // FEEDOVÉHO tempa by ji nechalo spotřebovat slot, který patří trvalému obsahu.
+    // Publikovat jde (tlačítkem i naplánovaná), jen ji nerozvrhuje tenhle agent.
     const nowMs = Date.now()
     const windowEnd = new Date(nowMs + FORWARD_BUFFER_WEEKS * 7 * DAY_MS).toISOString()
 
@@ -98,7 +108,7 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
         // viditelně propadlé a člověk je posune nebo potvrdí sám.
         .gt("scheduled_for", new Date(nowMs).toISOString())
         .lte("scheduled_for", windowEnd)
-        .or("media_type.is.null,and(media_type.neq.reel,media_type.neq.story)")
+        .or("media_type.is.null,media_type.neq.story")
         .order("scheduled_for", { ascending: true })
     if (rErr) throw new Error(`auto-publish ready read (${slug}): ${rErr.message}`)
 
@@ -149,7 +159,7 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
         .eq("status", "ready")
         .not("image_url", "is", null)
         .is("scheduled_for", null)
-        .or("media_type.is.null,and(media_type.neq.reel,media_type.neq.story)")
+        .or("media_type.is.null,media_type.neq.story")
         .order("created_at", { ascending: true })
         .limit(stillNeeded)
     if (!undated || undated.length === 0) return { clientId, slug, armed, queued: queuedCount + armed }

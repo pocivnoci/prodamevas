@@ -38,6 +38,7 @@ Open [http://localhost:3000](http://localhost:3000)
 | `IG_TOKEN_ENCRYPTION_KEY` | AES-256-GCM klíč pro šifrování IG tokenů — `openssl rand -hex 32` |
 | `UPLOADPOST_API_KEY` | Most pro publikaci a metriky na **cizí** profily, dokud neprojde 2. Meta App Review. Bez něj se ta volba v Nastavení vůbec nenabídne |
 | `UPLOADPOST_DEFAULT_TRANSPORT` | `uploadpost` přepne výchozí nabídku připojení pro nové tenanty; jinak platí `meta` (naše Graph cesta). Už připojený účet se řídí `ig_connections.transport`, ne tímhle |
+| `UPLOADPOST_PROFILE_LIMIT` | Kolik profilů unese tarif u upload-postu (free = 2). API strop nehlásí, takže bez tohohle čísla denní kontrola o docházejících slotech **mlčí** — a dojdou-li, další zákazník si Instagram nepřipojí. Nastav ho vždy, když měníš tarif |
 | `RESEND_API_KEY` | Odesílání e-mailů (uvítání, doklad, dunning, broadcast). Bez něj se nic neodešle a chyba se jen zaloguje |
 | `REPORT_FROM_EMAIL` | Odesílatel, např. `Chrlit <noreply@chrlit.cz>`. Bez ověřené domény se posílá z `onboarding@resend.dev`, který doručí **jen na adresu majitele Resend účtu** |
 | `REPORT_EMAIL` | Kam chodí ops pošta (ranní brief, schválení). Výchozí: první `SUPER_ADMIN_EMAILS` |

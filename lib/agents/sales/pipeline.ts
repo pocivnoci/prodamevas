@@ -91,8 +91,31 @@ export async function runQualify(leadId: string) {
     await logEvent(leadId, q.qualified ? "qualified" : "rejected",
         { score: q.score, segment: q.segment, reasons: q.reasons, reject: q.rejectReason })
 
-    // Ukázka je drahá — zařadí se až pro kvalifikované.
-    if (q.qualified) await enqueueTask({ type: "lead_preview", payload: { leadId } })
+    // Ukázka je drahá — zařadí se až pro kvalifikované, a jen nad prahem skóre.
+    //
+    // Stojí 18 Kč a vzniká PŘED oslovením, tedy dřív, než kdokoli projeví zájem.
+    // Náklad tím škáluje s objemem oslovení, ne s konverzí: při tisíci oslovených
+    // a pětiprocentní míře odpovědí se zaplatí dvacetkrát víc ukázek, než kolik
+    // jich někdo otevře.
+    //
+    // Předgenerování se přesto nezrušilo — má dobrý důvod. Generovat až po
+    // kliknutí znamená minuty čekání na prázdné stránce a návštěvník odejde.
+    // Práh je kompromis mezi obojím: nejlepší leady dostanou ukázku hotovou,
+    // u slabších se peníze neutratí předem.
+    //
+    // ⚠️ Práh neškrtá jen náklad, ale i OSLOVENÍ: `runOutreach` lead bez
+    // `preview_token` přeskočí, takže komu se ukázka nevygeneruje, tomu se ani
+    // nepíše. Je to vědomý kompromis — oslovit míň leadů, ale s hotovou
+    // ukázkou — ne tichý vedlejší účinek.
+    //
+    // `SALES_PREVIEW_MIN_SCORE` se ladí bez deploye. Nula = předgenerovat všem
+    // kvalifikovaným (chování do 9/2026).
+    const prah = Number(process.env.SALES_PREVIEW_MIN_SCORE) || 0
+    if (q.qualified && q.score >= prah) {
+        await enqueueTask({ type: "lead_preview", payload: { leadId } })
+    } else if (q.qualified) {
+        console.log(`💤 Lead ${leadId}: skóre ${q.score} pod prahem ${prah} — ukázka se předem negeneruje.`)
+    }
     return { ok: true, qualified: q.qualified, score: q.score, segment: q.segment }
 }
 

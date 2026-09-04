@@ -165,9 +165,10 @@ export async function retryPublishAction(
  * ig-publisher tick (≤60s) posts it to Instagram via the Graph API — no app, no
  * manual step. We deliberately DON'T call the Graph publish synchronously here, so
  * a slow carousel (container polling) can't time out a server action — the cron
- * owns that with its 800s budget. Requires a live connection; reels are rejected
- * (auto-publish has no video path — those go through the manual handoff). Stories
- * ARE supported: they publish as one STORIES container per frame.
+ * owns that with its 800s budget. That budget is what makes reels workable here at
+ * all: a REELS container is transcoded before it can be published, which takes
+ * minutes. Requires a live connection. Every medium the engine renders is supported —
+ * reels as a REELS container, stories as one STORIES container per frame.
  */
 export async function publishNowAction(
     postId: string,
@@ -188,9 +189,18 @@ export async function publishNowAction(
         // Same parser as the publisher cron, so the two can't disagree about what a
         // pipe-joined image_url means.
         const { parsePostMedia } = await import("@/lib/media-urls")
-        const mediaType = parsePostMedia(post?.image_url, post?.media_type).kind
-        if (mediaType === "reel") {
-            return { success: false, error: "Reels zatím nejdou publikovat automaticky — použij ruční sdílení." }
+        const media = parsePostMedia(post?.image_url, post?.media_type)
+
+        // Reels and stories publish like anything else now, but a reel row whose
+        // render fell back to a still has nothing to send down the video path. Saying
+        // so HERE — while the tenant is looking at the button — beats arming the post
+        // and letting the cron fail it four times into a silent 'failed'.
+        // `parsePostMedia` has no bare 'video' kind — a reel IS the engine's only video.
+        if (media.kind === "reel" && !media.videoUrl) {
+            return { success: false, error: "Tenhle reel nemá video — přegeneruj ho, publikovat zatím nejde." }
+        }
+        if (media.urls.length === 0) {
+            return { success: false, error: "Příspěvek nemá žádné médium k publikování." }
         }
 
         const { error } = await supabaseAdmin

@@ -18,9 +18,18 @@ export function GoogleAnalytics() {
                     window.dataLayer = window.dataLayer || [];
                     function gtag(){dataLayer.push(arguments);}
                     gtag('js', new Date());
+                    // Výchozí stav je ODMÍTNUTO a musí být nastavený dřív, než se
+                    // pošle 'config' — souhlas udělený až potom by nezabránil
+                    // prvnímu měření, tedy přesně tomu, co má souhlas hlídat.
+                    // Na 'granted' to přepne až CookieConsent přes consent update.
                     gtag('consent', 'default', {
-                        'analytics_storage': 'granted'
+                        'analytics_storage': 'denied'
                     });
+                    try {
+                        if (localStorage.getItem('chrlit-cookie-consent') === 'granted') {
+                            gtag('consent', 'update', { 'analytics_storage': 'granted' });
+                        }
+                    } catch (e) { /* bez úložiště zůstává odmítnuto */ }
                     gtag('config', '${GA_ID}', {
                         page_path: window.location.pathname,
                     });

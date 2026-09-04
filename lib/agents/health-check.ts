@@ -131,6 +131,100 @@ export async function buildHealthCheck(): Promise<HealthReport> {
             const oldestDays = Math.floor((Date.now() - new Date(data[0].created_at).getTime()) / DAY_MS)
             return { icon: "⏳", title: `${data.length}× akce čeká na schválení déle než den`, detail: `Nejstarší ${oldestDays} d — dashboard → Schválení.` }
         }),
+
+        // ── Připravenost na tržbu ────────────────────────────────────────────
+        //
+        // Tyhle dvě selhání nejsou vidět NIKDE: aplikace běží, stránky se načtou,
+        // pokladna se otevře — a peníze nepřijdou, protože klíč je testovací.
+        // Audit takovou věc najde jednou; tahle kontrola ji hlídá každý den.
+        //
+        // Běží jen v produkci. Lokálně a v preview jsou testovací klíče SPRÁVNĚ
+        // a denní poplach by naučil všechny tuhle kontrolu ignorovat.
+        safe("ostrý režim plateb", async () => {
+            if (process.env.VERCEL_ENV !== "production") return null
+
+            // ČISTÉ funkce nad předaným prostředím — schválně ne `payments/checkout`,
+            // který je `server-only` a v samostatném skriptu se ani nenačte. Rozhodnutí
+            // o bráně žije v gateway.ts právě proto, aby šlo číst i mimo request.
+            const { chooseGateway, isSandboxKey, stripeCanComplete } = await import("@/lib/payments/gateway")
+            const env = {
+                PAYMENT_GATEWAY: process.env.PAYMENT_GATEWAY,
+                STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+                STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+                COMGATE_MERCHANT_ID: process.env.COMGATE_MERCHANT_ID,
+                COMGATE_SECRET: process.env.COMGATE_SECRET,
+            }
+
+            // Brána, která umí platbu ZAČÍT, ale ne DOKONČIT, vyrobí zaplaceného
+            // a neaktivovaného zákazníka — horší stav než platba, která nezačne.
+            if (env.STRIPE_SECRET_KEY && !stripeCanComplete(env)) {
+                return {
+                    icon: "🛑",
+                    title: "Stripe neumí dokončit platbu",
+                    detail: "Chybí STRIPE_WEBHOOK_SECRET — zákazník zaplatí a tarif se mu neaktivuje.",
+                }
+            }
+            if (chooseGateway(env) === "stripe" && isSandboxKey(env.STRIPE_SECRET_KEY)) {
+                return {
+                    icon: "🛑",
+                    title: "Platby běží na TESTOVACÍCH klíčích",
+                    detail: "STRIPE_SECRET_KEY začíná sk_test — žádná platba v produkci není skutečná. Nasaď ostrý klíč a ostrý STRIPE_WEBHOOK_SECRET.",
+                }
+            }
+            return null
+        }),
+
+        // Formát, který se prodává a je vypnutý, vyrobí stížnost dřív než obrat.
+        // Landing i tarify text o reels schovávají, když je přepínač dole — ale to
+        // znamená, že se tiše prodává MÉNĚ, než čím se tarify liší.
+        safe("prodávané formáty", async () => {
+            if (process.env.VERCEL_ENV !== "production") return null
+            if (process.env.REELS_ENABLED === "1") return null
+
+            // `allowed_media` žije uvnitř `features` JSONB, ne jako sloupec — filtrovat
+            // se to dá až v paměti. Tarifů jsou jednotky, takže je to levné.
+            const { data, error } = await supabaseAdmin.from("subscription_plans")
+                .select("id, features")
+                .eq("is_active", true)
+            if (error) throw new Error(error.message)
+            const count = (data || []).filter(p => {
+                const media = (p.features as { allowed_media?: string[] } | null)?.allowed_media
+                return Array.isArray(media) && media.includes("reel")
+            }).length
+            return count > 0
+                ? {
+                    icon: "⚠️",
+                    title: `REELS_ENABLED není zapnuté, ale reels obsahuje ${count} ${count === 1 ? "tarif" : count < 5 ? "tarify" : "tarifů"}`,
+                    detail: "Engine překlápí reel na carousel. Zapni REELS_ENABLED=1, nebo reels z tarifů odeber — teď se liší cenami za formát, který nevzniká.",
+                }
+                : null
+        }),
+
+        // Volné sloty na mostu. Strop profilů je tvrdá hranice růstu, kterou nejde
+        // vidět v našich datech: dojde-li, další zákazník si Instagram nepřipojí a
+        // dozvíme se to od NĚJ. Tarif upload-postu strop nehlásí, takže ho bere z
+        // env — bez něj se kontrola neozve vůbec, radši ticho než falešný poplach.
+        safe("sloty na mostu", async () => {
+            const { isUploadPostConfigured } = await import("@/lib/channels/uploadpost-client")
+            const limit = Number(process.env.UPLOADPOST_PROFILE_LIMIT || 0)
+            if (!isUploadPostConfigured() || !Number.isFinite(limit) || limit <= 0) return null
+
+            const { getProfileOccupancy } = await import("@/lib/channels/uploadpost-profiles")
+            const { used } = await getProfileOccupancy()
+            const free = limit - used
+            if (free > 1) return null
+            return free <= 0
+                ? {
+                    icon: "🛑",
+                    title: `Most nemá volný profil (${used}/${limit})`,
+                    detail: "Další zákazník si Instagram NEPŘIPOJÍ. Navyš tarif u upload-postu, nebo uvolni profil po odešlém zákazníkovi.",
+                }
+                : {
+                    icon: "⚠️",
+                    title: `Na mostu zbývá poslední profil (${used}/${limit})`,
+                    detail: "Navyš tarif dřív, než na strop narazí zákazník při připojování.",
+                }
+        }),
     ]
 
     const problems = (await Promise.all(checks)).filter((p): p is HealthProblem => p !== null)

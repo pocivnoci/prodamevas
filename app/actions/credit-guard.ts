@@ -21,17 +21,23 @@
  *   await guard.commitCount(successCount, "Batch: 5/7 postů")
  */
 
+import { after } from "next/server"
 import {
     canPerformAction,
     canPerformBatchAction,
-    deductCredits,
     incrementPlanPostCount,
+    decrementPlanPostCount,
     creditsForAction,
+    reserveCredits,
+    releaseCredits,
+    settleReservation,
+    shrinkReservation,
+    getClientSubscription,
+    extraCreditPriceLabel,
     type ActionType,
     ACTION_CREDITS,
     ACTION_LABELS,
 } from "@/lib/subscription"
-import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess } from "@/lib/auth-guard"
 
 export interface CreditGuardResult {
@@ -83,25 +89,80 @@ export async function creditGuard(
         const isPlanPost = !!check.isPlanPost
         const creditsRequired = isPlanPost ? 0 : creditsForAction(action, medium)
 
+        // ── Rezervace PŘED prací ────────────────────────────────────────────
+        //
+        // Do 9/2026 se kredity strhávaly až v `commit()`, tedy po dokončení AI
+        // operace. `canPerformAction` mezitím jen ČETL zůstatek, takže souběžné
+        // požadavky přečetly totéž a prošly všechny — zákazník s jedním kreditem
+        // uměl spustit padesát generování a zaplatit za jedno.
+        //
+        // Teď se odečítá dopředu, pod zámkem na klienta (`reserveCredits`).
+        // Cena za to je, že selhaná práce musí kredity vrátit — o to se stará
+        // automatické uvolnění níž, ne volající.
+        let reservationId: string | null = null
+        if (isPlanPost) {
+            // Plánovaný příspěvek nestojí kredity, ale čítač má tentýž závod.
+            await incrementPlanPostCount(clientId)
+        } else if (creditsRequired > 0) {
+            const sub = await getClientSubscription(clientId)
+            const reservation = await reserveCredits({
+                clientId,
+                action,
+                credits: creditsRequired,
+                monthly: sub?.features?.credits_per_month ?? 0,
+                description: ACTION_LABELS[action],
+            })
+            if (!reservation.reserved) {
+                return {
+                    ok: false,
+                    error:
+                        `Nedostatek kreditů. Potřebujete ${creditsRequired}, zbývá ${Math.max(0, reservation.remaining)}. ` +
+                        `Dobijte si kredity za ${extraCreditPriceLabel(sub?.features)}/ks.`,
+                    clientId,
+                    isPlanPost: false,
+                    creditsRequired,
+                    commit: async () => {},
+                }
+            }
+            reservationId = reservation.reservationId
+        }
+
+        // ── Automatické vrácení, když `commit()` nepřijde ────────────────────
+        //
+        // `after()` běží po odeslání odpovědi, a to i když akce vyhodila výjimku.
+        // Díky tomu nemuselo do chybové cesty sáhnout ani jedno ze čtrnácti
+        // volajících míst — a hlavně: na žádné se nedá zapomenout.
+        //
+        // Mimo request (skripty, CLI) `after()` neexistuje. Tam se rezervace
+        // nevrátí sama, což je stejné chování, jaké má dneska fronta generování:
+        // účtuje dopředu a vrací explicitně.
+        let settled = false
+        const releaseIfUnused = async () => {
+            if (settled) return
+            settled = true
+            if (isPlanPost) await decrementPlanPostCount(clientId)
+            else await releaseCredits(reservationId)
+            console.warn(`↩️ Kredity vráceny: akce „${action}" pro ${clientId} neskončila potvrzením.`)
+        }
+        try {
+            after(() => releaseIfUnused())
+        } catch {
+            console.warn(`creditGuard: mimo request — rezervace akce „${action}" se sama nevrátí.`)
+        }
+
         return {
             ok: true,
             clientId,
             isPlanPost,
             creditsRequired,
             commit: async (description?: string, referenceId?: string) => {
-                if (isPlanPost) {
-                    // Plan post — increment counter, no credit deduction
-                    await incrementPlanPostCount(clientId)
-                } else {
-                    // Extra post — deduct media-weighted credits
-                    await deductCredits(
-                        clientId,
-                        action,
-                        description || ACTION_LABELS[action],
-                        referenceId,
-                        creditsRequired,
-                    )
-                }
+                settled = true
+                if (isPlanPost) return // čítač už se zvýšil při rezervaci
+                await settleReservation(
+                    reservationId,
+                    description || ACTION_LABELS[action],
+                    referenceId,
+                )
             },
         }
     } catch (err: any) {
@@ -142,20 +203,53 @@ export async function creditGuardBatch(
             }
         }
 
+        // Celá dávka se rezervuje dopředu — jinak by platil týž závod jako
+        // u jednotlivé akce, jen znásobený počtem položek.
+        const creditsPerAction = ACTION_CREDITS[action]
+        const sub = await getClientSubscription(clientId)
+        const reservation = await reserveCredits({
+            clientId,
+            action,
+            credits: creditsPerAction * count,
+            monthly: sub?.features?.credits_per_month ?? 0,
+            description: `${ACTION_LABELS[action]} ×${count} (rezervace)`,
+        })
+        if (!reservation.reserved) {
+            return {
+                ok: false,
+                error:
+                    `Nedostatek kreditů pro dávku. Potřebujete ${creditsPerAction * count}, ` +
+                    `zbývá ${Math.max(0, reservation.remaining)}.`,
+                clientId,
+                commitCount: async () => {},
+            }
+        }
+
+        let settled = false
+        try {
+            after(() => {
+                if (settled) return
+                settled = true
+                void releaseCredits(reservation.reservationId)
+                console.warn(`↩️ Kredity vráceny: dávka „${action}" pro ${clientId} neskončila potvrzením.`)
+            })
+        } catch {
+            console.warn(`creditGuardBatch: mimo request — rezervace dávky „${action}" se sama nevrátí.`)
+        }
+
         return {
             ok: true,
             clientId,
             commitCount: async (successCount: number, description?: string) => {
-                if (successCount <= 0) return
-                // Deduct credits only for items that actually succeeded
-                const creditsPerAction = ACTION_CREDITS[action]
-                const totalCredits = creditsPerAction * successCount
-                await supabaseAdmin.from("credit_transactions").insert({
-                    client_id: clientId,
-                    action,
-                    credits: totalCredits,
-                    description: description || `${ACTION_LABELS[action]} ×${successCount}`,
-                })
+                settled = true
+                // Účtuje se jen to, co skutečně prošlo — zbytek rezervace se vrací.
+                await shrinkReservation(reservation.reservationId, creditsPerAction * Math.max(0, successCount))
+                if (successCount > 0) {
+                    await settleReservation(
+                        reservation.reservationId,
+                        description || `${ACTION_LABELS[action]} ×${successCount}`,
+                    )
+                }
             },
         }
     } catch (err: any) {

@@ -63,6 +63,35 @@ export async function setStripeCancelAtPeriodEnd(stripeSubscriptionId: string, c
 }
 
 /**
+ * Zruší předplatné u Stripu OKAMŽITĚ, ne ke konci období.
+ *
+ * Tohle je pro **změnu tarifu**, ne pro výpověď. Rozdíl je zásadní: výpověď
+ * nechává zaplacené období doběhnout (`cancel_at_period_end`), kdežto při
+ * přechodu na jiný tarif nové předplatné začíná HNED a zbytek starého období
+ * propadá (`activatePaidPlan`, bez proration). Kdyby se staré předplatné rušilo
+ * až ke konci období, Stripe by za ně mezitím vystavil ještě jednu fakturu —
+ * zákazník by platil dva tarify najednou.
+ *
+ * `customer.subscription.deleted` se vrátí webhookem a `expireStripeSubscription`
+ * na něm neudělá nic navíc: náš řádek je v tu chvíli už `cancelled`, a ten
+ * podmíněný UPDATE bere jen živé stavy.
+ *
+ * Neexistující předplatné (ručně smazané, jiné prostředí) není chyba — vrací
+ * `false`, protože cílový stav „u brány neběží" už platí.
+ */
+export async function cancelStripeSubscriptionNow(stripeSubscriptionId: string): Promise<boolean> {
+    if (!isStripeConfigured()) throw new Error("Stripe není nakonfigurovaná")
+    try {
+        await getStripe().subscriptions.cancel(stripeSubscriptionId)
+        return true
+    } catch (err: any) {
+        // 404 = u brány už neexistuje. Cílového stavu je dosaženo jinou cestou.
+        if (err?.statusCode === 404 || err?.code === "resource_missing") return false
+        throw err
+    }
+}
+
+/**
  * Předplatné u brány definitivně skončilo (`customer.subscription.deleted`).
  *
  * Podmíněný zápis: expiruje se jen to, co ještě žije. Bez podmínky by pozdní
@@ -79,6 +108,103 @@ export async function expireStripeSubscription(stripeSubscriptionId: string): Pr
         .select("id")
         .maybeSingle()
     return Boolean(data)
+}
+
+/**
+ * Odkaz do zákaznického portálu Stripu — karta, historie faktur, výpověď.
+ *
+ * Portál je nejlevnější způsob, jak dát zákazníkovi samoobsluhu: změnu karty,
+ * stažení dokladů i zrušení řeší Stripe svým rozhraním, které je lokalizované
+ * a splňuje jeho vlastní požadavky. Bez něj každá změna karty znamená e-mail
+ * a ruční zásah — a expirovaná karta je nejčastější důvod ztraceného předplatného.
+ *
+ * `customer` se nedrží u nás: dá se přečíst z předplatného, takže na to není
+ * potřeba sloupec ani migrace. Kdyby ho Stripe u předplatného nevrátil, je to
+ * chyba a ne důvod ukazovat rozbité tlačítko.
+ *
+ * ⚠️ Portál musí být v Stripu **nakonfigurovaný** (Settings → Billing → Customer
+ * portal), jinak API vrátí chybu o chybějící konfiguraci. Je to jednorázové
+ * nastavení v dashboardu, ne něco, co jde dodat kódem.
+ */
+export async function createBillingPortalSession(
+    stripeSubscriptionId: string,
+    returnUrl: string,
+): Promise<string> {
+    if (!isStripeConfigured()) throw new Error("Stripe není nakonfigurovaná")
+    const stripe = getStripe()
+
+    const sub = await stripe.subscriptions.retrieve(stripeSubscriptionId)
+    const customer = typeof sub.customer === "string" ? sub.customer : sub.customer?.id
+    if (!customer) throw new Error(`předplatné ${stripeSubscriptionId} nemá zákazníka`)
+
+    const session = await stripe.billingPortal.sessions.create({
+        customer,
+        return_url: returnUrl,
+    })
+    return session.url
+}
+
+/**
+ * Vrátí peníze u Stripu k platbě, kterou známe pod `payments.provider_ref`.
+ *
+ * `provider_ref` je podle fáze buď id Checkout Session (první platba), nebo id
+ * faktury (obnova) — viz `PaymentLocator` v `on-paid.ts`. Obojí se musí přeložit
+ * na platební záměr, protože refundovat jde jen ten.
+ *
+ * Čtení je **záměrně obranné**: Stripe mezi verzemi API stěhuje, kde platební
+ * záměr na faktuře leží (stejně jako to udělal s `subscription`). Číst víc míst
+ * je levnější než tichá ztráta schopnosti vracet peníze po upgradu verze.
+ *
+ * Částka se předává **explicitně**, i když jde o celou platbu: kdyby se u brány
+ * lišila (jiná měna, částečná platba), plná refundace bez částky by vrátila
+ * jiné peníze, než jaké má náš doklad.
+ *
+ * Dvojímu vrácení brání podmíněný claim `PAID → REFUNDED` u volajícího — sem se
+ * tahle funkce podruhé nedostane.
+ */
+export async function refundStripePayment(providerRef: string, amountHaleru: number): Promise<string> {
+    if (!isStripeConfigured()) throw new Error("Stripe není nakonfigurovaná")
+    const stripe = getStripe()
+
+    /** Vytáhne id platebního záměru z faktury napříč verzemi API. */
+    const intentOfInvoice = (inv: any): string | null => {
+        const direct = inv?.payment_intent
+        if (typeof direct === "string") return direct
+        if (direct?.id) return direct.id
+        // Novější verze drží platby v poli; bereme první uhrazenou.
+        const fromPayments = inv?.payments?.data?.[0]?.payment?.payment_intent
+        if (typeof fromPayments === "string") return fromPayments
+        return fromPayments?.id ?? null
+    }
+
+    let intentId: string | null = null
+
+    if (providerRef.startsWith("cs_")) {
+        const session: any = await stripe.checkout.sessions.retrieve(providerRef)
+        intentId = typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : session.payment_intent?.id ?? null
+        // Předplatné neplatí Session, ale její první faktura.
+        if (!intentId && session.invoice) {
+            const invoiceId = typeof session.invoice === "string" ? session.invoice : session.invoice?.id
+            if (invoiceId) intentId = intentOfInvoice(await stripe.invoices.retrieve(invoiceId))
+        }
+    } else if (providerRef.startsWith("in_")) {
+        intentId = intentOfInvoice(await stripe.invoices.retrieve(providerRef))
+    } else if (providerRef.startsWith("pi_")) {
+        intentId = providerRef
+    }
+
+    if (!intentId) {
+        throw new Error(`k ${providerRef} se nepodařilo najít platební záměr`)
+    }
+
+    const refund = await stripe.refunds.create({
+        payment_intent: intentId,
+        amount: amountHaleru,
+        reason: "requested_by_customer",
+    })
+    return refund.id
 }
 
 /**

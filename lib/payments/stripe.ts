@@ -13,6 +13,7 @@
 
 import "server-only"
 import Stripe from "stripe"
+import { isSandboxKey } from "./gateway"
 
 let cached: Stripe | null = null
 
@@ -26,7 +27,8 @@ export function isStripeConfigured(): boolean {
  * zapomenout přepnout, prefix klíče lže jen tehdy, když někdo vloží špatný klíč.
  */
 export function isStripeSandbox(): boolean {
-    return (process.env.STRIPE_SECRET_KEY || "").startsWith("sk_test_")
+    // Jediná definice žije v `./gateway` — je testovatelná bez SDK a bez env.
+    return isSandboxKey(process.env.STRIPE_SECRET_KEY)
 }
 
 export function getStripe(): Stripe {

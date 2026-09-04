@@ -13,6 +13,28 @@
 
 export type PostMediaKind = "image" | "carousel" | "reel" | "story"
 
+/** Extensions the render pipeline actually produces for video (reel MP4s), plus the
+ *  ones a hand-uploaded frame realistically arrives as. */
+const VIDEO_EXTENSIONS = [".mp4", ".mov", ".m4v", ".webm"]
+
+/**
+ * Is this URL a video rather than a still?
+ *
+ * Publishing needs this because the SAME medium can carry either: an Instagram story
+ * frame is `image_url` or `video_url` depending on the bytes, and sending a video as
+ * an image is not a soft failure — the platform rejects the container, or worse takes
+ * the still and posts a frozen frame as the tenant's story.
+ *
+ * Lives here, beside parsePostMedia, because it reads the same convention (a public
+ * Supabase URL whose extension is authoritative) and both channel adapters need it.
+ * Query strings are stripped first: signed URLs carry `?token=…` after the extension.
+ */
+export function isVideoUrl(url: string | null | undefined): boolean {
+    if (!url) return false
+    const path = url.split(/[?#]/)[0].toLowerCase()
+    return VIDEO_EXTENSIONS.some(ext => path.endsWith(ext))
+}
+
 export interface PostMedia {
     kind: PostMediaKind
     /** Reel only — the MP4. */

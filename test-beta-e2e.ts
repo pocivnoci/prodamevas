@@ -1237,6 +1237,167 @@ test("13b.6 připojení mostu je navigace, ne popup po awaitu", () => {
     assert(!actions.includes("generateConnectUrl"), "podepsaná adresa nesmí téct přes server action do prohlížeče")
 })
 
+test("13b.7 video jede svým endpointem a reel končí v mřížce", () => {
+    // Reels se prodávají od tarifu Růst a popis tarifu je slibuje. Do 9/2026 se
+    // ale publikovat nedaly vůbec — zákazník za 2 999 Kč dostal reel vygenerovaný
+    // a musel ho sdílet ručně, tedy dělat přesně tu práci, kterou si předplatil.
+    const c = fileContent("lib/channels/uploadpost.ts")
+    const code = codeOnly("lib/channels/uploadpost.ts")
+
+    // Foto a video mají u upload-postu ODDĚLENÉ endpointy. Poslat video na
+    // `/api/upload_photos` v lepším případě selže, v horším projde jako still.
+    assert(c.includes('const VIDEO_PATH = "/api/upload"'), "video má vlastní endpoint, ne foto endpoint")
+    assert(/form\.append\("video"/.test(code), "reel se posílá v poli `video`")
+    assert(/form\.append\("media_type", "REELS"\)/.test(code), "reel potřebuje media_type=REELS")
+    assert(/form\.append\("media_type", "STORIES"\)/.test(code), "story potřebuje media_type=STORIES")
+
+    // Reel mimo feed zmizí v okamžiku, kdy ho Instagram přestane servírovat v Reels
+    // — a cover se generuje právě pro mřížku profilu.
+    assert(/form\.append\("share_to_feed", "true"\)/.test(code), "reel musí jít i do mřížky profilu")
+
+    // mediaUrls[1] je COVER, ne druhé video. Kdo to splete, publikuje still.
+    assert(c.includes("const [videoUrl, coverUrl] = mediaUrls"), "reel čte [video, cover?] konvenci z media-urls")
+    assert(code.includes("isVideoUrl"), "před odesláním na video endpoint se ověřuje, že médium video opravdu je")
+
+    // Story se posílá SNÍMEK PO SNÍMKU. Dávka by visela na tom, jak si upload-post
+    // přečte „několik fotek + media_type=STORIES" — a jejich vlastní dokumentace
+    // říká, že to může přečíst jako CAROUSEL. Karusel místo tří stories je trvalý
+    // příspěvek na cizím profilu, ne chyba, kterou lze vzít zpět.
+    assert(
+        /case "story"[\s\S]{0,1200}for \(const \[i, url\] of mediaUrls\.entries\(\)\)/.test(c),
+        "story se publikuje po jednom snímku, ne jednou dávkou",
+    )
+
+    // Reel se u Grafu transkóduje, než ho jde publikovat; při fotorozpočtu by každý
+    // reel spadl na timeout a publisher by ho zbytečně opakoval.
+    assert(c.includes("VIDEO_STATUS_POLL_ATTEMPTS"), "video potřebuje delší čekání než fotka")
+
+    // Chybějící post_id znamená u fotky chybu, u videa NE: upload-post ho může
+    // doplnit až po odpovědi, a výjimka by publisher poslala publikovat reel podruhé.
+    assert(c.includes("strictId: true"), "u fotky je chybějící post_id chyba")
+    assert(c.includes("strictId: false"), "u videa se chybějící post_id doplní později, jinak hrozí druhá publikace")
+})
+
+test("13b.8 deklarované formáty a skutečná publikace se nesmí rozejít", () => {
+    // `constraints.mediaTypes` je smlouva, switch je implementace. Bez křížové
+    // kontroly by zúžení seznamu (typicky při incidentu) formát nevyplo — jen by
+    // lhalo, zatímco by se dál publikovalo.
+    for (const f of ["lib/channels/uploadpost.ts", "lib/channels/instagram.ts"]) {
+        const c = fileContent(f)
+        assert(
+            c.includes("this.constraints.mediaTypes.includes(content.mediaType)"),
+            `${f}: publish() musí formát ověřit proti constraints, ne jen proti switchi`,
+        )
+        assert(c.includes("ChannelNotEnabledError"), `${f}: nepodporovaný formát se odmítá nahlas`)
+        assert(c.includes("const _never: never = content.mediaType"), `${f}: publish() musí být vyčerpávající`)
+    }
+
+    // Odmítnutý `cover_url` neshodí jen náhled — shodí celý kontejner i s reelem.
+    // Meta přitom dokumentuje „jen JPEG" a WebP z našeho rendereru bere (40 příspěvků
+    // publikovaných přes tenhle transport, 0 selhání), takže cover nejde ani slepě
+    // věřit, ani ho paušálně zahazovat. Odmítnutí smí stát COVER, ne REEL.
+    const ig = fileContent("lib/channels/instagram.ts")
+    assert(ig.includes("function createReelContainer"), "cover se při odmítnutí zkusí zahodit, ne shodit celý reel")
+    assert(
+        /if \(!params\.cover_url\) throw err/.test(ig),
+        "opakovat se smí JEN kvůli coveru — rozbité video musí selhat rychle",
+    )
+    assert(ig.includes("thumb_offset"), "bez coveru se bere snímek z videa")
+    // Náhradní cover je horší produkt (nenese hook) — degradace musí být v logu.
+    assert(/console\.warn\([\s\S]{0,200}cover/.test(ig), "zahozený cover je degradace kvality a musí být vidět")
+})
+
+test("13b.9 reels naostří agent, stories ne", () => {
+    const c = fileContent("lib/agents/auto-publish.ts")
+    // Reel JE obsah do mřížky a zákazník si předplatil, že ho publikovat nemusí.
+    assert(!c.includes("media_type.neq.reel"), "reels už publikační cestu mají — agent je nesmí vynechávat")
+    // Story je efemérní a v mřížce není; naostřit ji podle FEEDOVÉHO tempa by jí
+    // dalo slot, který patří trvalému obsahu.
+    assert(c.includes("media_type.neq.story"), "feedová kadence stories neplánuje")
+
+    // Tlačítko „Publikovat hned" reels odmítalo. Smí odmítnout jen reel BEZ videa
+    // — tedy řádek, kde render spadl na still a media_type zůstal 'reel'.
+    const cal = fileContent("app/actions/calendar-actions.ts")
+    assert(!cal.includes("Reels zatím nejdou publikovat"), "plošné odmítnutí reelů musí zmizet")
+    assert(cal.includes('media.kind === "reel" && !media.videoUrl'), "reel bez videa se odmítne dřív, než ho cron 4× zkusí")
+})
+
+test("13b.10 plný účet na mostu se pozná při připojování, ne až při publikaci", () => {
+    const p = fileContent("lib/channels/uploadpost-profiles.ts")
+    // 400 znamená u upload-postu DVĚ různé věci: „profil už máš" a „tarif nemá
+    // volný slot". Brát obojí jako úspěch vrátí jméno profilu, který neexistuje —
+    // zákazník uvidí „připojeno" a pravda vyplave až z publikačního logu.
+    assert(
+        !/alreadyExists = \/\\b\(400\|409\)/.test(p),
+        "400 se nesmí paušálně považovat za „profil už existuje“",
+    )
+    assert(p.includes("listProfileNames"), "nejednoznačné selhání se musí OVĚŘIT seznamem, ne uhodnout")
+    assert(
+        /ChannelPermanentError\([\s\S]{0,200}volný slot/.test(p),
+        "vyčerpaný tarif musí říct česky, co se stalo a co s tím",
+    )
+    // Strop nehlásí API ani ceník, který se může změnit — bere se z env, a bez něj
+    // kontrola mlčí (falešný poplach je horší než žádný).
+    const h = fileContent("lib/agents/health-check.ts")
+    assert(h.includes("UPLOADPOST_PROFILE_LIMIT"), "obsazenost mostu musí hlídat denní kontrola")
+    assert(h.includes("getProfileOccupancy"), "kontrola čte skutečný počet profilů, ne odhad")
+})
+
+test("13b.11 testovací klíče v produkci se ozvou samy", () => {
+    // Nejdražší tichá porucha, jakou tenhle projekt má: aplikace běží, pokladna
+    // se otevře, zákazník „zaplatí" — a peníze nikde, protože klíč je sk_test.
+    // Audit takovou věc najde jednou; kontrola ji hlídá každé ráno.
+    const h = fileContent("lib/agents/health-check.ts")
+    assert(h.includes("isSandboxKey"), "denní kontrola musí poznat testovací klíč")
+    assert(h.includes("stripeCanComplete"), "brána, co umí platbu začít a ne dokončit, je horší než žádná")
+    // `payments/checkout` je server-only a v samostatném skriptu se ani nenačte —
+    // rozhodnutí o bráně proto žije v gateway.ts jako čistá funkce. Kontrola musí
+    // sáhnout tam, jinak se sama nahlásí jako „selhala".
+    assert(
+        !/import\("@\/lib\/payments\/checkout"\)/.test(h),
+        "kontrola nesmí tahat server-only modul — mimo request se nenačte",
+    )
+    // Bez téhle podmínky by lokál i preview alarmovaly denně, protože testovací
+    // klíče tam jsou SPRÁVNĚ — a naučily by všechny kontrolu ignorovat.
+    assert(
+        (h.match(/VERCEL_ENV !== "production"/g) || []).length >= 2,
+        "kontroly připravenosti smí střílet jen v produkci",
+    )
+
+    // Tarif, který prodává formát vypnutý přepínačem, se liší cenou za něco,
+    // co nevzniká — engine reel tiše překlopí na carousel.
+    assert(h.includes("REELS_ENABLED"), "prodávaný a vypnutý formát musí být vidět")
+    assert(
+        h.includes('from("subscription_plans")'),
+        "tarify žijí v subscription_plans — dotaz na 'plans' by kontrolu jen denně shazoval",
+    )
+    assert(h.includes("allowed_media"), "allowed_media je uvnitř features JSONB, filtruje se v paměti")
+})
+
+test("13b.12 co Stripe událost znamená, rozhoduje testovatelná funkce", () => {
+    // Druhé nejdražší rozhodnutí v aplikaci hned po výběru brány. Dokud bylo
+    // zadrátované v routě, nešlo ho ověřit jinak než nasazením a skutečnou
+    // platbou — a přesně tahle netestovatelnost stála incident z 11. 8. 2026.
+    assert(fileExists("lib/payments/stripe-events.ts"), "klasifikace událostí musí být čistá funkce")
+    assert(fileExists("scripts/test-stripe-events.ts"), "…a musí mít behaviorální testy")
+    assert(fileContains("package.json", "test-stripe-events.ts"), "testy patří do npm run guard")
+
+    const route = codeOnly("app/api/payments/stripe/webhook/route.ts")
+    assert(route.includes("classifyStripeEvent"), "routa si nechá událost klasifikovat, nerozhoduje sama")
+
+    // Kdyby se rozhodování vrátilo do routy, testy by dál procházely a chránily
+    // by kód, který se nepoužívá. Tyhle tři řetězce jsou jeho otisk.
+    for (const inlined of ['payment_status !== "paid"', '"subscription_create"', "invoice.amount_paid"]) {
+        assert(!route.includes(inlined), `rozhodnutí '${inlined}' patří do stripe-events.ts, ne do routy`)
+    }
+
+    // Čistá funkce nesmí začít sahat na svět — tím by přestala být testovatelná.
+    const pure = codeOnly("lib/payments/stripe-events.ts")
+    for (const forbidden of ["supabase", "process.env", "fetch(", "await "]) {
+        assert(!pure.includes(forbidden), `stripe-events.ts musí zůstat čistá — '${forbidden}' tam nepatří`)
+    }
+})
+
 // ═══════════════════════════════════════════════════════════
 // 14. FAKTURACE A PRÁVNÍ IDENTITA (v8.5)
 // ═══════════════════════════════════════════════════════════
@@ -2184,13 +2345,25 @@ test("24.9 brána bez webhooku nesmí brát peníze", () => {
     // webhookem. Nalezeno na produkci: ComGate creds chyběly, Stripe klíč byl,
     // a výběr brány tiše směroval platby na bránu, která nedokáže plán aktivovat.
     // Zaplacený a neaktivovaný zákazník je horší než platba, která nezačne.
-    const code = codeOnly("lib/payments/checkout.ts")
-    assert(/STRIPE_WEBHOOK_SECRET/.test(code),
+    // Rozhodnutí se 2. 9. 2026 přestěhovalo do `lib/payments/gateway.ts` jako
+    // čistá funkce nad předaným prostředím — právě proto, aby šlo otestovat
+    // chováním, ne čtením zdrojáku. Skutečné případy (vynucený Stripe bez
+    // webhooku, poloviční údaje, velikost písmen) hlídá
+    // `scripts/test-credits-billing.ts`; tady zůstává jen to, co behaviorální
+    // test ověřit neumí: že se rozhodnutí nevrátilo zpátky do čtení `process.env`.
+    const gw = codeOnly("lib/payments/gateway.ts")
+    assert(/STRIPE_WEBHOOK_SECRET/.test(gw),
         "výběr brány musí vědět o webhooku, ne jen o tajném klíči")
-    assert(/stripeCanCompletePayment/.test(code), "podmínka musí být pojmenovaná a sdílená")
-    // I vynucená volba přes PAYMENT_GATEWAY musí projít touž kontrolou.
-    assert(/forced === "stripe" && stripeCanCompletePayment\(\)/.test(code),
+    assert(/stripeCanComplete/.test(gw), "podmínka musí být pojmenovaná a sdílená")
+    assert(/forced === "stripe" && stripeCanComplete\(env\)/.test(gw),
         "překlep v PAYMENT_GATEWAY nesmí obejít kontrolu úplnosti brány")
+    assert(!/process\.env/.test(gw),
+        "gateway.ts musí zůstat čistý — jakmile sáhne na process.env, přestane jít testovat")
+
+    // A že produkční cesta pořád vede přes sdílené rozhodnutí, ne přes vlastní kopii.
+    const checkout = codeOnly("lib/payments/checkout.ts")
+    assert(/chooseGateway\(/.test(checkout),
+        "activeGateway() musí delegovat na chooseGateway, ne mít druhou kopii pravidel")
 })
 
 test("24.8 obě platební brány čtou tarify z téže tabulky", () => {
@@ -2275,6 +2448,36 @@ test("25.3 ceník na landingu a v migraci se shodují", () => {
         assert(seedCredits === credits,
             `${id}: kredity ${credits} v lib/pricing.ts nesedí se seedem (${seedCredits})`)
     }
+})
+
+test("25.3d placený tarif nesmí rozdávat příspěvky zdarma", () => {
+    // NASTRAŽENÁ MINA, ne kosmetika.
+    //
+    // Tarify nesou `plan_posts_limit: 30` a `plan_posts_total: 30`, což vypadá
+    // jako „30 příspěvků v ceně". Jenže `activatePaidPlan()` nastaví čítač
+    // `plan_posts_unlocked` rovnou na 30 a brána v `canPerformAction` zní
+    // `planPostsUnlocked < planLimit`, tedy 30 < 30 — vždy nepravda. Placený
+    // zákazník tak platí kredity za KAŽDÝ příspěvek a UI mu nic jiného neslibuje
+    // (kreditový pruh, `usePostQuota` je jen pro trial).
+    //
+    // Marže 81–83 % stojí na tomhle stavu. Kdyby někdo v dobré víře „opravil"
+    // aktivaci na `plan_posts_unlocked: 0`, každý tarif najednou rozdá 30 postů
+    // zdarma — u Startu ~229 Kč nákladu proti 999 Kč tržby, tedy marže dolů
+    // o víc než dvacet bodů, a nikde by to nespadlo.
+    //
+    // Tahle aserce je tedy záměrně napsaná na SOUČASNÉ chování. Kdyby se někdy
+    // rozhodlo příspěvky v ceně skutečně dávat, musí se změnit vědomě i tady —
+    // spolu s přepočtem marží, ne omylem.
+    const src = fileContent("lib/subscription.ts")
+
+    const aktivace = src.match(/plan_posts_unlocked:\s*(\d+)\s*,?\s*\/\/\s*unlock all plan posts/)
+    assert(aktivace?.[1] === "30",
+        "activatePaidPlan už nenastavuje plan_posts_unlocked na 30 — placené tarify můžou začít " +
+        "rozdávat příspěvky zdarma. Pokud je to záměr, přepočítej marže a uprav tuhle aserci.")
+
+    assert(/planPostsUnlocked\s*<\s*planLimit/.test(src),
+        "brána plánovaných příspěvků v canPerformAction se změnila — ověř, jestli placený tarif " +
+        "pořád neúčtuje kredity za každý příspěvek.")
 })
 
 test("25.3c vyšší tarif musí být lepší nákup než dobití kreditů", () => {
@@ -2388,13 +2591,21 @@ test("25.7 Stripe předplatné neobnovuje náš cron", () => {
     assert(/sub\.provider === "stripe"/.test(worker) && /continue/.test(worker),
         "worker musí Stripe předplatná přeskočit")
 
+    // Rozhodnutí „co která událost znamená" se od 9/2026 dělá v čisté funkci
+    // (viz 13b.12), takže se tyhle invarianty hlídají TAM. Routa zůstává tím,
+    // kdo je vykoná.
     const hook = codeOnly("app/api/payments/stripe/webhook/route.ts")
-    assert(/invoice\.paid/.test(hook) && /applyProviderInvoice/.test(hook),
+    assert(/applyProviderInvoice/.test(hook),
         "obnovy ze Stripu musí mít obsluhu, jinak předplatné tiše skončí")
-    assert(/subscription_create/.test(hook),
-        "první faktura patří Checkout Session — jinak vzniknou dvě platby a dva doklady")
-    assert(/customer\.subscription\.deleted/.test(hook),
+    assert(/expireStripeSubscription/.test(hook),
         "ukončení u brány se musí propsat, jinak zůstane aktivní předplatné bez plateb")
+
+    const events = codeOnly("lib/payments/stripe-events.ts")
+    assert(/invoice\.paid/.test(events), "obnova musí mít vlastní větev v klasifikaci")
+    assert(/subscription_create/.test(events),
+        "první faktura patří Checkout Session — jinak vzniknou dvě platby a dva doklady")
+    assert(/customer\.subscription\.deleted/.test(events),
+        "konec předplatného u brány musí klasifikace poznat")
 })
 
 test("25.8 zrušení se propíše do brány, která fakturuje", () => {
