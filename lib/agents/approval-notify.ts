@@ -82,9 +82,34 @@ export function wrapOpsEmail(title: string, subtitle: string, innerHtml: string)
 }
 
 export async function notifyPendingApproval(input: ApprovalNotifyInput): Promise<void> {
+    const label = await clientLabel(input.clientId)
+
+    // Skupina první — stejné pravidlo jako u ranního briefu: jeden kanál, ne dva.
+    // Tady navíc s nativními tlačítky, takže rozhodnutí je jeden stisk v chatu
+    // místo cesty přes podepsaný odkaz do aplikace.
+    try {
+        const { isTelegramConfigured } = await import("@/lib/telegram/team")
+        if (isTelegramConfigured()) {
+            const { sendTelegram, esc: escTg } = await import("@/lib/telegram/client")
+            const { approvalButtons } = await import("@/lib/telegram/actions")
+            const payload = input.payload && Object.keys(input.payload).length > 0
+                ? `\n<pre>${escTg(JSON.stringify(input.payload, null, 2).slice(0, 500))}</pre>`
+                : ""
+            const sent = await sendTelegram(
+                `🤖 <b>Ke schválení: ${escTg(input.action)}</b>\n`
+                + `${escTg(input.agentType)} · <i>${escTg(input.riskTier)}</i>\n`
+                + `Klient: ${escTg(label)}${payload}`,
+                { buttons: approvalButtons(input.actionId) },
+            )
+            if (sent) return
+        }
+    } catch (err) {
+        // Selhání kanálu nesmí spolknout výzvu — propadneme na e-mail.
+        console.warn(`approval-notify: Telegram selhal — ${(err as Error)?.message}`)
+    }
+
     const to = getFounderEmail()
     if (!to) return
-    const label = await clientLabel(input.clientId)
     const html = wrapOpsEmail("Agent čeká na schválení", new Date().toLocaleString("cs-CZ"), renderApprovalItem(input, label))
     await sendEmail({
         to,
