@@ -30,6 +30,7 @@ export type SpendOperation =
     | "post_edit"             // retuš hotového příspěvku (edit obrázku)
     | "learn"                 // učení z metrik (analyzeAndLearn)
     | "sales_preview"         // ukázka pro obchodního agenta
+    | "brand_facts"           // vytažení ověřených faktů z webu značky
     | "other"
 
 /**

@@ -65,6 +65,10 @@ export interface WebsiteAnalysis {
     igInsights?: IgInsights
     /** Gemini vision analysis of the actual feed images (typography, colors, archetypes) */
     feedVisuals?: import('@/instagram/feed-vision').FeedVisualProfile
+    /** Ověřitelné údaje vytažené DOSLOVA z webu (lib/brand-facts.ts) — seed pro
+     *  `ClientConfig.brandFacts`, tedy pro jedinou zásobu konkrétních tvrzení, která
+     *  smí engine o značce napsat. Prázdné pole = web žádné konkrétní údaje neuvádí. */
+    brandFacts?: import('@/instagram/configs/types').BrandFact[]
 }
 
 /**

@@ -771,6 +771,40 @@ export async function rescanClientWebsite(
     }
 }
 
+// ─── Ověřená fakta z webu ────────────────────────────────────────────
+
+/**
+ * Načte web klienta a vrátí NÁVRHY ověřených faktů. Záměrně nic neukládá —
+ * o tom, co značka o sobě tvrdí, musí rozhodnout člověk; akce mu jen ušetří
+ * opisování z vlastního webu. Uložení proběhne až přes updateClientConfig,
+ * stejně jako u ručně napsaného faktu.
+ */
+export async function suggestBrandFacts(
+    projectSlug: string
+): Promise<{ success: boolean; facts: { text: string; source?: string }[]; error?: string }> {
+    try {
+        const { clientId } = await requireProjectAccess(projectSlug)
+
+        const { loadConfig } = await import("@/instagram/configs")
+        const config = await loadConfig(projectSlug, true)
+        if (!config?.website) {
+            return { success: false, facts: [], error: "Klient nemá nastavenou adresu webu" }
+        }
+
+        const { suggestFactsFromSite, mergeFacts } = await import("@/lib/brand-facts")
+        const found = await suggestFactsFromSite(config.name || projectSlug, config.website, { clientId })
+        // Vrací se jen to, co v seznamu ještě není — uživatel má vidět přírůstek,
+        // ne znovu přečíst, co už schválil.
+        const fresh = mergeFacts(config.brandFacts || [], found).slice((config.brandFacts || []).length)
+
+        console.log(`🔎 Fakta z webu (${projectSlug}): ${found.length} nalezeno, ${fresh.length} nových`)
+        return { success: true, facts: fresh }
+    } catch (err: any) {
+        console.error("suggestBrandFacts error:", err?.message || err)
+        return { success: false, facts: [], error: err?.message || String(err) }
+    }
+}
+
 // ─── Delete Client ───────────────────────────────────────────────────
 
 export async function deleteClient(

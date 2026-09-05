@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, upsertPostFormat, removePostFormat, suggestPostFormat, recommendFeedPattern, type PostFormatInput } from "@/app/actions/config-actions"
+import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, upsertPostFormat, removePostFormat, suggestPostFormat, recommendFeedPattern, suggestBrandFacts, type PostFormatInput } from "@/app/actions/config-actions"
 import { syncConfigProductsToDb } from "@/app/actions/product-actions"
 import { CatalogSection } from "./products/CatalogSection"
 import { generateCategoryPrompt } from "@/app/actions/content-plan-actions"
@@ -279,7 +279,7 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                         <BasicSection config={config} updateField={updateField} />
                     )}
                     {activeSection === "voice" && (
-                        <VoiceSection config={config} updateField={updateField} updateArrayField={updateArrayField} />
+                        <VoiceSection config={config} updateField={updateField} updateArrayField={updateArrayField} projectId={projectId} />
                     )}
                     {activeSection === "pillars" && (
                         <PillarsSection config={config} setConfig={setConfig} projectId={projectId} />
@@ -409,10 +409,11 @@ function BasicSection({ config, updateField }: { config: any; updateField: (p: s
 // 2. BRAND VOICE
 // ═══════════════════════════════════════════════════════════
 
-function VoiceSection({ config, updateField, updateArrayField }: {
+function VoiceSection({ config, updateField, updateArrayField, projectId }: {
     config: any
     updateField: (p: string[], v: any) => void
     updateArrayField: (p: string[], v: string) => void
+    projectId: string
 }) {
     const voice = config.brandVoice || {}
 
@@ -481,7 +482,7 @@ function VoiceSection({ config, updateField, updateArrayField }: {
             </SectionCard>
 
             <SectionCard title="Ověřená fakta" description="Jediná čísla, roky, ceny a garance, které smí AI o značce tvrdit" why={HINTS.facts}>
-                <FactsEditor config={config} updateField={updateField} />
+                <FactsEditor config={config} updateField={updateField} projectId={projectId} />
             </SectionCard>
 
             <SectionCard title="Šablony úvodních vět" description="Vzory pro úvodní věty — {{topic}} se nahradí automaticky">
@@ -501,9 +502,35 @@ function VoiceSection({ config, updateField, updateArrayField }: {
  * `verifiedAt` se razítkuje sám: fakta stárnou (ceny, otvíračka, počty) a nikdo si
  * nebude pamatovat, kdy je naposledy potvrdil. Nezměněný řádek si datum drží.
  */
-function FactsEditor({ config, updateField }: { config: any; updateField: (p: string[], v: any) => void }) {
+function FactsEditor({ config, updateField, projectId }: { config: any; updateField: (p: string[], v: any) => void; projectId: string }) {
     const facts: { text: string; source?: string; verifiedAt?: string }[] = config.brandFacts || []
     const factCheckOn = config.factCheck !== false
+    const [scanning, setScanning] = useState(false)
+    const [scanMsg, setScanMsg] = useState<string | null>(null)
+
+    // Sken webu jen NAVRHUJE. Zapsat se to musí do stejného pole jako ruční řádky
+    // (a uložit tlačítkem výš) — jinak by se v Nastavení objevila tvrzení, která
+    // nikdo nepotvrdil, a „ověřená fakta" by přestala být ověřená.
+    const scanSite = async () => {
+        setScanning(true)
+        setScanMsg(null)
+        try {
+            const res = await suggestBrandFacts(projectId)
+            if (!res.success) {
+                setScanMsg(res.error || "Web se nepodařilo přečíst")
+            } else if (res.facts.length === 0) {
+                setScanMsg("Na webu jsem nenašel žádný nový konkrétní údaj — nic jsem nepřidal.")
+            } else {
+                const today = new Date().toISOString().slice(0, 10)
+                updateField(["brandFacts"], [...facts, ...res.facts.map(f => ({ ...f, verifiedAt: today }))])
+                setScanMsg(`Přidáno ${res.facts.length} návrhů z webu — projděte je a nesedící smažte. Uložit nezapomeňte tlačítkem nahoře.`)
+            }
+        } catch (e: any) {
+            setScanMsg(e?.message || "Sken selhal")
+        } finally {
+            setScanning(false)
+        }
+    }
 
     const text = facts.map(f => (f.source ? `${f.text} | ${f.source}` : f.text)).join("\n")
 
@@ -536,6 +563,17 @@ function FactsEditor({ config, updateField }: { config: any; updateField: (p: st
                     Co tady není, to AI nenapíše jako fakt — místo vymyšleného čísla napíše větu bez něj.
                     Živý katalog produktů (ceny, názvy) sem psát nemusíte, ten engine čte sám.
                 </p>
+                <div className="flex items-center gap-3 mt-3">
+                    <button
+                        onClick={scanSite}
+                        disabled={scanning}
+                        className="inline-flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-sm text-[9px] font-bold uppercase tracking-widest text-white/60 disabled:opacity-50"
+                    >
+                        <RefreshCw className={`w-3 h-3 ${scanning ? "animate-spin" : ""}`} />
+                        {scanning ? "Čtu web…" : "Načíst z webu"}
+                    </button>
+                    {scanMsg && <span className="text-[9px] text-white/40">{scanMsg}</span>}
+                </div>
             </div>
 
             {facts.length > 0 && (

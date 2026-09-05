@@ -448,6 +448,10 @@ export function buildFactsSection(config: ClientConfig): string {
 ## ✅ OVĚŘENÁ FAKTA O ZNAČCE
 ${list}
 
+_(Zásoba povolených tvrzení, NE seznam témat. Nemusíš žádné použít — a nikdy z nich
+nedělej obsah postu jen proto, že tu jsou. Fakt se hodí, když sám od sebe padne do
+věty; vynucený se pozná.)_
+
 ### ⛔ PRAVIDLO PRAVDIVOSTI (PRIORITA 0 — přebíjí VŠECHNO ostatní, i hook a kreativitu)
 Konkrétní tvrzení smíš napsat JEN tehdy, když stojí (a) v ověřených faktech výš,
 (b) u vybraného produktu, nebo (c) v zadaném námětu / tématu od uživatele.
