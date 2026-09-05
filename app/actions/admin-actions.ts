@@ -854,3 +854,105 @@ Důvod: ${reason || "garance vrácení peněz do 30 dnů"}
     )
     return { success: true, manualSteps: steps }
 }
+
+// ─── Předání klienta zákazníkovi ──────────────────────────────────────
+
+/**
+ * Uživatel podle e-mailu.
+ *
+ * `listUsers` je stránkované a Supabase Admin API dotaz „podle e-mailu" nemá.
+ * Tentýž průchod je i v `scripts/reset-password.ts` a `cleanup-orphan-links.ts` —
+ * až přibude třetí volající v `app/`, patří to do sdíleného modulu, ne do
+ * čtvrté kopie.
+ */
+async function findUserIdByEmail(email: string): Promise<string | null> {
+    const needle = email.trim().toLowerCase()
+    if (!needle) return null
+    for (let page = 1; page <= 20; page++) {
+        const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 })
+        if (error || !data) return null
+        const hit = data.users.find(u => u.email?.toLowerCase() === needle)
+        if (hit) return hit.id
+        if (data.users.length < 1000) return null
+    }
+    return null
+}
+
+/**
+ * Předá onboardovanou značku jejímu skutečnému majiteli.
+ *
+ * Onboarding zapisuje `user_clients` s `user_id` toho, kdo průvodce spustil
+ * (`app/onboarding/core.ts`). Když značku založí správce za zákazníka, patří
+ * tím pádem správci — a zákazník ji ve svém dashboardu nevidí. Do 9/2026 na to
+ * neexistovalo žádné UI a jediná cesta byl ruční INSERT do databáze.
+ *
+ * Přidání řádku zároveň otevře betu: `enforceInviteGate` razítkuje `LEGACY`
+ * každému, kdo má vazbu na klienta, takže zákazník nepotřebuje kód pozvánky.
+ *
+ * Účet musí existovat — účty se zakládají registrací, ne odsud. Když e-mail
+ * nikoho nenajde, je to konec a řekne se to nahlas; tiché založení účtu by
+ * obešlo potvrzení adresy i souhlasy.
+ */
+export async function transferClientToUser(
+    clientSlug: string,
+    email: string,
+    opts?: { releaseAdminAccess?: boolean },
+): Promise<{ success: boolean; error?: string; message?: string }> {
+    const { requireSuperAdmin } = await import("@/lib/auth-guard")
+    let adminUserId: string
+    try {
+        adminUserId = (await requireSuperAdmin()).userId
+    } catch {
+        return { success: false, error: "Předat klienta smí jen správce." }
+    }
+
+    const slug = clientSlug?.trim()
+    if (!slug) return { success: false, error: "Chybí identifikace projektu." }
+
+    const { data: client } = await supabaseAdmin
+        .from("clients")
+        .select("id, name")
+        .eq("slug", slug)
+        .maybeSingle()
+    if (!client) return { success: false, error: `Projekt „${slug}" neexistuje.` }
+
+    const userId = await findUserIdByEmail(email)
+    if (!userId) {
+        return {
+            success: false,
+            error: `Účet ${email} neexistuje. Nejdřív mu pošli pozvánku a nech ho zaregistrovat, pak předej znovu.`,
+        }
+    }
+
+    if (userId === adminUserId) {
+        return { success: false, error: "Tenhle účet projekt už vlastní — to je tvůj vlastní." }
+    }
+
+    const { error: linkError } = await supabaseAdmin
+        .from("user_clients")
+        .upsert({ user_id: userId, client_id: client.id, role: "owner" }, { onConflict: "user_id,client_id" })
+    if (linkError) {
+        return { success: false, error: `Předání selhalo: ${linkError.message}` }
+    }
+
+    // Vazba správce se ruší AŽ POTOM a jen na výslovné přání. Kdyby se mazala
+    // dřív a upsert selhal, zůstal by klient bez jediného vlastníka.
+    let released = false
+    if (opts?.releaseAdminAccess) {
+        const { error } = await supabaseAdmin
+            .from("user_clients")
+            .delete()
+            .eq("user_id", adminUserId)
+            .eq("client_id", client.id)
+        if (error) console.warn(`transferClientToUser: vazbu správce se nepodařilo zrušit: ${error.message}`)
+        else released = true
+    }
+
+    console.log(`🤝 Projekt ${slug} předán uživateli ${email}${released ? " (správce se odpojil)" : ""}`)
+    return {
+        success: true,
+        message: released
+            ? `${client.name} je teď ${email}. Ty už v seznamu projektů nejsi — jako správce se tam ale dostaneš dál.`
+            : `${client.name} je teď i pod ${email}. Zůstáváš připojený taky.`,
+    }
+}

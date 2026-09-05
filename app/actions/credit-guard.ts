@@ -27,7 +27,6 @@ import {
     canPerformBatchAction,
     incrementPlanPostCount,
     decrementPlanPostCount,
-    creditsForAction,
     reserveCredits,
     releaseCredits,
     settleReservation,
@@ -87,7 +86,14 @@ export async function creditGuard(
         }
 
         const isPlanPost = !!check.isPlanPost
-        const creditsRequired = isPlanPost ? 0 : creditsForAction(action, medium)
+        // Cenu určuje `canPerformAction`, guard ji NEPŘEPOČÍTÁVÁ. Do 9/2026 tu
+        // stálo `creditsForAction(action, medium)`, což zahodilo jedinou hodnotu,
+        // kterou se kontrola liší od výpočtu: `ADMIN_BYPASS` vrací 0. Super admin
+        // tak spadl do větve s rezervací a na čerstvém klientovi (`trial_v2`,
+        // nula kreditů) mu vlastní aplikace odmítla vygenerovat příspěvek —
+        // přestože přes plán/kampaň (`options.adminBypass`) prošel. Dvě místa,
+        // která počítají cenu, jsou dvě pravdy; tohle je to podřízené.
+        const creditsRequired = check.creditsRequired
 
         // ── Rezervace PŘED prací ────────────────────────────────────────────
         //
@@ -205,24 +211,35 @@ export async function creditGuardBatch(
 
         // Celá dávka se rezervuje dopředu — jinak by platil týž závod jako
         // u jednotlivé akce, jen znásobený počtem položek.
+        //
+        // Kolik, to říká kontrola, ne přepočet — stejný důvod jako u jednotlivé
+        // akce výš. Nula znamená „neúčtuje se" (super admin) a rezervace se
+        // přeskočí celá; `reservationId` pak zůstane `null` a `releaseCredits`,
+        // `shrinkReservation` i `settleReservation` ho berou jako no-op.
         const creditsPerAction = ACTION_CREDITS[action]
-        const sub = await getClientSubscription(clientId)
-        const reservation = await reserveCredits({
-            clientId,
-            action,
-            credits: creditsPerAction * count,
-            monthly: sub?.features?.credits_per_month ?? 0,
-            description: `${ACTION_LABELS[action]} ×${count} (rezervace)`,
-        })
-        if (!reservation.reserved) {
-            return {
-                ok: false,
-                error:
-                    `Nedostatek kreditů pro dávku. Potřebujete ${creditsPerAction * count}, ` +
-                    `zbývá ${Math.max(0, reservation.remaining)}.`,
+        const totalCredits = check.creditsRequired
+        let reservationId: string | null = null
+
+        if (totalCredits > 0) {
+            const sub = await getClientSubscription(clientId)
+            const reservation = await reserveCredits({
                 clientId,
-                commitCount: async () => {},
+                action,
+                credits: totalCredits,
+                monthly: sub?.features?.credits_per_month ?? 0,
+                description: `${ACTION_LABELS[action]} ×${count} (rezervace)`,
+            })
+            if (!reservation.reserved) {
+                return {
+                    ok: false,
+                    error:
+                        `Nedostatek kreditů pro dávku. Potřebujete ${totalCredits}, ` +
+                        `zbývá ${Math.max(0, reservation.remaining)}.`,
+                    clientId,
+                    commitCount: async () => {},
+                }
             }
+            reservationId = reservation.reservationId
         }
 
         let settled = false
@@ -230,7 +247,7 @@ export async function creditGuardBatch(
             after(() => {
                 if (settled) return
                 settled = true
-                void releaseCredits(reservation.reservationId)
+                void releaseCredits(reservationId)
                 console.warn(`↩️ Kredity vráceny: dávka „${action}" pro ${clientId} neskončila potvrzením.`)
             })
         } catch {
@@ -243,10 +260,10 @@ export async function creditGuardBatch(
             commitCount: async (successCount: number, description?: string) => {
                 settled = true
                 // Účtuje se jen to, co skutečně prošlo — zbytek rezervace se vrací.
-                await shrinkReservation(reservation.reservationId, creditsPerAction * Math.max(0, successCount))
+                await shrinkReservation(reservationId, creditsPerAction * Math.max(0, successCount))
                 if (successCount > 0) {
                     await settleReservation(
-                        reservation.reservationId,
+                        reservationId,
                         description || `${ACTION_LABELS[action]} ×${successCount}`,
                     )
                 }
