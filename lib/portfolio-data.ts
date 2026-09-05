@@ -4330,5 +4330,368 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
         ]
       }
     ]
+  },
+  {
+    "slug": "liqui-moly",
+    "company": "LIQUI MOLY",
+    "industry": "Motorová maziva a autochemie",
+    "website": "https://www.liqui-moly.cz",
+    "posts": [
+      {
+        "id": "c39d29d3-e0fa-45c8-abab-2434e4d0fcb2",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610472944-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610496839-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610519652-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610544428-slide3.webp"
+        ],
+        "hook": "Telemetrie TCR: Olej na 140 stupních",
+        "body": "Závody TCR neodpouští chyby. Agresivní podřazování, brutální akcelerace a teploty oleje na rovinkách šplhající ke 140 °C. Telemetrie z našich vozů ukazuje přesně to, co se děje uvnitř motoru na hraně možností. Zatímco mechanici v boxech analyzují data a spoléhají na špičková závodní maziva, která tuto zátěž snesou bez ztráty filmu, fyzika platí pro všechny motory stejně. Extrémní teplo po náročném provozu dává zabrat i běžným autům. Degradace viskozity je reálná hrozba před příchodem chladných rán. Tohle je start naší nové série o přežití motoru.",
+        "cta": "Jaká je nejvyšší teplota motorového oleje, kterou jste kdy zaznamenali na svém palubním počítači? Podělte se o svá data v komentářích.",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#motorsport",
+          "#telemetrie",
+          "#tcr",
+          "#peceomotor",
+          "#motorovyolej"
+        ]
+      },
+      {
+        "id": "4bef9aa1-1482-4cb1-b235-d18b9cc4b9ab",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610645531-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610692069-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610718271-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610762726-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610787207-slide4.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610811845-slide5.webp"
+        ],
+        "hook": "Soutěž o aditiva: Fyzika vstřikování v závodním tempu",
+        "body": "Minule jsme v TCR řešili vařící olej. Dnes jdeme na palivo. Závodní motory neodpouští ani mikron karbonu na vstřiku. Špatně rozprášená směs znamená okamžitou ztrátu výkonu a konec nadějí na bednu.\n\nPřesně tahle fyzika platí i pro auta, která vám teď po letní sezóně plní zvedáky. Chladná zářijová rána blbě startujícím motorům nepomůžou. Naše OEM schválená chemie jako Super Diesel Additive vrací vstřikům tovární čistotu. A vy ji teď můžete mít do dílny zdarma.\n\n🎁 SOUTĚŽ o 3 balíčky prémiových aditiv!\nUkažte, že znáte řemeslo. Odpovězte do komentářů na technickou otázku:\n„Jak přesně ovlivňuje zanesená tryska homogenitu směsi ve válci a jak se to podepíše na spotřebě?“\nNejlepší profíky odměníme.",
+        "cta": "Napište nám svou technickou analýzu do komentářů a zařaďte se do slosování o 3 balíčky aditiv!",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#motorsport",
+          "#fyzika",
+          "#soutez",
+          "#mechanik",
+          "#servis",
+          "#motorovyolej"
+        ]
+      },
+      {
+        "id": "93f36411-1a7a-433c-8880-e496d76da131",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610917408-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610942974-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610972641-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610996784-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788611022864-slide4.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788611074703-slide5.webp"
+        ],
+        "hook": "Dálniční tempo karbon ze vstřiků nedostane",
+        "body": "Minule jsme řešili fyziku vstřikování v TCR. Běžná auta vašich zákazníků po letních trasách ale trpí na chlup stejně. Mnoho řidičů si myslí, že stačí auto na dálnici pořádně protáhnout. Omyl. Vysoké zatížení bez správné chemie produkci karbonu nezastaví, naopak úsady na vstřikovacích ventilech a ve spalovacím prostoru ještě víc zapeče. Výsledek? Rozhozené dávkování paliva, cukání a nespokojený zákazník na zvedáku. Jako profík potřebujete jistotu, ne babské rady. LIQUI MOLY Čistič vstřikování cíleně rozpouští usazeniny, zajišťuje přesné dávkování paliva a vám šetří drahocenný čas na dílně. Vyřešte problém rychle a efektivně.",
+        "cta": "Vybavte svou dílnu hned teď a ušetřete čas při servisu. Objednávejte s rychlým dodáním přímo na https://www.liqui-moly.cz/p/cistic-vstrikovani",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#liquimolyczsk",
+          "#cisticvstrikovani",
+          "#autoservis",
+          "#profimechanik",
+          "#motorovyolej",
+          "#aditiva"
+        ]
+      },
+      {
+        "id": "0ca12eac-f66c-4638-a0a3-1a8fbba260c2",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614069373-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614121899-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614147821-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614196966-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614223601-slide4.webp"
+        ],
+        "hook": "Letní nánosy karbonu zničí studené starty.",
+        "body": "Letní dálniční přesuny a vysoké teploty znamenají extrémní zátěž. Zůstává po nich zapečený karbon na špičkách vstřikovačů. V létě to řídicí jednotka dorovná, ale s prvními mrazy nastává problém. Místo jemné mlhy vstřik palivo jen plive. Směs se špatně vznítí, startér trpí a válce se zalévají nespáleným palivem.\n\nTohle nevyřeší hrubá síla, ale přesná chemie. Postup z dílny: před tankováním nalijte čistič vstřikování do nádrže. Natankujte plnou, ať se aditivum dokonale promíchá. Následná jízda pod zátěží vytvoří tlak a teplotu k rozpuštění usazenin. Mikronové nánosy zmizí a rozprach se vrátí do továrních hodnot. Připravte motor na zimu včas.",
+        "cta": "Jak řešíte prevenci palivového systému vy? Napište nám do komentářů.",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#motorsport",
+          "#cistenivstriku",
+          "#udrzbaauta",
+          "#autokosmetika",
+          "#aditiva",
+          "#motorky"
+        ]
+      },
+      {
+        "id": "3895c699-5dcd-4384-bd59-408370d538f8",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-posts/1788614309374.webp"
+        ],
+        "hook": "Poznáte fatální následek jízdy na degradovaný olej?",
+        "body": "Letní dálniční přesuny dostaly olej na absolutní limit. Extrémní teploty zlomily viskozitu. Výsledek vidíte na fotce.\n\nMajitel hlásil postupnou ztrátu plnícího tlaku. Kvílení v zátěži. Skokově zvýšenou spotřebu oleje. Hřídelka měla po rozebrání obrovskou radiální vůli, i když auto nikdy nevidělo závodní okruh. Tohle je čistá fyzika selhání mazacího filmu v kritickém uzlu.",
+        "cta": "Víte, co přesně způsobilo destrukci tohoto ložiska? Napište svou technickou diagnózu do komentářů.",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#motorsport",
+          "#diagnostika",
+          "#turbodmychadlo",
+          "#autokosmetika",
+          "#aditiva",
+          "#cars"
+        ]
+      },
+      {
+        "id": "25a6bc38-9967-486a-98f7-7259aa79eba7",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614459493-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614484889-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614527800-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614573357-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614596498-slide4.webp"
+        ],
+        "hook": "Riskujete při prvních mrazech ucpaný palivový filtr, nebo je váš systém bezpečně připraven na -20 °C?",
+        "body": "Minule jsme řešili letní nánosy karbonu. Zářijové teplotní skoky s sebou však přinášejí nové technické výzvy. Chladná rána a teplá odpoledne způsobují kondenzaci vody v nádrži. Při následném poklesu teplot dochází ke krystalizaci parafínu, jehož mikrokrystaly ucpávají póry palivového filtru a znemožňují startování. Přísada do nafty od LIQUI MOLY tento fyzikální proces efektivně eliminuje. Zabraňuje shlukování krystalů parafínu, chrání palivový systém před korozí a garantuje plnou průchodnost filtru až do -20 °C. Pro profesionální provozy a vozové parky to znamená zásadní minimalizaci prostojů vozidel a snížení dodatečných nákladů na neplánované servisní zásahy.",
+        "cta": "Zajistěte bezproblémové zimní starty a objednávejte přímo z e-shopu: https://www.liqui-moly.cz/p/prisada-do-nafty",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#prisadadonafty",
+          "#palivovyfiltr",
+          "#automechanik",
+          "#motorsport",
+          "#motorovyolej",
+          "#aditiva"
+        ]
+      },
+      {
+        "id": "8d639000-b800-44ad-bb21-938cb552e733",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788615131662-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788615156780-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788615187244-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788615232915-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788615260152-slide4.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788615305431-slide5.webp"
+        ],
+        "hook": "Mazací film selhává při 150 tisících otáčkách turba.",
+        "body": "Minule jsme řešili fatální diagnózu spáleného ložiska. Dnes se podíváme na fyziku, která za tím stojí.\n\nVšichni mluví o teplotě výfukových plynů. Skutečným zabijákem turba jsou ale extrémní otáčky rotoru. Při 150 000 otáčkách za minutu působí na hřídel brutální odstředivé síly. Standardní olej ztrácí viskozitu, mazací film se trhá a dochází k suchému tření. Výsledek vidíte na dílně u aut, co se právě vrátila z letních dovolených po dálnici.\n\nProfi servis vyžaduje jistotu. Naše oleje těží ze zkušeností z TCR. Mají oficiální OEM schválení a stabilní viskozitu, která udrží film i při maximální zátěži. Chráníte tak motory zákazníků a vlastní reputaci.",
+        "cta": "Jaký nejhorší případ zničeného turba jste letos na dílně řešili? Napište nám do komentářů, co přesně nevydrželo.",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#liquimolyczsk",
+          "#fyzikamotorsportu",
+          "#turbodmychadlo",
+          "#autoservis",
+          "#servis",
+          "#auta"
+        ]
+      },
+      {
+        "id": "fa9e7137-c345-43d2-82e8-357d2fbddc80",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-posts/1788615393571.webp"
+        ],
+        "hook": "Zimní renovace bloku vyžaduje mikrometrovou přesnost vůlí.",
+        "body": "Hodiny s mikrometrem v ruce. Kontrola kliky, úhlování ojnic, přesné spasování kroužků. V garážích právě teď vznikají projekty, které snesou srovnání se závodní specifikací.\n\nMechanika je nekompromisní. Ale i sebelépe složený motor má své slabiny – stárnoucí elastomery. Guma tvrdne. Gufera ztrácí pružnost. Olejové skvrny pod autem degradují stovky hodin vaší práce.\n\nPři oživování starších projektů nebo prevenci úniků spolehlivě funguje aditivum Stop ztrátám oleje. Změkčuje plastová a gumová těsnění motoru a vrací jim původní vlastnosti. Bez rozebírání a dalších investic.",
+        "cta": "Na čem přes zimu děláte vy? Pochlubte se svým aktuálním garážovým projektem v komentářích.",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#motorsport",
+          "#garaz",
+          "#renovace",
+          "#motorky",
+          "#peceomotor",
+          "#detailing"
+        ]
+      },
+      {
+        "id": "a6b2f06a-bcf4-4710-9192-29a3005fe3f4",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-posts/1788615487021.webp"
+        ],
+        "hook": "Mýtus: Proplach motoru ucpe mazací kanálky.",
+        "body": "Proč se toho tolik řidičů bojí? Strach pramení z představy, že chemie odtrhne kusy napečeného karbonu, které následně zablokují olejové čerpadlo. To je přežitek ze zkoušení agresivních ředidel.\n\nModerní aditiva fungují jinak. LIQUI MOLY Pro-Line Motorspülung karbon neodlupuje mechanicky. Fyzikálně ho rozpouští na molekulární úrovni. Úsady přecházejí do tekutého stavu a bezpečně odtékají ze systému spolu se starým olejem. Žádné pevné částice nezůstávají.\n\nPřed zimní sezónou a ranními mrazy je absolutně čistý mazací systém základem pro okamžitý náběh tlaku oleje.\n\nJaké máte s proplachem zkušenosti z vaší garáže?",
+        "cta": "Podělte se o své zkušenosti v komentářích. Kompletní technické listy a náš online mazací plán najdete zde:👇 https://www.liqui-moly.cz",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#motorsport",
+          "#garaz",
+          "#automechanik",
+          "#motorovyolej",
+          "#motorky",
+          "#aditiva"
+        ]
+      },
+      {
+        "id": "e2115695-fde3-4038-b655-4a4d662878ae",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-posts/1788615676177.webp"
+        ],
+        "hook": "Stop ztrátám oleje reálně regeneruje ztvrdlá těsnění.",
+        "body": "Extrémní teplotní zátěž gumu vysušuje. Těsnění dříků ventilů a gufera klikové hřídele tvrdnou, smršťují se a propouští olej. Výměna znamená rozebrat půl motoru. Chemie nabízí efektivnější řešení. Aplikace aditiva přímo do oleje spouští cílenou reakci. Aktivní látky pronikají hluboko do struktury elastomerů. Během 600 až 800 kilometrů jízdy dochází k řízenému nabobtnání pryže. Materiál získává zpět původní elasticitu. Netěsnosti mizí, únik oleje klesá k nule. Snižuje se i modrý kouř z výfuku. Fyzikální záchrana před nákladným servisem.",
+        "cta": "Objednávejte prémiové řešení Stop ztrátám oleje přímo z e-shopu: https://www.liqui-moly.cz/p/stop-ztratam-oleje",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#stopztratamoleje",
+          "#aditiva",
+          "#peceomotor",
+          "#auto",
+          "#servis",
+          "#motorovyolej"
+        ]
+      },
+      {
+        "id": "2376b5dd-b433-4d9d-aa24-8b8c7440bc95",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-posts/1788615781893.webp"
+        ],
+        "hook": "Zdegradovaný letní olej nemaže vačky prvních pět sekund.",
+        "body": "Pět sekund chodu nasucho. To je realita ranních startů s olejem, který dostal v létě zabrat. Dálniční přesuny a teplotní extrémy zlomily jeho viskozitu.\n\nUdělejte si rychlý test. Vytáhněte měrku. Černá barva nevadí, důležitá je konzistence. Pokud olej kape jako voda, nebo naopak tvoří táhlou hmotu, mazací film ztratil stabilitu.\n\nOlejové čerpadlo ho nedokáže včas protlačit kanálky nahoru. Vačková hřídel běží kov na kov. Zastavte opotřebení a vyměňte letní náplň včas.",
+        "cta": "Uložte si tento tip pro podzimní údržbu a napište nám do komentářů, při kolika kilometrech měníte olej vy.",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#studenystart",
+          "#vymenoleje",
+          "#motorovyolej",
+          "#peceomotor",
+          "#motorsport",
+          "#racing"
+        ]
+      },
+      {
+        "id": "35cad842-8688-4793-9f90-fdf32103ab4f",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-posts/1788615973562.webp"
+        ],
+        "hook": "Jaká chemická reakce způsobuje tuto zimní krystalizaci?",
+        "body": "S blížící se zimou a prvními mrazíky přichází i skrytá hrozba pro moderní diesely. Na fotce vidíte typický nános bílých krystalů v dávkovacím modulu SCR katalyzátoru. Zpočátku se to projeví jen občasným chybovým hlášením. Později auto odmítne nastartovat úplně. Kapalina AdBlue se skládá z 32,5 % močoviny a 67,5 % demineralizované vody. Jakmile teploty klesnou k určitému bodu, začíná fyzika úřadovat. Voda mrzne a močovina krystalizuje. Vzniklé usazeniny ucpou vedení, zablokují čerpadlo a zničí samotný vstřikovač.",
+        "cta": "Znáte přesnou teplotu, při které začíná AdBlue krystalizovat? Napište váš tip do komentářů, rádi s vámi probereme, co se v praxi nejvíce osvědčuje jako prevence.",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#adblue",
+          "#krystalizace",
+          "#udrzbaauta",
+          "#motorsport",
+          "#autoservis",
+          "#auta"
+        ]
+      },
+      {
+        "id": "901ce125-32ac-44e6-8430-16d3e49c6c99",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-posts/1788616073297.webp"
+        ],
+        "hook": "Přísada do AdBlue® blokuje krystalizaci pod -11 °C.",
+        "body": "Minule jsme řešili chemický rozklad močoviny. Fyzika je neúprosná. Jakmile teplota klesne pod -11 °C, čisté AdBlue® začíná tvořit nevratné bílé krystaly. Ty spolehlivě ucpou čerpadlo, vedení i samotný vstřikovač. Následuje chybové hlášení a drahá výměna celého modulu.\n\nZářijové servisní prohlídky jsou ideální čas na prevenci. Naše Přísada do AdBlue® tento proces blokuje. Snižuje bod tuhnutí, zabraňuje krystalizaci a aktivně čistí už zasažené komponenty. Ochrání systém vašich zákazníků i v extrémních mrazech. Rychlá aplikace a okamžitý výsledek pro každého mechanika.",
+        "cta": "🛒 Objednávejte Přísadu do AdBlue® pro svůj servis s rychlým doručením na https://www.liqui-moly.cz/p/prisada-do-adblue",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#adblue",
+          "#servisaut",
+          "#automechanik",
+          "#auto",
+          "#detailing",
+          "#aditiva"
+        ]
+      },
+      {
+        "id": "ab343407-c36d-4431-92f2-d51cf488058c",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-posts/1788616152245.webp"
+        ],
+        "hook": "Suchá vana drží konstantní tlak oleje při 2G.",
+        "body": "Odstředivá síla je neúprosná. V táhlých zatáčkách na limitu se olej v klasické vaně přelije ke straně. Čerpadlo nasaje vzduch, tlak padá k nule a hrozí okamžité přidření na klice.\n\nZávodní speciály proto využívají suchou vanu. Sestava odsávacích čerpadel bleskově stahuje olej z bloku do externí nádrže. Tlakové čerpadlo pak saje z vysokého sloupce bez ohledu na to, jak brutální boční přetížení auto právě snáší. Žádné výpadky mazacího filmu. Stoprocentní ochrana komponentů i při extrémním zatížení.\n\nStavíte přes zimu vlastní okruhový projekt?",
+        "cta": "Spoléháte na vylepšené přepážky v sériové vaně, nebo jdete rovnou do suché? Dejte nám vědět do komentářů.",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#motorsport",
+          "#suchavana",
+          "#tlakoleje",
+          "#zavodniinzenyrstvi",
+          "#racing",
+          "#detailing"
+        ]
+      },
+      {
+        "id": "df48ecd7-1c7e-40b2-9f11-645fa4e1ebbe",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-posts/1788616287975.webp"
+        ],
+        "hook": "Těsnění ventilů speciálu Nova Proto prasklo před startem.",
+        "body": "Těsnění dříků ventilů u prototypu Nova Proto NP01 nevydrželo. Paddock se mění v improvizovanou laboratoř. Mechanici mají hodinu na rozebrání hlavy a záchranu víkendu. Zvládli to. Auto je na trati. Zatímco fanoušci sledují časy na kolo, v zázemí se řeší druhý extrém. Týmový tahač. Tisíce kilometrů s těžkým vlekem napříč letní Evropou zanechaly na vstřikovačích dieselu tvrdý karbon. Odezva na plyn zlenivěla. Než speciál dojede do cíle, mechanik lije do nádrže dodávky Údržbu dieselového systému. Čistí trysky, maže palivové čerpadlo a chrání systém před korozí. Bez spolehlivého dieselu se totiž žádný pohár domů neodveze.",
+        "cta": "Jaký dieselový dříč tahá vaše garážové projekty? Pochlubte se nám v komentářích.",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#motorsport",
+          "#novaproto",
+          "#paddocklife",
+          "#zavody",
+          "#detailing",
+          "#peceomotor"
+        ]
+      }
+    ]
   }
 ]
