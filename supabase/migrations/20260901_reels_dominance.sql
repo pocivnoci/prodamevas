@@ -35,6 +35,7 @@ VALUES ('chrlit_start', 'Start', 'Nakopni profil — 20 kreditů/měs, obrázky 
     "growth_tracking": false,
     "analytics": "basic",
     "priority": 0,
+    "human_support": false,
     "label": "Start",
     "highlight": false,
     "plan_posts_limit": 30,
@@ -57,6 +58,7 @@ VALUES ('chrlit_rust', 'Růst', 'Rosteme spolu — 70 kreditů/měs, úprava hot
     "growth_tracking": true,
     "analytics": "full",
     "priority": 0,
+    "human_support": false,
     "label": "Růst",
     "highlight": true,
     "plan_posts_limit": 30,
@@ -79,6 +81,7 @@ VALUES ('chrlit_dominance', 'Dominance', 'Ovládni svůj trh — 130 kreditů/m�
     "growth_tracking": true,
     "analytics": "full",
     "priority": 10,
+    "human_support": false,
     "label": "Dominance",
     "highlight": false,
     "plan_posts_limit": 30,
@@ -92,7 +95,7 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- 4. Impérium — 8 999 Kč, 260 kreditů, nejvyšší úroveň pro jednu značku
 INSERT INTO subscription_plans (id, name, description, price_czk, interval, features, is_active)
-VALUES ('chrlit_imperium', 'Impérium', 'Postav impérium — 260 kreditů/měs pro jednu značku, product studio, nejvyšší přednost ve frontě', 899900, 'month', '{
+VALUES ('chrlit_imperium', 'Impérium', 'Postav impérium — 260 kreditů/měs pro jednu značku, product studio, kontrola obsahu marketingovým specialistou', 899900, 'month', '{
     "credits_per_month": 260,
     "max_projects": 1,
     "extra_credit_price": 4900,
@@ -101,6 +104,7 @@ VALUES ('chrlit_imperium', 'Impérium', 'Postav impérium — 260 kreditů/měs 
     "growth_tracking": true,
     "analytics": "full",
     "priority": 20,
+    "human_support": true,
     "label": "Impérium",
     "highlight": false,
     "plan_posts_limit": 30,

@@ -245,8 +245,17 @@ export const PLAN_COPY: Record<string, PlanCopy> = {
         // nebyla implementovaná ani vynucovaná (`max_projects` nečetl žádný kód),
         // takže agentura kupovala něco, co nedostala. Impérium je nejvyšší úroveň
         // pro JEDNU značku: největší objem a skutečně nejvyšší priorita ve frontě.
+        //
+        // Lidská podpora přibyla 9/2026 jako jediná odrážka, kterou stroj nedodá —
+        // a hlavně jako `features.human_support` v seedu, ne jako věta navíc.
         tagline: "Postav impérium",
-        bullets: ["Nejvyšší objem pro jednu značku", "Vše z Dominance", "Nejvyšší priorita ve frontě"],
+        bullets: [
+            "Nejvyšší objem pro jednu značku",
+            "Vše z Dominance",
+            "Nejvyšší priorita ve frontě",
+            "Obsah kontroluje marketingový specialista",
+            "Přednostní podpora — e-mail i telefon",
+        ],
     },
 }
 

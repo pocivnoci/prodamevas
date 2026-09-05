@@ -40,6 +40,7 @@ interface PlanRow {
         priority: number | boolean
         highlight: boolean
         extra_credit_price: number
+        human_support?: boolean
     }
 }
 
@@ -83,6 +84,12 @@ function planFeatureList(p: PlanRow, reelsEnabled: boolean): PlanFeatureItem[] {
     const prio = planPriority(f)
     if (prio >= PRIORITY.highest) items.push({ text: "Nejvyšší priorita ve frontě" })
     else if (prio > PRIORITY.none) items.push({ text: "Prioritní generování" })
+
+    // Lidská část služby se čte z tarifu, ne z kopie — stejně jako priorita.
+    if (f.human_support) {
+        items.push({ text: "Obsah kontroluje marketingový specialista" })
+        items.push({ text: "Přednostní podpora — e-mail i telefon" })
+    }
 
     return items
 }

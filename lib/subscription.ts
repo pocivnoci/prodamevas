@@ -125,6 +125,17 @@ export interface PlanFeatures {
     // v3 growth tiers
     allowed_media?: MediumType[]   // missing = all media allowed (legacy plans)
     growth_tracking?: boolean      // weekly follower snapshots + growth dashboard
+    /**
+     * Lidská část služby: obsah pravidelně prochází marketingový specialista a
+     * dotazy se vyřizují přednostně. Dnes jen Impérium.
+     *
+     * Je to POLE, ne odrážka v kopii, ze stejného důvodu jako `priority`:
+     * Impérium už dvakrát prodávalo slib, který nikde neexistoval
+     * (`max_projects`, boolean `priority`). Chybějící klíč = `false`.
+     * Plnění je lidské, takže ho kód nevynutí — ale nikdo ho nemůže slíbit
+     * omylem na tarifu, kde neplatí (aserce 13.16 a 13.17).
+     */
+    human_support?: boolean
 }
 
 /**

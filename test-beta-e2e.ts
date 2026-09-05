@@ -653,6 +653,48 @@ test("13.14 postavená funkce nesmí být zakázaná všem tarifům", () => {
     }
 })
 
+test("13.16 slib lidské podpory musí mít pole v tarifu", () => {
+    // Třetí pokus Impéria prodat něco, co nikde neexistuje, už být nesmí:
+    // `max_projects` nečetl nikdo, boolean `priority` taky ne. Odrážka o lidské
+    // podpoře proto smí být jen na tarifu, který má `human_support` v seedu —
+    // a naopak tarif s tím polem to musí i vypsat, jinak zákazník platí za něco,
+    // o čem se nedozví.
+    const { PLAN_COPY } = require("./lib/pricing")
+    const seed = fileContent(PRICING_SEED)
+
+    let overeno = 0
+    for (const [planId, copy] of Object.entries(PLAN_COPY as Record<string, { bullets: unknown[] }>)) {
+        const at = seed.indexOf(`'${planId}'`)
+        if (at < 0) continue
+        overeno++
+        const má = /"human_support":\s*true/.test(seed.slice(at, at + 900))
+        const slibuje = copy.bullets.some(b =>
+            /specialista|podpora/i.test(typeof b === "string" ? b : String((b as { text?: string }).text || "")),
+        )
+        assert(slibuje === má,
+            `${planId}: kopie ${slibuje ? "slibuje" : "neslibuje"} lidskou podporu, ale seed má human_support=${má}`)
+    }
+    assert(overeno >= 4, `aserce musí reálně něco kontrolovat (našla ${overeno} tarifů)`)
+
+    // Seznam funkcí v aplikaci ho musí číst z tarifu, ne mít napsaný svůj.
+    assert(codeOnly("app/(dashboard)/dashboard/instagram/tabs/SubscriptionSection.tsx").includes("human_support"),
+        "seznam funkcí v aplikaci musí lidskou podporu číst z features, ne z vlastní kopie")
+})
+
+test("13.17 placený slib podpory stojí i v obchodních podmínkách", () => {
+    // Odrážka na kartě je marketing; závazek vzniká až tím, že je dohledatelný
+    // v podmínkách. Stejný důvod, proč tam musí být propadání kreditů (14.7).
+    const seed = fileContent(PRICING_SEED)
+    if (!/"human_support":\s*true/.test(seed)) return // žádný tarif to neslibuje
+
+    const t = fileContent("app/terms/page.tsx")
+    assert(/přednostn/i.test(t), "podmínky musí zmínit přednostní vyřizování dotazů")
+    assert(/marketingového specialisty|marketingový specialista/i.test(t),
+        "podmínky musí zmínit kontrolu obsahu marketingovým specialistou")
+    assert(t.includes("LEGAL.phone"),
+        "podmínky musí u podpory uvést i telefonní kanál, který ceník slibuje")
+})
+
 test("13.13 Impérium neslibuje agentury, dokud je víc profilů nevynucených", () => {
     // `max_projects` nečetl žádný kód, takže „plný objem pro agentury a e-shopy"
     // prodával víceprofilovost, kterou nikdo nedostal ani nevynutil. Předplatné
