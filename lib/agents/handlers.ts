@@ -26,7 +26,8 @@ registerHandler("weekly_report", async () => {
     return { ok: true, to, emailId: sent.id, subject: report.subject }
 })
 
-// Ranní brief — JEDINÝ kanál z firmy k zakladateli. Pohlcuje bývalé samostatné
+// Ranní brief — JEDINÝ kanál z firmy ven (dnes do týmové skupiny, jinak
+// e-mailem zakladateli). Pohlcuje bývalé samostatné
 // e-maily health_check a compliance_check i lifecycle digest: ty moduly zůstávají
 // detekčními knihovnami, ale poštu už nevlastní. Když je klid, nepošle se nic.
 registerHandler("daily_brief", async () => {
@@ -46,20 +47,32 @@ registerHandler("daily_brief", async () => {
     const brief = await buildDailyBrief()
     if (brief.quiet) return { ok: true, quiet: true }
 
+    const counts = {
+        needsYou: brief.needsYou.length,
+        money: brief.money.length,
+        risk: brief.risk.length,
+        system: brief.system.length,
+    }
+
+    // Skupina má přednost před schránkou. Brief je od začátku psaný jako JEDEN
+    // kanál z firmy ven — poslat ho oběma cestami by z „jednoho zdroje" udělalo
+    // dva a naučilo by to všechny tři jeden z nich ignorovat. E-mail proto
+    // zůstává ZÁCHRANOU pro případ, že skupina není nastavená nebo Telegram
+    // mlčí, ne druhým souběžným kanálem.
+    const { isTelegramConfigured } = await import("@/lib/telegram/team")
+    if (isTelegramConfigured()) {
+        const { sendBriefToTelegram } = await import("@/lib/telegram/brief")
+        const messages = await sendBriefToTelegram(brief)
+        if (messages > 0) return { ok: true, quiet: false, channel: "telegram", messages, ...counts }
+        console.warn("daily_brief: Telegram nic neodeslal — padám zpět na e-mail")
+    }
+
     const to = getFounderEmail()
     if (!to) throw new Error("daily_brief: REPORT_EMAIL/SUPER_ADMIN_EMAILS není nastaveno")
     const { sendEmail } = await import("@/lib/email")
     const mail = renderDailyBrief(brief)
     const sent = await sendEmail({ to, subject: mail.subject, html: mail.html, text: mail.text })
-    return {
-        ok: true,
-        quiet: false,
-        needsYou: brief.needsYou.length,
-        money: brief.money.length,
-        risk: brief.risk.length,
-        system: brief.system.length,
-        emailId: sent.id,
-    }
+    return { ok: true, quiet: false, channel: "email", emailId: sent.id, ...counts }
 })
 
 // Daily lifecycle scan: proposes outbound e-mails (approval-gated). Sends NOTHING

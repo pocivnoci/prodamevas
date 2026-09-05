@@ -43,6 +43,12 @@ Open [http://localhost:3000](http://localhost:3000)
 | `REPORT_FROM_EMAIL` | Odesílatel, např. `Chrlit <noreply@chrlit.cz>`. Bez ověřené domény se posílá z `onboarding@resend.dev`, který doručí **jen na adresu majitele Resend účtu** |
 | `REPORT_EMAIL` | Kam chodí ops pošta (ranní brief, schválení). Výchozí: první `SUPER_ADMIN_EMAILS` |
 | `EMAIL_SECRET` | HMAC pro podepsané odkazy (odhlášení, schvalování). Fallback: `CRON_SECRET` → service role key |
+| `TELEGRAM_BOT_TOKEN` | Týmový kanál (skupina zakladatel + manažer + investor + agent). Bez něj se do skupiny neposílá nic a ranní brief padá zpět na e-mail |
+| `TELEGRAM_CHAT_ID` | **Jediná** skupina, se kterou bot mluví (začíná mínusem). Cokoli z jiného chatu se zahodí bez odpovědi — bota může do chatu přidat kdokoli |
+| `TELEGRAM_WEBHOOK_SECRET` | Ověření, že POST na `/api/telegram/webhook` je od Telegramu — `openssl rand -hex 32`. Bez shody 401 |
+| `TELEGRAM_TEAM` | `id:jméno:role,…` (role: `founder` \| `manager` \| `investor`). **Rozhoduje, kdo smí ze skupiny schvalovat** — členství v chatu samo pravomoc nedává. Investor schvalovat nesmí |
+| `TELEGRAM_BOT_USERNAME` | `@jméno` bota. Bez něj pozná agent oslovení jen podle odpovědi na svou zprávu |
+| `ANTHROPIC_API_KEY` | Claude — soudce v obsahové pipeline i mozek týmového agenta. Bez něj agent ve skupině **mlčí**; brief a tlačítka fungují dál |
 
 ---
 

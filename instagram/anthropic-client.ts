@@ -87,6 +87,50 @@ async function toImageBlock(img: { buffer: Buffer; mimeType?: string }): Promise
 }
 
 /**
+ * Obecná textová odpověď od Clauda — pro role, které NEJSOU soudce.
+ * ==================================================================
+ * `judgeWithClaude` je zamčený na jeden účel: krátký evaluační výstup na LOW
+ * effort s promptem, který si nese vlastní rubriku. Týmový agent v Telegramu
+ * potřebuje opak — systémový prompt oddělený od konverzace (aby padl do prompt
+ * cache, když se čte každá zpráva ve skupině) a delší výstup.
+ *
+ * Systémový prompt je zvlášť schválně: obsah skupiny je vstup od lidí a nesmí
+ * splynout s instrukcemi. Pravidla drží `system`, konverzace je `user`.
+ */
+export async function askClaude(opts: {
+    system: string
+    messages: { role: "user" | "assistant"; content: string }[]
+    action?: "teamAgent" | "judge"
+    maxTokens?: number
+    effort?: "low" | "medium" | "high"
+    label?: string
+}): Promise<string> {
+    const model = getModel(opts.action ?? "teamAgent")
+    const resp = await getClient().messages.create({
+        model,
+        max_tokens: opts.maxTokens ?? 1024,
+        system: opts.system,
+        output_config: { effort: opts.effort ?? "low" },
+        messages: opts.messages,
+    })
+
+    recordUsage(model, {
+        promptTokenCount: resp.usage?.input_tokens,
+        candidatesTokenCount: resp.usage?.output_tokens,
+        cachedContentTokenCount: resp.usage?.cache_read_input_tokens,
+    }, opts.label ?? "team-agent")
+
+    const text = resp.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text
+    if (!text) throw new Error("Claude nevrátil žádný text")
+    return text
+}
+
+/** Je Claude vůbec k dispozici? Bez klíče nemá týmový agent čím myslet. */
+export function claudeAvailable(): boolean {
+    return Boolean(process.env.ANTHROPIC_API_KEY)
+}
+
+/**
  * Run a judge prompt through Claude and return the raw text. The prompt already instructs a JSON
  * shape, and callers parse it exactly as they parse the Gemini judge output — so this is a drop-in.
  *

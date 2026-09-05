@@ -71,6 +71,14 @@ export const MODELS = {
      *  GEMINI_MODEL_JUDGE. Only used when ANTHROPIC_API_KEY is set — otherwise the judge falls
      *  back to the Gemini `textPro` Pro ladder (unchanged behaviour). See instagram/judge.ts. */
     judge: { primary: "claude-sonnet-5" },
+    /** Týmový agent v Telegramu — čte skupinovou konverzaci, koriguje tvrzení proti
+     *  datům a překládá „schval to" na strukturovaný záměr. Claude, ne Gemini, ze
+     *  dvou důvodů: kouká na KAŽDOU zprávu, takže rozhoduje hlavně „mlčet, nebo se
+     *  ozvat" — a v tom je zdrženlivost cennější než výřečnost; a runtime už Claude
+     *  má (soudce), takže to nepřidává další rodinu do provozu. Env override:
+     *  GEMINI_MODEL_TEAMAGENT. Bez ANTHROPIC_API_KEY kanál jen mlčí (viz
+     *  lib/agents/telegram-agent.ts) — brief a tlačítka fungují dál. */
+    teamAgent: { primary: "claude-sonnet-5" },
     /** Text embeddings — brand-memory relevance retrieval + the consistency score
      *  (pipeline v2, Stage 3). Both IDs live-verified 2026-07-02 via ai.models.list()
      *  + a real embedContent call; gemini-embedding-2 = current GA, 001 = prior GA.

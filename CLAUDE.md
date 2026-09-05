@@ -91,6 +91,10 @@ Tři vrstvy, všechny multi-tenant:
   do něj, ne natvrdo do JSX — čte ho sidebar, spodní lišta i validace hashe.
   Přepínat sekci vždy přes `useStudioNavigate()`, jinak nefunguje mimo
   `/dashboard/instagram`.
+- **Telegramový kanál: členství není pravomoc.** `isOurChat()` řeší, odkud smí
+  přijít zpráva; `canApprove()` řeší, kdo smí spustit práci. Slít je dohromady
+  znamená, že pozvánka do chatu tiše udělí práva k produkci. Model vrací jen
+  *záměr* — o oprávnění rozhoduje kód. Detail v `docs/TEAM_CHANNEL.md`.
 - **Nic nehardcoduj** — DB ID, buckety, adminské e-maily patří do `ClientConfig` nebo
   env (`SUPER_ADMIN_EMAILS`). Fonty a assety na Vercelu patří do
   `outputFileTracingIncludes` v `next.config.ts`.
