@@ -96,8 +96,11 @@ ve `scheduled` s časem v minulosti.
    Po odstranění příčiny použij ve Studiu „Zkusit znovu" — vynuluje čítač.
 3. **„Instagram není připojený"** → token vypršel nebo zákazník odebral přístup.
    Zákazník se musí připojit znovu v Nastavení.
-4. **Reels a stories se nepublikují automaticky vůbec** — je to známé omezení,
-   ne porucha. Vyloučené v `auto-publish.ts` i v „Publikovat hned". Zbývá ruční sdílení.
+4. **Stories se nepublikují automaticky** — je to známé omezení, ne porucha.
+   Vyloučené v `auto-publish.ts`. Zbývá ruční sdílení.
+   **Reels se publikují** (od #54, agent i „Publikovat hned"). Když se nepublikují,
+   nejde o tohle omezení: buď reel nemá video (`Tenhle reel nemá video…`), nebo
+   není nastavené `REELS_ENABLED=1` a engine ho překlopil na carousel dřív, než vznikl.
 
 ### Když nefunguje publikování nikomu
 Zkontroluj strop profilů u prostředníka (upload-post). Na bezplatném tarifu jsou

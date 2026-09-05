@@ -78,7 +78,7 @@ ošetření, ověření nebo je to za přepínačem · **NEEXISTUJE**.
 | Claude judge (cross-family) | HOTOVO | `instagram/anthropic-client.ts:32`, `ANTHROPIC_API_KEY` je nastaven |
 | Render obrázků a karuselů | HOTOVO | `instagram/image-pipeline.ts`, `orchestrators/` |
 | Stories | ROZDĚLANÉ | za `STORIES_ENABLED`; hodnota v prostředí nečitelná |
-| Reels | ROZDĚLANÉ | `REELS_ENABLED=1`, ale `publishNowAction` je odmítá (`calendar-actions.ts:190`) |
+| Reels | POSTAVENÉ, VYPNUTÉ | Generování i publikování hotové (#54), tarify Dominance+ (#47). Chybí jediné: `REELS_ENABLED` **není v produkci nastavené**, takže `format-clamps.ts` každý reel potichu překlopí na carousel |
 | Best-of-2 pipeline (v7.0) | ROZDĚLANÉ | `instagram/autopilot.ts:913` — vyžaduje `PIPELINE_BESTOF2=1`, není nastaveno |
 | Měření útraty za modely | ROZDĚLANÉ | `ai_spend` tabulka existuje, ale pokrývá jen část cest — viz §4 |
 | Zpětnovazební smyčka (metriky) | ROZDĚLANÉ | `app/api/cron/ig-metrics-sync`, omezeno Standard Access |

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { getPlanForMedium } from "@/lib/pricing"
 import supabaseAdmin from "@/supabase/admin"
 import { isMediumType, type MediumType } from "@/lib/credits"
 
@@ -73,7 +74,7 @@ export async function POST(req: Request) {
         if (process.env.REELS_ENABLED !== "1" && chargedMedium === "reel") chargedMedium = "carousel"
         if (process.env.STORIES_ENABLED !== "1" && chargedMedium === "story") chargedMedium = "image"
 
-        // Media gating: reels only from the Růst tier up (admin bypass)
+        // Media gating: reels only from the Dominance tier up (admin bypass)
         let allowedMedia: string[] | undefined
         if (!isSuperAdmin) {
             const { getClientSubscription, canUseMedium } = await import("@/lib/subscription")
@@ -82,7 +83,7 @@ export async function POST(req: Request) {
             if ((body.medium === "reel" || chargedMedium === "reel") && !canUseMedium(sub?.features, "reel")) {
                 if (body.medium === "reel") {
                     return NextResponse.json(
-                        { success: false, error: "Reels jsou dostupné od balíčku Růst.", featureBlocked: true, planRequired: "Růst" },
+                        { success: false, error: `Reels jsou dostupné od balíčku ${getPlanForMedium("reel")}.`, featureBlocked: true, planRequired: getPlanForMedium("reel") },
                         { status: 403 }
                     )
                 }

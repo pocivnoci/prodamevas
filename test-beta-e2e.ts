@@ -695,6 +695,43 @@ test("13.17 placený slib podpory stojí i v obchodních podmínkách", () => {
         "podmínky musí u podpory uvést i telefonní kanál, který ceník slibuje")
 })
 
+test("13.18 rada, který tarif si koupit, sedí na seed", () => {
+    // Zablokovaný zákazník dostane hlášku „Reels jsou dostupné od balíčku X".
+    // Do 9/2026 tam bylo natvrdo „Růst" na třech místech — jenže #47 reels
+    // přesunul na Dominanci a text zůstal, takže rada zněla: kup si tarif,
+    // kde je stejně nedostaneš. Nejdražší druh chyby: zákazník zaplatí a nemá.
+    const { getPlanForMedium } = require("./lib/pricing")
+    const seed = fileContent(PRICING_SEED)
+
+    // Řádky tarifů ze seedu i s cenou a povolenými médii, seřazené od nejlevnějšího.
+    const tarify = [...seed.matchAll(/VALUES \('(chrlit_[a-z]+)', '([^']+)', '[^']*', (\d+)/g)]
+        .map(m => {
+            const at = seed.indexOf(`'${m[1]}'`)
+            return {
+                id: m[1], name: m[2], cena: Number(m[3]),
+                media: seed.slice(at).match(/"allowed_media": \[([^\]]*)\]/)?.[1] || "",
+            }
+        })
+        .sort((a, b) => a.cena - b.cena)
+    assert(tarify.length >= 4, `aserce musí reálně něco kontrolovat (našla ${tarify.length} tarifů)`)
+
+    for (const medium of ["image", "carousel", "story", "reel"]) {
+        const doporuceny = getPlanForMedium(medium)
+        const nejlevnejsi = tarify.find(t => t.media.includes(`"${medium}"`))
+        assert(!!nejlevnejsi, `žádný tarif v seedu nemá médium ${medium}`)
+        assert(doporuceny === nejlevnejsi!.name,
+            `${medium}: hláška radí „${doporuceny}", ale nejlevnější tarif s tím médiem je „${nejlevnejsi!.name}"`)
+    }
+
+    // A nikde už nesmí být natvrdo psaný název tarifu vedle slova reels.
+    for (const f of ["app/actions/campaign-actions.ts", "app/api/ig-create-job/route.ts",
+                     "app/(dashboard)/dashboard/instagram/tabs/GenerateTab.tsx"]) {
+        const c = codeOnly(f)
+        assert(!/balíčku (Start|Růst|Dominance|Impérium)/.test(c),
+            `${f}: název tarifu v hlášce musí vzniknout z getPlanForMedium, ne být napsaný`)
+    }
+})
+
 test("13.13 Impérium neslibuje agentury, dokud je víc profilů nevynucených", () => {
     // `max_projects` nečetl žádný kód, takže „plný objem pro agentury a e-shopy"
     // prodával víceprofilovost, kterou nikdo nedostal ani nevynutil. Předplatné
