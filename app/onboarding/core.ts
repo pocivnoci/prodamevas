@@ -778,6 +778,14 @@ DŮLEŽITÉ:
                 .filter(Boolean).join('\n')
         }
     }
+    // Ověřená fakta ze skenu webu. Zapisují se DETERMINISTICKY, ne přes konfigurační
+    // prompt: kdyby si je model skládal sám, přeformuloval by je — a fakt, který
+    // prošel přeformulováním, už není citace webu, ale tvrzení modelu.
+    if (analysis.brandFacts?.length) {
+        config.brandFacts = analysis.brandFacts
+        console.log(`🧾 Seed ověřených faktů: ${analysis.brandFacts.length}`)
+    }
+
     // Persist the scrape snapshot — cold-start baseline for planWeek & performance context
     if (analysis.igProfile && analysis.igInsights) {
         config.igBaseline = {
@@ -1481,6 +1489,22 @@ Vrať POUZE platný JSON, bez dalšího textu.`
             } catch { /* non-critical */ }
         }
 
+        // Ověřitelná fakta z webu — seed pro config.brandFacts. Bez nich má faktická
+        // brána (instagram/fact-check.ts) prázdný seznam povolených tvrzení a engine
+        // nesmí napsat ani to, co má značka černé na bílém na vlastním webu.
+        // Nekritické: onboarding kvůli faktům nepadá, jen pak startuje s prázdným seznamem.
+        try {
+            await say(48, 'Sbírám ověřitelná fakta o značce…')
+            const { extractFactsFromPages } = await import('@/lib/brand-facts')
+            analysis.brandFacts = await extractFactsFromPages(analysis.companyName || baseUrl, [
+                { url: baseUrl, text: mainText },
+                ...subpageTexts.map((t, i) => ({ url: allSubUrls[i], text: t })),
+            ])
+            console.log(`   🧾 Fakta z webu: ${analysis.brandFacts.length}`)
+        } catch (e) {
+            console.warn('⚠️ Extrakce faktů z webu selhala (nekritické):', (e as Error).message)
+        }
+
         // Extract brand images from ALL scraped pages (homepage + subpages)
         const allImages = new Set<string>()
         for (const imgUrl of extractBrandImages(homepageHtml, baseUrl)) {
@@ -1595,7 +1619,9 @@ Vrať POUZE platný JSON.`
     }
 }
 
-async function fetchPage(url: string): Promise<string> {
+// Exportované kvůli lib/brand-facts.ts: skenování webu kvůli faktům musí číst stránky
+// PŘESNĚ tak, jak je čte onboarding — druhý čtenář HTML by se rozešel v tom, co je text.
+export async function fetchPage(url: string): Promise<string> {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 10000)
     try {
@@ -1631,7 +1657,7 @@ function extractMetadata(html: string): {
  * Structured text extraction — preserves semantic meaning.
  * Returns text with headings marked, prices highlighted, lists preserved.
  */
-function extractStructuredText(html: string): string {
+export function extractStructuredText(html: string): string {
     let text = html
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
@@ -1670,7 +1696,7 @@ function extractStructuredText(html: string): string {
  * Fetch sitemap.xml and extract page URLs.
  * Tries /sitemap.xml, /sitemap_index.xml, robots.txt Sitemap: directive.
  */
-async function fetchSitemapUrls(baseUrl: string): Promise<string[]> {
+export async function fetchSitemapUrls(baseUrl: string): Promise<string[]> {
     const urls = new Set<string>()
     const sitemapCandidates = [
         `${baseUrl}/sitemap.xml`,
@@ -1731,7 +1757,7 @@ async function fetchSitemapUrls(baseUrl: string): Promise<string[]> {
         .slice(0, 30)
 }
 
-function extractSubpageUrls(html: string, baseUrl: string): string[] {
+export function extractSubpageUrls(html: string, baseUrl: string): string[] {
     const urls = new Set<string>()
     const linkRegex = /href="([^"]+)"/gi
     let match
