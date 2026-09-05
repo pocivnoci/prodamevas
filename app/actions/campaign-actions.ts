@@ -1,6 +1,7 @@
 "use server"
 
 import supabaseAdmin from "@/supabase/admin"
+import { getPlanForMedium } from "@/lib/pricing"
 import { requireProjectAccess } from "@/lib/auth-guard"
 import { DEFAULT_IDEA_COOLDOWN_DAYS } from "@/instagram/service"
 import type { ContentPlanItem } from "./content-plan-actions"
@@ -65,7 +66,7 @@ export async function startCampaign(
             const { getClientSubscription, canUseMedium } = await import("@/lib/subscription")
             const sub = await getClientSubscription(clientId)
             if (!canUseMedium(sub?.features, "reel")) {
-                return { success: false, error: "Reels jsou dostupné od balíčku Růst." }
+                return { success: false, error: `Reels jsou dostupné od balíčku ${getPlanForMedium("reel")}.` }
             }
         }
 

@@ -212,6 +212,23 @@ export interface PlanCopy {
  * příspěvků" vedle „Carousel posty" — jenže carousel stojí tři kredity, takže to
  * platilo jen pro samé obrázky. Objem patří k výpočtu, ne do marketingové věty.
  */
+/**
+ * Který tarif odemyká tohle médium?
+ *
+ * Patří sem, ne do `lib/subscription.ts`: hlášku o zamčeném reelu vypisuje i
+ * `GenerateTab`, což je klientská komponenta — a `subscription.ts` táhne
+ * `supabase/admin`. Tenhle modul je schválně čistý.
+ *
+ * Do 9/2026 byla odpověď natvrdo na třech místech jako „od balíčku Růst".
+ * #47 přesunul reels na Dominanci a všechna tři místa zůstala, takže zákazník
+ * zablokovaný u reelu dostal radu koupit Růst, kde je stejně nedostane.
+ * Aserce 13.18 drží návratovou hodnotu u seedu.
+ */
+export function getPlanForMedium(medium: string): string {
+    if (medium === "reel") return "Dominance"
+    return "Start"
+}
+
 export const PLAN_COPY: Record<string, PlanCopy> = {
     chrlit_start: {
         tagline: "Nakopni profil",

@@ -50,7 +50,7 @@ na faktuře i v obchodních podmínkách musí být shodné se zápisem v rejst�
 | 4 | Podnikatelský účet (pokud ještě není) | banka | před ComGate | 0–200 Kč/měs |
 | 5 | Smlouva s ComGate vč. opakovaných plateb | ComGate | blokuje platby | dle sazebníku |
 | 6 | Účet Fakturoid + API klíče | Fakturoid | blokuje doklady | ~200–500 Kč/měs |
-| 7 | Doplnit číslo účtu do aplikace | `lib/legal.ts` / env | blokuje `check-legal-identity` | 0 |
+| 7 | Doplnit číslo účtu do aplikace | `lib/legal.ts` / env | **neblokuje** `check-legal-identity` (viz `legalIdentityGaps()`); blokuje Stripe onboarding a výplatu | 0 |
 | 8 | Záznamy o činnostech zpracování (GDPR) | složka u sebe | před spuštěním prodeje | 0 |
 
 ---

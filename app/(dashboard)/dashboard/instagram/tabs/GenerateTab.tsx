@@ -11,6 +11,7 @@ import {
 } from "@/app/actions/admin-actions"
 import { generateContentPlan, regeneratePlanItem, getPlanCadence, savePlanCadence, getPlanProgress, getPlanDraft, savePlanDraft, discardPlanDraft, type ContentPlanItem, type CampaignGoal, type CarouselShare } from "@/app/actions/content-plan-actions"
 import { startCampaign, getCampaignStatus } from "@/app/actions/campaign-actions"
+import { getPlanForMedium } from "@/lib/pricing"
 import { schedulePostAction } from "@/app/actions/calendar-actions"
 import { distributeSchedule } from "@/lib/schedule-planner"
 import { MEDIA_CREDITS, type MediumType } from "@/lib/credits"
@@ -1122,7 +1123,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                     {[{ value: "", label: "Auto", emoji: "🎲" }, { value: "image", label: "Obrázek", emoji: "🖼️" }, { value: "story", label: "Story", emoji: "📱" }, { value: "carousel", label: "Carousel", emoji: "📸" }, { value: "reel", label: "Reel", emoji: "🎬" }].map(opt => {
                                                         const locked = (opt.value === "reel" && !reelAllowed) || (opt.value === "story" && !storyAllowed)
                                                         const lockNote = opt.value === "reel"
-                                                            ? (subscription?.reelsEnabled === false ? "Reels připravujeme" : "Reels jsou dostupné od balíčku Růst")
+                                                            ? (subscription?.reelsEnabled === false ? "Reels připravujeme" : `Reels jsou dostupné od balíčku ${getPlanForMedium("reel")}`)
                                                             : (subscription?.storiesEnabled === false ? "Stories připravujeme" : "Stories nejsou v tomto balíčku")
                                                         return (
                                                             <button key={opt.value} onClick={() => !locked && setMedium(opt.value)}
