@@ -11,12 +11,6 @@
  * Data se ale nezahazují — až reely do nabídky přibudou, vrátí je sem jeden
  * řádek, ne nový export.
  *
- * **Vyhlášená soutěž se neukazuje.** Portfolio jsou nevyžádané koncepty pro
- * firmy, se kterými nemáme vztah. Příspěvek, který slibuje ceny, je na našem
- * webu vyhlášením soutěže, kterou nikdo nevypsal a nikdo neproplatí — a čte se
- * jako soutěž té značky. Ostatní tvrzení v portfoliu si stojí za svým obsahem;
- * tohle jediné slibuje plnění třetí straně.
- *
  * Stránky portfolia i sitemapa čtou **jenom** `PORTFOLIO_VISIBLE_BRANDS`.
  * Kdo sáhne rovnou na `PORTFOLIO_BRANDS`, obejde tenhle filtr — hlídá to
  * `scripts/test-portfolio-reels.ts`.
@@ -32,23 +26,8 @@ import {
 /** Formáty, které portfolio ukazuje. `reel` tu chybí schválně. */
 export const PORTFOLIO_VISIBLE_MEDIA: readonly PortfolioMediaType[] = ["post", "carousel"]
 
-/**
- * Slibuje příspěvek ceny?
- *
- * Nechytá slovo „vyhrát" v běžné větě („Který střih vyhraje?"), ale vyhlášení:
- * soutěž, slosování, výzvu „vyhrajte". Napříč všemi značkami sedí dneska na
- * jediný příspěvek — a přesně proto to hlídá aserce a ne dobrá vůle. Značky
- * mají mezi kategoriemi „Soutěže o produkty", takže další takový příspěvek
- * vznikne při každém dalším generování.
- */
-const GIVEAWAY = /soutěž|slosován|vyhrajte|giveaway/i
-
-export function announcesGiveaway(post: PortfolioPost): boolean {
-    return GIVEAWAY.test([post.hook, post.body, post.cta, ...post.hashtags].join(" "))
-}
-
 export function isPortfolioVisible(post: PortfolioPost): boolean {
-    return PORTFOLIO_VISIBLE_MEDIA.includes(post.mediaType) && !announcesGiveaway(post)
+    return PORTFOLIO_VISIBLE_MEDIA.includes(post.mediaType)
 }
 
 /**
