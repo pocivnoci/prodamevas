@@ -65,6 +65,7 @@ import {
     assembleCaption,
 } from "./caption-generator"
 import { getBrandMemories, formatMemoriesForPrompt, learnFromCriticInsights } from "./memory-agent"
+import { checkCaptionFacts, type FactStatus } from "./fact-check"
 import { reviewPost, reviewContentPlan } from "./editorial-board"
 import type { EditorialMessage } from "./types"
 
@@ -156,6 +157,10 @@ export interface CaptionCheckpoint {
     strategy?: "repair" | "bestof2"
     editorialRounds?: number
     finalScore?: number
+    /** Výsledek faktické brány. Nese se přes resume, jinak by se post, který se
+     *  dorenderoval po pádu, zalogoval jako nikdy nekontrolovaný. */
+    factStatus?: FactStatus | null
+    factFlags?: string[]
 }
 
 export async function generateOnePost(options: {
@@ -699,6 +704,10 @@ export async function generateOnePost(options: {
     let strategyUsed: "repair" | "bestof2" = "repair"
     let editorialRoundsUsed = 0
     let finalScore = 0
+    /** Faktická brána: null = neproběhla (vypnutá nebo judge nedostupný) — poctivější
+     *  než tvrdit „clean" o textu, na který se nikdo nepodíval. */
+    let factStatus: FactStatus | null = null
+    let factFlags: string[] = []
 
     // Resolve the CTA policy ONCE and pass it to the writer AND every judge (critic,
     // ranking judge, editorial board) AND the reel's video director — writer/judge/
@@ -718,6 +727,8 @@ export async function generateOnePost(options: {
         strategyUsed = ck.strategy === "bestof2" ? "bestof2" : "repair"
         editorialRoundsUsed = ck.editorialRounds ?? 0
         finalScore = ck.finalScore ?? ck.score ?? 7
+        factStatus = ck.factStatus ?? null
+        factFlags = ck.factFlags ?? []
         megaPrompt = ck.megaPromptHead || "[resumed from checkpoint]"
         if (isReel && captionData.caption) captionData.body = captionData.caption
         console.log(`   ♻️ Resume z caption checkpointu — přeskakuji copywriter/critic/editorial (hook: "${captionData.hook.substring(0, 50)}...")`)
@@ -1054,6 +1065,34 @@ ${feedSummary}
     } catch (editorialErr: any) {
         console.warn(`   ⚠️ Editorial board failed/busy — keeping the Pro caption as-is: ${editorialErr?.message?.substring(0, 100)}`)
     }
+
+    // 6c. Faktická brána — poslední kontrola PŘED vizuálem, protože hook se za chvíli
+    // vypálí do obrázku a od té chvíle už se text opravit nedá bez přerenderování.
+    // Kritik hodnotí styl, tahle brána pravdivost: nepodložené číslo, rok, garanci nebo
+    // superlativ vymění za bezpečné znění (deterministicky, záměnou podřetězce).
+    // Fail-open — post se kvůli bráně nikdy nezabije, ale co neprošlo, je vidět v logu
+    // i na kartě příspěvku.
+    await report("critic", 50, "🔎 Faktická brána kontroluje tvrzení v textu...")
+    const factOutcome = await checkCaptionFacts(config, captionData, {
+        product: selectedProduct ? { name: selectedProduct.name, type: selectedProduct.type, price: selectedProduct.price, description: selectedProduct.description } : null,
+        topic: options.topic || (idea ? [idea.title, idea.content].filter(Boolean).join(" — ") : null),
+        review: review ? { quote: review.quote, customer_name: review.customer_name } : null,
+        postTypeName: selectedType.display_name,
+    })
+    if (factOutcome.judged) cost += COSTS.textGeneration
+    factStatus = factOutcome.judged ? factOutcome.status : null
+    factFlags = factOutcome.flags
+    if (factOutcome.changed) {
+        captionData = factOutcome.captionData as CaptionPhaseData
+        // Text se změnil → spočítaný embedding mu už neodpovídá (stejný důvod jako
+        // u dedup regenerace výš).
+        captionEmbedding = null
+        if (isReel && captionData.caption) captionData.body = captionData.caption
+    }
+    if (factStatus === "clean") console.log("   ✅ Faktická brána: bez nepodložených tvrzení")
+    else if (factStatus === "repaired") console.log(`   🔧 Faktická brána: nepodložená tvrzení opravena (${factOutcome.flags.length === 0 ? "vše" : "část"})`)
+    else if (factStatus === "flagged") console.warn(`   🚩 Faktická brána: v textu ZŮSTALO nepodložené tvrzení — ${factOutcome.flags.join(" | ")}`)
+
     } // end caption phase (skipped entirely on checkpoint resume)
 
     // Persist the caption checkpoint — a crash/timeout in the visual phase can resume
@@ -1077,6 +1116,8 @@ ${feedSummary}
                 strategy: strategyUsed,
                 editorialRounds: editorialRoundsUsed,
                 finalScore,
+                factStatus,
+                factFlags,
             }
             await supabaseAdmin.from("ig_jobs").update({ result: { checkpoint } }).eq("id", options.jobId)
             console.log("   💾 Caption checkpoint uložen (resume-ready)")
@@ -1226,6 +1267,8 @@ ${feedSummary}
             strategy: strategyUsed,
             editorialRounds: editorialRoundsUsed,
             finalScore: finalScore || score,
+            factStatus,
+            factFlags,
             angle: captionData.angle,
             postType: selectedType.name,
             // Naměřená spotřeba všech volání modelu v téhle generaci. Nahrazuje odhad

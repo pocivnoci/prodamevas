@@ -3893,6 +3893,65 @@ test("35.4 tarif nesmí zhoršit obsah, jen výhled", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 36. FAKTICKÁ BRÁNA — POST NESMÍ LHÁT JMÉNEM KLIENTA
+// ═══════════════════════════════════════════════════════════
+
+test("36.1 brána běží PŘED vizuálem, ne po něm", () => {
+    const auto = codeOnly("instagram/autopilot.ts")
+    const gate = auto.indexOf("checkCaptionFacts(config, captionData")
+    const checkpoint = auto.indexOf("const checkpoint: CaptionCheckpoint")
+    assert(gate > 0, "faktická brána v pipeline vůbec není")
+    assert(gate < checkpoint,
+        "hook se za chvíli vypálí do obrázku — po renderu se text opravuje jen přerenderováním")
+})
+
+test("36.2 nezkontrolovaný text se neloguje jako čistý", () => {
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/judged: false/.test(fc), "výpadek judge musí být rozeznatelný od čistého výsledku")
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/factStatus = factOutcome\.judged \? factOutcome\.status : null/.test(auto),
+        "stejná doktrína jako critic_score: nekontrolováno ≠ v pořádku")
+})
+
+test("36.3 oprava je záměna v kódu, ne prosba v promptu", () => {
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/export function applyFactFixes/.test(fc), "oprava musí být čistá funkce nad textem")
+    assert(/missed/.test(fc),
+        "netrefená citace se nesmí započítat jako oprava — jinak brána hlásí úklid, který neproběhl")
+    assert(!/generateTextQuality/.test(fc),
+        "druhé přepsání celého postu by rozbilo schéma média (slides/frames/scenes) — od toho je záměna podřetězce")
+})
+
+test("36.4 brána nikdy nezabije post, ale mlčky ho nepustí", () => {
+    const fc = codeOnly("instagram/fact-check.ts")
+    const fn = fc.slice(fc.indexOf("export async function checkCaptionFacts"))
+    assert(/console\.warn/.test(fn), "výpadek brány musí být v logu — tichá degradace je zakázaná")
+    assert(!/throw /.test(fn), "brána nesmí shodit generování postu")
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/console\.warn\(`   🚩 Faktická brána/.test(auto), "zbylé nepodložené tvrzení musí být vidět")
+})
+
+test("36.5 fakta mají default a dostanou se do promptu i do brány", () => {
+    const cfg = codeOnly("instagram/configs/index.ts")
+    assert(/brandFacts: config\.brandFacts \|\| \[\]/.test(cfg), "chybějící pole nesmí být výbušnina")
+    assert(/factCheck: config\.factCheck \?\? true/.test(cfg), "brána je default ZAPNUTÁ")
+    const cap = codeOnly("instagram/caption-generator.ts")
+    assert(/buildFactsSection\(config\)/.test(cap), "mega prompt musí fakta vykreslit")
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/config\.brandFacts/.test(fc), "brána musí číst tentýž seznam jako copywriter")
+})
+
+test("36.6 označený post je vidět v dashboardu", () => {
+    const svc = codeOnly("instagram/service.ts")
+    assert(/fact_status: log\.factStatus/.test(svc) && /fact_flags: log\.factFlags/.test(svc),
+        "výsledek brány musí skončit v ig_generation_log, jinak se nedá zpětně ptát")
+    const admin = codeOnly("app/actions/admin-actions.ts")
+    assert(/fact_status/.test(admin), "seznam postů musí stav brány připojit")
+    const tab = fileContent("app/(dashboard)/dashboard/instagram/tabs/PostsTab.tsx")
+    assert(/fact_status === "flagged"/.test(tab), "karta příspěvku musí varovat, než to člověk zveřejní")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 

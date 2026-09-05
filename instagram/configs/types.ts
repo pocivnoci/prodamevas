@@ -224,6 +224,27 @@ export interface BrandVoiceExample {
     postType?: string
 }
 
+/** Ověřený fakt o značce — POVOLENÁ ZÁSOBA konkrétních tvrzení.
+ *
+ *  Copywriter je jazykový model: konkrétní číslo, rok nebo garanci si domyslí stejně
+ *  ochotně, jako je opíše. Post pak zní přesvědčivě a lže jménem klienta — a to je
+ *  horší závada než nudný post, protože ji nikdo nepozná podle stylu. Tenhle seznam
+ *  je JEDINÝ zdroj takových tvrzení (vedle živého katalogu produktů a zadaného
+ *  námětu); co v něm není, se nesmí objevit jako fakt. Prázdný seznam není chyba —
+ *  znamená „piš bez konkrétních čísel", ne „vymysli si je".
+ *
+ *  Vynucuje se ve dvou vrstvách: instrukcí v mega promptu (buildFactsSection) a
+ *  faktickou bránou po napsání textu (instagram/fact-check.ts). */
+export interface BrandFact {
+    /** Tvrzení tak, jak smí zaznít v postu (česky, jedna věta). */
+    text: string
+    /** Odkud to víme — URL, dokument, „od klienta". Prázdné = zadal to člověk v Nastavení. */
+    source?: string
+    /** ISO datum posledního potvrzení. Fakta stárnou (ceny, otvíračka, počty), takže
+     *  brána i UI umí ukázat, jak staré tvrzení engine používá. */
+    verifiedAt?: string
+}
+
 // ─── Image Brief (Shot List) ───────────────────────────────
 
 /** AI-generated shot list item — tells client what photos to provide */
@@ -262,6 +283,15 @@ export interface ClientConfig {
      *  into every caption prompt. The strongest lever for post-to-post voice consistency.
      *  Empty = cold start (section skipped gracefully). See validateConfig() default. */
     brandVoiceExamples?: BrandVoiceExample[]
+
+    /** Ověřená fakta o značce — jediná povolená zásoba konkrétních tvrzení (viz BrandFact).
+     *  Prázdné = engine píše bez konkrétních čísel a garancí. validateConfig defaultuje []. */
+    brandFacts?: BrandFact[]
+
+    /** Faktická brána nad hotovým textem (instagram/fact-check.ts). Default true;
+     *  false ji pro klienta vypne (promptové pravidlo pravdivosti platí dál).
+     *  validateConfig defaultuje true. */
+    factCheck?: boolean
 
     /** Content pillars for Growth Engine */
     contentPillars: Record<string, ContentPillar>

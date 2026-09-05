@@ -205,6 +205,13 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // Voice anchor (few-shot). Optional feature — default to empty so the copywriter
         // prompt simply omits the section until the brand has curated/auto-promoted examples.
         brandVoiceExamples: config.brandVoiceExamples || [],
+        // Ověřená fakta = povolená zásoba konkrétních tvrzení. Default prázdné pole, NE
+        // undefined: buildFactsSection i faktická brána se na něj ptají u každého postu a
+        // prázdný seznam má vlastní význam („piš bez čísel"), který musí být čitelný.
+        brandFacts: config.brandFacts || [],
+        // Faktická brána — default ZAPNUTO. Vypnutí je vědomé rozhodnutí klienta, ne
+        // vedlejší efekt configu, který o poli ještě neví.
+        factCheck: config.factCheck ?? true,
         ctaStrategies: config.ctaStrategies || { soft: [], medium: [], hard: [], none: [] },
         feedAesthetic: config.feedAesthetic || {
             colorPalette: "Neutrální",

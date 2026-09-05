@@ -53,6 +53,12 @@ export interface IGPost {
      *  — attached by getIGPostsList so the dashboard can flag posts whose image never passed
      *  vision QA cleanly (diacritics/garbled text) before a human publishes them. */
     qa_status?: string | null
+    /** Výsledek faktické brány z ig_generation_log ("clean" | "repaired" | "flagged") —
+     *  připojuje getIGPostsList, aby karta příspěvku uměla varovat, že v textu zůstalo
+     *  nepodložené tvrzení. null = brána neproběhla, což NENÍ totéž co „v pořádku". */
+    fact_status?: string | null
+    /** Konkrétní nepodložená tvrzení k `fact_status = "flagged"` (tooltip na kartě). */
+    fact_flags?: string[] | null
     /** Previous states, one pushed before each editPost() call (newest last, capped at 10).
      *  Only the length matters to the UI — it drives the "Vrátit zpět" button. */
     edit_history?: PostEditHistoryEntry[] | null
