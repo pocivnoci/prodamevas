@@ -10,6 +10,10 @@ const ERROR_MESSAGES: Record<string, string> = {
     invalid_credentials: "Neplatný e-mail nebo heslo. Zkus to znovu.",
     google_unavailable: "Přihlášení přes Google se teď nepodařilo spustit. Zkus to znovu, nebo použij e-mail.",
     no_access: "Chrlit je zatím v uzavřené betě. Tenhle účet do ní nemá přístup — pokud si myslíš, že jde o omyl, napiš nám.",
+    // `middleware.ts` na chráněné cestě selhává zavřeně a posílá sem tenhle klíč.
+    // Bez překladu z něj bylo obecné „Přihlášení se nepodařilo." u člověka, kterému
+    // jen vypršela session — a ten pak zkouší heslo, které je správné.
+    session_error: "Přihlášení vypršelo. Přihlas se prosím znovu.",
 }
 
 export default async function LoginPage(props: {

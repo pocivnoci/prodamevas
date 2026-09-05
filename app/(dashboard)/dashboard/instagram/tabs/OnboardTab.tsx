@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { checkIsAdmin } from '@/app/actions/admin-actions'
+import { checkIsAdmin, transferClientToUser } from '@/app/actions/admin-actions'
 import {
     startWebsiteAnalysis,
     startManualAnalysis,
@@ -9,6 +9,7 @@ import {
     refineConfigSection,
     saveReviewedConfig,
     ensureImageBrief,
+    startOnboardingBootstrap,
 } from '@/app/onboarding/actions'
 import { awaitOnboardingTask, humanizeClientError } from '@/app/onboarding/task-client'
 import { TaskProgress } from '@/app/onboarding/TaskProgress'
@@ -76,6 +77,11 @@ export function OnboardTab() {
     // Image brief (Phase 3)
     const [imageBrief, setImageBrief] = useState<ImageBriefItem[]>([])
     const [briefLoading, setBriefLoading] = useState(false)
+    // Předání značky jejímu majiteli — onboarding ji jinak nechá viset na účtu správce.
+    const [handoffEmail, setHandoffEmail] = useState('')
+    const [handoffRelease, setHandoffRelease] = useState(false)
+    const [handoffBusy, setHandoffBusy] = useState(false)
+    const [handoffResult, setHandoffResult] = useState<{ ok: boolean; text: string } | null>(null)
 
     // Session history
     const [history, setHistory] = useState<OnboardedClient[]>([])
@@ -220,6 +226,17 @@ export function OnboardTab() {
             setHistory(prev => [...prev, client])
             setStep('done')
 
+            // Značka založená odsud dostane TOTÉŽ, co značka z `/onboarding`.
+            // Do 9/2026 tenhle řádek chyběl a `startOnboardingBootstrap` volala
+            // jen průvodce na `/onboarding` — klient onboardovaný z admin záložky
+            // tak neměl teaser plán, prázdný zásobník nápadů a nula ukázkových
+            // příspěvků. Vypadalo to, že engine nic neumí, přitom se jen nikdy
+            // nespustil. Nefatální stejně jako v průvodci: značka existuje i bez
+            // obsahu, jen je prázdná.
+            startOnboardingBootstrap(client.slug)
+                .then(boot => { if (!boot.success) console.warn('Bootstrap selhal (nefatální):', boot.error) })
+                .catch(bootErr => console.warn('Bootstrap selhal (nefatální):', bootErr))
+
             // Shot list na pozadí. Generování i zápis do configu drží server
             // (ensureImageBrief) — dřív se to skládalo ze tří volání odsud a zavřená
             // karta znamenala, že se brief nikdy neuložil.
@@ -271,6 +288,21 @@ export function OnboardTab() {
         setTopLocations('')
         setAudienceGender('')
         setSectionStatuses({ brand_voice: 'pending', pillars: 'pending', products: 'pending', visual: 'pending', hooks_cta: 'pending' })
+    }
+
+    async function handleHandoff() {
+        if (!onboarded) return
+        setHandoffBusy(true)
+        setHandoffResult(null)
+        try {
+            const res = await transferClientToUser(onboarded.slug, handoffEmail, { releaseAdminAccess: handoffRelease })
+            setHandoffResult({ ok: !!res.success, text: res.success ? (res.message || 'Předáno.') : (res.error || 'Předání selhalo.') })
+            if (res.success) setHandoffEmail('')
+        } catch (err) {
+            setHandoffResult({ ok: false, text: err instanceof Error ? err.message : 'Předání selhalo.' })
+        } finally {
+            setHandoffBusy(false)
+        }
     }
 
     function copyBriefToClipboard() {
@@ -810,6 +842,38 @@ export function OnboardTab() {
                         <h2 className="text-2xl font-bold text-white mb-2">Klient onboardován! 🎉</h2>
                         <p className="text-white/40 mb-1">{onboarded.name}</p>
                         <p className="text-xs text-white/20 font-mono">slug: {onboarded.slug}</p>
+                    </div>
+
+                    {/* Předání majiteli. Onboarding zapsal vazbu na TVŮJ účet — bez
+                        tohohle kroku zákazník svoji značku v dashboardu neuvidí. */}
+                    <div className="p-6 bg-white/5 border border-white/10 rounded-xl mb-6">
+                        <h3 className="inline-flex items-center gap-1.5 font-bold text-white text-sm mb-1"><Rocket className="w-3.5 h-3.5 shrink-0" />Předat zákazníkovi</h3>
+                        <p className="text-[11px] text-white/30 mb-4 leading-relaxed">
+                            Značka je zatím vedená pod tvým účtem. Zadej e-mail, kterým se zákazník registroval —
+                            tím ji uvidí ve svém dashboardu a zároveň projde branou bety.
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                            <input
+                                type="email"
+                                value={handoffEmail}
+                                onChange={e => setHandoffEmail(e.target.value)}
+                                placeholder="zakaznik@firma.cz"
+                                disabled={handoffBusy}
+                                className="flex-1 px-4 py-2.5 rounded-lg bg-[#050505] border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 text-sm"
+                            />
+                            <button
+                                onClick={handleHandoff}
+                                disabled={handoffBusy || !handoffEmail.trim()}
+                                className="px-5 py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/25 text-emerald-300 text-xs font-bold uppercase tracking-widest hover:bg-emerald-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                            >{handoffBusy ? 'Předávám…' : 'Předat'}</button>
+                        </div>
+                        <label className="mt-3 flex items-center gap-2 text-[11px] text-white/30 cursor-pointer">
+                            <input type="checkbox" checked={handoffRelease} onChange={e => setHandoffRelease(e.target.checked)} className="accent-emerald-500" />
+                            Odpojit můj účet od projektu (jako správce se do něj dostaneš dál)
+                        </label>
+                        {handoffResult && (
+                            <p className={`mt-3 text-xs ${handoffResult.ok ? 'text-emerald-400' : 'text-red-400'}`}>{handoffResult.text}</p>
+                        )}
                     </div>
 
                     {/* Image Brief / Shot List */}

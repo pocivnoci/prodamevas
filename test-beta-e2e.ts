@@ -686,6 +686,78 @@ test("10.7h Super admin dostane razítko, ne jen průchod", () => {
     )
 })
 
+test("10.7i Admin bypass přežije cestu do rezervace kreditů", () => {
+    // `canPerformAction` vrací super adminovi `ADMIN_BYPASS` s creditsRequired: 0.
+    // Guard si ale cenu počítal ZNOVU (`creditsForAction`), čímž tu nulu zahodil,
+    // spadl do větve s rezervací a na čerstvém klientovi (`trial_v2`, nula kreditů)
+    // odmítl vlastníkovi produktu vygenerovat příspěvek. Přes plán/kampaň
+    // (`options.adminBypass`) to prošlo, přes „Tvorbu" ne — a rozdíl nešel poznat.
+    // Dvě místa, která počítají cenu, jsou dvě pravdy.
+    const g = codeOnly("app/actions/credit-guard.ts")
+
+    assert(g.includes("const creditsRequired = check.creditsRequired"),
+        "creditGuard musí převzít cenu z kontroly, ne ji přepočítat")
+    assert(!/creditsForAction\(/.test(g),
+        "credit-guard nesmí volat creditsForAction — cenu určuje canPerformAction")
+
+    const batch = g.slice(g.indexOf("export async function creditGuardBatch"))
+    assert(batch.includes("const totalCredits = check.creditsRequired"),
+        "creditGuardBatch musí převzít celkovou cenu z kontroly")
+    assert(/if \(totalCredits > 0\)/.test(batch),
+        "nulová cena musí rezervaci přeskočit, ne rezervovat nulu")
+
+    // Přeskočená rezervace nechá `reservationId` null — všechny tři pomocné
+    // funkce to musí brát jako no-op, jinak by admin path spadla na undefined.
+    const sub = codeOnly("lib/subscription.ts")
+    for (const fn of ["releaseCredits", "settleReservation", "shrinkReservation"]) {
+        const body = sub.slice(sub.indexOf(`export async function ${fn}`))
+        assert(body.slice(0, 400).includes("if (!reservationId) return"),
+            `${fn} musí null rezervaci ignorovat`)
+    }
+})
+
+test("10.7j Obě cesty onboardingu dají značce stejný start", () => {
+    // Značka založená z admin záložky neměla teaser plán, prázdný zásobník nápadů
+    // a nula ukázkových příspěvků — `startOnboardingBootstrap` volal jen průvodce
+    // na /onboarding. Vypadalo to, že engine nic neumí; on se jen nespustil.
+    for (const f of ["app/onboarding/page.tsx", "app/(dashboard)/dashboard/instagram/tabs/OnboardTab.tsx"]) {
+        assert(codeOnly(f).includes("startOnboardingBootstrap"),
+            `${f}: nová značka musí dostat bootstrap (plán + nápady + 3 ukázkové posty)`)
+    }
+})
+
+test("10.7k Onboardovanou značku jde předat jejímu majiteli", () => {
+    // `saveConfigCore` zapisuje user_clients s user_id TOHO, kdo průvodce spustil.
+    // Značka založená správcem za zákazníka tak patřila správci a zákazník ji ve
+    // svém dashboardu neviděl — jedinou cestou byl ruční INSERT do databáze.
+    const a = codeOnly("app/actions/admin-actions.ts")
+    const fn = a.slice(a.indexOf("export async function transferClientToUser"))
+    assert(fn.length > 0, "akce transferClientToUser musí existovat")
+    assert(fn.slice(0, 600).includes("requireSuperAdmin"),
+        "předání klienta je adminská akce — musí být za requireSuperAdmin")
+    assert(fn.includes('role: "owner"'), "nový majitel musí dostat roli owner")
+    // Účty vznikají registrací. Tiché založení účtu odsud by obešlo potvrzení
+    // adresy i souhlasy, takže neexistující e-mail musí být hlasitá chyba.
+    assert(!/createUser|admin\.inviteUserByEmail/.test(fn),
+        "předání nesmí zakládat účet — neexistující e-mail je chyba, ne důvod k registraci")
+    assert(codeOnly("app/(dashboard)/dashboard/instagram/tabs/OnboardTab.tsx").includes("transferClientToUser"),
+        "předání musí být dostupné z UI, ne jen jako server action")
+})
+
+test("10.7l Každé přesměrování na /login má přeloženou hlášku", () => {
+    // Middleware selhává zavřeně a posílá vlastní klíče. Nepřeložený klíč skončí
+    // obecným „Přihlášení se nepodařilo." u člověka, kterému jen vypršela session —
+    // a ten pak dokola zkouší heslo, které je správné.
+    const mw = codeOnly("middleware.ts")
+    const keys = [...mw.matchAll(/\?error=([a-z_]+)/g)].map(m => m[1])
+    assert(keys.length >= 2, `aserce musí reálně něco kontrolovat (našla ${keys.length} klíčů)`)
+    const login = codeOnly("app/login/page.tsx")
+    for (const key of new Set(keys)) {
+        assert(new RegExp(`\\b${key}:`).test(login),
+            `${key}: middleware na tenhle klíč přesměrovává, ale /login ho nezná`)
+    }
+})
+
 test("10.7d Google se nenabízí, dokud není provider zapnutý", () => {
     // Provider se zapíná v Supabase, ne v repu. Mrtvé tlačítko na přihlašovací
     // stránce je horší než žádné — přepínač proto musí hlídat UI i akci.
