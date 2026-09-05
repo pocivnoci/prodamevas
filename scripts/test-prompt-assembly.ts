@@ -668,19 +668,19 @@ test("buildFactsSection nevynechá výčet toho, co JE konkrétní tvrzení", ()
 test("faktická brána a copywriter čtou TENTÝŽ seznam faktů", () => {
     const facts = [{ text: "Dovážíme do 24 hodin" }]
     const p = buildWith({ brandFacts: facts })
-    const gate = buildFactCheckPrompt({ ...config, brandFacts: facts } as any, ["Dovážíme do 24 hodin po Praze."])
+    const gate = buildFactCheckPrompt({ ...config, brandFacts: facts } as any, [{ text: "Dovážíme do 24 hodin po Praze.", display: false }])
     assert(p.includes("Dovážíme do 24 hodin") && gate.includes("Dovážíme do 24 hodin"),
         "dva seznamy faktů by se rozešly a brána by trestala text za to, co si prompt sám dovolil")
 })
 
 test("brána bez faktů říká nahlas, že povolený zdroj neexistuje", () => {
-    const gate = buildFactCheckPrompt({ ...config, brandFacts: [] } as any, ["Jsme jedničkou na trhu."])
+    const gate = buildFactCheckPrompt({ ...config, brandFacts: [] } as any, [{ text: "Jsme jedničkou na trhu.", display: false }])
     assert(/žádn/i.test(gate) && gate.includes("nepodložené"),
         "prázdný seznam se musí přeložit na „všechno konkrétní je nepodložené“, ne na prázdný nadpis")
 })
 
 test("brána nesmí hodnotit styl — na to je kritik", () => {
-    const gate = buildFactCheckPrompt(config as any, ["Nejlepší ráno začíná kávou."])
+    const gate = buildFactCheckPrompt(config as any, [{ text: "Nejlepší ráno začíná kávou.", display: false }])
     assert(gate.includes("Nehodnotíš styl"),
         "bez tohohle brána začne přepisovat hooky a pipeline dostane druhého kritika, ne korektora")
 })

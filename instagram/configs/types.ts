@@ -288,10 +288,25 @@ export interface ClientConfig {
      *  Prázdné = engine píše bez konkrétních čísel a garancí. validateConfig defaultuje []. */
     brandFacts?: BrandFact[]
 
-    /** Faktická brána nad hotovým textem (instagram/fact-check.ts). Default true;
-     *  false ji pro klienta vypne (promptové pravidlo pravdivosti platí dál).
-     *  validateConfig defaultuje true. */
+    /** @deprecated Nahrazeno `factCheckMode`. validateConfig ho přeloží: false → "off". */
     factCheck?: boolean
+
+    /**
+     * Jak přísně brána zasahuje do hotového textu. NENÍ to posuvník „kolik smíš lhát" —
+     * lež neprojde ani na jednom konci. Posouvá se tím, KDO nepodložené tvrzení vyřeší:
+     *
+     * - `"off"` — brána neběží. Platí jen promptové pravidlo pravdivosti.
+     * - `"safe"` — opraví všechno, na co si troufne, včetně nadpisů do obrázku.
+     *   Nejbezpečnější a nejnudnější: nadpis bez ověřené hodnoty spadne do obecné věty.
+     * - `"balanced"` (default) — v těle textu opravuje, v nadpisech do obrázku vymění
+     *   jen ŠPATNOU HODNOTU ZA SPRÁVNOU z ověřených faktů („+300 °C" → „+150 °C").
+     *   Nadpis, ke kterému fakt nemá, nepřepisuje — označí příspěvek a nechá rozhodnout
+     *   člověka. Naměřeno: přepsaný nadpis bez opory skončí jako „Kvalita, na kterou se
+     *   spolehneš", což je vata a u většiny značek rovnou anti-pattern.
+     * - `"bold"` — nepřepisuje nic, jen značkuje. Text si drží úder, riziko řeší člověk
+     *   před publikací.
+     */
+    factCheckMode?: "off" | "safe" | "balanced" | "bold"
 
     /** Content pillars for Growth Engine */
     contentPillars: Record<string, ContentPillar>

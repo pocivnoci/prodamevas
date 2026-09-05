@@ -212,6 +212,12 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // Faktická brána — default ZAPNUTO. Vypnutí je vědomé rozhodnutí klienta, ne
         // vedlejší efekt configu, který o poli ještě neví.
         factCheck: config.factCheck ?? true,
+        // Posuvník opatrnosti. Starý boolean zůstává zdrojem jen pro klienty, kteří
+        // ho stihli vypnout — jinak vyhrává mode. Neznámá hodnota spadne na default,
+        // ne do pipeline: brána větví podle režimu a nesmí dostat nesmysl.
+        factCheckMode: (["off", "safe", "balanced", "bold"] as const).includes(config.factCheckMode as never)
+            ? config.factCheckMode
+            : config.factCheck === false ? "off" : "balanced",
         ctaStrategies: config.ctaStrategies || { soft: [], medium: [], hard: [], none: [] },
         feedAesthetic: config.feedAesthetic || {
             colorPalette: "Neutrální",
