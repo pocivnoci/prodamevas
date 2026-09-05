@@ -590,8 +590,16 @@ export function Landing({
             <ul className="space-y-3 text-[10px] tracking-wider uppercase text-white/30 font-bold">
               <li><Link href="/terms" className="hover:text-white transition-colors">Obchodní podmínky</Link></li>
               <li><Link href="/privacy" className="hover:text-white transition-colors">Zpracování dat</Link></li>
-              <li><a href={`mailto:${LEGAL.email}`} className="hover:text-white transition-colors">Kontakt</a></li>
+              <li><a href={`mailto:${LEGAL.email}`} className="hover:text-white transition-colors normal-case tracking-wider">{LEGAL.email}</a></li>
+              {/* Číslo se vypisuje s mezerami, ale `tel:` je musí mít pryč — část
+                  telefonů odkaz s mezerami nevytočí. */}
+              {LEGAL.phone && (
+                <li><a href={`tel:${LEGAL.phone.replace(/\s/g, "")}`} className="hover:text-white transition-colors">{LEGAL.phone}</a></li>
+              )}
             </ul>
+            {LEGAL.phone && (
+              <p className="mt-3 text-[9px] tracking-wider text-white/20 font-bold uppercase">Po–Pá 9–17</p>
+            )}
             {/* Identifikace prodávajícího — povinný údaj (§435 obč. zák.), ne dekorace. */}
             <div className="mt-6 space-y-1 text-[9px] tracking-wider text-white/20 font-bold uppercase not-italic">
               <p>{LEGAL.name}</p>

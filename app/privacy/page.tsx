@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { SiteFooter } from "@/components/SiteFooter"
 import { LEGAL, DATA_AUTHORITY, SUBPROCESSORS, formatAddress } from "@/lib/legal"
 
 export const metadata = {
@@ -166,11 +167,8 @@ export default function PrivacyPage() {
                         <p>Tyto zásady můžeme aktualizovat, zejména při změně rozsahu služby nebo seznamu zpracovatelů. O podstatné změně vás informujeme e-mailem nejméně 14 dní předem. Aktuální znění je vždy dostupné na této stránce.</p>
                     </Section>
                 </div>
-
-                <div className="mt-16 pt-8 border-t border-white/10 text-[9px] text-white/20 font-bold uppercase tracking-widest">
-                    © {new Date().getFullYear()} {LEGAL.name} — IČO {LEGAL.ico}
-                </div>
             </div>
+            <SiteFooter />
         </div>
     )
 }
