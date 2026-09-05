@@ -1,6 +1,10 @@
 /**
- * Reely se z portfolia neukazují — statické kontroly (bez sítě, bez DB).
+ * Co portfolio ukazuje a co ne — statické kontroly (bez sítě, bez DB).
  *   npx tsx scripts/test-portfolio-reels.ts
+ *
+ * Dvě pravidla, obě vynucená v `lib/portfolio.ts`: **reely** (formát, který není
+ * v nabídce) a **vyhlášené soutěže** (slib plnění za značku, se kterou nemáme
+ * vztah). Jméno souboru zůstalo po prvním z nich.
  *
  * Reely se neprodávají (viz „přestat prodávat reels, které nefungují"). Dřív
  * v portfoliu zůstávaly s odznakem „BETA", jenže odznak je pořád slib formátu,
@@ -17,7 +21,7 @@
 import { readFileSync } from "fs"
 import { resolve } from "path"
 import { PORTFOLIO_BRANDS } from "../lib/portfolio-data"
-import { PORTFOLIO_VISIBLE_BRANDS, PORTFOLIO_VISIBLE_MEDIA } from "../lib/portfolio"
+import { PORTFOLIO_VISIBLE_BRANDS, PORTFOLIO_VISIBLE_MEDIA, announcesGiveaway } from "../lib/portfolio"
 
 let passed = 0
 let failed = 0
@@ -29,7 +33,7 @@ function check(name: string, cond: boolean, detail?: string) {
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf-8")
 
-console.log("\n🎬 REELY SE Z PORTFOLIA NEUKAZUJÍ\n")
+console.log("\n🎬 CO PORTFOLIO UKAZUJE A CO NE\n")
 
 // ── 1. Filtr sám ────────────────────────────────────────────────────────────
 check(
@@ -53,6 +57,34 @@ check(
     "po odfiltrování zbývá co ukazovat",
     PORTFOLIO_VISIBLE_BRANDS.length > 0 && PORTFOLIO_VISIBLE_BRANDS.every(b => b.posts.length > 0),
     `${PORTFOLIO_VISIBLE_BRANDS.length} z ${PORTFOLIO_BRANDS.length} značek`
+)
+
+// ── 1b. Vyhlášená soutěž se na web nedostane ────────────────────────────────
+// Portfolio jsou koncepty pro cizí značky. Příspěvek se slosováním o ceny je na
+// našem webu vyhlášení soutěže, kterou nikdo nevypsal — a vypadá jako soutěž té
+// značky. Značky mají mezi kategoriemi „Soutěže o produkty", takže další takový
+// příspěvek vznikne při každém dalším generování; proto aserce, ne bdělost.
+const giveaways = PORTFOLIO_VISIBLE_BRANDS.flatMap(b =>
+    b.posts.filter(announcesGiveaway).map(p => `${b.slug}/${p.id.slice(0, 8)}`)
+)
+check(
+    "žádný viditelný příspěvek nevyhlašuje soutěž",
+    giveaways.length === 0,
+    giveaways.length ? `${giveaways.length}: ${giveaways.slice(0, 3).join(", ")}…` : undefined
+)
+
+// Detektor musí něco umět poznat. Kdyby ho někdo „opravil" na regulární výraz,
+// který nesedí na nic, horní kontrola projde prázdná a nikdo si toho nevšimne.
+check(
+    "detektor soutěže poznává vyhlášení, ne běžné „vyhraje“",
+    announcesGiveaway({
+        id: "x", mediaType: "post", images: [], hook: "SOUTĚŽ o tři balíčky aditiv",
+        body: "", cta: "Zařaďte se do slosování", hashtags: [],
+    }) &&
+    !announcesGiveaway({
+        id: "y", mediaType: "post", images: [], hook: "Který ranní styl do práce vyhraje?",
+        body: "Denní mytí vs dvakrát týdně.", cta: "Napište do komentářů", hashtags: [],
+    })
 )
 
 // ── 2. Filtr se nedá obejít ─────────────────────────────────────────────────
