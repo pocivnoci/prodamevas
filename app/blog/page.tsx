@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { SiteFooter } from "@/components/SiteFooter"
 import type { Metadata } from "next"
 import { getAllArticleMeta } from "@/lib/blog"
 import { SiteHeader } from "@/components/SiteHeader"
@@ -62,6 +63,7 @@ export default function BlogIndex() {
                     </div>
                 )}
             </div>
+            <SiteFooter />
         </div>
     )
 }

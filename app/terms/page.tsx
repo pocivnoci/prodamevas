@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { SiteFooter } from "@/components/SiteFooter"
 import { LEGAL, CONSUMER_AUTHORITY, formatAddress, vatNotice } from "@/lib/legal"
 
 export const metadata = {
@@ -164,11 +165,8 @@ export default function TermsPage() {
                         <p className="mt-3">Tyto Podmínky nabývají účinnosti dne {EFFECTIVE_FROM}.</p>
                     </Section>
                 </div>
-
-                <div className="mt-16 pt-8 border-t border-white/10 text-[9px] text-white/20 font-bold uppercase tracking-widest">
-                    © {new Date().getFullYear()} {LEGAL.name} — IČO {LEGAL.ico}
-                </div>
             </div>
+            <SiteFooter />
         </div>
     )
 }

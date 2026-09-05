@@ -51,8 +51,39 @@ export interface LegalIdentity {
     website: string
 }
 
-const env = (key: string, fallback: string): string => {
-    const v = process.env[key]
+/**
+ * Přepisy z env.
+ *
+ * Musí to být **doslovné** výskyty `process.env.NEXT_PUBLIC_…`. Bundler je do
+ * klientského balíku vkládá textovou náhradou, takže dynamický `process.env[key]`
+ * se na klientu vyhodnotí jako `undefined` a vyhraje fallback.
+ *
+ * Než tohle vzniklo, byl přepis tichý lhář: na serveru se propsal, po hydrataci
+ * zmizel. Patička na landingu (klientská komponenta) tak uměla tvrdit něco jiného
+ * než obchodní podmínky (serverová) — a chybějící údaj vypadal jako nevyplněný,
+ * ne jako rozbitý. Hlídá to aserce 14.9.
+ */
+const OVERRIDES: Record<string, string | undefined> = {
+    NEXT_PUBLIC_BUSINESS_NAME: process.env.NEXT_PUBLIC_BUSINESS_NAME,
+    NEXT_PUBLIC_BUSINESS_TRADE_NAME: process.env.NEXT_PUBLIC_BUSINESS_TRADE_NAME,
+    NEXT_PUBLIC_BUSINESS_ICO: process.env.NEXT_PUBLIC_BUSINESS_ICO,
+    NEXT_PUBLIC_BUSINESS_DIC: process.env.NEXT_PUBLIC_BUSINESS_DIC,
+    NEXT_PUBLIC_BUSINESS_VAT_STATUS: process.env.NEXT_PUBLIC_BUSINESS_VAT_STATUS,
+    NEXT_PUBLIC_BUSINESS_STREET: process.env.NEXT_PUBLIC_BUSINESS_STREET,
+    NEXT_PUBLIC_BUSINESS_CITY: process.env.NEXT_PUBLIC_BUSINESS_CITY,
+    NEXT_PUBLIC_BUSINESS_ZIP: process.env.NEXT_PUBLIC_BUSINESS_ZIP,
+    NEXT_PUBLIC_BUSINESS_COUNTRY_CODE: process.env.NEXT_PUBLIC_BUSINESS_COUNTRY_CODE,
+    NEXT_PUBLIC_BUSINESS_COUNTRY: process.env.NEXT_PUBLIC_BUSINESS_COUNTRY,
+    NEXT_PUBLIC_BUSINESS_EMAIL: process.env.NEXT_PUBLIC_BUSINESS_EMAIL,
+    NEXT_PUBLIC_BUSINESS_PHONE: process.env.NEXT_PUBLIC_BUSINESS_PHONE,
+    NEXT_PUBLIC_BUSINESS_REGISTRY_OFFICE: process.env.NEXT_PUBLIC_BUSINESS_REGISTRY_OFFICE,
+    NEXT_PUBLIC_BUSINESS_BANK_ACCOUNT: process.env.NEXT_PUBLIC_BUSINESS_BANK_ACCOUNT,
+    NEXT_PUBLIC_BUSINESS_IBAN: process.env.NEXT_PUBLIC_BUSINESS_IBAN,
+    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+}
+
+const env = (key: keyof typeof OVERRIDES, fallback: string): string => {
+    const v = OVERRIDES[key]
     return v && v.trim() ? v.trim() : fallback
 }
 
@@ -60,6 +91,10 @@ const env = (key: string, fallback: string): string => {
  * Výchozí hodnoty převzaté z ARESu (registr ekonomických subjektů + RZP),
  * IČO 21263990, ověřeno 30. 7. 2026. Živnost vznikla 19. 2. 2024, živnost volná,
  * bez registrace k DPH (`dic: null` v ARESu → `vatStatus: "none"`).
+ *
+ * Telefon v ARESu není — je to kontakt zakladatele. Patří sem ze stejného důvodu
+ * jako IČO a adresa: obchodní podmínky ho vykreslují jako povinný údaj a musí být
+ * dohledatelný v čase. Env přepis je jen přepis, ne úložiště.
  *
  * ⚠️ `name` je záměrně ve tvaru, v jakém je subjekt **zapsaný v rejstříku**
  * („Adela", bez délky) — na faktuře a v obchodních podmínkách musí být jméno
@@ -78,7 +113,7 @@ export const LEGAL: LegalIdentity = {
     countryCode: env("NEXT_PUBLIC_BUSINESS_COUNTRY_CODE", "CZ"),
     country: env("NEXT_PUBLIC_BUSINESS_COUNTRY", "Česká republika"),
     email: env("NEXT_PUBLIC_BUSINESS_EMAIL", "info@chrlit.cz"),
-    phone: env("NEXT_PUBLIC_BUSINESS_PHONE", ""),
+    phone: env("NEXT_PUBLIC_BUSINESS_PHONE", "+420 601 279 377"),
     // Sídlo je ve Stodůlkách → správní obvod Praha 13. ARES uvádí u adresy
     // „Praha 5", což je městský obvod (poštovní/soudní), ne městská část.
     registryOffice: env("NEXT_PUBLIC_BUSINESS_REGISTRY_OFFICE", "Úřad městské části Praha 13"),

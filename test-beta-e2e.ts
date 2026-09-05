@@ -1498,6 +1498,51 @@ test("14.7 terms match what the code actually does", () => {
     assert(t.includes("automaticky obnovuje"), "terms must disclose auto-renewal")
 })
 
+test("14.10 přepis identity z env přežije hydrataci", () => {
+    // Past, kvůli které telefon zmizel z landingu, ale zůstal v podmínkách:
+    // `lib/legal.ts` četl `process.env[key]` s POČÍTANÝM klíčem. Bundler vkládá
+    // `NEXT_PUBLIC_*` do klientského balíku textovou náhradou doslovných výskytů,
+    // takže dynamický index se na klientu vyhodnotí jako `undefined` a vyhraje
+    // fallback. Přepis se tím propsal na serveru a po hydrataci zmizel —
+    // patička na landingu (klientská) uměla tvrdit něco jiného než obchodní
+    // podmínky (serverové), a chybějící údaj vypadal jako nevyplněný, ne rozbitý.
+    const legal = codeOnly("lib/legal.ts")
+
+    assert(!/process\.env\[/.test(legal),
+        "lib/legal.ts nesmí číst process.env přes počítaný klíč — na klientu se nevloží")
+
+    // Každý klíč, který `env()` používá, musí mít doslovný protějšek v OVERRIDES.
+    const pouzite = [...legal.matchAll(/env\("([A-Z0-9_]+)"/g)].map(m => m[1])
+    assert(pouzite.length >= 15, `aserce musí reálně něco kontrolovat (našla ${pouzite.length} klíčů)`)
+    for (const key of pouzite) {
+        assert(legal.includes(`process.env.${key}`),
+            `${key}: chybí doslovný process.env.${key} v OVERRIDES — přepis by na klientu nefungoval`)
+    }
+})
+
+test("14.11 kontakt je na veřejném webu vidět, ne jen v podmínkách", () => {
+    // Kontakt na prodávajícího je povinný údaj (§435 obč. zák.). Do 9/2026 byl
+    // v patičce jen jako slovo „Kontakt" ve skrytém mailto: a telefon nikde.
+    // Patičky jsou DVĚ a navzájem o sobě nevědí — Landing.tsx má vlastní
+    // (jen homepage), SiteFooter.tsx obsluhuje podstránky. Když se kontakt
+    // doplní do jedné, druhá tiše zůstane pozadu.
+    const legal = require("./lib/legal")
+    assert(legal.LEGAL.phone.trim(), "LEGAL.phone nesmí být prázdný — podmínky ho vykreslují podmíněně, takže by řádek jen zmizel")
+
+    for (const f of ["components/Landing.tsx", "components/SiteFooter.tsx"]) {
+        const c = codeOnly(f)
+        assert(c.includes("LEGAL.email"), `${f}: patička musí vypsat e-mail`)
+        assert(c.includes("LEGAL.phone"), `${f}: patička musí vypsat telefon`)
+        assert(c.includes("tel:"), `${f}: telefon musí být klikací (tel:)`)
+        assert(/replace\(\/\\s\/g/.test(c), `${f}: tel: odkaz musí mít mezery pryč, jinak ho část telefonů nevytočí`)
+    }
+
+    // Podstránky měly dřív patičku jen na portfoliu — z podmínek se nedalo nikam.
+    for (const page of ["app/terms/page.tsx", "app/privacy/page.tsx", "app/blog/page.tsx", "app/aplikace/page.tsx"]) {
+        assert(codeOnly(page).includes("<SiteFooter />"), `${page}: veřejná podstránka musí mít patičku s kontaktem`)
+    }
+})
+
 test("14.8 no reference to the shut-down EU ODR platform", () => {
     // Platforma ODR byla ukončena 20. 7. 2025 — odkaz na ni je dnes chyba,
     // a vzory obchodních podmínek ji pořád obsahují.

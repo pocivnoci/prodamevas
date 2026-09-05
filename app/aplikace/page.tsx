@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { SiteFooter } from "@/components/SiteFooter"
 import Link from "next/link"
 import { InstallButton } from "@/components/InstallApp"
 
@@ -92,6 +93,7 @@ export default function InstallPage() {
                     </Link>
                 </div>
             </div>
+            <SiteFooter />
         </div>
     )
 }
