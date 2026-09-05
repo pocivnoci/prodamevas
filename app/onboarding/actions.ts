@@ -50,11 +50,87 @@ async function enqueueOnboarding(
     }
 }
 
+/**
+ * Denní strop nových onboardingů.
+ *
+ * Otevřená registrace znamená, že každý nový účet spustí tři ukázkové příspěvky
+ * s `adminBypass: true` — **23–55 Kč skutečné AI útraty, kterou nikdo neplatí**,
+ * plus cena samotného průvodce (Pro modely). Bez stropu je to otevřený účet
+ * u Googlu pro kohokoliv, kdo umí odeslat formulář.
+ *
+ * Strop sedí na VSTUPU do průvodce, ne na generování: kdo se dovnitř dostane,
+ * dostane plné tři posty. Ty jsou to, co prodává — degradovat je by ušetřilo
+ * pár korun a zabilo důvod, proč si někdo účet zakládá.
+ *
+ * Počítají se zařazené analýzy za dnešek, ne založení klienti: klient vzniká až
+ * na konci a rozpočet pálí i průvodce, který nikdo nedokončí.
+ */
+const ONBOARDING_DAILY_CAP = Number(process.env.ONBOARDING_DAILY_CAP) || 20
+
+async function dailyCapReached(): Promise<boolean> {
+    // Správce strop neřeší — onboarduje za zákazníky a nesmí narazit na pojistku
+    // proti botům.
+    const { email } = await requireAuth()
+    if (isSuperAdminEmail(email)) return false
+
+    const since = new Date()
+    since.setHours(0, 0, 0, 0)
+
+    const { count, error } = await supabaseAdmin
+        .from('agent_tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('type', 'onboarding_analyze')
+        .gte('created_at', since.toISOString())
+
+    // Když se počítadlo nepodaří přečíst, pouštíme dál. Zavřít registraci kvůli
+    // vteřinovému výpadku databáze je horší škoda než jeden onboarding navíc.
+    if (error) {
+        console.warn(`⚠️ Denní strop onboardingů: dotaz selhal, pouštím dál — ${error.message}`)
+        return false
+    }
+    return (count ?? 0) >= ONBOARDING_DAILY_CAP
+}
+
+/**
+ * Měkké zavření: e-mail se uloží do waitlistu (aby bylo koho pozvat ráno) a
+ * zakladateli odejde upozornění. Ticho by znamenalo, že o zájmu, který jsme
+ * odmítli, se nikdo nedozví.
+ */
+async function closeForToday(): Promise<{ success: false; error: string }> {
+    const { email } = await requireAuth()
+    try {
+        await supabaseAdmin.from('waitlist').insert({ email })
+    } catch { /* duplicita nevadí — je tam už z dřívějška */ }
+
+    try {
+        const { sendEmail, getFounderEmail } = await import('@/lib/email')
+        const to = getFounderEmail()
+        if (to) {
+            await sendEmail({
+                to,
+                subject: `Denní strop onboardingů vyčerpán (${ONBOARDING_DAILY_CAP})`,
+                html: `<p>Dnešní strop nových onboardingů je plný. Poslední odmítnutý zájemce: <strong>${email}</strong> — je ve waitlistu.</p>`,
+                text: `Dnešní strop nových onboardingů je plný. Poslední odmítnutý zájemce: ${email} — je ve waitlistu.`,
+            })
+        }
+    } catch (err: any) {
+        console.warn(`⚠️ Upozornění na vyčerpaný strop se neodeslalo: ${err?.message}`)
+    }
+
+    console.warn(`🚧 Denní strop onboardingů (${ONBOARDING_DAILY_CAP}) vyčerpán — odmítnut ${email}`)
+    return {
+        success: false,
+        error: 'Dnes už máme plno — nové značky bereme po dávkách, aby první příspěvky za něco stály. Zapsali jsme si vás a ozveme se zítra.',
+    }
+}
+
 export async function startWebsiteAnalysis(url: string, igHandle: string) {
+    if (await dailyCapReached()) return closeForToday()
     return enqueueOnboarding("onboarding_analyze", { mode: "website", url, igHandle })
 }
 
 export async function startManualAnalysis(info: ManualBusinessInfo) {
+    if (await dailyCapReached()) return closeForToday()
     return enqueueOnboarding("onboarding_analyze", { mode: "manual", info })
 }
 

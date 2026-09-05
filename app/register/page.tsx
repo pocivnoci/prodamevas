@@ -5,6 +5,7 @@ import { AuthDivider, GoogleButton } from "@/components/auth/GoogleButton"
 import { AuthNotice } from "@/components/auth/AuthNotice"
 import { PasswordField } from "@/components/auth/PasswordField"
 import { googleAuthEnabled } from "@/lib/auth-providers"
+import { inviteRequired } from "@/lib/beta-access"
 
 const ERROR_MESSAGES: Record<string, string> = {
     missing_fields: "Vyplň email i heslo.",
@@ -23,6 +24,7 @@ export default async function RegisterPage(props: {
     const errorKey = searchParams?.error as string | undefined
     const isSuccess = searchParams?.success === "check_email"
     const errorMessage = errorKey ? ERROR_MESSAGES[errorKey] || "Registrace selhala." : null
+    const gateClosed = inviteRequired()
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-[#050505] p-4 text-white">
@@ -49,18 +51,23 @@ export default async function RegisterPage(props: {
 
                 {!isSuccess && (
                     <form className="space-y-4">
-                        {/* Kód je brána — stojí nahoře, protože platí pro obě cesty dál. */}
-                        <div>
-                            <label htmlFor="inviteCode" className="block text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5">Kód pozvánky</label>
-                            <input
-                                id="inviteCode"
-                                name="inviteCode"
-                                type="text"
-                                required
-                                placeholder="Např. BETA-VIP"
-                                className="w-full px-4 py-2.5 rounded-sm bg-[#050505] border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-aisummit-cinnabar/40 focus:border-aisummit-cinnabar/50 transition-all text-sm uppercase"
-                            />
-                        </div>
+                        {/* Kód je brána — stojí nahoře, protože platí pro obě cesty dál.
+                            Po otevření registrace pole mizí celé: nechat ho tu jako
+                            nepovinné by vypadalo, že něco chybí, a lidi by se ptali,
+                            kde kód vzít. */}
+                        {gateClosed && (
+                            <div>
+                                <label htmlFor="inviteCode" className="block text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5">Kód pozvánky</label>
+                                <input
+                                    id="inviteCode"
+                                    name="inviteCode"
+                                    type="text"
+                                    required
+                                    placeholder="Např. BETA-VIP"
+                                    className="w-full px-4 py-2.5 rounded-sm bg-[#050505] border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-aisummit-cinnabar/40 focus:border-aisummit-cinnabar/50 transition-all text-sm uppercase"
+                                />
+                            </div>
+                        )}
 
                         {googleAuthEnabled() && (
                             <>

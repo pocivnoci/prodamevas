@@ -800,6 +800,69 @@ test("10.7l Každé přesměrování na /login má přeloženou hlášku", () =>
     }
 })
 
+test("10.7m Brána bety je JEDEN spínač, ne kopie na šesti místech", () => {
+    // Trychtýř se dá rozejít napůl: landing zve „Vyzkoušet zdarma", registrace
+    // pak chce kód pozvánky, který nikdo nemá. Kopie i cíle odkazů proto musí
+    // viset na tomtéž stavu, který vyhodnocuje brána — stejný vzor jako
+    // REELS_ENABLED (13.10): server stav přečte, klient ho jen respektuje.
+    const gate = codeOnly("lib/beta-access.ts")
+    assert(gate.includes("BETA_INVITE_REQUIRED"), "spínač musí žít v lib/beta-access.ts")
+    assert(gate.includes("!== '0'") || gate.includes('!== "0"'),
+        "výchozí stav musí být ZAVŘENO — otevřít se smí jen výslovnou hodnotou, ne chybějící proměnnou")
+    assert(!/^import /m.test(gate),
+        "lib/beta-access.ts nesmí nic importovat — natahuje ho middleware u každého requestu")
+
+    // Server stav přečte, klient ho dostane propem.
+    assert(codeOnly("app/page.tsx").includes("inviteRequired"),
+        "landing musí stav brány přečíst na serveru (klient k proměnné nemá přístup)")
+    assert(codeOnly("components/Landing.tsx").includes("inviteRequired"),
+        "kopie a CTA na landingu musí stav brány respektovat")
+
+    // Žádné natvrdo psané `#waitlist` mimo odvozené hodnoty — jinak jeden
+    // zapomenutý odkaz pošle člověka na formulář, který už nikdo nečte.
+    const landing = codeOnly("components/Landing.tsx")
+    const zbyle = [...landing.matchAll(/href=\{?["`]#waitlist/g)]
+    assert(zbyle.length === 0,
+        `${zbyle.length}× natvrdo #waitlist v Landing.tsx — CTA musí jít přes ctaHref/planHref`)
+
+    // A obě cesty registrace musí kód přestat vyžadovat spolu s bránou.
+    for (const f of ["app/register/actions.ts", "app/register/page.tsx", "app/auth/actions.ts"]) {
+        assert(codeOnly(f).includes("inviteRequired"),
+            `${f}: kód pozvánky musí být povinný jen dokud je brána zavřená`)
+    }
+})
+
+test("10.7n Otevřená registrace nerozdává obsah bez stropu", () => {
+    // Každý nový účet spustí 3 ukázkové příspěvky s adminBypass — 23–55 Kč
+    // skutečné AI útraty, kterou nikdo neplatí. Bez stropu je otevřená
+    // registrace otevřený účet u Googlu pro kohokoliv s formulářem.
+    const a = codeOnly("app/onboarding/actions.ts")
+    assert(a.includes("ONBOARDING_DAILY_CAP"), "vstup do průvodce musí mít denní strop")
+
+    // Tělo JEDNÉ funkce, ne prvních N znaků od její hlavičky: vstupy leží vedle
+    // sebe, takže okno pevné délky vidí i do sousední a strop smazaný z jedné
+    // z nich by prošel.
+    const telo = (fn: string): string => {
+        const at = a.indexOf(`export async function ${fn}`)
+        assert(at >= 0, `${fn} v app/onboarding/actions.ts neexistuje`)
+        const konec = a.indexOf("\n}", at)
+        return a.slice(at, konec < 0 ? undefined : konec)
+    }
+
+    // Strop patří na VSTUP, ne na generování — kdo projde, dostane plné tři posty.
+    for (const fn of ["startWebsiteAnalysis", "startManualAnalysis"]) {
+        assert(telo(fn).includes("dailyCapReached"), `${fn} musí strop kontrolovat`)
+    }
+    // Pokračování rozdělaného průvodce se stropem zavírat nesmí — člověk už
+    // zaplatil čekáním a klient z něj možná ani nevznikne podruhé.
+    assert(!telo("startConfigPreview").includes("dailyCapReached"),
+        "startConfigPreview je pokračování, ne nový onboarding — strop tam nepatří")
+
+    assert(a.includes("isSuperAdminEmail"), "správce nesmí narazit na pojistku proti botům")
+    assert(/console\.warn\(`⚠️ Denní strop/.test(a) || a.includes("pouštím dál"),
+        "selhání dotazu na počítadlo musí pustit dál, ne zavřít registraci")
+})
+
 test("10.7d Google se nenabízí, dokud není provider zapnutý", () => {
     // Provider se zapíná v Supabase, ne v repu. Mrtvé tlačítko na přihlašovací
     // stránce je horší než žádné — přepínač proto musí hlídat UI i akci.
