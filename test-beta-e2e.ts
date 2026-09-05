@@ -3929,6 +3929,9 @@ test("36.4 brána nikdy nezabije post, ale mlčky ho nepustí", () => {
     assert(!/throw /.test(fn), "brána nesmí shodit generování postu")
     const auto = codeOnly("instagram/autopilot.ts")
     assert(/console\.warn\(`   🚩 Faktická brána/.test(auto), "zbylé nepodložené tvrzení musí být vidět")
+    assert(/for \(const r of factOutcome\.repairs\)/.test(auto),
+        "'opraveno' bez výpisu záměn je nepřezkoumatelné tvrzení brány o vlastní práci — " +
+        "a nikdo pak nepozná, až začne mazat i pravdu")
 })
 
 test("36.5 fakta mají default a dostanou se do promptu i do brány", () => {
