@@ -46,6 +46,10 @@ export interface FactCheckOutcome<T> {
     changed: boolean
     /** Krátké popisy tvrzení, která zůstala nepodložená — do logu a do UI. */
     flags: string[]
+    /** Co brána skutečně vyměnila (staré → nové). Do logu: „opraveno" bez seznamu
+     *  je tvrzení o vlastní práci, které si nikdo nemůže ověřit — a přesně takovým
+     *  tvrzením má tenhle modul bránit. */
+    repairs: { claim: string; from: string; to: string }[]
     /** Doběhl judge? false = brána neproběhla (fail-open), ne „čisté". */
     judged: boolean
 }
@@ -228,7 +232,7 @@ export async function checkCaptionFacts<T>(
     captionData: T,
     ctx: FactContext = {},
 ): Promise<FactCheckOutcome<T>> {
-    const base: FactCheckOutcome<T> = { status: "skipped", captionData, changed: false, flags: [], judged: false }
+    const base: FactCheckOutcome<T> = { status: "skipped", captionData, changed: false, flags: [], repairs: [], judged: false }
 
     if (config.factCheck === false) return base
     const texts = collectTexts(captionData)
@@ -276,6 +280,10 @@ export async function checkCaptionFacts<T>(
 
     const flags = unresolved.map(c => `${c.claim}${c.reason ? ` (${c.reason})` : ""}`.slice(0, 160))
     const status: FactStatus = unresolved.length > 0 ? "flagged" : "repaired"
+    // Vyměněné = ty, co v hotovém textu nezůstaly a měly čím být nahrazeny.
+    const repairs = risky
+        .filter(c => !unresolved.includes(c) && c.find && typeof c.replace === "string")
+        .map(c => ({ claim: c.claim, from: c.find as string, to: c.replace as string }))
 
-    return { status, captionData: data, changed, flags, judged: true }
+    return { status, captionData: data, changed, flags, repairs, judged: true }
 }

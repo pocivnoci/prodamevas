@@ -1090,8 +1090,13 @@ ${feedSummary}
         if (isReel && captionData.caption) captionData.body = captionData.caption
     }
     if (factStatus === "clean") console.log("   ✅ Faktická brána: bez nepodložených tvrzení")
-    else if (factStatus === "repaired") console.log(`   🔧 Faktická brána: nepodložená tvrzení opravena (${factOutcome.flags.length === 0 ? "vše" : "část"})`)
+    else if (factStatus === "repaired") console.log(`   🔧 Faktická brána: ${factOutcome.repairs.length} nepodložených tvrzení opraveno`)
     else if (factStatus === "flagged") console.warn(`   🚩 Faktická brána: v textu ZŮSTALO nepodložené tvrzení — ${factOutcome.flags.join(" | ")}`)
+    // Co přesně se vyměnilo. Bez tohohle výpisu je „opraveno" nepřezkoumatelné
+    // tvrzení brány o vlastní práci — a nikdo nepozná, když začne mazat i pravdu.
+    for (const r of factOutcome.repairs) {
+        console.log(`      ↪︎ "${r.from.slice(0, 80)}" → "${r.to.slice(0, 80)}"`)
+    }
 
     } // end caption phase (skipped entirely on checkpoint resume)
 
