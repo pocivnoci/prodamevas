@@ -17,6 +17,7 @@ import type { Metadata } from "next"
 import supabaseAdmin from "@/supabase/admin"
 import { Landing } from "@/components/Landing"
 import { FALLBACK_PLANS, lowestPriceClaim, type PricingPlan } from "@/lib/pricing"
+import { inviteRequired } from "@/lib/beta-access"
 
 export const revalidate = 3600
 
@@ -71,5 +72,15 @@ export default async function Home() {
     // Stav vypínače se čte TADY, na serveru: `REELS_ENABLED` je serverová proměnná
     // a klientský landing k ní nemá přístup. `revalidate = 3600` znamená, že se
     // přepnutí propíše do hodiny — ceník se nemusí sahat, odznak zmizí sám.
-    return <Landing plans={plans} reelsEnabled={process.env.REELS_ENABLED === "1"} />
+    // Totéž pro bránu bety: dokud je zavřená, hlavní tlačítko zve na waitlist;
+    // po `BETA_INVITE_REQUIRED=0` vede rovnou do registrace. Trychtýř tak nikdy
+    // neslíbí něco, co registrace o krok dál nesplní — a přepnutí je jedna
+    // proměnná, ne přepisování kopie na šesti místech.
+    return (
+        <Landing
+            plans={plans}
+            reelsEnabled={process.env.REELS_ENABLED === "1"}
+            inviteRequired={inviteRequired()}
+        />
+    )
 }

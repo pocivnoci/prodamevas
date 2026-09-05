@@ -10,6 +10,22 @@
  * nebo `LEGACY` u zákazníků, kteří tu byli dřív než pozvánky. Účet bez razítka
  * se sem tedy nedostane ani se živou session.
  */
+/**
+ * Je kód pozvánky pořád podmínkou vstupu?
+ *
+ * Výchozí stav je ZAVŘENO. Otevření dveří je obchodní rozhodnutí vázané na to,
+ * že se dají vzít peníze — ne default, do kterého se spadne zapomenutou
+ * proměnnou. Proto se otevírá výslovným `BETA_INVITE_REQUIRED=0` a cokoliv
+ * jiného (chybějící hodnota, překlep, prázdný řetězec) znamená zavřeno.
+ *
+ * Čte to i landing, aby hlavní tlačítko slibovalo přesně to, co registrace
+ * splní: dokud je brána zavřená, zve na waitlist; po otevření vede rovnou do
+ * registrace. Jeden spínač, jeden trychtýř — stejný vzor jako `REELS_ENABLED`.
+ */
+export function inviteRequired(): boolean {
+    return (process.env.BETA_INVITE_REQUIRED || '').trim() !== '0'
+}
+
 export function hasBetaStamp(user: {
     email?: string | null
     app_metadata?: Record<string, unknown> | null

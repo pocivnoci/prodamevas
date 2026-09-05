@@ -1,6 +1,6 @@
 import supabaseAdmin from '@/supabase/admin'
 import type { User } from '@supabase/supabase-js'
-import { hasBetaStamp } from '@/lib/beta-access'
+import { hasBetaStamp, inviteRequired } from '@/lib/beta-access'
 
 /**
  * Brána do bety. Účet vznikne jen s platným kódem pozvánky — **i když přijde
@@ -84,6 +84,21 @@ export async function enforceInviteGate(user: User, pendingCode: string | null):
 
     if (link?.length) {
         await stampInvite(user, 'LEGACY')
+        return { ok: true }
+    }
+
+    // Otevřená registrace. Kód se pořád zabírá, když ho člověk má — pozvánky z
+    // waitlistu odešly s příslibem a jejich počítadlo musí zůstat pravdivé —
+    // ale ŽÁDNÝ kód ani NEPLATNÝ kód už není důvod nepustit dovnitř. Vyhodit
+    // člověka kvůli překlepu ve chvíli, kdy kód stejně nikdo nevyžaduje, by bylo
+    // horší než ho nemít.
+    if (!inviteRequired()) {
+        const invite = await findUsableInvite(pendingCode)
+        if (invite && await claimInvite(invite)) {
+            await stampInvite(user, invite.code)
+        } else {
+            await stampInvite(user, 'OPEN')
+        }
         return { ok: true }
     }
 

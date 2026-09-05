@@ -1,6 +1,7 @@
 'use server'
 
 import { cookies, headers } from 'next/headers'
+import { inviteRequired } from '@/lib/beta-access'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/supabase/server'
 import { findUsableInvite, INVITE_COOKIE, INVITE_COOKIE_MAX_AGE } from '@/lib/invite-gate'
@@ -63,7 +64,13 @@ export async function signInWithGoogle() {
  */
 export async function signUpWithGoogle(formData: FormData) {
     const invite = await findUsableInvite(formData.get('inviteCode') as string)
-    if (!invite) redirect('/register?error=invalid_invite')
+    // Otevřená brána kód nevyžaduje; cookie se pak nenastaví a `enforceInviteGate`
+    // v callbacku razítkuje 'OPEN'.
+    if (!invite && inviteRequired()) redirect('/register?error=invalid_invite')
+    if (!invite) {
+        const openUrl = await googleConsentUrl()
+        redirect(openUrl ?? '/register?error=google_unavailable')
+    }
 
     const jar = await cookies()
     jar.set(INVITE_COOKIE, invite.code, {
