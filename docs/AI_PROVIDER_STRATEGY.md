@@ -84,15 +84,18 @@ Copywriter ─ buildMegaPrompt (Pro) → caption JSON + "angle"     caption-gene
 Critic ─ scorePost 1-10 + keep[]/fix[] (Claude judge)           caption-generator.ts (scorePost)
    └ best-of-2: rankDrafts picks A/B winner (Claude judge)      caption-generator.ts (rankDrafts)
 Editorial Board ─ Chief Editor = SALES GATE ⇄ Copywriter, ≤3    editorial-board.ts (reviewPost)
+Fact Gate ─ TRUTH GATE: claims vs. brandFacts (Claude judge)     fact-check.ts (checkCaptionFacts)
+   └ deterministic find/replace in code, never a 2nd rewrite     fact-check.ts (applyFactFixes)
 Art Director ─ generateDesignBrief (Pro, high temp)            image-pipeline.ts
 Renderer ─ Nano Banana Pro + refs → Vision QA → corrective edit orchestrators/*
 Save ─ ig_posts + ig_generation_log (incl. angle)              autopilot.ts
 ```
 
 **What each agent can see:**
-- **Copywriter** sees: priority ladder (téma > produkt+CTA politika > voice/gold > learning > kontext), brand voice, tone-by-type, selected idea/product, deterministic persona, 4 random hook templates, **CTA policy block** (single source of truth — replaces the old random CTA pool + pillar section), gold examples, performance patterns, **top-8 brand memories**, last-5 critic keep/fix, context pulse, recent captions (dedup) + **angle commit** instruction.
+- **Copywriter** sees: the TRUTH RULE (priority 0) + the brand's verified facts, priority ladder (téma > produkt+CTA politika > voice/gold > learning > kontext), brand voice, tone-by-type, selected idea/product, deterministic persona, 4 random hook templates, **CTA policy block** (single source of truth — replaces the old random CTA pool + pillar section), gold examples, performance patterns, **top-8 brand memories**, last-5 critic keep/fix, context pulse, recent captions (dedup) + **angle commit** instruction.
 - **Critic & ranking judge** see: persona (700 chars), 8 anti-patterns, **gold examples (2×250)**, **the same CTA policy as the writer**, the declared angle, and the caption. Overall = pure rubric sum; anchors 9/6/3.
 - **Chief Editor** is a **publish/sales gate** (CTA–pillar fit, product-claim truthfulness vs. product data, reason-to-act-now, red flags) — it no longer re-scores hook/voice (that's the critic's rubric). Sees caption + critic feedback + CTA policy + product data + history; **Copywriter can "pushback."**
+- **Fact gate** sees the finished copy plus the ALLOWED SOURCES only: `config.brandFacts`, the selected product (live catalog), the idea/topic, the review quote. Everything concrete outside them (number, year, price, guarantee, superlative, third-party name) is `risk` → replaced deterministically by substring swap; what survives is logged as `fact_status='flagged'` and flagged on the post card. Everyday narrative colour (time of day, weather, sensory detail) is explicitly NOT a claim — the gate must not turn concrete posts into mush. Runs after the board and **before** the render, because the hook is about to be burnt into the image.
 - **Art Director** sees caption + brand kit + visual memories + recent design fingerprints (must diverge); **does not see** the critic/editor.
 
 **Learning loops (feedback):**
