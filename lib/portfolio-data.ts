@@ -4085,5 +4085,250 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
         ]
       }
     ]
+  },
+  {
+    "slug": "agro-invest",
+    "company": "AGRO INVEST",
+    "industry": "Investice do zemědělské půdy",
+    "website": "http://www.agroinvest.cz",
+    "posts": [
+      {
+        "id": "6b3125a7-a887-4537-b814-bd5ed04c4326",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-posts/1788591057634.webp"
+        ],
+        "hook": "K nákupu slovenské půdy stačí sto padesát tisíc.",
+        "body": "Mýtus: Do polí mohou investovat jen fondy a milionáři. Realita: Není to pravda. Zatímco nákup investičního bytu vyžaduje miliony a přináší starosti s nájemníky, slovenská zemědělská půda je dostupnější. Za 150 000 Kč už vlastníte konkrétní bonitní pozemek. Získáte hmatatelné aktivum, které nevyžaduje údržbu. Na podzim se navíc tradičně uzavírají nové pachtovní smlouvy, takže půda může začít pracovat za vás. Nabízí předvídatelný výnos a možnost zpětného odkupu za předem daných podmínek. Je to ideální krok pro konzervativní diverzifikaci portfolia mimo rozkolísané akcie, o kterých jsme mluvili minule. Investování do půdy je o racionálním rozhodnutí, ne o obrovském kapitálu.",
+        "cta": "Spočítejte si možné zhodnocení vaší investice v naší kalkulačce na www.agroinvest.cz.",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#diverzifikaceportfolia",
+          "#realitnitrh",
+          "#slovenskapuda"
+        ]
+      },
+      {
+        "id": "3c845921-ae73-4697-bf8d-f7e09846a3ab",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-carousel/1788591219231-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-carousel/1788591244981-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-carousel/1788591268820-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-carousel/1788591296401-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-carousel/1788591320691-slide4.webp"
+        ],
+        "hook": "Zemědělská půda jako bezpečný přístav.",
+        "body": "Čísla nelžou. Zatímco akcie kolísají, zemědělská půda nabízí předvídatelný růst. Jak přesně funguje naše investiční příležitost? Koupíte konkrétní pozemek na Slovensku a stáváte se jeho výhradním majitelem. My se o půdu staráme a řešíme veškerou byrokracii i pachtovní smlouvy. Po 10 letech máte smluvně garantovanou možnost zpětného odkupu se zhodnocením až 100 %. Žádné skryté poplatky. Jen čistá matematika a absolutní právní jistota. Představuje to ideální prostor pro bezpečnou alokaci většího kapitálu do reálných aktiv, která nepodléhají tržní panice.",
+        "cta": "Zajistěte si prémiový pozemek s garancí odkupu. Sjednejte si nezávaznou konzultaci a prohlédněte si návrh smlouvy na http://www.agroinvest.cz/p/investicni-prilezitost",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#ochranakapitalu",
+          "#zemedelstvi",
+          "#slovenskapuda",
+          "#investice"
+        ]
+      },
+      {
+        "id": "d4f377f4-e877-4eb4-8191-ac0cf6e5d597",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-carousel/1788591469761-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-carousel/1788591493925-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-carousel/1788591520170-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-carousel/1788591545254-slide3.webp"
+        ],
+        "hook": "Servisní balíček vyřeší pachty i daně.",
+        "body": "Koupit půdu je jedna věc. Starat se o ni druhá. Většina investorů nechce trávit víkendy řešením pachtovních smluv se zemědělci nebo složitou komunikací s úřady na Slovensku. Vaším cílem je ochránit kapitál před inflací, ne si přidělat další práci. Proto jsme vytvořili Servisní balíček. Zajišťujeme kompletní správu vašeho pozemku. Od fyzické kontroly polí po sklizni až po kompletní daňové podklady. Vše na klíč. Vy pouze držíte hmatatelné a bezpečné aktivum. My řešíme zbytek. Servisní balíček je součástí nákupu půdy zcela zdarma.",
+        "cta": "Máte otázky k tomu, jak přesně správa probíhá? Napište nám do zpráv nebo do komentářů, rádi vám celý proces vysvětlíme.",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#investice",
+          "#ochranakapitalu",
+          "#slovenskapuda",
+          "#nemovitosti"
+        ]
+      },
+      {
+        "id": "31ed926d-b3e5-41f5-82df-0fa776a3e5a2",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-posts/1788591621123.webp"
+        ],
+        "hook": "Jak slovenská půda porazila desetiletou inflaci.",
+        "body": "Čísla mluví jasně. Zatímco kumulativní inflace za poslední dekádu ukrojila z úspor desítky procent, hodnota slovenské orné půdy rostla stabilnějším a rychlejším tempem.\n\nRozdíl tvoří fundament. Půdy zkrátka nepřibývá. Je to omezený zdroj a reálné hmotné aktivum, které si drží hodnotu bez ohledu na ekonomické otřesy a tištění nových peněz.\n\nPro konzervativní portfolio je matematika jednoduchá. Získáte ochranu kapitálu, která spolehlivě překonává znehodnocení peněz. Zcela bez starostí o problémové nájemníky a bez nutnosti sledovat denní výkyvy akciové burzy. Kvalitní půda tiše pracuje a chrání váš majetek.",
+        "cta": "Uložte si tento příspěvek, ať se k těmto faktům můžete při revizi svého portfolia kdykoliv vrátit.",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#investice",
+          "#ochranamajetku",
+          "#finance",
+          "#realitnitrh",
+          "#diverzifikace",
+          "#pasivniprijem"
+        ]
+      },
+      {
+        "id": "44136609-7147-46a6-99ea-361db4a0b8d3",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-posts/1788591733757.webp"
+        ],
+        "hook": "Nákup půdy s garancí v praxi.",
+        "body": "Mnoho investorů hledá absolutní jistotu. Ale jak přesně funguje nákup slovenské orné půdy s garancí odkupu? Celý proces je stavěný na maximální transparentnosti.\n\n1. Výběr: Zvolíte si konkrétní bonitní pozemek podle vašich investičních cílů.\n2. Vlastnictví: Půdu kupujete do 100% osobního vlastnictví. Žádné podílové fondy, majiteli jste přímo vy.\n3. Garance: Přímo do smlouvy zakotvíme právo na zpětný odkup. Předem znáte jasná čísla – zhodnocení 40 % za 5 let nebo 100 % za 10 let.\n4. Správa: Administrativu a pachty plynule přebíráme.\n\nInvestice do půdy není o emocích, ale o pevných právních základech. Vaše portfolio získá reálnou stabilitu.",
+        "cta": "Projděte si celý proces a získejte jistotu garantovaného zhodnocení. Sjednejte si nezávaznou konzultaci a prohlédněte si návrh smlouvy na http://www.agroinvest.cz/p/nakup-zemledelske-pudy",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#slovenskapuda",
+          "#konzervativniinvestice",
+          "#pasivniprijem",
+          "#bohatstvi",
+          "#bezpecnainvestice",
+          "#nemovitosti"
+        ]
+      },
+      {
+        "id": "de380297-8804-49ed-8c35-b17a9521d716",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-posts/1788591857734.webp"
+        ],
+        "hook": "Pozor na falešné inzeráty při nákupu pozemků.",
+        "body": "Na rovinu: Ne všechno, co na internetu vypadá jako výhodná koupě, reálně chrání váš kapitál.\n\nZáří je obdobím nových pachtovních smluv. Trh se plní nabídkami, ale konzervativní investor musí číst mezi řádky. Nejčastější rizika levných inzerátů:\n\n1. Nevyřešené přístupové cesty (pozemek je bezcenný).\n2. Skrytí spoluvlastníci (blokují jakékoliv rozhodování).\n3. Nízká bonita půdy (nulový pacht).\n\nOchrana většího objemu hotovosti vyžaduje stoprocentní právní jistotu, ne sázku do loterie. U nás prochází každý pozemek tvrdým auditem. Kupujete pouze čistá aktiva podložená reálnými daty a smluvní garancí zpětného odkupu.",
+        "cta": "Chcete vědět, na co přesně si dát při výběru pozor? Přečtěte si více o bezpečném vlastnictví půdy na www.agroinvest.cz.",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#ochranauspor",
+          "#ochranaprediinflaci",
+          "#jistota",
+          "#pasivniprijem",
+          "#slovenskapuda",
+          "#realitnitrh"
+        ]
+      },
+      {
+        "id": "1d39e14e-793a-4059-b1ef-7a6d2e63b212",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-posts/1788592000956.webp"
+        ],
+        "hook": "Fyzicky omezená půda, nebo tradiční zlato?",
+        "body": "Obě aktiva chrání kapitál před inflací. Ale fungují jinak. 1. Stabilita: Zlato drží hodnotu staletí. Slovenská černozem je ale fyzicky omezený zdroj, kterého každým rokem ubývá. 2. Výnos: Zlato nenese žádnou úrokovou dividendu, pouze čekáte na růst ceny. U slovenské půdy existuje prokazatelný potenciál zhodnocení a garance odkupu. 3. Reálný přesah: Zlatá cihla tiše leží v trezoru. Půda aktivně produkuje a pracuje. Zatímco finanční trhy na podzim tradičně kolísají, pole po sklizni představuje absolutní hmatatelnou jistotu. Diverzifikace portfolia dává smysl. Záleží jen na tom, zda hledáte pasivní kov, nebo aktivum, které organicky roste.",
+        "cta": "Které z těchto dvou konzervativních aktiv dává vašemu portfoliu větší smysl? Podělte se o svůj pohled v komentářích.",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#investice",
+          "#investicnizlato",
+          "#finance",
+          "#nemovitosti"
+        ]
+      },
+      {
+        "id": "588d66c9-3f8d-41d4-a222-887a721bb631",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-posts/1788592095948.webp"
+        ],
+        "hook": "Zákon 140/2014 garantuje bezpečné české vlastnictví slovenské půdy.",
+        "body": "Mýtus: Kupovat pozemky v zahraničí je obrovské právní riziko.\nRealita: Právní jistota na Slovensku je pro české investory absolutní.\n\nZákon č. 140/2014 Z.z. o nabývání vlastnictví k zemědělskému pozemku definuje jasná pravidla:\n✅ Jako občan EU máte stejná práva jako místní.\n✅ Zápis do katastru je nezpochybnitelný.\n✅ Vaše vlastnictví je trvalé a plně chráněné.\n\nŽádné kličky. Žádné skryté podmínky pro cizince.\n\nZatímco podzimní inflace ukrajuje z vašich úspor, slovenská černozem nabízí pevný legislativní štít. Investice do půdy u sousedů je z právního hlediska stejně bezpečná jako nákup pole v Česku. Jen s vyšším potenciálem zhodnocení.",
+        "cta": "Více informací o bezpečném vlastnictví půdy najdete na www.agroinvest.cz.",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#pravnijistota",
+          "#investice",
+          "#realitnitrh",
+          "#nemovitosti",
+          "#bohatstvi",
+          "#pasivniprijem"
+        ]
+      },
+      {
+        "id": "eefefa57-7722-4d22-99b9-3d8877747926",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-posts/1788592227235.webp"
+        ],
+        "hook": "Doporučení zkrátí návratnost o dvanáct měsíců.",
+        "body": "Investování do slovenské zemědělské půdy je o přesné matematice. Pasivní držení spolehlivě chrání kapitál. Pokud se však rozhodnete produkt doporučit, váš celkový výnos se zrychlí. Za nového klienta, který úspěšně uzavře smlouvu, získáte okamžitý finanční bonus vypočítaný jako fixní procento z objemu jeho investice. V praxi to znamená, že tato odměna efektivně umaže jeden celý rok čekání na cílové zhodnocení vašeho portfolia. Váš kapitál pracuje rychleji, přičemž parametry vaší vlastní investice a úroveň bezpečí zůstávají zcela beze změny. Žádná složitá byrokracie, jen jasná čísla a férová odměna za důvěru.",
+        "cta": "Zjistěte přesnou výši bonusu a podmínky vyplacení. Podívejte se na detaily na http://www.agroinvest.cz/p/odmena-za-doporuceni a zrychlete růst svého portfolia.",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#investice",
+          "#investicniportfolio",
+          "#zhodnoceni",
+          "#slovenskapuda"
+        ]
+      },
+      {
+        "id": "1d55dba6-2dd2-4ad8-9987-c2fc78cf5edd",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-posts/1788592381068.webp"
+        ],
+        "hook": "Prodej prověřených pozemků začíná třístupňovým právním auditem.",
+        "body": "Než vám nabídneme konkrétní pole, odvedeme černou práci za vás.\n\nPapírově může pozemek vypadat bezchybně. Realita po sklizni ale často ukáže vady. Proto náš prodej prověřených pozemků nestavíme na slibech, ale na tvrdých datech.\n\nKaždá parcela prochází sítem:\n1️⃣ Právní čistota: Kontrola věcných břemen a skrytých dluhů.\n2️⃣ Fyzický stav: Sonda kvality ornice po zářijové sklizni.\n3️⃣ Pachtovní vztahy: Revize smluv se zemědělci pro další sezónu.\n\nVyhnete se tak nepříjemným překvapením a zdlouhavé byrokracii. Kupujete aktivum, které je okamžitě připravené chránit váš kapitál. My řešíme rizika, vy získáváte čistý list vlastnictví.",
+        "cta": "Máte otázky k průběhu našeho auditu? Napište nám do zpráv a rádi s vámi probereme, jak přesně vaše budoucí pozemky prověřujeme.",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#pravnijistota",
+          "#diverzifikace",
+          "#slovenskapuda",
+          "#investice",
+          "#finance",
+          "#realitnitrh"
+        ]
+      },
+      {
+        "id": "afad0463-9d48-4d6d-9239-c5f260ea1574",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-posts/1788592637497.webp"
+        ],
+        "hook": "Proč český kapitál masivně proudí do slovenské půdy.",
+        "body": "Čísla ukazují jasný trend. Čeští investoři přesouvají kapitál do slovenské zemědělské půdy. Není to náhoda, ale chladná matematika. Zatímco v České republice se průměrná cena hektaru vyšplhala nad 300 000 Kč a trh je saturovaný, na Slovensku lze srovnatelně kvalitní černozem pořídit i o třetinu levněji. Tento cenový rozdíl nabízí vyšší prostor pro růst a stejnou míru bezpečí. Makroekonomická data jasně potvrzují, že slovenská půda dohání cenovou úroveň západních sousedů. Rozvážný investor nehledá adrenalin, ale hmatatelné aktivum chránící jeho portfolio před inflací. Přesun kapitálu na Slovensko je tak logickým krokem k diverzifikaci. Místo spekulací zde totiž vítězí stabilita.",
+        "cta": "Uložte si tento příspěvek, ať se k těmto makroekonomickým faktům můžete kdykoliv vrátit při plánování diverzifikace vašeho portfolia.",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#investice",
+          "#slovensko",
+          "#diverzifikace",
+          "#slovenskapuda",
+          "#jistota"
+        ]
+      }
+    ]
   }
 ]
