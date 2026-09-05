@@ -240,14 +240,23 @@ export async function getIGPostsList(
         if (posts.length > 0) {
             const { data: logs } = await supabaseAdmin
                 .from("ig_generation_log")
-                .select("post_id, qa_status, created_at")
+                .select("post_id, qa_status, fact_status, fact_flags, created_at")
                 .in("post_id", posts.map(p => p.id))
                 .order("created_at", { ascending: false })
             const qaByPost = new Map<string, string | null>()
+            // Faktická brána jede stejnou cestou jako vizuální QA — jeden dotaz, dvě
+            // varování na kartě: „obrázek neprošel" a „text si možná vymýšlí".
+            const factByPost = new Map<string, { status: string | null; flags: string[] | null }>()
             for (const log of logs || []) {
                 if (!qaByPost.has(log.post_id)) qaByPost.set(log.post_id, log.qa_status)
+                if (!factByPost.has(log.post_id)) factByPost.set(log.post_id, { status: log.fact_status, flags: log.fact_flags })
             }
-            for (const post of posts) post.qa_status = qaByPost.get(post.id) ?? null
+            for (const post of posts) {
+                post.qa_status = qaByPost.get(post.id) ?? null
+                const fact = factByPost.get(post.id)
+                post.fact_status = fact?.status ?? null
+                post.fact_flags = fact?.flags ?? null
+            }
         }
 
         return { posts, total, hasMore: from + posts.length < total }

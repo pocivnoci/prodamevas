@@ -273,6 +273,12 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{post.ig_post_types?.display_name || "Generický Post"}</span>
                                     {post.content_pillar && <PillarBadge pillar={post.content_pillar} />}
+                                    {post.fact_status === "flagged" && (
+                                        <span
+                                            title={`Faktická brána označila tvrzení, které nemá oporu v ověřených faktech značky:\n${(post.fact_flags || []).join("\n") || "—"}\n\nDoplň fakt v Nastavení → Ověřená fakta, nebo to tvrzení z textu smaž.`}
+                                            className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/30 text-amber-400/80 text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-sm"
+                                        ><TriangleAlert className="w-3 h-3 shrink-0" />Ověř fakta</span>
+                                    )}
                                 </div>
                                 <span className="text-sm bg-white/5 shadow-sm border border-white/10 px-2 py-1 rounded-sm">{post.ig_post_types?.emoji || "📸"}</span>
                             </div>

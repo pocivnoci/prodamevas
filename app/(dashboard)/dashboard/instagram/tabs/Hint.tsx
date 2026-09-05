@@ -49,6 +49,8 @@ export const HINTS = {
 
     pillars: "Pilíře rozhodují, o čem se vůbec bude psát. Bez nich plán sklouzne k náhodným příspěvkům, které nikam nevedou. Tři až pět je ideál; víc jich značka neuhraje.",
 
+    facts: "AI si čísla a roky domýšlí stejně plynule, jako je opisuje — a lež v příspěvku odnese vaše značka, ne engine. Co tady nestojí, to o vás nenapíše: místo vymyšleného údaje napíše větu bez něj.",
+
     voiceExamples: "Jeden až tři příspěvky, které se vám opravdu líbí, drží tón silněji než jakékoli nastavení výš — model se učí z ukázky, ne z popisu.",
 
     formats: "Formát určuje cenu: obrázek 1 kredit, story 2, carousel 3, reel 5. Zapnout všechno znamená vyčerpat měsíční příděl rychleji, než čekáte.",

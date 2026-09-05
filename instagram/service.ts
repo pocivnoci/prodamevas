@@ -432,6 +432,12 @@ export async function logGeneration(log: {
     /** Format slug (ig_post_types.name) — lets the critic-feedback loop filter history
      *  per format instead of mixing scores across unrelated post types */
     postType?: string;
+    /** Výsledek faktické brány (instagram/fact-check.ts): clean | repaired | flagged.
+     *  null/undefined = brána neproběhla (vypnutá nebo judge nedostupný) — stejná
+     *  doktrína jako criticScore: nekontrolováno ≠ v pořádku. */
+    factStatus?: string | null;
+    /** Nepodložená tvrzení, která v textu ZŮSTALA — dashboard je ukazuje u postu. */
+    factFlags?: string[];
     /** Naměřená spotřeba za celou generaci (instagram/usage-meter.ts). Bez ní zůstanou
      *  sloupce NULL — telemetrie nikdy nesmí zdržet ani shodit zápis logu. */
     usage?: UsageTotals;
@@ -466,6 +472,8 @@ export async function logGeneration(log: {
             final_score: log.finalScore,
             angle: log.angle,
             post_type: log.postType,
+            fact_status: log.factStatus,
+            fact_flags: log.factFlags,
         });
 }
 

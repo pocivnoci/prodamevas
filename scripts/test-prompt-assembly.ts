@@ -8,7 +8,8 @@
  * Spuštění: npx tsx scripts/test-prompt-assembly.ts
  */
 
-import { buildMegaPrompt, buildVideoSchema, buildCaptionSchema, buildCarouselSchema, buildStorySchema, getPostTypeDef, buildSmartWeekPlan, PROMPT_LIMITS, CAROUSEL_MAX_TOTAL_SLIDES, sanitizeHashtags, assembleCaption } from "../instagram/caption-generator"
+import { buildMegaPrompt, buildVideoSchema, buildCaptionSchema, buildCarouselSchema, buildStorySchema, getPostTypeDef, buildSmartWeekPlan, PROMPT_LIMITS, CAROUSEL_MAX_TOTAL_SLIDES, sanitizeHashtags, assembleCaption, buildFactsSection } from "../instagram/caption-generator"
+import { buildFactCheckPrompt, applyFactFixes } from "../instagram/fact-check"
 import { readFileSync } from "fs"
 import { resolve } from "path"
 import { formatContextForPrompt, type ContextSignals } from "../instagram/context-agent"
@@ -637,6 +638,95 @@ test("výběr šablon je deterministický, ne náhodný", () => {
     assert(!/Math\.random/.test(body),
         "náhodný výběr střídá rytmus značky post od postu — stejný důvod, proč ho nemá ani výběr persony")
     assert(/pickStable\(/.test(body), "výběr musí jít přes deterministický pickStable")
+})
+
+// ─── Pravdivost: prompt nesmí dát modelu licenci vymýšlet ───
+
+console.log("\n✅ Pravidlo pravdivosti a ověřená fakta")
+
+test("pravidlo pravdivosti je v promptu i BEZ jediného zadaného faktu", () => {
+    const p = buildWith({ brandFacts: [] })
+    assert(p.includes("PRAVIDLO PRAVDIVOSTI"),
+        "prázdný seznam faktů znamená „piš bez čísel“, ne „vymysli si je“ — pravidlo musí platit vždycky")
+    assert(/PRIORITA 0/.test(p), "pravdivost musí přebíjet i hook a kreativitu, jinak prohraje s poutavostí")
+    assert(/^0\. Pravdivost/m.test(p), "seznam PRIORIT musí pravdivost vypsat, jinak si model pořadí vyloží sám")
+})
+
+test("zadaná fakta se dostanou do promptu i se zdrojem", () => {
+    const p = buildWith({ brandFacts: [{ text: "Pečeme od roku 1998", source: "test.cz/o-nas" }] })
+    assert(p.includes("Pečeme od roku 1998"), "fakt se do promptu nedostal")
+    assert(p.includes("test.cz/o-nas"), "zdroj faktu zmizel — pak se nedá dohledat, čím je tvrzení podložené")
+})
+
+test("buildFactsSection nevynechá výčet toho, co JE konkrétní tvrzení", () => {
+    const section = buildFactsSection({ ...config, brandFacts: [] } as any)
+    for (const kind of ["číslo", "rok", "cena", "superlativ", "záruky"]) {
+        assert(section.includes(kind), `výčet konkrétních tvrzení neuvádí „${kind}“ — model si hranici vyloží sám`)
+    }
+})
+
+test("faktická brána a copywriter čtou TENTÝŽ seznam faktů", () => {
+    const facts = [{ text: "Dovážíme do 24 hodin" }]
+    const p = buildWith({ brandFacts: facts })
+    const gate = buildFactCheckPrompt({ ...config, brandFacts: facts } as any, ["Dovážíme do 24 hodin po Praze."])
+    assert(p.includes("Dovážíme do 24 hodin") && gate.includes("Dovážíme do 24 hodin"),
+        "dva seznamy faktů by se rozešly a brána by trestala text za to, co si prompt sám dovolil")
+})
+
+test("brána bez faktů říká nahlas, že povolený zdroj neexistuje", () => {
+    const gate = buildFactCheckPrompt({ ...config, brandFacts: [] } as any, ["Jsme jedničkou na trhu."])
+    assert(/žádn/i.test(gate) && gate.includes("nepodložené"),
+        "prázdný seznam se musí přeložit na „všechno konkrétní je nepodložené“, ne na prázdný nadpis")
+})
+
+test("brána nesmí hodnotit styl — na to je kritik", () => {
+    const gate = buildFactCheckPrompt(config as any, ["Nejlepší ráno začíná kávou."])
+    assert(gate.includes("Nehodnotíš styl"),
+        "bez tohohle brána začne přepisovat hooky a pipeline dostane druhého kritika, ne korektora")
+})
+
+// ─── Oprava faktu je záměna podřetězce, ne prosba modelu ────
+
+console.log("\n🔧 Deterministická oprava nepodložených tvrzení")
+
+const draft = () => ({
+    hook: "Pečeme už 25 let",
+    body: "Pečeme už 25 let a chleba kynou přes noc.",
+    cta: "Stavte se",
+    imagePrompt: "bakery interior, 25 years old sign",
+    slides: [{ headline: "Pečeme už 25 let", subtext: "Poctivě", imagePrompt: "EN" }],
+    frames: [{ headline: "Pečeme už 25 let", subtext: "Poctivě" }],
+    scenes: [{ narration: "Pečeme už 25 let.", visual: "EN" }],
+})
+
+test("oprava projde všechna čtená pole naráz", () => {
+    const { data, applied, missed } = applyFactFixes(draft(), [{ find: "Pečeme už 25 let", replace: "Pečeme poctivě" }])
+    assert(applied === 1 && missed.length === 0, "oprava se nezapočítala")
+    assert(!JSON.stringify([data.hook, data.body, data.cta, data.slides, data.frames, data.scenes]).includes("25 let"),
+        "tvrzení zůstalo v některém poli — nepravda v jednom slidu je pořád nepravda")
+})
+
+test("imagePrompt zůstává netknutý", () => {
+    const { data } = applyFactFixes(draft(), [{ find: "25 years old sign", replace: "sign" }])
+    assert(data.imagePrompt.includes("25 years old sign"),
+        "brána sáhla do anglického popisu scény — tam nejsou tvrzení ke čtenáři, jen pokyny pro renderer")
+})
+
+test("netrefená citace se NESMÍ tvářit jako oprava", () => {
+    const { data, applied, missed } = applyFactFixes(draft(), [{ find: "pečeme už 25 LET", replace: "pečeme poctivě" }])
+    assert(applied === 0 && missed.length === 1, "judge si citaci upravil — to musí být poznat")
+    assert(data.body.includes("25 let"), "text se nezměnil, ale výsledek by tvrdil opak")
+})
+
+test("prázdná náhrada tvrzení smaže", () => {
+    const { data } = applyFactFixes(draft(), [{ find: " a chleba kynou přes noc", replace: "" }])
+    assert(data.body === "Pečeme už 25 let.", `zbylo: ${data.body}`)
+})
+
+test("bez oprav se nemění nic", () => {
+    const before = draft()
+    const { data, applied } = applyFactFixes(before, [])
+    assert(applied === 0 && JSON.stringify(data) === JSON.stringify(before), "brána šahá do textu i bez nálezu")
 })
 
 // ─── Report ─────────────────────────────────────────────────

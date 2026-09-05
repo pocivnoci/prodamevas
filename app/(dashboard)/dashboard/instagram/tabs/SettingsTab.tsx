@@ -480,9 +480,93 @@ function VoiceSection({ config, updateField, updateArrayField }: {
                 </div>
             </SectionCard>
 
+            <SectionCard title="Ověřená fakta" description="Jediná čísla, roky, ceny a garance, které smí AI o značce tvrdit" why={HINTS.facts}>
+                <FactsEditor config={config} updateField={updateField} />
+            </SectionCard>
+
             <SectionCard title="Šablony úvodních vět" description="Vzory pro úvodní věty — {{topic}} se nahradí automaticky">
                 <HookTemplatesEditor config={config} updateField={updateField} />
             </SectionCard>
+        </div>
+    )
+}
+
+/**
+ * Editor ověřených faktů.
+ *
+ * Fakt je řádek, volitelně `tvrzení | zdroj`. Textarea, ne formulář s poli: seznam
+ * se vyplňuje jednou při rozjezdu a pak se do něj málokdy sahá — a psát do řádků je
+ * rychlejší než klikat „přidat".
+ *
+ * `verifiedAt` se razítkuje sám: fakta stárnou (ceny, otvíračka, počty) a nikdo si
+ * nebude pamatovat, kdy je naposledy potvrdil. Nezměněný řádek si datum drží.
+ */
+function FactsEditor({ config, updateField }: { config: any; updateField: (p: string[], v: any) => void }) {
+    const facts: { text: string; source?: string; verifiedAt?: string }[] = config.brandFacts || []
+    const factCheckOn = config.factCheck !== false
+
+    const text = facts.map(f => (f.source ? `${f.text} | ${f.source}` : f.text)).join("\n")
+
+    const parse = (raw: string) => {
+        const today = new Date().toISOString().slice(0, 10)
+        const next = raw.split("\n").map(line => line.trim()).filter(Boolean).map(line => {
+            const [claim, ...rest] = line.split("|")
+            const fact: { text: string; source?: string; verifiedAt?: string } = { text: claim.trim() }
+            const source = rest.join("|").trim()
+            if (source) fact.source = source
+            const previous = facts.find(f => f.text === fact.text)
+            fact.verifiedAt = previous?.verifiedAt || today
+            return fact
+        })
+        updateField(["brandFacts"], next)
+    }
+
+    return (
+        <div className="space-y-5">
+            <div>
+                <FieldLabel hint="Jeden fakt na řádek. Za svislítko můžete připsat zdroj — kde se to dá ověřit.">Fakta o značce</FieldLabel>
+                <textarea
+                    value={text}
+                    onChange={(e) => parse(e.target.value)}
+                    rows={7}
+                    placeholder={"Pečeme od roku 1998 | chrlit.cz/o-nas\nDovážíme do 24 hodin po Praze\nNa všechno dáváme záruku 2 roky"}
+                    className={textareaClass}
+                />
+                <p className="text-[8px] text-white/20 mt-1">
+                    Co tady není, to AI nenapíše jako fakt — místo vymyšleného čísla napíše větu bez něj.
+                    Živý katalog produktů (ceny, názvy) sem psát nemusíte, ten engine čte sám.
+                </p>
+            </div>
+
+            {facts.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                    {facts.slice(0, 12).map((f, i) => (
+                        <span key={i} title={f.verifiedAt ? `Naposledy potvrzeno ${f.verifiedAt}` : undefined}
+                            className="px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-sm text-[9px] text-emerald-400/70 font-bold uppercase tracking-wider">
+                            {f.text.length > 48 ? f.text.slice(0, 48) + "…" : f.text}
+                        </span>
+                    ))}
+                </div>
+            )}
+
+            <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-4">
+                <div>
+                    <p className="text-xs text-white/70 font-bold">Kontrolovat fakta v hotovém textu</p>
+                    <p className="text-[9px] text-white/30 mt-0.5">
+                        Po napsání příspěvku projde text kontrola tvrzení. Nepodložené číslo nebo garanci vymění
+                        za bezpečné znění; co se opravit nedá, dostane na kartě příspěvku varování.
+                    </p>
+                </div>
+                <button
+                    onClick={() => updateField(["factCheck"], !factCheckOn)}
+                    role="switch"
+                    aria-checked={factCheckOn}
+                    aria-label="Kontrolovat fakta v hotovém textu"
+                    className={`relative w-12 h-6 shrink-0 rounded-full transition-colors border ${factCheckOn ? "bg-emerald-500/30 border-emerald-500/50" : "bg-white/5 border-white/15"}`}
+                >
+                    <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${factCheckOn ? "left-6 bg-emerald-400" : "left-0.5 bg-white/40"}`} />
+                </button>
+            </div>
         </div>
     )
 }

@@ -427,6 +427,40 @@ ${lines}
 }
 
 /**
+ * PRAVIDLO PRAVDIVOSTI + seznam ověřených faktů.
+ *
+ * Model si konkrétní tvrzení domýšlí stejně plynule, jako je opisuje — „už 25 let",
+ * „nejrychlejší v Česku", „72 % zákazníků" zní v postu úplně stejně věrohodně, ať už
+ * to je pravda, nebo ne. Kritik to nechytí: hodnotí hook, tělo, CTA a originalitu,
+ * tedy STYL. Proto tenhle blok jde do promptu VŽDYCKY, i když značka žádná fakta
+ * zadaná nemá — prázdný seznam znamená „piš bez konkrétních čísel", ne „vymysli si je".
+ *
+ * Druhá vrstva (brána nad hotovým textem) je instagram/fact-check.ts; tahle je prevence,
+ * ta je kontrola. Obě čtou tentýž seznam config.brandFacts.
+ */
+export function buildFactsSection(config: ClientConfig): string {
+    const facts = (config.brandFacts || []).filter(f => f?.text?.trim())
+    const list = facts.length > 0
+        ? facts.map(f => `- ${f.text.trim()}${f.source ? ` _(zdroj: ${f.source})_` : ""}`).join("\n")
+        : "_(značka zatím nemá zadaná žádná ověřená fakta — o to přísněji platí pravidlo níž)_"
+
+    return `
+## ✅ OVĚŘENÁ FAKTA O ZNAČCE
+${list}
+
+### ⛔ PRAVIDLO PRAVDIVOSTI (PRIORITA 0 — přebíjí VŠECHNO ostatní, i hook a kreativitu)
+Konkrétní tvrzení smíš napsat JEN tehdy, když stojí (a) v ověřených faktech výš,
+(b) u vybraného produktu, nebo (c) v zadaném námětu / tématu od uživatele.
+Konkrétní tvrzení = číslo, procento, rok, doba působení, cena, sleva, délka záruky,
+počet zákazníků/kusů, ocenění, certifikát, jméno třetí strany, superlativ
+(„největší", „jediný", „nejrychlejší") a jakýkoli slib („do 24 hodin", „garantujeme").
+Když fakt nemáš, napiš post BEZ něj — konkrétní obraz, situace nebo detail ze života
+značky funguje líp než vymyšlené číslo. Nikdy si údaj nedoplňuj „pro ilustraci",
+„jako příklad" ani „přibližně". Radši vágní pravda než přesná lež.
+`
+}
+
+/**
  * Resolve the CTA policy for one post from config (pillar ctaStrategy + selected
  * product + audience persona tone). Lives here — not in cta-policy.ts — because it
  * needs getPillarForType/selectPersonaForPost; cta-policy stays an import leaf.
@@ -1016,12 +1050,13 @@ Brand: ${config.name} | Web: ${config.website} | IG: ${config.instagram}
 Značka je o tomhle: ${config.contentFocus}
 
 ## 🧭 PRIORITY (při konfliktu instrukcí VŽDY vyhrává nižší číslo)
+0. Pravdivost (viz PRAVIDLO PRAVDIVOSTI níž) — nic ji nepřebíjí
 1. Zadané téma od uživatele / schválený hook
 2. Vybraný produkt + CTA politika
 3. Brand voice, persona a zlatý standard
 4. Learning data (reálný výkon, brand memory, feedback kritika)
 5. Kontext a inspirace (hooky, nápady, recenze)
-
+${buildFactsSection(config)}
 ## BRAND VOICE
 ${bv.voiceTraits.map(t => `- ${t}`).join("\n")}
 
