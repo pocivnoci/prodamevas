@@ -99,11 +99,12 @@ function tidy(v: string): string {
 
 /**
  * Aplikuje opravy podřetězcem přes všechna čtená textová pole. Čistá funkce —
- * testuje ji scripts/test-fact-check.ts bez volání modelu.
+ * testuje ji scripts/test-prompt-assembly.ts bez volání modelu.
  *
  * Vrací i `missed`: `find`, které se v textu nenašlo, znamená, že si judge citaci
- * upravil (velké písmeno, jiná diakritika). Takové tvrzení se NESMÍ tvářit jako
- * opravené — zůstává příznakem, ať je vidět.
+ * upravil (velké písmeno, jiná diakritika) a záměna neproběhla. O tom, jestli
+ * tvrzení v postu zůstalo, ale rozhoduje HOTOVÝ text (viz checkCaptionFacts) —
+ * překrývající se opravy jinak hlásí nález, který už mezitím vypadl.
  */
 export function applyFactFixes<T>(data: T, fixes: { find: string; replace: string }[]): { data: T; applied: number; missed: string[] } {
     let applied = 0
@@ -147,7 +148,7 @@ export function buildFactCheckPrompt(config: ClientConfig, texts: string[], ctx:
     const facts = (config.brandFacts || []).filter(f => f?.text?.trim())
     const factList = facts.length > 0
         ? facts.map(f => `- ${f.text.trim()}${f.source ? ` (zdroj: ${f.source})` : ""}`).join("\n")
-        : "(žádná — značka nemá zadané ani jedno ověřené fakt, takže KAŽDÉ konkrétní tvrzení o značce je nepodložené)"
+        : "(žádná — značka nemá zadaný ani jeden ověřený fakt, takže KAŽDÉ konkrétní tvrzení o značce je nepodložené)"
 
     const productBlock = ctx.product
         ? `\n## POVOLENÝ ZDROJ — VYBRANÝ PRODUKT (živý katalog)\nNázev: ${ctx.product.name}\n${ctx.product.type ? `Typ: ${ctx.product.type}\n` : ""}${ctx.product.price ? `Cena: ${ctx.product.price}\n` : ""}${ctx.product.description ? `Popis: ${ctx.product.description}\n` : ""}`
