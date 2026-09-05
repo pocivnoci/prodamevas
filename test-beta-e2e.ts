@@ -3934,6 +3934,31 @@ test("36.4 brána nikdy nezabije post, ale mlčky ho nepustí", () => {
         "a nikdo pak nepozná, až začne mazat i pravdu")
 })
 
+test("36.4b posuvník opatrnosti vynucuje KÓD, ne prompt", () => {
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/if \(mode === "bold"\) return false/.test(fc),
+        "odvážný režim nesmí přepsat nic — prompt se dá přemluvit, `if` ne")
+    assert(/hasNumber\(c\.find\) && hasNumber\(c\.replace as string\)/.test(fc),
+        "ve vyváženém režimu smí do nadpisu jen výměna hodnoty za hodnotu; jinak z úderného " +
+        "nadpisu vznikne vata (naměřeno: 'Záruka 5 let' → 'Kvalita, na kterou se spolehneš')")
+    const cfg = codeOnly("instagram/configs/index.ts")
+    assert(/factCheckMode/.test(cfg) && /"balanced"/.test(cfg),
+        "neznámá hodnota režimu musí spadnout na default, ne do pipeline")
+})
+
+test("36.4c oba posuvníky slibují uživateli totéž", () => {
+    const lib = codeOnly("lib/fact-check-modes.ts")
+    assert(/FACT_CHECK_MODES/.test(lib), "stupně posuvníku mají jediný zdroj pravdy")
+    for (const file of [
+        "app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx",
+        "app/onboarding/page.tsx",
+    ]) {
+        const ui = fileContent(file)
+        assert(/FACT_CHECK_MODES/.test(ui),
+            `${file} si píše vlastní popisky režimů — dva sliby o tomtéž se rozejdou`)
+    }
+})
+
 test("36.5 fakta mají default a dostanou se do promptu i do brány", () => {
     const cfg = codeOnly("instagram/configs/index.ts")
     assert(/brandFacts: config\.brandFacts \|\| \[\]/.test(cfg), "chybějící pole nesmí být výbušnina")

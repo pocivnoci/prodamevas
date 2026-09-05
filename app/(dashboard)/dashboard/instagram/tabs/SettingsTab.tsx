@@ -13,6 +13,7 @@ import { BillingSection } from "./BillingSection"
 import { ConsultationSection } from "./ConsultationSection"
 import { FEED_PATTERNS, computeSlotIntent, type FeedPatternId } from "@/lib/feed-pattern"
 import { Hint, HINTS } from "./Hint"
+import { FACT_CHECK_MODES, factCheckModeIndex } from "@/lib/fact-check-modes"
 import { getPublishOutlook, armAutoPublishNow, type PublishOutlook } from "@/app/actions/calendar-actions"
 import { useStudioNavigate } from "@/app/(dashboard)/StudioContext"
 import { Ban, CalendarDays, Camera, ClipboardList, Hand, Hash, Landmark, Megaphone, Mic, Palette, Puzzle, RefreshCw, Send, Settings, ShoppingBag, Trash2, TriangleAlert, User, Users } from "lucide-react"
@@ -504,7 +505,7 @@ function VoiceSection({ config, updateField, updateArrayField, projectId }: {
  */
 function FactsEditor({ config, updateField, projectId }: { config: any; updateField: (p: string[], v: any) => void; projectId: string }) {
     const facts: { text: string; source?: string; verifiedAt?: string }[] = config.brandFacts || []
-    const factCheckOn = config.factCheck !== false
+    const modeIndex = factCheckModeIndex(config.factCheckMode ?? (config.factCheck === false ? "off" : undefined))
     const [scanning, setScanning] = useState(false)
     const [scanMsg, setScanMsg] = useState<string | null>(null)
 
@@ -587,23 +588,32 @@ function FactsEditor({ config, updateField, projectId }: { config: any; updateFi
                 </div>
             )}
 
-            <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-4">
-                <div>
-                    <p className="text-xs text-white/70 font-bold">Kontrolovat fakta v hotovém textu</p>
-                    <p className="text-[9px] text-white/30 mt-0.5">
-                        Po napsání příspěvku projde text kontrola tvrzení. Nepodložené číslo nebo garanci vymění
-                        za bezpečné znění; co se opravit nedá, dostane na kartě příspěvku varování.
-                    </p>
+            <div className="border-t border-white/10 pt-4">
+                <FieldLabel hint="Ani jeden konec posuvníku nepustí lež. Mění se jen to, jestli nepodložené tvrzení opraví engine sám, nebo ho pošle vám.">
+                    Kontrola tvrzení v hotovém textu
+                </FieldLabel>
+                <input
+                    type="range"
+                    min={0}
+                    max={FACT_CHECK_MODES.length - 1}
+                    step={1}
+                    value={modeIndex}
+                    onChange={(e) => updateField(["factCheckMode"], FACT_CHECK_MODES[Number(e.target.value)].value)}
+                    aria-label="Kontrola tvrzení v hotovém textu"
+                    className="w-full accent-emerald-400 mt-1"
+                />
+                <div className="flex justify-between mt-1">
+                    {FACT_CHECK_MODES.map((m, i) => (
+                        <button
+                            key={m.value}
+                            onClick={() => updateField(["factCheckMode"], m.value)}
+                            className={`text-[8px] uppercase tracking-widest font-bold transition-colors ${i === modeIndex ? "text-emerald-400" : "text-white/25 hover:text-white/50"}`}
+                        >{m.label}</button>
+                    ))}
                 </div>
-                <button
-                    onClick={() => updateField(["factCheck"], !factCheckOn)}
-                    role="switch"
-                    aria-checked={factCheckOn}
-                    aria-label="Kontrolovat fakta v hotovém textu"
-                    className={`relative w-12 h-6 shrink-0 rounded-full transition-colors border ${factCheckOn ? "bg-emerald-500/30 border-emerald-500/50" : "bg-white/5 border-white/15"}`}
-                >
-                    <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${factCheckOn ? "left-6 bg-emerald-400" : "left-0.5 bg-white/40"}`} />
-                </button>
+                <p className="text-[10px] text-white/50 mt-3 bg-white/5 border border-white/10 rounded-sm px-3 py-2">
+                    {FACT_CHECK_MODES[modeIndex].detail}
+                </p>
             </div>
         </div>
     )

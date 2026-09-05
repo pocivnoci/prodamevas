@@ -64,18 +64,28 @@ export interface FactContext {
     postTypeName?: string
 }
 
-/** Textová pole, která čte člověk (a proto můžou zalhat). imagePrompt je anglický
- *  popis scény pro renderer, ne tvrzení ke čtenáři — ten se neověřuje. */
-function collectTexts(data: any): string[] {
-    const out: string[] = []
-    const push = (v: unknown) => { if (typeof v === "string" && v.trim()) out.push(v.trim()) }
-    push(data?.hook)
+/**
+ * Textová pole, která čte člověk (a proto můžou zalhat). imagePrompt je anglický
+ *  popis scény pro renderer, ne tvrzení ke čtenáři — ten se neověřuje.
+ *
+ * `display: true` = text, který se VYPALUJE DO OBRÁZKU (hook, nadpisy slidů,
+ * snímky story, podtext na coveru). Na plakátu o třech slovech je rozdíl mezi
+ * opravou a vatou vidět okamžitě — naměřeno: „Vyrábíme od roku 1947" brána nejdřív
+ * měnila na „Vyrábíme s dlouholetou tradicí", což je přesně ten korporátní blábol,
+ * který má značka v anti-patterns. Proto brána musí vědět, co je nadpis.
+ */
+function collectTexts(data: any): { text: string; display: boolean }[] {
+    const out: { text: string; display: boolean }[] = []
+    const push = (v: unknown, display = false) => {
+        if (typeof v === "string" && v.trim()) out.push({ text: v.trim(), display })
+    }
+    push(data?.hook, true)
     push(data?.body)
     push(data?.caption)
     push(data?.cta)
-    push(data?.imageSubtext)
-    for (const s of data?.slides || []) { push(s?.headline); push(s?.subtext) }
-    for (const f of data?.frames || []) { push(f?.headline); push(f?.subtext) }
+    push(data?.imageSubtext, true)
+    for (const s of data?.slides || []) { push(s?.headline, true); push(s?.subtext, true) }
+    for (const f of data?.frames || []) { push(f?.headline, true); push(f?.subtext, true) }
     for (const sc of data?.scenes || []) { push(sc?.narration) }
     return out
 }
@@ -131,7 +141,7 @@ export function applyFactFixes<T>(data: T, fixes: { find: string; replace: strin
 
     // Kolik oprav vůbec někde sedí — spočítané PŘED zápisem, ať se `find` nepočítá
     // podruhé v textu, který už je opravený.
-    const haystack = collectTexts(clone).join("\n")
+    const haystack = collectTexts(clone).map(t => t.text).join("\n")
     for (const f of fixes) {
         if (f.find && haystack.indexOf(f.find) !== -1) applied++
         else missed.push(f.find)
@@ -148,7 +158,12 @@ export function applyFactFixes<T>(data: T, fixes: { find: string; replace: strin
 /**
  * Prompt brány. Čistá funkce (exportovaná kvůli guardu) — ŽÁDNÉ volání modelu.
  */
-export function buildFactCheckPrompt(config: ClientConfig, texts: string[], ctx: FactContext = {}): string {
+export function buildFactCheckPrompt(
+    config: ClientConfig,
+    texts: { text: string; display: boolean }[],
+    ctx: FactContext = {},
+    mode: "safe" | "balanced" | "bold" = "balanced",
+): string {
     const facts = (config.brandFacts || []).filter(f => f?.text?.trim())
     const factList = facts.length > 0
         ? facts.map(f => `- ${f.text.trim()}${f.source ? ` (zdroj: ${f.source})` : ""}`).join("\n")
@@ -171,7 +186,7 @@ Nehodnotíš styl, hook ani kreativitu — jenom PRAVDIVOST. Styl řeší někdo
 ${factList}
 ${productBlock}${topicBlock}${reviewBlock}
 ## TEXT KE KONTROLE${ctx.postTypeName ? ` (formát: ${ctx.postTypeName})` : ""}
-${texts.map((t, i) => `[${i + 1}] ${t}`).join("\n")}
+${texts.map((t, i) => `[${i + 1}]${t.display ? " 🖼 NADPIS DO OBRÁZKU:" : ""} ${t.text}`).join("\n")}
 
 ## CO HLEDÁŠ
 Konkrétní tvrzení, které si čtenář může ověřit a přistihnout značku při lži:
@@ -204,6 +219,11 @@ Konkrétní tvrzení, které si čtenář může ověřit a přistihnout značku
 - \`find\` = PŘESNÝ podřetězec z textu výš, znak po znaku, včetně diakritiky a
   interpunkce. Nic nepřepisuj, nezkracuj, needituj velikost písmen. Ber nejkratší
   úsek, který nepodložené tvrzení obsahuje (ideálně celou větu).
+- **Maž po celých větách.** Když tvrzení mizí, musí \`find\` obsáhnout CELOU větu včetně
+  spojky a tečky, ať zbytek zůstane gramaticky celý. Utržená spojka je poznat na první
+  přečtení: z „Vyrábíme od roku 1947 a testy ADAC nás daly na první místo. Kontaktní tuk…"
+  nesmí vzniknout „Vyrábíme od roku 1947 a Kontaktní tuk…". Buď vezmi celé souvětí, nebo
+  nech tvrzení být a označ ho bez opravy.
 - \`replace\` = tentýž úsek bez nepodloženého tvrzení. Zachovej tón, rytmus i délku
   a hlavně SMYSL věty. Neuváděj místo čísla jiné číslo.
 - ⚠️ NEHEDGUJ. „Dlouhá léta", „mnoho zákazníků", „spousta lidí", „jedni z nejlepších"
@@ -212,6 +232,34 @@ Konkrétní tvrzení, které si čtenář může ověřit a přistihnout značku
   nebo ho vyměň za smyslový detail, který se nedá zpochybnit, protože ho vidíš:
   „chleba, co při krájení chrupe", „ráno v pět je v peci plno". Konkrétní obraz místo
   vymyšleného čísla — ne vágní náhražka téhož tvrzení.
+
+## 🖼 NADPISY DO OBRÁZKU MAJÍ PŘÍSNĚJŠÍ PRAVIDLA
+Řádky označené „NADPIS DO OBRÁZKU" se VYPALUJÍ DO GRAFIKY. Jsou to tři až sedm slov
+na plakátu — vata je tam vidět okamžitě a zabírá celou plochu. Proto u nich platí:
+1. **Máš-li v ověřených faktech správnou hodnotu, DOSAĎ JI** místo špatné. To je
+   nejlepší možná oprava: „Odolá až +300 °C" → „Odolá až +150 °C". Nadpis zůstane
+   stejně úderný a je pravdivý.
+2. ${mode === "safe"
+    ? `**Nemáš-li čím nahradit, tvrzení z nadpisu VYPUSŤ a napiš jiné úderné sdělení** —
+   benefit bez čísla, otázka, výzva, pojmenování problému. NIKDY z něj nedělej
+   rozmazanou verzi téhož tvrzení.`
+    : `**Nemáš-li v ověřených faktech správnou hodnotu, nadpis NEPŘEPISUJ.** Vrať ho
+   jako riziko BEZ \`find\`/\`replace\` — vyřeší ho člověk před publikací. Přepsaný
+   nadpis bez opory skončí jako vata („Kvalita, na kterou se spolehneš"), a to je
+   u nadpisu horší než upozornění.`}
+   ❌ „Vyrábíme od roku 1947" → „Vyrábíme s dlouholetou tradicí" (vata, a ještě
+      korporátní — přesně to, co si značky zakazují v anti-patterns)
+   ✅ „Vyrábíme od roku 1947" → nadpis o TOM, co značka dělá dnes, bez letopočtu
+   ❌ „9 z 10 servisů to ví" → „Servisy to potvrzují" (mlha místo čísla)
+   ✅ „9 z 10 servisů to ví" → nadpis o tom, KDE se to používá, bez podílu
+3. **Nikdy nevyrob NOVÉ tvrzení.** Nadpis smí být obecnější, ne jinak konkrétní.
+   ❌ „Doprava zdarma nad 500 Kč" → „Doprava zdarma při nákupu" (zní, jako by byla
+      vždycky zdarma — z nepodloženého tvrzení se stalo zavádějící)
+   ✅ „Doprava zdarma nad 500 Kč" → nadpis o snadnosti objednání, bez podmínky
+
+⚠️ Příklady výš jsou ukázka POSTUPU, ne texty k opsání. Konkrétní znění napiš vždycky
+z tohohle postu a téhle značky — opsaný příklad je nové nepodložené tvrzení.
+4. Délku drž stejnou nebo kratší. Dlouhý nadpis se do grafiky nevejde.
 
 ## VÝSTUP — vrať POUZE validní JSON:
 {
@@ -234,13 +282,14 @@ export async function checkCaptionFacts<T>(
 ): Promise<FactCheckOutcome<T>> {
     const base: FactCheckOutcome<T> = { status: "skipped", captionData, changed: false, flags: [], repairs: [], judged: false }
 
-    if (config.factCheck === false) return base
+    const mode = config.factCheckMode ?? (config.factCheck === false ? "off" : "balanced")
+    if (mode === "off") return base
     const texts = collectTexts(captionData)
     if (texts.length === 0) return base
 
     let claims: FactClaim[]
     try {
-        const raw = await judgeText(buildFactCheckPrompt(config, texts, ctx), { label: "fact-check" })
+        const raw = await judgeText(buildFactCheckPrompt(config, texts, ctx, mode), { label: "fact-check" })
         const match = raw.match(/\{[\s\S]*\}/)
         const parsed = JSON.parse(match?.[0] || raw)
         claims = Array.isArray(parsed?.claims) ? parsed.claims : []
@@ -253,9 +302,24 @@ export async function checkCaptionFacts<T>(
     const risky = claims.filter(c => c?.verdict === "risk")
     if (risky.length === 0) return { ...base, status: "clean", judged: true }
 
-    const fixes = risky
-        .filter(c => typeof c.find === "string" && c.find.trim().length > 0 && typeof c.replace === "string")
-        .map(c => ({ find: c.find as string, replace: c.replace as string }))
+    // Které opravy se vůbec smějí použít, rozhoduje REŽIM — a rozhoduje se v kódu.
+    // Prompt se dá přemluvit, `if` ne; a rozdíl mezi „opravím nadpis" a „nechám to na
+    // člověku" je přesně to, co si klient nastavuje posuvníkem.
+    const displayTexts = new Set(collectTexts(captionData).filter(t => t.display).map(t => t.text))
+    const hasNumber = (v: string) => /\d/.test(v)
+    const usable = (c: FactClaim): boolean => {
+        if (typeof c.find !== "string" || !c.find.trim() || typeof c.replace !== "string") return false
+        if (mode === "bold") return false // nepřepisuje nic, jen značkuje
+        if (mode === "safe") return true
+        // balanced: v nadpisu do obrázku smí jen VÝMĚNA HODNOTY za správnou.
+        // Poznávací znamení: původní text nese číslo a náhrada taky. Bez čísla by
+        // z úderného nadpisu vznikla vata („Záruka 5 let" → „Kvalita, na kterou se
+        // spolehneš") — naměřeno, proto to hlídá kód, ne dobrá vůle modelu.
+        const inDisplay = [...displayTexts].some(t => t.includes(c.find as string))
+        if (!inDisplay) return true
+        return hasNumber(c.find) && hasNumber(c.replace as string)
+    }
+    const fixes = risky.filter(usable).map(c => ({ find: c.find as string, replace: c.replace as string }))
 
     const { data, missed } = applyFactFixes(captionData, fixes)
     const changed = JSON.stringify(data) !== JSON.stringify(captionData)
@@ -265,7 +329,7 @@ export async function checkCaptionFacts<T>(
     // uvnitř sebe), takže „tenhle claim neměl vlastní find" ještě neznamená, že
     // v postu zůstal — naměřeno na první ostré zkoušce, kde brána označila post
     // za rizikový kvůli ocenění, které z něj sama předtím vyhodila.
-    const after = collectTexts(data).join("\n")
+    const after = collectTexts(data).map(t => t.text).join("\n")
     const unresolved = risky.filter(c => {
         const needle = (c.find && c.find.trim()) || c.claim
         if (needle && after.indexOf(needle) === -1) return false
