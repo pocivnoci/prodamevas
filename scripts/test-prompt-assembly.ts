@@ -826,6 +826,17 @@ test("prázdná adresa se chová stejně", () => {
     assert(policy.allowWebsite === false, "prázdná adresa nesmí povolit web")
 })
 
+test("samotný zavináč není handle", () => {
+    // Reálný stav tří klientů: config.instagram = "@". V promptu z toho je „IG: @"
+    // a model to čte jako handle značky.
+    const code = readFileSync(resolve(__dirname, "../instagram/configs/index.ts"), "utf-8")
+    assert(/normalizeHandle\(config\.instagram, slug\)/.test(code), "handle musí projít normalizací")
+    assert(/\^@\[A-Za-z0-9\._\]\{2,\}\$/.test(code), "handle je @ + aspoň dva povolené znaky")
+    const onb = readFileSync(resolve(__dirname, "../app/onboarding/core.ts"), "utf-8")
+    assert(/handle \? `@\$\{handle\}` : ''/.test(onb),
+        "onboarding nesmí z prázdného handle vyrobit samotné @ — tak ta vada vznikla")
+})
+
 test("platná adresa zůstává nedotčená", () => {
     const policy = resolveCtaPolicy({ pillarCtaStrategy: "hard", website: "https://test.cz", selectedProduct: { name: "Tričko", slug: "tricko" } })
     assert(policy.allowWebsite === true, "platný web musí projít")

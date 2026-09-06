@@ -190,6 +190,15 @@ function normalizeWebsite(raw: string | undefined, slug: string): string {
     return ""
 }
 
+/** Handle je „@" + aspoň dva povolené znaky, jinak to handle není. Viz normalizeWebsite. */
+function normalizeHandle(raw: string | undefined, slug: string): string {
+    const handle = (raw || "").trim()
+    if (!handle) return ""
+    if (/^@[A-Za-z0-9._]{2,}$/.test(handle)) return handle
+    console.warn(`⚠️ [${slug}] "${handle}" není instagramový handle — engine ho ignoruje. Doplň ho v Nastavení.`)
+    return ""
+}
+
 function validateConfig(config: ClientConfig, slug: string): ClientConfig {
     // reconcileFormats self-heals the four format sources on every load — drift
     // (e.g. a format orphaned by a deleted pillar) never reaches the pipeline.
@@ -203,7 +212,9 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // shodí CTA na engagement (viz resolveCtaPolicy), místo aby slibovala proklik,
         // který nikam nevede.
         website: normalizeWebsite(config.website, slug),
-        instagram: config.instagram || "",
+        // Táž doktrína jako u webu: buď handle, nebo prázdno. Samotný „@" (reálný stav
+        // tří klientů) je v promptu „IG: @" — a model z toho udělá výzvu „sleduj nás na @".
+        instagram: normalizeHandle(config.instagram, slug),
         // Doplňuje se PO POLÍCH, ne vcelku. Dřív se default použil jen když `brandVoice`
         // úplně chyběl — jenže onboarding zapisuje surový výstup modelu bez kontroly
         // tvaru (app/onboarding/actions.ts), takže stačilo, aby AI jednou vynechala
