@@ -316,6 +316,32 @@ Když text žádné konkrétní tvrzení neobsahuje, vrať {"claims": []}.`
 }
 
 /**
+ * Brána nad samostatnými řetězci, které se TISKNOU (nadpis, podnadpis, patička
+ * tiskového briefu). Tisk je nejtvrdší médium — vytištěný leták s vymyšleným údajem
+ * se nesmaže a klient ho drží v ruce.
+ *
+ * Uvnitř staví ze vstupu synteticky `frames`, aby jel přesně tentýž kód jako u
+ * příspěvků: stejná pravidla pro nadpisy do obrázku, stejná ochrana proti vyprázdnění
+ * pole, stejné filtrování oprav podle režimu. Druhá implementace téhož by se rozešla.
+ */
+export async function checkDisplayStrings(
+    config: ClientConfig,
+    strings: string[],
+    ctx: FactContext = {},
+): Promise<{ status: FactStatus; strings: string[]; flags: string[]; repairs: { claim: string; from: string; to: string }[]; judged: boolean }> {
+    const usable = strings.map(s => (s || "").trim())
+    if (usable.every(s => !s)) {
+        return { status: "skipped", strings, flags: [], repairs: [], judged: false }
+    }
+    const synthetic = { frames: usable.map(text => ({ headline: text, subtext: "" })) }
+    const out = await checkCaptionFacts(config, synthetic, ctx)
+    const back = (out.captionData as typeof synthetic).frames.map(f => f.headline)
+    // Prázdné vstupy se vrací tak, jak přišly — index po indexu.
+    const merged = strings.map((orig, i) => (usable[i] ? back[i] : orig))
+    return { status: out.status, strings: merged, flags: out.flags, repairs: out.repairs, judged: out.judged }
+}
+
+/**
  * Ověří hotový text proti povoleným zdrojům a deterministicky opraví, co je
  * nepodložené. Nikdy nevyhazuje — post se nesmí zabít kvůli bráně; selhání je ale
  * v logu vidět.

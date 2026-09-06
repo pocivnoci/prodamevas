@@ -87,6 +87,10 @@ export interface PrintBrief {
     negativePrompt: string
     /** How this deliberately differs from recent designs */
     divergenceNote?: string
+    /** Výsledek faktické brány nad tištěným textem. Ukládá se s briefem do
+     *  ig_product_designs, ať je u návrhu vidět, že v něm zůstalo tvrzení bez opory —
+     *  tisk se na rozdíl od postu nedá vzít zpátky. */
+    factCheck?: { status: string; flags: string[] }
 }
 
 export interface PrintSpec {
@@ -364,6 +368,26 @@ Vrať POUZE validní JSON.`
     brief.artworkKind = geo.kind
     // The user's explicit copy wins over anything the model invented for the headline.
     if (opts.overlayText) brief.typography.headline = opts.overlayText
+
+    // Faktická brána nad TIŠTĚNÝM textem. Tisk je nejtvrdší médium: vytištěný leták
+    // s vymyšleným údajem se nesmaže a klient ho drží v ruce. Nadpis zadaný člověkem
+    // (opts.overlayText) se nikdy nepřepisuje — za svoje slova si ručí sám; kontrolují
+    // se jen texty, které napsal model. Fail-open, ale nahlas.
+    try {
+        const { checkDisplayStrings } = await import("./fact-check")
+        const authored = opts.overlayText ? [brief.typography.sub, brief.typography.small] : [brief.typography.headline, brief.typography.sub, brief.typography.small]
+        const out = await checkDisplayStrings(config, authored.map(t => t || ""), { postTypeName: `tisk/${geo.kind}` })
+        if (out.judged) {
+            const [a, b, c] = out.strings
+            if (opts.overlayText) { brief.typography.sub = a || brief.typography.sub; brief.typography.small = b || brief.typography.small }
+            else { brief.typography.headline = a || brief.typography.headline; brief.typography.sub = b || brief.typography.sub; brief.typography.small = c || brief.typography.small }
+            brief.factCheck = { status: out.status, flags: out.flags }
+            if (out.repairs.length) console.log(`   🔧 Faktická brána (tisk): ${out.repairs.length} tvrzení opraveno`)
+            if (out.flags.length) console.warn(`   🚩 Faktická brána (tisk): ZŮSTALO nepodložené tvrzení — ${out.flags.join(" | ")}`)
+        }
+    } catch (err) {
+        console.warn(`   ⚠️ Faktická brána nad tiskem nedoběhla: ${String((err as Error)?.message || err).slice(0, 100)}`)
+    }
     return brief
 }
 
