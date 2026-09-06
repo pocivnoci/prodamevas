@@ -21,7 +21,7 @@ import { checkCaptionFacts, type FactStatus } from '../instagram/fact-check'
 import { withUsageScope, currentUsage } from '../instagram/usage-meter'
 import { costUsdForBreakdown } from '../lib/model-pricing'
 
-type Row = { slug: string; status: FactStatus | "chyba"; oprav: number; oznaceno: number; hook: string; flags: string[] }
+type Row = { slug: string; status: FactStatus | "chyba"; oprav: number; oznaceno: number; hook: string; flags: string[]; repairs: { from: string; to: string }[] }
 
 async function main() {
     const args = process.argv.slice(2)
@@ -80,10 +80,11 @@ async function main() {
                         oznaceno: out.flags.length,
                         hook: draft.hook.slice(0, 46),
                         flags: out.flags,
+                        repairs: out.repairs.map(r => ({ from: r.from, to: r.to })),
                     })
                 })
             } catch (e) {
-                rows.push({ slug: client.slug, status: 'chyba', oprav: 0, oznaceno: 0, hook: draft.hook.slice(0, 46), flags: [String(e).slice(0, 60)] })
+                rows.push({ slug: client.slug, status: 'chyba', oprav: 0, oznaceno: 0, hook: draft.hook.slice(0, 46), flags: [String(e).slice(0, 60)], repairs: [] })
             }
         }
         const mine = rows.filter(r => r.slug === client.slug)
@@ -112,6 +113,7 @@ async function main() {
         for (const r of problem) {
             console.log(`  [${r.status}] ${r.slug} — "${r.hook}"`)
             for (const f of r.flags.slice(0, 3)) console.log(`        ⚠ ${f}`)
+            for (const rep of r.repairs.slice(0, 3)) console.log(`        ✎ "${rep.from.slice(0, 60)}" → "${rep.to.slice(0, 60)}"`)
         }
     }
     console.log()

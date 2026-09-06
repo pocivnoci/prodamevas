@@ -204,6 +204,13 @@ export function buildFactCheckPrompt(
     return `Jsi faktický korektor českého marketingového textu pro značku "${config.name}" (${config.website}).
 Nehodnotíš styl, hook ani kreativitu — jenom PRAVDIVOST. Styl řeší někdo jiný.
 
+## POVOLENÝ ZDROJ — IDENTITA ZNAČKY (nastavení klienta, platí jako ověřené)
+Název: ${config.name}
+Web: ${config.website}${config.instagram ? `\nInstagram: ${config.instagram}` : ""}${config.city ? `\nPůsobí ve městě / lokalitě: ${config.city}` : ""}${config.industry ? `\nObor: ${config.industry}` : ""}${config.contentFocus ? `\nO čem značka je: ${config.contentFocus}` : ""}
+Tohle si klient nastavil sám. Jméno značky, její město a obor jsou proto OVĚŘENÉ —
+zmínka o nich není tvrzení k prověření. Naměřeno: bez tohohle bloku brána mazala
+z postů název města, ve kterém klient sídlí, a dělala tím obsah méně lokálním.
+
 ## POVOLENÝ ZDROJ — OVĚŘENÁ FAKTA O ZNAČCE
 ${factList}
 ${productBlock}${topicBlock}${reviewBlock}${ideaBlock}
@@ -234,7 +241,23 @@ Konkrétní tvrzení, které si čtenář může ověřit a přistihnout značku
   doba, dodací lhůta, termín, dostupnost.
 - Popis vlastního produktu, který sedí na jeho popis v katalogu výš.
 - Ustálené obraty a nadsázka, kterou nikdo nečte jako údaj („nekonečně dlouho",
-  „milionkrát ověřeno").
+  „milionkrát ověřeno"). **Číslo v nadsázce není údaj**: „praští do očí z padesáti
+  metrů", „stokrát jsem to říkal", „za pět minut hotovo" u něčeho, co se neměří.
+  Zkouška: šel by si to zákazník ověřit metrem, stopkami nebo fakturou? Když ne,
+  není to tvrzení. (Naměřeno — brána tohle přepisovala a brala postům šťávu.)
+- **Jména a místa.** Název značky, města, kraje, ulice nebo okolní krajiny, kde
+  značka působí (viz IDENTITA výš), a názvy vlastních produktů z katalogu. To je
+  identita, ne tvrzení — a bez nich je z postu bezejmenná vata.
+- **Rétorika hooku.** „3 věci, které děláte špatně", „Tohle vám nikdo neřekne",
+  „Mýtus vs. realita" — to je slib OBSAHU příspěvku, ne údaj o značce. Číslo v něm
+  („3 věci") popisuje, kolik jich v postu je; ověřovat se dá jen tím, že si post
+  přečteš, ne v seznamu faktů.
+- **Věty o ČTENÁŘI, ne o značce.** „Poprvé po letech", „Cítíte ten klid", „Znáte
+  ten moment, kdy…". Popisují prožitek, který si čtenář buď pozná, nebo ne. Značka
+  jimi nic netvrdí o sobě a nikdo ji za ně nemůže chytit za slovo.
+- **Smyslový a obrazný popis.** „Vůně dřeva", „ranní mlha", „hluboký nádech".
+  Naměřeno: tohle brána mazala jako „nepodložené" a měnila poctivé posty v prázdné
+  fráze. Označuj údaje, ne poezii.
 - Když je textů víc, ber je jako jeden příspěvek.
 
 ## OPRAVA (jen u verdiktu "risk")

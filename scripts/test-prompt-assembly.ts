@@ -679,6 +679,26 @@ test("brána bez faktů říká nahlas, že povolený zdroj neexistuje", () => {
         "prázdný seznam se musí přeložit na „všechno konkrétní je nepodložené“, ne na prázdný nadpis")
 })
 
+test("identita značky z configu platí jako ověřený zdroj", () => {
+    // Naměřeno na produkčních postech: bez tohohle brána mazala z textu název města,
+    // ve kterém klient sídlí („Naše apartmány v České Kamenici" → „Naše apartmány"),
+    // a dělala obsah méně lokálním. Město si klient nastavil sám a engine z něj tahá
+    // počasí i lokální kontext — je to fakt, ne tvrzení k prověření.
+    const gate = buildFactCheckPrompt({ ...config, city: "Česká Kamenice", industry: "ubytování" } as any,
+        [{ text: "Naše apartmány v České Kamenici jsou útočiště.", display: false }])
+    assert(gate.includes("IDENTITA ZNAČKY"), "identita klienta musí být mezi povolenými zdroji")
+    assert(gate.includes("Česká Kamenice"), "město z configu se do promptu nedostalo")
+})
+
+test("rétorika hooku a prožitek čtenáře nejsou tvrzení", () => {
+    // Taky naměřeno: „3 věci, které děláte špatně" brána označovala jako nepodložené
+    // tvrzení, protože „nesouvisí s žádným ověřeným faktem". To je slib obsahu, ne údaj.
+    const gate = buildFactCheckPrompt(config as any, [{ text: "3 věci, které děláte špatně", display: true }])
+    assert(/Rétorika hooku/.test(gate), "výčet ne-tvrzení musí rétoriku hooku výslovně vyjmout")
+    assert(/o ČTENÁŘI, ne o značce/.test(gate), "věty o prožitku čtenáře nejsou tvrzení o značce")
+    assert(/Jména a místa/.test(gate), "název místa ani produktu není tvrzení k ověření")
+})
+
 test("brána nesmí hodnotit styl — na to je kritik", () => {
     const gate = buildFactCheckPrompt(config as any, [{ text: "Nejlepší ráno začíná kávou.", display: false }])
     assert(gate.includes("Nehodnotíš styl"),
