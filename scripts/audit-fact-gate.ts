@@ -84,6 +84,15 @@ async function main() {
                 await withUsageScope(async () => {
                     const out = await checkCaptionFacts(config, draft, {})
                     if (write && out.judged) {
+                        // POZOR na význam stavu. U nově generovaného postu znamená
+                        // 'repaired', že se text opravil PŘED uložením. Tady se ale
+                        // nepřepisuje nic — příspěvek je dávno venku. Tvrzení v něm
+                        // zůstalo, takže poctivý stav je 'flagged'; uložit 'repaired'
+                        // by tvrdilo, že je uklizeno, a filtr portfolia by ho pustil ven.
+                        const honest = out.status === 'repaired' ? 'flagged' : out.status
+                        const honestFlags = out.status === 'repaired'
+                            ? out.repairs.map(r => `${r.claim} (v publikovaném textu zůstalo)`)
+                            : out.flags
                         const { data: lastLog } = await supabaseAdmin
                             .from('ig_generation_log')
                             .select('id')
@@ -93,7 +102,7 @@ async function main() {
                             .maybeSingle()
                         if (lastLog?.id) {
                             await supabaseAdmin.from('ig_generation_log')
-                                .update({ fact_status: out.status, fact_flags: out.flags })
+                                .update({ fact_status: honest, fact_flags: honestFlags })
                                 .eq('id', lastLog.id)
                         } else {
                             // Příspěvek bez logu (seed skript) — bez řádku by ho filtr
@@ -101,7 +110,7 @@ async function main() {
                             await supabaseAdmin.from('ig_generation_log').insert({
                                 post_id: post.id, client_id: client.id,
                                 prompt_used: 'audit-fact-gate', model_used: 'audit',
-                                fact_status: out.status, fact_flags: out.flags,
+                                fact_status: honest, fact_flags: honestFlags,
                             })
                         }
                     }
