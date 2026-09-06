@@ -11,6 +11,7 @@
  *   npx tsx scripts/audit-fact-gate.ts --per=10       # víc vzorků na klienta
  *   npx tsx scripts/audit-fact-gate.ts --slug=chrlit  # jeden klient
  *   npx tsx scripts/audit-fact-gate.ts --all          # včetně portfolia a referencí
+ *   npx tsx scripts/audit-fact-gate.ts --slug=x --write # ZAPÍŠE výsledek k příspěvkům
  */
 import dotenv from 'dotenv'
 dotenv.config({ path: '.env.local' })
@@ -28,16 +29,27 @@ async function main() {
     const per = Number(args.find(a => a.startsWith('--per='))?.split('=')[1] || 5)
     const slugArg = args.find(a => a.startsWith('--slug='))?.split('=')[1]
     const includeAll = args.includes('--all')
+    // --write mění audit z pozorování na akci: výsledek se zapíše do ig_generation_log,
+    // takže označený příspěvek vypadne z portfolia a v dashboardu dostane štítek.
+    // Používá se na příspěvky, které vznikly PŘED bránou — ty jinak nemají stav žádný.
+    const write = args.includes('--write')
+    // Jen portfolio: naše veřejná výloha s koncepty pro skutečné značky. Ta se hlídá
+    // jinak přísně než klientský feed — cizí firma nás o nic nepožádala.
+    const portfolioOnly = args.includes('--portfolio')
 
     let q = supabaseAdmin.from('clients').select('id, slug, config').order('slug')
     if (slugArg) q = q.eq('slug', slugArg)
     const { data: clients, error } = await q
     if (error) { console.error('❌', error.message); process.exit(1) }
 
+    // Jmenovitě zadaný klient se nefiltruje: když ho napíšeš, myslíš ho — i když je
+    // to portfolio nebo reference. (Dřív skript vrátil „0 příspěvků" a tvářil se, že
+    // je čisto.)
     const targets = (clients || []).filter((c: any) =>
-        includeAll || (!c.config?.isPortfolio && !c.config?.isReference))
+        portfolioOnly ? c.config?.isPortfolio === true
+            : includeAll || slugArg || (!c.config?.isPortfolio && !c.config?.isReference))
 
-    console.log(`\n🔬 Backtest faktické brány — ${targets.length} klientů × až ${per} příspěvků\n`)
+    console.log(`\n🔬 Backtest faktické brány${write ? ' (ZAPISUJE výsledek)' : ''} — ${targets.length} klientů × až ${per} příspěvků\n`)
 
     const rows: Row[] = []
     let costTotal = 0
@@ -71,6 +83,28 @@ async function main() {
             try {
                 await withUsageScope(async () => {
                     const out = await checkCaptionFacts(config, draft, {})
+                    if (write && out.judged) {
+                        const { data: lastLog } = await supabaseAdmin
+                            .from('ig_generation_log')
+                            .select('id')
+                            .eq('post_id', post.id)
+                            .order('created_at', { ascending: false })
+                            .limit(1)
+                            .maybeSingle()
+                        if (lastLog?.id) {
+                            await supabaseAdmin.from('ig_generation_log')
+                                .update({ fact_status: out.status, fact_flags: out.flags })
+                                .eq('id', lastLog.id)
+                        } else {
+                            // Příspěvek bez logu (seed skript) — bez řádku by ho filtr
+                            // portfolia neviděl, takže mu jeden založíme jen se stavem.
+                            await supabaseAdmin.from('ig_generation_log').insert({
+                                post_id: post.id, client_id: client.id,
+                                prompt_used: 'audit-fact-gate', model_used: 'audit',
+                                fact_status: out.status, fact_flags: out.flags,
+                            })
+                        }
+                    }
                     const u = currentUsage()
                     costTotal += (u ? costUsdForBreakdown(u.breakdown as never) : 0) || 0
                     rows.push({

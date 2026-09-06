@@ -139,6 +139,17 @@ check(
     /post\.images\[0\]\s*\?/.test(grid)
 )
 
+// ── 8. Výloha neukazuje, co si systém sám označil ───────────────────────────
+// Portfolio jsou koncepty pro SKUTEČNÉ značky, které nás o nic nepožádaly.
+// Nepodložené tvrzení o cizí firmě na našem webu je horší závada než v klientském
+// feedu — a když si to faktická brána sama označí, nemá to prodávat naši práci.
+const exportSrc = read("scripts/export-portfolio.ts")
+check(
+    "export vynechává příspěvky označené faktickou bránou",
+    /flaggedPostIds/.test(exportSrc) && /fact_status.*flagged|"flagged"/.test(exportSrc),
+    "filtr na fact_status v export-portfolio.ts chybí"
+)
+
 console.log("\n" + "─".repeat(50))
 console.log(`  ${passed} prošlo | ${failed} selhalo`)
 console.log("─".repeat(50) + "\n")
