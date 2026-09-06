@@ -3972,6 +3972,18 @@ test("36.4d nápad ze zásobníku není zdroj faktů (pračka na halucinace)", (
         "téma od člověka a nápad z banky musí jít bráně ODDĚLENĚ")
 })
 
+test("36.4e retuš postu prochází bránou, ale nikdy se nepřepisuje", () => {
+    // Retuš je pokyn člověka. Přepsat mu text pod rukama by bylo horší než nepodložené
+    // tvrzení — proto „bold" (jen značkuj) a jeho instrukce jako povolený zdroj.
+    // Zároveň to nesmí zůstat neohlídané: co si model přimyslí navíc, se označí.
+    const code = codeOnly("app/actions/post-edit-actions.ts")
+    assert(/checkCaptionFacts/.test(code), "retuš musí projít faktickou bránou")
+    assert(/factCheckMode: "bold"/.test(code), "brána nad retuší nesmí přepisovat, jen značkovat")
+    assert(/topic: instruction/.test(code), "pokyn uživatele je povolený zdroj — ručí za něj on")
+    assert(/fact_status: out\.status/.test(code),
+        "výsledek musí přepsat stav u posledního logu, jinak zůstane viset starý příznak")
+})
+
 test("36.5 fakta mají default a dostanou se do promptu i do brány", () => {
     const cfg = codeOnly("instagram/configs/index.ts")
     assert(/brandFacts: config\.brandFacts \|\| \[\]/.test(cfg), "chybějící pole nesmí být výbušnina")
