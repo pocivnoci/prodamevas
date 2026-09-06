@@ -57,8 +57,21 @@ export interface FactCheckOutcome<T> {
 /** Zdroje, proti kterým se tvrzení ověřují. Cokoli mimo ně je nepodložené. */
 export interface FactContext {
     product?: { name: string; type?: string; price?: string | null; description?: string | null } | null
-    /** Zadaný námět / téma postu — uživatel za jeho pravdivost ručí. */
+    /** Téma, které NAPSAL ČLOVĚK (options.topic). Za jeho pravdivost ručí on. */
     topic?: string | null
+    /**
+     * Nápad ze zásobníku. **NENÍ zdroj faktů**, i když tak vypadá.
+     *
+     * Nápady z 99 % píše `idea-generator.ts` a noční doplňovač — je to výstup modelu,
+     * který nikdo nečetl. Kdyby platil jako povolený zdroj, vznikne pračka na
+     * halucinace: model si vymyslí „25 let na trhu" do nápadu, copywriter to opíše do
+     * postu a brána to posvětí, protože „to je přece v námětu". Nápad proto licencuje
+     * TÉMA, ne čísla; ta musí stát v ověřených faktech.
+     *
+     * (Tabulka `ig_post_ideas` původ nerozlišuje, takže ručně přidaný nápad se posuzuje
+     * stejně přísně. Jeho fakt patří stejně do seznamu faktů — tam vydrží napořád.)
+     */
+    idea?: string | null
     /** Reálná recenze zákazníka (u recenzních formátů) — citace je fakt. */
     review?: { quote: string; customer_name?: string | null } | null
     postTypeName?: string
@@ -178,7 +191,11 @@ export function buildFactCheckPrompt(
         ? `\n## POVOLENÝ ZDROJ — VYBRANÝ PRODUKT (živý katalog)\nNázev: ${ctx.product.name}\n${ctx.product.type ? `Typ: ${ctx.product.type}\n` : ""}${ctx.product.price ? `Cena: ${ctx.product.price}\n` : ""}${ctx.product.description ? `Popis: ${ctx.product.description}\n` : ""}`
         : ""
     const topicBlock = ctx.topic
-        ? `\n## POVOLENÝ ZDROJ — ZADANÝ NÁMĚT (za jeho pravdivost ručí uživatel)\n${ctx.topic}\n`
+        ? `\n## POVOLENÝ ZDROJ — TÉMA OD UŽIVATELE (napsal ho člověk, ručí za něj)\n${ctx.topic}\n`
+        : ""
+    // Nápad ze zásobníku schválně NENÍ mezi povolenými zdroji — viz FactContext.idea.
+    const ideaBlock = ctx.idea
+        ? `\n## ⚠️ NÁPAD ZE ZÁSOBNÍKU — TÉMA, NE ZDROJ FAKTŮ\n${ctx.idea}\n\nNápad říká, O ČEM se píše. Napsal ho model, nikdo ho neověřoval. Konkrétní údaj z něj\n(číslo, rok, ocenění, garance) je proto NEPODLOŽENÝ úplně stejně, jako by si ho\nvymyslel copywriter — pokud zároveň nestojí v ověřených faktech výš.\n`
         : ""
     const reviewBlock = ctx.review
         ? `\n## POVOLENÝ ZDROJ — REÁLNÁ RECENZE\n„${ctx.review.quote}"${ctx.review.customer_name ? ` — ${ctx.review.customer_name}` : ""}\n`
@@ -189,7 +206,7 @@ Nehodnotíš styl, hook ani kreativitu — jenom PRAVDIVOST. Styl řeší někdo
 
 ## POVOLENÝ ZDROJ — OVĚŘENÁ FAKTA O ZNAČCE
 ${factList}
-${productBlock}${topicBlock}${reviewBlock}
+${productBlock}${topicBlock}${reviewBlock}${ideaBlock}
 ## TEXT KE KONTROLE${ctx.postTypeName ? ` (formát: ${ctx.postTypeName})` : ""}
 ${texts.map((t, i) => `[${i + 1}]${t.display ? " 🖼 NADPIS DO OBRÁZKU:" : ""} ${t.text}`).join("\n")}
 

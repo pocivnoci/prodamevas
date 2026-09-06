@@ -1075,7 +1075,10 @@ ${feedSummary}
     await report("critic", 50, "🔎 Faktická brána kontroluje tvrzení v textu...")
     const factOutcome = await checkCaptionFacts(config, captionData, {
         product: selectedProduct ? { name: selectedProduct.name, type: selectedProduct.type, price: selectedProduct.price, description: selectedProduct.description } : null,
-        topic: options.topic || (idea ? [idea.title, idea.content].filter(Boolean).join(" — ") : null),
+        // Téma od člověka a nápad z banky jdou ODDĚLENĚ. Nápad není zdroj faktů (napsal
+        // ho model), a kdyby se posílal jako `topic`, brána by mu věřila jako uživateli.
+        topic: options.topic || null,
+        idea: idea ? [idea.title, idea.content].filter(Boolean).join(" — ") : null,
         review: review ? { quote: review.quote, customer_name: review.customer_name } : null,
         postTypeName: selectedType.display_name,
     })
