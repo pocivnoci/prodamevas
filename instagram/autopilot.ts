@@ -1078,6 +1078,10 @@ ${feedSummary}
         // Téma od člověka a nápad z banky jdou ODDĚLENĚ. Nápad není zdroj faktů (napsal
         // ho model), a kdyby se posílal jako `topic`, brána by mu věřila jako uživateli.
         topic: options.topic || null,
+        // Schválený hook je zdroj: mega prompt copywriterovi slibuje, že ho zachová
+        // „včetně konkrétnosti". Bez tohohle by ho brána v režimu „opatrné" přepsala
+        // a uživatel by v postu nenašel to, na co v plánu klikl.
+        approvedHook: options.approvedHook || null,
         idea: idea ? [idea.title, idea.content].filter(Boolean).join(" — ") : null,
         review: review ? { quote: review.quote, customer_name: review.customer_name } : null,
         postTypeName: selectedType.display_name,

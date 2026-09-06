@@ -72,6 +72,19 @@ export interface FactContext {
      * stejně přísně. Jeho fakt patří stejně do seznamu faktů — tam vydrží napořád.)
      */
     idea?: string | null
+    /**
+     * Hook, který uživatel SCHVÁLIL v plánu.
+     *
+     * Mega prompt copywriterovi slibuje, že schválený hook zachová „včetně
+     * konkrétnosti (čísla, jména, fakta)" — a brána o něm dosud nevěděla, takže ho
+     * v režimu „opatrné" mohla přepsat. To je porušený slib: uživatel v plánu klikl
+     * na konkrétní znění a v postu by našel jiné.
+     *
+     * Schválení je vědomý lidský úkon nad viditelným zněním (draft plánu je status
+     * flip nad tím, co uživatel vidí v UI), takže hook platí jako zdroj — stejně jako
+     * téma, které si napsal sám. Co copywriter přidá NAVÍC, se posuzuje normálně.
+     */
+    approvedHook?: string | null
     /** Reálná recenze zákazníka (u recenzních formátů) — citace je fakt. */
     review?: { quote: string; customer_name?: string | null } | null
     postTypeName?: string
@@ -193,6 +206,9 @@ export function buildFactCheckPrompt(
     const topicBlock = ctx.topic
         ? `\n## POVOLENÝ ZDROJ — TÉMA OD UŽIVATELE (napsal ho člověk, ručí za něj)\n${ctx.topic}\n`
         : ""
+    const hookBlock = ctx.approvedHook
+        ? `\n## POVOLENÝ ZDROJ — HOOK SCHVÁLENÝ UŽIVATELEM V PLÁNU\n„${ctx.approvedHook}"\n\nTohle znění uživatel viděl a schválil; engine mu slíbil, že ho zachová. Tvrzení, které\nv něm stojí, tedy NEOZNAČUJ. Platí to jen na ně — co copywriter přidal navíc, posuzuj\nnormálně.\n`
+        : ""
     // Nápad ze zásobníku schválně NENÍ mezi povolenými zdroji — viz FactContext.idea.
     const ideaBlock = ctx.idea
         ? `\n## ⚠️ NÁPAD ZE ZÁSOBNÍKU — TÉMA, NE ZDROJ FAKTŮ\n${ctx.idea}\n\nNápad říká, O ČEM se píše. Napsal ho model, nikdo ho neověřoval. Konkrétní údaj z něj\n(číslo, rok, ocenění, garance) je proto NEPODLOŽENÝ úplně stejně, jako by si ho\nvymyslel copywriter — pokud zároveň nestojí v ověřených faktech výš.\n`
@@ -213,7 +229,7 @@ z postů název města, ve kterém klient sídlí, a dělala tím obsah méně l
 
 ## POVOLENÝ ZDROJ — OVĚŘENÁ FAKTA O ZNAČCE
 ${factList}
-${productBlock}${topicBlock}${reviewBlock}${ideaBlock}
+${productBlock}${topicBlock}${hookBlock}${reviewBlock}${ideaBlock}
 ## TEXT KE KONTROLE${ctx.postTypeName ? ` (formát: ${ctx.postTypeName})` : ""}
 ${texts.map((t, i) => `[${i + 1}]${t.display ? " 🖼 NADPIS DO OBRÁZKU:" : ""} ${t.text}`).join("\n")}
 

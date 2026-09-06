@@ -1,6 +1,7 @@
 "use server"
 
 import supabaseAdmin from "@/supabase/admin"
+import { buildFactsSection } from "@/instagram/caption-generator"
 import { requireProjectAccess } from "@/lib/auth-guard"
 import { computeSlotIntents, ghostRolesForPreview, getPatternDef, type SlotIntent, type FeedPatternId, type VisualMode } from "@/lib/feed-pattern"
 import type { CatalogProduct } from "@/instagram/service"
@@ -511,6 +512,7 @@ ${config.brandVoice.antiPatterns?.join(", ")}
 
 ${productNumbering}
 ${config.audiencePersonas?.length ? `## CÍLOVÉ PERSONY\n${config.audiencePersonas.map(p => `- **${p.label}** (${p.ageRange} let): Pain points: ${p.painPoints.slice(0, 2).join(", ")}`).join("\n")}\n` : ""}
+${buildFactsSection(config)}
 ${brandGroundingSection}${ideaBankSection}${topHooksSection}${deduplicationSection}${goalSection}${productFocusSection}${topicInstruction}
 ${count > 14 ? "\n## STRUKTURA\nRozděl do týdnů — každý týden má vlastní mini-téma.\n" : ""}`
 
