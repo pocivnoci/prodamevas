@@ -131,9 +131,14 @@ export function applyFactFixes<T>(data: T, fixes: { find: string; replace: strin
             if (!f.find || out.indexOf(f.find) === -1) continue
             out = out.split(f.find).join(f.replace)
         }
-        // Uklízí se jen text, do kterého se sáhlo — nedotčené pole musí zůstat znak
-        // po znaku stejné (hook se za chvíli vypaluje do obrázku).
-        return out === v ? v : tidy(out)
+        if (out === v) return v
+        const cleaned = tidy(out)
+        // Pole se NIKDY nesmí vyprázdnit. Prázdná náhrada nad celým nadpisem sebere
+        // hook — a ten je nosný dál: skládá se z něj caption, dedup, titulek karty
+        // i text vypálený do obrázku. Radši ať tvrzení zůstane a příspěvek se označí
+        // (unresolved to pozná z hotového textu) než aby se vyrenderoval prázdný
+        // plakát. Naměřeno testem invariantů, ne odhadem.
+        return cleaned.trim().length === 0 ? v : cleaned
     }
     const walkStrings = (obj: any, keys: string[]) => {
         for (const k of keys) if (typeof obj?.[k] === "string") obj[k] = fixString(obj[k])
