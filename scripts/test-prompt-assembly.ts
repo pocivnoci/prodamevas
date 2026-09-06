@@ -808,6 +808,30 @@ test("počet slidů a snímků se nemění", () => {
         "brána změnila počet slidů/snímků — formát je invariant, ne návrh")
 })
 
+// ─── Bez adresy webu se neslibuje proklik ───────────────────
+
+console.log("\n🔗 Rozbitá adresa webu")
+
+test("scheme bez domény není adresa — CTA spadne na engagement", () => {
+    // Reálný stav jednoho klienta v produkci. CTA politika z toho skládala odkaz
+    // „https:///p/tricko" a mega prompt psal „CTA odkazuje na https://".
+    const policy = resolveCtaPolicy({ pillarCtaStrategy: "hard", website: "https://", selectedProduct: { name: "Tričko", slug: "tricko" } })
+    assert(policy.allowWebsite === false, "bez adresy se web nesmí povolit")
+    assert(!policy.productUrl, `vznikl odkaz z ničeho: ${policy.productUrl}`)
+    assert(!/https:\/\/\//.test(policy.ctaInstruction), "instrukce nesmí nést rozbitý odkaz")
+})
+
+test("prázdná adresa se chová stejně", () => {
+    const policy = resolveCtaPolicy({ pillarCtaStrategy: "medium", website: "" })
+    assert(policy.allowWebsite === false, "prázdná adresa nesmí povolit web")
+})
+
+test("platná adresa zůstává nedotčená", () => {
+    const policy = resolveCtaPolicy({ pillarCtaStrategy: "hard", website: "https://test.cz", selectedProduct: { name: "Tričko", slug: "tricko" } })
+    assert(policy.allowWebsite === true, "platný web musí projít")
+    assert(policy.productUrl === "https://test.cz/p/tricko", `špatný odkaz: ${policy.productUrl}`)
+})
+
 // ─── Report ─────────────────────────────────────────────────
 
 console.log("\n" + "─".repeat(60))

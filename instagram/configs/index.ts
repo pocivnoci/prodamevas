@@ -177,6 +177,19 @@ function warnOnScenicFormats(defs: NonNullable<ClientConfig["postTypeDefs"]>, sl
     return defs
 }
 
+/**
+ * Adresa webu musí mít schéma i doménu s tečkou, jinak to není adresa. Vrací "" —
+ * prázdno je pravdivé („web neznáme"), zatímco „https://" je lež, ze které engine
+ * skládá odkazy. Hlásí to nahlas: tichá oprava by tuhle vadu v configu nechala žít.
+ */
+function normalizeWebsite(raw: string | undefined, slug: string): string {
+    const url = (raw || "").trim()
+    if (!url) return ""
+    if (/^https?:\/\/[^/\s.]+\.[^/\s]+/.test(url)) return url.replace(/\/+$/, "")
+    console.warn(`⚠️ [${slug}] "${url}" není použitelná adresa webu — engine ji ignoruje a CTA pojede na engagement. Oprav ji v Nastavení.`)
+    return ""
+}
+
 function validateConfig(config: ClientConfig, slug: string): ClientConfig {
     // reconcileFormats self-heals the four format sources on every load — drift
     // (e.g. a format orphaned by a deleted pillar) never reaches the pipeline.
@@ -184,7 +197,12 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         ...config,
         id: config.id || slug,
         name: config.name || slug,
-        website: config.website || "",
+        // Adresa webu, nebo prázdno — nic mezi tím. „https://" v configu (reálný stav
+        // jednoho klienta) není adresa, ale CTA politika ho brala vážně a skládala z něj
+        // odkaz „https:///p/tricko". Radši žádný odkaz než rozbitý: prázdná hodnota
+        // shodí CTA na engagement (viz resolveCtaPolicy), místo aby slibovala proklik,
+        // který nikam nevede.
+        website: normalizeWebsite(config.website, slug),
         instagram: config.instagram || "",
         // Doplňuje se PO POLÍCH, ne vcelku. Dřív se default použil jen když `brandVoice`
         // úplně chyběl — jenže onboarding zapisuje surový výstup modelu bez kontroly
