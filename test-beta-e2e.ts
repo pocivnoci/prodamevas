@@ -4030,6 +4030,18 @@ test("36.4i ukázka pro prospekta má taky fakta", () => {
     assert(/analysis\.brandFacts =/.test(prev), "fakta se musí dostat do configu ukázky")
 })
 
+test("36.4j označené tvrzení jde potvrdit u příspěvku, ne opisováním", () => {
+    // Bez tohohle brána jen otravuje: řekne „ověř si to" a člověk musí tvrzení ručně
+    // přepsat do Nastavení. Smyčka se musí zavřít tam, kde na problém narazil.
+    const act = codeOnly("app/actions/config-actions.ts")
+    assert(/export async function confirmBrandFact/.test(act), "akce pro potvrzení tvrzení chybí")
+    assert(/source: "od klienta"/.test(act),
+        "potvrzené tvrzení NESMÍ mít zdroj webu — potvrdil ho člověk, a tvářit se jinak by byla přesně ta drobná lež, kterou brána vymýtá")
+    assert(/checkCaptionFacts/.test(act), "po uložení se příspěvek musí přehodnotit, jinak štítek visí dál")
+    const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/PostsTab.tsx")
+    assert(/confirmBrandFact/.test(ui), "detail příspěvku musí umět tvrzení potvrdit")
+})
+
 test("36.5 fakta mají default a dostanou se do promptu i do brány", () => {
     const cfg = codeOnly("instagram/configs/index.ts")
     assert(/brandFacts: config\.brandFacts \|\| \[\]/.test(cfg), "chybějící pole nesmí být výbušnina")

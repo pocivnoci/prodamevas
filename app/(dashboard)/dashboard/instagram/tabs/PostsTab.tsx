@@ -497,6 +497,9 @@ function PostDetailModal({
     const [showVariantComparison, setShowVariantComparison] = useState(false)
     const [variantError, setVariantError] = useState<string | null>(null)
     const [carouselIndex, setCarouselIndex] = useState(0)
+    // Označená tvrzení řešená rovnou u příspěvku — bez opisování do Nastavení.
+    const [factFlags, setFactFlags] = useState<string[]>(post.fact_flags || [])
+    const [confirmingFact, setConfirmingFact] = useState<string | null>(null)
     const [editorialLog, setEditorialLog] = useState<{ role: string; action: string; summary: string }[]>([])
     const [editorialOpen, setEditorialOpen] = useState(false)
     const [retrying, setRetrying] = useState(false)
@@ -583,6 +586,11 @@ function PostDetailModal({
                             <p className="text-[10px] text-white/40 font-mono tracking-widest uppercase">{new Date(post.created_at).toLocaleString("cs-CZ")}</p>
                         </div>
                         {post.content_pillar && <PillarBadge pillar={post.content_pillar} />}
+                        {factFlags.length > 0 && (
+                            <span className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/30 text-amber-400/80 text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-sm">
+                                <TriangleAlert className="w-3 h-3 shrink-0" />{factFlags.length}× ověř fakta
+                            </span>
+                        )}
                         <StatusBadge status={post.status} />
                     </div>
                     <button
@@ -706,6 +714,45 @@ function PostDetailModal({
                                     <p className="text-[10px] font-mono text-white/40 bg-[#0f0f0f] border border-white/5 rounded-sm p-3 shadow-inner">
                                         {post.image_prompt}
                                     </p>
+                                </div>
+                            )}
+
+                            {/* Neověřená tvrzení — vyřeš je tady, ne opisováním do Nastavení.
+                                Potvrzení uloží fakt značce (zdroj „od klienta", ne web) a příspěvek
+                                se přehodnotí; štítek zmizí sám, pokud nezůstalo něco dalšího. */}
+                            {factFlags.length > 0 && (
+                                <div className="border border-amber-500/25 bg-amber-500/[0.04] rounded-sm p-3">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <TriangleAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                        <span className="text-[10px] font-bold text-amber-400/90 uppercase tracking-widest">Tvrzení bez opory ve faktech</span>
+                                    </div>
+                                    <p className="text-[10px] text-white/40 mb-3">
+                                        Engine to nenašel v ověřených faktech značky. Když to platí, potvrď to — uloží se
+                                        mezi fakta a příště s tím může pracovat rovnou.
+                                    </p>
+                                    <div className="space-y-2">
+                                        {factFlags.map((flag, i) => {
+                                            // Text tvrzení je před závorkou s důvodem: „tvrzení (proč)".
+                                            const claim = flag.replace(/\s*\([^)]*\)\s*$/, "").trim()
+                                            return (
+                                                <div key={i} className="flex items-start gap-2 bg-black/30 border border-white/5 rounded-sm px-3 py-2">
+                                                    <p className="text-xs text-white/70 flex-1">{flag}</p>
+                                                    <button
+                                                        disabled={confirmingFact !== null}
+                                                        onClick={async () => {
+                                                            setConfirmingFact(claim)
+                                                            const { confirmBrandFact } = await import("@/app/actions/config-actions")
+                                                            const res = await confirmBrandFact(projectId, post.id, claim)
+                                                            if (res.success) setFactFlags(res.flags ?? factFlags.filter(f => f !== flag))
+                                                            setConfirmingFact(null)
+                                                            onRefresh()
+                                                        }}
+                                                        className="shrink-0 px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-sm text-[9px] font-bold uppercase tracking-widest text-emerald-400 disabled:opacity-40"
+                                                    >{confirmingFact === claim ? "Ukládám…" : "Je to pravda"}</button>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
                                 </div>
                             )}
 
