@@ -4014,6 +4014,14 @@ test("36.4g schválený hook je zdroj, ale plán i nápady píšou pod pravidlem
         "generátor nápadů taky: nápad s vymyšleným číslem prosákne do každého postu z něj")
 })
 
+test("36.4i ukázka pro prospekta má taky fakta", () => {
+    // Bez nich by brána z demo postu sebrala každou konkrétnost — a demo je ten
+    // příspěvek, který má přesvědčit. Text stránky je už načtený, stojí to jedno volání.
+    const prev = codeOnly("lib/agents/sales/preview.ts")
+    assert(/extractFactsFromPages/.test(prev), "ukázka musí seedovat fakta jako onboarding")
+    assert(/analysis\.brandFacts =/.test(prev), "fakta se musí dostat do configu ukázky")
+})
+
 test("36.5 fakta mají default a dostanou se do promptu i do brány", () => {
     const cfg = codeOnly("instagram/configs/index.ts")
     assert(/brandFacts: config\.brandFacts \|\| \[\]/.test(cfg), "chybějící pole nesmí být výbušnina")
