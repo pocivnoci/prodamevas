@@ -3996,6 +3996,24 @@ test("36.4f tištěný text prochází bránou, nadpis od člověka zůstává",
     assert(/checkDisplayStrings/.test(fc) && /checkCaptionFacts\(config, synthetic, ctx\)/.test(fc),
         "tisk musí jet TÝMŽ kódem jako příspěvky — druhá implementace pravidel by se rozešla")})
 
+test("36.4g schválený hook je zdroj, ale plán i nápady píšou pod pravidlem pravdivosti", () => {
+    // Dvojice, která musí platit SPOLU. Schválený hook je povolený zdroj, protože mega
+    // prompt copywriterovi slibuje, že ho zachová „včetně konkrétnosti" — bez toho by ho
+    // brána v režimu „opatrné" přepsala a uživatel by v postu nenašel to, na co klikl.
+    // Jenže kdyby plánovač psal hooky bez pravidla pravdivosti, stačilo by, aby si vymyslel
+    // „25 let na trhu", uživatel plán odklikl — a tvrzení je vyprané. Proto obojí najednou.
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/HOOK SCHVÁLENÝ UŽIVATELEM V PLÁNU/.test(fc), "schválený hook musí být povolený zdroj")
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/approvedHook: options\.approvedHook/.test(auto), "autopilot ho musí bráně předat")
+    const plan = codeOnly("app/actions/content-plan-actions.ts")
+    assert(/buildFactsSection\(config\)/.test(plan),
+        "plánovač musí psát hooky pod pravidlem pravdivosti — jinak si uživatel schválí výmysl")
+    const ideas = codeOnly("instagram/idea-generator.ts")
+    assert(/buildFactsSection\(config\)/.test(ideas),
+        "generátor nápadů taky: nápad s vymyšleným číslem prosákne do každého postu z něj")
+})
+
 test("36.5 fakta mají default a dostanou se do promptu i do brány", () => {
     const cfg = codeOnly("instagram/configs/index.ts")
     assert(/brandFacts: config\.brandFacts \|\| \[\]/.test(cfg), "chybějící pole nesmí být výbušnina")
