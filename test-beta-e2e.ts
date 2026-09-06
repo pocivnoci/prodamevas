@@ -3984,6 +3984,18 @@ test("36.4e retuš postu prochází bránou, ale nikdy se nepřepisuje", () => {
         "výsledek musí přepsat stav u posledního logu, jinak zůstane viset starý příznak")
 })
 
+test("36.4f tištěný text prochází bránou, nadpis od člověka zůstává", () => {
+    // Tisk je nejtvrdší médium — vytištěný leták s vymyšleným údajem se nesmaže.
+    const print = codeOnly("instagram/print-pipeline.ts")
+    assert(/checkDisplayStrings/.test(print), "tiskový brief musí projít faktickou bránou")
+    assert(/opts\.overlayText \? \[brief\.typography\.sub/.test(print),
+        "nadpis zadaný člověkem se nekontroluje ani nepřepisuje — za svoje slova si ručí sám")
+    assert(/brief\.factCheck = \{ status: out\.status/.test(print),
+        "výsledek musí zůstat u návrhu (ig_product_designs.brief), tisk se nevrací")
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/checkDisplayStrings/.test(fc) && /checkCaptionFacts\(config, synthetic, ctx\)/.test(fc),
+        "tisk musí jet TÝMŽ kódem jako příspěvky — druhá implementace pravidel by se rozešla")})
+
 test("36.5 fakta mají default a dostanou se do promptu i do brány", () => {
     const cfg = codeOnly("instagram/configs/index.ts")
     assert(/brandFacts: config\.brandFacts \|\| \[\]/.test(cfg), "chybějící pole nesmí být výbušnina")
