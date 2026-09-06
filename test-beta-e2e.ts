@@ -4014,6 +4014,14 @@ test("36.4g schválený hook je zdroj, ale plán i nápady píšou pod pravidlem
         "generátor nápadů taky: nápad s vymyšleným číslem prosákne do každého postu z něj")
 })
 
+test("36.4h varování u tisku je vidět PŘED objednáním", () => {
+    // Výsledek brány se ukládá do briefu; bez čipu v UI by tam ležel neviditelný.
+    // Tisk se na rozdíl od příspěvku nedá vzít zpátky.
+    const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/products/PrintSection.tsx")
+    assert(/factCheck/.test(ui) && /FactChip/.test(ui), "návrh k tisku musí umět varovat")
+    assert(/fc\.status !== "flagged"/.test(ui), "čip se ukazuje jen když v textu tvrzení ZŮSTALO")
+})
+
 test("36.4i ukázka pro prospekta má taky fakta", () => {
     // Bez nich by brána z demo postu sebrala každou konkrétnost — a demo je ten
     // příspěvek, který má přesvědčit. Text stránky je už načtený, stojí to jedno volání.

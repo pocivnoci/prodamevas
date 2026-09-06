@@ -744,7 +744,10 @@ DŮLEŽITÉ:
     // ale čtou z configu, takže všem tenantům běžely na "business" + Praha.
     if (analysis.industry) config.industry = analysis.industry
     if (analysis.city?.trim()) config.city = analysis.city.trim()
-    config.instagram = igHandle.startsWith('@') ? igHandle : `@${igHandle}`
+    // Prázdný handle nesmí skončit jako samotné „@" — tak vznikl reálný stav tří
+    // klientů, kterým v promptu svítí „IG: @". Prázdno je pravdivější.
+    const handle = (igHandle || '').trim().replace(/^@+/, '')
+    config.instagram = handle ? `@${handle}` : ''
 
     // Force visual identity from analysis (AI may hallucinate different values)
     if (analysis.overlayGradient) {
