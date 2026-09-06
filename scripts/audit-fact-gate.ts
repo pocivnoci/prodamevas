@@ -68,7 +68,13 @@ async function main() {
         try { config = await loadConfig(client.slug, true) }
         catch { continue }
 
-        for (const post of posts) {
+        // Tři příspěvky naráz. Volání soudce je čekání na síť, ne práce procesoru —
+        // sériově trvá audit 198 postů hodiny. Víc než tři najednou už jde do rate
+        // limitu a tvrdé retry to zpomalí zpátky.
+        const chunks: (typeof posts)[] = []
+        for (let i = 0; i < posts.length; i += 3) chunks.push(posts.slice(i, i + 3))
+        for (const chunk of chunks) {
+        await Promise.all(chunk.map(async post => {
             // Caption v DB je složený text; brána ho vidí jako hook + tělo, tedy tak,
             // jak by ho viděla při generování.
             const lines = (post.caption || '').split('\n').filter(Boolean)
@@ -83,7 +89,7 @@ async function main() {
                 cta: post.call_to_action || '',
                 hashtags: [],
             }
-            if (!draft.body && !draft.hook && !draft.imageSubtext) continue
+            if (!draft.body && !draft.hook && !draft.imageSubtext) return
 
             try {
                 await withUsageScope(async () => {
@@ -134,6 +140,7 @@ async function main() {
             } catch (e) {
                 rows.push({ slug: client.slug, status: 'chyba', oprav: 0, oznaceno: 0, hook: draft.hook.slice(0, 46), flags: [String(e).slice(0, 60)], repairs: [] })
             }
+        }))
         }
         const mine = rows.filter(r => r.slug === client.slug)
         console.log(`  ${client.slug.padEnd(30)} ${mine.length} postů → ${mine.filter(r => r.status === 'clean').length} čistých, ${mine.filter(r => r.status === 'repaired').length} opraveno, ${mine.filter(r => r.status === 'flagged').length} označeno`)
