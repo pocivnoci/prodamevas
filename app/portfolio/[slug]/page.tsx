@@ -22,7 +22,7 @@ import type { Metadata } from "next"
 import { SiteHeader } from "@/components/SiteHeader"
 import { SiteFooter } from "@/components/SiteFooter"
 import { PostGrid } from "@/components/portfolio/PostGrid"
-import { PORTFOLIO_VISIBLE_BRANDS, PORTFOLIO_DISCLAIMER } from "@/lib/portfolio"
+import { PORTFOLIO_VISIBLE_BRANDS, PORTFOLIO_DISCLAIMER, PORTFOLIO_CLIENT_NOTE, portfolioRelationship } from "@/lib/portfolio"
 import { countLabel, POSTS, CAROUSELS, IMAGES } from "@/lib/plural"
 
 export function generateStaticParams() {
@@ -55,6 +55,9 @@ export default async function BrandPortfolio({ params }: { params: Promise<{ slu
     const { slug } = await params
     const brand = PORTFOLIO_VISIBLE_BRANDS.find(b => b.slug === slug)
     if (!brand) notFound()
+    // Vztah ke značce rozhoduje o výhradě: u klienta by věta „není zákazníkem"
+    // byla lež, u nevyžádaného konceptu je naopak povinná.
+    const isClient = portfolioRelationship(brand) === "client"
 
     const others = PORTFOLIO_VISIBLE_BRANDS.filter(b => b.slug !== slug)
     const host = (brand.website || "").replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")
@@ -104,12 +107,12 @@ export default async function BrandPortfolio({ params }: { params: Promise<{ slu
 
                 {/* JEDEN disclaimer. Dřív tu byly dva skoro stejné boxy a k tomu odznak
                     u každého reelu — trojí opakování téhož ještě před prvním obrázkem. */}
-                <div className="border-l-2 border-white/20 bg-white/[0.03] px-5 py-4 mb-8">
-                    <div className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5">
-                        Nevyžádaný koncept
+<div className={`border-l-2 px-5 py-4 mb-8 ${isClient ? "border-emerald-500/40 bg-emerald-500/[0.04]" : "border-white/20 bg-white/[0.03]"}`}>
+                    <div className={`text-[9px] font-bold uppercase tracking-widest mb-1.5 ${isClient ? "text-emerald-400/70" : "text-white/40"}`}>
+                        {isClient ? "Práce pro klienta" : "Nevyžádaný koncept"}
                     </div>
                     <p className="text-white/50 text-xs leading-relaxed">
-                        {PORTFOLIO_DISCLAIMER}
+                        {isClient ? PORTFOLIO_CLIENT_NOTE : PORTFOLIO_DISCLAIMER}
                     </p>
                 </div>
 

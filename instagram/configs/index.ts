@@ -292,6 +292,9 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // igBaseline is optional with no default — undefined means "no scrape
         // data available" and all consumers (planWeek) must handle that.
         igBaseline: config.igBaseline,
+        // Souhlas klienta s ukázkou ve výloze. Default false — publikovat cizí značku
+        // se souhlasem, který nikdo nedal, je horší než ji neukázat vůbec.
+        isCaseStudy: config.isCaseStudy === true,
     })
 }
 

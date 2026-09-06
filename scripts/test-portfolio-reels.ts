@@ -139,6 +139,32 @@ check(
     /post\.images\[0\]\s*\?/.test(grid)
 )
 
+// ── 10. Výloha nesmí lhát o vztahu ke značce ────────────────────────────────
+// Nevyžádaný koncept a práce pro klienta jsou dvě různá tvrzení. Výhrada „firma
+// není zákazníkem Chrlitu" u klienta lže — a u konceptu MUSÍ zaznít.
+const portfolioSrc = read("lib/portfolio.ts")
+check(
+    "vztah ke značce má jediný výklad a chybějící hodnota je přísnější",
+    /portfolioRelationship/.test(portfolioSrc) && /=== "client" \? "client" : "concept"/.test(portfolioSrc),
+    "starší export bez pole `relationship` musí spadnout na 'concept', ne na 'client'"
+)
+const overview = read("app/portfolio/page.tsx")
+check(
+    "souhrnná výhrada se řídí tím, co ve výloze SKUTEČNĚ je",
+    /hasClients/.test(overview) && /PORTFOLIO_MIXED_DISCLAIMER/.test(overview),
+    "text „firmy nejsou zákazníky\" nesmí viset nad stránkou, kde je jeden z nich klient"
+)
+const detail = read("app/portfolio/[slug]/page.tsx")
+check(
+    "detail značky ukazuje výhradu podle vztahu",
+    /isClient \? PORTFOLIO_CLIENT_NOTE : PORTFOLIO_DISCLAIMER/.test(detail)
+)
+const exportSrc2 = read("scripts/export-portfolio.ts")
+check(
+    "export značce vztah zapisuje a rozlišuje souhlas",
+    /isCaseStudy/.test(exportSrc2) && /relationship/.test(exportSrc2)
+)
+
 // ── 9. Poloprázdný profil se neukazuje ──────────────────────────────────────
 // Od chvíle, kdy z výlohy vypadávají označené příspěvky, je reálný stav „značce
 // zbyl jeden post". Profil s jedinou dlaždicí vypadá jako rozdělaná práce.

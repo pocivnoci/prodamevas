@@ -23,15 +23,29 @@ export interface PortfolioPost {
     pillar?: string
 }
 
+/** Jaký vztah ke značce výloha tvrdí. Rozhoduje o popisku i o výhradě. */
+export type PortfolioRelationship = "concept" | "client"
+
 export interface PortfolioBrand {
     slug: string
     company: string
     industry: string
     website: string
+    /** "concept" = firma o tom neví a není zákazník. "client" = klient, který dal
+     *  souhlas. Chybí-li (starší export), platí přísnější "concept". */
+    relationship?: PortfolioRelationship
     posts: PortfolioPost[]
 }
 
-export const PORTFOLIO_DISCLAIMER = "Nevyžádané koncepty. Příspěvky vygeneroval Chrlit z veřejně dostupných údajů o značce. Nejde o oficiální obsah těchto značek a uvedené firmy nejsou zákazníky Chrlitu."
+/** Výhrada u NEVYŽÁDANÝCH konceptů. Nesmí se ukazovat u klientů — tvrdila by o nich,
+ *  že nejsou zákazníci. */
+export const PORTFOLIO_DISCLAIMER = "Nevyžádaný koncept. Příspěvky vygeneroval Chrlit z veřejně dostupných údajů o značce. Nejde o oficiální obsah značky a tato firma není zákazníkem Chrlitu."
+
+/** Popisek u KLIENTA, který dal souhlas. */
+export const PORTFOLIO_CLIENT_NOTE = "Práce pro klienta, zveřejněno s jeho souhlasem. Příspěvky vygeneroval Chrlit."
+
+/** Souhrnná výhrada nad celou výlohou, když jsou v ní obě kategorie. */
+export const PORTFOLIO_MIXED_DISCLAIMER = "Výloha míchá dvě věci a u každé značky je to napsané: nevyžádané koncepty pro firmy, které o tom nevědí a nejsou zákazníky Chrlitu, a práci pro klienty zveřejněnou s jejich souhlasem."
 
 export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
   {
