@@ -191,6 +191,46 @@ async function editPostInner(
 
             update.caption = revised.caption
             update.hashtags = revised.hashtags
+
+            // Faktická brána nad retuší. Běží v režimu „jen značkuj", NIKDY nepřepisuje:
+            // uživatel právě řekl, co chce, a přepsat mu to pod rukama by bylo horší než
+            // nepodložené tvrzení. Jeho pokyn je zároveň povolený zdroj — když si vyžádá
+            // „napiš, že jsme tu 25 let", ručí za to on. Označí se jen to, co si k tomu
+            // model přimyslel sám.
+            if (config.factCheckMode !== "off" && config.factCheck !== false) {
+                try {
+                    const { checkCaptionFacts } = await import("@/instagram/fact-check")
+                    const lines = (revised.caption || "").split("\n").filter(Boolean)
+                    const out = await checkCaptionFacts(
+                        { ...config, factCheckMode: "bold" },
+                        { hook: lines[0] || "", body: lines.slice(1).join("\n"), cta: "", hashtags: [] },
+                        { topic: instruction, product: product ? { name: product.name, price: product.price, description: product.description } : null },
+                    )
+                    if (out.judged) {
+                        // Přepíše stav u NEJNOVĚJŠÍHO logu postu — retuš mohla tvrzení
+                        // přidat i odstranit, takže starý příznak nesmí zůstat viset.
+                        const { data: lastLog } = await supabaseAdmin
+                            .from("ig_generation_log")
+                            .select("id")
+                            .eq("post_id", postId)
+                            .order("created_at", { ascending: false })
+                            .limit(1)
+                            .maybeSingle()
+                        if (lastLog?.id) {
+                            await supabaseAdmin
+                                .from("ig_generation_log")
+                                .update({ fact_status: out.status, fact_flags: out.flags })
+                                .eq("id", lastLog.id)
+                        }
+                        if (out.flags.length > 0) {
+                            console.warn(`   🚩 Retuš postu ${postId}: nepodložené tvrzení — ${out.flags.join(" | ")}`)
+                        }
+                    }
+                } catch (err) {
+                    // Fail-open, nahlas: retuš se kvůli bráně nikdy nezruší.
+                    console.warn(`   ⚠️ Faktická brána nad retuší nedoběhla: ${(err as Error).message?.slice(0, 100)}`)
+                }
+            }
         }
 
         // ── Image ───────────────────────────────────────────
