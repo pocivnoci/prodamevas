@@ -241,7 +241,10 @@ Konkrétní tvrzení, které si čtenář může ověřit a přistihnout značku
   doba, dodací lhůta, termín, dostupnost.
 - Popis vlastního produktu, který sedí na jeho popis v katalogu výš.
 - Ustálené obraty a nadsázka, kterou nikdo nečte jako údaj („nekonečně dlouho",
-  „milionkrát ověřeno").
+  „milionkrát ověřeno"). **Číslo v nadsázce není údaj**: „praští do očí z padesáti
+  metrů", „stokrát jsem to říkal", „za pět minut hotovo" u něčeho, co se neměří.
+  Zkouška: šel by si to zákazník ověřit metrem, stopkami nebo fakturou? Když ne,
+  není to tvrzení. (Naměřeno — brána tohle přepisovala a brala postům šťávu.)
 - **Jména a místa.** Název značky, města, kraje, ulice nebo okolní krajiny, kde
   značka působí (viz IDENTITA výš), a názvy vlastních produktů z katalogu. To je
   identita, ne tvrzení — a bez nich je z postu bezejmenná vata.
