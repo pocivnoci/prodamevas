@@ -17,7 +17,7 @@
 import { readFileSync } from "fs"
 import { resolve } from "path"
 import { PORTFOLIO_BRANDS } from "../lib/portfolio-data"
-import { PORTFOLIO_VISIBLE_BRANDS, PORTFOLIO_VISIBLE_MEDIA } from "../lib/portfolio"
+import { PORTFOLIO_VISIBLE_BRANDS, PORTFOLIO_VISIBLE_MEDIA, PORTFOLIO_MIN_POSTS } from "../lib/portfolio"
 
 let passed = 0
 let failed = 0
@@ -137,6 +137,15 @@ check(
 check(
     "mřížka ustojí příspěvek bez obálky",
     /post\.images\[0\]\s*\?/.test(grid)
+)
+
+// ── 9. Poloprázdný profil se neukazuje ──────────────────────────────────────
+// Od chvíle, kdy z výlohy vypadávají označené příspěvky, je reálný stav „značce
+// zbyl jeden post". Profil s jedinou dlaždicí vypadá jako rozdělaná práce.
+check(
+    "značka pod minimem příspěvků se neukazuje vůbec",
+    PORTFOLIO_VISIBLE_BRANDS.every(b => b.posts.length >= PORTFOLIO_MIN_POSTS),
+    PORTFOLIO_VISIBLE_BRANDS.filter(b => b.posts.length < PORTFOLIO_MIN_POSTS).map(b => b.slug).join(", ")
 )
 
 // ── 8. Výloha neukazuje, co si systém sám označil ───────────────────────────
