@@ -4019,7 +4019,16 @@ test("36.4h varování u tisku je vidět PŘED objednáním", () => {
     // Tisk se na rozdíl od příspěvku nedá vzít zpátky.
     const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/products/PrintSection.tsx")
     assert(/factCheck/.test(ui) && /FactChip/.test(ui), "návrh k tisku musí umět varovat")
-    assert(/fc\.status !== "flagged"/.test(ui), "čip se ukazuje jen když v textu tvrzení ZŮSTALO")})
+    assert(/fc\.status !== "flagged"/.test(ui), "čip se ukazuje jen když v textu tvrzení ZŮSTALO")
+})
+
+test("36.4i ukázka pro prospekta má taky fakta", () => {
+    // Bez nich by brána z demo postu sebrala každou konkrétnost — a demo je ten
+    // příspěvek, který má přesvědčit. Text stránky je už načtený, stojí to jedno volání.
+    const prev = codeOnly("lib/agents/sales/preview.ts")
+    assert(/extractFactsFromPages/.test(prev), "ukázka musí seedovat fakta jako onboarding")
+    assert(/analysis\.brandFacts =/.test(prev), "fakta se musí dostat do configu ukázky")
+})
 
 test("36.5 fakta mají default a dostanou se do promptu i do brány", () => {
     const cfg = codeOnly("instagram/configs/index.ts")
