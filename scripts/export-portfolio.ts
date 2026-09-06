@@ -111,6 +111,19 @@ async function main() {
 
     const brands: PortfolioBrand[] = []
 
+    // Příspěvky, kterým faktická brána nechala nepodložené tvrzení. Jeden dotaz pro
+    // všechny značky — výloha se exportuje zřídka, ale číst log per post by bylo N+1.
+    const flaggedPostIds = new Set<string>()
+    try {
+        const { data: flagged } = await supabaseAdmin
+            .from("ig_generation_log")
+            .select("post_id")
+            .eq("fact_status", "flagged")
+            .in("client_id", portfolioClients.map(c => c.id))
+        for (const row of flagged || []) if (row.post_id) flaggedPostIds.add(row.post_id as string)
+        if (flaggedPostIds.size) console.log(`   🚩 ${flaggedPostIds.size} příspěvků s neověřeným tvrzením — do portfolia nepůjdou`)
+    } catch { /* sloupec nemigrovaný — filtr se neuplatní, export nepadá */ }
+
     for (const c of portfolioClients) {
         const cfg = (c.config as any) || {}
         const { data: posts } = await supabaseAdmin
@@ -146,6 +159,12 @@ async function main() {
             // Vypadává jen to, z čeho nezbylo nic — záznam po selhaném renderu.
             // Reel se dá přehrát i bez obálky, takže tomu stačí video.
             .filter(p => p.images.length > 0 || !!p.videoUrl)
+            // Do výlohy nejde nic, co naše vlastní faktická brána označila. Portfolio
+            // ukazuje koncepty pro SKUTEČNÉ značky (LIQUI MOLY, Rohlík, Portu), které
+            // nás o nic nepožádaly — nepodložené tvrzení o cizí firmě na našem webu je
+            // horší závada než v klientském feedu. Když si to systém sám označí jako
+            // neověřené, nemá to prodávat naši práci.
+            .filter(p => !flaggedPostIds.has(p.id))
 
         brands.push({
             slug: c.slug,
