@@ -57,7 +57,7 @@ async function main() {
     for (const client of targets as any[]) {
         const { data: posts } = await supabaseAdmin
             .from('ig_posts')
-            .select('id, caption, call_to_action')
+            .select('id, caption, call_to_action, design_brief')
             .eq('client_id', client.id)
             .not('caption', 'is', null)
             .order('created_at', { ascending: false })
@@ -72,13 +72,18 @@ async function main() {
             // Caption v DB je složený text; brána ho vidí jako hook + tělo, tedy tak,
             // jak by ho viděla při generování.
             const lines = (post.caption || '').split('\n').filter(Boolean)
+            // Text VYPÁLENÝ DO OBRÁZKU je nejviditelnější tvrzení celého postu — a v
+            // captionu není. Bere se z design_briefu jako display text, aby se posuzoval
+            // přísněji (viz pravidla pro nadpisy v fact-check.ts).
+            const typo = (post.design_brief as { typography?: { headlineText?: string; subtextText?: string } } | null)?.typography
             const draft = {
-                hook: lines[0] || '',
+                hook: typo?.headlineText || lines[0] || '',
+                imageSubtext: typo?.subtextText || '',
                 body: lines.slice(1).join('\n').replace(/#\S+/g, '').trim(),
                 cta: post.call_to_action || '',
                 hashtags: [],
             }
-            if (!draft.body && !draft.hook) continue
+            if (!draft.body && !draft.hook && !draft.imageSubtext) continue
 
             try {
                 await withUsageScope(async () => {
