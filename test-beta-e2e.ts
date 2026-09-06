@@ -3959,6 +3959,19 @@ test("36.4c oba posuvníky slibují uživateli totéž", () => {
     }
 })
 
+test("36.4d nápad ze zásobníku není zdroj faktů (pračka na halucinace)", () => {
+    // Nápady píše model. Kdyby platily jako povolený zdroj, stačí, aby si generátor
+    // vymyslel „25 let na trhu" do nápadu — copywriter to opíše a brána to posvětí,
+    // protože „to je přece v námětu". Tvrzení by se tím vypralo do postu bez jediného
+    // člověka po cestě.
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/NÁPAD ZE ZÁSOBNÍKU — TÉMA, NE ZDROJ FAKTŮ/.test(fc),
+        "nápad musí být v promptu označený jako téma, ne jako povolený zdroj")
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/topic: options\.topic \|\| null/.test(auto) && /idea: idea \?/.test(auto),
+        "téma od člověka a nápad z banky musí jít bráně ODDĚLENĚ")
+})
+
 test("36.5 fakta mají default a dostanou se do promptu i do brány", () => {
     const cfg = codeOnly("instagram/configs/index.ts")
     assert(/brandFacts: config\.brandFacts \|\| \[\]/.test(cfg), "chybějící pole nesmí být výbušnina")
