@@ -478,6 +478,17 @@ export interface ClientConfig {
      *  Deliberately separate from `isReference`, which feeds the marketing wall:
      *  mixing the two would present strangers' brands as case studies. */
     isPortfolio?: boolean
+
+    /**
+     * SKUTEČNÝ klient, který dal souhlas ukázat svou práci ve výloze.
+     *
+     * Vědomě oddělené od `isPortfolio`: ten znamená „firma o nás neví a není náš
+     * zákazník" a portfoliová stránka to takhle i tvrdí. U klienta by ta věta byla
+     * lež, takže potřebuje vlastní příznak a vlastní popisek („klient", ne
+     * „nevyžádaný koncept"). Souhlas je věc mimo kód — příznak se nastavuje ručně
+     * až ve chvíli, kdy klient kývne.
+     */
+    isCaseStudy?: boolean
 }
 
 // ─── Brand Image Type ────────────────────────────────────────────────

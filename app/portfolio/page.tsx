@@ -16,7 +16,7 @@ import Link from "next/link"
 import type { Metadata } from "next"
 import { SiteHeader } from "@/components/SiteHeader"
 import { SiteFooter } from "@/components/SiteFooter"
-import { PORTFOLIO_VISIBLE_BRANDS, PORTFOLIO_DISCLAIMER, type PortfolioBrand } from "@/lib/portfolio"
+import { PORTFOLIO_VISIBLE_BRANDS, PORTFOLIO_DISCLAIMER, PORTFOLIO_MIXED_DISCLAIMER, portfolioRelationship, type PortfolioBrand } from "@/lib/portfolio"
 import { countLabel, POSTS, CAROUSELS, IMAGES, BRANDS } from "@/lib/plural"
 
 const COVER = PORTFOLIO_VISIBLE_BRANDS.flatMap(b => b.posts).find(p => p.images[0])?.images[0]
@@ -57,6 +57,9 @@ function previews(b: PortfolioBrand, n: number) {
 
 export default function PortfolioIndex() {
     const brands = PORTFOLIO_VISIBLE_BRANDS
+    // Výhrada nad výlohou se řídí tím, co v ní SKUTEČNĚ je. Text „firmy nejsou
+    // zákazníky" nesmí viset nad stránkou, kde je jeden z nich klient.
+    const hasClients = brands.some(b => portfolioRelationship(b) === "client")
     const total = brands.reduce((n, b) => n + b.posts.length, 0)
 
     return (
@@ -84,12 +87,12 @@ export default function PortfolioIndex() {
 
                 {/* Disclaimer až za sdělením: výhrada nesmí mít vyšší prioritu než to,
                     co stránka nabízí — ale musí být vidět dřív než první dlaždice. */}
-                <div className="border-l-2 border-white/20 bg-white/[0.03] px-5 py-4 mb-12 max-w-2xl">
+<div className="border-l-2 border-white/20 bg-white/[0.03] px-5 py-4 mb-12 max-w-2xl">
                     <div className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5">
-                        Nevyžádané koncepty
+                        {hasClients ? "Jak to číst" : "Nevyžádané koncepty"}
                     </div>
                     <p className="text-white/50 text-xs leading-relaxed">
-                        {PORTFOLIO_DISCLAIMER}
+                        {hasClients ? PORTFOLIO_MIXED_DISCLAIMER : PORTFOLIO_DISCLAIMER}
                     </p>
                 </div>
 
@@ -98,6 +101,7 @@ export default function PortfolioIndex() {
                 ) : (
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         {brands.map(b => {
+                            const isClient = portfolioRelationship(b) === "client"
                             const c = counts(b)
                             const thumbs = previews(b, 3)
                             return (
@@ -122,8 +126,16 @@ export default function PortfolioIndex() {
                                         <h2 className="text-lg font-black text-white/90 group-hover:text-white leading-snug mb-1">
                                             {b.company}
                                         </h2>
-                                        <div className="text-[9px] font-bold uppercase tracking-widest text-white/30 mb-3">
-                                            {b.industry || "—"}
+                                        <div className="flex items-center gap-2 flex-wrap mb-3">
+                                            <span className="text-[9px] font-bold uppercase tracking-widest text-white/30">
+                                                {b.industry || "—"}
+                                            </span>
+                                            {/* Vztah ke značce patří na dlaždici, ne jen do detailu:
+                                                kdo si výlohu jen prolistuje, musí vidět rozdíl mezi
+                                                nevyžádaným konceptem a prací pro klienta. */}
+                                            <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-sm border ${isClient ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400/80" : "border-white/10 bg-white/5 text-white/40"}`}>
+                                                {isClient ? "Klient" : "Koncept"}
+                                            </span>
                                         </div>
                                         <div className="flex flex-wrap gap-x-3 gap-y-1 text-[9px] font-bold uppercase tracking-widest text-white/40 tabular-nums">
                                             <span className="text-white/60">{countLabel(b.posts.length, POSTS)}</span>
