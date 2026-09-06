@@ -729,6 +729,65 @@ test("bez oprav se nemění nic", () => {
     assert(applied === 0 && JSON.stringify(data) === JSON.stringify(before), "brána šahá do textu i bez nálezu")
 })
 
+// ─── Brána nesmí rozbít tvar příspěvku ──────────────────────
+
+console.log("\n🧱 Invarianty médií po zásahu brány")
+
+test("story: hook a headline prvního snímku zůstanou shodné", () => {
+    // Autopilot je srovnává natvrdo (frames[0] se opravuje na hook). Kdyby je brána
+    // rozešla, snímek by tvrdil něco jiného než popisek — a všimne si toho až divák.
+    const story = {
+        hook: "Záruka 5 let na balení",
+        frames: [
+            { headline: "Záruka 5 let na balení", subtext: "Ověřeno" },
+            { headline: "Objednej dnes", subtext: "Doprava zdarma nad 500 Kč" },
+        ],
+        body: "Shrnutí.", cta: "Napiš nám", hashtags: ["#x"],
+    }
+    const { data } = applyFactFixes(story, [{ find: "Záruka 5 let na balení", replace: "Záruka na balení" }])
+    assert((data as any).hook === (data as any).frames[0].headline,
+        `hook a snímek 1 se rozešly: "${(data as any).hook}" vs "${(data as any).frames[0].headline}"`)
+})
+
+test("žádné pole se nesmí vyprázdnit", () => {
+    // Naměřeno: prázdná náhrada nad celým nadpisem sebrala hook — a ten je nosný dál
+    // (caption, dedup, titulek karty, text vypálený do obrázku). Prázdný plakát je
+    // horší závada než tvrzení, které zůstane a označí se.
+    const post = {
+        hook: "Vyrábíme od roku 1947",
+        slides: [{ headline: "Vyrábíme od roku 1947", subtext: "Tradice", imagePrompt: "EN" }],
+        body: "Text.", cta: "Mrkni", hashtags: ["#x"],
+    }
+    const { data } = applyFactFixes(post, [{ find: "Vyrábíme od roku 1947", replace: "" }])
+    assert((data as any).hook.trim().length > 0, "hook se vyprázdnil")
+    assert((data as any).slides[0].headline.trim().length > 0, "nadpis slidu se vyprázdnil")
+})
+
+test("reel: caption a body zůstanou v páru, scéna si nechá režii", () => {
+    const reel = {
+        hook: "Test", caption: "Vyrábíme od roku 1947.", body: "Vyrábíme od roku 1947.",
+        scenes: [{ narration: "Vyrábíme od roku 1947.", visual: "EN", camera: "dolly", mood: "epic", soundEffect: "engine" }],
+        cta: "x", hashtags: ["#x"],
+    }
+    const { data } = applyFactFixes(reel, [{ find: "Vyrábíme od roku 1947.", replace: "Vyrábíme poctivě." }])
+    const d = data as any
+    assert(d.caption === d.body, "caption a body se rozešly — renderer a popisek by tvrdily každý něco jiného")
+    assert(d.scenes[0].visual === "EN" && d.scenes[0].camera === "dolly" && d.scenes[0].mood === "epic",
+        "brána sáhla do režie scény; má se dotýkat jen mluveného slova")
+})
+
+test("počet slidů a snímků se nemění", () => {
+    const post = {
+        hook: "A",
+        slides: [{ headline: "A", subtext: "1" }, { headline: "B", subtext: "2" }, { headline: "C", subtext: "3" }],
+        frames: [{ headline: "A", subtext: "1" }, { headline: "B", subtext: "2" }],
+        body: "x", cta: "y", hashtags: ["#x"],
+    }
+    const { data } = applyFactFixes(post, [{ find: "B", replace: "D" }])
+    assert((data as any).slides.length === 3 && (data as any).frames.length === 2,
+        "brána změnila počet slidů/snímků — formát je invariant, ne návrh")
+})
+
 // ─── Report ─────────────────────────────────────────────────
 
 console.log("\n" + "─".repeat(60))
