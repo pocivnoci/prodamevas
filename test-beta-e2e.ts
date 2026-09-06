@@ -3996,6 +3996,14 @@ test("36.4f tištěný text prochází bránou, nadpis od člověka zůstává",
     assert(/checkDisplayStrings/.test(fc) && /checkCaptionFacts\(config, synthetic, ctx\)/.test(fc),
         "tisk musí jet TÝMŽ kódem jako příspěvky — druhá implementace pravidel by se rozešla")})
 
+test("36.4h varování u tisku je vidět PŘED objednáním", () => {
+    // Výsledek brány se ukládá do briefu; bez čipu v UI by tam ležel neviditelný.
+    // Tisk se na rozdíl od příspěvku nedá vzít zpátky.
+    const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/products/PrintSection.tsx")
+    assert(/factCheck/.test(ui) && /FactChip/.test(ui), "návrh k tisku musí umět varovat")
+    assert(/fc\.status !== "flagged"/.test(ui), "čip se ukazuje jen když v textu tvrzení ZŮSTALO")
+})
+
 test("36.5 fakta mají default a dostanou se do promptu i do brány", () => {
     const cfg = codeOnly("instagram/configs/index.ts")
     assert(/brandFacts: config\.brandFacts \|\| \[\]/.test(cfg), "chybějící pole nesmí být výbušnina")

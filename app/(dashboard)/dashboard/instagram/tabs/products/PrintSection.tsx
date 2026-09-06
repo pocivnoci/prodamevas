@@ -321,6 +321,7 @@ export function PrintSection({
                         </div>
                         <div className="flex items-center gap-2">
                             <QaChip status={open.qa_status} />
+                            <FactChip brief={open.brief} />
                             <button onClick={() => setOpen(null)}
                                 className="text-white/30 hover:text-white/60 text-lg leading-none">×</button>
                         </div>
@@ -481,6 +482,23 @@ function SpecCell({ k, v }: { k: string; v: string }) {
             <div className="text-[8px] uppercase tracking-widest font-bold text-white/25">{k}</div>
             <div className="text-white/60">{v}</div>
         </div>
+    )
+}
+
+/**
+ * Výsledek faktické brány nad TIŠTĚNÝM textem (instagram/fact-check.ts). Ukládá se
+ * do briefu; bez tohohle čipu by tam ležel neviditelný — a tisk se na rozdíl od
+ * příspěvku nedá vzít zpátky, takže varování musí být vidět PŘED objednáním.
+ */
+function FactChip({ brief }: { brief: any }) {
+    const fc = brief?.factCheck
+    if (!fc || fc.status !== "flagged") return null
+    const flags: string[] = Array.isArray(fc.flags) ? fc.flags : []
+    return (
+        <span
+            title={`V textu zůstalo tvrzení bez opory v ověřených faktech:\n${flags.join("\n") || "—"}\n\nDoplň fakt v Nastavení → Ověřená fakta, nebo text uprav před tiskem.`}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm border text-[9px] font-bold uppercase tracking-widest bg-amber-500/10 border-amber-500/30 text-amber-400"
+        >Ověř fakta</span>
     )
 }
 
