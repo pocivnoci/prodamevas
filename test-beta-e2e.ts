@@ -3358,6 +3358,13 @@ test("29.13 ruční adresy v Mailingu projdou stejnou branou jako segment", () =
     const send = m.slice(m.indexOf("export async function sendBroadcast"))
     assert(send.indexOf("sanitizeManual") < send.indexOf("DAILY_CAP"),
         "ruční adresy musí projít sanitizací PŘED tím, než se ořežou na denní strop")
+
+    // Přepnutí na ruční adresy musí zahodit seznam z předchozího segmentu hned.
+    // Kdyby tam chvíli zůstal, odeslání by šlo na waitlist místo na jednu adresu.
+    const ui = codeOnly("app/(dashboard)/dashboard/instagram/tabs/MailingTab.tsx")
+    const branch = ui.slice(ui.indexOf('if (segment === "manual") {'), ui.indexOf('if (segment === "manual") {') + 300)
+    assert(branch.includes("setRecipients([])"),
+        "přepnutí na ruční adresy musí zahodit příjemce z minulého segmentu")
 })
 
 // ═══════════════════════════════════════════════════════════
