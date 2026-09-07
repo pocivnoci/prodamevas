@@ -32,6 +32,7 @@ import { requireProjectAccess } from "@/lib/auth-guard"
 import { fetchImageBuffer, nearestAspectRatio } from "@/lib/image-buffer"
 import { parsePostMedia } from "@/lib/media-urls"
 import type { IGPost, PostEditHistoryEntry } from "@/lib/types/database"
+import type { ClientConfig } from "@/instagram/configs/types"
 
 /** How many undo steps a post keeps. Beyond this the oldest are dropped — jsonb on a
  *  hot table, and nobody undoes eleven edits back. */
@@ -59,6 +60,10 @@ export interface PostEditResult {
     imageChanged?: boolean
     /** Surfaced to the UI as a warning — the edit shipped, but vision QA still dislikes it. */
     warning?: string
+    /** Nový stav faktické brány, když ho úprava přepočítala. `undefined` = brána neběžela. */
+    factStatus?: string
+    /** Tvrzení, která v novém textu zůstala bez opory. Prázdné pole = čisto. */
+    factFlags?: string[]
 }
 
 // ─── Edit ────────────────────────────────────────────────────
@@ -197,40 +202,11 @@ async function editPostInner(
             // nepodložené tvrzení. Jeho pokyn je zároveň povolený zdroj — když si vyžádá
             // „napiš, že jsme tu 25 let", ručí za to on. Označí se jen to, co si k tomu
             // model přimyslel sám.
-            if (config.factCheckMode !== "off" && config.factCheck !== false) {
-                try {
-                    const { checkCaptionFacts } = await import("@/instagram/fact-check")
-                    const lines = (revised.caption || "").split("\n").filter(Boolean)
-                    const out = await checkCaptionFacts(
-                        { ...config, factCheckMode: "bold" },
-                        { hook: lines[0] || "", body: lines.slice(1).join("\n"), cta: "", hashtags: [] },
-                        { topic: instruction, product: product ? { name: product.name, price: product.price, description: product.description } : null },
-                    )
-                    if (out.judged) {
-                        // Přepíše stav u NEJNOVĚJŠÍHO logu postu — retuš mohla tvrzení
-                        // přidat i odstranit, takže starý příznak nesmí zůstat viset.
-                        const { data: lastLog } = await supabaseAdmin
-                            .from("ig_generation_log")
-                            .select("id")
-                            .eq("post_id", postId)
-                            .order("created_at", { ascending: false })
-                            .limit(1)
-                            .maybeSingle()
-                        if (lastLog?.id) {
-                            await supabaseAdmin
-                                .from("ig_generation_log")
-                                .update({ fact_status: out.status, fact_flags: out.flags })
-                                .eq("id", lastLog.id)
-                        }
-                        if (out.flags.length > 0) {
-                            console.warn(`   🚩 Retuš postu ${postId}: nepodložené tvrzení — ${out.flags.join(" | ")}`)
-                        }
-                    }
-                } catch (err) {
-                    // Fail-open, nahlas: retuš se kvůli bráně nikdy nezruší.
-                    console.warn(`   ⚠️ Faktická brána nad retuší nedoběhla: ${(err as Error).message?.slice(0, 100)}`)
-                }
-            }
+            await refreshFactStatus(config, postId, revised.caption || "", {
+                topic: instruction,
+                product,
+                label: "Retuš postu",
+            })
         }
 
         // ── Image ───────────────────────────────────────────
@@ -367,6 +343,151 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`,
     }
 }
 
+// ─── Ruční úprava textu ──────────────────────────────────────
+
+/**
+ * Přepsat text příspěvku vlastními slovy — doslova, bez modelu.
+ *
+ * Proč vedle `editPost` a ne v něm: `editPost` je celý postavený na cestě
+ * `instruction → model`. Když engine napíše nepravdu, tahle cesta nepomůže — pokyn
+ * dostane jiný model a ten může vymyslet další tvrzení. Karta postu přitom u
+ * označeného tvrzení radí „doplň fakt, **nebo to tvrzení z textu smaž**"; tohle je
+ * ta druhá půlka rady, která do teď neexistovala.
+ *
+ * Zadarmo a bez volání modelu: uživatel opravuje NAŠI chybu. Účtovat mu ji by bylo
+ * horší než tu chybu udělat.
+ *
+ * Faktická brána nad výsledkem přesto běží — v režimu „jen značkuj". Ne proto, že by
+ * se člověku nevěřilo: bez ní by na opraveném textu zůstal viset příznak ze staré
+ * verze (tvrzení už v textu není, varování ano), a nově dopsané tvrzení by naopak
+ * neoznačilo nic. Brána tu tedy stav **osvěžuje**, nikdy nepřepisuje.
+ */
+export async function saveManualText(
+    projectSlug: string,
+    postId: string,
+    text: { caption: string; hashtags?: string[] },
+): Promise<PostEditResult> {
+    const caption = (text.caption ?? "").trim()
+    if (!caption) return { success: false, error: "Text nemůže být prázdný." }
+
+    let clientId: string
+    try {
+        clientId = (await requireProjectAccess(projectSlug)).clientId
+    } catch (err) {
+        return { success: false, error: (err as Error)?.message || "Neautorizovaný přístup." }
+    }
+
+    const { data: post } = await supabaseAdmin
+        .from("ig_posts")
+        .select("*, ig_post_types(name, display_name)")
+        .eq("id", postId)
+        .eq("client_id", clientId)
+        .maybeSingle()
+
+    if (!post) return { success: false, error: "Příspěvek nenalezen." }
+
+    // Stejný zámek jako u retuše: řádek publikovaného postu se nesmí rozejít s tím,
+    // co lidé na Instagramu skutečně vidí.
+    if (post.status === "posted" || post.status === "posting") {
+        return { success: false, error: "Publikovaný příspěvek už nejde upravit — vytvoř variantu." }
+    }
+
+    const hashtags = normalizeHashtags(text.hashtags ?? post.hashtags ?? [])
+
+    // Stav před změnou, aby `revertPostEdit` fungovalo i nad ruční úpravou beze změny.
+    const historyEntry: PostEditHistoryEntry = {
+        at: new Date().toISOString(),
+        scope: "text",
+        instruction: MANUAL_TEXT_INSTRUCTION,
+        preserve: null,
+        region: null,
+        slide_index: null,
+        image_url: post.image_url,
+        image_prompt: post.image_prompt,
+        image_style: post.image_style,
+        caption: post.caption,
+        hashtags: post.hashtags,
+    }
+
+    const history = Array.isArray(post.edit_history) ? post.edit_history : []
+
+    try {
+        // Zápis na místě, nikdy nový řádek — `revision_of` a `link_type` patří
+        // systému revizí a variant a tahle cesta se jich nedotýká.
+        const { data: saved, error: saveErr } = await supabaseAdmin
+            .from("ig_posts")
+            .update({
+                caption,
+                hashtags,
+                edit_history: [...history, historyEntry].slice(-MAX_HISTORY),
+                feedback: MANUAL_TEXT_INSTRUCTION,
+            })
+            .eq("id", postId)
+            .eq("client_id", clientId)
+            .select("*, ig_post_types(name, display_name, emoji)")
+            .single()
+
+        if (saveErr) throw saveErr
+
+        // Až po uložení: pomalá nebo spadlá brána nesmí stát mezi člověkem a jeho textem.
+        let fact: FactRefresh = null
+        try {
+            const { loadConfig } = await import("@/instagram/configs")
+            const config = await loadConfig(projectSlug)
+
+            let product: FactProduct = null
+            if (post.product_id) {
+                const { data } = await supabaseAdmin
+                    .from("ig_products")
+                    .select("name, slug, price, description")
+                    .eq("id", post.product_id)
+                    .maybeSingle()
+                product = data
+            }
+
+            // `topic` je povolený zdroj faktů — a co napsal ručně člověk, je nejsilnější
+            // zdroj, jaký tu je. Označí se tak jen to, co v jeho textu vůbec není.
+            fact = await refreshFactStatus(config, postId, caption, {
+                topic: caption,
+                product,
+                label: "Ruční úprava postu",
+            })
+        } catch (err) {
+            console.warn(`   ⚠️ Stav faktické brány se po ruční úpravě neosvěžil: ${(err as Error).message?.slice(0, 100)}`)
+        }
+
+        // Ruční přepis je nejsilnější zpětná vazba, jakou od člověka dostaneme — člověk
+        // neřekl „zkrať to", rovnou ukázal výsledek. Jen když se text opravdu pohnul:
+        // `learnFromRevision` porovnává staré a nové znění a na dvou stejných by spálilo
+        // volání modelu pro závěr, že se nic nezměnilo.
+        if (saved.caption !== historyEntry.caption) try {
+            const { waitUntil } = await import("@vercel/functions")
+            const { learnFromRevision } = await import("@/instagram/memory-agent")
+            waitUntil(
+                learnFromRevision(
+                    historyEntry.caption || "",
+                    MANUAL_TEXT_FEEDBACK,
+                    saved.caption || "",
+                    [postId],
+                    clientId,
+                ).catch(() => { /* non-fatal */ })
+            )
+        } catch { /* non-fatal — text je uložený */ }
+
+        console.log(`✅ Text postu přepsán ručně: ${postId}`)
+        return {
+            success: true,
+            post: saved as IGPost,
+            imageChanged: false,
+            factStatus: fact?.status,
+            factFlags: fact?.flags,
+        }
+    } catch (err) {
+        console.error("saveManualText error:", (err as Error)?.message || err)
+        return { success: false, error: (err as Error)?.message || "Uložení textu selhalo." }
+    }
+}
+
 // ─── Undo ────────────────────────────────────────────────────
 
 /**
@@ -434,4 +555,91 @@ function buildTextFeedback(instruction: string, preserve?: string): string {
 function clampSlide(index: number | undefined, count: number): number {
     if (!Number.isFinite(index) || index == null) return 0
     return Math.min(Math.max(Math.trunc(index), 0), Math.max(0, count - 1))
+}
+
+/** Pokyn, kterým se ruční úprava podepisuje v historii i ve `feedback`. */
+const MANUAL_TEXT_INSTRUCTION = "Ruční úprava textu"
+
+/** Co se pošle učicí smyčce — musí říct, PROČ se text měnil, ne jen že se měnil. */
+const MANUAL_TEXT_FEEDBACK =
+    "Uživatel přepsal text příspěvku ručně. Takhle to znít mělo — porovnej to s původním zněním a poznamenej si rozdíl."
+
+type FactProduct = { name: string; slug: string; price?: string | null; description?: string | null } | null
+type FactRefresh = { status: string; flags: string[] } | null
+
+/**
+ * Osvěží `fact_status` / `fact_flags` u NEJNOVĚJŠÍHO logu příspěvku podle textu, který
+ * na postu právě je.
+ *
+ * Vždy v režimu `bold` — ten jen značkuje. Nad hotovým příspěvkem nesmí brána nic
+ * přepisovat: text v té chvíli buď vzešel z pokynu člověka, nebo ho člověk rovnou
+ * napsal, a tiše mu ho přepsat je horší než nepodložené tvrzení nechat označené.
+ *
+ * Stav žije na `ig_generation_log`, ne na `ig_posts` — a musí se přepsat i tehdy, když
+ * úprava tvrzení **odstranila**. Jinak zůstane na čistém textu viset staré varování.
+ */
+async function refreshFactStatus(
+    config: ClientConfig,
+    postId: string,
+    caption: string,
+    ctx: { topic?: string; product?: FactProduct; label: string },
+): Promise<FactRefresh> {
+    if (config.factCheckMode === "off" || config.factCheck === false) return null
+
+    try {
+        const { checkCaptionFacts } = await import("@/instagram/fact-check")
+        const lines = caption.split("\n").filter(Boolean)
+        const product = ctx.product
+        const out = await checkCaptionFacts(
+            { ...config, factCheckMode: "bold" },
+            { hook: lines[0] || "", body: lines.slice(1).join("\n"), cta: "", hashtags: [] },
+            {
+                topic: ctx.topic,
+                product: product ? { name: product.name, price: product.price, description: product.description } : null,
+            },
+        )
+        if (!out.judged) return null
+
+        const { data: lastLog } = await supabaseAdmin
+            .from("ig_generation_log")
+            .select("id")
+            .eq("post_id", postId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+        if (lastLog?.id) {
+            await supabaseAdmin
+                .from("ig_generation_log")
+                .update({ fact_status: out.status, fact_flags: out.flags })
+                .eq("id", lastLog.id)
+        }
+        if (out.flags.length > 0) {
+            console.warn(`   🚩 ${ctx.label} ${postId}: nepodložené tvrzení — ${out.flags.join(" | ")}`)
+        }
+        return { status: out.status, flags: out.flags }
+    } catch (err) {
+        // Fail-open, nahlas: úprava se kvůli bráně nikdy nezruší.
+        console.warn(`   ⚠️ Faktická brána nedoběhla: ${(err as Error).message?.slice(0, 100)}`)
+        return null
+    }
+}
+
+/**
+ * Hashtagy z ručního pole: bez mřížek, bez mezer, bez duplicit, bez prázdných.
+ * Uživatel je píše jak mu přijde pod ruku („#sleva, jaro  #jaro"), engine je všude
+ * ukládá jako holá slova.
+ */
+function normalizeHashtags(input: string[]): string[] {
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const raw of input) {
+        const tag = String(raw ?? "").replace(/[#\s,]+/g, "").trim()
+        if (!tag) continue
+        const key = tag.toLowerCase()
+        if (seen.has(key)) continue
+        seen.add(key)
+        out.push(tag)
+    }
+    return out
 }
