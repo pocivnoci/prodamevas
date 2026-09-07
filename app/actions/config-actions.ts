@@ -821,7 +821,7 @@ export async function confirmBrandFact(
     projectSlug: string,
     postId: string,
     claim: string,
-): Promise<{ success: boolean; factStatus?: string | null; flags?: string[]; error?: string }> {
+): Promise<{ success: boolean; factStatus?: string | null; flags?: string[]; sources?: { claim: string; url: string; title?: string; quote?: string }[]; error?: string }> {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
         const text = (claim || "").trim()
@@ -853,6 +853,16 @@ export async function confirmBrandFact(
                 .eq("id", postId)
                 .eq("client_id", clientId)
                 .maybeSingle()
+            // Doklady z webu, které post už má. Bez nich by potvrzení JEDNOHO faktu
+            // shodilo štítky zpátky na všechna ostatní doložená tvrzení — a hledání
+            // by se zaplatilo znovu za tentýž nález.
+            const { data: lastLog } = await supabaseAdmin
+                .from("ig_generation_log")
+                .select("id, fact_sources")
+                .eq("post_id", postId)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle()
             if (post) {
                 const { checkCaptionFacts } = await import("@/instagram/fact-check")
                 const lines = (post.caption || "").split("\n").filter(Boolean)
@@ -866,23 +876,16 @@ export async function confirmBrandFact(
                         cta: post.call_to_action || "",
                         hashtags: [],
                     },
-                    {},
+                    { webVerified: lastLog?.fact_sources ?? null },
                 )
                 if (out.judged) {
-                    const { data: lastLog } = await supabaseAdmin
-                        .from("ig_generation_log")
-                        .select("id")
-                        .eq("post_id", postId)
-                        .order("created_at", { ascending: false })
-                        .limit(1)
-                        .maybeSingle()
                     if (lastLog?.id) {
                         await supabaseAdmin
                             .from("ig_generation_log")
-                            .update({ fact_status: out.status, fact_flags: out.flags })
+                            .update({ fact_status: out.status, fact_flags: out.flags, fact_sources: out.sources })
                             .eq("id", lastLog.id)
                     }
-                    return { success: true, factStatus: out.status, flags: out.flags }
+                    return { success: true, factStatus: out.status, flags: out.flags, sources: out.sources }
                 }
             }
         } catch (err: any) {

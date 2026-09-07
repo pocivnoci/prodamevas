@@ -64,6 +64,8 @@ export interface PostEditResult {
     factStatus?: string
     /** Tvrzení, která v novém textu zůstala bez opory. Prázdné pole = čisto. */
     factFlags?: string[]
+    /** Doklady z webu po přepočtu — panel „Ověřeno na webu" se z nich překreslí. */
+    factSources?: FactSourceRow[]
 }
 
 // ─── Edit ────────────────────────────────────────────────────
@@ -481,6 +483,7 @@ export async function saveManualText(
             imageChanged: false,
             factStatus: fact?.status,
             factFlags: fact?.flags,
+            factSources: fact?.sources,
         }
     } catch (err) {
         console.error("saveManualText error:", (err as Error)?.message || err)
@@ -565,11 +568,12 @@ const MANUAL_TEXT_FEEDBACK =
     "Uživatel přepsal text příspěvku ručně. Takhle to znít mělo — porovnej to s původním zněním a poznamenej si rozdíl."
 
 type FactProduct = { name: string; slug: string; price?: string | null; description?: string | null } | null
-type FactRefresh = { status: string; flags: string[] } | null
+type FactSourceRow = NonNullable<IGPost["fact_sources"]>[number]
+type FactRefresh = { status: string; flags: string[]; sources: FactSourceRow[] } | null
 
 /**
- * Osvěží `fact_status` / `fact_flags` u NEJNOVĚJŠÍHO logu příspěvku podle textu, který
- * na postu právě je.
+ * Osvěží stav faktické brány u NEJNOVĚJŠÍHO logu příspěvku podle textu, který na
+ * postu právě je.
  *
  * Vždy v režimu `bold` — ten jen značkuje. Nad hotovým příspěvkem nesmí brána nic
  * přepisovat: text v té chvíli buď vzešel z pokynu člověka, nebo ho člověk rovnou
@@ -577,6 +581,10 @@ type FactRefresh = { status: string; flags: string[] } | null
  *
  * Stav žije na `ig_generation_log`, ne na `ig_posts` — a musí se přepsat i tehdy, když
  * úprava tvrzení **odstranila**. Jinak zůstane na čistém textu viset staré varování.
+ *
+ * Doklady z minulého běhu jdou dovnitř jako `webVerified` a zase ven do `fact_sources`.
+ * Bez toho by tvrzení, které už MÁ odkaz na zdroj, naskočilo štítkem znovu a hledání
+ * by se zaplatilo podruhé za tentýž nález.
  */
 async function refreshFactStatus(
     config: ClientConfig,
@@ -590,34 +598,36 @@ async function refreshFactStatus(
         const { checkCaptionFacts } = await import("@/instagram/fact-check")
         const lines = caption.split("\n").filter(Boolean)
         const product = ctx.product
+
+        const { data: prevLog } = await supabaseAdmin
+            .from("ig_generation_log")
+            .select("id, fact_sources")
+            .eq("post_id", postId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
         const out = await checkCaptionFacts(
             { ...config, factCheckMode: "bold" },
             { hook: lines[0] || "", body: lines.slice(1).join("\n"), cta: "", hashtags: [] },
             {
                 topic: ctx.topic,
                 product: product ? { name: product.name, price: product.price, description: product.description } : null,
+                webVerified: prevLog?.fact_sources ?? null,
             },
         )
         if (!out.judged) return null
 
-        const { data: lastLog } = await supabaseAdmin
-            .from("ig_generation_log")
-            .select("id")
-            .eq("post_id", postId)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle()
-
-        if (lastLog?.id) {
+        if (prevLog?.id) {
             await supabaseAdmin
                 .from("ig_generation_log")
-                .update({ fact_status: out.status, fact_flags: out.flags })
-                .eq("id", lastLog.id)
+                .update({ fact_status: out.status, fact_flags: out.flags, fact_sources: out.sources })
+                .eq("id", prevLog.id)
         }
         if (out.flags.length > 0) {
             console.warn(`   🚩 ${ctx.label} ${postId}: nepodložené tvrzení — ${out.flags.join(" | ")}`)
         }
-        return { status: out.status, flags: out.flags }
+        return { status: out.status, flags: out.flags, sources: out.sources }
     } catch (err) {
         // Fail-open, nahlas: úprava se kvůli bráně nikdy nezruší.
         console.warn(`   ⚠️ Faktická brána nedoběhla: ${(err as Error).message?.slice(0, 100)}`)

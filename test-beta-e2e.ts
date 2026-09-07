@@ -4063,6 +4063,164 @@ test("36.6 označený post je vidět v dashboardu", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 37. OVĚŘENÍ NA WEBU — BRÁNA SMÍ TVRZENÍ TAKY DOLOŽIT
+// ═══════════════════════════════════════════════════════════
+
+test("37.1 levný ověřovatel umí jen PŘIDAT, nikdy shodit", () => {
+    // Tohle je celý důvod, proč ověřování smí běžet na Haiku vedle Pro soudce.
+    // Na web jde VÝHRADNĚ to, co soudce označil za `unsure`; tvrzení, které pustil
+    // jako `ok`, se do levného modelu nedostane a ten ho tedy nemá jak přehodnotit.
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/const unsureAll = claims\.filter\(c => c\?\.verdict === "unsure"\)/.test(fc),
+        "na web smí jen tvrzení označená soudcem za nejistá")
+    assert(/verifyClaimsOnWeb\(\s*searchable/.test(fc),
+        "ověřovateli se nesmí předat nic jiného než `searchable` (= nejistá, ne o značce)")
+    assert(!/verdict === "ok"[\s\S]{0,200}verifyClaimsOnWeb/.test(fc),
+        "tvrzení, které soudce pustil, se na web nikdy neposílá")
+})
+
+test("37.2 tvrzení o značce se na web nepouští (kruhové doložení)", () => {
+    // Veřejný web o malém českém klientovi nic neví. Co se na něm najde, je jeho
+    // vlastní marketing opsaný jinde — a doložit tvrzení sám sebou je přesně ta
+    // halucinace s razítkem „ověřeno", které má celá vrstva bránit.
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/unsureAll\.filter\(c => c\.scope !== "brand"\)/.test(fc),
+        "filtr podle scope musí být v KÓDU — prompt se dá přemluvit, `if` ne")
+    const fw = codeOnly("instagram/fact-web.ts")
+    assert(/blockedDomains: brandHost \? \[brandHost\] : \[\]/.test(fw),
+        "vlastní doména klienta musí jít do blocked_domains")
+    assert(/if \(brandHost && \(host === brandHost/.test(fw),
+        "a ještě jednou se filtruje na výsledku — blocked_domains je slib API, ne náš")
+})
+
+test("37.3 zdroj nesmí pocházet z textu modelu", () => {
+    // Táž pojistka jako `known.has(f.source)` v lib/brand-facts.ts: vymyšlená URL je
+    // horší než žádný zdroj, protože vypadá jako doklad.
+    const fw = codeOnly("instagram/fact-web.ts")
+    assert(/export function admissibleSource/.test(fw),
+        "přípustnost zdroje musí být čistá funkce, ať se dá testovat bez modelu")
+    assert(/const hit = admissibleSource\(r\.url, evidence, brandHost\)/.test(fw),
+        "každý potvrzený nález musí projít filtrem proti skutečným výsledkům hledání")
+    assert(/if \(!hit\) \{[\s\S]{0,200}console\.warn/.test(fw),
+        "zahozeny doklad musí být slyšet — mlčky zahozený vypadá jako nenalezený")
+    const ac = codeOnly("instagram/anthropic-client.ts")
+    assert(/if \(!Array\.isArray\(block\.content\)\)/.test(ac),
+        "web_search_tool_result je při chybě OBJEKT, ne pole — bez větvení to spadne nebo projde jako prázdno")
+    assert(/resp\.stop_reason !== "pause_turn"/.test(ac),
+        "dlouhé hledání se vrací přes pause_turn; bez pokračování se utne v půlce")
+})
+
+test("37.4 fail-closed: web mlčí = dnešní chování brány", () => {
+    const fw = codeOnly("instagram/fact-web.ts")
+    const fn = fw.slice(fw.indexOf("export async function verifyClaimsOnWeb"))
+    assert(/catch \(err: any\)[\s\S]{0,300}return \[\]/.test(fn),
+        "chyba hledání znamená nedoloženo, ne výjimku — post se kvůli tomu nesmí zabít")
+    assert(!/throw /.test(fn), "ověřování nesmí shodit generování postu")
+    assert(/if \(!claudeJudgeEnabled\(\)\) return \[\]/.test(fn),
+        "bez klíče se chová jako by vrstva neexistovala")
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/const risky = \[\.\.\.claims\.filter\(c => c\?\.verdict === "risk"\), \.\.\.unresolvedUnsure\]/.test(fc),
+        "nedoložené nejisté tvrzení musí spadnout mezi riziková, ne projít")
+})
+
+test("37.5 doklad přežije přehodnocení a nezaplatí se dvakrát", () => {
+    // Retuš i „Je to pravda" pouštějí bránu nad hotovým textem znovu. Bez předání
+    // starých dokladů by doložené tvrzení naskočilo jako nepodložené a hledání by
+    // se platilo podruhé za tentýž nález.
+    const edit = codeOnly("app/actions/post-edit-actions.ts")
+    assert(/webVerified: prevLog\?\.fact_sources/.test(edit), "retuš musí předat už doložená tvrzení")
+    assert(/fact_sources: out\.sources/.test(edit), "a zase je uložit")
+    const cfg = codeOnly("app/actions/config-actions.ts")
+    assert(/webVerified: lastLog\?\.fact_sources/.test(cfg),
+        "potvrzení JEDNOHO faktu nesmí shodit doklady u ostatních tvrzení")
+    assert(/fact_sources: out\.sources/.test(cfg), "a zase je uložit")
+})
+
+test("37.6 zdroje se ukládají, nesou přes resume a jsou vidět", () => {
+    const svc = codeOnly("instagram/service.ts")
+    assert(/fact_sources: log\.factSources/.test(svc), "doklady musí skončit v ig_generation_log")
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/factSources = ck\.factSources \?\? \[\]/.test(auto),
+        "post dorenderovaný po pádu by jinak přišel o zdroje, které se za něj zaplatily")
+    assert(/for \(const v of factSources\)/.test(auto),
+        "ověřeno na webu bez odkazu v logu je zase jen tvrzení brány o vlastní práci")
+    const admin = codeOnly("app/actions/admin-actions.ts")
+    assert(/fact_sources/.test(admin), "seznam postů musí doklady připojit")
+    const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/PostsTab.tsx")
+    assert(/Ověřeno na webu/.test(ui) && /rel="noopener noreferrer nofollow"/.test(ui),
+        "zdroj se musí ukázat jako skutečný odkaz — doklad, který nikdo neuvidí, je stejný jako žádný")
+})
+
+test("37.7 měření: hledání se účtuje vedle tokenů, ne místo nich", () => {
+    const ac = codeOnly("instagram/anthropic-client.ts")
+    assert(/recordUsage\(model/.test(ac) && /recordUnits\(model, "searches"/.test(ac),
+        "dva záznamy: jeden záznam neumí tokeny i hledání a mlčky by zahodil půlku ceny")
+    assert(/server_tool_use\?\.web_search_requests/.test(ac),
+        "počet hledání se bere z odpovědi API, ne z odhadu")
+    const price = codeOnly("lib/model-pricing.ts")
+    assert(/perSearch: 0\.01/.test(price), "sazba za hledání chybí — spotřeba by se změřila a neúčtovala")
+    assert(/"claude-haiku-4-5": \{ in: 1, out: 5/.test(price), "tokenová sazba ověřovatele chybí")
+})
+
+test("37.8 hooky v plánu procházejí bránou, než je uživatel schválí", () => {
+    // Díra do #83: schválený hook je pro bránu u příspěvku POVOLENÝ ZDROJ, ale plán
+    // sám žádnou bránou neprošel. Nepodložené číslo v hooku si tím kupovalo imunitu
+    // pro celý post — a uživatel schvaloval znění, u kterého NEVIDĚL, že ho nemáme
+    // čím podložit. Schválení je legitimní zdroj jen tehdy, když je informované.
+    const plan = codeOnly("app/actions/content-plan-actions.ts")
+    assert(/checkDisplayStrings/.test(plan), "hooky plánu musí projít faktickou bránou")
+    assert(/concepts\.map\(c => c\.hookPreview \|\| ""\)/.test(plan),
+        "jedno volání nad všemi hooky naráz, ne osm volání")
+    assert(plan.indexOf("checkDisplayStrings") < plan.indexOf("const usedIdeaIdx"),
+        "brána musí běžet PŘED sestavením položek plánu, jinak nemá co označit")
+    assert(plan.indexOf("while (concepts.length < count") < plan.indexOf("checkDisplayStrings"),
+        "brána běží AŽ po dopsání chybějících konceptů — jinak by je část hooků minula")
+    const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/GenerateTab.tsx")
+    assert(/item\.factFlag && \(/.test(ui),
+        "varování musí být vidět U POLOŽKY, jinak je schválení pořád nevědomé")
+})
+
+test("37.9 schválení chrání znění hooku, ne štítek", () => {
+    // Uživatel viděl varování a hook přesto schválil. Znění se mu nepřepíše (mega
+    // prompt to slíbil), ale příspěvek MUSÍ nést varování dál — jinak nepodložené
+    // tvrzení doputuje na kartu jako „v pořádku".
+    const camp = codeOnly("app/actions/campaign-actions.ts")
+    assert(/factFlag: it\.factFlag \|\| null/.test(camp),
+        "planRows whitelistuje pole — bez tohohle se varování zahodí rovnou při schválení")
+    const worker = codeOnly("app/api/cron/campaign-worker/route.ts")
+    assert(/const approvedHookFlag = item\?\.factFlag/.test(worker), "worker musí varování předat dál")
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/approvedHookFlag: options\.approvedHookFlag \|\| null/.test(auto),
+        "generateOnePost musí varování poslat bráně")
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/const carried = ctx\.approvedHookFlag/.test(fc),
+        "brána sama tvrzení ve schváleném hooku nenajde (je to pro ni povolený zdroj) — musí ho dostat")
+    assert(/const status: FactStatus = flags\.length > 0 \? "flagged" : "repaired"/.test(fc),
+        "stav musí počítat i s přineseným varováním, jinak post vyjde jako opravený")
+})
+
+test("37.10a přegenerovaný hook prochází bránou taky", () => {
+    // Bez toho by stačilo mačkat 🔄, dokud varování nezmizí — nová pračka na
+    // halucinace. A stará položka by si navíc odnesla štítek, který k novému
+    // znění nepatří.
+    const plan = codeOnly("app/actions/content-plan-actions.ts")
+    const fn = plan.slice(plan.indexOf("async function regeneratePlanItemInner"))
+    assert(/checkDisplayStrings/.test(fn), "přegenerovaný hook musí projít bránou")
+    assert(/factFlag,/.test(fn) && /factSources,/.test(fn), "stav brány se musí vrátit s položkou")
+    const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/GenerateTab.tsx")
+    assert(/factFlag: result\.item!\.factFlag/.test(ui),
+        "UI musí starý štítek přepsat novým, ne ho nechat viset u jiného znění")
+})
+
+test("37.10 doklady z plánu se do postu nesou, hledání se neplatí dvakrát", () => {
+    const camp = codeOnly("app/actions/campaign-actions.ts")
+    assert(/factSources: it\.factSources \|\| null/.test(camp), "doklady musí přežít schválení plánu")
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/webVerified: options\.approvedHookSources \|\| null/.test(auto),
+        "co se doložilo v plánu, nesmí se v postu hledat znovu")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 

@@ -26,7 +26,7 @@ import type { IGPostType, IGCategory, IGPostFormat } from "./types"
 import { creditsForMedia } from "@/lib/credits"
 import { Hint, HINTS } from "./Hint"
 import { trackEvent } from "@/lib/analytics"
-import { Award, Bot, CalendarDays, ChartColumn, Check, ClipboardList, Compass, Film, Lightbulb, MessageCircle, Package, PenLine, Pencil, Pin, RefreshCw, Rocket, Ruler, Search, Sparkles, Star, Trash2, TriangleAlert, X } from "lucide-react"
+import { Award, Bot, CalendarDays, ChartColumn, Check, CircleCheck, ClipboardList, Compass, Film, Lightbulb, MessageCircle, Package, PenLine, Pencil, Pin, RefreshCw, Rocket, Ruler, Search, Sparkles, Star, Trash2, TriangleAlert, X } from "lucide-react"
 
 /**
  * What a batch actually costs in credits. The first `freeRemaining` posts fall
@@ -800,6 +800,11 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         productId: result.item!.productId,
                         productName: result.item!.productName,
                         productImage: result.item!.productImage,
+                        // Stav brány patří k NOVÉMU znění. Ponechat starý štítek by
+                        // znamenalo varovat u hooku, který ten problém už nemá — nebo
+                        // hůř, mlčet u hooku, který ho nově má.
+                        factFlag: result.item!.factFlag,
+                        factSources: result.item!.factSources,
                     }
                     : p
             ))
@@ -1509,6 +1514,30 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                         <p className="text-white/80 text-sm font-bold leading-snug mb-1">
                                                             &ldquo;{item.hookPreview}&rdquo;
                                                         </p>
+
+                                                        {/* Tvrzení v hooku, které nemáme čím podložit — MUSÍ být vidět PŘED
+                                                            schválením. Schválený hook je pro bránu u příspěvku povolený zdroj,
+                                                            a to smí platit jen tehdy, když uživatel věděl, co propouští. */}
+                                                        {item.factFlag && (
+                                                            <p
+                                                                title="Tohle tvrzení nemáme čím podložit. Uprav hook, nebo doplň fakt v Nastavení → Ověřená fakta. Když ho schválíš takhle, příspěvek dostane varování."
+                                                                className="flex items-start gap-1 text-[10px] text-amber-400/80 leading-relaxed mb-1"
+                                                            >
+                                                                <TriangleAlert className="w-3 h-3 shrink-0 mt-[1px]" />
+                                                                <span>Bez opory ve faktech: {item.factFlag}</span>
+                                                            </p>
+                                                        )}
+
+                                                        {/* Doložené na webu — druhá půlka téhož: co engine dohledal, ať je vidět,
+                                                            čím je hook podložený. */}
+                                                        {item.factSources && item.factSources.length > 0 && (
+                                                            <p className="flex items-start gap-1 text-[10px] text-emerald-400/60 leading-relaxed mb-1">
+                                                                <CircleCheck className="w-3 h-3 shrink-0 mt-[1px]" />
+                                                                <span>Ověřeno: {[...new Set(item.factSources.map(v => {
+                                                                    try { return new URL(v.url).hostname.replace(/^www\./, "") } catch { return v.url }
+                                                                }))].join(", ")}</span>
+                                                            </p>
+                                                        )}
 
                                                         {/* Angle */}
                                                         <p className="text-[10px] text-white/40 leading-relaxed">{item.angle}</p>

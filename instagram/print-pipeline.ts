@@ -90,7 +90,7 @@ export interface PrintBrief {
     /** Výsledek faktické brány nad tištěným textem. Ukládá se s briefem do
      *  ig_product_designs, ať je u návrhu vidět, že v něm zůstalo tvrzení bez opory —
      *  tisk se na rozdíl od postu nedá vzít zpátky. */
-    factCheck?: { status: string; flags: string[] }
+    factCheck?: { status: string; flags: string[]; sources?: { claim: string; url: string; title?: string; quote?: string }[] }
 }
 
 export interface PrintSpec {
@@ -381,7 +381,7 @@ Vrať POUZE validní JSON.`
             const [a, b, c] = out.strings
             if (opts.overlayText) { brief.typography.sub = a || brief.typography.sub; brief.typography.small = b || brief.typography.small }
             else { brief.typography.headline = a || brief.typography.headline; brief.typography.sub = b || brief.typography.sub; brief.typography.small = c || brief.typography.small }
-            brief.factCheck = { status: out.status, flags: out.flags }
+            brief.factCheck = { status: out.status, flags: out.flags, sources: out.sources }
             if (out.repairs.length) console.log(`   🔧 Faktická brána (tisk): ${out.repairs.length} tvrzení opraveno`)
             if (out.flags.length) console.warn(`   🚩 Faktická brána (tisk): ZŮSTALO nepodložené tvrzení — ${out.flags.join(" | ")}`)
         }

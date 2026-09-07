@@ -174,6 +174,13 @@ export async function startCampaign(
             // The feed-pattern cell rides the plan row so every worker tick — including a retry
             // of a parked post — designs against the same grid the plan was laid out on.
             slotIntent: it.slotIntent || null,
+            // Výsledek faktické brány nad hookem. Musí jet dál: schválený hook je pro
+            // bránu u příspěvku povolený zdroj, takže tvrzení v něm sama neoznačí —
+            // bez tohohle by nepodložené číslo, které uživatel v plánu vědomě propustil,
+            // skončilo na kartě příspěvku jako „čisté". Doklady jedou vedle, ať se za
+            // tentýž nález neplatí hledání podruhé.
+            factFlag: it.factFlag || null,
+            factSources: it.factSources || null,
         }))
 
         const campaignOptions = {

@@ -15,6 +15,10 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks"
+// Jen typ: měřič dál nezná ceny (to je celý smysl jeho oddělení od model-pricing),
+// ale DRUHY jednotek musí být jedna množina — dvě kopie unionu se rozejdou a
+// nová jednotka by se pak měřila a neúčtovala.
+import type { UnitKind } from "@/lib/model-pricing"
 
 export interface ModelCall {
     model: string
@@ -28,7 +32,7 @@ export interface ModelCall {
     cachedTokens: number
     /** Netokenové jednotky: Veo se účtuje za vteřinu videa, obrázkové modely za kus.
      *  Bez tohohle by reel — nejdražší médium v produktu — vyšel v telemetrii na nulu. */
-    units?: { kind: "seconds" | "images"; n: number }
+    units?: { kind: UnitKind; n: number }
 }
 
 export interface UsageTotals {
@@ -135,7 +139,7 @@ export function recordUsage(model: string, usageMetadata: unknown, label?: strin
  * `generateVideos` vrací operaci bez `usageMetadata`, takže by jinak nejdražší
  * médium v produktu měřilo nulu.
  */
-export function recordUnits(model: string, kind: "seconds" | "images", n: number, label?: string): void {
+export function recordUnits(model: string, kind: UnitKind, n: number, label?: string): void {
     const acc = usageStorage.getStore()
     if (!acc) return
     acc.record({
