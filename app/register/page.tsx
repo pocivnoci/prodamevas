@@ -26,6 +26,13 @@ export default async function RegisterPage(props: {
     const errorMessage = errorKey ? ERROR_MESSAGES[errorKey] || "Registrace selhala." : null
     const gateClosed = inviteRequired()
 
+    // Odkaz z pozvánky (waitlist, předání značky) nese kód i adresu. Předvyplnění
+    // je celý rozdíl mezi „klikni a jsi uvnitř" a přepisováním kódu z e-mailu —
+    // a u předání ještě rozhoduje o tom, že účet vznikne na TU adresu, na kterou
+    // značka čeká. Server si obojí stejně ověřuje sám, tohle je jen pohodlí.
+    const prefillCode = (typeof searchParams?.code === "string" ? searchParams.code : "").toUpperCase().trim()
+    const prefillEmail = typeof searchParams?.email === "string" ? searchParams.email.trim() : ""
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-[#050505] p-4 text-white">
             <div className="w-full max-w-md p-8 bg-[#0a0a0a] border border-white/10 rounded-sm">
@@ -63,6 +70,7 @@ export default async function RegisterPage(props: {
                                     name="inviteCode"
                                     type="text"
                                     required
+                                    defaultValue={prefillCode}
                                     placeholder="Např. BETA-VIP"
                                     className="w-full px-4 py-2.5 rounded-sm bg-[#050505] border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-aisummit-cinnabar/40 focus:border-aisummit-cinnabar/50 transition-all text-sm uppercase"
                                 />
@@ -84,6 +92,7 @@ export default async function RegisterPage(props: {
                                 name="email"
                                 type="email"
                                 required
+                                defaultValue={prefillEmail}
                                 autoComplete="email"
                                 placeholder="tvuj@email.cz"
                                 className="w-full px-4 py-2.5 rounded-sm bg-[#050505] border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-aisummit-cinnabar/40 focus:border-aisummit-cinnabar/50 transition-all text-sm"
