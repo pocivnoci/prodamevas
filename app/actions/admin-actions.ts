@@ -1055,7 +1055,7 @@ export async function transferClientToUser(
     }
 
     if (userId === adminUserId) {
-        return { success: false, error: "Tenhle účet projekt už vlastní — to je tvůj vlastní." }
+        return { success: false, error: "To je tvůj vlastní účet — předat jde jen na někoho jiného." }
     }
 
     const { error: linkError } = await supabaseAdmin
