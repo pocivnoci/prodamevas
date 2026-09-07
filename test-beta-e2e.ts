@@ -3345,6 +3345,21 @@ test("29.12 e-maily o předání jsou vidět v náhledové galerii", () => {
         "pozvánka musí jít přes sendEmail — jen tak se pozná, že opravdu odešla")
 })
 
+test("29.13 ruční adresy v Mailingu projdou stejnou branou jako segment", () => {
+    // Obchod potřebuje poslat nabídku člověku, který v žádném segmentu není.
+    // Ruční adresa ale nesmí být zadní vrátka: odhlášení a denní strop platí
+    // pro každou cestu ven, jinak by se opt-out dal obejít přepsáním adresy.
+    const m = codeOnly("app/actions/mailing-actions.ts")
+    assert(/"manual"/.test(m), "Mailing musí umět ruční adresy")
+    const san = m.slice(m.indexOf("async function sanitizeManual"), m.indexOf("async function sanitizeManual") + 500)
+    assert(san.includes("getOptOuts"), "ruční adresy musí projít filtrem odhlášených")
+    assert(san.includes("EMAIL_SHAPE"), "ruční adresy se musí ověřit na tvar — překlep je tichá ztráta")
+    // Strop se počítá nad výsledným seznamem, ať přišel odkudkoli.
+    const send = m.slice(m.indexOf("export async function sendBroadcast"))
+    assert(send.indexOf("sanitizeManual") < send.indexOf("DAILY_CAP"),
+        "ruční adresy musí projít sanitizací PŘED tím, než se ořežou na denní strop")
+})
+
 // ═══════════════════════════════════════════════════════════
 // 30. ADMINSKÁ BRÁNA
 // ═══════════════════════════════════════════════════════════

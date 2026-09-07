@@ -15,7 +15,12 @@ import { renderBrandedEmailParts } from "@/lib/notifications"
 import { BROADCAST_TEMPLATES, EMAIL_TEMPLATES, getTemplate } from "@/lib/mail/registry"
 import type { TemplateField, TemplateVars } from "@/lib/mail/template"
 
-export type MailingSegment = "waitlist" | "activeClients" | "expired"
+/**
+ * Komu se posílá. `manual` je jediný segment bez vlastního seznamu — adresy píše
+ * člověk (typicky klient, se kterým se zrovna mluvilo a v žádném segmentu ještě
+ * není). Opt-out i denní strop pro něj platí stejně jako pro zbytek.
+ */
+export type MailingSegment = "waitlist" | "activeClients" | "expired" | "manual"
 
 const DAILY_CAP = 100 // Resend free-tier daily send limit
 const THROTTLE_MS = 550 // ~2 req/sec, safely under Resend's rate limit
@@ -53,6 +58,10 @@ async function clientOwnerEmails(statuses: string[]): Promise<string[]> {
 
 async function resolveRecipients(segment: MailingSegment): Promise<string[]> {
     let emails: string[] = []
+    // `manual` žádný zdroj nemá — seznam přijde od volajícího a projde
+    // `sanitizeManual()`. Vrátit tu prázdno je správně: dotaz „kdo je v segmentu"
+    // na ruční adresy odpovědět neumí.
+    if (segment === "manual") return []
     if (segment === "waitlist") {
         const { data } = await supabaseAdmin.from("waitlist").select("email")
         emails = (data || []).map(r => String(r.email).toLowerCase())
@@ -63,6 +72,26 @@ async function resolveRecipients(segment: MailingSegment): Promise<string[]> {
     }
     const optOuts = await getOptOuts()
     return [...new Set(emails)].filter(e => e && !optOuts.has(e))
+}
+
+/** Hrubý tvar adresy. Přísnější validace by odmítala platné adresy, volnější by pouštěla překlepy. */
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+
+/** Ruční adresy → jen platné tvary, bez duplicit a bez odhlášených. */
+async function sanitizeManual(list: string[]): Promise<string[]> {
+    const optOuts = await getOptOuts()
+    const clean = [...new Set(list.map(e => String(e).trim().toLowerCase()).filter(Boolean))]
+    return clean.filter(e => EMAIL_SHAPE.test(e) && !optOuts.has(e))
+}
+
+/** Ruční adresy pro UI — řekne, které z nalepeného seznamu se opravdu pošlou. */
+export async function checkManualRecipients(list: string[]): Promise<{ ok: string[]; vyrazene: string[] }> {
+    await requireSuperAdmin()
+    const ok = await sanitizeManual(list)
+    const okSet = new Set(ok)
+    const vyrazene = [...new Set(list.map(e => String(e).trim().toLowerCase()).filter(Boolean))]
+        .filter(e => !okSet.has(e))
+    return { ok, vyrazene }
 }
 
 /** Live recipient counts per segment (after opt-out filtering) for the UI. */
@@ -218,12 +247,21 @@ export async function sendBroadcast(input: {
             ? template.render(input.template!.vars, email)
             : renderBrandedEmailParts(subject, body!, { unsubscribeEmail: email })
 
-    const resolved = await resolveRecipients(input.segment)
-    let recipients = resolved
-    if (input.recipients) {
-        const wanted = new Set(input.recipients.map(e => String(e).trim().toLowerCase()).filter(Boolean))
-        recipients = resolved.filter(e => wanted.has(e))
-        if (recipients.length === 0) throw new Error("Žádný z vybraných příjemců není v segmentu.")
+    let recipients: string[]
+    if (input.segment === "manual") {
+        // Ruční adresy jsou samy o sobě autoritou — proti čemu by se ověřovaly.
+        // Co se ověřit MUSÍ: tvar adresy (překlep = tichá ztráta) a odhlášení,
+        // které platí bez ohledu na to, kdo adresu do pole napsal.
+        recipients = await sanitizeManual(input.recipients || [])
+        if (recipients.length === 0) throw new Error("Zadej aspoň jednu platnou adresu, která se neodhlásila.")
+    } else {
+        const resolved = await resolveRecipients(input.segment)
+        recipients = resolved
+        if (input.recipients) {
+            const wanted = new Set(input.recipients.map(e => String(e).trim().toLowerCase()).filter(Boolean))
+            recipients = resolved.filter(e => wanted.has(e))
+            if (recipients.length === 0) throw new Error("Žádný z vybraných příjemců není v segmentu.")
+        }
     }
     const total = recipients.length
     const batch = recipients.slice(0, DAILY_CAP)

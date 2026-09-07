@@ -356,6 +356,23 @@ export function OnboardTab() {
                         <p className="text-white/50 text-sm">Jak chceš začít?</p>
                     </div>
 
+                    {/* Postup — nejčastější dotaz obchodu: „musí se klient registrovat?"
+                        Odpověď patří sem, kde se onboarduje, ne do dokumentace, kterou
+                        si nikdo neotevře uprostřed hovoru s klientem. */}
+                    <details className="mb-4 bg-white/[0.03] border border-white/10 rounded-xl">
+                        <summary className="px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-white/50 cursor-pointer hover:text-white/80 transition-colors">
+                            Jak to celé funguje (a jestli se klient musí registrovat)
+                        </summary>
+                        <div className="px-4 pb-4 pt-1 space-y-2 text-[11px] text-white/50 leading-relaxed">
+                            <p><span className="text-white/70 font-bold">1.</span> Onboarduješ značku tady — klient u toho být nemusí.</p>
+                            <p><span className="text-white/70 font-bold">2.</span> Značka vznikne pod tvým účtem. Klient ji zatím nevidí.</p>
+                            <p><span className="text-white/70 font-bold">3.</span> Předáš ji na jeho e-mail — dole na téhle obrazovce, nebo kdykoli později v <span className="text-white/70">Nastavení → Správa</span>.</p>
+                            <p><span className="text-white/70 font-bold">4.</span> Účet si zakládá <span className="text-white/70">klient sám</span> — my mu ho založit nemůžeme (potvrzení adresy a souhlas s podmínkami). Pozvánka mu ale předvyplní kód i e-mail, takže mu zbyde heslo nebo Google.</p>
+                            <p><span className="text-white/70 font-bold">5.</span> Při jeho prvním přihlášení se značka připíše sama. Musí to být <span className="text-white/70">tentýž e-mail</span>, na který jsi předával.</p>
+                            <p className="text-white/30 pt-1">Podrobně: docs/ONBOARDING_A_PREDANI.md</p>
+                        </div>
+                    </details>
+
                     <div className="grid grid-cols-2 gap-3">
                         <button
                             onClick={() => setStep('input')}

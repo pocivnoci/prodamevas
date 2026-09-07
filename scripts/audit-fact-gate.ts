@@ -65,6 +65,13 @@ async function main() {
             .select('id, caption, call_to_action, design_brief')
             .eq('client_id', client.id)
             .not('caption', 'is', null)
+            // `plan_locked` jsou zamčené teasery měsíčního plánu. Jejich text je
+            // natvrdo napsaná atrapa z `PLACEHOLDER_HOOKS` („5 tipů jak zvýšit
+            // engagement o 200 %"), kterou uživatel vidí jen přes 3px rozmazání —
+            // není to obsah značky. Auditovat je znamená platit soudce za vlastní
+            // lorem ipsum a hlásit jeho nálezy jako problém klienta; s `--write`
+            // by navíc rozmazané dlaždice dostaly v dashboardu štítek o faktech.
+            .neq('status', 'plan_locked')
             .order('created_at', { ascending: false })
             .limit(per)
         if (!posts?.length) continue
