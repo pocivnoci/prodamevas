@@ -13,7 +13,8 @@
 import { useEffect, useState } from "react"
 import { openCheckoutWindow } from "@/lib/open-checkout"
 import { getConsultationState, getBookingLink, type ConsultationState } from "@/app/actions/consultation-actions"
-import { formatCzk } from "@/lib/pricing"
+import { chargeableHaleru, formatCzk } from "@/lib/pricing"
+import { LEGAL } from "@/lib/legal"
 
 const CONSULTATION_PLAN_ID = "nastaveni-znacky"
 
@@ -136,6 +137,11 @@ export function ConsultationSection({ projectId }: { projectId: string }) {
                 </div>
                 <div className="shrink-0 text-right">
                     <p className="text-xl font-black text-white">{formatCzk(state.priceHaleru)}</p>
+                    {LEGAL.vatStatus === "payer" && (
+                        <p className="text-[8px] text-white/25 font-bold uppercase tracking-widest">
+                            bez DPH · {formatCzk(chargeableHaleru(state.priceHaleru))} s DPH
+                        </p>
+                    )}
                     <button
                         onClick={buy}
                         disabled={busy}

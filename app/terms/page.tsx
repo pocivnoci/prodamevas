@@ -1,13 +1,24 @@
 import Link from "next/link"
 import { SiteFooter } from "@/components/SiteFooter"
-import { LEGAL, CONSUMER_AUTHORITY, formatAddress, vatNotice } from "@/lib/legal"
+import { LEGAL, CONSUMER_AUTHORITY, formatAddress, vatNotice, previousProviderLine } from "@/lib/legal"
 
 export const metadata = {
     title: "Obchodní podmínky — Chrlit",
     description: "Obchodní podmínky služby Chrlit: uzavření smlouvy, ceny, předplatné, odstoupení od smlouvy a reklamace.",
 }
 
-const EFFECTIVE_FROM = "12. srpna 2026"
+/**
+ * Účinnost tohohle znění.
+ *
+ * Změna poskytovatele (OSVČ → DOT PRODUCTION s.r.o.) a přechod na plátcovství
+ * DPH jsou podstatné změny, u kterých si vlastní článek 17 slibuje oznámení
+ * 14 dní předem. Datum proto leží v budoucnu a do té doby platí předchozí znění.
+ *
+ * ⚠️ Musí sedět s `VAT_EFFECTIVE_FROM` v `lib/legal.ts` — od téhož dne se DPH
+ * připočítává i k obnovám probíhajících předplatných. Hlídá aserce.
+ */
+const EFFECTIVE_FROM = "23. září 2026"
+
 
 function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
     return (
@@ -42,7 +53,7 @@ export default function TermsPage() {
                                 {LEGAL.dic ? <li>DIČ: {LEGAL.dic}</li> : null}
                                 <li>E-mail: <a href={`mailto:${LEGAL.email}`} className="text-white/80 underline">{LEGAL.email}</a></li>
                                 {LEGAL.phone ? <li>Telefon: {LEGAL.phone}</li> : null}
-                                <li className="text-white/40 text-xs pt-2">Podnikatel zapsaný v živnostenském rejstříku, {LEGAL.registryOffice}.</li>
+                                <li className="text-white/40 text-xs pt-2">Společnost {LEGAL.registration}.</li>
                             </ul>
                         </div>
                         <p className="mt-4">Uživatelem se rozumí fyzická nebo právnická osoba, která si založí účet. Je-li uživatelem spotřebitel (fyzická osoba jednající mimo rámec své podnikatelské činnosti), uplatní se navíc ustanovení označená jako <strong className="text-white/90">spotřebitelská</strong>.</p>
@@ -152,7 +163,7 @@ export default function TermsPage() {
                                 <li>E-mail: <a href={`mailto:${CONSUMER_AUTHORITY.email}`} className="text-white/80 underline">{CONSUMER_AUTHORITY.email}</a></li>
                             </ul>
                         </div>
-                        <p className="mt-4">Dozor nad dodržováním povinností podle zákona o ochraně spotřebitele vykonává Česká obchodní inspekce. Dozor nad živnostenským oprávněním vykonává {LEGAL.registryOffice}.</p>
+                        <p className="mt-4">Dozor nad dodržováním povinností podle zákona o ochraně spotřebitele vykonává Česká obchodní inspekce. Dozor nad živnostenským podnikáním vykonává příslušný živnostenský úřad.</p>
                     </Section>
 
                     <Section n={17} title="Změny podmínek">
@@ -166,6 +177,7 @@ export default function TermsPage() {
                         <p className="mt-3">Je-li některé ustanovení Podmínek neplatné nebo neúčinné, nemá to vliv na platnost ostatních ustanovení.</p>
                         <p className="mt-3">Spory budou řešeny věcně a místně příslušnými soudy České republiky. Vůči spotřebiteli tím není dotčena příslušnost soudu podle jeho bydliště.</p>
                         <p className="mt-3">Tyto Podmínky nabývají účinnosti dne {EFFECTIVE_FROM}.</p>
+                        <p className="mt-3">Do {EFFECTIVE_FROM} platí předchozí znění, podle kterého službu poskytoval {previousProviderLine()} a ceny byly konečné. Uživatelům, kteří mají k tomuto dni probíhající předplatné, se cena mění až od následujícího zúčtovacího období a poskytovatel je na to upozorní e-mailem předem. Práva a povinnosti vzniklé do účinnosti těchto Podmínek zůstávají nedotčeny.</p>
                     </Section>
                 </div>
             </div>

@@ -3386,6 +3386,96 @@ test("29.14 oslovení neslibuje dosah ani reely, které nejedou", () => {
         "cena musí pocházet z ceníku, ne z textu šablony")
 })
 
+test("29.15 plátce DPH: brána strhává částku VČETNĚ daně", () => {
+    // Od 9/2026 službu provozuje plátce DPH. Ceník je B2B, tedy bez daně —
+    // ale zákazníkovi se musí strhnout částka včetně ní, jinak by poskytovatel
+    // odváděl DPH ze svého. Převod je jediný (`chargeableHaleru`) a MUSÍ stát
+    // na každé cestě k bráně: ComGate, Stripe i automatická obnova.
+    const chargePaths: Array<[string, string]> = [
+        ["app/api/payments/create/route.ts", "ComGate"],
+        ["lib/payments/checkout.ts", "Stripe"],
+        ["app/api/cron/billing-worker/route.ts", "obnova předplatného"],
+    ]
+    for (const [file, what] of chargePaths) {
+        assert(codeOnly(file).includes("chargeableHaleru"),
+            `${what} (${file}): částka k stržení musí projít přes chargeableHaleru`)
+    }
+
+    // Doklad musí sedět s tím, co brána strhla. `payments.amount` je hrubá
+    // částka, takže Fakturoid z ní má daň VYPOČÍTAT, ne připočítat navrch —
+    // jinak by faktura zněla na 1,21násobek přijaté platby.
+    const fakturoid = codeOnly("lib/fakturoid.ts")
+    assert(/prices_kind[^\n]*with_vat/.test(fakturoid),
+        "faktura s DPH musí jet v režimu with_vat, jinak nesedí s platbou")
+
+    // Sazba je na jednom místě. Dvě kopie znamenají, že po změně zákona jedna lže —
+    // a jedna z nich je daňový doklad.
+    const legal = codeOnly("lib/legal.ts")
+    assert(/export const VAT_RATE_PCT = \d+/.test(legal), "sazba DPH musí být konstanta v lib/legal.ts")
+    for (const file of ["lib/pricing.ts", "lib/invoicing.ts"]) {
+        const src = codeOnly(file)
+        assert(!/\b21\b\s*[;,)]/.test(src.replace(/VAT_RATE_PCT/g, "")) || src.includes("VAT_RATE_PCT"),
+            `${file}: sazba se má brát z VAT_RATE_PCT, ne psát číslem`)
+    }
+})
+
+test("29.16 cena bez DPH to musí říct tam, kde se ukazuje", () => {
+    // Cena bez upřesnění vypadá u plátce jako konečná — a zákazník pak na výpisu
+    // najde o pětinu víc. Věta o DPH proto patří ke KAŽDÉMU ceníku, ne jen do
+    // obchodních podmínek.
+    const surfaces = [
+        "components/Landing.tsx",
+        "app/(dashboard)/dashboard/instagram/tabs/SubscriptionSection.tsx",
+        "app/terms/page.tsx",
+    ]
+    for (const f of surfaces) {
+        assert(codeOnly(f).includes("vatNotice()"), `${f}: ceník musí nést větu o DPH z lib/legal.ts`)
+    }
+    // Menší cenovky (kredity, konzultace, paywall) nemají celou větu, ale musí
+    // aspoň říct „bez DPH" — a odvodit to z identity, ne natvrdo.
+    for (const f of ["app/(dashboard)/CreditPacks.tsx", "app/(dashboard)/PaywallProvider.tsx",
+                     "app/(dashboard)/dashboard/instagram/tabs/ConsultationSection.tsx"]) {
+        const src = codeOnly(f)
+        assert(src.includes("LEGAL.vatStatus") && /bez DPH/.test(src),
+            `${f}: cena musí odlišit základ od částky s daní`)
+    }
+})
+
+test("29.18 datum přechodu na DPH sedí s účinností podmínek", () => {
+    // Dvě data, jedna změna: od kdy platí nové podmínky a od kdy se probíhajícím
+    // předplatným připočítává DPH. Kdyby se rozešla, buď se strhne víc, než co
+    // je v podmínkách, nebo podmínky slibují daň, kterou nikdo neúčtuje.
+    const legal = fileContent("lib/legal.ts")
+    const iso = legal.match(/VAT_EFFECTIVE_FROM = "(\d{4})-(\d{2})-(\d{2})"/)
+    assert(!!iso, "lib/legal.ts musí nést VAT_EFFECTIVE_FROM v ISO tvaru")
+    const [, year, month, day] = iso!
+    const MONTHS = ["ledna", "února", "března", "dubna", "května", "června",
+        "července", "srpna", "září", "října", "listopadu", "prosince"]
+    const czech = `${Number(day)}. ${MONTHS[Number(month) - 1]} ${year}`
+    const terms = fileContent("app/terms/page.tsx")
+    assert(terms.includes(`EFFECTIVE_FROM = "${czech}"`),
+        `podmínky musí nabýt účinnosti ${czech} (podle VAT_EFFECTIVE_FROM), našel jsem něco jiného`)
+
+    // Obnova probíhajícího předplatného se do toho data nesmí zdražit.
+    const worker = codeOnly("app/api/cron/billing-worker/route.ts")
+    assert(worker.includes("VAT_EFFECTIVE_FROM"),
+        "obnova musí respektovat datum, od kterého se DPH připočítává")
+})
+
+test("29.17 identita je s.r.o. se zápisem v rejstříku, ne živnost", () => {
+    // U s.r.o. je povinným údajem (§ 435 obč. zák.) zápis v obchodním rejstříku
+    // včetně soudu a spisové značky — ne živnostenský úřad. Obchodní podmínky
+    // ho musí vykreslit; do 9/2026 tam stálo „zapsaný v živnostenském rejstříku".
+    const legal = codeOnly("lib/legal.ts")
+    assert(/registration:/.test(legal), "identita musí nést zápis v rejstříku")
+    assert(!/registryOffice/.test(legal), "živnostenský úřad se u s.r.o. neuvádí")
+    assert(codeOnly("app/terms/page.tsx").includes("LEGAL.registration"),
+        "obchodní podmínky musí uvést zápis v obchodním rejstříku")
+    // Plátce bez DIČ je nevystavitelný doklad — hlídá to i legalIdentityGaps.
+    assert(/vatStatus !== "none" && !id\.dic/.test(legal.replace(/\s+/g, " ")) || legal.includes('gaps.push("DIČ")'),
+        "plátce musí mít DIČ jako povinný údaj")
+})
+
 // ═══════════════════════════════════════════════════════════
 // 30. ADMINSKÁ BRÁNA
 // ═══════════════════════════════════════════════════════════

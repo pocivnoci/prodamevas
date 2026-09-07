@@ -16,7 +16,7 @@ import { getStripe, isStripeConfigured, isStripeSandbox } from "./stripe"
 // Přímo z neutrálního modulu, ne přes re-export v `lib/comgate.ts`: Stripe cesta
 // nesmí mít jedinou vazbu na klienta druhé brány, jinak se ComGate nedá smazat.
 import { generateRefId } from "@/lib/payments/ref-id"
-import { termPrice, termLabel, stripeRecurring, type TermMonths } from "@/lib/pricing"
+import { termPrice, termLabel, stripeRecurring, type TermMonths, chargeableHaleru } from "@/lib/pricing"
 import { chooseGateway, stripeCanComplete, type Gateway, type GatewayEnv } from "./gateway"
 
 export type { Gateway }
@@ -146,7 +146,9 @@ export async function createStripeCheckout(input: CheckoutInput): Promise<Checko
     const isService = input.kind === "service" || isCredits
     const refId = generateRefId(client.slug)
     const label = isService ? `Chrlit — ${plan.name}` : paymentLabel(plan.name, termMonths)
-    const amount = isService ? plan.price_czk : termPrice(plan.price_czk, termMonths)
+    // Ceník je bez DPH; Stripe dostává částku VČETNĚ daně, stejně jako ComGate.
+    // Kdyby se lišily, dostal by zákazník podle brány jinou cenu za tutéž věc.
+    const amount = chargeableHaleru(isService ? plan.price_czk : termPrice(plan.price_czk, termMonths))
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://chrlit.cz"
 
     // `plans.price_czk` drží HALÉŘE (stejně jako `payments.amount` a to, co jde

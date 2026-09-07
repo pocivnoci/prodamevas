@@ -13,9 +13,17 @@
  *
  * Tarif se tím nezdvojuje na 16 řádků: úroveň služby (kredity, formáty) je tarif,
  * délka zaplaceného období je vlastnost PŘEDPLATNÉHO (`subscriptions.term_months`).
+ *
+ * ⚠️ **VŠECHNA ČÍSLA V TOMHLE MODULU I V `subscription_plans` JSOU BEZ DPH.**
+ * Od 9/2026 službu provozuje plátce DPH (`lib/legal.ts`). Ceník je B2B, takže
+ * ukazuje základ; brána ale musí strhnout částku VČETNĚ daně. Převod dělá
+ * `chargeableHaleru()` a je to jediné místo, kde se DPH připočítává — kdyby se
+ * násobilo na třech místech, dvě z nich by po změně sazby strhávaly špatně.
  */
 
 // ─── Období ──────────────────────────────────────────────────────────────────
+
+import { LEGAL, VAT_RATE_PCT } from "@/lib/legal"
 
 export type TermMonths = 1 | 3 | 6 | 12
 
@@ -144,6 +152,32 @@ export function termLabel(months: TermMonths): string {
  */
 export function stripeRecurring(months: TermMonths): { interval: "month" | "year"; interval_count: number } {
     return months === 12 ? { interval: "year", interval_count: 1 } : { interval: "month", interval_count: months }
+}
+
+// ─── DPH ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Kolik se reálně strhne z karty: základ + DPH.
+ *
+ * Ceny v ceníku i v DB jsou BEZ DPH, protože zákazníci jsou firmy a základ je
+ * pro ně to podstatné číslo. Zaplatit ale musí částku včetně daně, jinak by
+ * poskytovatel odváděl DPH ze svého.
+ *
+ * Zaokrouhluje se na celé haléře nahoru u půlky (`Math.round`) — brána i doklad
+ * pracují s celými haléři a rozdíl v jednom haléři by rozhodil kontrolu, že
+ * doklad odpovídá platbě.
+ *
+ * U neplátce vrací vstup beze změny, takže tenhle převod smí stát na cestě
+ * k bráně vždycky a nemusí se větvit u každého volajícího.
+ */
+export function chargeableHaleru(netHaleru: number, vatPct: number = LEGAL.vatStatus === "payer" ? VAT_RATE_PCT : 0): number {
+    if (!vatPct) return netHaleru
+    return Math.round(netHaleru * (1 + vatPct / 100))
+}
+
+/** Samotná daň z částky bez DPH — do rozpisu u ceny. */
+export function vatHaleru(netHaleru: number): number {
+    return chargeableHaleru(netHaleru) - netHaleru
 }
 
 // ─── Formátování ─────────────────────────────────────────────────────────────
@@ -317,9 +351,16 @@ export const FALLBACK_PLANS: readonly PricingPlan[] = [
  */
 export const LOWEST_MONTHLY_HALERU = monthlyEquivalent(FALLBACK_PLANS[0].monthlyHaleru, DEFAULT_TERM_MONTHS)
 
-/** „od 833 Kč měsíčně při roční platbě" */
+/**
+ * „od 833 Kč bez DPH měsíčně při roční platbě"
+ *
+ * Dodatek o DPH není kosmetika: tohle tvrzení chodí v obchodních e-mailech
+ * a na veřejné ukázce, kde vedle sebe nemusí stát věta z `vatNotice()`. Cena
+ * bez upřesnění u plátce vypadá jako konečná.
+ */
 export function lowestPriceClaim(): string {
-    return `od ${formatCzk(LOWEST_MONTHLY_HALERU)} měsíčně při roční platbě`
+    const vat = LEGAL.vatStatus === "payer" ? " bez DPH" : ""
+    return `od ${formatCzk(LOWEST_MONTHLY_HALERU)}${vat} měsíčně při roční platbě`
 }
 
 // ─── Nastavení značky na míru (vstupní konzultace) ───────────────────────────
