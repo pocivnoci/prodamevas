@@ -8,7 +8,7 @@
  */
 
 import { vatNotice } from "@/lib/legal"
-import { button, compact, footnote, heading, list, paragraph, stats } from "../blocks"
+import { button, callout, compact, footnote, heading, list, paragraph, promoCode, stats } from "../blocks"
 import { siteUrl } from "../links"
 import type { EmailTemplate } from "../template"
 
@@ -79,5 +79,76 @@ export const receipt: EmailTemplate = {
             paragraph("Daňový doklad dorazí zvlášť během pár minut."),
             footnote(vatNotice()),
         ]),
+    }),
+}
+
+/**
+ * Předání značky někomu, kdo ještě nemá účet.
+ *
+ * Chodí z `transferClientToUser`. Je v registru schválně: mail, který nejde
+ * vidět v náhledové galerii, si nikdo nepřečte očima — a přesně tak se do něj
+ * dostal rámeček s nadpisem „Slevový kód" u kódu, který žádnou slevu nenese.
+ */
+export const clientHandoff: EmailTemplate = {
+    id: "client_handoff",
+    label: "Předání značky — pozvánka",
+    group: "transactional",
+    kind: "transactional",
+    fields: [
+        { key: "brandName", label: "Název značky", type: "text", required: true },
+        { key: "code", label: "Přístupový kód", type: "text", help: "Prázdné = rámeček s kódem se vynechá" },
+        { key: "ctaUrl", label: "Odkaz na registraci", type: "url", required: true },
+    ],
+    sample: {
+        brandName: "Květiny nad Museem",
+        code: "ZNACKA-K7M2QP",
+        ctaUrl: `${siteUrl()}/register?code=ZNACKA-K7M2QP&email=zakaznik%40firma.cz`,
+    },
+    build: v => ({
+        subject: `${v.brandName} na vás čeká v Chrlitu`,
+        eyebrow: "Předání značky",
+        preheader: "Účet si založíte za minutu, značka je už nastavená.",
+        blocks: compact([
+            heading(`${v.brandName} je připravená`),
+            paragraph(`Dobrý den,\n\nnastavili jsme za vás značku **${v.brandName}** — tón, témata i vizuál. Zbývá jediné: založit si účet, pod kterým vám bude patřit.`),
+            button("Založit účet a převzít značku", v.ctaUrl),
+            heading("Co uvidíte po přihlášení", 2),
+            list([
+                "Hotovou konfiguraci značky — nic nenastavujete znovu.",
+                "Plán příspěvků a první vygenerované ukázky.",
+                "Kalendář, ve kterém si termíny přehodíte, jak potřebujete.",
+            ]),
+            callout("info", "Účet si založte na **tuhle** adresu — značka se páruje podle e-mailu."),
+            // Kód je záložní cesta, ne pointa: tlačítko výš ho vyplní samo.
+            v.code && promoCode(v.code, "Odkaz výš ho vyplní sám. Tohle je pro případ, že byste registraci otevírali ručně.", "Přístupový kód"),
+            paragraph("Tým Chrlit"),
+        ]),
+    }),
+}
+
+/** Zákazník účet má — jen se mu v něm objevila značka. Ať ví proč. */
+export const clientHandoffDone: EmailTemplate = {
+    id: "client_handoff_done",
+    label: "Předání značky — hotovo",
+    group: "transactional",
+    kind: "transactional",
+    fields: [
+        { key: "brandName", label: "Název značky", type: "text", required: true },
+        { key: "ctaUrl", label: "Odkaz do studia", type: "url", required: true },
+    ],
+    sample: {
+        brandName: "Květiny nad Museem",
+        ctaUrl: `${siteUrl()}/dashboard/instagram`,
+    },
+    build: v => ({
+        subject: `${v.brandName} je ve vašem účtu`,
+        eyebrow: "Předání značky",
+        preheader: "Najdete ji v přepínači projektů hned po přihlášení.",
+        blocks: [
+            heading(`${v.brandName} je vaše`),
+            paragraph(`Dobrý den,\n\nznačka **${v.brandName}** je od teď ve vašem účtu — najdete ji v přepínači projektů hned po přihlášení. Konfigurace i vygenerovaný obsah zůstávají, nic se nenastavuje znovu.`),
+            button("Otevřít studio", v.ctaUrl),
+            paragraph("Kdyby cokoli drhlo, stačí odpovědět na tenhle e-mail."),
+        ],
     }),
 }

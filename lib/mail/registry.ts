@@ -19,7 +19,7 @@ import { promo } from "./templates/promo"
 import {
     subscriptionChargeFailed, subscriptionExpired, subscriptionRenewal, subscriptionWinback,
 } from "./templates/subscription"
-import { receipt, welcome } from "./templates/transactional"
+import { clientHandoff, clientHandoffDone, receipt, welcome } from "./templates/transactional"
 import { waitlistInvite, waitlistWelcome } from "./templates/waitlist"
 
 export interface RegisteredTemplate extends EmailTemplate {
@@ -40,6 +40,8 @@ const ALL: EmailTemplate[] = [
     subscriptionWinback,
     welcome,
     receipt,
+    clientHandoff,
+    clientHandoffDone,
 ]
 
 export const EMAIL_TEMPLATES: RegisteredTemplate[] = ALL.map(t => ({

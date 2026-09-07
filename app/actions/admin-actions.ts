@@ -1144,7 +1144,14 @@ export async function cancelClientHandoff(projectSlug: string, handoffId: string
     return { success: true }
 }
 
-/** Pozvánka pro zákazníka bez účtu. Nikdy nevyhodí — neodeslaný e-mail nesmí shodit předání. */
+/**
+ * Pozvánka pro zákazníka bez účtu.
+ *
+ * Posílá se `sendEmail`, ne `sendNotification`: ta nikdy nevyhodí, takže by
+ * správci hlásila „odesláno" i na neexistující klíč nebo neověřenou doménu —
+ * a on by čekal na e-mail, který nikdy nevyjel. Tady se výsledek musí poznat,
+ * protože podle něj UI nabízí odkaz ke zkopírování.
+ */
 async function sendHandoffInvite(opts: {
     to: string
     brandName: string
@@ -1152,29 +1159,18 @@ async function sendHandoffInvite(opts: {
     code: string | null
 }): Promise<boolean> {
     try {
-        if (!process.env.RESEND_API_KEY) return false
-        const { sendNotification, siteUrl } = await import("@/lib/notifications")
-        const { button, callout, compact, heading, list, paragraph, promoCode } = await import("@/lib/mail/blocks")
-        await sendNotification({
-            to: opts.to,
-            kind: "transactional",
-            subject: `${opts.brandName} na vás čeká v Chrlitu`,
-            preheader: "Účet si založíte za minutu, značka je už nastavená.",
-            blocks: compact([
-                heading(`${opts.brandName} je připravená`),
-                paragraph(`Dobrý den,\n\nnastavili jsme za vás značku **${opts.brandName}** — tón, témata i vizuál. Zbývá jediné: založit si účet, pod kterým vám bude patřit.`),
-                opts.code && promoCode(opts.code, "Kód se vyplní sám, když otevřete odkaz níž."),
-                button("Založit účet a převzít značku", opts.inviteUrl || `${siteUrl()}/register`),
-                heading("Co uvidíte po přihlášení", 2),
-                list([
-                    "Hotovou konfiguraci značky — nic nenastavujete znovu.",
-                    "Plán příspěvků a první vygenerované ukázky.",
-                    "Kalendář, ve kterém si termíny přehodíte, jak potřebujete.",
-                ]),
-                callout("info", "Účet si musíte založit na **tuhle** adresu — značka se páruje podle e-mailu."),
-                paragraph("Tým Chrlit"),
-            ]),
+        const { getTemplate } = await import("@/lib/mail/registry")
+        const { siteUrl } = await import("@/lib/mail/links")
+        const template = getTemplate("client_handoff")
+        if (!template) throw new Error("šablona client_handoff chybí v registru")
+
+        const { subject, html, text } = template.render({
+            brandName: opts.brandName,
+            code: opts.code || "",
+            ctaUrl: opts.inviteUrl || `${siteUrl()}/register`,
         })
+        const { sendEmail } = await import("@/lib/email")
+        await sendEmail({ to: opts.to, subject, html, text })
         return true
     } catch (err) {
         console.warn(`handoff: pozvánku pro ${opts.to} se nepodařilo odeslat: ${(err as Error)?.message}`)
@@ -1185,20 +1181,17 @@ async function sendHandoffInvite(opts: {
 /** Zákazník účet má — jen se mu v něm objevila značka. Ať ví proč. */
 async function sendHandoffDone(opts: { to: string; brandName: string }): Promise<void> {
     try {
-        if (!process.env.RESEND_API_KEY) return
-        const { sendNotification, siteUrl } = await import("@/lib/notifications")
-        await sendNotification({
-            to: opts.to,
-            kind: "transactional",
-            subject: `${opts.brandName} je ve vašem účtu`,
-            body: `Dobrý den,
+        const { getTemplate } = await import("@/lib/mail/registry")
+        const { siteUrl } = await import("@/lib/mail/links")
+        const template = getTemplate("client_handoff_done")
+        if (!template) throw new Error("šablona client_handoff_done chybí v registru")
 
-značka <strong>${opts.brandName}</strong> je od teď ve vašem účtu — najdete ji v přepínači projektů hned po přihlášení. Konfigurace i vygenerovaný obsah zůstávají, nic se nenastavuje znovu.
-
-<a href="${siteUrl()}/dashboard/instagram">Otevřít studio →</a>
-
-Tým Chrlit`,
+        const { subject, html, text } = template.render({
+            brandName: opts.brandName,
+            ctaUrl: `${siteUrl()}/dashboard/instagram`,
         })
+        const { sendEmail } = await import("@/lib/email")
+        await sendEmail({ to: opts.to, subject, html, text })
     } catch (err) {
         console.warn(`handoff: potvrzení pro ${opts.to} se nepodařilo odeslat: ${(err as Error)?.message}`)
     }

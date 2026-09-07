@@ -76,7 +76,7 @@ export const waitlistInvite: EmailTemplate = {
                     ? `Dobrý den,\n\nzapsal jste se k nám před ${v.waitedDays} dny a teď jsme na vás vyšli. Uvolnilo se místo — kód níž vám otevře přístup.`
                     : "Dobrý den,\n\nuvolnilo se místo. Kód níž vám otevře přístup do Chrlitu.",
             ),
-            promoCode(v.code, v.expiresNote || undefined),
+            promoCode(v.code, v.expiresNote || undefined, "Přístupový kód"),
             button("Aktivovat přístup", v.ctaUrl),
             callout("info", "Kód zadáte při registraci. Když ho ztratíte, napište nám a pošleme nový."),
             paragraph("Tým Chrlit"),
