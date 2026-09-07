@@ -816,11 +816,80 @@ test("10.7k Onboardovanou značku jde předat jejímu majiteli", () => {
         "předání klienta je adminská akce — musí být za requireSuperAdmin")
     assert(fn.includes('role: "owner"'), "nový majitel musí dostat roli owner")
     // Účty vznikají registrací. Tiché založení účtu odsud by obešlo potvrzení
-    // adresy i souhlasy, takže neexistující e-mail musí být hlasitá chyba.
+    // adresy i souhlasy, takže neexistující e-mail nesmí končit registrací.
     assert(!/createUser|admin\.inviteUserByEmail/.test(fn),
-        "předání nesmí zakládat účet — neexistující e-mail je chyba, ne důvod k registraci")
-    assert(codeOnly("app/(dashboard)/dashboard/instagram/tabs/OnboardTab.tsx").includes("transferClientToUser"),
-        "předání musí být dostupné z UI, ne jen jako server action")
+        "předání nesmí zakládat účet — od toho je slib v client_handoffs")
+    // Předání se dělá týdny po onboardingu, až zákazník řekne adresu. Kdyby žilo
+    // jen na poslední obrazovce průvodce, byla by jedinou cestou zpátky ruční
+    // úprava databáze — přesně to, co tahle akce nahradila.
+    for (const f of [
+        "app/(dashboard)/dashboard/instagram/tabs/OnboardTab.tsx",
+        "app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx",
+    ]) {
+        assert(codeOnly(f).includes("transferClientToUser"),
+            `${f}: předání musí být dostupné z UI, ne jen jako server action`)
+    }
+})
+
+test("10.7o Předat jde i na e-mail, který ještě nemá účet", () => {
+    // Zákazník v době onboardingu účet typicky nemá — onboardovalo se za něj.
+    // „Účet neexistuje" proto nesmí být konec: uloží se slib a vybere se při
+    // prvním přihlášení.
+    const a = codeOnly("app/actions/admin-actions.ts")
+    const fn = a.slice(a.indexOf("export async function transferClientToUser"))
+    assert(fn.includes("stageHandoff"),
+        "neexistující účet musí vést na slib v client_handoffs, ne na chybu")
+
+    const h = codeOnly("lib/handoff.ts")
+    const claim = h.slice(h.indexOf("export async function claimHandoffs"))
+    assert(claim.length > 0, "claimHandoffs musí existovat")
+    // Podmíněný claim: slib se zabírá UPDATEm, který nevrátí řádek, když ho
+    // mezitím vzal jiný souběžný request. Bez toho by dvě přihlášení naráz
+    // znamenala dvě předání téhož slibu.
+    assert(/\.update\(\{ claimed_at[\s\S]{0,400}?\.is\("claimed_at", null\)/.test(claim),
+        "claim slibu musí být podmíněný UPDATE (.is claimed_at null), ne prosté přepsání")
+    assert(claim.includes('.upsert({ user_id: user.id'),
+        "po zabrání slibu musí vzniknout vazba v user_clients")
+
+    // Přihlašovací cesta: výpadek dotazu nesmí být důvod, proč se člověk
+    // nepřihlásí. Obě funkce, na které sahá login, musí selhat tiše.
+    for (const fn of ["export async function claimHandoffs", "export async function hasPendingHandoff"]) {
+        const body = h.slice(h.indexOf(fn), h.indexOf(fn) + 900)
+        assert(/try \{/.test(body) && /catch/.test(body),
+            `${fn}: běží při přihlášení — musí selhat tiše, ne výjimkou`)
+    }
+
+    // Modul sahá brána bety u každého přihlášení. Import pošty (nebo čehokoli,
+    // co ji táhne) by z něj udělal závaží na přihlašovací cestě.
+    assert(!/from "@\/lib\/(notifications|mail)/.test(h),
+        "lib/handoff.ts nesmí importovat poštu — běží na přihlašovací cestě")
+
+    // Slib musí zároveň otevřít bránu bety: jinak by zákazník dostal projekt,
+    // do kterého se nemá jak přihlásit.
+    assert(codeOnly("lib/invite-gate.ts").includes("hasPendingHandoff"),
+        "brána bety musí pustit dovnitř e-mail, na který čeká předání")
+
+    // Vazba se zakládá při KAŽDÉM přihlášení, ne jen po registraci — slib může
+    // vzniknout i pro účet, který dávno existuje.
+    for (const f of ["app/login/actions.ts", "app/auth/callback/route.ts"]) {
+        assert(codeOnly(f).includes("claimHandoffs"),
+            `${f}: přihlášení musí vybrat čekající sliby`)
+    }
+
+    // Po předání má značka dva vlastníky (správce + zákazník). Adresát dokladu
+    // pak nesmí záviset na pořadí řádků v Postgresu.
+    const owner = codeOnly("lib/notifications.ts")
+    const fn2 = owner.slice(owner.indexOf("export async function getOwnerEmail"))
+    assert(/\.order\("created_at", \{ ascending: false \}\)/.test(fn2.slice(0, 800)),
+        "getOwnerEmail musí vybírat nejnovější vazbu, ne náhodnou — po předání je vlastníků víc")
+
+    // Tabulka je multi-tenantní data — doktrína projektu je RLS zapnuté bez policy.
+    const mig = fileContent("supabase/migrations/20260907_predani_znacky.sql")
+    assert(/create table if not exists client_handoffs/.test(mig), "migrace musí zakládat client_handoffs")
+    assert(/alter table client_handoffs enable row level security/.test(mig),
+        "client_handoffs musí mít zapnuté RLS (deny-all, čte jen service role)")
+    assert(/create unique index[\s\S]{0,200}client_handoffs/.test(mig),
+        "jeden živý slib na dvojici klient+e-mail musí hlídat unique index, ne aplikace")
 })
 
 test("10.7l Každé přesměrování na /login má přeloženou hlášku", () => {

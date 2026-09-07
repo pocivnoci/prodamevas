@@ -888,26 +888,123 @@ async function findUserIdByEmail(email: string): Promise<string | null> {
     return null
 }
 
+/** Hrubá kontrola tvaru — překlep v adrese je tichá ztráta předání, ne chyba databáze. */
+function looksLikeEmail(value: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value)
+}
+
+export interface ClientAccessRow {
+    userId: string
+    email: string
+    role: string
+    /** Ty sám — UI to musí umět odlišit, jinak si správce odpojí vlastní přístup naslepo. */
+    isYou: boolean
+}
+
+export interface ClientPendingHandoff {
+    id: string
+    email: string
+    createdAt: string
+    /** Odkaz s kódem pozvánky. Když pošta selže, správce ho pošle sám. */
+    inviteUrl: string | null
+}
+
 /**
- * Předá onboardovanou značku jejímu skutečnému majiteli.
+ * Kdo dnes na značku vidí — vazby v `user_clients` plus sliby, které čekají na
+ * první přihlášení. Bez toho by správce předával naslepo a nepoznal, že klient
+ * má dva vlastníky nebo že pozvánka odešla už minulý týden.
+ *
+ * Super admin projekt vidí i bez vazby (`requireClientAccess`), takže „nikdo tu
+ * není" je legitimní odpověď, ne chyba.
+ */
+export async function getClientAccess(projectSlug: string): Promise<{
+    owners: ClientAccessRow[]
+    pending: ClientPendingHandoff[]
+    error?: string
+}> {
+    const { requireSuperAdmin } = await import("@/lib/auth-guard")
+    let adminUserId: string
+    try {
+        adminUserId = (await requireSuperAdmin()).userId
+    } catch {
+        return { owners: [], pending: [], error: "Přístupy vidí jen správce." }
+    }
+
+    const slug = projectSlug?.trim()
+    if (!slug) return { owners: [], pending: [], error: "Chybí identifikace projektu." }
+
+    const { data: client } = await supabaseAdmin
+        .from("clients")
+        .select("id")
+        .eq("slug", slug)
+        .maybeSingle()
+    if (!client) return { owners: [], pending: [], error: `Projekt „${slug}" neexistuje.` }
+
+    const { data: links } = await supabaseAdmin
+        .from("user_clients")
+        .select("user_id, role")
+        .eq("client_id", client.id)
+
+    const owners: ClientAccessRow[] = []
+    for (const link of links || []) {
+        const { data } = await supabaseAdmin.auth.admin.getUserById(link.user_id)
+        owners.push({
+            userId: link.user_id,
+            // Účet mohl být mezitím smazaný — vazba na osiřelé UUID je informace,
+            // ne důvod řádek zamlčet.
+            email: data?.user?.email || "(účet neexistuje)",
+            role: link.role || "member",
+            isYou: link.user_id === adminUserId,
+        })
+    }
+
+    const { data: handoffs } = await supabaseAdmin
+        .from("client_handoffs")
+        .select("id, email, invite_code, created_at")
+        .eq("client_id", client.id)
+        .is("claimed_at", null)
+        .is("cancelled_at", null)
+        .order("created_at", { ascending: false })
+
+    const { siteUrl } = await import("@/lib/mail/links")
+    const pending: ClientPendingHandoff[] = (handoffs || []).map(h => ({
+        id: h.id,
+        email: h.email,
+        createdAt: h.created_at,
+        inviteUrl: handoffInviteUrl(siteUrl(), h.email, h.invite_code),
+    }))
+
+    return { owners, pending }
+}
+
+/** Registrace s předvyplněným e-mailem i kódem — jeden klik místo přepisování. */
+function handoffInviteUrl(site: string, email: string, code: string | null): string | null {
+    if (!code) return null
+    return `${site}/register?code=${encodeURIComponent(code)}&email=${encodeURIComponent(email)}`
+}
+
+/**
+ * Předá značku jejímu skutečnému majiteli — i když ještě nemá účet.
  *
  * Onboarding zapisuje `user_clients` s `user_id` toho, kdo průvodce spustil
  * (`app/onboarding/core.ts`). Když značku založí správce za zákazníka, patří
- * tím pádem správci — a zákazník ji ve svém dashboardu nevidí. Do 9/2026 na to
- * neexistovalo žádné UI a jediná cesta byl ruční INSERT do databáze.
+ * tím pádem správci — a zákazník ji ve svém dashboardu nevidí.
  *
- * Přidání řádku zároveň otevře betu: `enforceInviteGate` razítkuje `LEGACY`
- * každému, kdo má vazbu na klienta, takže zákazník nepotřebuje kód pozvánky.
+ * Dvě cesty podle toho, jestli účet existuje:
+ *  - **existuje** → vazba `user_clients` vznikne hned;
+ *  - **neexistuje** → uloží se slib do `client_handoffs` a zákazníkovi odejde
+ *    pozvánka s jednorázovým kódem. Vazba vznikne při jeho prvním přihlášení
+ *    (`lib/handoff.ts`). Účet **nezakládáme** — obešlo by to potvrzení adresy
+ *    i souhlasy.
  *
- * Účet musí existovat — účty se zakládají registrací, ne odsud. Když e-mail
- * nikoho nenajde, je to konec a řekne se to nahlas; tiché založení účtu by
- * obešlo potvrzení adresy i souhlasy.
+ * Vazba zároveň otevře betu: `enforceInviteGate` razítkuje `LEGACY` každému,
+ * kdo má vazbu na klienta, a `HANDOFF` tomu, na koho čeká slib.
  */
 export async function transferClientToUser(
     clientSlug: string,
     email: string,
-    opts?: { releaseAdminAccess?: boolean },
-): Promise<{ success: boolean; error?: string; message?: string }> {
+    opts?: { releaseAdminAccess?: boolean; replaceOwners?: boolean },
+): Promise<{ success: boolean; error?: string; message?: string; pending?: boolean; inviteUrl?: string | null }> {
     const { requireSuperAdmin } = await import("@/lib/auth-guard")
     let adminUserId: string
     try {
@@ -919,6 +1016,9 @@ export async function transferClientToUser(
     const slug = clientSlug?.trim()
     if (!slug) return { success: false, error: "Chybí identifikace projektu." }
 
+    const targetEmail = (email || "").trim().toLowerCase()
+    if (!looksLikeEmail(targetEmail)) return { success: false, error: "To nevypadá jako e-mailová adresa." }
+
     const { data: client } = await supabaseAdmin
         .from("clients")
         .select("id, name")
@@ -926,16 +1026,36 @@ export async function transferClientToUser(
         .maybeSingle()
     if (!client) return { success: false, error: `Projekt „${slug}" neexistuje.` }
 
-    const userId = await findUserIdByEmail(email)
+    const userId = await findUserIdByEmail(targetEmail)
+
+    // ── Účet neexistuje → slíbíme předání a pošleme pozvánku ────────────────
     if (!userId) {
+        const { stageHandoff } = await import("@/lib/handoff")
+        const staged = await stageHandoff({ clientId: client.id, email: targetEmail, invitedBy: adminUserId })
+        if (!staged.handoff) return { success: false, error: `Slib předání selhal: ${staged.error}` }
+
+        const { siteUrl } = await import("@/lib/mail/links")
+        const inviteUrl = handoffInviteUrl(siteUrl(), targetEmail, staged.handoff.invite_code)
+        const sent = await sendHandoffInvite({
+            to: targetEmail,
+            brandName: client.name,
+            inviteUrl,
+            code: staged.handoff.invite_code,
+        })
+
+        console.log(`🤝 Projekt ${slug} slíben ${targetEmail} (účet zatím neexistuje, pozvánka ${sent ? "odeslána" : "NEODESLÁNA"})`)
         return {
-            success: false,
-            error: `Účet ${email} neexistuje. Nejdřív mu pošli pozvánku a nech ho zaregistrovat, pak předej znovu.`,
+            success: true,
+            pending: true,
+            inviteUrl,
+            message: sent
+                ? `${targetEmail} zatím nemá účet, tak jsme mu poslali pozvánku. ${client.name} mu přiletí do dashboardu, jakmile se poprvé přihlásí.`
+                : `${targetEmail} zatím nemá účet a pozvánku se nepodařilo odeslat — pošli mu odkaz níž sám. ${client.name} mu přiletí do dashboardu při prvním přihlášení.`,
         }
     }
 
     if (userId === adminUserId) {
-        return { success: false, error: "Tenhle účet projekt už vlastní — to je tvůj vlastní." }
+        return { success: false, error: "To je tvůj vlastní účet — předat jde jen na někoho jiného." }
     }
 
     const { error: linkError } = await supabaseAdmin
@@ -945,24 +1065,141 @@ export async function transferClientToUser(
         return { success: false, error: `Předání selhalo: ${linkError.message}` }
     }
 
-    // Vazba správce se ruší AŽ POTOM a jen na výslovné přání. Kdyby se mazala
-    // dřív a upsert selhal, zůstal by klient bez jediného vlastníka.
-    let released = false
-    if (opts?.releaseAdminAccess) {
+    // Staré sliby na tentýž projekt už nemají co plnit — jinak by se značka
+    // podruhé „předala" komukoli, kdo se dostane ke starému e-mailu.
+    await supabaseAdmin
+        .from("client_handoffs")
+        .update({ cancelled_at: new Date().toISOString() })
+        .eq("client_id", client.id)
+        .eq("email", targetEmail)
+        .is("claimed_at", null)
+        .is("cancelled_at", null)
+
+    // Odpojení AŽ POTOM a jen na výslovné přání. Kdyby se mazalo dřív a upsert
+    // selhal, zůstal by klient bez jediného vlastníka.
+    let releasedNote = ""
+    if (opts?.replaceOwners) {
+        const { error } = await supabaseAdmin
+            .from("user_clients")
+            .delete()
+            .eq("client_id", client.id)
+            .neq("user_id", userId)
+        if (error) console.warn(`transferClientToUser: dosavadní vlastníky se nepodařilo odpojit: ${error.message}`)
+        else releasedNote = " Dosavadní vlastníci byli odpojení."
+    } else if (opts?.releaseAdminAccess) {
         const { error } = await supabaseAdmin
             .from("user_clients")
             .delete()
             .eq("user_id", adminUserId)
             .eq("client_id", client.id)
         if (error) console.warn(`transferClientToUser: vazbu správce se nepodařilo zrušit: ${error.message}`)
-        else released = true
+        else releasedNote = " Ty už v seznamu projektů nejsi — jako správce se tam ale dostaneš dál."
     }
 
-    console.log(`🤝 Projekt ${slug} předán uživateli ${email}${released ? " (správce se odpojil)" : ""}`)
+    await sendHandoffDone({ to: targetEmail, brandName: client.name })
+
+    console.log(`🤝 Projekt ${slug} předán uživateli ${targetEmail}${releasedNote}`)
     return {
         success: true,
-        message: released
-            ? `${client.name} je teď ${email}. Ty už v seznamu projektů nejsi — jako správce se tam ale dostaneš dál.`
-            : `${client.name} je teď i pod ${email}. Zůstáváš připojený taky.`,
+        message: `${client.name} je teď pod ${targetEmail}.${releasedNote}`,
+    }
+}
+
+/**
+ * Zruší slib, který ještě nikdo nevyzvedl. Kód pozvánky se zneplatní spolu s ním —
+ * pozvánka, kterou správce vzal zpátky, nesmí dál otevírat betu.
+ */
+export async function cancelClientHandoff(projectSlug: string, handoffId: string): Promise<{ success: boolean; error?: string }> {
+    const { requireSuperAdmin } = await import("@/lib/auth-guard")
+    try {
+        await requireSuperAdmin()
+    } catch {
+        return { success: false, error: "Rušit předání smí jen správce." }
+    }
+    if (!projectSlug?.trim() || !handoffId) return { success: false, error: "Chybí identifikace předání." }
+
+    const { data: client } = await supabaseAdmin
+        .from("clients")
+        .select("id")
+        .eq("slug", projectSlug.trim())
+        .maybeSingle()
+    if (!client) return { success: false, error: "Projekt neexistuje." }
+
+    // Podmíněný claim i tady: mezi načtením seznamu a kliknutím se slib mohl
+    // vyzvednout. Zrušit vyzvednuté předání by znamenalo tvrdit něco, co už neplatí.
+    const { data: cancelled } = await supabaseAdmin
+        .from("client_handoffs")
+        .update({ cancelled_at: new Date().toISOString() })
+        .eq("id", handoffId)
+        .eq("client_id", client.id)
+        .is("claimed_at", null)
+        .is("cancelled_at", null)
+        .select("invite_code")
+
+    if (!cancelled?.length) return { success: false, error: "Předání už bylo vyzvednuté nebo zrušené." }
+
+    const code = cancelled[0].invite_code
+    if (code) await supabaseAdmin.from("invite_codes").update({ is_active: false }).eq("code", code)
+
+    return { success: true }
+}
+
+/** Pozvánka pro zákazníka bez účtu. Nikdy nevyhodí — neodeslaný e-mail nesmí shodit předání. */
+async function sendHandoffInvite(opts: {
+    to: string
+    brandName: string
+    inviteUrl: string | null
+    code: string | null
+}): Promise<boolean> {
+    try {
+        if (!process.env.RESEND_API_KEY) return false
+        const { sendNotification, siteUrl } = await import("@/lib/notifications")
+        const { button, callout, compact, heading, list, paragraph, promoCode } = await import("@/lib/mail/blocks")
+        await sendNotification({
+            to: opts.to,
+            kind: "transactional",
+            subject: `${opts.brandName} na vás čeká v Chrlitu`,
+            preheader: "Účet si založíte za minutu, značka je už nastavená.",
+            blocks: compact([
+                heading(`${opts.brandName} je připravená`),
+                paragraph(`Dobrý den,\n\nnastavili jsme za vás značku **${opts.brandName}** — tón, témata i vizuál. Zbývá jediné: založit si účet, pod kterým vám bude patřit.`),
+                opts.code && promoCode(opts.code, "Kód se vyplní sám, když otevřete odkaz níž."),
+                button("Založit účet a převzít značku", opts.inviteUrl || `${siteUrl()}/register`),
+                heading("Co uvidíte po přihlášení", 2),
+                list([
+                    "Hotovou konfiguraci značky — nic nenastavujete znovu.",
+                    "Plán příspěvků a první vygenerované ukázky.",
+                    "Kalendář, ve kterém si termíny přehodíte, jak potřebujete.",
+                ]),
+                callout("info", "Účet si musíte založit na **tuhle** adresu — značka se páruje podle e-mailu."),
+                paragraph("Tým Chrlit"),
+            ]),
+        })
+        return true
+    } catch (err) {
+        console.warn(`handoff: pozvánku pro ${opts.to} se nepodařilo odeslat: ${(err as Error)?.message}`)
+        return false
+    }
+}
+
+/** Zákazník účet má — jen se mu v něm objevila značka. Ať ví proč. */
+async function sendHandoffDone(opts: { to: string; brandName: string }): Promise<void> {
+    try {
+        if (!process.env.RESEND_API_KEY) return
+        const { sendNotification, siteUrl } = await import("@/lib/notifications")
+        await sendNotification({
+            to: opts.to,
+            kind: "transactional",
+            subject: `${opts.brandName} je ve vašem účtu`,
+            body: `Dobrý den,
+
+značka <strong>${opts.brandName}</strong> je od teď ve vašem účtu — najdete ji v přepínači projektů hned po přihlášení. Konfigurace i vygenerovaný obsah zůstávají, nic se nenastavuje znovu.
+
+<a href="${siteUrl()}/dashboard/instagram">Otevřít studio →</a>
+
+Tým Chrlit`,
+        })
+    } catch (err) {
+        console.warn(`handoff: potvrzení pro ${opts.to} se nepodařilo odeslat: ${(err as Error)?.message}`)
     }
 }

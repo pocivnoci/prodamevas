@@ -87,6 +87,17 @@ export async function enforceInviteGate(user: User, pendingCode: string | null):
         return { ok: true }
     }
 
+    // Zákazník, kterému správce slíbil značku (`client_handoffs`). Kód pozvánky
+    // v e-mailu o předání je první cesta dovnitř, tohle je záchranná: kdo si
+    // odkaz ztratí nebo se zaregistruje jinudy, nesmí zůstat stát před dveřmi
+    // projektu, který na něj uvnitř čeká. Vazba se založí až po bráně
+    // (`claimHandoffs`), tady se jen otevírá.
+    const { hasPendingHandoff } = await import('@/lib/handoff')
+    if (await hasPendingHandoff(user.email)) {
+        await stampInvite(user, 'HANDOFF')
+        return { ok: true }
+    }
+
     // Otevřená registrace. Kód se pořád zabírá, když ho člověk má — pozvánky z
     // waitlistu odešly s příslibem a jejich počítadlo musí zůstat pravdivé —
     // ale ŽÁDNÝ kód ani NEPLATNÝ kód už není důvod nepustit dovnitř. Vyhodit

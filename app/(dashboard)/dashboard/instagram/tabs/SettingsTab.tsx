@@ -15,8 +15,9 @@ import { FEED_PATTERNS, computeSlotIntent, type FeedPatternId } from "@/lib/feed
 import { Hint, HINTS } from "./Hint"
 import { FACT_CHECK_MODES, factCheckModeIndex } from "@/lib/fact-check-modes"
 import { getPublishOutlook, armAutoPublishNow, type PublishOutlook } from "@/app/actions/calendar-actions"
+import { cancelClientHandoff, getClientAccess, isCurrentUserSuperAdmin, transferClientToUser, type ClientAccessRow, type ClientPendingHandoff } from "@/app/actions/admin-actions"
 import { useStudioNavigate } from "@/app/(dashboard)/StudioContext"
-import { Ban, CalendarDays, Camera, ClipboardList, Hand, Hash, Landmark, Megaphone, Mic, Palette, Puzzle, RefreshCw, Send, Settings, ShoppingBag, Trash2, TriangleAlert, User, Users } from "lucide-react"
+import { Ban, CalendarDays, Camera, ClipboardList, Copy, Hand, Hash, Handshake, Landmark, Megaphone, Mic, Palette, Puzzle, RefreshCw, Send, Settings, ShoppingBag, Trash2, TriangleAlert, User, Users } from "lucide-react"
 
 // ═══════════════════════════════════════════════════════════
 // SETTINGS TAB
@@ -2183,6 +2184,7 @@ function ClientManagementSection({ projectId, config, setConfig, onReload }: {
     }
 
     return (
+        <div className="space-y-6">
         <SectionCard title="Správa klienta">
             {/* Re-onboarding */}
             <div className="flex items-center justify-between gap-4">
@@ -2287,6 +2289,201 @@ function ClientManagementSection({ projectId, config, setConfig, onReload }: {
                         </div>
                     )}
                 </div>
+            </div>
+        </SectionCard>
+
+        {/* Předání je adminská věc, ale patří sem, ne do onboardingu: značka se
+            předává týdny potom, co vznikla — typicky až zákazník řekne, na jaký
+            e-mail ji chce. Komponenta se sama skryje, když se nedívá správce. */}
+        <HandoffSection projectId={projectId} clientName={config?.name || projectId} />
+        </div>
+    )
+}
+
+// ═══════════════════════════════════════════════════════════
+// PŘEDÁNÍ ZNAČKY (jen správce)
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Komu značka patří — a jak ji dostat pod e-mail, který si zákazník řekl.
+ *
+ * Onboarding z adminu zapíše vlastníka podle toho, kdo průvodce spustil, takže
+ * značka zůstane správci. Zákazník přitom ve chvíli onboardingu často ještě
+ * nemá účet; proto se tady předává na **e-mail**, ne na existující účet:
+ * když účet chybí, uloží se slib a vazba vznikne při prvním přihlášení.
+ */
+function HandoffSection({ projectId, clientName }: { projectId: string; clientName: string }) {
+    const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
+    const [owners, setOwners] = useState<ClientAccessRow[]>([])
+    const [pending, setPending] = useState<ClientPendingHandoff[]>([])
+    const [email, setEmail] = useState("")
+    const [replaceOwners, setReplaceOwners] = useState(false)
+    const [busy, setBusy] = useState(false)
+    const [result, setResult] = useState<{ ok: boolean; text: string; inviteUrl?: string | null } | null>(null)
+    const [copied, setCopied] = useState<string | null>(null)
+
+    const load = useCallback(async () => {
+        const access = await getClientAccess(projectId)
+        setOwners(access.owners)
+        setPending(access.pending)
+    }, [projectId])
+
+    useEffect(() => {
+        let alive = true
+        isCurrentUserSuperAdmin().then(admin => {
+            if (!alive) return
+            setIsAdmin(admin)
+            if (admin) load()
+        })
+        return () => { alive = false }
+    }, [load])
+
+    if (!isAdmin) return null
+
+    const handleTransfer = async () => {
+        setBusy(true)
+        setResult(null)
+        try {
+            const res = await transferClientToUser(projectId, email, { replaceOwners })
+            setResult({
+                ok: !!res.success,
+                text: res.success ? (res.message || "Předáno.") : (res.error || "Předání selhalo."),
+                inviteUrl: res.inviteUrl,
+            })
+            if (res.success) {
+                setEmail("")
+                await load()
+            }
+        } catch (err) {
+            setResult({ ok: false, text: err instanceof Error ? err.message : "Předání selhalo." })
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    const handleCancel = async (id: string) => {
+        setBusy(true)
+        const res = await cancelClientHandoff(projectId, id)
+        if (!res.success) setResult({ ok: false, text: res.error || "Zrušení selhalo." })
+        await load()
+        setBusy(false)
+    }
+
+    const copy = (text: string, key: string) => {
+        navigator.clipboard.writeText(text)
+        setCopied(key)
+        setTimeout(() => setCopied(null), 2000)
+    }
+
+    return (
+        <SectionCard
+            title="Předání značky"
+            description={`Komu patří ${clientName} a na jaký e-mail ji převést`}
+        >
+            {/* Kdo na značku dnes vidí */}
+            <div>
+                <FieldLabel hint="Vazby v user_clients. Správce se do projektu dostane i bez vazby.">Vlastníci</FieldLabel>
+                {owners.length === 0 ? (
+                    <p className="text-[10px] text-white/30 bg-white/5 rounded-sm px-3 py-2">
+                        Zatím nikdo — značka existuje jen pod správcovským přístupem.
+                    </p>
+                ) : (
+                    <div className="space-y-1.5">
+                        {owners.map(o => (
+                            <div key={o.userId} className="flex items-center justify-between gap-3 bg-white/5 rounded-sm px-3 py-2">
+                                <span className="text-xs text-white/70 font-medium break-all">{o.email}</span>
+                                <span className="text-[9px] uppercase tracking-widest font-bold text-white/30 shrink-0">
+                                    {o.isYou ? "ty" : o.role}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Čekající sliby */}
+            {pending.length > 0 && (
+                <div>
+                    <FieldLabel hint="Účet zatím neexistuje. Vazba vznikne při prvním přihlášení na tuhle adresu.">Čeká na registraci</FieldLabel>
+                    <div className="space-y-2">
+                        {pending.map(h => (
+                            <div key={h.id} className="bg-amber-500/5 border border-amber-500/20 rounded-sm px-3 py-2.5 space-y-2">
+                                <div className="flex items-center justify-between gap-3">
+                                    <span className="text-xs text-amber-200/80 font-medium break-all">{h.email}</span>
+                                    <button
+                                        onClick={() => handleCancel(h.id)}
+                                        disabled={busy}
+                                        className="text-[9px] uppercase tracking-widest font-bold text-white/30 hover:text-red-400 transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+                                    >
+                                        Zrušit
+                                    </button>
+                                </div>
+                                {h.inviteUrl && (
+                                    <button
+                                        onClick={() => copy(h.inviteUrl!, h.id)}
+                                        className="w-full flex items-center gap-2 text-[9px] uppercase tracking-widest font-bold text-white/40 hover:text-white/70 transition-colors cursor-pointer"
+                                    >
+                                        <Copy className="w-3 h-3 shrink-0" />
+                                        {copied === h.id ? "Zkopírováno" : "Zkopírovat odkaz s pozvánkou"}
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Předání */}
+            <div className="border-t border-white/5 pt-4 space-y-3">
+                <div>
+                    <FieldLabel hint="Když účet ještě neexistuje, pošleme pozvánku a značku připíšeme po registraci.">E-mail nového vlastníka</FieldLabel>
+                    <input
+                        type="email"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        placeholder="zakaznik@firma.cz"
+                        className={inputClass}
+                    />
+                </div>
+
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={replaceOwners}
+                        onChange={e => setReplaceOwners(e.target.checked)}
+                        className="mt-0.5 accent-emerald-500"
+                    />
+                    <span className="text-[10px] text-white/40 leading-relaxed">
+                        Odpojit dosavadní vlastníky — značku bude mít jen nový e-mail.
+                        <span className="block text-white/25">Platí jen pro účet, který už existuje; u pozvánky se nikdo neodpojuje.</span>
+                    </span>
+                </label>
+
+                <button
+                    onClick={handleTransfer}
+                    disabled={busy || !email.trim()}
+                    className="w-full px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all border border-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                    <span className="inline-flex items-center gap-1.5">
+                        <Handshake className="w-3.5 h-3.5 shrink-0" />
+                        {busy ? "Předávám…" : "Předat značku"}
+                    </span>
+                </button>
+
+                {result && (
+                    <div className={`text-[10px] rounded-sm px-3 py-2 space-y-2 ${result.ok ? "bg-emerald-500/10 text-emerald-300/80" : "bg-red-500/10 text-red-300/80"}`}>
+                        <p>{result.text}</p>
+                        {result.inviteUrl && (
+                            <button
+                                onClick={() => copy(result.inviteUrl!, "result")}
+                                className="inline-flex items-center gap-2 text-[9px] uppercase tracking-widest font-bold text-white/50 hover:text-white transition-colors cursor-pointer"
+                            >
+                                <Copy className="w-3 h-3 shrink-0" />
+                                {copied === "result" ? "Zkopírováno" : "Zkopírovat odkaz s pozvánkou"}
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
         </SectionCard>
     )

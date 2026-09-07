@@ -81,7 +81,8 @@ export function OnboardTab() {
     const [handoffEmail, setHandoffEmail] = useState('')
     const [handoffRelease, setHandoffRelease] = useState(false)
     const [handoffBusy, setHandoffBusy] = useState(false)
-    const [handoffResult, setHandoffResult] = useState<{ ok: boolean; text: string } | null>(null)
+    const [handoffCopied, setHandoffCopied] = useState(false)
+    const [handoffResult, setHandoffResult] = useState<{ ok: boolean; text: string; inviteUrl?: string | null } | null>(null)
 
     // Session history
     const [history, setHistory] = useState<OnboardedClient[]>([])
@@ -296,7 +297,11 @@ export function OnboardTab() {
         setHandoffResult(null)
         try {
             const res = await transferClientToUser(onboarded.slug, handoffEmail, { releaseAdminAccess: handoffRelease })
-            setHandoffResult({ ok: !!res.success, text: res.success ? (res.message || 'Předáno.') : (res.error || 'Předání selhalo.') })
+            setHandoffResult({
+                ok: !!res.success,
+                text: res.success ? (res.message || 'Předáno.') : (res.error || 'Předání selhalo.'),
+                inviteUrl: res.inviteUrl,
+            })
             if (res.success) setHandoffEmail('')
         } catch (err) {
             setHandoffResult({ ok: false, text: err instanceof Error ? err.message : 'Předání selhalo.' })
@@ -849,8 +854,9 @@ export function OnboardTab() {
                     <div className="p-6 bg-white/5 border border-white/10 rounded-xl mb-6">
                         <h3 className="inline-flex items-center gap-1.5 font-bold text-white text-sm mb-1"><Rocket className="w-3.5 h-3.5 shrink-0" />Předat zákazníkovi</h3>
                         <p className="text-[11px] text-white/30 mb-4 leading-relaxed">
-                            Značka je zatím vedená pod tvým účtem. Zadej e-mail, kterým se zákazník registroval —
-                            tím ji uvidí ve svém dashboardu a zároveň projde branou bety.
+                            Značka je zatím vedená pod tvým účtem. Zadej e-mail zákazníka — tím ji uvidí ve svém
+                            dashboardu a projde branou bety. Když ještě nemá účet, odejde mu pozvánka a značku
+                            dostane při první registraci. Předat jde i později v Nastavení → Správa.
                         </p>
                         <div className="flex flex-col sm:flex-row gap-2">
                             <input
@@ -872,7 +878,19 @@ export function OnboardTab() {
                             Odpojit můj účet od projektu (jako správce se do něj dostaneš dál)
                         </label>
                         {handoffResult && (
-                            <p className={`mt-3 text-xs ${handoffResult.ok ? 'text-emerald-400' : 'text-red-400'}`}>{handoffResult.text}</p>
+                            <div className="mt-3 space-y-2">
+                                <p className={`text-xs ${handoffResult.ok ? 'text-emerald-400' : 'text-red-400'}`}>{handoffResult.text}</p>
+                                {/* Odkaz s kódem — když pošta selže (nebo skončí ve spamu),
+                                    tohle je jediná cesta, jak se zákazník k registraci dostane. */}
+                                {handoffResult.inviteUrl && (
+                                    <button
+                                        onClick={() => { navigator.clipboard.writeText(handoffResult.inviteUrl!); setHandoffCopied(true); setTimeout(() => setHandoffCopied(false), 2000) }}
+                                        className="text-[10px] uppercase tracking-widest font-bold text-white/40 hover:text-white transition-colors cursor-pointer"
+                                    >
+                                        {handoffCopied ? 'Zkopírováno' : 'Zkopírovat odkaz s pozvánkou'}
+                                    </button>
+                                )}
+                            </div>
                         )}
                     </div>
 

@@ -78,11 +78,14 @@ export async function POST(req: NextRequest) {
         // Get payer email from user_clients → auth.users if not provided
         let payerEmail = email
         if (!payerEmail) {
+            // Stejné řazení jako `getOwnerEmail` — po předání značky má klient
+            // dva vlastníky a plátce nesmí určovat pořadí řádků v Postgresu.
             const { data: link } = await supabaseAdmin
                 .from("user_clients")
                 .select("user_id")
                 .eq("client_id", client.id)
                 .eq("role", "owner")
+                .order("created_at", { ascending: false })
                 .limit(1)
                 .single()
             if (link) {
