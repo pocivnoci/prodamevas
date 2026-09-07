@@ -34,6 +34,38 @@ export interface Task {
     done_at: string | null
     created_by: string | null
     updated_by: string | null
+    // ── Doplní třídič (`lib/tasks/triage.ts`) ───────────────────────────────
+    /** { cil, hotovo, kde_zacit } — zadání, ne název. */
+    spec: { cil?: string; hotovo?: string; kde_zacit?: string } | null
+    spec_at: string | null
+    /** Jedna věta „co teď". */
+    next_step: string | null
+    /** S = do půl hodiny, M = do půl dne, L = víc. */
+    effort: "S" | "M" | "L" | null
+    /** Kdo to smí vzít bez člověka: 'ops' = agent v appce, 'code' = PR, null = jen člověk. */
+    agent: "ops" | "code" | null
+    client_id: string | null
+    /** Přibaleno dotazem — kvůli prokliku do studia klienta. */
+    clients?: { slug: string; name: string } | null
+    /** Proč se to teď nedělá — otázka nebo vnější událost. */
+    blocked_on: string | null
+    blocked_until: string | null
+    /** Co z úkolu vzniklo: odkaz na PR, doklad, rozhodnutí. */
+    result: string | null
+}
+
+export type TaskEventKind = "triage" | "question" | "answer" | "note" | "status" | "result"
+
+/** Vlákno úkolu — jediné místo, kde se potkají lidi a AI. Append-only. */
+export interface TaskEvent {
+    id: string
+    task_id: string
+    at: string
+    /** E-mail člověka, nebo 'ai'. */
+    actor: string
+    kind: TaskEventKind
+    body: string | null
+    meta: Record<string, unknown> | null
 }
 
 export interface TaskResult {
@@ -52,9 +84,11 @@ export interface TaskResult {
 export async function listTasks(): Promise<Task[]> {
     await requireSuperAdmin()
 
+    // Klient se přibaluje rovnou v dotazu: úkol „hydroizolace — zkontrolovat fakta"
+    // má z seznamu vést jedním kliknutím do studia toho klienta, ne k hledání slugu.
     const { data, error } = await supabaseAdmin
         .from("tasks")
-        .select("*")
+        .select("*, clients(slug, name)")
         .order("priority", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: false })
 
@@ -261,6 +295,154 @@ export async function upsertTeamMember(input: {
     }
     revalidatePath("/dashboard/instagram")
     return { success: true }
+}
+
+// ─── Vlákno úkolu (lidi × AI) ────────────────────────────────
+
+/** Vlákno jednoho úkolu, odshora dolů tak, jak vzniklo. */
+export async function listTaskEvents(taskId: string): Promise<TaskEvent[]> {
+    await requireSuperAdmin()
+
+    const { data, error } = await supabaseAdmin
+        .from("task_events")
+        .select("*")
+        .eq("task_id", taskId)
+        .order("at", { ascending: true })
+
+    if (error) {
+        console.error("listTaskEvents error:", error.message)
+        return []
+    }
+    return (data || []) as TaskEvent[]
+}
+
+/**
+ * Odpověď na otázku třídiče.
+ *
+ * Zápis odpovědi je zároveň příkaz „přečti si úkol znovu": `spec_at` se vynuluje,
+ * takže ho příští běh vezme do ruky — už s odpovědí ve vlákně — a přepíše zadání.
+ * Bez toho by odpověď skončila jako poznámka, kterou nikdo nezpracuje.
+ *
+ * `blocked_on` se maže tady, ne až po přetřídění: pro člověka v seznamu je úkol
+ * odblokovaný ve chvíli, kdy odpověděl.
+ */
+export async function answerTaskQuestion(taskId: string, text: string): Promise<TaskResult> {
+    const { email } = await requireSuperAdmin()
+
+    const body = text?.trim()
+    if (!body) return { success: false, error: "Odpověď nemůže být prázdná." }
+
+    const { logEvent } = await import("@/lib/tasks/triage")
+    await logEvent(taskId, email, "answer", body)
+
+    const { data, error } = await supabaseAdmin
+        .from("tasks")
+        .update({
+            spec_at: null,
+            blocked_on: null,
+            status: "todo",
+            updated_at: new Date().toISOString(),
+            updated_by: email,
+        })
+        .eq("id", taskId)
+        .select("*")
+        .single()
+
+    if (error) {
+        console.error("answerTaskQuestion error:", error.message)
+        return { success: false, error: error.message }
+    }
+    revalidatePath("/dashboard/instagram")
+    return { success: true, task: data as Task }
+}
+
+/** Poznámka do vlákna. Nic nespouští — je to jen zápis do historie. */
+export async function addTaskNote(taskId: string, text: string): Promise<{ success: boolean; error?: string }> {
+    const { email } = await requireSuperAdmin()
+
+    const body = text?.trim()
+    if (!body) return { success: false, error: "Poznámka nemůže být prázdná." }
+
+    const { logEvent } = await import("@/lib/tasks/triage")
+    await logEvent(taskId, email, "note", body)
+    revalidatePath("/dashboard/instagram")
+    return { success: true }
+}
+
+/**
+ * Výsledek úkolu — odkaz na PR, doklad, rozhodnutí.
+ *
+ * Vlastní sloupec, ne jen poznámka ve vlákně: hotový úkol se po měsíci musí dát
+ * doložit jedním pohledem do seznamu, ne čtením celé historie.
+ */
+export async function setTaskResult(taskId: string, result: string): Promise<TaskResult> {
+    const { email } = await requireSuperAdmin()
+
+    const value = result?.trim() || null
+    const { data, error } = await supabaseAdmin
+        .from("tasks")
+        .update({ result: value, updated_at: new Date().toISOString(), updated_by: email })
+        .eq("id", taskId)
+        .select("*")
+        .single()
+
+    if (error) {
+        console.error("setTaskResult error:", error.message)
+        return { success: false, error: error.message }
+    }
+    if (value) {
+        const { logEvent } = await import("@/lib/tasks/triage")
+        await logEvent(taskId, email, "result", value)
+    }
+    revalidatePath("/dashboard/instagram")
+    return { success: true, task: data as Task }
+}
+
+/**
+ * Přetřídit jeden úkol na vyžádání.
+ *
+ * Vynulované razítko je celý příkaz — práci udělá běžný třídič. Tlačítko existuje
+ * proto, že po ruční úpravě názvu je staré zadání horší než žádné.
+ */
+export async function retriageTask(taskId: string): Promise<TaskResult> {
+    const { email } = await requireSuperAdmin()
+
+    const { data, error } = await supabaseAdmin
+        .from("tasks")
+        .update({ spec_at: null, updated_at: new Date().toISOString(), updated_by: email })
+        .eq("id", taskId)
+        .select("*")
+        .single()
+
+    if (error) return { success: false, error: error.message }
+    revalidatePath("/dashboard/instagram")
+    return { success: true, task: data as Task }
+}
+
+/**
+ * Spustí třídění a návrhy hned, bez čekání na ranní cron.
+ *
+ * Jde přes `requestAction()` jako cron — ne proto, že by to potřebovalo schválení
+ * (`internal` proběhne samo), ale aby po ručním spuštění zůstal tentýž řádek
+ * v auditu jako po automatickém. Jinak by v `agent_actions` chyběl každý běh,
+ * který si někdo vyžádal sám.
+ */
+export async function runTaskAgentNow(): Promise<{ success: boolean; error?: string }> {
+    await requireSuperAdmin()
+    try {
+        const { requestAction } = await import("@/lib/agent-safety")
+        await requestAction({
+            agentType: "ops", action: "Roztřídění úkolů (ručně)", riskTier: "internal",
+            taskType: "task_triage", clientId: null, payload: {},
+        })
+        await requestAction({
+            agentType: "ops", action: "Návrhy úkolů (ručně)", riskTier: "internal",
+            taskType: "task_propose", clientId: null, payload: {},
+        })
+        return { success: true }
+    } catch (err) {
+        return { success: false, error: (err as Error)?.message || "Spuštění selhalo." }
+    }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────

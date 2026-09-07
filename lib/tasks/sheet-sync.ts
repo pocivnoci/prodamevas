@@ -46,6 +46,11 @@ export async function syncTasksFromSheet(): Promise<SyncSummary> {
         .from("tasks")
         .select("id, title, note, priority, owner_email, source, source_key")
         .not("source_key", "is", null)
+        // Návrhy od AI nosí klíč s prefixem `ai:` (`lib/tasks/propose.ts`). Sdílí
+        // s tabulkou tentýž unikátní index — je to táž ochrana proti duplicitě —
+        // ale v tabulce nikdy nebyly, takže by je souhrn hlásil jako „chybí
+        // v tabulce" a člověk by je den co den hledal v řádku, který neexistuje.
+        .not("source_key", "like", "ai:%")
 
     const existing = new Map((existingRows ?? []).map(t => [t.source_key as string, t]))
 

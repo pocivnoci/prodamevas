@@ -161,6 +161,24 @@ registerHandler("idea_replenish", async () => {
     return { ok: true, clients: results.length, added, results }
 })
 
+// Třídění úkolů: z řádku ve firemním seznamu udělá zadání, které pochopí druhý
+// člověk i agent (cíl, kritérium hotovo, další krok, velikost, kdo to smí vzít).
+// Když z řádku „hotovo" nejde odvodit, položí do vlákna JEDNU otázku místo aby
+// si zadání domyslel. Třídí se jednou — `spec_at` je razítko.
+// Viz lib/tasks/triage.ts.
+registerHandler("task_triage", async () => {
+    const { triageTasks } = await import("@/lib/tasks/triage")
+    return { ok: true, ...(await triageTasks()) }
+})
+
+// Návrhy úkolů ze stavu systému: odpojený Instagram, označená tvrzení, schválení,
+// které leží týden. Nejvýš tři na běh a každý návrh jednou (klíč `ai:` v source_key
+// je claim přes unikátní index). Viz lib/tasks/propose.ts.
+registerHandler("task_propose", async () => {
+    const { proposeTasks } = await import("@/lib/tasks/propose")
+    return { ok: true, ...(await proposeTasks()) }
+})
+
 // Povýšení ověřených postů na zlaté příklady hlasu. Jediné místo, kde se
 // clients.config mění sám podle výsledků — zbytek učicí vrstvy jen přepočítává
 // váhy za běhu a po doběhnutí je zahodí. Zdarma, bez volání modelu, a zasetou

@@ -1,8 +1,11 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { CircleCheck, CirclePause, CirclePlay, Circle, Trash2, X } from "lucide-react"
+import { Bot, ChevronDown, CircleCheck, CirclePause, CirclePlay, Circle, ExternalLink, RefreshCw, Sparkles, Trash2, X } from "lucide-react"
+import { useStudio } from "@/app/(dashboard)/StudioContext"
 import {
+    listTaskEvents, answerTaskQuestion, addTaskNote, setTaskResult, retriageTask, runTaskAgentNow,
+    type TaskEvent,
     listTasks, listTeam, createTask, setTaskStatus, assignTask, deleteTask,
     type Task, type TaskStatus,
 } from "@/app/actions/task-actions"
@@ -58,6 +61,11 @@ const PRIORITY_TONE: Record<number, string> = {
 }
 
 /** Obojí naráz — tým se čte kvůli jménům u přiřazení, ne kvůli přístupu. */
+const EFFORT_LABEL: Record<string, string> = { S: "do 30 min", M: "půl dne", L: "víc než den" }
+
+/** Kdo úkol smí vzít bez člověka. Prázdné = jen člověk (banka, schůzka, focení). */
+const AGENT_LABEL: Record<string, string> = { ops: "AI: uvnitř systému", code: "AI: skončí PR" }
+
 const fetchAll = () => Promise.all([listTasks(), listTeam()])
 
 export function TasksTab() {
@@ -69,6 +77,17 @@ export function TasksTab() {
 
     const [ownerFilter, setOwnerFilter] = useState<string>("all")
     const [showDone, setShowDone] = useState(false)
+
+    // Přepínač projektu ze StudioContextu — úkol o konkrétním klientovi tak vede
+    // jedním kliknutím do jeho studia, místo hledání slugu v přepínači.
+    const { setProjectId } = useStudio()
+    const [expandedId, setExpandedId] = useState<string | null>(null)
+    const [events, setEvents] = useState<TaskEvent[]>([])
+    const [eventsLoading, setEventsLoading] = useState(false)
+    const [reply, setReply] = useState("")
+    const [resultDraft, setResultDraft] = useState("")
+    const [agentRunning, setAgentRunning] = useState(false)
+    const [agentNote, setAgentNote] = useState<string | null>(null)
 
     const [newTitle, setNewTitle] = useState("")
     const [newOwner, setNewOwner] = useState("")
@@ -150,6 +169,68 @@ export function TasksTab() {
         setBusyId(null)
     }
 
+    /** Rozbalení úkolu načte vlákno. Zabalené vlákno se nenačítá — je to dotaz navíc za nic. */
+    const toggleExpand = async (task: Task) => {
+        if (expandedId === task.id) { setExpandedId(null); return }
+        setExpandedId(task.id)
+        setReply("")
+        setResultDraft(task.result ?? "")
+        setEventsLoading(true)
+        setEvents(await listTaskEvents(task.id))
+        setEventsLoading(false)
+    }
+
+    /**
+     * Odpověď na otázku od AI zároveň vrací úkol k přetřídění — proto je to jiná
+     * akce než poznámka. Poznámka je pro historii, odpověď je vstup pro model.
+     */
+    const runReply = async (task: Task, asAnswer: boolean) => {
+        const text = reply.trim()
+        if (!text) return
+        setBusyId(task.id)
+        const res = asAnswer ? await answerTaskQuestion(task.id, text) : await addTaskNote(task.id, text)
+        if (res.success) {
+            setReply("")
+            setEvents(await listTaskEvents(task.id))
+            const [freshTasks] = await fetchAll()
+            setTasks(freshTasks)
+        } else {
+            setError(res.error ?? "Zápis do vlákna selhal.")
+        }
+        setBusyId(null)
+    }
+
+    const runResult = async (task: Task) => {
+        setBusyId(task.id)
+        const res = await setTaskResult(task.id, resultDraft)
+        if (res.success && res.task) {
+            setTasks(prev => prev.map(t => (t.id === task.id ? res.task! : t)))
+            setEvents(await listTaskEvents(task.id))
+        } else setError(res.error ?? "Uložení výsledku selhalo.")
+        setBusyId(null)
+    }
+
+    const runRetriage = async (task: Task) => {
+        setBusyId(task.id)
+        const res = await retriageTask(task.id)
+        if (res.success) {
+            await runTaskAgentNow()
+            setAgentNote("Přetřídění zařazeno — projeví se během chvilky.")
+        } else setError(res.error ?? "Přetřídění selhalo.")
+        setBusyId(null)
+    }
+
+    /** Ruční spuštění třídiče i navrhovače. Běh je asynchronní, tak se jen zařadí. */
+    const runAgent = async () => {
+        setAgentRunning(true)
+        setAgentNote(null)
+        const res = await runTaskAgentNow()
+        setAgentNote(res.success
+            ? "AI se do toho pustila — seznam se doplní během chvilky, pak stránku obnov."
+            : (res.error ?? "Spuštění selhalo."))
+        setAgentRunning(false)
+    }
+
     const runCreate = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!newTitle.trim() || creating) return
@@ -214,12 +295,23 @@ export function TasksTab() {
                     </button>
                 ))}
                 <button
+                    onClick={runAgent}
+                    disabled={agentRunning}
+                    title="Roztřídí nové úkoly a navrhne, co ze stavu systému plyne"
+                    className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded-sm border border-white/10 text-white/50 hover:text-white hover:bg-white/5 transition-all disabled:opacity-40"
+                >
+                    <Sparkles className="w-3 h-3 shrink-0" />
+                    {agentRunning ? "Spouštím…" : "Projet AI"}
+                </button>
+                <button
                     onClick={() => setShowDone(v => !v)}
-                    className="ml-auto text-[9px] font-bold uppercase tracking-widest text-white/40 hover:text-white underline underline-offset-4 decoration-white/20"
+                    className="text-[9px] font-bold uppercase tracking-widest text-white/40 hover:text-white underline underline-offset-4 decoration-white/20"
                 >
                     {showDone ? "Skrýt hotové" : "Zobrazit hotové"}
                 </button>
             </div>
+
+            {agentNote && <p className="text-[10px] text-emerald-400/80">{agentNote}</p>}
 
             {error && <p className="text-[10px] text-red-400">❌ {error}</p>}
 
@@ -240,8 +332,9 @@ export function TasksTab() {
                         return (
                             <div
                                 key={task.id}
-                                className={`flex items-start gap-3 bg-[#0a0a0a] border border-white/5 rounded-sm px-3 py-2.5 ${busyId === task.id ? "opacity-50" : ""}`}
+                                className={`bg-[#0a0a0a] border rounded-sm ${task.blocked_on?.startsWith("otázka:") ? "border-amber-500/25" : "border-white/5"} ${busyId === task.id ? "opacity-50" : ""}`}
                             >
+                            <div className="flex items-start gap-3 px-3 py-2.5">
                                 <button
                                     onClick={() => runStatus(task)}
                                     disabled={busyId === task.id}
@@ -258,6 +351,14 @@ export function TasksTab() {
                                     {task.note && (
                                         <p className="text-[10px] text-white/35 mt-0.5">{task.note}</p>
                                     )}
+                                    {/* Další krok stojí nad odznaky schválně: je to jediná věta,
+                                        kterou člověk se čtvrthodinou času potřebuje přečíst. */}
+                                    {!muted && task.next_step && (
+                                        <p className="text-[10px] text-emerald-300/70 mt-1">→ {task.next_step}</p>
+                                    )}
+                                    {!muted && task.blocked_on && (
+                                        <p className="text-[10px] text-amber-300/80 mt-1">⏸ {task.blocked_on}</p>
+                                    )}
                                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                                         {task.priority && (
                                             <span className={`px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-widest rounded-sm border ${PRIORITY_TONE[task.priority]}`}>
@@ -265,8 +366,27 @@ export function TasksTab() {
                                             </span>
                                         )}
                                         <span className="text-[8px] font-bold uppercase tracking-widest text-white/20">
-                                            {task.source === "sheet" ? "z tabulky" : "v appce"}
+                                            {task.source === "sheet" ? "z tabulky" : task.created_by === "ai" ? "návrh AI" : "v appce"}
                                         </span>
+                                        {task.effort && (
+                                            <span className="text-[8px] font-bold uppercase tracking-widest text-white/35" title="Odhad velikosti">
+                                                {EFFORT_LABEL[task.effort]}
+                                            </span>
+                                        )}
+                                        {task.agent && (
+                                            <span className="inline-flex items-center gap-1 text-[8px] font-bold uppercase tracking-widest text-sky-300/60" title="Tohle umí vzít AI">
+                                                <Bot className="w-2.5 h-2.5 shrink-0" />{AGENT_LABEL[task.agent]}
+                                            </span>
+                                        )}
+                                        {task.clients?.slug && (
+                                            <button
+                                                onClick={() => setProjectId(task.clients!.slug)}
+                                                title={`Otevřít studio: ${task.clients.name}`}
+                                                className="inline-flex items-center gap-1 text-[8px] font-bold uppercase tracking-widest text-white/35 hover:text-white transition-colors"
+                                            >
+                                                <ExternalLink className="w-2.5 h-2.5 shrink-0" />{task.clients.name}
+                                            </button>
+                                        )}
                                         {task.owner_email && (
                                             <span className="text-[8px] font-bold uppercase tracking-widest text-white/35">
                                                 {nameOf(task.owner_email)}
@@ -297,6 +417,98 @@ export function TasksTab() {
                                 >
                                     <Trash2 className="w-3.5 h-3.5" />
                                 </button>
+
+                                <button
+                                    onClick={() => toggleExpand(task)}
+                                    title="Zadání a vlákno"
+                                    className={`shrink-0 mt-0.5 text-white/25 hover:text-white transition-transform ${expandedId === task.id ? "rotate-180" : ""}`}
+                                >
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+
+                            {expandedId === task.id && (
+                                <div className="border-t border-white/5 px-3 py-3 space-y-3">
+                                    {/* Zadání od AI */}
+                                    {task.spec ? (
+                                        <div className="space-y-1">
+                                            {task.spec.cil && <p className="text-[11px] text-white/70"><span className="text-white/30">Cíl: </span>{task.spec.cil}</p>}
+                                            {task.spec.hotovo && <p className="text-[11px] text-white/70"><span className="text-white/30">Hotovo, když: </span>{task.spec.hotovo}</p>}
+                                            {task.spec.kde_zacit && <p className="text-[11px] text-white/70"><span className="text-white/30">Začni: </span>{task.spec.kde_zacit}</p>}
+                                        </div>
+                                    ) : (
+                                        <p className="text-[10px] text-white/30">Zadání zatím není — AI úkol ještě neviděla.</p>
+                                    )}
+
+                                    {/* Výsledek: odkaz na PR, doklad, rozhodnutí */}
+                                    <div className="flex gap-2">
+                                        <input
+                                            value={resultDraft}
+                                            onChange={e => setResultDraft(e.target.value)}
+                                            placeholder="Výsledek — odkaz na PR, doklad, rozhodnutí…"
+                                            className="flex-1 bg-[#050505] border border-white/10 rounded-sm px-2.5 py-1.5 text-white/80 text-[11px] focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
+                                        />
+                                        <button
+                                            onClick={() => runResult(task)}
+                                            disabled={busyId === task.id || resultDraft === (task.result ?? "")}
+                                            className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded-sm border border-white/10 text-white/50 hover:text-white hover:bg-white/5 transition-all disabled:opacity-30"
+                                        >
+                                            Uložit
+                                        </button>
+                                    </div>
+
+                                    {/* Vlákno */}
+                                    <div className="space-y-1.5">
+                                        {eventsLoading ? (
+                                            <p className="text-[10px] text-white/30">Načítám vlákno…</p>
+                                        ) : events.length === 0 ? (
+                                            <p className="text-[10px] text-white/25">Vlákno je prázdné.</p>
+                                        ) : events.map(ev => (
+                                            <div key={ev.id} className="flex gap-2">
+                                                <span className={`shrink-0 text-[8px] font-bold uppercase tracking-widest mt-0.5 ${ev.actor === "ai" ? "text-sky-300/60" : "text-white/30"}`}>
+                                                    {ev.actor === "ai" ? "AI" : nameOf(ev.actor)}
+                                                </span>
+                                                <p className={`text-[11px] whitespace-pre-line ${ev.kind === "question" ? "text-amber-200/80" : "text-white/55"}`}>
+                                                    {ev.body}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Odpověď / poznámka */}
+                                    <div className="flex flex-col sm:flex-row gap-2">
+                                        <input
+                                            value={reply}
+                                            onChange={e => setReply(e.target.value)}
+                                            placeholder={task.blocked_on?.startsWith("otázka:") ? "Odpověz AI jednou větou…" : "Poznámka do vlákna…"}
+                                            className="flex-1 bg-[#050505] border border-white/10 rounded-sm px-2.5 py-1.5 text-white/80 text-[11px] focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
+                                        />
+                                        {/* Odpověď vrací úkol k přetřídění, poznámka je jen zápis do historie. */}
+                                        <button
+                                            onClick={() => runReply(task, true)}
+                                            disabled={busyId === task.id || !reply.trim()}
+                                            className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all disabled:opacity-30"
+                                        >
+                                            Odpovědět AI
+                                        </button>
+                                        <button
+                                            onClick={() => runReply(task, false)}
+                                            disabled={busyId === task.id || !reply.trim()}
+                                            className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded-sm border border-white/10 text-white/50 hover:text-white hover:bg-white/5 transition-all disabled:opacity-30"
+                                        >
+                                            Jen poznámka
+                                        </button>
+                                        <button
+                                            onClick={() => runRetriage(task)}
+                                            disabled={busyId === task.id}
+                                            title="Přečti úkol znovu a přepiš zadání"
+                                            className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded-sm border border-white/10 text-white/40 hover:text-white transition-all disabled:opacity-30"
+                                        >
+                                            <RefreshCw className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                             </div>
                         )
                     })}

@@ -104,7 +104,17 @@ check(
     "migrace má unikátní index na source_key",
     /create unique index[\s\S]*?on tasks \(source_key\)/i.test(migration),
 )
-check("tasks nemá client_id", !/client_id/.test(migration))
+// `client_id` v původní migraci schválně NEBYL: úkoly jsou backlog firmy, ne
+// obsah tenanta, a sloupec by sváděl k tomu chovat se k nim jako k `ig_*`.
+// Od 9/2026 tam je — jako NULLABLE ukazatel, aby šlo z úkolu „hydroizolace —
+// zkontrolovat fakta" skočit do studia toho klienta. Hranice, která platí dál:
+// **nikdy povinný a nikdy podmínka přístupu**. Kdo se dostane do admin sekce,
+// vidí všechny úkoly; `client_id` je proklik, ne filtr oprávnění.
+const migration2 = file("supabase/migrations/20260908_ukoly_pro_lidi_i_ai.sql").replace(/^\s*--.*$/gm, "")
+check("client_id je nepovinný ukazatel, ne tenant filtr",
+    /add column if not exists client_id uuid references clients\(id\)/i.test(migration2) &&
+    !/client_id[^;]*not null/i.test(migration2))
+check("původní migrace tasks zůstává bez client_id", !/client_id/.test(migration))
 check("RLS je zapnuté na obou tabulkách",
     /alter table team_members enable row level security/i.test(migration) &&
     /alter table tasks enable row level security/i.test(migration))
@@ -163,6 +173,46 @@ const refreshStart = postEdit.indexOf("async function refreshFactStatus")
 const refreshBody = refreshStart === -1 ? "" : postEdit.slice(refreshStart)
 check("brána nad hotovým postem jede jen v režimu bold", refreshBody.includes('factCheckMode: "bold"'))
 check("stav se zapisuje k nejnovějšímu logu", refreshBody.includes("fact_status") && refreshBody.includes("ig_generation_log"))
+
+// ── 5. Třídič a navrhovač (AI vrstva) ───────────────────────
+const triage = codeOnly("lib/tasks/triage.ts")
+const propose = codeOnly("lib/tasks/propose.ts")
+
+// Vlastnictví sloupců je celý vtip téhle tabulky. Sheet vlastní title/note/priority;
+// kdyby do nich sáhla AI, sync a model by se přetahovaly a `updateTask` by úkol
+// navíc vytrhlo z tabulky (source='app').
+// Kontroluje se ZÁPIS, ne výskyt slova: `title` a `note` v souboru legitimně
+// stojí v typu načteného řádku, protože z nich model vychází.
+const triagePatch = triage.slice(triage.indexOf("const patch: Record<string, unknown> = {"), triage.indexOf("const { error } = await supabaseAdmin.from(\"tasks\").update(patch)"))
+check("třídič nepíše do sloupců, které vlastní tabulka",
+    !/\b(title|note|priority):/.test(triagePatch),
+    "sync a model by se přetahovaly o tentýž text")
+
+// Navrhovač úkol ZAKLÁDÁ, takže `title` psát musí — nesmí ale sahat na poznámku
+// a prioritu, které u řádku z tabulky patří tabulce.
+const proposeInsert = propose.slice(propose.indexOf('.from("tasks")\n            .insert({'), propose.indexOf('.select("id")'))
+check("navrhovač nepíše do poznámky ani priority",
+    !/\b(note|priority):/.test(proposeInsert))
+
+// Razítko `spec_at` je jediná pojistka proti tomu, aby se za totéž platilo znovu.
+check("třídí se jednou — razítko spec_at", triage.includes("spec_at") && triage.includes('.is("spec_at", null)'))
+check("odpověď člověka vrací úkol k přetřídění",
+    codeOnly("app/actions/task-actions.ts").includes("spec_at: null"))
+
+// Nejistota končí otázkou, ne domyšleným zadáním. Špatně pochopený úkol spolkne den.
+check("třídič se umí zeptat místo domýšlení", triage.includes('"question"') && triage.includes("blocked_on"))
+
+// Návrh vzniká jednou: klíč `ai:` je claim přes týž unikátní index jako sync.
+check("návrhy mají claim přes source_key", propose.includes("AI_KEY_PREFIX") && propose.includes("source_key"))
+check("zahozený návrh se nevrací", propose.includes('.select("id").eq("source_key"') || propose.includes('.eq("source_key", sourceKey)'))
+check("navrhuje se nejvýš pár úkolů na běh", /MAX_PER_RUN\s*=\s*[1-5]\b/.test(propose))
+
+// Sync nesmí hlásit návrhy AI jako „chybí v tabulce" — v tabulce nikdy nebyly.
+check("sync přeskakuje návrhy od AI", file("lib/tasks/sheet-sync.ts").includes('"ai:%"'))
+
+// Běh přes agent stack, ne mimo něj: i ruční spuštění musí nechat řádek v auditu.
+const dailyOps = codeOnly("app/api/cron/daily-ops/route.ts")
+check("třídič i navrhovač běží přes requestAction", dailyOps.includes("task_triage") && dailyOps.includes("task_propose"))
 
 console.log(`\n${failed === 0 ? "✅" : "❌"} ${passed} prošlo, ${failed} selhalo`)
 if (failed > 0) {

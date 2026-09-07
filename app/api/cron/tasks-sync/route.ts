@@ -29,6 +29,22 @@ export async function GET(req: Request) {
             `✅ Sync úkolů: ${summary.novych} nových, ${summary.zmenenych} změněných, ` +
             `${summary.bezeZmeny} beze změny, ${summary.chybiVTabulce.length} už není v tabulce`
         )
+
+        // Nové řádky roztřídit HNED, ne až ranním cronem: sync běží v pondělí
+        // a ve čtvrtek ráno a do té doby by seznam nesl věty, ze kterých se nedá
+        // vybrat práce. Přes agent stack, ne přímo — ať je z toho řádek v auditu
+        // a ať se běh chová stejně jako každá jiná agentská akce.
+        if (summary.novych > 0) {
+            const { requestAction } = await import("@/lib/agent-safety")
+            await requestAction({
+                agentType: "ops",
+                action: `Roztřídění ${summary.novych} nových úkolů ze syncu`,
+                riskTier: "internal",
+                taskType: "task_triage",
+                clientId: null,
+                payload: {},
+            })
+        }
         return NextResponse.json({ ok: true, ...summary })
     } catch (err) {
         const message = (err as Error)?.message || "sync selhal"
