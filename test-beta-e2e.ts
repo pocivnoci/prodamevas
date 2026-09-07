@@ -4162,6 +4162,64 @@ test("37.7 měření: hledání se účtuje vedle tokenů, ne místo nich", () =
     assert(/"claude-haiku-4-5": \{ in: 1, out: 5/.test(price), "tokenová sazba ověřovatele chybí")
 })
 
+test("37.8 hooky v plánu procházejí bránou, než je uživatel schválí", () => {
+    // Díra do #83: schválený hook je pro bránu u příspěvku POVOLENÝ ZDROJ, ale plán
+    // sám žádnou bránou neprošel. Nepodložené číslo v hooku si tím kupovalo imunitu
+    // pro celý post — a uživatel schvaloval znění, u kterého NEVIDĚL, že ho nemáme
+    // čím podložit. Schválení je legitimní zdroj jen tehdy, když je informované.
+    const plan = codeOnly("app/actions/content-plan-actions.ts")
+    assert(/checkDisplayStrings/.test(plan), "hooky plánu musí projít faktickou bránou")
+    assert(/concepts\.map\(c => c\.hookPreview \|\| ""\)/.test(plan),
+        "jedno volání nad všemi hooky naráz, ne osm volání")
+    assert(plan.indexOf("checkDisplayStrings") < plan.indexOf("const usedIdeaIdx"),
+        "brána musí běžet PŘED sestavením položek plánu, jinak nemá co označit")
+    assert(plan.indexOf("while (concepts.length < count") < plan.indexOf("checkDisplayStrings"),
+        "brána běží AŽ po dopsání chybějících konceptů — jinak by je část hooků minula")
+    const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/GenerateTab.tsx")
+    assert(/item\.factFlag && \(/.test(ui),
+        "varování musí být vidět U POLOŽKY, jinak je schválení pořád nevědomé")
+})
+
+test("37.9 schválení chrání znění hooku, ne štítek", () => {
+    // Uživatel viděl varování a hook přesto schválil. Znění se mu nepřepíše (mega
+    // prompt to slíbil), ale příspěvek MUSÍ nést varování dál — jinak nepodložené
+    // tvrzení doputuje na kartu jako „v pořádku".
+    const camp = codeOnly("app/actions/campaign-actions.ts")
+    assert(/factFlag: it\.factFlag \|\| null/.test(camp),
+        "planRows whitelistuje pole — bez tohohle se varování zahodí rovnou při schválení")
+    const worker = codeOnly("app/api/cron/campaign-worker/route.ts")
+    assert(/const approvedHookFlag = item\?\.factFlag/.test(worker), "worker musí varování předat dál")
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/approvedHookFlag: options\.approvedHookFlag \|\| null/.test(auto),
+        "generateOnePost musí varování poslat bráně")
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/const carried = ctx\.approvedHookFlag/.test(fc),
+        "brána sama tvrzení ve schváleném hooku nenajde (je to pro ni povolený zdroj) — musí ho dostat")
+    assert(/const status: FactStatus = flags\.length > 0 \? "flagged" : "repaired"/.test(fc),
+        "stav musí počítat i s přineseným varováním, jinak post vyjde jako opravený")
+})
+
+test("37.10a přegenerovaný hook prochází bránou taky", () => {
+    // Bez toho by stačilo mačkat 🔄, dokud varování nezmizí — nová pračka na
+    // halucinace. A stará položka by si navíc odnesla štítek, který k novému
+    // znění nepatří.
+    const plan = codeOnly("app/actions/content-plan-actions.ts")
+    const fn = plan.slice(plan.indexOf("async function regeneratePlanItemInner"))
+    assert(/checkDisplayStrings/.test(fn), "přegenerovaný hook musí projít bránou")
+    assert(/factFlag,/.test(fn) && /factSources,/.test(fn), "stav brány se musí vrátit s položkou")
+    const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/GenerateTab.tsx")
+    assert(/factFlag: result\.item!\.factFlag/.test(ui),
+        "UI musí starý štítek přepsat novým, ne ho nechat viset u jiného znění")
+})
+
+test("37.10 doklady z plánu se do postu nesou, hledání se neplatí dvakrát", () => {
+    const camp = codeOnly("app/actions/campaign-actions.ts")
+    assert(/factSources: it\.factSources \|\| null/.test(camp), "doklady musí přežít schválení plánu")
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/webVerified: options\.approvedHookSources \|\| null/.test(auto),
+        "co se doložilo v plánu, nesmí se v postu hledat znovu")
+})
+
 // ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════

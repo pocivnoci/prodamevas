@@ -131,6 +131,17 @@ export interface FactContext {
      * a hledání by se platilo podruhé za tentýž nález.
      */
     webVerified?: FactSource[] | null
+    /**
+     * Varování, které brána pověsila na `approvedHook` UŽ V PLÁNU a uživatel ho přesto
+     * schválil (viděl ho u položky, než klikl).
+     *
+     * Schválený hook je povolený zdroj — mega prompt slíbil, že ho copywriter zachová,
+     * a přepsat uživateli pod rukama znění, na které v plánu klikl, je porušený slib.
+     * Ochrana se ale týká ZNĚNÍ, ne štítku: kdyby se varování tady ztratilo, doputuje
+     * nepodložené tvrzení na kartu příspěvku jako „v pořádku". Připojuje se proto
+     * k výsledku deterministicky v kódu, ne prosbou v promptu.
+     */
+    approvedHookFlag?: string | null
 }
 
 /**
@@ -403,29 +414,44 @@ Když text žádné konkrétní tvrzení neobsahuje, vrať {"claims": []}.`
 }
 
 /**
- * Brána nad samostatnými řetězci, které se TISKNOU (nadpis, podnadpis, patička
- * tiskového briefu). Tisk je nejtvrdší médium — vytištěný leták s vymyšleným údajem
- * se nesmaže a klient ho drží v ruce.
+ * Brána nad samostatnými řetězci, které se čtou jako NADPIS — tiskový brief
+ * (nadpis/podnadpis/patička) i hooky v obsahovém plánu.
  *
  * Uvnitř staví ze vstupu synteticky `frames`, aby jel přesně tentýž kód jako u
  * příspěvků: stejná pravidla pro nadpisy do obrázku, stejná ochrana proti vyprázdnění
  * pole, stejné filtrování oprav podle režimu. Druhá implementace téhož by se rozešla.
+ *
+ * `flagsByIndex` říká, KTERÝ řetězec je označený — plán potřebuje pověsit varování
+ * na konkrétní položku, ne na celý týden. Přiřazuje se podle toho, ve kterém řetězci
+ * tvrzení po opravách skutečně zůstalo; co se nepodařilo přiřadit, zůstává aspoň
+ * v souhrnném `flags` (nikdy se nezahodí).
  */
 export async function checkDisplayStrings(
     config: ClientConfig,
     strings: string[],
     ctx: FactContext = {},
-): Promise<{ status: FactStatus; strings: string[]; flags: string[]; repairs: { claim: string; from: string; to: string }[]; judged: boolean; sources: FactSource[] }> {
+): Promise<{ status: FactStatus; strings: string[]; flags: string[]; flagsByIndex: string[][]; repairs: { claim: string; from: string; to: string }[]; judged: boolean; sources: FactSource[] }> {
     const usable = strings.map(s => (s || "").trim())
     if (usable.every(s => !s)) {
-        return { status: "skipped", strings, flags: [], repairs: [], judged: false, sources: [] }
+        return { status: "skipped", strings, flags: [], flagsByIndex: strings.map(() => []), repairs: [], judged: false, sources: [] }
     }
     const synthetic = { frames: usable.map(text => ({ headline: text, subtext: "" })) }
     const out = await checkCaptionFacts(config, synthetic, ctx)
     const back = (out.captionData as typeof synthetic).frames.map(f => f.headline)
     // Prázdné vstupy se vrací tak, jak přišly — index po indexu.
     const merged = strings.map((orig, i) => (usable[i] ? back[i] : orig))
-    return { status: out.status, strings: merged, flags: out.flags, repairs: out.repairs, judged: out.judged, sources: out.sources }
+
+    // Varování na konkrétní řetězec. Rozhoduje HOTOVÝ text (stejně jako `unresolved`
+    // v checkCaptionFacts): tvrzení, které jiná oprava mezitím vyhodila, se nesmí
+    // pověsit na položku, ve které už není.
+    const flagsByIndex: string[][] = strings.map(() => [])
+    for (const flag of out.flags) {
+        const claim = flag.replace(/\s*\([^)]*\)\s*$/, "").trim()
+        const i = merged.findIndex(t => claim.length > 0 && (t || "").includes(claim))
+        if (i !== -1) flagsByIndex[i].push(flag)
+    }
+
+    return { status: out.status, strings: merged, flags: out.flags, flagsByIndex, repairs: out.repairs, judged: out.judged, sources: out.sources }
 }
 
 /**
@@ -485,7 +511,18 @@ export async function checkCaptionFacts<T>(
         .map(c => ({ ...c, reason: c.reason || (c.scope === "brand" ? "tvrzení o značce bez opory ve faktech" : "na webu se nepotvrdilo") }))
 
     const risky = [...claims.filter(c => c?.verdict === "risk"), ...unresolvedUnsure]
-    if (risky.length === 0) return { ...base, status: "clean", judged: true, sources }
+
+    // Varování, které si hook přinesl ze schváleného plánu. Připojuje se VŽDY — brána
+    // ho totiž sama nikdy nenajde: schválený hook je pro ni povolený zdroj, takže
+    // tvrzení v něm neoznačí. Bez tohohle řádku by nepodložené číslo, které uživatel
+    // v plánu vědomě propustil, skončilo u příspěvku jako „čisté".
+    const carried = ctx.approvedHookFlag?.trim() ? [ctx.approvedHookFlag.trim()] : []
+
+    if (risky.length === 0) {
+        return carried.length > 0
+            ? { ...base, status: "flagged", judged: true, sources, flags: carried }
+            : { ...base, status: "clean", judged: true, sources }
+    }
 
     // Které opravy se vůbec smějí použít, rozhoduje REŽIM — a rozhoduje se v kódu.
     // Prompt se dá přemluvit, `if` ne; a rozdíl mezi „opravím nadpis" a „nechám to na
@@ -527,8 +564,8 @@ export async function checkCaptionFacts<T>(
         console.warn(`   ⚠️ Faktická brána: ${missed.length}× se citace netrefila do textu (${missed[0].slice(0, 60)}…)`)
     }
 
-    const flags = unresolved.map(c => `${c.claim}${c.reason ? ` (${c.reason})` : ""}`.slice(0, 160))
-    const status: FactStatus = unresolved.length > 0 ? "flagged" : "repaired"
+    const flags = [...carried, ...unresolved.map(c => `${c.claim}${c.reason ? ` (${c.reason})` : ""}`.slice(0, 160))]
+    const status: FactStatus = flags.length > 0 ? "flagged" : "repaired"
     // Vyměněné = ty, co v hotovém textu nezůstaly a měly čím být nahrazeny.
     const repairs = risky
         .filter(c => !unresolved.includes(c) && c.find && typeof c.replace === "string")

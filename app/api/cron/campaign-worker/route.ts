@@ -220,6 +220,13 @@ export async function GET(req: Request) {
             ? `${baseTopic || ""}${baseTopic ? " — " : ""}úhel: ${item.angle}`.trim()
             : baseTopic
         const approvedHook = item?.hookPreview?.trim() || undefined
+        // Co brána u hooku označila při plánování a uživatel to přesto schválil.
+        // Schválení chrání ZNĚNÍ hooku před přepsáním (mega prompt to slíbil), ne před
+        // štítkem: kdyby se varování tady ztratilo, projde nepodložené tvrzení až na
+        // kartu příspěvku jako „v pořádku". Doklady jdou vedle, ať se za tentýž nález
+        // neplatí hledání podruhé.
+        const approvedHookFlag = item?.factFlag || undefined
+        const approvedHookSources = item?.factSources || undefined
         // Idea-bank attribution: the plan item's topic was derived from this idea (bank-sourced
         // or deposited at startCampaign) — generateOnePost links idea_id + marks it used.
         // Ownership was validated at startCampaign; re-check mere existence here so an idea
@@ -324,6 +331,7 @@ export async function GET(req: Request) {
                     client_id: clientId,
                     config: {
                         configName, type: postType, topic: postTopic, approvedHook,
+                        approvedHookFlag, approvedHookSources,
                         ideaId: itemIdeaId,
                         aspectRatio: opts.aspectRatio || undefined,
                         medium: itemMedium,
@@ -366,6 +374,7 @@ export async function GET(req: Request) {
         try {
             const result = await generateOnePost({
                 configName, type: postType, topic: postTopic, approvedHook,
+                approvedHookFlag, approvedHookSources,
                 ideaId: itemIdeaId,
                 aspectRatio: opts.aspectRatio || undefined,
                 medium: itemMedium,

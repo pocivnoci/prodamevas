@@ -175,6 +175,12 @@ export async function generateOnePost(options: {
     ideaId?: string
     /** Hook approved in the content plan — binds the copywriter (refine, don't replace). */
     approvedHook?: string
+    /** Varování, které brána pověsila na hook UŽ V PLÁNU a uživatel ho přesto schválil.
+     *  Schválení chrání znění hooku před přepsáním, ne před štítkem — tohle zajistí,
+     *  že se u příspěvku varování neztratí. */
+    approvedHookFlag?: string
+    /** Doklady, které si hook přinesl z plánu — post za ně nebude platit hledání znovu. */
+    approvedHookSources?: { claim: string; url: string; title?: string; quote?: string }[]
     dryRun?: boolean
     performance?: PerformanceInsight
     aspectRatio?: string
@@ -1087,6 +1093,10 @@ ${feedSummary}
         // „včetně konkrétnosti". Bez tohohle by ho brána v režimu „opatrné" přepsala
         // a uživatel by v postu nenašel to, na co v plánu klikl.
         approvedHook: options.approvedHook || null,
+        // Co si hook přinesl z plánu: doklady (ať se hledání neplatí podruhé) a
+        // varování, které uživatel viděl a schválil (ať se u postu neztratí).
+        webVerified: options.approvedHookSources || null,
+        approvedHookFlag: options.approvedHookFlag || null,
         idea: idea ? [idea.title, idea.content].filter(Boolean).join(" — ") : null,
         review: review ? { quote: review.quote, customer_name: review.customer_name } : null,
         postTypeName: selectedType.display_name,
