@@ -10,6 +10,7 @@
 
 import { buildMegaPrompt, buildVideoSchema, buildCaptionSchema, buildCarouselSchema, buildStorySchema, getPostTypeDef, buildSmartWeekPlan, PROMPT_LIMITS, CAROUSEL_MAX_TOTAL_SLIDES, sanitizeHashtags, assembleCaption, buildFactsSection } from "../instagram/caption-generator"
 import { buildFactCheckPrompt, applyFactFixes } from "../instagram/fact-check"
+import { buildWebVerifyPrompt, admissibleSource } from "../instagram/fact-web"
 import { readFileSync } from "fs"
 import { resolve } from "path"
 import { formatContextForPrompt, type ContextSignals } from "../instagram/context-agent"
@@ -841,6 +842,67 @@ test("platná adresa zůstává nedotčená", () => {
     const policy = resolveCtaPolicy({ pillarCtaStrategy: "hard", website: "https://test.cz", selectedProduct: { name: "Tričko", slug: "tricko" } })
     assert(policy.allowWebsite === true, "platný web musí projít")
     assert(policy.productUrl === "https://test.cz/p/tricko", `špatný odkaz: ${policy.productUrl}`)
+})
+
+// ─── Ověření na webu: doklad, nebo mlčení ───────────────────
+
+console.log("\n✅ Ověření tvrzení na webu")
+
+test("prompt ověření trvá na doslovném znění a zakazuje odvozování", () => {
+    const p = buildWebVerifyPrompt([{ claim: "Interval STK se od ledna 2026 mění", query: "STK interval 2026" }], "Autoservis Novák")
+    assert(p.includes("Interval STK se od ledna 2026 mění"), "tvrzení se do promptu nedostalo")
+    assert(p.includes("STK interval 2026"), "nápověda k hledání zmizela — model bude hádat, co má hledat")
+    assert(/DOSLOVA/.test(p), "bez pravidla „doslova“ je z rešerše zase generátor tvrzení")
+    assert(/Nic neodvozuj, nedopočítávej, nezaokrouhluj/.test(p),
+        "„přes 20 let“ se nesmí stát „od roku 2005“ — tohle je celý rozdíl mezi rešerší a halucinací")
+    assert(/nepotvrzené/.test(p) && /správná a častá odpověď/.test(p),
+        "model musí mít výslovně dovoleno nic nenajít, jinak si doklad vyrobí")
+    assert(p.includes("Autoservis Novák"), "prompt musí vědět, čí web se nepočítá")
+})
+
+test("zdroj mimo výsledky hledání se nepřijme", () => {
+    const evidence = [{ url: "https://zakonyprolidi.cz/cs/2026-1", title: "Zákon" }]
+    assert(admissibleSource("https://zakonyprolidi.cz/cs/2026-1", evidence, null) !== null,
+        "nález, který API vrátilo, musí projít")
+    assert(admissibleSource("https://vymyslena-stranka.cz/dukaz", evidence, null) === null,
+        "URL, kterou model napsal a API nikdy nevrátilo, je halucinace s razítkem „ověřeno“")
+    assert(admissibleSource(undefined, evidence, null) === null, "chybějící URL není doklad")
+    assert(admissibleSource("tohle není adresa", evidence, null) === null, "nesmysl místo URL není doklad")
+})
+
+test("vlastní web klienta nedokládá tvrzení o klientovi", () => {
+    // Kruh: klient si to napsal na web, engine to opíše do postu a web klienta to pak
+    // „doloží“. Přesně tomu má vrstva bránit — od vlastního webu jsou Ověřená fakta.
+    const evidence = [
+        { url: "https://autoservis-novak.cz/o-nas", title: "O nás" },
+        { url: "https://blog.autoservis-novak.cz/clanek", title: "Blog" },
+        { url: "https://zakonyprolidi.cz/cs/2026-1", title: "Zákon" },
+    ]
+    assert(admissibleSource("https://autoservis-novak.cz/o-nas", evidence, "autoservis-novak.cz") === null,
+        "vlastní web se nesmí počítat jako doklad")
+    assert(admissibleSource("https://blog.autoservis-novak.cz/clanek", evidence, "autoservis-novak.cz") === null,
+        "ani subdoména vlastního webu")
+    assert(admissibleSource("https://zakonyprolidi.cz/cs/2026-1", evidence, "autoservis-novak.cz") !== null,
+        "cizí zdroj musí projít i tak")
+})
+
+test("brána nabízí soudci tři verdikty a říká, co na web NESMÍ", () => {
+    const cfg = { name: "Autoservis Novák", website: "https://autoservis-novak.cz", brandFacts: [] } as unknown as ClientConfig
+    const p = buildFactCheckPrompt(cfg, [{ text: "Od ledna 2026 se mění interval STK.", display: false }], {}, "balanced")
+    assert(/"ok" \| "unsure" \| "risk"/.test(p), "výstupní schéma musí nabídnout i nejistotu")
+    assert(/VŽDYCKY tvrzení o samotné značce/.test(p),
+        "bez tohohle by soudce poslal na web „jsme 25 let na trhu“ a dostal zpátky vlastní marketing klienta")
+    assert(!/nezpochybnitelná obecná znalost \(voda vře/.test(p),
+        "stará výjimka pro „obecnou znalost“ musí být pryč — právě tam si model bývá jistý a plete se")
+})
+
+test("už doložené tvrzení se bráně připomene, ať ho podruhé neoznačí", () => {
+    const cfg = { name: "Autoservis Novák", website: "https://autoservis-novak.cz", brandFacts: [] } as unknown as ClientConfig
+    const p = buildFactCheckPrompt(cfg, [{ text: "Od ledna 2026 se mění interval STK.", display: false }], {
+        webVerified: [{ claim: "Od ledna 2026 se mění interval STK", url: "https://zakonyprolidi.cz/cs/2026-1" }],
+    }, "bold")
+    assert(/UŽ DOLOŽENO NA WEBU/.test(p), "doklady z minulého běhu musí být mezi povolenými zdroji")
+    assert(p.includes("https://zakonyprolidi.cz/cs/2026-1"), "s odkazem, ať je poznat, čím to je doložené")
 })
 
 // ─── Report ─────────────────────────────────────────────────

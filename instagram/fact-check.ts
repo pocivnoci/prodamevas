@@ -9,7 +9,15 @@
  * Prevence žije v promptu (buildFactsSection → PRAVIDLO PRAVDIVOSTI). Tohle je
  * kontrola po napsání: jeden judge průchod (cross-family, viz judge.ts) vytáhne z
  * textu KONKRÉTNÍ tvrzení a porovná je proti povoleným zdrojům — ověřená fakta
- * značky, vybraný produkt, zadaný námět. Ke každému rizikovému tvrzení si vyžádá
+ * značky, vybraný produkt, zadaný námět.
+ *
+ * Odpovědi jsou TŘI, ne dvě. Tvrzení o SVĚTĚ (zákon, norma, parametr cizího produktu)
+ * pravda je, ale v `brandFacts` nikdy nebude — a brána z něj dřív dělala vatu. Takové
+ * tvrzení jde na `instagram/fact-web.ts`, který ho buď doloží citací a odkazem, nebo
+ * mlčí. Tvrzení o SAMOTNÉ ZNAČCE se na web nepouští nikdy: veřejný web o malém
+ * klientovi nic neví a našel by leda jeho vlastní marketing opsaný jinde.
+ *
+ * Ke každému rizikovému tvrzení si judge vyžádá
  * `find`/`replace`, které se pak aplikují DETERMINISTICKY v kódu (stejná doktrína
  * jako verbatim hook v post-editingu: „oprav to prosím" model dodrží jen někdy,
  * záměna podřetězce vždy).
@@ -21,6 +29,16 @@
 
 import type { ClientConfig } from "./configs/types"
 import { judgeText } from "./judge"
+import { verifyClaimsOnWeb, type FactSource, type WebCheckInput } from "./fact-web"
+
+export type { FactSource } from "./fact-web"
+
+/**
+ * Strop hledání na jeden příspěvek. Účtuje se $0,01 za hledání, takže tohle je
+ * i cenový strop — a zároveň pojistka proti postu, kde si soudce usmyslí, že nejistých
+ * tvrzení je patnáct.
+ */
+const MAX_WEB_CLAIMS = 5
 
 /** Jak dopadla brána — propisuje se do ig_generation_log.fact_status a do UI. */
 export type FactStatus = "clean" | "repaired" | "flagged" | "skipped"
@@ -28,13 +46,26 @@ export type FactStatus = "clean" | "repaired" | "flagged" | "skipped"
 export interface FactClaim {
     /** Tvrzení, jak stojí v textu. */
     claim: string
-    /** ok = podložené povoleným zdrojem, risk = nepodložené / v rozporu. */
-    verdict: "ok" | "risk"
-    /** Proč je to riziko (jen u risk). */
+    /**
+     * ok = podložené povoleným zdrojem
+     * unsure = o SVĚTĚ nebo o třetí straně, může to rozsoudit veřejný zdroj → jde na web
+     * risk = nepodložené / v rozporu, **a vždycky, když jde o tvrzení o samotné značce**
+     */
+    verdict: "ok" | "unsure" | "risk"
+    /**
+     * Čeho se tvrzení týká. Rozhoduje o tom, jestli se smí ověřovat na webu:
+     * `brand` na web NIKDY nejde — veřejný web není autorita na malého klienta a
+     * shodu by našel v jeho vlastním marketingu opsaném jinde. Filtruje to KÓD
+     * (viz checkCaptionFacts), ne dobrá vůle modelu.
+     */
+    scope?: "brand" | "world"
+    /** Co má ověřovatel hledat (jen u unsure). */
+    query?: string
+    /** Proč je to riziko (u risk; u unsure důvod, proč to chce doklad). */
     reason?: string
-    /** Přesný podřetězec textu k nahrazení (jen u risk). */
+    /** Přesný podřetězec textu k nahrazení (u risk i unsure — web může mlčet). */
     find?: string
-    /** Bezpečné znění bez nepodloženého tvrzení (jen u risk). */
+    /** Bezpečné znění bez nepodloženého tvrzení (u risk i unsure). */
     replace?: string
 }
 
@@ -52,6 +83,10 @@ export interface FactCheckOutcome<T> {
     repairs: { claim: string; from: string; to: string }[]
     /** Doběhl judge? false = brána neproběhla (fail-open), ne „čisté". */
     judged: boolean
+    /** Tvrzení doložená na webu, i s odkazem. Ukazují se u příspěvku — jednak proto,
+     *  že nedoložitelný „doklad" je totéž co žádný, jednak protože citaci ke zdroji
+     *  vyžaduje poskytovatel vyhledávání, když se výstup ukazuje uživateli. */
+    sources: FactSource[]
 }
 
 /** Zdroje, proti kterým se tvrzení ověřují. Cokoli mimo ně je nepodložené. */
@@ -88,6 +123,14 @@ export interface FactContext {
     /** Reálná recenze zákazníka (u recenzních formátů) — citace je fakt. */
     review?: { quote: string; customer_name?: string | null } | null
     postTypeName?: string
+    /**
+     * Doklady, které tenhle příspěvek UŽ má (z předchozího běhu brány).
+     *
+     * Přehodnocení (retuš, „Je to pravda") pouští bránu nad hotovým textem znovu. Bez
+     * tohohle by doložené tvrzení naskočilo jako nepodložené a štítek by se vrátil —
+     * a hledání by se platilo podruhé za tentýž nález.
+     */
+    webVerified?: FactSource[] | null
 }
 
 /**
@@ -216,6 +259,11 @@ export function buildFactCheckPrompt(
     const reviewBlock = ctx.review
         ? `\n## POVOLENÝ ZDROJ — REÁLNÁ RECENZE\n„${ctx.review.quote}"${ctx.review.customer_name ? ` — ${ctx.review.customer_name}` : ""}\n`
         : ""
+    // Doložené v minulém běhu. Bez tohohle by přehodnocení (retuš, „Je to pravda")
+    // shodilo štítek zpátky na tvrzení, které už má odkaz na zdroj.
+    const verifiedBlock = (ctx.webVerified && ctx.webVerified.length > 0)
+        ? `\n## POVOLENÝ ZDROJ — UŽ DOLOŽENO NA WEBU\n${ctx.webVerified.map(v => `- ${v.claim} (${v.url})`).join("\n")}\n`
+        : ""
 
     return `Jsi faktický korektor českého marketingového textu pro značku "${config.name}" (${config.website}).
 Nehodnotíš styl, hook ani kreativitu — jenom PRAVDIVOST. Styl řeší někdo jiný.
@@ -229,7 +277,7 @@ z postů název města, ve kterém klient sídlí, a dělala tím obsah méně l
 
 ## POVOLENÝ ZDROJ — OVĚŘENÁ FAKTA O ZNAČCE
 ${factList}
-${productBlock}${topicBlock}${hookBlock}${reviewBlock}${ideaBlock}
+${productBlock}${topicBlock}${hookBlock}${reviewBlock}${verifiedBlock}${ideaBlock}
 ## TEXT KE KONTROLE${ctx.postTypeName ? ` (formát: ${ctx.postTypeName})` : ""}
 ${texts.map((t, i) => `[${i + 1}]${t.display ? " 🖼 NADPIS DO OBRÁZKU:" : ""} ${t.text}`).join("\n")}
 
@@ -244,10 +292,28 @@ Konkrétní tvrzení, které si čtenář může ověřit a přistihnout značku
 - tvrzení o účincích (zdravotní, výkonnostní), které by muselo mít oporu
 
 ## JAK ROZHODUJEŠ
-- **ok** = tvrzení doslova stojí v některém povoleném zdroji výš, nebo je to
-  nezpochybnitelná obecná znalost (voda vře při 100 °C, Vánoce jsou v prosinci).
-- **risk** = všechno ostatní. Sem patří i tvrzení, které JE nejspíš pravda, ale
-  žádný zdroj výš ho neuvádí — model si ho vymyslel a nikdo ho nepotvrdil.
+Nejdřív se zeptej: **je to tvrzení o TÉHLE ZNAČCE, nebo o světě?** Podle toho se liší,
+kdo ho může doložit.
+
+- **ok** (scope neuváděj) = tvrzení doslova stojí v některém povoleném zdroji výš.
+- **unsure** (scope: "world") = tvrzení o SVĚTĚ nebo o JMENOVANÉ TŘETÍ STRANĚ, které
+  umí rozsoudit veřejný zdroj. Někdo si ho půjde ověřit — a půjde to. Patří sem:
+  zákon, vyhláška, norma, termín platnosti; parametr, složení nebo specifikace CIZÍHO
+  produktu či značky; obecný technický, přírodní nebo kalendářní údaj.
+  Přidej "query" — co se má vyhledat, česky nebo v jazyce výrobce.
+  ⚠️ I tak vrať find/replace jako u risk. Když se tvrzení nepotvrdí, oprava se použije.
+- **risk** = všechno ostatní, a **VŽDYCKY tvrzení o samotné značce** — o její historii,
+  velikosti, zákaznících, výsledcích, cenách, dodání či zárukách („25 let na trhu",
+  „9 z 10 zákazníků", „doprava zdarma nad 500"). Veřejný web o tomhle klientovi nic
+  neví; co se na něm najde, je jeho vlastní marketing opsaný jinde. Takové tvrzení
+  patří do Ověřených faktů, kam ho zadá člověk — ne na internet.
+  Sem patří i tvrzení, které JE nejspíš pravda, ale nikdo ho nepotvrdil a nedá se
+  veřejně ověřit.
+
+⚠️ „Nezpochybnitelná obecná znalost" NENÍ ok — je to unsure. Přesně u obecných znalostí
+si model bývá jistý i tehdy, když se plete, a nikde po tom nezůstane stopa. Ať to doloží
+zdroj.
+
 ## CO NAOPAK NEOZNAČUJEŠ (naměřeno: brána tohle mazala a dělala z postů vatu)
 - Obrazné, subjektivní a náladové formulace („nejlepší ráno", „miluju tenhle kousek",
   „voní jako léto"). Hledáš čísla a nároky, ne poezii.
@@ -274,6 +340,11 @@ Konkrétní tvrzení, které si čtenář může ověřit a přistihnout značku
 - **Smyslový a obrazný popis.** „Vůně dřeva", „ranní mlha", „hluboký nádech".
   Naměřeno: tohle brána mazala jako „nepodložené" a měnila poctivé posty v prázdné
   fráze. Označuj údaje, ne poezii.
+- **Nadčasové učebnicové konstanty.** Voda vře při 100 °C, rok má 12 měsíců, led taje
+  nad nulou. Tohle se nemůže změnit a nikdo tím značku nechytí za slovo — je to jazyk,
+  ne tvrzení. POZOR na rozdíl: údaj, který se MŮŽE ZMĚNIT nebo ho někdo STANOVUJE
+  (zákon, vyhláška, norma, termín, servisní interval, parametr výrobku), učebnicová
+  konstanta NENÍ — ten patří mezi unsure, i když si jím jsi jistý.
 - Když je textů víc, ber je jako jeden příspěvek.
 
 ## OPRAVA (jen u verdiktu "risk")
@@ -325,7 +396,7 @@ z tohohle postu a téhle značky — opsaný příklad je nové nepodložené tv
 ## VÝSTUP — vrať POUZE validní JSON:
 {
   "claims": [
-    { "claim": "citace tvrzení", "verdict": "ok" | "risk", "reason": "proč (jen u risk, max 12 slov)", "find": "přesný podřetězec (jen u risk)", "replace": "opravené znění (jen u risk)" }
+    { "claim": "citace tvrzení", "verdict": "ok" | "unsure" | "risk", "scope": "world" (jen u unsure), "query": "co vyhledat (jen u unsure)", "reason": "proč (u risk i unsure, max 12 slov)", "find": "přesný podřetězec (u risk i unsure)", "replace": "opravené znění (u risk i unsure)" }
   ]
 }
 Když text žádné konkrétní tvrzení neobsahuje, vrať {"claims": []}.`
@@ -344,17 +415,17 @@ export async function checkDisplayStrings(
     config: ClientConfig,
     strings: string[],
     ctx: FactContext = {},
-): Promise<{ status: FactStatus; strings: string[]; flags: string[]; repairs: { claim: string; from: string; to: string }[]; judged: boolean }> {
+): Promise<{ status: FactStatus; strings: string[]; flags: string[]; repairs: { claim: string; from: string; to: string }[]; judged: boolean; sources: FactSource[] }> {
     const usable = strings.map(s => (s || "").trim())
     if (usable.every(s => !s)) {
-        return { status: "skipped", strings, flags: [], repairs: [], judged: false }
+        return { status: "skipped", strings, flags: [], repairs: [], judged: false, sources: [] }
     }
     const synthetic = { frames: usable.map(text => ({ headline: text, subtext: "" })) }
     const out = await checkCaptionFacts(config, synthetic, ctx)
     const back = (out.captionData as typeof synthetic).frames.map(f => f.headline)
     // Prázdné vstupy se vrací tak, jak přišly — index po indexu.
     const merged = strings.map((orig, i) => (usable[i] ? back[i] : orig))
-    return { status: out.status, strings: merged, flags: out.flags, repairs: out.repairs, judged: out.judged }
+    return { status: out.status, strings: merged, flags: out.flags, repairs: out.repairs, judged: out.judged, sources: out.sources }
 }
 
 /**
@@ -367,7 +438,7 @@ export async function checkCaptionFacts<T>(
     captionData: T,
     ctx: FactContext = {},
 ): Promise<FactCheckOutcome<T>> {
-    const base: FactCheckOutcome<T> = { status: "skipped", captionData, changed: false, flags: [], repairs: [], judged: false }
+    const base: FactCheckOutcome<T> = { status: "skipped", captionData, changed: false, flags: [], repairs: [], judged: false, sources: ctx.webVerified ?? [] }
 
     const mode = config.factCheckMode ?? (config.factCheck === false ? "off" : "balanced")
     if (mode === "off") return base
@@ -386,8 +457,35 @@ export async function checkCaptionFacts<T>(
         return base
     }
 
-    const risky = claims.filter(c => c?.verdict === "risk")
-    if (risky.length === 0) return { ...base, status: "clean", judged: true }
+    // ── Nejistá tvrzení jdou na web ──────────────────────────────────────────────
+    // Sem se dostane VÝHRADNĚ to, co soudce označil za `unsure` a za tvrzení o světě.
+    // Tvrzení o značce (`scope: "brand"`) se filtruje TADY, v kódu — prompt se dá
+    // přemluvit, `if` ne — a padá rovnou mezi riziková, jako by web neexistoval.
+    // Levný ověřovatel tak umí jediné: posunout `unsure` na doložené. Nikdy nemůže
+    // shodit tvrzení, které soudce pustil.
+    const unsureAll = claims.filter(c => c?.verdict === "unsure")
+    const searchable = unsureAll.filter(c => c.scope !== "brand").slice(0, MAX_WEB_CLAIMS)
+    let sources: FactSource[] = ctx.webVerified ?? []
+
+    if (searchable.length > 0) {
+        const found = await verifyClaimsOnWeb(
+            searchable.map((c): WebCheckInput => ({ claim: c.claim, query: c.query })),
+            { brandName: config.name, brandWebsite: config.website, label: "fact-web" },
+        )
+        // Sloučení bez duplicit: přehodnocení postu už nějaké doklady nést může.
+        const known = new Set(sources.map(v => v.claim))
+        sources = [...sources, ...found.filter(f => !known.has(f.claim))]
+    }
+
+    // Co se nedoložilo (ani teď, ani dřív), je nepodložené úplně stejně jako `risk` —
+    // včetně toho, co se na web vůbec nepustilo.
+    const proven = new Set(sources.map(v => v.claim))
+    const unresolvedUnsure = unsureAll
+        .filter(c => !proven.has(c.claim))
+        .map(c => ({ ...c, reason: c.reason || (c.scope === "brand" ? "tvrzení o značce bez opory ve faktech" : "na webu se nepotvrdilo") }))
+
+    const risky = [...claims.filter(c => c?.verdict === "risk"), ...unresolvedUnsure]
+    if (risky.length === 0) return { ...base, status: "clean", judged: true, sources }
 
     // Které opravy se vůbec smějí použít, rozhoduje REŽIM — a rozhoduje se v kódu.
     // Prompt se dá přemluvit, `if` ne; a rozdíl mezi „opravím nadpis" a „nechám to na
@@ -436,5 +534,5 @@ export async function checkCaptionFacts<T>(
         .filter(c => !unresolved.includes(c) && c.find && typeof c.replace === "string")
         .map(c => ({ claim: c.claim, from: c.find as string, to: c.replace as string }))
 
-    return { status, captionData: data, changed, flags, repairs, judged: true }
+    return { status, captionData: data, changed, flags, repairs, judged: true, sources }
 }

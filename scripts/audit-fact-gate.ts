@@ -36,6 +36,11 @@ async function main() {
     // Jen portfolio: naše veřejná výloha s koncepty pro skutečné značky. Ta se hlídá
     // jinak přísně než klientský feed — cizí firma nás o nic nepožádala.
     const portfolioOnly = args.includes('--portfolio')
+    // Ověřování na webu je pro audit VYPNUTÉ, dokud si o něj neřekneš (--web).
+    // Backtest jede přes stovky postů; každé hledání stojí $0,01 plus tokeny nad
+    // vrácenými výsledky, takže nechtěný běh by byl nemilé překvapení na faktuře.
+    // Bez --web měří audit bránu bez webu, tedy to, co uměla předtím.
+    if (!args.includes('--web')) process.env.FACT_WEB = 'off'
 
     let q = supabaseAdmin.from('clients').select('id, slug, config').order('slug')
     if (slugArg) q = q.eq('slug', slugArg)

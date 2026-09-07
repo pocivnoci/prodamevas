@@ -65,7 +65,7 @@ import {
     assembleCaption,
 } from "./caption-generator"
 import { getBrandMemories, formatMemoriesForPrompt, learnFromCriticInsights } from "./memory-agent"
-import { checkCaptionFacts, type FactStatus } from "./fact-check"
+import { checkCaptionFacts, type FactStatus, type FactSource } from "./fact-check"
 import { reviewPost, reviewContentPlan } from "./editorial-board"
 import type { EditorialMessage } from "./types"
 
@@ -161,6 +161,9 @@ export interface CaptionCheckpoint {
      *  dorenderoval po pádu, zalogoval jako nikdy nekontrolovaný. */
     factStatus?: FactStatus | null
     factFlags?: string[]
+    /** Doklady z webu. Bez nich by se post dorenderovaný po pádu uložil bez zdrojů,
+     *  které se za něj už zaplatily — a u tvrzení by zůstal štítek. */
+    factSources?: FactSource[]
 }
 
 export async function generateOnePost(options: {
@@ -708,6 +711,7 @@ export async function generateOnePost(options: {
      *  než tvrdit „clean" o textu, na který se nikdo nepodíval. */
     let factStatus: FactStatus | null = null
     let factFlags: string[] = []
+    let factSources: FactSource[] = []
 
     // Resolve the CTA policy ONCE and pass it to the writer AND every judge (critic,
     // ranking judge, editorial board) AND the reel's video director — writer/judge/
@@ -729,6 +733,7 @@ export async function generateOnePost(options: {
         finalScore = ck.finalScore ?? ck.score ?? 7
         factStatus = ck.factStatus ?? null
         factFlags = ck.factFlags ?? []
+        factSources = ck.factSources ?? []
         megaPrompt = ck.megaPromptHead || "[resumed from checkpoint]"
         if (isReel && captionData.caption) captionData.body = captionData.caption
         console.log(`   ♻️ Resume z caption checkpointu — přeskakuji copywriter/critic/editorial (hook: "${captionData.hook.substring(0, 50)}...")`)
@@ -1089,6 +1094,7 @@ ${feedSummary}
     if (factOutcome.judged) cost += COSTS.textGeneration
     factStatus = factOutcome.judged ? factOutcome.status : null
     factFlags = factOutcome.flags
+    factSources = factOutcome.sources
     if (factOutcome.changed) {
         captionData = factOutcome.captionData as CaptionPhaseData
         // Text se změnil → spočítaný embedding mu už neodpovídá (stejný důvod jako
@@ -1103,6 +1109,11 @@ ${feedSummary}
     // tvrzení brány o vlastní práci — a nikdo nepozná, když začne mazat i pravdu.
     for (const r of factOutcome.repairs) {
         console.log(`      ↪︎ "${r.from.slice(0, 80)}" → "${r.to.slice(0, 80)}"`)
+    }
+    // Čím je tvrzení doložené, musí být v logu stejně jako to, co se vyměnilo. „Ověřeno
+    // na webu" bez odkazu je zase jen tvrzení brány o vlastní práci.
+    for (const v of factSources) {
+        console.log(`      🌐 "${v.claim.slice(0, 70)}" ← ${v.url}`)
     }
 
     } // end caption phase (skipped entirely on checkpoint resume)
@@ -1130,6 +1141,7 @@ ${feedSummary}
                 finalScore,
                 factStatus,
                 factFlags,
+                factSources,
             }
             await supabaseAdmin.from("ig_jobs").update({ result: { checkpoint } }).eq("id", options.jobId)
             console.log("   💾 Caption checkpoint uložen (resume-ready)")
@@ -1281,6 +1293,7 @@ ${feedSummary}
             finalScore: finalScore || score,
             factStatus,
             factFlags,
+            factSources,
             angle: captionData.angle,
             postType: selectedType.name,
             // Naměřená spotřeba všech volání modelu v téhle generaci. Nahrazuje odhad

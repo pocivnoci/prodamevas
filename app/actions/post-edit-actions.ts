@@ -201,26 +201,33 @@ async function editPostInner(
                 try {
                     const { checkCaptionFacts } = await import("@/instagram/fact-check")
                     const lines = (revised.caption || "").split("\n").filter(Boolean)
+                    // Doklady z minulého běhu jdou dovnitř: bez nich by brána u tvrzení,
+                    // které už MÁ odkaz na zdroj, znovu naskočila štítkem — a hledání by
+                    // se platilo podruhé za tentýž nález.
+                    const { data: prevLog } = await supabaseAdmin
+                        .from("ig_generation_log")
+                        .select("id, fact_sources")
+                        .eq("post_id", postId)
+                        .order("created_at", { ascending: false })
+                        .limit(1)
+                        .maybeSingle()
                     const out = await checkCaptionFacts(
                         { ...config, factCheckMode: "bold" },
                         { hook: lines[0] || "", body: lines.slice(1).join("\n"), cta: "", hashtags: [] },
-                        { topic: instruction, product: product ? { name: product.name, price: product.price, description: product.description } : null },
+                        {
+                            topic: instruction,
+                            product: product ? { name: product.name, price: product.price, description: product.description } : null,
+                            webVerified: prevLog?.fact_sources ?? null,
+                        },
                     )
                     if (out.judged) {
                         // Přepíše stav u NEJNOVĚJŠÍHO logu postu — retuš mohla tvrzení
                         // přidat i odstranit, takže starý příznak nesmí zůstat viset.
-                        const { data: lastLog } = await supabaseAdmin
-                            .from("ig_generation_log")
-                            .select("id")
-                            .eq("post_id", postId)
-                            .order("created_at", { ascending: false })
-                            .limit(1)
-                            .maybeSingle()
-                        if (lastLog?.id) {
+                        if (prevLog?.id) {
                             await supabaseAdmin
                                 .from("ig_generation_log")
-                                .update({ fact_status: out.status, fact_flags: out.flags })
-                                .eq("id", lastLog.id)
+                                .update({ fact_status: out.status, fact_flags: out.flags, fact_sources: out.sources })
+                                .eq("id", prevLog.id)
                         }
                         if (out.flags.length > 0) {
                             console.warn(`   🚩 Retuš postu ${postId}: nepodložené tvrzení — ${out.flags.join(" | ")}`)
