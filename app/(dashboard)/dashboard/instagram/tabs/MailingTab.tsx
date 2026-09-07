@@ -30,6 +30,8 @@ export function MailingTab() {
     /** Ruční adresy tak, jak je člověk nalepil — čárky, středníky i řádky. */
     const [manualRaw, setManualRaw] = useState("")
     const [manualRejected, setManualRejected] = useState<string[]>([])
+    /** Rozepsaná adresa vypadá jako překlep. Varování patří až za psaní, ne do něj. */
+    const [manualFocused, setManualFocused] = useState(false)
     const [subject, setSubject] = useState("")
     const [body, setBody] = useState("")
     const [confirming, setConfirming] = useState(false)
@@ -100,8 +102,12 @@ export function MailingTab() {
     // Load the individual addresses whenever the segment changes; default all checked.
     useEffect(() => {
         let cancelled = false
-        // Ruční adresy nemá kde načíst — vznikají v poli níž.
+        // Ruční adresy nemá kde načíst — vznikají v poli níž. Seznam z předchozího
+        // segmentu se ale musí zahodit HNED: než doběhne načtení ručních adres,
+        // zůstaly by ve výběru adresy z waitlistu a odeslání by šlo na ně.
         if (segment === "manual") {
+            setRecipients([])
+            setSelected(new Set())
             setLoadingRecipients(false)
             return
         }
@@ -140,6 +146,15 @@ export function MailingTab() {
             setLoadingRecipients(false)
         }
     }, [])
+
+    // Adresy se načtou samy, chvilku po dopsání. Bez tohohle bylo tlačítko Odeslat
+    // zašedlé, dokud člověk neklikl vedle nebo na „Načíst adresy" — a nic mu
+    // neřeklo proč. Tlačítko zůstává jako ruční cesta, když nechce čekat.
+    useEffect(() => {
+        if (segment !== "manual") return
+        const t = setTimeout(() => { applyManual(manualRaw) }, 600)
+        return () => clearTimeout(t)
+    }, [manualRaw, segment, applyManual])
 
     const toggleRecipient = (email: string) =>
         setSelected(prev => {
@@ -225,14 +240,17 @@ export function MailingTab() {
                     <textarea
                         value={manualRaw}
                         onChange={e => setManualRaw(e.target.value)}
-                        onBlur={() => applyManual(manualRaw)}
+                        onFocus={() => setManualFocused(true)}
+                        onBlur={() => { setManualFocused(false); applyManual(manualRaw) }}
                         rows={3}
                         placeholder="novy.klient@firma.cz, dalsi@firma.cz"
                         className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 resize-y"
                     />
                     <div className="flex items-center justify-between gap-4 mt-2">
                         <p className="text-[9px] text-white/25 font-medium">
-                            Odhlášené adresy vyhodíme i tady — odhlášení platí pro každou cestu ven.
+                            {recipients.length > 0
+                                ? `Načteno ${recipients.length} · každý dostane vlastní e-mail, ne kopii.`
+                                : "Odhlášené adresy vyhodíme i tady — odhlášení platí pro každou cestu ven."}
                         </p>
                         <button
                             onClick={() => applyManual(manualRaw)}
@@ -241,7 +259,7 @@ export function MailingTab() {
                             Načíst adresy
                         </button>
                     </div>
-                    {manualRejected.length > 0 && (
+                    {manualRejected.length > 0 && !manualFocused && (
                         <p className="text-[10px] text-amber-400/80 font-bold mt-2">
                             ⚠️ Vynecháno ({manualRejected.length}): {manualRejected.join(", ")} — překlep, nebo se adresa odhlásila.
                         </p>
