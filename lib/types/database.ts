@@ -59,6 +59,9 @@ export interface IGPost {
     fact_status?: string | null
     /** Konkrétní nepodložená tvrzení k `fact_status = "flagged"` (tooltip na kartě). */
     fact_flags?: string[] | null
+    /** Tvrzení doložená na webu i s odkazem (instagram/fact-web.ts) — panel „Ověřeno
+     *  na webu" v detailu příspěvku. */
+    fact_sources?: { claim: string; url: string; title?: string; quote?: string }[] | null
     /** Previous states, one pushed before each editPost() call (newest last, capped at 10).
      *  Only the length matters to the UI — it drives the "Vrátit zpět" button. */
     edit_history?: PostEditHistoryEntry[] | null

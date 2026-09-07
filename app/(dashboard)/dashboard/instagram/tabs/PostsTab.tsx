@@ -500,6 +500,8 @@ function PostDetailModal({
     // Označená tvrzení řešená rovnou u příspěvku — bez opisování do Nastavení.
     const [factFlags, setFactFlags] = useState<string[]>(post.fact_flags || [])
     const [confirmingFact, setConfirmingFact] = useState<string | null>(null)
+    // Tvrzení, která engine doložil na webu — u příspěvku visí jako zdroje.
+    const [factSources, setFactSources] = useState(post.fact_sources || [])
     const [editorialLog, setEditorialLog] = useState<{ role: string; action: string; summary: string }[]>([])
     const [editorialOpen, setEditorialOpen] = useState(false)
     const [retrying, setRetrying] = useState(false)
@@ -562,6 +564,13 @@ function PostDetailModal({
     const hashtags = Array.isArray(post.hashtags) ? post.hashtags : []
     const hashtagsText = hashtags.join(" ")
     const fullText = [post.caption, hashtagsText].filter(Boolean).join("\n\n")
+    // Do prvního komentáře na IG se lepí domény, ne dlouhé URL — odkaz tam stejně
+    // není klikací a plná adresa jen zabírá místo.
+    const sourcesLine = factSources.length > 0
+        ? "Zdroj: " + [...new Set(factSources.map(s => {
+            try { return new URL(s.url).hostname.replace(/^www\./, "") } catch { return s.url }
+        }))].join(", ")
+        : ""
 
     return createPortal(
         <div
@@ -743,7 +752,10 @@ function PostDetailModal({
                                                             setConfirmingFact(claim)
                                                             const { confirmBrandFact } = await import("@/app/actions/config-actions")
                                                             const res = await confirmBrandFact(projectId, post.id, claim)
-                                                            if (res.success) setFactFlags(res.flags ?? factFlags.filter(f => f !== flag))
+                                                            if (res.success) {
+                                                                setFactFlags(res.flags ?? factFlags.filter(f => f !== flag))
+                                                                if (res.sources) setFactSources(res.sources)
+                                                            }
                                                             setConfirmingFact(null)
                                                             onRefresh()
                                                         }}
@@ -752,6 +764,46 @@ function PostDetailModal({
                                                 </div>
                                             )
                                         })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Ověřeno na webu — tvrzení, ke kterým engine našel doklad.
+                                Zdroj se ukazuje vždycky: doklad, který nikdo neuvidí, je
+                                stejný jako žádný — a citaci ke zdroji navíc vyžaduje
+                                poskytovatel vyhledávání, když se výstup ukazuje uživateli. */}
+                            {factSources.length > 0 && (
+                                <div className="border border-emerald-500/20 bg-emerald-500/[0.03] rounded-sm p-3">
+                                    <div className="flex items-center justify-between gap-2 mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <CircleCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                            <span className="text-[10px] font-bold text-emerald-400/90 uppercase tracking-widest">Ověřeno na webu</span>
+                                        </div>
+                                        <CopyButton
+                                            onClick={() => copyToClipboard(sourcesLine, "sources")}
+                                            copied={copiedField === "sources"}
+                                            label="Kopírovat zdroje"
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-white/40 mb-3">
+                                        Engine si tohle sám dohledal. Zdroje se do příspěvku nepíšou —
+                                        když je chceš uvést, vlož je do prvního komentáře.
+                                    </p>
+                                    <div className="space-y-2">
+                                        {factSources.map((src, i) => (
+                                            <div key={i} className="bg-black/30 border border-white/5 rounded-sm px-3 py-2">
+                                                <p className="text-xs text-white/70">{src.claim}</p>
+                                                {src.quote && (
+                                                    <p className="text-[10px] text-white/35 italic mt-1">„{src.quote}"</p>
+                                                )}
+                                                <a
+                                                    href={src.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer nofollow"
+                                                    className="text-[10px] text-emerald-400/70 hover:text-emerald-400 underline underline-offset-2 mt-1 inline-block break-all"
+                                                >{src.title || src.url}</a>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             )}

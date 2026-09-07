@@ -438,6 +438,9 @@ export async function logGeneration(log: {
     factStatus?: string | null;
     /** Nepodložená tvrzení, která v textu ZŮSTALA — dashboard je ukazuje u postu. */
     factFlags?: string[];
+    /** Tvrzení doložená na webu i s odkazem (instagram/fact-web.ts). Ukazují se
+     *  u příspěvku jako zdroje. */
+    factSources?: { claim: string; url: string; title?: string; quote?: string }[];
     /** Naměřená spotřeba za celou generaci (instagram/usage-meter.ts). Bez ní zůstanou
      *  sloupce NULL — telemetrie nikdy nesmí zdržet ani shodit zápis logu. */
     usage?: UsageTotals;
@@ -474,6 +477,7 @@ export async function logGeneration(log: {
             post_type: log.postType,
             fact_status: log.factStatus,
             fact_flags: log.factFlags,
+            fact_sources: log.factSources,
         });
 }
 
