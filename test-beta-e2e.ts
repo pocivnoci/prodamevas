@@ -868,6 +868,13 @@ test("10.7o Předat jde i na e-mail, který ještě nemá účet", () => {
             `${f}: přihlášení musí vybrat čekající sliby`)
     }
 
+    // Po předání má značka dva vlastníky (správce + zákazník). Adresát dokladu
+    // pak nesmí záviset na pořadí řádků v Postgresu.
+    const owner = codeOnly("lib/notifications.ts")
+    const fn2 = owner.slice(owner.indexOf("export async function getOwnerEmail"))
+    assert(/\.order\("created_at", \{ ascending: false \}\)/.test(fn2.slice(0, 800)),
+        "getOwnerEmail musí vybírat nejnovější vazbu, ne náhodnou — po předání je vlastníků víc")
+
     // Tabulka je multi-tenantní data — doktrína projektu je RLS zapnuté bez policy.
     const mig = fileContent("supabase/migrations/20260907_predani_znacky.sql")
     assert(/create table if not exists client_handoffs/.test(mig), "migrace musí zakládat client_handoffs")
