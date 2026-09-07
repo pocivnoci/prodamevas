@@ -851,6 +851,14 @@ test("10.7o Předat jde i na e-mail, který ještě nemá účet", () => {
     assert(claim.includes('.upsert({ user_id: user.id'),
         "po zabrání slibu musí vzniknout vazba v user_clients")
 
+    // Přihlašovací cesta: výpadek dotazu nesmí být důvod, proč se člověk
+    // nepřihlásí. Obě funkce, na které sahá login, musí selhat tiše.
+    for (const fn of ["export async function claimHandoffs", "export async function hasPendingHandoff"]) {
+        const body = h.slice(h.indexOf(fn), h.indexOf(fn) + 900)
+        assert(/try \{/.test(body) && /catch/.test(body),
+            `${fn}: běží při přihlášení — musí selhat tiše, ne výjimkou`)
+    }
+
     // Modul sahá brána bety u každého přihlášení. Import pošty (nebo čehokoli,
     // co ji táhne) by z něj udělal závaží na přihlašovací cestě.
     assert(!/from "@\/lib\/(notifications|mail)/.test(h),

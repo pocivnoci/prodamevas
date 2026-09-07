@@ -104,18 +104,29 @@ export async function stageHandoff(opts: {
     return { handoff: data as PendingHandoff, reused: false }
 }
 
-/** Čeká na tenhle e-mail nějaká značka? Čte, nic nemění — používá to brána bety. */
+/**
+ * Čeká na tenhle e-mail nějaká značka? Čte, nic nemění — používá to brána bety.
+ *
+ * Nikdy nevyhodí: sedí na přihlašovací cestě, a výpadek dotazu nesmí být důvod,
+ * proč se člověk nepřihlásí. Když se nepovede zjistit, jestli slib existuje,
+ * odpověď je „ne" — brána pak rozhodne podle kódu jako dřív.
+ */
 export async function hasPendingHandoff(email: string | null | undefined): Promise<boolean> {
     const needle = normalizeEmail(email)
     if (!needle) return false
-    const { data } = await supabaseAdmin
-        .from("client_handoffs")
-        .select("id")
-        .eq("email", needle)
-        .is("claimed_at", null)
-        .is("cancelled_at", null)
-        .limit(1)
-    return !!data?.length
+    try {
+        const { data } = await supabaseAdmin
+            .from("client_handoffs")
+            .select("id")
+            .eq("email", needle)
+            .is("claimed_at", null)
+            .is("cancelled_at", null)
+            .limit(1)
+        return !!data?.length
+    } catch (err) {
+        console.error(`🚨 handoff: dotaz na čekající slib selhal: ${(err as Error)?.message}`)
+        return false
+    }
 }
 
 /**
@@ -128,8 +139,20 @@ export async function hasPendingHandoff(email: string | null | undefined): Promi
  * `select` nevrátí nic a **je to konec, ne důvod zapisovat vazbu podruhé**.
  * Když naopak selže zápis vazby, claim se vrací zpátky — jinak by slib zmizel,
  * aniž by kdy něco předal.
+ *
+ * Stejně jako `hasPendingHandoff` nikdy nevyhodí — nevybraný slib je zdržení
+ * do příštího přihlášení, zatímco výjimka by z něj udělala nemožné přihlášení.
  */
 export async function claimHandoffs(user: { id: string; email?: string | null }): Promise<number> {
+    try {
+        return await claimHandoffsInner(user)
+    } catch (err) {
+        console.error(`🚨 handoff: vybírání slibů selhalo: ${(err as Error)?.message}`)
+        return 0
+    }
+}
+
+async function claimHandoffsInner(user: { id: string; email?: string | null }): Promise<number> {
     const email = normalizeEmail(user.email)
     if (!email) return 0
 
