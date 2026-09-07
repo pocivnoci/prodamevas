@@ -14,7 +14,7 @@
 import type { EmailTemplate, RenderedTemplate, TemplateVars } from "./template"
 import { renderTemplate } from "./template"
 import { announcement, news } from "./templates/news"
-import { offer, offerFollowup } from "./templates/offer"
+import { coldOffer, offer, offerFollowup } from "./templates/offer"
 import { promo } from "./templates/promo"
 import {
     subscriptionChargeFailed, subscriptionExpired, subscriptionRenewal, subscriptionWinback,
@@ -33,6 +33,7 @@ const ALL: EmailTemplate[] = [
     news,
     announcement,
     promo,
+    coldOffer,
     offer,
     offerFollowup,
     subscriptionRenewal,

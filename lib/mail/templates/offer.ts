@@ -33,7 +33,7 @@ import { vatNotice } from "@/lib/legal"
 import { countLabel, CREDITS, MONTHS } from "@/lib/plural"
 import {
     BILLING_TERMS, CONSULTATION, consultationIncluded, DEFAULT_TERM_MONTHS,
-    EXTRA_CREDIT_HALERU, FALLBACK_PLANS, formatCzk, getTerm, monthlyEquivalent,
+    EXTRA_CREDIT_HALERU, FALLBACK_PLANS, formatCzk, getTerm, lowestPriceClaim, monthlyEquivalent,
     normalizeTermMonths, PLAN_COPY, termPrice, termSavings, type PricingPlan,
 } from "@/lib/pricing"
 import { button, callout, compact, divider, footnote, heading, list, paragraph, planCard } from "../blocks"
@@ -253,4 +253,95 @@ export const offerFollowup: EmailTemplate = {
             paragraph("Tým Chrlit"),
         ]),
     }),
+}
+
+/**
+ * První oslovení — text, kterým Luděk oslovuje firmy.
+ * ===================================================
+ * Je to jeho e-mail, jen v šabloně: aby šel poslat z Mailingu na ruční adresu,
+ * nesl odhlašovací patičku a identifikaci podnikatele (obojí u obchodního sdělení
+ * musí být) a aby čísla a sliby nezestárly v kopii, kterou nikdo nehlídá.
+ *
+ * TŘI VĚCI, KTERÉ SE PROTI PŮVODNÍMU ZNĚNÍ LIŠÍ — a proč:
+ *
+ * 1. **Reely se slibují jen když jedou.** `REELS_ENABLED` potichu překlápí `reel`
+ *    na karusel. Nabídka, která slíbí video a pošle karusel, je horší než nabídka,
+ *    která video nezmíní. Stejné pravidlo jako v `offer`.
+ * 2. **Žádný slib dosahu.** „Obsah optimalizovaný pro dosah a fungování algoritmu"
+ *    slibuje výsledek, který produkt nemůže ovlivnit — a `/ukazka` i ceník na tomtéž
+ *    místě výslovně říkají opak („neslibujeme, že poroste dosah"). Zůstává to, co
+ *    je pravda a je stejně silné: formáty a rytmus podle značky a učení z výkonu.
+ * 3. **Cena se nepíše ručně.** „V řádu jednotek tisíc" zestárne při prvním přecenění;
+ *    `lowestPriceClaim()` bere číslo z ceníku a `pricing: true` k němu přidá větu
+ *    o DPH (aserce 29.8) — bez ní vypadá neplátce, jako by DPH zatajil.
+ */
+export const coldOffer: EmailTemplate = {
+    id: "cold_offer",
+    label: "Oslovení firmy (první dotek)",
+    group: "promo",
+    kind: "notification",
+    broadcast: true,
+    pricing: true,
+    fields: [
+        { key: "company", label: "Název firmy", type: "text", placeholder: "Kavárna Alchymista", help: "Doplní se do předmětu. Prázdné = obecný předmět." },
+        { key: "senderName", label: "Podpis — jméno", type: "text", required: true },
+        { key: "senderPhone", label: "Podpis — telefon", type: "text" },
+        { key: "ctaUrl", label: "Odkaz tlačítka", type: "url", required: true, help: "Portfolio, nebo ukázka na míru, když už ji máš." },
+        { key: "ctaLabel", label: "Text tlačítka", type: "text" },
+    ],
+    sample: {
+        company: "Kavárna Alchymista",
+        senderName: "Luděk Jasa",
+        senderPhone: "+420 601 279 377",
+        ctaUrl: `${siteUrl()}/portfolio`,
+        ctaLabel: "Prohlédnout portfolio",
+    },
+    build: v => ({
+        subject: v.company ? `Instagram za vás — ${v.company}` : "Instagram za vás",
+        eyebrow: "Nabídka",
+        preheader: "Tři ukázkové příspěvky pro vaši firmu, nezávazně.",
+        blocks: compact([
+            heading("Instagram, který se píše sám"),
+            paragraph(
+                "Dobrý den,\n\nrádi bychom vám představili řešení, které zjednoduší a zlevní správu firemního Instagramu. " +
+                "Naše aplikace se z vašeho webu a Instagramu naučí vaši značku a připravuje obsah přímo na míru — texty i vizuály.",
+            ),
+
+            heading("Co pro vás vyrobí", 2),
+            list(compactText([
+                "Klasické příspěvky i carousely",
+                reelsLive() ? "Reels" : null,
+                "Texty a popisky ve vašem tónu",
+                "Obsah, který se učí z výkonu vašich předchozích příspěvků",
+                "Publikování ve zvolený čas — automaticky, když si to zapnete",
+            ])),
+
+            paragraph(
+                "Výsledkem je správa Instagramu bez agentury, grafika a copywritera zvlášť. " +
+                `Služba běží na měsíčním předplatném, ${lowestPriceClaim()}.`,
+            ),
+
+            callout("info", "**Zdarma a nezávazně vám připravíme 3 ukázkové příspěvky přímo pro vaši firmu**, ať vidíte výsledek na svém, ne na cizím."),
+
+            button(v.ctaLabel || "Prohlédnout portfolio", v.ctaUrl, "accent"),
+
+            paragraph(
+                "Když vás to zaujme, stačí odpovědět na tenhle e-mail. Rádi se domluvíme i na krátké schůzce, " +
+                "kde celý systém ukážeme naživo.",
+            ),
+
+            paragraph(compactText([
+                "S pozdravem",
+                v.senderName,
+                v.senderPhone || null,
+            ]).join("\n")),
+
+            footnote(vatNotice()),
+        ]),
+    }),
+}
+
+/** Vyhodí prázdné řádky ze seznamu — `compact` pracuje s bloky, tohle s texty. */
+function compactText(items: (string | null | undefined | false)[]): string[] {
+    return items.filter((i): i is string => typeof i === "string" && i.trim().length > 0)
 }

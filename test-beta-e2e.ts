@@ -3367,6 +3367,25 @@ test("29.13 ruční adresy v Mailingu projdou stejnou branou jako segment", () =
         "přepnutí na ruční adresy musí zahodit příjemce z minulého segmentu")
 })
 
+test("29.14 oslovení neslibuje dosah ani reely, které nejedou", () => {
+    // Text prvního oslovení psal obchod a v původním znění sliboval „obsah
+    // optimalizovaný pro dosah a fungování algoritmu" a Reels. Dosah produkt
+    // ovlivnit nemůže (/ukazka i ceník na tomtéž místě říkají opak) a reely
+    // `REELS_ENABLED` potichu překlápí na karusel — nabídka, která slíbí video
+    // a pošle karusel, je horší než nabídka, která video nezmíní.
+    const src = codeOnly("lib/mail/templates/offer.ts")
+    const cold = src.slice(src.indexOf("export const coldOffer"))
+    assert(cold.length > 0, "šablona coldOffer musí existovat")
+    assert(!/dosah|algoritm/i.test(cold),
+        "oslovení nesmí slibovat dosah ani chování algoritmu — to produkt neovlivní")
+    assert(/reelsLive\(\)/.test(cold),
+        "reely se smějí zmínit jen za `reelsLive()`, jinak slibují video a pošlou karusel")
+    // Cena v obchodním sdělení se nepíše ručně: opsané číslo zestárne při prvním
+    // přecenění a zákazník dostane cenu, kterou mu pokladna neúčtuje.
+    assert(cold.includes("lowestPriceClaim()"),
+        "cena musí pocházet z ceníku, ne z textu šablony")
+})
+
 // ═══════════════════════════════════════════════════════════
 // 30. ADMINSKÁ BRÁNA
 // ═══════════════════════════════════════════════════════════
