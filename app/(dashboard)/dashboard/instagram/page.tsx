@@ -26,6 +26,7 @@ import { FaqTab } from "./tabs/FaqTab"
 import { ApprovalsTab } from "./tabs/ApprovalsTab"
 import { CompanyTab } from "./tabs/CompanyTab"
 import { MailingTab } from "./tabs/MailingTab"
+import { TasksTab } from "./tabs/TasksTab"
 import { EmailsTab } from "./tabs/EmailsTab"
 import { TutorialOverlay, useTutorialState } from "./tabs/TutorialOverlay"
 
@@ -51,6 +52,7 @@ const SECTION_LABELS: Record<string, { title: string; description: string }> = {
     approvals: { title: "Schválení", description: "Akce agentů čekající na vaše schválení" },
     company: { title: "Firma", description: "Zdraví zákaznických účtů napříč tenanty" },
     mailing: { title: "Mailing", description: "Rozeslání e-mailu na segment (waitlist, klienti)" },
+    tasks: { title: "Úkoly", description: "Co je rozdělané, čí to je a co čeká" },
 }
 
 export default function InstagramPage() {
@@ -117,6 +119,7 @@ export default function InstagramPage() {
                     {activeSection === "approvals" && isAdmin && <ApprovalsTab />}
                     {activeSection === "company" && isAdmin && <CompanyTab />}
                     {activeSection === "mailing" && isAdmin && <MailingTab />}
+                    {activeSection === "tasks" && isAdmin && <TasksTab />}
                     {activeSection === "emails" && isAdmin && <EmailsTab />}
                 </motion.div>
             </AnimatePresence>
