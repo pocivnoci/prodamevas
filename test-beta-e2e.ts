@@ -3311,6 +3311,40 @@ test("29.10 sdílené odkazy do sebe nepustí přepravu", () => {
         "obrázky v odeslané zprávě musí mířit na kanonickou doménu, ne na preview deployment")
 })
 
+test("29.11 přístupový kód se nevydává za slevu", () => {
+    // Rámeček `promoCode` měl nadpis „Slevový kód" natvrdo. Pozvánka z waitlistu
+    // i pozvánka k předání značky jím ale posílají KÓD PRO VSTUP, žádnou slevu —
+    // zákazník se pak ptá, proč mu chodí sleva, kterou nikdo nesliboval.
+    const blocks = codeOnly("lib/mail/blocks.ts")
+    assert(/label\?: string/.test(blocks), "promoCode musí umět vlastní popisek")
+    for (const f of ["lib/mail/templates/waitlist.ts", "app/actions/admin-actions.ts"]) {
+        const src = codeOnly(f)
+        if (!src.includes("promoCode(")) continue
+        assert(src.includes('"Přístupový kód"'),
+            `${f}: kód pro vstup nesmí zůstat pod výchozím popiskem o slevě`)
+    }
+    const tmpl = codeOnly("lib/mail/templates/transactional.ts")
+    if (tmpl.includes("promoCode(")) {
+        assert(tmpl.includes('"Přístupový kód"'),
+            "transakční šablony posílají vstupní kódy, ne slevy")
+    }
+})
+
+test("29.12 e-maily o předání jsou vidět v náhledové galerii", () => {
+    // Do těla pozvánky se dostal nadpis o slevě právě proto, že mail nešel
+    // otevřít očima. Registr = galerie: co se posílá zákazníkovi, jde zobrazit.
+    const reg = codeOnly("lib/mail/registry.ts")
+    for (const id of ["clientHandoff", "clientHandoffDone"]) {
+        assert(reg.includes(id), `${id} musí být v registru šablon, jinak ho nikdo neuvidí`)
+    }
+    // `sendNotification` nikdy nevyhodí — hlásila by „odesláno" i na mrtvý klíč.
+    // Podle výsledku se přitom rozhoduje, jestli UI nabídne odkaz ke zkopírování.
+    const a = codeOnly("app/actions/admin-actions.ts")
+    const fn = a.slice(a.indexOf("async function sendHandoffInvite"), a.indexOf("async function sendHandoffInvite") + 1200)
+    assert(fn.includes("sendEmail") && !fn.includes("sendNotification"),
+        "pozvánka musí jít přes sendEmail — jen tak se pozná, že opravdu odešla")
+})
+
 // ═══════════════════════════════════════════════════════════
 // 30. ADMINSKÁ BRÁNA
 // ═══════════════════════════════════════════════════════════
