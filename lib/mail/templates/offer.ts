@@ -204,3 +204,53 @@ export const offer: EmailTemplate = {
         }
     },
 }
+
+/**
+ * Připomenutí nabídky.
+ * ====================
+ * Druhý dotek po `offer`. Schválně **neopakuje ceník** — cena už jednou odešla
+ * a druhé znění téhož čísla je jen další místo, které při přecenění zestárne.
+ * Follow-up má jediný úkol: dát člověku snadné „ano", snadné „ne" a nechat ho
+ * být, když neodpoví.
+ *
+ * Vykání a žádný nátlak: „poslední šance" a odpočty do téhle značky nepatří,
+ * a u obchodního sdělení, které chodí na adresu z vizitky, je tón to jediné,
+ * co odlišuje nabídku od spamu.
+ */
+export const offerFollowup: EmailTemplate = {
+    id: "offer_followup",
+    label: "Nabídka — připomenutí (follow-up)",
+    group: "promo",
+    kind: "notification",
+    broadcast: true,
+    fields: [
+        { key: "company", label: "Název značky", type: "text", placeholder: "Kavárna Alchymista", help: "Doplní se do předmětu za pomlčku." },
+        { key: "sentOn", label: "Kdy odešla nabídka", type: "text", placeholder: "před týdnem", help: "Slovem, ne datem — „před týdnem“ zní jako člověk." },
+        { key: "intro", label: "Úvodní odstavec", type: "textarea", required: true },
+        { key: "previewUrl", label: "Odkaz na ukázku", type: "url", help: "Prázdné = odstavec o ukázce se vynechá." },
+        { key: "ctaLabel", label: "Text tlačítka", type: "text" },
+        { key: "ctaUrl", label: "Odkaz tlačítka", type: "url", required: true },
+    ],
+    sample: {
+        company: "Kavárna Alchymista",
+        sentOn: "před týdnem",
+        intro: "Dobrý den,\n\nposílali jsme vám nabídku na Chrlit a nechci ji nechat zapadnout. Nespěchám — jen se ptám, jestli je to pro vás téma, nebo to mám zavřít.",
+        previewUrl: `${siteUrl()}/ukazky`,
+        ctaLabel: "Domluvit 15 minut",
+        ctaUrl: `${siteUrl()}/ukazky`,
+    },
+    build: v => ({
+        subject: v.company ? `Ještě k nabídce — ${v.company}` : "Ještě k nabídce",
+        eyebrow: "Připomenutí",
+        preheader: "Stačí odpovědět jedním slovem — ano, nebo teď ne.",
+        blocks: compact([
+            heading("Ozývám se zpátky"),
+            paragraph(v.intro),
+            v.sentOn && paragraph(`Nabídku jsme posílali ${v.sentOn}. Podmínky se nezměnily — najdete je v tom původním e-mailu.`),
+            v.previewUrl && paragraph(`Ukázka, kterou jsme pro vás vygenerovali, je pořád k vidění: ${v.previewUrl}`),
+            button(v.ctaLabel || "Domluvit 15 minut", v.ctaUrl, "accent"),
+            callout("info", "Když to teď není téma, stačí odepsat „teď ne\" a přestaneme se ozývat. Bez ptaní proč."),
+            paragraph("Tým Chrlit"),
+        ]),
+    }),
+}

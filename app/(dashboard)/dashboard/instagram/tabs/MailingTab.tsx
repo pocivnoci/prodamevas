@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import {
+    checkManualRecipients,
     getMailingSegments, getMailingRecipients, getMailingTemplates, previewMail, sendBroadcast, sendTestEmail,
     type MailingSegment, type BroadcastResult, type MailingTemplateInfo, type MailPreview,
 } from "@/app/actions/mailing-actions"
@@ -15,6 +16,9 @@ const SEGMENTS: { id: MailingSegment; label: string; hint: string }[] = [
     { id: "waitlist", label: "Waitlist", hint: "Zájemci čekající na spuštění" },
     { id: "activeClients", label: "Aktivní klienti", hint: "Platící + trial" },
     { id: "expired", label: "Vypršelí", hint: "Předplatné doběhlo" },
+    // Obchod potřebuje poslat nabídku člověku, se kterým zrovna mluvil — ten
+    // v žádném segmentu není a čekat, až se někam zapíše, znamená neposlat nic.
+    { id: "manual", label: "Ruční adresy", hint: "Napíšeš je sám (nový klient, lead)" },
 ]
 
 export function MailingTab() {
@@ -23,6 +27,9 @@ export function MailingTab() {
     const [recipients, setRecipients] = useState<string[]>([])
     const [selected, setSelected] = useState<Set<string>>(new Set())
     const [loadingRecipients, setLoadingRecipients] = useState(false)
+    /** Ruční adresy tak, jak je člověk nalepil — čárky, středníky i řádky. */
+    const [manualRaw, setManualRaw] = useState("")
+    const [manualRejected, setManualRejected] = useState<string[]>([])
     const [subject, setSubject] = useState("")
     const [body, setBody] = useState("")
     const [confirming, setConfirming] = useState(false)
@@ -93,6 +100,12 @@ export function MailingTab() {
     // Load the individual addresses whenever the segment changes; default all checked.
     useEffect(() => {
         let cancelled = false
+        // Ruční adresy nemá kde načíst — vznikají v poli níž.
+        if (segment === "manual") {
+            setLoadingRecipients(false)
+            return
+        }
+        setManualRejected([])
         setLoadingRecipients(true)
         getMailingRecipients(segment)
             .then(list => {
@@ -104,6 +117,29 @@ export function MailingTab() {
             .finally(() => { if (!cancelled) setLoadingRecipients(false) })
         return () => { cancelled = true }
     }, [segment])
+
+    /**
+     * Nalepený seznam → adresy. Server je pak ověří znovu (tvar i odhlášení);
+     * tohle je jen okamžitá zpětná vazba, aby bylo vidět, co se skutečně pošle.
+     */
+    const applyManual = useCallback(async (raw: string) => {
+        const parts = raw.split(/[\s,;]+/).map(p => p.trim()).filter(Boolean)
+        if (parts.length === 0) {
+            setRecipients([]); setSelected(new Set()); setManualRejected([])
+            return
+        }
+        setLoadingRecipients(true)
+        try {
+            const { ok, vyrazene } = await checkManualRecipients(parts)
+            setRecipients(ok)
+            setSelected(new Set(ok))
+            setManualRejected(vyrazene)
+        } catch {
+            setRecipients([]); setSelected(new Set()); setManualRejected([])
+        } finally {
+            setLoadingRecipients(false)
+        }
+    }, [])
 
     const toggleRecipient = (email: string) =>
         setSelected(prev => {
@@ -151,7 +187,10 @@ export function MailingTab() {
                 <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">Komu</label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {SEGMENTS.map(s => {
-                        const n = counts ? counts[s.id] : null
+                        // Ruční adresy nemají co počítat, dokud je někdo nenapíše.
+                        const n = s.id === "manual"
+                            ? (segment === "manual" ? recipients.length : null)
+                            : counts ? counts[s.id as keyof typeof counts] : null
                         const active = segment === s.id
                         return (
                             <button
@@ -176,6 +215,39 @@ export function MailingTab() {
                     </p>
                 )}
             </div>
+
+            {/* Ruční adresy */}
+            {segment === "manual" && (
+                <div>
+                    <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">
+                        Adresy — oddělené čárkou, středníkem nebo řádkem
+                    </label>
+                    <textarea
+                        value={manualRaw}
+                        onChange={e => setManualRaw(e.target.value)}
+                        onBlur={() => applyManual(manualRaw)}
+                        rows={3}
+                        placeholder="novy.klient@firma.cz, dalsi@firma.cz"
+                        className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 resize-y"
+                    />
+                    <div className="flex items-center justify-between gap-4 mt-2">
+                        <p className="text-[9px] text-white/25 font-medium">
+                            Odhlášené adresy vyhodíme i tady — odhlášení platí pro každou cestu ven.
+                        </p>
+                        <button
+                            onClick={() => applyManual(manualRaw)}
+                            className="text-[10px] text-white/40 hover:text-white/80 uppercase tracking-widest font-bold transition-colors shrink-0"
+                        >
+                            Načíst adresy
+                        </button>
+                    </div>
+                    {manualRejected.length > 0 && (
+                        <p className="text-[10px] text-amber-400/80 font-bold mt-2">
+                            ⚠️ Vynecháno ({manualRejected.length}): {manualRejected.join(", ")} — překlep, nebo se adresa odhlásila.
+                        </p>
+                    )}
+                </div>
+            )}
 
             {/* Per-recipient selection */}
             <div>
@@ -204,7 +276,9 @@ export function MailingTab() {
                     {loadingRecipients ? (
                         <p className="text-xs text-white/30 font-medium p-4">Načítám…</p>
                     ) : recipients.length === 0 ? (
-                        <p className="text-xs text-white/30 font-medium p-4">V tomto segmentu nikdo není.</p>
+                        <p className="text-xs text-white/30 font-medium p-4">
+                            {segment === "manual" ? "Zatím žádné adresy — napiš je do pole výš." : "V tomto segmentu nikdo není."}
+                        </p>
                     ) : recipients.map(email => {
                         const checked = selected.has(email)
                         return (
