@@ -244,6 +244,11 @@ export async function issueInvoice(input: IssueInvoiceInput): Promise<FakturoidI
                 payment_method: "card",
                 currency: "CZK",
                 language: "cz",
+                // `amountHaleru` je to, co brána reálně strhla — tedy částka
+                // VČETNĚ DPH. `prices_kind: "with_vat"` říká Fakturoidu, ať z ní
+                // daň vypočítá, místo aby ji připočetl navrch: jinak by doklad
+                // zněl na 1,21násobek přijaté platby a nesouhlasil by s výpisem.
+                prices_kind: (input.vatRate ?? 0) > 0 ? "with_vat" : "without_vat",
                 lines: [{
                     name: input.lineName,
                     quantity: 1,

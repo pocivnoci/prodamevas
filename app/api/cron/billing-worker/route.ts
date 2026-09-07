@@ -54,7 +54,8 @@ export async function GET(req: Request) {
     const { isRecurringEnabled, chargeRecurring, generateRenewalRefId, isMockPaymentMode } = await import("@/lib/comgate")
     const { MAX_BILLING_FAILURES, rollLapsedCreditWindows } = await import("@/lib/subscription")
     const { resolveTermMonths } = await import("@/lib/billing-period")
-    const { termPrice, termLabel, normalizeTermMonths } = await import("@/lib/pricing")
+    const { termPrice, termLabel, normalizeTermMonths, chargeableHaleru } = await import("@/lib/pricing")
+    const { VAT_EFFECTIVE_FROM } = await import("@/lib/legal")
 
     // 0. Nejdřív posunout každé propadlé KREDITOVÉ okno — nezávisle na tom, jestli
     // je splatná obnova. U ročního plánu je tohle jediné, co kredity resetuje
@@ -189,7 +190,14 @@ export async function GET(req: Request) {
             // `plan.price_czk` je měsíční sazba; roční zákazník by jinak po roce
             // dostal strh na 1 990 místo 19 900 a tiše dostal rok za měsíc.
             const termMonths = resolveTermMonths(plan.interval, sub.term_months)
-            const renewalAmount = termPrice(plan.price_czk, normalizeTermMonths(termMonths))
+            // Cena období bez DPH — základ, na kterém se zákazník dohodl.
+            const netRenewal = termPrice(plan.price_czk, normalizeTermMonths(termMonths))
+            // DPH se k probíhajícímu předplatnému připočítává až od data, ke
+            // kterému platí nové podmínky. Zvednout cenu o pětinu bez ohlášení
+            // by porušilo vlastní článek o změně ceny — a zákazník by to poznal
+            // až z výpisu.
+            const vatLive = new Date().toISOString().slice(0, 10) >= VAT_EFFECTIVE_FROM
+            const renewalAmount = vatLive ? chargeableHaleru(netRenewal) : netRenewal
 
             // 4. Automatická obnova uloženým tokenem.
             if (sub.recurring_trans_id && isRecurringEnabled() && !isMockPaymentMode()) {

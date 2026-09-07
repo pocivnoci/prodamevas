@@ -63,7 +63,7 @@ je v **`docs/LEGAL_SETUP.md`**. Tady je jen to, co blokuje deploy.
 - [x] Sběr fakturačních údajů před platbou + záznam souhlasu se zahájením plnění
 - [x] Automatické vystavení dokladu po `PAID` (idempotentní přes `UNIQUE invoices(payment_id)`)
 - [x] Migrace `20260730_billing_invoices.sql` aplikovaná v produkci (30. 7. 2026) — ověřeno, že UNIQUE index na `invoices(payment_id)` odmítne druhý doklad na tutéž platbu
-- [x] IČO, adresa a jméno doplněné z ARESu (IČO 21263990, Adela Mužátková)
+- [x] IČO, adresa a název doplněné z ARESu (IČO 27165281, DOT PRODUCTION s.r.o., plátce DPH — do 9/2026 OSVČ Adela Mužátková, IČO 21263990)
 - [x] Fakturoid propojený (`adelamuzatkova`, neplátce DPH) — klíče v `.env.local` i ve Vercelu (**jen `production`**, aby mock platba na preview nevystavila skutečný doklad); ověřeno `npx tsx scripts/test-fakturoid.ts`
 - [ ] **Doplnit bankovní účet** — chybí v `lib/legal.ts` *i* v nastavení Fakturoidu.
   **Neblokuje deploy** (`legalIdentityGaps()` ho záměrně mezi povinné nepočítá — platí se

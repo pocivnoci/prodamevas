@@ -1,4 +1,31 @@
-# Právní a daňové zprovoznění — Chrlit / Adela Mužátková
+# Právní a daňové zprovoznění — Chrlit
+
+> ## ⚠️ Od 9/2026 službu provozuje DOT PRODUCTION s.r.o.
+>
+> | Údaj | Hodnota |
+> |---|---|
+> | Firma | **DOT PRODUCTION s.r.o.** |
+> | IČO | 27165281 |
+> | DIČ | CZ27165281 — **plátce DPH** |
+> | Sídlo | Hartigova 426/35, Žižkov, 130 00 Praha 3 |
+> | Zápis | Městský soud v Praze, oddíl C, vložka 101257 (od 7. 7. 2004) |
+>
+> Aplikace to má v `lib/legal.ts` a propisuje si to sama do podmínek, patičky,
+> faktur i e-mailů. **Ceny v ceníku a v `subscription_plans` jsou BEZ DPH**;
+> částku včetně daně počítá `chargeableHaleru()` na cestě k bráně.
+>
+> **Co ještě čeká na člověka:**
+> - přepnout Fakturoid na účet nové firmy (`FAKTUROID_*` ve Vercelu) — do té doby
+>   by doklady chodily pod starou OSVČ;
+> - doplnit bankovní účet (`NEXT_PUBLIC_BUSINESS_BANK_ACCOUNT`);
+> - oznámit stávajícím předplatitelům změnu ceny (obnova bude o 21 % vyšší) —
+>   podmínky slibují 3 dny předem u měsíčního a 30 dní u delšího období;
+> - přiznání k DPH každý měsíc (hlídá `compliance-calendar`).
+>
+> Text níž popisuje **předchozí stav (OSVČ Adela Mužátková, IČO 21263990,
+> neplátce)** a zůstává jako historie toho, jak se sem došlo.
+
+## Původní stav — OSVČ Adela Mužátková
 
 > Stav k 30. 7. 2026, údaje ověřené v **ARESu** (IČO **21263990**).
 > Fakturace přes **Fakturoid API**. Zákazníci zatím **jen ČR**.

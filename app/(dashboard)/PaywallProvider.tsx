@@ -4,6 +4,7 @@ import { useState, useEffect, createContext, useContext, useCallback, type React
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { AlertTriangle, ChartColumn, CheckCircle2, ClipboardList, CreditCard, Lock, X, Zap } from "lucide-react"
 import { formatCzk, LOWEST_MONTHLY_HALERU } from "@/lib/pricing"
+import { LEGAL } from "@/lib/legal"
 import { CreditPacks } from "@/app/(dashboard)/CreditPacks"
 
 // ─── Toast System ────────────────────────────────────────────
@@ -274,7 +275,9 @@ function PlanUnlockModal({ onClose }: { onClose: () => void }) {
                     <div className="text-center mb-6">
                         <span className="text-3xl font-black text-white">od {formatCzk(LOWEST_MONTHLY_HALERU)}</span>
                         <span className="text-white/30 text-sm font-bold ml-1">/ měsíc</span>
-                        <p className="text-[9px] text-white/25 font-bold uppercase tracking-widest mt-1">při roční platbě · 2 měsíce zdarma</p>
+                        <p className="text-[9px] text-white/25 font-bold uppercase tracking-widest mt-1">
+                            při roční platbě · 2 měsíce zdarma{LEGAL.vatStatus === "payer" ? " · ceny bez DPH" : ""}
+                        </p>
                     </div>
 
                     {/* CTA */}

@@ -15,7 +15,7 @@
  */
 
 import supabaseAdmin from "@/supabase/admin"
-import { LEGAL } from "@/lib/legal"
+import { LEGAL, VAT_RATE_PCT } from "@/lib/legal"
 import {
     isFakturoidEnabled,
     issueInvoice,
@@ -25,7 +25,7 @@ import {
 
 /** Sazba DPH na doklad. Neplátce fakturuje s nulou a poznámkou o neplátcovství. */
 function vatRate(): number {
-    return LEGAL.vatStatus === "payer" ? 21 : 0
+    return LEGAL.vatStatus === "payer" ? VAT_RATE_PCT : 0
 }
 
 /**
