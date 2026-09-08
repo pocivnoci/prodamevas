@@ -2660,6 +2660,56 @@ test("23.11 politika o penězích žije na serveru", () => {
     assert(/deriveBillingState\(sub\)/.test(api), "stav fakturace odvozuje server")
 })
 
+test("23.13 fronta schválení nesmí růst sama", () => {
+    // 8. 9. 2026 v ní čekalo 27 akcí, nejstarší 46 dní — a rostla ze tří příčin
+    // najednou. Každá má tady vlastní aserci, protože oprava jedné bez druhých
+    // frontu jen zpomalí.
+    const life = codeOnly("lib/agents/lifecycle.ts")
+
+    // 1) Nerozhodnutý návrh musí blokovat další NEZÁVISLE na stáří. Dokud se
+    //    dedupe ptalo jen oknem, tatáž waitlistová připomínka se po třiceti
+    //    dnech navrhla znovu — druhá kopie otázky, na kterou nikdo neodpověděl.
+    const dedupe = life.slice(life.indexOf("async function recentlyHandled"),
+        life.indexOf("// ── Candidate finders"))
+    assert(/\.eq\("status", "proposed"\)/.test(dedupe),
+        "čekající návrh musí blokovat nový bez ohledu na časové okno")
+    const windowAt = dedupe.indexOf("DEDUPE_DAYS[kind]")
+    assert(dedupe.indexOf('.eq("status", "proposed")') < windowAt,
+        "na čekající návrh se musí ptát DŘÍV než na okno — jinak okno rozhodne první")
+
+    // 2) Nezákazníci se nenavrhují vůbec. Devět z těch 27 mířilo na značky
+    //    z výlohy a zakladatel měl schvalovat pobídku sám sobě.
+    assert(life.includes("NOT_SHOWCASE"), "lifecycle nesmí navrhovat značky z výlohy")
+    assert(life.includes("isInternalEmail") && life.includes("isSuperAdminEmail"),
+        "naše vlastní ani adminská adresa není zákazník")
+    const health = codeOnly("lib/agents/client-health.ts")
+    assert(health.includes("NOT_SHOWCASE"),
+        "výloha nepatří mezi „zákazníky v riziku“ — jinak se dostane do briefu i do fronty")
+
+    // 3) Návrh, na který se nikdo nepodíval, se musí sám zavřít. Bez toho je
+    //    fronta jen seznam, který roste — a seznam, co se nedá dočíst, se
+    //    přestane číst celý.
+    const safety = codeOnly("lib/agent-safety.ts")
+    assert(/PROPOSAL_TTL_DAYS/.test(safety), "návrhy musí mít dobu platnosti")
+    const sweepStart = safety.indexOf("export async function expireStaleProposals")
+    const sweep = safety.slice(sweepStart, safety.indexOf("export async function", sweepStart + 10))
+    assert(/\.eq\("status", "proposed"\)/.test(sweep),
+        "úklid musí zabírat podmíněným claimem, ať neprohraje se souběžným schválením")
+    assert(/status: "expired"/.test(sweep) && !/status: "rejected"/.test(sweep),
+        "„nikdo se nepodíval“ není „člověk řekl ne“ — jinak se v auditu ztratí rozdíl")
+    // Úklid běží PŘED skenem: čekající návrh nově blokuje nový, takže po skenu
+    // by se dnešní návrh nestihl narodit.
+    const handlers = codeOnly("lib/agents/handlers.ts")
+    const scan = handlers.slice(handlers.indexOf('registerHandler("lifecycle_scan"'))
+    assert(scan.indexOf("expireStaleProposals") < scan.indexOf("scanLifecycle"),
+        "starý návrh se musí zavřít dřív, než sken zkusí navrhnout nový")
+
+    // A stav musí databáze vůbec dovolit.
+    const mig = fileContent("supabase/migrations/20260908_navrh_vyprsi.sql")
+    assert(/check \(status in \([^)]*'expired'/.test(mig),
+        "migrace musí rozšířit check constraint o 'expired'")
+})
+
 test("23.12 nové migrace nezakládají tabulky", () => {
     // Celá vrstva měla vzniknout nad existujícím schématem. Nová tabulka je
     // signál, že se něco počítá dvakrát nebo se duplikuje audit.

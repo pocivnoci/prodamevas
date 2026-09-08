@@ -72,9 +72,15 @@ registerHandler("lifecycle_scan", async () => {
     const to = getFounderEmail()
     if (!to) return { ok: true, proposed: 0, skipped: "no founder e-mail configured" }
 
+    // Úklid PŘED skenem, ne po něm: čekající návrh nově blokuje nový (viz
+    // `recentlyHandled`), takže dokud se ten starý nezavře, ten dnešní by
+    // nevznikl — a zakladatel by pořád koukal na otázku z minulého měsíce.
+    const { expireStaleProposals } = await import("@/lib/agent-safety")
+    const expired = await expireStaleProposals()
+
     const { scanLifecycle } = await import("@/lib/agents/lifecycle")
     const proposals = await scanLifecycle()
-    return { ok: true, proposed: proposals.length, kinds: proposals.map(p => p.kind) }
+    return { ok: true, proposed: proposals.length, expired, kinds: proposals.map(p => p.kind) }
 })
 
 // Send one approved lifecycle e-mail. Runs only after founder approval (outbound
