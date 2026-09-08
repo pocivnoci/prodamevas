@@ -28,52 +28,18 @@
  * karusel, je horší než nabídka, která video nezmíní.
  */
 
-import { creditExample, MEDIA_CREDITS } from "@/lib/credits"
+import { MEDIA_CREDITS } from "@/lib/credits"
 import { vatNotice } from "@/lib/legal"
 import { countLabel, CREDITS, MONTHS } from "@/lib/plural"
 import {
     BILLING_TERMS, CONSULTATION, consultationIncluded, DEFAULT_TERM_MONTHS,
     EXTRA_CREDIT_HALERU, FALLBACK_PLANS, formatCzk, getTerm, lowestPriceClaim, monthlyEquivalent,
-    normalizeTermMonths, PLAN_COPY, termPrice, termSavings, type PricingPlan,
+    normalizeTermMonths, termPrice, termSavings, type PricingPlan,
 } from "@/lib/pricing"
 import { button, callout, compact, divider, footnote, heading, list, paragraph, planCard } from "../blocks"
 import { siteUrl } from "../links"
+import { creditLine, pickPlan, planBullets, planHasReels, reelsLive } from "../plans"
 import type { EmailTemplate } from "../template"
-
-/** Jedou reels doopravdy? Stejná otázka, jakou si klade ceník na landingu. */
-const reelsLive = (): boolean => process.env.REELS_ENABLED === "1"
-
-/** Nabízí tenhle tarif reels *a* jsou zapnuté? Obojí musí platit. */
-const planHasReels = (plan: PricingPlan): boolean => plan.allowsReels && reelsLive()
-
-/**
- * Tarif podle toho, co obchodník napsal do formuláře. Diakritika ani velikost
- * písmen nerozhoduje — „dominance" i „Dominance" musí najít totéž.
- *
- * Když se nic netrefí, padá to na tarif označený v `PLAN_COPY` jako `highlight`
- * (dnes Růst), ne na první v poli: doporučený tarif je obchodní rozhodnutí, které
- * už jednou padlo na ceníku, a nabídka ho nemá přebíjet nedopatřením.
- */
-function pickPlan(name: string): PricingPlan {
-    const norm = (s: string) => s.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    const wanted = norm(name)
-    const byName = wanted && FALLBACK_PLANS.find(p => norm(p.name) === wanted || norm(p.id) === wanted)
-    if (byName) return byName
-    const highlighted = FALLBACK_PLANS.find(p => PLAN_COPY[p.id]?.highlight)
-    return highlighted ?? FALLBACK_PLANS[0]
-}
-
-/** Odrážky tarifu z ceníkové kopie; reels si nesou přiznání, když jsou vypnuté. */
-function planBullets(plan: PricingPlan): string[] {
-    return (PLAN_COPY[plan.id]?.bullets ?? []).map(b =>
-        typeof b === "string" ? b : reelsLive() ? b.text : `${b.text} (připravujeme)`,
-    )
-}
-
-/** „70 kreditů měsíčně — ≈ 70 obrázků nebo 23 carouselů" */
-function creditLine(plan: PricingPlan): string {
-    return `${countLabel(plan.creditsPerMonth, CREDITS)} měsíčně — ${creditExample(plan.creditsPerMonth, { reels: planHasReels(plan) })}`
-}
 
 export const offer: EmailTemplate = {
     id: "offer",
@@ -216,6 +182,15 @@ export const offer: EmailTemplate = {
  * Vykání a žádný nátlak: „poslední šance" a odpočty do téhle značky nepatří,
  * a u obchodního sdělení, které chodí na adresu z vizitky, je tón to jediné,
  * co odlišuje nabídku od spamu.
+ *
+ * JEDEN HLAS NA CELÝ E-MAIL
+ * -------------------------
+ * Follow-up je druhý dotek téhož rozhovoru, takže musí znít jako týž odesílatel
+ * jako `coldOffer`. Do 9/2026 se v něm lámaly tři najednou: nadpis „Ozývám se
+ * zpátky" a „nechci ji nechat zapadnout" (já), „posílali jsme" a „vygenerovali
+ * jsme" (my) a podpis „Tým Chrlit" (někdo třetí). Konvence je stejná jako
+ * u prvního oslovení: **mluví firma, podepisuje se člověk** — a proto tu jsou
+ * `senderName` a `senderPhone`, ne obecná patička. Hlídá aserce 29.19.
  */
 export const offerFollowup: EmailTemplate = {
     id: "offer_followup",
@@ -228,14 +203,18 @@ export const offerFollowup: EmailTemplate = {
         { key: "sentOn", label: "Kdy odešla nabídka", type: "text", placeholder: "před týdnem", help: "Slovem, ne datem — „před týdnem“ zní jako člověk." },
         { key: "intro", label: "Úvodní odstavec", type: "textarea", required: true },
         { key: "previewUrl", label: "Odkaz na ukázku", type: "url", help: "Prázdné = odstavec o ukázce se vynechá." },
+        { key: "senderName", label: "Podpis — jméno", type: "text", required: true, help: "Týž člověk, který posílal první oslovení." },
+        { key: "senderPhone", label: "Podpis — telefon", type: "text" },
         { key: "ctaLabel", label: "Text tlačítka", type: "text" },
         { key: "ctaUrl", label: "Odkaz tlačítka", type: "url", required: true },
     ],
     sample: {
         company: "Kavárna Alchymista",
         sentOn: "před týdnem",
-        intro: "Dobrý den,\n\nposílali jsme vám nabídku na Chrlit a nechci ji nechat zapadnout. Nespěchám — jen se ptám, jestli je to pro vás téma, nebo to mám zavřít.",
+        intro: "Dobrý den,\n\nposílali jsme vám nabídku na Chrlit a nechceme ji nechat zapadnout. Nespěcháme — jen se ptáme, jestli je to pro vás téma, nebo to máme zavřít.",
         previewUrl: `${siteUrl()}/ukazky`,
+        senderName: "Luděk Jasa",
+        senderPhone: "+420 601 279 377",
         ctaLabel: "Domluvit 15 minut",
         ctaUrl: `${siteUrl()}/ukazky`,
     },
@@ -244,13 +223,17 @@ export const offerFollowup: EmailTemplate = {
         eyebrow: "Připomenutí",
         preheader: "Stačí odpovědět jedním slovem — ano, nebo teď ne.",
         blocks: compact([
-            heading("Ozývám se zpátky"),
+            heading("Ještě k té nabídce"),
             paragraph(v.intro),
             v.sentOn && paragraph(`Nabídku jsme posílali ${v.sentOn}. Podmínky se nezměnily — najdete je v tom původním e-mailu.`),
             v.previewUrl && paragraph(`Ukázka, kterou jsme pro vás vygenerovali, je pořád k vidění: ${v.previewUrl}`),
             button(v.ctaLabel || "Domluvit 15 minut", v.ctaUrl, "accent"),
             callout("info", "Když to teď není téma, stačí odepsat „teď ne\" a přestaneme se ozývat. Bez ptaní proč."),
-            paragraph("Tým Chrlit"),
+            paragraph(compactText([
+                "S pozdravem",
+                v.senderName,
+                v.senderPhone || null,
+            ]).join("\n")),
         ]),
     }),
 }

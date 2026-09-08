@@ -10,6 +10,7 @@
 import { vatNotice } from "@/lib/legal"
 import { button, callout, compact, footnote, heading, list, paragraph, promoCode, stats } from "../blocks"
 import { siteUrl } from "../links"
+import { sampleCredits, samplePlanName, samplePrice } from "../plans"
 import type { EmailTemplate } from "../template"
 
 export const welcome: EmailTemplate = {
@@ -58,9 +59,9 @@ export const receipt: EmailTemplate = {
         { key: "ctaUrl", label: "Odkaz do studia", type: "url", required: true },
     ],
     sample: {
-        planName: "Tarif Růst",
-        price: "1 990 Kč",
-        credits: "45",
+        planName: `Tarif ${samplePlanName()}`,
+        price: samplePrice(),
+        credits: sampleCredits(),
         periodEnd: "5. 9. 2026",
         ctaUrl: `${siteUrl()}/dashboard/instagram`,
     },

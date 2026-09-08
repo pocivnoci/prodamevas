@@ -37,3 +37,5 @@ export const IMAGES: PluralForms = { one: "obrázek", few: "obrázky", many: "ob
 export const BRANDS: PluralForms = { one: "značka", few: "značky", many: "značek" }
 export const CREDITS: PluralForms = { one: "kredit", few: "kredity", many: "kreditů" }
 export const MONTHS: PluralForms = { one: "měsíc", few: "měsíce", many: "měsíců" }
+/** „26 dní" — kolik dní něco trvá. Ne „před 26 dny", to je jiný pád. */
+export const DAYS: PluralForms = { one: "den", few: "dny", many: "dní" }

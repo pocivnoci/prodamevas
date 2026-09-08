@@ -15,6 +15,7 @@
  */
 
 import supabaseAdmin from "@/supabase/admin"
+import { countLabel, DAYS } from "@/lib/plural"
 import { sendNotification, siteUrl } from "@/lib/notifications"
 
 export interface WaitlistRow {
@@ -60,9 +61,14 @@ export function renderInvite(row: WaitlistRow, code: string): { subject: string;
     const days = daysWaiting(row.created_at)
     // Zpoždění pojmenovat konkrétně. „Omlouváme se za prodlevu" je fráze;
     // „čekáte 17 dní" je přiznání, kterému se dá věřit.
+    //
+    // Přítomný čas není stylistika: rod adresáta neznáme a „zapsal jste se"
+    // je půlce příjemců špatně. Vykání to neřeší — pomocné sloveso je množné,
+    // příčestí singulární a rodové. Věta proto žádné příčestí o adresátovi
+    // nemá. Stejné pravidlo jako v `lib/mail/templates/waitlist.ts`.
     const delay = days >= 7
-        ? `Zapsal jste se k nám před ${days} dny a čekal jste dlouho — omlouvám se, ozývám se až teď.`
-        : `Zapsal jste se k nám na seznam zájemců, tak se ozývám.`
+        ? `Na seznamu u nás čekáte už ${countLabel(days, DAYS)} — omlouvám se, ozývám se až teď.`
+        : `Máte u nás zápis na seznamu zájemců, tak se ozývám.`
 
     return {
         subject: "Váš přístup do Chrlitu je připravený",
