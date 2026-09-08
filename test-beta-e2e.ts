@@ -5,7 +5,7 @@
  * Run with: npx tsx test-beta-e2e.ts
  */
 
-import { readFileSync, existsSync } from "fs"
+import { readFileSync, existsSync, readdirSync } from "fs"
 import { resolve } from "path"
 import { execSync } from "child_process"
 
@@ -4582,6 +4582,25 @@ test("38.2 obchodní data mají obrazovku, ne jen tabulku", () => {
     assert(/activeSection === "leads" && isAdmin/.test(page), "evidence je adminská sekce")
 })
 
+test("38.0 soubor s \"use server\" exportuje JEN async funkce", () => {
+    // Tohle spadlo na produkci, ne v CI: `lead-actions.ts` vedle akcí exportoval
+    // číselníky (`STATUS_LABELS` a spol.). `npm run build` i `tsc` prošly — Next to
+    // kontroluje až při vyhodnocení modulu, tedy když si stránku otevře člověk.
+    // Celý dashboard skončil na „A use server file can only export async functions".
+    // Číselník je data, ne akce: patří do `lib/`, jako `lib/team.ts`.
+    const files = readdirSync("app/actions").filter(f => f.endsWith(".ts"))
+    assert(files.length > 0, "app/actions je prázdný — kontrola by tiše neplatila")
+
+    for (const file of files) {
+        const code = codeOnly(`app/actions/${file}`)
+        if (!/^\s*"use server"/m.test(code)) continue
+        // `export type`/`export interface` se při překladu vypaří, ty vadit nemůžou.
+        const bad = code.match(/^export (?:const|let|var|class|enum)\s+\w+/gm) ?? []
+        assert(bad.length === 0,
+            `app/actions/${file}: "use server" smí exportovat jen async funkce, našel jsem ${bad.join(", ")} — přesuň to do lib/`)
+    }
+})
+
 test("38.3 každá akce evidence má bránu a whitelist sloupců", () => {
     const act = codeOnly("app/actions/lead-actions.ts")
     const exported = act.match(/export async function \w+/g) ?? []
@@ -4590,9 +4609,12 @@ test("38.3 každá akce evidence má bránu a whitelist sloupců", () => {
     const guards = act.match(/await requireSuperAdmin\(\)/g) ?? []
     assert(guards.length >= exported.length, "KAŽDÁ akce evidence potřebuje requireSuperAdmin()")
     // Skóre ani `source` do formuláře nepatří, i kdyby je tam někdo poslal.
-    assert(/const EDITABLE = \[/.test(act), "úprava musí jet přes whitelist sloupců")
+    // Whitelist bydlí ve slovníku, protože „use server" nesmí exportovat konstanty (38.0).
+    const dict = codeOnly("lib/leads.ts")
+    assert(/export const EDITABLE = \[/.test(dict), "úprava musí jet přes whitelist sloupců")
+    assert(/EDITABLE/.test(act), "akce musí whitelist opravdu použít, ne ho jen mít vedle")
+    const list = dict.slice(dict.indexOf("export const EDITABLE = ["), dict.indexOf("] as const", dict.indexOf("export const EDITABLE = [")))
     for (const forbidden of ["score", "source", "preview_token"]) {
-        const list = act.slice(act.indexOf("const EDITABLE = ["), act.indexOf("] as const", act.indexOf("const EDITABLE = [")))
         assert(!new RegExp(`"${forbidden}"`).test(list), `${forbidden} nesmí jít měnit z formuláře`)
     }
 })
