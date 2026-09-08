@@ -431,14 +431,56 @@ test("10.2 Landing page links to /login", () => {
     assert(fileContains("app/page.tsx", "<Landing"), "app/page.tsx musí landing skutečně vykreslit")
 })
 
-test("10.3 Landing page has WaitlistForm", () => {
-    const content = fileContent("components/Landing.tsx")
-    assert(content.includes("WaitlistForm"), "Should include WaitlistForm component")
+test("10.3 Landing má finální CTA, ne pořadník", () => {
+    // „Připojit se na Waitlist" byl zástupný text: neslíbil nic konkrétního,
+    // takže se ani nedalo poznat, že se slib neplní. Finální CTA vede buď do
+    // registrace, nebo ke kontaktu, na který se ozve obchod.
+    const landing = fileContent("components/Landing.tsx")
+    assert(landing.includes("ContactForm"), "landing musí vykreslit kontaktní formulář")
+    assert(!/[Ww]aitlist/.test(codeOnly("components/Landing.tsx")),
+        "slovo waitlist na landingu nemá co dělat — je to zástupný text bez slibu")
+    assert(!fileExists("components/WaitlistForm.tsx"),
+        "starý formulář musí zůstat smazaný, jinak se udržují dvě kopie CTA")
 })
 
-test("10.4 WaitlistForm links to /register", () => {
-    const content = fileContent("components/WaitlistForm.tsx")
+test("10.4 Kontaktní formulář nabízí i cestu s kódem pozvánky", () => {
+    const content = fileContent("components/ContactForm.tsx")
     assert(content.includes('href="/register"'), "Should link to /register")
+    // Kdo přichází s kódem, nemá čekat na telefonát.
+    assert(/kód pozvánky/i.test(content), "musí zůstat viditelná zkratka pro držitele kódu")
+})
+
+test("10.4a Formulář se ptá na to, čím se dá ozvat", () => {
+    // Slib „ozveme se" potřebuje kontakt. Web je navíc vstup celého onboardingu,
+    // takže z něj jde připravit ukázku ještě před hovorem.
+    const form = fileContent("components/ContactForm.tsx")
+    for (const field of ["email", "phone", "website"]) {
+        assert(new RegExp(`name=["']${field}["']`).test(form), `formulář musí mít pole ${field}`)
+    }
+
+    // A server je musí doopravdy zapsat — jinak se sbírají do prázdna.
+    const action = fileContent("app/actions/contact.ts")
+    for (const col of ["phone", "website", "plan_interest"]) {
+        assert(action.includes(col), `contact action musí ukládat ${col}`)
+    }
+    // Veřejná akce si validuje sama: klientská kontrola je jen pro hlášku.
+    assert(action.includes("@") && /test\(email\)|\.test\(email\)/.test(action),
+        "veřejná akce musí ověřit e-mail na serveru, ne spoléhat na formulář")
+    assert(!fileExists("app/actions/waitlist.ts"),
+        "stará akce musí zůstat smazaná — jeden formulář, jeden zápis")
+})
+
+test("10.4b Kontakt z webu se ozve v ranním briefu", () => {
+    // Tohle je jediná pojistka slibu „ozveme se do jednoho pracovního dne".
+    // Bez ní tabulka mlčí: 8. 9. 2026 v ní čekalo šest lidí, nejstarší od 18. 5.
+    const digest = codeOnly("lib/agents/sales/digest.ts")
+    assert(digest.includes('from("waitlist")'), "brief musí příchozí kontakty číst")
+    assert(digest.includes('is("contacted_at", null)'),
+        "hlásit se smí jen ti, kterým se ještě nikdo neozval")
+    assert(fileContains("app/actions/waitlist-admin.ts", "markContacted"),
+        "musí jít označit vyřízený kontakt, jinak brief hlásí pořád ty samé lidi")
+    assert(fileContains("supabase/migrations/20260908_kontakt_z_landingu.sql", "contacted_at"),
+        "sloupec contacted_at potřebuje migraci")
 })
 
 test("10.5 Register page exists", () => {
@@ -924,12 +966,30 @@ test("10.7m Brána bety je JEDEN spínač, ne kopie na šesti místech", () => {
     assert(codeOnly("components/Landing.tsx").includes("inviteRequired"),
         "kopie a CTA na landingu musí stav brány respektovat")
 
-    // Žádné natvrdo psané `#waitlist` mimo odvozené hodnoty — jinak jeden
-    // zapomenutý odkaz pošle člověka na formulář, který už nikdo nečte.
+    // Žádná natvrdo psaná kotva mimo odvozené hodnoty — jinak jeden zapomenutý
+    // odkaz pošle člověka na CTA, které slibuje něco jiného než brána dovolí.
     const landing = codeOnly("components/Landing.tsx")
-    const zbyle = [...landing.matchAll(/href=\{?["`]#waitlist/g)]
+    const zbyle = [...landing.matchAll(/href=\{?["`]#(kontakt|waitlist)/g)]
     assert(zbyle.length === 0,
-        `${zbyle.length}× natvrdo #waitlist v Landing.tsx — CTA musí jít přes ctaHref/planHref`)
+        `${zbyle.length}× natvrdo psaná kotva v Landing.tsx — CTA musí jít přes ctaHref/planHref`)
+
+    // Kotva je JEDEN řetězec. Podstránky (blog, portfolio, hlavička) na ni míří
+    // a o stavu brány nevědí — jsou statické, takže by ho měly zapečený z buildu.
+    assert(codeOnly("lib/cta.ts").includes('CONTACT_ANCHOR = "kontakt"'),
+        "kotva finálního CTA musí mít jediné místo v lib/cta.ts")
+    assert(landing.includes("id={CONTACT_ANCHOR}"),
+        "hero landingu musí kotvu vykreslit v OBOU stavech brány, jinak proklik z podstránky nikam neskočí")
+    for (const f of ["components/SiteHeader.tsx", "app/blog/[slug]/page.tsx",
+                     "app/portfolio/page.tsx", "app/portfolio/[slug]/page.tsx"]) {
+        const src = codeOnly(f)
+        assert(src.includes("CONTACT_HREF"), `${f}: odkaz na finální CTA musí jít přes CONTACT_HREF`)
+        assert(!src.includes("#waitlist"), `${f}: stará kotva #waitlist už neexistuje`)
+    }
+
+    // Hash s dotazem (`#kontakt?tarif=…`) neodpovídá žádnému `id`, takže by
+    // proklik z ceníku nikam neskočil. Volbu tarifu nese stav do skrytých polí.
+    assert(!/#\$\{CONTACT_ANCHOR\}\?/.test(landing) && !/#kontakt\?/.test(landing),
+        "kotva nesmí nést query — prohlížeč pak nenajde žádný prvek a nikam nescrolluje")
 
     // A obě cesty registrace musí kód přestat vyžadovat spolu s bránou.
     for (const f of ["app/register/actions.ts", "app/register/page.tsx", "app/auth/actions.ts"]) {

@@ -6,9 +6,10 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion"
 import { ArrowRight, Camera, Check, CheckCircle2, ChevronDown, Clock, Cpu, Menu, TrendingUp, X } from "lucide-react"
 import { PostWall, type WallPost } from "@/components/PostWall"
 import { SeedToFlower } from "@/components/SeedToFlower"
-import { WaitlistForm } from "@/components/WaitlistForm"
+import { ContactForm } from "@/components/ContactForm"
 import { Reveal } from "@/components/Reveal"
 import { fadeUp, SPRING, EASE_OUT } from "@/lib/motion"
+import { CONTACT_ANCHOR } from "@/lib/cta"
 import { creditExample } from "@/lib/credits"
 import { REFERENCE_BRANDS } from "@/lib/reference-data"
 import { LEGAL, formatAddress, vatNotice } from "@/lib/legal"
@@ -84,7 +85,7 @@ export function Landing({
    *  „připravujeme" — prodávat médium, které se potichu překlopí na carousel,
    *  je jediný nález ceníkového auditu, který byl skutečný mis-sale. */
   reelsEnabled,
-  /** Stav brány bety ze serveru. Zavřená = waitlist, otevřená = registrace.
+  /** Stav brány bety ze serveru. Zavřená = nechte kontakt, otevřená = registrace.
    *  Kopie i cíle odkazů visí na TOMHLE, ne na ručně přepsaných větách. */
   inviteRequired,
 }: {
@@ -94,23 +95,47 @@ export function Landing({
 }) {
   // Jedno místo, kde se z brány stává trychtýř. Kdyby se to počítalo u každého
   // tlačítka zvlášť, rozejde se to hned, jak jedno z nich někdo přepíše.
-  const ctaHref = inviteRequired ? "#waitlist" : "/register"
-  const ctaLabel = inviteRequired ? "Připojit se na Waitlist" : "Vyzkoušet zdarma"
-  const ctaShort = inviteRequired ? "Připojit se" : "Vyzkoušet zdarma"
+  //
+  // Zavřená brána už nezve na waitlist („dáme vědět, až otevřeme" neslibuje nic
+  // a podle toho to dopadlo), ale na hovor: nechte kontakt a ozve se člověk.
+  // Otevřená brána vede rovnou do registrace — obojí je konečná, ne mezikrok.
+  const ctaHref = inviteRequired ? `#${CONTACT_ANCHOR}` : "/register"
+  const ctaLabel = inviteRequired ? "Ozvěte se mi" : "Vyzkoušet zdarma"
+  const ctaShort = inviteRequired ? "Ozvěte se mi" : "Vyzkoušet zdarma"
+  // Drobný text pod každým CTA musí slibovat to, co tlačítko doopravdy udělá.
+  const ctaNote = inviteRequired
+    ? "Ozveme se do jednoho pracovního dne · Nezávazně · Prvních pár příspěvků zdarma"
+    : "3 posty zdarma · Bez kreditky · Bez časového limitu"
+  // Hash s dotazem (`#kontakt?tarif=…`) neodpovídá žádnému `id`, takže by
+  // proklik z ceníku nikam neskočil. Volbu tarifu nese `onPickPlan` do skrytých
+  // polí formuláře — do adresy patří jen tam, kde ji přečte registrace.
   const planHref = (planId: string, months: TermMonths) =>
-    inviteRequired ? `#waitlist?tarif=${planId}&obdobi=${months}` : `/register?tarif=${planId}&obdobi=${months}`
+    inviteRequired ? `#${CONTACT_ANCHOR}` : `/register?tarif=${planId}&obdobi=${months}`
 
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [term, setTerm] = useState<TermMonths>(DEFAULT_TERM_MONTHS)
-  // Vybraný tarif si drží formulář waitlistu, aby se pozvánka dala poslat rovnou
-  // s tím, co si člověk vybral, místo doptávání.
+  // Vybraný tarif si drží kontaktní formulář, aby obchod volal rovnou s tím,
+  // co si člověk vybral, místo doptávání.
   const [pickedPlan, setPickedPlan] = useState<string | null>(null)
+  // Kontaktní formulář v heru při OTEVŘENÉ bráně: rozbalí se na vyžádání.
+  // Se zavřenou bránou je vidět rovnou a tenhle přepínač se neuplatní.
+  const [showContact, setShowContact] = useState(false)
+  const reduce = useReducedMotion()
+  /**
+   * Skok na finální CTA se dělá ručně, ne jen `href="#kontakt"`.
+   * Odkaz na kotvu, která už je v adrese, prohlížeč ignoruje — a to je běžná
+   * cesta: člověk klikne na jeden tarif, sjede zpátky dolů a klikne na druhý.
+   * Podruhé by se nestalo nic a vypadalo by to jako rozbité tlačítko.
+   */
+  const goToContact = () => {
+    document.getElementById(CONTACT_ANCHOR)?.scrollIntoView({ behavior: reduce ? "auto" : "smooth" })
+  }
   const onPickPlan = (planId: string, months: TermMonths) => {
     setPickedPlan(planId)
     setTerm(months)
+    if (inviteRequired) goToContact()
   }
-  const reduce = useReducedMotion()
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20)
@@ -153,7 +178,7 @@ export function Landing({
             <Link href="/login" className="text-[10px] font-bold uppercase tracking-widest text-white/50 hover:text-white transition-colors hidden sm:block">
               Přihlásit se
             </Link>
-            <Link href={ctaHref} className="group relative inline-flex items-center gap-2 text-[10px] font-bold px-5 py-2.5 bg-white/10 hover:bg-white text-white hover:text-black rounded-sm transition-all uppercase tracking-widest">
+            <Link href={ctaHref} onClick={inviteRequired ? goToContact : undefined} className="group relative inline-flex items-center gap-2 text-[10px] font-bold px-5 py-2.5 bg-white/10 hover:bg-white text-white hover:text-black rounded-sm transition-all uppercase tracking-widest">
               {ctaShort}
               <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
             </Link>
@@ -200,7 +225,7 @@ export function Landing({
         </AnimatePresence>
       </motion.header>
 
-      {/* HERO — the promise + waitlist, centered */}
+      {/* HERO — the promise + final CTA, centered */}
       <section className="relative z-10 pt-32 pb-16 md:pt-40 md:pb-20 min-h-[78dvh] flex items-center">
         <div className="max-w-3xl mx-auto px-6 w-full">
           <motion.div
@@ -211,7 +236,7 @@ export function Landing({
           >
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-emerald-500/20 text-emerald-400 text-[9px] font-bold uppercase tracking-widest mb-8 bg-emerald-500/5 backdrop-blur-sm">
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]"></span>
-              {inviteRequired ? "Brzy spouštíme · Waitlist otevřený" : "Spuštěno · Založte si účet a zkuste to"}
+              {inviteRequired ? "Spuštěno · První klienty bereme osobně" : "Spuštěno · Založte si účet a zkuste to"}
             </div>
 
             <h1 className="text-5xl md:text-6xl xl:text-7xl font-black tracking-tighter mb-6 text-white leading-[0.92] uppercase">
@@ -225,22 +250,47 @@ export function Landing({
               Profesionální příspěvky — fotky, texty i hashtagy. Hotové. A zveřejní se samy ve chvíli, kterou naplánujete.
             </p>
 
-            <div id="waitlist" className="w-full sm:max-w-md mt-2 relative z-20">
+            {/* Kotva finálního CTA. Existuje v OBOU stavech brány — míří sem
+                blog, portfolio i hlavička podstránek a ty o bráně nevědí nic. */}
+            <div id={CONTACT_ANCHOR} className="w-full sm:max-w-md mt-2 relative z-20 scroll-mt-[28rem]">
               {inviteRequired ? (
-                <WaitlistForm planId={pickedPlan} termMonths={term} />
+                <ContactForm planId={pickedPlan} termMonths={term} />
               ) : (
-                <Link
-                  href="/register"
-                  className="group w-full inline-flex items-center justify-center gap-2 rounded-sm bg-aisummit-cinnabar px-5 py-4 text-sm font-bold text-white uppercase tracking-widest shadow-[0_0_25px_rgba(230,57,70,0.3)] transition-all hover:bg-aisummit-cinnabar/90"
-                >
-                  Vyzkoušet zdarma
-                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                </Link>
+                <>
+                  <Link
+                    href="/register"
+                    className="group w-full inline-flex items-center justify-center gap-2 rounded-sm bg-aisummit-cinnabar px-5 py-4 text-sm font-bold text-white uppercase tracking-widest shadow-[0_0_25px_rgba(230,57,70,0.3)] transition-all hover:bg-aisummit-cinnabar/90"
+                  >
+                    Vyzkoušet zdarma
+                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                  </Link>
+
+                  {/* Otevřená brána vede na samoobsluhu, jenže část lidí si účet
+                      zakládat nechce a chce si o tom promluvit. Druhá cesta proto
+                      zůstává i po otevření — jen NEBERE místo hlavní: rozbalí se
+                      pod ní a tlačítko do registrace zůstane, kde bylo. */}
+                  {showContact ? (
+                    <div className="mt-6 pt-6 border-t border-white/5">
+                      <p className="text-xs text-white/45 text-center mb-4">
+                        Nechte kontakt a ozveme se vám do jednoho pracovního dne.
+                      </p>
+                      <ContactForm planId={pickedPlan} termMonths={term} subdued />
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowContact(true)}
+                      className="mt-4 w-full text-xs text-white/50 hover:text-white transition-colors underline decoration-white/30 underline-offset-4"
+                    >
+                      Nechcete to nastavovat sami? Nechte kontakt a ozveme se
+                    </button>
+                  )}
+                </>
               )}
             </div>
 
             <p className="mt-5 text-[9px] uppercase tracking-widest font-bold text-white/25">
-              3 posty zdarma · Bez kreditky · Bez časového limitu
+              {ctaNote}
             </p>
           </motion.div>
         </div>
@@ -530,9 +580,9 @@ export function Landing({
                   })}
                 </ul>
 
-                {/* Volba tarifu a období jde s uživatelem dál — do waitlistu
-                    (a přes něj do pozvánky), nebo rovnou do registrace, když je
-                    brána otevřená. Ať se ho nikdo neptá podruhé. */}
+                {/* Volba tarifu a období jde s uživatelem dál — do kontaktního
+                    formuláře (a odtud k obchodu), nebo rovnou do registrace,
+                    když je brána otevřená. Ať se ho nikdo neptá podruhé. */}
                 <Link
                   href={planHref(plan.id, term)}
                   onClick={() => onPickPlan(plan.id, term)}
@@ -542,14 +592,14 @@ export function Landing({
                       : "bg-white/5 text-white/80 border border-white/10 hover:bg-white/10"
                   }`}
                 >
-                  {inviteRequired ? "Připojit se na Waitlist" : "Začít s tímhle tarifem"}
+                  {inviteRequired ? "Chci tenhle tarif" : "Začít s tímhle tarifem"}
                 </Link>
               </div>
               )
             })}
           </div>
 
-          <p className="text-center mt-12 text-[9px] text-white/25 font-bold uppercase tracking-widest">3 posty zdarma · Bez kreditky · Bez časového limitu</p>
+          <p className="text-center mt-12 text-[9px] text-white/25 font-bold uppercase tracking-widest">{ctaNote}</p>
           {term > 1 && (
             <p className="text-center mt-3 text-[9px] text-emerald-400/70 font-bold uppercase tracking-widest">
               Garance vrácení peněz do 30 dnů · bez udání důvodu
@@ -579,11 +629,11 @@ export function Landing({
           <h2 className="text-5xl md:text-7xl font-black tracking-tighter mb-6 text-white uppercase leading-[0.9]">Váš web už máte.<br /> <span className="text-aisummit-cinnabar">Zbytek uděláme my.</span></h2>
           <p className="text-base text-white/40 font-medium mb-12 max-w-xl mx-auto">Vaši zákazníci jsou na Instagramu. Dostaneme vás tam — bez práce.</p>
 
-          <Link href={ctaHref} className="group relative inline-flex items-center justify-center px-10 py-5 bg-white text-black rounded-sm font-black text-sm hover:bg-white/90 transition-all uppercase tracking-widest shadow-[0_0_40px_rgba(255,255,255,0.2)]">
+          <Link href={ctaHref} onClick={inviteRequired ? goToContact : undefined} className="group relative inline-flex items-center justify-center px-10 py-5 bg-white text-black rounded-sm font-black text-sm hover:bg-white/90 transition-all uppercase tracking-widest shadow-[0_0_40px_rgba(255,255,255,0.2)]">
             {ctaLabel} <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
           </Link>
 
-          <p className="mt-6 text-[9px] uppercase tracking-widest font-bold text-white/30">3 posty zdarma. Žádná kreditka. Bez časového limitu.</p>
+          <p className="mt-6 text-[9px] uppercase tracking-widest font-bold text-white/30">{ctaNote}</p>
         </div>
       </section>
 

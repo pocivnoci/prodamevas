@@ -13,7 +13,7 @@ const DAILY_CAP = 100
 const CUSTOM = "__custom__"
 
 const SEGMENTS: { id: MailingSegment; label: string; hint: string }[] = [
-    { id: "waitlist", label: "Waitlist", hint: "Zájemci čekající na spuštění" },
+    { id: "waitlist", label: "Zájemci z webu", hint: "Kdo na landingu nechal kontakt" },
     { id: "activeClients", label: "Aktivní klienti", hint: "Platící + trial" },
     { id: "expired", label: "Vypršelí", hint: "Předplatné doběhlo" },
     // Obchod potřebuje poslat nabídku člověku, se kterým zrovna mluvil — ten

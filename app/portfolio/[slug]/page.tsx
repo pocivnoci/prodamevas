@@ -20,6 +20,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { SiteHeader } from "@/components/SiteHeader"
+import { CONTACT_HREF } from "@/lib/cta"
 import { SiteFooter } from "@/components/SiteFooter"
 import { PostGrid } from "@/components/portfolio/PostGrid"
 import { PORTFOLIO_VISIBLE_BRANDS, PORTFOLIO_DISCLAIMER } from "@/lib/portfolio"
@@ -124,7 +125,7 @@ export default async function BrandPortfolio({ params }: { params: Promise<{ slu
                         Zadejte svůj web a uvidíte první příspěvky dřív, než se rozhodnete.
                     </p>
                     <Link
-                        href="/#waitlist"
+                        href={CONTACT_HREF}
                         className="inline-flex items-center px-8 py-4 bg-white text-black rounded-sm font-black text-xs uppercase tracking-widest hover:bg-white/90 transition-all"
                     >
                         Zkusit na svém webu
