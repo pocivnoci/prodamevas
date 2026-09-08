@@ -5,11 +5,16 @@
  * bez čísla vede u delších období k tomu, že zákazníka o měsíc později
  * překvapí 19 900 Kč na výpisu a řeší se chargeback. Proto taky `pricing: true`
  * — aserce 29.8 pak vynutí větu o DPH.
+ *
+ * Číslo se ale nepíše ručně: `sample` je v Mailingu předvyplnění formuláře, ne
+ * náhled, takže cena z ceníku v5 („1 990 Kč" u Růstu) odsud odcházela zákazníkům
+ * o tisícovku pod skutečností. Bere se z `../plans` — hlídá aserce 29.17.
  */
 
 import { vatNotice } from "@/lib/legal"
 import { button, callout, compact, footnote, heading, list, paragraph, promoCode } from "../blocks"
 import { siteUrl } from "../links"
+import { reelsLive, samplePlanName, samplePrice, samplePriceMonthly } from "../plans"
 import type { EmailTemplate } from "../template"
 
 export const subscriptionRenewal: EmailTemplate = {
@@ -20,13 +25,13 @@ export const subscriptionRenewal: EmailTemplate = {
     pricing: true,
     fields: [
         { key: "planName", label: "Tarif", type: "text", required: true },
-        { key: "price", label: "Částka", type: "text", required: true, placeholder: "1 990 Kč" },
+        { key: "price", label: "Částka", type: "text", required: true, placeholder: samplePrice() },
         { key: "renewsOn", label: "Datum obnovy", type: "text", required: true },
         { key: "manageUrl", label: "Odkaz na správu předplatného", type: "url", required: true },
     ],
     sample: {
-        planName: "Růst",
-        price: "1 990 Kč",
+        planName: samplePlanName(),
+        price: samplePrice(),
         renewsOn: "5. 9. 2026",
         manageUrl: `${siteUrl()}/dashboard/instagram#billing`,
     },
@@ -59,8 +64,8 @@ export const subscriptionChargeFailed: EmailTemplate = {
         { key: "payUrl", label: "Odkaz na zaplacení", type: "url", required: true },
     ],
     sample: {
-        planName: "Růst",
-        price: "1 990 Kč",
+        planName: samplePlanName(),
+        price: samplePrice(),
         attempt: "2",
         maxAttempts: "3",
         graceNote: "Účet zůstává aktivní ještě 3 dny.",
@@ -94,8 +99,8 @@ export const subscriptionExpired: EmailTemplate = {
         { key: "renewUrl", label: "Odkaz na obnovení", type: "url", required: true },
     ],
     sample: {
-        planName: "Růst",
-        price: "1 990 Kč měsíčně",
+        planName: samplePlanName(),
+        price: samplePriceMonthly(),
         renewUrl: `${siteUrl()}/dashboard/instagram#billing`,
     },
     build: v => ({
@@ -105,7 +110,7 @@ export const subscriptionExpired: EmailTemplate = {
         blocks: [
             heading("Předplatné skončilo"),
             paragraph(`Dobrý den,\n\npředplatné **${v.planName}** doběhlo. Generování je pozastavené, ale **nic jsme nesmazali** — příspěvky, značka i nastavení na vás čekají.`),
-            paragraph(`Obnovit můžete kdykoli za **${v.price}**; navážete přesně tam, kde jste skončil.`),
+            paragraph(`Obnovit můžete kdykoli za **${v.price}**; navážete přesně v místě, kde se generování zastavilo.`),
             button("Obnovit předplatné", v.renewUrl, "accent"),
             footnote(vatNotice()),
         ],
@@ -129,10 +134,14 @@ export const subscriptionWinback: EmailTemplate = {
     ],
     sample: {
         headline: "Vracíme vám měsíc zdarma",
-        intro: "Dobrý den,\n\nod té doby, co jste u nás skončil, Chrlit umí reely, stories i tiskové podklady. Rádi bychom vám to ukázali.",
+        // Reels se smějí nabídnout jen když jedou — `REELS_ENABLED` je potichu
+        // překlápí na karusel a nabídka na návrat, která slíbí video a pošle
+        // karusel, získá zákazníka zpátky přesně na jeden měsíc. Totéž pravidlo
+        // jako v `templates/offer.ts` (aserce 29.14).
+        intro: `Dobrý den,\n\nod vašeho odchodu Chrlit umí ${reelsLive() ? "reely, stories" : "stories"} i tiskové podklady. Rádi bychom vám to ukázali.`,
         code: "ZPATKY",
         codeNote: "První měsíc zdarma",
-        price: "1 990 Kč měsíčně",
+        price: samplePriceMonthly(),
         ctaUrl: `${siteUrl()}/dashboard/instagram#billing`,
     },
     build: v => ({

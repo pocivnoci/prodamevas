@@ -4,8 +4,16 @@
  * Tón kopíruje web: vykání, krátké věty, žádná omáčka. Pozvánka pojmenuje,
  * jak dlouho člověk čekal — kdo se zapsal před šesti týdny, si to pamatuje líp
  * než my, a předstírat opak působí lacině.
+ *
+ * ROD ADRESÁTA NEZNÁME — a nesmí být z e-mailu poznat, že jsme si ho tipli.
+ * „Zapsal jste se k nám" je půlce příjemců špatně (jméno v seznamu rod neříká
+ * a odhadovat ho nebudeme). Vykání to nezachrání: pomocné sloveso je množné,
+ * ale příčestí singulární a rodové. Věta se proto skládá tak, aby v ní příčestí
+ * o adresátovi vůbec nebylo — přítomný čas („čekáte") funguje pro všechny.
+ * Hlídá aserce 29.18.
  */
 
+import { countLabel, DAYS } from "@/lib/plural"
 import { button, callout, compact, heading, list, paragraph, promoCode } from "../blocks"
 import { siteUrl } from "../links"
 import type { EmailTemplate } from "../template"
@@ -54,7 +62,7 @@ export const waitlistInvite: EmailTemplate = {
     fields: [
         { key: "headline", label: "Nadpis", type: "text", required: true },
         { key: "code", label: "Přístupový kód", type: "text", required: true },
-        { key: "waitedDays", label: "Čekal(a) dní", type: "text", help: "Prázdné = věta se vynechá" },
+        { key: "waitedDays", label: "Čeká dní", type: "text", help: "Prázdné = věta se vynechá. Skloní se samo." },
         { key: "expiresNote", label: "Platnost kódu", type: "text" },
         { key: "ctaUrl", label: "Odkaz na registraci", type: "url", required: true },
     ],
@@ -72,8 +80,8 @@ export const waitlistInvite: EmailTemplate = {
         blocks: compact([
             heading(v.headline),
             paragraph(
-                v.waitedDays
-                    ? `Dobrý den,\n\nzapsal jste se k nám před ${v.waitedDays} dny a teď jsme na vás vyšli. Uvolnilo se místo — kód níž vám otevře přístup.`
+                waited(v.waitedDays)
+                    ? `Dobrý den,\n\nna seznamu u nás čekáte už ${waited(v.waitedDays)} a teď jsme na vás vyšli. Uvolnilo se místo — kód níž vám otevře přístup.`
                     : "Dobrý den,\n\nuvolnilo se místo. Kód níž vám otevře přístup do Chrlitu.",
             ),
             promoCode(v.code, v.expiresNote || undefined, "Přístupový kód"),
@@ -82,4 +90,15 @@ export const waitlistInvite: EmailTemplate = {
             paragraph("Tým Chrlit"),
         ]),
     }),
+}
+
+/**
+ * „26 dní" z toho, co obchodník napsal do formuláře. Pole je text (jako všechna
+ * ostatní), takže se sem dostane i prázdno nebo překlep — a „před 1 dny" nebo
+ * „0 dní" v pozvánce vypadá jako rozbitá šablona. Co není kladné číslo, větu
+ * o čekání vynechá.
+ */
+function waited(raw: string | undefined): string | null {
+    const days = Number.parseInt((raw ?? "").trim(), 10)
+    return Number.isFinite(days) && days > 0 ? countLabel(days, DAYS) : null
 }

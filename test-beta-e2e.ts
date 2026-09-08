@@ -3566,6 +3566,80 @@ test("29.17 identita je s.r.o. se zápisem v rejstříku, ne živnost", () => {
         "plátce musí mít DIČ jako povinný údaj")
 })
 
+test("29.19 v šabloně se nepíše ručně ani jedna cena", () => {
+    // `sample` NENÍ náhled: Mailing jím předvyplňuje formulář
+    // (`setVars({ ...t.sample })`), takže co je v ukázce, to obchodník odešle,
+    // když to nepřepíše. Šablony předplatného tak do 9/2026 nabízely „Růst za
+    // 1 990 Kč" — cenu z ceníku v5, o tisícovku pod skutečností, a 45 kreditů,
+    // které ten tarif nemá. Číslo patří do ceníku, věta do šablony.
+    const dir = "lib/mail/templates"
+    for (const f of readdirSync(resolve(ROOT, dir))) {
+        if (!f.endsWith(".ts")) continue
+        const src = codeOnly(`${dir}/${f}`)
+        const amounts = src.match(/\d[\d\s\u00a0]*\s*Kč/g) ?? []
+        assert(amounts.length === 0,
+            `${dir}/${f}: cena psaná ručně (${amounts.join(", ")}) — musí přijít z lib/pricing.ts přes ../plans`)
+    }
+    // A ať to není jen zákaz: ukázky opravdu sedí s ceníkem, který se prodává.
+    const { EMAIL_TEMPLATES } = require("./lib/mail/registry")
+    const { recommendedPlan } = require("./lib/mail/plans")
+    const { formatCzk } = require("./lib/pricing")
+    const plan = recommendedPlan()
+    for (const id of ["subscription_renewal", "subscription_charge_failed", "receipt"]) {
+        const t = EMAIL_TEMPLATES.find((x: any) => x.id === id)
+        assert(!!t, `${id} musí být v registru`)
+        assert(t.sample.price.includes(formatCzk(plan.monthlyHaleru)),
+            `${id}: ukázka nabízí ${t.sample.price} místo ceníkových ${formatCzk(plan.monthlyHaleru)}`)
+    }
+})
+
+test("29.20 e-mail netipuje rod adresáta", () => {
+    // Rod příjemce neznáme — jméno v seznamu ho neříká a odhadovat ho nebudeme.
+    // Vykání to nezachrání: „jste skončil" má množné pomocné sloveso, ale
+    // singulární rodové příčestí, takže půlce lidí přijde e-mail, který se
+    // netrefil. Věta se dá vždycky složit bez příčestí o adresátovi
+    // („navážete", „čekáte") — a pak platí pro všechny.
+    const gendered = /\b(?:jste|byste)\s+(?:se\s+|si\s+)?[a-zá-žčďěňřšťůúýž]+l[ao]?\b|\b[A-Za-zÁ-Žá-žčďěňřšťůúýž]+l[ao]?\s+jste\b/g
+    const { EMAIL_TEMPLATES } = require("./lib/mail/registry")
+    for (const t of EMAIL_TEMPLATES) {
+        const hits = t.render(t.sample, "kdo@example.com").text.match(gendered) ?? []
+        assert(hits.length === 0, `${t.id}: rodové oslovení „${hits.join(", ")}" — přepiš do přítomného času`)
+    }
+    // Pozvánka z waitlistu jde mimo registr (vlastní text v agentovi), a přesně
+    // ta měla „Zapsal jste se… a čekal jste dlouho" hned dvakrát ve větě.
+    const invite = codeOnly("lib/agents/waitlist-invite.ts")
+    const inviteHits = invite.match(gendered) ?? []
+    assert(inviteHits.length === 0,
+        `lib/agents/waitlist-invite.ts: rodové oslovení „${inviteHits.join(", ")}"`)
+    // „před 1 dny" je stejný druh nedbalosti jako špatný rod: počítané dny se
+    // skloňují přes lib/plural.ts, ne lepením „dny" za číslo.
+    assert(invite.includes("countLabel") && invite.includes("DAYS"),
+        "počet dní čekání se musí skloňovat přes countLabel(…, DAYS)")
+})
+
+test("29.21 jeden e-mail = jeden hlas", () => {
+    // Follow-up nabídky se lámal třikrát v jedné zprávě: nadpis „Ozývám se
+    // zpátky" a „nechci ji nechat zapadnout" (já), „posílali jsme" (my) a podpis
+    // „Tým Chrlit" (někdo třetí). Konvence je jedna: MLUVÍ FIRMA, PODEPISUJE SE
+    // ČLOVĚK — u obchodních šablon jménem odesílatele, jinde patičkou týmu.
+    const singular = /\b(ozývám|omlouvám|nechci|nespěchám|píšu|přestanu|posílám|ptám se)\b/gi
+    const plural = /\b(jsme|bychom|posíláme|připravíme|přestaneme|nechceme|nespěcháme|ptáme se)\b/gi
+    const { EMAIL_TEMPLATES } = require("./lib/mail/registry")
+    for (const t of EMAIL_TEMPLATES) {
+        const text = t.render(t.sample, "kdo@example.com").text
+        const sg = [...new Set(text.match(singular) ?? [])]
+        const pl = [...new Set(text.match(plural) ?? [])]
+        assert(sg.length === 0 || pl.length === 0,
+            `${t.id}: míchá „já" (${sg.join(", ")}) a „my" (${pl.join(", ")}) v jedné zprávě`)
+    }
+    // Druhý dotek musí znít jako týž odesílatel jako první — tedy podpis jménem,
+    // ne obecná patička týmu.
+    const src = codeOnly("lib/mail/templates/offer.ts")
+    const followup = src.slice(src.indexOf("export const offerFollowup"), src.indexOf("export const coldOffer"))
+    assert(followup.includes("senderName"), "follow-up musí podepsat člověk, který posílal první oslovení")
+    assert(!followup.includes("Tým Chrlit"), "follow-up nesmí podepsat tým — první dotek podepsal člověk")
+})
+
 // ═══════════════════════════════════════════════════════════
 // 30. ADMINSKÁ BRÁNA
 // ═══════════════════════════════════════════════════════════
