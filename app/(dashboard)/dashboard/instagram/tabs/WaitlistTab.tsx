@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getWaitlist, getInviteCodes, createInviteCode, toggleInviteCodeActive } from '@/app/actions/waitlist-admin'
+import { getWaitlist, getInviteCodes, createInviteCode, toggleInviteCodeActive, markContacted } from '@/app/actions/waitlist-admin'
 
 export function WaitlistTab() {
     const [waitlist, setWaitlist] = useState<any[]>([])
@@ -40,6 +40,15 @@ export function WaitlistTab() {
             alert('Chyba při vytváření kódu: ' + res.error)
         }
         setCreating(false)
+    }
+
+    async function handleContacted(id: string) {
+        const res = await markContacted(id)
+        if (res.success) {
+            await loadData()
+        } else {
+            alert('Chyba při označení: ' + res.error)
+        }
     }
 
     async function handleToggleActive(id: string, currentStatus: boolean) {
@@ -127,20 +136,50 @@ export function WaitlistTab() {
                 {/* Waitlist list */}
                 <div className="bg-[#0a0a0a] border border-white/10 rounded-sm p-6">
                     <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-sm font-black uppercase tracking-widest text-white">Waitlist</h2>
-                        <span className="text-xs text-white/40 bg-white/5 px-2 py-1 rounded-sm">{waitlist.length} zájemců</span>
+                        <h2 className="text-sm font-black uppercase tracking-widest text-white">Zájemci z webu</h2>
+                        {/* Počítá se, kolik jich ČEKÁ, ne kolik jich kdy přišlo:
+                            landing slibuje hovor do jednoho pracovního dne, takže
+                            čísla, na která se má volat, jsou to jediné číslo,
+                            které tu má smysl vidět jako první. */}
+                        <span className="text-xs text-white/40 bg-white/5 px-2 py-1 rounded-sm">
+                            {waitlist.filter(w => !w.contacted_at).length} čeká · {waitlist.length} celkem
+                        </span>
                     </div>
                     <div className="space-y-2 max-h-[500px] overflow-y-auto override-scrollbar pr-2">
                         {waitlist.map(w => (
                             <div key={w.id} className="p-3 bg-white/5 rounded-sm border border-white/5">
-                                <div className="text-white text-sm font-medium">{w.email}</div>
-                                <div className="text-[10px] text-white/40 mt-1">
-                                    {new Date(w.created_at).toLocaleString('cs-CZ')}
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <div className="text-white text-sm font-medium truncate">{w.email}</div>
+                                        {(w.phone || w.website) && (
+                                            <div className="text-[11px] text-white/60 mt-1 flex flex-wrap gap-x-3">
+                                                {w.phone && <a href={`tel:${String(w.phone).replace(/\s/g, '')}`} className="hover:text-white">{w.phone}</a>}
+                                                {w.website && <a href={w.website} target="_blank" rel="noopener noreferrer" className="hover:text-white truncate">{String(w.website).replace(/^https?:\/\//, '').replace(/\/$/, '')}</a>}
+                                            </div>
+                                        )}
+                                        <div className="text-[10px] text-white/40 mt-1">
+                                            {new Date(w.created_at).toLocaleString('cs-CZ')}
+                                            {w.plan_interest && ` · zájem: ${w.plan_interest}${w.term_interest ? ` / ${w.term_interest} m.` : ''}`}
+                                            {w.invited_at && ' · pozvánka odeslána'}
+                                        </div>
+                                    </div>
+                                    {w.contacted_at ? (
+                                        <span className="text-[9px] uppercase tracking-widest font-bold text-emerald-400/70 shrink-0 mt-0.5">
+                                            ozváno
+                                        </span>
+                                    ) : (
+                                        <button
+                                            onClick={() => handleContacted(w.id)}
+                                            className="text-[9px] uppercase tracking-widest font-bold text-white/30 hover:text-white shrink-0 mt-0.5 whitespace-nowrap"
+                                        >
+                                            Ozval jsem se
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         ))}
                         {waitlist.length === 0 && (
-                            <div className="text-white/30 text-xs text-center py-4">Waitlist je zatím prázdný.</div>
+                            <div className="text-white/30 text-xs text-center py-4">Zatím se nikdo neozval.</div>
                         )}
                     </div>
                 </div>
