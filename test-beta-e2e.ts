@@ -2677,6 +2677,32 @@ test("23.14 varianty řeknou cenu dřív, než ji utratí", () => {
         "počet variant nesmí být v ceně jinde než ve volání — jedna konstanta")
 })
 
+test("23.17 opuštěná značka se deaktivuje, nemaže", () => {
+    // Zadání znělo „promazat neaktivní klienty" a mazání by tu bylo horší řešení
+    // téhož problému: `is_active = false` značku vyřadí ze VŠECH pravidelných
+    // běhů (kontrola zdraví, obchodní e-maily, doplňování nápadů, automatické
+    // publikování filtrují právě tenhle sloupec), zatímco DELETE kaskáduje přes
+    // všechny `ig_*` tabulky a vezme s sebou konfiguraci značky i naučené
+    // preference — tedy přesně to, co může člověka přivést zpátky.
+    const src = codeOnly("scripts/neaktivni-klienti.ts")
+    assert(!/\.delete\(\)/.test(src), "skript na opuštěné značky nesmí mazat, jen deaktivovat")
+    assert(/is_active: false/.test(src), "deaktivace se dělá příznakem is_active")
+
+    // Podmíněný claim, ne slepý update: kdyby značku mezitím někdo oživil,
+    // nesmí ji sweep přepsat zpátky.
+    assert(/\.eq\('is_active', true\)/.test(src),
+        "deaktivace musí zabírat podmíněně — oživenou značku nesmí přepsat")
+
+    // Tři podmínky naráz. Kdyby stačilo ticho, vypnul by se i platící zákazník,
+    // který měsíc negeneruje — a ten se z produktu neodhlašuje skriptem.
+    assert(/trialing/.test(src) && /'paid'/.test(src),
+        "živé předplatné ani historie platby nesmí skončit v deaktivaci")
+    // Zamčené atrapy měsíčního plánu nejsou známka života — vznikly jedním
+    // kliknutím (viz aserce 23.16).
+    assert(/neq\('status', 'plan_locked'\)/.test(src),
+        "aktivita se měří skutečným obsahem, ne zamčenými teasery")
+})
+
 test("23.16 zamčená atrapa není nález faktické brány", () => {
     // `plan_locked` je teaser měsíčního plánu: text je natvrdo napsaná atrapa
     // z PLACEHOLDER_HOOKS („5 tipů jak zvýšit engagement o 200 %"), uživatel ji
