@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { getIGPostsList, getProfilePreview } from "@/app/actions/admin-actions"
 import { getFeedPatternPreview } from "@/app/actions/content-plan-actions"
 import { VISUAL_MODE_LABELS, type VisualMode } from "@/lib/feed-pattern"
+import { CaptionEditor } from "./shared"
 import { Square } from "lucide-react"
 
 interface FeedPost {
@@ -244,9 +245,17 @@ export function FeedTab({ projectId }: { projectId: string }) {
                                     </span>
                                 )}
                             </div>
-                            <p className="text-white/80 text-sm leading-relaxed whitespace-pre-line line-clamp-6">
-                                {selectedPost.caption}
-                            </p>
+                            {/* Text jde přepsat i odsud — náhled profilu je místo, kde
+                                se člověk na příspěvek dívá očima čtenáře. */}
+                            <CaptionEditor
+                                projectId={projectId}
+                                post={selectedPost}
+                                onSaved={saved => {
+                                    const caption = saved.caption || ""
+                                    setSelectedPost({ ...selectedPost, caption })
+                                    setPosts(prev => prev.map(p => p.id === saved.id ? { ...p, caption } : p))
+                                }}
+                            />
                             <button
                                 onClick={() => setSelectedPost(null)}
                                 className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-sm text-white/50 text-[10px] font-bold uppercase tracking-widest hover:bg-white/10 hover:text-white transition-all"

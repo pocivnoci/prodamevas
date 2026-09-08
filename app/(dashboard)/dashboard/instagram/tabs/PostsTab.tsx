@@ -6,9 +6,9 @@ import { motion } from "framer-motion"
 import { getIGPostsList, updateIGPostStatus, getEditorialLog } from "@/app/actions/admin-actions"
 import { deleteIGPost, deleteIGPosts } from "@/app/actions/post-actions"
 import { revisePost, generateMultipleVariants, selectVariantWinner, getVariantGroup } from "@/app/actions/variant-actions"
-import { editPost, revertPostEdit, saveManualText, type EditScope } from "@/app/actions/post-edit-actions"
+import { editPost, revertPostEdit, type EditScope } from "@/app/actions/post-edit-actions"
 import { retryPublishAction } from "@/app/actions/calendar-actions"
-import { LoadingSpinner, StatusBadge, PillarBadge, CopyButton, MetricsInputForm } from "./shared"
+import { LoadingSpinner, StatusBadge, PillarBadge, CopyButton, MetricsInputForm, CaptionEditor } from "./shared"
 import { PublishHandoffModal } from "./PublishHandoffModal"
 import { getConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { useCopyToClipboard } from "./hooks"
@@ -492,8 +492,8 @@ function PostDetailModal({
     const [revisionResult, setRevisionResult] = useState<{ success: boolean; newPostId?: string; error?: string } | null>(null)
     const [editRegion, setEditRegion] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
     const [regionActive, setRegionActive] = useState(false)
-    // Bydlí tady, ne v editoru: zapíná ho i panel s označenými tvrzeními nad ním.
-    const [editMode, setEditMode] = useState<PostEditMode>("ai")
+    // Bydlí tady, ne v editoru: rozbaluje ho i panel s označenými tvrzeními nad ním.
+    const [captionEditing, setCaptionEditing] = useState(false)
     const [generatingVariants, setGeneratingVariants] = useState(false)
     const [variantIds, setVariantIds] = useState<string[]>([])
     const [showVariantComparison, setShowVariantComparison] = useState(false)
@@ -672,8 +672,10 @@ function PostDetailModal({
 
                         {/* Right: Texts */}
                         <div className="lg:w-1/2 p-4 sm:p-6 space-y-4 sm:space-y-5">
-                            {/* Caption */}
-                            <div>
+                            {/* Caption — klikni a piš. Ruční přepis bydlel dřív v panelu pod
+                                detailem za tlačítkem „Napsat sám"; kdo chtěl opravit překlep,
+                                musel nejdřív uhodnout, že úprava textu nežije u textu. */}
+                            <div id="post-caption">
                                 <div className="flex items-center justify-between mb-2">
                                     <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Caption</span>
                                     <CopyButton
@@ -681,15 +683,23 @@ function PostDetailModal({
                                         copied={copiedField === "caption"}
                                     />
                                 </div>
-                                <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-4 max-h-60 overflow-y-auto shadow-inner">
-                                    <p className="text-sm text-white/70 whitespace-pre-wrap leading-relaxed font-medium">
-                                        {post.caption || "—"}
-                                    </p>
-                                </div>
+                                <CaptionEditor
+                                    projectId={projectId}
+                                    post={post}
+                                    showHashtags
+                                    editing={captionEditing}
+                                    onEditingChange={setCaptionEditing}
+                                    onSaved={(p, fact) => {
+                                        setEditedPost(p)
+                                        if (fact?.flags) setFactFlags(fact.flags)
+                                        if (fact?.sources) setFactSources(fact.sources)
+                                        onRefresh()
+                                    }}
+                                />
                             </div>
 
                             {/* Hashtags */}
-                            {hashtags.length > 0 && (
+                            {hashtags.length > 0 && !captionEditing && (
                                 <div>
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Hashtags ({hashtags.length})</span>
@@ -746,8 +756,8 @@ function PostDetailModal({
                                         nepravdu opravuje další model, který může přidat vlastní. */}
                                     <button
                                         onClick={() => {
-                                            setEditMode("manual")
-                                            document.getElementById("post-edit-panel")?.scrollIntoView({ behavior: "smooth", block: "center" })
+                                            setCaptionEditing(true)
+                                            document.getElementById("post-caption")?.scrollIntoView({ behavior: "smooth", block: "center" })
                                         }}
                                         className="mb-3 text-[9px] font-bold uppercase tracking-widest text-white/40 hover:text-white underline underline-offset-4 decoration-white/20"
                                     >
@@ -884,12 +894,6 @@ function PostDetailModal({
                 <PostEditPanel
                     post={post}
                     projectId={projectId}
-                    mode={editMode}
-                    onModeChange={setEditMode}
-                    onFactRefresh={(flags, sources) => {
-                        setFactFlags(flags)
-                        if (sources) setFactSources(sources)
-                    }}
                     slideIndex={carouselIndex}
                     slideCount={imageUrls.length}
                     mediaKind={media.kind}
@@ -1199,13 +1203,6 @@ function RegionSelectableImage({
 // POST EDIT PANEL — targeted retouch (scope · region · keep)
 // ═══════════════════════════════════════════════════════════
 
-/**
- * Dvě cesty k textu příspěvku: `ai` = napsat pokyn a nechat model přepsat,
- * `manual` = přepsat ho rovnou vlastními slovy. Stav bydlí v detailu příspěvku,
- * protože ho přepíná i panel s označenými tvrzeními nad editorem.
- */
-export type PostEditMode = "ai" | "manual"
-
 function PostEditPanel({
     post,
     projectId,
@@ -1217,9 +1214,6 @@ function PostEditPanel({
     onClearRegion,
     onEdited,
     regenerate,
-    mode,
-    onModeChange,
-    onFactRefresh,
 }: {
     post: IGPost
     projectId: string
@@ -1230,13 +1224,6 @@ function PostEditPanel({
     onRegionModeChange: (active: boolean) => void
     onClearRegion: () => void
     onEdited: (post: IGPost) => void
-    /** „Napsat sám" umí zapnout i panel s označenými tvrzeními nad editorem. */
-    mode: PostEditMode
-    onModeChange: (mode: PostEditMode) => void
-    /** Ruční oprava textu přepočítá bránu — panely nad editorem se musí srovnat
-     *  hned, ne až po zavření modalu. Jinak uživatel smaže nepravdu a varování
-     *  na ni mu zůstane svítit před očima. */
-    onFactRefresh: (flags: string[], sources?: IGPost["fact_sources"]) => void
     regenerate: {
         feedbackText: string
         setFeedbackText: (v: string) => void
@@ -1250,33 +1237,14 @@ function PostEditPanel({
     const [scope, setScope] = useState<EditScope>(hasImage ? "image" : "text")
     const [instruction, setInstruction] = useState("")
     const [preserve, setPreserve] = useState("")
-    const manual = mode === "manual"
-    const savedCaption = post.caption || ""
-    const savedHashtags = (post.hashtags || []).join(" ")
-    const [draftCaption, setDraftCaption] = useState(savedCaption)
-    const [draftHashtags, setDraftHashtags] = useState(savedHashtags)
-    const [syncedWith, setSyncedWith] = useState({ caption: savedCaption, hashtags: savedHashtags })
     const [busy, setBusy] = useState(false)
     const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null)
     const [showRegenerate, setShowRegenerate] = useState(false)
     const [confirmRegenerate, setConfirmRegenerate] = useState(false)
 
-    const touchesImage = !manual && scope !== "text"
+    const touchesImage = scope !== "text"
     const historyDepth = post.edit_history?.length ?? 0
     const locked = post.status === "posted" || post.status === "posting"
-    const manualDirty = draftCaption !== savedCaption || draftHashtags !== savedHashtags
-
-    // Zdroj pravdy je řádek příspěvku, ne rozepsané pole: po uložení, po vrácení zpět
-    // i po AI retuši musí editor ukazovat text, který na postu SKUTEČNĚ je. Jinak by
-    // druhé uložení vrátilo zpátky znění, které mezitím někdo přepsal.
-    //
-    // Srovnává se při renderu, ne v efektu: efekt by pole nejdřív vykreslil se starým
-    // textem a hned přepsal, a psaní by v tom okamžiku přišlo o znak.
-    if (syncedWith.caption !== savedCaption || syncedWith.hashtags !== savedHashtags) {
-        setSyncedWith({ caption: savedCaption, hashtags: savedHashtags })
-        setDraftCaption(savedCaption)
-        setDraftHashtags(savedHashtags)
-    }
 
     // Region marking only makes sense while an image edit is on the table
     useEffect(() => {
@@ -1304,32 +1272,6 @@ function PostEditPanel({
             trackEvent("post_edited", { scope, region: !!region })
         } else {
             setResult({ ok: false, message: res.error || "Úprava selhala." })
-        }
-    }
-
-    const runManualSave = async () => {
-        if (!draftCaption.trim() || busy) return
-        setBusy(true)
-        setResult(null)
-        const res = await saveManualText(projectId, post.id, {
-            caption: draftCaption,
-            // Uživatel je píše jak mu přijde pod ruku — „#sleva, jaro". Rozdělení tady,
-            // pořádný úklid (mřížky, duplicity) dělá server.
-            hashtags: draftHashtags.split(/[\s,]+/).filter(Boolean),
-        })
-        setBusy(false)
-        if (res.success && res.post) {
-            onEdited(res.post)
-            if (res.factFlags) onFactRefresh(res.factFlags, res.factSources)
-            setResult({
-                ok: true,
-                message: res.factFlags?.length
-                    ? `Uloženo — ${res.factFlags.length === 1 ? "jedno tvrzení pořád nemá" : `${res.factFlags.length} tvrzení pořád nemá`} oporu ve faktech.`
-                    : "Text uložen.",
-            })
-            trackEvent("post_text_edited_manually", {})
-        } else {
-            setResult({ ok: false, message: res.error || "Uložení selhalo." })
         }
     }
 
@@ -1362,11 +1304,11 @@ function PostEditPanel({
                     return (
                         <button
                             key={opt.id}
-                            onClick={() => { if (disabled) return; onModeChange("ai"); setScope(opt.id) }}
+                            onClick={() => { if (disabled) return; setScope(opt.id) }}
                             disabled={disabled}
                             title={disabled ? (isReel ? "Video u reelu nejde upravit — použij Vygenerovat znovu" : "Příspěvek nemá obrázek") : undefined}
                             className={`px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded-sm border transition-all ${
-                                !manual && scope === opt.id
+                                scope === opt.id
                                     ? "bg-white/10 text-white border-white/20"
                                     : "bg-transparent text-white/40 border-white/10 hover:text-white/70"
                             } disabled:opacity-25 disabled:cursor-not-allowed`}
@@ -1375,20 +1317,6 @@ function PostEditPanel({
                         </button>
                     )
                 })}
-                {/* Druhá cesta k textu — napsat ho rovnou. Pokyn pro model je oklika:
-                    když engine napíše nepravdu, další model může vymyslet další tvrzení. */}
-                <span className="w-px h-4 bg-white/10 mx-0.5" aria-hidden />
-                <button
-                    onClick={() => onModeChange(manual ? "ai" : "manual")}
-                    title="Přepsat text vlastními slovy — bez AI, zdarma"
-                    className={`px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded-sm border transition-all ${
-                        manual
-                            ? "bg-white/10 text-white border-white/20"
-                            : "bg-transparent text-white/40 border-white/10 hover:text-white/70"
-                    }`}
-                >
-                    Napsat sám
-                </button>
                 {touchesImage && (
                     <span className="text-[9px] uppercase tracking-widest font-bold text-amber-400/70 ml-1">1 kredit</span>
                 )}
@@ -1414,42 +1342,8 @@ function PostEditPanel({
                 )}
             </div>
 
-            {/* Inputs */}
-            {manual ? (
-                <div className="space-y-2">
-                    <textarea
-                        value={draftCaption}
-                        onChange={e => setDraftCaption(e.target.value)}
-                        placeholder="Text příspěvku — ulož se přesně tak, jak ho napíšeš"
-                        rows={8}
-                        className="w-full px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-xs resize-y focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20 leading-relaxed"
-                    />
-                    <div className="flex gap-2 items-start">
-                        <input
-                            value={draftHashtags}
-                            onChange={e => setDraftHashtags(e.target.value)}
-                            placeholder="Hashtagy oddělené mezerou (nepovinné)"
-                            className="flex-1 px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
-                        />
-                        <button
-                            onClick={runManualSave}
-                            disabled={busy || !draftCaption.trim() || !manualDirty}
-                            title={!manualDirty ? "Text se od uloženého neliší" : undefined}
-                            className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-white/5 text-white/60 hover:bg-white/10 hover:text-white transition-all border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
-                        >
-                            {busy ? (
-                                <span className="flex items-center gap-1.5">
-                                    <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" /></svg>
-                                    Ukládám...
-                                </span>
-                            ) : "Uložit text"}
-                        </button>
-                    </div>
-                    <p className="text-[9px] text-white/25 uppercase tracking-widest font-bold">
-                        Zdarma · beze změny obrázku · jde vrátit zpět
-                    </p>
-                </div>
-            ) : (
+            {/* Pokyn pro model. Přepsat text vlastními slovy jde nahoře u captionu —
+                sem to nepatří: kdo chce svoji větu, nemá ji diktovat přes prostředníka. */}
             <div className="space-y-2">
                 <textarea
                     value={instruction}
@@ -1479,7 +1373,6 @@ function PostEditPanel({
                     </button>
                 </div>
             </div>
-            )}
 
             {result && (
                 <p className={`text-[10px] ${result.ok ? "text-emerald-400" : "text-red-400"}`}>
