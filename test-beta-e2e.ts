@@ -2660,6 +2660,23 @@ test("23.11 politika o penězích žije na serveru", () => {
     assert(/deriveBillingState\(sub\)/.test(api), "stav fakturace odvozuje server")
 })
 
+test("23.14 varianty řeknou cenu dřív, než ji utratí", () => {
+    // Tlačítko „A/B Test" spustí dvě plné generování — u karuselu šest kreditů —
+    // a do 9/2026 o tom mlčelo. Všude jinde v appce cena u rozhodnutí stojí
+    // („Odhad: ~X kreditů", „5 kreditů"); tohle bylo jediné placené tlačítko,
+    // které se zákazníka neptalo, jestli o tu částku stojí.
+    const posts = codeOnly("app/(dashboard)/dashboard/instagram/tabs/PostsTab.tsx")
+    assert(posts.includes("MEDIA_CREDITS"),
+        "cena varianty se musí počítat ze sazebníku médií, ne psát číslem")
+    const btn = posts.slice(posts.indexOf("generateMultipleVariants(post.id"))
+    assert(/variantCost/.test(btn.slice(0, 2000)),
+        "tlačítko na varianty musí vypsat, kolik to stojí")
+    // Počet variant je jedno číslo: kdyby se v ceně a ve volání rozešel,
+    // tlačítko by slíbilo jinou částku, než jakou strhne.
+    assert(!/generateMultipleVariants\(post\.id, projectId, \d/.test(posts),
+        "počet variant nesmí být v ceně jinde než ve volání — jedna konstanta")
+})
+
 test("23.13 fronta schválení nesmí růst sama", () => {
     // 8. 9. 2026 v ní čekalo 27 akcí, nejstarší 46 dní — a rostla ze tří příčin
     // najednou. Každá má tady vlastní aserci, protože oprava jedné bez druhých

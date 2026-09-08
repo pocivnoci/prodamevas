@@ -17,6 +17,8 @@ import { trackEvent } from "@/lib/analytics"
 import { parsePostMedia } from "@/lib/media-urls"
 import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
 import { formatCzk, LOWEST_MONTHLY_HALERU } from "@/lib/pricing"
+import { isMediumType, MEDIA_CREDITS } from "@/lib/credits"
+import { countLabel, CREDITS } from "@/lib/plural"
 import { Brain, ChartColumn, Check, CircleCheck, CircleX, ClipboardList, Download, Image, Lock, Package, RefreshCw, Send, Shuffle, Smartphone, Trash2, TriangleAlert, Trophy, X, type LucideIcon } from "lucide-react"
 
 // ═══════════════════════════════════════════════════════════
@@ -523,6 +525,16 @@ function PostDetailModal({
 
     const media = parsePostMedia(post.image_url, post.media_type)
     const imageUrls = media.urls
+
+    // Kolik stojí srovnání variant. Tlačítko do 9/2026 utratilo dva plné
+    // příspěvky (u karuselu šest kreditů) a nikde to neřeklo — jinde v appce
+    // přitom cena u rozhodnutí stojí vždycky („Odhad: ~X kreditů“, „5 kreditů“).
+    //
+    // Sazba se bere z média originálu, protože varianta jede ve stejném formátu
+    // (`variant-actions.ts`). Když engine formát srazí vypínačem, strhne se
+    // MÍŇ než je tady — u ceny je nadhodnotit se jediný bezpečný směr.
+    const VARIANT_COUNT = 2
+    const variantCost = VARIANT_COUNT * MEDIA_CREDITS[isMediumType(post.media_type) ? post.media_type : "image"]
     // Multi-frame stories step through exactly like a carousel does — same arrows, same dots.
     const isCarousel = media.slideCount > 1
 
@@ -1028,7 +1040,7 @@ function PostDetailModal({
                             setGeneratingVariants(true)
                             setVariantError(null)
                             setVariantIds([])
-                            const result = await generateMultipleVariants(post.id, projectId, 2)
+                            const result = await generateMultipleVariants(post.id, projectId, VARIANT_COUNT)
                             if (result.success && result.variantIds.length > 0) {
                                 setVariantIds(result.variantIds)
                                 setShowVariantComparison(true)
@@ -1046,7 +1058,11 @@ function PostDetailModal({
                                     : "bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 border-violet-500/20"
                         }`}
                     >
-                        {generatingVariants ? "⏳ Generuji 2 varianty (~60s)..." : variantIds.length > 0 ? "Zobrazit varianty" : "A/B Test"}
+                        {generatingVariants
+                            ? `⏳ Generuji ${VARIANT_COUNT} varianty (~60s)...`
+                            : variantIds.length > 0
+                                ? "Zobrazit varianty"
+                                : `A/B Test · ${countLabel(variantCost, CREDITS)}`}
                     </button>
                     {variantIds.length > 0 && !generatingVariants && (
                         <button
