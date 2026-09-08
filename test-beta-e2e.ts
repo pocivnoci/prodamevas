@@ -2677,6 +2677,25 @@ test("23.14 varianty řeknou cenu dřív, než ji utratí", () => {
         "počet variant nesmí být v ceně jinde než ve volání — jedna konstanta")
 })
 
+test("23.16 zamčená atrapa není nález faktické brány", () => {
+    // `plan_locked` je teaser měsíčního plánu: text je natvrdo napsaná atrapa
+    // z PLACEHOLDER_HOOKS („5 tipů jak zvýšit engagement o 200 %"), uživatel ji
+    // vidí jen přes 3px rozmazání a nikdy se nepublikuje. Backtest brány ji
+    // 6. 9. 2026 přesto proauditoval a nálezy zapsal jako označená tvrzení
+    // klienta — HYDROIZOLACE MIVA pak vypadala na 25 příspěvků s problémem
+    // místo 15 a vznikl z toho úkol pro člověka.
+    const audit = codeOnly("scripts/audit-fact-gate.ts")
+    assert(/neq\(['"]status['"], ['"]plan_locked['"]\)/.test(audit),
+        "backtest nesmí soudit zamčené atrapy — je to placení soudce za vlastní lorem ipsum")
+
+    // Atrapy musí zůstat rozeznatelné: kdyby se text teaseru začal brát z configu
+    // nebo od modelu, přestane platit, že na něm nezáleží — a tenhle filtr by
+    // z ochrany udělal díru.
+    const gen = codeOnly("app/actions/ig-generate-action.ts")
+    assert(/PLACEHOLDER_HOOKS/.test(gen) && /status: "plan_locked"/.test(gen),
+        "zamčený teaser se musí plnit z natvrdo psaných atrap, ne z generovaného textu")
+})
+
 test("23.15 výloha se nikde nepočítá jako zákazník", () => {
     // Deset značek v portfoliu vypadá v databázi jako tenanti — mají klienta,
     // příspěvky i vlastníka. Vlastníkem jsme ale my, takže všude, kde se počítají
