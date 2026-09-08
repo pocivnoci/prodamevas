@@ -22,6 +22,7 @@
  */
 
 import supabaseAdmin from "@/supabase/admin"
+import { NOT_SHOWCASE } from "@/lib/audience"
 import { judgeText } from "@/instagram/judge"
 import { buildClientHealth, describeRisks } from "@/lib/agents/client-health"
 import { buildHealthCheck } from "@/lib/agents/health-check"
@@ -64,7 +65,7 @@ export async function proposeTasks(): Promise<ProposeSummary> {
         // jinými slovy. Klíč chrání před duplicitou v databázi, tohle před tím,
         // aby ji vůbec vymyslel.
         supabaseAdmin.from("tasks").select("title, status").neq("status", "dropped").limit(60),
-        supabaseAdmin.from("clients").select("id, slug").eq("is_active", true),
+        supabaseAdmin.from("clients").select("id, slug").eq("is_active", true).or(NOT_SHOWCASE),
     ])
 
     const raw = await askModel(signals, team || [], (openTasks || []).map(t => t.title))
@@ -157,7 +158,13 @@ async function collectSignals(): Promise<string[]> {
     if (flagged?.length) {
         const perClient = new Map<string, number>()
         for (const f of flagged) perClient.set(f.client_id, (perClient.get(f.client_id) ?? 0) + 1)
-        const { data: names } = await supabaseAdmin.from("clients").select("id, slug").in("id", [...perClient.keys()])
+        // Výloha sem nepatří: označené tvrzení u demo značky je vyřešené tím, že
+        // se takový příspěvek do portfolia nepustí (`scripts/export-portfolio.ts`).
+        // Bez tohohle filtru vznikl 7. 9. 2026 úkol „projít označená tvrzení
+        // u klientů" se seznamem, kde bylo všech pět jmen z výlohy — 155 ze 180
+        // označených příspěvků nemá žádného zákazníka, který by je četl.
+        const { data: names } = await supabaseAdmin.from("clients")
+            .select("id, slug").in("id", [...perClient.keys()]).or(NOT_SHOWCASE)
         for (const c of names || []) out.push(`FAKTA: klient ${c.slug} má ${perClient.get(c.id)} příspěvků s označeným tvrzením (14 dní)`)
     }
 

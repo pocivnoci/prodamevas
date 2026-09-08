@@ -5,6 +5,7 @@
  */
 
 import supabaseAdmin from "@/supabase/admin"
+import { NOT_SHOWCASE } from "@/lib/audience"
 import { footnote, heading, list } from "@/lib/mail/blocks"
 import { renderEmail } from "@/lib/mail/layout"
 
@@ -59,9 +60,15 @@ export async function buildWeeklyReport(): Promise<WeeklyReport> {
         })(),
     ])
 
+    // Značky z výlohy se nepočítají. Vlastníme je my, takže „aktivních klientů"
+    // hlásilo 26 tam, kde jich bylo 14 — číslo, podle kterého se rozhoduje
+    // o firmě, nesmí být skoro dvojnásobné.
     const activeClients = await (async () => {
         try {
-            const { count } = await supabaseAdmin.from("clients").select("id", { count: "exact", head: true }).eq("is_active", true)
+            const { count } = await supabaseAdmin.from("clients")
+                .select("id", { count: "exact", head: true })
+                .eq("is_active", true)
+                .or(NOT_SHOWCASE)
             return count || 0
         } catch { return -1 }
     })()
