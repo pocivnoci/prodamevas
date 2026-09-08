@@ -54,13 +54,25 @@ async function main() {
         console.log(`   ${row.company}${meeting}`)
     }
 
-    if (DRY || todo.length === 0) return
+    if (DRY) return
+
+    // I když se nic nezavádí: čísla se mohla rozejít při dřívějším běhu.
+    if (todo.length === 0) { await srovnatCisla(); return }
 
     // Vloženo v pořadí tabulky, aby čísla vyšla stejně jako tam.
     for (const row of todo) {
         const { data, error } = await supabaseAdmin
             .from("leads")
-            .insert({ ...row, source: "manual", source_ref: "evidence_klientu.xlsx", client_type: "firma" })
+            .insert({
+                ...row,
+                source: "manual",
+                // Musí být jedinečné na řádek: `leads_source_ref_uniq` je UNIQUE
+                // (source, source_ref). Se společnou hodnotou „evidence_klientu.xlsx"
+                // projde první řádek a zbytek narazí — a je to tak správně, `source_ref`
+                // je podle schématu „id profilu / řádek importu", ne název souboru.
+                source_ref: `evidence_klientu.xlsx#${row.company}`,
+                client_type: "firma",
+            })
             .select("ref, company")
             .single()
 
@@ -71,7 +83,39 @@ async function main() {
         console.log(`   ✅ ${data.ref}  ${data.company}`)
     }
 
+    await srovnatCisla()
     console.log(`\n✅ Hotovo — ${todo.length} kontaktů v evidenci. Tabulku v Drive už nikdo nepotřebuje.`)
+}
+
+/**
+ * Srovná čísla s tabulkou.
+ *
+ * Sekvence se posouvá i po neúspěšném INSERTu — Postgres ji zpátky nevrací, a je
+ * to tak správně, jinak by dva souběžné zápisy dostaly totéž číslo. Jenže tady
+ * kvůli tomu jedno zamítnutí posune celý zbytek evidence o jedničku a lidé se na
+ * lead odkazují právě tím číslem („co je s K0004").
+ *
+ * Přejmenovává se odshora dolů, ať je cílové číslo v každém kroku volné, a jen
+ * když se liší — druhý běh proto neudělá nic.
+ */
+async function srovnatCisla() {
+    const { data: rows } = await supabaseAdmin
+        .from("leads").select("id, ref, company").in("company", ROWS.map(r => r.company))
+
+    const byCompany = new Map((rows ?? []).map(r => [(r.company ?? "").toLowerCase(), r]))
+
+    for (const [i, row] of ROWS.entries()) {
+        const want = `K${String(i + 1).padStart(4, "0")}`
+        const have = byCompany.get(row.company.toLowerCase())
+        if (!have || have.ref === want) continue
+
+        const { error } = await supabaseAdmin.from("leads").update({ ref: want }).eq("id", have.id)
+        if (error) {
+            console.warn(`   ⚠️  ${row.company}: ${have.ref} → ${want} se nepovedlo (${error.message})`)
+            continue
+        }
+        console.log(`   ↻ ${row.company}: ${have.ref} → ${want}`)
+    }
 }
 
 main().catch(err => { console.error(err); process.exit(1) })
