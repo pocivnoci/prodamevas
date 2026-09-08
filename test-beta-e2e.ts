@@ -4545,6 +4545,69 @@ test("37.10 doklady z plánu se do postu nesou, hledání se neplatí dvakrát",
 })
 
 // ═══════════════════════════════════════════════════════════
+// 38. EVIDENCE KLIENTŮ — OBCHOD PATŘÍ DO SYSTÉMU, NE DO DRIVE
+// ═══════════════════════════════════════════════════════════
+
+test("38.1 lead založený rukou se nesmí ocitnout ve frontě studeného oslovení", () => {
+    // Tohle je celý důvod, proč evidence smí být v témže `leads` jako fronta agenta.
+    // Obchodník si vede firmy, se kterými UŽ mluví — dvěma z prvních pěti byla na
+    // druhý den domluvená schůzka. Automatický mail „všiml jsem si, že váš profil
+    // spí" by je zastihl v nejhorší možný okamžik.
+    const act = codeOnly("app/actions/lead-actions.ts")
+    assert(/source: "manual"/.test(act), "ruční lead musí být poznat podle původu")
+    assert(!/enqueueTask/.test(act) && !/lead_qualify/.test(act),
+        "zakládání leadu z obrazovky NESMÍ zařadit lead_qualify — fronta agenta je studené oslovení")
+
+    // `qualified` je vstupenka do té fronty (`leads_queue_idx`). Člověk ji nemá jak chtít.
+    assert(/HUMAN_STATUSES/.test(act), "stavy pro člověka musí být vyjmenované, ne libovolné")
+    assert(!/"qualified"[^:]*\]/.test(act.slice(act.indexOf("HUMAN_STATUSES"), act.indexOf("] as const"))),
+        "`qualified` nesmí být mezi lidskými stavy")
+    assert(/HUMAN_STATUSES as readonly string\[\]\)\.includes\(status\)/.test(act),
+        "setLeadStatus musí stav ověřit proti seznamu, ne ho jen předat databázi")
+
+    const script = fileContent("scripts/import-evidence-klientu.ts")
+    assert(!/enqueueTask/.test(script), "převod tabulky nesmí zařadit oslovení")
+})
+
+test("38.2 obchodní data mají obrazovku, ne jen tabulku", () => {
+    // Model `leads` existoval od 11. 8. 2026, ale v dashboardu na něj nevedla ani
+    // jedna obrazovka — jediné místo v `app/`, kde se četl, byla veřejná ukázka.
+    // Proto obchod žil v Google tabulce v soukromém Drive.
+    assert(fileExists("app/(dashboard)/dashboard/instagram/tabs/LeadsTab.tsx"), "obrazovka evidence musí existovat")
+    const nav = codeOnly("app/(dashboard)/nav.ts")
+    assert(/id: "leads"/.test(nav), "sekce patří do registru navigace, ne natvrdo do JSX")
+    const ctx = codeOnly("app/(dashboard)/StudioContext.tsx")
+    assert(/\| "leads"/.test(ctx), "sekce musí být v unionu StudioSection, jinak neprojde validace hashe")
+    const page = fileContent("app/(dashboard)/dashboard/instagram/page.tsx")
+    assert(/activeSection === "leads" && isAdmin/.test(page), "evidence je adminská sekce")
+})
+
+test("38.3 každá akce evidence má bránu a whitelist sloupců", () => {
+    const act = codeOnly("app/actions/lead-actions.ts")
+    const exported = act.match(/export async function \w+/g) ?? []
+    assert(exported.length >= 6, "akce evidence chybí")
+    // Telefonní čísla firem nejsou nic, u čeho by se dala brána zapomenout.
+    const guards = act.match(/await requireSuperAdmin\(\)/g) ?? []
+    assert(guards.length >= exported.length, "KAŽDÁ akce evidence potřebuje requireSuperAdmin()")
+    // Skóre ani `source` do formuláře nepatří, i kdyby je tam někdo poslal.
+    assert(/const EDITABLE = \[/.test(act), "úprava musí jet přes whitelist sloupců")
+    for (const forbidden of ["score", "source", "preview_token"]) {
+        const list = act.slice(act.indexOf("const EDITABLE = ["), act.indexOf("] as const", act.indexOf("const EDITABLE = [")))
+        assert(!new RegExp(`"${forbidden}"`).test(list), `${forbidden} nesmí jít měnit z formuláře`)
+    }
+})
+
+test("38.4 číslo leadu přiděluje databáze, ne ruka", () => {
+    // V tabulce se K0004 i K0005 objevily dvakrát hned první den. Sekvence tuhle
+    // chybu nezná — a unikátní index ji nepustí ani oklikou.
+    const mig = fileContent("supabase/migrations/20260908_leads_crm.sql")
+    assert(/CREATE SEQUENCE IF NOT EXISTS leads_ref_seq/.test(mig), "sekvence pro číslo leadu chybí")
+    assert(/leads_ref_uniq/.test(mig), "číslo leadu musí být unikátní")
+    const script = fileContent("scripts/import-evidence-klientu.ts")
+    assert(!/ref: "K000/.test(script), "převod nesmí čísla psát ručně — rozešel by se se sekvencí")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 

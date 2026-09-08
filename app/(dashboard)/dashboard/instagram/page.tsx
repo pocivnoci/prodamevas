@@ -27,6 +27,7 @@ import { ApprovalsTab } from "./tabs/ApprovalsTab"
 import { CompanyTab } from "./tabs/CompanyTab"
 import { MailingTab } from "./tabs/MailingTab"
 import { TasksTab } from "./tabs/TasksTab"
+import { LeadsTab } from "./tabs/LeadsTab"
 import { EmailsTab } from "./tabs/EmailsTab"
 import { TutorialOverlay, useTutorialState } from "./tabs/TutorialOverlay"
 
@@ -120,6 +121,7 @@ export default function InstagramPage() {
                     {activeSection === "company" && isAdmin && <CompanyTab />}
                     {activeSection === "mailing" && isAdmin && <MailingTab />}
                     {activeSection === "tasks" && isAdmin && <TasksTab />}
+                    {activeSection === "leads" && isAdmin && <LeadsTab />}
                     {activeSection === "emails" && isAdmin && <EmailsTab />}
                 </motion.div>
             </AnimatePresence>
