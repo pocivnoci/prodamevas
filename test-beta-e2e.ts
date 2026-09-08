@@ -2677,6 +2677,36 @@ test("23.14 varianty řeknou cenu dřív, než ji utratí", () => {
         "počet variant nesmí být v ceně jinde než ve volání — jedna konstanta")
 })
 
+test("23.15 výloha se nikde nepočítá jako zákazník", () => {
+    // Deset značek v portfoliu vypadá v databázi jako tenanti — mají klienta,
+    // příspěvky i vlastníka. Vlastníkem jsme ale my, takže všude, kde se počítají
+    // ZÁKAZNÍCI nebo se z nich dělá práce pro člověka, musí vypadnout. Než se to
+    // začalo hlídat, hlásil týdenní report 26 klientů místo 14 a navrhovač
+    // vyrobil úkol „projít označená tvrzení u klientů" se seznamem, kde bylo
+    // všech pět jmen z výlohy — 155 ze 180 označených příspěvků nemá zákazníka,
+    // který by je četl.
+    const surfaces: Array<[string, string]> = [
+        ["lib/agents/client-health.ts", "zákazníci v riziku (brief i tab Firma)"],
+        ["lib/agents/lifecycle.ts", "návrhy obchodních e-mailů"],
+        ["lib/agents/weekly-report.ts", "počet aktivních klientů v týdenním souhrnu"],
+        ["lib/tasks/propose.ts", "signály pro navrhovač úkolů"],
+        ["lib/agents/idea-replenish.ts", "doplňování zásobníku nápadů (stojí tokeny)"],
+    ]
+    for (const [file, what] of surfaces) {
+        assert(codeOnly(file).includes("NOT_SHOWCASE"), `${file}: ${what} musí vynechat značky z výlohy`)
+    }
+
+    // Filtr MUSÍ být `or(is.null, eq.false)`, ne `neq.true`: u běžného klienta
+    // klíč v configu prostě není a `NULL <> true` je v SQL zase NULL, takže
+    // `neq` vyhodí i všechny skutečné zákazníky. Ověřeno na produkčních datech —
+    // `neq` vrátilo 1 klienta z 26 místo 14.
+    const audience = codeOnly("lib/audience.ts")
+    assert(/isPortfolio\.is\.null/.test(audience) && /isPortfolio\.eq\.false/.test(audience),
+        "NOT_SHOWCASE musí počítat s tím, že klíč v configu chybí")
+    assert(!/isPortfolio\.neq/.test(audience),
+        "neq.true by odfiltrovalo skutečné zákazníky — past na NULL v jsonb")
+})
+
 test("23.13 fronta schválení nesmí růst sama", () => {
     // 8. 9. 2026 v ní čekalo 27 akcí, nejstarší 46 dní — a rostla ze tří příčin
     // najednou. Každá má tady vlastní aserci, protože oprava jedné bez druhých
