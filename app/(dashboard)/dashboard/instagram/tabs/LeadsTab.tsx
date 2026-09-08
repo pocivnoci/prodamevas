@@ -4,10 +4,13 @@ import { useState, useEffect, useCallback } from "react"
 import { Building2, CalendarClock, Phone, Plus, RefreshCw, Trash2, X } from "lucide-react"
 import {
     listLeads, listLeadEvents, createLead, updateLead, setLeadStatus, addLeadContact, deleteLead,
+} from "@/app/actions/lead-actions"
+// Číselníky ze slovníku, ne ze souboru akcí — ten smí exportovat jen async funkce.
+import {
     HUMAN_STATUSES, STATUS_LABELS, PRIORITY_LABELS, CLIENT_TYPE_LABELS,
     CONTACT_KINDS, CONTACT_KIND_LABELS,
     type Lead, type LeadEvent, type ContactKind, type LeadPatch,
-} from "@/app/actions/lead-actions"
+} from "@/lib/leads"
 
 /**
  * Evidence klientů.
