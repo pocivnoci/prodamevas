@@ -16,6 +16,7 @@
  */
 
 import supabaseAdmin from "@/supabase/admin"
+import { NOT_SHOWCASE } from "@/lib/audience"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -61,10 +62,15 @@ export function describeRisks(risks: ClientRisk[]): string {
 }
 
 export async function buildClientHealth(now: Date = new Date()): Promise<ClientHealthRow[]> {
+    // Značky z výlohy sem nepatří. Vlastníme je my, takže „nic negeneruje" u nich
+    // není riziko odchodu, ale popis stavu, ve kterém mají být — a v briefu
+    // i v tabu Firma vytlačovaly skutečné zákazníky. Přes ně se to dostávalo
+    // až do fronty schválení jako pobídka zakladateli, ať aktivuje Rohlík.
     const { data: clients } = await supabaseAdmin
         .from("clients")
         .select("id, name, slug")
         .eq("is_active", true)
+        .or(NOT_SHOWCASE)
         .order("created_at", { ascending: true })
     if (!clients || clients.length === 0) return []
 

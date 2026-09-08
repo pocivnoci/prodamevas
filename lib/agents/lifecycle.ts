@@ -10,11 +10,24 @@
  * Dedupe is the audit trail itself: a proposed/approved/rejected agent_actions
  * row for the same kind + person inside the window blocks a re-proposal, so a
  * daily scan can never spam and a founder's rejection is respected.
+ *
+ * CO SE NENAVRHUJE VŮBEC (a proč to tu je napsané)
+ * ------------------------------------------------
+ * 8. 9. 2026 čekalo ve frontě 27 akcí, nejstarší 46 dní — a jedenáct z nich
+ * nemělo nikdy vzniknout: devět mířilo na značky z výlohy (Rohlík, Portu,
+ * Ambiente…), kde je „vlastníkem" zakladatel, takže měl schvalovat pobídku
+ * sám sobě, a dvě na testovací adresu. Fronta, ve které je polovina šumu,
+ * se přestane číst celá — a pak v ní uvázne i to, co odbavit šlo.
+ *
+ * Filtry proto stojí na `lib/audience.ts` a platí pro KAŽDÝ návrh, ne pro
+ * jednotlivé hledače: nový hledač se nemůže omylem narodit bez nich.
  */
 
 import supabaseAdmin from "@/supabase/admin"
 import { requestAction } from "@/lib/agent-safety"
+import { isInternalEmail, NOT_SHOWCASE } from "@/lib/audience"
 import { getOwnerEmail, siteUrl, studioDeepLink } from "@/lib/notifications"
+import { isSuperAdminEmail } from "@/lib/super-admins"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const MAX_PROPOSALS_PER_RUN = 15
@@ -50,17 +63,44 @@ interface Candidate {
     vars?: Record<string, unknown>
 }
 
-/** Any prior send_lifecycle_email action for this kind+person inside the window? */
+/**
+ * Any prior send_lifecycle_email action for this kind+person inside the window?
+ *
+ * DVĚ OTÁZKY, NE JEDNA. Okno platí pro **rozhodnuté** akce: schválenou pobídku
+ * neopakuj měsíc, zamítnutou respektuj. Návrh, který pořád leží ve frontě,
+ * ale blokuje **bez ohledu na stáří** — a přesně tohle tu chybělo.
+ *
+ * Bez toho fronta rostla sama: waitlistová připomínka na tutéž adresu se po
+ * třiceti dnech navrhla znovu, protože ta první vypadla z okna. Zakladatel tak
+ * dostával druhou kopii otázky, na kterou ještě neodpověděl — a 8. 9. 2026
+ * v tom stavu čekalo pět lidí ve dvou kopiích. Opakovaný návrh nikomu nepomůže
+ * se rozhodnout; jen prodlouží seznam, který se pak nečte celý.
+ */
 async function recentlyHandled(kind: LifecycleKind, target: { clientId?: string | null; email: string }): Promise<boolean> {
+    // Adresa nebo tenant — podle toho, co u téhle příležitosti vůbec existuje.
+    const scopeCol = target.clientId ? "client_id" : "payload->>email"
+    const scopeVal = target.clientId ?? target.email.toLowerCase()
+
     try {
+        // 1) Nerozhodnutý návrh — blokuje vždycky, i kdyby byl z loňska.
+        const { count: pending } = await supabaseAdmin
+            .from("agent_actions")
+            .select("id", { count: "exact", head: true })
+            .eq("task_type", "send_lifecycle_email")
+            .eq("payload->>kind", kind)
+            .eq("status", "proposed")
+            .eq(scopeCol, scopeVal)
+        if ((pending || 0) > 0) return true
+
+        // 2) Rozhodnuté akce — platí okno podle druhu (null = jednou za život).
         let q = supabaseAdmin
             .from("agent_actions")
             .select("id", { count: "exact", head: true })
             .eq("task_type", "send_lifecycle_email")
             .eq("payload->>kind", kind)
+            .eq(scopeCol, scopeVal)
         const days = DEDUPE_DAYS[kind]
         if (days) q = q.gte("created_at", new Date(Date.now() - days * DAY_MS).toISOString())
-        q = target.clientId ? q.eq("client_id", target.clientId) : q.eq("payload->>email", target.email.toLowerCase())
         const { count } = await q
         return (count || 0) > 0
     } catch {
@@ -76,6 +116,7 @@ async function findActivationCandidates(): Promise<Candidate[]> {
         .from("clients")
         .select("id, name, slug, created_at")
         .eq("is_active", true)
+        .or(NOT_SHOWCASE) // seed portfolia zakládá deset značek naráz — bez tohohle deset pobídek
         .gte("created_at", new Date(Date.now() - 14 * DAY_MS).toISOString())
         .lte("created_at", new Date(Date.now() - 2 * DAY_MS).toISOString())
     const out: Candidate[] = []
@@ -197,6 +238,14 @@ export async function scanLifecycle(): Promise<LifecycleProposal[]> {
     for (const cand of groups.flat()) {
         if (proposals.length >= MAX_PROPOSALS_PER_RUN) break
         if (cand.kind === "waitlist_drip" && waitlistCount >= MAX_WAITLIST_PER_RUN) continue
+        // Naše vlastní adresa není zákazník. Testovací účet nasbíral návrh
+        // pokaždé, když vypadl z okna dedupe — a schválit ho nešlo ani omylem.
+        //
+        // Super-admin je zvláštní případ: `thomas.pocar@gmail.com` je normální
+        // gmail, ale patří zakladateli, který si pod ním drží zkušební značky.
+        // Návrh „pošli mu winback" pak znamená, že má schválit e-mail sám sobě —
+        // tři takové ve frontě 8. 9. 2026 byly.
+        if (isInternalEmail(cand.email) || isSuperAdminEmail(cand.email)) continue
         if (await recentlyHandled(cand.kind, { clientId: cand.clientId, email: cand.email })) continue
 
         const outcome = await requestAction({

@@ -199,6 +199,43 @@ export async function approveAction(actionId: string, actor: string): Promise<{ 
     return { ok: true, taskId }
 }
 
+/**
+ * Kolik dní smí návrh čekat, než se sám zavře.
+ *
+ * Návrh na obchodní e-mail je nabídka reakce na okamžik — „zapsal se před
+ * týdnem", „vypršelo mu předplatné". Po dvou týdnech ten okamžik pominul
+ * a schválit ho znamená poslat zprávu, která se netrefila do ničeho.
+ */
+export const PROPOSAL_TTL_DAYS = 14
+
+/**
+ * Zavřít návrhy, na které se nikdo nepodíval včas.
+ *
+ * Fronta bez expirace je jen seznam, který roste: 8. 9. 2026 v něm čekalo
+ * 27 akcí, nejstarší 46 dní, a nic z toho se už poslat nedalo. Seznam, který
+ * se nedá dočíst, se přestane číst celý — a pak v něm uvázne i to, co odbavit
+ * šlo. `expired` je vlastní stav schválně: `rejected` znamená „člověk řekl ne"
+ * a kdyby se do něj vešlo i „nikdo se nepodíval", ztratí se rozdíl mezi
+ * rozhodnutím a zapomenutím právě tam, kde je celý audit trail k něčemu.
+ *
+ * Podmíněný claim jako všude jinde v repu: `WHERE status = 'proposed'`.
+ * Souběžné schválení tak nikdy neprohraje se sweeperem.
+ */
+export async function expireStaleProposals(ttlDays: number = PROPOSAL_TTL_DAYS): Promise<number> {
+    const cutoff = new Date(Date.now() - ttlDays * 24 * 60 * 60 * 1000).toISOString()
+    const { data, error } = await supabaseAdmin
+        .from("agent_actions")
+        .update({ status: "expired", actor: "system:expired" })
+        .eq("status", "proposed")
+        .lt("created_at", cutoff)
+        .select("id")
+    if (error) {
+        console.error("expireStaleProposals:", error.message)
+        return 0
+    }
+    return (data || []).length
+}
+
 /** Reject a pending action → nothing runs. */
 export async function rejectAction(actionId: string, actor: string): Promise<{ ok: boolean; error?: string }> {
     const { data, error } = await supabaseAdmin
