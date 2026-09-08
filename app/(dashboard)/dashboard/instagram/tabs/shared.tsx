@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { updateIGPostMetrics } from "@/app/actions/admin-actions"
+import { trackEvent } from "@/lib/analytics"
 import type { IGPost } from "./types"
 import { ChartColumn } from "lucide-react"
 
@@ -141,6 +142,191 @@ export function MetricsInputForm({ post, onUpdate }: { post: IGPost; onUpdate: (
                     <p className="text-2xl font-black text-emerald-500">{conversionScore}</p>
                 </div>
             </div>
+        </div>
+    )
+}
+
+// ═══════════════════════════════════════════════════════════
+// RUČNÍ TEXT — EDITOR TAM, KDE TEXT JE
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Caption jako pole, ne jako odstavec.
+ *
+ * Ruční přepis textu server uměl odjakživa (`saveManualText`), ale v UI bydlel
+ * v panelu pod detailem, schovaný za tlačítkem „Napsat sám" vedle tří AI režimů.
+ * Kdo chtěl opravit překlep, musel nejdřív uhodnout, že úprava textu nežije
+ * u textu — a pak psát do jiného pole, než na které se díval. Editor je proto
+ * tady: klikneš na caption, přepíšeš ho, uložíš.
+ *
+ * Zápis jde **výhradně** přes `saveManualText`. Ta je jediná cesta, která uloží
+ * text doslova (žádný model mezi člověkem a jeho větou), poznamená předchozí
+ * znění do `edit_history` (jde vrátit zpět), osvěží faktickou bránu v režimu
+ * „jen značkuj" a pošle rozdíl brand memory. Vlastní `.update({ caption })`
+ * odsud by tiše obešel všechny čtyři.
+ *
+ * Publikovaný příspěvek zamyká server. Tady se tlačítko rovnou neukáže —
+ * dozvědět se o zámku až po napsání odstavce je horší než ho nevidět.
+ */
+export function CaptionEditor({
+    projectId,
+    post,
+    onSaved,
+    showHashtags = false,
+    editing: editingProp,
+    onEditingChange,
+    emptyLabel = "—",
+}: {
+    projectId: string
+    /** Stačí to, co má i lehký náhled v kalendáři nebo ve feedu. */
+    post: { id: string; caption: string | null; hashtags?: string[] | null; status: string }
+    /** Dostane uložený řádek a čerstvý stav faktické brány — volající si
+     *  překreslí, co z nich zobrazuje. Bez toho by po smazání nepravdy zůstalo
+     *  varování na ni svítit vedle už opraveného textu. */
+    onSaved: (post: IGPost, fact?: { flags?: string[]; sources?: IGPost["fact_sources"] }) => void
+    /** Hashtagy edituje jen detail příspěvku; náhledy je vůbec nenačítají a
+     *  server si při vynechání nechá ty stávající. */
+    showHashtags?: boolean
+    /** Otevření zvenčí — panel s označenými tvrzeními umí editor rozbalit sám. */
+    editing?: boolean
+    onEditingChange?: (editing: boolean) => void
+    emptyLabel?: string
+}) {
+    const savedCaption = post.caption || ""
+    const savedHashtags = (post.hashtags || []).join(" ")
+    const [selfEditing, setSelfEditing] = useState(false)
+    const editing = editingProp ?? selfEditing
+    const setEditing = onEditingChange ?? setSelfEditing
+
+    const [draftCaption, setDraftCaption] = useState(savedCaption)
+    const [draftHashtags, setDraftHashtags] = useState(savedHashtags)
+    const [busy, setBusy] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+
+    // Zdroj pravdy je řádek příspěvku, ne rozepsané pole: po uložení, po vrácení
+    // zpět i po AI retuši musí editor ukazovat text, který na postu SKUTEČNĚ je.
+    // Srovnává se při renderu, ne v efektu — efekt by pole nejdřív vykreslil se
+    // starým textem a hned přepsal, a psaní by v tu chvíli přišlo o znak.
+    const [syncedWith, setSyncedWith] = useState({ caption: savedCaption, hashtags: savedHashtags })
+    if (syncedWith.caption !== savedCaption || syncedWith.hashtags !== savedHashtags) {
+        setSyncedWith({ caption: savedCaption, hashtags: savedHashtags })
+        setDraftCaption(savedCaption)
+        setDraftHashtags(savedHashtags)
+    }
+
+    // Stejný zámek jako na serveru. Publikovaný řádek se nesmí rozejít s tím,
+    // co lidé na Instagramu doopravdy vidí.
+    const locked = post.status === "posted" || post.status === "posting"
+    const dirty = draftCaption !== savedCaption || draftHashtags !== savedHashtags
+
+    const save = async () => {
+        if (!draftCaption.trim() || busy) return
+        setBusy(true)
+        setError(null)
+        const { saveManualText } = await import("@/app/actions/post-edit-actions")
+        const res = await saveManualText(projectId, post.id, {
+            caption: draftCaption,
+            // Uživatel je píše, jak mu přijdou pod ruku — „#sleva, jaro". Rozdělení
+            // tady, pořádný úklid (mřížky, duplicity) dělá server.
+            ...(showHashtags ? { hashtags: draftHashtags.split(/[\s,]+/).filter(Boolean) } : {}),
+        })
+        setBusy(false)
+        if (res.success && res.post) {
+            onSaved(res.post, { flags: res.factFlags, sources: res.factSources })
+            setEditing(false)
+            trackEvent("post_text_edited_manually", {})
+        } else {
+            setError(res.error || "Uložení selhalo.")
+        }
+    }
+
+    const cancel = () => {
+        setDraftCaption(savedCaption)
+        setDraftHashtags(savedHashtags)
+        setError(null)
+        setEditing(false)
+    }
+
+    if (!editing) {
+        return (
+            <div className="group relative">
+                <div
+                    onClick={() => { if (!locked) setEditing(true) }}
+                    role={locked ? undefined : "button"}
+                    tabIndex={locked ? undefined : 0}
+                    onKeyDown={e => { if (!locked && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setEditing(true) } }}
+                    title={locked ? "Publikovaný text už nejde upravit — vytvoř variantu" : "Kliknutím text přepíšeš"}
+                    className={`bg-[#0f0f0f] border rounded-sm p-4 max-h-60 overflow-y-auto shadow-inner transition-colors ${
+                        locked
+                            ? "border-white/5"
+                            : "border-white/5 hover:border-white/20 cursor-text focus:outline-none focus:border-white/25"
+                    }`}
+                >
+                    <p className="text-sm text-white/70 whitespace-pre-wrap leading-relaxed font-medium">
+                        {savedCaption || emptyLabel}
+                    </p>
+                </div>
+                {!locked && (
+                    <button
+                        onClick={() => setEditing(true)}
+                        className="absolute top-2 right-2 px-2 py-1 rounded-sm border border-white/10 bg-black/60 text-[9px] font-bold uppercase tracking-widest text-white/40 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-white hover:border-white/25 transition-all"
+                    >
+                        Upravit
+                    </button>
+                )}
+            </div>
+        )
+    }
+
+    return (
+        <div className="space-y-2">
+            <textarea
+                autoFocus
+                value={draftCaption}
+                onChange={e => setDraftCaption(e.target.value)}
+                onKeyDown={e => {
+                    if (e.key === "Escape") { e.preventDefault(); cancel() }
+                    // Enter dělá odstavec — caption je víceřádkový text. Uložit
+                    // se dá zkratkou, kterou má na tohle zbytek světa.
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void save() }
+                }}
+                placeholder="Text příspěvku — uloží se přesně tak, jak ho napíšeš"
+                rows={10}
+                className="w-full px-3 py-2 bg-[#050505] border border-white/20 rounded-sm text-white text-sm resize-y focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20 leading-relaxed"
+            />
+            {showHashtags && (
+                <input
+                    value={draftHashtags}
+                    onChange={e => setDraftHashtags(e.target.value)}
+                    onKeyDown={e => {
+                        if (e.key === "Escape") { e.preventDefault(); cancel() }
+                        if (e.key === "Enter") { e.preventDefault(); void save() }
+                    }}
+                    placeholder="Hashtagy oddělené mezerou (nepovinné)"
+                    className="w-full px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
+                />
+            )}
+            <div className="flex items-center gap-2">
+                <button
+                    onClick={save}
+                    disabled={busy || !draftCaption.trim() || !dirty}
+                    title={!dirty ? "Text se od uloženého neliší" : undefined}
+                    className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-white/10 text-white border border-white/20 hover:bg-white/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                    {busy ? "Ukládám…" : "Uložit text"}
+                </button>
+                <button
+                    onClick={cancel}
+                    disabled={busy}
+                    className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm text-white/40 hover:text-white transition-all disabled:opacity-40"
+                >
+                    Zrušit
+                </button>
+                <span className="text-[9px] text-white/25 uppercase tracking-widest font-bold ml-auto text-right">
+                    Zdarma · jde vrátit zpět
+                </span>
+            </div>
+            {error && <p className="text-[10px] text-red-400">{error}</p>}
         </div>
     )
 }

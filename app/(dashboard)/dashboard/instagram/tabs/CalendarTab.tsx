@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { getWeekPosts, approvePost, confirmPlanAction, movePost } from "@/app/actions/calendar-actions"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
+import { CaptionEditor } from "./shared"
 import { CalendarDays, CircleCheck, Clock, CloudSun, FileText, Send, TriangleAlert, Wand, type LucideIcon } from "lucide-react"
 
 interface CalendarPost {
@@ -408,10 +409,17 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                 )}
                             </div>
 
-                            {/* Caption */}
-                            <p className="text-white/80 text-sm leading-relaxed whitespace-pre-line">
-                                {selectedPost.caption}
-                            </p>
+                            {/* Caption — text jde přepsat i odsud. Kdo si v kalendáři
+                                všimne překlepu, nemá důvod chodit ho opravovat jinam. */}
+                            <CaptionEditor
+                                projectId={projectId}
+                                post={selectedPost}
+                                onSaved={saved => {
+                                    const caption = saved.caption || ""
+                                    setSelectedPost({ ...selectedPost, caption })
+                                    setPosts(prev => prev.map(p => p.id === saved.id ? { ...p, caption } : p))
+                                }}
+                            />
 
                             {/* Posun termínu. Datum a čas místo přetahování: kalendář má
                                 vlastní mobilní rozvržení a drag&drop se na dotyku ovládá

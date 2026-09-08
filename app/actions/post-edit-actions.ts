@@ -394,7 +394,12 @@ export async function saveManualText(
         return { success: false, error: "Publikovaný příspěvek už nejde upravit — vytvoř variantu." }
     }
 
-    const hashtags = normalizeHashtags(text.hashtags ?? post.hashtags ?? [])
+    // Tentýž úklid, jakým prochází engine (`sanitizeHashtags`): mřížka na začátku,
+    // malá písmena, bez duplicit. Vlastní normalizace tu mřížku naopak strhávala, takže
+    // ručně opravený post měl v „Celý text" i v předání k publikaci holá slova — a ta
+    // na Instagramu nejsou hashtag, jen slovo navíc.
+    const { sanitizeHashtags } = await import("@/instagram/caption-generator")
+    const hashtags = sanitizeHashtags(text.hashtags ?? post.hashtags ?? [])
 
     // Stav před změnou, aby `revertPostEdit` fungovalo i nad ruční úpravou beze změny.
     const historyEntry: PostEditHistoryEntry = {
@@ -635,21 +640,3 @@ async function refreshFactStatus(
     }
 }
 
-/**
- * Hashtagy z ručního pole: bez mřížek, bez mezer, bez duplicit, bez prázdných.
- * Uživatel je píše jak mu přijde pod ruku („#sleva, jaro  #jaro"), engine je všude
- * ukládá jako holá slova.
- */
-function normalizeHashtags(input: string[]): string[] {
-    const seen = new Set<string>()
-    const out: string[] = []
-    for (const raw of input) {
-        const tag = String(raw ?? "").replace(/[#\s,]+/g, "").trim()
-        if (!tag) continue
-        const key = tag.toLowerCase()
-        if (seen.has(key)) continue
-        seen.add(key)
-        out.push(tag)
-    }
-    return out
-}

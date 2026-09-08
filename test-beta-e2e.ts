@@ -1998,6 +1998,36 @@ test("15.9 textová úprava nesmí rozjet re-roll obrázku", () => {
     assert(/parsed\.hook = input\.renderedHook/.test(cap), "hook vypálený v obrázku se musí vynutit kódem")
 })
 
+test("15.10 text příspěvku se edituje tam, kde je vidět", () => {
+    // Ruční přepis serveru existoval, ale v UI bydlel v panelu POD detailem, schovaný
+    // za tlačítkem „Napsat sám" vedle tří AI režimů. Kdo chtěl opravit překlep, musel
+    // nejdřív uhodnout, že úprava textu nežije u textu. Tahle aserce hlídá, že se
+    // editor zase neodstěhuje pryč od captionu.
+    const shared = fileContent("app/(dashboard)/dashboard/instagram/tabs/shared.tsx")
+    assert(/export function CaptionEditor/.test(shared), "sdílený inline editor captionu musí existovat")
+    assert(shared.includes("saveManualText"),
+        "ruční text smí zapsat JEN saveManualText — vlastní update by tiše obešel edit_history, faktickou bránu i brand memory")
+    assert(/post\.status === "posted" \|\| post\.status === "posting"/.test(shared),
+        "publikovaný post nesmí nabízet editaci — zámek je na serveru, ale dozvědět se o něm až po napsání odstavce je horší než ho nevidět")
+
+    // Všude, kde se na příspěvek dá kliknout a přečíst si ho, se dá i přepsat.
+    for (const tab of ["PostsTab", "CalendarTab", "FeedTab"]) {
+        const ui = fileContent(`app/(dashboard)/dashboard/instagram/tabs/${tab}.tsx`)
+        assert(/<CaptionEditor/.test(ui), `${tab}: detail příspěvku musí umět text přepsat na místě`)
+    }
+
+    // Druhá půlka rady u označeného tvrzení („přepiš to sám") musí vést do editoru.
+    const posts = fileContent("app/(dashboard)/dashboard/instagram/tabs/PostsTab.tsx")
+    assert(posts.includes('id="post-caption"') && posts.includes('getElementById("post-caption")'),
+        "„Není to pravda — přepsat text\" musí skočit na caption, ne na panel s pokyny pro model")
+
+    // Ruční hashtagy procházejí týmž úklidem jako engine — jinak se po ruční opravě
+    // z „#sleva" stane „sleva", což na Instagramu není hashtag, jen slovo navíc.
+    const act = codeOnly("app/actions/post-edit-actions.ts")
+    assert(act.includes("sanitizeHashtags"), "ruční hashtagy musí projít sdíleným sanitizérem")
+    assert(!/function normalizeHashtags/.test(act), "vlastní kopie sanitizéru se nesmí vrátit")
+})
+
 // ═══════════════════════════════════════════════════════════
 // 16. PROMPTOVÝ AUDIT (v8.7) — vrstvy si nesmí protiřečit
 // ═══════════════════════════════════════════════════════════
