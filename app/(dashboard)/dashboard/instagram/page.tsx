@@ -1,9 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useStudio } from "../../StudioContext"
-import { isCurrentUserSuperAdmin } from "@/app/actions/admin-actions"
 
 // Tab components
 import { DashboardTab } from "./tabs/DashboardTab"
@@ -57,17 +55,15 @@ const SECTION_LABELS: Record<string, { title: string; description: string }> = {
 }
 
 export default function InstagramPage() {
-    const { activeSection, projectId, navDirection, refreshNonce } = useStudio()
-    const sectionInfo = SECTION_LABELS[activeSection] || { title: "", description: "" }
-    const { showTutorial, openTutorial, closeTutorial } = useTutorialState()
-
     // Admin-only sections are gated in render, not just hidden in the sidebar —
     // otherwise anyone can deep-link them via URL hash (#waitlist, #mailing…).
     // Defense-in-depth: the server actions behind them keep their own guards.
-    const [isAdmin, setIsAdmin] = useState(false)
-    useEffect(() => {
-        isCurrentUserSuperAdmin().then(setIsAdmin)
-    }, [])
+    //
+    // `isAdmin` jde z kontextu, ne z vlastního dotazu: jinak by na jednu stránku
+    // byly dvě odpovědi na tutéž otázku a mohly by se lišit.
+    const { activeSection, projectId, isAdmin, navDirection, refreshNonce } = useStudio()
+    const sectionInfo = SECTION_LABELS[activeSection] || { title: "", description: "" }
+    const { showTutorial, openTutorial, closeTutorial } = useTutorialState()
 
     // Dashboard has its own header
     const showHeader = activeSection !== "dashboard"

@@ -18,6 +18,7 @@ import {
     qaScore,
 } from "../image-pipeline"
 import { loadLogo } from "../logo-loader"
+import { prefersRealPhotos } from "../../lib/photo-policy"
 import { COSTS, getPostTypeDef } from "../caption-generator"
 import { getModel } from "../models"
 import type { RenderContext, RenderResult } from "./types"
@@ -53,6 +54,61 @@ export function hasPersonRef(tags: string[] = []): boolean {
     return tags.some(x => REF_PERSON_TAGS.includes(x.toLowerCase()))
 }
 
+/**
+ * Popisek, který dělá z reference ZÁKLAD postu. Prompt i vizuální kontrola se na
+ * něj odkazují doslova („CLIENT photo"), takže ho nese i povýšená fotka značky —
+ * jinak by se model odkazoval na štítek, který nedostal.
+ */
+const BASE_PHOTO_LABEL = "CLIENT photo — the mandatory visual base: the final post MUST be built from this exact photo (whole or a deliberate crop), never from an invented scene"
+
+/** Je to reference SKUTEČNÉ věci/místa, na které se dá post postavit? Portrét ne —
+ *  tvář značky patří do postu jen tam, kde ji kompozice chce; jako povinný základ
+ *  by z každého postu udělala portrét. */
+function isRealSubjectRef(label?: string): boolean {
+    if (!label) return false
+    return label.startsWith("real location reference")
+        || label.startsWith("EXACT product/subject reference")
+}
+
+/**
+ * Fotka, na které post STOJÍ — ne reference, ze které se model jen inspiruje.
+ *
+ * Pořadí: fotka nahraná k tomuhle postu → (podle `photoPolicy`) nejrelevantnější
+ * reálná fotka značky. Značka s `photoPolicy: "free"` sem nikdy nespadne, takže
+ * dosavadní chování zůstává na chlup stejné.
+ *
+ * Povýšená fotka se vrací i s indexem v `brandRefs`, aby ji volající mohl z běžných
+ * referencí vyhodit — jinak by šla k modelu dvakrát a snědla jeden ze čtyř slotů.
+ */
+export async function resolveBasePhoto(ctx: RenderContext, brandRefs: RefImage[]): Promise<{
+    ref: RefImage
+    description?: string
+    /** Odkud fotka je — mění jednu větu v promptu, ne pravidla. */
+    source: "post" | "brand"
+    /** Index v `brandRefs`, pokud fotka pochází odtamtud. */
+    fromIndex: number
+} | null> {
+    const own = await loadUserPhoto(ctx.userPhotoUrl)
+    if (own) return { ref: own, description: ctx.userPhotoDescription, source: "post", fromIndex: -1 }
+
+    if (!prefersRealPhotos(ctx.config)) return null
+
+    const idx = brandRefs.findIndex(r => isRealSubjectRef(r.label))
+    if (idx < 0) return null
+
+    // Popis fotky visí za pomlčkou v popisku (viz loadReferenceImages) — designér
+    // obrázky nevidí, tohle je jeho jediné okno do fotky.
+    const label = brandRefs[idx].label || ""
+    const dash = label.indexOf(" — ")
+    console.log(`   📷 Reálná fotka značky povýšena na základ postu (photoPolicy=${ctx.config.photoPolicy})`)
+    return {
+        ref: { ...brandRefs[idx], label: BASE_PHOTO_LABEL },
+        description: dash > 0 ? label.slice(dash + 3) : undefined,
+        source: "brand",
+        fromIndex: idx,
+    }
+}
+
 /** The user's own uploaded photo — the mandatory photographic base of this exact post.
  *  Shared by the image and carousel orchestrators. */
 export async function loadUserPhoto(url?: string): Promise<RefImage | null> {
@@ -65,7 +121,7 @@ export async function loadUserPhoto(url?: string): Promise<RefImage | null> {
         return {
             buffer: Buffer.from(arrayBuf),
             mimeType: url.endsWith(".png") ? "image/png" : "image/jpeg",
-            label: "CLIENT photo — the mandatory visual base: the final post MUST be built from this exact photo (whole or a deliberate crop), never from an invented scene",
+            label: BASE_PHOTO_LABEL,
         }
     } catch (err: any) {
         console.warn(`   ⚠️ User photo fetch failed: ${err?.message?.substring(0, 60)}`)
@@ -122,9 +178,13 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
         hasReferencePhoto: Boolean(productRef),
     } : undefined
 
-    // User's own photo — when present it becomes the mandatory visual base of the post.
-    const userPhotoRef = await loadUserPhoto(ctx.userPhotoUrl)
-    const userPhotoInfo = userPhotoRef ? { description: ctx.userPhotoDescription } : undefined
+    // Základ postu: fotka nahraná k tomuhle postu, nebo — když si to značka přeje
+    // (`photoPolicy`) — její vlastní reálná fotka. Z běžných referencí se vyřadí,
+    // ať nejde k modelu dvakrát.
+    const base = await resolveBasePhoto(ctx, otherRefs)
+    if (base && base.fromIndex >= 0) otherRefs.splice(base.fromIndex, 1)
+    const userPhotoRef = base?.ref ?? null
+    const userPhotoInfo = base ? { description: base.description, source: base.source } : undefined
 
     await report("art_director", 55, "🎨 AI Designer navrhuje kompozici...")
     console.log("🎨 AI Designer — generuji design brief...")

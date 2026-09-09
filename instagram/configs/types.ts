@@ -7,6 +7,7 @@
 
 import type { BrandVoiceConfig } from "../types"
 import type { FeedPatternId } from "../../lib/feed-pattern"
+import type { PhotoPolicy } from "../../lib/photo-policy"
 import type { MediumType } from "../../lib/credits"
 
 // ─── Product ────────────────────────────────────────────────
@@ -324,6 +325,26 @@ export interface ClientConfig {
      *  validateConfig clamps unknown values to "none". */
     feedPattern?: FeedPatternId
 
+    /**
+     * Kolik smí být na obrázcích vymyšleno.
+     *
+     * Odpověď na „majitel chce jenom svoje reálné fotky": engine umí obojí, ale
+     * dosud to šlo říct jen po jednom postu (nahraná fotka v Generovat). Tohle to
+     * říká za značku napořád.
+     *
+     * - `free` — dnešní chování: reálné fotky značky jsou reference, model si scénu
+     *   může domyslet.
+     * - `prefer-real` — když má značka k tomuhle postu sedící reálnou fotku, post
+     *   na ní MUSÍ stát (týž režim jako fotka nahraná k postu, včetně vizuální
+     *   kontroly). Bez fotky si model scénu domyslet smí.
+     * - `only-real` — navíc: bez reálné fotky se fotorealistická scéna NEVYMÝŠLÍ,
+     *   post jde do typografického/grafického řešení.
+     *
+     * validateConfig neznámou hodnotu srovná na `free` — enginový kód podle ní
+     * větví prompt i výběr referencí.
+     */
+    photoPolicy?: PhotoPolicy
+
     /** Static week plan — array of post type names (Mon→Sun, 2 per day) */
     weekPlan: string[]
 
@@ -478,6 +499,17 @@ export interface ClientConfig {
      *  Deliberately separate from `isReference`, which feeds the marketing wall:
      *  mixing the two would present strangers' brands as case studies. */
     isPortfolio?: boolean
+
+    /**
+     * SKUTEČNÝ klient, který dal souhlas ukázat svou práci ve výloze.
+     *
+     * Vědomě oddělené od `isPortfolio`: ten znamená „firma o nás neví a není náš
+     * zákazník" a portfoliová stránka to takhle i tvrdí. U klienta by ta věta byla
+     * lež, takže potřebuje vlastní příznak a vlastní popisek („klient", ne
+     * „nevyžádaný koncept"). Souhlas je věc mimo kód — příznak se nastavuje ručně
+     * až ve chvíli, kdy klient kývne.
+     */
+    isCaseStudy?: boolean
 }
 
 // ─── Brand Image Type ────────────────────────────────────────────────

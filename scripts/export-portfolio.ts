@@ -41,12 +41,20 @@ interface PortfolioBrand {
     company: string
     industry: string
     website: string
+    relationship: "concept" | "client"
     posts: PortfolioPost[]
 }
 
 const DISCLAIMER =
-    "Nevyžádané koncepty. Příspěvky vygeneroval Chrlit z veřejně dostupných údajů o značce. " +
-    "Nejde o oficiální obsah těchto značek a uvedené firmy nejsou zákazníky Chrlitu."
+    "Nevyžádaný koncept. Příspěvky vygeneroval Chrlit z veřejně dostupných údajů o značce. " +
+    "Nejde o oficiální obsah značky a tato firma není zákazníkem Chrlitu."
+
+const CLIENT_NOTE =
+    "Práce pro klienta, zveřejněno s jeho souhlasem. Příspěvky vygeneroval Chrlit."
+
+const MIXED_DISCLAIMER =
+    "Výloha míchá dvě věci a u každé značky je to napsané: nevyžádané koncepty pro firmy, " +
+    "které o tom nevědí a nejsou zákazníky Chrlitu, a práci pro klienty zveřejněnou s jejich souhlasem."
 
 /**
  * `image_url` je jeden řetězec s částmi oddělenými `|`. Podoby, které tam žijí:
@@ -104,7 +112,11 @@ async function main() {
         process.exit(1)
     }
 
-    const portfolioClients = clients.filter(c => (c.config as any)?.isPortfolio === true)
+    // Do výlohy jdou dvě různé věci a musí zůstat rozlišené: nevyžádané koncepty
+    // (isPortfolio — firma o tom neví) a práce pro klienta se souhlasem (isCaseStudy).
+    // Kdyby se slily, výhrada „nejsou zákazníky" by lhala o klientech.
+    const portfolioClients = clients.filter(c =>
+        (c.config as any)?.isPortfolio === true || (c.config as any)?.isCaseStudy === true)
     if (portfolioClients.length === 0) {
         console.warn("⚠️ Žádný klient nemá isPortfolio. Spusť scripts/seed-portfolio-clients.ts.")
     }
@@ -166,7 +178,9 @@ async function main() {
             // neověřené, nemá to prodávat naši práci.
             .filter(p => !flaggedPostIds.has(p.id))
 
+        const relationship: "concept" | "client" = cfg.isCaseStudy === true ? "client" : "concept"
         brands.push({
+            relationship,
             slug: c.slug,
             company: c.name,
             industry: cfg.industry || "",
@@ -201,15 +215,29 @@ export interface PortfolioPost {
     pillar?: string
 }
 
+/** Jaký vztah ke značce výloha tvrdí. Rozhoduje o popisku i o výhradě. */
+export type PortfolioRelationship = "concept" | "client"
+
 export interface PortfolioBrand {
     slug: string
     company: string
     industry: string
     website: string
+    /** "concept" = firma o tom neví a není zákazník. "client" = klient, který dal
+     *  souhlas. Chybí-li (starší export), platí přísnější "concept". */
+    relationship?: PortfolioRelationship
     posts: PortfolioPost[]
 }
 
+/** Výhrada u NEVYŽÁDANÝCH konceptů. Nesmí se ukazovat u klientů — tvrdila by o nich,
+ *  že nejsou zákazníci. */
 export const PORTFOLIO_DISCLAIMER = ${JSON.stringify(DISCLAIMER)}
+
+/** Popisek u KLIENTA, který dal souhlas. */
+export const PORTFOLIO_CLIENT_NOTE = ${JSON.stringify(CLIENT_NOTE)}
+
+/** Souhrnná výhrada nad celou výlohou, když jsou v ní obě kategorie. */
+export const PORTFOLIO_MIXED_DISCLAIMER = ${JSON.stringify(MIXED_DISCLAIMER)}
 
 export const PORTFOLIO_BRANDS: PortfolioBrand[] = `
 

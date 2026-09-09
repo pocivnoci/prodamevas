@@ -1,13 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { RefreshCw, LogOut, CalendarDays } from "lucide-react"
 
 import { logout } from "@/app/login/actions"
 import { LogoPV } from "@/components/LogoPV"
 import { useStudio, useStudioNavigate, type StudioSection } from "./StudioContext"
-import { getAvailableIGClients, isCurrentUserSuperAdmin } from "@/app/actions/admin-actions"
 import {
     GROUP_LABELS, SIDEBAR_GROUPS, itemsInGroup, navMatches, type NavItem,
 } from "./nav"
@@ -16,45 +14,14 @@ import {
  * Tělo navigace — obsah, který na počítači sedí v postranním sloupci a na telefonu
  * vyjede zdola po ťuknutí na „Více". Jeden zdroj, dvě obálky: dřív by se každá
  * změna musela psát dvakrát.
+ *
+ * Kdo je přihlášený a na jaké značky vidí, si panel NENAČÍTÁ sám. Panel je na
+ * telefonu ve stromu dvakrát (skrytý sidebar + sheet, který se navíc při každém
+ * otevření mountuje znovu), takže tu dřív seděla cache na úrovni modulu — a ta
+ * přežila odhlášení, protože to je měkká navigace bez přenačtení dokumentu.
+ * Identitu proto drží `StudioProvider`, který se s odchodem z dashboardu
+ * odmountuje.
  */
-
-type ClientInfo = { id: string; name: string; icon: string; description: string }
-
-/** Last tenant the user picked in the sidebar. Value is a client SLUG (StudioContext's
- *  `projectId` is a slug despite the name). Only ever trusted after it is matched
- *  against the list getAvailableIGClients() returns for the current session. */
-const PROJECT_STORAGE_KEY = "chrlit_active_project"
-
-function readStoredProject(): string | null {
-    try {
-        return localStorage.getItem(PROJECT_STORAGE_KEY)
-    } catch {
-        return null // private mode / storage disabled
-    }
-}
-
-/**
- * Panel je na telefonu ve stromu dvakrát — skrytý sidebar (`hidden lg:flex` prvek
- * pořád mountuje) a sheet, který se navíc při každém otevření mountuje znovu.
- * Bez sdílené cache by to znamenalo dvě server akce na každé ťuknutí na „Více".
- * Promisy se drží na úrovni modulu, takže souběžné mounty sdílejí jeden let.
- */
-let clientsPromise: Promise<ClientInfo[]> | null = null
-let adminPromise: Promise<boolean> | null = null
-
-function loadClients(): Promise<ClientInfo[]> {
-    return (clientsPromise ??= getAvailableIGClients().catch(err => {
-        clientsPromise = null // ať se to dá zkusit znovu
-        throw err
-    }))
-}
-
-function loadIsAdmin(): Promise<boolean> {
-    return (adminPromise ??= isCurrentUserSuperAdmin().catch(err => {
-        adminPromise = null
-        throw err
-    }))
-}
 
 function NavButton({ item, active, onSelect, layoutId }: {
     item: NavItem
@@ -97,49 +64,15 @@ export function StudioNavPanel({ variant, onNavigate }: {
     /** Sheet se po výběru zavírá; sidebar nic. */
     onNavigate?: () => void
 }) {
-    const { activeSection, projectId, setProjectId, subscription, subscriptionLoading, setGenerateIntent } = useStudio()
+    const {
+        activeSection, projectId, setProjectId, clients, isAdmin,
+        subscription, subscriptionLoading, setGenerateIntent,
+    } = useStudio()
     const navigate = useStudioNavigate()
-    const [clients, setClients] = useState<ClientInfo[]>([])
-    const [isAdmin, setIsAdmin] = useState(false)
 
     const layoutId = variant === "sidebar" ? "sidebarActive" : "sheetActive"
 
     const go = (s: StudioSection) => { navigate(s); onNavigate?.() }
-
-    // Load clients
-    useEffect(() => {
-        loadClients().then(data => {
-            setClients(data)
-            if (data.length > 0 && !projectId) {
-                // Precedence: explicit deep link → last selection → first client.
-                //
-                // `projectId` is plain React state, so a reload wipes it. "Aktualizovat"
-                // is window.location.reload(), which meant every refresh silently threw
-                // you back to clients[0] — and because activeSection rides the URL hash
-                // and DOES survive, you stayed on the same tab while the tenant under it
-                // changed. Persisting the choice is what makes refresh non-destructive.
-                //
-                // Every candidate is validated against the user's OWN list before it can
-                // select anything: a stale slug (access revoked, another account on a
-                // shared browser) must fall through to clients[0], never resolve.
-                const wanted = new URLSearchParams(window.location.search).get("project")
-                const stored = readStoredProject()
-                const pick = [wanted, stored].find(id => id && data.some(c => c.id === id))
-                setProjectId(pick || data[0].id)
-            }
-        })
-        loadIsAdmin().then(setIsAdmin)
-    }, [])
-
-    // Remember the active tenant across reloads (see precedence note above).
-    useEffect(() => {
-        if (!projectId) return
-        try {
-            localStorage.setItem(PROJECT_STORAGE_KEY, projectId)
-        } catch {
-            // Private mode / storage disabled — selection just won't survive a reload.
-        }
-    }, [projectId])
 
     return (
         <>

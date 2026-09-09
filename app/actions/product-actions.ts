@@ -684,8 +684,11 @@ export async function uploadProductImage(
 
         const buffer = Buffer.from(await file.arrayBuffer())
         const ext = file.type.includes("png") ? "png" : file.type.includes("webp") ? "webp" : "jpg"
-        const existingCount = (product.image_urls || []).length
-        const filename = `${clientId}/${product.slug}-${existingCount}.${ext}`
+        // Pořadové číslo tu bylo počtem už nahraných fotek — jenže smazáním jedné
+        // se index uvolní a další nahrání by `upsert: true` přepsalo cizí soubor,
+        // na který pořád ukazuje jiná položka `image_urls`. Časové razítko se
+        // nerecykluje; prefix zůstává slug, takže úklid v `deleteProduct` platí dál.
+        const filename = `${clientId}/${product.slug}-${Date.now().toString(36)}.${ext}`
 
         const { error: uploadError } = await supabaseAdmin.storage
             .from("product-images")
@@ -711,6 +714,56 @@ export async function uploadProductImage(
         return { success: true, publicUrl: pubUrl.publicUrl }
     } catch (err: any) {
         console.error("uploadProductImage error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}
+
+/**
+ * Odebere jednu fotku produktu — z pole `image_urls` i ze storage.
+ *
+ * Ze storage se maže jen to, co v našem bucketu opravdu leží: cesta se odvozuje
+ * z URL a musí začínat `client_id` tenanta. Cizí odkaz (nebo podvržený) se z pole
+ * jen vyškrtne, do storage se nesáhne.
+ */
+export async function deleteProductImage(
+    projectSlug: string,
+    productId: string,
+    imageUrl: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { clientId } = await requireProjectAccess(projectSlug)
+
+        const { data: product } = await supabaseAdmin
+            .from("ig_products")
+            .select("image_urls")
+            .eq("id", productId)
+            .eq("client_id", clientId)
+            .single()
+
+        if (!product) return { success: false, error: "Produkt nenalezen" }
+
+        const urls: string[] = product.image_urls || []
+        if (!urls.includes(imageUrl)) return { success: false, error: "Fotka u produktu není" }
+
+        const marker = "/product-images/"
+        const at = imageUrl.indexOf(marker)
+        const path = at >= 0 ? decodeURIComponent(imageUrl.slice(at + marker.length).split("?")[0]) : null
+        if (path && path.startsWith(`${clientId}/`)) {
+            const { error } = await supabaseAdmin.storage.from("product-images").remove([path])
+            // Osiřelý soubor v bucketu je menší problém než fotka, která z UI nezmizí.
+            if (error) console.warn(`deleteProductImage: storage remove selhal (${path}): ${error.message}`)
+        }
+
+        const { error } = await supabaseAdmin
+            .from("ig_products")
+            .update({ image_urls: urls.filter(u => u !== imageUrl), updated_at: new Date().toISOString() })
+            .eq("id", productId)
+            .eq("client_id", clientId)
+
+        if (error) throw error
+        return { success: true }
+    } catch (err: any) {
+        console.error("deleteProductImage error:", err?.message || err)
         return { success: false, error: err?.message || String(err) }
     }
 }

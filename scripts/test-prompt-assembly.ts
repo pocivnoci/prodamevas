@@ -21,6 +21,8 @@ import { MECHANISMS, MECHANISM_IDS } from "../instagram/mechanisms"
 import type { PostType } from "../instagram/types"
 import type { PerformanceInsight } from "../instagram/performance"
 import { resolveCtaPolicy, buildCtaPolicyJudgeBlock } from "../instagram/cta-policy"
+import { buildPhotoFidelitySection } from "../instagram/photo-fidelity"
+import { isPhotoPolicy, prefersRealPhotos, PHOTO_POLICY_OPTIONS, type PhotoPolicy } from "../lib/photo-policy"
 
 let passed = 0
 let failed = 0
@@ -903,6 +905,57 @@ test("už doložené tvrzení se bráně připomene, ať ho podruhé neoznačí"
     }, "bold")
     assert(/UŽ DOLOŽENO NA WEBU/.test(p), "doklady z minulého běhu musí být mezi povolenými zdroji")
     assert(p.includes("https://zakonyprolidi.cz/cs/2026-1"), "s odkazem, ať je poznat, čím to je doložené")
+})
+
+// ─── Odkud berou posty fotky (photoPolicy) ──────────────────
+
+/** Config s reálnými fotkami značky, na kterých se pravidla zapínají. */
+const photoCfg = (photoPolicy: PhotoPolicy, tags: string[] = ["interior"]) => ({
+    name: "Penzion U Lípy",
+    photoPolicy,
+    brandReferenceImages: [{ url: "https://x/1.jpg", tags, description: "recepce penzionu" }],
+} as unknown as ClientConfig)
+
+test("volná ruka nepřidává žádné omezení navíc", () => {
+    const s = buildPhotoFidelitySection(photoCfg("free"), false)
+    assert(!/JEN VLASTNÍ FOTKY/.test(s), "u „volné ruky\" se zákaz vymýšlení scény nesmí objevit")
+    // Věrnost reálným fotkám je starší, na politice nezávislé pravidlo — musí zůstat.
+    assert(/VĚRNOST REÁLNÝM FOTKÁM/.test(s), "věrnost referenčním fotkám platí bez ohledu na politiku")
+})
+
+test("„jen moje fotky\" bez fotky zakáže vymyslet scénu", () => {
+    const s = buildPhotoFidelitySection(photoCfg("only-real"), false)
+    assert(/JEN VLASTNÍ FOTKY/.test(s), "bez reálné fotky musí prompt vymýšlení scény zakázat")
+    assert(/TYPOGRAFII nebo GRAFICE/.test(s), "musí říct, kudy ven — jinak model zákaz obejde vymyšlenou fotkou")
+})
+
+test("„jen moje fotky\" s přiloženou fotkou nic nezakazuje", () => {
+    const s = buildPhotoFidelitySection(photoCfg("only-real"), true)
+    assert(!/JEN VLASTNÍ FOTKY/.test(s),
+        "když fotka JE, zákaz by protiřečil pokynu postavit post právě na ní")
+})
+
+test("„přednost mým fotkám\" scénu nezakazuje, jen upřednostňuje", () => {
+    assert(!/JEN VLASTNÍ FOTKY/.test(buildPhotoFidelitySection(photoCfg("prefer-real"), false)),
+        "prefer-real smí scénu domyslet, když sedící fotka není")
+})
+
+test("zákaz platí i pro značku bez jediné fotky", () => {
+    const bare = { name: "Nová značka", photoPolicy: "only-real" } as unknown as ClientConfig
+    assert(/JEN VLASTNÍ FOTKY/.test(buildPhotoFidelitySection(bare, false)),
+        "prázdná knihovna fotek je přesně ten případ, kdy se nesmí nic vymyslet")
+})
+
+test("politika fotek má tři stavy a poznají se od nesmyslu", () => {
+    assert(PHOTO_POLICY_OPTIONS.length === 3, "stupně jsou tři")
+    assert(PHOTO_POLICY_OPTIONS.every(o => o.label && o.description),
+        "každý stupeň musí umět zákazníkovi říct, co udělá")
+    assert(isPhotoPolicy("only-real") && !isPhotoPolicy("neco-jineho") && !isPhotoPolicy(undefined),
+        "clamp musí propustit jen známé stavy")
+    assert(!prefersRealPhotos({ photoPolicy: "free" }) && !prefersRealPhotos({}),
+        "bez nastavení se chování nemění")
+    assert(prefersRealPhotos({ photoPolicy: "prefer-real" }) && prefersRealPhotos({ photoPolicy: "only-real" }),
+        "oba přísnější stupně musí sáhnout po reálné fotce")
 })
 
 // ─── Report ─────────────────────────────────────────────────

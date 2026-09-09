@@ -2793,6 +2793,40 @@ test("23.18 showcase kit nesmí obarvit další posty", () => {
         "mustr obálky se nesmí vrátit: plochá výplň + vsazená fotka + pruh")
 })
 
+test("23.19 registrace nesmí skončit čekáním na e-mail", () => {
+    // 9. 9. 2026 se na obchodní schůzce zaregistroval zájemce ze seznam.cz.
+    // Účet měl v pořádku včetně razítka pozvánky, ale potvrzovací mail nedorazil
+    // — projekt neměl vlastní SMTP a jel na vestavěném odesílači Supabase se
+    // stropem DVA maily za hodinu. Dvacet minut se marně zkoušel přihlásit
+    // a odešel. Čtyři účty z třinácti uvízly ve stejném stavu.
+    const reg = codeOnly("app/register/actions.ts")
+
+    // Když Supabase vrátí session (potvrzování vypnuté), je uživatel přihlášený
+    // a musí jít rovnou dovnitř. Bez tohohle větvení visí celý trychtýř na
+    // e-mailu bez ohledu na to, jak je projekt nastavený.
+    assert(/signUpData\.session/.test(reg) && /redirect\('\/dashboard/.test(reg),
+        "po registraci se session musí uživatel pustit do studia, ne čekat na mail")
+    const sessionAt = reg.indexOf("signUpData.session")
+    const checkMailAt = reg.indexOf("success=check_email")
+    assert(sessionAt > 0 && checkMailAt > sessionAt,
+        "větev se session musí být PŘED odkazem na e-mail — jinak se nikdy nepoužije")
+
+    // Slíbená značka se vybírá i při registraci, ne jen při přihlášení: kdo jde
+    // rovnou do studia, přihlašovací akcí neprojde.
+    assert(/claimHandoffs/.test(reg),
+        "registrace musí vybrat slíbenou značku — jinak přijde zákazník do prázdna")
+
+    // Účet bez jediného přihlášení je hlášení o rozbitém produktu, ne vlažný
+    // lead: patří nahoru a s kratším luntem než nedokončený onboarding.
+    const health = codeOnly("lib/agents/client-health.ts")
+    assert(/export async function countLockedOut/.test(health),
+        "musí existovat počítadlo účtů, které se nikdy nepřihlásily")
+    assert(/last_sign_in_at/.test(health),
+        "rozlišení stojí na last_sign_in_at, ne na vazbě na klienta")
+    const brief = codeOnly("lib/agents/daily-brief.ts")
+    assert(/countLockedOut/.test(brief) && /lines\.unshift/.test(brief),
+        "denní přehled to musí hlásit, a nahoře")})
+
 test("23.13 fronta schválení nesmí růst sama", () => {
     // 8. 9. 2026 v ní čekalo 27 akcí, nejstarší 46 dní — a rostla ze tří příčin
     // najednou. Každá má tady vlastní aserci, protože oprava jedné bez druhých
@@ -4884,6 +4918,81 @@ test("38.4 číslo leadu přiděluje databáze, ne ruka", () => {
     assert(/leads_ref_uniq/.test(mig), "číslo leadu musí být unikátní")
     const script = fileContent("scripts/import-evidence-klientu.ts")
     assert(!/ref: "K000/.test(script), "převod nesmí čísla psát ručně — rozešel by se se sekvencí")
+})
+
+test("38.5 identita se nesmí přenést z minulého přihlášení", () => {
+    // Odhlášení je `redirect()` ze server akce, tedy MĚKKÁ navigace: dokument se
+    // nepřenačte a moduly si nesou stav dál. `StudioNavPanel` si proto držel
+    // „jsem admin" a seznam značek v promisách na úrovni modulu — a kdo se po
+    // adminovi přihlásil v témž panelu, viděl v menu adminskou sekci i cizí
+    // značky. Identita patří do provideru, který se s odchodem z dashboardu
+    // odmountuje.
+    const panel = codeOnly("app/(dashboard)/StudioNavPanel.tsx")
+    assert(!/^let \w+Promise/m.test(panel),
+        "navigace nesmí cachovat identitu na úrovni modulu — přežije to odhlášení")
+    assert(!/isCurrentUserSuperAdmin|getAvailableIGClients/.test(panel),
+        "navigace si identitu nenačítá sama, bere ji z kontextu")
+    assert(/isAdmin/.test(panel) && /itemsInGroup\("admin"\)/.test(panel),
+        "adminská skupina v menu musí být pořád podmíněná")
+
+    const ctx = codeOnly("app/(dashboard)/StudioContext.tsx")
+    assert(/isCurrentUserSuperAdmin/.test(ctx) && /getAvailableIGClients/.test(ctx),
+        "identitu načítá provider")
+    assert(!/^let \w+Promise/m.test(ctx),
+        "ani provider nesmí identitu držet mimo React — stav se musí odmountovat s layoutem")
+    assert(/useState\(false\)/.test(ctx.slice(ctx.indexOf("const [isAdmin"), ctx.indexOf("const [isAdmin") + 80)),
+        "než se identita zjistí, NENÍ to admin — jinak menu problikne")
+
+    // Obsah adminských sekcí zůstává hlídaný i při hlubokém odkazu přes hash.
+    const page = codeOnly("app/(dashboard)/dashboard/instagram/page.tsx")
+    for (const section of ["waitlist", "mailing", "tasks", "company", "onboard", "approvals", "leads", "emails", "products"]) {
+        assert(new RegExp(`activeSection === "${section}" && isAdmin`).test(page),
+            `sekce ${section} musí být v renderu podmíněná isAdmin`)
+    }
+})
+
+test("38.6 „jen moje fotky“ musí dojít až k modelu, ne skončit v nastavení", () => {
+    // Přepínač, který se nikde neprojeví, je horší než žádný: zákazník podle něj
+    // čeká svoje fotky a dostane vymyšlené. Cesta je config → clamp → výběr
+    // referencí → prompt → vizuální kontrola, a každý článek se dá zapomenout.
+    const lib = codeOnly("lib/photo-policy.ts")
+    assert(/export type PhotoPolicy/.test(lib) && /only-real/.test(lib),
+        "stupně musí žít v lib/, ne v komponentě — čte je UI i engine")
+
+    // Clamp: enginový kód podle hodnoty větví, takže se k němu nesmí dostat nic jiného.
+    const cfg = codeOnly("instagram/configs/index.ts")
+    assert(/photoPolicy: isPhotoPolicy\(config\.photoPolicy\) \? config\.photoPolicy : "free"/.test(cfg),
+        "validateConfig musí photoPolicy clampovat s výchozím „free“")
+
+    // Reálná fotka se povyšuje na ZÁKLAD postu, ne na další referenci ve frontě.
+    const orch = codeOnly("instagram/orchestrators/image-orchestrator.ts")
+    assert(/export async function resolveBasePhoto/.test(orch), "výběr základní fotky musí být sdílený")
+    const resolve = orch.slice(orch.indexOf("export async function resolveBasePhoto"))
+    const body = resolve.slice(0, resolve.indexOf("\n}\n") + 3)
+    assert(body.indexOf("loadUserPhoto") < body.indexOf("prefersRealPhotos"),
+        "fotka nahraná k postu má přednost před fotkou z knihovny značky")
+    assert(/if \(!prefersRealPhotos/.test(body),
+        "bez nastavení se fotka značky povyšovat NESMÍ — chování ostatních značek se nemění")
+    assert(/BASE_PHOTO_LABEL/.test(body),
+        "povýšená fotka musí nést týž popisek jako nahraná — prompt i QA se na něj odkazují doslova")
+    assert(/isRealSubjectRef/.test(body), "základem smí být jen reference skutečné věci nebo místa")
+    const isReal = orch.slice(orch.indexOf("function isRealSubjectRef"))
+    assert(!/REAL PERSON/.test(isReal.slice(0, isReal.indexOf("\n}\n"))),
+        "portrét se za povinný základ brát nesmí — jinak by byl každý post portrét")
+
+    // Všechna tři média, ne jen jedno: karusel i storka mají vlastní orchestrátor.
+    for (const file of ["image-orchestrator", "carousel-orchestrator", "story-orchestrator"]) {
+        assert(/resolveBasePhoto/.test(codeOnly(`instagram/orchestrators/${file}.ts`)),
+            `${file} musí základní fotku řešit stejně`)
+    }
+    // Storka si reference stahovala jen kvůli produktu — bez tohohle by neměla z čeho vybírat.
+    assert(/prefersRealPhotos\(config\)/.test(codeOnly("instagram/orchestrators/story-orchestrator.ts")),
+        "storka musí reference načíst i tehdy, když produkt není a značka chce vlastní fotky")
+
+    // Nastavení musí být dosažitelné a nesmí si popisky psát po svém.
+    const ui = codeOnly("app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx")
+    assert(/PHOTO_POLICY_OPTIONS/.test(ui) && /updateField\(\["photoPolicy"\]/.test(ui),
+        "Nastavení musí přepínač nabídnout a ukládat ho do configu")
 })
 
 // ═══════════════════════════════════════════════════════════

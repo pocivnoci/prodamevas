@@ -8,6 +8,7 @@ import { isSuperAdminEmail } from "../../lib/super-admins"
 import supabaseAdmin from "../../supabase/admin"
 import type { ClientConfig } from "./types"
 import { FORMAT_BRIEF_LIMITS } from "./types"
+import { isPhotoPolicy } from "../../lib/photo-policy"
 import { findFinishedCopy } from "./format-brief"
 import { reconcileFormats } from "./reconcile"
 import { isFeedPattern } from "../../lib/feed-pattern"
@@ -259,6 +260,10 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // Grid rhythm. Clamped, not defaulted-through: engine code indexes ARCHETYPE_GROUPS by
         // the derived visual mode, so a garbage value must never reach it.
         feedPattern: isFeedPattern(config.feedPattern) ? config.feedPattern : "none",
+        // Kolik smí být na obrázcích vymyšleno. Clamp, ne default-through: engine
+        // podle hodnoty větví prompt i roli referenčních fotek, takže se k němu
+        // nesmí dostat nic mimo tři známé stavy.
+        photoPolicy: isPhotoPolicy(config.photoPolicy) ? config.photoPolicy : "free",
         weekPlan: config.weekPlan || [],
         // Real posting cadence drives content-plan length (duration × postsPerWeek). Clamp to a
         // sane 1–14 (14 = 2×/day; must match distributeSchedule's MAX_POSTS_PER_WEEK) and
@@ -292,6 +297,9 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // igBaseline is optional with no default — undefined means "no scrape
         // data available" and all consumers (planWeek) must handle that.
         igBaseline: config.igBaseline,
+        // Souhlas klienta s ukázkou ve výloze. Default false — publikovat cizí značku
+        // se souhlasem, který nikdo nedal, je horší než ji neukázat vůbec.
+        isCaseStudy: config.isCaseStudy === true,
     })
 }
 

@@ -49,5 +49,10 @@ export const PORTFOLIO_VISIBLE_BRANDS: PortfolioBrand[] = PORTFOLIO_BRANDS
     .map(brand => ({ ...brand, posts: brand.posts.filter(isPortfolioVisible) }))
     .filter(brand => brand.posts.length >= PORTFOLIO_MIN_POSTS)
 
-export { PORTFOLIO_DISCLAIMER } from "./portfolio-data"
+/** Vztah ke značce; chybějící hodnota je přísnější „concept" (starší exporty). */
+export function portfolioRelationship(brand: PortfolioBrand): "concept" | "client" {
+    return brand.relationship === "client" ? "client" : "concept"
+}
+
+export { PORTFOLIO_DISCLAIMER, PORTFOLIO_CLIENT_NOTE, PORTFOLIO_MIXED_DISCLAIMER } from "./portfolio-data"
 export type { PortfolioBrand, PortfolioPost, PortfolioMediaType } from "./portfolio-data"
