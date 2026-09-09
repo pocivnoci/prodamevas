@@ -102,6 +102,7 @@ async function renderCarouselNative(ctx: RenderContext): Promise<RenderResult | 
         accentWords: captionData.accentWords,
         product: productInfo,
         userPhoto: userPhotoInfo,
+        visualMemoriesSection: ctx.showcaseKit ? "" : undefined,
     })
     cost += COSTS.designerBrief
     console.log(`   ✓ Design system: ${designSystem.substring(0, 100)}...`)

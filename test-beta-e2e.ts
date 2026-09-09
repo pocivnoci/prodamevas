@@ -2752,6 +2752,33 @@ test("23.15 výloha se nikde nepočítá jako zákazník", () => {
         "neq.true by odfiltrovalo skutečné zákazníky — past na NULL v jsonb")
 })
 
+test("23.18 showcase kit nesmí obarvit další posty", () => {
+    // Ukázkový karusel na vlastním účtu jede v paletě jiného oboru. Kit se proto
+    // MUSÍ aplikovat na lokální kopii: CLIENT_CONFIG je modulově globální a
+    // cachovaná napříč posty jedné lambdy (ensureConfig), takže mutace by
+    // obarvila i další posty klienta a poznalo by se to až na hotovém feedu.
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/const config = options\.showcaseKit\s*\n?\s*\? applyShowcaseKit\(CLIENT_CONFIG!/.test(auto),
+        "kit se musí aplikovat na lokální kopii configu, ne na CLIENT_CONFIG")
+    assert(!/CLIENT_CONFIG\s*=\s*applyShowcaseKit/.test(auto),
+        "applyShowcaseKit se nikdy nesmí zapsat zpátky do modulově globální CLIENT_CONFIG")
+
+    const kit = codeOnly("instagram/showcase-kit.ts")
+    assert(/return \{\s*\n\s*\.\.\.config,/.test(kit),
+        "applyShowcaseKit musí vracet nový objekt, ne mutovat vstup")
+    assert(!/config\.feedAesthetic\.\w+\s*=/.test(kit),
+        "applyShowcaseKit nesmí přiřazovat do vstupního feedAesthetic")
+
+    // Vizuální paměť říká, co fungovalo u TÉHLE značky (u chrlit tmavá a červená).
+    // V showcase generaci by táhla design zpátky domů, proto se potlačuje.
+    const carousel = codeOnly("instagram/orchestrators/carousel-orchestrator.ts")
+    assert(/visualMemoriesSection: ctx\.showcaseKit \? "" : undefined/.test(carousel),
+        "showcase karusel musí potlačit vizuální paměť domácí značky")
+    const pipeline = codeOnly("instagram/image-pipeline.ts")
+    assert((pipeline.match(/params\.visualMemoriesSection \?\? await getVisualMemoriesSection/g) || []).length === 2,
+        "šev na potlačení vizuální paměti musí mít obrázková i karuselová cesta")
+})
+
 test("23.13 fronta schválení nesmí růst sama", () => {
     // 8. 9. 2026 v ní čekalo 27 akcí, nejstarší 46 dní — a rostla ze tří příčin
     // najednou. Každá má tady vlastní aserci, protože oprava jedné bez druhých

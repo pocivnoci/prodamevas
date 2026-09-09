@@ -36,6 +36,7 @@ import {
 } from "./service"
 import { withUsageScope, currentUsage } from "./usage-meter"
 import { computeSlotIntent, type SlotIntent } from "../lib/feed-pattern"
+import { applyShowcaseKit, type ShowcaseKit } from "./showcase-kit"
 import { matchProductInText } from "../lib/product-match"
 import { loadConfig } from "./configs"
 import type { ClientConfig, PostFormat, PostMedium } from "./configs/types"
@@ -215,6 +216,10 @@ export async function generateOnePost(options: {
      *  resumed/retried post keeps the mode its neighbours were planned around. Omit for one-off
      *  posts — those derive it from the live feed. */
     slotIntent?: SlotIntent
+    /** Jedno generování v barevnosti jiného oboru — showcase na vlastním účtu.
+     *  Přepisuje POUZE vizuál (paletu, typografii, gradient); hlas i popisek
+     *  zůstávají značce. Viz instagram/showcase-kit.ts. */
+    showcaseKit?: ShowcaseKit
     onProgress?: (stage: string, progress: number, message: string, editorialLog?: EditorialMessage[]) => Promise<void>
 }): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number; mediaType: PostMedium }> {
     const report = options.onProgress || (async () => { }) // no-op if not provided
@@ -225,7 +230,12 @@ export async function generateOnePost(options: {
     // withUsageScope sčítá spotřebu tokenů všech volání modelu uvnitř — taky
     // request-scoped, takže souběžné generace v jedné lambdě se nemíchají.
     return withActiveProject(clientUuid, () => withUsageScope(async () => {
-    const config = CLIENT_CONFIG!
+    // Showcase kit se aplikuje na LOKÁLNÍ KOPII. CLIENT_CONFIG je modulově globální
+    // a cachovaná napříč posty jedné lambdy (ensureConfig) — mutace by prosákla do
+    // dalších postů téhož klienta a ty by zůstaly v cizí paletě.
+    const config = options.showcaseKit
+        ? applyShowcaseKit(CLIENT_CONFIG!, options.showcaseKit)
+        : CLIENT_CONFIG!
     const startTime = Date.now()
     let cost = ck?.costSoFar ?? 0
     // Embedding finálního captionu. Spočítá ho sémantická brána (krok 6) a použije
@@ -1212,6 +1222,7 @@ ${feedSummary}
                 selectedProduct: selectedProduct as SelectedProduct | undefined,
                 linkedProductId, clientUuid, recentBriefs, recentArchetypes, slotIntent,
                 userPhotoUrl: options.customImageUrl, userPhotoDescription,
+                showcaseKit: options.showcaseKit,
             })
             imageUrl = renderResult.imageUrl
             cost += renderResult.cost

@@ -7,6 +7,7 @@ import type { ClientConfig, PostFormat } from "../configs/types"
 import type { PostType } from "../types"
 import type { DesignBrief } from "../image-pipeline"
 import type { SlotIntent } from "../../lib/feed-pattern"
+import type { ShowcaseKit } from "../showcase-kit"
 import type { CtaPolicy } from "../cta-policy"
 
 export type ProgressReporter = (stage: string, progress: number, message: string) => Promise<void>
@@ -73,6 +74,10 @@ export interface RenderContext {
     userPhotoUrl?: string
     /** Vision description of that photo — the text-only AI Designer's window into it */
     userPhotoDescription?: string
+    /** Showcase generace — celý karusel jede v paletě jiného oboru (instagram/showcase-kit.ts).
+     *  Orchestrátor to potřebuje vědět jen kvůli vizuální paměti: ta popisuje, co vizuálně
+     *  fungovalo u TÉHLE značky, a proti cizí paletě by táhla zpátky do domácích barev. */
+    showcaseKit?: ShowcaseKit
     /** The post's resolved CTA policy — the SAME object the copywriter and critic got.
      *  The reel's video director needs it: a REACH/CONNECT pillar forbids the website
      *  anywhere in the post, and the closing seconds of a video are part of the post. */
