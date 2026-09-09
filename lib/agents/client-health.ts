@@ -188,6 +188,45 @@ async function buildRow(
 }
 
 /**
+ * Zaregistroval se a NIKDY se nepřihlásil — nedostal se dovnitř vůbec.
+ *
+ * Tohle NENÍ vlažný lead, ale hlášení o rozbitém produktu, a proto má vlastní
+ * počítadlo a mnohem kratší lunt než `countStalledOnboardings()`.
+ *
+ * 9. 9. 2026 se na obchodní schůzce zaregistroval zájemce ze seznam.cz.
+ * Účet měl v pořádku včetně razítka pozvánky, ale nedorazil mu potvrzovací
+ * e-mail — projekt tehdy neměl vlastní SMTP a jel na vestavěném odesílači
+ * Supabase se stropem dva maily za hodinu. Dvacet minut se marně zkoušel
+ * přihlásit a odešel; obchodník to viděl a nemohl s tím nic dělat. V přehledu
+ * by se objevil nejdřív za den, a to jako nerozeznatelný „nedokončený
+ * onboarding" mezi lidmi, kterým se prostě nechtělo.
+ *
+ * Rozdíl je zásadní: kdo se přihlásil a nedojel, je otázka pro obchod.
+ * Kdo se nepřihlásil nikdy, je otázka pro nás.
+ */
+export async function countLockedOut(now: Date = new Date()): Promise<{ count: number; oldestMinutes: number | null; emails: string[] }> {
+    try {
+        const { data } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+        // Půl hodiny stačí i na hledání mailu ve spamu, ale ne na to, aby si
+        // toho nikdo nevšiml do druhého dne.
+        const cutoff = now.getTime() - 30 * 60 * 1000
+
+        const stuck = (data?.users || []).filter(u =>
+            !u.last_sign_in_at && new Date(u.created_at).getTime() < cutoff)
+
+        if (stuck.length === 0) return { count: 0, oldestMinutes: null, emails: [] }
+        const oldest = stuck.reduce((min, u) => Math.min(min, new Date(u.created_at).getTime()), Date.now())
+        return {
+            count: stuck.length,
+            oldestMinutes: Math.floor((now.getTime() - oldest) / 60000),
+            emails: stuck.map(u => u.email || "?").slice(0, 5),
+        }
+    } catch {
+        return { count: 0, oldestMinutes: null, emails: [] }
+    }
+}
+
+/**
  * Zaregistroval se, ale nedokončil onboarding — tedy nemá řádek v `user_clients`.
  * Do lifecycle to nepatří: cíl nemá `client_id`, takže na něj nesedí dedupe
  * idiom postavený na klientovi, a v uzavřené betě je to signál pro zakladatele,
