@@ -31,6 +31,12 @@ const OPTIONAL = [
     "REPORT_FROM_EMAIL",       // bez ověřené domény se posílá z onboarding@resend.dev, který doručí JEN na adresu majitele Resend účtu
     "UPLOADPOST_API_KEY",      // most k publikaci na cizí profily, dokud neprojde 2. App Review — bez něj se volba v UI neukáže
     "UPLOADPOST_DEFAULT_TRANSPORT", // "uploadpost" přepne výchozí nabídku připojení pro nové tenanty; jinak platí "meta"
+    "TELEGRAM_BOT_TOKEN",      // týmový kanál — bez něj se do skupiny neposílá nic a brief padá zpět na e-mail
+    "TELEGRAM_CHAT_ID",        // JEDINÝ chat, se kterým bot mluví; bez něj se každý update zahodí
+    "TELEGRAM_WEBHOOK_SECRET", // ověření, že POST na /api/telegram/webhook je od Telegramu (jinak 401)
+    "TELEGRAM_TEAM",           // "id:jméno:role,…" — role rozhoduje, kdo smí ze skupiny schvalovat
+    "TELEGRAM_BOT_USERNAME",   // @jméno bota; bez něj se oslovení pozná jen podle odpovědi na jeho zprávu
+    "ANTHROPIC_API_KEY",       // Claude — soudce v pipeline i mozek týmového agenta; bez něj agent ve skupině mlčí
 ] as const
 
 export function validateEnv(): void {
