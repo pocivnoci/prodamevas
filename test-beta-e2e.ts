@@ -4845,6 +4845,37 @@ test("38.4 číslo leadu přiděluje databáze, ne ruka", () => {
     assert(!/ref: "K000/.test(script), "převod nesmí čísla psát ručně — rozešel by se se sekvencí")
 })
 
+test("38.5 identita se nesmí přenést z minulého přihlášení", () => {
+    // Odhlášení je `redirect()` ze server akce, tedy MĚKKÁ navigace: dokument se
+    // nepřenačte a moduly si nesou stav dál. `StudioNavPanel` si proto držel
+    // „jsem admin" a seznam značek v promisách na úrovni modulu — a kdo se po
+    // adminovi přihlásil v témž panelu, viděl v menu adminskou sekci i cizí
+    // značky. Identita patří do provideru, který se s odchodem z dashboardu
+    // odmountuje.
+    const panel = codeOnly("app/(dashboard)/StudioNavPanel.tsx")
+    assert(!/^let \w+Promise/m.test(panel),
+        "navigace nesmí cachovat identitu na úrovni modulu — přežije to odhlášení")
+    assert(!/isCurrentUserSuperAdmin|getAvailableIGClients/.test(panel),
+        "navigace si identitu nenačítá sama, bere ji z kontextu")
+    assert(/isAdmin/.test(panel) && /itemsInGroup\("admin"\)/.test(panel),
+        "adminská skupina v menu musí být pořád podmíněná")
+
+    const ctx = codeOnly("app/(dashboard)/StudioContext.tsx")
+    assert(/isCurrentUserSuperAdmin/.test(ctx) && /getAvailableIGClients/.test(ctx),
+        "identitu načítá provider")
+    assert(!/^let \w+Promise/m.test(ctx),
+        "ani provider nesmí identitu držet mimo React — stav se musí odmountovat s layoutem")
+    assert(/useState\(false\)/.test(ctx.slice(ctx.indexOf("const [isAdmin"), ctx.indexOf("const [isAdmin") + 80)),
+        "než se identita zjistí, NENÍ to admin — jinak menu problikne")
+
+    // Obsah adminských sekcí zůstává hlídaný i při hlubokém odkazu přes hash.
+    const page = codeOnly("app/(dashboard)/dashboard/instagram/page.tsx")
+    for (const section of ["waitlist", "mailing", "tasks", "company", "onboard", "approvals", "leads", "emails", "products"]) {
+        assert(new RegExp(`activeSection === "${section}" && isAdmin`).test(page),
+            `sekce ${section} musí být v renderu podmíněná isAdmin`)
+    }
+})
+
 // ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
