@@ -19,6 +19,16 @@ export interface DistributeOptions {
     postsPerWeek?: number
     /** Preferred posting times in "HH:MM" (LOCAL Prague), rotated across days/slots. */
     timeSlots?: string[]
+    /**
+     * Přes kolik dní se má `count` příspěvků rozprostřít. Bez něj se plánuje po
+     * kalendářních týdnech, takže plán vždycky skončí na hranici týdne — a „měsíc"
+     * tím pádem po 28 dnech, ať má měsíc 30 nebo 31.
+     *
+     * Pro `spanDays = týdny × 7` a `count = týdny × postsPerWeek` vyjdou přesně
+     * tytéž dny jako bez něj; teprve nesoudělné rozpětí (30 dní, 31 dní) se
+     * rozloží rovnoměrně místo doběhnutí do čtvrtého týdne.
+     */
+    spanDays?: number
 }
 
 /** Max supported cadence — 14 = 2 posts/day. Kept in sync with validateConfig's clamp. */
@@ -40,7 +50,37 @@ function tomorrow(): Date {
 }
 
 /**
+ * Kolik dní má měsíc, který začíná daným dnem — 28 až 31, podle kalendáře.
+ *
+ * „Měsíc" v plánovači byly čtyři týdny, takže plán skončil vždy po 28 dnech
+ * a konec skutečného měsíce zůstal prázdný. Den v měsíci se ořezává na poslední
+ * existující (31. 1. + měsíc = 28. 2., ne 3. 3.), aby délka nikdy nepřesáhla
+ * jeden kalendářní měsíc.
+ */
+export function monthSpanDays(start: Date): number {
+    const y = start.getFullYear(), m = start.getMonth(), d = start.getDate()
+    const lastOfNext = new Date(y, m + 2, 0).getDate() // den 0 = poslední den předchozího měsíce
+    const end = new Date(y, m + 1, Math.min(d, lastOfNext))
+    const from = Date.UTC(y, m, d)
+    const to = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate())
+    return Math.round((to - from) / 86_400_000)
+}
+
+/**
+ * Kolik příspěvků se do rozpětí vejde při dané týdenní kadenci.
+ *
+ * Zaokrouhluje se **dolů**: UI u počtu slibuje „N× týdně" a přebytečný příspěvek
+ * by tenhle slib v některém klouzavém týdnu porušil (18 postů na 31 dní je 4,06
+ * za týden). Nejmíň jeden, ať krátké rozpětí nevrátí prázdný plán.
+ */
+export function postsForSpan(spanDays: number, postsPerWeek: number): number {
+    return Math.max(1, Math.floor((spanDays / 7) * postsPerWeek))
+}
+
+/**
  * Produce `count` schedule slots at `postsPerWeek` per week.
+ *  - `spanDays` set (a perWeek ≤ 7): rovnoměrně přes zadané rozpětí — tím se
+ *    plán trefí do skutečné délky měsíce místo do čtyř týdnů.
  *  - perWeek ≤ 7: at most one post/day, spread across the week (offset
  *    `floor(j*7/perWeek)`) — cadence 4 gives a Mon/Tue/Thu/Sat rhythm.
  *  - perWeek > 7: `ceil(perWeek/7)` posts/day (14 = 2×/day), each at a different
@@ -63,21 +103,30 @@ export function distributeSchedule(count: number, opts: DistributeOptions = {}):
     start.setHours(0, 0, 0, 0)
     if (start < minStart) start = minStart
 
+    // Rozpětí dává smysl jen tam, kde na den připadá nejvýš jeden příspěvek;
+    // u 2×/day rozhoduje `perDay` a dny se stejně vyplní hustě za sebou.
+    const span = opts.spanDays && opts.spanDays > 0 && perWeek <= 7
+        ? Math.round(opts.spanDays)
+        : null
+
     const out: ScheduleSlot[] = []
     for (let i = 0; i < count; i++) {
         const week = Math.floor(i / perWeek)
         const j = i % perWeek
-        let dayOffset: number
+        let dayOffset: number // ode dne startu, ne od začátku týdne
         let slotIdx: number
-        if (perWeek <= 7) {
-            dayOffset = Math.floor((j * 7) / perWeek) // ≤1/day, spread across the week
-            slotIdx = j % slots.length                // rotate times by position
+        if (span) {
+            dayOffset = Math.min(span - 1, Math.floor((i * span) / count)) // rovnoměrně přes celé rozpětí
+            slotIdx = j % slots.length
+        } else if (perWeek <= 7) {
+            dayOffset = week * 7 + Math.floor((j * 7) / perWeek) // ≤1/day, spread across the week
+            slotIdx = j % slots.length                           // rotate times by position
         } else {
-            dayOffset = Math.floor(j / perDay)        // perDay posts land on the same day
-            slotIdx = j % perDay                      // …at distinct slots (09:00, 17:00, …)
+            dayOffset = week * 7 + Math.floor(j / perDay)        // perDay posts land on the same day
+            slotIdx = j % perDay                                 // …at distinct slots (09:00, 17:00, …)
         }
         const day = new Date(start)
-        day.setDate(day.getDate() + week * 7 + dayOffset)
+        day.setDate(day.getDate() + dayOffset)
         out.push({ date: toDateStr(day), time: slots[slotIdx % slots.length] })
     }
     return out
