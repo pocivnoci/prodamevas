@@ -2752,6 +2752,41 @@ test("23.15 výloha se nikde nepočítá jako zákazník", () => {
         "neq.true by odfiltrovalo skutečné zákazníky — past na NULL v jsonb")
 })
 
+test("23.19 registrace nesmí skončit čekáním na e-mail", () => {
+    // 9. 9. 2026 se na obchodní schůzce zaregistroval zájemce ze seznam.cz.
+    // Účet měl v pořádku včetně razítka pozvánky, ale potvrzovací mail nedorazil
+    // — projekt neměl vlastní SMTP a jel na vestavěném odesílači Supabase se
+    // stropem DVA maily za hodinu. Dvacet minut se marně zkoušel přihlásit
+    // a odešel. Čtyři účty z třinácti uvízly ve stejném stavu.
+    const reg = codeOnly("app/register/actions.ts")
+
+    // Když Supabase vrátí session (potvrzování vypnuté), je uživatel přihlášený
+    // a musí jít rovnou dovnitř. Bez tohohle větvení visí celý trychtýř na
+    // e-mailu bez ohledu na to, jak je projekt nastavený.
+    assert(/signUpData\.session/.test(reg) && /redirect\('\/dashboard/.test(reg),
+        "po registraci se session musí uživatel pustit do studia, ne čekat na mail")
+    const sessionAt = reg.indexOf("signUpData.session")
+    const checkMailAt = reg.indexOf("success=check_email")
+    assert(sessionAt > 0 && checkMailAt > sessionAt,
+        "větev se session musí být PŘED odkazem na e-mail — jinak se nikdy nepoužije")
+
+    // Slíbená značka se vybírá i při registraci, ne jen při přihlášení: kdo jde
+    // rovnou do studia, přihlašovací akcí neprojde.
+    assert(/claimHandoffs/.test(reg),
+        "registrace musí vybrat slíbenou značku — jinak přijde zákazník do prázdna")
+
+    // Účet bez jediného přihlášení je hlášení o rozbitém produktu, ne vlažný
+    // lead: patří nahoru a s kratším luntem než nedokončený onboarding.
+    const health = codeOnly("lib/agents/client-health.ts")
+    assert(/export async function countLockedOut/.test(health),
+        "musí existovat počítadlo účtů, které se nikdy nepřihlásily")
+    assert(/last_sign_in_at/.test(health),
+        "rozlišení stojí na last_sign_in_at, ne na vazbě na klienta")
+    const brief = codeOnly("lib/agents/daily-brief.ts")
+    assert(/countLockedOut/.test(brief) && /lines\.unshift/.test(brief),
+        "denní přehled to musí hlásit, a nahoře")
+})
+
 test("23.13 fronta schválení nesmí růst sama", () => {
     // 8. 9. 2026 v ní čekalo 27 akcí, nejstarší 46 dní — a rostla ze tří příčin
     // najednou. Každá má tady vlastní aserci, protože oprava jedné bez druhých

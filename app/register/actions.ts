@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/supabase/server'
 import { claimInvite, findUsableInvite } from '@/lib/invite-gate'
 import { inviteRequired } from '@/lib/beta-access'
@@ -29,7 +30,7 @@ export async function signup(formData: FormData) {
         redirect('/register?error=invalid_invite')
     }
 
-    const { error } = await supabase.auth.signUp({
+    const { data: signUpData, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -56,6 +57,27 @@ export async function signup(formData: FormData) {
     // ho nezavíráme; přetečení o jedno místo je vidět v logu.
     if (inviteRecord && !(await claimInvite(inviteRecord))) {
         console.warn(`⚠️ invite ${inviteRecord.code} vyčerpán mezi validací a registrací ${email} — účet vznikl nad rámec kapacity`)
+    }
+
+    // REGISTRACE NESMÍ SKONČIT ČEKÁNÍM NA E-MAIL, KTERÝ NEMUSÍ DORAZIT.
+    //
+    // 9. 9. 2026 se na obchodní schůzce zaregistroval zájemce ze seznam.cz,
+    // dvacet minut se marně zkoušel přihlásit a odešel. Účet měl v pořádku
+    // včetně razítka pozvánky — jen mu nedorazil potvrzovací mail. Projekt
+    // tehdy neměl vlastní SMTP a jel na vestavěném odesílači Supabase se
+    // stropem DVA maily za hodinu. Čtyři účty z třinácti uvízly stejně.
+    //
+    // Když Supabase vrátí rovnou session (potvrzování vypnuté), je uživatel
+    // přihlášený — pustíme ho dovnitř. Tenhle kód je proto správně při OBOU
+    // nastaveních `mailer_autoconfirm` a nezávisí na tom, jestli mail dojde.
+    if (signUpData.session) {
+        // Značka slíbená na tuhle adresu (`client_handoffs`) se vybírá i tady,
+        // ne jen v přihlášení — jinak by nový zákazník přišel do prázdna,
+        // zatímco jeho projekt na něj v databázi čeká.
+        const { claimHandoffs } = await import('@/lib/handoff')
+        if (signUpData.user) await claimHandoffs(signUpData.user)
+        revalidatePath('/', 'layout')
+        redirect('/dashboard/instagram')
     }
 
     redirect('/register?success=check_email')

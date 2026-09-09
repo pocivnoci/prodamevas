@@ -235,11 +235,12 @@ async function buildCompliance(): Promise<ComplianceItem[]> {
  * Klienti bez rizika se nevypisují: brief má být krátký.
  */
 async function buildRisk(now: Date): Promise<BriefLine[]> {
-    const { buildClientHealth, describeRisks, countStalledOnboardings } = await import("@/lib/agents/client-health")
+    const { buildClientHealth, describeRisks, countStalledOnboardings, countLockedOut } = await import("@/lib/agents/client-health")
 
-    const [rows, stalled] = await Promise.all([
+    const [rows, stalled, lockedOut] = await Promise.all([
         buildClientHealth(now).catch(() => []),
         countStalledOnboardings(now).catch(() => ({ count: 0, oldestDays: null })),
+        countLockedOut(now).catch(() => ({ count: 0, oldestMinutes: null, emails: [] })),
     ])
 
     const lines: BriefLine[] = rows
@@ -254,6 +255,20 @@ async function buildRisk(now: Date): Promise<BriefLine[]> {
                 r.creditsTotal > 0 ? `${r.creditsRemaining}/${r.creditsTotal} kreditů` : null,
             ].filter(Boolean).join(" · "),
         }))
+
+    // Nahoru a s vykřičníkem: kdo se nikdy nepřihlásil, není lead k dohnání,
+    // ale důkaz, že se do produktu nedá dostat. Viz countLockedOut().
+    if (lockedOut.count > 0) {
+        lines.unshift({
+            icon: "🚨",
+            text: `${lockedOut.count}× registrace BEZ jediného přihlášení`,
+            detail: [
+                lockedOut.oldestMinutes !== null ? `nejstarší ${lockedOut.oldestMinutes} min` : null,
+                lockedOut.emails.join(", "),
+                "účet vznikl, ale člověk se nedostal dovnitř — zkontroluj doručování potvrzovacích e-mailů",
+            ].filter(Boolean).join(" · "),
+        })
+    }
 
     if (stalled.count > 0) {
         lines.push({
