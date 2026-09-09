@@ -206,6 +206,9 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
         slotIntent: ctx.slotIntent,
         product: productInfo,
         userPhoto: userPhotoInfo,
+        // Ukázka práce jede v paletě CIZÍHO oboru, kdežto vizuální paměť popisuje,
+        // co fungovalo u NÁS (tmavá, červená). Ponechaná by design táhla domů.
+        visualMemoriesSection: ctx.showcaseKit ? "" : undefined,
     })
     cost += COSTS.designerBrief
     console.log(`   ✓ Koncept: "${brief.concept}" [${brief.layoutArchetype || "no archetype"}]`)

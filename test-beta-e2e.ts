@@ -2752,6 +2752,47 @@ test("23.15 výloha se nikde nepočítá jako zákazník", () => {
         "neq.true by odfiltrovalo skutečné zákazníky — past na NULL v jsonb")
 })
 
+test("23.18 showcase kit nesmí obarvit další posty", () => {
+    // Ukázkový karusel na vlastním účtu jede v paletě jiného oboru. Kit se proto
+    // MUSÍ aplikovat na lokální kopii: CLIENT_CONFIG je modulově globální a
+    // cachovaná napříč posty jedné lambdy (ensureConfig), takže mutace by
+    // obarvila i další posty klienta a poznalo by se to až na hotovém feedu.
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/const config = options\.showcaseKit\s*\n?\s*\? applyShowcaseKit\(CLIENT_CONFIG!/.test(auto),
+        "kit se musí aplikovat na lokální kopii configu, ne na CLIENT_CONFIG")
+    assert(!/CLIENT_CONFIG\s*=\s*applyShowcaseKit/.test(auto),
+        "applyShowcaseKit se nikdy nesmí zapsat zpátky do modulově globální CLIENT_CONFIG")
+
+    const kit = codeOnly("instagram/showcase-kit.ts")
+    const applyFn = kit.slice(kit.indexOf("export function applyShowcaseKit"))
+    assert(/\{\s*\n\s*\.\.\.config,/.test(applyFn),
+        "applyShowcaseKit musí stavět NOVÝ objekt spreadem, ne sahat na vstup")
+    assert(!/\bconfig\.[\w.]+\s*=[^=]/.test(applyFn),
+        "applyShowcaseKit nesmí přiřazovat do vstupního configu")
+    // Dvě třetiny feedu jsou naše formáty mířené na segment — tam se hlas
+    // NEPŘEPISUJE, protože v nich prodáváme sebe.
+    assert(/mode === "tema"/.test(applyFn) && /return visual/.test(applyFn),
+        "režim tema musí přepsat jen vizuál a vrátit se dřív, než sáhne na brandVoice")
+    // gatherContext() čte industry; bez přepisu by si engine nastudoval marketing
+    // na sítích místo oboru, o který jde, a hook by zůstal básnička.
+    assert(/industry: kit\.industryLabel/.test(applyFn),
+        "kit musí přepsat obor, jinak si context agent nastuduje ten náš")
+
+    // Vizuální paměť říká, co fungovalo u TÉHLE značky (u chrlit tmavá a červená).
+    // V ukázce pro cizí obor by táhla design zpátky domů, proto se potlačuje.
+    const img = codeOnly("instagram/orchestrators/image-orchestrator.ts")
+    assert(/visualMemoriesSection: ctx\.showcaseKit \? "" : undefined/.test(img),
+        "ukázka práce musí potlačit vizuální paměť domácí značky")
+
+    // Podpis smí předepsat IDENTITU (barva, řez, jméno), nikdy KOMPOZICI.
+    // První verze sem psala plochou výplň, vsazenou fotku a povinný pruh —
+    // devět značek se tím proměnilo v jednu šablonu s vyměněným hexem.
+    assert(kit.includes("do NOT add a footer bar") && kit.includes("the layout is free"),
+        "podpis nesmí předepisovat kompozici — na tom série jednou padla")
+    assert(!/COVER LOCKUP|contained inset|flat, saturated fill/.test(kit),
+        "mustr obálky se nesmí vrátit: plochá výplň + vsazená fotka + pruh")
+})
+
 test("23.19 registrace nesmí skončit čekáním na e-mail", () => {
     // 9. 9. 2026 se na obchodní schůzce zaregistroval zájemce ze seznam.cz.
     // Účet měl v pořádku včetně razítka pozvánky, ale potvrzovací mail nedorazil
@@ -2784,8 +2825,7 @@ test("23.19 registrace nesmí skončit čekáním na e-mail", () => {
         "rozlišení stojí na last_sign_in_at, ne na vazbě na klienta")
     const brief = codeOnly("lib/agents/daily-brief.ts")
     assert(/countLockedOut/.test(brief) && /lines\.unshift/.test(brief),
-        "denní přehled to musí hlásit, a nahoře")
-})
+        "denní přehled to musí hlásit, a nahoře")})
 
 test("23.13 fronta schválení nesmí růst sama", () => {
     // 8. 9. 2026 v ní čekalo 27 akcí, nejstarší 46 dní — a rostla ze tří příčin

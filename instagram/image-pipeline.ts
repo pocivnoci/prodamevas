@@ -488,6 +488,10 @@ export async function generateCarouselDesignBriefs(params: {
     slotIntent?: SlotIntent
     /** The format's creative brief (config.postTypeDefs) — see generateDesignBrief. */
     formatBrief?: { description?: string; visualStyle?: string }
+    /** Same seam as generateDesignBrief: pass "" to suppress the brand's visual memory.
+     *  A showcase carousel runs in ANOTHER industry's palette, and this section says
+     *  what worked visually for THIS brand — left in, it pulls the design home. */
+    visualMemoriesSection?: string
 }): Promise<{ designSystem: string; briefs: DesignBrief[] }> {
     const { config, clientId, allSlides, visualTheme, postType, recentBriefs, slotIntent, formatBrief } = params
     const banned = (params.bannedArchetypes ?? []).filter(a => (LAYOUT_ARCHETYPES as readonly string[]).includes(a))
@@ -498,7 +502,7 @@ export async function generateCarouselDesignBriefs(params: {
     const afterBan = archetypePool.filter(a => !banned.includes(a))
     const allowedArchetypes = afterBan.length > 0 ? afterBan : [...archetypePool]
     const fa = config.feedAesthetic
-    const memSection = await getVisualMemoriesSection(clientId)
+    const memSection = params.visualMemoriesSection ?? await getVisualMemoriesSection(clientId)
 
     const slideSummary = allSlides.map((s, i) =>
         `Slide ${i === 0 ? "COVER" : String(i)}: headline="${s.headline}", subtext="${s.subtext}", visual idea="${s.imagePrompt}"`
