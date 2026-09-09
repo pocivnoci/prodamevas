@@ -2764,19 +2764,33 @@ test("23.18 showcase kit nesmí obarvit další posty", () => {
         "applyShowcaseKit se nikdy nesmí zapsat zpátky do modulově globální CLIENT_CONFIG")
 
     const kit = codeOnly("instagram/showcase-kit.ts")
-    assert(/return \{\s*\n\s*\.\.\.config,/.test(kit),
-        "applyShowcaseKit musí vracet nový objekt, ne mutovat vstup")
-    assert(!/config\.feedAesthetic\.\w+\s*=/.test(kit),
-        "applyShowcaseKit nesmí přiřazovat do vstupního feedAesthetic")
+    const applyFn = kit.slice(kit.indexOf("export function applyShowcaseKit"))
+    assert(/\{\s*\n\s*\.\.\.config,/.test(applyFn),
+        "applyShowcaseKit musí stavět NOVÝ objekt spreadem, ne sahat na vstup")
+    assert(!/\bconfig\.[\w.]+\s*=[^=]/.test(applyFn),
+        "applyShowcaseKit nesmí přiřazovat do vstupního configu")
+    // Dvě třetiny feedu jsou naše formáty mířené na segment — tam se hlas
+    // NEPŘEPISUJE, protože v nich prodáváme sebe.
+    assert(/mode === "tema"/.test(applyFn) && /return visual/.test(applyFn),
+        "režim tema musí přepsat jen vizuál a vrátit se dřív, než sáhne na brandVoice")
+    // gatherContext() čte industry; bez přepisu by si engine nastudoval marketing
+    // na sítích místo oboru, o který jde, a hook by zůstal básnička.
+    assert(/industry: kit\.industryLabel/.test(applyFn),
+        "kit musí přepsat obor, jinak si context agent nastuduje ten náš")
 
     // Vizuální paměť říká, co fungovalo u TÉHLE značky (u chrlit tmavá a červená).
-    // V showcase generaci by táhla design zpátky domů, proto se potlačuje.
-    const carousel = codeOnly("instagram/orchestrators/carousel-orchestrator.ts")
-    assert(/visualMemoriesSection: ctx\.showcaseKit \? "" : undefined/.test(carousel),
-        "showcase karusel musí potlačit vizuální paměť domácí značky")
-    const pipeline = codeOnly("instagram/image-pipeline.ts")
-    assert((pipeline.match(/params\.visualMemoriesSection \?\? await getVisualMemoriesSection/g) || []).length === 2,
-        "šev na potlačení vizuální paměti musí mít obrázková i karuselová cesta")
+    // V ukázce pro cizí obor by táhla design zpátky domů, proto se potlačuje.
+    const img = codeOnly("instagram/orchestrators/image-orchestrator.ts")
+    assert(/visualMemoriesSection: ctx\.showcaseKit \? "" : undefined/.test(img),
+        "ukázka práce musí potlačit vizuální paměť domácí značky")
+
+    // Podpis smí předepsat IDENTITU (barva, řez, jméno), nikdy KOMPOZICI.
+    // První verze sem psala plochou výplň, vsazenou fotku a povinný pruh —
+    // devět značek se tím proměnilo v jednu šablonu s vyměněným hexem.
+    assert(kit.includes("do NOT add a footer bar") && kit.includes("the layout is free"),
+        "podpis nesmí předepisovat kompozici — na tom série jednou padla")
+    assert(!/COVER LOCKUP|contained inset|flat, saturated fill/.test(kit),
+        "mustr obálky se nesmí vrátit: plochá výplň + vsazená fotka + pruh")
 })
 
 test("23.13 fronta schválení nesmí růst sama", () => {

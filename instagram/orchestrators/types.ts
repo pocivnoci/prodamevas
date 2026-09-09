@@ -74,7 +74,7 @@ export interface RenderContext {
     userPhotoUrl?: string
     /** Vision description of that photo — the text-only AI Designer's window into it */
     userPhotoDescription?: string
-    /** Showcase generace — celý karusel jede v paletě jiného oboru (instagram/showcase-kit.ts).
+    /** Ukázka práce — příspěvek jede v paletě jiného oboru (instagram/showcase-kit.ts).
      *  Orchestrátor to potřebuje vědět jen kvůli vizuální paměti: ta popisuje, co vizuálně
      *  fungovalo u TÉHLE značky, a proti cizí paletě by táhla zpátky do domácích barev. */
     showcaseKit?: ShowcaseKit

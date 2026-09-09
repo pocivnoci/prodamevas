@@ -1,20 +1,20 @@
 /**
- * Oborové ukázkové karusely na účtu `chrlit`
- * ==========================================
+ * Oborové ukázky práce na účtu `chrlit`
+ * ======================================
  * Účet `chrlit` má 41 příspěvků a všechny v jedné paletě (#050505 + #c0392b).
  * Zvenčí to čte jako „umí jenom červený feed". Tenhle skript proti tomu staví
- * sérii karuselů, kde KAŽDÝ jede v barevnosti a typografii jiného oboru:
+ * devět SAMOSTATNÝCH příspěvků — každý je hotová práce pro značku z jiného
+ * oboru, v její barevnosti, typografii, hlase i rodině layoutů.
  *
- *   Slide 1  — obálka: plocha v barvách oboru, dole černý pruh Chrlitu s logem
- *   Slide 2-4 — tři ukázkové příspěvky vymyšlené značky z toho oboru
- *
- * V mřížce profilu je z karuselu vidět jen obálka, takže série vyrobí devět
- * různobarevných dlaždic se stejným podpisem — přesně ten důkaz, o který jde.
+ * Samostatný post = samostatná dlaždice, takže rozmanitost je vidět rovnou
+ * v mřížce. První verze byly karusely s jednotnou obálkou; z mřížky pak
+ * koukalo devět stejných titulek a vypadalo to jako složka prezentací.
  *
  *   npx tsx scripts/seed-chrlit-showcase.ts --list
  *   npx tsx scripts/seed-chrlit-showcase.ts --dry-run
  *   npx tsx scripts/seed-chrlit-showcase.ts --format-only     # jen srovnat formát v configu
  *   npx tsx scripts/seed-chrlit-showcase.ts --only=agropuda
+ *   npx tsx scripts/seed-chrlit-showcase.ts --only=vinarstvi --mode=tema      # vynutit režim
  *   npx tsx scripts/seed-chrlit-showcase.ts                    # celá série
  *
  * Paleta se čte ŽIVĚ z portfoliového klienta (`sourceSlug`), typografie a
@@ -30,11 +30,30 @@
 import supabaseAdmin from "../supabase/admin"
 import { loadConfig, invalidateConfigCache } from "../instagram/configs"
 import { generateOnePost } from "../instagram/autopilot"
-import { buildShowcaseTopic, isRegulatedShowcase, type ShowcaseKit } from "../instagram/showcase-kit"
+import { buildSegmentTopic, buildShowcaseTopic, isRegulatedShowcase, SHOWCASE_BENEFITS, type ShowcaseKit } from "../instagram/showcase-kit"
 import { KITS, SHOWCASE_TYPE, SHOWCASE_TYPE_DEF } from "../instagram/showcase-kits"
 import type { ClientConfig } from "../instagram/configs/types"
 
 const OWN_SLUG = "chrlit"
+
+/**
+ * Srovnávací kolo: tentýž obor ve třech směrech vedle sebe.
+ *
+ * Vizuální směr se špatně popisuje slovy — tohle převádí otázku „jak to má
+ * vypadat" na ukázání prstem. Všechny tři jsou fotograficko-redakční, liší se
+ * tím, JAK fotka nese barvu a kde bydlí text.
+ */
+const VARIANTS: Record<string, string> = {
+    celoplosna: "Single full-bleed photograph edge to edge, no borders, no panels. The colour floods the "
+        + "whole frame straight out of the scene. Type sits directly on the photograph in its calmest area, "
+        + "large and confident. Think a magazine's opening spread.",
+    obalka: "One strong photograph occupying roughly two thirds, the remaining third a clean field lifted "
+        + "from a colour inside that same photograph (not a foreign brand colour). Type lives in that field "
+        + "with generous air. Think a fashion magazine cover.",
+    makro: "Extreme close-up: a single detail filling the frame — texture, droplets, grain, skin, surface. "
+        + "Shallow depth of field, tactile, almost edible. The colour comes from the subject itself. Type is "
+        + "small and set into the negative space the macro leaves.",
+}
 
 // ─── Hydratace palety ze zdrojového klienta ──────────────────────────
 
@@ -45,6 +64,13 @@ const OWN_SLUG = "chrlit"
  * Jméno, web ani logo se nepřebírají nikdy — anonymita série na tom stojí.
  */
 async function hydrate(kit: ShowcaseKit): Promise<ShowcaseKit> {
+    // Kit bez předlohy si nese vlastní paletu — oborů je víc než portfoliových značek.
+    if (!kit.sourceSlug) {
+        if (!kit.feedAesthetic.colorPalette) {
+            throw new Error(`${kit.key}: kit bez sourceSlug musí mít vlastní feedAesthetic.colorPalette`)
+        }
+        return kit
+    }
     const src = await loadConfig(kit.sourceSlug)
     const fa = src.feedAesthetic
     if (!fa?.colorPalette) throw new Error(`${kit.sourceSlug}: chybí feedAesthetic.colorPalette — z čeho brát barvy?`)
@@ -125,12 +151,20 @@ async function main() {
     const args = process.argv.slice(2)
     const dryRun = args.includes("--dry-run")
     const onlyArg = args.find(a => a.startsWith("--only="))?.split("=")[1]
+    const variantArg = args.find(a => a.startsWith("--variant="))?.split("=")[1]
+    const modeArg = args.find(a => a.startsWith("--mode="))?.split("=")[1] as "ukazka" | "tema" | undefined
+    if (modeArg && modeArg !== "ukazka" && modeArg !== "tema") {
+        throw new Error(`Neznámý --mode=${modeArg}. Známé: ukazka, tema`)
+    }
+    if (variantArg && !VARIANTS[variantArg]) {
+        throw new Error(`Neznámý --variant=${variantArg}. Známé: ${Object.keys(VARIANTS).join(", ")}`)
+    }
     const only = onlyArg ? onlyArg.split(",").map(s => s.trim()).filter(Boolean) : null
 
     if (args.includes("--list")) {
         console.log("\n🎨 Showcase kity:\n")
         for (const k of KITS) {
-            console.log(`   ${k.key.padEnd(12)} ${k.industryLabel.padEnd(32)} „${k.brandName}"  ← paleta z ${k.sourceSlug}`)
+            console.log(`   ${k.key.padEnd(12)} ${k.industryLabel.padEnd(32)} „${k.brandName}"  ${k.dominantColor}  [${k.visualMode}]`)
             console.log(`   ${"".padEnd(12)} ${k.feedAesthetic.typographyStyle}`)
         }
         console.log()
@@ -141,7 +175,7 @@ async function main() {
     if (selected.length === 0) throw new Error(`Žádný kit neodpovídá --only=${onlyArg}. Známé: ${KITS.map(k => k.key).join(", ")}`)
 
     console.log("\n" + "═".repeat(64))
-    console.log(`🎨 OBOROVÉ UKÁZKOVÉ KARUSELY → účet ${OWN_SLUG}`)
+    console.log(`🎨 OBOROVÉ UKÁZKY PRÁCE → účet ${OWN_SLUG}`)
     console.log(`   Kitů: ${selected.length}${dryRun ? "   🔍 DRY-RUN" : ""}`)
     console.log("═".repeat(64) + "\n")
 
@@ -153,18 +187,38 @@ async function main() {
 
     let ok = 0
     for (const raw of selected) {
-        const kit = await hydrate(raw)
-        const topic = buildShowcaseTopic(kit)
+        const hydrated = await hydrate(raw)
+        const kit: ShowcaseKit = variantArg
+            ? { ...hydrated, directionOverride: VARIANTS[variantArg] }
+            : hydrated
 
         console.log(`\n── ${kit.key} — ${kit.industryLabel} ─────────────────────`)
         console.log(`   značka:   „${kit.brandName}" (vymyšlená)`)
-        console.log(`   paleta:   ${kit.feedAesthetic.colorPalette}  ← živě z ${kit.sourceSlug}`)
+        console.log(`   paleta:   ${kit.feedAesthetic.colorPalette}${kit.sourceSlug ? `  ← živě z ${kit.sourceSlug}` : "  (vlastní)"}`)
+        console.log(`   vládne:   ${kit.dominantColor}`)
         console.log(`   akcent:   ${kit.feedAesthetic.accentColor ?? "—"}`)
         console.log(`   typo:     ${kit.feedAesthetic.typographyStyle}`)
+        console.log(`   layout:   ${kit.visualMode}${variantArg ? `  |  směr: ${variantArg}` : ""}`)
         if (isRegulatedShowcase(kit)) {
             if (!kit.guardrails) throw new Error(`${kit.key}: regulovaný obor bez guardrails — viz commit 2ba162e6.`)
             console.log(`   ⚖️  zákazy: ${kit.guardrails}`)
         }
+
+        // Každý třetí obor je ukázka (hlas značky + naše výhoda), zbylé dva jsou
+        // naše běžné formáty mířené na tenhle segment. Feed tak zůstane profilem
+        // pro lidi, ne katalogem odvětví — a barevný je pořád, protože kit platí
+        // na všechno.
+        //
+        // Role plyne z pozice v REGISTRU, ne z pořadí v běhu: jinak by `--only=`
+        // na jeden obor vždycky vyrobilo ukázku a doplnit chybějící kus by
+        // změnilo, čím ten obor ve feedu je.
+        const isShowcase = modeArg
+            ? modeArg === "ukazka"
+            : KITS.findIndex(k => k.key === kit.key) % 3 === 0
+        const mode: "ukazka" | "tema" = isShowcase ? "ukazka" : "tema"
+        const topic = isShowcase ? buildShowcaseTopic(kit) : buildSegmentTopic(kit)
+        console.log(`   režim:    ${isShowcase ? "UKÁZKA (mluví značka + naše výhoda)" : "TÉMA (mluvíme my, mířeně)"}`)
+        console.log(`   výhoda:   ${kit.benefit} — ${SHOWCASE_BENEFITS[kit.benefit]}`)
 
         if (dryRun) {
             console.log(`\n   TOPIC pro copywritera:\n${topic.split("\n").map(l => "   │ " + l).join("\n")}`)
@@ -174,15 +228,18 @@ async function main() {
         try {
             const res = await generateOnePost({
                 configName: OWN_SLUG,
-                type: SHOWCASE_TYPE,
-                medium: "carousel",
+                // Ukázka má vlastní formát; u tématu vybírá formát běžná rotace
+                // Chrlitu (mýtus, srovnání, před/po…), ať profil žije jako profil.
+                ...(isShowcase ? { type: SHOWCASE_TYPE } : {}),
+                medium: "image",
                 aspectRatio: "4:5",
                 topic,
                 showcaseKit: kit,
+                showcaseMode: mode,
+                slotIntent: { patternId: "none", seqIndex: 0, visualMode: kit.visualMode },
             })
-            const slides = res.imageUrl?.split("|").length ?? 0
-            console.log(`   ✅ Hotovo: ${slides} slidů, $${res.cost.toFixed(2)}`)
-            console.log(`      ${res.imageUrl?.split("|")[0] ?? "(bez obrázku)"}`)
+            console.log(`   ✅ Hotovo: $${res.cost.toFixed(2)}`)
+            console.log(`      ${res.imageUrl ?? "(bez obrázku)"}`)
             ok++
         } catch (err: any) {
             console.error(`   ❌ ${kit.key} selhal: ${err?.message}`)
@@ -190,7 +247,7 @@ async function main() {
     }
 
     console.log("\n" + "═".repeat(64))
-    console.log(dryRun ? "🔍 Dry-run hotov — nic se nevygenerovalo." : `✅ Vygenerováno ${ok}/${selected.length} karuselů. Drafty čekají ve studiu.`)
+    console.log(dryRun ? "🔍 Dry-run hotov — nic se nevygenerovalo." : `✅ Vygenerováno ${ok}/${selected.length} ukázek. Drafty čekají ve studiu.`)
     console.log("═".repeat(64) + "\n")
 }
 

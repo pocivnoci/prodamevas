@@ -220,6 +220,8 @@ export async function generateOnePost(options: {
      *  Přepisuje POUZE vizuál (paletu, typografii, gradient); hlas i popisek
      *  zůstávají značce. Viz instagram/showcase-kit.ts. */
     showcaseKit?: ShowcaseKit
+    /** „ukazka" = hlas patří ukázkové značce, „tema" = mluvíme my mířeně na segment. */
+    showcaseMode?: "ukazka" | "tema"
     onProgress?: (stage: string, progress: number, message: string, editorialLog?: EditorialMessage[]) => Promise<void>
 }): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number; mediaType: PostMedium }> {
     const report = options.onProgress || (async () => { }) // no-op if not provided
@@ -234,7 +236,7 @@ export async function generateOnePost(options: {
     // a cachovaná napříč posty jedné lambdy (ensureConfig) — mutace by prosákla do
     // dalších postů téhož klienta a ty by zůstaly v cizí paletě.
     const config = options.showcaseKit
-        ? applyShowcaseKit(CLIENT_CONFIG!, options.showcaseKit)
+        ? applyShowcaseKit(CLIENT_CONFIG!, options.showcaseKit, options.showcaseMode ?? "ukazka")
         : CLIENT_CONFIG!
     const startTime = Date.now()
     let cost = ck?.costSoFar ?? 0
@@ -1222,7 +1224,6 @@ ${feedSummary}
                 selectedProduct: selectedProduct as SelectedProduct | undefined,
                 linkedProductId, clientUuid, recentBriefs, recentArchetypes, slotIntent,
                 userPhotoUrl: options.customImageUrl, userPhotoDescription,
-                showcaseKit: options.showcaseKit,
             })
             imageUrl = renderResult.imageUrl
             cost += renderResult.cost
@@ -1245,6 +1246,7 @@ ${feedSummary}
                 selectedProduct: selectedProduct as SelectedProduct | undefined,
                 linkedProductId, clientUuid, recentBriefs, recentArchetypes, slotIntent,
                 userPhotoUrl: options.customImageUrl, userPhotoDescription,
+                showcaseKit: options.showcaseKit,
             })
             imageUrl = renderResult.imageUrl
             cost += renderResult.cost
