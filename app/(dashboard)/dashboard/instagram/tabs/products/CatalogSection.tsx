@@ -12,12 +12,14 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { createPortal } from "react-dom"
 import { motion } from "framer-motion"
 import {
     getProducts,
     createProduct,
     updateProduct,
     deleteProduct,
+    deleteProductImage,
     deleteProducts,
     uploadProductImage,
     scrapeProductsFromWebsite,
@@ -29,24 +31,34 @@ import {
 // smaže při překladu, takže si klient nic serverového nepřitáhne.
 import type { ProductUrlDraft } from "@/lib/product-import"
 import { getLines, type LineRow } from "@/app/actions/line-actions"
-import { Camera, Link2, Package, Pencil, X } from "lucide-react"
+import { Camera, Link2, Package, Pencil, Plus, X } from "lucide-react"
 
 const LABEL = "text-[9px] uppercase tracking-widest font-bold text-white/40"
 const INPUT = "w-full bg-[#0a0a0a] border border-white/8 rounded-sm px-3 py-2 text-sm text-white/90 focus:border-amber-500/40 focus:outline-none"
 
 const EMPTY_FORM = { name: "", type: "", slug: "", price: "", description: "", variants: "" }
 
+/** Řádek `ig_products` v rozsahu, který formulář opravdu čte a zapisuje. */
+interface CatalogProduct {
+    id: string
+    name: string
+    slug: string
+    type?: string | null
+    price?: string | null
+    description?: string | null
+    variants?: number | null
+    image_urls?: string[] | null
+}
+
 export function CatalogSection({ projectId }: { projectId: string }) {
     const [products, setProducts] = useState<any[]>([])
     const [lines, setLines] = useState<LineRow[]>([])
     const [loading, setLoading] = useState(true)
-    const [showForm, setShowForm] = useState(false)
-    const [editingId, setEditingId] = useState<string | null>(null)
-    const [saving, setSaving] = useState(false)
+    /** `null` = zavřeno, `"new"` = nový produkt, jinak upravovaný produkt. */
+    const [editing, setEditing] = useState<CatalogProduct | "new" | null>(null)
     const [uploading, setUploading] = useState<string | null>(null)
     const [scraping, setScraping] = useState(false)
     const [scrapeResult, setScrapeResult] = useState<string | null>(null)
-    const [form, setForm] = useState(EMPTY_FORM)
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
     const [bulkDeleting, setBulkDeleting] = useState(false)
     const [lineFilter, setLineFilter] = useState<string>("all")
@@ -92,43 +104,6 @@ export function CatalogSection({ projectId }: { projectId: string }) {
             return 0
         })
     }, [products, lineFilter])
-
-    const autoSlug = (name: string) =>
-        name.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-            .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
-
-    const handleSubmit = async () => {
-        if (!form.name || !form.slug) return
-        setSaving(true)
-        const payload = {
-            name: form.name,
-            type: form.type,
-            slug: form.slug,
-            price: form.price,
-            description: form.description,
-            variants: form.variants ? Number(form.variants) : undefined,
-        }
-        if (editingId) await updateProduct(editingId, projectId, payload)
-        else await createProduct(projectId, payload)
-        setForm(EMPTY_FORM)
-        setShowForm(false)
-        setEditingId(null)
-        setSaving(false)
-        await load()
-    }
-
-    const handleEdit = (p: any) => {
-        setForm({
-            name: p.name,
-            type: p.type || "",
-            slug: p.slug,
-            price: p.price || "",
-            description: p.description || "",
-            variants: p.variants != null ? String(p.variants) : "",
-        })
-        setEditingId(p.id)
-        setShowForm(true)
-    }
 
     const handleDelete = async (id: string) => {
         if (!confirm("Smazat produkt? Tato akce je nevratná.")) return
@@ -518,7 +493,7 @@ export function CatalogSection({ projectId }: { projectId: string }) {
                                 <input type="file" accept="image/*" className="hidden"
                                     onChange={(e) => handleImageUpload(p.id, e)} disabled={uploading === p.id} />
                             </label>
-                            <button onClick={() => handleEdit(p)} className="p-2 text-white/20 hover:text-white/60 transition-colors" title="Upravit">
+                            <button onClick={() => setEditing(p)} className="p-2 text-white/20 hover:text-white/60 transition-colors" title="Upravit">
                                 <Pencil className="w-3 h-3 text-[10px]" />
                             </button>
                             <button onClick={() => handleDelete(p.id)} className="p-2 text-white/20 hover:text-red-400/80 transition-colors" title="Smazat">
@@ -538,16 +513,149 @@ export function CatalogSection({ projectId }: { projectId: string }) {
                 </div>
             ))}
 
-            {/* Add / edit form */}
-            {showForm && (
-                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                    className="bg-[#0f0f0f] border border-white/10 rounded-sm p-6 space-y-4">
-                    <div className="border-b border-white/10 pb-3">
-                        <h4 className="text-sm font-black uppercase tracking-widest text-white/70">
-                            {editingId ? "Upravit produkt" : "Nový produkt"}
-                        </h4>
-                    </div>
+            <button onClick={() => setEditing("new")}
+                className="w-full py-4 border border-dashed border-white/15 rounded-sm text-[10px] text-white/40 font-bold uppercase tracking-widest hover:text-white/70 hover:border-white/30 transition-all">
+                + Přidat produkt
+            </button>
 
+            {/* Úpravy produktu žijí v modálu, ne pod seznamem. Formulář se vykresloval
+                až za všemi produkty, takže u delšího katalogu klik na tužku nic
+                viditelného neudělal — vypadalo to, že tlačítko nefunguje. */}
+            {editing && (
+                <ProductFormModal
+                    projectId={projectId}
+                    product={editing === "new" ? null : editing}
+                    onClose={() => setEditing(null)}
+                    onSaved={async () => { setEditing(null); await load() }}
+                    onImagesChanged={load}
+                />
+            )}
+        </div>
+    )
+}
+
+/**
+ * Všechny úpravy jednoho produktu na jednom místě — text i fotky.
+ *
+ * Fotky se ukládají hned (upload i mazání jsou samostatné akce nad storage),
+ * texty až na „Uložit". Proto má modal dvě cesty ven: `onSaved` po uložení
+ * textů a `onImagesChanged` průběžně, aby se seznam pod modálem srovnal
+ * i tehdy, když se nakonec zavře křížkem.
+ */
+function ProductFormModal({ projectId, product, onClose, onSaved, onImagesChanged }: {
+    projectId: string
+    /** `null` = zakládá se nový produkt. */
+    product: CatalogProduct | null
+    onClose: () => void
+    onSaved: () => void | Promise<void>
+    onImagesChanged: () => void | Promise<void>
+}) {
+    const editingId: string | null = product?.id ?? null
+
+    const [form, setForm] = useState(() => product ? {
+        name: product.name || "",
+        type: product.type || "",
+        slug: product.slug || "",
+        price: product.price || "",
+        description: product.description || "",
+        variants: product.variants != null ? String(product.variants) : "",
+    } : EMPTY_FORM)
+    const [images, setImages] = useState<string[]>(product?.image_urls || [])
+    const [saving, setSaving] = useState(false)
+    const [busyImage, setBusyImage] = useState<string | null>(null)
+    const [uploading, setUploading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+
+    // Escape zavírá stejně jako klik mimo — modal je nad celou stránkou.
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+        window.addEventListener("keydown", onKey)
+        return () => window.removeEventListener("keydown", onKey)
+    }, [onClose])
+
+    const autoSlug = (name: string) =>
+        name.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+
+    const handleSubmit = async () => {
+        if (!form.name || !form.slug) return
+        setSaving(true)
+        setError(null)
+        const payload = {
+            name: form.name,
+            type: form.type,
+            slug: form.slug,
+            price: form.price,
+            description: form.description,
+            variants: form.variants ? Number(form.variants) : undefined,
+        }
+        const res = editingId
+            ? await updateProduct(editingId, projectId, payload)
+            : await createProduct(projectId, payload)
+        setSaving(false)
+        if (!res?.success) {
+            setError(res?.error || "Uložení selhalo")
+            return
+        }
+        await onSaved()
+    }
+
+    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        e.target.value = ""
+        if (!file || !editingId) return
+        setUploading(true)
+        setError(null)
+        const fd = new FormData()
+        fd.append("file", file)
+        const res = await uploadProductImage(projectId, editingId, fd)
+        setUploading(false)
+        if (!res.success || !res.publicUrl) {
+            setError(res.error || "Nahrání selhalo")
+            return
+        }
+        setImages(list => [...list, res.publicUrl!])
+        await onImagesChanged()
+    }
+
+    const handleRemoveImage = async (url: string) => {
+        if (!editingId) return
+        setBusyImage(url)
+        setError(null)
+        const res = await deleteProductImage(projectId, editingId, url)
+        setBusyImage(null)
+        if (!res.success) {
+            setError(res.error || "Smazání fotky selhalo")
+            return
+        }
+        setImages(list => list.filter(u => u !== url))
+        await onImagesChanged()
+    }
+
+    return createPortal(
+        <div
+            className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4"
+            style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
+            onClick={onClose}
+        >
+            <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
+
+            <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="relative w-full sm:max-w-2xl max-h-[92vh] bg-[#0a0a0a] border border-white/10 rounded-sm overflow-hidden flex flex-col shadow-2xl"
+                onClick={e => e.stopPropagation()}
+            >
+                <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 shrink-0">
+                    <h4 className="text-sm font-black uppercase tracking-widest text-white/70">
+                        {editingId ? "Upravit produkt" : "Nový produkt"}
+                    </h4>
+                    <button onClick={onClose} className="p-1.5 text-white/30 hover:text-white/70 transition-colors" title="Zavřít">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-5 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                             <label className={LABEL}>Název produktu</label>
@@ -586,26 +694,53 @@ export function CatalogSection({ projectId }: { projectId: string }) {
                             onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} />
                     </div>
 
-                    <div className="flex items-center justify-end gap-3 pt-2">
-                        <button onClick={() => { setShowForm(false); setEditingId(null); setForm(EMPTY_FORM) }}
-                            className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors">
-                            Zrušit
-                        </button>
-                        <button onClick={handleSubmit} disabled={saving || !form.name || !form.slug}
-                            className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-sm bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 disabled:opacity-40 transition-all">
-                            {saving ? "Ukládám…" : editingId ? "Uložit změny" : "Vytvořit produkt"}
-                        </button>
+                    {/* Fotky — jen u existujícího produktu: upload potřebuje id řádku. */}
+                    <div className="space-y-2 border-t border-white/5 pt-4">
+                        <label className={LABEL}>Fotky produktu</label>
+                        {editingId ? (
+                            <div className="flex flex-wrap gap-2">
+                                {images.map(url => (
+                                    <div key={url} className="relative w-20 h-20 rounded-sm overflow-hidden border border-white/10 bg-[#050505] group">
+                                        <img src={url} alt="" className="w-full h-full object-cover" />
+                                        <button
+                                            onClick={() => handleRemoveImage(url)}
+                                            disabled={busyImage === url}
+                                            title="Odebrat fotku"
+                                            className="absolute top-0.5 right-0.5 p-1 rounded-sm bg-black/70 text-white/60 hover:text-red-400 transition-colors disabled:opacity-40"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                ))}
+                                <label className={`w-20 h-20 flex flex-col items-center justify-center gap-1 rounded-sm border border-dashed border-white/15 text-white/30 hover:text-white/60 hover:border-white/30 transition-all cursor-pointer ${uploading ? "animate-pulse" : ""}`}>
+                                    <Plus className="w-4 h-4" />
+                                    <span className="text-[8px] uppercase tracking-widest font-bold">Fotka</span>
+                                    <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
+                                </label>
+                            </div>
+                        ) : (
+                            <p className="text-[10px] text-white/30">Fotky půjdou přidat, jakmile produkt uložíš.</p>
+                        )}
                     </div>
-                </motion.div>
-            )}
 
-            {!showForm && (
-                <button onClick={() => { setShowForm(true); setEditingId(null); setForm(EMPTY_FORM) }}
-                    className="w-full py-4 border border-dashed border-white/15 rounded-sm text-[10px] text-white/40 font-bold uppercase tracking-widest hover:text-white/70 hover:border-white/30 transition-all">
-                    + Přidat produkt
-                </button>
-            )}
-        </div>
+                    {error && (
+                        <p className="text-[10px] text-red-400/80 bg-red-500/5 border border-red-500/20 rounded-sm px-3 py-2">{error}</p>
+                    )}
+                </div>
+
+                <div className="flex items-center justify-end gap-3 px-5 py-3.5 border-t border-white/10 bg-[#050505] shrink-0">
+                    <button onClick={onClose}
+                        className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors">
+                        Zrušit
+                    </button>
+                    <button onClick={handleSubmit} disabled={saving || !form.name || !form.slug}
+                        className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-sm bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 disabled:opacity-40 transition-all">
+                        {saving ? "Ukládám…" : editingId ? "Uložit změny" : "Vytvořit produkt"}
+                    </button>
+                </div>
+            </motion.div>
+        </div>,
+        document.body
     )
 }
 
