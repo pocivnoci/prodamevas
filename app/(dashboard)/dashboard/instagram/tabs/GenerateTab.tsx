@@ -13,7 +13,7 @@ import { generateContentPlan, regeneratePlanItem, getPlanCadence, savePlanCadenc
 import { startCampaign, getCampaignStatus } from "@/app/actions/campaign-actions"
 import { getPlanForMedium } from "@/lib/pricing"
 import { schedulePostAction } from "@/app/actions/calendar-actions"
-import { distributeSchedule } from "@/lib/schedule-planner"
+import { distributeSchedule, monthSpanDays, postsForSpan } from "@/lib/schedule-planner"
 import { MEDIA_CREDITS, type MediumType } from "@/lib/credits"
 import { computeSlotIntents, VISUAL_MODE_LABELS, type FeedPatternId } from "@/lib/feed-pattern"
 import { getProducts } from "@/app/actions/product-actions"
@@ -589,11 +589,14 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     // Duration-based plan length. A "week" is the brand's real cadence (postsPerWeek), not 7 days —
     // so the post count (and credit cost, and carousel cap denominator) all track reality. Trial is
     // a fixed small taste regardless of cadence.
+    //
+    // „Měsíc" má `days: null`, protože délku určuje kalendář, ne čtyři týdny: napevno
+    // 28 dní znamenalo, že v 30- i 31denním měsíci zůstal konec bez jediného příspěvku.
     const PLAN_DURATIONS = [
-        { key: "trial", label: "Zkouška", weeks: 0 },
-        { key: "1w", label: "Týden", weeks: 1 },
-        { key: "2w", label: "Dva týdny", weeks: 2 },
-        { key: "month", label: "Měsíc", weeks: 4 },
+        { key: "trial", label: "Zkouška", days: 0 },
+        { key: "1w", label: "Týden", days: 7 },
+        { key: "2w", label: "Dva týdny", days: 14 },
+        { key: "month", label: "Měsíc", days: null },
     ] as const
 
     const CAMPAIGN_GOALS: { key: CampaignGoal; label: string; emoji: string; hint: string }[] = [
@@ -612,10 +615,18 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     const toggleFocusProduct = (id: string) => {
         setFocusProductIds(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id])
     }
-    const durationToCount = (key: typeof planDuration, perWeek: number = postsPerWeek): number => {
+    /** Přes kolik dní se plán rozprostírá. 0 = ochutnávka, ta rozpětí neřeší. */
+    const durationSpan = (key: typeof planDuration, startIso: string = scheduleStart): number => {
+        const days = PLAN_DURATIONS.find(d => d.key === key)?.days
+        return days ?? monthSpanDays(new Date(`${startIso}T00:00:00`))
+    }
+    const durationToCount = (
+        key: typeof planDuration,
+        perWeek: number = postsPerWeek,
+        startIso: string = scheduleStart,
+    ): number => {
         if (key === "trial") return 3
-        const weeks = PLAN_DURATIONS.find(d => d.key === key)?.weeks ?? 1
-        return Math.max(1, Math.round(weeks * perWeek))
+        return postsForSpan(durationSpan(key, startIso), perWeek)
     }
     const handleDurationChange = (key: typeof planDuration) => {
         setPlanDuration(key)
@@ -644,12 +655,13 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     // The cadence the subscription can actually afford for the selected duration: prefer the
     // largest chip fully covered by the plan allotment (cost 0), else the largest that fits the
     // remaining credits, else the smallest chip. Null = nothing to recommend (loading/trial).
-    const durationWeeks = PLAN_DURATIONS.find(d => d.key === planDuration)?.weeks ?? 0
     const recommendedCadence: number | null = (() => {
         if (!subscription || planDuration === "trial") return null
-        const fullyCovered = [...CADENCE_OPTIONS].reverse().find(c => planCost(durationWeeks * c) === 0)
+        // Přes durationToCount, ne přes týdny × kadence: u měsíce je počet odvozený
+        // z kalendáře a zlomek týdne by dal necelý počet příspěvků (a pole o necelé délce).
+        const fullyCovered = [...CADENCE_OPTIONS].reverse().find(c => planCost(durationToCount(planDuration, c)) === 0)
         if (fullyCovered) return fullyCovered
-        const affordable = [...CADENCE_OPTIONS].reverse().find(c => planCost(durationWeeks * c) <= (subscription.creditsRemaining ?? 0))
+        const affordable = [...CADENCE_OPTIONS].reverse().find(c => planCost(durationToCount(planDuration, c)) <= (subscription.creditsRemaining ?? 0))
         return affordable ?? CADENCE_OPTIONS[0]
     })()
 
@@ -688,7 +700,13 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     // Overwrites all items (predictable re-distribution); per-item edits below
     // override a single slot afterward.
     const autoDistribute = (plan: ContentPlanItem[], start: string, perWeek: number): ContentPlanItem[] => {
-        const slots = distributeSchedule(plan.length, { startDate: new Date(start), postsPerWeek: perWeek })
+        const slots = distributeSchedule(plan.length, {
+            startDate: new Date(start),
+            postsPerWeek: perWeek,
+            // Bez rozpětí by plán skončil na hranici čtvrtého týdne, tedy 28. den —
+            // i když měsíc má 30 nebo 31.
+            spanDays: durationSpan(planDuration, start) || undefined,
+        })
         return plan.map((p, i) => ({ ...p, scheduledDate: slots[i]?.date, scheduledTime: slots[i]?.time }))
     }
 
@@ -697,6 +715,10 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         setScheduleStart(start)
         if (perWeek !== postsPerWeek) cadenceSourceRef.current = "user"
         setPostsPerWeek(perWeek)
+        // Posun startu mění délku měsíce (z 1. 2. je to 28 dní, z 1. 3. jednatřicet),
+        // takže se přepočítá i počet příspěvků — ale jen dokud plán neexistuje.
+        // Přepočet nad hotovým plánem by ho podle handleCountChange zahodil.
+        if (contentPlan.length === 0) setBatchCount(durationToCount(planDuration, perWeek, start))
         setContentPlan(prev => autoDistribute(prev, start, perWeek))
     }
 
@@ -1217,7 +1239,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                                         {CADENCE_OPTIONS.map(c => {
                                             const overBudget = planDuration !== "trial" && subscription != null
-                                                && planCost(durationWeeks * c) > (subscription.creditsRemaining ?? 0)
+                                                && planCost(durationToCount(planDuration, c)) > (subscription.creditsRemaining ?? 0)
                                             return (
                                                 <button key={c} onClick={() => handleCadenceChange(c)}
                                                     className={`px-3 py-2.5 rounded-sm border text-[11px] font-bold transition-all ${postsPerWeek === c
@@ -1315,7 +1337,11 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 {/* Live summary — one sentence that keeps count, cadence, real date
                                     range and cost visibly coherent before the user commits. */}
                                 {(() => {
-                                    const slots = distributeSchedule(batchCount, { startDate: new Date(scheduleStart), postsPerWeek })
+                                    const slots = distributeSchedule(batchCount, {
+                                        startDate: new Date(scheduleStart),
+                                        postsPerWeek,
+                                        spanDays: durationSpan(planDuration) || undefined,
+                                    })
                                     const range = slots.length > 0
                                         ? `${shortCzDate(slots[0].date)} – ${shortCzDate(slots[slots.length - 1].date)}`
                                         : null

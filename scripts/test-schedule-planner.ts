@@ -7,7 +7,7 @@
  * which is exactly the bug this replaced. So the math gets asserted.
  */
 
-import { distributeSchedule, toScheduledFor } from "../lib/schedule-planner"
+import { distributeSchedule, monthSpanDays, postsForSpan, toScheduledFor } from "../lib/schedule-planner"
 
 let passed = 0
 let failed = 0
@@ -61,6 +61,76 @@ console.log("\nMonth span:")
     eq("16 posts @ 4/week → 16 slots", slots.length, 16)
     eq("first post on the start day", dayOffset(start, slots[0].date), 0)
     eq("last post lands on day 26 (start of week 4 + offset 5)", dayOffset(start, slots[15].date), 26)
+}
+
+// ── Rozpětí: „měsíc" má 28–31 dní, ne vždycky 28 ──
+console.log("\nSpan (skutečný měsíc):")
+{
+    const offsets = (count: number, spanDays: number, perWeek = 4) =>
+        distributeSchedule(count, { startDate: start, postsPerWeek: perWeek, spanDays })
+            .map(s => dayOffset(start, s.date))
+
+    // Beze změny významu: 4 týdny × 4 posty vyjdou stejně se spanem i bez něj.
+    eq("span 28 @ 16 postů = plánování po týdnech",
+        offsets(16, 28),
+        distributeSchedule(16, { startDate: start, postsPerWeek: 4 }).map(s => dayOffset(start, s.date)))
+
+    // 31denní měsíc: poslední post musí být až na konci měsíce, ne 26. den.
+    const long = offsets(postsForSpan(31, 4), 31)
+    eq("31 dní @ 4/týdně → 17 postů", long.length, 17)
+    const lastLong = long[long.length - 1]
+    check("poslední post spadne do posledního týdne měsíce", lastLong >= 28 && lastLong <= 30,
+        `got ${lastLong}`)
+    check("žádné dva posty na stejný den", new Set(long).size === long.length)
+    check("dny jdou po sobě", long.every((o, i) => i === 0 || o > long[i - 1]))
+
+    // Únor: kratší měsíc se nesmí přetáhnout přes svůj konec.
+    const short = offsets(16, 28)
+    check("28denní měsíc nepřeteče", short[short.length - 1] <= 27, `got ${short[short.length - 1]}`)
+
+    // Hustota zůstává na kadenci — v žádném klouzavém týdnu nesmí být víc než perWeek.
+    const densityOk = (list: number[], perWeek: number) =>
+        list.every(o => list.filter(x => x >= o && x < o + 7).length <= perWeek)
+    check("hustota drží kadenci (31 dní, 4/týdně)", densityOk(long, 4))
+    check("hustota drží kadenci (30 dní, 7/týdně)", densityOk(offsets(postsForSpan(30, 7), 30, 7), 7))
+
+    eq("span 0 = jako by nebyl zadaný",
+        distributeSchedule(8, { startDate: start, postsPerWeek: 4, spanDays: 0 }).map(s => dayOffset(start, s.date)),
+        distributeSchedule(8, { startDate: start, postsPerWeek: 4 }).map(s => dayOffset(start, s.date)))
+    eq("2×/day span ignoruje (o dnech rozhoduje perDay)",
+        distributeSchedule(8, { startDate: start, postsPerWeek: 14, spanDays: 30 }).map(s => dayOffset(start, s.date)),
+        [0, 0, 1, 1, 2, 2, 3, 3])
+    eq("jeden post do měsíčního rozpětí sedne na start", offsets(1, 30), [0])
+
+    // Kadence se drží pro každý reálný měsíc i kadenci, ne jen pro ten testovaný.
+    let allDensityOk = true, allFitOk = true
+    for (const spanDays of [28, 29, 30, 31]) {
+        for (const perWeek of [1, 2, 3, 4, 5, 6, 7]) {
+            const list = offsets(postsForSpan(spanDays, perWeek), spanDays, perWeek)
+            if (!densityOk(list, perWeek)) allDensityOk = false
+            if (list[list.length - 1] > spanDays - 1) allFitOk = false
+        }
+    }
+    check("kadence platí pro všechny délky měsíce a kadence", allDensityOk)
+    check("plán se vejde do rozpětí", allFitOk)
+}
+
+// ── Délka měsíce a počet postů ──
+console.log("\nKalendářní měsíc:")
+{
+    eq("leden → 31 dní", monthSpanDays(new Date(2026, 0, 1)), 31)
+    eq("únor 2026 → 28 dní", monthSpanDays(new Date(2026, 1, 1)), 28)
+    eq("únor 2028 (přestupný) → 29 dní", monthSpanDays(new Date(2028, 1, 1)), 29)
+    eq("duben → 30 dní", monthSpanDays(new Date(2026, 3, 1)), 30)
+    eq("od 15. 9. → 30 dní (do 15. 10.)", monthSpanDays(new Date(2026, 8, 15)), 30)
+    eq("31. 1. se ořízne na 28. 2., ne 3. 3.", monthSpanDays(new Date(2026, 0, 31)), 28)
+    eq("přes přechod na letní čas (15. 3.) → 31 dní", monthSpanDays(new Date(2026, 2, 15)), 31)
+
+    eq("4/týdně × 28 dní → 16 postů", postsForSpan(28, 4), 16)
+    eq("4/týdně × 30 dní → 17 postů", postsForSpan(30, 4), 17)
+    eq("4/týdně × 31 dní → 17 postů", postsForSpan(31, 4), 17)
+    eq("7/týdně × 31 dní → 31 postů", postsForSpan(31, 7), 31)
+    eq("nikdy ne nula", postsForSpan(1, 1), 1)
 }
 
 // ── Structural invariants across counts and cadences ──
