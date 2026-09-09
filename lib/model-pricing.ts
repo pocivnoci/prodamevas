@@ -70,6 +70,13 @@ const PRICES: Record<string, TokenPrice> = {
     // Anthropic ji k tomu datu udělal STANDARDNÍ a plánované zdražení na $3/$15
     // od 2026-09-01 zrušil. cachedIn 0.20 = řádek „Cache Hits & Refreshes".
     "claude-sonnet-5": { in: 2, out: 10, cachedIn: 0.20, source: "platform.claude.com/docs/en/about-claude/pricing, ověřeno 2026-08-31 (standardní sazba)" },
+
+    // ── Ověřování faktů na webu ────────────────────────────────────────────────
+    // Levný tier schválně: krok umí jen DOLOŽIT tvrzení citací, nikdy přepsat text
+    // (instagram/fact-web.ts). Tokeny jsou tu navíc objemné — vrácené výsledky
+    // hledání se počítají jako vstup — takže sazba za vstup rozhoduje o ceně víc
+    // než obvykle. Samotná hledání se účtují zvlášť, viz UNIT_PRICES.
+    "claude-haiku-4-5": { in: 1, out: 5, cachedIn: 0.10, source: "platform.claude.com/docs/en/about-claude/pricing, ověřeno 2026-09-07" },
 }
 
 /**
@@ -86,13 +93,21 @@ const ALIASES: Record<string, string> = {
     "gemini-pro-latest": "gemini-3.1-pro-preview",
 }
 
+/** Co se u daného volání účtuje mimo tokeny. */
+export type UnitKind = "seconds" | "images" | "searches"
+
 /**
- * Jednotkové sazby — modely, které se neúčtují za tokeny.
+ * Jednotkové sazby — co se neúčtuje za tokeny.
  * Obraz per kus, video per vteřinu. Rozlišení bereme to, které engine skutečně
  * renderuje: video `resolution: "1080p"` (gemini-client.ts), obraz bez `imageSize`
  * (= 1K; „2K"/„4K" rozmazává gemini-3-pro-image, viz komentář tamtéž).
+ *
+ * `perSearch` je jiný případ než ty dva: hledání na webu se účtuje **vedle** tokenů,
+ * ne místo nich. Proto ho `instagram/fact-web.ts` zapisuje jako SAMOSTATNÝ záznam
+ * (`recordUnits`) vedle tokenového (`recordUsage`) — jeden záznam neumí obojí a
+ * mlčky by zahodil tu druhou půlku ceny.
  */
-const UNIT_PRICES: Record<string, { perSecond?: number; perImage?: number; source: string }> = {
+const UNIT_PRICES: Record<string, { perSecond?: number; perImage?: number; perSearch?: number; source: string }> = {
     // Veo 3.1 @ 1080p
     "veo-3.1-generate-preview": { perSecond: 0.40, source: GOOGLE },
     "veo-3.1-fast-generate-preview": { perSecond: 0.12, source: `${GOOGLE} (1080p; 720p je 0,10)` },
@@ -100,6 +115,16 @@ const UNIT_PRICES: Record<string, { perSecond?: number; perImage?: number; sourc
     // Nano Banana Pro / 2 @ 1K
     "gemini-3-pro-image": { perImage: 0.134, source: `${GOOGLE} (1K/2K)` },
     "gemini-3.1-flash-image": { perImage: 0.067, source: `${GOOGLE} (1K)` },
+    // Web search server tool — $10 / 1000 hledání. Účtuje se za každé hledání bez
+    // ohledu na počet výsledků; hledání, které skončí chybou, se neúčtuje.
+    "claude-haiku-4-5": { perSearch: 0.01, source: "platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool, ověřeno 2026-09-07" },
+}
+
+/** Sazba za jednotku daného druhu, nebo `undefined`, když ji model nemá. */
+function rateForKind(up: { perSecond?: number; perImage?: number; perSearch?: number } | undefined, kind: UnitKind): number | undefined {
+    if (kind === "seconds") return up?.perSecond
+    if (kind === "images") return up?.perImage
+    return up?.perSearch
 }
 
 /**
@@ -111,10 +136,8 @@ const UNIT_PRICES: Record<string, { perSecond?: number; perImage?: number; sourc
  * Dvě pravdy o ceně znamenají, že žádný výpočet marže nesedí — a rozhoduje
  * ta, která má zdroj a datum, tedy tenhle soubor.
  */
-export function unitRate(model: string, kind: "seconds" | "images"): number | null {
-    const up = UNIT_PRICES[resolveModelAlias(model)]
-    const rate = kind === "seconds" ? up?.perSecond : up?.perImage
-    return rate ?? null
+export function unitRate(model: string, kind: UnitKind): number | null {
+    return rateForKind(UNIT_PRICES[resolveModelAlias(model)], kind) ?? null
 }
 
 const warned = new Set<string>()
@@ -157,7 +180,7 @@ export interface PricedUsage {
     outputTokens: number
     thoughtTokens: number
     cachedTokens: number
-    units?: { kind: "seconds" | "images"; n: number }
+    units?: { kind: UnitKind; n: number }
 }
 
 /**
@@ -167,8 +190,7 @@ export interface PricedUsage {
 export function costUsdForCall(model: string, u: PricedUsage): number | null {
     // Netokenové volání (video za vteřiny, obrázek za kus) má vlastní sazebník.
     if (u.units) {
-        const up = UNIT_PRICES[resolveModelAlias(model)]
-        const rate = u.units.kind === "seconds" ? up?.perSecond : up?.perImage
+        const rate = rateForKind(UNIT_PRICES[resolveModelAlias(model)], u.units.kind)
         if (rate === undefined) {
             warnMissing(model, `jednotková sazba (${u.units.kind})`)
             return null
@@ -194,7 +216,7 @@ export function costUsdForCall(model: string, u: PricedUsage): number | null {
  * Cena celé generace. Vrací `null`, jakmile **kterýkoli** krok cenu nemá — částečný
  * součet by tvrdil, že příspěvek stál míň, než ve skutečnosti stál.
  */
-export function costUsdForBreakdown(calls: { model: string; promptTokens: number; outputTokens: number; thoughtTokens: number; cachedTokens: number; units?: { kind: "seconds" | "images"; n: number } }[]): number | null {
+export function costUsdForBreakdown(calls: { model: string; promptTokens: number; outputTokens: number; thoughtTokens: number; cachedTokens: number; units?: { kind: UnitKind; n: number } }[]): number | null {
     let sum = 0
     for (const c of calls) {
         const cost = costUsdForCall(c.model, c)

@@ -28,6 +28,13 @@ export async function login(formData: FormData) {
         redirect('/login?error=no_access')
     }
 
+    // Značka slíbená na tenhle e-mail (`client_handoffs`). Slib může vzniknout
+    // i pro účet, který dávno existuje, takže se vybírá při KAŽDÉM přihlášení,
+    // ne jen po registraci — jinak by zákazník čekal na projekt, který na něj
+    // v databázi celou dobu čeká taky.
+    const { claimHandoffs } = await import('@/lib/handoff')
+    await claimHandoffs(data.user)
+
     revalidatePath('/', 'layout')
     redirect('/dashboard/instagram')
 }

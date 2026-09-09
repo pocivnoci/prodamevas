@@ -57,6 +57,13 @@ export async function GET(request: Request) {
                     const dest = isOAuth ? `/register?error=${verdict.reason}` : '/login?error=no_access'
                     return NextResponse.redirect(`${origin}${dest}`)
                 }
+
+                // Značka slíbená na tenhle e-mail (`client_handoffs`) — vazba se
+                // zakládá TEĎ, ne až po přesměrování: kdo právě potvrdil účet,
+                // má na dashboardu vidět svůj projekt, ne prázdno a výzvu
+                // k onboardingu značky, kterou už má hotovou.
+                const { claimHandoffs } = await import('@/lib/handoff')
+                await claimHandoffs(user)
             }
 
             // Welcome e-mail, exactly once per user. The recovery flow reuses this

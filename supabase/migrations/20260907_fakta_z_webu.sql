@@ -1,0 +1,13 @@
+-- Doklady z webu k faktické bráně (instagram/fact-web.ts)
+-- =======================================================
+-- Brána uměla dvě odpovědi: „stojí to v povolených zdrojích" nebo „nepodložené".
+-- Tvrzení o SVĚTĚ (zákon, norma, parametr cizího produktu) nespadalo ani do jedné —
+-- pravda to je, ale do brandFacts nepatří, protože to není fakt o značce. Teď takové
+-- tvrzení jde na web a smí se vrátit s citací; sem se ukládá, čím je doložené.
+--
+-- fact_sources: [{ claim, url, title?, quote? }] — url a quote pocházejí ze skutečných
+--               výsledků hledání, ne z textu modelu (viz admissibleSource).
+--               Ukazuje se u příspěvku: doklad, který nikdo neuvidí, je stejný jako
+--               žádný, a citaci ke zdroji navíc vyžaduje poskytovatel vyhledávání.
+--               NULL = žádné tvrzení se na webu neověřovalo (ne „ověřilo a nic").
+alter table ig_generation_log add column if not exists fact_sources jsonb;

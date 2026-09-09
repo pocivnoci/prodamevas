@@ -146,7 +146,7 @@ function blockHtml(b: Block): string {
         case "promoCode":
             return row(
                 `<td align="center" style="border:2px dashed ${COLOR.ink};border-radius:${METRIC.radius}px;padding:20px">
-      <p style="${TYPE.eyebrow};margin:0 0 8px">Slevový kód</p>
+      <p style="${TYPE.eyebrow};margin:0 0 8px">${escapeHtml(b.label || "Slevový kód")}</p>
       <p style="font-family:${FONT};font-size:26px;font-weight:900;letter-spacing:.2em;color:${COLOR.ink};margin:0">${escapeHtml(b.code)}</p>
       ${b.note ? `<p style="${TYPE.small};margin:8px 0 0">${escapeHtml(b.note)}</p>` : ""}
     </td>`,

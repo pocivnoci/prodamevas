@@ -3,18 +3,43 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import {
+    checkManualRecipients,
     getMailingSegments, getMailingRecipients, getMailingTemplates, previewMail, sendBroadcast, sendTestEmail,
     type MailingSegment, type BroadcastResult, type MailingTemplateInfo, type MailPreview,
 } from "@/app/actions/mailing-actions"
+import {
+    ATTACH_MAX_FILES, ATTACH_MAX_FILE_BYTES, ATTACH_MAX_TOTAL_BYTES,
+    type MailingAttachmentInput,
+} from "@/lib/mail/attachments"
 
 const DAILY_CAP = 100
+
+/** Soubor → base64 bez `data:` prefixu, tedy přesně to, co čeká Resend. */
+function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onerror = () => reject(new Error(`Soubor „${file.name}" se nepodařilo přečíst.`))
+        reader.onload = () => {
+            const result = String(reader.result || "")
+            const comma = result.indexOf(",")
+            resolve(comma >= 0 ? result.slice(comma + 1) : result)
+        }
+        reader.readAsDataURL(file)
+    })
+}
+
+const formatSize = (bytes: number) =>
+    bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} kB`
 /** Hodnota v pickeru pro starou cestu „napíšu si to sám". */
 const CUSTOM = "__custom__"
 
 const SEGMENTS: { id: MailingSegment; label: string; hint: string }[] = [
-    { id: "waitlist", label: "Waitlist", hint: "Zájemci čekající na spuštění" },
+    { id: "waitlist", label: "Zájemci z webu", hint: "Kdo na landingu nechal kontakt" },
     { id: "activeClients", label: "Aktivní klienti", hint: "Platící + trial" },
     { id: "expired", label: "Vypršelí", hint: "Předplatné doběhlo" },
+    // Obchod potřebuje poslat nabídku člověku, se kterým zrovna mluvil — ten
+    // v žádném segmentu není a čekat, až se někam zapíše, znamená neposlat nic.
+    { id: "manual", label: "Ruční adresy", hint: "Napíšeš je sám (nový klient, lead)" },
 ]
 
 export function MailingTab() {
@@ -23,8 +48,15 @@ export function MailingTab() {
     const [recipients, setRecipients] = useState<string[]>([])
     const [selected, setSelected] = useState<Set<string>>(new Set())
     const [loadingRecipients, setLoadingRecipients] = useState(false)
+    /** Ruční adresy tak, jak je člověk nalepil — čárky, středníky i řádky. */
+    const [manualRaw, setManualRaw] = useState("")
+    const [manualRejected, setManualRejected] = useState<string[]>([])
+    /** Rozepsaná adresa vypadá jako překlep. Varování patří až za psaní, ne do něj. */
+    const [manualFocused, setManualFocused] = useState(false)
     const [subject, setSubject] = useState("")
     const [body, setBody] = useState("")
+    /** Přílohy se drží i s původní velikostí, aby šlo ukázat, kolik z limitu zbývá. */
+    const [attachments, setAttachments] = useState<(MailingAttachmentInput & { bytes: number })[]>([])
     const [confirming, setConfirming] = useState(false)
     const [sending, setSending] = useState(false)
     const [result, setResult] = useState<BroadcastResult | null>(null)
@@ -74,10 +106,58 @@ export function MailingTab() {
         return () => clearTimeout(id)
     }, [refreshPreview, template, subject, body])
 
+    /**
+     * Přidání souborů. Meze se hlídají i tady, ne jen na serveru: odeslat 20 MB
+     * a teprve pak se dozvědět, že to bylo moc, je zbytečná cesta tam a zpět
+     * (a server akce má vlastní strop na tělo requestu).
+     */
+    const addFiles = async (files: FileList | null) => {
+        if (!files?.length) return
+        setError(null)
+        const picked = [...files]
+        if (attachments.length + picked.length > ATTACH_MAX_FILES) {
+            setError(`Nejvýš ${ATTACH_MAX_FILES} přílohy na jeden e-mail.`)
+            return
+        }
+        const tooBig = picked.find(f => f.size > ATTACH_MAX_FILE_BYTES)
+        if (tooBig) {
+            setError(`„${tooBig.name}" má ${formatSize(tooBig.size)}, strop je ${formatSize(ATTACH_MAX_FILE_BYTES)} na soubor.`)
+            return
+        }
+        const total = attachments.reduce((n, a) => n + a.bytes, 0) + picked.reduce((n, f) => n + f.size, 0)
+        if (total > ATTACH_MAX_TOTAL_BYTES) {
+            setError(`Přílohy dohromady mají ${formatSize(total)}, strop je ${formatSize(ATTACH_MAX_TOTAL_BYTES)}.`)
+            return
+        }
+        try {
+            const read = await Promise.all(picked.map(async f => ({
+                filename: f.name,
+                content: await fileToBase64(f),
+                contentType: f.type || undefined,
+                bytes: f.size,
+            })))
+            setAttachments(prev => [...prev, ...read])
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Přílohu se nepodařilo načíst.")
+        }
+    }
+
+    const removeAttachment = (filename: string) =>
+        setAttachments(prev => prev.filter(a => a.filename !== filename))
+
+    /** Bez `bytes` — ten je jen pro zobrazení, server si velikost spočítá sám. */
+    const attachmentPayload = (): MailingAttachmentInput[] | undefined =>
+        attachments.length
+            ? attachments.map(({ filename, content, contentType }) => ({ filename, content, contentType }))
+            : undefined
+
     const doTest = async () => {
         setTesting(true); setError(null); setNotice(null)
         try {
-            const to = await sendTestEmail(template ? { templateId: template.id, vars } : { subject, body })
+            const to = await sendTestEmail({
+                ...(template ? { templateId: template.id, vars } : { subject, body }),
+                attachments: attachmentPayload(),
+            })
             setNotice(`Testovací zpráva odeslána na ${to}.`)
         } catch (e: any) {
             setError(e?.message || "Testovací odeslání selhalo.")
@@ -93,6 +173,16 @@ export function MailingTab() {
     // Load the individual addresses whenever the segment changes; default all checked.
     useEffect(() => {
         let cancelled = false
+        // Ruční adresy nemá kde načíst — vznikají v poli níž. Seznam z předchozího
+        // segmentu se ale musí zahodit HNED: než doběhne načtení ručních adres,
+        // zůstaly by ve výběru adresy z waitlistu a odeslání by šlo na ně.
+        if (segment === "manual") {
+            setRecipients([])
+            setSelected(new Set())
+            setLoadingRecipients(false)
+            return
+        }
+        setManualRejected([])
         setLoadingRecipients(true)
         getMailingRecipients(segment)
             .then(list => {
@@ -104,6 +194,38 @@ export function MailingTab() {
             .finally(() => { if (!cancelled) setLoadingRecipients(false) })
         return () => { cancelled = true }
     }, [segment])
+
+    /**
+     * Nalepený seznam → adresy. Server je pak ověří znovu (tvar i odhlášení);
+     * tohle je jen okamžitá zpětná vazba, aby bylo vidět, co se skutečně pošle.
+     */
+    const applyManual = useCallback(async (raw: string) => {
+        const parts = raw.split(/[\s,;]+/).map(p => p.trim()).filter(Boolean)
+        if (parts.length === 0) {
+            setRecipients([]); setSelected(new Set()); setManualRejected([])
+            return
+        }
+        setLoadingRecipients(true)
+        try {
+            const { ok, vyrazene } = await checkManualRecipients(parts)
+            setRecipients(ok)
+            setSelected(new Set(ok))
+            setManualRejected(vyrazene)
+        } catch {
+            setRecipients([]); setSelected(new Set()); setManualRejected([])
+        } finally {
+            setLoadingRecipients(false)
+        }
+    }, [])
+
+    // Adresy se načtou samy, chvilku po dopsání. Bez tohohle bylo tlačítko Odeslat
+    // zašedlé, dokud člověk neklikl vedle nebo na „Načíst adresy" — a nic mu
+    // neřeklo proč. Tlačítko zůstává jako ruční cesta, když nechce čekat.
+    useEffect(() => {
+        if (segment !== "manual") return
+        const t = setTimeout(() => { applyManual(manualRaw) }, 600)
+        return () => clearTimeout(t)
+    }, [manualRaw, segment, applyManual])
 
     const toggleRecipient = (email: string) =>
         setSelected(prev => {
@@ -128,6 +250,7 @@ export function MailingTab() {
                 segment,
                 ...(template ? { template: { id: template.id, vars } } : { subject, body }),
                 recipients: [...selected],
+                attachments: attachmentPayload(),
             })
             setResult(r)
             getMailingSegments().then(setCounts).catch(() => {})
@@ -151,7 +274,10 @@ export function MailingTab() {
                 <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">Komu</label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {SEGMENTS.map(s => {
-                        const n = counts ? counts[s.id] : null
+                        // Ruční adresy nemají co počítat, dokud je někdo nenapíše.
+                        const n = s.id === "manual"
+                            ? (segment === "manual" ? recipients.length : null)
+                            : counts ? counts[s.id as keyof typeof counts] : null
                         const active = segment === s.id
                         return (
                             <button
@@ -176,6 +302,42 @@ export function MailingTab() {
                     </p>
                 )}
             </div>
+
+            {/* Ruční adresy */}
+            {segment === "manual" && (
+                <div>
+                    <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">
+                        Adresy — oddělené čárkou, středníkem nebo řádkem
+                    </label>
+                    <textarea
+                        value={manualRaw}
+                        onChange={e => setManualRaw(e.target.value)}
+                        onFocus={() => setManualFocused(true)}
+                        onBlur={() => { setManualFocused(false); applyManual(manualRaw) }}
+                        rows={3}
+                        placeholder="novy.klient@firma.cz, dalsi@firma.cz"
+                        className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 resize-y"
+                    />
+                    <div className="flex items-center justify-between gap-4 mt-2">
+                        <p className="text-[9px] text-white/25 font-medium">
+                            {recipients.length > 0
+                                ? `Načteno ${recipients.length} · každý dostane vlastní e-mail, ne kopii.`
+                                : "Odhlášené adresy vyhodíme i tady — odhlášení platí pro každou cestu ven."}
+                        </p>
+                        <button
+                            onClick={() => applyManual(manualRaw)}
+                            className="text-[10px] text-white/40 hover:text-white/80 uppercase tracking-widest font-bold transition-colors shrink-0"
+                        >
+                            Načíst adresy
+                        </button>
+                    </div>
+                    {manualRejected.length > 0 && !manualFocused && (
+                        <p className="text-[10px] text-amber-400/80 font-bold mt-2">
+                            ⚠️ Vynecháno ({manualRejected.length}): {manualRejected.join(", ")} — překlep, nebo se adresa odhlásila.
+                        </p>
+                    )}
+                </div>
+            )}
 
             {/* Per-recipient selection */}
             <div>
@@ -204,7 +366,9 @@ export function MailingTab() {
                     {loadingRecipients ? (
                         <p className="text-xs text-white/30 font-medium p-4">Načítám…</p>
                     ) : recipients.length === 0 ? (
-                        <p className="text-xs text-white/30 font-medium p-4">V tomto segmentu nikdo není.</p>
+                        <p className="text-xs text-white/30 font-medium p-4">
+                            {segment === "manual" ? "Zatím žádné adresy — napiš je do pole výš." : "V tomto segmentu nikdo není."}
+                        </p>
                     ) : recipients.map(email => {
                         const checked = selected.has(email)
                         return (
@@ -289,6 +453,51 @@ export function MailingTab() {
                 </>
             )}
 
+            {/* Přílohy — obchod potřebuje k nabídce přiložit úvodní prezentaci.
+                Soubor jde k Resendu inline v témž requestu, takže nikde neleží
+                veřejná URL, ze které by šel stáhnout i bez adresáta. */}
+            <div>
+                <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">
+                    Přílohy {attachments.length > 0 && `· ${attachments.length}/${ATTACH_MAX_FILES}`}
+                </label>
+
+                {attachments.length > 0 && (
+                    <div className="space-y-1.5 mb-2">
+                        {attachments.map(a => (
+                            <div key={a.filename} className="flex items-center justify-between gap-3 bg-[#0a0a0a] border border-white/10 rounded-sm px-4 py-2.5">
+                                <span className="text-xs text-white/70 font-medium truncate">📎 {a.filename}</span>
+                                <div className="flex items-center gap-3 shrink-0">
+                                    <span className="text-[9px] text-white/30 font-bold uppercase tracking-widest">{formatSize(a.bytes)}</span>
+                                    <button
+                                        onClick={() => removeAttachment(a.filename)}
+                                        className="text-[10px] text-white/30 hover:text-red-400 uppercase tracking-widest font-bold transition-colors"
+                                    >
+                                        Odebrat
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {attachments.length < ATTACH_MAX_FILES && (
+                    <label className="block w-full py-3 border border-dashed border-white/15 rounded-sm text-center text-[10px] text-white/40 font-bold uppercase tracking-widest hover:text-white/70 hover:border-white/30 transition-all cursor-pointer">
+                        + Přidat přílohu
+                        <input
+                            type="file"
+                            multiple
+                            className="hidden"
+                            onChange={e => { addFiles(e.target.files); e.target.value = "" }}
+                        />
+                    </label>
+                )}
+
+                <p className="text-[9px] text-white/25 font-medium mt-1.5">
+                    Nejvýš {ATTACH_MAX_FILES} soubory, {formatSize(ATTACH_MAX_FILE_BYTES)} na soubor, {formatSize(ATTACH_MAX_TOTAL_BYTES)} dohromady.
+                    {" "}Stejná příloha jde každému příjemci zvlášť — u velkého segmentu to zdrží rozesílku.
+                </p>
+            </div>
+
             {/* Preview — renderuje server, takže je to doslova to, co odejde */}
             {preview && (
                 <div>
@@ -361,7 +570,8 @@ export function MailingTab() {
                     >
                         <h3 className="text-sm font-black uppercase tracking-tight text-white mb-2">Opravdu odeslat?</h3>
                         <p className="text-xs text-white/50 leading-relaxed mb-5">
-                            E-mail „{preview?.subject || subject}" půjde na <strong className="text-white/80">{Math.min(selectedCount, DAILY_CAP)}</strong> {selectedCount === 1 ? "vybraného příjemce" : "vybraných příjemců"}. Akce je nevratná.
+                            E-mail „{preview?.subject || subject}" půjde na <strong className="text-white/80">{Math.min(selectedCount, DAILY_CAP)}</strong> {selectedCount === 1 ? "vybraného příjemce" : "vybraných příjemců"}
+                            {attachments.length > 0 && <> s {attachments.length === 1 ? "přílohou" : "přílohami"} <strong className="text-white/80">{attachments.map(a => a.filename).join(", ")}</strong></>}. Akce je nevratná.
                         </p>
                         <div className="flex gap-2 justify-end">
                             <button onClick={() => setConfirming(false)} className="px-4 py-2 rounded-sm text-[10px] font-bold uppercase tracking-widest text-white/50 bg-white/5 border border-white/10 hover:text-white transition-all">Zrušit</button>

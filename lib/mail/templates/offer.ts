@@ -28,52 +28,18 @@
  * karusel, je horší než nabídka, která video nezmíní.
  */
 
-import { creditExample, MEDIA_CREDITS } from "@/lib/credits"
+import { MEDIA_CREDITS } from "@/lib/credits"
 import { vatNotice } from "@/lib/legal"
 import { countLabel, CREDITS, MONTHS } from "@/lib/plural"
 import {
     BILLING_TERMS, CONSULTATION, consultationIncluded, DEFAULT_TERM_MONTHS,
-    EXTRA_CREDIT_HALERU, FALLBACK_PLANS, formatCzk, getTerm, monthlyEquivalent,
-    normalizeTermMonths, PLAN_COPY, termPrice, termSavings, type PricingPlan,
+    EXTRA_CREDIT_HALERU, FALLBACK_PLANS, formatCzk, getTerm, lowestPriceClaim, monthlyEquivalent,
+    normalizeTermMonths, termPrice, termSavings, type PricingPlan,
 } from "@/lib/pricing"
 import { button, callout, compact, divider, footnote, heading, list, paragraph, planCard } from "../blocks"
 import { siteUrl } from "../links"
+import { creditLine, pickPlan, planBullets, planHasReels, reelsLive } from "../plans"
 import type { EmailTemplate } from "../template"
-
-/** Jedou reels doopravdy? Stejná otázka, jakou si klade ceník na landingu. */
-const reelsLive = (): boolean => process.env.REELS_ENABLED === "1"
-
-/** Nabízí tenhle tarif reels *a* jsou zapnuté? Obojí musí platit. */
-const planHasReels = (plan: PricingPlan): boolean => plan.allowsReels && reelsLive()
-
-/**
- * Tarif podle toho, co obchodník napsal do formuláře. Diakritika ani velikost
- * písmen nerozhoduje — „dominance" i „Dominance" musí najít totéž.
- *
- * Když se nic netrefí, padá to na tarif označený v `PLAN_COPY` jako `highlight`
- * (dnes Růst), ne na první v poli: doporučený tarif je obchodní rozhodnutí, které
- * už jednou padlo na ceníku, a nabídka ho nemá přebíjet nedopatřením.
- */
-function pickPlan(name: string): PricingPlan {
-    const norm = (s: string) => s.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    const wanted = norm(name)
-    const byName = wanted && FALLBACK_PLANS.find(p => norm(p.name) === wanted || norm(p.id) === wanted)
-    if (byName) return byName
-    const highlighted = FALLBACK_PLANS.find(p => PLAN_COPY[p.id]?.highlight)
-    return highlighted ?? FALLBACK_PLANS[0]
-}
-
-/** Odrážky tarifu z ceníkové kopie; reels si nesou přiznání, když jsou vypnuté. */
-function planBullets(plan: PricingPlan): string[] {
-    return (PLAN_COPY[plan.id]?.bullets ?? []).map(b =>
-        typeof b === "string" ? b : reelsLive() ? b.text : `${b.text} (připravujeme)`,
-    )
-}
-
-/** „70 kreditů měsíčně — ≈ 70 obrázků nebo 23 carouselů" */
-function creditLine(plan: PricingPlan): string {
-    return `${countLabel(plan.creditsPerMonth, CREDITS)} měsíčně — ${creditExample(plan.creditsPerMonth, { reels: planHasReels(plan) })}`
-}
 
 export const offer: EmailTemplate = {
     id: "offer",
@@ -203,4 +169,162 @@ export const offer: EmailTemplate = {
             ]),
         }
     },
+}
+
+/**
+ * Připomenutí nabídky.
+ * ====================
+ * Druhý dotek po `offer`. Schválně **neopakuje ceník** — cena už jednou odešla
+ * a druhé znění téhož čísla je jen další místo, které při přecenění zestárne.
+ * Follow-up má jediný úkol: dát člověku snadné „ano", snadné „ne" a nechat ho
+ * být, když neodpoví.
+ *
+ * Vykání a žádný nátlak: „poslední šance" a odpočty do téhle značky nepatří,
+ * a u obchodního sdělení, které chodí na adresu z vizitky, je tón to jediné,
+ * co odlišuje nabídku od spamu.
+ *
+ * JEDEN HLAS NA CELÝ E-MAIL
+ * -------------------------
+ * Follow-up je druhý dotek téhož rozhovoru, takže musí znít jako týž odesílatel
+ * jako `coldOffer`. Do 9/2026 se v něm lámaly tři najednou: nadpis „Ozývám se
+ * zpátky" a „nechci ji nechat zapadnout" (já), „posílali jsme" a „vygenerovali
+ * jsme" (my) a podpis „Tým Chrlit" (někdo třetí). Konvence je stejná jako
+ * u prvního oslovení: **mluví firma, podepisuje se člověk** — a proto tu jsou
+ * `senderName` a `senderPhone`, ne obecná patička. Hlídá aserce 29.19.
+ */
+export const offerFollowup: EmailTemplate = {
+    id: "offer_followup",
+    label: "Nabídka — připomenutí (follow-up)",
+    group: "promo",
+    kind: "notification",
+    broadcast: true,
+    fields: [
+        { key: "company", label: "Název značky", type: "text", placeholder: "Kavárna Alchymista", help: "Doplní se do předmětu za pomlčku." },
+        { key: "sentOn", label: "Kdy odešla nabídka", type: "text", placeholder: "před týdnem", help: "Slovem, ne datem — „před týdnem“ zní jako člověk." },
+        { key: "intro", label: "Úvodní odstavec", type: "textarea", required: true },
+        { key: "previewUrl", label: "Odkaz na ukázku", type: "url", help: "Prázdné = odstavec o ukázce se vynechá." },
+        { key: "senderName", label: "Podpis — jméno", type: "text", required: true, help: "Týž člověk, který posílal první oslovení." },
+        { key: "senderPhone", label: "Podpis — telefon", type: "text" },
+        { key: "ctaLabel", label: "Text tlačítka", type: "text" },
+        { key: "ctaUrl", label: "Odkaz tlačítka", type: "url", required: true },
+    ],
+    sample: {
+        company: "Kavárna Alchymista",
+        sentOn: "před týdnem",
+        intro: "Dobrý den,\n\nposílali jsme vám nabídku na Chrlit a nechceme ji nechat zapadnout. Nespěcháme — jen se ptáme, jestli je to pro vás téma, nebo to máme zavřít.",
+        previewUrl: `${siteUrl()}/ukazky`,
+        senderName: "Luděk Jasa",
+        senderPhone: "+420 601 279 377",
+        ctaLabel: "Domluvit 15 minut",
+        ctaUrl: `${siteUrl()}/ukazky`,
+    },
+    build: v => ({
+        subject: v.company ? `Ještě k nabídce — ${v.company}` : "Ještě k nabídce",
+        eyebrow: "Připomenutí",
+        preheader: "Stačí odpovědět jedním slovem — ano, nebo teď ne.",
+        blocks: compact([
+            heading("Ještě k té nabídce"),
+            paragraph(v.intro),
+            v.sentOn && paragraph(`Nabídku jsme posílali ${v.sentOn}. Podmínky se nezměnily — najdete je v tom původním e-mailu.`),
+            v.previewUrl && paragraph(`Ukázka, kterou jsme pro vás vygenerovali, je pořád k vidění: ${v.previewUrl}`),
+            button(v.ctaLabel || "Domluvit 15 minut", v.ctaUrl, "accent"),
+            callout("info", "Když to teď není téma, stačí odepsat „teď ne\" a přestaneme se ozývat. Bez ptaní proč."),
+            paragraph(compactText([
+                "S pozdravem",
+                v.senderName,
+                v.senderPhone || null,
+            ]).join("\n")),
+        ]),
+    }),
+}
+
+/**
+ * První oslovení — text, kterým Luděk oslovuje firmy.
+ * ===================================================
+ * Je to jeho e-mail, jen v šabloně: aby šel poslat z Mailingu na ruční adresu,
+ * nesl odhlašovací patičku a identifikaci podnikatele (obojí u obchodního sdělení
+ * musí být) a aby čísla a sliby nezestárly v kopii, kterou nikdo nehlídá.
+ *
+ * TŘI VĚCI, KTERÉ SE PROTI PŮVODNÍMU ZNĚNÍ LIŠÍ — a proč:
+ *
+ * 1. **Reely se slibují jen když jedou.** `REELS_ENABLED` potichu překlápí `reel`
+ *    na karusel. Nabídka, která slíbí video a pošle karusel, je horší než nabídka,
+ *    která video nezmíní. Stejné pravidlo jako v `offer`.
+ * 2. **Žádný slib dosahu.** „Obsah optimalizovaný pro dosah a fungování algoritmu"
+ *    slibuje výsledek, který produkt nemůže ovlivnit — a `/ukazka` i ceník na tomtéž
+ *    místě výslovně říkají opak („neslibujeme, že poroste dosah"). Zůstává to, co
+ *    je pravda a je stejně silné: formáty a rytmus podle značky a učení z výkonu.
+ * 3. **Cena se nepíše ručně.** „V řádu jednotek tisíc" zestárne při prvním přecenění;
+ *    `lowestPriceClaim()` bere číslo z ceníku a `pricing: true` k němu přidá větu
+ *    o DPH (aserce 29.8) — bez ní vypadá neplátce, jako by DPH zatajil.
+ */
+export const coldOffer: EmailTemplate = {
+    id: "cold_offer",
+    label: "Oslovení firmy (první dotek)",
+    group: "promo",
+    kind: "notification",
+    broadcast: true,
+    pricing: true,
+    fields: [
+        { key: "company", label: "Název firmy", type: "text", placeholder: "Kavárna Alchymista", help: "Doplní se do předmětu. Prázdné = obecný předmět." },
+        { key: "senderName", label: "Podpis — jméno", type: "text", required: true },
+        { key: "senderPhone", label: "Podpis — telefon", type: "text" },
+        { key: "ctaUrl", label: "Odkaz tlačítka", type: "url", required: true, help: "Portfolio, nebo ukázka na míru, když už ji máš." },
+        { key: "ctaLabel", label: "Text tlačítka", type: "text" },
+    ],
+    sample: {
+        company: "Kavárna Alchymista",
+        senderName: "Luděk Jasa",
+        senderPhone: "+420 601 279 377",
+        ctaUrl: `${siteUrl()}/portfolio`,
+        ctaLabel: "Prohlédnout portfolio",
+    },
+    build: v => ({
+        subject: v.company ? `Instagram za vás — ${v.company}` : "Instagram za vás",
+        eyebrow: "Nabídka",
+        preheader: "Tři ukázkové příspěvky pro vaši firmu, nezávazně.",
+        blocks: compact([
+            heading("Instagram, který se píše sám"),
+            paragraph(
+                "Dobrý den,\n\nrádi bychom vám představili řešení, které zjednoduší a zlevní správu firemního Instagramu. " +
+                "Naše aplikace se z vašeho webu a Instagramu naučí vaši značku a připravuje obsah přímo na míru — texty i vizuály.",
+            ),
+
+            heading("Co pro vás vyrobí", 2),
+            list(compactText([
+                "Klasické příspěvky i carousely",
+                reelsLive() ? "Reels" : null,
+                "Texty a popisky ve vašem tónu",
+                "Obsah, který se učí z výkonu vašich předchozích příspěvků",
+                "Publikování ve zvolený čas — automaticky, když si to zapnete",
+            ])),
+
+            paragraph(
+                "Výsledkem je správa Instagramu bez agentury, grafika a copywritera zvlášť. " +
+                `Služba běží na měsíčním předplatném, ${lowestPriceClaim()}.`,
+            ),
+
+            callout("info", "**Zdarma a nezávazně vám připravíme 3 ukázkové příspěvky přímo pro vaši firmu**, ať vidíte výsledek na svém, ne na cizím."),
+
+            button(v.ctaLabel || "Prohlédnout portfolio", v.ctaUrl, "accent"),
+
+            paragraph(
+                "Když vás to zaujme, stačí odpovědět na tenhle e-mail. Rádi se domluvíme i na krátké schůzce, " +
+                "kde celý systém ukážeme naživo.",
+            ),
+
+            paragraph(compactText([
+                "S pozdravem",
+                v.senderName,
+                v.senderPhone || null,
+            ]).join("\n")),
+
+            footnote(vatNotice()),
+        ]),
+    }),
+}
+
+/** Vyhodí prázdné řádky ze seznamu — `compact` pracuje s bloky, tohle s texty. */
+function compactText(items: (string | null | undefined | false)[]): string[] {
+    return items.filter((i): i is string => typeof i === "string" && i.trim().length > 0)
 }

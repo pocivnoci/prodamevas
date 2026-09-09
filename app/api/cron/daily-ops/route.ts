@@ -17,6 +17,10 @@ export const maxDuration = 60
  *                       (jediné místo, kde se clients.config mění sám podle výsledků)
  *   incident_watch    → tells customers about background failures they can't see
  *   payment_reconcile → asks the gateway about payments stuck in PENDING
+ *   task_triage       → z nových řádků firemního seznamu udělá zadání (a ptá se,
+ *                       když z řádku nejde odvodit, co je „hotovo")
+ *   task_propose      → navrhne úkoly ze stavu systému (odpojený IG, označená
+ *                       tvrzení, ležící schválení) — nejvýš tři denně
  *   daily_brief       → THE ONE e-mail to the founder; absorbs the former
  *                       health_check and compliance_check mails and renders every
  *                       pending approval with one-click buttons
@@ -108,6 +112,30 @@ export async function GET(req: Request) {
         payload: {},
     })
 
+    // Roztřídění nových úkolů. Internal risk: nic neodchází ven a do sloupců,
+    // které vlastní Google tabulka nebo člověk, třídič nesahá — přidává jen
+    // zadání, o které se opře ranní brief o pár řádků níž.
+    const taskTriage = await requestAction({
+        agentType: "ops",
+        action: "Roztřídění nových úkolů",
+        riskTier: "internal",
+        taskType: "task_triage",
+        clientId: null,
+        payload: {},
+    })
+
+    // Návrhy úkolů ze stavu systému. Běží PO třídění, aby model v promptu viděl
+    // i čerstvě roztříděné úkoly a nenavrhoval potřetí totéž jinými slovy.
+    // Internal risk: výsledkem je řádek v interním seznamu, nic neodchází ven.
+    const taskPropose = await requestAction({
+        agentType: "ops",
+        action: "Návrhy úkolů ze stavu systému",
+        riskTier: "internal",
+        taskType: "task_propose",
+        clientId: null,
+        payload: {},
+    })
+
     // Ranní brief POSLEDNÍ ve vlně (priority -10): drainTasks řadí priority DESC,
     // takže brief poběží až po skenech výše a uvidí, co navrhly. Internal risk —
     // čte a píše jedinému čtenáři, zakladateli.
@@ -121,5 +149,5 @@ export async function GET(req: Request) {
         priority: -10,
     })
 
-    return NextResponse.json({ success: true, lifecycle, autoPublish, ideaReplenish, voiceExamples, incidents, reconcile, brief })
+    return NextResponse.json({ success: true, lifecycle, autoPublish, ideaReplenish, voiceExamples, incidents, reconcile, taskTriage, taskPropose, brief })
 }

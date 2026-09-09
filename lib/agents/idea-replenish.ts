@@ -26,6 +26,7 @@
  */
 
 import supabaseAdmin from "@/supabase/admin"
+import { NOT_SHOWCASE } from "@/lib/audience"
 import { MAX_POSTS_PER_WEEK } from "@/lib/schedule-planner"
 import { DEFAULT_IDEA_COOLDOWN_DAYS } from "@/instagram/service"
 
@@ -211,10 +212,14 @@ async function replenishClient(clientId: string, slug: string, raw: Record<strin
  * daily-ops cron via the `idea_replenish` handler.
  */
 export async function replenishIdeaBanks(): Promise<ReplenishResult[]> {
+    // Výloha ne. Přeskočení „spícího" klienta ji chytí až po pár dnech ticha,
+    // takže po každém přeseedování portfolia se deset demo značek zásobovalo
+    // nápady, které nikdo nepřečte — a platí se za ně tokeny.
     const { data: clients, error } = await supabaseAdmin
         .from("clients")
         .select("id, slug, config")
         .eq("is_active", true)
+        .or(NOT_SHOWCASE)
     if (error) throw new Error(`idea-replenish client scan: ${error.message}`)
 
     // Rotované pořadí + časový rozpočet — viz lib/agents/client-sweep.ts. Bez toho

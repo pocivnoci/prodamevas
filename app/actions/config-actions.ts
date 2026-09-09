@@ -771,6 +771,133 @@ export async function rescanClientWebsite(
     }
 }
 
+// ─── Ověřená fakta z webu ────────────────────────────────────────────
+
+/**
+ * Načte web klienta a vrátí NÁVRHY ověřených faktů. Záměrně nic neukládá —
+ * o tom, co značka o sobě tvrdí, musí rozhodnout člověk; akce mu jen ušetří
+ * opisování z vlastního webu. Uložení proběhne až přes updateClientConfig,
+ * stejně jako u ručně napsaného faktu.
+ */
+export async function suggestBrandFacts(
+    projectSlug: string
+): Promise<{ success: boolean; facts: { text: string; source?: string }[]; error?: string }> {
+    try {
+        const { clientId } = await requireProjectAccess(projectSlug)
+
+        const { loadConfig } = await import("@/instagram/configs")
+        const config = await loadConfig(projectSlug, true)
+        if (!config?.website) {
+            return { success: false, facts: [], error: "Klient nemá nastavenou adresu webu" }
+        }
+
+        const { suggestFactsFromSite, mergeFacts } = await import("@/lib/brand-facts")
+        const found = await suggestFactsFromSite(config.name || projectSlug, config.website, { clientId })
+        // Vrací se jen to, co v seznamu ještě není — uživatel má vidět přírůstek,
+        // ne znovu přečíst, co už schválil.
+        const fresh = mergeFacts(config.brandFacts || [], found).slice((config.brandFacts || []).length)
+
+        console.log(`🔎 Fakta z webu (${projectSlug}): ${found.length} nalezeno, ${fresh.length} nových`)
+        return { success: true, facts: fresh }
+    } catch (err: any) {
+        console.error("suggestBrandFacts error:", err?.message || err)
+        return { success: false, facts: [], error: err?.message || String(err) }
+    }
+}
+
+/**
+ * „Ano, tohle je pravda" — jedním klikem od označeného příspěvku k ověřenému faktu.
+ *
+ * Bez tohohle brána jen otravuje: řekne „ověř si to", a člověk musí tvrzení ručně
+ * opsat do Nastavení. Tady ho potvrdí u postu, kde na něj narazil, a fakt platí
+ * napříště pro všechny příspěvky té značky.
+ *
+ * Zdroj je „od klienta", NE URL: potvrdil to člověk, ne web. Kdyby se to tvářilo
+ * jako doložené webem, byl by to přesně ten druh drobné lži, kterou má celá vrstva
+ * vymýtit. Po uložení se příspěvek přehodnotí — tvrzení má teď oporu, takže štítek
+ * zmizí sám, pokud v textu nezůstalo něco jiného.
+ */
+export async function confirmBrandFact(
+    projectSlug: string,
+    postId: string,
+    claim: string,
+): Promise<{ success: boolean; factStatus?: string | null; flags?: string[]; sources?: { claim: string; url: string; title?: string; quote?: string }[]; error?: string }> {
+    try {
+        const { clientId } = await requireProjectAccess(projectSlug)
+        const text = (claim || "").trim()
+        if (!text) return { success: false, error: "Prázdné tvrzení" }
+
+        const { loadConfig, invalidateConfigCache } = await import("@/instagram/configs")
+        const config = await loadConfig(projectSlug, true)
+
+        const { mergeFacts } = await import("@/lib/brand-facts")
+        const merged = mergeFacts(config.brandFacts || [], [{
+            text,
+            source: "od klienta",
+            verifiedAt: new Date().toISOString().slice(0, 10),
+        }])
+
+        const { data: client } = await supabaseAdmin.from("clients").select("config").eq("id", clientId).single()
+        await supabaseAdmin
+            .from("clients")
+            .update({ config: { ...(client?.config || {}), brandFacts: merged } })
+            .eq("id", clientId)
+        invalidateConfigCache(projectSlug)
+
+        // Přehodnocení příspěvku proti novému seznamu. Nekritické — fakt je uložený
+        // tak jako tak; jen by u postu zůstal viset starý štítek.
+        try {
+            const { data: post } = await supabaseAdmin
+                .from("ig_posts")
+                .select("caption, call_to_action, design_brief")
+                .eq("id", postId)
+                .eq("client_id", clientId)
+                .maybeSingle()
+            // Doklady z webu, které post už má. Bez nich by potvrzení JEDNOHO faktu
+            // shodilo štítky zpátky na všechna ostatní doložená tvrzení — a hledání
+            // by se zaplatilo znovu za tentýž nález.
+            const { data: lastLog } = await supabaseAdmin
+                .from("ig_generation_log")
+                .select("id, fact_sources")
+                .eq("post_id", postId)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle()
+            if (post) {
+                const { checkCaptionFacts } = await import("@/instagram/fact-check")
+                const lines = (post.caption || "").split("\n").filter(Boolean)
+                const typo = (post.design_brief as { typography?: { headlineText?: string; subtextText?: string } } | null)?.typography
+                const out = await checkCaptionFacts(
+                    { ...config, brandFacts: merged, factCheckMode: "bold" },
+                    {
+                        hook: typo?.headlineText || lines[0] || "",
+                        imageSubtext: typo?.subtextText || "",
+                        body: lines.slice(1).join("\n").replace(/#\S+/g, "").trim(),
+                        cta: post.call_to_action || "",
+                        hashtags: [],
+                    },
+                    { webVerified: lastLog?.fact_sources ?? null },
+                )
+                if (out.judged) {
+                    if (lastLog?.id) {
+                        await supabaseAdmin
+                            .from("ig_generation_log")
+                            .update({ fact_status: out.status, fact_flags: out.flags, fact_sources: out.sources })
+                            .eq("id", lastLog.id)
+                    }
+                    return { success: true, factStatus: out.status, flags: out.flags, sources: out.sources }
+                }
+            }
+        } catch (err: any) {
+            console.warn("confirmBrandFact: přehodnocení selhalo (fakt uložen):", err?.message)
+        }
+        return { success: true }
+    } catch (err: any) {
+        console.error("confirmBrandFact error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}
+
 // ─── Delete Client ───────────────────────────────────────────────────
 
 export async function deleteClient(

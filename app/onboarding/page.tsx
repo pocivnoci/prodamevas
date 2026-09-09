@@ -8,7 +8,8 @@ import { awaitOnboardingTask, humanizeClientError } from './task-client'
 import { TaskProgress } from './TaskProgress'
 import type { ClientConfig } from '@/instagram/configs/types'
 import { trackEvent } from '@/lib/analytics'
-import { Anchor, Check, CircleCheck, Landmark, MessageCircle, Mic, Package, Palette, Rocket, ThumbsUp, X, type LucideIcon } from "lucide-react"
+import { Anchor, Check, CircleCheck, Landmark, MessageCircle, Mic, Package, Palette, Rocket, ShieldCheck, ThumbsUp, X, type LucideIcon } from "lucide-react"
+import { FACT_CHECK_MODES, factCheckModeIndex } from "@/lib/fact-check-modes"
 
 type Step = 'choose' | 'input' | 'manual' | 'analyzing' | 'questions' | 'building' | 'review' | 'saving' | 'generating' | 'done'
 type Mode = 'website' | 'manual' | null
@@ -641,6 +642,41 @@ function OnboardingContent() {
                                     <ReviewField label="Nepoužíváme" value={(configPreview.brandVoice?.antiPatterns || []).join(', ')} />
                                 </div>
                             </ReviewCard>
+
+                            {/* Posuvník opatrnosti. Patří sem, ne až do Nastavení: první
+                                příspěvky vzniknou hned po onboardingu a rozhodnutí „opraví to
+                                engine sám vs. rozhodnu já" je má ovlivnit už tehdy. */}
+                            <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                                    <h3 className="text-sm font-bold text-white">Kontrola tvrzení</h3>
+                                </div>
+                                <p className="text-xs text-gray-400 mb-3">
+                                    AI si čísla a roky domýšlí stejně plynule, jako je opisuje. Fakta z vašeho webu
+                                    už načtená máme; tohle říká, co se stane s tvrzením, které v nich oporu nemá.
+                                    Ani jeden konec posuvníku nepustí lež — mění se jen to, kdo ji vyřeší.
+                                </p>
+                                <input
+                                    type="range"
+                                    min={0}
+                                    max={FACT_CHECK_MODES.length - 1}
+                                    step={1}
+                                    value={factCheckModeIndex(configPreview.factCheckMode)}
+                                    onChange={(e) => setConfigPreview(prev => prev ? { ...prev, factCheckMode: FACT_CHECK_MODES[Number(e.target.value)].value } : prev)}
+                                    aria-label="Kontrola tvrzení"
+                                    className="w-full accent-emerald-400"
+                                />
+                                <div className="flex justify-between mt-1">
+                                    {FACT_CHECK_MODES.map((m, i) => (
+                                        <span key={m.value}
+                                            className={`text-[10px] font-bold uppercase tracking-wider ${i === factCheckModeIndex(configPreview.factCheckMode) ? "text-emerald-400" : "text-gray-600"}`}
+                                        >{m.label}</span>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-gray-300 mt-3 bg-black/20 rounded-lg px-3 py-2">
+                                    {FACT_CHECK_MODES[factCheckModeIndex(configPreview.factCheckMode)].detail}
+                                </p>
+                            </div>
 
                             <ReviewCard section="pillars" Icon={Landmark} title="Content Pilíře & Kategorie"
                                 status={sectionStatuses.pillars} feedback={sectionFeedback.pillars || ''}

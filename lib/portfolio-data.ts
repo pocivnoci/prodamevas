@@ -23,15 +23,29 @@ export interface PortfolioPost {
     pillar?: string
 }
 
+/** Jaký vztah ke značce výloha tvrdí. Rozhoduje o popisku i o výhradě. */
+export type PortfolioRelationship = "concept" | "client"
+
 export interface PortfolioBrand {
     slug: string
     company: string
     industry: string
     website: string
+    /** "concept" = firma o tom neví a není zákazník. "client" = klient, který dal
+     *  souhlas. Chybí-li (starší export), platí přísnější "concept". */
+    relationship?: PortfolioRelationship
     posts: PortfolioPost[]
 }
 
-export const PORTFOLIO_DISCLAIMER = "Nevyžádané koncepty. Příspěvky vygeneroval Chrlit z veřejně dostupných údajů o značce. Nejde o oficiální obsah těchto značek a uvedené firmy nejsou zákazníky Chrlitu."
+/** Výhrada u NEVYŽÁDANÝCH konceptů. Nesmí se ukazovat u klientů — tvrdila by o nich,
+ *  že nejsou zákazníci. */
+export const PORTFOLIO_DISCLAIMER = "Nevyžádaný koncept. Příspěvky vygeneroval Chrlit z veřejně dostupných údajů o značce. Nejde o oficiální obsah značky a tato firma není zákazníkem Chrlitu."
+
+/** Popisek u KLIENTA, který dal souhlas. */
+export const PORTFOLIO_CLIENT_NOTE = "Práce pro klienta, zveřejněno s jeho souhlasem. Příspěvky vygeneroval Chrlit."
+
+/** Souhrnná výhrada nad celou výlohou, když jsou v ní obě kategorie. */
+export const PORTFOLIO_MIXED_DISCLAIMER = "Výloha míchá dvě věci a u každé značky je to napsané: nevyžádané koncepty pro firmy, které o tom nevědí a nejsou zákazníky Chrlitu, a práci pro klienty zveřejněnou s jejich souhlasem."
 
 export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
   {
@@ -4082,6 +4096,614 @@ export const PORTFOLIO_BRANDS: PortfolioBrand[] = [
           "#bojovesporty",
           "#cviceni",
           "#fitnesszivot"
+        ]
+      }
+    ]
+  },
+  {
+    "slug": "agro-invest",
+    "company": "AGRO INVEST",
+    "industry": "Investice do zemědělské půdy",
+    "website": "http://www.agroinvest.cz",
+    "posts": [
+      {
+        "id": "6b3125a7-a887-4537-b814-bd5ed04c4326",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-posts/1788591057634.webp"
+        ],
+        "hook": "K nákupu slovenské půdy stačí sto padesát tisíc.",
+        "body": "Mýtus: Do polí mohou investovat jen fondy a milionáři. Realita: Není to pravda. Zatímco nákup investičního bytu vyžaduje miliony a přináší starosti s nájemníky, slovenská zemědělská půda je dostupnější. Za 150 000 Kč už vlastníte konkrétní bonitní pozemek. Získáte hmatatelné aktivum, které nevyžaduje údržbu. Na podzim se navíc tradičně uzavírají nové pachtovní smlouvy, takže půda může začít pracovat za vás. Nabízí předvídatelný výnos a možnost zpětného odkupu za předem daných podmínek. Je to ideální krok pro konzervativní diverzifikaci portfolia mimo rozkolísané akcie, o kterých jsme mluvili minule. Investování do půdy je o racionálním rozhodnutí, ne o obrovském kapitálu.",
+        "cta": "Spočítejte si možné zhodnocení vaší investice v naší kalkulačce na www.agroinvest.cz.",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#diverzifikaceportfolia",
+          "#realitnitrh",
+          "#slovenskapuda"
+        ]
+      },
+      {
+        "id": "3c845921-ae73-4697-bf8d-f7e09846a3ab",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-carousel/1788591219231-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-carousel/1788591244981-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-carousel/1788591268820-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-carousel/1788591296401-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-carousel/1788591320691-slide4.webp"
+        ],
+        "hook": "Zemědělská půda jako bezpečný přístav.",
+        "body": "Čísla nelžou. Zatímco akcie kolísají, zemědělská půda nabízí předvídatelný růst. Jak přesně funguje naše investiční příležitost? Koupíte konkrétní pozemek na Slovensku a stáváte se jeho výhradním majitelem. My se o půdu staráme a řešíme veškerou byrokracii i pachtovní smlouvy. Po 10 letech máte smluvně garantovanou možnost zpětného odkupu se zhodnocením až 100 %. Žádné skryté poplatky. Jen čistá matematika a absolutní právní jistota. Představuje to ideální prostor pro bezpečnou alokaci většího kapitálu do reálných aktiv, která nepodléhají tržní panice.",
+        "cta": "Zajistěte si prémiový pozemek s garancí odkupu. Sjednejte si nezávaznou konzultaci a prohlédněte si návrh smlouvy na http://www.agroinvest.cz/p/investicni-prilezitost",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#ochranakapitalu",
+          "#zemedelstvi",
+          "#slovenskapuda",
+          "#investice"
+        ]
+      },
+      {
+        "id": "d4f377f4-e877-4eb4-8191-ac0cf6e5d597",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-carousel/1788591469761-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-carousel/1788591493925-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-carousel/1788591520170-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-carousel/1788591545254-slide3.webp"
+        ],
+        "hook": "Servisní balíček vyřeší pachty i daně.",
+        "body": "Koupit půdu je jedna věc. Starat se o ni druhá. Většina investorů nechce trávit víkendy řešením pachtovních smluv se zemědělci nebo složitou komunikací s úřady na Slovensku. Vaším cílem je ochránit kapitál před inflací, ne si přidělat další práci. Proto jsme vytvořili Servisní balíček. Zajišťujeme kompletní správu vašeho pozemku. Od fyzické kontroly polí po sklizni až po kompletní daňové podklady. Vše na klíč. Vy pouze držíte hmatatelné a bezpečné aktivum. My řešíme zbytek. Servisní balíček je součástí nákupu půdy zcela zdarma.",
+        "cta": "Máte otázky k tomu, jak přesně správa probíhá? Napište nám do zpráv nebo do komentářů, rádi vám celý proces vysvětlíme.",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#investice",
+          "#ochranakapitalu",
+          "#slovenskapuda",
+          "#nemovitosti"
+        ]
+      },
+      {
+        "id": "31ed926d-b3e5-41f5-82df-0fa776a3e5a2",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-posts/1788591621123.webp"
+        ],
+        "hook": "Jak slovenská půda porazila desetiletou inflaci.",
+        "body": "Čísla mluví jasně. Zatímco kumulativní inflace za poslední dekádu ukrojila z úspor desítky procent, hodnota slovenské orné půdy rostla stabilnějším a rychlejším tempem.\n\nRozdíl tvoří fundament. Půdy zkrátka nepřibývá. Je to omezený zdroj a reálné hmotné aktivum, které si drží hodnotu bez ohledu na ekonomické otřesy a tištění nových peněz.\n\nPro konzervativní portfolio je matematika jednoduchá. Získáte ochranu kapitálu, která spolehlivě překonává znehodnocení peněz. Zcela bez starostí o problémové nájemníky a bez nutnosti sledovat denní výkyvy akciové burzy. Kvalitní půda tiše pracuje a chrání váš majetek.",
+        "cta": "Uložte si tento příspěvek, ať se k těmto faktům můžete při revizi svého portfolia kdykoliv vrátit.",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#investice",
+          "#ochranamajetku",
+          "#finance",
+          "#realitnitrh",
+          "#diverzifikace",
+          "#pasivniprijem"
+        ]
+      },
+      {
+        "id": "44136609-7147-46a6-99ea-361db4a0b8d3",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-posts/1788591733757.webp"
+        ],
+        "hook": "Nákup půdy s garancí v praxi.",
+        "body": "Mnoho investorů hledá absolutní jistotu. Ale jak přesně funguje nákup slovenské orné půdy s garancí odkupu? Celý proces je stavěný na maximální transparentnosti.\n\n1. Výběr: Zvolíte si konkrétní bonitní pozemek podle vašich investičních cílů.\n2. Vlastnictví: Půdu kupujete do 100% osobního vlastnictví. Žádné podílové fondy, majiteli jste přímo vy.\n3. Garance: Přímo do smlouvy zakotvíme právo na zpětný odkup. Předem znáte jasná čísla – zhodnocení 40 % za 5 let nebo 100 % za 10 let.\n4. Správa: Administrativu a pachty plynule přebíráme.\n\nInvestice do půdy není o emocích, ale o pevných právních základech. Vaše portfolio získá reálnou stabilitu.",
+        "cta": "Projděte si celý proces a získejte jistotu garantovaného zhodnocení. Sjednejte si nezávaznou konzultaci a prohlédněte si návrh smlouvy na http://www.agroinvest.cz/p/nakup-zemledelske-pudy",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#slovenskapuda",
+          "#konzervativniinvestice",
+          "#pasivniprijem",
+          "#bohatstvi",
+          "#bezpecnainvestice",
+          "#nemovitosti"
+        ]
+      },
+      {
+        "id": "de380297-8804-49ed-8c35-b17a9521d716",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-posts/1788591857734.webp"
+        ],
+        "hook": "Pozor na falešné inzeráty při nákupu pozemků.",
+        "body": "Na rovinu: Ne všechno, co na internetu vypadá jako výhodná koupě, reálně chrání váš kapitál.\n\nZáří je obdobím nových pachtovních smluv. Trh se plní nabídkami, ale konzervativní investor musí číst mezi řádky. Nejčastější rizika levných inzerátů:\n\n1. Nevyřešené přístupové cesty (pozemek je bezcenný).\n2. Skrytí spoluvlastníci (blokují jakékoliv rozhodování).\n3. Nízká bonita půdy (nulový pacht).\n\nOchrana většího objemu hotovosti vyžaduje stoprocentní právní jistotu, ne sázku do loterie. U nás prochází každý pozemek tvrdým auditem. Kupujete pouze čistá aktiva podložená reálnými daty a smluvní garancí zpětného odkupu.",
+        "cta": "Chcete vědět, na co přesně si dát při výběru pozor? Přečtěte si více o bezpečném vlastnictví půdy na www.agroinvest.cz.",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#ochranauspor",
+          "#ochranaprediinflaci",
+          "#jistota",
+          "#pasivniprijem",
+          "#slovenskapuda",
+          "#realitnitrh"
+        ]
+      },
+      {
+        "id": "1d39e14e-793a-4059-b1ef-7a6d2e63b212",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-posts/1788592000956.webp"
+        ],
+        "hook": "Fyzicky omezená půda, nebo tradiční zlato?",
+        "body": "Obě aktiva chrání kapitál před inflací. Ale fungují jinak. 1. Stabilita: Zlato drží hodnotu staletí. Slovenská černozem je ale fyzicky omezený zdroj, kterého každým rokem ubývá. 2. Výnos: Zlato nenese žádnou úrokovou dividendu, pouze čekáte na růst ceny. U slovenské půdy existuje prokazatelný potenciál zhodnocení a garance odkupu. 3. Reálný přesah: Zlatá cihla tiše leží v trezoru. Půda aktivně produkuje a pracuje. Zatímco finanční trhy na podzim tradičně kolísají, pole po sklizni představuje absolutní hmatatelnou jistotu. Diverzifikace portfolia dává smysl. Záleží jen na tom, zda hledáte pasivní kov, nebo aktivum, které organicky roste.",
+        "cta": "Které z těchto dvou konzervativních aktiv dává vašemu portfoliu větší smysl? Podělte se o svůj pohled v komentářích.",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#investice",
+          "#investicnizlato",
+          "#finance",
+          "#nemovitosti"
+        ]
+      },
+      {
+        "id": "588d66c9-3f8d-41d4-a222-887a721bb631",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-posts/1788592095948.webp"
+        ],
+        "hook": "Zákon 140/2014 garantuje bezpečné české vlastnictví slovenské půdy.",
+        "body": "Mýtus: Kupovat pozemky v zahraničí je obrovské právní riziko.\nRealita: Právní jistota na Slovensku je pro české investory absolutní.\n\nZákon č. 140/2014 Z.z. o nabývání vlastnictví k zemědělskému pozemku definuje jasná pravidla:\n✅ Jako občan EU máte stejná práva jako místní.\n✅ Zápis do katastru je nezpochybnitelný.\n✅ Vaše vlastnictví je trvalé a plně chráněné.\n\nŽádné kličky. Žádné skryté podmínky pro cizince.\n\nZatímco podzimní inflace ukrajuje z vašich úspor, slovenská černozem nabízí pevný legislativní štít. Investice do půdy u sousedů je z právního hlediska stejně bezpečná jako nákup pole v Česku. Jen s vyšším potenciálem zhodnocení.",
+        "cta": "Více informací o bezpečném vlastnictví půdy najdete na www.agroinvest.cz.",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#pravnijistota",
+          "#investice",
+          "#realitnitrh",
+          "#nemovitosti",
+          "#bohatstvi",
+          "#pasivniprijem"
+        ]
+      },
+      {
+        "id": "eefefa57-7722-4d22-99b9-3d8877747926",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-posts/1788592227235.webp"
+        ],
+        "hook": "Doporučení zkrátí návratnost o dvanáct měsíců.",
+        "body": "Investování do slovenské zemědělské půdy je o přesné matematice. Pasivní držení spolehlivě chrání kapitál. Pokud se však rozhodnete produkt doporučit, váš celkový výnos se zrychlí. Za nového klienta, který úspěšně uzavře smlouvu, získáte okamžitý finanční bonus vypočítaný jako fixní procento z objemu jeho investice. V praxi to znamená, že tato odměna efektivně umaže jeden celý rok čekání na cílové zhodnocení vašeho portfolia. Váš kapitál pracuje rychleji, přičemž parametry vaší vlastní investice a úroveň bezpečí zůstávají zcela beze změny. Žádná složitá byrokracie, jen jasná čísla a férová odměna za důvěru.",
+        "cta": "Zjistěte přesnou výši bonusu a podmínky vyplacení. Podívejte se na detaily na http://www.agroinvest.cz/p/odmena-za-doporuceni a zrychlete růst svého portfolia.",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#investice",
+          "#investicniportfolio",
+          "#zhodnoceni",
+          "#slovenskapuda"
+        ]
+      },
+      {
+        "id": "1d55dba6-2dd2-4ad8-9987-c2fc78cf5edd",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-posts/1788592381068.webp"
+        ],
+        "hook": "Prodej prověřených pozemků začíná třístupňovým právním auditem.",
+        "body": "Než vám nabídneme konkrétní pole, odvedeme černou práci za vás.\n\nPapírově může pozemek vypadat bezchybně. Realita po sklizni ale často ukáže vady. Proto náš prodej prověřených pozemků nestavíme na slibech, ale na tvrdých datech.\n\nKaždá parcela prochází sítem:\n1️⃣ Právní čistota: Kontrola věcných břemen a skrytých dluhů.\n2️⃣ Fyzický stav: Sonda kvality ornice po zářijové sklizni.\n3️⃣ Pachtovní vztahy: Revize smluv se zemědělci pro další sezónu.\n\nVyhnete se tak nepříjemným překvapením a zdlouhavé byrokracii. Kupujete aktivum, které je okamžitě připravené chránit váš kapitál. My řešíme rizika, vy získáváte čistý list vlastnictví.",
+        "cta": "Máte otázky k průběhu našeho auditu? Napište nám do zpráv a rádi s vámi probereme, jak přesně vaše budoucí pozemky prověřujeme.",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#pravnijistota",
+          "#diverzifikace",
+          "#slovenskapuda",
+          "#investice",
+          "#finance",
+          "#realitnitrh"
+        ]
+      },
+      {
+        "id": "afad0463-9d48-4d6d-9239-c5f260ea1574",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-agro-invest/ig-posts/1788592637497.webp"
+        ],
+        "hook": "Proč český kapitál masivně proudí do slovenské půdy.",
+        "body": "Čísla ukazují jasný trend. Čeští investoři přesouvají kapitál do slovenské zemědělské půdy. Není to náhoda, ale chladná matematika. Zatímco v České republice se průměrná cena hektaru vyšplhala nad 300 000 Kč a trh je saturovaný, na Slovensku lze srovnatelně kvalitní černozem pořídit i o třetinu levněji. Tento cenový rozdíl nabízí vyšší prostor pro růst a stejnou míru bezpečí. Makroekonomická data jasně potvrzují, že slovenská půda dohání cenovou úroveň západních sousedů. Rozvážný investor nehledá adrenalin, ale hmatatelné aktivum chránící jeho portfolio před inflací. Přesun kapitálu na Slovensko je tak logickým krokem k diverzifikaci. Místo spekulací zde totiž vítězí stabilita.",
+        "cta": "Uložte si tento příspěvek, ať se k těmto makroekonomickým faktům můžete kdykoliv vrátit při plánování diverzifikace vašeho portfolia.",
+        "hashtags": [
+          "#agroinvest",
+          "#agroinvestcz",
+          "#zemedelskapuda",
+          "#investicedopudy",
+          "#investice",
+          "#slovensko",
+          "#diverzifikace",
+          "#slovenskapuda",
+          "#jistota"
+        ]
+      }
+    ]
+  },
+  {
+    "slug": "liqui-moly",
+    "company": "LIQUI MOLY",
+    "industry": "Motorová maziva a autochemie",
+    "website": "https://www.liqui-moly.cz",
+    "posts": [
+      {
+        "id": "c39d29d3-e0fa-45c8-abab-2434e4d0fcb2",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610472944-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610496839-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610519652-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610544428-slide3.webp"
+        ],
+        "hook": "Telemetrie TCR: Olej na 140 stupních",
+        "body": "Závody TCR neodpouští chyby. Agresivní podřazování, brutální akcelerace a teploty oleje na rovinkách šplhající ke 140 °C. Telemetrie z našich vozů ukazuje přesně to, co se děje uvnitř motoru na hraně možností. Zatímco mechanici v boxech analyzují data a spoléhají na špičková závodní maziva, která tuto zátěž snesou bez ztráty filmu, fyzika platí pro všechny motory stejně. Extrémní teplo po náročném provozu dává zabrat i běžným autům. Degradace viskozity je reálná hrozba před příchodem chladných rán. Tohle je start naší nové série o přežití motoru.",
+        "cta": "Jaká je nejvyšší teplota motorového oleje, kterou jste kdy zaznamenali na svém palubním počítači? Podělte se o svá data v komentářích.",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#motorsport",
+          "#telemetrie",
+          "#tcr",
+          "#peceomotor",
+          "#motorovyolej"
+        ]
+      },
+      {
+        "id": "4bef9aa1-1482-4cb1-b235-d18b9cc4b9ab",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610645531-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610692069-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610718271-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610762726-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610787207-slide4.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610811845-slide5.webp"
+        ],
+        "hook": "Soutěž o aditiva: Fyzika vstřikování v závodním tempu",
+        "body": "Minule jsme v TCR řešili vařící olej. Dnes jdeme na palivo. Závodní motory neodpouští ani mikron karbonu na vstřiku. Špatně rozprášená směs znamená okamžitou ztrátu výkonu a konec nadějí na bednu.\n\nPřesně tahle fyzika platí i pro auta, která vám teď po letní sezóně plní zvedáky. Chladná zářijová rána blbě startujícím motorům nepomůžou. Naše OEM schválená chemie jako Super Diesel Additive vrací vstřikům tovární čistotu. A vy ji teď můžete mít do dílny zdarma.\n\n🎁 SOUTĚŽ o 3 balíčky prémiových aditiv!\nUkažte, že znáte řemeslo. Odpovězte do komentářů na technickou otázku:\n„Jak přesně ovlivňuje zanesená tryska homogenitu směsi ve válci a jak se to podepíše na spotřebě?“\nNejlepší profíky odměníme.",
+        "cta": "Napište nám svou technickou analýzu do komentářů a zařaďte se do slosování o 3 balíčky aditiv!",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#motorsport",
+          "#fyzika",
+          "#soutez",
+          "#mechanik",
+          "#servis",
+          "#motorovyolej"
+        ]
+      },
+      {
+        "id": "93f36411-1a7a-433c-8880-e496d76da131",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610917408-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610942974-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610972641-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788610996784-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788611022864-slide4.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788611074703-slide5.webp"
+        ],
+        "hook": "Dálniční tempo karbon ze vstřiků nedostane",
+        "body": "Minule jsme řešili fyziku vstřikování v TCR. Běžná auta vašich zákazníků po letních trasách ale trpí na chlup stejně. Mnoho řidičů si myslí, že stačí auto na dálnici pořádně protáhnout. Omyl. Vysoké zatížení bez správné chemie produkci karbonu nezastaví, naopak úsady na vstřikovacích ventilech a ve spalovacím prostoru ještě víc zapeče. Výsledek? Rozhozené dávkování paliva, cukání a nespokojený zákazník na zvedáku. Jako profík potřebujete jistotu, ne babské rady. LIQUI MOLY Čistič vstřikování cíleně rozpouští usazeniny, zajišťuje přesné dávkování paliva a vám šetří drahocenný čas na dílně. Vyřešte problém rychle a efektivně.",
+        "cta": "Vybavte svou dílnu hned teď a ušetřete čas při servisu. Objednávejte s rychlým dodáním přímo na https://www.liqui-moly.cz/p/cistic-vstrikovani",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#liquimolyczsk",
+          "#cisticvstrikovani",
+          "#autoservis",
+          "#profimechanik",
+          "#motorovyolej",
+          "#aditiva"
+        ]
+      },
+      {
+        "id": "0ca12eac-f66c-4638-a0a3-1a8fbba260c2",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614069373-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614121899-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614147821-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614196966-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614223601-slide4.webp"
+        ],
+        "hook": "Letní nánosy karbonu zničí studené starty.",
+        "body": "Letní dálniční přesuny a vysoké teploty znamenají extrémní zátěž. Zůstává po nich zapečený karbon na špičkách vstřikovačů. V létě to řídicí jednotka dorovná, ale s prvními mrazy nastává problém. Místo jemné mlhy vstřik palivo jen plive. Směs se špatně vznítí, startér trpí a válce se zalévají nespáleným palivem.\n\nTohle nevyřeší hrubá síla, ale přesná chemie. Postup z dílny: před tankováním nalijte čistič vstřikování do nádrže. Natankujte plnou, ať se aditivum dokonale promíchá. Následná jízda pod zátěží vytvoří tlak a teplotu k rozpuštění usazenin. Mikronové nánosy zmizí a rozprach se vrátí do továrních hodnot. Připravte motor na zimu včas.",
+        "cta": "Jak řešíte prevenci palivového systému vy? Napište nám do komentářů.",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#motorsport",
+          "#cistenivstriku",
+          "#udrzbaauta",
+          "#autokosmetika",
+          "#aditiva",
+          "#motorky"
+        ]
+      },
+      {
+        "id": "3895c699-5dcd-4384-bd59-408370d538f8",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-posts/1788614309374.webp"
+        ],
+        "hook": "Poznáte fatální následek jízdy na degradovaný olej?",
+        "body": "Letní dálniční přesuny dostaly olej na absolutní limit. Extrémní teploty zlomily viskozitu. Výsledek vidíte na fotce.\n\nMajitel hlásil postupnou ztrátu plnícího tlaku. Kvílení v zátěži. Skokově zvýšenou spotřebu oleje. Hřídelka měla po rozebrání obrovskou radiální vůli, i když auto nikdy nevidělo závodní okruh. Tohle je čistá fyzika selhání mazacího filmu v kritickém uzlu.",
+        "cta": "Víte, co přesně způsobilo destrukci tohoto ložiska? Napište svou technickou diagnózu do komentářů.",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#motorsport",
+          "#diagnostika",
+          "#turbodmychadlo",
+          "#autokosmetika",
+          "#aditiva",
+          "#cars"
+        ]
+      },
+      {
+        "id": "25a6bc38-9967-486a-98f7-7259aa79eba7",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614459493-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614484889-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614527800-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614573357-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788614596498-slide4.webp"
+        ],
+        "hook": "Riskujete při prvních mrazech ucpaný palivový filtr, nebo je váš systém bezpečně připraven na -20 °C?",
+        "body": "Minule jsme řešili letní nánosy karbonu. Zářijové teplotní skoky s sebou však přinášejí nové technické výzvy. Chladná rána a teplá odpoledne způsobují kondenzaci vody v nádrži. Při následném poklesu teplot dochází ke krystalizaci parafínu, jehož mikrokrystaly ucpávají póry palivového filtru a znemožňují startování. Přísada do nafty od LIQUI MOLY tento fyzikální proces efektivně eliminuje. Zabraňuje shlukování krystalů parafínu, chrání palivový systém před korozí a garantuje plnou průchodnost filtru až do -20 °C. Pro profesionální provozy a vozové parky to znamená zásadní minimalizaci prostojů vozidel a snížení dodatečných nákladů na neplánované servisní zásahy.",
+        "cta": "Zajistěte bezproblémové zimní starty a objednávejte přímo z e-shopu: https://www.liqui-moly.cz/p/prisada-do-nafty",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#prisadadonafty",
+          "#palivovyfiltr",
+          "#automechanik",
+          "#motorsport",
+          "#motorovyolej",
+          "#aditiva"
+        ]
+      },
+      {
+        "id": "8d639000-b800-44ad-bb21-938cb552e733",
+        "mediaType": "carousel",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788615131662-slide0.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788615156780-slide1.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788615187244-slide2.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788615232915-slide3.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788615260152-slide4.webp",
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-carousel/1788615305431-slide5.webp"
+        ],
+        "hook": "Mazací film selhává při 150 tisících otáčkách turba.",
+        "body": "Minule jsme řešili fatální diagnózu spáleného ložiska. Dnes se podíváme na fyziku, která za tím stojí.\n\nVšichni mluví o teplotě výfukových plynů. Skutečným zabijákem turba jsou ale extrémní otáčky rotoru. Při 150 000 otáčkách za minutu působí na hřídel brutální odstředivé síly. Standardní olej ztrácí viskozitu, mazací film se trhá a dochází k suchému tření. Výsledek vidíte na dílně u aut, co se právě vrátila z letních dovolených po dálnici.\n\nProfi servis vyžaduje jistotu. Naše oleje těží ze zkušeností z TCR. Mají oficiální OEM schválení a stabilní viskozitu, která udrží film i při maximální zátěži. Chráníte tak motory zákazníků a vlastní reputaci.",
+        "cta": "Jaký nejhorší případ zničeného turba jste letos na dílně řešili? Napište nám do komentářů, co přesně nevydrželo.",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#liquimolyczsk",
+          "#fyzikamotorsportu",
+          "#turbodmychadlo",
+          "#autoservis",
+          "#servis",
+          "#auta"
+        ]
+      },
+      {
+        "id": "fa9e7137-c345-43d2-82e8-357d2fbddc80",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-posts/1788615393571.webp"
+        ],
+        "hook": "Zimní renovace bloku vyžaduje mikrometrovou přesnost vůlí.",
+        "body": "Hodiny s mikrometrem v ruce. Kontrola kliky, úhlování ojnic, přesné spasování kroužků. V garážích právě teď vznikají projekty, které snesou srovnání se závodní specifikací.\n\nMechanika je nekompromisní. Ale i sebelépe složený motor má své slabiny – stárnoucí elastomery. Guma tvrdne. Gufera ztrácí pružnost. Olejové skvrny pod autem degradují stovky hodin vaší práce.\n\nPři oživování starších projektů nebo prevenci úniků spolehlivě funguje aditivum Stop ztrátám oleje. Změkčuje plastová a gumová těsnění motoru a vrací jim původní vlastnosti. Bez rozebírání a dalších investic.",
+        "cta": "Na čem přes zimu děláte vy? Pochlubte se svým aktuálním garážovým projektem v komentářích.",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#motorsport",
+          "#garaz",
+          "#renovace",
+          "#motorky",
+          "#peceomotor",
+          "#detailing"
+        ]
+      },
+      {
+        "id": "a6b2f06a-bcf4-4710-9192-29a3005fe3f4",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-posts/1788615487021.webp"
+        ],
+        "hook": "Mýtus: Proplach motoru ucpe mazací kanálky.",
+        "body": "Proč se toho tolik řidičů bojí? Strach pramení z představy, že chemie odtrhne kusy napečeného karbonu, které následně zablokují olejové čerpadlo. To je přežitek ze zkoušení agresivních ředidel.\n\nModerní aditiva fungují jinak. LIQUI MOLY Pro-Line Motorspülung karbon neodlupuje mechanicky. Fyzikálně ho rozpouští na molekulární úrovni. Úsady přecházejí do tekutého stavu a bezpečně odtékají ze systému spolu se starým olejem. Žádné pevné částice nezůstávají.\n\nPřed zimní sezónou a ranními mrazy je absolutně čistý mazací systém základem pro okamžitý náběh tlaku oleje.\n\nJaké máte s proplachem zkušenosti z vaší garáže?",
+        "cta": "Podělte se o své zkušenosti v komentářích. Kompletní technické listy a náš online mazací plán najdete zde:👇 https://www.liqui-moly.cz",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#motorsport",
+          "#garaz",
+          "#automechanik",
+          "#motorovyolej",
+          "#motorky",
+          "#aditiva"
+        ]
+      },
+      {
+        "id": "e2115695-fde3-4038-b655-4a4d662878ae",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-posts/1788615676177.webp"
+        ],
+        "hook": "Stop ztrátám oleje reálně regeneruje ztvrdlá těsnění.",
+        "body": "Extrémní teplotní zátěž gumu vysušuje. Těsnění dříků ventilů a gufera klikové hřídele tvrdnou, smršťují se a propouští olej. Výměna znamená rozebrat půl motoru. Chemie nabízí efektivnější řešení. Aplikace aditiva přímo do oleje spouští cílenou reakci. Aktivní látky pronikají hluboko do struktury elastomerů. Během 600 až 800 kilometrů jízdy dochází k řízenému nabobtnání pryže. Materiál získává zpět původní elasticitu. Netěsnosti mizí, únik oleje klesá k nule. Snižuje se i modrý kouř z výfuku. Fyzikální záchrana před nákladným servisem.",
+        "cta": "Objednávejte prémiové řešení Stop ztrátám oleje přímo z e-shopu: https://www.liqui-moly.cz/p/stop-ztratam-oleje",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#stopztratamoleje",
+          "#aditiva",
+          "#peceomotor",
+          "#auto",
+          "#servis",
+          "#motorovyolej"
+        ]
+      },
+      {
+        "id": "2376b5dd-b433-4d9d-aa24-8b8c7440bc95",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-posts/1788615781893.webp"
+        ],
+        "hook": "Zdegradovaný letní olej nemaže vačky prvních pět sekund.",
+        "body": "Pět sekund chodu nasucho. To je realita ranních startů s olejem, který dostal v létě zabrat. Dálniční přesuny a teplotní extrémy zlomily jeho viskozitu.\n\nUdělejte si rychlý test. Vytáhněte měrku. Černá barva nevadí, důležitá je konzistence. Pokud olej kape jako voda, nebo naopak tvoří táhlou hmotu, mazací film ztratil stabilitu.\n\nOlejové čerpadlo ho nedokáže včas protlačit kanálky nahoru. Vačková hřídel běží kov na kov. Zastavte opotřebení a vyměňte letní náplň včas.",
+        "cta": "Uložte si tento tip pro podzimní údržbu a napište nám do komentářů, při kolika kilometrech měníte olej vy.",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#studenystart",
+          "#vymenoleje",
+          "#motorovyolej",
+          "#peceomotor",
+          "#motorsport",
+          "#racing"
+        ]
+      },
+      {
+        "id": "35cad842-8688-4793-9f90-fdf32103ab4f",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-posts/1788615973562.webp"
+        ],
+        "hook": "Jaká chemická reakce způsobuje tuto zimní krystalizaci?",
+        "body": "S blížící se zimou a prvními mrazíky přichází i skrytá hrozba pro moderní diesely. Na fotce vidíte typický nános bílých krystalů v dávkovacím modulu SCR katalyzátoru. Zpočátku se to projeví jen občasným chybovým hlášením. Později auto odmítne nastartovat úplně. Kapalina AdBlue se skládá z 32,5 % močoviny a 67,5 % demineralizované vody. Jakmile teploty klesnou k určitému bodu, začíná fyzika úřadovat. Voda mrzne a močovina krystalizuje. Vzniklé usazeniny ucpou vedení, zablokují čerpadlo a zničí samotný vstřikovač.",
+        "cta": "Znáte přesnou teplotu, při které začíná AdBlue krystalizovat? Napište váš tip do komentářů, rádi s vámi probereme, co se v praxi nejvíce osvědčuje jako prevence.",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#adblue",
+          "#krystalizace",
+          "#udrzbaauta",
+          "#motorsport",
+          "#autoservis",
+          "#auta"
+        ]
+      },
+      {
+        "id": "901ce125-32ac-44e6-8430-16d3e49c6c99",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-posts/1788616073297.webp"
+        ],
+        "hook": "Přísada do AdBlue® blokuje krystalizaci pod -11 °C.",
+        "body": "Minule jsme řešili chemický rozklad močoviny. Fyzika je neúprosná. Jakmile teplota klesne pod -11 °C, čisté AdBlue® začíná tvořit nevratné bílé krystaly. Ty spolehlivě ucpou čerpadlo, vedení i samotný vstřikovač. Následuje chybové hlášení a drahá výměna celého modulu.\n\nZářijové servisní prohlídky jsou ideální čas na prevenci. Naše Přísada do AdBlue® tento proces blokuje. Snižuje bod tuhnutí, zabraňuje krystalizaci a aktivně čistí už zasažené komponenty. Ochrání systém vašich zákazníků i v extrémních mrazech. Rychlá aplikace a okamžitý výsledek pro každého mechanika.",
+        "cta": "🛒 Objednávejte Přísadu do AdBlue® pro svůj servis s rychlým doručením na https://www.liqui-moly.cz/p/prisada-do-adblue",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#adblue",
+          "#servisaut",
+          "#automechanik",
+          "#auto",
+          "#detailing",
+          "#aditiva"
+        ]
+      },
+      {
+        "id": "ab343407-c36d-4431-92f2-d51cf488058c",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-posts/1788616152245.webp"
+        ],
+        "hook": "Suchá vana drží konstantní tlak oleje při 2G.",
+        "body": "Odstředivá síla je neúprosná. V táhlých zatáčkách na limitu se olej v klasické vaně přelije ke straně. Čerpadlo nasaje vzduch, tlak padá k nule a hrozí okamžité přidření na klice.\n\nZávodní speciály proto využívají suchou vanu. Sestava odsávacích čerpadel bleskově stahuje olej z bloku do externí nádrže. Tlakové čerpadlo pak saje z vysokého sloupce bez ohledu na to, jak brutální boční přetížení auto právě snáší. Žádné výpadky mazacího filmu. Stoprocentní ochrana komponentů i při extrémním zatížení.\n\nStavíte přes zimu vlastní okruhový projekt?",
+        "cta": "Spoléháte na vylepšené přepážky v sériové vaně, nebo jdete rovnou do suché? Dejte nám vědět do komentářů.",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#motorsport",
+          "#suchavana",
+          "#tlakoleje",
+          "#zavodniinzenyrstvi",
+          "#racing",
+          "#detailing"
+        ]
+      },
+      {
+        "id": "df48ecd7-1c7e-40b2-9f11-645fa4e1ebbe",
+        "mediaType": "post",
+        "images": [
+          "https://nyvbxpjkwhcuugwevobu.supabase.co/storage/v1/object/public/ig-posts-liqui-moly/ig-posts/1788616287975.webp"
+        ],
+        "hook": "Těsnění ventilů speciálu Nova Proto prasklo před startem.",
+        "body": "Těsnění dříků ventilů u prototypu Nova Proto NP01 nevydrželo. Paddock se mění v improvizovanou laboratoř. Mechanici mají hodinu na rozebrání hlavy a záchranu víkendu. Zvládli to. Auto je na trati. Zatímco fanoušci sledují časy na kolo, v zázemí se řeší druhý extrém. Týmový tahač. Tisíce kilometrů s těžkým vlekem napříč letní Evropou zanechaly na vstřikovačích dieselu tvrdý karbon. Odezva na plyn zlenivěla. Než speciál dojede do cíle, mechanik lije do nádrže dodávky Údržbu dieselového systému. Čistí trysky, maže palivové čerpadlo a chrání systém před korozí. Bez spolehlivého dieselu se totiž žádný pohár domů neodveze.",
+        "cta": "Jaký dieselový dříč tahá vaše garážové projekty? Pochlubte se nám v komentářích.",
+        "hashtags": [
+          "#liquimoly",
+          "#liquimolycz",
+          "#liquimolysk",
+          "#vyrobenovnemecku",
+          "#motorsport",
+          "#novaproto",
+          "#paddocklife",
+          "#zavody",
+          "#detailing",
+          "#peceomotor"
         ]
       }
     ]

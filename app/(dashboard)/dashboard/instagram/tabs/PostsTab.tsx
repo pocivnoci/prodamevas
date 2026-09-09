@@ -8,7 +8,7 @@ import { deleteIGPost, deleteIGPosts } from "@/app/actions/post-actions"
 import { revisePost, generateMultipleVariants, selectVariantWinner, getVariantGroup } from "@/app/actions/variant-actions"
 import { editPost, revertPostEdit, type EditScope } from "@/app/actions/post-edit-actions"
 import { retryPublishAction } from "@/app/actions/calendar-actions"
-import { LoadingSpinner, StatusBadge, PillarBadge, CopyButton, MetricsInputForm } from "./shared"
+import { LoadingSpinner, StatusBadge, PillarBadge, CopyButton, MetricsInputForm, CaptionEditor } from "./shared"
 import { PublishHandoffModal } from "./PublishHandoffModal"
 import { getConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { useCopyToClipboard } from "./hooks"
@@ -17,6 +17,8 @@ import { trackEvent } from "@/lib/analytics"
 import { parsePostMedia } from "@/lib/media-urls"
 import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
 import { formatCzk, LOWEST_MONTHLY_HALERU } from "@/lib/pricing"
+import { isMediumType, MEDIA_CREDITS } from "@/lib/credits"
+import { countLabel, CREDITS } from "@/lib/plural"
 import { Brain, ChartColumn, Check, CircleCheck, CircleX, ClipboardList, Download, Image, Lock, Package, RefreshCw, Send, Shuffle, Smartphone, Trash2, TriangleAlert, Trophy, X, type LucideIcon } from "lucide-react"
 
 // ═══════════════════════════════════════════════════════════
@@ -273,6 +275,12 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{post.ig_post_types?.display_name || "Generický Post"}</span>
                                     {post.content_pillar && <PillarBadge pillar={post.content_pillar} />}
+                                    {post.fact_status === "flagged" && (
+                                        <span
+                                            title={`Faktická brána označila tvrzení, které nemá oporu v ověřených faktech značky:\n${(post.fact_flags || []).join("\n") || "—"}\n\nDoplň fakt v Nastavení → Ověřená fakta, nebo to tvrzení z textu smaž.`}
+                                            className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/30 text-amber-400/80 text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-sm"
+                                        ><TriangleAlert className="w-3 h-3 shrink-0" />Ověř fakta</span>
+                                    )}
                                 </div>
                                 <span className="text-sm bg-white/5 shadow-sm border border-white/10 px-2 py-1 rounded-sm">{post.ig_post_types?.emoji || "📸"}</span>
                             </div>
@@ -486,11 +494,18 @@ function PostDetailModal({
     const [revisionResult, setRevisionResult] = useState<{ success: boolean; newPostId?: string; error?: string } | null>(null)
     const [editRegion, setEditRegion] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
     const [regionActive, setRegionActive] = useState(false)
+    // Bydlí tady, ne v editoru: rozbaluje ho i panel s označenými tvrzeními nad ním.
+    const [captionEditing, setCaptionEditing] = useState(false)
     const [generatingVariants, setGeneratingVariants] = useState(false)
     const [variantIds, setVariantIds] = useState<string[]>([])
     const [showVariantComparison, setShowVariantComparison] = useState(false)
     const [variantError, setVariantError] = useState<string | null>(null)
     const [carouselIndex, setCarouselIndex] = useState(0)
+    // Označená tvrzení řešená rovnou u příspěvku — bez opisování do Nastavení.
+    const [factFlags, setFactFlags] = useState<string[]>(post.fact_flags || [])
+    const [confirmingFact, setConfirmingFact] = useState<string | null>(null)
+    // Tvrzení, která engine doložil na webu — u příspěvku visí jako zdroje.
+    const [factSources, setFactSources] = useState(post.fact_sources || [])
     const [editorialLog, setEditorialLog] = useState<{ role: string; action: string; summary: string }[]>([])
     const [editorialOpen, setEditorialOpen] = useState(false)
     const [retrying, setRetrying] = useState(false)
@@ -510,6 +525,16 @@ function PostDetailModal({
 
     const media = parsePostMedia(post.image_url, post.media_type)
     const imageUrls = media.urls
+
+    // Kolik stojí srovnání variant. Tlačítko do 9/2026 utratilo dva plné
+    // příspěvky (u karuselu šest kreditů) a nikde to neřeklo — jinde v appce
+    // přitom cena u rozhodnutí stojí vždycky („Odhad: ~X kreditů“, „5 kreditů“).
+    //
+    // Sazba se bere z média originálu, protože varianta jede ve stejném formátu
+    // (`variant-actions.ts`). Když engine formát srazí vypínačem, strhne se
+    // MÍŇ než je tady — u ceny je nadhodnotit se jediný bezpečný směr.
+    const VARIANT_COUNT = 2
+    const variantCost = VARIANT_COUNT * MEDIA_CREDITS[isMediumType(post.media_type) ? post.media_type : "image"]
     // Multi-frame stories step through exactly like a carousel does — same arrows, same dots.
     const isCarousel = media.slideCount > 1
 
@@ -553,6 +578,13 @@ function PostDetailModal({
     const hashtags = Array.isArray(post.hashtags) ? post.hashtags : []
     const hashtagsText = hashtags.join(" ")
     const fullText = [post.caption, hashtagsText].filter(Boolean).join("\n\n")
+    // Do prvního komentáře na IG se lepí domény, ne dlouhé URL — odkaz tam stejně
+    // není klikací a plná adresa jen zabírá místo.
+    const sourcesLine = factSources.length > 0
+        ? "Zdroj: " + [...new Set(factSources.map(s => {
+            try { return new URL(s.url).hostname.replace(/^www\./, "") } catch { return s.url }
+        }))].join(", ")
+        : ""
 
     return createPortal(
         <div
@@ -577,6 +609,11 @@ function PostDetailModal({
                             <p className="text-[10px] text-white/40 font-mono tracking-widest uppercase">{new Date(post.created_at).toLocaleString("cs-CZ")}</p>
                         </div>
                         {post.content_pillar && <PillarBadge pillar={post.content_pillar} />}
+                        {factFlags.length > 0 && (
+                            <span className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/30 text-amber-400/80 text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-sm">
+                                <TriangleAlert className="w-3 h-3 shrink-0" />{factFlags.length}× ověř fakta
+                            </span>
+                        )}
                         <StatusBadge status={post.status} />
                     </div>
                     <button
@@ -647,8 +684,10 @@ function PostDetailModal({
 
                         {/* Right: Texts */}
                         <div className="lg:w-1/2 p-4 sm:p-6 space-y-4 sm:space-y-5">
-                            {/* Caption */}
-                            <div>
+                            {/* Caption — klikni a piš. Ruční přepis bydlel dřív v panelu pod
+                                detailem za tlačítkem „Napsat sám"; kdo chtěl opravit překlep,
+                                musel nejdřív uhodnout, že úprava textu nežije u textu. */}
+                            <div id="post-caption">
                                 <div className="flex items-center justify-between mb-2">
                                     <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Caption</span>
                                     <CopyButton
@@ -656,15 +695,23 @@ function PostDetailModal({
                                         copied={copiedField === "caption"}
                                     />
                                 </div>
-                                <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-4 max-h-60 overflow-y-auto shadow-inner">
-                                    <p className="text-sm text-white/70 whitespace-pre-wrap leading-relaxed font-medium">
-                                        {post.caption || "—"}
-                                    </p>
-                                </div>
+                                <CaptionEditor
+                                    projectId={projectId}
+                                    post={post}
+                                    showHashtags
+                                    editing={captionEditing}
+                                    onEditingChange={setCaptionEditing}
+                                    onSaved={(p, fact) => {
+                                        setEditedPost(p)
+                                        if (fact?.flags) setFactFlags(fact.flags)
+                                        if (fact?.sources) setFactSources(fact.sources)
+                                        onRefresh()
+                                    }}
+                                />
                             </div>
 
                             {/* Hashtags */}
-                            {hashtags.length > 0 && (
+                            {hashtags.length > 0 && !captionEditing && (
                                 <div>
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Hashtags ({hashtags.length})</span>
@@ -700,6 +747,100 @@ function PostDetailModal({
                                     <p className="text-[10px] font-mono text-white/40 bg-[#0f0f0f] border border-white/5 rounded-sm p-3 shadow-inner">
                                         {post.image_prompt}
                                     </p>
+                                </div>
+                            )}
+
+                            {/* Neověřená tvrzení — vyřeš je tady, ne opisováním do Nastavení.
+                                Potvrzení uloží fakt značce (zdroj „od klienta", ne web) a příspěvek
+                                se přehodnotí; štítek zmizí sám, pokud nezůstalo něco dalšího. */}
+                            {factFlags.length > 0 && (
+                                <div className="border border-amber-500/25 bg-amber-500/[0.04] rounded-sm p-3">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <TriangleAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                        <span className="text-[10px] font-bold text-amber-400/90 uppercase tracking-widest">Tvrzení bez opory ve faktech</span>
+                                    </div>
+                                    <p className="text-[10px] text-white/40 mb-2">
+                                        Engine to nenašel v ověřených faktech značky. Když to platí, potvrď to — uloží se
+                                        mezi fakta a příště s tím může pracovat rovnou. Když to neplatí, přepiš text sám.
+                                    </p>
+                                    {/* Druhá půlka rady, kterou karta dává už dlouho („nebo to tvrzení
+                                        z textu smaž"). Pokyn pro model je na tohle špatný nástroj:
+                                        nepravdu opravuje další model, který může přidat vlastní. */}
+                                    <button
+                                        onClick={() => {
+                                            setCaptionEditing(true)
+                                            document.getElementById("post-caption")?.scrollIntoView({ behavior: "smooth", block: "center" })
+                                        }}
+                                        className="mb-3 text-[9px] font-bold uppercase tracking-widest text-white/40 hover:text-white underline underline-offset-4 decoration-white/20"
+                                    >
+                                        Není to pravda — přepsat text
+                                    </button>
+                                    <div className="space-y-2">
+                                        {factFlags.map((flag, i) => {
+                                            // Text tvrzení je před závorkou s důvodem: „tvrzení (proč)".
+                                            const claim = flag.replace(/\s*\([^)]*\)\s*$/, "").trim()
+                                            return (
+                                                <div key={i} className="flex items-start gap-2 bg-black/30 border border-white/5 rounded-sm px-3 py-2">
+                                                    <p className="text-xs text-white/70 flex-1">{flag}</p>
+                                                    <button
+                                                        disabled={confirmingFact !== null}
+                                                        onClick={async () => {
+                                                            setConfirmingFact(claim)
+                                                            const { confirmBrandFact } = await import("@/app/actions/config-actions")
+                                                            const res = await confirmBrandFact(projectId, post.id, claim)
+                                                            if (res.success) {
+                                                                setFactFlags(res.flags ?? factFlags.filter(f => f !== flag))
+                                                                if (res.sources) setFactSources(res.sources)
+                                                            }
+                                                            setConfirmingFact(null)
+                                                            onRefresh()
+                                                        }}
+                                                        className="shrink-0 px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-sm text-[9px] font-bold uppercase tracking-widest text-emerald-400 disabled:opacity-40"
+                                                    >{confirmingFact === claim ? "Ukládám…" : "Je to pravda"}</button>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Ověřeno na webu — tvrzení, ke kterým engine našel doklad.
+                                Zdroj se ukazuje vždycky: doklad, který nikdo neuvidí, je
+                                stejný jako žádný — a citaci ke zdroji navíc vyžaduje
+                                poskytovatel vyhledávání, když se výstup ukazuje uživateli. */}
+                            {factSources.length > 0 && (
+                                <div className="border border-emerald-500/20 bg-emerald-500/[0.03] rounded-sm p-3">
+                                    <div className="flex items-center justify-between gap-2 mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <CircleCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                            <span className="text-[10px] font-bold text-emerald-400/90 uppercase tracking-widest">Ověřeno na webu</span>
+                                        </div>
+                                        <CopyButton
+                                            onClick={() => copyToClipboard(sourcesLine, "sources")}
+                                            copied={copiedField === "sources"}
+                                            label="Kopírovat zdroje"
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-white/40 mb-3">
+                                        Engine si tohle sám dohledal. Zdroje se do příspěvku nepíšou —
+                                        když je chceš uvést, vlož je do prvního komentáře.
+                                    </p>
+                                    <div className="space-y-2">
+                                        {factSources.map((src, i) => (
+                                            <div key={i} className="bg-black/30 border border-white/5 rounded-sm px-3 py-2">
+                                                <p className="text-xs text-white/70">{src.claim}</p>
+                                                {src.quote && (
+                                                    <p className="text-[10px] text-white/35 italic mt-1">„{src.quote}"</p>
+                                                )}
+                                                <a
+                                                    href={src.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer nofollow"
+                                                    className="text-[10px] text-emerald-400/70 hover:text-emerald-400 underline underline-offset-2 mt-1 inline-block break-all"
+                                                >{src.title || src.url}</a>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
 
@@ -899,7 +1040,7 @@ function PostDetailModal({
                             setGeneratingVariants(true)
                             setVariantError(null)
                             setVariantIds([])
-                            const result = await generateMultipleVariants(post.id, projectId, 2)
+                            const result = await generateMultipleVariants(post.id, projectId, VARIANT_COUNT)
                             if (result.success && result.variantIds.length > 0) {
                                 setVariantIds(result.variantIds)
                                 setShowVariantComparison(true)
@@ -917,7 +1058,11 @@ function PostDetailModal({
                                     : "bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 border-violet-500/20"
                         }`}
                     >
-                        {generatingVariants ? "⏳ Generuji 2 varianty (~60s)..." : variantIds.length > 0 ? "Zobrazit varianty" : "A/B Test"}
+                        {generatingVariants
+                            ? `⏳ Generuji ${VARIANT_COUNT} varianty (~60s)...`
+                            : variantIds.length > 0
+                                ? "Zobrazit varianty"
+                                : `A/B Test · ${countLabel(variantCost, CREDITS)}`}
                     </button>
                     {variantIds.length > 0 && !generatingVariants && (
                         <button
@@ -1162,7 +1307,7 @@ function PostEditPanel({
     if (locked) return null
 
     return (
-        <div className="px-4 sm:px-6 py-3 border-t border-white/10 bg-[#030303] space-y-2">
+        <div id="post-edit-panel" className="px-4 sm:px-6 py-3 border-t border-white/10 bg-[#030303] space-y-2">
             {/* Scope + status on one row — vertical space here is space taken away from
                 the image preview, which is what the region drag needs to be usable. */}
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -1175,7 +1320,7 @@ function PostEditPanel({
                     return (
                         <button
                             key={opt.id}
-                            onClick={() => !disabled && setScope(opt.id)}
+                            onClick={() => { if (disabled) return; setScope(opt.id) }}
                             disabled={disabled}
                             title={disabled ? (isReel ? "Video u reelu nejde upravit — použij Vygenerovat znovu" : "Příspěvek nemá obrázek") : undefined}
                             className={`px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded-sm border transition-all ${
@@ -1213,7 +1358,8 @@ function PostEditPanel({
                 )}
             </div>
 
-            {/* Inputs */}
+            {/* Pokyn pro model. Přepsat text vlastními slovy jde nahoře u captionu —
+                sem to nepatří: kdo chce svoji větu, nemá ji diktovat přes prostředníka. */}
             <div className="space-y-2">
                 <textarea
                     value={instruction}

@@ -78,11 +78,17 @@ export function renderBrandedEmailParts(
 
 /** Owner e-mail resolution mirrors payments/create: user_clients owner → auth user. */
 export async function getOwnerEmail(clientId: string): Promise<string | null> {
+    // Vlastníků může být víc — správce, který značku onboardoval, plus zákazník,
+    // kterému ji předal (`transferClientToUser`). Bez řazení by o adresátovi
+    // dokladu rozhodlo pořadí řádků v Postgresu, takže potvrzení platby mohlo
+    // přijít správci místo tomu, kdo platil. Vyhrává NEJNOVĚJŠÍ vazba: značka
+    // se předává směrem k zákazníkovi, ne zpátky.
     const { data: link } = await supabaseAdmin
         .from("user_clients")
         .select("user_id")
         .eq("client_id", clientId)
         .eq("role", "owner")
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle()
     if (!link) return null

@@ -14,8 +14,14 @@ import { requireSuperAdmin } from "@/lib/auth-guard"
 import { renderBrandedEmailParts } from "@/lib/notifications"
 import { BROADCAST_TEMPLATES, EMAIL_TEMPLATES, getTemplate } from "@/lib/mail/registry"
 import type { TemplateField, TemplateVars } from "@/lib/mail/template"
+import { validateAttachments, type MailingAttachmentInput } from "@/lib/mail/attachments"
 
-export type MailingSegment = "waitlist" | "activeClients" | "expired"
+/**
+ * Komu se posílá. `manual` je jediný segment bez vlastního seznamu — adresy píše
+ * člověk (typicky klient, se kterým se zrovna mluvilo a v žádném segmentu ještě
+ * není). Opt-out i denní strop pro něj platí stejně jako pro zbytek.
+ */
+export type MailingSegment = "waitlist" | "activeClients" | "expired" | "manual"
 
 const DAILY_CAP = 100 // Resend free-tier daily send limit
 const THROTTLE_MS = 550 // ~2 req/sec, safely under Resend's rate limit
@@ -53,6 +59,10 @@ async function clientOwnerEmails(statuses: string[]): Promise<string[]> {
 
 async function resolveRecipients(segment: MailingSegment): Promise<string[]> {
     let emails: string[] = []
+    // `manual` žádný zdroj nemá — seznam přijde od volajícího a projde
+    // `sanitizeManual()`. Vrátit tu prázdno je správně: dotaz „kdo je v segmentu"
+    // na ruční adresy odpovědět neumí.
+    if (segment === "manual") return []
     if (segment === "waitlist") {
         const { data } = await supabaseAdmin.from("waitlist").select("email")
         emails = (data || []).map(r => String(r.email).toLowerCase())
@@ -63,6 +73,26 @@ async function resolveRecipients(segment: MailingSegment): Promise<string[]> {
     }
     const optOuts = await getOptOuts()
     return [...new Set(emails)].filter(e => e && !optOuts.has(e))
+}
+
+/** Hrubý tvar adresy. Přísnější validace by odmítala platné adresy, volnější by pouštěla překlepy. */
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+
+/** Ruční adresy → jen platné tvary, bez duplicit a bez odhlášených. */
+async function sanitizeManual(list: string[]): Promise<string[]> {
+    const optOuts = await getOptOuts()
+    const clean = [...new Set(list.map(e => String(e).trim().toLowerCase()).filter(Boolean))]
+    return clean.filter(e => EMAIL_SHAPE.test(e) && !optOuts.has(e))
+}
+
+/** Ruční adresy pro UI — řekne, které z nalepeného seznamu se opravdu pošlou. */
+export async function checkManualRecipients(list: string[]): Promise<{ ok: string[]; vyrazene: string[] }> {
+    await requireSuperAdmin()
+    const ok = await sanitizeManual(list)
+    const okSet = new Set(ok)
+    const vyrazene = [...new Set(list.map(e => String(e).trim().toLowerCase()).filter(Boolean))]
+        .filter(e => !okSet.has(e))
+    return { ok, vyrazene }
 }
 
 /** Live recipient counts per segment (after opt-out filtering) for the UI. */
@@ -162,15 +192,24 @@ export async function previewMail(input: {
 }
 
 /** Odešle zprávu na adresu přihlášeného super-admina — než ji uvidí zákazníci. */
-export async function sendTestEmail(input: { templateId?: string; vars?: TemplateVars; subject?: string; body?: string }): Promise<string> {
+export async function sendTestEmail(input: {
+    templateId?: string
+    vars?: TemplateVars
+    subject?: string
+    body?: string
+    attachments?: MailingAttachmentInput[]
+}): Promise<string> {
     const { email } = await requireSuperAdmin()
     const { sendEmail } = await import("@/lib/email")
+    // Test musí dorazit i s přílohou — jinak se to, co adresát doopravdy dostane,
+    // pozná až po ostrém odeslání.
+    const attachments = validateAttachments(input.attachments)
 
     if (input.templateId) {
         const t = getTemplate(input.templateId)
         if (!t) throw new Error(`Šablona „${input.templateId}" neexistuje.`)
         const { subject, html, text } = t.render(input.vars || {}, email)
-        await sendEmail({ to: email, subject: `[TEST] ${subject}`, html, text })
+        await sendEmail({ to: email, subject: `[TEST] ${subject}`, html, text, attachments })
         return email
     }
 
@@ -178,7 +217,7 @@ export async function sendTestEmail(input: { templateId?: string; vars?: Templat
     const body = input.body?.trim()
     if (!subject || !body) throw new Error("Předmět i text jsou povinné.")
     const { html, text } = renderBrandedEmailParts(subject, body, { unsubscribeEmail: email })
-    await sendEmail({ to: email, subject: `[TEST] ${subject}`, html, text })
+    await sendEmail({ to: email, subject: `[TEST] ${subject}`, html, text, attachments })
     return email
 }
 
@@ -199,8 +238,14 @@ export async function sendBroadcast(input: {
     /** Šablona z registru. Má přednost před `subject`/`body`. */
     template?: { id: string; vars: TemplateVars }
     recipients?: string[]
+    /** Soubory, které dostane každý příjemce (např. úvodní prezentace k nabídce). */
+    attachments?: MailingAttachmentInput[]
 }): Promise<BroadcastResult> {
     await requireSuperAdmin()
+
+    // Přílohy se ověří PŘED tím, než se pošle první e-mail. Padnout uprostřed
+    // rozesílky by znamenalo, že část lidí dostala zprávu a část ne.
+    const attachments = validateAttachments(input.attachments)
 
     // Zpráva se skládá jednou; per příjemce se mění jen odhlašovací odkaz.
     const template = input.template ? getTemplate(input.template.id) : null
@@ -218,12 +263,21 @@ export async function sendBroadcast(input: {
             ? template.render(input.template!.vars, email)
             : renderBrandedEmailParts(subject, body!, { unsubscribeEmail: email })
 
-    const resolved = await resolveRecipients(input.segment)
-    let recipients = resolved
-    if (input.recipients) {
-        const wanted = new Set(input.recipients.map(e => String(e).trim().toLowerCase()).filter(Boolean))
-        recipients = resolved.filter(e => wanted.has(e))
-        if (recipients.length === 0) throw new Error("Žádný z vybraných příjemců není v segmentu.")
+    let recipients: string[]
+    if (input.segment === "manual") {
+        // Ruční adresy jsou samy o sobě autoritou — proti čemu by se ověřovaly.
+        // Co se ověřit MUSÍ: tvar adresy (překlep = tichá ztráta) a odhlášení,
+        // které platí bez ohledu na to, kdo adresu do pole napsal.
+        recipients = await sanitizeManual(input.recipients || [])
+        if (recipients.length === 0) throw new Error("Zadej aspoň jednu platnou adresu, která se neodhlásila.")
+    } else {
+        const resolved = await resolveRecipients(input.segment)
+        recipients = resolved
+        if (input.recipients) {
+            const wanted = new Set(input.recipients.map(e => String(e).trim().toLowerCase()).filter(Boolean))
+            recipients = resolved.filter(e => wanted.has(e))
+            if (recipients.length === 0) throw new Error("Žádný z vybraných příjemců není v segmentu.")
+        }
     }
     const total = recipients.length
     const batch = recipients.slice(0, DAILY_CAP)
@@ -234,7 +288,7 @@ export async function sendBroadcast(input: {
     for (const email of batch) {
         try {
             const { html, text } = renderFor(email)
-            await sendEmail({ to: email, subject, html, text })
+            await sendEmail({ to: email, subject, html, text, attachments })
             sent++
         } catch (err: any) {
             console.warn(`mailing: send to ${email} failed: ${err?.message?.substring(0, 80)}`)
@@ -243,6 +297,7 @@ export async function sendBroadcast(input: {
         await new Promise(r => setTimeout(r, THROTTLE_MS))
     }
 
-    console.log(`✉️ Broadcast "${subject}" → ${input.segment}: ${sent} sent, ${failed} failed, ${remaining} remaining`)
+    const withAttachments = attachments.length ? ` +${attachments.length} příloh` : ""
+    console.log(`✉️ Broadcast "${subject}"${withAttachments} → ${input.segment}: ${sent} sent, ${failed} failed, ${remaining} remaining`)
     return { sent, failed, skipped: 0, remaining, total }
 }

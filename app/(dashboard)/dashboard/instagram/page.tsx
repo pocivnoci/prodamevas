@@ -1,9 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useStudio } from "../../StudioContext"
-import { isCurrentUserSuperAdmin } from "@/app/actions/admin-actions"
 
 // Tab components
 import { DashboardTab } from "./tabs/DashboardTab"
@@ -26,6 +24,8 @@ import { FaqTab } from "./tabs/FaqTab"
 import { ApprovalsTab } from "./tabs/ApprovalsTab"
 import { CompanyTab } from "./tabs/CompanyTab"
 import { MailingTab } from "./tabs/MailingTab"
+import { TasksTab } from "./tabs/TasksTab"
+import { LeadsTab } from "./tabs/LeadsTab"
 import { EmailsTab } from "./tabs/EmailsTab"
 import { TutorialOverlay, useTutorialState } from "./tabs/TutorialOverlay"
 
@@ -51,20 +51,19 @@ const SECTION_LABELS: Record<string, { title: string; description: string }> = {
     approvals: { title: "Schválení", description: "Akce agentů čekající na vaše schválení" },
     company: { title: "Firma", description: "Zdraví zákaznických účtů napříč tenanty" },
     mailing: { title: "Mailing", description: "Rozeslání e-mailu na segment (waitlist, klienti)" },
+    tasks: { title: "Úkoly", description: "Co je rozdělané, čí to je a co čeká" },
 }
 
 export default function InstagramPage() {
-    const { activeSection, projectId, navDirection, refreshNonce } = useStudio()
-    const sectionInfo = SECTION_LABELS[activeSection] || { title: "", description: "" }
-    const { showTutorial, openTutorial, closeTutorial } = useTutorialState()
-
     // Admin-only sections are gated in render, not just hidden in the sidebar —
     // otherwise anyone can deep-link them via URL hash (#waitlist, #mailing…).
     // Defense-in-depth: the server actions behind them keep their own guards.
-    const [isAdmin, setIsAdmin] = useState(false)
-    useEffect(() => {
-        isCurrentUserSuperAdmin().then(setIsAdmin)
-    }, [])
+    //
+    // `isAdmin` jde z kontextu, ne z vlastního dotazu: jinak by na jednu stránku
+    // byly dvě odpovědi na tutéž otázku a mohly by se lišit.
+    const { activeSection, projectId, isAdmin, navDirection, refreshNonce } = useStudio()
+    const sectionInfo = SECTION_LABELS[activeSection] || { title: "", description: "" }
+    const { showTutorial, openTutorial, closeTutorial } = useTutorialState()
 
     // Dashboard has its own header
     const showHeader = activeSection !== "dashboard"
@@ -117,6 +116,8 @@ export default function InstagramPage() {
                     {activeSection === "approvals" && isAdmin && <ApprovalsTab />}
                     {activeSection === "company" && isAdmin && <CompanyTab />}
                     {activeSection === "mailing" && isAdmin && <MailingTab />}
+                    {activeSection === "tasks" && isAdmin && <TasksTab />}
+                    {activeSection === "leads" && isAdmin && <LeadsTab />}
                     {activeSection === "emails" && isAdmin && <EmailsTab />}
                 </motion.div>
             </AnimatePresence>

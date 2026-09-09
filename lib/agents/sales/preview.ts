@@ -159,6 +159,16 @@ async function generatePreviewInner(opts: PreviewOptions): Promise<PreviewResult
 
     say("analyzuji značku")
     const analysis = await analyzeBrand(brand)
+    // Fakta i pro ukázku. Bez nich má prospekt prázdný seznam ověřených tvrzení, takže
+    // mu faktická brána z demo postu sebere každou konkrétnost — a demo je právě ten
+    // příspěvek, který má přesvědčit. Text stránky už máme načtený, stojí to jedno
+    // volání navíc. Nekritické: ukázka kvůli tomu nepadá.
+    try {
+        const { extractFactsFromPages } = await import("@/lib/brand-facts")
+        analysis.brandFacts = await extractFactsFromPages(analysis.companyName || brand.url, [{ url: brand.url, text: brand.text }])
+    } catch (e) {
+        console.warn("⚠️ Ukázka: extrakce faktů selhala (nekritické):", (e as Error).message)
+    }
 
     say("skládám konfiguraci")
     // V PAMĚTI — nikdy se neukládá do `clients`.

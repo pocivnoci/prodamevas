@@ -5,6 +5,7 @@
  */
 
 import supabaseAdmin from "@/supabase/admin"
+import { NOT_SHOWCASE } from "@/lib/audience"
 import { footnote, heading, list } from "@/lib/mail/blocks"
 import { renderEmail } from "@/lib/mail/layout"
 
@@ -59,9 +60,15 @@ export async function buildWeeklyReport(): Promise<WeeklyReport> {
         })(),
     ])
 
+    // Značky z výlohy se nepočítají. Vlastníme je my, takže „aktivních klientů"
+    // hlásilo 26 tam, kde jich bylo 14 — číslo, podle kterého se rozhoduje
+    // o firmě, nesmí být skoro dvojnásobné.
     const activeClients = await (async () => {
         try {
-            const { count } = await supabaseAdmin.from("clients").select("id", { count: "exact", head: true }).eq("is_active", true)
+            const { count } = await supabaseAdmin.from("clients")
+                .select("id", { count: "exact", head: true })
+                .eq("is_active", true)
+                .or(NOT_SHOWCASE)
             return count || 0
         } catch { return -1 }
     })()
@@ -103,6 +110,27 @@ export async function buildWeeklyReport(): Promise<WeeklyReport> {
         }
     } catch { /* column not migrated yet — skip the section */ }
 
+    // Příspěvky, kterým brána nechala nepodložené tvrzení. Štítek na kartě uvidí jen ten,
+    // kdo se do Příspěvků podívá — a nepravda v postu je přesně to, co se nesmí spoléhat
+    // na to, že si toho někdo všimne. Proto to jde do reportu jako číslo vedle tržeb.
+    let flaggedPosts = -1
+    let flaggedClients = ""
+    try {
+        const { data: flags } = await supabaseAdmin
+            .from("ig_generation_log")
+            .select("client_id, post_id, clients(slug)")
+            .eq("fact_status", "flagged")
+            .gte("created_at", since)
+        flaggedPosts = (flags || []).length
+        const bySlug = new Map<string, number>()
+        for (const f of flags || []) {
+            const slug = (f as { clients?: { slug?: string } }).clients?.slug || "?"
+            bySlug.set(slug, (bySlug.get(slug) || 0) + 1)
+        }
+        flaggedClients = [...bySlug.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4)
+            .map(([slug, n]) => `${slug} ${n}×`).join(", ")
+    } catch { /* sloupec ještě nemigrovaný — sekci přeskoč */ }
+
     const v = (n: number) => (n < 0 ? "—" : String(n))
 
     const rows: [string, string][] = [
@@ -115,6 +143,9 @@ export async function buildWeeklyReport(): Promise<WeeklyReport> {
         ["🤖 Agent tasky (done)", v(doneTasks)],
         ["✅ Čeká na schválení", v(pendingApprovals)],
     ]
+    if (flaggedPosts > 0) {
+        rows.push(["🚩 Posty s neověřeným tvrzením", `${flaggedPosts}${flaggedClients ? ` (${flaggedClients})` : ""}`])
+    }
     if (strategyLine) rows.push(["⚖️ Pipeline (30 dní)", strategyLine])
 
     const subject = `📊 Chrlit — týdenní report (${fmtRange})`
@@ -127,7 +158,7 @@ export async function buildWeeklyReport(): Promise<WeeklyReport> {
         blocks: [
             heading("Týdenní report"),
             list(rows.map(([k, val]) => `**${k}** — ${val}`)),
-            footnote(`Automatický report od Chrlit ops-agenta · ${pendingApprovals > 0 ? `máš ${pendingApprovals} akcí ke schválení v dashboardu` : "nic nečeká na schválení"}`),
+            footnote(`Automatický report od Chrlit ops-agenta · ${pendingApprovals > 0 ? `máš ${pendingApprovals} akcí ke schválení v dashboardu` : "nic nečeká na schválení"}${flaggedPosts > 0 ? ` · ${flaggedPosts} příspěvků čeká na ověření faktu` : ""}`),
         ],
     })
 

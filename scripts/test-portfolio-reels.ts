@@ -17,7 +17,7 @@
 import { readFileSync } from "fs"
 import { resolve } from "path"
 import { PORTFOLIO_BRANDS } from "../lib/portfolio-data"
-import { PORTFOLIO_VISIBLE_BRANDS, PORTFOLIO_VISIBLE_MEDIA } from "../lib/portfolio"
+import { PORTFOLIO_VISIBLE_BRANDS, PORTFOLIO_VISIBLE_MEDIA, PORTFOLIO_MIN_POSTS } from "../lib/portfolio"
 
 let passed = 0
 let failed = 0
@@ -137,6 +137,52 @@ check(
 check(
     "mřížka ustojí příspěvek bez obálky",
     /post\.images\[0\]\s*\?/.test(grid)
+)
+
+// ── 10. Výloha nesmí lhát o vztahu ke značce ────────────────────────────────
+// Nevyžádaný koncept a práce pro klienta jsou dvě různá tvrzení. Výhrada „firma
+// není zákazníkem Chrlitu" u klienta lže — a u konceptu MUSÍ zaznít.
+const portfolioSrc = read("lib/portfolio.ts")
+check(
+    "vztah ke značce má jediný výklad a chybějící hodnota je přísnější",
+    /portfolioRelationship/.test(portfolioSrc) && /=== "client" \? "client" : "concept"/.test(portfolioSrc),
+    "starší export bez pole `relationship` musí spadnout na 'concept', ne na 'client'"
+)
+const overview = read("app/portfolio/page.tsx")
+check(
+    "souhrnná výhrada se řídí tím, co ve výloze SKUTEČNĚ je",
+    /hasClients/.test(overview) && /PORTFOLIO_MIXED_DISCLAIMER/.test(overview),
+    "text „firmy nejsou zákazníky\" nesmí viset nad stránkou, kde je jeden z nich klient"
+)
+const detail = read("app/portfolio/[slug]/page.tsx")
+check(
+    "detail značky ukazuje výhradu podle vztahu",
+    /isClient \? PORTFOLIO_CLIENT_NOTE : PORTFOLIO_DISCLAIMER/.test(detail)
+)
+const exportSrc2 = read("scripts/export-portfolio.ts")
+check(
+    "export značce vztah zapisuje a rozlišuje souhlas",
+    /isCaseStudy/.test(exportSrc2) && /relationship/.test(exportSrc2)
+)
+
+// ── 9. Poloprázdný profil se neukazuje ──────────────────────────────────────
+// Od chvíle, kdy z výlohy vypadávají označené příspěvky, je reálný stav „značce
+// zbyl jeden post". Profil s jedinou dlaždicí vypadá jako rozdělaná práce.
+check(
+    "značka pod minimem příspěvků se neukazuje vůbec",
+    PORTFOLIO_VISIBLE_BRANDS.every(b => b.posts.length >= PORTFOLIO_MIN_POSTS),
+    PORTFOLIO_VISIBLE_BRANDS.filter(b => b.posts.length < PORTFOLIO_MIN_POSTS).map(b => b.slug).join(", ")
+)
+
+// ── 8. Výloha neukazuje, co si systém sám označil ───────────────────────────
+// Portfolio jsou koncepty pro SKUTEČNÉ značky, které nás o nic nepožádaly.
+// Nepodložené tvrzení o cizí firmě na našem webu je horší závada než v klientském
+// feedu — a když si to faktická brána sama označí, nemá to prodávat naši práci.
+const exportSrc = read("scripts/export-portfolio.ts")
+check(
+    "export vynechává příspěvky označené faktickou bránou",
+    /flaggedPostIds/.test(exportSrc) && /fact_status.*flagged|"flagged"/.test(exportSrc),
+    "filtr na fact_status v export-portfolio.ts chybí"
 )
 
 console.log("\n" + "─".repeat(50))

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { trackEvent } from "@/lib/analytics"
 import { ALL_MEDIA } from "@/lib/credits"
 import { ALL_SECTIONS, SWIPE_ORDER } from "./nav"
+import { getAvailableIGClients, isCurrentUserSuperAdmin } from "@/app/actions/admin-actions"
 
 export type StudioSection =
     | "dashboard"
@@ -28,6 +29,8 @@ export type StudioSection =
     | "mailing"
     | "emails"
     | "company"
+    | "tasks"
+    | "leads"
 
 // Seznam platných sekcí odvozuje registr v `nav.ts` (import nahoře) — ručně
 // udržovaná kopie se od unionu výš pokaždé rozešla. Union zůstává ručně: je to
@@ -40,6 +43,22 @@ const VALID_SECTIONS = ALL_SECTIONS
 export interface GenerateIntent {
     mode: "plan" | "single"
     duration?: "1w" | "2w" | "month"
+}
+
+/** Značka v přepínači. `id` je SLUG klienta, ne UUID — viz `projectId` níž. */
+export interface ClientInfo { id: string; name: string; icon: string; description: string }
+
+/** Last tenant the user picked in the sidebar. Value is a client SLUG (`projectId`
+ *  is a slug despite the name). Only ever trusted after it is matched against the
+ *  list getAvailableIGClients() returns for the current session. */
+const PROJECT_STORAGE_KEY = "chrlit_active_project"
+
+function readStoredProject(): string | null {
+    try {
+        return localStorage.getItem(PROJECT_STORAGE_KEY)
+    } catch {
+        return null // private mode / storage disabled
+    }
 }
 
 function getInitialSection(): StudioSection {
@@ -101,6 +120,11 @@ interface StudioState {
     setActiveSection: (s: StudioSection, opts?: { replace?: boolean }) => void
     projectId: string
     setProjectId: (id: string) => void
+    /** Značky, na které tenhle účet vidí. */
+    clients: ClientInfo[]
+    /** Je přihlášený super-admin? Než se to zjistí, `false` — admin sekce se
+     *  během načítání neukazuje. */
+    isAdmin: boolean
     subscription: SubscriptionState | null
     subscriptionLoading: boolean
     refreshSubscription: () => void
@@ -118,6 +142,8 @@ const StudioContext = createContext<StudioState>({
     setActiveSection: () => {},
     projectId: "",
     setProjectId: () => {},
+    clients: [],
+    isAdmin: false,
     subscription: null,
     subscriptionLoading: true,
     refreshSubscription: () => {},
@@ -153,9 +179,64 @@ export function StudioProvider({ children }: { children: ReactNode }) {
 
     const bumpRefresh = useCallback(() => setRefreshNonce(n => n + 1), [])
     const [projectId, setProjectId] = useState("")
+    const [clients, setClients] = useState<ClientInfo[]>([])
+    const [isAdmin, setIsAdmin] = useState(false)
     const [subscription, setSubscription] = useState<SubscriptionState | null>(null)
     const [subscriptionLoading, setSubscriptionLoading] = useState(true)
     const [generateIntent, setGenerateIntent] = useState<GenerateIntent | null>(null)
+
+    /**
+     * Kdo je přihlášený a na co vidí — načte se JEDNOU za život tohohle layoutu.
+     *
+     * Dřív si obojí drželo `StudioNavPanel` v promisách na úrovni MODULU, aby
+     * dvojitý mount panelu na telefonu (skrytý sidebar + vyjížděcí sheet)
+     * neznamenal dvě volání serveru. Jenže odhlášení je `redirect()` ze server
+     * akce, tedy měkká navigace — dokument se nepřenačte a modul si cache nese
+     * dál. Kdo se po adminovi přihlásil v témž panelu, viděl v menu adminskou
+     * sekci i cizí značky. Provider žije v layoutu `(dashboard)`, který se při
+     * odchodu na `/` odmountuje, takže se identita nemá kde přežít.
+     */
+    useEffect(() => {
+        let alive = true
+        getAvailableIGClients()
+            .then(list => {
+                if (!alive) return
+                setClients(list)
+                if (list.length === 0) return
+                // Precedence: explicit deep link → last selection → first client.
+                //
+                // `projectId` is plain React state, so a reload wipes it. "Aktualizovat"
+                // is window.location.reload(), which meant every refresh silently threw
+                // you back to clients[0] — and because activeSection rides the URL hash
+                // and DOES survive, you stayed on the same tab while the tenant under it
+                // changed. Persisting the choice is what makes refresh non-destructive.
+                //
+                // Every candidate is validated against the user's OWN list before it can
+                // select anything: a stale slug (access revoked, another account on a
+                // shared browser) must fall through to clients[0], never resolve.
+                const wanted = new URLSearchParams(window.location.search).get("project")
+                const stored = readStoredProject()
+                const pick = [wanted, stored].find(id => id && list.some(c => c.id === id))
+                setProjectId(prev => prev || pick || list[0].id)
+            })
+            .catch(() => { if (alive) setClients([]) })
+
+        isCurrentUserSuperAdmin()
+            .then(admin => { if (alive) setIsAdmin(admin) })
+            .catch(() => { if (alive) setIsAdmin(false) })
+
+        return () => { alive = false }
+    }, [])
+
+    // Remember the active tenant across reloads (see precedence note above).
+    useEffect(() => {
+        if (!projectId) return
+        try {
+            localStorage.setItem(PROJECT_STORAGE_KEY, projectId)
+        } catch {
+            // Private mode / storage disabled — selection just won't survive a reload.
+        }
+    }, [projectId])
 
     // Browser back/forward navigation
     useEffect(() => {
@@ -217,6 +298,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         <StudioContext.Provider value={{
             activeSection, setActiveSection,
             projectId, setProjectId,
+            clients, isAdmin,
             subscription, subscriptionLoading, refreshSubscription,
             generateIntent, setGenerateIntent,
             navDirection, refreshNonce, bumpRefresh,

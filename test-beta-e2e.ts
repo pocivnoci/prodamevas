@@ -5,7 +5,7 @@
  * Run with: npx tsx test-beta-e2e.ts
  */
 
-import { readFileSync, existsSync } from "fs"
+import { readFileSync, existsSync, readdirSync } from "fs"
 import { resolve } from "path"
 import { execSync } from "child_process"
 
@@ -431,14 +431,56 @@ test("10.2 Landing page links to /login", () => {
     assert(fileContains("app/page.tsx", "<Landing"), "app/page.tsx musí landing skutečně vykreslit")
 })
 
-test("10.3 Landing page has WaitlistForm", () => {
-    const content = fileContent("components/Landing.tsx")
-    assert(content.includes("WaitlistForm"), "Should include WaitlistForm component")
+test("10.3 Landing má finální CTA, ne pořadník", () => {
+    // „Připojit se na Waitlist" byl zástupný text: neslíbil nic konkrétního,
+    // takže se ani nedalo poznat, že se slib neplní. Finální CTA vede buď do
+    // registrace, nebo ke kontaktu, na který se ozve obchod.
+    const landing = fileContent("components/Landing.tsx")
+    assert(landing.includes("ContactForm"), "landing musí vykreslit kontaktní formulář")
+    assert(!/[Ww]aitlist/.test(codeOnly("components/Landing.tsx")),
+        "slovo waitlist na landingu nemá co dělat — je to zástupný text bez slibu")
+    assert(!fileExists("components/WaitlistForm.tsx"),
+        "starý formulář musí zůstat smazaný, jinak se udržují dvě kopie CTA")
 })
 
-test("10.4 WaitlistForm links to /register", () => {
-    const content = fileContent("components/WaitlistForm.tsx")
+test("10.4 Kontaktní formulář nabízí i cestu s kódem pozvánky", () => {
+    const content = fileContent("components/ContactForm.tsx")
     assert(content.includes('href="/register"'), "Should link to /register")
+    // Kdo přichází s kódem, nemá čekat na telefonát.
+    assert(/kód pozvánky/i.test(content), "musí zůstat viditelná zkratka pro držitele kódu")
+})
+
+test("10.4a Formulář se ptá na to, čím se dá ozvat", () => {
+    // Slib „ozveme se" potřebuje kontakt. Web je navíc vstup celého onboardingu,
+    // takže z něj jde připravit ukázku ještě před hovorem.
+    const form = fileContent("components/ContactForm.tsx")
+    for (const field of ["email", "phone", "website"]) {
+        assert(new RegExp(`name=["']${field}["']`).test(form), `formulář musí mít pole ${field}`)
+    }
+
+    // A server je musí doopravdy zapsat — jinak se sbírají do prázdna.
+    const action = fileContent("app/actions/contact.ts")
+    for (const col of ["phone", "website", "plan_interest"]) {
+        assert(action.includes(col), `contact action musí ukládat ${col}`)
+    }
+    // Veřejná akce si validuje sama: klientská kontrola je jen pro hlášku.
+    assert(action.includes("@") && /test\(email\)|\.test\(email\)/.test(action),
+        "veřejná akce musí ověřit e-mail na serveru, ne spoléhat na formulář")
+    assert(!fileExists("app/actions/waitlist.ts"),
+        "stará akce musí zůstat smazaná — jeden formulář, jeden zápis")
+})
+
+test("10.4b Kontakt z webu se ozve v ranním briefu", () => {
+    // Tohle je jediná pojistka slibu „ozveme se do jednoho pracovního dne".
+    // Bez ní tabulka mlčí: 8. 9. 2026 v ní čekalo šest lidí, nejstarší od 18. 5.
+    const digest = codeOnly("lib/agents/sales/digest.ts")
+    assert(digest.includes('from("waitlist")'), "brief musí příchozí kontakty číst")
+    assert(digest.includes('is("contacted_at", null)'),
+        "hlásit se smí jen ti, kterým se ještě nikdo neozval")
+    assert(fileContains("app/actions/waitlist-admin.ts", "markContacted"),
+        "musí jít označit vyřízený kontakt, jinak brief hlásí pořád ty samé lidi")
+    assert(fileContains("supabase/migrations/20260908_kontakt_z_landingu.sql", "contacted_at"),
+        "sloupec contacted_at potřebuje migraci")
 })
 
 test("10.5 Register page exists", () => {
@@ -816,11 +858,80 @@ test("10.7k Onboardovanou značku jde předat jejímu majiteli", () => {
         "předání klienta je adminská akce — musí být za requireSuperAdmin")
     assert(fn.includes('role: "owner"'), "nový majitel musí dostat roli owner")
     // Účty vznikají registrací. Tiché založení účtu odsud by obešlo potvrzení
-    // adresy i souhlasy, takže neexistující e-mail musí být hlasitá chyba.
+    // adresy i souhlasy, takže neexistující e-mail nesmí končit registrací.
     assert(!/createUser|admin\.inviteUserByEmail/.test(fn),
-        "předání nesmí zakládat účet — neexistující e-mail je chyba, ne důvod k registraci")
-    assert(codeOnly("app/(dashboard)/dashboard/instagram/tabs/OnboardTab.tsx").includes("transferClientToUser"),
-        "předání musí být dostupné z UI, ne jen jako server action")
+        "předání nesmí zakládat účet — od toho je slib v client_handoffs")
+    // Předání se dělá týdny po onboardingu, až zákazník řekne adresu. Kdyby žilo
+    // jen na poslední obrazovce průvodce, byla by jedinou cestou zpátky ruční
+    // úprava databáze — přesně to, co tahle akce nahradila.
+    for (const f of [
+        "app/(dashboard)/dashboard/instagram/tabs/OnboardTab.tsx",
+        "app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx",
+    ]) {
+        assert(codeOnly(f).includes("transferClientToUser"),
+            `${f}: předání musí být dostupné z UI, ne jen jako server action`)
+    }
+})
+
+test("10.7o Předat jde i na e-mail, který ještě nemá účet", () => {
+    // Zákazník v době onboardingu účet typicky nemá — onboardovalo se za něj.
+    // „Účet neexistuje" proto nesmí být konec: uloží se slib a vybere se při
+    // prvním přihlášení.
+    const a = codeOnly("app/actions/admin-actions.ts")
+    const fn = a.slice(a.indexOf("export async function transferClientToUser"))
+    assert(fn.includes("stageHandoff"),
+        "neexistující účet musí vést na slib v client_handoffs, ne na chybu")
+
+    const h = codeOnly("lib/handoff.ts")
+    const claim = h.slice(h.indexOf("export async function claimHandoffs"))
+    assert(claim.length > 0, "claimHandoffs musí existovat")
+    // Podmíněný claim: slib se zabírá UPDATEm, který nevrátí řádek, když ho
+    // mezitím vzal jiný souběžný request. Bez toho by dvě přihlášení naráz
+    // znamenala dvě předání téhož slibu.
+    assert(/\.update\(\{ claimed_at[\s\S]{0,400}?\.is\("claimed_at", null\)/.test(claim),
+        "claim slibu musí být podmíněný UPDATE (.is claimed_at null), ne prosté přepsání")
+    assert(claim.includes('.upsert({ user_id: user.id'),
+        "po zabrání slibu musí vzniknout vazba v user_clients")
+
+    // Přihlašovací cesta: výpadek dotazu nesmí být důvod, proč se člověk
+    // nepřihlásí. Obě funkce, na které sahá login, musí selhat tiše.
+    for (const fn of ["export async function claimHandoffs", "export async function hasPendingHandoff"]) {
+        const body = h.slice(h.indexOf(fn), h.indexOf(fn) + 900)
+        assert(/try \{/.test(body) && /catch/.test(body),
+            `${fn}: běží při přihlášení — musí selhat tiše, ne výjimkou`)
+    }
+
+    // Modul sahá brána bety u každého přihlášení. Import pošty (nebo čehokoli,
+    // co ji táhne) by z něj udělal závaží na přihlašovací cestě.
+    assert(!/from "@\/lib\/(notifications|mail)/.test(h),
+        "lib/handoff.ts nesmí importovat poštu — běží na přihlašovací cestě")
+
+    // Slib musí zároveň otevřít bránu bety: jinak by zákazník dostal projekt,
+    // do kterého se nemá jak přihlásit.
+    assert(codeOnly("lib/invite-gate.ts").includes("hasPendingHandoff"),
+        "brána bety musí pustit dovnitř e-mail, na který čeká předání")
+
+    // Vazba se zakládá při KAŽDÉM přihlášení, ne jen po registraci — slib může
+    // vzniknout i pro účet, který dávno existuje.
+    for (const f of ["app/login/actions.ts", "app/auth/callback/route.ts"]) {
+        assert(codeOnly(f).includes("claimHandoffs"),
+            `${f}: přihlášení musí vybrat čekající sliby`)
+    }
+
+    // Po předání má značka dva vlastníky (správce + zákazník). Adresát dokladu
+    // pak nesmí záviset na pořadí řádků v Postgresu.
+    const owner = codeOnly("lib/notifications.ts")
+    const fn2 = owner.slice(owner.indexOf("export async function getOwnerEmail"))
+    assert(/\.order\("created_at", \{ ascending: false \}\)/.test(fn2.slice(0, 800)),
+        "getOwnerEmail musí vybírat nejnovější vazbu, ne náhodnou — po předání je vlastníků víc")
+
+    // Tabulka je multi-tenantní data — doktrína projektu je RLS zapnuté bez policy.
+    const mig = fileContent("supabase/migrations/20260907_predani_znacky.sql")
+    assert(/create table if not exists client_handoffs/.test(mig), "migrace musí zakládat client_handoffs")
+    assert(/alter table client_handoffs enable row level security/.test(mig),
+        "client_handoffs musí mít zapnuté RLS (deny-all, čte jen service role)")
+    assert(/create unique index[\s\S]{0,200}client_handoffs/.test(mig),
+        "jeden živý slib na dvojici klient+e-mail musí hlídat unique index, ne aplikace")
 })
 
 test("10.7l Každé přesměrování na /login má přeloženou hlášku", () => {
@@ -855,12 +966,30 @@ test("10.7m Brána bety je JEDEN spínač, ne kopie na šesti místech", () => {
     assert(codeOnly("components/Landing.tsx").includes("inviteRequired"),
         "kopie a CTA na landingu musí stav brány respektovat")
 
-    // Žádné natvrdo psané `#waitlist` mimo odvozené hodnoty — jinak jeden
-    // zapomenutý odkaz pošle člověka na formulář, který už nikdo nečte.
+    // Žádná natvrdo psaná kotva mimo odvozené hodnoty — jinak jeden zapomenutý
+    // odkaz pošle člověka na CTA, které slibuje něco jiného než brána dovolí.
     const landing = codeOnly("components/Landing.tsx")
-    const zbyle = [...landing.matchAll(/href=\{?["`]#waitlist/g)]
+    const zbyle = [...landing.matchAll(/href=\{?["`]#(kontakt|waitlist)/g)]
     assert(zbyle.length === 0,
-        `${zbyle.length}× natvrdo #waitlist v Landing.tsx — CTA musí jít přes ctaHref/planHref`)
+        `${zbyle.length}× natvrdo psaná kotva v Landing.tsx — CTA musí jít přes ctaHref/planHref`)
+
+    // Kotva je JEDEN řetězec. Podstránky (blog, portfolio, hlavička) na ni míří
+    // a o stavu brány nevědí — jsou statické, takže by ho měly zapečený z buildu.
+    assert(codeOnly("lib/cta.ts").includes('CONTACT_ANCHOR = "kontakt"'),
+        "kotva finálního CTA musí mít jediné místo v lib/cta.ts")
+    assert(landing.includes("id={CONTACT_ANCHOR}"),
+        "hero landingu musí kotvu vykreslit v OBOU stavech brány, jinak proklik z podstránky nikam neskočí")
+    for (const f of ["components/SiteHeader.tsx", "app/blog/[slug]/page.tsx",
+                     "app/portfolio/page.tsx", "app/portfolio/[slug]/page.tsx"]) {
+        const src = codeOnly(f)
+        assert(src.includes("CONTACT_HREF"), `${f}: odkaz na finální CTA musí jít přes CONTACT_HREF`)
+        assert(!src.includes("#waitlist"), `${f}: stará kotva #waitlist už neexistuje`)
+    }
+
+    // Hash s dotazem (`#kontakt?tarif=…`) neodpovídá žádnému `id`, takže by
+    // proklik z ceníku nikam neskočil. Volbu tarifu nese stav do skrytých polí.
+    assert(!/#\$\{CONTACT_ANCHOR\}\?/.test(landing) && !/#kontakt\?/.test(landing),
+        "kotva nesmí nést query — prohlížeč pak nenajde žádný prvek a nikam nescrolluje")
 
     // A obě cesty registrace musí kód přestat vyžadovat spolu s bránou.
     for (const f of ["app/register/actions.ts", "app/register/page.tsx", "app/auth/actions.ts"]) {
@@ -1869,6 +1998,36 @@ test("15.9 textová úprava nesmí rozjet re-roll obrázku", () => {
     assert(/parsed\.hook = input\.renderedHook/.test(cap), "hook vypálený v obrázku se musí vynutit kódem")
 })
 
+test("15.10 text příspěvku se edituje tam, kde je vidět", () => {
+    // Ruční přepis serveru existoval, ale v UI bydlel v panelu POD detailem, schovaný
+    // za tlačítkem „Napsat sám" vedle tří AI režimů. Kdo chtěl opravit překlep, musel
+    // nejdřív uhodnout, že úprava textu nežije u textu. Tahle aserce hlídá, že se
+    // editor zase neodstěhuje pryč od captionu.
+    const shared = fileContent("app/(dashboard)/dashboard/instagram/tabs/shared.tsx")
+    assert(/export function CaptionEditor/.test(shared), "sdílený inline editor captionu musí existovat")
+    assert(shared.includes("saveManualText"),
+        "ruční text smí zapsat JEN saveManualText — vlastní update by tiše obešel edit_history, faktickou bránu i brand memory")
+    assert(/post\.status === "posted" \|\| post\.status === "posting"/.test(shared),
+        "publikovaný post nesmí nabízet editaci — zámek je na serveru, ale dozvědět se o něm až po napsání odstavce je horší než ho nevidět")
+
+    // Všude, kde se na příspěvek dá kliknout a přečíst si ho, se dá i přepsat.
+    for (const tab of ["PostsTab", "CalendarTab", "FeedTab"]) {
+        const ui = fileContent(`app/(dashboard)/dashboard/instagram/tabs/${tab}.tsx`)
+        assert(/<CaptionEditor/.test(ui), `${tab}: detail příspěvku musí umět text přepsat na místě`)
+    }
+
+    // Druhá půlka rady u označeného tvrzení („přepiš to sám") musí vést do editoru.
+    const posts = fileContent("app/(dashboard)/dashboard/instagram/tabs/PostsTab.tsx")
+    assert(posts.includes('id="post-caption"') && posts.includes('getElementById("post-caption")'),
+        "„Není to pravda — přepsat text\" musí skočit na caption, ne na panel s pokyny pro model")
+
+    // Ruční hashtagy procházejí týmž úklidem jako engine — jinak se po ruční opravě
+    // z „#sleva" stane „sleva", což na Instagramu není hashtag, jen slovo navíc.
+    const act = codeOnly("app/actions/post-edit-actions.ts")
+    assert(act.includes("sanitizeHashtags"), "ruční hashtagy musí projít sdíleným sanitizérem")
+    assert(!/function normalizeHashtags/.test(act), "vlastní kopie sanitizéru se nesmí vrátit")
+})
+
 // ═══════════════════════════════════════════════════════════
 // 16. PROMPTOVÝ AUDIT (v8.7) — vrstvy si nesmí protiřečit
 // ═══════════════════════════════════════════════════════════
@@ -2499,6 +2658,183 @@ test("23.11 politika o penězích žije na serveru", () => {
         "banner nesmí počítat pravidla sám — od toho je deriveBillingState")
     const api = fileContent("app/api/subscription/route.ts")
     assert(/deriveBillingState\(sub\)/.test(api), "stav fakturace odvozuje server")
+})
+
+test("23.14 varianty řeknou cenu dřív, než ji utratí", () => {
+    // Tlačítko „A/B Test" spustí dvě plné generování — u karuselu šest kreditů —
+    // a do 9/2026 o tom mlčelo. Všude jinde v appce cena u rozhodnutí stojí
+    // („Odhad: ~X kreditů", „5 kreditů"); tohle bylo jediné placené tlačítko,
+    // které se zákazníka neptalo, jestli o tu částku stojí.
+    const posts = codeOnly("app/(dashboard)/dashboard/instagram/tabs/PostsTab.tsx")
+    assert(posts.includes("MEDIA_CREDITS"),
+        "cena varianty se musí počítat ze sazebníku médií, ne psát číslem")
+    const btn = posts.slice(posts.indexOf("generateMultipleVariants(post.id"))
+    assert(/variantCost/.test(btn.slice(0, 2000)),
+        "tlačítko na varianty musí vypsat, kolik to stojí")
+    // Počet variant je jedno číslo: kdyby se v ceně a ve volání rozešel,
+    // tlačítko by slíbilo jinou částku, než jakou strhne.
+    assert(!/generateMultipleVariants\(post\.id, projectId, \d/.test(posts),
+        "počet variant nesmí být v ceně jinde než ve volání — jedna konstanta")
+})
+
+test("23.17 opuštěná značka se deaktivuje, nemaže", () => {
+    // Zadání znělo „promazat neaktivní klienty" a mazání by tu bylo horší řešení
+    // téhož problému: `is_active = false` značku vyřadí ze VŠECH pravidelných
+    // běhů (kontrola zdraví, obchodní e-maily, doplňování nápadů, automatické
+    // publikování filtrují právě tenhle sloupec), zatímco DELETE kaskáduje přes
+    // všechny `ig_*` tabulky a vezme s sebou konfiguraci značky i naučené
+    // preference — tedy přesně to, co může člověka přivést zpátky.
+    const src = codeOnly("scripts/neaktivni-klienti.ts")
+    assert(!/\.delete\(\)/.test(src), "skript na opuštěné značky nesmí mazat, jen deaktivovat")
+    assert(/is_active: false/.test(src), "deaktivace se dělá příznakem is_active")
+
+    // Podmíněný claim, ne slepý update: kdyby značku mezitím někdo oživil,
+    // nesmí ji sweep přepsat zpátky.
+    assert(/\.eq\('is_active', true\)/.test(src),
+        "deaktivace musí zabírat podmíněně — oživenou značku nesmí přepsat")
+
+    // Tři podmínky naráz. Kdyby stačilo ticho, vypnul by se i platící zákazník,
+    // který měsíc negeneruje — a ten se z produktu neodhlašuje skriptem.
+    assert(/trialing/.test(src) && /'paid'/.test(src),
+        "živé předplatné ani historie platby nesmí skončit v deaktivaci")
+    // Zamčené atrapy měsíčního plánu nejsou známka života — vznikly jedním
+    // kliknutím (viz aserce 23.16).
+    assert(/neq\('status', 'plan_locked'\)/.test(src),
+        "aktivita se měří skutečným obsahem, ne zamčenými teasery")
+})
+
+test("23.16 zamčená atrapa není nález faktické brány", () => {
+    // `plan_locked` je teaser měsíčního plánu: text je natvrdo napsaná atrapa
+    // z PLACEHOLDER_HOOKS („5 tipů jak zvýšit engagement o 200 %"), uživatel ji
+    // vidí jen přes 3px rozmazání a nikdy se nepublikuje. Backtest brány ji
+    // 6. 9. 2026 přesto proauditoval a nálezy zapsal jako označená tvrzení
+    // klienta — HYDROIZOLACE MIVA pak vypadala na 25 příspěvků s problémem
+    // místo 15 a vznikl z toho úkol pro člověka.
+    const audit = codeOnly("scripts/audit-fact-gate.ts")
+    assert(/neq\(['"]status['"], ['"]plan_locked['"]\)/.test(audit),
+        "backtest nesmí soudit zamčené atrapy — je to placení soudce za vlastní lorem ipsum")
+
+    // Atrapy musí zůstat rozeznatelné: kdyby se text teaseru začal brát z configu
+    // nebo od modelu, přestane platit, že na něm nezáleží — a tenhle filtr by
+    // z ochrany udělal díru.
+    const gen = codeOnly("app/actions/ig-generate-action.ts")
+    assert(/PLACEHOLDER_HOOKS/.test(gen) && /status: "plan_locked"/.test(gen),
+        "zamčený teaser se musí plnit z natvrdo psaných atrap, ne z generovaného textu")
+})
+
+test("23.15 výloha se nikde nepočítá jako zákazník", () => {
+    // Deset značek v portfoliu vypadá v databázi jako tenanti — mají klienta,
+    // příspěvky i vlastníka. Vlastníkem jsme ale my, takže všude, kde se počítají
+    // ZÁKAZNÍCI nebo se z nich dělá práce pro člověka, musí vypadnout. Než se to
+    // začalo hlídat, hlásil týdenní report 26 klientů místo 14 a navrhovač
+    // vyrobil úkol „projít označená tvrzení u klientů" se seznamem, kde bylo
+    // všech pět jmen z výlohy — 155 ze 180 označených příspěvků nemá zákazníka,
+    // který by je četl.
+    const surfaces: Array<[string, string]> = [
+        ["lib/agents/client-health.ts", "zákazníci v riziku (brief i tab Firma)"],
+        ["lib/agents/lifecycle.ts", "návrhy obchodních e-mailů"],
+        ["lib/agents/weekly-report.ts", "počet aktivních klientů v týdenním souhrnu"],
+        ["lib/tasks/propose.ts", "signály pro navrhovač úkolů"],
+        ["lib/agents/idea-replenish.ts", "doplňování zásobníku nápadů (stojí tokeny)"],
+    ]
+    for (const [file, what] of surfaces) {
+        assert(codeOnly(file).includes("NOT_SHOWCASE"), `${file}: ${what} musí vynechat značky z výlohy`)
+    }
+
+    // Filtr MUSÍ být `or(is.null, eq.false)`, ne `neq.true`: u běžného klienta
+    // klíč v configu prostě není a `NULL <> true` je v SQL zase NULL, takže
+    // `neq` vyhodí i všechny skutečné zákazníky. Ověřeno na produkčních datech —
+    // `neq` vrátilo 1 klienta z 26 místo 14.
+    const audience = codeOnly("lib/audience.ts")
+    assert(/isPortfolio\.is\.null/.test(audience) && /isPortfolio\.eq\.false/.test(audience),
+        "NOT_SHOWCASE musí počítat s tím, že klíč v configu chybí")
+    assert(!/isPortfolio\.neq/.test(audience),
+        "neq.true by odfiltrovalo skutečné zákazníky — past na NULL v jsonb")
+})
+
+test("23.19 registrace nesmí skončit čekáním na e-mail", () => {
+    // 9. 9. 2026 se na obchodní schůzce zaregistroval zájemce ze seznam.cz.
+    // Účet měl v pořádku včetně razítka pozvánky, ale potvrzovací mail nedorazil
+    // — projekt neměl vlastní SMTP a jel na vestavěném odesílači Supabase se
+    // stropem DVA maily za hodinu. Dvacet minut se marně zkoušel přihlásit
+    // a odešel. Čtyři účty z třinácti uvízly ve stejném stavu.
+    const reg = codeOnly("app/register/actions.ts")
+
+    // Když Supabase vrátí session (potvrzování vypnuté), je uživatel přihlášený
+    // a musí jít rovnou dovnitř. Bez tohohle větvení visí celý trychtýř na
+    // e-mailu bez ohledu na to, jak je projekt nastavený.
+    assert(/signUpData\.session/.test(reg) && /redirect\('\/dashboard/.test(reg),
+        "po registraci se session musí uživatel pustit do studia, ne čekat na mail")
+    const sessionAt = reg.indexOf("signUpData.session")
+    const checkMailAt = reg.indexOf("success=check_email")
+    assert(sessionAt > 0 && checkMailAt > sessionAt,
+        "větev se session musí být PŘED odkazem na e-mail — jinak se nikdy nepoužije")
+
+    // Slíbená značka se vybírá i při registraci, ne jen při přihlášení: kdo jde
+    // rovnou do studia, přihlašovací akcí neprojde.
+    assert(/claimHandoffs/.test(reg),
+        "registrace musí vybrat slíbenou značku — jinak přijde zákazník do prázdna")
+
+    // Účet bez jediného přihlášení je hlášení o rozbitém produktu, ne vlažný
+    // lead: patří nahoru a s kratším luntem než nedokončený onboarding.
+    const health = codeOnly("lib/agents/client-health.ts")
+    assert(/export async function countLockedOut/.test(health),
+        "musí existovat počítadlo účtů, které se nikdy nepřihlásily")
+    assert(/last_sign_in_at/.test(health),
+        "rozlišení stojí na last_sign_in_at, ne na vazbě na klienta")
+    const brief = codeOnly("lib/agents/daily-brief.ts")
+    assert(/countLockedOut/.test(brief) && /lines\.unshift/.test(brief),
+        "denní přehled to musí hlásit, a nahoře")
+})
+
+test("23.13 fronta schválení nesmí růst sama", () => {
+    // 8. 9. 2026 v ní čekalo 27 akcí, nejstarší 46 dní — a rostla ze tří příčin
+    // najednou. Každá má tady vlastní aserci, protože oprava jedné bez druhých
+    // frontu jen zpomalí.
+    const life = codeOnly("lib/agents/lifecycle.ts")
+
+    // 1) Nerozhodnutý návrh musí blokovat další NEZÁVISLE na stáří. Dokud se
+    //    dedupe ptalo jen oknem, tatáž waitlistová připomínka se po třiceti
+    //    dnech navrhla znovu — druhá kopie otázky, na kterou nikdo neodpověděl.
+    const dedupe = life.slice(life.indexOf("async function recentlyHandled"),
+        life.indexOf("// ── Candidate finders"))
+    assert(/\.eq\("status", "proposed"\)/.test(dedupe),
+        "čekající návrh musí blokovat nový bez ohledu na časové okno")
+    const windowAt = dedupe.indexOf("DEDUPE_DAYS[kind]")
+    assert(dedupe.indexOf('.eq("status", "proposed")') < windowAt,
+        "na čekající návrh se musí ptát DŘÍV než na okno — jinak okno rozhodne první")
+
+    // 2) Nezákazníci se nenavrhují vůbec. Devět z těch 27 mířilo na značky
+    //    z výlohy a zakladatel měl schvalovat pobídku sám sobě.
+    assert(life.includes("NOT_SHOWCASE"), "lifecycle nesmí navrhovat značky z výlohy")
+    assert(life.includes("isInternalEmail") && life.includes("isSuperAdminEmail"),
+        "naše vlastní ani adminská adresa není zákazník")
+    const health = codeOnly("lib/agents/client-health.ts")
+    assert(health.includes("NOT_SHOWCASE"),
+        "výloha nepatří mezi „zákazníky v riziku“ — jinak se dostane do briefu i do fronty")
+
+    // 3) Návrh, na který se nikdo nepodíval, se musí sám zavřít. Bez toho je
+    //    fronta jen seznam, který roste — a seznam, co se nedá dočíst, se
+    //    přestane číst celý.
+    const safety = codeOnly("lib/agent-safety.ts")
+    assert(/PROPOSAL_TTL_DAYS/.test(safety), "návrhy musí mít dobu platnosti")
+    const sweepStart = safety.indexOf("export async function expireStaleProposals")
+    const sweep = safety.slice(sweepStart, safety.indexOf("export async function", sweepStart + 10))
+    assert(/\.eq\("status", "proposed"\)/.test(sweep),
+        "úklid musí zabírat podmíněným claimem, ať neprohraje se souběžným schválením")
+    assert(/status: "expired"/.test(sweep) && !/status: "rejected"/.test(sweep),
+        "„nikdo se nepodíval“ není „člověk řekl ne“ — jinak se v auditu ztratí rozdíl")
+    // Úklid běží PŘED skenem: čekající návrh nově blokuje nový, takže po skenu
+    // by se dnešní návrh nestihl narodit.
+    const handlers = codeOnly("lib/agents/handlers.ts")
+    const scan = handlers.slice(handlers.indexOf('registerHandler("lifecycle_scan"'))
+    assert(scan.indexOf("expireStaleProposals") < scan.indexOf("scanLifecycle"),
+        "starý návrh se musí zavřít dřív, než sken zkusí navrhnout nový")
+
+    // A stav musí databáze vůbec dovolit.
+    const mig = fileContent("supabase/migrations/20260908_navrh_vyprsi.sql")
+    assert(/check \(status in \([^)]*'expired'/.test(mig),
+        "migrace musí rozšířit check constraint o 'expired'")
 })
 
 test("23.12 nové migrace nezakládají tabulky", () => {
@@ -3242,6 +3578,245 @@ test("29.10 sdílené odkazy do sebe nepustí přepravu", () => {
         "obrázky v odeslané zprávě musí mířit na kanonickou doménu, ne na preview deployment")
 })
 
+test("29.11 přístupový kód se nevydává za slevu", () => {
+    // Rámeček `promoCode` měl nadpis „Slevový kód" natvrdo. Pozvánka z waitlistu
+    // i pozvánka k předání značky jím ale posílají KÓD PRO VSTUP, žádnou slevu —
+    // zákazník se pak ptá, proč mu chodí sleva, kterou nikdo nesliboval.
+    const blocks = codeOnly("lib/mail/blocks.ts")
+    assert(/label\?: string/.test(blocks), "promoCode musí umět vlastní popisek")
+    for (const f of ["lib/mail/templates/waitlist.ts", "app/actions/admin-actions.ts"]) {
+        const src = codeOnly(f)
+        if (!src.includes("promoCode(")) continue
+        assert(src.includes('"Přístupový kód"'),
+            `${f}: kód pro vstup nesmí zůstat pod výchozím popiskem o slevě`)
+    }
+    const tmpl = codeOnly("lib/mail/templates/transactional.ts")
+    if (tmpl.includes("promoCode(")) {
+        assert(tmpl.includes('"Přístupový kód"'),
+            "transakční šablony posílají vstupní kódy, ne slevy")
+    }
+})
+
+test("29.12 e-maily o předání jsou vidět v náhledové galerii", () => {
+    // Do těla pozvánky se dostal nadpis o slevě právě proto, že mail nešel
+    // otevřít očima. Registr = galerie: co se posílá zákazníkovi, jde zobrazit.
+    const reg = codeOnly("lib/mail/registry.ts")
+    for (const id of ["clientHandoff", "clientHandoffDone"]) {
+        assert(reg.includes(id), `${id} musí být v registru šablon, jinak ho nikdo neuvidí`)
+    }
+    // `sendNotification` nikdy nevyhodí — hlásila by „odesláno" i na mrtvý klíč.
+    // Podle výsledku se přitom rozhoduje, jestli UI nabídne odkaz ke zkopírování.
+    const a = codeOnly("app/actions/admin-actions.ts")
+    const fn = a.slice(a.indexOf("async function sendHandoffInvite"), a.indexOf("async function sendHandoffInvite") + 1200)
+    assert(fn.includes("sendEmail") && !fn.includes("sendNotification"),
+        "pozvánka musí jít přes sendEmail — jen tak se pozná, že opravdu odešla")
+})
+
+test("29.13 ruční adresy v Mailingu projdou stejnou branou jako segment", () => {
+    // Obchod potřebuje poslat nabídku člověku, který v žádném segmentu není.
+    // Ruční adresa ale nesmí být zadní vrátka: odhlášení a denní strop platí
+    // pro každou cestu ven, jinak by se opt-out dal obejít přepsáním adresy.
+    const m = codeOnly("app/actions/mailing-actions.ts")
+    assert(/"manual"/.test(m), "Mailing musí umět ruční adresy")
+    const san = m.slice(m.indexOf("async function sanitizeManual"), m.indexOf("async function sanitizeManual") + 500)
+    assert(san.includes("getOptOuts"), "ruční adresy musí projít filtrem odhlášených")
+    assert(san.includes("EMAIL_SHAPE"), "ruční adresy se musí ověřit na tvar — překlep je tichá ztráta")
+    // Strop se počítá nad výsledným seznamem, ať přišel odkudkoli.
+    const send = m.slice(m.indexOf("export async function sendBroadcast"))
+    assert(send.indexOf("sanitizeManual") < send.indexOf("DAILY_CAP"),
+        "ruční adresy musí projít sanitizací PŘED tím, než se ořežou na denní strop")
+
+    // Přepnutí na ruční adresy musí zahodit seznam z předchozího segmentu hned.
+    // Kdyby tam chvíli zůstal, odeslání by šlo na waitlist místo na jednu adresu.
+    const ui = codeOnly("app/(dashboard)/dashboard/instagram/tabs/MailingTab.tsx")
+    const branch = ui.slice(ui.indexOf('if (segment === "manual") {'), ui.indexOf('if (segment === "manual") {') + 300)
+    assert(branch.includes("setRecipients([])"),
+        "přepnutí na ruční adresy musí zahodit příjemce z minulého segmentu")
+})
+
+test("29.14 oslovení neslibuje dosah ani reely, které nejedou", () => {
+    // Text prvního oslovení psal obchod a v původním znění sliboval „obsah
+    // optimalizovaný pro dosah a fungování algoritmu" a Reels. Dosah produkt
+    // ovlivnit nemůže (/ukazka i ceník na tomtéž místě říkají opak) a reely
+    // `REELS_ENABLED` potichu překlápí na karusel — nabídka, která slíbí video
+    // a pošle karusel, je horší než nabídka, která video nezmíní.
+    const src = codeOnly("lib/mail/templates/offer.ts")
+    const cold = src.slice(src.indexOf("export const coldOffer"))
+    assert(cold.length > 0, "šablona coldOffer musí existovat")
+    assert(!/dosah|algoritm/i.test(cold),
+        "oslovení nesmí slibovat dosah ani chování algoritmu — to produkt neovlivní")
+    assert(/reelsLive\(\)/.test(cold),
+        "reely se smějí zmínit jen za `reelsLive()`, jinak slibují video a pošlou karusel")
+    // Cena v obchodním sdělení se nepíše ručně: opsané číslo zestárne při prvním
+    // přecenění a zákazník dostane cenu, kterou mu pokladna neúčtuje.
+    assert(cold.includes("lowestPriceClaim()"),
+        "cena musí pocházet z ceníku, ne z textu šablony")
+})
+
+test("29.15 plátce DPH: brána strhává částku VČETNĚ daně", () => {
+    // Od 9/2026 službu provozuje plátce DPH. Ceník je B2B, tedy bez daně —
+    // ale zákazníkovi se musí strhnout částka včetně ní, jinak by poskytovatel
+    // odváděl DPH ze svého. Převod je jediný (`chargeableHaleru`) a MUSÍ stát
+    // na každé cestě k bráně: ComGate, Stripe i automatická obnova.
+    const chargePaths: Array<[string, string]> = [
+        ["app/api/payments/create/route.ts", "ComGate"],
+        ["lib/payments/checkout.ts", "Stripe"],
+        ["app/api/cron/billing-worker/route.ts", "obnova předplatného"],
+    ]
+    for (const [file, what] of chargePaths) {
+        assert(codeOnly(file).includes("chargeableHaleru"),
+            `${what} (${file}): částka k stržení musí projít přes chargeableHaleru`)
+    }
+
+    // Doklad musí sedět s tím, co brána strhla. `payments.amount` je hrubá
+    // částka, takže Fakturoid z ní má daň VYPOČÍTAT, ne připočítat navrch —
+    // jinak by faktura zněla na 1,21násobek přijaté platby.
+    const fakturoid = codeOnly("lib/fakturoid.ts")
+    assert(/prices_kind[^\n]*with_vat/.test(fakturoid),
+        "faktura s DPH musí jet v režimu with_vat, jinak nesedí s platbou")
+
+    // Sazba je na jednom místě. Dvě kopie znamenají, že po změně zákona jedna lže —
+    // a jedna z nich je daňový doklad.
+    const legal = codeOnly("lib/legal.ts")
+    assert(/export const VAT_RATE_PCT = \d+/.test(legal), "sazba DPH musí být konstanta v lib/legal.ts")
+    for (const file of ["lib/pricing.ts", "lib/invoicing.ts"]) {
+        const src = codeOnly(file)
+        assert(!/\b21\b\s*[;,)]/.test(src.replace(/VAT_RATE_PCT/g, "")) || src.includes("VAT_RATE_PCT"),
+            `${file}: sazba se má brát z VAT_RATE_PCT, ne psát číslem`)
+    }
+})
+
+test("29.16 cena bez DPH to musí říct tam, kde se ukazuje", () => {
+    // Cena bez upřesnění vypadá u plátce jako konečná — a zákazník pak na výpisu
+    // najde o pětinu víc. Věta o DPH proto patří ke KAŽDÉMU ceníku, ne jen do
+    // obchodních podmínek.
+    const surfaces = [
+        "components/Landing.tsx",
+        "app/(dashboard)/dashboard/instagram/tabs/SubscriptionSection.tsx",
+        "app/terms/page.tsx",
+    ]
+    for (const f of surfaces) {
+        assert(codeOnly(f).includes("vatNotice()"), `${f}: ceník musí nést větu o DPH z lib/legal.ts`)
+    }
+    // Menší cenovky (kredity, konzultace, paywall) nemají celou větu, ale musí
+    // aspoň říct „bez DPH" — a odvodit to z identity, ne natvrdo.
+    for (const f of ["app/(dashboard)/CreditPacks.tsx", "app/(dashboard)/PaywallProvider.tsx",
+                     "app/(dashboard)/dashboard/instagram/tabs/ConsultationSection.tsx"]) {
+        const src = codeOnly(f)
+        assert(src.includes("LEGAL.vatStatus") && /bez DPH/.test(src),
+            `${f}: cena musí odlišit základ od částky s daní`)
+    }
+})
+
+test("29.18 datum přechodu na DPH sedí s účinností podmínek", () => {
+    // Dvě data, jedna změna: od kdy platí nové podmínky a od kdy se probíhajícím
+    // předplatným připočítává DPH. Kdyby se rozešla, buď se strhne víc, než co
+    // je v podmínkách, nebo podmínky slibují daň, kterou nikdo neúčtuje.
+    const legal = fileContent("lib/legal.ts")
+    const iso = legal.match(/VAT_EFFECTIVE_FROM = "(\d{4})-(\d{2})-(\d{2})"/)
+    assert(!!iso, "lib/legal.ts musí nést VAT_EFFECTIVE_FROM v ISO tvaru")
+    const [, year, month, day] = iso!
+    const MONTHS = ["ledna", "února", "března", "dubna", "května", "června",
+        "července", "srpna", "září", "října", "listopadu", "prosince"]
+    const czech = `${Number(day)}. ${MONTHS[Number(month) - 1]} ${year}`
+    const terms = fileContent("app/terms/page.tsx")
+    assert(terms.includes(`EFFECTIVE_FROM = "${czech}"`),
+        `podmínky musí nabýt účinnosti ${czech} (podle VAT_EFFECTIVE_FROM), našel jsem něco jiného`)
+
+    // Obnova probíhajícího předplatného se do toho data nesmí zdražit.
+    const worker = codeOnly("app/api/cron/billing-worker/route.ts")
+    assert(worker.includes("VAT_EFFECTIVE_FROM"),
+        "obnova musí respektovat datum, od kterého se DPH připočítává")
+})
+
+test("29.17 identita je s.r.o. se zápisem v rejstříku, ne živnost", () => {
+    // U s.r.o. je povinným údajem (§ 435 obč. zák.) zápis v obchodním rejstříku
+    // včetně soudu a spisové značky — ne živnostenský úřad. Obchodní podmínky
+    // ho musí vykreslit; do 9/2026 tam stálo „zapsaný v živnostenském rejstříku".
+    const legal = codeOnly("lib/legal.ts")
+    assert(/registration:/.test(legal), "identita musí nést zápis v rejstříku")
+    assert(!/registryOffice/.test(legal), "živnostenský úřad se u s.r.o. neuvádí")
+    assert(codeOnly("app/terms/page.tsx").includes("LEGAL.registration"),
+        "obchodní podmínky musí uvést zápis v obchodním rejstříku")
+    // Plátce bez DIČ je nevystavitelný doklad — hlídá to i legalIdentityGaps.
+    assert(/vatStatus !== "none" && !id\.dic/.test(legal.replace(/\s+/g, " ")) || legal.includes('gaps.push("DIČ")'),
+        "plátce musí mít DIČ jako povinný údaj")
+})
+
+test("29.19 v šabloně se nepíše ručně ani jedna cena", () => {
+    // `sample` NENÍ náhled: Mailing jím předvyplňuje formulář
+    // (`setVars({ ...t.sample })`), takže co je v ukázce, to obchodník odešle,
+    // když to nepřepíše. Šablony předplatného tak do 9/2026 nabízely „Růst za
+    // 1 990 Kč" — cenu z ceníku v5, o tisícovku pod skutečností, a 45 kreditů,
+    // které ten tarif nemá. Číslo patří do ceníku, věta do šablony.
+    const dir = "lib/mail/templates"
+    for (const f of readdirSync(resolve(ROOT, dir))) {
+        if (!f.endsWith(".ts")) continue
+        const src = codeOnly(`${dir}/${f}`)
+        const amounts = src.match(/\d[\d\s\u00a0]*\s*Kč/g) ?? []
+        assert(amounts.length === 0,
+            `${dir}/${f}: cena psaná ručně (${amounts.join(", ")}) — musí přijít z lib/pricing.ts přes ../plans`)
+    }
+    // A ať to není jen zákaz: ukázky opravdu sedí s ceníkem, který se prodává.
+    const { EMAIL_TEMPLATES } = require("./lib/mail/registry")
+    const { recommendedPlan } = require("./lib/mail/plans")
+    const { formatCzk } = require("./lib/pricing")
+    const plan = recommendedPlan()
+    for (const id of ["subscription_renewal", "subscription_charge_failed", "receipt"]) {
+        const t = EMAIL_TEMPLATES.find((x: any) => x.id === id)
+        assert(!!t, `${id} musí být v registru`)
+        assert(t.sample.price.includes(formatCzk(plan.monthlyHaleru)),
+            `${id}: ukázka nabízí ${t.sample.price} místo ceníkových ${formatCzk(plan.monthlyHaleru)}`)
+    }
+})
+
+test("29.20 e-mail netipuje rod adresáta", () => {
+    // Rod příjemce neznáme — jméno v seznamu ho neříká a odhadovat ho nebudeme.
+    // Vykání to nezachrání: „jste skončil" má množné pomocné sloveso, ale
+    // singulární rodové příčestí, takže půlce lidí přijde e-mail, který se
+    // netrefil. Věta se dá vždycky složit bez příčestí o adresátovi
+    // („navážete", „čekáte") — a pak platí pro všechny.
+    const gendered = /\b(?:jste|byste)\s+(?:se\s+|si\s+)?[a-zá-žčďěňřšťůúýž]+l[ao]?\b|\b[A-Za-zÁ-Žá-žčďěňřšťůúýž]+l[ao]?\s+jste\b/g
+    const { EMAIL_TEMPLATES } = require("./lib/mail/registry")
+    for (const t of EMAIL_TEMPLATES) {
+        const hits = t.render(t.sample, "kdo@example.com").text.match(gendered) ?? []
+        assert(hits.length === 0, `${t.id}: rodové oslovení „${hits.join(", ")}" — přepiš do přítomného času`)
+    }
+    // Pozvánka z waitlistu jde mimo registr (vlastní text v agentovi), a přesně
+    // ta měla „Zapsal jste se… a čekal jste dlouho" hned dvakrát ve větě.
+    const invite = codeOnly("lib/agents/waitlist-invite.ts")
+    const inviteHits = invite.match(gendered) ?? []
+    assert(inviteHits.length === 0,
+        `lib/agents/waitlist-invite.ts: rodové oslovení „${inviteHits.join(", ")}"`)
+    // „před 1 dny" je stejný druh nedbalosti jako špatný rod: počítané dny se
+    // skloňují přes lib/plural.ts, ne lepením „dny" za číslo.
+    assert(invite.includes("countLabel") && invite.includes("DAYS"),
+        "počet dní čekání se musí skloňovat přes countLabel(…, DAYS)")
+})
+
+test("29.21 jeden e-mail = jeden hlas", () => {
+    // Follow-up nabídky se lámal třikrát v jedné zprávě: nadpis „Ozývám se
+    // zpátky" a „nechci ji nechat zapadnout" (já), „posílali jsme" (my) a podpis
+    // „Tým Chrlit" (někdo třetí). Konvence je jedna: MLUVÍ FIRMA, PODEPISUJE SE
+    // ČLOVĚK — u obchodních šablon jménem odesílatele, jinde patičkou týmu.
+    const singular = /\b(ozývám|omlouvám|nechci|nespěchám|píšu|přestanu|posílám|ptám se)\b/gi
+    const plural = /\b(jsme|bychom|posíláme|připravíme|přestaneme|nechceme|nespěcháme|ptáme se)\b/gi
+    const { EMAIL_TEMPLATES } = require("./lib/mail/registry")
+    for (const t of EMAIL_TEMPLATES) {
+        const text = t.render(t.sample, "kdo@example.com").text
+        const sg = [...new Set(text.match(singular) ?? [])]
+        const pl = [...new Set(text.match(plural) ?? [])]
+        assert(sg.length === 0 || pl.length === 0,
+            `${t.id}: míchá „já" (${sg.join(", ")}) a „my" (${pl.join(", ")}) v jedné zprávě`)
+    }
+    // Druhý dotek musí znít jako týž odesílatel jako první — tedy podpis jménem,
+    // ne obecná patička týmu.
+    const src = codeOnly("lib/mail/templates/offer.ts")
+    const followup = src.slice(src.indexOf("export const offerFollowup"), src.indexOf("export const coldOffer"))
+    assert(followup.includes("senderName"), "follow-up musí podepsat člověk, který posílal první oslovení")
+    assert(!followup.includes("Tým Chrlit"), "follow-up nesmí podepsat tým — první dotek podepsal člověk")
+})
+
 // ═══════════════════════════════════════════════════════════
 // 30. ADMINSKÁ BRÁNA
 // ═══════════════════════════════════════════════════════════
@@ -3890,6 +4465,494 @@ test("35.4 tarif nesmí zhoršit obsah, jen výhled", () => {
     assert(ab.includes("requireProjectAccess"), "akce musí ověřit přístup k projektu")
     assert(/allowed_actions[\s\S]{0,40}post_variant/.test(ab),
         "souboje smí dostat jen tarif, který varianty vůbec umí")
+})
+
+// ═══════════════════════════════════════════════════════════
+// 36. FAKTICKÁ BRÁNA — POST NESMÍ LHÁT JMÉNEM KLIENTA
+// ═══════════════════════════════════════════════════════════
+
+test("36.1 brána běží PŘED vizuálem, ne po něm", () => {
+    const auto = codeOnly("instagram/autopilot.ts")
+    const gate = auto.indexOf("checkCaptionFacts(config, captionData")
+    const checkpoint = auto.indexOf("const checkpoint: CaptionCheckpoint")
+    assert(gate > 0, "faktická brána v pipeline vůbec není")
+    assert(gate < checkpoint,
+        "hook se za chvíli vypálí do obrázku — po renderu se text opravuje jen přerenderováním")
+})
+
+test("36.2 nezkontrolovaný text se neloguje jako čistý", () => {
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/judged: false/.test(fc), "výpadek judge musí být rozeznatelný od čistého výsledku")
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/factStatus = factOutcome\.judged \? factOutcome\.status : null/.test(auto),
+        "stejná doktrína jako critic_score: nekontrolováno ≠ v pořádku")
+})
+
+test("36.3 oprava je záměna v kódu, ne prosba v promptu", () => {
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/export function applyFactFixes/.test(fc), "oprava musí být čistá funkce nad textem")
+    assert(/missed/.test(fc),
+        "netrefená citace se nesmí započítat jako oprava — jinak brána hlásí úklid, který neproběhl")
+    assert(!/generateTextQuality/.test(fc),
+        "druhé přepsání celého postu by rozbilo schéma média (slides/frames/scenes) — od toho je záměna podřetězce")
+})
+
+test("36.4 brána nikdy nezabije post, ale mlčky ho nepustí", () => {
+    const fc = codeOnly("instagram/fact-check.ts")
+    const fn = fc.slice(fc.indexOf("export async function checkCaptionFacts"))
+    assert(/console\.warn/.test(fn), "výpadek brány musí být v logu — tichá degradace je zakázaná")
+    assert(!/throw /.test(fn), "brána nesmí shodit generování postu")
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/console\.warn\(`   🚩 Faktická brána/.test(auto), "zbylé nepodložené tvrzení musí být vidět")
+    assert(/for \(const r of factOutcome\.repairs\)/.test(auto),
+        "'opraveno' bez výpisu záměn je nepřezkoumatelné tvrzení brány o vlastní práci — " +
+        "a nikdo pak nepozná, až začne mazat i pravdu")
+})
+
+test("36.4b posuvník opatrnosti vynucuje KÓD, ne prompt", () => {
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/if \(mode === "bold"\) return false/.test(fc),
+        "odvážný režim nesmí přepsat nic — prompt se dá přemluvit, `if` ne")
+    assert(/hasNumber\(c\.find\) && hasNumber\(c\.replace as string\)/.test(fc),
+        "ve vyváženém režimu smí do nadpisu jen výměna hodnoty za hodnotu; jinak z úderného " +
+        "nadpisu vznikne vata (naměřeno: 'Záruka 5 let' → 'Kvalita, na kterou se spolehneš')")
+    const cfg = codeOnly("instagram/configs/index.ts")
+    assert(/factCheckMode/.test(cfg) && /"balanced"/.test(cfg),
+        "neznámá hodnota režimu musí spadnout na default, ne do pipeline")
+})
+
+test("36.4c oba posuvníky slibují uživateli totéž", () => {
+    const lib = codeOnly("lib/fact-check-modes.ts")
+    assert(/FACT_CHECK_MODES/.test(lib), "stupně posuvníku mají jediný zdroj pravdy")
+    for (const file of [
+        "app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx",
+        "app/onboarding/page.tsx",
+    ]) {
+        const ui = fileContent(file)
+        assert(/FACT_CHECK_MODES/.test(ui),
+            `${file} si píše vlastní popisky režimů — dva sliby o tomtéž se rozejdou`)
+    }
+})
+
+test("36.4d nápad ze zásobníku není zdroj faktů (pračka na halucinace)", () => {
+    // Nápady píše model. Kdyby platily jako povolený zdroj, stačí, aby si generátor
+    // vymyslel „25 let na trhu" do nápadu — copywriter to opíše a brána to posvětí,
+    // protože „to je přece v námětu". Tvrzení by se tím vypralo do postu bez jediného
+    // člověka po cestě.
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/NÁPAD ZE ZÁSOBNÍKU — TÉMA, NE ZDROJ FAKTŮ/.test(fc),
+        "nápad musí být v promptu označený jako téma, ne jako povolený zdroj")
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/topic: options\.topic \|\| null/.test(auto) && /idea: idea \?/.test(auto),
+        "téma od člověka a nápad z banky musí jít bráně ODDĚLENĚ")
+})
+
+test("36.4e retuš postu prochází bránou, ale nikdy se nepřepisuje", () => {
+    // Retuš je pokyn člověka. Přepsat mu text pod rukama by bylo horší než nepodložené
+    // tvrzení — proto „bold" (jen značkuj) a jeho instrukce jako povolený zdroj.
+    // Zároveň to nesmí zůstat neohlídané: co si model přimyslí navíc, se označí.
+    const code = codeOnly("app/actions/post-edit-actions.ts")
+    assert(/checkCaptionFacts/.test(code), "retuš musí projít faktickou bránou")
+    assert(/factCheckMode: "bold"/.test(code), "brána nad retuší nesmí přepisovat, jen značkovat")
+    assert(/topic: instruction/.test(code), "pokyn uživatele je povolený zdroj — ručí za něj on")
+    assert(/fact_status: out\.status/.test(code),
+        "výsledek musí přepsat stav u posledního logu, jinak zůstane viset starý příznak")
+})
+
+test("36.4f tištěný text prochází bránou, nadpis od člověka zůstává", () => {
+    // Tisk je nejtvrdší médium — vytištěný leták s vymyšleným údajem se nesmaže.
+    const print = codeOnly("instagram/print-pipeline.ts")
+    assert(/checkDisplayStrings/.test(print), "tiskový brief musí projít faktickou bránou")
+    assert(/opts\.overlayText \? \[brief\.typography\.sub/.test(print),
+        "nadpis zadaný člověkem se nekontroluje ani nepřepisuje — za svoje slova si ručí sám")
+    assert(/brief\.factCheck = \{ status: out\.status/.test(print),
+        "výsledek musí zůstat u návrhu (ig_product_designs.brief), tisk se nevrací")
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/checkDisplayStrings/.test(fc) && /checkCaptionFacts\(config, synthetic, ctx\)/.test(fc),
+        "tisk musí jet TÝMŽ kódem jako příspěvky — druhá implementace pravidel by se rozešla")})
+
+test("36.4g schválený hook je zdroj, ale plán i nápady píšou pod pravidlem pravdivosti", () => {
+    // Dvojice, která musí platit SPOLU. Schválený hook je povolený zdroj, protože mega
+    // prompt copywriterovi slibuje, že ho zachová „včetně konkrétnosti" — bez toho by ho
+    // brána v režimu „opatrné" přepsala a uživatel by v postu nenašel to, na co klikl.
+    // Jenže kdyby plánovač psal hooky bez pravidla pravdivosti, stačilo by, aby si vymyslel
+    // „25 let na trhu", uživatel plán odklikl — a tvrzení je vyprané. Proto obojí najednou.
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/HOOK SCHVÁLENÝ UŽIVATELEM V PLÁNU/.test(fc), "schválený hook musí být povolený zdroj")
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/approvedHook: options\.approvedHook/.test(auto), "autopilot ho musí bráně předat")
+    const plan = codeOnly("app/actions/content-plan-actions.ts")
+    assert(/buildFactsSection\(config\)/.test(plan),
+        "plánovač musí psát hooky pod pravidlem pravdivosti — jinak si uživatel schválí výmysl")
+    const ideas = codeOnly("instagram/idea-generator.ts")
+    assert(/buildFactsSection\(config\)/.test(ideas),
+        "generátor nápadů taky: nápad s vymyšleným číslem prosákne do každého postu z něj")
+})
+
+test("36.4h varování u tisku je vidět PŘED objednáním", () => {
+    // Výsledek brány se ukládá do briefu; bez čipu v UI by tam ležel neviditelný.
+    // Tisk se na rozdíl od příspěvku nedá vzít zpátky.
+    const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/products/PrintSection.tsx")
+    assert(/factCheck/.test(ui) && /FactChip/.test(ui), "návrh k tisku musí umět varovat")
+    assert(/fc\.status !== "flagged"/.test(ui), "čip se ukazuje jen když v textu tvrzení ZŮSTALO")
+})
+
+test("36.4i ukázka pro prospekta má taky fakta", () => {
+    // Bez nich by brána z demo postu sebrala každou konkrétnost — a demo je ten
+    // příspěvek, který má přesvědčit. Text stránky je už načtený, stojí to jedno volání.
+    const prev = codeOnly("lib/agents/sales/preview.ts")
+    assert(/extractFactsFromPages/.test(prev), "ukázka musí seedovat fakta jako onboarding")
+    assert(/analysis\.brandFacts =/.test(prev), "fakta se musí dostat do configu ukázky")
+})
+
+test("36.4j označené tvrzení jde potvrdit u příspěvku, ne opisováním", () => {
+    // Bez tohohle brána jen otravuje: řekne „ověř si to" a člověk musí tvrzení ručně
+    // přepsat do Nastavení. Smyčka se musí zavřít tam, kde na problém narazil.
+    const act = codeOnly("app/actions/config-actions.ts")
+    assert(/export async function confirmBrandFact/.test(act), "akce pro potvrzení tvrzení chybí")
+    assert(/source: "od klienta"/.test(act),
+        "potvrzené tvrzení NESMÍ mít zdroj webu — potvrdil ho člověk, a tvářit se jinak by byla přesně ta drobná lež, kterou brána vymýtá")
+    assert(/checkCaptionFacts/.test(act), "po uložení se příspěvek musí přehodnotit, jinak štítek visí dál")
+    const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/PostsTab.tsx")
+    assert(/confirmBrandFact/.test(ui), "detail příspěvku musí umět tvrzení potvrdit")
+})
+
+test("36.5 fakta mají default a dostanou se do promptu i do brány", () => {
+    const cfg = codeOnly("instagram/configs/index.ts")
+    assert(/brandFacts: config\.brandFacts \|\| \[\]/.test(cfg), "chybějící pole nesmí být výbušnina")
+    assert(/factCheck: config\.factCheck \?\? true/.test(cfg), "brána je default ZAPNUTÁ")
+    const cap = codeOnly("instagram/caption-generator.ts")
+    assert(/buildFactsSection\(config\)/.test(cap), "mega prompt musí fakta vykreslit")
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/config\.brandFacts/.test(fc), "brána musí číst tentýž seznam jako copywriter")
+})
+
+test("36.6 označený post je vidět v dashboardu", () => {
+    const svc = codeOnly("instagram/service.ts")
+    assert(/fact_status: log\.factStatus/.test(svc) && /fact_flags: log\.factFlags/.test(svc),
+        "výsledek brány musí skončit v ig_generation_log, jinak se nedá zpětně ptát")
+    const admin = codeOnly("app/actions/admin-actions.ts")
+    assert(/fact_status/.test(admin), "seznam postů musí stav brány připojit")
+    const tab = fileContent("app/(dashboard)/dashboard/instagram/tabs/PostsTab.tsx")
+    assert(/fact_status === "flagged"/.test(tab), "karta příspěvku musí varovat, než to člověk zveřejní")
+})
+
+// ═══════════════════════════════════════════════════════════
+// 37. OVĚŘENÍ NA WEBU — BRÁNA SMÍ TVRZENÍ TAKY DOLOŽIT
+// ═══════════════════════════════════════════════════════════
+
+test("37.1 levný ověřovatel umí jen PŘIDAT, nikdy shodit", () => {
+    // Tohle je celý důvod, proč ověřování smí běžet na Haiku vedle Pro soudce.
+    // Na web jde VÝHRADNĚ to, co soudce označil za `unsure`; tvrzení, které pustil
+    // jako `ok`, se do levného modelu nedostane a ten ho tedy nemá jak přehodnotit.
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/const unsureAll = claims\.filter\(c => c\?\.verdict === "unsure"\)/.test(fc),
+        "na web smí jen tvrzení označená soudcem za nejistá")
+    assert(/verifyClaimsOnWeb\(\s*searchable/.test(fc),
+        "ověřovateli se nesmí předat nic jiného než `searchable` (= nejistá, ne o značce)")
+    assert(!/verdict === "ok"[\s\S]{0,200}verifyClaimsOnWeb/.test(fc),
+        "tvrzení, které soudce pustil, se na web nikdy neposílá")
+})
+
+test("37.2 tvrzení o značce se na web nepouští (kruhové doložení)", () => {
+    // Veřejný web o malém českém klientovi nic neví. Co se na něm najde, je jeho
+    // vlastní marketing opsaný jinde — a doložit tvrzení sám sebou je přesně ta
+    // halucinace s razítkem „ověřeno", které má celá vrstva bránit.
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/unsureAll\.filter\(c => c\.scope !== "brand"\)/.test(fc),
+        "filtr podle scope musí být v KÓDU — prompt se dá přemluvit, `if` ne")
+    const fw = codeOnly("instagram/fact-web.ts")
+    assert(/blockedDomains: brandHost \? \[brandHost\] : \[\]/.test(fw),
+        "vlastní doména klienta musí jít do blocked_domains")
+    assert(/if \(brandHost && \(host === brandHost/.test(fw),
+        "a ještě jednou se filtruje na výsledku — blocked_domains je slib API, ne náš")
+})
+
+test("37.3 zdroj nesmí pocházet z textu modelu", () => {
+    // Táž pojistka jako `known.has(f.source)` v lib/brand-facts.ts: vymyšlená URL je
+    // horší než žádný zdroj, protože vypadá jako doklad.
+    const fw = codeOnly("instagram/fact-web.ts")
+    assert(/export function admissibleSource/.test(fw),
+        "přípustnost zdroje musí být čistá funkce, ať se dá testovat bez modelu")
+    assert(/const hit = admissibleSource\(r\.url, evidence, brandHost\)/.test(fw),
+        "každý potvrzený nález musí projít filtrem proti skutečným výsledkům hledání")
+    assert(/if \(!hit\) \{[\s\S]{0,200}console\.warn/.test(fw),
+        "zahozeny doklad musí být slyšet — mlčky zahozený vypadá jako nenalezený")
+    const ac = codeOnly("instagram/anthropic-client.ts")
+    assert(/if \(!Array\.isArray\(block\.content\)\)/.test(ac),
+        "web_search_tool_result je při chybě OBJEKT, ne pole — bez větvení to spadne nebo projde jako prázdno")
+    assert(/resp\.stop_reason !== "pause_turn"/.test(ac),
+        "dlouhé hledání se vrací přes pause_turn; bez pokračování se utne v půlce")
+})
+
+test("37.4 fail-closed: web mlčí = dnešní chování brány", () => {
+    const fw = codeOnly("instagram/fact-web.ts")
+    const fn = fw.slice(fw.indexOf("export async function verifyClaimsOnWeb"))
+    assert(/catch \(err: any\)[\s\S]{0,300}return \[\]/.test(fn),
+        "chyba hledání znamená nedoloženo, ne výjimku — post se kvůli tomu nesmí zabít")
+    assert(!/throw /.test(fn), "ověřování nesmí shodit generování postu")
+    assert(/if \(!claudeJudgeEnabled\(\)\) return \[\]/.test(fn),
+        "bez klíče se chová jako by vrstva neexistovala")
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/const risky = \[\.\.\.claims\.filter\(c => c\?\.verdict === "risk"\), \.\.\.unresolvedUnsure\]/.test(fc),
+        "nedoložené nejisté tvrzení musí spadnout mezi riziková, ne projít")
+})
+
+test("37.5 doklad přežije přehodnocení a nezaplatí se dvakrát", () => {
+    // Retuš i „Je to pravda" pouštějí bránu nad hotovým textem znovu. Bez předání
+    // starých dokladů by doložené tvrzení naskočilo jako nepodložené a hledání by
+    // se platilo podruhé za tentýž nález.
+    const edit = codeOnly("app/actions/post-edit-actions.ts")
+    assert(/webVerified: prevLog\?\.fact_sources/.test(edit), "retuš musí předat už doložená tvrzení")
+    assert(/fact_sources: out\.sources/.test(edit), "a zase je uložit")
+    const cfg = codeOnly("app/actions/config-actions.ts")
+    assert(/webVerified: lastLog\?\.fact_sources/.test(cfg),
+        "potvrzení JEDNOHO faktu nesmí shodit doklady u ostatních tvrzení")
+    assert(/fact_sources: out\.sources/.test(cfg), "a zase je uložit")
+})
+
+test("37.6 zdroje se ukládají, nesou přes resume a jsou vidět", () => {
+    const svc = codeOnly("instagram/service.ts")
+    assert(/fact_sources: log\.factSources/.test(svc), "doklady musí skončit v ig_generation_log")
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/factSources = ck\.factSources \?\? \[\]/.test(auto),
+        "post dorenderovaný po pádu by jinak přišel o zdroje, které se za něj zaplatily")
+    assert(/for \(const v of factSources\)/.test(auto),
+        "ověřeno na webu bez odkazu v logu je zase jen tvrzení brány o vlastní práci")
+    const admin = codeOnly("app/actions/admin-actions.ts")
+    assert(/fact_sources/.test(admin), "seznam postů musí doklady připojit")
+    const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/PostsTab.tsx")
+    assert(/Ověřeno na webu/.test(ui) && /rel="noopener noreferrer nofollow"/.test(ui),
+        "zdroj se musí ukázat jako skutečný odkaz — doklad, který nikdo neuvidí, je stejný jako žádný")
+})
+
+test("37.7 měření: hledání se účtuje vedle tokenů, ne místo nich", () => {
+    const ac = codeOnly("instagram/anthropic-client.ts")
+    assert(/recordUsage\(model/.test(ac) && /recordUnits\(model, "searches"/.test(ac),
+        "dva záznamy: jeden záznam neumí tokeny i hledání a mlčky by zahodil půlku ceny")
+    assert(/server_tool_use\?\.web_search_requests/.test(ac),
+        "počet hledání se bere z odpovědi API, ne z odhadu")
+    const price = codeOnly("lib/model-pricing.ts")
+    assert(/perSearch: 0\.01/.test(price), "sazba za hledání chybí — spotřeba by se změřila a neúčtovala")
+    assert(/"claude-haiku-4-5": \{ in: 1, out: 5/.test(price), "tokenová sazba ověřovatele chybí")
+})
+
+test("37.8 hooky v plánu procházejí bránou, než je uživatel schválí", () => {
+    // Díra do #83: schválený hook je pro bránu u příspěvku POVOLENÝ ZDROJ, ale plán
+    // sám žádnou bránou neprošel. Nepodložené číslo v hooku si tím kupovalo imunitu
+    // pro celý post — a uživatel schvaloval znění, u kterého NEVIDĚL, že ho nemáme
+    // čím podložit. Schválení je legitimní zdroj jen tehdy, když je informované.
+    const plan = codeOnly("app/actions/content-plan-actions.ts")
+    assert(/checkDisplayStrings/.test(plan), "hooky plánu musí projít faktickou bránou")
+    assert(/concepts\.map\(c => c\.hookPreview \|\| ""\)/.test(plan),
+        "jedno volání nad všemi hooky naráz, ne osm volání")
+    assert(plan.indexOf("checkDisplayStrings") < plan.indexOf("const usedIdeaIdx"),
+        "brána musí běžet PŘED sestavením položek plánu, jinak nemá co označit")
+    assert(plan.indexOf("while (concepts.length < count") < plan.indexOf("checkDisplayStrings"),
+        "brána běží AŽ po dopsání chybějících konceptů — jinak by je část hooků minula")
+    const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/GenerateTab.tsx")
+    assert(/item\.factFlag && \(/.test(ui),
+        "varování musí být vidět U POLOŽKY, jinak je schválení pořád nevědomé")
+})
+
+test("37.9 schválení chrání znění hooku, ne štítek", () => {
+    // Uživatel viděl varování a hook přesto schválil. Znění se mu nepřepíše (mega
+    // prompt to slíbil), ale příspěvek MUSÍ nést varování dál — jinak nepodložené
+    // tvrzení doputuje na kartu jako „v pořádku".
+    const camp = codeOnly("app/actions/campaign-actions.ts")
+    assert(/factFlag: it\.factFlag \|\| null/.test(camp),
+        "planRows whitelistuje pole — bez tohohle se varování zahodí rovnou při schválení")
+    const worker = codeOnly("app/api/cron/campaign-worker/route.ts")
+    assert(/const approvedHookFlag = item\?\.factFlag/.test(worker), "worker musí varování předat dál")
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/approvedHookFlag: options\.approvedHookFlag \|\| null/.test(auto),
+        "generateOnePost musí varování poslat bráně")
+    const fc = codeOnly("instagram/fact-check.ts")
+    assert(/const carried = ctx\.approvedHookFlag/.test(fc),
+        "brána sama tvrzení ve schváleném hooku nenajde (je to pro ni povolený zdroj) — musí ho dostat")
+    assert(/const status: FactStatus = flags\.length > 0 \? "flagged" : "repaired"/.test(fc),
+        "stav musí počítat i s přineseným varováním, jinak post vyjde jako opravený")
+})
+
+test("37.10a přegenerovaný hook prochází bránou taky", () => {
+    // Bez toho by stačilo mačkat 🔄, dokud varování nezmizí — nová pračka na
+    // halucinace. A stará položka by si navíc odnesla štítek, který k novému
+    // znění nepatří.
+    const plan = codeOnly("app/actions/content-plan-actions.ts")
+    const fn = plan.slice(plan.indexOf("async function regeneratePlanItemInner"))
+    assert(/checkDisplayStrings/.test(fn), "přegenerovaný hook musí projít bránou")
+    assert(/factFlag,/.test(fn) && /factSources,/.test(fn), "stav brány se musí vrátit s položkou")
+    const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/GenerateTab.tsx")
+    assert(/factFlag: result\.item!\.factFlag/.test(ui),
+        "UI musí starý štítek přepsat novým, ne ho nechat viset u jiného znění")
+})
+
+test("37.10 doklady z plánu se do postu nesou, hledání se neplatí dvakrát", () => {
+    const camp = codeOnly("app/actions/campaign-actions.ts")
+    assert(/factSources: it\.factSources \|\| null/.test(camp), "doklady musí přežít schválení plánu")
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/webVerified: options\.approvedHookSources \|\| null/.test(auto),
+        "co se doložilo v plánu, nesmí se v postu hledat znovu")
+})
+
+// ═══════════════════════════════════════════════════════════
+// 38. EVIDENCE KLIENTŮ — OBCHOD PATŘÍ DO SYSTÉMU, NE DO DRIVE
+// ═══════════════════════════════════════════════════════════
+
+test("38.1 lead založený rukou se nesmí ocitnout ve frontě studeného oslovení", () => {
+    // Tohle je celý důvod, proč evidence smí být v témže `leads` jako fronta agenta.
+    // Obchodník si vede firmy, se kterými UŽ mluví — dvěma z prvních pěti byla na
+    // druhý den domluvená schůzka. Automatický mail „všiml jsem si, že váš profil
+    // spí" by je zastihl v nejhorší možný okamžik.
+    const act = codeOnly("app/actions/lead-actions.ts")
+    assert(/source: "manual"/.test(act), "ruční lead musí být poznat podle původu")
+    assert(!/enqueueTask/.test(act) && !/lead_qualify/.test(act),
+        "zakládání leadu z obrazovky NESMÍ zařadit lead_qualify — fronta agenta je studené oslovení")
+
+    // `qualified` je vstupenka do té fronty (`leads_queue_idx`). Člověk ji nemá jak chtít.
+    assert(/HUMAN_STATUSES/.test(act), "stavy pro člověka musí být vyjmenované, ne libovolné")
+    assert(!/"qualified"[^:]*\]/.test(act.slice(act.indexOf("HUMAN_STATUSES"), act.indexOf("] as const"))),
+        "`qualified` nesmí být mezi lidskými stavy")
+    assert(/HUMAN_STATUSES as readonly string\[\]\)\.includes\(status\)/.test(act),
+        "setLeadStatus musí stav ověřit proti seznamu, ne ho jen předat databázi")
+
+    const script = fileContent("scripts/import-evidence-klientu.ts")
+    assert(!/enqueueTask/.test(script), "převod tabulky nesmí zařadit oslovení")
+})
+
+test("38.2 obchodní data mají obrazovku, ne jen tabulku", () => {
+    // Model `leads` existoval od 11. 8. 2026, ale v dashboardu na něj nevedla ani
+    // jedna obrazovka — jediné místo v `app/`, kde se četl, byla veřejná ukázka.
+    // Proto obchod žil v Google tabulce v soukromém Drive.
+    assert(fileExists("app/(dashboard)/dashboard/instagram/tabs/LeadsTab.tsx"), "obrazovka evidence musí existovat")
+    const nav = codeOnly("app/(dashboard)/nav.ts")
+    assert(/id: "leads"/.test(nav), "sekce patří do registru navigace, ne natvrdo do JSX")
+    const ctx = codeOnly("app/(dashboard)/StudioContext.tsx")
+    assert(/\| "leads"/.test(ctx), "sekce musí být v unionu StudioSection, jinak neprojde validace hashe")
+    const page = fileContent("app/(dashboard)/dashboard/instagram/page.tsx")
+    assert(/activeSection === "leads" && isAdmin/.test(page), "evidence je adminská sekce")
+})
+
+test("38.0 soubor s \"use server\" exportuje JEN async funkce", () => {
+    // Tohle spadlo na produkci, ne v CI: `lead-actions.ts` vedle akcí exportoval
+    // číselníky (`STATUS_LABELS` a spol.). `npm run build` i `tsc` prošly — Next to
+    // kontroluje až při vyhodnocení modulu, tedy když si stránku otevře člověk.
+    // Celý dashboard skončil na „A use server file can only export async functions".
+    // Číselník je data, ne akce: patří do `lib/`, jako `lib/team.ts`.
+    const files = readdirSync("app/actions").filter(f => f.endsWith(".ts"))
+    assert(files.length > 0, "app/actions je prázdný — kontrola by tiše neplatila")
+
+    for (const file of files) {
+        const code = codeOnly(`app/actions/${file}`)
+        if (!/^\s*"use server"/m.test(code)) continue
+        // `export type`/`export interface` se při překladu vypaří, ty vadit nemůžou.
+        const bad = code.match(/^export (?:const|let|var|class|enum)\s+\w+/gm) ?? []
+        assert(bad.length === 0,
+            `app/actions/${file}: "use server" smí exportovat jen async funkce, našel jsem ${bad.join(", ")} — přesuň to do lib/`)
+    }
+})
+
+test("38.3 každá akce evidence má bránu a whitelist sloupců", () => {
+    const act = codeOnly("app/actions/lead-actions.ts")
+    const exported = act.match(/export async function \w+/g) ?? []
+    assert(exported.length >= 6, "akce evidence chybí")
+    // Telefonní čísla firem nejsou nic, u čeho by se dala brána zapomenout.
+    const guards = act.match(/await requireSuperAdmin\(\)/g) ?? []
+    assert(guards.length >= exported.length, "KAŽDÁ akce evidence potřebuje requireSuperAdmin()")
+    // Skóre ani `source` do formuláře nepatří, i kdyby je tam někdo poslal.
+    // Whitelist bydlí ve slovníku, protože „use server" nesmí exportovat konstanty (38.0).
+    const dict = codeOnly("lib/leads.ts")
+    assert(/export const EDITABLE = \[/.test(dict), "úprava musí jet přes whitelist sloupců")
+    assert(/EDITABLE/.test(act), "akce musí whitelist opravdu použít, ne ho jen mít vedle")
+    const list = dict.slice(dict.indexOf("export const EDITABLE = ["), dict.indexOf("] as const", dict.indexOf("export const EDITABLE = [")))
+    for (const forbidden of ["score", "source", "preview_token"]) {
+        assert(!new RegExp(`"${forbidden}"`).test(list), `${forbidden} nesmí jít měnit z formuláře`)
+    }
+})
+
+test("38.4 číslo leadu přiděluje databáze, ne ruka", () => {
+    // V tabulce se K0004 i K0005 objevily dvakrát hned první den. Sekvence tuhle
+    // chybu nezná — a unikátní index ji nepustí ani oklikou.
+    const mig = fileContent("supabase/migrations/20260908_leads_crm.sql")
+    assert(/CREATE SEQUENCE IF NOT EXISTS leads_ref_seq/.test(mig), "sekvence pro číslo leadu chybí")
+    assert(/leads_ref_uniq/.test(mig), "číslo leadu musí být unikátní")
+    const script = fileContent("scripts/import-evidence-klientu.ts")
+    assert(!/ref: "K000/.test(script), "převod nesmí čísla psát ručně — rozešel by se se sekvencí")
+})
+
+test("38.5 identita se nesmí přenést z minulého přihlášení", () => {
+    // Odhlášení je `redirect()` ze server akce, tedy MĚKKÁ navigace: dokument se
+    // nepřenačte a moduly si nesou stav dál. `StudioNavPanel` si proto držel
+    // „jsem admin" a seznam značek v promisách na úrovni modulu — a kdo se po
+    // adminovi přihlásil v témž panelu, viděl v menu adminskou sekci i cizí
+    // značky. Identita patří do provideru, který se s odchodem z dashboardu
+    // odmountuje.
+    const panel = codeOnly("app/(dashboard)/StudioNavPanel.tsx")
+    assert(!/^let \w+Promise/m.test(panel),
+        "navigace nesmí cachovat identitu na úrovni modulu — přežije to odhlášení")
+    assert(!/isCurrentUserSuperAdmin|getAvailableIGClients/.test(panel),
+        "navigace si identitu nenačítá sama, bere ji z kontextu")
+    assert(/isAdmin/.test(panel) && /itemsInGroup\("admin"\)/.test(panel),
+        "adminská skupina v menu musí být pořád podmíněná")
+
+    const ctx = codeOnly("app/(dashboard)/StudioContext.tsx")
+    assert(/isCurrentUserSuperAdmin/.test(ctx) && /getAvailableIGClients/.test(ctx),
+        "identitu načítá provider")
+    assert(!/^let \w+Promise/m.test(ctx),
+        "ani provider nesmí identitu držet mimo React — stav se musí odmountovat s layoutem")
+    assert(/useState\(false\)/.test(ctx.slice(ctx.indexOf("const [isAdmin"), ctx.indexOf("const [isAdmin") + 80)),
+        "než se identita zjistí, NENÍ to admin — jinak menu problikne")
+
+    // Obsah adminských sekcí zůstává hlídaný i při hlubokém odkazu přes hash.
+    const page = codeOnly("app/(dashboard)/dashboard/instagram/page.tsx")
+    for (const section of ["waitlist", "mailing", "tasks", "company", "onboard", "approvals", "leads", "emails", "products"]) {
+        assert(new RegExp(`activeSection === "${section}" && isAdmin`).test(page),
+            `sekce ${section} musí být v renderu podmíněná isAdmin`)
+    }
+})
+
+test("38.6 „jen moje fotky“ musí dojít až k modelu, ne skončit v nastavení", () => {
+    // Přepínač, který se nikde neprojeví, je horší než žádný: zákazník podle něj
+    // čeká svoje fotky a dostane vymyšlené. Cesta je config → clamp → výběr
+    // referencí → prompt → vizuální kontrola, a každý článek se dá zapomenout.
+    const lib = codeOnly("lib/photo-policy.ts")
+    assert(/export type PhotoPolicy/.test(lib) && /only-real/.test(lib),
+        "stupně musí žít v lib/, ne v komponentě — čte je UI i engine")
+
+    // Clamp: enginový kód podle hodnoty větví, takže se k němu nesmí dostat nic jiného.
+    const cfg = codeOnly("instagram/configs/index.ts")
+    assert(/photoPolicy: isPhotoPolicy\(config\.photoPolicy\) \? config\.photoPolicy : "free"/.test(cfg),
+        "validateConfig musí photoPolicy clampovat s výchozím „free“")
+
+    // Reálná fotka se povyšuje na ZÁKLAD postu, ne na další referenci ve frontě.
+    const orch = codeOnly("instagram/orchestrators/image-orchestrator.ts")
+    assert(/export async function resolveBasePhoto/.test(orch), "výběr základní fotky musí být sdílený")
+    const resolve = orch.slice(orch.indexOf("export async function resolveBasePhoto"))
+    const body = resolve.slice(0, resolve.indexOf("\n}\n") + 3)
+    assert(body.indexOf("loadUserPhoto") < body.indexOf("prefersRealPhotos"),
+        "fotka nahraná k postu má přednost před fotkou z knihovny značky")
+    assert(/if \(!prefersRealPhotos/.test(body),
+        "bez nastavení se fotka značky povyšovat NESMÍ — chování ostatních značek se nemění")
+    assert(/BASE_PHOTO_LABEL/.test(body),
+        "povýšená fotka musí nést týž popisek jako nahraná — prompt i QA se na něj odkazují doslova")
+    assert(/isRealSubjectRef/.test(body), "základem smí být jen reference skutečné věci nebo místa")
+    const isReal = orch.slice(orch.indexOf("function isRealSubjectRef"))
+    assert(!/REAL PERSON/.test(isReal.slice(0, isReal.indexOf("\n}\n"))),
+        "portrét se za povinný základ brát nesmí — jinak by byl každý post portrét")
+
+    // Všechna tři média, ne jen jedno: karusel i storka mají vlastní orchestrátor.
+    for (const file of ["image-orchestrator", "carousel-orchestrator", "story-orchestrator"]) {
+        assert(/resolveBasePhoto/.test(codeOnly(`instagram/orchestrators/${file}.ts`)),
+            `${file} musí základní fotku řešit stejně`)
+    }
+    // Storka si reference stahovala jen kvůli produktu — bez tohohle by neměla z čeho vybírat.
+    assert(/prefersRealPhotos\(config\)/.test(codeOnly("instagram/orchestrators/story-orchestrator.ts")),
+        "storka musí reference načíst i tehdy, když produkt není a značka chce vlastní fotky")
+
+    // Nastavení musí být dosažitelné a nesmí si popisky psát po svém.
+    const ui = codeOnly("app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx")
+    assert(/PHOTO_POLICY_OPTIONS/.test(ui) && /updateField\(\["photoPolicy"\]/.test(ui),
+        "Nastavení musí přepínač nabídnout a ukládat ho do configu")
 })
 
 // ═══════════════════════════════════════════════════════════

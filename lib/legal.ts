@@ -18,6 +18,28 @@
 /** Hodnota, která ještě není doplněná. Záměrně nevypadá jako reálný údaj. */
 export const PLACEHOLDER = "DOPLNIT" as const
 
+/**
+ * Základní sazba DPH v procentech.
+ *
+ * Jedno místo pro fakturaci (`lib/invoicing.ts`), ceník (`lib/pricing.ts`) i text
+ * u ceny. Kdyby se sazba psala zvlášť na třech místech, po první změně zákona by
+ * dvě z nich lhala — a jedna z nich je doklad.
+ */
+export const VAT_RATE_PCT = 21
+
+/**
+ * Odkdy se DPH připočítává k PROBÍHAJÍCÍM předplatným.
+ *
+ * Nový zákazník vidí v ceníku „bez DPH" a rovnou platí částku s daní. Kdo si ale
+ * předplatné pořídil za starých podmínek (neplátce, cena byla konečná), tomu se
+ * cena nesmí zvednout ze dne na den: vlastní obchodní podmínky slibují u změny
+ * ceny upozornění předem (a u změny podmínek 14 dní). Do tohohle data se proto
+ * obnovy strhávají v původní výši.
+ *
+ * ⚠️ Datum musí sedět s `EFFECTIVE_FROM` v `app/terms/page.tsx`. Hlídá aserce.
+ */
+export const VAT_EFFECTIVE_FROM = "2026-09-23"
+
 export type VatStatus =
     /** Neplátce DPH — ceny jsou konečné, na faktuře „Nejsem plátce DPH". */
     | "none"
@@ -43,8 +65,15 @@ export interface LegalIdentity {
     country: string
     email: string
     phone: string
-    /** Živnostenský úřad, který živnost vydal — povinný údaj u OSVČ (§435 obč. zák.). */
-    registryOffice: string
+    /**
+     * Zápis v rejstříku — povinný identifikační údaj (§ 435 obč. zák.).
+     *
+     * U s.r.o. je to obchodní rejstřík včetně soudu a spisové značky, u OSVČ
+     * živnostenský rejstřík a úřad, který živnost vydal. Je to jedna volná věta,
+     * protože právní forma rozhoduje o tom, co v ní stojí — dvě pole by nutila
+     * každou stránku větvit podle formy.
+     */
+    registration: string
     /** Bankovní účet pro faktury (i když se platí kartou, patří na doklad). */
     bankAccount: string
     iban: string
@@ -76,7 +105,7 @@ const OVERRIDES: Record<string, string | undefined> = {
     NEXT_PUBLIC_BUSINESS_COUNTRY: process.env.NEXT_PUBLIC_BUSINESS_COUNTRY,
     NEXT_PUBLIC_BUSINESS_EMAIL: process.env.NEXT_PUBLIC_BUSINESS_EMAIL,
     NEXT_PUBLIC_BUSINESS_PHONE: process.env.NEXT_PUBLIC_BUSINESS_PHONE,
-    NEXT_PUBLIC_BUSINESS_REGISTRY_OFFICE: process.env.NEXT_PUBLIC_BUSINESS_REGISTRY_OFFICE,
+    NEXT_PUBLIC_BUSINESS_REGISTRATION: process.env.NEXT_PUBLIC_BUSINESS_REGISTRATION,
     NEXT_PUBLIC_BUSINESS_BANK_ACCOUNT: process.env.NEXT_PUBLIC_BUSINESS_BANK_ACCOUNT,
     NEXT_PUBLIC_BUSINESS_IBAN: process.env.NEXT_PUBLIC_BUSINESS_IBAN,
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
@@ -88,38 +117,67 @@ const env = (key: keyof typeof OVERRIDES, fallback: string): string => {
 }
 
 /**
- * Výchozí hodnoty převzaté z ARESu (registr ekonomických subjektů + RZP),
- * IČO 21263990, ověřeno 30. 7. 2026. Živnost vznikla 19. 2. 2024, živnost volná,
- * bez registrace k DPH (`dic: null` v ARESu → `vatStatus: "none"`).
+ * Výchozí hodnoty převzaté z ARESu (registr ekonomických subjektů + veřejný
+ * rejstřík), IČO 27165281, ověřeno 8. 9. 2026.
  *
- * Telefon v ARESu není — je to kontakt zakladatele. Patří sem ze stejného důvodu
- * jako IČO a adresa: obchodní podmínky ho vykreslují jako povinný údaj a musí být
- * dohledatelný v čase. Env přepis je jen přepis, ne úložiště.
+ * Od 9/2026 službu provozuje **DOT PRODUCTION s.r.o.** (do té doby OSVČ Adela
+ * Mužátková, IČO 21263990, neplátce DPH). Změna se propisuje odsud do obchodních
+ * podmínek, zásad zpracování, patičky, faktur i e-mailů — proto ten jediný zdroj
+ * pravdy existuje.
  *
- * ⚠️ `name` je záměrně ve tvaru, v jakém je subjekt **zapsaný v rejstříku**
- * („Adela", bez délky) — na faktuře a v obchodních podmínkách musí být jméno
- * shodné se zápisem, ne fonetická podoba. Pokud je v rejstříku překlep, opravuje
- * se na živnostenském úřadě a teprve pak tady.
+ * Dva důsledky, které nejsou jen kosmetika:
+ *  - **plátce DPH** (`dic` v ARESu → `vatStatus: "payer"`): ceny se uvádějí bez
+ *    DPH, doklad ji rozpadá a brána strhává částku včetně daně;
+ *  - **s.r.o. místo OSVČ**: povinný údaj není živnostenský úřad, ale zápis
+ *    v obchodním rejstříku se soudem a spisovou značkou (`registration`).
+ *
+ * Telefon a e-mail v ARESu nejsou — jsou to provozní kontakty, které obchodní
+ * podmínky vykreslují jako povinný údaj a musí být dohledatelné v čase.
+ *
+ * ⚠️ `name` je ve tvaru, v jakém je subjekt **zapsaný v rejstříku** (velké
+ * „PRODUCTION"). Na faktuře a v podmínkách musí být název shodný se zápisem.
  */
 export const LEGAL: LegalIdentity = {
-    name: env("NEXT_PUBLIC_BUSINESS_NAME", "Adela Mužátková"),
+    name: env("NEXT_PUBLIC_BUSINESS_NAME", "DOT PRODUCTION s.r.o."),
     tradeName: env("NEXT_PUBLIC_BUSINESS_TRADE_NAME", "Chrlit"),
-    ico: env("NEXT_PUBLIC_BUSINESS_ICO", "21263990"),
-    dic: env("NEXT_PUBLIC_BUSINESS_DIC", ""),
-    vatStatus: env("NEXT_PUBLIC_BUSINESS_VAT_STATUS", "none") as VatStatus,
-    street: env("NEXT_PUBLIC_BUSINESS_STREET", "Svitákova 2729/10"),
-    city: env("NEXT_PUBLIC_BUSINESS_CITY", "Praha 5"),
-    zip: env("NEXT_PUBLIC_BUSINESS_ZIP", "155 00"),
+    ico: env("NEXT_PUBLIC_BUSINESS_ICO", "27165281"),
+    dic: env("NEXT_PUBLIC_BUSINESS_DIC", "CZ27165281"),
+    vatStatus: env("NEXT_PUBLIC_BUSINESS_VAT_STATUS", "payer") as VatStatus,
+    street: env("NEXT_PUBLIC_BUSINESS_STREET", "Hartigova 426/35"),
+    // Žižkov je část obce, Praha 3 městská část — na doklad patří obojí, ale
+    // `city` drží to, co jde do adresního řádku faktury a Fakturoidu.
+    city: env("NEXT_PUBLIC_BUSINESS_CITY", "Praha 3"),
+    zip: env("NEXT_PUBLIC_BUSINESS_ZIP", "130 00"),
     countryCode: env("NEXT_PUBLIC_BUSINESS_COUNTRY_CODE", "CZ"),
     country: env("NEXT_PUBLIC_BUSINESS_COUNTRY", "Česká republika"),
     email: env("NEXT_PUBLIC_BUSINESS_EMAIL", "info@chrlit.cz"),
     phone: env("NEXT_PUBLIC_BUSINESS_PHONE", "+420 601 279 377"),
-    // Sídlo je ve Stodůlkách → správní obvod Praha 13. ARES uvádí u adresy
-    // „Praha 5", což je městský obvod (poštovní/soudní), ne městská část.
-    registryOffice: env("NEXT_PUBLIC_BUSINESS_REGISTRY_OFFICE", "Úřad městské části Praha 13"),
+    registration: env(
+        "NEXT_PUBLIC_BUSINESS_REGISTRATION",
+        "zapsaná v obchodním rejstříku vedeném Městským soudem v Praze, oddíl C, vložka 101257",
+    ),
     bankAccount: env("NEXT_PUBLIC_BUSINESS_BANK_ACCOUNT", PLACEHOLDER),
     iban: env("NEXT_PUBLIC_BUSINESS_IBAN", ""),
     website: env("NEXT_PUBLIC_SITE_URL", "https://chrlit.cz"),
+}
+
+/**
+ * Kdo službu poskytoval předtím.
+ *
+ * Není to nostalgie: přechodné ustanovení obchodních podmínek musí říct, podle
+ * jakého znění a pod kým se plnilo do dne účinnosti změny — a údaj o dřívějším
+ * poskytovateli patří ke zbytku identity, ne natvrdo do JSX (aserce 14.1).
+ */
+export const PREVIOUS_PROVIDER = {
+    name: "Adela Mužátková",
+    ico: "21263990",
+    vatStatus: "none" as VatStatus,
+    until: "2026-09-22",
+} as const
+
+/** Věta o dřívějším poskytovateli do přechodného ustanovení. */
+export function previousProviderLine(): string {
+    return `${PREVIOUS_PROVIDER.name}, IČO ${PREVIOUS_PROVIDER.ico} (neplátce DPH)`
 }
 
 /** „Ulice, PSČ Město" na jeden řádek — do patičky a na fakturu. */
@@ -142,7 +200,7 @@ export function formatIdentityLine(id: LegalIdentity = LEGAL): string {
 export function vatNotice(id: LegalIdentity = LEGAL): string {
     switch (id.vatStatus) {
         case "payer":
-            return "Ceny jsou uvedeny bez DPH. K ceně bude připočtena DPH v zákonné sazbě."
+            return `Ceny jsou uvedeny bez DPH. K ceně se připočítává DPH ${VAT_RATE_PCT} %.`
         case "identified":
             return "Nejsem plátce DPH (identifikovaná osoba dle zákona o DPH). Uvedené ceny jsou konečné."
         default:
@@ -166,7 +224,7 @@ export function legalIdentityGaps(id: LegalIdentity = LEGAL): string[] {
         ["street", "ulice a číslo popisné"],
         ["city", "město"],
         ["zip", "PSČ"],
-        ["registryOffice", "živnostenský úřad"],
+        ["registration", "zápis v rejstříku (soud a spisová značka)"],
         ["email", "kontaktní e-mail"],
     ]
     const gaps = required

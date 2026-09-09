@@ -41,12 +41,20 @@ interface PortfolioBrand {
     company: string
     industry: string
     website: string
+    relationship: "concept" | "client"
     posts: PortfolioPost[]
 }
 
 const DISCLAIMER =
-    "Nevyžádané koncepty. Příspěvky vygeneroval Chrlit z veřejně dostupných údajů o značce. " +
-    "Nejde o oficiální obsah těchto značek a uvedené firmy nejsou zákazníky Chrlitu."
+    "Nevyžádaný koncept. Příspěvky vygeneroval Chrlit z veřejně dostupných údajů o značce. " +
+    "Nejde o oficiální obsah značky a tato firma není zákazníkem Chrlitu."
+
+const CLIENT_NOTE =
+    "Práce pro klienta, zveřejněno s jeho souhlasem. Příspěvky vygeneroval Chrlit."
+
+const MIXED_DISCLAIMER =
+    "Výloha míchá dvě věci a u každé značky je to napsané: nevyžádané koncepty pro firmy, " +
+    "které o tom nevědí a nejsou zákazníky Chrlitu, a práci pro klienty zveřejněnou s jejich souhlasem."
 
 /**
  * `image_url` je jeden řetězec s částmi oddělenými `|`. Podoby, které tam žijí:
@@ -104,12 +112,29 @@ async function main() {
         process.exit(1)
     }
 
-    const portfolioClients = clients.filter(c => (c.config as any)?.isPortfolio === true)
+    // Do výlohy jdou dvě různé věci a musí zůstat rozlišené: nevyžádané koncepty
+    // (isPortfolio — firma o tom neví) a práce pro klienta se souhlasem (isCaseStudy).
+    // Kdyby se slily, výhrada „nejsou zákazníky" by lhala o klientech.
+    const portfolioClients = clients.filter(c =>
+        (c.config as any)?.isPortfolio === true || (c.config as any)?.isCaseStudy === true)
     if (portfolioClients.length === 0) {
         console.warn("⚠️ Žádný klient nemá isPortfolio. Spusť scripts/seed-portfolio-clients.ts.")
     }
 
     const brands: PortfolioBrand[] = []
+
+    // Příspěvky, kterým faktická brána nechala nepodložené tvrzení. Jeden dotaz pro
+    // všechny značky — výloha se exportuje zřídka, ale číst log per post by bylo N+1.
+    const flaggedPostIds = new Set<string>()
+    try {
+        const { data: flagged } = await supabaseAdmin
+            .from("ig_generation_log")
+            .select("post_id")
+            .eq("fact_status", "flagged")
+            .in("client_id", portfolioClients.map(c => c.id))
+        for (const row of flagged || []) if (row.post_id) flaggedPostIds.add(row.post_id as string)
+        if (flaggedPostIds.size) console.log(`   🚩 ${flaggedPostIds.size} příspěvků s neověřeným tvrzením — do portfolia nepůjdou`)
+    } catch { /* sloupec nemigrovaný — filtr se neuplatní, export nepadá */ }
 
     for (const c of portfolioClients) {
         const cfg = (c.config as any) || {}
@@ -146,8 +171,16 @@ async function main() {
             // Vypadává jen to, z čeho nezbylo nic — záznam po selhaném renderu.
             // Reel se dá přehrát i bez obálky, takže tomu stačí video.
             .filter(p => p.images.length > 0 || !!p.videoUrl)
+            // Do výlohy nejde nic, co naše vlastní faktická brána označila. Portfolio
+            // ukazuje koncepty pro SKUTEČNÉ značky (LIQUI MOLY, Rohlík, Portu), které
+            // nás o nic nepožádaly — nepodložené tvrzení o cizí firmě na našem webu je
+            // horší závada než v klientském feedu. Když si to systém sám označí jako
+            // neověřené, nemá to prodávat naši práci.
+            .filter(p => !flaggedPostIds.has(p.id))
 
+        const relationship: "concept" | "client" = cfg.isCaseStudy === true ? "client" : "concept"
         brands.push({
+            relationship,
             slug: c.slug,
             company: c.name,
             industry: cfg.industry || "",
@@ -182,15 +215,29 @@ export interface PortfolioPost {
     pillar?: string
 }
 
+/** Jaký vztah ke značce výloha tvrdí. Rozhoduje o popisku i o výhradě. */
+export type PortfolioRelationship = "concept" | "client"
+
 export interface PortfolioBrand {
     slug: string
     company: string
     industry: string
     website: string
+    /** "concept" = firma o tom neví a není zákazník. "client" = klient, který dal
+     *  souhlas. Chybí-li (starší export), platí přísnější "concept". */
+    relationship?: PortfolioRelationship
     posts: PortfolioPost[]
 }
 
+/** Výhrada u NEVYŽÁDANÝCH konceptů. Nesmí se ukazovat u klientů — tvrdila by o nich,
+ *  že nejsou zákazníci. */
 export const PORTFOLIO_DISCLAIMER = ${JSON.stringify(DISCLAIMER)}
+
+/** Popisek u KLIENTA, který dal souhlas. */
+export const PORTFOLIO_CLIENT_NOTE = ${JSON.stringify(CLIENT_NOTE)}
+
+/** Souhrnná výhrada nad celou výlohou, když jsou v ní obě kategorie. */
+export const PORTFOLIO_MIXED_DISCLAIMER = ${JSON.stringify(MIXED_DISCLAIMER)}
 
 export const PORTFOLIO_BRANDS: PortfolioBrand[] = `
 

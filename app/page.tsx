@@ -72,10 +72,10 @@ export default async function Home() {
     // Stav vypínače se čte TADY, na serveru: `REELS_ENABLED` je serverová proměnná
     // a klientský landing k ní nemá přístup. `revalidate = 3600` znamená, že se
     // přepnutí propíše do hodiny — ceník se nemusí sahat, odznak zmizí sám.
-    // Totéž pro bránu bety: dokud je zavřená, hlavní tlačítko zve na waitlist;
-    // po `BETA_INVITE_REQUIRED=0` vede rovnou do registrace. Trychtýř tak nikdy
-    // neslíbí něco, co registrace o krok dál nesplní — a přepnutí je jedna
-    // proměnná, ne přepisování kopie na šesti místech.
+    // Totéž pro bránu bety: dokud je zavřená, hlavní tlačítko sbírá kontakt
+    // („ozveme se vám"); po `BETA_INVITE_REQUIRED=0` vede rovnou do registrace.
+    // Trychtýř tak nikdy neslíbí něco, co registrace o krok dál nesplní — a
+    // přepnutí je jedna proměnná, ne přepisování kopie na šesti místech.
     return (
         <Landing
             plans={plans}

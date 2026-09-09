@@ -8,7 +8,9 @@
  * Spuštění: npx tsx scripts/test-prompt-assembly.ts
  */
 
-import { buildMegaPrompt, buildVideoSchema, buildCaptionSchema, buildCarouselSchema, buildStorySchema, getPostTypeDef, buildSmartWeekPlan, PROMPT_LIMITS, CAROUSEL_MAX_TOTAL_SLIDES, sanitizeHashtags, assembleCaption } from "../instagram/caption-generator"
+import { buildMegaPrompt, buildVideoSchema, buildCaptionSchema, buildCarouselSchema, buildStorySchema, getPostTypeDef, buildSmartWeekPlan, PROMPT_LIMITS, CAROUSEL_MAX_TOTAL_SLIDES, sanitizeHashtags, assembleCaption, buildFactsSection } from "../instagram/caption-generator"
+import { buildFactCheckPrompt, applyFactFixes } from "../instagram/fact-check"
+import { buildWebVerifyPrompt, admissibleSource } from "../instagram/fact-web"
 import { readFileSync } from "fs"
 import { resolve } from "path"
 import { formatContextForPrompt, type ContextSignals } from "../instagram/context-agent"
@@ -19,6 +21,8 @@ import { MECHANISMS, MECHANISM_IDS } from "../instagram/mechanisms"
 import type { PostType } from "../instagram/types"
 import type { PerformanceInsight } from "../instagram/performance"
 import { resolveCtaPolicy, buildCtaPolicyJudgeBlock } from "../instagram/cta-policy"
+import { buildPhotoFidelitySection } from "../instagram/photo-fidelity"
+import { isPhotoPolicy, prefersRealPhotos, PHOTO_POLICY_OPTIONS, type PhotoPolicy } from "../lib/photo-policy"
 
 let passed = 0
 let failed = 0
@@ -637,6 +641,321 @@ test("výběr šablon je deterministický, ne náhodný", () => {
     assert(!/Math\.random/.test(body),
         "náhodný výběr střídá rytmus značky post od postu — stejný důvod, proč ho nemá ani výběr persony")
     assert(/pickStable\(/.test(body), "výběr musí jít přes deterministický pickStable")
+})
+
+// ─── Pravdivost: prompt nesmí dát modelu licenci vymýšlet ───
+
+console.log("\n✅ Pravidlo pravdivosti a ověřená fakta")
+
+test("pravidlo pravdivosti je v promptu i BEZ jediného zadaného faktu", () => {
+    const p = buildWith({ brandFacts: [] })
+    assert(p.includes("PRAVIDLO PRAVDIVOSTI"),
+        "prázdný seznam faktů znamená „piš bez čísel“, ne „vymysli si je“ — pravidlo musí platit vždycky")
+    assert(/PRIORITA 0/.test(p), "pravdivost musí přebíjet i hook a kreativitu, jinak prohraje s poutavostí")
+    assert(/^0\. Pravdivost/m.test(p), "seznam PRIORIT musí pravdivost vypsat, jinak si model pořadí vyloží sám")
+})
+
+test("zadaná fakta se dostanou do promptu i se zdrojem", () => {
+    const p = buildWith({ brandFacts: [{ text: "Pečeme od roku 1998", source: "test.cz/o-nas" }] })
+    assert(p.includes("Pečeme od roku 1998"), "fakt se do promptu nedostal")
+    assert(p.includes("test.cz/o-nas"), "zdroj faktu zmizel — pak se nedá dohledat, čím je tvrzení podložené")
+})
+
+test("buildFactsSection nevynechá výčet toho, co JE konkrétní tvrzení", () => {
+    const section = buildFactsSection({ ...config, brandFacts: [] } as any)
+    for (const kind of ["číslo", "rok", "cena", "superlativ", "záruky"]) {
+        assert(section.includes(kind), `výčet konkrétních tvrzení neuvádí „${kind}“ — model si hranici vyloží sám`)
+    }
+})
+
+test("faktická brána a copywriter čtou TENTÝŽ seznam faktů", () => {
+    const facts = [{ text: "Dovážíme do 24 hodin" }]
+    const p = buildWith({ brandFacts: facts })
+    const gate = buildFactCheckPrompt({ ...config, brandFacts: facts } as any, [{ text: "Dovážíme do 24 hodin po Praze.", display: false }])
+    assert(p.includes("Dovážíme do 24 hodin") && gate.includes("Dovážíme do 24 hodin"),
+        "dva seznamy faktů by se rozešly a brána by trestala text za to, co si prompt sám dovolil")
+})
+
+test("brána bez faktů říká nahlas, že povolený zdroj neexistuje", () => {
+    const gate = buildFactCheckPrompt({ ...config, brandFacts: [] } as any, [{ text: "Jsme jedničkou na trhu.", display: false }])
+    assert(/žádn/i.test(gate) && gate.includes("nepodložené"),
+        "prázdný seznam se musí přeložit na „všechno konkrétní je nepodložené“, ne na prázdný nadpis")
+})
+
+test("identita značky z configu platí jako ověřený zdroj", () => {
+    // Naměřeno na produkčních postech: bez tohohle brána mazala z textu název města,
+    // ve kterém klient sídlí („Naše apartmány v České Kamenici" → „Naše apartmány"),
+    // a dělala obsah méně lokálním. Město si klient nastavil sám a engine z něj tahá
+    // počasí i lokální kontext — je to fakt, ne tvrzení k prověření.
+    const gate = buildFactCheckPrompt({ ...config, city: "Česká Kamenice", industry: "ubytování" } as any,
+        [{ text: "Naše apartmány v České Kamenici jsou útočiště.", display: false }])
+    assert(gate.includes("IDENTITA ZNAČKY"), "identita klienta musí být mezi povolenými zdroji")
+    assert(gate.includes("Česká Kamenice"), "město z configu se do promptu nedostalo")
+})
+
+test("rétorika hooku a prožitek čtenáře nejsou tvrzení", () => {
+    // Taky naměřeno: „3 věci, které děláte špatně" brána označovala jako nepodložené
+    // tvrzení, protože „nesouvisí s žádným ověřeným faktem". To je slib obsahu, ne údaj.
+    const gate = buildFactCheckPrompt(config as any, [{ text: "3 věci, které děláte špatně", display: true }])
+    assert(/Rétorika hooku/.test(gate), "výčet ne-tvrzení musí rétoriku hooku výslovně vyjmout")
+    assert(/o ČTENÁŘI, ne o značce/.test(gate), "věty o prožitku čtenáře nejsou tvrzení o značce")
+    assert(/Jména a místa/.test(gate), "název místa ani produktu není tvrzení k ověření")
+})
+
+test("brána nesmí hodnotit styl — na to je kritik", () => {
+    const gate = buildFactCheckPrompt(config as any, [{ text: "Nejlepší ráno začíná kávou.", display: false }])
+    assert(gate.includes("Nehodnotíš styl"),
+        "bez tohohle brána začne přepisovat hooky a pipeline dostane druhého kritika, ne korektora")
+})
+
+// ─── Oprava faktu je záměna podřetězce, ne prosba modelu ────
+
+console.log("\n🔧 Deterministická oprava nepodložených tvrzení")
+
+const draft = () => ({
+    hook: "Pečeme už 25 let",
+    body: "Pečeme už 25 let a chleba kynou přes noc.",
+    cta: "Stavte se",
+    imagePrompt: "bakery interior, 25 years old sign",
+    slides: [{ headline: "Pečeme už 25 let", subtext: "Poctivě", imagePrompt: "EN" }],
+    frames: [{ headline: "Pečeme už 25 let", subtext: "Poctivě" }],
+    scenes: [{ narration: "Pečeme už 25 let.", visual: "EN" }],
+})
+
+test("oprava projde všechna čtená pole naráz", () => {
+    const { data, applied, missed } = applyFactFixes(draft(), [{ find: "Pečeme už 25 let", replace: "Pečeme poctivě" }])
+    assert(applied === 1 && missed.length === 0, "oprava se nezapočítala")
+    assert(!JSON.stringify([data.hook, data.body, data.cta, data.slides, data.frames, data.scenes]).includes("25 let"),
+        "tvrzení zůstalo v některém poli — nepravda v jednom slidu je pořád nepravda")
+})
+
+test("imagePrompt zůstává netknutý", () => {
+    const { data } = applyFactFixes(draft(), [{ find: "25 years old sign", replace: "sign" }])
+    assert(data.imagePrompt.includes("25 years old sign"),
+        "brána sáhla do anglického popisu scény — tam nejsou tvrzení ke čtenáři, jen pokyny pro renderer")
+})
+
+test("netrefená citace se NESMÍ tvářit jako oprava", () => {
+    const { data, applied, missed } = applyFactFixes(draft(), [{ find: "pečeme už 25 LET", replace: "pečeme poctivě" }])
+    assert(applied === 0 && missed.length === 1, "judge si citaci upravil — to musí být poznat")
+    assert(data.body.includes("25 let"), "text se nezměnil, ale výsledek by tvrdil opak")
+})
+
+test("prázdná náhrada tvrzení smaže", () => {
+    const { data } = applyFactFixes(draft(), [{ find: " a chleba kynou přes noc", replace: "" }])
+    assert(data.body === "Pečeme už 25 let.", `zbylo: ${data.body}`)
+})
+
+test("bez oprav se nemění nic", () => {
+    const before = draft()
+    const { data, applied } = applyFactFixes(before, [])
+    assert(applied === 0 && JSON.stringify(data) === JSON.stringify(before), "brána šahá do textu i bez nálezu")
+})
+
+// ─── Brána nesmí rozbít tvar příspěvku ──────────────────────
+
+console.log("\n🧱 Invarianty médií po zásahu brány")
+
+test("story: hook a headline prvního snímku zůstanou shodné", () => {
+    // Autopilot je srovnává natvrdo (frames[0] se opravuje na hook). Kdyby je brána
+    // rozešla, snímek by tvrdil něco jiného než popisek — a všimne si toho až divák.
+    const story = {
+        hook: "Záruka 5 let na balení",
+        frames: [
+            { headline: "Záruka 5 let na balení", subtext: "Ověřeno" },
+            { headline: "Objednej dnes", subtext: "Doprava zdarma nad 500 Kč" },
+        ],
+        body: "Shrnutí.", cta: "Napiš nám", hashtags: ["#x"],
+    }
+    const { data } = applyFactFixes(story, [{ find: "Záruka 5 let na balení", replace: "Záruka na balení" }])
+    assert((data as any).hook === (data as any).frames[0].headline,
+        `hook a snímek 1 se rozešly: "${(data as any).hook}" vs "${(data as any).frames[0].headline}"`)
+})
+
+test("žádné pole se nesmí vyprázdnit", () => {
+    // Naměřeno: prázdná náhrada nad celým nadpisem sebrala hook — a ten je nosný dál
+    // (caption, dedup, titulek karty, text vypálený do obrázku). Prázdný plakát je
+    // horší závada než tvrzení, které zůstane a označí se.
+    const post = {
+        hook: "Vyrábíme od roku 1947",
+        slides: [{ headline: "Vyrábíme od roku 1947", subtext: "Tradice", imagePrompt: "EN" }],
+        body: "Text.", cta: "Mrkni", hashtags: ["#x"],
+    }
+    const { data } = applyFactFixes(post, [{ find: "Vyrábíme od roku 1947", replace: "" }])
+    assert((data as any).hook.trim().length > 0, "hook se vyprázdnil")
+    assert((data as any).slides[0].headline.trim().length > 0, "nadpis slidu se vyprázdnil")
+})
+
+test("reel: caption a body zůstanou v páru, scéna si nechá režii", () => {
+    const reel = {
+        hook: "Test", caption: "Vyrábíme od roku 1947.", body: "Vyrábíme od roku 1947.",
+        scenes: [{ narration: "Vyrábíme od roku 1947.", visual: "EN", camera: "dolly", mood: "epic", soundEffect: "engine" }],
+        cta: "x", hashtags: ["#x"],
+    }
+    const { data } = applyFactFixes(reel, [{ find: "Vyrábíme od roku 1947.", replace: "Vyrábíme poctivě." }])
+    const d = data as any
+    assert(d.caption === d.body, "caption a body se rozešly — renderer a popisek by tvrdily každý něco jiného")
+    assert(d.scenes[0].visual === "EN" && d.scenes[0].camera === "dolly" && d.scenes[0].mood === "epic",
+        "brána sáhla do režie scény; má se dotýkat jen mluveného slova")
+})
+
+test("počet slidů a snímků se nemění", () => {
+    const post = {
+        hook: "A",
+        slides: [{ headline: "A", subtext: "1" }, { headline: "B", subtext: "2" }, { headline: "C", subtext: "3" }],
+        frames: [{ headline: "A", subtext: "1" }, { headline: "B", subtext: "2" }],
+        body: "x", cta: "y", hashtags: ["#x"],
+    }
+    const { data } = applyFactFixes(post, [{ find: "B", replace: "D" }])
+    assert((data as any).slides.length === 3 && (data as any).frames.length === 2,
+        "brána změnila počet slidů/snímků — formát je invariant, ne návrh")
+})
+
+// ─── Bez adresy webu se neslibuje proklik ───────────────────
+
+console.log("\n🔗 Rozbitá adresa webu")
+
+test("scheme bez domény není adresa — CTA spadne na engagement", () => {
+    // Reálný stav jednoho klienta v produkci. CTA politika z toho skládala odkaz
+    // „https:///p/tricko" a mega prompt psal „CTA odkazuje na https://".
+    const policy = resolveCtaPolicy({ pillarCtaStrategy: "hard", website: "https://", selectedProduct: { name: "Tričko", slug: "tricko" } })
+    assert(policy.allowWebsite === false, "bez adresy se web nesmí povolit")
+    assert(!policy.productUrl, `vznikl odkaz z ničeho: ${policy.productUrl}`)
+    assert(!/https:\/\/\//.test(policy.ctaInstruction), "instrukce nesmí nést rozbitý odkaz")
+})
+
+test("prázdná adresa se chová stejně", () => {
+    const policy = resolveCtaPolicy({ pillarCtaStrategy: "medium", website: "" })
+    assert(policy.allowWebsite === false, "prázdná adresa nesmí povolit web")
+})
+
+test("samotný zavináč není handle", () => {
+    // Reálný stav tří klientů: config.instagram = "@". V promptu z toho je „IG: @"
+    // a model to čte jako handle značky.
+    const code = readFileSync(resolve(__dirname, "../instagram/configs/index.ts"), "utf-8")
+    assert(/normalizeHandle\(config\.instagram, slug\)/.test(code), "handle musí projít normalizací")
+    assert(/\^@\[A-Za-z0-9\._\]\{2,\}\$/.test(code), "handle je @ + aspoň dva povolené znaky")
+    const onb = readFileSync(resolve(__dirname, "../app/onboarding/core.ts"), "utf-8")
+    assert(/handle \? `@\$\{handle\}` : ''/.test(onb),
+        "onboarding nesmí z prázdného handle vyrobit samotné @ — tak ta vada vznikla")
+})
+
+test("platná adresa zůstává nedotčená", () => {
+    const policy = resolveCtaPolicy({ pillarCtaStrategy: "hard", website: "https://test.cz", selectedProduct: { name: "Tričko", slug: "tricko" } })
+    assert(policy.allowWebsite === true, "platný web musí projít")
+    assert(policy.productUrl === "https://test.cz/p/tricko", `špatný odkaz: ${policy.productUrl}`)
+})
+
+// ─── Ověření na webu: doklad, nebo mlčení ───────────────────
+
+console.log("\n✅ Ověření tvrzení na webu")
+
+test("prompt ověření trvá na doslovném znění a zakazuje odvozování", () => {
+    const p = buildWebVerifyPrompt([{ claim: "Interval STK se od ledna 2026 mění", query: "STK interval 2026" }], "Autoservis Novák")
+    assert(p.includes("Interval STK se od ledna 2026 mění"), "tvrzení se do promptu nedostalo")
+    assert(p.includes("STK interval 2026"), "nápověda k hledání zmizela — model bude hádat, co má hledat")
+    assert(/DOSLOVA/.test(p), "bez pravidla „doslova“ je z rešerše zase generátor tvrzení")
+    assert(/Nic neodvozuj, nedopočítávej, nezaokrouhluj/.test(p),
+        "„přes 20 let“ se nesmí stát „od roku 2005“ — tohle je celý rozdíl mezi rešerší a halucinací")
+    assert(/nepotvrzené/.test(p) && /správná a častá odpověď/.test(p),
+        "model musí mít výslovně dovoleno nic nenajít, jinak si doklad vyrobí")
+    assert(p.includes("Autoservis Novák"), "prompt musí vědět, čí web se nepočítá")
+})
+
+test("zdroj mimo výsledky hledání se nepřijme", () => {
+    const evidence = [{ url: "https://zakonyprolidi.cz/cs/2026-1", title: "Zákon" }]
+    assert(admissibleSource("https://zakonyprolidi.cz/cs/2026-1", evidence, null) !== null,
+        "nález, který API vrátilo, musí projít")
+    assert(admissibleSource("https://vymyslena-stranka.cz/dukaz", evidence, null) === null,
+        "URL, kterou model napsal a API nikdy nevrátilo, je halucinace s razítkem „ověřeno“")
+    assert(admissibleSource(undefined, evidence, null) === null, "chybějící URL není doklad")
+    assert(admissibleSource("tohle není adresa", evidence, null) === null, "nesmysl místo URL není doklad")
+})
+
+test("vlastní web klienta nedokládá tvrzení o klientovi", () => {
+    // Kruh: klient si to napsal na web, engine to opíše do postu a web klienta to pak
+    // „doloží“. Přesně tomu má vrstva bránit — od vlastního webu jsou Ověřená fakta.
+    const evidence = [
+        { url: "https://autoservis-novak.cz/o-nas", title: "O nás" },
+        { url: "https://blog.autoservis-novak.cz/clanek", title: "Blog" },
+        { url: "https://zakonyprolidi.cz/cs/2026-1", title: "Zákon" },
+    ]
+    assert(admissibleSource("https://autoservis-novak.cz/o-nas", evidence, "autoservis-novak.cz") === null,
+        "vlastní web se nesmí počítat jako doklad")
+    assert(admissibleSource("https://blog.autoservis-novak.cz/clanek", evidence, "autoservis-novak.cz") === null,
+        "ani subdoména vlastního webu")
+    assert(admissibleSource("https://zakonyprolidi.cz/cs/2026-1", evidence, "autoservis-novak.cz") !== null,
+        "cizí zdroj musí projít i tak")
+})
+
+test("brána nabízí soudci tři verdikty a říká, co na web NESMÍ", () => {
+    const cfg = { name: "Autoservis Novák", website: "https://autoservis-novak.cz", brandFacts: [] } as unknown as ClientConfig
+    const p = buildFactCheckPrompt(cfg, [{ text: "Od ledna 2026 se mění interval STK.", display: false }], {}, "balanced")
+    assert(/"ok" \| "unsure" \| "risk"/.test(p), "výstupní schéma musí nabídnout i nejistotu")
+    assert(/VŽDYCKY tvrzení o samotné značce/.test(p),
+        "bez tohohle by soudce poslal na web „jsme 25 let na trhu“ a dostal zpátky vlastní marketing klienta")
+    assert(!/nezpochybnitelná obecná znalost \(voda vře/.test(p),
+        "stará výjimka pro „obecnou znalost“ musí být pryč — právě tam si model bývá jistý a plete se")
+})
+
+test("už doložené tvrzení se bráně připomene, ať ho podruhé neoznačí", () => {
+    const cfg = { name: "Autoservis Novák", website: "https://autoservis-novak.cz", brandFacts: [] } as unknown as ClientConfig
+    const p = buildFactCheckPrompt(cfg, [{ text: "Od ledna 2026 se mění interval STK.", display: false }], {
+        webVerified: [{ claim: "Od ledna 2026 se mění interval STK", url: "https://zakonyprolidi.cz/cs/2026-1" }],
+    }, "bold")
+    assert(/UŽ DOLOŽENO NA WEBU/.test(p), "doklady z minulého běhu musí být mezi povolenými zdroji")
+    assert(p.includes("https://zakonyprolidi.cz/cs/2026-1"), "s odkazem, ať je poznat, čím to je doložené")
+})
+
+// ─── Odkud berou posty fotky (photoPolicy) ──────────────────
+
+/** Config s reálnými fotkami značky, na kterých se pravidla zapínají. */
+const photoCfg = (photoPolicy: PhotoPolicy, tags: string[] = ["interior"]) => ({
+    name: "Penzion U Lípy",
+    photoPolicy,
+    brandReferenceImages: [{ url: "https://x/1.jpg", tags, description: "recepce penzionu" }],
+} as unknown as ClientConfig)
+
+test("volná ruka nepřidává žádné omezení navíc", () => {
+    const s = buildPhotoFidelitySection(photoCfg("free"), false)
+    assert(!/JEN VLASTNÍ FOTKY/.test(s), "u „volné ruky\" se zákaz vymýšlení scény nesmí objevit")
+    // Věrnost reálným fotkám je starší, na politice nezávislé pravidlo — musí zůstat.
+    assert(/VĚRNOST REÁLNÝM FOTKÁM/.test(s), "věrnost referenčním fotkám platí bez ohledu na politiku")
+})
+
+test("„jen moje fotky\" bez fotky zakáže vymyslet scénu", () => {
+    const s = buildPhotoFidelitySection(photoCfg("only-real"), false)
+    assert(/JEN VLASTNÍ FOTKY/.test(s), "bez reálné fotky musí prompt vymýšlení scény zakázat")
+    assert(/TYPOGRAFII nebo GRAFICE/.test(s), "musí říct, kudy ven — jinak model zákaz obejde vymyšlenou fotkou")
+})
+
+test("„jen moje fotky\" s přiloženou fotkou nic nezakazuje", () => {
+    const s = buildPhotoFidelitySection(photoCfg("only-real"), true)
+    assert(!/JEN VLASTNÍ FOTKY/.test(s),
+        "když fotka JE, zákaz by protiřečil pokynu postavit post právě na ní")
+})
+
+test("„přednost mým fotkám\" scénu nezakazuje, jen upřednostňuje", () => {
+    assert(!/JEN VLASTNÍ FOTKY/.test(buildPhotoFidelitySection(photoCfg("prefer-real"), false)),
+        "prefer-real smí scénu domyslet, když sedící fotka není")
+})
+
+test("zákaz platí i pro značku bez jediné fotky", () => {
+    const bare = { name: "Nová značka", photoPolicy: "only-real" } as unknown as ClientConfig
+    assert(/JEN VLASTNÍ FOTKY/.test(buildPhotoFidelitySection(bare, false)),
+        "prázdná knihovna fotek je přesně ten případ, kdy se nesmí nic vymyslet")
+})
+
+test("politika fotek má tři stavy a poznají se od nesmyslu", () => {
+    assert(PHOTO_POLICY_OPTIONS.length === 3, "stupně jsou tři")
+    assert(PHOTO_POLICY_OPTIONS.every(o => o.label && o.description),
+        "každý stupeň musí umět zákazníkovi říct, co udělá")
+    assert(isPhotoPolicy("only-real") && !isPhotoPolicy("neco-jineho") && !isPhotoPolicy(undefined),
+        "clamp musí propustit jen známé stavy")
+    assert(!prefersRealPhotos({ photoPolicy: "free" }) && !prefersRealPhotos({}),
+        "bez nastavení se chování nemění")
+    assert(prefersRealPhotos({ photoPolicy: "prefer-real" }) && prefersRealPhotos({ photoPolicy: "only-real" }),
+        "oba přísnější stupně musí sáhnout po reálné fotce")
 })
 
 // ─── Report ─────────────────────────────────────────────────

@@ -48,7 +48,15 @@ export function resolveCtaPolicy(input: {
     personaCtaStyle?: "soft" | "medium" | "hard"
     website: string
 }): CtaPolicy {
-    const mode: CtaMode = input.pillarCtaStrategy || "soft"
+    const requested: CtaMode = input.pillarCtaStrategy || "soft"
+    // Bez adresy webu nemá „hard" ani „medium" kam odkazovat. Slíbit proklik, který
+    // neexistuje, je horší než engagement CTA — a mlčky to spolknout by znamenalo psát
+    // do postů odkaz „https:///p/tricko". Degradace je hlasitá, ne tichá.
+    const hasWebsite = /^https?:\/\/[^/\s.]+\.[^/\s]+/.test((input.website || "").trim())
+    const mode: CtaMode = !hasWebsite && (requested === "hard" || requested === "medium") ? "soft" : requested
+    if (mode !== requested) {
+        console.warn(`⚠️ CTA politika: pilíř chce ${requested}, ale klient nemá použitelnou adresu webu — jedu engagement (soft).`)
+    }
     const allowWebsite = mode === "hard" || mode === "medium"
     const productMention: CtaPolicy["productMention"] = input.selectedProduct
         ? (allowWebsite ? "link" : "natural")

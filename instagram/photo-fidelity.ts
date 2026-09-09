@@ -31,9 +31,28 @@ const PRODUCT_TAGS = ["product", "food"]
  */
 const PERSON_TAGS = ["person"]
 
-export function buildPhotoFidelitySection(config: ClientConfig): string {
+/**
+ * Pravidlo pro značku, která fotorealistickou scénu vymýšlet nechce.
+ *
+ * `hasBasePhoto` říká, jestli k TOMUHLE renderu opravdu leží reálná fotka jako
+ * základ. Bez ní zbývají u `only-real` dvě poctivé cesty — typografie nebo grafika;
+ * vymyslet fotku „ve stylu značky" je přesně to, co si zákazník zakázal.
+ */
+function buildPhotoPolicySection(config: ClientConfig, hasBasePhoto: boolean): string {
+    if (config.photoPolicy !== "only-real" || hasBasePhoto) return ""
+    return `
+
+## 🚫 JEN VLASTNÍ FOTKY (povinné):
+Tahle značka si vymyšlené fotografie nepřeje a pro tenhle post žádná její reálná fotka není k dispozici.
+- NEVYMÝŠLEJ fotorealistickou scénu, produkt ani interiér — ani „ve stylu značky".
+- Postav post na TYPOGRAFII nebo GRAFICE: designovaný typ, barevná pole, tvary, ilustrační abstrakce.
+- Abstraktní textura nebo barevný podklad jsou v pořádku. Vymyšlený obraz konkrétní věci, místa nebo člověka není.`
+}
+
+export function buildPhotoFidelitySection(config: ClientConfig, hasBasePhoto = false): string {
+    const policySection = buildPhotoPolicySection(config, hasBasePhoto)
     const imgs = getConfigBrandImageObjects(config)
-    if (imgs.length === 0) return ""
+    if (imgs.length === 0) return policySection
 
     const tags = new Set(imgs.flatMap((i) => (i.tags || []).map((t) => t.toLowerCase())))
     const realPlace = REAL_PLACE_TAGS.filter((t) => tags.has(t))
@@ -50,7 +69,7 @@ Značka má referenční fotku KONKRÉTNÍHO člověka (tag: person).
 - Když scéna konkrétního člověka nepotřebuje, řeš ji BEZ tváře (ruce, záda, odstup, detail činnosti) — to je vždycky lepší než cizí obličej.`
         : ""
 
-    if (realPlace.length === 0 && product.length === 0) return personSection // jen generické/nature fotky → jinak tvůrčí volnost
+    if (realPlace.length === 0 && product.length === 0) return personSection + policySection // jen generické/nature fotky → jinak tvůrčí volnost
 
     const what = [
         realPlace.length ? "skutečného prostoru/místa" : "",
@@ -63,5 +82,5 @@ Značka má referenční fotku KONKRÉTNÍHO člověka (tag: person).
 Tahle značka má reálné referenční fotky ${what} (tagy: ${[...realPlace, ...product].join(", ")}).
 - Když kompozice zobrazuje SKUTEČNÉ místo nebo produkt téhle značky, musí zůstat VĚRNÁ referenční fotce.
 - NIKDY neslepuj fragment reálné fotky (např. zahradní židle) do jinak vymyšlené scény — vznikl by falešný obraz reálného místa, který uvede zákazníka v omyl.
-- Buď A) použij reálný prostor/produkt VĚRNĚ, NEBO B) jdi jasně do generického/ilustračního konceptu (nálada, lifestyle, abstraktní detail) — ale NIKDY klamavý hybrid mezi tím.${personSection}`
+- Buď A) použij reálný prostor/produkt VĚRNĚ, NEBO B) jdi jasně do generického/ilustračního konceptu (nálada, lifestyle, abstraktní detail) — ale NIKDY klamavý hybrid mezi tím.${personSection}${policySection}`
 }

@@ -14,12 +14,12 @@
 import type { EmailTemplate, RenderedTemplate, TemplateVars } from "./template"
 import { renderTemplate } from "./template"
 import { announcement, news } from "./templates/news"
-import { offer } from "./templates/offer"
+import { coldOffer, offer, offerFollowup } from "./templates/offer"
 import { promo } from "./templates/promo"
 import {
     subscriptionChargeFailed, subscriptionExpired, subscriptionRenewal, subscriptionWinback,
 } from "./templates/subscription"
-import { receipt, welcome } from "./templates/transactional"
+import { clientHandoff, clientHandoffDone, receipt, welcome } from "./templates/transactional"
 import { waitlistInvite, waitlistWelcome } from "./templates/waitlist"
 
 export interface RegisteredTemplate extends EmailTemplate {
@@ -33,13 +33,17 @@ const ALL: EmailTemplate[] = [
     news,
     announcement,
     promo,
+    coldOffer,
     offer,
+    offerFollowup,
     subscriptionRenewal,
     subscriptionChargeFailed,
     subscriptionExpired,
     subscriptionWinback,
     welcome,
     receipt,
+    clientHandoff,
+    clientHandoffDone,
 ]
 
 export const EMAIL_TEMPLATES: RegisteredTemplate[] = ALL.map(t => ({

@@ -1,18 +1,25 @@
 /**
- * Anthropic Claude client — the cross-family JUDGE gateway.
- * ========================================================
- * ONLY the Critic + Chief Editor route here (the copywriter stays Gemini 3 Pro), so a different
- * model family second-guesses the caption without self-preference bias — the "writer ≠ judge"
- * rule from docs/AI_PROVIDER_STRATEGY.md. Activated only when ANTHROPIC_API_KEY is present;
- * otherwise callers fall back to the Gemini judge (see instagram/judge.ts) and nothing changes.
+ * Anthropic Claude client — the cross-family gateway.
+ * ===================================================
+ * Two doors, two purposes:
  *
- * Model IDs live in instagram/models.ts — getModel("judge") → claude-sonnet-5.
+ *  - `judgeWithClaude` — the Critic + Chief Editor (the copywriter stays Gemini 3 Pro), so a
+ *    different model family second-guesses the caption without self-preference bias — the
+ *    "writer ≠ judge" rule from docs/AI_PROVIDER_STRATEGY.md. getModel("judge") → claude-sonnet-5.
+ *  - `searchWithClaude` — the web-search pass of the fact gate (instagram/fact-web.ts): can a
+ *    public page back this claim up, verbatim? getModel("factWeb") → claude-haiku-4-5.
+ *
+ * Both activate only when ANTHROPIC_API_KEY is present; otherwise the judge falls back to the
+ * Gemini ladder (see instagram/judge.ts) and the web pass simply doesn't run — in both cases
+ * behaviour returns to what it was before the feature existed, never to something worse.
+ *
+ * Model IDs live in instagram/models.ts.
  */
 
 import Anthropic from "@anthropic-ai/sdk"
 import sharp from "sharp"
 import { getModel } from "./models"
-import { recordUsage } from "./usage-meter"
+import { recordUsage, recordUnits } from "./usage-meter"
 import dotenv from "dotenv"
 
 // Load env for CLI usage (mirrors gemini-client.ts). In the Next runtime env is already present.
@@ -174,4 +181,115 @@ export async function judgeWithClaude(
     if (!text) throw new Error("Claude judge returned no text")
     if (opts.label) console.log(`   ⚖️  ${opts.label}: ${model}`)
     return text
+}
+
+/**
+ * Jeden nalezený doklad — přesně to, co API skutečně vrátilo.
+ *
+ * `url` a `title` pocházejí z bloků `web_search_result` / z citací
+ * `web_search_result_location`, `quote` je `cited_text` (API ho zkracuje na 150
+ * znaků). **Nic z toho nepíše model** — proto se tomu dá věřit i na levném tieru.
+ */
+export interface SearchEvidence {
+    url: string
+    title?: string
+    quote?: string
+}
+
+/** Kolikrát smí jedno volání pokračovat po `pause_turn`, než to vzdáme. */
+const MAX_PAUSE_CONTINUATIONS = 2
+
+/**
+ * Claude s web searchem — druhá, levná brána k Anthropicu vedle `judgeWithClaude`.
+ * =============================================================================
+ * Existuje kvůli jediné otázce: **stojí tohle tvrzení na nějaké veřejné stránce
+ * doslova napsané?** Volá ji `instagram/fact-web.ts`; nic jiného sem nemá chodit.
+ *
+ * Vrací text modelu ZVLÁŠŤ od dokladů, protože volající nesmí věřit textu. `evidence`
+ * je množina toho, co API opravdu našlo — a jen proti ní se pak ověřuje, jestli si
+ * model URL nevymyslel (táž pojistka jako `known.has()` v `lib/brand-facts.ts`).
+ *
+ * Tři zvláštnosti server toolu, které tu musí být ošetřené, protože jinak padají tiše:
+ *  1. `web_search_tool_result.content` je při úspěchu POLE výsledků, ale při chybě
+ *     OBJEKT `{ error_code }` — indexace by spadla, nebo (hůř) prošla jako prázdno.
+ *  2. `stop_reason: "pause_turn"` znamená „běžím dál" — asistentova zpráva se posílá
+ *     beze změny zpátky. Bez toho by se dlouhé hledání utnulo v půlce.
+ *  3. Odpověď s hledáním má textových bloků VÍC (model komentuje mezi hledáními),
+ *     takže se musí spojit všechny. `find(...)` by vrátil úvodní „Podívám se…".
+ *
+ * Účtování jde ve DVOU záznamech: tokeny (`recordUsage`) a hledání (`recordUnits`,
+ * $0,01/kus). Jeden záznam neumí obojí a mlčky by zahodil polovinu ceny.
+ */
+export async function searchWithClaude(
+    prompt: string,
+    opts: { label?: string; maxTokens?: number; maxSearches?: number; blockedDomains?: string[] } = {},
+): Promise<{ text: string; evidence: SearchEvidence[] }> {
+    const model = getModel("factWeb")
+    const blocked = (opts.blockedDomains ?? []).filter(Boolean)
+    const tool: Record<string, unknown> = {
+        type: "web_search_20250305",
+        name: "web_search",
+        max_uses: opts.maxSearches ?? 3,
+    }
+    // `allowed_domains` a `blocked_domains` se navzájem vylučují (jinak 400); posílá
+    // se jen neprázdný seznam.
+    if (blocked.length > 0) tool.blocked_domains = blocked
+
+    const messages: Anthropic.MessageParam[] = [{ role: "user", content: prompt }]
+    const evidence: SearchEvidence[] = []
+    const texts: string[] = []
+    let searches = 0
+
+    for (let turn = 0; turn <= MAX_PAUSE_CONTINUATIONS; turn++) {
+        const resp = await getClient().messages.create({
+            model,
+            max_tokens: opts.maxTokens ?? 2048,
+            // Haiku 4.5 NENÍ „5-generation" model: `output_config.effort` na něm končí
+            // chybou (na rozdíl od Sonnetu 5 v judgeWithClaude výš). Thinking se tu
+            // nezapíná — úkol je vyhledat a odpovědět, ne uvažovat.
+            tools: [tool as unknown as Anthropic.ToolUnion],
+            messages,
+        })
+
+        recordUsage(model, {
+            promptTokenCount: resp.usage?.input_tokens,
+            candidatesTokenCount: resp.usage?.output_tokens,
+            cachedContentTokenCount: resp.usage?.cache_read_input_tokens,
+        }, opts.label ?? "fact-web")
+        searches += (resp.usage as { server_tool_use?: { web_search_requests?: number } } | undefined)
+            ?.server_tool_use?.web_search_requests ?? 0
+
+        for (const block of resp.content as unknown as Record<string, any>[]) {
+            if (block.type === "text") {
+                if (typeof block.text === "string") texts.push(block.text)
+                // Citace nesou doslovný úryvek stránky — nejcennější část dokladu.
+                for (const c of (block.citations ?? []) as Record<string, any>[]) {
+                    if (typeof c?.url === "string") {
+                        evidence.push({ url: c.url, title: c.title, quote: c.cited_text })
+                    }
+                }
+            }
+            if (block.type === "web_search_tool_result") {
+                // Chybový tvar: `content` je objekt, ne pole. Hlásí se, ale nezabíjí —
+                // nenalezené tvrzení prostě zůstane nepodložené.
+                if (!Array.isArray(block.content)) {
+                    console.warn(`   ⚠️ web_search: ${block.content?.error_code ?? "neznámá chyba"}`)
+                    continue
+                }
+                for (const r of block.content as Record<string, any>[]) {
+                    if (typeof r?.url === "string") evidence.push({ url: r.url, title: r.title })
+                }
+            }
+        }
+
+        if (resp.stop_reason !== "pause_turn") break
+        // Pokračování: asistentova zpráva se vrací BEZE ZMĚNY (včetně
+        // `encrypted_content` u výsledků, jinak API odpoví 400).
+        messages.push({ role: "assistant", content: resp.content })
+    }
+
+    if (searches > 0) recordUnits(model, "searches", searches, opts.label ?? "fact-web")
+    if (opts.label) console.log(`   🌐 ${opts.label}: ${model} (${searches}× hledání)`)
+
+    return { text: texts.join("\n"), evidence }
 }

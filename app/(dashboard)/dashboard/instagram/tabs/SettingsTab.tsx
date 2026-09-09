@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, upsertPostFormat, removePostFormat, suggestPostFormat, recommendFeedPattern, type PostFormatInput } from "@/app/actions/config-actions"
+import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, upsertPostFormat, removePostFormat, suggestPostFormat, recommendFeedPattern, suggestBrandFacts, type PostFormatInput } from "@/app/actions/config-actions"
 import { syncConfigProductsToDb } from "@/app/actions/product-actions"
 import { CatalogSection } from "./products/CatalogSection"
 import { generateCategoryPrompt } from "@/app/actions/content-plan-actions"
@@ -12,10 +12,14 @@ import { SubscriptionSection } from "./SubscriptionSection"
 import { BillingSection } from "./BillingSection"
 import { ConsultationSection } from "./ConsultationSection"
 import { FEED_PATTERNS, computeSlotIntent, type FeedPatternId } from "@/lib/feed-pattern"
+import { PHOTO_POLICY_OPTIONS } from "@/lib/photo-policy"
+import { getConfigBrandImages } from "@/instagram/configs/types"
 import { Hint, HINTS } from "./Hint"
+import { FACT_CHECK_MODES, factCheckModeIndex } from "@/lib/fact-check-modes"
 import { getPublishOutlook, armAutoPublishNow, type PublishOutlook } from "@/app/actions/calendar-actions"
+import { cancelClientHandoff, getClientAccess, isCurrentUserSuperAdmin, transferClientToUser, type ClientAccessRow, type ClientPendingHandoff } from "@/app/actions/admin-actions"
 import { useStudioNavigate } from "@/app/(dashboard)/StudioContext"
-import { Ban, CalendarDays, Camera, ClipboardList, Hand, Hash, Landmark, Megaphone, Mic, Palette, Puzzle, RefreshCw, Send, Settings, ShoppingBag, Trash2, TriangleAlert, User, Users } from "lucide-react"
+import { Ban, CalendarDays, Camera, ClipboardList, Copy, Hand, Hash, Handshake, Landmark, Megaphone, Mic, Palette, Puzzle, RefreshCw, Send, Settings, ShoppingBag, Trash2, TriangleAlert, User, Users } from "lucide-react"
 
 // ═══════════════════════════════════════════════════════════
 // SETTINGS TAB
@@ -279,7 +283,7 @@ export function SettingsTab({ projectId }: { projectId: string }) {
                         <BasicSection config={config} updateField={updateField} />
                     )}
                     {activeSection === "voice" && (
-                        <VoiceSection config={config} updateField={updateField} updateArrayField={updateArrayField} />
+                        <VoiceSection config={config} updateField={updateField} updateArrayField={updateArrayField} projectId={projectId} />
                     )}
                     {activeSection === "pillars" && (
                         <PillarsSection config={config} setConfig={setConfig} projectId={projectId} />
@@ -409,10 +413,11 @@ function BasicSection({ config, updateField }: { config: any; updateField: (p: s
 // 2. BRAND VOICE
 // ═══════════════════════════════════════════════════════════
 
-function VoiceSection({ config, updateField, updateArrayField }: {
+function VoiceSection({ config, updateField, updateArrayField, projectId }: {
     config: any
     updateField: (p: string[], v: any) => void
     updateArrayField: (p: string[], v: string) => void
+    projectId: string
 }) {
     const voice = config.brandVoice || {}
 
@@ -480,9 +485,139 @@ function VoiceSection({ config, updateField, updateArrayField }: {
                 </div>
             </SectionCard>
 
+            <SectionCard title="Ověřená fakta" description="Jediná čísla, roky, ceny a garance, které smí AI o značce tvrdit" why={HINTS.facts}>
+                <FactsEditor config={config} updateField={updateField} projectId={projectId} />
+            </SectionCard>
+
             <SectionCard title="Šablony úvodních vět" description="Vzory pro úvodní věty — {{topic}} se nahradí automaticky">
                 <HookTemplatesEditor config={config} updateField={updateField} />
             </SectionCard>
+        </div>
+    )
+}
+
+/**
+ * Editor ověřených faktů.
+ *
+ * Fakt je řádek, volitelně `tvrzení | zdroj`. Textarea, ne formulář s poli: seznam
+ * se vyplňuje jednou při rozjezdu a pak se do něj málokdy sahá — a psát do řádků je
+ * rychlejší než klikat „přidat".
+ *
+ * `verifiedAt` se razítkuje sám: fakta stárnou (ceny, otvíračka, počty) a nikdo si
+ * nebude pamatovat, kdy je naposledy potvrdil. Nezměněný řádek si datum drží.
+ */
+function FactsEditor({ config, updateField, projectId }: { config: any; updateField: (p: string[], v: any) => void; projectId: string }) {
+    const facts: { text: string; source?: string; verifiedAt?: string }[] = config.brandFacts || []
+    const modeIndex = factCheckModeIndex(config.factCheckMode ?? (config.factCheck === false ? "off" : undefined))
+    const [scanning, setScanning] = useState(false)
+    const [scanMsg, setScanMsg] = useState<string | null>(null)
+
+    // Sken webu jen NAVRHUJE. Zapsat se to musí do stejného pole jako ruční řádky
+    // (a uložit tlačítkem výš) — jinak by se v Nastavení objevila tvrzení, která
+    // nikdo nepotvrdil, a „ověřená fakta" by přestala být ověřená.
+    const scanSite = async () => {
+        setScanning(true)
+        setScanMsg(null)
+        try {
+            const res = await suggestBrandFacts(projectId)
+            if (!res.success) {
+                setScanMsg(res.error || "Web se nepodařilo přečíst")
+            } else if (res.facts.length === 0) {
+                setScanMsg("Na webu jsem nenašel žádný nový konkrétní údaj — nic jsem nepřidal.")
+            } else {
+                const today = new Date().toISOString().slice(0, 10)
+                updateField(["brandFacts"], [...facts, ...res.facts.map(f => ({ ...f, verifiedAt: today }))])
+                setScanMsg(`Přidáno ${res.facts.length} návrhů z webu — projděte je a nesedící smažte. Uložit nezapomeňte tlačítkem nahoře.`)
+            }
+        } catch (e: any) {
+            setScanMsg(e?.message || "Sken selhal")
+        } finally {
+            setScanning(false)
+        }
+    }
+
+    const text = facts.map(f => (f.source ? `${f.text} | ${f.source}` : f.text)).join("\n")
+
+    const parse = (raw: string) => {
+        const today = new Date().toISOString().slice(0, 10)
+        const next = raw.split("\n").map(line => line.trim()).filter(Boolean).map(line => {
+            const [claim, ...rest] = line.split("|")
+            const fact: { text: string; source?: string; verifiedAt?: string } = { text: claim.trim() }
+            const source = rest.join("|").trim()
+            if (source) fact.source = source
+            const previous = facts.find(f => f.text === fact.text)
+            fact.verifiedAt = previous?.verifiedAt || today
+            return fact
+        })
+        updateField(["brandFacts"], next)
+    }
+
+    return (
+        <div className="space-y-5">
+            <div>
+                <FieldLabel hint="Jeden fakt na řádek. Za svislítko můžete připsat zdroj — kde se to dá ověřit.">Fakta o značce</FieldLabel>
+                <textarea
+                    value={text}
+                    onChange={(e) => parse(e.target.value)}
+                    rows={7}
+                    placeholder={"Pečeme od roku 1998 | chrlit.cz/o-nas\nDovážíme do 24 hodin po Praze\nNa všechno dáváme záruku 2 roky"}
+                    className={textareaClass}
+                />
+                <p className="text-[8px] text-white/20 mt-1">
+                    Co tady není, to AI nenapíše jako fakt — místo vymyšleného čísla napíše větu bez něj.
+                    Živý katalog produktů (ceny, názvy) sem psát nemusíte, ten engine čte sám.
+                </p>
+                <div className="flex items-center gap-3 mt-3">
+                    <button
+                        onClick={scanSite}
+                        disabled={scanning}
+                        className="inline-flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-sm text-[9px] font-bold uppercase tracking-widest text-white/60 disabled:opacity-50"
+                    >
+                        <RefreshCw className={`w-3 h-3 ${scanning ? "animate-spin" : ""}`} />
+                        {scanning ? "Čtu web…" : "Načíst z webu"}
+                    </button>
+                    {scanMsg && <span className="text-[9px] text-white/40">{scanMsg}</span>}
+                </div>
+            </div>
+
+            {facts.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                    {facts.slice(0, 12).map((f, i) => (
+                        <span key={i} title={f.verifiedAt ? `Naposledy potvrzeno ${f.verifiedAt}` : undefined}
+                            className="px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-sm text-[9px] text-emerald-400/70 font-bold uppercase tracking-wider">
+                            {f.text.length > 48 ? f.text.slice(0, 48) + "…" : f.text}
+                        </span>
+                    ))}
+                </div>
+            )}
+
+            <div className="border-t border-white/10 pt-4">
+                <FieldLabel hint="Ani jeden konec posuvníku nepustí lež. Mění se jen to, jestli nepodložené tvrzení opraví engine sám, nebo ho pošle vám.">
+                    Kontrola tvrzení v hotovém textu
+                </FieldLabel>
+                <input
+                    type="range"
+                    min={0}
+                    max={FACT_CHECK_MODES.length - 1}
+                    step={1}
+                    value={modeIndex}
+                    onChange={(e) => updateField(["factCheckMode"], FACT_CHECK_MODES[Number(e.target.value)].value)}
+                    aria-label="Kontrola tvrzení v hotovém textu"
+                    className="w-full accent-emerald-400 mt-1"
+                />
+                <div className="flex justify-between mt-1">
+                    {FACT_CHECK_MODES.map((m, i) => (
+                        <button
+                            key={m.value}
+                            onClick={() => updateField(["factCheckMode"], m.value)}
+                            className={`text-[8px] uppercase tracking-widest font-bold transition-colors ${i === modeIndex ? "text-emerald-400" : "text-white/25 hover:text-white/50"}`}
+                        >{m.label}</button>
+                    ))}
+                </div>
+                <p className="text-[10px] text-white/50 mt-3 bg-white/5 border border-white/10 rounded-sm px-3 py-2">
+                    {FACT_CHECK_MODES[modeIndex].detail}
+                </p>
+            </div>
         </div>
     )
 }
@@ -1279,6 +1414,9 @@ function VisualSection({ config, updateField, handleLogoUpload, logoUploading, p
     >(null)
     const [analyzeError, setAnalyzeError] = useState<string | null>(null)
     const igHandle = String(config.instagram || "").replace(/^@+/, "").trim()
+    // „Přednost mým fotkám" bez jediné nahrané fotky nemá čeho se chytit — a mlčet
+    // o tom je horší než to říct: zákazník by čekal svoje fotky a dostal vymyšlené.
+    const hasBrandPhotos = getConfigBrandImages(config).length > 0
 
     const handleAnalyzeFeed = async () => {
         setAnalyzing(true)
@@ -1378,6 +1516,41 @@ function VisualSection({ config, updateField, handleLogoUpload, logoUploading, p
                 <p className="text-[9px] text-white/25 mt-3 leading-relaxed">
                     Vzor určuje jen <strong className="text-white/40">rodinu</strong> layoutu pro každou pozici v mřížce — uvnitř ní se posty
                     pořád liší kompozicí, výřezem i typografií. Nastavení platí pro všechny nové posty (kampaň i jednotlivé).
+                </p>
+            </SectionCard>
+
+            <SectionCard
+                title="Odkud berou posty fotky"
+                description="Kdy smí AI scénu vymyslet a kdy musí stát na vaší skutečné fotce"
+            >
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {PHOTO_POLICY_OPTIONS.map(o => {
+                        const active = (config.photoPolicy || "free") === o.id
+                        return (
+                            <button
+                                key={o.id}
+                                onClick={() => updateField(["photoPolicy"], o.id)}
+                                className={`text-left p-4 rounded-sm border transition-all ${active
+                                    ? "border-aisummit-cinnabar/50 bg-aisummit-cinnabar/10"
+                                    : "border-white/5 bg-[#0a0a0a] hover:border-white/20"}`}
+                            >
+                                <p className={`text-[10px] font-bold uppercase tracking-widest ${active ? "text-aisummit-cinnabar" : "text-white/60"}`}>
+                                    {o.label}
+                                </p>
+                                <p className="text-[9px] text-white/30 mt-1.5 leading-relaxed">{o.description}</p>
+                            </button>
+                        )
+                    })}
+                </div>
+                <p className="text-[9px] text-white/25 mt-3 leading-relaxed">
+                    Vaše fotky nahrajete v sekci <strong className="text-white/40">Fotky značky</strong>. Čím víc jich je a čím lépe
+                    jsou oštítkované, tím častěji se engine trefí do fotky, která k postu sedí. Text a logo se do fotky
+                    dokreslují vždycky — omezuje se <strong className="text-white/40">vymýšlení scény</strong>, ne grafika.
+                    {(config.photoPolicy === "prefer-real" || config.photoPolicy === "only-real") && !hasBrandPhotos && (
+                        <span className="block mt-2 text-amber-400/80 font-bold">
+                            Zatím nemáte nahranou ani jednu fotku značky — do té doby se nastavení nemá čeho chytit.
+                        </span>
+                    )}
                 </p>
             </SectionCard>
 
@@ -2051,6 +2224,7 @@ function ClientManagementSection({ projectId, config, setConfig, onReload }: {
     }
 
     return (
+        <div className="space-y-6">
         <SectionCard title="Správa klienta">
             {/* Re-onboarding */}
             <div className="flex items-center justify-between gap-4">
@@ -2155,6 +2329,201 @@ function ClientManagementSection({ projectId, config, setConfig, onReload }: {
                         </div>
                     )}
                 </div>
+            </div>
+        </SectionCard>
+
+        {/* Předání je adminská věc, ale patří sem, ne do onboardingu: značka se
+            předává týdny potom, co vznikla — typicky až zákazník řekne, na jaký
+            e-mail ji chce. Komponenta se sama skryje, když se nedívá správce. */}
+        <HandoffSection projectId={projectId} clientName={config?.name || projectId} />
+        </div>
+    )
+}
+
+// ═══════════════════════════════════════════════════════════
+// PŘEDÁNÍ ZNAČKY (jen správce)
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Komu značka patří — a jak ji dostat pod e-mail, který si zákazník řekl.
+ *
+ * Onboarding z adminu zapíše vlastníka podle toho, kdo průvodce spustil, takže
+ * značka zůstane správci. Zákazník přitom ve chvíli onboardingu často ještě
+ * nemá účet; proto se tady předává na **e-mail**, ne na existující účet:
+ * když účet chybí, uloží se slib a vazba vznikne při prvním přihlášení.
+ */
+function HandoffSection({ projectId, clientName }: { projectId: string; clientName: string }) {
+    const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
+    const [owners, setOwners] = useState<ClientAccessRow[]>([])
+    const [pending, setPending] = useState<ClientPendingHandoff[]>([])
+    const [email, setEmail] = useState("")
+    const [replaceOwners, setReplaceOwners] = useState(false)
+    const [busy, setBusy] = useState(false)
+    const [result, setResult] = useState<{ ok: boolean; text: string; inviteUrl?: string | null } | null>(null)
+    const [copied, setCopied] = useState<string | null>(null)
+
+    const load = useCallback(async () => {
+        const access = await getClientAccess(projectId)
+        setOwners(access.owners)
+        setPending(access.pending)
+    }, [projectId])
+
+    useEffect(() => {
+        let alive = true
+        isCurrentUserSuperAdmin().then(admin => {
+            if (!alive) return
+            setIsAdmin(admin)
+            if (admin) load()
+        })
+        return () => { alive = false }
+    }, [load])
+
+    if (!isAdmin) return null
+
+    const handleTransfer = async () => {
+        setBusy(true)
+        setResult(null)
+        try {
+            const res = await transferClientToUser(projectId, email, { replaceOwners })
+            setResult({
+                ok: !!res.success,
+                text: res.success ? (res.message || "Předáno.") : (res.error || "Předání selhalo."),
+                inviteUrl: res.inviteUrl,
+            })
+            if (res.success) {
+                setEmail("")
+                await load()
+            }
+        } catch (err) {
+            setResult({ ok: false, text: err instanceof Error ? err.message : "Předání selhalo." })
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    const handleCancel = async (id: string) => {
+        setBusy(true)
+        const res = await cancelClientHandoff(projectId, id)
+        if (!res.success) setResult({ ok: false, text: res.error || "Zrušení selhalo." })
+        await load()
+        setBusy(false)
+    }
+
+    const copy = (text: string, key: string) => {
+        navigator.clipboard.writeText(text)
+        setCopied(key)
+        setTimeout(() => setCopied(null), 2000)
+    }
+
+    return (
+        <SectionCard
+            title="Předání značky"
+            description={`Komu patří ${clientName} a na jaký e-mail ji převést`}
+        >
+            {/* Kdo na značku dnes vidí */}
+            <div>
+                <FieldLabel hint="Vazby v user_clients. Správce se do projektu dostane i bez vazby.">Vlastníci</FieldLabel>
+                {owners.length === 0 ? (
+                    <p className="text-[10px] text-white/30 bg-white/5 rounded-sm px-3 py-2">
+                        Zatím nikdo — značka existuje jen pod správcovským přístupem.
+                    </p>
+                ) : (
+                    <div className="space-y-1.5">
+                        {owners.map(o => (
+                            <div key={o.userId} className="flex items-center justify-between gap-3 bg-white/5 rounded-sm px-3 py-2">
+                                <span className="text-xs text-white/70 font-medium break-all">{o.email}</span>
+                                <span className="text-[9px] uppercase tracking-widest font-bold text-white/30 shrink-0">
+                                    {o.isYou ? "ty" : o.role}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Čekající sliby */}
+            {pending.length > 0 && (
+                <div>
+                    <FieldLabel hint="Účet zatím neexistuje. Vazba vznikne při prvním přihlášení na tuhle adresu.">Čeká na registraci</FieldLabel>
+                    <div className="space-y-2">
+                        {pending.map(h => (
+                            <div key={h.id} className="bg-amber-500/5 border border-amber-500/20 rounded-sm px-3 py-2.5 space-y-2">
+                                <div className="flex items-center justify-between gap-3">
+                                    <span className="text-xs text-amber-200/80 font-medium break-all">{h.email}</span>
+                                    <button
+                                        onClick={() => handleCancel(h.id)}
+                                        disabled={busy}
+                                        className="text-[9px] uppercase tracking-widest font-bold text-white/30 hover:text-red-400 transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+                                    >
+                                        Zrušit
+                                    </button>
+                                </div>
+                                {h.inviteUrl && (
+                                    <button
+                                        onClick={() => copy(h.inviteUrl!, h.id)}
+                                        className="w-full flex items-center gap-2 text-[9px] uppercase tracking-widest font-bold text-white/40 hover:text-white/70 transition-colors cursor-pointer"
+                                    >
+                                        <Copy className="w-3 h-3 shrink-0" />
+                                        {copied === h.id ? "Zkopírováno" : "Zkopírovat odkaz s pozvánkou"}
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Předání */}
+            <div className="border-t border-white/5 pt-4 space-y-3">
+                <div>
+                    <FieldLabel hint="Když účet ještě neexistuje, pošleme pozvánku a značku připíšeme po registraci.">E-mail nového vlastníka</FieldLabel>
+                    <input
+                        type="email"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        placeholder="zakaznik@firma.cz"
+                        className={inputClass}
+                    />
+                </div>
+
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={replaceOwners}
+                        onChange={e => setReplaceOwners(e.target.checked)}
+                        className="mt-0.5 accent-emerald-500"
+                    />
+                    <span className="text-[10px] text-white/40 leading-relaxed">
+                        Odpojit dosavadní vlastníky — značku bude mít jen nový e-mail.
+                        <span className="block text-white/25">Platí jen pro účet, který už existuje; u pozvánky se nikdo neodpojuje.</span>
+                    </span>
+                </label>
+
+                <button
+                    onClick={handleTransfer}
+                    disabled={busy || !email.trim()}
+                    className="w-full px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all border border-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                    <span className="inline-flex items-center gap-1.5">
+                        <Handshake className="w-3.5 h-3.5 shrink-0" />
+                        {busy ? "Předávám…" : "Předat značku"}
+                    </span>
+                </button>
+
+                {result && (
+                    <div className={`text-[10px] rounded-sm px-3 py-2 space-y-2 ${result.ok ? "bg-emerald-500/10 text-emerald-300/80" : "bg-red-500/10 text-red-300/80"}`}>
+                        <p>{result.text}</p>
+                        {result.inviteUrl && (
+                            <button
+                                onClick={() => copy(result.inviteUrl!, "result")}
+                                className="inline-flex items-center gap-2 text-[9px] uppercase tracking-widest font-bold text-white/50 hover:text-white transition-colors cursor-pointer"
+                            >
+                                <Copy className="w-3 h-3 shrink-0" />
+                                {copied === "result" ? "Zkopírováno" : "Zkopírovat odkaz s pozvánkou"}
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
         </SectionCard>
     )

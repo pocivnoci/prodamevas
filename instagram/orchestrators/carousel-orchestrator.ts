@@ -19,7 +19,7 @@ import {
     qaScore,
 } from "../image-pipeline"
 import { loadLogo } from "../logo-loader"
-import { loadReferenceImages, loadUserPhoto } from "./image-orchestrator"
+import { loadReferenceImages, resolveBasePhoto } from "./image-orchestrator"
 import { COSTS, getPostTypeDef } from "../caption-generator"
 import { getModel } from "../models"
 import { withRetry } from "../../utils/retry"
@@ -83,9 +83,13 @@ async function renderCarouselNative(ctx: RenderContext): Promise<RenderResult | 
         hasReferencePhoto: Boolean(productRef),
     } : undefined
 
-    // User's own photo — becomes the mandatory visual base of the COVER slide.
-    const userPhotoRef = await loadUserPhoto(ctx.userPhotoUrl)
-    const userPhotoInfo = userPhotoRef ? { description: ctx.userPhotoDescription } : undefined
+    // Základ coveru: fotka nahraná k postu, nebo — podle `photoPolicy` značky —
+    // její vlastní reálná fotka. Na rozdíl od jednoho obrázku se tu `allRefs`
+    // k modelu neposílá celé (slajdy dostávají jen logo, produkt, tvář a základ),
+    // takže se povýšená fotka nemá jak zdvojit.
+    const base = await resolveBasePhoto(ctx, allRefs)
+    const userPhotoRef = base?.ref ?? null
+    const userPhotoInfo = base ? { description: base.description, source: base.source } : undefined
 
     await report("art_director", 52, "🎨 AI Designer navrhuje design systém carouselu...")
     const typeDef = getPostTypeDef(config, selectedType.name)

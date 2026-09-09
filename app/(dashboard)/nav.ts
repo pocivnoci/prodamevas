@@ -1,7 +1,7 @@
 import {
     Home, Images, CalendarDays, Sparkles, Lightbulb, Image as ImageIcon, BarChart3,
     Package, Building2, CircleCheck, UserPlus, KeyRound, Mail, Brain,
-    CircleQuestionMark, Settings, LayoutTemplate,
+    CircleQuestionMark, Settings, LayoutTemplate, ListChecks, Handshake,
     type LucideIcon,
 } from "lucide-react"
 import type { StudioSection } from "./StudioContext"
@@ -65,6 +65,8 @@ export const NAV_ITEMS: NavItem[] = [
     { id: "faq", label: "Nápověda", icon: CircleQuestionMark, group: "account" },
     { id: "settings", label: "Nastavení", icon: Settings, group: "account" },
 
+    { id: "tasks", label: "Úkoly", icon: ListChecks, group: "admin" },
+    { id: "leads", label: "Obchod", shortLabel: "Obchod", icon: Handshake, group: "admin" },
     { id: "products", label: "Produkty", icon: Package, group: "admin" },
     { id: "company", label: "Firma", icon: Building2, group: "admin" },
     { id: "approvals", label: "Schválení", icon: CircleCheck, group: "admin" },

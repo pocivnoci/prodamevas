@@ -1,6 +1,7 @@
 "use server"
 
 import supabaseAdmin from "@/supabase/admin"
+import { buildFactsSection } from "@/instagram/caption-generator"
 import { requireProjectAccess } from "@/lib/auth-guard"
 import { computeSlotIntents, ghostRolesForPreview, getPatternDef, type SlotIntent, type FeedPatternId, type VisualMode } from "@/lib/feed-pattern"
 import type { CatalogProduct } from "@/instagram/service"
@@ -44,6 +45,16 @@ export interface ContentPlanItem {
     /** This post's cell in the feed pattern, decided at plan time and carried through to the
      *  worker — so a resumed/retried post keeps the visual mode the grid was planned around. */
     slotIntent?: SlotIntent
+    /**
+     * Tvrzení v hooku, které nemáme čím podložit. Ukazuje se u položky PŘED schválením:
+     * schválený hook je pro bránu u příspěvku povolený zdroj, a to smí platit jen tehdy,
+     * když uživatel viděl, co schvaluje. Nese se dál do postu, aby se u něj varování
+     * neztratilo — schválení chrání ZNĚNÍ hooku před přepsáním, ne před štítkem.
+     */
+    factFlag?: string
+    /** Tvrzení z hooku doložená na webu (fact-web.ts) — nesou se do postu, ať se
+     *  za tentýž nález neplatí hledání podruhé. */
+    factSources?: { claim: string; url: string; title?: string; quote?: string }[]
 }
 
 /**
@@ -511,6 +522,7 @@ ${config.brandVoice.antiPatterns?.join(", ")}
 
 ${productNumbering}
 ${config.audiencePersonas?.length ? `## CÍLOVÉ PERSONY\n${config.audiencePersonas.map(p => `- **${p.label}** (${p.ageRange} let): Pain points: ${p.painPoints.slice(0, 2).join(", ")}`).join("\n")}\n` : ""}
+${buildFactsSection(config)}
 ${brandGroundingSection}${ideaBankSection}${topHooksSection}${deduplicationSection}${goalSection}${productFocusSection}${topicInstruction}
 ${count > 14 ? "\n## STRUKTURA\nRozděl do týdnů — každý týden má vlastní mini-téma.\n" : ""}`
 
@@ -605,6 +617,43 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
             }
         }
 
+        // ─── Faktická brána nad hooky plánu ────────────────────────────────────────
+        // Díra, kterou tohle zavírá: schválený hook je pro bránu u příspěvku POVOLENÝ
+        // ZDROJ (fact-check.ts → FactContext.approvedHook), protože mega prompt slibuje
+        // copywriterovi, že ho zachová „včetně konkrétnosti". Jenže dokud plán žádnou
+        // bránou neprošel, uživatel schvaloval znění, u kterého NEVIDĚL, že ho nemáme
+        // čím podložit — a nepodložené číslo si tím kupovalo imunitu pro celý post.
+        // Schválení je legitimní zdroj jen tehdy, když je INFORMOVANÉ.
+        //
+        // Běží AŽ TADY, ne v runPlanPipeline: dopisování chybějících konceptů se děje
+        // po pipeline (viz smyčka výš), takže v pipeline by část hooků bránu minula.
+        // Jedno volání nad všemi hooky naráz — čeká se na síť, ne na procesor.
+        let planFactSources: { claim: string; url: string; title?: string; quote?: string }[] = []
+        const planFactFlags: string[][] = concepts.map(() => [])
+        try {
+            const { checkDisplayStrings } = await import("@/instagram/fact-check")
+            const gate = await checkDisplayStrings(
+                config,
+                concepts.map(c => c.hookPreview || ""),
+                { postTypeName: "plán" },
+            )
+            if (gate.judged) {
+                gate.strings.forEach((h, i) => { if (concepts[i]) concepts[i].hookPreview = h })
+                gate.flagsByIndex.forEach((f, i) => { if (planFactFlags[i]) planFactFlags[i] = f })
+                planFactSources = gate.sources
+                if (gate.repairs.length) {
+                    console.log(`📋 [content-plan] brána opravila ${gate.repairs.length} tvrzení v hoocích:`)
+                    for (const r of gate.repairs) console.log(`      ↪︎ "${r.from.slice(0, 70)}" → "${r.to.slice(0, 70)}"`)
+                }
+                for (const v of planFactSources) console.log(`      🌐 "${v.claim.slice(0, 60)}" ← ${v.url}`)
+                const flaggedCount = planFactFlags.filter(f => f.length > 0).length
+                if (flaggedCount > 0) console.warn(`📋 [content-plan] ${flaggedCount} hooků jde uživateli s varováním — schválení je tím informované`)
+            }
+        } catch (e: any) {
+            // Fail-open, nahlas: plán stál 1–2 minuty Pro ladderu, brána ho nesmí shodit.
+            console.warn(`📋 [content-plan] faktická brána nad hooky nedoběhla: ${String(e?.message || e).slice(0, 150)}`)
+        }
+
         // Build plan items with metadata
         const usedIdeaIdx = new Set<number>()
         const plan: ContentPlanItem[] = typeSequence.slice(0, count).map((typeName, i) => {
@@ -644,6 +693,8 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
                 ideaId,
                 ideaTitle,
                 slotIntent: slotIntents[i] ?? undefined,
+                factFlag: planFactFlags[i]?.[0],
+                factSources: planFactSources.filter(v => (concept.hookPreview || "").includes(v.claim)),
             }
         })
 
@@ -952,6 +1003,10 @@ export interface RegeneratedPlanItem {
     productId?: string
     productName?: string
     productImage?: string
+    /** Výsledek brány nad NOVÝM hookem. Přepisuje starý stav položky — jinak by
+     *  „přegeneruj, dokud varování nezmizí“ byla další pračka na halucinace. */
+    factFlag?: string
+    factSources?: { claim: string; url: string; title?: string; quote?: string }[]
 }
 
 export async function regeneratePlanItem(
@@ -1056,15 +1111,35 @@ Vrať POUZE validní JSON:
         const named = matchProductInText(linkable, `${parsed.hookPreview}\n${parsed.topic}\n${parsed.angle}`)
         const product = named || (declared?.id ? declared : undefined)
 
+        // Brána i nad přegenerovaným hookem. Bez toho by stačilo mačkat 🔄, dokud
+        // varování nezmizí — a stará položka by si navíc odnesla štítek, který
+        // k novému znění nepatří. Fail-open: přegenerování se kvůli bráně neshodí.
+        let hook = parsed.hookPreview
+        let factFlag: string | undefined
+        let factSources: RegeneratedPlanItem["factSources"]
+        try {
+            const { checkDisplayStrings } = await import("@/instagram/fact-check")
+            const gate = await checkDisplayStrings(config, [hook], { postTypeName: "plán" })
+            if (gate.judged) {
+                hook = gate.strings[0] || hook
+                factFlag = gate.flagsByIndex[0]?.[0]
+                factSources = gate.sources.filter(v => hook.includes(v.claim))
+            }
+        } catch (e: any) {
+            console.warn(`📋 [regenerate-item] faktická brána nedoběhla: ${String(e?.message || e).slice(0, 120)}`)
+        }
+
         return {
             success: true,
             item: {
-                hookPreview: parsed.hookPreview,
+                hookPreview: hook,
                 angle: parsed.angle,
                 topic: parsed.topic,
                 productId: product?.id,
                 productName: product?.id ? product.name : undefined,
                 productImage: product?.id ? product.imageUrl : undefined,
+                factFlag,
+                factSources,
             },
         }
     } catch (err: any) {

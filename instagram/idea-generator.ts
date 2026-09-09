@@ -3,6 +3,7 @@ import { type ClientConfig } from "./configs/types"
 import { resolveClientId } from "./configs"
 import { DEFAULT_IDEA_COOLDOWN_DAYS } from "./service"
 import supabaseAdmin from "../supabase/admin"
+import { buildFactsSection } from "./caption-generator"
 
 /**
  * Generování nápadů — měřená obálka.
@@ -117,6 +118,7 @@ Tón: ${config.brandVoice?.voiceTraits?.slice(0, 4).join(", ") || ""}
 
 ## ZAKÁZÁNO
 ${config.brandVoice?.antiPatterns?.slice(0, 5).join("\n") || ""}
+${buildFactsSection(config)}
 
 ## SPECIFIKACE PILÍŘE
 ${pillar.ideaPrompt || pillar.description || ""}

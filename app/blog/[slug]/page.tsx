@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { getArticle, getArticleSlugs } from "@/lib/blog"
 import { SiteHeader } from "@/components/SiteHeader"
+import { CONTACT_HREF } from "@/lib/cta"
 
 const SITE = "https://chrlit.cz"
 
@@ -82,7 +83,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
                 <div className="mt-16 pt-10 border-t border-white/10 text-center">
                     <p className="text-white/50 text-sm mb-5">Chcete měsíc Instagramu ze svého webu?</p>
                     <Link
-                        href="/#waitlist"
+                        href={CONTACT_HREF}
                         className="inline-flex items-center px-8 py-4 bg-white text-black rounded-sm font-black text-xs uppercase tracking-widest hover:bg-white/90 transition-all"
                     >
                         3 posty zdarma vyzkoušet

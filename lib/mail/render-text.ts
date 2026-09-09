@@ -62,7 +62,7 @@ function blockText(b: Block): string {
                 `→ ${b.ctaLabel.toUpperCase()}: ${b.ctaUrl}`,
             ].join("\n")
         case "promoCode":
-            return [`SLEVOVÝ KÓD: ${b.code}`, b.note || null].filter(Boolean).join("\n")
+            return [`${(b.label || "Slevový kód").toUpperCase()}: ${b.code}`, b.note || null].filter(Boolean).join("\n")
         case "stats":
             return b.items.map(s => `${s.value} — ${s.label}`).join("\n")
         case "quote":

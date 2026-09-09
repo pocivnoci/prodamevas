@@ -7,6 +7,7 @@
 
 import type { BrandVoiceConfig } from "../types"
 import type { FeedPatternId } from "../../lib/feed-pattern"
+import type { PhotoPolicy } from "../../lib/photo-policy"
 import type { MediumType } from "../../lib/credits"
 
 // ─── Product ────────────────────────────────────────────────
@@ -224,6 +225,27 @@ export interface BrandVoiceExample {
     postType?: string
 }
 
+/** Ověřený fakt o značce — POVOLENÁ ZÁSOBA konkrétních tvrzení.
+ *
+ *  Copywriter je jazykový model: konkrétní číslo, rok nebo garanci si domyslí stejně
+ *  ochotně, jako je opíše. Post pak zní přesvědčivě a lže jménem klienta — a to je
+ *  horší závada než nudný post, protože ji nikdo nepozná podle stylu. Tenhle seznam
+ *  je JEDINÝ zdroj takových tvrzení (vedle živého katalogu produktů a zadaného
+ *  námětu); co v něm není, se nesmí objevit jako fakt. Prázdný seznam není chyba —
+ *  znamená „piš bez konkrétních čísel", ne „vymysli si je".
+ *
+ *  Vynucuje se ve dvou vrstvách: instrukcí v mega promptu (buildFactsSection) a
+ *  faktickou bránou po napsání textu (instagram/fact-check.ts). */
+export interface BrandFact {
+    /** Tvrzení tak, jak smí zaznít v postu (česky, jedna věta). */
+    text: string
+    /** Odkud to víme — URL, dokument, „od klienta". Prázdné = zadal to člověk v Nastavení. */
+    source?: string
+    /** ISO datum posledního potvrzení. Fakta stárnou (ceny, otvíračka, počty), takže
+     *  brána i UI umí ukázat, jak staré tvrzení engine používá. */
+    verifiedAt?: string
+}
+
 // ─── Image Brief (Shot List) ───────────────────────────────
 
 /** AI-generated shot list item — tells client what photos to provide */
@@ -263,6 +285,30 @@ export interface ClientConfig {
      *  Empty = cold start (section skipped gracefully). See validateConfig() default. */
     brandVoiceExamples?: BrandVoiceExample[]
 
+    /** Ověřená fakta o značce — jediná povolená zásoba konkrétních tvrzení (viz BrandFact).
+     *  Prázdné = engine píše bez konkrétních čísel a garancí. validateConfig defaultuje []. */
+    brandFacts?: BrandFact[]
+
+    /** @deprecated Nahrazeno `factCheckMode`. validateConfig ho přeloží: false → "off". */
+    factCheck?: boolean
+
+    /**
+     * Jak přísně brána zasahuje do hotového textu. NENÍ to posuvník „kolik smíš lhát" —
+     * lež neprojde ani na jednom konci. Posouvá se tím, KDO nepodložené tvrzení vyřeší:
+     *
+     * - `"off"` — brána neběží. Platí jen promptové pravidlo pravdivosti.
+     * - `"safe"` — opraví všechno, na co si troufne, včetně nadpisů do obrázku.
+     *   Nejbezpečnější a nejnudnější: nadpis bez ověřené hodnoty spadne do obecné věty.
+     * - `"balanced"` (default) — v těle textu opravuje, v nadpisech do obrázku vymění
+     *   jen ŠPATNOU HODNOTU ZA SPRÁVNOU z ověřených faktů („+300 °C" → „+150 °C").
+     *   Nadpis, ke kterému fakt nemá, nepřepisuje — označí příspěvek a nechá rozhodnout
+     *   člověka. Naměřeno: přepsaný nadpis bez opory skončí jako „Kvalita, na kterou se
+     *   spolehneš", což je vata a u většiny značek rovnou anti-pattern.
+     * - `"bold"` — nepřepisuje nic, jen značkuje. Text si drží úder, riziko řeší člověk
+     *   před publikací.
+     */
+    factCheckMode?: "off" | "safe" | "balanced" | "bold"
+
     /** Content pillars for Growth Engine */
     contentPillars: Record<string, ContentPillar>
 
@@ -278,6 +324,26 @@ export interface ClientConfig {
      *  layouts a post may use. Seeded at onboarding from the brand's real feed, user-editable.
      *  validateConfig clamps unknown values to "none". */
     feedPattern?: FeedPatternId
+
+    /**
+     * Kolik smí být na obrázcích vymyšleno.
+     *
+     * Odpověď na „majitel chce jenom svoje reálné fotky": engine umí obojí, ale
+     * dosud to šlo říct jen po jednom postu (nahraná fotka v Generovat). Tohle to
+     * říká za značku napořád.
+     *
+     * - `free` — dnešní chování: reálné fotky značky jsou reference, model si scénu
+     *   může domyslet.
+     * - `prefer-real` — když má značka k tomuhle postu sedící reálnou fotku, post
+     *   na ní MUSÍ stát (týž režim jako fotka nahraná k postu, včetně vizuální
+     *   kontroly). Bez fotky si model scénu domyslet smí.
+     * - `only-real` — navíc: bez reálné fotky se fotorealistická scéna NEVYMÝŠLÍ,
+     *   post jde do typografického/grafického řešení.
+     *
+     * validateConfig neznámou hodnotu srovná na `free` — enginový kód podle ní
+     * větví prompt i výběr referencí.
+     */
+    photoPolicy?: PhotoPolicy
 
     /** Static week plan — array of post type names (Mon→Sun, 2 per day) */
     weekPlan: string[]
@@ -433,6 +499,17 @@ export interface ClientConfig {
      *  Deliberately separate from `isReference`, which feeds the marketing wall:
      *  mixing the two would present strangers' brands as case studies. */
     isPortfolio?: boolean
+
+    /**
+     * SKUTEČNÝ klient, který dal souhlas ukázat svou práci ve výloze.
+     *
+     * Vědomě oddělené od `isPortfolio`: ten znamená „firma o nás neví a není náš
+     * zákazník" a portfoliová stránka to takhle i tvrdí. U klienta by ta věta byla
+     * lež, takže potřebuje vlastní příznak a vlastní popisek („klient", ne
+     * „nevyžádaný koncept"). Souhlas je věc mimo kód — příznak se nastavuje ručně
+     * až ve chvíli, kdy klient kývne.
+     */
+    isCaseStudy?: boolean
 }
 
 // ─── Brand Image Type ────────────────────────────────────────────────

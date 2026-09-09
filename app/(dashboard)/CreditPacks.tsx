@@ -21,6 +21,10 @@ import { useState } from "react"
 import { openCheckoutWindow } from "@/lib/open-checkout"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { CREDIT_PACKS, CREDIT_PACK_PREFIX, EXTRA_CREDIT_HALERU, creditPackPrice, formatCzk } from "@/lib/pricing"
+import { LEGAL } from "@/lib/legal"
+
+/** U plátce DPH nesmí cena vypadat jako konečná. */
+const vatSuffix = LEGAL.vatStatus === "payer" ? " bez DPH" : ""
 
 export function CreditPacks({ compact = false }: { compact?: boolean }) {
     const { projectId, subscription } = useStudio()
@@ -80,7 +84,7 @@ export function CreditPacks({ compact = false }: { compact?: boolean }) {
             {/* Cena za kus je stejná u všech balíčků — schválně. Množstevní sleva
                 by dokupování udělala výhodnější než přechod o tarif výš. */}
             <p className="text-[9px] text-white/25 font-bold uppercase tracking-widest mt-2 text-center">
-                {formatCzk(unit)} za kredit · platí do konce měsíčního období
+                {formatCzk(unit)} za kredit{vatSuffix} · platí do konce měsíčního období
             </p>
             {error && <p className="text-[10px] text-red-400 mt-2 text-center">{error}</p>}
         </div>

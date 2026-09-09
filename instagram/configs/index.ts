@@ -8,6 +8,7 @@ import { isSuperAdminEmail } from "../../lib/super-admins"
 import supabaseAdmin from "../../supabase/admin"
 import type { ClientConfig } from "./types"
 import { FORMAT_BRIEF_LIMITS } from "./types"
+import { isPhotoPolicy } from "../../lib/photo-policy"
 import { findFinishedCopy } from "./format-brief"
 import { reconcileFormats } from "./reconcile"
 import { isFeedPattern } from "../../lib/feed-pattern"
@@ -177,6 +178,28 @@ function warnOnScenicFormats(defs: NonNullable<ClientConfig["postTypeDefs"]>, sl
     return defs
 }
 
+/**
+ * Adresa webu musí mít schéma i doménu s tečkou, jinak to není adresa. Vrací "" —
+ * prázdno je pravdivé („web neznáme"), zatímco „https://" je lež, ze které engine
+ * skládá odkazy. Hlásí to nahlas: tichá oprava by tuhle vadu v configu nechala žít.
+ */
+function normalizeWebsite(raw: string | undefined, slug: string): string {
+    const url = (raw || "").trim()
+    if (!url) return ""
+    if (/^https?:\/\/[^/\s.]+\.[^/\s]+/.test(url)) return url.replace(/\/+$/, "")
+    console.warn(`⚠️ [${slug}] "${url}" není použitelná adresa webu — engine ji ignoruje a CTA pojede na engagement. Oprav ji v Nastavení.`)
+    return ""
+}
+
+/** Handle je „@" + aspoň dva povolené znaky, jinak to handle není. Viz normalizeWebsite. */
+function normalizeHandle(raw: string | undefined, slug: string): string {
+    const handle = (raw || "").trim()
+    if (!handle) return ""
+    if (/^@[A-Za-z0-9._]{2,}$/.test(handle)) return handle
+    console.warn(`⚠️ [${slug}] "${handle}" není instagramový handle — engine ho ignoruje. Doplň ho v Nastavení.`)
+    return ""
+}
+
 function validateConfig(config: ClientConfig, slug: string): ClientConfig {
     // reconcileFormats self-heals the four format sources on every load — drift
     // (e.g. a format orphaned by a deleted pillar) never reaches the pipeline.
@@ -184,8 +207,15 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         ...config,
         id: config.id || slug,
         name: config.name || slug,
-        website: config.website || "",
-        instagram: config.instagram || "",
+        // Adresa webu, nebo prázdno — nic mezi tím. „https://" v configu (reálný stav
+        // jednoho klienta) není adresa, ale CTA politika ho brala vážně a skládala z něj
+        // odkaz „https:///p/tricko". Radši žádný odkaz než rozbitý: prázdná hodnota
+        // shodí CTA na engagement (viz resolveCtaPolicy), místo aby slibovala proklik,
+        // který nikam nevede.
+        website: normalizeWebsite(config.website, slug),
+        // Táž doktrína jako u webu: buď handle, nebo prázdno. Samotný „@" (reálný stav
+        // tří klientů) je v promptu „IG: @" — a model z toho udělá výzvu „sleduj nás na @".
+        instagram: normalizeHandle(config.instagram, slug),
         // Doplňuje se PO POLÍCH, ne vcelku. Dřív se default použil jen když `brandVoice`
         // úplně chyběl — jenže onboarding zapisuje surový výstup modelu bez kontroly
         // tvaru (app/onboarding/actions.ts), takže stačilo, aby AI jednou vynechala
@@ -205,6 +235,19 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // Voice anchor (few-shot). Optional feature — default to empty so the copywriter
         // prompt simply omits the section until the brand has curated/auto-promoted examples.
         brandVoiceExamples: config.brandVoiceExamples || [],
+        // Ověřená fakta = povolená zásoba konkrétních tvrzení. Default prázdné pole, NE
+        // undefined: buildFactsSection i faktická brána se na něj ptají u každého postu a
+        // prázdný seznam má vlastní význam („piš bez čísel"), který musí být čitelný.
+        brandFacts: config.brandFacts || [],
+        // Faktická brána — default ZAPNUTO. Vypnutí je vědomé rozhodnutí klienta, ne
+        // vedlejší efekt configu, který o poli ještě neví.
+        factCheck: config.factCheck ?? true,
+        // Posuvník opatrnosti. Starý boolean zůstává zdrojem jen pro klienty, kteří
+        // ho stihli vypnout — jinak vyhrává mode. Neznámá hodnota spadne na default,
+        // ne do pipeline: brána větví podle režimu a nesmí dostat nesmysl.
+        factCheckMode: (["off", "safe", "balanced", "bold"] as const).includes(config.factCheckMode as never)
+            ? config.factCheckMode
+            : config.factCheck === false ? "off" : "balanced",
         ctaStrategies: config.ctaStrategies || { soft: [], medium: [], hard: [], none: [] },
         feedAesthetic: config.feedAesthetic || {
             colorPalette: "Neutrální",
@@ -217,6 +260,10 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // Grid rhythm. Clamped, not defaulted-through: engine code indexes ARCHETYPE_GROUPS by
         // the derived visual mode, so a garbage value must never reach it.
         feedPattern: isFeedPattern(config.feedPattern) ? config.feedPattern : "none",
+        // Kolik smí být na obrázcích vymyšleno. Clamp, ne default-through: engine
+        // podle hodnoty větví prompt i roli referenčních fotek, takže se k němu
+        // nesmí dostat nic mimo tři známé stavy.
+        photoPolicy: isPhotoPolicy(config.photoPolicy) ? config.photoPolicy : "free",
         weekPlan: config.weekPlan || [],
         // Real posting cadence drives content-plan length (duration × postsPerWeek). Clamp to a
         // sane 1–14 (14 = 2×/day; must match distributeSchedule's MAX_POSTS_PER_WEEK) and
@@ -250,6 +297,9 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // igBaseline is optional with no default — undefined means "no scrape
         // data available" and all consumers (planWeek) must handle that.
         igBaseline: config.igBaseline,
+        // Souhlas klienta s ukázkou ve výloze. Default false — publikovat cizí značku
+        // se souhlasem, který nikdo nedal, je horší než ji neukázat vůbec.
+        isCaseStudy: config.isCaseStudy === true,
     })
 }
 

@@ -50,7 +50,7 @@ export type Block =
         highlight?: boolean
     }
     /** Hranatý čip se slevovým kódem. */
-    | { type: "promoCode"; code: string; note?: string }
+    | { type: "promoCode"; code: string; note?: string; label?: string }
     | { type: "stats"; items: { label: string; value: string }[] }
     | { type: "quote"; text: string; author?: string }
     /** Drobný text pod čarou — sem patří `vatNotice()`. */
@@ -79,7 +79,13 @@ export const spacer = (size: "sm" | "md" | "lg" = "md"): Block => ({ type: "spac
 export const image = (src: string, alt: string, width?: number, href?: string): Block =>
     ({ type: "image", src, alt, width, href })
 export const cards = (items: CardItem[]): Block => ({ type: "cards", cards: items })
-export const promoCode = (code: string, note?: string): Block => ({ type: "promoCode", code, note })
+/**
+ * Kód v rámečku. `label` říká, CO to je za kód — výchozí „Slevový kód" platí pro
+ * akce, ale pozvánka ani předání značky žádnou slevu nenesou a nadpis o slevě
+ * v nich působí jako podvod. (Zákazník se na to zeptal.)
+ */
+export const promoCode = (code: string, note?: string, label?: string): Block =>
+    ({ type: "promoCode", code, note, label })
 export const stats = (items: { label: string; value: string }[]): Block => ({ type: "stats", items })
 export const quote = (text: string, author?: string): Block => ({ type: "quote", text, author })
 export const footnote = (text: string): Block => ({ type: "footnote", text })

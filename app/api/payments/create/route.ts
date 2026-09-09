@@ -12,7 +12,7 @@ import supabaseAdmin from "@/supabase/admin"
 import { createPayment, generateRefId, isMockPaymentMode, isRecurringEnabled } from "@/lib/comgate"
 import { activeGateway, createStripeCheckout, paymentLabel } from "@/lib/payments/checkout"
 import { enqueueTask } from "@/lib/agent-runner"
-import { CONSULTATION, EXTRA_CREDIT_HALERU, creditPackPrice, normalizeTermMonths, parseCreditPack, termPrice } from "@/lib/pricing"
+import { CONSULTATION, EXTRA_CREDIT_HALERU, chargeableHaleru, creditPackPrice, normalizeTermMonths, parseCreditPack, termPrice } from "@/lib/pricing"
 
 /**
  * Cena jednoho dokoupeného kreditu podle TARIFU klienta.
@@ -78,11 +78,14 @@ export async function POST(req: NextRequest) {
         // Get payer email from user_clients → auth.users if not provided
         let payerEmail = email
         if (!payerEmail) {
+            // Stejné řazení jako `getOwnerEmail` — po předání značky má klient
+            // dva vlastníky a plátce nesmí určovat pořadí řádků v Postgresu.
             const { data: link } = await supabaseAdmin
                 .from("user_clients")
                 .select("user_id")
                 .eq("client_id", client.id)
                 .eq("role", "owner")
+                .order("created_at", { ascending: false })
                 .limit(1)
                 .single()
             if (link) {
@@ -157,7 +160,11 @@ export async function POST(req: NextRequest) {
         const refId = generateRefId(client.slug)
         // U tarifu je `price_czk` MĚSÍČNÍ cena a cena období z ní vzniká tady,
         // jednou, sdíleným pravidlem. Služba se platí celá a období nemá.
-        const amount = isService || creditPack ? plan.price_czk : termPrice(plan.price_czk, termMonths)
+        const netAmount = isService || creditPack ? plan.price_czk : termPrice(plan.price_czk, termMonths)
+        // Ceník je bez DPH (B2B), brána musí strhnout částku včetně daně.
+        // `payments.amount` proto drží HRUBOU částku — je to jediné číslo, které
+        // se dá porovnat s výpisem z brány i s dokladem.
+        const amount = chargeableHaleru(netAmount)
         // Do `payments.label` jde plný popisek (skončí jako položka na dokladu),
         // do ComGate až jeho 40znakový ořez.
         const label = isService ? `Chrlit — ${CONSULTATION.name}`

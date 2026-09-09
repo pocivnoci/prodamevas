@@ -31,12 +31,28 @@ export function isPortfolioVisible(post: PortfolioPost): boolean {
 }
 
 /**
- * Značky s jenom viditelnými příspěvky. Značka, ze které by nezbylo nic,
- * vypadne celá — prázdný profil neprodává a v sitemapě by byl slepý odkaz.
+ * Kolik příspěvků musí značce zbýt, aby stálo za to ji ukazovat.
+ *
+ * Prázdná značka vypadávala vždycky. Jenže od chvíle, kdy z výlohy vypadávají
+ * i příspěvky označené faktickou bránou (viz scripts/export-portfolio.ts), je
+ * reálný i stav „zbyl jeden" — a profil s jedinou dlaždicí prodává hůř než
+ * žádný: vypadá jako rozdělaná práce, ne jako ukázka.
+ */
+export const PORTFOLIO_MIN_POSTS = 3
+
+/**
+ * Značky s jenom viditelnými příspěvky. Značka, které by zbylo míň než
+ * PORTFOLIO_MIN_POSTS, vypadne celá — poloprázdný profil neprodává a v sitemapě
+ * by byl slabý odkaz.
  */
 export const PORTFOLIO_VISIBLE_BRANDS: PortfolioBrand[] = PORTFOLIO_BRANDS
     .map(brand => ({ ...brand, posts: brand.posts.filter(isPortfolioVisible) }))
-    .filter(brand => brand.posts.length > 0)
+    .filter(brand => brand.posts.length >= PORTFOLIO_MIN_POSTS)
 
-export { PORTFOLIO_DISCLAIMER } from "./portfolio-data"
+/** Vztah ke značce; chybějící hodnota je přísnější „concept" (starší exporty). */
+export function portfolioRelationship(brand: PortfolioBrand): "concept" | "client" {
+    return brand.relationship === "client" ? "client" : "concept"
+}
+
+export { PORTFOLIO_DISCLAIMER, PORTFOLIO_CLIENT_NOTE, PORTFOLIO_MIXED_DISCLAIMER } from "./portfolio-data"
 export type { PortfolioBrand, PortfolioPost, PortfolioMediaType } from "./portfolio-data"

@@ -1,11 +1,12 @@
 import Link from "next/link"
+import { CONTACT_HREF } from "@/lib/cta"
 
 /**
  * Minimal marketing header for non-home public pages (blog, terms, privacy).
  * The homepage has its own animated `motion.header`; these static subpages had
  * only a lone "back" text link (QA #11), leaving no path into the main nav.
  *
- * Section links point at the homepage anchors (`/#…`); on click Next soft-navigates
+ * Section links point at the homepage anchors (`/#…`; the final CTA via `CONTACT_HREF`); on click Next soft-navigates
  * home and scrolls to the section. The splash won't replay on that nav — the root
  * layout marks it seen for the session (QA #9).
  */
@@ -33,8 +34,12 @@ export function SiteHeader() {
                     <Link href="/login" className="text-[10px] font-bold uppercase tracking-widest text-white/50 hover:text-white transition-colors hidden sm:block">
                         Přihlásit se
                     </Link>
-                    <Link href="/#waitlist" className="inline-flex items-center gap-2 text-[10px] font-bold px-5 py-2.5 bg-white/10 hover:bg-white text-white hover:text-black rounded-sm transition-all uppercase tracking-widest">
-                        Připojit se
+                    {/* Text musí sedět na OBA stavy brány bety: kotva vede do
+                        heru landingu, kde je podle brány buď registrace, nebo
+                        kontaktní formulář. Podstránka o bráně neví (a vědět
+                        nemá — je statická, stav by měla zapečený z buildu). */}
+                    <Link href={CONTACT_HREF} className="inline-flex items-center gap-2 text-[10px] font-bold px-5 py-2.5 bg-white/10 hover:bg-white text-white hover:text-black rounded-sm transition-all uppercase tracking-widest">
+                        Mám zájem
                     </Link>
                 </div>
             </div>

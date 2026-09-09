@@ -8,12 +8,17 @@ import { hasBillingDetails, cancelSubscription, resumeSubscription, billingPorta
 import { BillingModal } from "./BillingSection"
 import { Hint, HINTS } from "./Hint"
 import { CreditPacks } from "@/app/(dashboard)/CreditPacks"
+import { LEGAL, vatNotice } from "@/lib/legal"
+
+/** U plátce DPH nesmí cena v ceníku vypadat jako konečná. U neplátce je prázdné. */
+const vatSuffix = LEGAL.vatStatus === "payer" ? " bez DPH" : ""
 import { CheckCircle2, Clock } from "lucide-react"
 import { creditExample } from "@/lib/credits"
 import { useEffect, useState } from "react"
 import {
     BILLING_TERMS,
     DEFAULT_TERM_MONTHS,
+    chargeableHaleru,
     formatCzk,
     formatCzkAmount,
     getTerm,
@@ -343,13 +348,20 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                                     sdílené pravidlo, ať ceník a strh nikdy nemluví jinak. */}
                                 <div className="mb-1">
                                     <span className="text-3xl font-black text-white">{formatCzkAmount(monthlyEquivalent(plan.price_czk, term))}</span>
-                                    <span className="text-white/40 text-[10px] font-bold ml-1">Kč/měs</span>
+                                    <span className="text-white/40 text-[10px] font-bold ml-1">Kč/měs{vatSuffix}</span>
                                 </div>
                                 <p className="text-[9px] text-white/30 font-bold mb-1">
                                     {term === 1
                                         ? getTerm(term).note
                                         : `${formatCzk(termPrice(plan.price_czk, term))} jednorázově ${termLabel(term)}`}
                                 </p>
+                                {/* Kolik reálně odejde z karty. U plátce DPH musí být
+                                    hrubá částka vidět TADY, u tlačítka — ne až na dokladu. */}
+                                {vatSuffix && (
+                                    <p className="text-[9px] text-white/25 font-bold mb-1">
+                                        {formatCzk(chargeableHaleru(termPrice(plan.price_czk, term)))} s DPH {term === 1 ? "měsíčně" : `za ${termLabel(term)}`}
+                                    </p>
+                                )}
                                 <p className="text-[9px] font-bold mb-3 h-3">
                                     {termSavings(plan.price_czk, term) > 0 && (
                                         <span className="text-emerald-400">Ušetříte {formatCzk(termSavings(plan.price_czk, term))}</span>
@@ -400,6 +412,10 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                     })}
                 </div>
             )}
+            {/* Věta o DPH patří pod ceník, ne jen do obchodních podmínek: cena bez
+                upřesnění vypadá u plátce jako konečná a zákazník pak na výpisu
+                najde o pětinu víc. */}
+            <p className="text-center mt-3 text-[9px] text-white/20 font-bold uppercase tracking-widest">{vatNotice()}</p>
         </div>
     )
 }
