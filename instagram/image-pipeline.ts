@@ -142,10 +142,15 @@ export interface ProductBriefInfo {
     hasReferencePhoto: boolean
 }
 
-/** User's own uploaded photo — the mandatory photographic base of this exact post. */
+/** Reálná fotka, na které post STOJÍ — buď nahraná k tomuhle postu, nebo (podle
+ *  `config.photoPolicy`) vybraná z fotek značky. */
 export interface UserPhotoBriefInfo {
     /** Vision-generated factual description of the photo (the designer is text-only and never sees it) */
     description?: string
+    /** Odkud fotka je. Mění jedinou větu — pravidla platí pro obojí stejně, ale
+     *  „nahráli jste ji k tomuhle postu" o fotce z knihovny značky je nepravda,
+     *  a nepravdami v promptu se model řídí stejně ochotně jako pravdami. */
+    source?: "post" | "brand"
 }
 
 /** Shared user-photo block for designer prompts (single image AND carousel cover).
@@ -157,7 +162,9 @@ function buildUserPhotoSection(userPhoto?: UserPhotoBriefInfo, target: "post" | 
     return `
 
 ## 📷 CLIENT'S OWN PHOTO — MANDATORY VISUAL BASE OF THIS ${noun}:
-The client uploaded their OWN photo to be used in this exact ${shortNoun}. It is attached to the render call as a reference image labeled "CLIENT photo".
+${userPhoto.source === "brand"
+    ? `This brand insists on its OWN real photography. One of the brand's real photos was picked for this ${shortNoun} and is attached to the render call as a reference image labeled "CLIENT photo".`
+    : `The client uploaded their OWN photo to be used in this exact ${shortNoun}. It is attached to the render call as a reference image labeled "CLIENT photo".`}
 ${userPhoto.description ? `What the photo shows: ${userPhoto.description}` : ""}
 - Your composition MUST be built FROM this photo — describe how to use it whole as the base scene, or which part/crop of it to feature. NEVER invent a replacement scene.
 - Creative freedom applies to grading, cropping, typography and graphic elements layered ON the photo — never to replacing its real content (people, place, subject stay as photographed).`
@@ -274,7 +281,9 @@ export async function generateDesignBrief(params: {
     const effectiveBans = banned.filter(a => archetypePool.includes(a) && !allowedArchetypes.includes(a))
     const fa = config.feedAesthetic
     const memSection = params.visualMemoriesSection ?? await getVisualMemoriesSection(clientId)
-    const fidelitySection = buildPhotoFidelitySection(config)
+    // Sekce ví, jestli k tomuhle renderu opravdu leží reálná fotka jako základ —
+    // zákaz vymýšlení scény platí jen tehdy, když žádná není.
+    const fidelitySection = buildPhotoFidelitySection(config, Boolean(params.userPhoto))
 
     const designerPrompt = `
 You are a world-class Instagram art director designing a COMPLETE post visual.

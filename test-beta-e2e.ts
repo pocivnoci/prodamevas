@@ -4876,6 +4876,50 @@ test("38.5 identita se nesmí přenést z minulého přihlášení", () => {
     }
 })
 
+test("38.6 „jen moje fotky“ musí dojít až k modelu, ne skončit v nastavení", () => {
+    // Přepínač, který se nikde neprojeví, je horší než žádný: zákazník podle něj
+    // čeká svoje fotky a dostane vymyšlené. Cesta je config → clamp → výběr
+    // referencí → prompt → vizuální kontrola, a každý článek se dá zapomenout.
+    const lib = codeOnly("lib/photo-policy.ts")
+    assert(/export type PhotoPolicy/.test(lib) && /only-real/.test(lib),
+        "stupně musí žít v lib/, ne v komponentě — čte je UI i engine")
+
+    // Clamp: enginový kód podle hodnoty větví, takže se k němu nesmí dostat nic jiného.
+    const cfg = codeOnly("instagram/configs/index.ts")
+    assert(/photoPolicy: isPhotoPolicy\(config\.photoPolicy\) \? config\.photoPolicy : "free"/.test(cfg),
+        "validateConfig musí photoPolicy clampovat s výchozím „free“")
+
+    // Reálná fotka se povyšuje na ZÁKLAD postu, ne na další referenci ve frontě.
+    const orch = codeOnly("instagram/orchestrators/image-orchestrator.ts")
+    assert(/export async function resolveBasePhoto/.test(orch), "výběr základní fotky musí být sdílený")
+    const resolve = orch.slice(orch.indexOf("export async function resolveBasePhoto"))
+    const body = resolve.slice(0, resolve.indexOf("\n}\n") + 3)
+    assert(body.indexOf("loadUserPhoto") < body.indexOf("prefersRealPhotos"),
+        "fotka nahraná k postu má přednost před fotkou z knihovny značky")
+    assert(/if \(!prefersRealPhotos/.test(body),
+        "bez nastavení se fotka značky povyšovat NESMÍ — chování ostatních značek se nemění")
+    assert(/BASE_PHOTO_LABEL/.test(body),
+        "povýšená fotka musí nést týž popisek jako nahraná — prompt i QA se na něj odkazují doslova")
+    assert(/isRealSubjectRef/.test(body), "základem smí být jen reference skutečné věci nebo místa")
+    const isReal = orch.slice(orch.indexOf("function isRealSubjectRef"))
+    assert(!/REAL PERSON/.test(isReal.slice(0, isReal.indexOf("\n}\n"))),
+        "portrét se za povinný základ brát nesmí — jinak by byl každý post portrét")
+
+    // Všechna tři média, ne jen jedno: karusel i storka mají vlastní orchestrátor.
+    for (const file of ["image-orchestrator", "carousel-orchestrator", "story-orchestrator"]) {
+        assert(/resolveBasePhoto/.test(codeOnly(`instagram/orchestrators/${file}.ts`)),
+            `${file} musí základní fotku řešit stejně`)
+    }
+    // Storka si reference stahovala jen kvůli produktu — bez tohohle by neměla z čeho vybírat.
+    assert(/prefersRealPhotos\(config\)/.test(codeOnly("instagram/orchestrators/story-orchestrator.ts")),
+        "storka musí reference načíst i tehdy, když produkt není a značka chce vlastní fotky")
+
+    // Nastavení musí být dosažitelné a nesmí si popisky psát po svém.
+    const ui = codeOnly("app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx")
+    assert(/PHOTO_POLICY_OPTIONS/.test(ui) && /updateField\(\["photoPolicy"\]/.test(ui),
+        "Nastavení musí přepínač nabídnout a ukládat ho do configu")
+})
+
 // ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
