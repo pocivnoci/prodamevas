@@ -12,6 +12,8 @@ import { SubscriptionSection } from "./SubscriptionSection"
 import { BillingSection } from "./BillingSection"
 import { ConsultationSection } from "./ConsultationSection"
 import { FEED_PATTERNS, computeSlotIntent, type FeedPatternId } from "@/lib/feed-pattern"
+import { PHOTO_POLICY_OPTIONS } from "@/lib/photo-policy"
+import { getConfigBrandImages } from "@/instagram/configs/types"
 import { Hint, HINTS } from "./Hint"
 import { FACT_CHECK_MODES, factCheckModeIndex } from "@/lib/fact-check-modes"
 import { getPublishOutlook, armAutoPublishNow, type PublishOutlook } from "@/app/actions/calendar-actions"
@@ -1412,6 +1414,9 @@ function VisualSection({ config, updateField, handleLogoUpload, logoUploading, p
     >(null)
     const [analyzeError, setAnalyzeError] = useState<string | null>(null)
     const igHandle = String(config.instagram || "").replace(/^@+/, "").trim()
+    // „Přednost mým fotkám" bez jediné nahrané fotky nemá čeho se chytit — a mlčet
+    // o tom je horší než to říct: zákazník by čekal svoje fotky a dostal vymyšlené.
+    const hasBrandPhotos = getConfigBrandImages(config).length > 0
 
     const handleAnalyzeFeed = async () => {
         setAnalyzing(true)
@@ -1511,6 +1516,41 @@ function VisualSection({ config, updateField, handleLogoUpload, logoUploading, p
                 <p className="text-[9px] text-white/25 mt-3 leading-relaxed">
                     Vzor určuje jen <strong className="text-white/40">rodinu</strong> layoutu pro každou pozici v mřížce — uvnitř ní se posty
                     pořád liší kompozicí, výřezem i typografií. Nastavení platí pro všechny nové posty (kampaň i jednotlivé).
+                </p>
+            </SectionCard>
+
+            <SectionCard
+                title="Odkud berou posty fotky"
+                description="Kdy smí AI scénu vymyslet a kdy musí stát na vaší skutečné fotce"
+            >
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {PHOTO_POLICY_OPTIONS.map(o => {
+                        const active = (config.photoPolicy || "free") === o.id
+                        return (
+                            <button
+                                key={o.id}
+                                onClick={() => updateField(["photoPolicy"], o.id)}
+                                className={`text-left p-4 rounded-sm border transition-all ${active
+                                    ? "border-aisummit-cinnabar/50 bg-aisummit-cinnabar/10"
+                                    : "border-white/5 bg-[#0a0a0a] hover:border-white/20"}`}
+                            >
+                                <p className={`text-[10px] font-bold uppercase tracking-widest ${active ? "text-aisummit-cinnabar" : "text-white/60"}`}>
+                                    {o.label}
+                                </p>
+                                <p className="text-[9px] text-white/30 mt-1.5 leading-relaxed">{o.description}</p>
+                            </button>
+                        )
+                    })}
+                </div>
+                <p className="text-[9px] text-white/25 mt-3 leading-relaxed">
+                    Vaše fotky nahrajete v sekci <strong className="text-white/40">Fotky značky</strong>. Čím víc jich je a čím lépe
+                    jsou oštítkované, tím častěji se engine trefí do fotky, která k postu sedí. Text a logo se do fotky
+                    dokreslují vždycky — omezuje se <strong className="text-white/40">vymýšlení scény</strong>, ne grafika.
+                    {(config.photoPolicy === "prefer-real" || config.photoPolicy === "only-real") && !hasBrandPhotos && (
+                        <span className="block mt-2 text-amber-400/80 font-bold">
+                            Zatím nemáte nahranou ani jednu fotku značky — do té doby se nastavení nemá čeho chytit.
+                        </span>
+                    )}
                 </p>
             </SectionCard>
 

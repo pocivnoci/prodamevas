@@ -24,7 +24,8 @@ import {
     STORY_SAFE_ZONE_RULE,
 } from "../image-pipeline"
 import { loadLogo } from "../logo-loader"
-import { loadReferenceImages, loadUserPhoto } from "./image-orchestrator"
+import { prefersRealPhotos } from "../../lib/photo-policy"
+import { loadReferenceImages, resolveBasePhoto } from "./image-orchestrator"
 import { COSTS, getPostTypeDef } from "../caption-generator"
 import { getModel } from "../models"
 import { withRetry } from "../../utils/retry"
@@ -72,8 +73,14 @@ async function renderStoryNative(ctx: RenderContext): Promise<RenderResult | nul
 
     // Product reference photo — loaded BEFORE the briefs so the designer knows the real
     // product exists, and attached to EVERY frame so any depiction stays faithful.
+    //
+    // Reference se načtou i tehdy, když produkt není, ale značka chce stavět na
+    // vlastních fotkách (`photoPolicy`) — jinak by se pro storku neměl z čeho
+    // vybrat základ. Jinak se stažení jako dřív přeskočí.
+    const needsRefs = Boolean(selectedProduct) || prefersRealPhotos(config)
+    const allRefs = needsRefs ? await loadReferenceImages(ctx) : []
     const productRef = selectedProduct
-        ? (await loadReferenceImages(ctx)).find(r => r.label?.startsWith("EXACT product photo")) || null
+        ? allRefs.find(r => r.label?.startsWith("EXACT product photo")) || null
         : null
     const productInfo = selectedProduct ? {
         name: selectedProduct.name,
@@ -82,9 +89,11 @@ async function renderStoryNative(ctx: RenderContext): Promise<RenderResult | nul
         hasReferencePhoto: Boolean(productRef),
     } : undefined
 
-    // User's own photo — becomes the mandatory visual base of the FIRST frame.
-    const userPhotoRef = await loadUserPhoto(ctx.userPhotoUrl)
-    const userPhotoInfo = userPhotoRef ? { description: ctx.userPhotoDescription } : undefined
+    // Základ prvního snímku: fotka nahraná k postu, nebo — podle `photoPolicy`
+    // značky — její vlastní reálná fotka.
+    const base = await resolveBasePhoto(ctx, allRefs)
+    const userPhotoRef = base?.ref ?? null
+    const userPhotoInfo = base ? { description: base.description, source: base.source } : undefined
 
     await report("art_director", 52, "🎨 AI Designer navrhuje design systém storky...")
     const typeDef = getPostTypeDef(config, selectedType.name)
