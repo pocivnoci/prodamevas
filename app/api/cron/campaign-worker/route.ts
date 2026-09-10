@@ -152,7 +152,7 @@ export async function GET(req: Request) {
     }
 
     const {
-        canPerformAction, incrementPlanPostCount, deductCredits, refundJobCharge, reconcileJobCharge,
+        canPerformAction, incrementPlanPostCount, reserveCredits, refundJobCharge, reconcileJobCharge,
         getClientSubscription, creditsForMedia,
     } = await import("@/lib/subscription")
 
@@ -173,7 +173,12 @@ export async function GET(req: Request) {
         }
     } catch { /* non-fatal — continuity is best-effort */ }
 
-    const allowedMedia = (await getClientSubscription(clientId))?.features?.allowed_media
+    // Jedno čtení předplatného pro celý běh: `allowed_media` rozhoduje o clampu
+    // média, `credits_per_month` je příděl, proti kterému rezervace počítá zůstatek
+    // (samotný odpočet i dobití si dopočítá SQL funkce pod zámkem).
+    const workerSub = await getClientSubscription(clientId)
+    const allowedMedia = workerSub?.features?.allowed_media
+    const monthlyCredits = workerSub?.features?.credits_per_month ?? 0
 
     // ── Independent lease heartbeat ──────────────────────────────────────────
     // onProgress only fires BETWEEN pipeline stages; a single stage (withQualityRetry
@@ -349,11 +354,35 @@ export async function GET(req: Request) {
 
             if (!job) { failures++; cursor++; await persist(); continue }
 
-            // Charge now (idempotent via reference_id = job.id), refund on failure.
+            // Účtuje se hned (idempotentně přes reference_id = job.id), při selhání
+            // se vrací.
+            //
+            // Kredity jdou přes `reserveCredits`, ne `deductCredits`: `canPerformAction`
+            // výš zůstatek jen PŘEČETL a od té chvíle uběhne insert jobu. Souběžná
+            // kampaň téhož klienta nebo generování z „Tvorby" mezitím přečte totéž
+            // a oba projdou. `reserveCredits` kontrolu i zápis udělá pod zámkem na
+            // klienta, takže druhý běh uvidí, co si vzal ten první. Kontrola nad tím
+            // přesto zůstává — rozhoduje o tarifu, plánových příspěvcích a expiraci,
+            // tedy o věcech, které rezervace nezná.
             try {
                 if (ADMIN_BYPASS) { /* no charge under admin bypass */ }
                 else if (isPlanPost) await incrementPlanPostCount(clientId)
-                else await deductCredits(clientId, "post", `Post (kampaň ${campaign.id})`, job.id, chargedCredits)
+                else {
+                    const reservation = await reserveCredits({
+                        clientId,
+                        action: "post",
+                        credits: chargedCredits,
+                        monthly: monthlyCredits,
+                        description: `Post (kampaň ${campaign.id})`,
+                        referenceId: job.id,
+                    })
+                    if (!reservation.reserved) {
+                        await supabaseAdmin.from("ig_jobs").delete().eq("id", job.id)
+                        stopReason = "no_credits"
+                        stopDetail = `Nedostatek kreditů pro pokračování. Potřebujete ${chargedCredits}, zbývá ${Math.max(0, reservation.remaining)}.`
+                        break
+                    }
+                }
             } catch {
                 await supabaseAdmin.from("ig_jobs").delete().eq("id", job.id)
                 failures++; cursor++; await persist(); continue

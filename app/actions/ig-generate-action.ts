@@ -518,7 +518,8 @@ const PLACEHOLDER_HOOKS = [
 /**
  * Create 27 fake plan_locked posts from config — ZERO AI cost.
  * Uses client's post types + pillars to look realistic when blurred.
- * The 3 showcase posts are generated separately via generateShowcasePost().
+ * The 3 showcase posts run separately as the durable showcase campaign
+ * (startOnboardingBootstrap → campaign-worker), not from here.
  */
 export async function generateMonthlyPlan(options: {
     configName: string
@@ -602,35 +603,5 @@ export async function generateMonthlyPlan(options: {
     } catch (err: any) {
         console.error("generateMonthlyPlan error:", err?.message || err)
         return { success: false, postsCreated: 0, error: (err?.message || String(err)).substring(0, 500) }
-    }
-}
-
-// ============================================
-// SHOWCASE POST (full autopilot — used after onboarding)
-// ============================================
-
-/**
- * Generate 1 full post via autopilot (caption + image + overlay).
- * Called 3 times from onboarding to create showcase posts. Posts stay in the
- * normal "draft" status so they enter the standard approval pipeline (the old
- * "plan_draft" status had no approve path, no filter chip, and wasn't counted
- * in dashboard stats — a brand-new account looked empty despite 3 real posts).
- * Each call is a separate server action to avoid timeout issues (~30-60s each).
- */
-export async function generateShowcasePost(options: {
-    configName: string
-}): Promise<{ success: boolean; postId?: string; error?: string }> {
-    try {
-        // Membership check — must own the target client, not just be logged in.
-        // (Without this, a stale/colliding slug wrote posts into another tenant.)
-        await requireProjectAccess(options.configName)
-        const { generateOnePost } = await import("@/instagram/autopilot")
-
-        const result = await generateOnePost({ configName: options.configName })
-
-        return { success: true, postId: result.id }
-    } catch (err: any) {
-        console.error("generateShowcasePost error:", err?.message || err)
-        return { success: false, error: (err?.message || String(err)).substring(0, 300) }
     }
 }
