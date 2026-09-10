@@ -176,11 +176,30 @@ function main() {
     check("fotka se zmenší v prohlížeči, než se odešle",
         /shrinkForUpload/.test(tab),
         "8MB fotka z telefonu trhá bodySizeLimit a táhne se desítky sekund")
-    check("nahrává se paralelně, ne jedna po druhé", /CONCURRENCY/.test(tab))
+    // POZOR: tohle NEZNAMENÁ paralelní upload. Next.js server actions z jednoho
+    // klienta se řadí do fronty (naměřeno: osm fotek po ~6 s za sebou). Smyčka je
+    // tu proto, aby se zmenšování obrázku v prohlížeči překrývalo s čekáním na server.
+    check("nahrávání běží ve smyčce, ne jedním blokujícím průchodem", /CONCURRENCY/.test(tab))
     check("uživatel vidí, kolikátá fotka se nahrává", /progress\.total/.test(tab),
         "ukazatel bez čísel se po minutě nedá odlišit od zaseknutého programu")
     check("částečný neúspěch se přizná (`Nahráno X z Y`)", /Nahráno \$\{successCount\} z/.test(tab),
         "dřív se ukázala jen poslední chyba, takže 3 z 5 vypadaly jako úspěch")
+
+    // Naměřeno na produkci: osm fotek bylo ve storage i v konfiguraci, a přesto se
+    // na obrazovce točilo kolečko dál — `setUploading(false)` stálo za
+    // `await loadImages()` bez try/finally, takže ho jediná odmítnutá server action
+    // přeskočila. Ukazatel průběhu nesmí viset na tom, že poslední krok dopadne dobře.
+    const vypnutiUkazatele = tab.match(/\} finally \{[\s\S]{0,200}?setUploading\(false\)/)
+    check("kolečko nahrávání se vypíná ve `finally`, ne na šťastné cestě",
+        !!vypnutiUkazatele,
+        "bez finally přežije ukazatel dokončenou práci a vypadá to jako zásek")
+    check("i načtení seznamu vypíná své kolečko ve `finally`",
+        /\} finally \{\s*setLoading\(false\)/.test(tab))
+    check("selhání dotažení seznamu neshodí celé nahrání",
+        /seznam se nepodařilo načíst/.test(tab))
+    check("fotka se objeví v mřížce hned, ne až na konci dávky",
+        /setImages\(prev => prev\.some/.test(tab),
+        "server actions jedou po jedné — bez průběžného doplňování je to minuta u kolečka")
 
     const cfg = fs.readFileSync(path.join(root, "next.config.ts"), "utf-8")
     const limitMb = Number(cfg.match(/bodySizeLimit:\s*"(\d+)mb"/)?.[1] ?? 0)
