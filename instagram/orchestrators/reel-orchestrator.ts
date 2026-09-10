@@ -43,12 +43,12 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
         // Týž výběr jako u obrázků (`brand-photo-match.ts`) — dvě kopie skórování
         // znamenaly, že se oprava jedné cesty do druhé nikdy nepropsala.
         // Veo bere nejvýš tři reference (`generateVideo` je ořezává), takže tři.
-        const { picks: topPicks, matched } = pickBrandPhotos(
+        const { picks: topPicks, mode } = pickBrandPhotos(
             brandRefObjects,
             [captionData.hook, captionData.scenes?.map(s => s.visual).join(" "), captionData.videoScript],
             3,
         )
-        if (!matched) console.log(`   🎲 Nic se netrefilo — náhodné fotky`)
+        if (mode === "random") console.log(`   🎲 Nic se netrefilo — náhodné fotky`)
 
         for (const ref of topPicks) {
             try {

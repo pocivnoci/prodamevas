@@ -86,9 +86,11 @@ export function BrandTab({ projectId }: { projectId: string }) {
      *      trhá a uživatel dostal nesrozumitelnou chybu.
      *   2. Osmimegová fotka se po drátě táhne desítky sekund. Server ji stejně
      *      hned zmenší na 2048 px, takže se ta data přenášejí zbytečně.
-     *   3. Na iPhonu canvas HEIC dekódovat UMÍ (systémovým kodekem), zatímco
-     *      sharp na serveru ne. Převodem na JPEG tady projdou i fotky, které
-     *      dřív skončily hláškou „pošli to jako JPG“.
+     *   3. Tam, kde prohlížeč HEIC dekódovat umí (Safari na iPhonu má systémový
+     *      kodek, sharp na serveru ne), projde převodem na JPEG i fotka, která
+     *      dřív skončila hláškou „pošli to jako JPG“. Není to zaručené — na
+     *      Chromu HEIC nedekóduje nic a padá se do serverové hlášky jako dřív,
+     *      proto to UI neslibuje.
      *
      * Když cokoliv z toho selže, pošle se původní soubor — zmenšení je zrychlení,
      * ne podmínka.

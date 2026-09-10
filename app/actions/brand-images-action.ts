@@ -96,16 +96,22 @@ export async function uploadBrandImage(formData: FormData): Promise<{
         // „Prodejna Květiny nad Museem" místo „nějaký obchod". Onboarding ho
         // posílá odjakživa, ruční nahrání ne — tytéž fotky tak měly podle cesty
         // nahrání různě užitečný popis.
-        let brandImageObj: any = imageUrl  // fallback: just the URL string
+        //
+        // VŽDYCKY objekt, nikdy holé URL. Do 10. 9. 2026 tu při selhání štítkování
+        // zůstal `brandImageObj = imageUrl`, tedy prostý řetězec — legacy tvar,
+        // který čtení sneslo. Jenže `append_brand_image` hledá `p_image->>'url'`,
+        // což je nad JSON řetězcem NULL, takže funkce zápis odmítla a fotka
+        // skončila ve storage, ale do galerie se nikdy nedostala. A štítkování
+        // neselhává vzácně: stačí přetížený model nebo timeout.
+        const brandImageObj: BrandImage = { url: imageUrl, tags: [], description: '' }
         try {
             const { tagBrandImage } = await import('@/instagram/brand-tagger')
             const { data: brandRow } = await supabaseAdmin
                 .from('clients').select('name').eq('slug', clientSlug).maybeSingle()
             const { tags, description } = await tagBrandImage(buffer, 'image/jpeg', brandRow?.name || undefined)
-            if (tags.length > 0 || description) {
-                brandImageObj = { url: imageUrl, tags, description }
-            }
-        } catch { /* tagging failed, save as plain URL */ }
+            brandImageObj.tags = tags
+            brandImageObj.description = description
+        } catch { /* bez štítků, ale uložit se musí — dají se doplnit ručně */ }
 
         // Zápis do konfigurace je JEDNA atomická operace, ne přečti-uprav-zapiš.
         // Mezi čtením a zápisem stál celý sharp, upload a vision model — souběžné
@@ -148,7 +154,13 @@ async function appendBrandImage(clientId: string, image: unknown): Promise<numbe
         const row = Array.isArray(data) ? data[0] : data
         const total = Number(row?.total ?? -1)
         if (total < 0) {
-            console.error(`🚨 append_brand_image: klient ${clientId} nenalezen`)
+            // -1 znamená „klient neexistuje NEBO obrázek nenese url". Druhá možnost
+            // je chyba volajícího, tak ji přiznej — mlčky vrácené null vypadá jako
+            // problém databáze a poslalo by hledání špatným směrem.
+            const url = (image as { url?: string })?.url
+            console.error(url
+                ? `🚨 append_brand_image: klient ${clientId} nenalezen`
+                : `🚨 append_brand_image: obrázek pro ${clientId} nemá url — nezapsáno`)
             return null
         }
         if (row?.added === false) console.log(`↩️ Fotka už u klienta ${clientId} je — nepřidávám podruhé`)

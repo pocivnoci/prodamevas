@@ -408,15 +408,17 @@ export async function loadReferenceImages(ctx: RenderContext): Promise<RefImage[
         // porovnávala podřetězce nad syrovým textem: `bar` sedělo doprostřed
         // „barvy" a „koupelna" se netrefila do „koupelně". Na produkčních datech
         // se tím trefa zvedla ze 70 na 84 % příspěvků.
-        const { picks, matched } = pickBrandPhotos(
+        const { picks, mode } = pickBrandPhotos(
             brandRefObjects,
             [selectedType?.name, captionData?.hook, captionData?.body?.substring(0, 100), captionData?.imagePrompt],
             3,
         )
         let selectedRefs: { url: string; tags: string[]; description: string }[] = picks
-        console.log(matched
-            ? `   🎯 Chytrý výběr: ${picks.length} fotek podle štítků a popisu`
-            : `   🎲 Nic se netrefilo — ${picks.length} náhodných fotek`)
+        console.log({
+            matched: `   🎯 Chytrý výběr: ${picks.length} fotek podle štítků a popisu`,
+            all: `   📎 Značka má jen ${picks.length} fotek — berou se všechny`,
+            random: `   🎲 Nic se netrefilo — ${picks.length} náhodných fotek`,
+        }[mode])
 
         // Tvář značky přiloží VŽDYCKY, nikdy ji nenech na skórování. Skóre závisí
         // na tom, jestli se o člověku v příspěvku píše — jenže obličej se má držet
