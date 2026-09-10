@@ -20,7 +20,7 @@ export async function uploadBrandImage(formData: FormData): Promise<{
         const clientSlug = formData.get('clientSlug') as string
         if (!clientSlug) return { success: false, error: 'Chybí identifikace klienta' }
 
-        await requireProjectAccess(clientSlug)
+        const { clientId } = await requireProjectAccess(clientSlug)
 
         const category = (formData.get('category') as string) || 'brand'
 
@@ -28,8 +28,14 @@ export async function uploadBrandImage(formData: FormData): Promise<{
         if (!file.type.startsWith('image/')) {
             return { success: false, error: 'Podporovány jsou pouze obrázky (JPG, PNG, WebP, HEIC z iPhonu).' }
         }
-        if (file.size > 25_000_000) {
-            return { success: false, error: 'Obrázek je příliš velký (max 25 MB).' }
+        // Strop musí sedět s `serverActions.bodySizeLimit` v next.config.ts.
+        // Do 9/2026 tu stálo 25 MB, zatímco platforma pouští 10 — fotka mezi tím
+        // spadla dřív, než se tahle kontrola vůbec spustila, a uživatel dostal
+        // nesrozumitelnou chybu místo věty, co s tím. Prohlížeč navíc fotku
+        // zmenšuje ještě před odesláním (`shrinkForUpload` v BrandTabu), takže sem
+        // dorazí pár set kilobajtů; tohle je pojistka pro jiné cesty a starý kód.
+        if (file.size > 9_000_000) {
+            return { success: false, error: 'Obrázek je příliš velký (max 9 MB). Zkus ho zmenšit nebo poslat z počítače.' }
         }
 
         // Normalize EVERY upload (PC or phone): auto-rotate from EXIF, downscale,
@@ -50,8 +56,17 @@ export async function uploadBrandImage(formData: FormData): Promise<{
             return { success: false, error: 'Tuhle fotku nejde zpracovat (nejspíš HEIC z iPhonu). Pošli ji jako JPG, nebo na iPhonu zapni Nastavení → Fotoaparát → Formáty → „Nejkompatibilnější".' }
         }
 
-        const timestamp = Date.now()
-        const filename = `client-assets/${clientSlug}/${category}-${timestamp}.jpg`
+        // Název souboru z OBSAHU, ne z času.
+        //
+        // `Date.now()` znamenal, že tatáž fotka nahraná dvakrát vytvořila dva různé
+        // soubory a dva řádky v konfiguraci. A dvakrát ji nahraje každý, komu
+        // připadá, že se to zaseklo — což se přesně stalo (viz migrace
+        // 20260910_fotky_znacky_atomicky.sql). Otisk obsahu z toho dělá tutéž cestu,
+        // `upsert: true` přepíše týž soubor a `append_brand_image` položku nepřidá
+        // podruhé. Opakované nahrání je tím pádem no-op, ne duplicita.
+        const { createHash } = await import('crypto')
+        const fingerprint = createHash('sha256').update(buffer).digest('hex').slice(0, 32)
+        const filename = `client-assets/${clientSlug}/${category}-${fingerprint}.jpg`
 
         // Upload to Supabase storage (always JPEG after normalization)
         const { error: uploadError } = await supabaseAdmin.storage
@@ -92,34 +107,78 @@ export async function uploadBrandImage(formData: FormData): Promise<{
             }
         } catch { /* tagging failed, save as plain URL */ }
 
-        // Add to client config's brandReferenceImages
-        const { data: client, error: fetchError } = await supabaseAdmin
-            .from('clients')
-            .select('config')
-            .eq('slug', clientSlug)
-            .single()
-
-        if (fetchError || !client) {
-            return { success: true, imageUrl } // Image uploaded but config not updated
+        // Zápis do konfigurace je JEDNA atomická operace, ne přečti-uprav-zapiš.
+        // Mezi čtením a zápisem stál celý sharp, upload a vision model — souběžné
+        // nahrání mezitím přečetlo totéž pole a přepsalo ho svým, takže fotka buď
+        // zmizela, nebo se objevila dvakrát. Detail v hlavičce migrace.
+        const added = await appendBrandImage(clientId, brandImageObj)
+        if (added === null) {
+            return { success: true, imageUrl } // nahráno, ale konfigurace se nedopsala
         }
 
-        const config = client.config as any
-        const { getConfigBrandImageObjects } = await import('@/instagram/configs/types')
-        const existingRefs = getConfigBrandImageObjects(config)
-        const updatedRefs = [...existingRefs, brandImageObj]
-
-        await supabaseAdmin
-            .from('clients')
-            .update({
-                config: { ...config, brandReferenceImages: updatedRefs }
-            })
-            .eq('slug', clientSlug)
+        // Engine drží konfiguraci v paměti 60 s. Bez tohohle by se čerstvě nahraná
+        // fotka do nejbližších příspěvků nedostala — a právě proto ji člověk nahrál.
+        const { invalidateConfigCache } = await import('@/instagram/configs')
+        invalidateConfigCache(clientSlug)
 
         return { success: true, imageUrl }
     } catch (error) {
         console.error('Upload error:', error)
         return { success: false, error: `Upload selhal: ${(error as Error).message}` }
     }
+}
+
+/**
+ * Přidá fotku do konfigurace klienta jako jednu atomickou, idempotentní operaci.
+ *
+ * Vrací nový počet fotek, nebo `null`, když se zápis nepovedl. Volající to smí
+ * spolknout: soubor už ve storage je a další nahrání ho doplní.
+ *
+ * **Degraduje bezpečně.** Když funkce v databázi ještě není (kód se nasazuje dřív
+ * než migrace), spadne to na dosavadní přečti-uprav-zapiš. To je pořád lepší než
+ * tvrdá chyba, ale závod v té chvíli trvá — proto se to hlásí do logu.
+ */
+async function appendBrandImage(clientId: string, image: unknown): Promise<number | null> {
+    const { data, error } = await supabaseAdmin.rpc('append_brand_image', {
+        p_client_id: clientId,
+        p_image: image,
+    })
+
+    if (!error) {
+        const row = Array.isArray(data) ? data[0] : data
+        const total = Number(row?.total ?? -1)
+        if (total < 0) {
+            console.error(`🚨 append_brand_image: klient ${clientId} nenalezen`)
+            return null
+        }
+        if (row?.added === false) console.log(`↩️ Fotka už u klienta ${clientId} je — nepřidávám podruhé`)
+        return total
+    }
+
+    // 42883 = funkce neexistuje, PGRST202 = PostgREST ji nenašel ve schématu.
+    if (error.code !== '42883' && error.code !== 'PGRST202') {
+        console.error(`🚨 append_brand_image selhalo (${error.code}): ${error.message}`)
+        return null
+    }
+    console.warn(
+        '⚠️ Funkce append_brand_image v databázi není — fotky se zapisují bez zámku a souběžné ' +
+        'nahrání se může přepsat. Spusť migraci 20260910_fotky_znacky_atomicky.sql.',
+    )
+
+    const { data: client } = await supabaseAdmin
+        .from('clients').select('config').eq('id', clientId).maybeSingle()
+    if (!client) return null
+    const config = client.config as any
+    const { getConfigBrandImageObjects } = await import('@/instagram/configs/types')
+    const existing = getConfigBrandImageObjects(config)
+    const url = (image as { url?: string })?.url
+    if (url && existing.some(i => i.url === url)) return existing.length
+    const updated = [...existing, image]
+    await supabaseAdmin
+        .from('clients')
+        .update({ config: { ...config, brandReferenceImages: updated } })
+        .eq('id', clientId)
+    return updated.length
 }
 
 /**

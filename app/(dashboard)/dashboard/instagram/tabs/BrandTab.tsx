@@ -20,6 +20,9 @@ export function BrandTab({ projectId }: { projectId: string }) {
     const [images, setImages] = useState<BrandImage[]>([])
     const [loading, setLoading] = useState(true)
     const [uploading, setUploading] = useState(false)
+    // Postup po jednotlivých fotkách — jeden ukazatel bez čísel se po minutě
+    // nedá odlišit od zaseknutého programu.
+    const [progress, setProgress] = useState({ done: 0, total: 0 })
     const [retagging, setRetagging] = useState(false)
     const [dragOver, setDragOver] = useState(false)
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -75,27 +78,98 @@ export function BrandTab({ projectId }: { projectId: string }) {
 
     useEffect(() => { loadImages() }, [loadImages])
 
+    /**
+     * Zmenši fotku JEŠTĚ V PROHLÍŽEČI, než se vůbec odešle.
+     *
+     * Tři důvody, každý z reálné stížnosti:
+     *   1. Server action má strop 10 MB (`bodySizeLimit`). Fotka z telefonu ho
+     *      trhá a uživatel dostal nesrozumitelnou chybu.
+     *   2. Osmimegová fotka se po drátě táhne desítky sekund. Server ji stejně
+     *      hned zmenší na 2048 px, takže se ta data přenášejí zbytečně.
+     *   3. Na iPhonu canvas HEIC dekódovat UMÍ (systémovým kodekem), zatímco
+     *      sharp na serveru ne. Převodem na JPEG tady projdou i fotky, které
+     *      dřív skončily hláškou „pošli to jako JPG“.
+     *
+     * Když cokoliv z toho selže, pošle se původní soubor — zmenšení je zrychlení,
+     * ne podmínka.
+     */
+    const shrinkForUpload = async (file: File): Promise<File> => {
+        try {
+            if (!file.type.startsWith('image/')) return file
+            const bitmap = await createImageBitmap(file)
+            const scale = Math.min(1, 2048 / Math.max(bitmap.width, bitmap.height))
+            const w = Math.round(bitmap.width * scale)
+            const h = Math.round(bitmap.height * scale)
+            const canvas = document.createElement('canvas')
+            canvas.width = w
+            canvas.height = h
+            const ctx = canvas.getContext('2d')
+            if (!ctx) return file
+            ctx.drawImage(bitmap, 0, 0, w, h)
+            bitmap.close?.()
+            const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/jpeg', 0.85))
+            if (!blob || blob.size === 0) return file
+            // Zvětšit se nesmí: u malého PNG loga umí JPEG vyjít větší než originál.
+            if (blob.size >= file.size && file.size < 2_000_000) return file
+            return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' })
+        } catch {
+            return file
+        }
+    }
+
     const handleUpload = async (files: FileList | null) => {
         if (!files || !projectId) return
+        const list = Array.from(files)
         setUploading(true)
         setMessage(null)
+        setProgress({ done: 0, total: list.length })
 
+        // Paralelně po třech, ne jedna po druhé.
+        //
+        // Každé nahrání = přenos souboru + sharp + storage + volání vision modelu,
+        // tedy klidně 10–20 s. Sériově z pěti fotek vyjde přes minutu jednoho
+        // ukazatele bez jakékoli zpětné vazby — a přesně u toho zákaznice usoudila,
+        // že se to zaseklo, a zkusila to znovu. Tři najednou drží dobu na délce té
+        // nejpomalejší a víc než tři by tlačily na strop souběžných funkcí.
+        //
+        // Opakované nahrání téže fotky je od téhle verze no-op (otisk obsahu
+        // v názvu + idempotentní `append_brand_image`), takže netrpělivé klikání
+        // už duplicitu vyrobit nemůže.
+        const CONCURRENCY = 3
+        let cursor = 0
         let successCount = 0
-        for (const file of Array.from(files)) {
-            const formData = new FormData()
-            formData.append('file', file)
-            formData.append('clientSlug', projectId)
-            formData.append('category', 'brand')
+        let lastError: string | null = null
 
-            const result = await uploadBrandImage(formData)
-            if (result.success) successCount++
-            else setMessage({ type: 'error', text: result.error || 'Upload selhal' })
+        const worker = async () => {
+            while (cursor < list.length) {
+                const file = list[cursor++]
+                const formData = new FormData()
+                formData.append('file', await shrinkForUpload(file))
+                formData.append('clientSlug', projectId)
+                formData.append('category', 'brand')
+                try {
+                    const result = await uploadBrandImage(formData)
+                    if (result.success) successCount++
+                    else lastError = result.error || 'Nahrání selhalo'
+                } catch {
+                    lastError = 'Nahrání selhalo — zkus to prosím znovu'
+                }
+                setProgress(p => ({ done: p.done + 1, total: p.total }))
+            }
         }
+        await Promise.all(Array.from({ length: Math.min(CONCURRENCY, list.length) }, worker))
 
-        if (successCount > 0) {
+        // Kolik prošlo A kolik ne — dřív se ukázala jen poslední chyba, takže
+        // „3 z 5 se nenahrály“ vypadalo stejně jako „všechno je v pořádku“.
+        if (successCount === list.length) {
             setMessage({ type: 'success', text: `${successCount} ${successCount === 1 ? 'fotka nahrána' : 'fotek nahráno'}` })
+        } else if (successCount > 0) {
+            setMessage({ type: 'error', text: `Nahráno ${successCount} z ${list.length}. ${lastError || ''}`.trim() })
+        } else {
+            setMessage({ type: 'error', text: lastError || 'Nahrání selhalo' })
         }
         await loadImages()
+        setProgress({ done: 0, total: 0 })
         setUploading(false)
     }
 
@@ -262,7 +336,25 @@ export function BrandTab({ projectId }: { projectId: string }) {
                 {uploading ? (
                     <div className="flex flex-col items-center gap-3">
                         <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span className="text-white/50 text-xs font-bold uppercase tracking-wider">Nahrávám...</span>
+                        <span className="text-white/50 text-xs font-bold uppercase tracking-wider">
+                            {progress.total > 1
+                                ? `Nahrávám ${Math.min(progress.done + 1, progress.total)} z ${progress.total}…`
+                                : "Nahrávám…"}
+                        </span>
+                        {/* Proužek postupu, ne jen kolečko: u pěti fotek to trvá desítky
+                            sekund a bez čísla to vypadá zaseknutě — přesně proto zákaznice
+                            nahrávala tutéž fotku dvakrát. */}
+                        {progress.total > 1 && (
+                            <div className="w-40 h-1 bg-white/10 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                                    style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }}
+                                />
+                            </div>
+                        )}
+                        <span className="text-white/25 text-[10px] tracking-wide">
+                            Každou fotku ještě popisuje AI, chvíli to trvá. Kartu můžeš nechat otevřenou.
+                        </span>
                     </div>
                 ) : (
                     <div className="flex flex-col items-center gap-3">
@@ -271,7 +363,7 @@ export function BrandTab({ projectId }: { projectId: string }) {
                             Přetáhni fotky sem nebo klikni pro výběr
                         </span>
                         <span className="text-white/30 text-[10px] tracking-wide">
-                            JPG, PNG, WebP • max 10 MB • produkty, lidi, prostředí
+                            JPG, PNG, WebP • velké fotky zmenšíme za tebe • produkty, lidi, prostředí
                         </span>
                     </div>
                 )}

@@ -122,6 +122,43 @@ function main() {
     check("ruční nahrání zná jméno značky stejně jako onboarding",
         /tagBrandImage\(buffer, 'image\/jpeg', brandRow\?\.name/.test(akce))
 
+    console.log("\n📤 NAHRÁVÁNÍ — hlášeno zákazníkem 10. 9. 2026\n")
+
+    // „nejdřív po 5ks a pak jen po 1…1 se nahrála…a další už se nenahrála“
+    // „Jen tahle se nahrála a koukám že 2×“ — obojí je tentýž závod nad config JSONB.
+    check("zápis do konfigurace jde přes atomické append_brand_image",
+        /rpc\('append_brand_image'/.test(akce),
+        "přečti-uprav-zapiš mezi sharpem a vision modelem ztrácí souběžné nahrání")
+    check("název souboru je z OBSAHU, ne z času",
+        /createHash\('sha256'\)/.test(akce) && !/\$\{category\}-\$\{timestamp\}/.test(akce),
+        "Date.now() dělal ze druhého nahrání téže fotky druhý řádek")
+    check("po nahrání se zahodí kešovaná konfigurace",
+        /invalidateConfigCache\(clientSlug\)/.test(akce.slice(0, akce.indexOf("Delete a brand"))),
+        "engine drží config 60 s — čerstvá fotka by se do příspěvků nedostala")
+
+    const migrace = fs.readdirSync(path.join(root, "supabase/migrations"))
+        .filter(f => f.endsWith(".sql"))
+        .map(f => fs.readFileSync(path.join(root, "supabase/migrations", f), "utf-8"))
+    check("append_brand_image existuje a je idempotentní",
+        migrace.some(m => /CREATE OR REPLACE FUNCTION append_brand_image/.test(m) && /pg_advisory_xact_lock/.test(m)))
+
+    const tab = fs.readFileSync(path.join(root, "app/(dashboard)/dashboard/instagram/tabs/BrandTab.tsx"), "utf-8")
+    check("fotka se zmenší v prohlížeči, než se odešle",
+        /shrinkForUpload/.test(tab),
+        "8MB fotka z telefonu trhá bodySizeLimit a táhne se desítky sekund")
+    check("nahrává se paralelně, ne jedna po druhé", /CONCURRENCY/.test(tab))
+    check("uživatel vidí, kolikátá fotka se nahrává", /progress\.total/.test(tab),
+        "ukazatel bez čísel se po minutě nedá odlišit od zaseknutého programu")
+    check("částečný neúspěch se přizná (`Nahráno X z Y`)", /Nahráno \$\{successCount\} z/.test(tab),
+        "dřív se ukázala jen poslední chyba, takže 3 z 5 vypadaly jako úspěch")
+
+    const cfg = fs.readFileSync(path.join(root, "next.config.ts"), "utf-8")
+    const limitMb = Number(cfg.match(/bodySizeLimit:\s*"(\d+)mb"/)?.[1] ?? 0)
+    const guardBytes = Number(akce.match(/file\.size > ([\d_]+)/)?.[1]?.replace(/_/g, "") ?? 0)
+    check("strop v akci nepřeslibuje, co platforma pustí",
+        limitMb > 0 && guardBytes > 0 && guardBytes <= limitMb * 1_000_000,
+        `akce pouští ${guardBytes} B, bodySizeLimit je ${limitMb} MB`)
+
     console.log("\n🏷️  SLOVNÍK ŠTÍTKŮ\n")
 
     check("každý štítek má českou jmenovku i nápovědu",
