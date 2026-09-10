@@ -1,7 +1,11 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { getPendingApprovals, approveAgentAction, rejectAgentAction, type PendingApprovalDTO } from "@/app/actions/approval-actions"
+import {
+    getPendingApprovals, approveAgentAction, approveAgentActionAlways, rejectAgentAction,
+    getAgentPolicies, revokeAgentPolicy,
+    type PendingApprovalDTO, type AgentPolicyDTO,
+} from "@/app/actions/approval-actions"
 import { X } from "lucide-react"
 
 const RISK_LABELS: Record<string, { label: string; cls: string }> = {
@@ -14,6 +18,7 @@ const RISK_LABELS: Record<string, { label: string; cls: string }> = {
 
 export function ApprovalsTab() {
     const [items, setItems] = useState<PendingApprovalDTO[]>([])
+    const [policies, setPolicies] = useState<AgentPolicyDTO[]>([])
     const [loading, setLoading] = useState(true)
     const [busy, setBusy] = useState<string | null>(null)
 
@@ -21,6 +26,7 @@ export function ApprovalsTab() {
         // No synchronous setState here — initial `loading` is already true; reloads
         // update after the await (avoids cascading-render lint + a refresh flicker).
         try { setItems(await getPendingApprovals()) } catch { setItems([]) }
+        try { setPolicies(await getAgentPolicies()) } catch { setPolicies([]) }
         setLoading(false)
     }, [])
 
@@ -34,6 +40,55 @@ export function ApprovalsTab() {
         setBusy(null)
     }
 
+    // Zapnutí rozesílky natrvalo je jediné rozhodnutí v téhle záložce, jehož
+    // dopad přesahuje jeden řádek — proto se na něj ptáme, i když se na
+    // jednorázové schválení neptáme.
+    const decideAlways = async (item: PendingApprovalDTO) => {
+        if (!confirm(`Zapnout, že „${item.policyLabel}" budu posílat sám, bez ptaní?\n\nOstatních druhů se budu ptát dál. Vypnout to jde tady v přehledu níž.`)) return
+        setBusy(item.id)
+        const res = await approveAgentActionAlways(item.id)
+        if (!res.ok) alert(res.error || "Nepodařilo se")
+        await load()
+        setBusy(null)
+    }
+
+    const revoke = async (key: string, label: string) => {
+        if (!confirm(`Zrušit stálý souhlas „${label}"?\n\nAkce toho druhu se zase začnou objevovat tady ke schválení.`)) return
+        setBusy(key)
+        const res = await revokeAgentPolicy(key)
+        if (!res.ok) alert(res.error || "Nepodařilo se")
+        await load()
+        setBusy(null)
+    }
+
+    /**
+     * Přehled toho, co systém dělá sám. Vykresluje se i nad prázdnou frontou —
+     * naopak především tam: prázdná fronta může znamenat „nic není potřeba"
+     * i „všechno běží samo", a to jsou dost jiné zprávy.
+     */
+    const policiesBlock = policies.length === 0 ? null : (
+        <div className="bg-[#0a0a0a] border border-white/10 rounded-sm p-5 mb-6">
+            <p className="text-[9px] text-white/40 uppercase font-bold tracking-widest mb-1">Dělám sám, bez ptaní</p>
+            <p className="text-[10px] text-white/25 mb-3">Rozhodl jsi jednou pro celý druh akce. Nad denní strop se zeptám jako dřív.</p>
+            <div className="space-y-2">
+                {policies.map(p => (
+                    <div key={p.key} className="flex items-center gap-3 flex-wrap border-t border-white/5 pt-2">
+                        <span className="text-xs text-white/70 font-bold">{p.label}</span>
+                        <span className="text-[9px] text-white/30">dnes {p.usedToday}/{p.dailyCap}</span>
+                        <span className="text-[9px] text-white/20">{p.decidedBy} · {new Date(p.decidedAt).toLocaleDateString("cs-CZ")}</span>
+                        <button
+                            onClick={() => revoke(p.key, p.label)}
+                            disabled={busy === p.key}
+                            className="ml-auto px-3 py-1 text-[9px] font-bold uppercase tracking-widest rounded-sm text-white/40 hover:text-red-400 border border-white/10 hover:border-red-500/20 transition-all disabled:opacity-50"
+                        >
+                            {busy === p.key ? "…" : "Zrušit"}
+                        </button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
+
     if (loading) {
         return (
             <div className="flex items-center justify-center py-20">
@@ -44,16 +99,20 @@ export function ApprovalsTab() {
 
     if (items.length === 0) {
         return (
-            <div className="text-center py-20">
+            <div>
+                {policiesBlock}
+                <div className="text-center py-20">
                 <p className="text-4xl mb-3 opacity-30">✅</p>
                 <p className="text-[10px] text-white/40 uppercase font-bold tracking-widest">Nic nečeká na schválení</p>
                 <p className="text-[10px] text-white/25 mt-1">Akce agentů, které utrácí peníze nebo míří na zákazníky, se objeví tady</p>
+                </div>
             </div>
         )
     }
 
     return (
         <div className="space-y-3">
+            {policiesBlock}
             <p className="text-[10px] text-white/40 leading-relaxed mb-4">
                 Tyto akce navrhl agent, ale jsou rizikové (odchozí / utrácí / nevratné), takže nic neproběhne bez vašeho souhlasu.
             </p>
@@ -89,6 +148,15 @@ export function ApprovalsTab() {
                                 <span className="inline-flex items-center gap-1.5"><X className="w-3.5 h-3.5 shrink-0" />Zamítnout</span>
                             </button>
                         </div>
+                        {item.policyKey && (
+                            <button
+                                onClick={() => decideAlways(item)}
+                                disabled={busy === item.id}
+                                className="mt-2 text-[10px] text-white/30 hover:text-white/60 underline underline-offset-2 transition-all disabled:opacity-50"
+                            >
+                                Schválit a příště se neptat ({item.policyLabel})
+                            </button>
+                        )}
                     </div>
                 )
             })}

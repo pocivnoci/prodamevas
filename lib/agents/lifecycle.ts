@@ -11,6 +11,10 @@
  * row for the same kind + person inside the window blocks a re-proposal, so a
  * daily scan can never spam and a founder's rejection is respected.
  *
+ * Od 10. 9. 2026 nese každý návrh `policyKey` ve tvaru `lifecycle:<kind>`:
+ * zakladatel může jednou říct „tenhle druh posílej sám" a systém se pak ptát
+ * přestane (`lib/agent-policy.ts`). Bez uloženého souhlasu se nic nemění.
+ *
  * CO SE NENAVRHUJE VŮBEC (a proč to tu je napsané)
  * ------------------------------------------------
  * 8. 9. 2026 čekalo ve frontě 27 akcí, nejstarší 46 dní — a jedenáct z nich
@@ -254,6 +258,10 @@ export async function scanLifecycle(): Promise<LifecycleProposal[]> {
             action: `${KIND_LABELS[cand.kind]} → ${cand.email}`,
             riskTier: "outbound",
             taskType: "send_lifecycle_email",
+            // Druh, ne handler: `send_lifecycle_email` obsluhuje všech šest
+            // šablon, takže souhlas s připomínkou čekatelům nesmí zapnout
+            // i oslovení po vypršení předplatného. Klíč je proto per `kind`.
+            policyKey: `lifecycle:${cand.kind}`,
             payload: {
                 kind: cand.kind,
                 email: cand.email.toLowerCase(),
@@ -262,6 +270,11 @@ export async function scanLifecycle(): Promise<LifecycleProposal[]> {
             },
             notify: false, // one digest e-mail at the end of the scan, not one per person
         })
+        // Stálý souhlas znamená `executed` místo `pending_approval` — do stropu
+        // na běh se to musí počítat stejně, jinak by souhlas s připomínkami
+        // čekatelům odemkl neomezenou dávku právě tam, kde je jich nejvíc.
+        if (outcome.status === "executed" && cand.kind === "waitlist_drip") waitlistCount++
+
         if (outcome.status === "pending_approval") {
             if (cand.kind === "waitlist_drip") waitlistCount++
             proposals.push({

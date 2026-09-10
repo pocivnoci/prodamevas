@@ -27,6 +27,7 @@ import supabaseAdmin from "@/supabase/admin"
 import { listPendingApprovals, type PendingAction } from "@/lib/agent-safety"
 import { safe, type HealthProblem } from "@/lib/agents/health-check"
 import { renderApprovalItem } from "@/lib/agents/approval-notify"
+import { policyLabel, POLICY_ACTOR_PREFIX } from "@/lib/agent-policy"
 import { footnote, heading, raw } from "@/lib/mail/blocks"
 import { renderEmail } from "@/lib/mail/layout"
 import { COLOR } from "@/lib/mail/tokens"
@@ -162,22 +163,39 @@ async function buildDid(now: Date): Promise<BriefLine[]> {
     const since24h = new Date(now.getTime() - DAY_MS).toISOString()
     const { data } = await supabaseAdmin
         .from("agent_actions")
-        .select("agent_type, task_type, action")
+        .select("agent_type, task_type, action, actor, policy_key")
         .eq("status", "executed")
         .gte("created_at", since24h)
         .limit(500)
 
     const groups = new Map<string, number>()
+    // Co odešlo zákazníkům díky stálému souhlasu, se počítá zvlášť a jmenuje se
+    // nahlas. Kdyby to spadlo do společného „Ostatní — 12×", byl by souhlas
+    // slepé místo: zapnul bych rozesílku a v jediném e-mailu, který čtu, bych
+    // se o ní nedozvěděl.
+    const byPolicy = new Map<string, number>()
+
     for (const row of data || []) {
         // Ranní brief sám sebe nehlásí — to je šum, ne práce.
         if (row.task_type === "daily_brief") continue
+        if (row.policy_key && String(row.actor || "").startsWith(POLICY_ACTOR_PREFIX)) {
+            byPolicy.set(row.policy_key, (byPolicy.get(row.policy_key) || 0) + 1)
+            continue
+        }
         const key = TASK_LABELS[row.task_type || ""] || row.agent_type || "Ostatní"
         groups.set(key, (groups.get(key) || 0) + 1)
     }
 
-    return [...groups.entries()]
+    const policyLines = [...byPolicy.entries()]
         .sort((a, b) => b[1] - a[1])
-        .map(([label, count]) => ({ icon: "✅", text: `${label} — ${count}×` }))
+        .map(([key, count]) => ({ icon: "📬", text: `${policyLabel(key)} — ${count}× (tvůj stálý souhlas)` }))
+
+    return [
+        ...policyLines,
+        ...[...groups.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .map(([label, count]) => ({ icon: "✅", text: `${label} — ${count}×` })),
+    ]
 }
 
 // ── Sestavení ───────────────────────────────────────────────────────────────
@@ -345,7 +363,12 @@ function lineHtml(l: BriefLine): string {
       </div>`
 }
 
-/** Tlačítka Schválit/Zamítnout — stejný render jako v samostatných výzvách. */
+/**
+ * Tlačítka Schválit/Zamítnout/„a příště se neptat" — stejný render jako
+ * v samostatných výzvách. `policyKey` se musí předat, jinak by třetí tlačítko
+ * chybělo právě v e-mailu, který zakladatel čte každé ráno — tedy tam, kde má
+ * největší šanci smyčku definitivně zavřít.
+ */
 function approvalHtml(a: PendingAction, labels: Record<string, string>): string {
     return renderApprovalItem(
         {
@@ -355,6 +378,7 @@ function approvalHtml(a: PendingAction, labels: Record<string, string>): string 
             action: a.action,
             riskTier: a.riskTier,
             payload: a.payload,
+            policyKey: a.policyKey,
         },
         a.clientId ? (labels[a.clientId] || a.clientId) : "OPS (celý systém)",
     )

@@ -9,6 +9,7 @@
 import supabaseAdmin from "@/supabase/admin"
 import { getFounderEmail, sendEmail } from "@/lib/email"
 import { approvalLinkUrl } from "@/lib/agent-approval-link"
+import { policyLabel } from "@/lib/agent-policy"
 import { escapeHtml, siteUrl } from "@/lib/notifications"
 import { footnote, heading, raw } from "@/lib/mail/blocks"
 import { renderEmail } from "@/lib/mail/layout"
@@ -27,6 +28,8 @@ export interface ApprovalNotifyInput {
     action: string
     riskTier: string
     payload?: Record<string, unknown>
+    /** Druh akce pro stálý souhlas — bez něj se třetí tlačítko nenabídne. */
+    policyKey?: string | null
 }
 
 async function clientLabel(clientId: string | null | undefined): Promise<string> {
@@ -41,10 +44,22 @@ async function clientLabel(clientId: string | null | undefined): Promise<string>
 
 const esc = escapeHtml
 
-/** Buttons + detail block for one pending action — also reused by digest e-mails. */
+/**
+ * Buttons + detail block for one pending action — also reused by digest e-mails.
+ *
+ * Tlačítka jsou tři, ne dvě. „Schválit a příště se neptat" je tu proto, že za
+ * čtyři měsíce provozu bylo navrženo 27 akcí a schváleno nula: rozhodovat
+ * jednotlivé e-maily každé ráno je smyčka, která se nikdy nezavře. Třetí
+ * tlačítko z ní dělá jednorázové nastavení — uloží stálý souhlas s DRUHEM akce
+ * (`lib/agent-policy.ts`) a systém se pak ptá jen na to, co souhlas nemá.
+ *
+ * Nabízí se jen u akce, která druh má (`policyKey`). U ostatních by to byl slib,
+ * který se nedá splnit.
+ */
 export function renderApprovalItem(input: ApprovalNotifyInput, label: string): string {
     const approve = approvalLinkUrl(siteUrl(), input.actionId, "approve")
     const reject = approvalLinkUrl(siteUrl(), input.actionId, "reject")
+    const always = input.policyKey ? approvalLinkUrl(siteUrl(), input.actionId, "approve_always") : null
     const payloadPreview = input.payload && Object.keys(input.payload).length > 0
         ? `<pre style="background:#f7f7f7;border:1px solid ${COLOR.hairline};border-radius:2px;padding:10px;font-size:11px;color:${COLOR.muted};white-space:pre-wrap;word-break:break-word;margin:10px 0 0">${esc(JSON.stringify(input.payload, null, 2).slice(0, 800))}</pre>`
         : ""
@@ -58,6 +73,9 @@ export function renderApprovalItem(input: ApprovalNotifyInput, label: string): s
           <a href="${approve}" style="display:inline-block;background:#1c6b45;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:10px 18px;border-radius:2px;margin-right:8px">✓ Schválit</a>
           <a href="${reject}" style="display:inline-block;background:#fff;border:1px solid ${COLOR.ink};color:${COLOR.ink};text-decoration:none;font-weight:bold;font-size:13px;padding:10px 18px;border-radius:2px">✕ Zamítnout</a>
         </p>
+        ${always ? `<p style="margin:10px 0 0">
+          <a href="${always}" style="font-size:12px;color:${COLOR.muted};text-decoration:underline">✓✓ Schválit a příště se neptat (${esc(policyLabel(input.policyKey!))})</a>
+        </p>` : ""}
       </div>`
 }
 
