@@ -2,7 +2,7 @@
 
 import supabaseAdmin from '@/supabase/admin'
 import { requireProjectAccess } from '@/lib/auth-guard'
-import { getConfigBrandImages, isValidBrandTag, type BrandImage } from '@/instagram/configs/types'
+import { getConfigBrandImages, isValidBrandTag, BRAND_DESCRIPTION_MAX, type BrandImage } from '@/instagram/configs/types'
 
 /**
  * Upload a brand/reference image from the dashboard.
@@ -75,10 +75,18 @@ export async function uploadBrandImage(formData: FormData): Promise<{
         const imageUrl = publicUrlData.publicUrl
 
         // Tag the uploaded image with AI
+        //
+        // Jméno značky se předává schválně: `tagBrandImage` ho vkládá do promptu
+        // („Analyzuj tento obrázek značky …"), takže vision model napíše
+        // „Prodejna Květiny nad Museem" místo „nějaký obchod". Onboarding ho
+        // posílá odjakživa, ruční nahrání ne — tytéž fotky tak měly podle cesty
+        // nahrání různě užitečný popis.
         let brandImageObj: any = imageUrl  // fallback: just the URL string
         try {
             const { tagBrandImage } = await import('@/instagram/brand-tagger')
-            const { tags, description } = await tagBrandImage(buffer, 'image/jpeg')
+            const { data: brandRow } = await supabaseAdmin
+                .from('clients').select('name').eq('slug', clientSlug).maybeSingle()
+            const { tags, description } = await tagBrandImage(buffer, 'image/jpeg', brandRow?.name || undefined)
             if (tags.length > 0 || description) {
                 brandImageObj = { url: imageUrl, tags, description }
             }
@@ -204,21 +212,31 @@ export async function getBrandImageObjects(clientSlug: string): Promise<BrandIma
 }
 
 /**
- * Přepiš štítky jedné fotky ručně.
+ * Přepiš štítky a popis jedné fotky ručně.
  *
  * Štítky nejsou popisky do galerie — rozhodují, kdy se fotka k příspěvku vůbec
- * přiloží (skórování v reel-orchestratoru) a jaká pravidla věrnosti dostane art
+ * přiloží (skórování v `brand-photo-match.ts`) a jaká pravidla věrnosti dostane art
  * director. Vision model přitom nepozná, že zrovna tenhle portrét je tvář značky;
  * ochotně ho označí za „detail" a fotka pak leží ladem. Tohle je způsob, jak mu to
  * přebít — a `userTagged` zajistí, že si na ni už nikdy nesáhne.
  *
+ * POPIS je druhá půlka téhož a do 9/2026 se nedal změnit vůbec. Přitom jde
+ * k obrazovému modelu **doslova** jako popisek reference („REAL PERSON reference
+ * — … — Majitel Petr, vždycky v modré košili") a zároveň se z něj skóruje výběr.
+ * Věta od AI má strop patnáct slov a neví nic, co není na fotce: že ten člověk je
+ * majitel, že ta místnost je showroom a ne kuchyň, že tenhle produkt se jmenuje
+ * jinak než vypadá. Kdo to ví, teď to smí napsat.
+ *
  * Prázdný seznam štítků je odmítnutý: fotka bez štítku je pro pipeline neviditelná,
- * takže by to tiše znamenalo „smaž ji z výběru".
+ * takže by to tiše znamenalo „smaž ji z výběru". Prázdný popis odmítnutý není —
+ * znamená „vrať se k tomu, co vidí AI".
  */
 export async function setBrandImageTags(
     clientSlug: string,
     imageUrl: string,
     tags: string[],
+    /** `undefined` = nesahat na popis; `""` = smazat vlastní a nechat AI popis. */
+    description?: string,
 ): Promise<{ success: boolean; error?: string }> {
     try {
         const { clientId } = await requireProjectAccess(clientSlug)
@@ -238,11 +256,20 @@ export async function setBrandImageTags(
         const { getConfigBrandImageObjects } = await import('@/instagram/configs/types')
         const imgs = getConfigBrandImageObjects(config)
 
+        const nextDescription = description === undefined
+            ? undefined
+            : description.trim().replace(/\s+/g, " ").slice(0, BRAND_DESCRIPTION_MAX)
+
         let found = false
         const updated: BrandImage[] = imgs.map(img => {
             if (img.url !== imageUrl) return img
             found = true
-            return { ...img, tags: clean, userTagged: true }
+            return {
+                ...img,
+                tags: clean,
+                ...(nextDescription === undefined ? {} : { description: nextDescription }),
+                userTagged: true,
+            }
         })
         if (!found) return { success: false, error: 'Fotka nenalezena.' }
 

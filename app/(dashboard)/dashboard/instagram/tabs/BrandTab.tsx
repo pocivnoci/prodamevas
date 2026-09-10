@@ -11,7 +11,7 @@ import {
 } from "@/app/actions/brand-images-action"
 import { getClientConfig } from "@/app/actions/settings-actions"
 import { ensureImageBrief } from "@/app/onboarding/actions"
-import { BRAND_IMAGE_TAGS } from "@/instagram/configs/types"
+import { BRAND_IMAGE_TAGS, BRAND_DESCRIPTION_MAX } from "@/instagram/configs/types"
 import type { ImageBriefItem, BrandImage } from "@/instagram/configs/types"
 import { LoadingSpinner } from "./shared"
 import { Camera, Image, TriangleAlert } from "lucide-react"
@@ -32,6 +32,9 @@ export function BrandTab({ projectId }: { projectId: string }) {
     // Ruční štítkování: AI nepozná, že zrovna tenhle portrét je tvář značky.
     const [editing, setEditing] = useState<BrandImage | null>(null)
     const [draftTags, setDraftTags] = useState<string[]>([])
+    // Popis jde k obrazovému modelu doslova jako popisek reference — proto se dá
+    // přepsat, ne jen přečíst. AI ví, co na fotce vidí; člověk ví, co ta fotka je.
+    const [draftDescription, setDraftDescription] = useState("")
     const [savingTags, setSavingTags] = useState(false)
 
     const loadImages = useCallback(async () => {
@@ -123,6 +126,7 @@ export function BrandTab({ projectId }: { projectId: string }) {
     const openTagEditor = (img: BrandImage) => {
         setEditing(img)
         setDraftTags(img.tags || [])
+        setDraftDescription(img.description || "")
     }
 
     const toggleDraftTag = (tag: string) => {
@@ -134,11 +138,12 @@ export function BrandTab({ projectId }: { projectId: string }) {
     const handleSaveTags = async () => {
         if (!editing) return
         setSavingTags(true)
-        const result = await setBrandImageTags(projectId, editing.url, draftTags)
+        const description = draftDescription.trim().replace(/\s+/g, " ").slice(0, BRAND_DESCRIPTION_MAX)
+        const result = await setBrandImageTags(projectId, editing.url, draftTags, description)
         if (result.success) {
             setImages(prev => prev.map(im =>
-                im.url === editing.url ? { ...im, tags: draftTags, userTagged: true } : im))
-            setMessage({ type: 'success', text: 'Štítky uloženy — AI je už nepřepíše' })
+                im.url === editing.url ? { ...im, tags: draftTags, description, userTagged: true } : im))
+            setMessage({ type: 'success', text: 'Uloženo — AI už štítky ani popis nepřepíše' })
             setEditing(null)
         } else {
             setMessage({ type: 'error', text: result.error || 'Uložení selhalo' })
@@ -341,7 +346,7 @@ export function BrandTab({ projectId }: { projectId: string }) {
                                                 <span key={t} className={`text-[8px] px-1 py-0.5 rounded-sm font-bold uppercase tracking-wider ${t === 'person' ? 'bg-emerald-500/30 text-emerald-200' : 'bg-white/15 text-white/80'}`}>{t}</span>
                                             ))}
                                             {img.userTagged && (
-                                                <span title="Štítky nastavil člověk — AI je nepřepíše" className="text-[8px] text-emerald-400/80 font-bold">✓</span>
+                                                <span title="Štítky i popis nastavil člověk — AI je nepřepíše" className="text-[8px] text-emerald-400/80 font-bold">✓</span>
                                             )}
                                         </div>
                                     ) : (
@@ -360,11 +365,34 @@ export function BrandTab({ projectId }: { projectId: string }) {
                     <div className="flex items-start gap-3">
                         <img src={editing.url} alt="" className="w-20 h-20 object-cover rounded-sm border border-white/10 shrink-0" />
                         <div className="min-w-0">
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Štítky fotky</p>
-                            <p className="text-xs text-white/70 mt-1">{editing.description || "Bez popisu"}</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Štítky a popis fotky</p>
                             <p className="text-[10px] text-white/30 mt-2 tracking-wide">
                                 Podle štítků se rozhoduje, ke kterým příspěvkům se fotka přiloží. Vyber 1–4.
                             </p>
+                        </div>
+                    </div>
+
+                    {/* Popis jde k obrazovému modelu doslova. AI napíše, co vidí;
+                        člověk dopíše, co ta fotka JE — a to model jinak nemá odkud vzít. */}
+                    <div>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-white/50">
+                            Popis pro engine
+                        </label>
+                        <textarea
+                            value={draftDescription}
+                            onChange={e => setDraftDescription(e.target.value.slice(0, BRAND_DESCRIPTION_MAX))}
+                            rows={2}
+                            placeholder="Např. Majitel Petr — na fotkách vždycky v modré košili"
+                            className="mt-1.5 w-full bg-[#0f0f0f] border border-white/10 rounded-sm px-3 py-2 text-xs text-white/85 placeholder:text-white/20 focus:border-white/30 focus:outline-none resize-none"
+                        />
+                        <div className="flex items-start justify-between gap-3 mt-1">
+                            <p className="text-[10px] text-white/30 tracking-wide">
+                                Tuhle větu dostane engine ke každému příspěvku, kde fotku použije. Napiš, co na ní
+                                není vidět: jméno, roli, materiál, kde to je.
+                            </p>
+                            <span className={`text-[10px] font-bold shrink-0 ${draftDescription.length >= BRAND_DESCRIPTION_MAX ? 'text-amber-400/80' : 'text-white/25'}`}>
+                                {draftDescription.length}/{BRAND_DESCRIPTION_MAX}
+                            </span>
                         </div>
                     </div>
 
@@ -404,7 +432,7 @@ export function BrandTab({ projectId }: { projectId: string }) {
                             disabled={savingTags || draftTags.length === 0}
                             className="px-4 py-2 bg-white text-black rounded-sm text-[10px] font-bold uppercase tracking-widest disabled:opacity-40 cursor-pointer"
                         >
-                            {savingTags ? "Ukládám…" : "Uložit štítky"}
+                            {savingTags ? "Ukládám…" : "Uložit"}
                         </button>
                         <button
                             onClick={() => setEditing(null)}

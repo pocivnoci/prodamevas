@@ -18,6 +18,7 @@ import {
     qaScore,
 } from "../image-pipeline"
 import { loadLogo } from "../logo-loader"
+import { pickBrandPhotos } from "../brand-photo-match"
 import { prefersRealPhotos } from "../../lib/photo-policy"
 import { COSTS, getPostTypeDef } from "../caption-generator"
 import { getModel } from "../models"
@@ -401,57 +402,27 @@ export async function loadReferenceImages(ctx: RenderContext): Promise<RefImage[
 
     if (brandRefObjects.length > 0) {
         // Per-image labels are computed from each photo's tags (see brandRefLabel).
+        //
+        // Výběr i skórování žijí v `brand-photo-match.ts` — sdílí je reel, takže
+        // se obě cesty nemůžou rozejít. Do 9/2026 tu stála vlastní kopie, která
+        // porovnávala podřetězce nad syrovým textem: `bar` sedělo doprostřed
+        // „barvy" a „koupelna" se netrefila do „koupelně". Na produkčních datech
+        // se tím trefa zvedla ze 70 na 84 % příspěvků.
+        const { picks, matched } = pickBrandPhotos(
+            brandRefObjects,
+            [selectedType?.name, captionData?.hook, captionData?.body?.substring(0, 100), captionData?.imagePrompt],
+            3,
+        )
+        let selectedRefs: { url: string; tags: string[]; description: string }[] = picks
+        console.log(matched
+            ? `   🎯 Chytrý výběr: ${picks.length} fotek podle štítků a popisu`
+            : `   🎲 Nic se netrefilo — ${picks.length} náhodných fotek`)
 
-        // Smart selection: match photos to post context using tags
-        let selectedRefs: { url: string; tags: string[]; description: string }[]
-
-        const hasTaggedImages = brandRefObjects.some(img => img.tags.length > 0)
-
-        if (hasTaggedImages && brandRefObjects.length > 3) {
-            const postContext = [
-                selectedType?.name || '',
-                captionData?.hook || '',
-                captionData?.body?.substring(0, 100) || '',
-                captionData?.imagePrompt || '',
-            ].join(' ').toLowerCase()
-
-            const scored = brandRefObjects.map(img => {
-                let score = 0
-                for (const tag of img.tags) {
-                    if (postContext.includes(tag)) score += 3
-                }
-                if (img.description) {
-                    const descWords = img.description.toLowerCase().split(/\s+/)
-                    for (const word of descWords) {
-                        if (word.length > 3 && postContext.includes(word)) score += 1
-                    }
-                }
-                return { ...img, score }
-            })
-
-            scored.sort((a, b) => b.score - a.score)
-
-            const topScore = scored[0]?.score || 0
-            if (topScore > 0) {
-                const relevant = scored.filter(s => s.score > 0)
-                const topPicks = relevant.slice(0, 3)
-                console.log(`   🎯 Smart selection: picked ${topPicks.length} tagged images (scores: ${topPicks.map(s => s.score).join(',')})`)
-                selectedRefs = topPicks
-            } else {
-                selectedRefs = brandRefObjects.sort(() => Math.random() - 0.5).slice(0, 3)
-                console.log(`   🎲 No tag matches — random ${selectedRefs.length} images`)
-            }
-        } else {
-            selectedRefs = brandRefObjects.length <= 3
-                ? brandRefObjects
-                : brandRefObjects.sort(() => Math.random() - 0.5).slice(0, 3)
-        }
-
-        // Tvář značky přiloží VŽDYCKY, nikdy ji nenech na skórování. To porovnává
-        // anglické štítky s převážně českým textem postu, takže „person" se skoro
-        // nikdy netrefí a fotka by propadla do náhodného výběru. Když kompozice
-        // člověka nemá, model referenci podle popisku ignoruje — to je levnější
-        // než vygenerovat cizí obličej.
+        // Tvář značky přiloží VŽDYCKY, nikdy ji nenech na skórování. Skóre závisí
+        // na tom, jestli se o člověku v příspěvku píše — jenže obličej se má držet
+        // i v postu, kde o něm není řeč a kompozice ho chce. Když ho kompozice
+        // nechce, model referenci podle popisku ignoruje; to je levnější než
+        // vygenerovat cizí obličej.
         const personRefs = brandRefObjects.filter(img => hasPersonRef(img.tags))
         if (personRefs.length > 0 && !selectedRefs.some(r => hasPersonRef(r.tags))) {
             selectedRefs = [personRefs[0], ...selectedRefs].slice(0, 4)

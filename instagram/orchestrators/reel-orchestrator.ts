@@ -8,6 +8,7 @@
 import supabaseAdmin from "../../supabase/admin"
 import { generateImage, generateVideo, generateVoiceover } from "../gemini-client"
 import { refineVideoPrompt } from "../image-pipeline"
+import { pickBrandPhotos } from "../brand-photo-match"
 import { processReelVideo, scenesToSubtitles } from "../video-processor"
 import { COSTS, getPostTypeDef, getReelDuration } from "../caption-generator"
 import type { RenderContext, RenderResult } from "./types"
@@ -39,29 +40,15 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
 
     if (brandRefObjects.length > 0) {
         console.log(`📸 Loading reference images for Veo (${brandRefObjects.length} available)...`)
-        const videoContext = [
-            captionData.hook,
-            captionData.scenes?.map(s => s.visual).join(" ") || "",
-            captionData.videoScript || "",
-        ].join(" ").toLowerCase()
-
-        const scored = brandRefObjects.map(img => {
-            let score = 0
-            for (const tag of img.tags) {
-                if (videoContext.includes(tag)) score += 3
-            }
-            if (img.description) {
-                for (const word of img.description.toLowerCase().split(/\s+/)) {
-                    if (word.length > 3 && videoContext.includes(word)) score += 1
-                }
-            }
-            return { ...img, score }
-        })
-
-        scored.sort((a, b) => b.score - a.score)
-        const topPicks = scored[0]?.score > 0
-            ? scored.filter(s => s.score > 0).slice(0, 3)
-            : scored.sort(() => Math.random() - 0.5).slice(0, 3)
+        // Týž výběr jako u obrázků (`brand-photo-match.ts`) — dvě kopie skórování
+        // znamenaly, že se oprava jedné cesty do druhé nikdy nepropsala.
+        // Veo bere nejvýš tři reference (`generateVideo` je ořezává), takže tři.
+        const { picks: topPicks, matched } = pickBrandPhotos(
+            brandRefObjects,
+            [captionData.hook, captionData.scenes?.map(s => s.visual).join(" "), captionData.videoScript],
+            3,
+        )
+        if (!matched) console.log(`   🎲 Nic se netrefilo — náhodné fotky`)
 
         for (const ref of topPicks) {
             try {
