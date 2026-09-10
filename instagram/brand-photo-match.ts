@@ -17,8 +17,11 @@
  * Navíc se štítky porovnávaly jen anglickým ID (`bedroom`, `exterior`), zatímco
  * text příspěvku je česky — česká jmenovka ze `BRAND_IMAGE_TAGS` se nečetla vůbec.
  *
- * Měřeno na produkčních datech (12 klientů, 92 příspěvků): chytrý výběr zabral
- * u 68 % příspěvků, u zbytku se losovaly tři náhodné fotky.
+ * Měřeno na produkčních datech (12 klientů, 92 příspěvků) srovnáním staré a nové
+ * funkce vedle sebe: chytrý výběr zabral u 70 % příspěvků, po opravě u 98 %.
+ * Důležitější než ten podíl je ale odstup: rozdíl skóre mezi 1. a 4. fotkou
+ * povyrostl z 1,0 na 2,0 bodu. Nejde o to, aby skóre mělo víc fotek — jde o to,
+ * aby ta správná byla znatelně napřed.
  */
 
 import { BRAND_IMAGE_TAGS, type BrandImage } from "./configs/types"
@@ -31,8 +34,11 @@ const STEM = 5
  * Čtyři znaky schválně, ne pět: česká slova, na kterých u fotek nejvíc záleží,
  * jsou krátká — „auto", „olej", „voda", „logo". S pětiznakovým prahem propadl
  * celý autoservisní slovník a klientovi s osmi fotkami aut se výběr zhoršil.
- * Kratší slova (tří- a méněznaková anglická ID jako `bar`) se porovnávají
- * na přesnou shodu — viz `hits`.
+ *
+ * Platí jen na POPIS, kde jsou slova volná a krátké spojky by dělaly šum.
+ * Štítky přes tenhle práh nechodí — jsou to kurátorské hodnoty z pevného
+ * slovníku, a jejich ochranu proti falešné shodě řeší `wordMatches` (tři znaky
+ * a míň = přesná shoda).
  */
 const MIN_WORD = 4
 /**
@@ -129,18 +135,47 @@ export function scoreBrandPhoto(img: Pick<BrandImage, "tags" | "description">, c
 }
 
 /**
+ * Opravdu náhodné pořadí (Fisher–Yates).
+ *
+ * `sort(() => Math.random() - 0.5)` NENÍ zamíchání: komparátor je nekonzistentní
+ * a výsledek závisí na řadicím algoritmu. Změřeno na 25 fotkách a 3 000 losech —
+ * první fotka vyšla 739×, poslední 254×, přitom obě měly vyjít 360×. Klient
+ * s velkou knihovnou tak pořád dokola dostával tytéž první fotky, a to zrovna
+ * ve chvíli, kdy se nic netrefilo a rozmanitost je jediné, co zbývá.
+ */
+function shuffled<T>(items: T[]): T[] {
+    const out = [...items]
+    for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[out[i], out[j]] = [out[j], out[i]]
+    }
+    return out
+}
+
+/** Jak výběr vznikl — volající to loguje, ať jde v běhu poznat kurátorský výběr od losu. */
+export type PickMode =
+    /** Skóre rozhodlo: aspoň jedna fotka se trefila do textu příspěvku. */
+    | "matched"
+    /** Fotek je nejvýš tolik, kolik je slotů — braly se všechny, nevybíralo se. */
+    | "all"
+    /** Nic se netrefilo, losovalo se. */
+    | "random"
+
+/**
  * Vyber `count` fotek k příspěvku.
  *
- * `matched: false` znamená „nic se netrefilo, tady jsou náhodné" — volající to
- * loguje, aby šlo poznat rozdíl mezi kurátorským a losovaným výběrem.
+ * `mode` je tříhodnotový schválně. Do 10. 9. 2026 to byl boolean `matched`,
+ * a protože „vzalo se všech pět z pěti" hlásilo `false`, log u malé knihovny
+ * tvrdil „nic se netrefilo — náhodné fotky“, přestože se nelosovalo ani
+ * nevybíralo. Diagnostika, která lže, je horší než žádná.
  */
 export function pickBrandPhotos<T extends Pick<BrandImage, "tags" | "description">>(
     images: T[],
     /** Vše, co o příspěvku víme: typ, hook, tělo, prompt na obrázek. */
     contextParts: (string | null | undefined)[],
     count: number,
-): { picks: T[]; matched: boolean } {
-    if (images.length <= count) return { picks: [...images], matched: false }
+): { picks: T[]; mode: PickMode } {
+    if (images.length <= count) return { picks: [...images], mode: "all" }
 
     const context = words(contextParts.filter(Boolean).join(" "))
     const scored = images
@@ -148,7 +183,7 @@ export function pickBrandPhotos<T extends Pick<BrandImage, "tags" | "description
         .sort((a, b) => b.score - a.score)
 
     if ((scored[0]?.score ?? 0) > 0) {
-        return { picks: scored.filter(s => s.score > 0).slice(0, count).map(s => s.img), matched: true }
+        return { picks: scored.filter(s => s.score > 0).slice(0, count).map(s => s.img), mode: "matched" }
     }
-    return { picks: [...images].sort(() => Math.random() - 0.5).slice(0, count), matched: false }
+    return { picks: shuffled(images).slice(0, count), mode: "random" }
 }

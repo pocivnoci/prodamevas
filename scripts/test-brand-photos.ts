@@ -77,18 +77,39 @@ function main() {
         img(["garden"], "Zahrada s bazénem"),
     ]
     const trefa = pickBrandPhotos(knihovna, ["Rekonstrukce koupelny"], 3)
-    check("trefa se pozná (`matched`), aby šlo v logu odlišit výběr od losu", trefa.matched)
+    check("trefa se hlásí jako `matched`, ať jde v logu odlišit výběr od losu",
+        trefa.mode === "matched")
     check("trefa vrací tu správnou fotku první",
         trefa.picks[0]?.description.startsWith("Koupelna"))
 
     const nic = pickBrandPhotos(knihovna, ["Kvantová fyzika a teorie strun"], 3)
-    check("bez shody se losuje a hlásí se to (`matched: false`)", !nic.matched && nic.picks.length === 3)
+    check("bez shody se losuje a hlásí se to (`random`)",
+        nic.mode === "random" && nic.picks.length === 3)
 
-    check("míň fotek než slotů = vezmou se všechny",
-        pickBrandPhotos(knihovna.slice(0, 2), ["cokoliv"], 3).picks.length === 2)
+    const vsechny = pickBrandPhotos(knihovna.slice(0, 2), ["cokoliv"], 3)
+    check("míň fotek než slotů = vezmou se všechny", vsechny.picks.length === 2)
+    // Dřív to hlásilo `matched: false` a log tvrdil „nic se netrefilo — náhodné
+    // fotky“, přestože se nelosovalo ani nevybíralo. Diagnostika, která lže, je
+    // horší než žádná.
+    check("„vzalo se všechno“ NENÍ totéž co „losovalo se“", vsechny.mode === "all")
 
     check("nikdy se nevrátí víc, než kolik slotů volající chce",
         pickBrandPhotos(knihovna, ["koupelna kuchyň fasáda zahrada"], 3).picks.length === 3)
+
+    // `sort(() => Math.random() - 0.5)` není zamíchání — komparátor je nekonzistentní
+    // a výsledek závisí na řadicím algoritmu. Naměřeno 739× vs 254× místo 360×.
+    const velka = Array.from({ length: 25 }, (_, i) => img(["xxxx"], "zzzz " + i))
+    const pocty = new Array(25).fill(0)
+    for (let i = 0; i < 3000; i++) {
+        for (const p of pickBrandPhotos(velka, ["naprosto nesouvisejici text"], 3).picks) {
+            pocty[velka.indexOf(p)]++
+        }
+    }
+    const ocekavano = (3000 * 3) / 25
+    const odchylka = Math.max(...pocty.map(c => Math.abs(c - ocekavano))) / ocekavano
+    check("los je opravdu náhodný, ne zkreslený k prvním fotkám",
+        odchylka < 0.25,
+        `největší odchylka od rovnoměrného rozdělení je ${Math.round(odchylka * 100)} %`)
 
     console.log("\n🧍 JEDNA IMPLEMENTACE — obraz i reel\n")
 
@@ -119,6 +140,15 @@ function main() {
     check("přeznačení AI ruční fotky přeskakuje",
         /if \(img\.userTagged\) \{ retagged\.push\(img\); continue \}/.test(akce))
     check("popis má strop, ať nesoupeří s promptem", BRAND_DESCRIPTION_MAX > 0 && BRAND_DESCRIPTION_MAX <= 400)
+    // Selhání štítkování není vzácnost (přetížený model, timeout). Když se při něm
+    // uloží holé URL místo objektu, `append_brand_image` hledá `p_image->>'url'`,
+    // nad JSON řetězcem dostane NULL a zápis odmítne — fotka skončí ve storage
+    // a do galerie se nikdy nedostane.
+    check("i fotka bez štítků se ukládá jako OBJEKT s url",
+        /const brandImageObj: BrandImage = \{ url: imageUrl/.test(akce)
+        && !/brandImageObj: any = imageUrl/.test(akce),
+        "holé URL neprojde přes append_brand_image a fotka tiše zmizí")
+
     check("ruční nahrání zná jméno značky stejně jako onboarding",
         /tagBrandImage\(buffer, 'image\/jpeg', brandRow\?\.name/.test(akce))
 
