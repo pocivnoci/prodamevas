@@ -567,6 +567,15 @@ export function isValidBrandTag(tag: string): boolean {
 }
 
 /** Tagged brand reference image with AI-generated metadata */
+/**
+ * Strop délky popisu fotky.
+ *
+ * Popis jde k obrazovému modelu doslova jako popisek reference. Krátká věta ho
+ * navede; odstavec s ním začne soupeřit o pozornost s vlastním promptem, a to je
+ * přesně ta chyba, kterou reference měly odstranit.
+ */
+export const BRAND_DESCRIPTION_MAX = 200
+
 export interface BrandImage {
     /** Public URL in Supabase storage */
     url: string
