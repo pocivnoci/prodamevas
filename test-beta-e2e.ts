@@ -2311,9 +2311,14 @@ test("19.4 worker účtuje přes clientId primitiva, ne přes session guardy", (
     // takže by buď spadl, nebo (hůř) prošel s cizím tenantem.
     assert(!/\bcreditGuard\b/.test(code), "creditGuard potřebuje session — worker ji nemá")
     assert(!/\brequireProjectAccess\b/.test(code), "requireProjectAccess potřebuje session")
-    for (const prim of ["canPerformAction", "deductCredits", "incrementPlanPostCount", "refundJobCharge"]) {
+    for (const prim of ["canPerformAction", "reserveCredits", "incrementPlanPostCount", "refundJobCharge"]) {
         assert(code.includes(prim), `worker musí účtovat přes ${prim}(clientId, …)`)
     }
+    // `reserveCredits`, ne `deductCredits`: ten druhý zůstatek NEKONTROLUJE, jen zapíše.
+    // Ve dvojici s `canPerformAction` výš je to check-then-act — souběžná kampaň téhož
+    // klienta nebo generování z „Tvorby" přečte týž zůstatek a projdou oba.
+    assert(!/\bdeductCredits\b/.test(code),
+        "deductCredits nekontroluje zůstatek — kampaň musí rezervovat pod zámkem")
 })
 
 test("19.5 cursor se ukládá po každém bodu, aby pád navázal", () => {

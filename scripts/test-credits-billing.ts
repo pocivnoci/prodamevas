@@ -12,11 +12,20 @@
  *   2. VÁŽENÍ KREDITŮ — jediné, co brání tomu, aby zákazník na levném tarifu
  *      generoval drahé formáty pod cenou. Marže 81–83 % stojí na téhle tabulce.
  *
- *   3. KONVENCE refId — rozlišuje první platbu od obnovy. Odmítnutá OBNOVA jde
+ *   3. JEDNA PRAVDA O ZŮSTATKU — spotřebu počítá TypeScript (`getCreditLedger`,
+ *      živí ukazatel v UI) a nezávisle na něm SQL funkce `reserve_credits`
+ *      (rozhoduje, jestli práce proběhne). Když se rozejdou, aplikace slíbí
+ *      kredity, které engine odmítne utratit. Přesně to se stalo s refundacemi:
+ *      TS je odečítal od spotřeby, SQL je zahazovalo, takže každé selhané
+ *      generování trvale ubralo kredit ze zůstatku, který vidí engine.
+ *
+ *   4. KONVENCE refId — rozlišuje první platbu od obnovy. Odmítnutá OBNOVA jde
  *      do dunningu, odmítnutá PRVNÍ platba ruší pending předplatné. Záměna
  *      znamená buď zabité živé předplatné, nebo obnovu, která se opakuje donekonečna.
  */
 
+import fs from "fs"
+import path from "path"
 import { chooseGateway, stripeCanComplete, comgateConfigured, isSandboxKey, type GatewayEnv } from "../lib/payments/gateway"
 import { generateRefId, generateRenewalRefId, isRenewalRefId } from "../lib/payments/ref-id"
 import { MEDIA_CREDITS, creditsForMedia } from "../lib/credits"
@@ -115,6 +124,55 @@ function main() {
     // by ho tiše účtovalo jako obrázek — tedy pod cenou.
     check("ceník médií nemá díru mezi 1 a 5",
         [1, 2, 3, 5].every(v => Object.values(MEDIA_CREDITS).includes(v as never)))
+
+    console.log("\n📒 JEDNA PRAVDA O ZŮSTATKU\n")
+
+    // Čte se ta migrace, kterou má produkce, ne ta, která problém zavedla:
+    // `CREATE OR REPLACE FUNCTION` znamená, že platí POSLEDNÍ soubor, který
+    // funkci definuje.
+    const migraceDir = path.join(__dirname, "..", "supabase", "migrations")
+    const definiceRezervace = fs.readdirSync(migraceDir)
+        .filter(f => f.endsWith(".sql"))
+        .sort()
+        .filter(f => /CREATE OR REPLACE FUNCTION\s+reserve_credits/.test(fs.readFileSync(path.join(migraceDir, f), "utf-8")))
+    const posledniRezervace = definiceRezervace.at(-1)
+    check("rezervaci kreditů definuje aspoň jedna migrace", !!posledniRezervace,
+        "reserve_credits nikde není — creditGuard by jel náhradní cestou bez zámku")
+
+    const sqlRezervace = posledniRezervace ? fs.readFileSync(path.join(migraceDir, posledniRezervace), "utf-8") : ""
+    const spotrebaSql = sqlRezervace.match(/SUM\(CASE WHEN action <> 'credit_topup'[^)]*\)/)?.[0] ?? ""
+
+    // Jádro incidentu: `AND credits > 0` zahodí `post_refund` a `post_adjust`.
+    check("SQL počítá do spotřeby i záporné řádky (refundace vrací kredit)",
+        spotrebaSql.length > 0 && !/credits\s*>\s*0/.test(spotrebaSql),
+        `spotřeba v ${posledniRezervace}: ${spotrebaSql || "nenalezena"}`)
+
+    // Druhá strana téže pravdy — kdyby někdo „opravil" TypeScript místo SQL.
+    const tsLedger = fs.readFileSync(path.join(__dirname, "..", "lib", "subscription.ts"), "utf-8")
+    const telo = tsLedger.slice(tsLedger.indexOf("export async function getCreditLedger"))
+    check("TypeScript počítá do spotřeby i záporné řádky",
+        /else used \+= row\.credits/.test(telo.slice(0, 2000)))
+
+    check("obě strany ořezávají spotřebu na nule (refundace přes okno nesmí vyrobit kredity)",
+        /GREATEST\(0, v_used\)/.test(sqlRezervace) && /used: Math\.max\(0, used\)/.test(telo.slice(0, 2000)))
+
+    // Dobití se zapisuje záporně a NESMÍ propadnout do spotřeby — jinak by se
+    // koupené kredity nad měsíční příděl ořízly na nule a zmizely.
+    check("dobití se počítá zvlášť na obou stranách",
+        /action =\s+'credit_topup' THEN -credits/.test(sqlRezervace)
+        && /=== TOPUP_ACTION\) purchased \+= -row\.credits/.test(telo.slice(0, 2000)))
+
+    console.log("\n🎁 UKÁZKOVÉ PŘÍSPĚVKY SE NEÚČTUJÍ — TÍM SPÍŠ SMÍ VZNIKNOUT JEN JEDNOU\n")
+
+    const onboarding = fs.readFileSync(path.join(__dirname, "..", "app", "onboarding", "actions.ts"), "utf-8")
+    check("bootstrap vrací existující kampaň místo založení druhé",
+        /startOnboardingBootstrap/.test(onboarding)
+        && /\.eq\('options->>showcase', 'true'\)/.test(onboarding))
+    check("jedinečnost drží databáze, ne jen `if` před insertem",
+        fs.readdirSync(migraceDir).some(f =>
+            /ux_ig_campaigns_showcase/.test(fs.readFileSync(path.join(migraceDir, f), "utf-8"))))
+    check("konflikt se čte jako hotovo, ne jako chyba",
+        /error\?\.code === '23505'/.test(onboarding))
 
     console.log(`\n${failed === 0 ? "✅" : "❌"} ${passed} passed, ${failed} failed\n`)
     if (failed > 0) process.exit(1)

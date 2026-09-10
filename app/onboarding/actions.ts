@@ -442,6 +442,28 @@ export async function startOnboardingBootstrap(clientSlug: string): Promise<{
     try {
         const { clientId } = await requireProjectAccess(clientSlug)
 
+        // 0) Jednou za klienta — vynuceně, ne jen dohodou s průvodcem.
+        //
+        // Tohle je exportovaná server action chráněná jen vlastnictvím projektu
+        // a zakládá kampaň s `adminBypass: true` — tři plné příspěvky, které se
+        // NEÚČTUJÍ. Bez téhle brány si kdokoliv, kdo má účet, umí opakovaným
+        // voláním vygenerovat neomezeně obsahu zdarma; denní strop onboardingů
+        // sedí na vstupu do průvodce a tuhle cestu nehlídá.
+        //
+        // Rychlé čtení šetří práci (seedIdeaBank stojí AI volání), ale
+        // rozhodnutí drží `ux_ig_campaigns_showcase` — dvě souběžná volání by
+        // tenhle `if` prošla obě.
+        const { data: existing } = await supabaseAdmin
+            .from('ig_campaigns')
+            .select('id')
+            .eq('client_id', clientId)
+            .eq('options->>showcase', 'true')
+            .maybeSingle()
+        if (existing) {
+            console.log(`↩️ Onboarding bootstrap: ${clientSlug} už ukázkovou kampaň má (${existing.id})`)
+            return { success: true, campaignId: existing.id }
+        }
+
         // 1) Teaser plan — 27 locked template rows, zero AI cost. Non-fatal.
         try {
             const { generateMonthlyPlan } = await import('@/app/actions/ig-generate-action')
@@ -493,6 +515,18 @@ export async function startOnboardingBootstrap(clientSlug: string): Promise<{
             })
             .select('id')
             .single()
+        // 23505 = souběžné volání stihlo kampaň založit první. Není to chyba,
+        // je to důkaz, že je hotovo — vrátíme tu jeho.
+        if (error?.code === '23505') {
+            const { data: winner } = await supabaseAdmin
+                .from('ig_campaigns')
+                .select('id')
+                .eq('client_id', clientId)
+                .eq('options->>showcase', 'true')
+                .maybeSingle()
+            console.log(`↩️ Onboarding bootstrap: ukázkovou kampaň pro ${clientSlug} založil souběžný běh (${winner?.id})`)
+            return { success: true, campaignId: winner?.id }
+        }
         if (error || !campaign) throw new Error(error?.message || 'Showcase campaign insert failed')
 
         console.log(`🚀 Onboarding bootstrap: showcase campaign ${campaign.id} queued for ${clientSlug}`)
