@@ -43,6 +43,10 @@ export function BrandTab({ projectId }: { projectId: string }) {
     const loadImages = useCallback(async () => {
         if (!projectId) return
         setLoading(true)
+        // try/finally, protože `setLoading(false)` na konci NENÍ zaručené: kdykoli
+        // některá ze server actions odmítne (výpadek sítě, timeout, 500), funkce
+        // se ukončí výjimkou a kolečko se točí navždycky. Viz `handleUpload`.
+        try {
         const [imgs, config] = await Promise.all([
             getBrandImageObjects(projectId),
             getClientConfig(projectId),
@@ -60,7 +64,9 @@ export function BrandTab({ projectId }: { projectId: string }) {
                 .then(res => { if (res.success && res.brief) setImageBrief(res.brief) })
                 .finally(() => setBriefLoading(false))
         }
-        setLoading(false)
+        } finally {
+            setLoading(false)
+        }
     }, [projectId])
 
     const handleRegenerateBrief = async () => {
@@ -126,17 +132,18 @@ export function BrandTab({ projectId }: { projectId: string }) {
         setMessage(null)
         setProgress({ done: 0, total: list.length })
 
-        // Paralelně po třech, ne jedna po druhé.
+        // Tři „souběžné“ smyčky — ale nedělej si iluze, že se tím zrychlí přenos.
         //
-        // Každé nahrání = přenos souboru + sharp + storage + volání vision modelu,
-        // tedy klidně 10–20 s. Sériově z pěti fotek vyjde přes minutu jednoho
-        // ukazatele bez jakékoli zpětné vazby — a přesně u toho zákaznice usoudila,
-        // že se to zaseklo, a zkusila to znovu. Tři najednou drží dobu na délce té
-        // nejpomalejší a víc než tři by tlačily na strop souběžných funkcí.
+        // Next.js server actions z JEDNOHO klienta se řadí do fronty a běží po
+        // jedné; naměřeno na produkci 10. 9. 2026, kdy osm fotek dorazilo do
+        // storage přesně po ~6 sekundách za sebou. Souběh je tady proto, aby se
+        // v prohlížeči překrývalo zmenšování obrázků s čekáním na server, ne kvůli
+        // paralelnímu uploadu. Skutečné zdržení je volání vision modelu uvnitř
+        // akce a to tímhle neobejdeš.
         //
-        // Opakované nahrání téže fotky je od téhle verze no-op (otisk obsahu
-        // v názvu + idempotentní `append_brand_image`), takže netrpělivé klikání
-        // už duplicitu vyrobit nemůže.
+        // Opakované nahrání téže fotky je no-op (otisk obsahu v názvu +
+        // idempotentní `append_brand_image`), takže netrpělivé klikání duplicitu
+        // vyrobit nemůže.
         const CONCURRENCY = 3
         let cursor = 0
         let successCount = 0
@@ -151,28 +158,61 @@ export function BrandTab({ projectId }: { projectId: string }) {
                 formData.append('category', 'brand')
                 try {
                     const result = await uploadBrandImage(formData)
-                    if (result.success) successCount++
-                    else lastError = result.error || 'Nahrání selhalo'
+                    if (result.success) {
+                        successCount++
+                        // Ukaž ji v mřížce HNED, ne až na konci dávky. Server actions
+                        // jedou po jedné, takže u osmi fotek je to rozdíl mezi „vidím,
+                        // jak přibývají“ a „minutu kouká na kolečko“. Štítky a popis
+                        // doplní `loadImages()` na konci.
+                        if (result.imageUrl) {
+                            const url = result.imageUrl
+                            setImages(prev => prev.some(i => i.url === url)
+                                ? prev
+                                : [...prev, { url, tags: [], description: '' }])
+                        }
+                    } else {
+                        lastError = result.error || 'Nahrání selhalo'
+                    }
                 } catch {
                     lastError = 'Nahrání selhalo — zkus to prosím znovu'
                 }
                 setProgress(p => ({ done: p.done + 1, total: p.total }))
             }
         }
-        await Promise.all(Array.from({ length: Math.min(CONCURRENCY, list.length) }, worker))
 
-        // Kolik prošlo A kolik ne — dřív se ukázala jen poslední chyba, takže
-        // „3 z 5 se nenahrály“ vypadalo stejně jako „všechno je v pořádku“.
-        if (successCount === list.length) {
-            setMessage({ type: 'success', text: `${successCount} ${successCount === 1 ? 'fotka nahrána' : 'fotek nahráno'}` })
-        } else if (successCount > 0) {
-            setMessage({ type: 'error', text: `Nahráno ${successCount} z ${list.length}. ${lastError || ''}`.trim() })
-        } else {
-            setMessage({ type: 'error', text: lastError || 'Nahrání selhalo' })
+        // try/finally kolem VŠEHO, co následuje.
+        //
+        // Do 10. 9. 2026 tu try/finally nebylo a `setUploading(false)` stálo až za
+        // `await loadImages()`. Když kterákoli server action odmítla, celá funkce
+        // skončila výjimkou a kolečko se točilo donekonečna — přestože fotky byly
+        // dávno nahrané a v galerii. Přesně to se stalo při nahrání osmi fotek:
+        // ve storage i v konfiguraci bylo všech osm, jen se to uživatel z obrazovky
+        // nedozvěděl. Ukazatel průběhu nesmí být závislý na tom, že poslední krok
+        // dopadne dobře.
+        try {
+            await Promise.all(Array.from({ length: Math.min(CONCURRENCY, list.length) }, worker))
+
+            // Kolik prošlo A kolik ne — dřív se ukázala jen poslední chyba, takže
+            // „3 z 5 se nenahrály“ vypadalo stejně jako „všechno je v pořádku“.
+            if (successCount === list.length) {
+                setMessage({ type: 'success', text: `${successCount} ${successCount === 1 ? 'fotka nahrána' : 'fotek nahráno'}` })
+            } else if (successCount > 0) {
+                setMessage({ type: 'error', text: `Nahráno ${successCount} z ${list.length}. ${lastError || ''}`.trim() })
+            } else {
+                setMessage({ type: 'error', text: lastError || 'Nahrání selhalo' })
+            }
+
+            // Dotažení štítků a popisů. Selhat smí — fotky už nahrané jsou a v mřížce
+            // je vidět, takže je to zpřesnění, ne podmínka úspěchu.
+            try {
+                await loadImages()
+            } catch {
+                setMessage({ type: 'error', text: `Nahráno ${successCount} z ${list.length}, ale seznam se nepodařilo načíst. Obnov stránku.` })
+            }
+        } finally {
+            setProgress({ done: 0, total: 0 })
+            setUploading(false)
         }
-        await loadImages()
-        setProgress({ done: 0, total: 0 })
-        setUploading(false)
     }
 
     const handleDelete = async (imageUrl: string) => {
