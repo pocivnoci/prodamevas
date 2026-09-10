@@ -14,6 +14,9 @@ import { emailSigningSecret } from "@/lib/email-sign"
  *    never approve anything)
  *  - execution is single-use anyway: approveAction/rejectAction only act on
  *    status='proposed'.
+ *
+ * Rozhodnutí jsou tři, ne dvě: `approve_always` navíc uloží stálý souhlas
+ * s druhem akce, aby se systém příště neptal. Viz `lib/agent-policy.ts`.
  */
 
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000
@@ -22,7 +25,13 @@ const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000
 // an env-precedence change can't desync approval links from the rest of our tokens.
 const secret = emailSigningSecret
 
-export type ApprovalDecision = "approve" | "reject"
+/**
+ * `approve_always` = schválit tuhle akci A uložit stálý souhlas s jejím druhem
+ * (`lib/agent-policy.ts`). Je to vlastní rozhodnutí, ne příznak u `approve`,
+ * protože se podepisuje zvlášť: podpis váže actionId + rozhodnutí + expiraci,
+ * takže odkaz na „schválit jednou" nejde recyklovat na „schvaluj to navždy".
+ */
+export type ApprovalDecision = "approve" | "reject" | "approve_always"
 
 function hmac(actionId: string, decision: ApprovalDecision, exp: number): string {
     return crypto.createHmac("sha256", secret()).update(`${actionId}.${decision}.${exp}`).digest("hex").slice(0, 32)
@@ -43,7 +52,7 @@ export function approvalLinkUrl(siteUrl: string, actionId: string, decision: App
 export function verifyApprovalLink(params: { a?: string | null; d?: string | null; x?: string | null; s?: string | null }): { actionId: string; decision: ApprovalDecision } | null {
     const { a, d, x, s } = params
     if (!a || !d || !x || !s) return null
-    if (d !== "approve" && d !== "reject") return null
+    if (d !== "approve" && d !== "reject" && d !== "approve_always") return null
     const exp = Number(x)
     if (!Number.isFinite(exp) || exp < Date.now()) return null
     const expected = hmac(a, d, exp)
