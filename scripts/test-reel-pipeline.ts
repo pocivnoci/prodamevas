@@ -5,9 +5,12 @@
  * Hlídá to, co se v reelu rozbije potichu: velikosti a ceny, časovou osu
  * z naměřené řeči, skládání voiceoveru, titulkové karty a ASS, validaci
  * storyboardu, tvar požadavku na ModelArk, argumenty kompozice a značku
- * „video ještě běží", která musí přežít zabalení do obyčejné chyby.
+ * „video ještě běží", která musí přežít zabalení do obyčejné chyby. A taky
+ * schválený install skript ffmpeg-static, bez kterého binárka vůbec nevznikne.
  */
 
+import { readFileSync } from "fs"
+import { join } from "path"
 import { MEDIA_CREDITS } from "../lib/credits"
 import { REEL_MEDIA, REEL_LIMITS, isReelMedium, clampReelDuration, REEL_LABELS } from "../lib/reel-media"
 import { parsePostMedia } from "../lib/media-urls"
@@ -162,6 +165,20 @@ const pending = new VideoPendingError("cgt-1", "still running")
 check("VideoPendingError nese taskId a pozná se", pending.taskId === "cgt-1" && isVideoPending(pending))
 check("značka přežije zabalení do obyčejné chyby", isVideoPending(new Error(`wrapped: ${pending.message}`)))
 check("video pending NENÍ nedostupná kvalita", !isQualityUnavailable(pending) && !isVideoPending(new QualityUnavailableError("x")))
+
+console.log("\n📦 INSTALACE FFMPEGU\n")
+// Balíček ffmpeg-static z registru binárku nenese — stáhne ji až jeho install skript.
+// npm 12 install skripty závislostí blokuje, pokud je package.json → allowScripts
+// nepovolí (npm 11 zatím jen varuje). Zablokovaný skript neshodí instalaci ani build:
+// outputFileTracingIncludes (17.4 v test-beta-e2e.ts) jen nemá co přibalit a reel
+// spadne až při renderu v getFfmpegPath(). Schválení je pinnuté na verzi, takže bump
+// ffmpeg-static bez `npx npm@next-11 approve-scripts ffmpeg-static` musí shodit guard, ne reel.
+const rootPackage = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8"))
+const lockfile = JSON.parse(readFileSync(join(__dirname, "../package-lock.json"), "utf-8"))
+const allowScripts: Record<string, boolean> = rootPackage.allowScripts ?? {}
+const ffmpegVersion: string | undefined = lockfile.packages?.["node_modules/ffmpeg-static"]?.version
+check("ffmpeg-static je v lockfilu", typeof ffmpegVersion === "string")
+check("allowScripts pouští install skript ffmpeg-static v zamčené verzi", allowScripts["ffmpeg-static"] !== false && (allowScripts["ffmpeg-static"] === true || allowScripts[`ffmpeg-static@${ffmpegVersion}`] === true), `lockfile ${ffmpegVersion}, allowScripts ${JSON.stringify(allowScripts)} — spusť npx npm@next-11 approve-scripts ffmpeg-static`)
 
 console.log(`\n${failed === 0 ? "✅" : "❌"} reel pipeline: ${passed} passed, ${failed} failed\n`)
 if (failed > 0) process.exit(1)
