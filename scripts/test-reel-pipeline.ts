@@ -15,6 +15,8 @@ import { parsePostMedia } from "../lib/media-urls"
 import { applyFormatClamps } from "../instagram/format-clamps"
 import { wavInfo, pcmToWav, buildTimeline, assembleVoiceoverWav, wordCount, TIMELINE_DEFAULTS, trimSilence } from "../instagram/reel-audio"
 import { CLIENT_BUCKET_MIME_TYPES } from "../lib/storage-buckets"
+import sharp from "sharp"
+import { referenceTooSmall, upscaleReference } from "../instagram/reel-references"
 import { chunkForSubtitles, wrapWords, buildAss, assTime, escapeAssText } from "../instagram/reel-subtitles"
 import { validateStoryboard, parseStoryboard, finalizeVideoPrompt, buildReelDirectorPrompt, type ReelStoryboard } from "../instagram/reel-storyboard"
 import { buildTaskBody, parseTaskStatus, MAX_REFERENCES } from "../instagram/seedance-client"
@@ -221,5 +223,24 @@ check("VideoPendingError nese taskId a pozná se", pending.taskId === "cgt-1" &&
 check("značka přežije zabalení do obyčejné chyby", isVideoPending(new Error(`wrapped: ${pending.message}`)))
 check("video pending NENÍ nedostupná kvalita", !isQualityUnavailable(pending) && !isVideoPending(new QualityUnavailableError("x")))
 
-console.log(`\n${failed === 0 ? "✅" : "❌"} reel pipeline: ${passed} passed, ${failed} failed\n`)
-if (failed > 0) process.exit(1)
+// sharp je asynchronní a soubor běží jako CJS (bez top-level await) — reference proto na konci.
+async function asyncChecks() {
+    console.log("\n🖼️ REFERENCE PRO SEEDANCE\n")
+    const solid = (width: number, height: number) => sharp({ create: { width, height, channels: 4, background: { r: 200, g: 30, b: 30, alpha: 1 } } }).png().toBuffer()
+    check("reference 192×192 (logo z živého testu) je pod minimem, 300×300 ani fotka ne", referenceTooSmall(192, 192) && !referenceTooSmall(300, 300) && !referenceTooSmall(1080, 1350))
+    const logo = await upscaleReference(await solid(192, 192))
+    const logoMeta = await sharp(logo.buffer).metadata()
+    check("malé logo se zvětší na 512×512 a minimem projde", logo.width === 512 && logo.height === 512 && logoMeta.width === 512 && logoMeta.height === 512, `${logoMeta.width}×${logoMeta.height}`)
+    const banner = await upscaleReference(await solid(1000, 100))
+    const bannerMeta = await sharp(banner.buffer).metadata()
+    check("úzký banner narazí na strop 2048 px a dostane průhledný okraj do 300 px", bannerMeta.width === 2048 && bannerMeta.height === 300 && !referenceTooSmall(bannerMeta.width, bannerMeta.height), `${bannerMeta.width}×${bannerMeta.height}`)
+    check("orchestrátor zvětšuje malé reference před zadáním videa", /ensureReferenceSize\(/.test(orchestratorSrc) && /upscaleReference\(/.test(orchestratorSrc))
+}
+
+asyncChecks().then(() => {
+    console.log(`\n${failed === 0 ? "✅" : "❌"} reel pipeline: ${passed} passed, ${failed} failed\n`)
+    if (failed > 0) process.exit(1)
+}, err => {
+    console.error("❌ asynchronní kontroly spadly:", err)
+    process.exit(1)
+})

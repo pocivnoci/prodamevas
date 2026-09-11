@@ -29,6 +29,9 @@ import { VideoPendingError } from "../../utils/retry"
 import { seedanceEnabled, submitVideoTask, pollVideoTask, downloadVideo, MAX_REFERENCES, type SeedanceReference } from "../seedance-client"
 import { directReel, condenseNarration, finalizeVideoPrompt, type ReelReference } from "../reel-director"
 import { synthesizeNarration, buildTimeline, assembleVoiceoverWav, wordCount } from "../reel-audio"
+import { referenceTooSmall, upscaleReference } from "../reel-references"
+import sharp from "sharp"
+import { createHash } from "crypto"
 import { chunkForSubtitles, buildAss } from "../reel-subtitles"
 import { composeReel } from "../reel-compositor"
 import { loadLogo } from "../logo-loader"
@@ -287,7 +290,25 @@ export async function loadReelReferences(ctx: RenderContext): Promise<ReelRefere
             if (url) out.push({ index: out.length + 1, kind: "logo", url, description: `brand logo of ${config.name}`, tags: ["logo"], buffer: logo, mimeType: "image/png" })
         }
     }
-    return out.slice(0, MAX_REFERENCES)
+    const bucket = config.storageBucket || "audit-screenshots"
+    return Promise.all(out.slice(0, MAX_REFERENCES).map(ref => ensureReferenceSize(ref, bucket)))
+}
+
+/**
+ * Seedance odmítá referenci pod 300 px na stranu — rovnou HTTP 400 při zadání, bez úlohy.
+ * Typicky je to logo (u chrlit 192×192). Malou referenci zvětšíme a nahrajeme do bucketu
+ * značky pod otiskem obsahu, takže další reel použije týž soubor. Bez bufferu (stažení
+ * selhalo) ji necháme být a rozhodne API.
+ */
+async function ensureReferenceSize(ref: ReelReference, bucket: string): Promise<ReelReference> {
+    if (!ref.buffer) return ref
+    const meta = await sharp(ref.buffer).metadata().catch(() => null)
+    if (!meta?.width || !meta?.height || !referenceTooSmall(meta.width, meta.height)) return ref
+    const up = await upscaleReference(ref.buffer)
+    const hash = createHash("sha1").update(ref.buffer).digest("hex").slice(0, 16)
+    const url = await uploadToBucket(bucket, `ig-reels/refs/${hash}-${up.width}x${up.height}.png`, up.buffer, "image/png")
+    console.log(`   🔍 Reference ${ref.index} (${ref.kind}) ${meta.width}×${meta.height} px je pod minimem Seedance — zvětšena na ${up.width}×${up.height}`)
+    return { ...ref, url }
 }
 
 /** Veřejná URL loga (cesta z onboardingu), jinak data URL — pokud ji API bere. */
