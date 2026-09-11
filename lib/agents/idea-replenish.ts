@@ -137,8 +137,17 @@ function offCooldown(idea: { last_used_at: string | null; cooldown_days: number 
     return now - new Date(idea.last_used_at).getTime() > cooldownDays * DAY_MS
 }
 
-/** Replenish one client's bank if it's below the runway target. */
-async function replenishClient(clientId: string, slug: string, raw: Record<string, unknown>): Promise<ReplenishResult> {
+/**
+ * Replenish one client's bank if it's below the runway target.
+ *
+ * Exportované, protože od 9/2026 je tohle jednotka rozeslané práce: úloha
+ * `idea_replenish_client` volá právě tuhle funkci pro jednoho klienta. Všechny
+ * pojistky (opt-out, spící klient, strop dávek, práh) zůstávají TADY, ne
+ * v plánovači — plánovačův filtr je jen optimalizace, aby se nezakládaly úlohy,
+ * které stejně nic neudělají. Kdyby se filtry přesunuly nahoru, stačilo by
+ * zavolat úlohu jinudy a pojistky by zmizely.
+ */
+export async function replenishClient(clientId: string, slug: string, raw: Record<string, unknown>): Promise<ReplenishResult> {
     if (raw.autoReplenishIdeas === false) {
         return { clientId, slug, added: 0, available: 0, target: 0, skipped: "opt-out (autoReplenishIdeas)" }
     }
@@ -231,4 +240,59 @@ export async function replenishIdeaBanks(): Promise<ReplenishResult[]> {
         (c, err) => ({ clientId: c.id, slug: c.slug, added: 0, available: 0, target: 0, skipped: err.message?.slice(0, 200) }),
     )
     return results
+}
+
+/**
+ * Plánovač: zjistí, komu má smysl zásobník doplnit, a rozešle práci po klientech.
+ *
+ * Nahrazuje `replenishIdeaBanks()` v denním běhu. Rozdíl je v tom, kde se čas
+ * tráví: sweep dělal VŠECHNU práci v jedné úloze s rozpočtem 600 s (~20 klientů
+ * s voláním modelu), tenhle plánovač jen čte a zapisuje — a generování se pak
+ * rozloží mezi překrývající se běhy workeru. Viz `lib/agents/fan-out.ts`.
+ *
+ * Naměřeno proti produkci 11. 9. 2026: **13 klientů za 8,5 s**, z toho většina
+ * jsou sekvenční zápisy úloh (~340 ms na kolo). Lineárně to dává ~100 s pro
+ * 300 klientů — pořád hluboko pod rozpočtem úlohy (700 s), ale není to zadarmo.
+ * Až to začne vadit, další krok je zápis úloh po dávkách, ne další optimalizace
+ * dotazů: ty jsou dva bez ohledu na počet klientů.
+ *
+ * Filtry jsou schválně jen ty, které jdou udělat MNOŽINOVĚ, jedním dotazem:
+ *
+ *   - neaktivní klient a výloha — přímo v dotazu
+ *   - výslovný opt-out v configu — v paměti nad týmž výsledkem
+ *   - spící klient (bez příspěvku za `ACTIVITY_WINDOW_DAYS`) — jeden dotaz na
+ *     všechny naráz, ne jeden na klienta
+ *
+ * Práh zásobníku se tu ZÁMĚRNĚ nekontroluje: to je dotaz na klienta a dělat ho
+ * v plánovači by vrátilo přesně ten problém, kvůli kterému plánovač vznikl.
+ * Úloha si ho zkontroluje sama a levně no-opne.
+ */
+export async function planIdeaReplenish(): Promise<{ candidates: number; enqueued: number; skipped: number; failed: number }> {
+    const { data: clients, error } = await supabaseAdmin
+        .from("clients")
+        .select("id, config")
+        .eq("is_active", true)
+        .or(NOT_SHOWCASE)
+    if (error) throw new Error(`idea-replenish plan scan: ${error.message}`)
+
+    const eligible = (clients || []).filter(c =>
+        (c.config as { autoReplenishIdeas?: unknown } | null)?.autoReplenishIdeas !== false)
+    if (eligible.length === 0) return { candidates: 0, enqueued: 0, skipped: 0, failed: 0 }
+
+    // Živí klienti jedním dotazem. `ig_posts` se čte bez agregace schválně:
+    // PostgREST neumí `group by`, a množina id je i při stovkách klientů malá.
+    const activitySince = new Date(Date.now() - ACTIVITY_WINDOW_DAYS * DAY_MS).toISOString()
+    const { data: recent, error: aErr } = await supabaseAdmin
+        .from("ig_posts")
+        .select("client_id")
+        .gte("created_at", activitySince)
+        .in("client_id", eligible.map(c => c.id))
+    if (aErr) throw new Error(`idea-replenish activity scan: ${aErr.message}`)
+
+    const live = new Set((recent || []).map(r => r.client_id as string))
+    const targets = eligible.filter(c => live.has(c.id)).map(c => c.id)
+
+    const { fanOutPerClient } = await import("./fan-out")
+    const out = await fanOutPerClient("idea_replenish_client", targets)
+    return { candidates: targets.length, enqueued: out.enqueued, skipped: out.skipped, failed: out.failed.length }
 }

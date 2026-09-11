@@ -160,11 +160,33 @@ registerHandler("auto_publish_arm", async () => {
 // Daily idea-bank replenishment: tops each active client's available idea pool
 // up to a cadence-derived runway so plans never draw from a starved bank. Free,
 // bounded, opt-out via config — see lib/agents/idea-replenish.ts invariants.
+// Doplnění zásobníku nápadů je od 9/2026 ROZESLANÉ, ne sdílené: tenhle handler
+// je jen plánovač (jeden dotaz, žádný model) a skutečnou práci dělá
+// `idea_replenish_client` zvlášť pro každého klienta.
+//
+// Důvod je v `lib/agents/fan-out.ts`: sdílený průchod má rozpočet 600 s, do
+// kterého se s voláním modelu vejde ~20 klientů. Při cíli 300 klientů by se na
+// každého dostalo jednou za dva týdny — a nikdo by se to nedozvěděl, protože
+// rotace ten výpadek rozprostře rovnoměrně.
 registerHandler("idea_replenish", async () => {
-    const { replenishIdeaBanks } = await import("@/lib/agents/idea-replenish")
-    const results = await replenishIdeaBanks()
-    const added = results.reduce((s, r) => s + r.added, 0)
-    return { ok: true, clients: results.length, added, results }
+    const { planIdeaReplenish } = await import("@/lib/agents/idea-replenish")
+    return { ok: true, ...(await planIdeaReplenish()) }
+})
+
+// Jeden klient, jedno doplnění zásobníku. Všechny pojistky (opt-out, spící
+// klient, strop dávek, práh zásoby) drží `replenishClient` — plánovač jen
+// vybírá, komu to má vůbec smysl posílat.
+registerHandler("idea_replenish_client", async (task: AgentTask) => {
+    if (!task.client_id) throw new Error("idea_replenish_client bez client_id")
+    const { data: client, error } = await supabaseAdmin
+        .from("clients")
+        .select("id, slug, config")
+        .eq("id", task.client_id)
+        .single()
+    if (error || !client) throw new Error(`klient ${task.client_id} nenalezen: ${error?.message}`)
+
+    const { replenishClient } = await import("@/lib/agents/idea-replenish")
+    return replenishClient(client.id, client.slug, (client.config || {}) as Record<string, unknown>)
 })
 
 // Třídění úkolů: z řádku ve firemním seznamu udělá zadání, které pochopí druhý
