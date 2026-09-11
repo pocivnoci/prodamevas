@@ -22,6 +22,9 @@ const IG_OAUTH_TOKEN_URL = "https://api.instagram.com/oauth/access_token"
 // table (one row per (client_id, provider)). Every query scopes to this provider.
 const PROVIDER = "instagram"
 
+// Unikátní index, který drží „jeden Instagram = jedna značka" (migrace 20260911).
+const ONE_ACCOUNT_INDEX = "ig_connections_jeden_ucet_jedna_znacka"
+
 export interface IgConnection {
     igUserId: string
     igUsername: string | null
@@ -142,7 +145,17 @@ export async function saveConnection(
             },
             { onConflict: "client_id,provider" },
         )
-    if (error) throw new Error(`Uložení IG připojení selhalo: ${error.message}`)
+    if (error) {
+        // Kolize na indexu není porucha, ale odpověď pro člověka: tentýž Instagram už
+        // je `connected` u jiné značky a uložit ho by znamenalo publikovat na cizí profil.
+        if (error.code === "23505" && error.message.includes(ONE_ACCOUNT_INDEX)) {
+            throw new Error(
+                `${conn.igUsername ? `Instagram @${conn.igUsername}` : "Tenhle Instagram"} už je v Chrlitu připojený u jiné značky. ` +
+                "Jeden účet může publikovat jen za jednu — u té druhé ho odpoj, nebo se přihlas k jinému účtu.",
+            )
+        }
+        throw new Error(`Uložení IG připojení selhalo: ${error.message}`)
+    }
 }
 
 /** Read a connection's stored provider-specific extras (upload-post profile, …). */
