@@ -13,7 +13,8 @@ import { MEDIA_CREDITS } from "../lib/credits"
 import { REEL_MEDIA, REEL_LIMITS, REEL_TIMELINE, isReelMedium, clampReelDuration, REEL_LABELS, SPOKEN_WORDS_PER_SECOND, plannedNarrationWords, plannedNarrationSentences, narrationWordBudget } from "../lib/reel-media"
 import { parsePostMedia } from "../lib/media-urls"
 import { applyFormatClamps } from "../instagram/format-clamps"
-import { wavInfo, pcmToWav, buildTimeline, assembleVoiceoverWav, wordCount, TIMELINE_DEFAULTS } from "../instagram/reel-audio"
+import { wavInfo, pcmToWav, buildTimeline, assembleVoiceoverWav, wordCount, TIMELINE_DEFAULTS, trimSilence } from "../instagram/reel-audio"
+import { CLIENT_BUCKET_MIME_TYPES } from "../lib/storage-buckets"
 import { chunkForSubtitles, wrapWords, buildAss, assTime, escapeAssText } from "../instagram/reel-subtitles"
 import { validateStoryboard, parseStoryboard, finalizeVideoPrompt, buildReelDirectorPrompt, type ReelStoryboard } from "../instagram/reel-storyboard"
 import { buildTaskBody, parseTaskStatus, MAX_REFERENCES } from "../instagram/seedance-client"
@@ -75,20 +76,23 @@ check("wordCount počítá slova", wordCount(["Ahoj světe", "tři slova tady"])
 check("osa bere nájezd, mezery, dojezd i zrychlení z jednoho místa (lib/reel-media)", TIMELINE_DEFAULTS.leadInSeconds === REEL_TIMELINE.leadInSeconds && TIMELINE_DEFAULTS.gapSeconds === REEL_TIMELINE.gapSeconds && TIMELINE_DEFAULTS.tailSeconds === REEL_TIMELINE.tailSeconds && TIMELINE_DEFAULTS.maxTempo === REEL_TIMELINE.maxTempo)
 
 console.log("\n✂️ ROZPOČET SLOV NARRACE\n")
-// Živý test 11. 9. 2026: hlas mluvil 1,55–1,93 slova/s a cíl `délka × 2,3` ignoroval
-// nájezd, mezery i dojezd — obě velikosti reelu padly na „nevejde se ani po zkrácení".
+// Živý test 11. 9. 2026: obě velikosti reelu padly na „nevejde se ani po zkrácení". Každý TTS
+// klip nesl ~0,3 s ticha na začátku a ~0,4 s na konci (počítalo se jako řeč) a cíl
+// `délka × 2,3` ignoroval nájezd, mezery i dojezd. Klipy se teď ořezávají (`trimSilence`)
+// a čistá řeč má 2,2–2,4 slova/s.
 const speechFor = (words: number, rate: number, sentences: number) => Array.from({ length: sentences }, () => words / rate / sentences)
 const sentenceLines = (n: number) => Array.from({ length: n }, (_, i) => `věta ${i}`)
-check("plánovací tempo z měření (1,5–1,9 slova/s), ne optimistických 2,3", SPOKEN_WORDS_PER_SECOND >= 1.5 && SPOKEN_WORDS_PER_SECOND <= 1.9)
+check("plánovací tempo čisté řeči z měření (2,0–2,4 slova/s)", SPOKEN_WORDS_PER_SECOND >= 2.0 && SPOKEN_WORDS_PER_SECOND <= 2.4)
 for (const [medium, seconds] of [["reel", 8], ["reel", 4], ["reel_long", 15], ["reel_long", 20]] as const) {
     const n = plannedNarrationSentences(seconds)
     const words = plannedNarrationWords(seconds)
     const limits = { minSeconds: REEL_LIMITS[medium].minSeconds, maxSeconds: seconds }
     const planned = buildTimeline(sentenceLines(n), speechFor(words, SPOKEN_WORDS_PER_SECOND, n), limits)
-    const slowVoice = buildTimeline(sentenceLines(n), speechFor(words, 1.55, n), limits)
-    check(`copywriter ${medium} ${seconds}s: ${words} slov se vejde i pomalému hlasu (1,55 slova/s)`, words >= n && !planned.tooLong && planned.atempo === 1 && !slowVoice.tooLong, `tempo ${slowVoice.atempo}`)
+    const slowVoice = buildTimeline(sentenceLines(n), speechFor(words, 2.0, n), limits)
+    check(`copywriter ${medium} ${seconds}s: ${words} slov se vejde i pomalejšímu hlasu (2,0 slova/s)`, words >= n && !planned.tooLong && planned.atempo === 1 && !slowVoice.tooLong, `tempo ${slowVoice.atempo}`)
 }
-// Skutečné případy z testu: krátký 18 slov za 11,58 s řeči (3 věty), dlouhý 46 slov za 23,88 s (5 vět).
+// Skutečné případy z testu (neořezané klipy, tempo i s tichem): krátký 18 slov za 11,58 s, dlouhý 46 slov za 23,88 s.
+// Rozpočet z naměřeného tempa na tom, jestli klipy ticho nesou, nezávisí.
 for (const [medium, words, speech, n] of [["reel", 18, 11.58, 3], ["reel_long", 46, 23.88, 5]] as const) {
     const max = REEL_LIMITS[medium].maxSeconds
     const rate = words / speech
@@ -103,6 +107,28 @@ const orchestratorSrc = readFileSync("instagram/orchestrators/reel-orchestrator.
 check("orchestrátor zkracuje podle naměřeného tempa nejvýš dvakrát, ne podle délky × konstanta", /narrationWordBudget\(/.test(orchestratorSrc) && /maxCondenseRounds = 2/.test(orchestratorSrc) && !/WORDS_PER_SECOND/.test(orchestratorSrc))
 const captionSrc = readFileSync("instagram/caption-generator.ts", "utf-8")
 check("prompt copywritera bere strop slov z plannedNarrationWords, ne z délky × 2,3", /plannedNarrationWords\(/.test(captionSrc) && !/\* 2\.3\)/.test(captionSrc))
+
+console.log("\n🔇 TICHO V TTS KLIPECH\n")
+const tone = (seconds: number) => {
+    const n = Math.round(seconds * 24_000)
+    const b = Buffer.alloc(n * 2)
+    for (let i = 0; i < n; i++) b.writeInt16LE(Math.round(8000 * Math.sin((2 * Math.PI * 220 * i) / 24_000)), i * 2)
+    return b
+}
+const quiet = (seconds: number) => Buffer.alloc(Math.round(seconds * 24_000) * 2)
+const trimmed = trimSilence(pcmToWav(Buffer.concat([quiet(0.3), tone(1), quiet(0.4)]), 24_000, 1, 16))
+check("trimSilence: ticho před i za řečí pryč, 60 ms dojezd zůstane", near(wavInfo(trimmed).durationSeconds, 1.12, 0.03) && wavInfo(trimmed).sampleRate === 24_000, `${wavInfo(trimmed).durationSeconds}s`)
+const silentClip = pcmToWav(quiet(1), 24_000, 1, 16)
+check("trimSilence: celý tichý klip vrací beze změny (prázdnotu hlídá volající)", trimSilence(silentClip) === silentClip)
+check("synthesizeNarration měří AŽ oříznutý klip", /trimSilence\(await generateVoiceover\(/.test(readFileSync("instagram/reel-audio.ts", "utf-8")))
+
+console.log("\n🪣 KLIENTSKÉ BUCKETY\n")
+const uploadTypes = [...orchestratorSrc.matchAll(/uploadToBucket\([^)]*"([a-z]+\/[a-z0-9.+-]+)"\)/g)].map(m => m[1])
+check("bucket povoluje všechno, co reel nahrává (voiceover WAV i MP4)", uploadTypes.length >= 2 && uploadTypes.every(t => CLIENT_BUCKET_MIME_TYPES.includes(t)), uploadTypes.join(", "))
+check("onboarding i create-bucket zakládají buckety z jednoho seznamu typů", ["app/onboarding/core.ts", "scripts/create-bucket.ts"].every(f => {
+    const src = readFileSync(f, "utf-8")
+    return /allowedMimeTypes: CLIENT_BUCKET_MIME_TYPES/.test(src) && !/allowedMimeTypes: \[/.test(src)
+}))
 
 console.log("\n💬 TITULKOVÉ KARTY A ASS\n")
 const wrapped = wrapWords("Řekněte to česky s háčky a čárkami".split(" "), 18)

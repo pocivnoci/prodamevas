@@ -64,12 +64,12 @@ export const REEL_TIMELINE = {
 }
 
 /**
- * Plánovací tempo české řeči — kolik slov se namluví za vteřinu, DŘÍV než existuje
- * zvuk (prompt copywritera). Změřeno 11. 9. 2026 na Gemini TTS (hlas Kore) při živém
- * testu dvou reelů: 1,55 a 1,93 slova/s. Dřívější odhad 2,3 sliboval o třetinu víc
- * řeči a obě velikosti reelu padly na „nevejde se ani po zkrácení".
+ * Plánovací tempo české řeči — kolik slov se namluví za vteřinu ČISTÉ řeči, DŘÍV než
+ * existuje zvuk (prompt copywritera). Změřeno 11. 9. 2026 na Gemini TTS (hlas Kore):
+ * 2,17–2,37 slova/s po oříznutí ticha. Bez ořezu (`trimSilence` v reel-audio.ts) vycházelo
+ * 1,55–1,93, protože každý klip nese ~0,7 s ticha — a to se do krátkého reelu nevešlo.
  */
-export const SPOKEN_WORDS_PER_SECOND = 1.7
+export const SPOKEN_WORDS_PER_SECOND = 2.2
 
 /** Kolik scén (= vět narrace) čeká prompt copywritera pro danou délku reelu. */
 export function plannedNarrationSentences(seconds: number): number {

@@ -30,6 +30,7 @@ import { fetchInstagramProfile, estimatePostsPerWeek, type IgProfileData } from 
 import { Type } from '@google/genai'
 import type { WebsiteAnalysis, ManualBusinessInfo, IgInsights, OnboardingQuestion, QuestionAxis } from './types'
 import { REQUIRED_AXES } from './types'
+import { CLIENT_BUCKET_MIME_TYPES, CLIENT_BUCKET_SIZE_LIMIT } from '@/lib/storage-buckets'
 
 // ============================================
 // TYPES
@@ -1211,8 +1212,9 @@ export async function saveConfigCore(
     const bucketName = config.storageBucket || `ig-posts-${config.id}`
     const { error: bucketError } = await supabaseAdmin.storage.createBucket(bucketName, {
         public: true,
-        allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp'],
-        fileSizeLimit: 10485760
+        // Bucket nese i reel (MP4) a voiceover (WAV) — jen obrázky shodily reel u všech značek.
+        allowedMimeTypes: CLIENT_BUCKET_MIME_TYPES,
+        fileSizeLimit: CLIENT_BUCKET_SIZE_LIMIT,
     })
     if (bucketError && !bucketError.message.includes('already exists') && !bucketError.message.includes('Duplicate')) {
         console.warn(`⚠️ Failed to create bucket ${bucketName}:`, bucketError.message)
