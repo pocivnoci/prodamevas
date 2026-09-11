@@ -869,6 +869,152 @@ Důvod: ${reason || "garance vrácení peněz do 30 dnů"}
     return { success: true, manualSteps: steps }
 }
 
+// ═══════════════════════════════════════════════════════════
+// TARIF ZDARMA
+// ═══════════════════════════════════════════════════════════
+
+export interface GiftPlanResult {
+    success: boolean
+    error?: string
+    message?: string
+    /** Konec daru (ISO). */
+    activeUntil?: string
+}
+
+/**
+ * Placený tarif bez platby — obchod ho dává klientům na vyzkoušení. Jakýkoli
+ * tarif z ceníku na jakékoli období z ceníku (1/3/6/12 měsíců).
+ *
+ * Dárek je předplatné s `provider='gift'`: nemá bránu, platbu ani doklad a nese
+ * `cancel_at_period_end`, takže ho billing-worker na konci období ukončí stejně
+ * jako výpověď — nikdy neupomíná a nikdy nestrhává (aserce 23.20). Kredity se
+ * i u delšího daru obnovují měsíčně, stejně jako u předplaceného období.
+ *
+ * Aktivuje se toutéž cestou jako zaplacený tarif (`activatePaidPlan`): období,
+ * kreditové okno, odemčení plánu i odstavení trialu. Druhá aktivační cesta by se
+ * od první dřív nebo později rozešla.
+ *
+ * Nad živým předplatným se dárek nedává. `activatePaidPlan` odstavuje všechno
+ * ostatní — u zaplaceného Stripe předplatného by zákazníkovi zrušil i to, co si
+ * koupil, a druhý dárek by potichu smazal zbytek toho běžícího.
+ */
+export async function giftPlan(projectSlug: string, planId: string, termMonths: number): Promise<GiftPlanResult> {
+    const { requireSuperAdmin } = await import("@/lib/auth-guard")
+    let adminEmail: string
+    try {
+        adminEmail = (await requireSuperAdmin()).email
+    } catch {
+        return { success: false, error: "Tarif zdarma smí dát jen správce." }
+    }
+
+    const slug = projectSlug?.trim()
+    if (!slug) return { success: false, error: "Chybí identifikace projektu." }
+
+    // Období z ceníku, ne z vlastního výčtu: `term_months` má v DB CHECK na tytéž
+    // hodnoty a cokoli jiného by spadlo až při zápisu.
+    const { BILLING_TERMS } = await import("@/lib/pricing")
+    const term = BILLING_TERMS.find(t => t.months === termMonths)
+    if (!term) return { success: false, error: "Takové období v ceníku není." }
+
+    const czDate = (iso: string) => new Date(iso).toLocaleDateString("cs-CZ", { timeZone: "Europe/Prague" })
+
+    const { data: client } = await supabaseAdmin
+        .from("clients")
+        .select("id, name")
+        .eq("slug", slug)
+        .maybeSingle()
+    if (!client) return { success: false, error: `Projekt „${slug}" neexistuje.` }
+
+    const { data: plan } = await supabaseAdmin
+        .from("subscription_plans")
+        .select("id, name, price_czk")
+        .eq("id", planId)
+        .eq("is_active", true)
+        .maybeSingle()
+    // Jen placený tarif — trial se rozdává sám a dar z něj by nic neodemkl.
+    if (!plan || !(plan.price_czk > 0)) return { success: false, error: "Takový placený tarif nenabízíme." }
+
+    const { data: live } = await supabaseAdmin
+        .from("subscriptions")
+        .select("id, provider, current_period_end")
+        .eq("client_id", client.id)
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle()
+    if (live) {
+        const until = live.current_period_end ? ` do ${czDate(live.current_period_end)}` : ""
+        return {
+            success: false,
+            error: live.provider === "gift"
+                ? `${client.name} už tarif zdarma má${until}.`
+                : `${client.name} má zaplacený tarif${until}. Zdarma jde dát až po jeho skončení.`,
+        }
+    }
+
+    // Řádek vzniká jako `pending` a živým ho udělá až `activatePaidPlan` — stejně
+    // jako u platby. Když aktivace selže, pending se před trial nepředřadí
+    // (`pickLiveSubscription`), takže klient nepřijde o nic, co měl.
+    const { data: gift, error: insertError } = await supabaseAdmin
+        .from("subscriptions")
+        .insert({
+            client_id: client.id,
+            plan_id: plan.id,
+            status: "pending",
+            provider: "gift",
+            term_months: term.months,
+            cancel_at_period_end: true,
+        })
+        .select("id")
+        .single()
+    if (insertError || !gift) {
+        return { success: false, error: `Tarif zdarma se nepodařilo založit: ${insertError?.message || "neznámá chyba"}` }
+    }
+
+    try {
+        const { activatePaidPlan } = await import("@/lib/subscription")
+        await activatePaidPlan(client.id, plan.id, gift.id)
+    } catch (err) {
+        console.error(`🚨 giftPlan: aktivace selhala pro ${slug}: ${(err as Error)?.message}`)
+    }
+
+    // `activatePaidPlan` chyby zápisu nevyhazuje, takže o úspěchu rozhoduje řádek,
+    // ne to, že funkce doběhla.
+    const { data: activated } = await supabaseAdmin
+        .from("subscriptions")
+        .select("status, current_period_end")
+        .eq("id", gift.id)
+        .maybeSingle()
+    if (activated?.status !== "active" || !activated.current_period_end) {
+        const now = new Date().toISOString()
+        await supabaseAdmin
+            .from("subscriptions")
+            .update({ status: "cancelled", cancelled_at: now, updated_at: now })
+            .eq("id", gift.id)
+            .eq("status", "pending")
+        return { success: false, error: "Tarif se nepodařilo aktivovat. Nic se nezměnilo — zkus to prosím znovu." }
+    }
+
+    // Stopa, kdo co komu dal: dárek jsou peníze, které nepřišly.
+    const { emit } = await import("@/lib/events")
+    await emit("subscription.gifted", {
+        clientId: client.id,
+        payload: {
+            subscriptionId: gift.id,
+            planId: plan.id,
+            termMonths: term.months,
+            grantedBy: adminEmail,
+            activeUntil: activated.current_period_end,
+        },
+    })
+
+    console.log(`🎁 ${adminEmail} dal ${client.name} (${slug}) tarif ${plan.name} na ${term.months} měs. zdarma do ${activated.current_period_end}`)
+    return {
+        success: true,
+        activeUntil: activated.current_period_end,
+        message: `${client.name} má ${plan.name} zdarma do ${czDate(activated.current_period_end)}. Pak sám skončí — nic se nestrhne a klient si vybere, jestli pokračovat.`,
+    }
+}
+
 // ─── Předání klienta zákazníkovi ──────────────────────────────────────
 
 /**

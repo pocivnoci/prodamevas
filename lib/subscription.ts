@@ -184,8 +184,11 @@ export interface SubscriptionInfo {
     billingFailures: number
     /** Délka zaplaceného období v měsících (1/3/6/12) — viz lib/pricing.ts. */
     termMonths: number
-    /** Brána, která předplatné pohání. Stripe si obnovu účtuje sám. */
-    provider: "comgate" | "stripe"
+    /**
+     * Co předplatné pohání. Stripe si obnovu účtuje sám; `gift` je tarif zdarma
+     * od správce (`giftPlan`) — bez brány, bez platby, na konci skončí.
+     */
+    provider: "comgate" | "stripe" | "gift"
 }
 
 export interface CanPerformResult {
@@ -344,7 +347,7 @@ export async function getClientSubscription(clientId: string): Promise<Subscript
         billingFailures: sub.billing_failures || 0,
         creditsPurchased,
         termMonths,
-        provider: sub.provider === "stripe" ? "stripe" : "comgate",
+        provider: sub.provider === "stripe" || sub.provider === "gift" ? sub.provider : "comgate",
     }
 }
 

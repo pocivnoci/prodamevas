@@ -193,7 +193,7 @@ export function computeCreditWindow(input: { now: Date; anchor: Date }): { start
  * Jediný stav, ze kterého se odvozuje in-app banner. Politika patří na server:
  * klient jen renderuje, aby se pravidla o penězích nedublovala v Reactu.
  */
-export type BillingState = "ok" | "expiring_soon" | "dunning" | "grace" | "cancelled" | "expired"
+export type BillingState = "ok" | "expiring_soon" | "dunning" | "grace" | "cancelled" | "expired" | "gift_ending"
 
 /** Do kolika dnů dopředu se hlásí „plán brzy končí". Shodné s oknem T-3 oznámení. */
 export const EXPIRING_SOON_DAYS = 3
@@ -211,10 +211,23 @@ export function deriveBillingState(
         currentPeriodEnd?: string | null
         /** Delší období hlásí konec s měsíčním předstihem — viz renewalNoticeDays. */
         termMonths?: number
+        /** `gift` = tarif zdarma od správce. */
+        provider?: string
     },
     now: Date = new Date(),
 ): BillingState {
     if (input.status === "expired") return "expired"
+
+    // Tarif zdarma nemá kartu, která by selhala, ani výpověď, kterou by šlo vzít
+    // zpět — `cancelAtPeriodEnd` na něm znamená jen „na konci skončí". Hlásit
+    // „předplatné jste zrušili" nebo „běžíte v odkladu obnovy" někomu, kdo nic
+    // nesjednal, by byla lež.
+    if (input.provider === "gift") {
+        const end = input.currentPeriodEnd ? new Date(input.currentPeriodEnd).getTime() : NaN
+        if (Number.isNaN(end)) return "ok"
+        return end - now.getTime() <= renewalNoticeDays(input.termMonths ?? 1) * DAY_MS ? "gift_ending" : "ok"
+    }
+
     if ((input.billingFailures || 0) > 0) return "dunning"
     if (input.cancelAtPeriodEnd) return "cancelled"
 

@@ -103,12 +103,14 @@ export interface SubscriptionState {
      * Odvozený stav fakturace ze serveru — banner ho jen renderuje. Pravidla
      * o penězích žijí v lib/billing-period.ts, ne tady.
      */
-    billingState: "ok" | "expiring_soon" | "dunning" | "grace" | "cancelled" | "expired"
+    billingState: "ok" | "expiring_soon" | "dunning" | "grace" | "cancelled" | "expired" | "gift_ending"
     billingFailures: number
     /** Zákazník vypověděl: běží do currentPeriodEnd, pak skončí. */
     cancelAtPeriodEnd: boolean
     /** Délka zaplaceného období v měsících (1/3/6/12) — viz lib/pricing.ts. */
     termMonths: number
+    /** `gift` = tarif zdarma od správce: nic se nestrhává a na konci skončí. */
+    provider?: "comgate" | "stripe" | "gift"
     /** Cena extra kreditu v haléřích, z tarifu — nikdy ji nepiš do UI natvrdo. */
     extraCreditPrice: number
     /** Kolik kreditů si klient v tomhle okně dokoupil nad rámec tarifu. */

@@ -23,8 +23,9 @@ export const maxDuration = 300
  *   0b. Předplatné pohání **Stripe** → přeskočit úplně. Stripe Billing si období
  *      fakturuje sám a obnova přijde jako `invoice.paid` na webhook; strhnout ji
  *      ještě jednou ComGatem znamená dvojí platbu za totéž období.
- *   1. Zákazník předplatné vypověděl (`cancel_at_period_end`) → nechat doběhnout,
- *      označit `expired` a poslat oznámení. Nikdy nestrhávat.
+ *   1. Zákazník předplatné vypověděl (`cancel_at_period_end`), nebo jde o tarif
+ *      zdarma (`provider='gift'`) → nechat doběhnout, označit `expired` a poslat
+ *      oznámení. Nikdy nestrhávat.
  *   2. Obnova už běží (PENDING `renew-` řádek < 24 h, nebo jakýkoli `renew-` řádek
  *      z dneška) → počkat na callback.
  *   3. Vyčerpaný dunning (`billing_failures >= MAX`) → `expired` + poslední zpráva.
@@ -118,9 +119,12 @@ export async function GET(req: Request) {
                     vars: { clientName: client.name, clientId: client.id, ...(vars || {}) },
                 })
 
-            // 1. Zákazník vypověděl → období doběhlo, končíme. Nikdy nestrhávat:
-            // strhnout peníze někomu, kdo řekl „už ne", je to nejhorší, co umíme.
-            if (sub.cancel_at_period_end) {
+            // 1. Zákazník vypověděl, nebo jde o tarif zdarma → období doběhlo,
+            // končíme. Nikdy nestrhávat: strhnout peníze někomu, kdo řekl „už ne" —
+            // nebo kdo nikdy nic nesjednal — je to nejhorší, co umíme. Dárek nese
+            // `cancel_at_period_end` taky, ale na jediném příznaku, který jde
+            // shodit, tahle pojistka stát nesmí.
+            if (sub.cancel_at_period_end || sub.provider === "gift") {
                 await supabaseAdmin
                     .from("subscriptions")
                     .update({ status: "expired", updated_at: new Date().toISOString() })

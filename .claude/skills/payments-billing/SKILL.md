@@ -69,6 +69,16 @@ nepřepsalo původní razítko — bez záznamu souhlasu právo na odstoupení d
 Reálný postup (živnost, identifikovaná osoba k DPH, ComGate, Fakturoid, GDPR) je
 v `docs/LEGAL_SETUP.md`.
 
+## Tarif zdarma je třetí druh předplatného, ne třetí brána
+
+Jakýkoli tarif na jakékoli období z ceníku dává zdarma super admin v sekci
+Předplatné (`giftPlan` v `app/actions/admin-actions.ts`). Řádek má
+`provider='gift'` **a zároveň** `cancel_at_period_end=true`: nemá platbu ani
+doklad, aktivuje se toutéž cestou `activatePaidPlan` a billing-worker ho na konci
+období ukončí jako výpověď — nikdy neupomíná. Nad živým předplatným se nedává, protože `activatePaidPlan` odstavuje
+ostatní řádky (u Stripu i u brány). Zaplatit jde i během daru; placené období pak
+začne hned a zbytek daru propadá. Hlídá aserce 23.20.
+
 ## Past, která už jednou naostro chytla
 
 `VERCEL`, `VERCEL_ENV` a `VERCEL_URL` **nepatří do `.env.local`** — `vercel env pull`
