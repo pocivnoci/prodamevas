@@ -57,7 +57,33 @@ export async function enqueueTask(opts: {
      *  payload key: payload means "handler input" across all handlers, and a typo in
      *  a column name is a Postgres error while a typo in payload.userId is invisible. */
     requestedBy?: string | null
+    /**
+     * Klíč proti dvojímu zařazení téže práce (např. `idea_replenish_client:<id>`).
+     * Unikátní jen mezi `pending`/`running` — hotová úloha klíč uvolní, takže
+     * zítřejší běh projde. NULL = bez dedupe, dosavadní chování.
+     */
+    dedupeKey?: string | null
 }): Promise<string> {
+    const id = await insertTask(opts)
+    if (!id) throw new Error(`enqueueTask failed: úloha s klíčem „${opts.dedupeKey}“ už čeká nebo běží`)
+    return id
+}
+
+/**
+ * Jako `enqueueTask`, ale kolize na `dedupe_key` vrátí `null` místo výjimky.
+ *
+ * Rozesílání práce na klienta (`lib/agents/fan-out.ts`) je jediné místo, kde je
+ * „už zařazeno" normální výsledek, ne chyba: plánovač může běžet dvakrát
+ * (retry, překrývající se cron, ruční doplánování) a druhý běh musí tiše
+ * přeskočit, ne spadnout. Ve všech ostatních případech je chybějící úloha
+ * problém, o kterém se volající musí dozvědět — proto `enqueueTask` dál hází.
+ */
+export async function tryEnqueueTask(opts: Parameters<typeof enqueueTask>[0]): Promise<string | null> {
+    return insertTask(opts)
+}
+
+/** Vrací id, nebo `null` když klíč zabrala jiná čekající úloha (23505). */
+async function insertTask(opts: Parameters<typeof enqueueTask>[0]): Promise<string | null> {
     const { data, error } = await supabaseAdmin
         .from("agent_tasks")
         .insert({
@@ -68,9 +94,14 @@ export async function enqueueTask(opts: {
             priority: opts.priority ?? 0,
             max_attempts: opts.maxAttempts ?? 3,
             requested_by: opts.requestedBy ?? null,
+            dedupe_key: opts.dedupeKey ?? null,
         })
         .select("id")
         .single()
+    // 23505 = unikátní index na `dedupe_key` mezi čekajícími/běžícími úlohami.
+    // Stejná doktrína jako u podmíněného claimu jinde v repu: když klíč zabral
+    // někdo jiný, je to konec, ne důvod zakládat řádek bez klíče.
+    if (error?.code === "23505") return null
     if (error || !data) throw new Error(`enqueueTask failed: ${error?.message}`)
     return data.id
 }
