@@ -44,25 +44,30 @@ render → vision QA, plus cross-family judge (Claude Sonnet 5).
 | Obrázek | 0,28 | 0,36 | **7,63** | 1 | 7,63 |
 | Story | 0,57 | 0,57 | **12,08** | 2 | 6,04 |
 | Karusel | 0,76 | 0,86 | **18,23** | 3 | 6,08 |
-| Reel | 1,22 | 1,51 | **32,01** | 5 | 6,40 |
+| Reel (krátký, ≤ 8 s) | 1,10 | 1,30 | **27,56** | 5 | 5,51 |
+| Reel (dlouhý, 10–20 s) | 1,90 | 2,30 | **48,76** | 10 | 4,88 |
 
 „Reálně" připočítává editorial rounds a občasnou korektivní editaci obrazu.
-Reel počítá Veo 3.1 Fast, 8 s.
+Reel počítá Seedance 2.5 přes BytePlus ModelArk @ 480p (0,10 USD/s) + režiséra
+(Claude Sonnet 5, ~0,04) + TTS po větách (~0,02) + cover (0,134) + QA; dlouhý reel
+15–20 s videa. **720p je záměrně vypnuté**: video by stálo 2,3× víc a dlouhý reel by
+vyšel na ~10 Kč/kredit, mimo pásmo níže. Délku videa určuje namluvený text.
 
 ---
 
 ## 2. Proč jsou kredity vážené
 
 Kredity nejsou počet příspěvků, ale **jednotka nákladu** (`lib/credits.ts`):
-obrázek 1 · story 2 · karusel 3 · reel 5.
+obrázek 1 · story 2 · karusel 3 · reel 5 · dlouhý reel 10.
 
 Bez vážení stál reel jeden kredit stejně jako obrázek, takže zákazník, který
 dělá jen reely, spotřeboval čtyřnásobek nákladu za tutéž cenu. Vážením drží
-Kč/kredit v pásmu **6,0–7,6 Kč** napříč formáty — a tím je **nejhorší případ
+Kč/kredit v pásmu **4,9–7,6 Kč** napříč formáty — a tím je **nejhorší případ
 ohraničený konstrukcí**: žádná kombinace chování nemůže tarif potopit.
 
 Důsledek pro plánování: horší poměr pro nás má paradoxně **obrázek** (7,63 Kč/kredit),
-ne reel (6,40). Reel je drahý absolutně, ale spotřebuje pětinásobek kreditů.
+ne reel (5,5 krátký, 4,9 dlouhý). Reel je drahý absolutně, ale spotřebuje pěti- až
+desetinásobek kreditů.
 
 ---
 

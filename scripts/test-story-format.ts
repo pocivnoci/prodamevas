@@ -14,6 +14,7 @@
 import { applyFormatClamps, isVerticalMedium, FEED_SAFE_RATIOS, type ClampOptions } from "../instagram/format-clamps"
 import type { PostFormat, PostMedium, AspectRatio, OverlayStyle } from "../instagram/configs/types"
 import { MEDIA_CREDITS, ALL_MEDIA } from "../lib/credits"
+import { isReelMedium } from "../lib/reel-media"
 
 let passed = 0
 let failed = 0
@@ -67,6 +68,16 @@ eq("story 1:1 → 9:16", clamp(fmt("story", "1:1")).aspectRatio, "9:16")
 eq("reel 4:5 → 9:16 (dřív latentní chyba)", clamp(fmt("reel", "4:5")).aspectRatio, "9:16")
 check("isVerticalMedium(story)", isVerticalMedium("story"))
 check("isVerticalMedium(reel)", isVerticalMedium("reel"))
+check("isVerticalMedium(reel_long)", isVerticalMedium("reel_long"))
+
+// ─── 3b. Dlouhý reel je reel — stejné clampy, jiná cena ────────────────────
+eq("reel_long 4:5 → 9:16", clamp(fmt("reel_long", "4:5", "none")).aspectRatio, "9:16")
+eq("reel_long si drží overlay none", clamp(fmt("reel_long", "9:16", "none")).overlayStyle, "none")
+eq("reels off → reel_long padá na carousel", clamp(fmt("reel_long", "9:16", "none"), { reelsEnabled: false }).medium, "carousel")
+eq("charged reel + reel_long (10>5) → reel", clamp(fmt("reel_long", "9:16", "none"), { chargedMedium: "reel" }).medium, "reel")
+eq("charged reel + reel_long → overlay zůstává none (pořád reel)", clamp(fmt("reel_long", "9:16", "none"), { chargedMedium: "reel" }).overlayStyle, "none")
+eq("plán bez reel_long → carousel", clamp(fmt("reel_long", "9:16", "none"), { allowedMedia: ["image", "carousel", "reel"] }).medium, "carousel")
+check("MEDIA_CREDITS.reel < MEDIA_CREDITS.reel_long", MEDIA_CREDITS.reel < MEDIA_CREDITS.reel_long)
 check("!isVerticalMedium(image)", !isVerticalMedium("image"))
 check("!isVerticalMedium(carousel)", !isVerticalMedium("carousel"))
 
@@ -168,7 +179,7 @@ for (const [f, opts] of cases) {
     const feedLegal = isVerticalMedium(once.medium)
         ? once.aspectRatio === "9:16"
         : (FEED_SAFE_RATIOS as readonly string[]).includes(once.aspectRatio)
-    const overlayLegal = once.medium === "reel" || once.overlayStyle !== "none"
+    const overlayLegal = isReelMedium(once.medium) || once.overlayStyle !== "none"
     if (!feedLegal || !overlayLegal) {
         invariantFailures++
         if (invariantFailures === 1) {

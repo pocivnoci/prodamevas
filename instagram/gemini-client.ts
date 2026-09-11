@@ -5,7 +5,7 @@
  * (env-overridable via GEMINI_MODEL_<ACTION>[_FALLBACK]).
  */
 
-import { GoogleGenAI, VideoGenerationReferenceType } from "@google/genai"
+import { GoogleGenAI } from "@google/genai"
 import { getModel, hasFallback } from "./models"
 import dotenv from "dotenv"
 
@@ -502,98 +502,6 @@ export async function analyzeImagesWithText(
         if (!text) throw new Error("Gemini vision returned no text")
         return text
     })
-}
-
-// ============================================
-// VIDEO GENERATION — Veo 3.1 (Reels)
-// ============================================
-
-export type VideoTier = "lite" | "fast" | "premium"
-
-export async function generateVideo(
-    prompt: string,
-    options: {
-        duration?: number        // seconds (4-8 for 1080p)
-        aspectRatio?: "9:16" | "16:9" | "1:1"
-        tier?: VideoTier        // lite = Veo 3.1 Lite (cheapest), fast = Veo 3.1 Fast, premium = Veo 3.1 Standard
-        referenceImages?: { buffer: Buffer; mimeType?: string }[]  // up to 3 reference images
-    } = {}
-): Promise<Buffer> {
-    const { duration = 8, aspectRatio = "9:16", tier = "fast", referenceImages } = options
-
-    const model = tier === "lite"
-        ? getModel("videoLite")
-        : tier === "premium"
-            ? getModel("videoPremium")
-            : getModel("videoFast")
-
-    // Build reference images for Veo (brand photos, product shots, spaces).
-    //
-    // POZOR NA DVĚ MÍSTA, KDE SE TO DÁ TIŠE ZTRATIT: `referenceImages` patří do
-    // `config` (viz `GenerateVideosConfig` v typech SDK), ne na top-level volání,
-    // a každý obrázek MUSÍ nést `referenceType` — bez něj ho API zahodí. Předávané
-    // top-level bez typu se nikam nedostalo, takže Veo klientovu značku ani produkt
-    // nikdy nevidělo a generovalo obecné stock záběry. Nepřidávat sem `as any`:
-    // právě to umlčelo typovou kontrolu, která by obojí odhalila.
-    const refImages = referenceImages?.slice(0, 3).map(ref => ({
-        image: {
-            imageBytes: ref.buffer.toString("base64"),
-            mimeType: ref.mimeType || "image/jpeg",
-        },
-        referenceType: VideoGenerationReferenceType.ASSET,
-    }))
-
-    let operation = await ai.models.generateVideos({
-        model,
-        prompt,
-        config: {
-            durationSeconds: duration,
-            aspectRatio,
-            resolution: "1080p",
-            numberOfVideos: 1,
-            ...(refImages?.length ? { referenceImages: refImages } : {}),
-        },
-    })
-
-    // Poll operation until complete (Veo takes 2-5 minutes)
-    console.log("   ⏳ Veo 3.1 generating video (this takes 2-5 min)...")
-    while (!operation.done) {
-        await new Promise(resolve => setTimeout(resolve, 10000)) // Poll every 10s
-        operation = await ai.operations.getVideosOperation({ operation })
-    }
-
-    const video = operation.response?.generatedVideos?.[0]?.video
-    if (!video) {
-        throw new Error("Veo 3.1 returned no video data")
-    }
-
-    // Veo se účtuje za vteřinu vygenerovaného videa a operace nenese usageMetadata —
-    // bez tohohle by reel (nejdražší médium) vycházel v telemetrii na nulu.
-    recordUnits(model, "seconds", duration, "video")
-
-    // Check for inline video bytes first
-    if ((video as any).videoBytes) {
-        return Buffer.from((video as any).videoBytes, "base64")
-    }
-
-    // Download video from URI (add API key for auth)
-    if (!video.uri) {
-        throw new Error("Veo 3.1 returned no video URI or bytes")
-    }
-
-    const apiKey = process.env.GEMINI_API_KEY
-    const downloadUrl = video.uri.includes("?")
-        ? `${video.uri}&key=${apiKey}`
-        : `${video.uri}?key=${apiKey}`
-
-    const videoResponse = await fetch(downloadUrl)
-    if (!videoResponse.ok) {
-        throw new Error(`Failed to download video: ${videoResponse.status} ${videoResponse.statusText}`)
-    }
-
-    const arrayBuffer = await videoResponse.arrayBuffer()
-
-    return Buffer.from(arrayBuffer)
 }
 
 // ============================================

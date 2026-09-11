@@ -25,7 +25,10 @@ Open [http://localhost:3000](http://localhost:3000)
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (frontend + middleware) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Admin operace (bypass RLS) |
-| `GEMINI_API_KEY` | Gemini 3.5 Flash, Nano Banana Pro, Veo 3.1, TTS |
+| `GEMINI_API_KEY` | Gemini 3.5 Flash, Nano Banana Pro, TTS |
+| `ANTHROPIC_API_KEY` | Claude: cross-family soudce, ověření faktů na webu, reelový režisér. Bez něj vše padá na Gemini Pro ladder (volitelné) |
+| `ARK_API_KEY` | BytePlus ModelArk — Seedance video pro reely. Bez něj reel nejde vyrobit; `REELS_ENABLED=1` bez klíče hlásí health-check |
+| `ARK_BASE_URL` | Endpoint ModelArk, výchozí `https://ark.ap-southeast.bytepluses.com/api/v3` (měnit jen při přesunu regionu) |
 | `COMGATE_MERCHANT` / `COMGATE_SECRET` | Platební brána (CZK) |
 | `COMGATE_MOCK=true` | Testovací platby bez reálné brány (na produkci ignorováno) |
 | `HIKERAPI_KEY` | IG scraping v onboardingu (volitelné) |
@@ -109,7 +112,9 @@ instagram/                            # 🤖 AI Engine (server-only, 8101 LOC)
 ├── memory-agent.ts                   # 459 LOC — učení z metrik → brand memory
 ├── gemini-client.ts                  # 455 LOC — AI gateway (text, image, video, TTS)
 ├── image-pipeline.ts                 # 346 LOC — prompt refinement, visual memory
-├── video-processor.ts                # 247 LOC — Veo 3.1 reels processing
+├── seedance-client.ts                # Seedance (BytePlus ModelArk) — async úlohy, polling, účtování
+├── reel-director.ts / reel-storyboard.ts  # Claude režisér: storyboard + prompt pro video
+├── reel-audio.ts / reel-subtitles.ts / reel-compositor.ts  # audio-first voiceover, ASS titulky, ffmpeg
 ├── context-agent.ts                  # 232 LOC — svátek, počasí, trendy
 ├── content-planner.ts                # 223 LOC — AI plánování týdne
 ├── performance.ts                    # 186 LOC — per-pillar engagement analytics
@@ -175,7 +180,8 @@ middleware.ts                         # Auth redirect guard
 | **AI Designer** (design briefy, native engine) | `gemini-3.1-pro` | `gemini-3.5-flash` |
 | **Image gen** (vč. edit + refs) | `gemini-3-pro-image` (Nano Banana Pro GA) | `gemini-3.1-flash-image` (Nano Banana 2 GA) |
 | **Vision** (QA, logo placement, tagging) | `gemini-3.5-flash` | — |
-| **Video** (reels, tier dle `videoTier`) | `veo-3.1-lite` / `veo-3.1-fast-generate-001` / `veo-3.1-generate-001` | — |
+| **Video** (reels, 9:16 @ 480p) | `seedance-2-5-pro` (BytePlus ModelArk, ID potvrdit v konzoli) | — (přetížení = zaparkovat) |
+| **Reelový režisér** (storyboard) | `claude-sonnet-5` | Gemini `textPro` ladder |
 | **TTS** (voiceover) | `gemini-3.1-flash-tts-preview` | `gemini-2.5-flash-tts` |
 
 > Jediný zdroj pravdy: `instagram/models.ts` (`getModel()`, env override `GEMINI_MODEL_<ACTION>[_FALLBACK]`).

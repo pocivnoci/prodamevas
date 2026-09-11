@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
+import { RENDER_BUDGET_MS } from "@/lib/job-park"
 
 export const maxDuration = 800 // stejný strop jako /api/ig-run-job — dokončuje tentýž render
 
@@ -89,6 +90,7 @@ export async function GET(req: Request) {
             chargedMedium: config.chargedMedium,
             jobId: job.id,
             resumeFrom,
+            deadlineAt: Date.now() + RENDER_BUDGET_MS,
             onProgress: async (stage, progress, message) => {
                 await updateJob({ status: stage, progress, agent_message: message })
             },
@@ -114,7 +116,14 @@ export async function GET(req: Request) {
 
     } catch (err: any) {
         const msg = err?.message?.substring(0, 500) || "Unknown error"
-        const { isQualityUnavailable } = await import("@/utils/retry")
+        const { isQualityUnavailable, isVideoPending } = await import("@/utils/retry")
+
+        // Video ještě renderuje — znovu zaparkovat na pár minut, kredit zůstává.
+        if (isVideoPending(err)) {
+            const { parkJobForVideo } = await import("@/lib/job-park")
+            const parked = await parkJobForVideo(job.id)
+            if (parked) return NextResponse.json({ ok: true, resumed: 0, deferred: true, video: true, jobId: job.id })
+        }
 
         if (isQualityUnavailable(err)) {
             const { parkJobForQuality } = await import("@/lib/job-park")

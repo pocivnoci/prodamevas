@@ -25,6 +25,19 @@ const BACKOFF_MINUTES = [15, 30, 60, 120, 240, 480] as const
 export const MAX_QUALITY_RETRIES = BACKOFF_MINUTES.length
 
 /**
+ * Rozpočet jednoho renderu v lambdě. Vercel Fluid má strop 800 s; 100 s rezerva
+ * kryje zápis do DB, refund a odpověď. Kampaňový worker i reelový orchestrátor
+ * čtou TOTÉŽ číslo — dva rozpočty by se rozešly přesně v tu chvíli, kdy na tom
+ * záleží. Env override existuje jen pro test parkovací cesty (viz plán reelů).
+ */
+export const RENDER_BUDGET_MS = Number(process.env.RENDER_BUDGET_MS || 700_000)
+
+/** Za jak dlouho se vrátit k videu, které u Seedance ještě renderuje. */
+export const VIDEO_RETRY_MINUTES = 2
+/** Kolikrát smí job kvůli běžícímu videu odejít z lambdy, než je to zásek. */
+export const MAX_VIDEO_POLL_ROUNDS = 3
+
+/**
  * Uživatelský text — musí říct, že se nic neztratilo a že nemá klikat znovu.
  *
  * Úmyslně RELATIVNÍ čas. Absolutní hodina se formátovala podle časové zóny
@@ -73,5 +86,34 @@ export async function parkJobForQuality(
     }
 
     console.log(`⏸️ job ${jobId} zaparkován, pokus ${retryCount + 1}/${MAX_QUALITY_RETRIES} za ${minutes} min`)
+    return { retryAfter }
+}
+
+/**
+ * Zaparkuje job, jehož video u Seedance ještě renderuje (`VideoPendingError`).
+ *
+ * Liší se od parkování kvůli kvalitě ve dvou věcech: odstup je krátký (video
+ * dobíhá v řádu minut, ne hodin) a `retry_count` se NEZVYŠUJE — počet kol
+ * hlídá checkpoint videa (`pollRounds`), protože jde o jiný rozpočet než
+ * pokusy o Pro model. Kredit zůstává: úloha u poskytovatele je zaplacená a
+ * resume ji dopolluje z checkpointu, nikdy nezadává znovu.
+ */
+export async function parkJobForVideo(jobId: string): Promise<{ retryAfter: Date } | null> {
+    const retryAfter = new Date(Date.now() + VIDEO_RETRY_MINUTES * 60_000)
+    const { error } = await supabaseAdmin
+        .from("ig_jobs")
+        .update({
+            status: "failed",
+            retry_after: retryAfter.toISOString(),
+            agent_message: `🎬 Video se ještě renderuje — dokončíme automaticky (~${VIDEO_RETRY_MINUTES} min)`,
+            error: "Video u poskytovatele ještě renderuje. Příspěvek dokončíme automaticky během pár minut — kredit vám zůstává, najdete ho v Příspěvcích.",
+        })
+        .eq("id", jobId)
+
+    if (error) {
+        console.error(`🚨 job ${jobId}: parkování kvůli videu selhalo (${error.message})`)
+        return null
+    }
+    console.log(`🎬 job ${jobId} zaparkován — video dobíhá, návrat za ${VIDEO_RETRY_MINUTES} min`)
     return { retryAfter }
 }

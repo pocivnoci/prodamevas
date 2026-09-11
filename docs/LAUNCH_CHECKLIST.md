@@ -50,7 +50,7 @@ Volitelné:
 - [ ] **Ověřená doména v Resend** (`onboarding@resend.dev` doručí jen na vlastní adresu účtu!) + `REPORT_FROM_EMAIL` = např. `Chrlit <noreply@chrlit.cz>`
 - [ ] `EMAIL_SECRET` explicitně nastavit (HMAC pro unsubscribe odkazy; jinak fallback na `CRON_SECRET`)
 - [ ] Malá testovací platba end-to-end (vč. ověření, že se uložil `subscriptions.recurring_trans_id`)
-- [ ] Po nasazení: `REELS_ENABLED=1` (kredity už reels zpoplatňují správně — 5 kreditů)
+- [ ] Reels: `ARK_API_KEY` + `ANTHROPIC_API_KEY` na Vercelu → `npx tsx scripts/smoke-seedance.ts` (potvrdí tvar API ModelArk a `ass` filtr ffmpegu) → jeden krátký a jeden dlouhý reel na testovacím tenantovi (Dominance) vč. parkovací cesty → teprve pak `REELS_ENABLED=1` (kredity: 5 krátký / 10 dlouhý; migrace `20260911_reel_long.sql` musí být aplikovaná)
 
 ## 6. Právní identita a fakturace (v8.5) — BEZ TOHOTO SE NESMÍ PRODÁVAT
 

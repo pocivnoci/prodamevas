@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
 import { generateOnePost } from "@/instagram/autopilot"
+import { RENDER_BUDGET_MS } from "@/lib/job-park"
 
 export const maxDuration = 800 // Vercel Pro cap (Fluid Compute). Full budget for the all-Pro generation pipeline.
 
@@ -46,6 +47,9 @@ export async function POST(req: Request) {
     }
 
     const config = job.config as any
+    // Strop lambdy: reel podle něj krájí čekání na video a raději se zaparkuje,
+    // než aby ho Vercel zabil uprostřed pollingu.
+    const deadlineAt = Date.now() + RENDER_BUDGET_MS
 
     try {
         const result = await generateOnePost({
@@ -64,6 +68,7 @@ export async function POST(req: Request) {
             chargedMedium: config.chargedMedium,
             jobId,
             resumeFrom,
+            deadlineAt,
             onProgress: async (stage: string, progress: number, message: string, editorialLog?: any[]) => {
                 const update: Record<string, any> = { status: stage, progress, agent_message: message }
                 if (editorialLog && editorialLog.length > 0) {
@@ -120,7 +125,22 @@ export async function POST(req: Request) {
         // Zadání znělo „radši zítra, ale v top kvalitě", takže tohle není selhání,
         // jen odklad: kredit zůstává (práce se dokončí) a `/api/cron/job-resume` job
         // zvedne z caption checkpointu, takže druhý pokus stojí jen render.
-        const { isQualityUnavailable } = await import("@/utils/retry")
+        const { isQualityUnavailable, isVideoPending } = await import("@/utils/retry")
+
+        // Video u Seedance ještě renderuje a rozpočet lambdy došel. Není to selhání:
+        // úloha běží a je zaplacená, job se zaparkuje na pár minut a job-resume ji
+        // dopolluje z video checkpointu. Kredit zůstává, Sentry se neobtěžuje.
+        if (isVideoPending(err)) {
+            const { parkJobForVideo } = await import("@/lib/job-park")
+            const parked = await parkJobForVideo(jobId)
+            if (parked) {
+                return NextResponse.json({
+                    success: false, deferred: true, video: true, retryAfter: parked.retryAfter,
+                    error: "🎬 Video se ještě renderuje — příspěvek dokončíme automaticky během pár minut, najdete ho v Příspěvcích.",
+                }, { status: 503 })
+            }
+        }
+
         const quality = isQualityUnavailable(err)
 
         if (quality) {

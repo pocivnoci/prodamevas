@@ -13,7 +13,7 @@ import { LEGAL, vatNotice } from "@/lib/legal"
 /** U plátce DPH nesmí cena v ceníku vypadat jako konečná. U neplátce je prázdné. */
 const vatSuffix = LEGAL.vatStatus === "payer" ? " bez DPH" : ""
 import { CheckCircle2, Clock } from "lucide-react"
-import { creditExample } from "@/lib/credits"
+import { creditExample, MEDIA_CREDITS } from "@/lib/credits"
 import { useEffect, useState } from "react"
 import {
     BILLING_TERMS,
@@ -76,7 +76,8 @@ function planFeatureList(p: PlanRow, reelsEnabled: boolean): PlanFeatureItem[] {
 
     // Reels se nezamlčují, jen se přiznají: vypínač REELS_ENABLED je potichu
     // překlápí na carousel, takže je nabídnout jako hotovou funkci by byl mis-sale.
-    if (hasReels) items.push({ text: "Reels (AI video) — 5 kreditů", pending: !reelsEnabled })
+    // Obě velikosti reelu; čísla jdou z MEDIA_CREDITS, nikdy ručně (aserce 13.11).
+    if (hasReels) items.push({ text: `Reels (AI video) — ${MEDIA_CREDITS.reel} kreditů krátký, ${MEDIA_CREDITS.reel_long} dlouhý`, pending: !reelsEnabled })
 
     if (f.allowed_actions.includes("post_variant")) items.push({ text: "A/B varianty příspěvků" })
     if (f.allowed_actions.includes("idea_generate")) items.push({ text: "AI nápady na obsah" })

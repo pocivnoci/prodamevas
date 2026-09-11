@@ -161,7 +161,7 @@ export const instagramAdapter: ChannelAdapter = {
         hashtagSweetSpot: [8, 15],
         // Cross-checked against the switch in publish() — this list is what the
         // transport actually carries, not a wish list.
-        mediaTypes: ["image", "story", "carousel", "reel", "video"],
+        mediaTypes: ["image", "story", "carousel", "reel", "reel_long", "video"],
         aspectRatios: ["1:1", "4:5", "9:16"],
     },
 
@@ -199,6 +199,7 @@ export const instagramAdapter: ChannelAdapter = {
         // a build error here, not a wrong post.
         switch (content.mediaType) {
             case "reel":
+            case "reel_long":
             case "video": {
                 // `mediaUrls` is [videoUrl, coverUrl?] — index 1 is the COVER.
                 const [videoUrl, coverUrl] = mediaUrls

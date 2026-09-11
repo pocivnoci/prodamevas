@@ -6,13 +6,15 @@ description: >-
   a oddělený tiskový engine. Načti při práci s instagram/image-pipeline.ts,
   print-pipeline.ts, orchestrators/*, lib/feed-pattern.ts, format-clamps.ts, nebo když
   řešíš aspectRatio, overlayStyle, LAYOUT_ARCHETYPES, českou typografii v obraze, logo
-  jako referenci, Veo, voiceover, titulky, mockupy nebo tiskovou geometrii.
+  jako referenci, Seedance, reelový storyboard, voiceover, titulky, mockupy nebo
+  tiskovou geometrii.
 ---
 
 # Vizuální engine
 
 Hlídají to aserce **§12, §13, §17** v `test-beta-e2e.ts` plus
-`scripts/test-feed-pattern.ts` a `scripts/test-print-pipeline.ts` (`npm run guard`).
+`scripts/test-feed-pattern.ts`, `scripts/test-reel-pipeline.ts` a
+`scripts/test-print-pipeline.ts` (`npm run guard`).
 
 ## Native-only: žádný overlay engine neexistuje
 
@@ -53,27 +55,55 @@ který mapuje na skupinu z `LAYOUT_ARCHETYPES`.
 - `feedPattern` potřebuje clamp ve `validateConfig()` — enginový kód indexuje
   `ARCHETYPE_GROUPS[mode]`.
 
-## Reely: kvalita na Pro ladderu, degradace nahlas
+## Reely: audio-first, Seedance, nic potichu
 
-`refineVideoPrompt` (`image-pipeline.ts`) je **jediný kreativní krok mezi copywriterem
-a Veo** — přepisuje celý scénář do jednoho promptu. Běží proto na `textPro` ladderu
-přes `generateTextQuality` (`json: false`, výstup je próza), ne na flash. Když jsou oba
-Pro tiery vyčerpané, propadne na surový scénář a **zaloguje to**.
+Reel má dvě velikosti = dvě média v kreditové tabulce (`reel` ≤ 8 s / 5 kr.,
+`reel_long` ≤ 20 s / 10 kr., `lib/reel-media.ts`). Na „je to reel?" se ptej
+`isReelMedium()`, nikdy `=== "reel"`. Jediné rozlišení je 480p (720p by dlouhý
+reel poslal mimo pásmo Kč/kredit).
 
-**CTA politika platí i na obraz.** Prompt dřív vypaloval `config.website` do posledních
-vteřin videa natvrdo, takže reel z REACH/CONNECT pilíře porušoval vlastní `CtaPolicy`
-tam, kam textový kritik nevidí. `refineVideoPrompt` bere `ctaPolicy` a při
-`!allowWebsite` zakazuje URL kdekoli ve videu; cesta vede přes `RenderContext.ctaPolicy`.
-Resolve `ctaPolicy` v `autopilot.ts` **musí zůstat nad checkpoint větví** — resume
-z caption checkpointu přeskakuje copywritera, ale média renderuje.
+Pipeline (`orchestrators/reel-orchestrator.ts`) je **od zvuku**:
 
-**FFmpeg:** binárka `ffmpeg-static` se do build trace dostane i bez
-`outputFileTracingIncludes` (změřeno 2026-08-07); záznam v `next.config.ts` je
-**pojistka, ne oprava**. Reálný problém byl, že chybějící binárka mizela potichu:
-`getFfmpegPath()` existenci ověřuje a hází diagnostikovatelnou chybu, pád
-post-processingu jde do Sentry (`step: ffmpeg-postprocess`). Surové video se pořád
-publikuje, ale reel za 5 kreditů bez voiceoveru a titulků nesmí být k nerozeznání
-od úspěchu.
+1. Narrace = věty copywritera (prošly kritikem i faktickou bránou). Režisér ji
+   **nepíše ani nepřepisuje** — smí ji jen zkrátit (`condenseNarration`), když se
+   nevejde do stropu, beze změny významu a bez nových čísel.
+2. `reel-audio.ts`: TTS po větách, délka z hlavičky WAV (bez ffmpegu), časová osa
+   (`buildTimeline`: nájezd, mezery, dojezd, zrychlení do 1,15×, jinak `tooLong`).
+   **Délka videa se odvozuje z řeči**, ne z configu. TTS mimo provoz =
+   `QualityUnavailableError` = zaparkovat, a to DŘÍV, než se zaplatí vteřina videa.
+3. `reel-director.ts` (Claude Sonnet 5, fallback Gemini `textPro` ladder, stejný
+   JSON): storyboard zarovnaný na osu, záběry ukazují na očíslované reference
+   (brandové fotky z `pickBrandPhotos`, produkt, logo) a JEDEN anglický prompt.
+   Čistá část je v `reel-storyboard.ts` (validátor: navazující záběry, indexy
+   referencí, žádná URL při `!allowWebsite`). `finalizeVideoPrompt` doplňuje tvrdé
+   zákazy — bez textu v obraze, bez řeči — bez ohledu na model.
+4. Voiceover stopa se složí čistě v TS (`assembleVoiceoverWav`) a nahraje do bucketu
+   klienta; pak se uloží **video checkpoint** (`ig_jobs.result.checkpoint.video`),
+   zadá se úloha na Seedance (`seedance-client.ts`, BytePlus ModelArk) a checkpoint
+   se uloží znovu s `taskId`. Účtování (`recordUnits(videoUnitKey(...), "seconds")`)
+   je u zadání — resume nic neplatí dvakrát.
+5. Polling má rozpočet z `deadlineAt` (`RENDER_BUDGET_MS` v `lib/job-park.ts`).
+   Když video ještě běží, letí `VideoPendingError` → `parkJobForVideo` (2 min,
+   kredit zůstává, `retry_count` se nemění, kola počítá `pollRounds`, strop
+   `MAX_VIDEO_POLL_ROUNDS`). Přetížené Seedance = `QualityUnavailableError`.
+   Tvar API ModelArk žije JEN v `buildTaskBody`/`parseTaskStatus`
+   (`ARK_PARAMS_IN_PROMPT=1` = starší forma s parametry v textu).
+6. `reel-compositor.ts` (ffmpeg-static, jeden průchod): atmosféra z videa se pod
+   řečí **stlačuje** (`sidechaincompress`), němé video se ošetří (`probeHasAudio`),
+   titulky jdou přes `ass` + `fontsdir` s bundlovaným `assets/fonts/Inter-Bold.ttf`
+   (`drawtext` ve statické binárce **není**), `loudnorm` −14 LUFS. Titulky
+   (`reel-subtitles.ts`) jsou krátké karty ≤ 2 × 18 znaků v bezpečné zóně IG,
+   zalamované v kódu (`WrapStyle: 2`). Pád kompozice, videa nebo uploadu je
+   **selhání jobu** (refund + Sentry `step: compose`), nikdy reel bez titulků.
+7. Cover zůstává native (Nano Banana Pro + QA); `rethrowIfQualityUnavailable` platí
+   i tady.
+
+**CTA politika platí i na obraz** — `ctaPolicy` jde přes `RenderContext` do
+režiséra; resolve v `autopilot.ts` **musí zůstat nad checkpoint větví**.
+Binárka i font jsou připnuté v `next.config.ts` pro `ig-run-job`, `campaign-worker`
+i `job-resume`. Bez `ARK_API_KEY` reel nejde vyrobit a orchestrátor to hlásí nahlas
+(health-check hlídá `REELS_ENABLED=1` bez klíče). Čisté testy:
+`scripts/test-reel-pipeline.ts`; živý test: `scripts/smoke-seedance.ts`.
 
 ## Stories
 

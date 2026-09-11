@@ -7,6 +7,7 @@ import type { OverlayStyle } from "@/instagram/configs/types"
 import { FORMAT_BRIEF_LIMITS } from "@/instagram/configs/types"
 import { stripFinishedCopy } from "@/instagram/configs/format-brief"
 import { isMediumType, type MediumType } from "@/lib/credits"
+import { isReelMedium } from "@/lib/reel-media"
 
 export async function getClientConfig(projectSlug: string): Promise<any> {
     try {
@@ -129,7 +130,7 @@ const STATIC_OVERLAY_STYLES: OverlayStyle[] =
  *  A story is typography-led (it IS the text), so it keeps the full style choice.
  *  Honors the user's choice when valid, else falls back to the medium-derived default. */
 function resolveOverlayStyle(medium: MediumType, chosen?: OverlayStyle): OverlayStyle {
-    if (medium === "reel") return "none"
+    if (isReelMedium(medium)) return "none"
     if (chosen && STATIC_OVERLAY_STYLES.includes(chosen)) return chosen
     return medium === "carousel" ? "cover" : "default"
 }
@@ -137,7 +138,7 @@ function resolveOverlayStyle(medium: MediumType, chosen?: OverlayStyle): Overlay
 /** Media rendered in a 9:16 frame. Feed media must use a feed-legal ratio instead —
  *  mirrors VERTICAL_MEDIA in instagram/format-clamps.ts, which is the enforcing copy. */
 function isVerticalMedium(medium: MediumType): boolean {
-    return medium === "reel" || medium === "story"
+    return isReelMedium(medium) || medium === "story"
 }
 
 /**

@@ -10,7 +10,7 @@
  */
 
 import { withUsageMeter, recordUsage, recordUnits, currentUsage, isMetering } from "../instagram/usage-meter"
-import { costUsdForCall, costUsdForBreakdown, resolveModelAlias } from "../lib/model-pricing"
+import { costUsdForCall, costUsdForBreakdown, resolveModelAlias, videoUnitKey } from "../lib/model-pricing"
 import { MODELS, getModel, hasFallback } from "../instagram/models"
 
 let passed = 0
@@ -85,7 +85,7 @@ async function main() {
 
     // ------------------------------------------------------------ jednotky
     const { usage: vid } = await withUsageMeter(async () => {
-        recordUnits("veo-3.1-fast-generate-preview", "seconds", 8, "video")
+        recordUnits(videoUnitKey("seedance-2-5-pro", "480p"), "seconds", 8, "video")
     })
     check("video se měří v jednotkách, ne v tokenech",
         vid.breakdown[0].units?.kind === "seconds" && vid.breakdown[0].units?.n === 8)
@@ -118,10 +118,15 @@ async function main() {
     const longCtx = costUsdForCall("gemini-pro-latest", { promptTokens: 300_000, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0 })
     check("nad 200k tokenů platí vyšší sazba", longCtx !== null && Math.abs(longCtx - 1.2) < 1e-9, `bylo ${longCtx}`)
 
-    const veo = costUsdForCall("veo-3.1-fast-generate-preview", {
+    const video = costUsdForCall(videoUnitKey("seedance-2-5-pro", "480p"), {
         promptTokens: 0, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0, units: { kind: "seconds", n: 10 },
     })
-    check("video se ocení za vteřiny (10 s Veo Fast @1080p = $1,20)", veo !== null && Math.abs(veo - 1.2) < 1e-9, `bylo ${veo}`)
+    check("video se ocení za vteřiny (10 s Seedance @480p = $1,00)", video !== null && Math.abs(video - 1.0) < 1e-9, `bylo ${video}`)
+    // Rozlišení je součást klíče — 720p má vlastní řádek, aby se dial nedal zapnout bez ceny.
+    const video720 = costUsdForCall(videoUnitKey("seedance-2-5-pro", "720p"), {
+        promptTokens: 0, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0, units: { kind: "seconds", n: 10 },
+    })
+    check("720p je dražší než 480p", video720 !== null && video !== null && video720 > video, `bylo ${video720}`)
 
     const img = costUsdForCall("gemini-3-pro-image", {
         promptTokens: 0, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0, units: { kind: "images", n: 1 },
@@ -144,10 +149,12 @@ async function main() {
         for (const tier of ["primary", "fallback"] as const) {
             if (tier === "fallback" && !hasFallback(action)) continue
             const model = getModel(action, tier)
-            const isMedia = action === "image" || action === "imageCheap" ||
-                action.startsWith("video")
+            const isMedia = action === "image" || action === "imageCheap" || action === "video"
+            // Video se oceňuje pod klíčem model@rozlišení (lib/model-pricing.ts videoUnitKey) —
+            // engine renderuje jen 480p, takže tohle je ta sazba, která musí existovat.
+            const priceKey = action === "video" ? videoUnitKey(model, "480p") : model
             const priced = isMedia
-                ? costUsdForCall(model, { promptTokens: 0, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0, units: { kind: action.startsWith("video") ? "seconds" : "images", n: 1 } })
+                ? costUsdForCall(priceKey, { promptTokens: 0, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0, units: { kind: action === "video" ? "seconds" : "images", n: 1 } })
                 : costUsdForCall(model, { promptTokens: 1000, outputTokens: 100, thoughtTokens: 0, cachedTokens: 0 })
             if (priced === null) unpriced.push(`${action}.${tier} → ${model}`)
         }

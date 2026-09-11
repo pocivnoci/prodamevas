@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react"
 import { getWeekPosts, approvePost, confirmPlanAction, movePost } from "@/app/actions/calendar-actions"
+import { parsePostMedia } from "@/lib/media-urls"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { CaptionEditor } from "./shared"
 import { CalendarDays, CircleCheck, Clock, CloudSun, FileText, Send, TriangleAlert, Wand, type LucideIcon } from "lucide-react"
@@ -10,6 +11,7 @@ interface CalendarPost {
     id: string
     caption: string
     image_url: string | null
+    media_type?: string | null
     status: string
     scheduled_for: string | null
     time_slot: string | null
@@ -267,7 +269,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                     >
                                         {post.image_url ? (
                                             <img
-                                                src={post.image_url.split("|")[0]}
+                                                src={parsePostMedia(post.image_url, post.media_type).thumbUrl ?? undefined}
                                                 alt=""
                                                 className="w-14 h-14 shrink-0 object-cover rounded-sm opacity-90"
                                             />
@@ -344,7 +346,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                             {/* Thumbnail */}
                                             {post.image_url && (
                                                 <img
-                                                    src={post.image_url.split("|")[0]}
+                                                    src={parsePostMedia(post.image_url, post.media_type).thumbUrl ?? undefined}
                                                     alt=""
                                                     className="w-full h-16 object-cover rounded-sm mb-1.5 opacity-80"
                                                 />
@@ -384,7 +386,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                     <div className="bg-[#0a0a0a] border border-white/10 rounded-t-sm sm:rounded-sm sm:max-w-lg w-full sm:mx-4 max-h-[85dvh] overflow-y-auto shadow-2xl pb-[env(safe-area-inset-bottom)] sm:pb-0" onClick={e => e.stopPropagation()}>
                         {/* Image */}
                         {selectedPost.image_url && (
-                            <img src={selectedPost.image_url.split("|")[0]} alt="" className="w-full aspect-square object-cover" />
+                            <img src={parsePostMedia(selectedPost.image_url, selectedPost.media_type).thumbUrl ?? undefined} alt="" className="w-full aspect-square object-cover" />
                         )}
 
                         <div className="p-6 space-y-4">

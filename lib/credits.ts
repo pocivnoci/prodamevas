@@ -21,7 +21,12 @@ export const MEDIA_CREDITS = {
     image: 1,
     story: 2,
     carousel: 3,
+    /** Krátký reel — do 8 s videa (Seedance 480p + český voiceover + titulky + cover). */
     reel: 5,
+    /** Dlouhý reel — do 20 s. Samostatné médium, ne příznak: `media_type` na řádku
+     *  příspěvku rozhoduje o zúčtování, takže délka MUSÍ být ve jméně média
+     *  (`lib/reel-media.ts`). */
+    reel_long: 10,
 } as const
 
 export type MediumType = keyof typeof MEDIA_CREDITS

@@ -1,3 +1,5 @@
+import { isReelMedium } from "./reel-media"
+
 /**
  * Ceník — jediný zdroj pravdy o obdobích a o tom, jak se z měsíční ceny počítá
  * cena za období.
@@ -259,7 +261,7 @@ export interface PlanCopy {
  * Aserce 13.18 drží návratovou hodnotu u seedu.
  */
 export function getPlanForMedium(medium: string): string {
-    if (medium === "reel") return "Dominance"
+    if (isReelMedium(medium)) return "Dominance"
     return "Start"
 }
 
@@ -285,7 +287,7 @@ export const PLAN_COPY: Record<string, PlanCopy> = {
     chrlit_dominance: {
         tagline: "Ovládni svůj trh",
         bullets: [
-            { text: "Reels — AI video", requiresReels: true },
+            { text: "Reels — AI video (krátké i dlouhé)", requiresReels: true },
             "Produktové vizualizace a mockupy",
             "Celá produktová řada na zadání",
             "Prioritní generování",

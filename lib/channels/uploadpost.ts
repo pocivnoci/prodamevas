@@ -237,7 +237,7 @@ export const uploadPostAdapter: ChannelAdapter = {
         // Every medium the engine can render. `publish()` cross-checks against this
         // list at runtime (see below), so this array is the single source of truth for
         // what the bridge carries — it cannot drift away from the switch.
-        mediaTypes: ["image", "carousel", "reel", "story", "video"],
+        mediaTypes: ["image", "carousel", "reel", "reel_long", "story", "video"],
         aspectRatios: ["1:1", "4:5", "9:16"],
     },
 
@@ -272,6 +272,7 @@ export const uploadPostAdapter: ChannelAdapter = {
 
         switch (content.mediaType) {
             case "reel":
+            case "reel_long":
             case "video": {
                 // `mediaUrls` is [videoUrl, coverUrl?] — the reel convention from
                 // media-urls.ts. Index 1 is the COVER; treating it as a second video

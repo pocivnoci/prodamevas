@@ -18,7 +18,7 @@ flowchart TB
         PAY["payments/create<br/>initRecurring token"]
         CB["payments/callback<br/>idempotent · verifies via getPaymentStatus"]
         BW["cron: billing-worker (daily)<br/>renewal charge · dunning 3× · grace 3d"]
-        CRED["Credits — media-weighted<br/>image 1 · carousel 3 · reel 5<br/>plans 20 / 45 / 110"]
+        CRED["Credits — media-weighted<br/>image 1 · story 2 · carousel 3 · reel 5 · reel_long 10<br/>plans 20 / 45 / 110"]
     end
 
     subgraph JOBS["⚙️ Generation entry points"]
@@ -89,13 +89,13 @@ flowchart TD
     G -- yes --> AD["AI DESIGNER<br/>design brief: layout archetype (8, last-3 hard-banned),<br/>CZ typografie, logo placement · Pro · temp 0.6"]
     AD --> RN{"medium?"}
     RN -- image/carousel --> NB["RENDERER — Nano Banana Pro<br/>complete post incl. Czech text + logo (reference img)"]
-    RN -- reel --> VEO["Veo 3.1 (lite/fast/premium)<br/>+ TTS voiceover"]
+    RN -- reel --> SEED["REEL audio-first: TTS po větách → časová osa →<br/>Claude storyboard → voiceover do bucketu → VIDEO CHECKPOINT →<br/>Seedance (ModelArk, async 480p) → checkpoint s taskId → poll v rozpočtu<br/>(VideoPendingError = park) → ffmpeg ducking + ASS titulky → cover"]
     NB --> QA["VISION QA — verifyNativeImage<br/>Pro · temp 0.25: text správně? logo?"]
     QA -- fail --> FIX["1 corrective edit"] --> QA2{"pass?"}
     QA2 -- no --> SAT["Satori/Sharp overlay fallback"]
     QA -- pass --> SAVE
     QA2 -- yes --> SAVE
-    VEO --> SAVE["SAVE: ig_posts (media_type) + ig_generation_log<br/>(critic score/keep/fix, qa_status, cost)<br/>+ learnFromCriticInsights (fire&forget)"]
+    SEED --> SAVE["SAVE: ig_posts (media_type) + ig_generation_log<br/>(critic score/keep/fix, qa_status, cost)<br/>+ learnFromCriticInsights (fire&forget)"]
     SAVE --> REC["💳 reconcileJobCharge —<br/>refund if delivered medium < charged"]
 ```
 
@@ -112,7 +112,7 @@ The consistency program (temp policy, deterministic persona, cross-family judge)
 | # | Weakness (verified in code) | Why it hurts | Better solution |
 |---|---|---|---|
 | 1 | **Repair-loop editorial board**: judge scores one draft, then up to 3 fix→rewrite→re-judge rounds | Iterative repair converges slowly; LLM judges are unreliable at *absolute* scores (a 6 vs a 9 is noisy) but reliable at *ranking*; worst case = 8 Pro calls | ✅ **Generate-and-select (best-of-2)**: 2 parallel copywriter drafts → judge **ranks** them (`rankDrafts`) + fixes only the winner (≤1 repair round via `reviewPost(..., maxRounds: 1)`) |
-| 2 | **No intra-post checkpoints**: one 800s monolith; Veo reels are the longest and most crash-prone | A timeout at render re-generates the caption (cost + different result than what was approved); reaper refunds but the work is lost | ✅ **Caption checkpoint in `ig_jobs.result`**: persisted after the quality gate; failed-job retry + campaign QU-defer resume the visual phase without re-burning the Pro text calls |
+| 2 | **No intra-post checkpoints**: one 800s monolith; video reels are the longest and most crash-prone | A timeout at render re-generates the caption (cost + different result than what was approved); reaper refunds but the work is lost | ✅ **Caption checkpoint in `ig_jobs.result`**: persisted after the quality gate; failed-job retry + campaign QU-defer resume the visual phase without re-burning the Pro text calls |
 | 3 | **Memory retrieval = top-8 by confidence** (`getBrandMemories(8)`, ilike only) | The same 8 memories dominate every prompt regardless of topic → stale, topic-irrelevant guidance | ✅ **Embedding retrieval**: `match_brand_memories` RPC (pgvector 768d) by topic relevance + top-3 confidence always included; lazy self-heal embedding of new memories |
 | 4 | **Judge has no calibration anchors** | Score drift across sessions/models; threshold 9 means different things on different days | ✅ **`SCORE_ANCHORS`** (a canonical 9 and a 6) pinned in both `scorePost` and `rankDrafts`; strategy comparison in the weekly report |
 | 5 | **Context gathered *after* type/idea selection** | A holiday/weather signal can't influence *what* gets made, only how it's written | ✅ `gatherContext()` runs before the Researcher; holiday → ×1.3 weight on product/promo type patterns |
@@ -136,7 +136,7 @@ flowchart TD
     SAVE -.-> DRIFT["drift dashboard / weekly report<br/>(feeds Phase-4 auto-tune)"]
 ```
 
-**Net effect per post:** worst case drops from ~8 Pro text calls to ~4–5, wall-clock drops by one to two editorial rounds, a Veo crash costs only the render stage, and every post emits a measurable consistency signal.
+**Net effect per post:** worst case drops from ~8 Pro text calls to ~4–5, wall-clock drops by one to two editorial rounds, a video crash costs only the render stage (and a reel resumes from its video checkpoint), and every post emits a measurable consistency signal.
 
 ### What deliberately does NOT change
 
@@ -149,7 +149,7 @@ flowchart TD
 
 Per the business plan, launch beats polish — none of this blocks "Ready to Charge". Order after beta customers land:
 
-1. **#2 checkpoints** — do first *if* reels go live (Veo = longest stage, biggest crash cost). Pure reliability, no output change.
+1. **#2 checkpoints** — do first *if* reels go live (video = longest stage, biggest crash cost; reels now checkpoint the video task). Pure reliability, no output change.
 2. **#1 best-of-2 + #4 anchors** — one focused change to `caption-generator.ts`/`editorial-board.ts`; A/B it against the repair loop using the existing variant rails before making it default.
 3. **#3 + #6 embeddings** (one integration, two wins) — this is the Phase-4 keystone: memory relevance now, the consistency sensor that auto-tuning needs later.
 4. **#5 context-first** — small, fold into any engine touch.

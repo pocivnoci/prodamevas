@@ -16,6 +16,7 @@
 
 import type { PostFormat, PostMedium, AspectRatio } from "./configs/types"
 import { creditsForMedia } from "../lib/credits"
+import { REEL_MEDIA, isReelMedium } from "../lib/reel-media"
 
 /**
  * Media rendered in a 9:16 frame, pinned there rather than clamped to the feed.
@@ -25,7 +26,7 @@ import { creditsForMedia } from "../lib/credits"
  * silently squashed to 4:5 — which is exactly what would have happened to a story.
  * Membership is now explicit and stated once.
  */
-const VERTICAL_MEDIA: ReadonlySet<PostMedium> = new Set<PostMedium>(["reel", "story"])
+const VERTICAL_MEDIA: ReadonlySet<PostMedium> = new Set<PostMedium>([...REEL_MEDIA, "story"])
 
 /** Ratios Instagram renders in the feed without a hard crop. */
 export const FEED_SAFE_RATIOS = ["1:1", "4:5", "3:4"] as const
@@ -58,9 +59,9 @@ export function applyFormatClamps(input: PostFormat, opts: ClampOptions): PostFo
     //    COPY the engine already has in hand: a story's frames[0] IS a legal single
     //    image, whereas a reel has only scenes and a cover — hence reel → carousel but
     //    story → image. Flip either back on with the env var; no redeploy needed.
-    if (!opts.reelsEnabled && f.medium === "reel") {
+    if (!opts.reelsEnabled && isReelMedium(f.medium)) {
         f.medium = "carousel"
-        log("   🚫 Reels dočasně vypnuté (Veo off) — fallback na carousel")
+        log("   🚫 Reels dočasně vypnuté (REELS_ENABLED) — fallback na carousel")
     }
     if (!opts.storiesEnabled && f.medium === "story") {
         f.medium = "image"
@@ -98,7 +99,7 @@ export function applyFormatClamps(input: PostFormat, opts: ClampOptions): PostFo
     // 5) overlayStyle "none" (text-free) is ONLY legal for reels — see CLAUDE.md. Any
     //    medium that arrived here by being clamped OUT of reel must not keep it, or a
     //    static post ships as a bare text-free photo.
-    if (f.medium !== "reel" && f.overlayStyle === "none") {
+    if (!isReelMedium(f.medium) && f.overlayStyle === "none") {
         f.overlayStyle = f.medium === "carousel" ? "cover" : "default"
     }
 

@@ -249,3 +249,50 @@ export async function searchWithClaude(
 
     return { text: texts.join("\n"), evidence }
 }
+
+// ─── Reelový režisér ────────────────────────────────────────────────────────
+
+/**
+ * Whether the Claude reel director is available. Same shape as the judge switch:
+ * needs ANTHROPIC_API_KEY; CLAUDE_DIRECTOR=off forces the Gemini Pro ladder.
+ */
+export function claudeDirectorEnabled(): boolean {
+    return Boolean(process.env.ANTHROPIC_API_KEY) && process.env.CLAUDE_DIRECTOR !== "off"
+}
+
+/**
+ * Storyboard pass for reels (`instagram/reel-director.ts`). Unlike the judge this is a
+ * CREATIVE step, so it runs at medium effort with room for a full JSON storyboard.
+ * Reference images (brand photos, product, logo) go in labelled, so the director can
+ * point each shot at a concrete picture instead of describing a generic one.
+ */
+export async function directWithClaude(
+    prompt: string,
+    opts: { label?: string; maxTokens?: number; images?: { buffer: Buffer; mimeType?: string; label?: string }[] } = {},
+): Promise<string> {
+    const model = getModel("reelDirector")
+    const content: Anthropic.ContentBlockParam[] = []
+    for (const img of opts.images ?? []) {
+        if (img.label) content.push({ type: "text", text: img.label })
+        content.push(await toImageBlock(img))
+    }
+    content.push({ type: "text", text: prompt })
+
+    const resp = await getClient().messages.create({
+        model,
+        max_tokens: opts.maxTokens ?? 4096,
+        output_config: { effort: "medium" },
+        messages: [{ role: "user", content }],
+    })
+
+    recordUsage(model, {
+        promptTokenCount: resp.usage?.input_tokens,
+        candidatesTokenCount: resp.usage?.output_tokens,
+        cachedContentTokenCount: resp.usage?.cache_read_input_tokens,
+    }, opts.label ?? "reel-director")
+
+    const text = resp.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text
+    if (!text) throw new Error("Claude director returned no text")
+    console.log(`   🎬 ${opts.label ?? "reel-director"}: ${model}`)
+    return text
+}

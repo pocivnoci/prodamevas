@@ -1,6 +1,6 @@
 # Instagram Content Engine — AI Multi-Client Platform
 
-> **AI-powered Instagram autopilot** — Gemini 3.5 Flash (text) + Nano Banana Pro (images) + Veo 3.1 (video)
+> **AI-powered Instagram autopilot** — Gemini 3.5 Flash (text) + Nano Banana Pro (images) + Seedance via BytePlus ModelArk (video) + Claude (judge, reel director)
 
 **Last Updated:** 2026-06-02
 
@@ -17,7 +17,11 @@ instagram/                            # 8101 LOC — server-only
 ├── memory-agent.ts                   # 459 LOC — brand memory, analyzeAndLearn(), getPostTypeBoosts()
 ├── gemini-client.ts                  # 455 LOC — AI gateway (text, image, edit, video, vision, TTS)
 ├── image-pipeline.ts                 # 346 LOC — refineImagePrompt(), visual memory
-├── video-processor.ts                # 247 LOC — Veo 3.1 reels, subtitles
+├── seedance-client.ts                # Seedance (ModelArk) — submit / poll / download
+├── reel-director.ts                  # Claude storyboard (reel-storyboard.ts = pure part)
+├── reel-audio.ts                     # audio-first: TTS po větách, časová osa, voiceover stopa
+├── reel-subtitles.ts                 # titulkové karty → ASS (bundlovaný Inter Bold)
+├── reel-compositor.ts                # ffmpeg: ducking + titulky + loudnorm
 ├── context-agent.ts                  # 232 LOC — gatherContext() (svátek, počasí, trendy)
 ├── content-planner.ts                # 223 LOC — planWeek() AI week planning
 ├── performance.ts                    # 186 LOC — per-pillar engagement analytics
@@ -45,7 +49,8 @@ instagram/                            # 8101 LOC — server-only
 | **Image gen** (incl. edit + refs) | `gemini-3-pro-image` (Nano Banana Pro GA, 2K) | `gemini-3.1-flash-image` (Nano Banana 2 GA) |
 | **Vision** (logo placement, tagging, overlay review) | `gemini-3.5-flash` | — |
 | **Vision QA** (`verifyNativeImage` native gate) | `gemini-3-pro-preview` | `gemini-3.5-flash` (then fail-open) |
-| **Video** (reels, 9:16, tier via `videoTier`) | `veo-3.1-lite` / `veo-3.1-fast-generate-001` / `veo-3.1-generate-001` | — |
+| **Video** (reels, 9:16 @ 480p) | `seedance-2-5-pro` (BytePlus ModelArk) | — (přetížení = park) |
+| **Reel director** (storyboard) | `claude-sonnet-5` | Gemini `textPro` ladder |
 | **TTS** (voiceover, Czech) | `gemini-3.1-flash-tts-preview` (voice: Kore) | `gemini-2.5-flash-tts` |
 
 > Single source of truth: `instagram/models.ts` (`getModel()`, env override `GEMINI_MODEL_<ACTION>[_FALLBACK]`).
@@ -71,7 +76,7 @@ instagram/                            # 8101 LOC — server-only
    Art Director: refineImagePrompt() + visual memory injection
    → Nano Banana Pro (2K) / Nano Banana 2 (fallback)
    → editExistingImage() pro product scene placement
-   → Veo 3.1 pro reels
+   → reels: TTS po větách → časová osa → Claude storyboard → Seedance (async, checkpoint) → ffmpeg
 
 5. OVERLAY + UPLOAD
    Satori SVG → Sharp composite → gradient + hook + logo watermark
@@ -121,7 +126,8 @@ Nový klient s neúplným configem **necrashne** — dostane safe defaults.
 | `reviewPost()` | editorial-board.ts | Multi-agent editorial review (max 3 rounds) |
 | `generateImage()` | gemini-client.ts | Nano Banana Pro → Buffer |
 | `editExistingImage()` | gemini-client.ts | Product→scene editing |
-| `generateVideo()` | gemini-client.ts | Veo 3.1 reels |
+| `submitVideoTask()` / `pollVideoTask()` | seedance-client.ts | Seedance reels (ModelArk) |
+| `directReel()` | reel-director.ts | Claude storyboard + video prompt |
 | `generateVoiceover()` | gemini-client.ts | TTS in Czech |
 | `refineImagePrompt()` | image-pipeline.ts | Art Director + visual memory |
 | `gatherContext()` | context-agent.ts | Calendar events, weather, trends |

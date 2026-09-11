@@ -200,6 +200,20 @@ export async function buildHealthCheck(): Promise<HealthReport> {
                 : null
         }),
 
+        // Zapnuté reely bez klíče k videu = každý reel skončí chybou a refundem,
+        // zákazník uvidí „selhalo" a my se to dozvíme od něj. Kontrola je levná a
+        // hlásí se JEN na produkci — lokálně klíč chybí běžně.
+        safe("klíč k videu", async () => {
+            if (process.env.VERCEL_ENV !== "production") return null
+            if (process.env.REELS_ENABLED !== "1") return null
+            if (process.env.ARK_API_KEY) return null
+            return {
+                icon: "🚨",
+                title: "REELS_ENABLED=1, ale chybí ARK_API_KEY (Seedance přes ModelArk)",
+                detail: "Každý reel padne na chybějící ARK_API_KEY a vrátí kredit. Doplň klíč do env, nebo reely vypni.",
+            }
+        }),
+
         // Volné sloty na mostu. Strop profilů je tvrdá hranice růstu, kterou nejde
         // vidět v našich datech: dojde-li, další zákazník si Instagram nepřipojí a
         // dozvíme se to od NĚJ. Tarif upload-postu strop nehlásí, takže ho bere z

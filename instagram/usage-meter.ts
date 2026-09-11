@@ -30,7 +30,7 @@ export interface ModelCall {
     thoughtTokens: number
     /** Část promptu obsloužená z cache (implicitní i explicitní) — levnější sazba. */
     cachedTokens: number
-    /** Netokenové jednotky: Veo se účtuje za vteřinu videa, obrázkové modely za kus.
+    /** Netokenové jednotky: video (Seedance) se účtuje za vteřinu, obrázkové modely za kus.
      *  Bez tohohle by reel — nejdražší médium v produktu — vyšel v telemetrii na nulu. */
     units?: { kind: UnitKind; n: number }
 }
@@ -135,9 +135,9 @@ export function recordUsage(model: string, usageMetadata: unknown, label?: strin
 }
 
 /**
- * Zapíše netokenové volání — video za vteřiny, obrázek za kus. Veo přes
- * `generateVideos` vrací operaci bez `usageMetadata`, takže by jinak nejdražší
- * médium v produktu měřilo nulu.
+ * Zapíše netokenové volání — video za vteřiny, obrázek za kus. Video API
+ * (Seedance přes ModelArk) nevrací tokeny modelu, takže by jinak nejdražší
+ * médium v produktu měřilo nulu. Klíč videa nese i rozlišení (`videoUnitKey`).
  */
 export function recordUnits(model: string, kind: UnitKind, n: number, label?: string): void {
     const acc = usageStorage.getStore()

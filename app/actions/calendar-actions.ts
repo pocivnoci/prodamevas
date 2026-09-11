@@ -33,6 +33,7 @@ export async function getWeekPosts(
         id: string
         caption: string
         image_url: string | null
+        media_type?: string | null
         status: string
         scheduled_for: string | null
         time_slot: string | null
@@ -53,7 +54,7 @@ export async function getWeekPosts(
         const { data, error } = await supabaseAdmin
             .from("ig_posts")
             .select(`
-                id, caption, image_url, status, scheduled_for, time_slot, created_at,
+                id, caption, image_url, media_type, status, scheduled_for, time_slot, created_at,
                 ig_post_types ( name, display_name, emoji )
             `)
             .eq("client_id", clientId)
@@ -280,7 +281,7 @@ export async function confirmPlanAction(
             .not("scheduled_for", "is", null)
             .gte("scheduled_for", fromIso)
             .lte("scheduled_for", toIso)
-            .or("media_type.is.null,and(media_type.neq.reel,media_type.neq.story)")
+            .or("media_type.is.null,and(media_type.neq.reel,media_type.neq.reel_long,media_type.neq.story)")
             .order("scheduled_for", { ascending: true })
         if (readErr) return { success: false, error: readErr.message }
         if (!proposed || proposed.length === 0) {

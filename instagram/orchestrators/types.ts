@@ -9,6 +9,8 @@ import type { DesignBrief } from "../image-pipeline"
 import type { SlotIntent } from "../../lib/feed-pattern"
 import type { ShowcaseKit } from "../showcase-kit"
 import type { CtaPolicy } from "../cta-policy"
+import type { TimedLine } from "../reel-audio"
+import type { ReelStoryboard } from "../reel-director"
 
 export type ProgressReporter = (stage: string, progress: number, message: string) => Promise<void>
 
@@ -82,6 +84,41 @@ export interface RenderContext {
      *  The reel's video director needs it: a REACH/CONNECT pillar forbids the website
      *  anywhere in the post, and the closing seconds of a video are part of the post. */
     ctaPolicy?: CtaPolicy
+    /** Do kdy (epoch ms) musí render skončit — lambda má strop 800 s. Reel podle
+     *  toho krájí rozpočet na polling videa; bez hodnoty platí RENDER_BUDGET_MS od teď. */
+    deadlineAt?: number
+    /** Video checkpoint z minulého pokusu (resume) — orchestrátor navazuje, nezadává znovu. */
+    videoCheckpoint?: VideoCheckpoint
+    /** Uloží video checkpoint do ig_jobs.result (jen s jobId; dry-run nemá kam). */
+    saveVideoCheckpoint?: (video: VideoCheckpoint) => Promise<void>
+}
+
+/**
+ * Checkpoint video fáze — uvnitř caption checkpointu (`ig_jobs.result.checkpoint.video`).
+ * Ukládá se DVAKRÁT: po TTS + storyboardu (než se zadá video) a hned po zadání
+ * s `taskId`. Pád lambdy nebo vyčerpaný rozpočet pak znamená „dopollovat", ne
+ * „zaplatit režiséra, TTS a video podruhé". Titulky se z `timeline` staví znovu
+ * stejně, voiceover leží v bucketu klienta.
+ */
+export interface VideoCheckpoint {
+    provider: "seedance"
+    model: string
+    resolution: "480p"
+    durationSeconds: number
+    atempo: number
+    timeline: TimedLine[]
+    storyboard: ReelStoryboard
+    videoPrompt: string
+    referenceUrls: string[]
+    voiceoverBucket: string
+    voiceoverPath: string
+    /** Chybí, když pád přišel mezi TTS a zadáním úlohy — resume zadá poprvé. */
+    taskId?: string
+    submittedAt?: string
+    /** Kolikrát už job kvůli běžícímu videu opustil lambdu (lib/job-park.ts MAX_VIDEO_POLL_ROUNDS). */
+    pollRounds: number
+    /** USD utracené do tohoto bodu — resume je přičte, nic se neúčtuje dvakrát. */
+    costUsd: number
 }
 
 /**

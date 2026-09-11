@@ -58,10 +58,22 @@ export const MODELS = {
     image: { primary: "gemini-3-pro-image" },
     /** Cheap image tier — Nano Banana 2 GA (supports 512px) */
     imageCheap: { primary: "gemini-3.1-flash-image" },
-    /** Video tiers for reels */
-    videoLite: { primary: "veo-3.1-lite-generate-preview" },
-    videoFast: { primary: "veo-3.1-fast-generate-preview" },
-    videoPremium: { primary: "veo-3.1-generate-preview" },
+    /** Video pro reely — Seedance (ByteDance) přes BytePlus ModelArk
+     *  (`instagram/seedance-client.ts`). ID je endpointové ID modelu v ModelArk konzoli;
+     *  přesné znění se potvrzuje proti docs.byteplus.com a mění se BEZ deploye přes
+     *  GEMINI_MODEL_VIDEO (název klíče je historický — platí pro všechny vendory).
+     *  ŽÁDNÝ fallback: Seedance 2.0 neumí 20 s ani nativní zvuk, takže „fallback" by
+     *  byla tichá degradace. Když je Seedance přetížené, job se zaparkuje
+     *  (`QualityUnavailableError`), nikdy nejede na horším modelu. Rozlišení je
+     *  parametr požadavku (jen 480p, viz lib/model-pricing.ts `videoUnitKey`). */
+    video: { primary: "seedance-2-5-pro" },
+    /** Reelový REŽISÉR — Claude Sonnet 5 (`instagram/reel-director.ts`). Přepisuje
+     *  scény copywritera na storyboard: záběry s odkazy na konkrétní brandové fotky,
+     *  produkt a logo + jeden anglický prompt pro Seedance. Jiná rodina než copywriter
+     *  (Gemini) ze stejného důvodu jako soudce: druhý pohled bez sebepreference.
+     *  Jen s ANTHROPIC_API_KEY (kill switch CLAUDE_DIRECTOR=off); jinak `textPro` Pro
+     *  ladder se stejným JSON schématem. Env override: GEMINI_MODEL_REELDIRECTOR. */
+    reelDirector: { primary: "claude-sonnet-5" },
     /** Czech voiceover */
     tts: { primary: "gemini-3.1-flash-tts-preview", fallback: "gemini-2.5-flash-preview-tts" },
     /** Cross-family JUDGE — Anthropic Claude for the Critic + Chief Editor (the design rule:

@@ -36,7 +36,7 @@ export type Transport = "meta" | "uploadpost"
  *  posts) that the IG pipeline never produces. The guard below makes the subset
  *  relation a compile error to break, so a new engine medium can't reach a channel
  *  adapter as an unhandled string. */
-export type MediaType = "image" | "carousel" | "reel" | "story" | "video" | "text"
+export type MediaType = "image" | "carousel" | "reel" | "reel_long" | "story" | "video" | "text"
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _EveryMediumIsPublishable = MediumType extends MediaType ? true : never

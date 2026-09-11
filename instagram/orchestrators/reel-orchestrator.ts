@@ -1,230 +1,326 @@
 /**
- * Reel Orchestrator — Video generation pipeline
- * Veo 3.1 → TTS Voiceover → FFmpeg Post-Process → Cover Image → Upload
+ * Reel Orchestrator — audio-first video pipeline
+ * ==============================================
+ * narrace (copywriter) → TTS po větách + měření → časová osa → režisér (Claude:
+ * storyboard + prompt) → voiceover stopa do bucketu → CHECKPOINT → Seedance
+ * (ModelArk, async) → CHECKPOINT s taskId → polling v rozpočtu lambdy → stažení
+ * → kompozice (ffmpeg: ducking + ASS titulky) → upload → native cover.
  *
- * Extracted from autopilot.ts for maintainability.
+ * Proč v tomhle pořadí: délku videa určuje NAMLUVENÝ text, ne naopak. Titulky
+ * i střihy tak sedí na skutečnou řeč a TTS, které nejde, zastaví reel dřív, než
+ * se za video zaplatí. Dvě uložení checkpointu znamenají, že pád lambdy nebo
+ * vyčerpaný rozpočet („video ještě renderuje") nikdy nezadá video podruhé —
+ * `VideoPendingError` job zaparkuje a resume dopolluje.
+ *
+ * Nic se tu nepolyká: selhání videa, kompozice nebo uploadu je selhání jobu
+ * (refund), nedostupná kvalita (TTS, Pro ladder, přetížené Seedance) parkuje.
+ * Reel za 5–10 kreditů bez voiceoveru a titulků není dodávka.
  */
 
 import supabaseAdmin from "../../supabase/admin"
-import { generateImage, generateVideo, generateVoiceover } from "../gemini-client"
-import { refineVideoPrompt } from "../image-pipeline"
+import { generateImage } from "../gemini-client"
 import { pickBrandPhotos } from "../brand-photo-match"
-import { processReelVideo, scenesToSubtitles } from "../video-processor"
-import { COSTS, getPostTypeDef, getReelDuration } from "../caption-generator"
-import type { RenderContext, RenderResult } from "./types"
+import { getConfigBrandImageObjects } from "../configs/types"
+import { COSTS, getPostTypeDef } from "../caption-generator"
+import { getModel } from "../models"
+import { REEL_LIMITS, isReelMedium } from "../../lib/reel-media"
+import { RENDER_BUDGET_MS, MAX_VIDEO_POLL_ROUNDS } from "../../lib/job-park"
+import { VideoPendingError } from "../../utils/retry"
+import { seedanceEnabled, submitVideoTask, pollVideoTask, downloadVideo, MAX_REFERENCES, type SeedanceReference } from "../seedance-client"
+import { directReel, condenseNarration, finalizeVideoPrompt, type ReelReference } from "../reel-director"
+import { synthesizeNarration, buildTimeline, assembleVoiceoverWav, WORDS_PER_SECOND } from "../reel-audio"
+import { chunkForSubtitles, buildAss } from "../reel-subtitles"
+import { composeReel } from "../reel-compositor"
+import { loadLogo } from "../logo-loader"
+import type { RenderContext, RenderResult, VideoCheckpoint } from "./types"
+import { rethrowIfQualityUnavailable } from "./types"
+
+const RESOLUTION = "480p" as const
+/** Rezerva za pollingem na stažení, kompozici, upload a cover. */
+const POST_VIDEO_RESERVE_MS = 120_000
+const MIN_POLL_BUDGET_MS = 15_000
+const FETCH_TIMEOUT_MS = 20_000
 
 export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
     const { config, captionData, format, selectedType, report } = ctx
+    if (!isReelMedium(format.medium)) throw new Error(`renderReel: médium ${format.medium} není reel`)
+    if (!seedanceEnabled()) {
+        throw new Error("Reel nejde vyrobit: chybí ARK_API_KEY (Seedance přes BytePlus ModelArk). Nastav klíč, nebo vypni REELS_ENABLED.")
+    }
+
+    const medium = format.medium
+    const limits = REEL_LIMITS[medium]
+    const model = getModel("video")
+    const bucket = config.storageBucket || "audit-screenshots"
+    const deadlineAt = ctx.deadlineAt ?? Date.now() + RENDER_BUDGET_MS
     let cost = 0
-    let imageUrl: string | undefined
+    let vc: VideoCheckpoint | undefined = ctx.videoCheckpoint
 
-    const duration = getReelDuration(selectedType.name, config)
+    if (vc) {
+        cost += vc.costUsd
+        console.log(`♻️ Reel: navazuji z video checkpointu (${vc.taskId ? `úloha ${vc.taskId}, kolo ${vc.pollRounds}` : "před zadáním videa"}, ${vc.durationSeconds}s)`)
+        await report("video", 50, vc.taskId ? "♻️ Navazuji na běžící render videa…" : "♻️ Navazuji — zadávám video…")
+    } else {
+        // ── 1. Narrace = věty copywritera (prošly kritikem, redakcí i faktickou bránou) ──
+        let lines = (captionData.scenes ?? []).map(s => (s.narration || "").trim()).filter(Boolean)
+        if (lines.length === 0) throw new Error("Reel bez narrace — copywriter nevrátil žádnou větu k namluvení")
+        const moods = [...new Set((captionData.scenes || []).map(s => s.mood).filter(Boolean))].slice(0, 2)
+        const ttsOpts = { voice: config.ttsVoice || "Kore", mood: "professional", audioTags: moods }
 
-    // Step 1: Refine video prompt from structured scenes
-    await report("video", 40, "🧠 Video Director vylepšuje scénář...")
-    console.log("🧠 Vylepšuji video prompt (structured scenes → Veo 3.1)...")
-    const refinedVideoPrompt = await refineVideoPrompt(
-        config,
-        { hook: captionData.hook, scenes: captionData.scenes, videoScript: captionData.videoScript },
-        selectedType.name,
-        duration,
-        ctx.ctaPolicy
-    )
-    cost += COSTS.promptRefinement
-    console.log(`   ✓ Video prompt refined (${refinedVideoPrompt.length} chars)`)
-
-    // Step 2: Load brand reference images for Veo
-    const videoRefImages: { buffer: Buffer; mimeType?: string }[] = []
-    const { getConfigBrandImageObjects } = await import("../configs/types")
-    const brandRefObjects = getConfigBrandImageObjects(config)
-
-    if (brandRefObjects.length > 0) {
-        console.log(`📸 Loading reference images for Veo (${brandRefObjects.length} available)...`)
-        // Týž výběr jako u obrázků (`brand-photo-match.ts`) — dvě kopie skórování
-        // znamenaly, že se oprava jedné cesty do druhé nikdy nepropsala.
-        // Veo bere nejvýš tři reference (`generateVideo` je ořezává), takže tři.
-        const { picks: topPicks, mode } = pickBrandPhotos(
-            brandRefObjects,
-            [captionData.hook, captionData.scenes?.map(s => s.visual).join(" "), captionData.videoScript],
-            3,
-        )
-        if (mode === "random") console.log(`   🎲 Nic se netrefilo — náhodné fotky`)
-
-        for (const ref of topPicks) {
-            try {
-                const resp = await fetch(ref.url)
-                if (resp.ok) {
-                    const arrayBuf = await resp.arrayBuffer()
-                    videoRefImages.push({
-                        buffer: Buffer.from(arrayBuf),
-                        mimeType: ref.url.endsWith(".png") ? "image/png" : "image/jpeg",
-                    })
-                    console.log(`   📸 Loaded: ${ref.url.split("/").pop()?.substring(0, 30)} [${ref.tags.join(",")}]`)
-                }
-            } catch {
-                // Non-fatal
-            }
-        }
-        if (videoRefImages.length > 0) {
-            console.log(`   ✓ ${videoRefImages.length} reference images for Veo`)
-        }
-    }
-
-    // Step 3: Generate raw video (Veo 3.1 with native audio + reference images)
-    const videoTier = config.videoTier || "fast"
-    await report("video", 50, `🎬 Veo 3.1 generuje ${duration}s video...`)
-    console.log(`🎬 Generuji video (Veo 3.1 ${videoTier}, ${duration}s, 9:16)...`)
-    let videoBuffer: Buffer | undefined
-    try {
-        videoBuffer = await generateVideo(refinedVideoPrompt, {
-            duration,
-            aspectRatio: "9:16",
-            tier: videoTier,
-            referenceImages: videoRefImages.length > 0 ? videoRefImages : undefined,
-        })
-        cost += COSTS.videoPerSecondByTier[videoTier] * duration
-        console.log(`   ✓ Raw video (${(videoBuffer.length / 1024 / 1024).toFixed(1)} MB, ${duration}s)`)
-    } catch (vidErr) {
-        console.error("   ⚠️ Video generation failed:", vidErr)
-    }
-
-    // Step 3b: Generate TTS voiceover from scene narrations
-    let voiceoverBuffer: Buffer | undefined
-    const narrationTexts = captionData.scenes
-        ?.filter(s => s.narration)
-        .map(s => s.narration!) || []
-
-    if (narrationTexts.length > 0) {
-        await report("video", 65, "🎙️ Generuji český voiceover...")
-        console.log(`🎙️ Generuji voiceover (${narrationTexts.length} scén, Gemini TTS)...`)
-        try {
-            const fullNarration = narrationTexts.join(". ")
-            // Expressive delivery: derive audio tags from scene moods (Gemini 3.1 TTS supports 200+)
-            const sceneMoods = [...new Set(
-                (captionData.scenes || []).map(s => s.mood).filter(Boolean).slice(0, 2)
-            )]
-            voiceoverBuffer = await generateVoiceover(fullNarration, {
-                voice: config.ttsVoice || "Kore",
-                mood: "professional",
-                audioTags: sceneMoods,
-            })
+        // ── 2. TTS po větách + měření → časová osa ──
+        await report("video", 40, `🎙️ Namlouvám narraci (${lines.length} vět)…`)
+        console.log(`🎙️ TTS po větách (${lines.length}) — délka videa se odvodí z řeči…`)
+        let tts = await synthesizeNarration(lines, ttsOpts)
+        cost += COSTS.ttsVoiceover
+        let timeline = buildTimeline(lines, tts.durations, limits)
+        if (timeline.tooLong) {
+            // Řeč se nevejde ani se zrychlením → zkrátit text (beze změny významu), znovu namluvit.
+            const maxWords = Math.floor(limits.maxSeconds * WORDS_PER_SECOND)
+            console.log(`   ✂️ Narrace ${timeline.totalSeconds.toFixed(1)}s > strop ${limits.maxSeconds}s — zkracuji na ~${maxWords} slov`)
+            await report("video", 44, "✂️ Narrace je delší než strop reelu — zkracuji…")
+            lines = await condenseNarration(lines, maxWords)
+            cost += COSTS.reelDirector / 2
+            tts = await synthesizeNarration(lines, ttsOpts)
             cost += COSTS.ttsVoiceover
-            console.log(`   ✓ Voiceover (${(voiceoverBuffer.length / 1024).toFixed(0)} KB)`)
-        } catch (ttsErr) {
-            console.warn("   ⚠️ TTS voiceover failed (continuing without):", ttsErr)
+            timeline = buildTimeline(lines, tts.durations, limits, { maxTempo: 1.3 })
+            if (timeline.tooLong) {
+                throw new Error(`Narrace se do ${limits.maxSeconds}s nevejde ani po zkrácení (${timeline.totalSeconds.toFixed(1)}s) — reel neuseknu uprostřed CTA`)
+            }
         }
+        const durationSeconds = timeline.durationSeconds
+        console.log(`   ✓ Osa: ${lines.length} vět, řeč do ${timeline.totalSeconds.toFixed(1)}s, video ${durationSeconds}s${timeline.atempo !== 1 ? `, tempo ×${timeline.atempo}` : ""}`)
+
+        // ── 3. Reference: brandové fotky + produkt + logo ──
+        const references = await loadReelReferences(ctx)
+        console.log(`   📸 Reference: ${references.map(r => `${r.index}:${r.kind}`).join(", ") || "žádné"}`)
+
+        // ── 4. Režisér: storyboard zarovnaný na osu + prompt pro Seedance ──
+        await report("video", 48, "🎬 Režisér skládá storyboard…")
+        const typeDef = getPostTypeDef(config, selectedType.name)
+        const { storyboard } = await directReel({
+            config, clientId: ctx.clientUuid, medium, durationSeconds,
+            hook: captionData.hook, narration: timeline.lines, scenes: captionData.scenes,
+            cta: captionData.cta, postType: selectedType.name, typeDef,
+            ctaPolicy: ctx.ctaPolicy, selectedProduct: ctx.selectedProduct, references,
+        })
+        cost += COSTS.reelDirector
+        const videoPrompt = finalizeVideoPrompt(storyboard, { durationSeconds, ctaPolicy: ctx.ctaPolicy })
+
+        // ── 5. Voiceover stopa do bucketu — přežije parkování jobu ──
+        const voiceoverWav = assembleVoiceoverWav(tts.clips, timeline.placements, durationSeconds * timeline.atempo)
+        const voiceoverPath = `ig-reels/${Date.now()}-vo.wav`
+        await uploadToBucket(bucket, voiceoverPath, voiceoverWav, "audio/wav")
+
+        vc = {
+            provider: "seedance", model, resolution: RESOLUTION, durationSeconds, atempo: timeline.atempo,
+            timeline: timeline.lines, storyboard, videoPrompt,
+            referenceUrls: references.map(r => r.url),
+            voiceoverBucket: bucket, voiceoverPath, pollRounds: 0, costUsd: cost,
+        }
+        await ctx.saveVideoCheckpoint?.(vc)
     }
 
-    // Step 4: FFmpeg post-processing (merge audio + burn subtitles)
-    if (videoBuffer && (voiceoverBuffer || (captionData.scenes?.length && captionData.scenes.some(s => s.narration)))) {
-        await report("video", 75, "🎞️ Post-processing video (audio mix + titulky)...")
-        console.log("🎞️ FFmpeg post-processing...")
+    // ── 6. Zadání videa (poprvé, nebo resume po pádu mezi TTS a zadáním) ──
+    if (!vc.taskId) {
+        await report("video", 52, `🎬 Zadávám ${vc.durationSeconds}s video (Seedance)…`)
+        const { taskId } = await submitVideoTask({
+            model: vc.model,
+            prompt: vc.videoPrompt,
+            references: vc.referenceUrls.slice(0, MAX_REFERENCES).map((url): SeedanceReference => ({ url, role: "reference_image" })),
+            durationSeconds: vc.durationSeconds,
+            resolution: vc.resolution,
+            ratio: "9:16",
+            generateAudio: true,
+        })
+        cost += COSTS.videoPerSecond * vc.durationSeconds
+        vc = { ...vc, taskId, submittedAt: new Date().toISOString(), costUsd: cost }
+        await ctx.saveVideoCheckpoint?.(vc)
+    }
+    const taskId = vc.taskId
+    if (!taskId) throw new Error("renderReel: po zadání videa chybí taskId")
+
+    // ── 7. Polling v rozpočtu lambdy — po vyčerpání se job zaparkuje, ne zabije ──
+    const budgetMs = Math.max(MIN_POLL_BUDGET_MS, deadlineAt - Date.now() - POST_VIDEO_RESERVE_MS)
+    await report("video", 55, `🎬 Seedance renderuje ${vc.durationSeconds}s video…`)
+    console.log(`   ⏳ Polling úlohy ${taskId} (rozpočet ${Math.round(budgetMs / 1000)} s)…`)
+    const polled = await pollVideoTask(taskId, {
+        budgetMs,
+        onTick: async (ms, st) => {
+            // Každý tick = heartbeat ig_jobs.updated_at (reaper) i lease kampaně (worker).
+            await report("video", Math.min(75, 55 + Math.floor(ms / 15_000)), `🎬 Seedance renderuje ${vc!.durationSeconds}s video… (${st}, ${Math.round(ms / 1000)} s)`)
+        },
+    })
+    if (polled.status === "failed") {
+        throw new Error(`Seedance selhalo (úloha ${taskId}): ${polled.error}`)
+    }
+    if (polled.status === "pending") {
+        const rounds = vc.pollRounds + 1
+        if (rounds >= MAX_VIDEO_POLL_ROUNDS) {
+            throw new Error(`Seedance úloha ${taskId} nedoběhla ani po ${rounds} kolech (stav ${polled.lastStatus}) — zásek u poskytovatele`)
+        }
+        await ctx.saveVideoCheckpoint?.({ ...vc, pollRounds: rounds })
+        throw new VideoPendingError(taskId, `úloha ${taskId} je ${polled.lastStatus} po ${Math.round(polled.elapsedMs / 1000)} s, kolo ${rounds}/${MAX_VIDEO_POLL_ROUNDS}`)
+    }
+
+    // ── 8. Stažení + voiceover z bucketu ──
+    await report("video", 78, "📥 Stahuji video…")
+    const rawVideo = await downloadVideo(polled.videoUrl)
+    console.log(`   ✓ Video staženo (${(rawVideo.length / 1024 / 1024).toFixed(1)} MB)`)
+    const voiceoverWav = await downloadFromBucket(vc.voiceoverBucket, vc.voiceoverPath)
+
+    // ── 9. Kompozice: ducking + ASS titulky ──
+    await report("video", 82, "🎞️ Skládám video, voiceover a titulky…")
+    const cards = chunkForSubtitles(vc.timeline)
+    const ass = buildAss(cards)
+    let finalVideo: Buffer
+    try {
+        finalVideo = await composeReel({ videoBuffer: rawVideo, voiceoverWav, ass, atempo: vc.atempo, durationSeconds: vc.durationSeconds })
+    } catch (composeErr) {
+        // Tvrdé selhání — reel bez titulků a voiceoveru se nedodává. Ale ať je v Sentry
+        // vidět, že padla KOMPOZICE, ne model (jiná oprava, jiný člověk).
+        await captureReelError(composeErr, "compose", ctx, { taskId, cards: cards.length })
+        throw composeErr
+    }
+    console.log(`   ✓ Kompozice hotová (${(finalVideo.length / 1024 / 1024).toFixed(1)} MB, ${cards.length} titulkových karet)`)
+
+    // ── 10. Upload ──
+    await report("video", 88, "📤 Nahrávám video…")
+    const ts = Date.now()
+    const videoUrl = await uploadToBucket(bucket, `ig-reels/${ts}.mp4`, finalVideo, "video/mp4")
+    console.log(`   ✓ Video URL: ${videoUrl}`)
+    // Voiceover už není potřeba — úklid je best-effort.
+    supabaseAdmin.storage.from(vc.voiceoverBucket).remove([vc.voiceoverPath]).then(() => {}, () => {})
+
+    // ── 11. Cover pro mřížku (native, s hookem) ──
+    await report("video", 92, "🖼️ Generuji cover…")
+    let coverUrl: string | undefined
+    try {
+        const coverScene = vc.storyboard.coverScene || captionData.scenes?.[0]?.visual || captionData.hook
+        let coverBuffer: Buffer | undefined
         try {
-            const subtitles = captionData.scenes ? scenesToSubtitles(captionData.scenes) : []
-            const processedBuffer = await processReelVideo({
-                videoBuffer,
-                voiceoverBuffer,
-                subtitles: subtitles.length > 0 ? subtitles : undefined,
-                voiceoverMix: 0.7,
-            })
-            videoBuffer = processedBuffer
-            console.log(`   ✓ Post-processed (${(videoBuffer.length / 1024 / 1024).toFixed(1)} MB)`)
-        } catch (ffErr) {
-            // Shipping the raw Veo clip is the right call — a reel without titles beats
-            // no reel at all — but this is a DEGRADED delivery of a 5-credit post, so it
-            // must never be just a console line nobody reads. The whole reason K1's
-            // schema fix looked like it did nothing was that this catch swallowed the
-            // missing binary (see next.config.ts outputFileTracingIncludes).
-            console.warn("   ⚠️ FFmpeg post-processing failed (using raw video):", ffErr)
-            try {
-                const Sentry = await import("@sentry/nextjs")
-                Sentry.captureException(ffErr, {
-                    tags: { area: "reel", step: "ffmpeg-postprocess" },
-                    extra: {
-                        clientId: ctx.clientUuid,
-                        postType: selectedType.name,
-                        hadVoiceover: Boolean(voiceoverBuffer),
-                        subtitleCount: captionData.scenes?.filter(s => s.narration).length ?? 0,
-                    },
-                })
-            } catch { /* Sentry unavailable (CLI run) — the console.warn above stands */ }
+            coverBuffer = await renderNativeReelCover(ctx, coverScene)
+            cost += COSTS.designerBrief + COSTS.imageQA
+        } catch (nativeErr) {
+            rethrowIfQualityUnavailable(nativeErr, "reel-cover")
+            console.warn(`   ⚠️ Native cover failed: ${String((nativeErr as Error)?.message || nativeErr).substring(0, 80)} — fallback na text-free cover`)
         }
+        if (!coverBuffer) {
+            // Náhradní cover je BEZ HOOKU — v mřížce neprodává, jen ilustruje. Degradace
+            // musí být vidět (CLAUDE.md: kvalita se nedegraduje potichu).
+            console.warn("   ⚠️ Cover bez hooku — návrhový cover neprošel kontrolou, jedu text-free náhradu")
+            coverBuffer = await generateImage(`Instagram Reel cover image, 9:16 vertical. Scene: ${coverScene}. Style: ${config.feedAesthetic?.feel || "modern, professional"}. NO TEXT in image.`, { aspectRatio: "9:16" })
+        }
+        coverUrl = await uploadToBucket(bucket, `ig-reels/${ts}-cover.webp`, coverBuffer, "image/webp")
+        cost += COSTS.imageGeneration
+        console.log(`   ✓ Cover: ${coverUrl}`)
+    } catch (coverErr) {
+        rethrowIfQualityUnavailable(coverErr, "reel-cover")
+        console.warn("   ⚠️ Cover generation failed:", coverErr)
     }
 
-    // Step 5: Upload final video
-    if (videoBuffer) {
-        await report("video", 85, "📤 Nahrávám video...")
-        console.log("📤 Nahrávám video do Supabase...")
-        const timestamp = Date.now()
-        const filename = `ig-reels/${timestamp}.mp4`
-
-        const { error: uploadError } = await supabaseAdmin.storage
-            .from("audit-screenshots")
-            .upload(filename, videoBuffer, {
-                contentType: "video/mp4",
-                cacheControl: "31536000",
-            })
-
-        if (uploadError) {
-            console.error("   ⚠️ Upload failed:", uploadError.message)
-        } else {
-            const { data: publicUrlData } = supabaseAdmin.storage
-                .from("audit-screenshots")
-                .getPublicUrl(filename)
-            imageUrl = publicUrlData.publicUrl
-            console.log(`   ✓ Video URL: ${imageUrl}`)
-        }
-
-        // Step 6: Generate cover image for feed grid
-        await report("video", 90, "🖼️ Generuji cover image...")
-        console.log("🖼️ Generuji cover image pro feed...")
-        try {
-            const coverScene = captionData.scenes?.[0]?.visual || captionData.hook
-            let coverBuffer: Buffer | undefined
-
-            // Native cover: designed cover with the hook rendered in the image + logo.
-            // On a hard failure we fall back to a plain text-free cover (not Satori).
-            try {
-                coverBuffer = await renderNativeReelCover(ctx, coverScene)
-                cost += COSTS.designerBrief + COSTS.imageQA
-            } catch (nativeErr: any) {
-                console.warn(`   ⚠️ Native cover failed: ${nativeErr?.message?.substring(0, 80)} — fallback na text-free cover`)
-            }
-
-            if (!coverBuffer) {
-                // Náhradní cover je BEZ HOOKU — v mřížce profilu tedy neprodává,
-                // jen ilustruje. To je degradace a musí být vidět: bez téhle řádky
-                // vypadá log tak, že cover „prostě vznikl", a nikdo nepozná, že
-                // zákazník dostal slabší variantu (CLAUDE.md: kvalita se nedegraduje potichu).
-                console.warn("   ⚠️ Cover bez hooku — návrhový cover neprošel kontrolou, jedu text-free náhradu")
-                const coverPrompt = `Instagram Reel cover image, 9:16 vertical. Scene: ${coverScene}. Style: ${config.feedAesthetic?.feel || "modern, professional"}. NO TEXT in image.`
-                coverBuffer = await generateImage(coverPrompt, { aspectRatio: "9:16" })
-            }
-
-            if (coverBuffer) {
-                const coverFilename = `ig-reels/${timestamp}-cover.webp`
-                const { error: coverUploadErr } = await supabaseAdmin.storage
-                    .from("audit-screenshots")
-                    .upload(coverFilename, coverBuffer, {
-                        contentType: "image/webp",
-                        cacheControl: "31536000",
-                    })
-                if (!coverUploadErr) {
-                    const { data: coverUrl } = supabaseAdmin.storage
-                        .from("audit-screenshots")
-                        .getPublicUrl(coverFilename)
-                    imageUrl = `${imageUrl}|${coverUrl.publicUrl}`
-                    console.log(`   ✓ Cover: ${coverUrl.publicUrl}`)
-                }
-            }
-            cost += COSTS.imageGeneration
-        } catch (coverErr) {
-            console.warn("   ⚠️ Cover generation failed:", coverErr)
-        }
+    return {
+        imageUrl: coverUrl ? `${videoUrl}|${coverUrl}` : videoUrl,
+        cost,
+        imageStyle: `seedance:${vc.model}@${vc.resolution}`,
+        imageModel: vc.model,
     }
-
-    return { imageUrl, cost }
 }
+
+// ─── Reference (fotky značky, produkt, logo) ────────────────────────────────
+
+async function fetchImage(url: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
+    try {
+        const ctrl = new AbortController()
+        const t = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS)
+        const resp = await fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(t))
+        if (!resp.ok) return null
+        const mimeType = resp.headers.get("content-type")?.split(";")[0] || (url.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg")
+        return { buffer: Buffer.from(await resp.arrayBuffer()), mimeType }
+    } catch {
+        return null
+    }
+}
+
+/**
+ * Očíslované reference pro režiséra (vidí je) i pro Seedance (dostane URL).
+ * Pořadí: brandové fotky (týž výběr jako u obrázků — `pickBrandPhotos`), produkt,
+ * logo. Logo nemá veřejnou URL nutně — zkusí se cesta z onboardingu, jinak data URL.
+ */
+export async function loadReelReferences(ctx: RenderContext): Promise<ReelReference[]> {
+    const { config, captionData } = ctx
+    const out: ReelReference[] = []
+    const photoBudget = MAX_REFERENCES - (ctx.selectedProduct?.imageUrls?.[0] ? 1 : 0) - (config.logoFile ? 1 : 0)
+
+    const brandObjects = getConfigBrandImageObjects(config)
+    if (brandObjects.length > 0 && photoBudget > 0) {
+        const { picks, mode } = pickBrandPhotos(
+            brandObjects,
+            [captionData.hook, captionData.scenes?.map(s => s.visual).join(" "), captionData.videoScript],
+            Math.min(5, photoBudget),
+        )
+        if (mode === "random") console.log("   🎲 Nic se netrefilo — náhodné fotky")
+        for (const pick of picks) {
+            const img = await fetchImage(pick.url)
+            out.push({ index: out.length + 1, kind: "photo", url: pick.url, description: pick.description || "brand photo", tags: pick.tags || [], buffer: img?.buffer, mimeType: img?.mimeType })
+        }
+    }
+
+    const productUrl = ctx.selectedProduct?.imageUrls?.[0]
+    if (productUrl) {
+        const img = await fetchImage(productUrl)
+        out.push({ index: out.length + 1, kind: "product", url: productUrl, description: `${ctx.selectedProduct!.name} (${ctx.selectedProduct!.type})`, tags: ["produkt"], buffer: img?.buffer, mimeType: img?.mimeType })
+    }
+
+    if (config.logoFile) {
+        const logo = await loadLogo(config.logoFile)
+        if (logo) {
+            const url = await logoUrlForSeedance(config.logoFile, logo)
+            if (url) out.push({ index: out.length + 1, kind: "logo", url, description: `brand logo of ${config.name}`, tags: ["logo"], buffer: logo, mimeType: "image/png" })
+        }
+    }
+    return out.slice(0, MAX_REFERENCES)
+}
+
+/** Veřejná URL loga (cesta z onboardingu), jinak data URL — pokud ji API bere. */
+async function logoUrlForSeedance(logoFile: string, logo: Buffer): Promise<string | null> {
+    const slug = logoFile.replace(/^logo-/, "").replace(/\.png$/i, "")
+    const { data } = supabaseAdmin.storage.from("audit-screenshots").getPublicUrl(`client-assets/${slug}/logo.png`)
+    if (data?.publicUrl) {
+        try {
+            const ctrl = new AbortController()
+            const t = setTimeout(() => ctrl.abort(), 8_000)
+            const head = await fetch(data.publicUrl, { method: "HEAD", signal: ctrl.signal }).finally(() => clearTimeout(t))
+            if (head.ok) return data.publicUrl
+        } catch { /* spadne na data URL */ }
+    }
+    if (process.env.ARK_ALLOW_DATA_URLS === "0") return null
+    return `data:image/png;base64,${logo.toString("base64")}`
+}
+
+// ─── Storage ────────────────────────────────────────────────────────────────
+
+async function uploadToBucket(bucket: string, path: string, body: Buffer, contentType: string): Promise<string> {
+    const { error } = await supabaseAdmin.storage.from(bucket).upload(path, body, { contentType, cacheControl: "31536000", upsert: true })
+    if (error) throw new Error(`Upload do ${bucket}/${path} selhal: ${error.message}`)
+    const { data } = supabaseAdmin.storage.from(bucket).getPublicUrl(path)
+    if (!data?.publicUrl) throw new Error(`Bucket ${bucket} nevrátil veřejnou URL pro ${path}`)
+    return data.publicUrl
+}
+
+async function downloadFromBucket(bucket: string, path: string): Promise<Buffer> {
+    const { data, error } = await supabaseAdmin.storage.from(bucket).download(path)
+    if (error || !data) throw new Error(`Stažení ${bucket}/${path} selhalo: ${error?.message || "prázdná odpověď"}`)
+    return Buffer.from(await data.arrayBuffer())
+}
+
+async function captureReelError(err: unknown, step: string, ctx: RenderContext, extra: Record<string, unknown>): Promise<void> {
+    try {
+        const Sentry = await import("@sentry/nextjs")
+        Sentry.captureException(err, { tags: { area: "reel", step }, extra: { clientId: ctx.clientUuid, postType: ctx.selectedType.name, ...extra } })
+    } catch { /* Sentry unavailable (CLI run) — the console error stands */ }
+}
+
+// ─── Cover ──────────────────────────────────────────────────────────────────
 
 /**
  * Native reel cover: AI Designer mini-brief → Nano Banana Pro renders the cover
@@ -239,7 +335,6 @@ async function renderNativeReelCover(ctx: RenderContext, coverScene: string): Pr
         verifyNativeImage,
     } = await import("../image-pipeline")
     const { generateImageWithReferences, editExistingImage } = await import("../gemini-client")
-    const { loadLogo } = await import("../logo-loader")
 
     console.log("🎨 AI Designer — native reel cover...")
     const typeDef = getPostTypeDef(config, selectedType.name)

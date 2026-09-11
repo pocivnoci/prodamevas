@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getPlanForMedium } from "@/lib/pricing"
 import supabaseAdmin from "@/supabase/admin"
 import { isMediumType, type MediumType } from "@/lib/credits"
+import { isReelMedium, REEL_LABELS, type ReelMedium } from "@/lib/reel-media"
 
 export const maxDuration = 10 // Fast — just creates a job record
 
@@ -71,7 +72,7 @@ export async function POST(req: Request) {
         // Kill-switches: never bill a medium the engine is globally forbidden to make.
         // The fallbacks must mirror applyFormatClamps in instagram/format-clamps.ts —
         // a mismatch charges for one medium and delivers another.
-        if (process.env.REELS_ENABLED !== "1" && chargedMedium === "reel") chargedMedium = "carousel"
+        if (process.env.REELS_ENABLED !== "1" && isReelMedium(chargedMedium)) chargedMedium = "carousel"
         if (process.env.STORIES_ENABLED !== "1" && chargedMedium === "story") chargedMedium = "image"
 
         // Media gating: reels only from the Dominance tier up (admin bypass)
@@ -80,10 +81,13 @@ export async function POST(req: Request) {
             const { getClientSubscription, canUseMedium } = await import("@/lib/subscription")
             const sub = await getClientSubscription(clientId)
             allowedMedia = sub?.features?.allowed_media
-            if ((body.medium === "reel" || chargedMedium === "reel") && !canUseMedium(sub?.features, "reel")) {
-                if (body.medium === "reel") {
+            // Obě velikosti reelu se hlídají zvlášť — tarif může mít `reel` a nemít
+            // `reel_long` (legacy řádky před 20260911_reel_long.sql).
+            const wantedReel: ReelMedium | null = isReelMedium(body.medium) ? body.medium : isReelMedium(chargedMedium) ? chargedMedium : null
+            if (wantedReel && !canUseMedium(sub?.features, wantedReel)) {
+                if (isReelMedium(body.medium)) {
                     return NextResponse.json(
-                        { success: false, error: `Reels jsou dostupné od balíčku ${getPlanForMedium("reel")}.`, featureBlocked: true, planRequired: getPlanForMedium("reel") },
+                        { success: false, error: `${REEL_LABELS[wantedReel]}: reels jsou dostupné od balíčku ${getPlanForMedium(wantedReel)}.`, featureBlocked: true, planRequired: getPlanForMedium(wantedReel) },
                         { status: 403 }
                     )
                 }
