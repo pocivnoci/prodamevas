@@ -18,7 +18,8 @@ import { validateStoryboard, parseStoryboard, finalizeVideoPrompt, buildReelDire
 import { buildTaskBody, parseTaskStatus, MAX_REFERENCES } from "../instagram/seedance-client"
 import { buildComposeArgs, escapeFilterPath } from "../instagram/reel-compositor"
 import { VideoPendingError, isVideoPending, QualityUnavailableError, isQualityUnavailable } from "../utils/retry"
-import { videoUnitKey } from "../lib/model-pricing"
+import { videoUnitKey, costUsdForCall } from "../lib/model-pricing"
+import { getModel } from "../instagram/models"
 
 let passed = 0
 let failed = 0
@@ -37,7 +38,7 @@ check("clamp: 3 s u dlouhého → 10 (minimum)", clampReelDuration("reel_long", 
 check("clamp: bez požadavku výchozí délka", clampReelDuration("reel") === REEL_LIMITS.reel.defaultSeconds && clampReelDuration("reel_long", null) === REEL_LIMITS.reel_long.defaultSeconds)
 check("dlouhý reel stojí 2× krátký", MEDIA_CREDITS.reel_long === 2 * MEDIA_CREDITS.reel)
 check("popisky obou velikostí", REEL_LABELS.reel.length > 0 && REEL_LABELS.reel_long !== REEL_LABELS.reel)
-check("klíč ceny videa nese rozlišení", videoUnitKey("seedance-2-5-pro", "480p") === "seedance-2-5-pro@480p")
+check("klíč ceny videa nese rozlišení", videoUnitKey("dreamina-seedance-2-5-260628", "480p") === "dreamina-seedance-2-5-260628@480p")
 
 console.log("\n📐 CLAMPY A PARSER MÉDIÍ\n")
 const open = { reelsEnabled: true, storiesEnabled: true, log: () => {} }
@@ -124,10 +125,10 @@ const directorPrompt = buildReelDirectorPrompt({
 check("prompt režiséra: časy vět, reference, zákaz textu i řeči, zákaz webu", /0\.5s–1\.7s/.test(directorPrompt) && /Image 1 \(photo/.test(directorPrompt) && /NO on-screen text/.test(directorPrompt) && /NO speech/.test(directorPrompt) && /forbids the website/.test(directorPrompt))
 
 console.log("\n📡 MODELARK POŽADAVEK A ODPOVĚĎ\n")
-const req = { model: "seedance-2-5-pro", prompt: "cup", references: [{ url: "https://a/1.jpg", role: "reference_image" as const }, { url: "data:image/png;base64,AAAA", role: "reference_image" as const }], durationSeconds: 8, resolution: "480p" as const, ratio: "9:16" as const, generateAudio: true }
+const req = { model: "dreamina-seedance-2-5-260628", prompt: "cup", references: [{ url: "https://a/1.jpg", role: "reference_image" as const }, { url: "data:image/png;base64,AAAA", role: "reference_image" as const }], durationSeconds: 8, resolution: "480p" as const, ratio: "9:16" as const, generateAudio: true }
 delete process.env.ARK_PARAMS_IN_PROMPT
 const body = buildTaskBody(req) as any
-check("tělo: model + content (text + obrázky) + top-level parametry", body.model === "seedance-2-5-pro" && body.content.length === 3 && body.content[0].type === "text" && body.content[1].type === "image_url" && body.ratio === "9:16" && body.duration === 8 && body.resolution === "480p" && body.generate_audio === true)
+check("tělo: model + content (text + obrázky) + top-level parametry", body.model === "dreamina-seedance-2-5-260628" && body.content.length === 3 && body.content[0].type === "text" && body.content[1].type === "image_url" && body.ratio === "9:16" && body.duration === 8 && body.resolution === "480p" && body.generate_audio === true)
 check("tělo: vodoznak vypnutý", body.watermark === false)
 process.env.ARK_PARAMS_IN_PROMPT = "1"
 const legacy = buildTaskBody(req) as any
@@ -138,6 +139,11 @@ check("stav: succeeded + content.video_url", (() => { const s = parseTaskStatus(
 check("stav: failed nese chybu", (() => { const s = parseTaskStatus({ status: "failed", error: { code: "E1", message: "bad" } }); return s.status === "failed" && /E1 bad/.test(s.error || "") })())
 check("stav: neznámý stav je running, ne úspěch", parseTaskStatus({ status: "whatever" }).status === "running" && parseTaskStatus({}).status === "running")
 check("stav: queued/pending", parseTaskStatus({ status: "queued" }).status === "queued" && parseTaskStatus({ state: "pending" }).status === "queued")
+check("stav: expired je konec, ne running (jinak se parkuje donekonečna)", (() => { const s = parseTaskStatus({ status: "expired", error: null }); return s.status === "failed" && /vypršela/.test(s.error || "") })())
+// Marketingový název modelu ModelArk nezná — endpoint chce verzované ID (…-RRMMDD).
+// Sazba visí na stejném řetězci, takže přejmenování jen na jednom místě nechá video neoceněné.
+check("video model je verzované ID z ModelArk", /^dreamina-seedance-[a-z0-9-]+-\d{6}$/.test(getModel("video")), getModel("video"))
+check("video model má sazbu @480p", costUsdForCall(videoUnitKey(getModel("video"), "480p"), { promptTokens: 0, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0, units: { kind: "seconds", n: 1 } }) !== null)
 
 console.log("\n🎞️ KOMPOZICE\n")
 const args = buildComposeArgs({ inputVideo: "/t/in.mp4", inputVoiceover: "/t/vo.wav", assPath: "/t/subs.ass", fontsDir: "/var/task/assets/fonts", hasVideoAudio: true, atempo: 1.1, durationSeconds: 8, output: "/t/out.mp4", voiceoverGainDb: 2, ambientLevel: 0.6 })

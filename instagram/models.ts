@@ -59,14 +59,15 @@ export const MODELS = {
     /** Cheap image tier — Nano Banana 2 GA (supports 512px) */
     imageCheap: { primary: "gemini-3.1-flash-image" },
     /** Video pro reely — Seedance (ByteDance) přes BytePlus ModelArk
-     *  (`instagram/seedance-client.ts`). ID je endpointové ID modelu v ModelArk konzoli;
-     *  přesné znění se potvrzuje proti docs.byteplus.com a mění se BEZ deploye přes
-     *  GEMINI_MODEL_VIDEO (název klíče je historický — platí pro všechny vendory).
+     *  (`instagram/seedance-client.ts`). ID je verzované ID z ModelArk (ověřeno proti
+     *  docs.byteplus.com/en/docs/ModelArk/2607688, 2026-09-11); novou verzi jde přepnout
+     *  BEZ deploye přes GEMINI_MODEL_VIDEO (název klíče je historický — platí pro všechny
+     *  vendory), ale pak jí chybí řádek v lib/model-pricing.ts a video zůstane neoceněné.
      *  ŽÁDNÝ fallback: Seedance 2.0 neumí 20 s ani nativní zvuk, takže „fallback" by
      *  byla tichá degradace. Když je Seedance přetížené, job se zaparkuje
      *  (`QualityUnavailableError`), nikdy nejede na horším modelu. Rozlišení je
      *  parametr požadavku (jen 480p, viz lib/model-pricing.ts `videoUnitKey`). */
-    video: { primary: "seedance-2-5-pro" },
+    video: { primary: "dreamina-seedance-2-5-260628" },
     /** Reelový REŽISÉR — Claude Sonnet 5 (`instagram/reel-director.ts`). Přepisuje
      *  scény copywritera na storyboard: záběry s odkazy na konkrétní brandové fotky,
      *  produkt a logo + jeden anglický prompt pro Seedance. Jiná rodina než copywriter

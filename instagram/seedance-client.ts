@@ -10,10 +10,10 @@
  *   downloadVideo    → MP4 do bufferu
  *
  * Tvar požadavku a odpovědi ModelArk žije POUZE v `buildTaskBody` a
- * `parseTaskStatus`. Až se ověří proti docs.byteplus.com/en/docs/ModelArk/1520757,
- * mění se tyhle dvě funkce — volající o tvaru API nic nevědí. Přepínač
- * `ARK_PARAMS_IN_PROMPT=1` posílá parametry starším způsobem (jako `--ratio` v
- * textu promptu), kdyby endpoint top-level pole odmítl — bez deploye.
+ * `parseTaskStatus` — volající o tvaru API nic nevědí. Obojí sedí na
+ * docs.byteplus.com/en/docs/ModelArk/1520757 a /1521309 (ověřeno 2026-09-11, zatím
+ * bez živého volání). Přepínač `ARK_PARAMS_IN_PROMPT=1` posílá parametry starším
+ * způsobem (jako `--ratio` v textu promptu), kdyby endpoint top-level pole odmítl — bez deploye.
  *
  * Bez `ARK_API_KEY` je reel nevyrobitelný a orchestrátor to hlásí nahlas
  * (`seedanceEnabled`); nikdy se potichu nepřeklápí na jiný formát.
@@ -119,8 +119,11 @@ export type TaskStatus = "queued" | "running" | "succeeded" | "failed" | "cancel
 
 /**
  * Odpověď GET /contents/generations/tasks/{id} — JEDINÉ místo s názvy polí odpovědi.
- * Čte tolerantně (video_url na dvou místech), protože přesný tvar se potvrzuje až
- * proti živému API; neznámý stav se hlásí jako „running", ne jako úspěch.
+ * Tvar podle docs.byteplus.com/en/docs/ModelArk/1521309 (ověřeno 2026-09-11): stav
+ * queued | running | succeeded | failed | cancelled, po `execution_expires_after`
+ * i `expired`; video v `content.video_url`, tokeny v `usage.completion_tokens`.
+ * Čte dál tolerantně; neznámý stav se hlásí jako „running", ne jako úspěch —
+ * `expired` ale musí být konec, jinak by se vypršelá úloha parkovala donekonečna.
  */
 export function parseTaskStatus(json: unknown): { status: TaskStatus; videoUrl?: string; tokens?: number; error?: string } {
     const j = (json ?? {}) as Record<string, unknown>
@@ -132,14 +135,16 @@ export function parseTaskStatus(json: unknown): { status: TaskStatus; videoUrl?:
     const raw = String(j.status ?? j.state ?? "").toLowerCase()
     const status: TaskStatus =
         raw === "succeeded" || raw === "success" || raw === "completed" ? "succeeded"
-        : raw === "failed" || raw === "error" ? "failed"
+        : raw === "failed" || raw === "error" || raw === "expired" ? "failed"
         : raw === "cancelled" || raw === "canceled" ? "cancelled"
         : raw === "queued" || raw === "pending" ? "queued"
         : "running"
     const videoUrlRaw = content.video_url ?? j.video_url ?? outputs[0]?.url ?? result.video_url
     const videoUrl = typeof videoUrlRaw === "string" ? videoUrlRaw : undefined
     const tokens = Number(usage.completion_tokens ?? usage.total_tokens)
-    const error = errObj ? `${errObj.code ?? ""} ${errObj.message ?? JSON.stringify(errObj)}`.trim() : undefined
+    const error = errObj ? `${errObj.code ?? ""} ${errObj.message ?? JSON.stringify(errObj)}`.trim()
+        : raw === "expired" ? "úloha vypršela dřív, než ji ModelArk zpracoval (execution_expires_after)"
+        : undefined
     return { status, videoUrl, tokens: Number.isFinite(tokens) ? tokens : undefined, error }
 }
 

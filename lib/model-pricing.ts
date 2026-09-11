@@ -32,7 +32,7 @@ interface TokenPrice {
     source: string
 }
 
-const BYTEPLUS = "docs.byteplus.com/en/docs/ModelArk (Seedance 2.5), zapsáno 2026-09-11"
+const BYTEPLUS = "docs.byteplus.com/en/docs/ModelArk/1099320 (Seedance 2.5), ověřeno 2026-09-11"
 const GOOGLE = "ai.google.dev/gemini-api/docs/pricing, ověřeno 2026-08-10"
 
 const PRICES: Record<string, TokenPrice> = {
@@ -125,11 +125,11 @@ const UNIT_PRICES: Record<string, { perSecond?: number; perImage?: number; perSe
     // Seedance 2.5 přes BytePlus ModelArk — účtuje se za vteřinu videa a liší se
     // rozlišením, proto klíč nese obojí (`videoUnitKey`). 480p je jediné, které
     // engine renderuje; 720p řádek je tu, aby se dial NEDAL zapnout bez ceny.
-    // Sazby: docs.byteplus.com/en/docs/ModelArk (Seedance 2.5, $10.70/M video tokenů
-    // ≈ $0,1028/s @480p, $0,2312/s @720p), zapsáno 2026-09-11 — před ostrým nasazením
-    // překontrolovat proti konzoli ModelArk.
-    "seedance-2-5-pro@480p": { perSecond: 0.10, source: BYTEPLUS },
-    "seedance-2-5-pro@720p": { perSecond: 0.23, source: BYTEPLUS },
+    // Sazby: docs.byteplus.com/en/docs/ModelArk/1099320 (Seedance 2.5 bez video vstupu
+    // $10.70/M tokenů; ceník uvádí $0,103/s @480p a $0,231/s @720p), ověřeno 2026-09-11.
+    // Zvuk se u 2.5 zvlášť neúčtuje. Klíč nese přesné ID z instagram/models.ts.
+    "dreamina-seedance-2-5-260628@480p": { perSecond: 0.10, source: BYTEPLUS },
+    "dreamina-seedance-2-5-260628@720p": { perSecond: 0.23, source: BYTEPLUS },
     // Nano Banana Pro / 2 @ 1K
     "gemini-3-pro-image": { perImage: 0.134, source: `${GOOGLE} (1K/2K)` },
     "gemini-3.1-flash-image": { perImage: 0.067, source: `${GOOGLE} (1K)` },

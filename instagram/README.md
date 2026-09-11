@@ -49,7 +49,7 @@ instagram/                            # 8101 LOC — server-only
 | **Image gen** (incl. edit + refs) | `gemini-3-pro-image` (Nano Banana Pro GA, 2K) | `gemini-3.1-flash-image` (Nano Banana 2 GA) |
 | **Vision** (logo placement, tagging, overlay review) | `gemini-3.5-flash` | — |
 | **Vision QA** (`verifyNativeImage` native gate) | `gemini-3-pro-preview` | `gemini-3.5-flash` (then fail-open) |
-| **Video** (reels, 9:16 @ 480p) | `seedance-2-5-pro` (BytePlus ModelArk) | — (přetížení = park) |
+| **Video** (reels, 9:16 @ 480p) | `dreamina-seedance-2-5-260628` (Seedance 2.5, BytePlus ModelArk) | — (přetížení = park) |
 | **Reel director** (storyboard) | `claude-sonnet-5` | Gemini `textPro` ladder |
 | **TTS** (voiceover, Czech) | `gemini-3.1-flash-tts-preview` (voice: Kore) | `gemini-2.5-flash-tts` |
 

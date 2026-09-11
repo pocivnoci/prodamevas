@@ -85,7 +85,7 @@ async function main() {
 
     // ------------------------------------------------------------ jednotky
     const { usage: vid } = await withUsageMeter(async () => {
-        recordUnits(videoUnitKey("seedance-2-5-pro", "480p"), "seconds", 8, "video")
+        recordUnits(videoUnitKey("dreamina-seedance-2-5-260628", "480p"), "seconds", 8, "video")
     })
     check("video se měří v jednotkách, ne v tokenech",
         vid.breakdown[0].units?.kind === "seconds" && vid.breakdown[0].units?.n === 8)
@@ -118,12 +118,12 @@ async function main() {
     const longCtx = costUsdForCall("gemini-pro-latest", { promptTokens: 300_000, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0 })
     check("nad 200k tokenů platí vyšší sazba", longCtx !== null && Math.abs(longCtx - 1.2) < 1e-9, `bylo ${longCtx}`)
 
-    const video = costUsdForCall(videoUnitKey("seedance-2-5-pro", "480p"), {
+    const video = costUsdForCall(videoUnitKey("dreamina-seedance-2-5-260628", "480p"), {
         promptTokens: 0, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0, units: { kind: "seconds", n: 10 },
     })
     check("video se ocení za vteřiny (10 s Seedance @480p = $1,00)", video !== null && Math.abs(video - 1.0) < 1e-9, `bylo ${video}`)
     // Rozlišení je součást klíče — 720p má vlastní řádek, aby se dial nedal zapnout bez ceny.
-    const video720 = costUsdForCall(videoUnitKey("seedance-2-5-pro", "720p"), {
+    const video720 = costUsdForCall(videoUnitKey("dreamina-seedance-2-5-260628", "720p"), {
         promptTokens: 0, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0, units: { kind: "seconds", n: 10 },
     })
     check("720p je dražší než 480p", video720 !== null && video !== null && video720 > video, `bylo ${video720}`)

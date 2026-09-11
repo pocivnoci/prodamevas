@@ -180,7 +180,7 @@ middleware.ts                         # Auth redirect guard
 | **AI Designer** (design briefy, native engine) | `gemini-3.1-pro` | `gemini-3.5-flash` |
 | **Image gen** (vč. edit + refs) | `gemini-3-pro-image` (Nano Banana Pro GA) | `gemini-3.1-flash-image` (Nano Banana 2 GA) |
 | **Vision** (QA, logo placement, tagging) | `gemini-3.5-flash` | — |
-| **Video** (reels, 9:16 @ 480p) | `seedance-2-5-pro` (BytePlus ModelArk, ID potvrdit v konzoli) | — (přetížení = zaparkovat) |
+| **Video** (reels, 9:16 @ 480p) | `dreamina-seedance-2-5-260628` (Seedance 2.5, BytePlus ModelArk) | — (přetížení = zaparkovat) |
 | **Reelový režisér** (storyboard) | `claude-sonnet-5` | Gemini `textPro` ladder |
 | **TTS** (voiceover) | `gemini-3.1-flash-tts-preview` | `gemini-2.5-flash-tts` |
 
