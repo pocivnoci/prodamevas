@@ -76,49 +76,17 @@ export async function getConnectionStatus(projectSlug: string): Promise<Connecti
  *
  * There is no OAuth callback to hook: the authorization happens on upload-post's own
  * page, so the UI calls this when the tenant comes back (window focus, or the
- * "Ověřit připojení" button).
+ * "Ověřit připojení" button). Samo pravidlo žije v `reconcileBridgeConnection` —
+ * tentýž kód spouští hromadná oprava a jeho čtecí polovinu denní health check.
  */
 export async function syncUploadPostConnection(
     projectSlug: string,
 ): Promise<{ success: boolean; connected: boolean; username?: string | null; error?: string }> {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
-        const { getProfileStatus, uploadPostProfileName } = await import("@/lib/channels/uploadpost-profiles")
-        const { saveConnection, disconnect } = await import("@/instagram/ig-connection")
-
-        const status = await getProfileStatus(clientId)
-
-        if (!status.connected) {
-            // Nothing connected on their side. Drop a stale row of OURS so the tenant
-            // is not told they are connected when publishing would fail — but only a
-            // bridge row: a Graph connection is none of this flow's business.
-            const { getConnectionMeta } = await import("@/instagram/ig-connection")
-            const existing = await getConnectionMeta(clientId)
-            if (existing?.transport === "uploadpost") await disconnect(clientId)
-            return { success: true, connected: false }
-        }
-
-        await saveConnection(clientId, {
-            // upload-post reports Instagram's numeric user id under `username` and the
-            // @name under `handle` — the opposite of what the field names suggest.
-            igUserId: status.instagramUserId || uploadPostProfileName(clientId),
-            igUsername: status.instagramUsername,
-            // The per-tenant credential IS the profile name — the API key is global.
-            accessToken: uploadPostProfileName(clientId),
-            // Bridge connections do not expire, so the refresh cron must never touch
-            // them (instagram/ig-connection.ts guards on transport as well).
-            expiresAt: null,
-            transport: "uploadpost",
-            // Linked but needing re-authorization is NOT connected: publishing would
-            // fail and the tenant would only find out from a dead post.
-            status: status.reauthRequired ? "expired" : "connected",
-            metadata: {
-                profileUsername: uploadPostProfileName(clientId),
-                igUsername: status.instagramUsername,
-                igUserId: status.instagramUserId,
-            },
-        })
-        return { success: true, connected: !status.reauthRequired, username: status.instagramUsername }
+        const { reconcileBridgeConnection } = await import("@/lib/channels/uploadpost-reconcile")
+        const res = await reconcileBridgeConnection(clientId)
+        return { success: true, connected: res.connected, username: res.username }
     } catch (err) {
         return { success: false, connected: false, error: (err as Error).message }
     }

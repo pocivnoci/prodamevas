@@ -225,6 +225,25 @@ export async function buildHealthCheck(): Promise<HealthReport> {
                     detail: "Navyš tarif dřív, než na strop narazí zákazník při připojování.",
                 }
         }),
+
+        // Řádek `connected` u mostu slibuje upload-post, ne my — a v našich datech
+        // nejde poznat, že profil zmizel nebo nikdy nevznikl. Nastavení pak dál ukazuje
+        // „Připojeno" a publisher posílá příspěvky do prázdna. Kontrola jen hlásí;
+        // proč sama neopravuje, vysvětluje lib/channels/uploadpost-reconcile.ts.
+        safe("připojení na mostu", async () => {
+            const { isUploadPostConfigured } = await import("@/lib/channels/uploadpost-client")
+            if (!isUploadPostConfigured()) return null
+
+            const { findBridgeDrift, describeBridgeDrift } = await import("@/lib/channels/uploadpost-reconcile")
+            const drift = await findBridgeDrift()
+            if (drift.length === 0) return null
+            return {
+                icon: "🔌",
+                title: `${drift.length}× připojení Instagramu nesedí s upload-postem`,
+                detail: drift.map(d => `${d.slug ?? d.clientId}: ${describeBridgeDrift(d.kind)}`).join("; ") +
+                    " — dokud to nesedí, nezapínej těm klientům auto-publikování. Oprava: npx tsx scripts/uploadpost-reconcile.ts --apply",
+            }
+        }),
     ]
 
     const problems = (await Promise.all(checks)).filter((p): p is HealthProblem => p !== null)
