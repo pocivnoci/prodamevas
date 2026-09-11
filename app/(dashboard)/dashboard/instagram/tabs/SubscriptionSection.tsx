@@ -5,6 +5,7 @@ import { EmbeddedCheckoutModal, isEmbeddedCheckoutAvailable } from "@/app/(dashb
 import { useStudio, type SubscriptionState } from "@/app/(dashboard)/StudioContext"
 import { activateFreePlan } from "@/app/actions/settings-actions"
 import { hasBillingDetails, cancelSubscription, resumeSubscription, billingPortalUrl } from "@/app/actions/billing-actions"
+import { giftPlan } from "@/app/actions/admin-actions"
 import { BillingModal } from "./BillingSection"
 import { Hint, HINTS } from "./Hint"
 import { CreditPacks } from "@/app/(dashboard)/CreditPacks"
@@ -12,7 +13,7 @@ import { LEGAL, vatNotice } from "@/lib/legal"
 
 /** U plátce DPH nesmí cena v ceníku vypadat jako konečná. U neplátce je prázdné. */
 const vatSuffix = LEGAL.vatStatus === "payer" ? " bez DPH" : ""
-import { CheckCircle2, Clock } from "lucide-react"
+import { CheckCircle2, Clock, Gift } from "lucide-react"
 import { creditExample, MEDIA_CREDITS } from "@/lib/credits"
 import { useEffect, useState } from "react"
 import {
@@ -139,6 +140,8 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
     const lockedTerm = (subscription?.termMonths ?? 1) > 1
         && subscription?.status === "active"
         && !subscription?.isTrial
+        // Tarif zdarma nemá zaplacený zbytek, který by přechod propálil.
+        && subscription?.provider !== "gift"
 
     const handleUpgrade = async (planId: string) => {
         setUpgradingPlanId(planId)
@@ -262,6 +265,9 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                 </div>
             )}
 
+            {/* Jen správce: tarif zdarma. Zákazníkovi se nevykreslí nic. */}
+            <GiftPlanControl projectId={projectId} plans={plans} subscription={subscription} onDone={refreshSubscription} />
+
             {/* Přepínač období — stejné pravidlo i ceny jako na ceníku (lib/pricing.ts) */}
             {plans.length > 0 && !lockedTerm && (
                 <div className="flex justify-center">
@@ -306,11 +312,16 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
             {plans.length > 0 && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {plans.map(plan => {
-                        const isCurrent = subscription?.planId === plan.id && subscription?.status === "active"
+                        const isYours = subscription?.planId === plan.id && subscription?.status === "active"
+                        // Tarif zdarma jde zaplatit i během daru — kdo se rozhodl, nemá
+                        // čekat na konec období před zamčeným tlačítkem. `isCurrent` proto
+                        // znamená „tenhle tarif už má a znovu ho kupovat nemůže".
+                        const payForGift = isYours && subscription?.provider === "gift"
+                        const isCurrent = isYours && !payForGift
                         // Switching tiers mid-period is NOT prorated — the new plan starts
                         // immediately and the rest of the paid period is forfeited. Say so
                         // at the button, not in a support e-mail afterwards.
-                        const isTierChange = !isCurrent
+                        const isTierChange = !isYours
                             && subscription?.status === "active"
                             && !subscription?.isTrial
                             && !!subscription?.currentPeriodEnd
@@ -322,7 +333,7 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                             <div
                                 key={plan.id}
                                 className={`rounded-sm p-5 flex flex-col border-2 ${
-                                    isCurrent
+                                    isYours
                                         ? "border-emerald-500/40 bg-emerald-500/5"
                                         : highlight
                                             ? "border-aisummit-cinnabar/40 bg-aisummit-cinnabar/5"
@@ -331,12 +342,12 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                             >
                                 <div className="flex items-center justify-between mb-1">
                                     <h4 className="text-xs font-black uppercase tracking-widest text-white">{plan.name}</h4>
-                                    {highlight && !isCurrent && (
+                                    {highlight && !isYours && (
                                         <span className="text-[8px] bg-aisummit-cinnabar/20 text-aisummit-cinnabar px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
                                             Doporučeno
                                         </span>
                                     )}
-                                    {isCurrent && (
+                                    {isYours && (
                                         <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
                                             Váš plán
                                         </span>
@@ -401,11 +412,15 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                                         ? "Aktivní"
                                         : blockedByTerm
                                             ? "Napište nám"
-                                            : upgradingPlanId === plan.id ? "Zpracování..." : `Přejít na ${plan.name}`}
+                                            : upgradingPlanId === plan.id
+                                                ? "Zpracování..."
+                                                : payForGift ? `Zaplatit ${plan.name}` : `Přejít na ${plan.name}`}
                                 </button>
-                                {isTierChange && !blockedByTerm && (
+                                {(isTierChange || payForGift) && !blockedByTerm && (
                                     <p className="mt-2 text-[8px] leading-relaxed text-white/25 font-bold uppercase tracking-widest">
-                                        Nový plán začne platit ihned — nevyčerpaný zbytek stávajícího období se nepřevádí
+                                        {payForGift
+                                            ? "Placené období začne ihned — zbytek tarifu zdarma se nepřevádí"
+                                            : "Nový plán začne platit ihned — nevyčerpaný zbytek stávajícího období se nepřevádí"}
                                     </p>
                                 )}
                             </div>
@@ -450,8 +465,135 @@ function ManageBillingLink({ projectId }: { projectId: string }) {
     )
 }
 
+/** „1 měsíc", „3 měsíce", „6 měsíců" — délka daru, ne kadence platby jako v ceníku. */
+function monthsLabel(months: number): string {
+    if (months === 1) return "1 měsíc"
+    return months < 5 ? `${months} měsíce` : `${months} měsíců`
+}
+
+/**
+ * Tarif zdarma — jen pro správce.
+ *
+ * Obchod dává klientům tarif na vyzkoušení: jakýkoli z ceníku, na jakékoli období
+ * z ceníku. Sedí přímo u karty tarifu, protože sem se správce dívá, když řeší
+ * „co má klient zaplaceno", a výsledek po kliknutí vidí o kus výš. Pravidla (jen
+ * placený tarif, ne nad živým předplatným) drží server v `giftPlan`.
+ */
+function GiftPlanControl({ projectId, plans, subscription, onDone }: {
+    projectId: string
+    plans: PlanRow[]
+    subscription: SubscriptionState | null
+    onDone: () => void
+}) {
+    const { isAdmin } = useStudio()
+    const [planId, setPlanId] = useState<string | null>(null)
+    const [term, setTerm] = useState<TermMonths>(1)
+    const [confirming, setConfirming] = useState(false)
+    const [busy, setBusy] = useState(false)
+    const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null)
+
+    const paidPlans = plans.filter(p => p.price_czk > 0)
+    const selected = paidPlans.find(p => p.id === planId)
+        ?? paidPlans.find(p => p.features.highlight)
+        ?? paidPlans[0]
+
+    if (!isAdmin || !selected) return null
+
+    const live = subscription?.status === "active"
+    const until = subscription?.currentPeriodEnd
+        ? new Date(String(subscription.currentPeriodEnd)).toLocaleDateString("cs")
+        : null
+
+    async function grant(plan: PlanRow) {
+        setBusy(true)
+        setResult(null)
+        try {
+            const res = await giftPlan(projectId, plan.id, term)
+            setResult({ ok: res.success, text: res.success ? (res.message || "Hotovo.") : (res.error || "Nepodařilo se to.") })
+            if (res.success) {
+                setConfirming(false)
+                onDone()
+            }
+        } catch {
+            setResult({ ok: false, text: "Nepodařilo se to. Zkus to prosím znovu." })
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    const selectClass = "px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-white/30"
+
+    return (
+        <div className="border border-dashed border-white/10 rounded-sm p-4 space-y-3">
+            <div className="flex items-center gap-2">
+                <Gift className="w-3.5 h-3.5 text-white/30 shrink-0" />
+                <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest">Tarif zdarma · jen správce</p>
+            </div>
+
+            {live ? (
+                <p className="text-[10px] text-white/40 leading-relaxed">
+                    {subscription?.provider === "gift"
+                        ? `Tarif zdarma běží${until ? ` do ${until}` : ""}. Další jde dát, až tenhle skončí.`
+                        : `Klient má zaplacený tarif${until ? ` do ${until}` : ""} — zdarma jde dát až po jeho skončení.`}
+                </p>
+            ) : !confirming ? (
+                <div className="space-y-3">
+                    <p className="text-[10px] text-white/40 leading-relaxed">
+                        Placený tarif bez platby, na vyzkoušení. Na konci sám skončí — nic se nestrhne a klient si vybere, jestli pokračovat.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <select value={selected.id} onChange={e => setPlanId(e.target.value)} className={selectClass} aria-label="Tarif">
+                            {paidPlans.map(p => (
+                                <option key={p.id} value={p.id}>{p.name} · {p.features.credits_per_month} kreditů/měs</option>
+                            ))}
+                        </select>
+                        <select value={term} onChange={e => setTerm(Number(e.target.value) as TermMonths)} className={selectClass} aria-label="Období">
+                            {BILLING_TERMS.map(t => (
+                                <option key={t.months} value={t.months}>{monthsLabel(t.months)}</option>
+                            ))}
+                        </select>
+                        <button
+                            onClick={() => { setResult(null); setConfirming(true) }}
+                            className="px-4 py-2 text-[9px] font-bold uppercase tracking-widest rounded-sm bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all cursor-pointer"
+                        >
+                            Dát zdarma
+                        </button>
+                    </div>
+                </div>
+            ) : (
+                <div className="flex flex-wrap items-center gap-3">
+                    <p className="text-[10px] text-white/60 font-bold">
+                        {selected.name} zdarma na {monthsLabel(term)} — opravdu?
+                    </p>
+                    <div className="ml-auto flex items-center gap-3">
+                        <button
+                            onClick={() => setConfirming(false)}
+                            disabled={busy}
+                            className="text-[9px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 disabled:opacity-40 transition-colors"
+                        >
+                            Zpět
+                        </button>
+                        <button
+                            onClick={() => grant(selected)}
+                            disabled={busy}
+                            className="text-[9px] font-bold uppercase tracking-widest text-emerald-400 hover:text-emerald-300 disabled:opacity-40 transition-colors"
+                        >
+                            {busy ? "Dávám…" : "Ano, dát zdarma"}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {result && (
+                <p className={`text-[10px] leading-relaxed ${result.ok ? "text-emerald-300/80" : "text-red-400"}`}>{result.text}</p>
+            )}
+        </div>
+    )
+}
+
 function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState; onRefresh: () => void; projectId: string }) {
     const isTrial = sub.status === "trialing"
+    const isGift = sub.provider === "gift"
     // The v2 trial has NO monthly credits (credits_per_month=0) — its real quota is
     // "N free posts" tracked via plan_posts_unlocked/limit. Showing a "0/0 kreditů"
     // bar for it conflates two different quotas and reads as broken. So for a
@@ -473,6 +615,10 @@ function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState
     // renewal date next to the credit bar would promise credits that arrive monthly.
     const creditResetAt = sub.creditPeriodEnd ? String(sub.creditPeriodEnd) : null
     const periodEnd = sub.currentPeriodEnd ? String(sub.currentPeriodEnd) : null
+    // Poslední kreditové okno daru končí s darem — „kredity se obnoví" by slibovalo
+    // něco, co nepřijde.
+    const giftLastWindow = isGift && !!periodEnd && !!creditResetAt
+        && new Date(periodEnd).toDateString() === new Date(creditResetAt).toDateString()
 
     return (
         <div className={`rounded-sm p-5 border ${isLow ? 'bg-aisummit-cinnabar/5 border-aisummit-cinnabar/20' : 'bg-[#080808] border-white/5'}`}>
@@ -486,7 +632,7 @@ function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState
                     )}
                     {sub.status === "active" && (
                         <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full font-bold uppercase">
-                            Aktivní
+                            {isGift ? "Zdarma" : "Aktivní"}
                         </span>
                     )}
                     {sub.status === "expired" && (
@@ -533,11 +679,11 @@ function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState
                             ? `${remainingUnits} ${remainingUnits === 1 ? "příspěvek zdarma zbývá" : remainingUnits >= 2 && remainingUnits <= 4 ? "příspěvky zdarma zbývají" : "příspěvků zdarma zbývá"}`
                             : `${remainingUnits} kreditů zbývá`}
                     </span>
-                    {!usePostQuota && creditResetAt ? (
+                    {!usePostQuota && creditResetAt && !giftLastWindow ? (
                         <span className="text-[9px] text-white/20 font-bold">
                             Kredity se obnoví {new Date(creditResetAt).toLocaleDateString("cs")}
                         </span>
-                    ) : periodEnd ? (
+                    ) : periodEnd && !isGift ? (
                         <span className="text-[9px] text-white/20 font-bold">
                             Obnoví se {new Date(periodEnd).toLocaleDateString("cs")}
                         </span>
@@ -547,7 +693,9 @@ function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState
                     otherwise "obnoví se" would look like the credits arrive in a year. */}
                 {periodEnd && creditResetAt && new Date(periodEnd).toDateString() !== new Date(creditResetAt).toDateString() && (
                     <p className="text-[9px] text-white/20 font-bold mt-1">
-                        Platíte {termLabel((sub.termMonths ?? 1) as TermMonths)} · předplatné se obnovuje {new Date(periodEnd).toLocaleDateString("cs")}
+                        {isGift
+                            ? `Tarif zdarma do ${new Date(periodEnd).toLocaleDateString("cs")} · kredity se obnovují měsíčně`
+                            : `Platíte ${termLabel((sub.termMonths ?? 1) as TermMonths)} · předplatné se obnovuje ${new Date(periodEnd).toLocaleDateString("cs")}`}
                     </p>
                 )}
             </div>
@@ -561,9 +709,13 @@ function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState
                 </div>
             )}
 
-            {!isTrial && sub.status === "active" && (
+            {!isTrial && sub.status === "active" && (isGift ? (
+                <p className="mt-5 pt-4 border-t border-white/5 text-[10px] text-white/40 font-bold leading-relaxed">
+                    Tarif zdarma{periodEnd ? ` do ${new Date(periodEnd).toLocaleDateString("cs")}` : ""}. Nic se nestrhne — když chcete pokračovat, vyberte si plán níž.
+                </p>
+            ) : (
                 <CancelControl sub={sub} projectId={projectId} onRefresh={onRefresh} />
-            )}
+            ))}
         </div>
     )
 }

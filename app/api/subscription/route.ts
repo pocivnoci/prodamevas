@@ -73,6 +73,8 @@ export async function GET(req: NextRequest) {
             // Délka zaplaceného období — UI z ní skládá „obnoví se za rok" i to,
             // že uprostřed předplaceného období nenabídne změnu tarifu.
             termMonths: sub.termMonths,
+            // Tarif zdarma nemá co zrušit ani obnovit — UI podle toho mění ovládání.
+            provider: sub.provider,
             extraCreditPrice: sub.features.extra_credit_price ?? 4900,
             creditsPurchased: sub.creditsPurchased,
         })

@@ -56,6 +56,20 @@ eq("předplatné bez data konce je v pořádku",
 eq("rozbité datum nespadne, jen mlčí",
     deriveBillingState({ status: "active", currentPeriodEnd: "není-datum" }, NOW), "ok")
 
+// Tarif zdarma nese příznak konce období, ale nic nevypověděl — „předplatné jste
+// zrušili, můžete ho obnovit" by klientovi lhalo dvakrát.
+eq("tarif zdarma se nehlásí jako výpověď",
+    deriveBillingState({ status: "active", provider: "gift", cancelAtPeriodEnd: true, currentPeriodEnd: inDays(10) }, NOW), "ok")
+
+eq(`tarif zdarma ${EXPIRING_SOON_DAYS} dny před koncem = gift_ending`,
+    deriveBillingState({ status: "active", provider: "gift", cancelAtPeriodEnd: true, currentPeriodEnd: inDays(EXPIRING_SOON_DAYS) }, NOW), "gift_ending")
+
+eq("tarif zdarma po konci období nehlásí odklad obnovy",
+    deriveBillingState({ status: "active", provider: "gift", cancelAtPeriodEnd: true, currentPeriodEnd: inDays(-1) }, NOW), "gift_ending")
+
+eq("doběhlý tarif zdarma je expired",
+    deriveBillingState({ status: "expired", provider: "gift", cancelAtPeriodEnd: true, currentPeriodEnd: inDays(-1) }, NOW), "expired")
+
 console.log("\n── Konvence refId ──")
 
 check("obnova se pozná podle prefixu", isRenewalRefId(generateRenewalRefId("kvetiny")))

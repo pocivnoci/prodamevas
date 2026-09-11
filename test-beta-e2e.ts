@@ -2742,6 +2742,32 @@ test("23.10 výpověď nesmí sebrat zaplacené období", () => {
         "billing-worker nesmí strhnout peníze někomu, kdo vypověděl")
 })
 
+test("23.20 tarif zdarma dá jen správce a nikdy nic nestrhne", () => {
+    // Obchod rozdává tarif na vyzkoušení. Dárek bez vlastního druhu by se tvářil
+    // jako ComGate předplatné: na konci období by ho billing-worker upomínal
+    // k platbě, kterou klient nikdy nesjednal.
+    const admin = codeOnly("app/actions/admin-actions.ts")
+    const start = admin.indexOf("export async function giftPlan(")
+    assert(start >= 0, "giftPlan musí existovat v app/actions/admin-actions.ts")
+    const rest = admin.slice(start + 1)
+    const next = rest.indexOf("\nexport ")
+    const gift = next >= 0 ? rest.slice(0, next) : rest
+    assert(/requireSuperAdmin\(\)/.test(gift), "tarif zdarma smí dát jen správce")
+    assert(/provider: "gift"/.test(gift) && /cancel_at_period_end: true/.test(gift),
+        "dárek nese provider 'gift' i příznak konce období — dvě nezávislé pojistky")
+    assert(/activatePaidPlan\(/.test(gift), "dárek se aktivuje stejnou cestou jako zaplacený tarif")
+    assert(/\.eq\("status", "active"\)/.test(gift),
+        "nad živým předplatným se dárek nedává — activatePaidPlan by zaplacené odstavil")
+
+    const worker = codeOnly("app/api/cron/billing-worker/route.ts")
+    assert(/sub\.cancel_at_period_end \|\| sub\.provider === "gift"/.test(worker),
+        "billing-worker musí dárek ukončit, ne upomínat k platbě")
+    assert(/provider === "gift"/.test(codeOnly("app/actions/billing-actions.ts")),
+        "obnovení daru by shodilo příznak konce období a spustilo upomínky")
+    assert(fileContains("supabase/migrations/20260911_tarif_zdarma.sql", "'gift'"),
+        "CHECK na subscriptions.provider musí dárek pustit")
+})
+
 test("23.11 politika o penězích žije na serveru", () => {
     const banner = codeOnly("app/(dashboard)/BillingBanner.tsx")
     assert(!/billingFailures\s*>=?\s*\d/.test(banner) && !/currentPeriodEnd.*getTime\(\)\s*[-+]/.test(banner),

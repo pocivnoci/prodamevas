@@ -356,6 +356,12 @@ export async function resumeSubscription(projectSlug: string): Promise<CancelRes
 
     const sub = await liveSubscription(clientId)
     if (!sub) return { success: false, error: "Nemáte předplatné, které by šlo obnovit." }
+    // Tarif zdarma nemá výpověď, kterou by šlo vzít zpět. Kdyby tenhle klik shodil
+    // příznak konce období, billing-worker by klienta po měsíci začal upomínat
+    // k platbě, kterou nikdy nesjednal.
+    if (sub.provider === "gift") {
+        return { success: false, error: "Tarif zdarma se neobnovuje. Když chcete pokračovat, vyberte si plán." }
+    }
 
     const gatewayError = await syncCancelToGateway(sub, false)
     if (gatewayError) return { success: false, error: gatewayError }

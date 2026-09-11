@@ -90,6 +90,12 @@ function describe(
                 text: `Předplatné jste zrušili — běží ještě do${vars.until ? ` ${vars.until}` : " konce období"}. Do té doby ho můžete kdykoli obnovit.`,
                 cta: "Obnovit",
             }
+        case "gift_ending":
+            return {
+                tone: "info",
+                text: `Tarif zdarma končí${vars.until ? ` ${vars.until}` : " během pár dní"}. Nic se nestrhne — když chcete pokračovat, vyberte si plán.`,
+                cta: "Vybrat plán",
+            }
         default:
             return { tone: "info", text: "", cta: "" }
     }
