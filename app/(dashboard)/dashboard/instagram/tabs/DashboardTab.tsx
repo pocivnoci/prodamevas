@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react"
 import { motion } from "framer-motion"
 import { getDashboardStats } from "@/app/actions/admin-actions"
+import { parsePostMedia } from "@/lib/media-urls"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { Bookmark, CalendarDays, Camera, ChartColumn, CircleAlert, CircleCheck, Eye, FileText, Heart, Lightbulb, MessageCircle, RefreshCw, Send, TriangleAlert, type LucideIcon } from "lucide-react"
 
@@ -14,7 +15,7 @@ interface WeekDay {
     date: string
     dayName: string
     isToday: boolean
-    posts: { id: string; caption: string; image_url: string | null; status: string; type_emoji: string }[]
+    posts: { id: string; caption: string; image_url: string | null; media_type?: string | null; status: string; type_emoji: string }[]
 }
 
 interface ActivityItem {
@@ -36,6 +37,7 @@ interface DashboardStats {
         id: string
         caption: string
         image_url: string | null
+        media_type?: string | null
         status: string
         created_at: string
         type_name: string
@@ -461,7 +463,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                                             <div key={p.id} className="flex items-center gap-1">
                                                 {p.image_url ? (
                                                     <img
-                                                        src={p.image_url.split("|")[0]}
+                                                        src={parsePostMedia(p.image_url, p.media_type).thumbUrl ?? undefined}
                                                         alt=""
                                                         className="w-5 h-5 rounded-sm object-cover flex-shrink-0"
                                                     />
@@ -555,7 +557,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                                 {post.image_url ? (
                                     <div className="w-full aspect-square overflow-hidden relative">
                                         <img
-                                            src={post.image_url.split("|")[0]}
+                                            src={parsePostMedia(post.image_url, post.media_type).thumbUrl ?? undefined}
                                             alt=""
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                         />
@@ -564,12 +566,13 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                                         <span className={`absolute top-2 right-2 w-2 h-2 rounded-full shadow-lg ${
                                             post.status === "posted" ? "bg-emerald-500" : post.status === "ready" ? "bg-blue-500" : "bg-amber-500"
                                         }`} />
-                                        {/* Carousel badge */}
-                                        {post.image_url.includes("|") && (
-                                            <span className="absolute top-2 left-2 bg-black/60 text-white/70 text-[8px] font-bold px-1.5 py-0.5 rounded-sm">
-                                                📸 {post.image_url.split("|").length}
-                                            </span>
-                                        )}
+                                        {/* Badge média — přes parser, ne přes počet svislítek: reel má „video|cover", ne dva slidy */}
+                                        {(() => {
+                                            const m = parsePostMedia(post.image_url, post.media_type)
+                                            if (m.kind === "reel") return <span className="absolute top-2 left-2 bg-black/60 text-white/70 text-[8px] font-bold px-1.5 py-0.5 rounded-sm">🎬 Reel</span>
+                                            if (m.slideCount > 1) return <span className="absolute top-2 left-2 bg-black/60 text-white/70 text-[8px] font-bold px-1.5 py-0.5 rounded-sm">📸 {m.slideCount}</span>
+                                            return null
+                                        })()}
                                     </div>
                                 ) : (
                                     <div className="w-full aspect-square bg-white/[0.02] flex items-center justify-center">

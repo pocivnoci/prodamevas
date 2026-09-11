@@ -161,4 +161,4 @@ si ulož výsledek dotazu stranou. Číselná řada dokladů je nevratná.
 | Dunning | `MAX_BILLING_FAILURES`, pak expirace | `lib/subscription.ts` |
 | Strop tempa kreditů | 12/min, 400/den na klienta | `CREDIT_BURST_PER_MINUTE`, `CREDIT_ACTIONS_PER_DAY` |
 | Kreditové okno | vždy měsíční, i u ročního tarifu | `rollLapsedCreditWindows` |
-| Cena příspěvku | obrázek 7,6 · karusel 18,2 · reel 32 Kč | `docs/UNIT_ECONOMICS_AND_PRICING.md` |
+| Cena příspěvku | obrázek 7,6 · karusel 18,2 · reel 27,6 · dlouhý reel 48,8 Kč | `docs/UNIT_ECONOMICS_AND_PRICING.md` |

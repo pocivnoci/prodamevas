@@ -1,5 +1,6 @@
 "use server"
 
+import { parsePostMedia } from "@/lib/media-urls"
 import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess } from "@/lib/auth-guard"
 
@@ -25,7 +26,7 @@ export async function deleteIGPost(
 
         // Delete images from storage
         if (post.image_url) {
-            const urls = post.image_url.split("|")
+            const { urls } = parsePostMedia(post.image_url)
             for (const url of urls) {
                 const path = url.split("/storage/v1/object/public/audit-screenshots/")[1]
                     || url.split("/storage/v1/object/public/")[1]?.split("/").slice(1).join("/")
@@ -71,7 +72,7 @@ export async function deleteIGPosts(
         if (posts) {
             for (const post of posts) {
                 if (!post.image_url) continue
-                const urls = post.image_url.split("|")
+                const { urls } = parsePostMedia(post.image_url)
                 for (const url of urls) {
                     const path = url.split("/storage/v1/object/public/audit-screenshots/")[1]
                         || url.split("/storage/v1/object/public/")[1]?.split("/").slice(1).join("/")

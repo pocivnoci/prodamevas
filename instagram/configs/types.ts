@@ -38,10 +38,11 @@ export interface PillarCategory {
     /** Weight within pillar (0-1, all categories should sum to ~1.0). Default = equal */
     weight?: number
     /** Preferred medium: undefined/"auto" = system decides.
-     *  Deliberately narrower than PostMedium — steering the autopilot into a reel or a
-     *  story from a pillar category is a content-plan decision, and plans don't carry
-     *  stories yet. Widen together with content-plan-actions.ts. */
-    medium?: "auto" | "image" | "carousel"
+     *  Deliberately narrower than PostMedium — plans don't carry stories yet, so a
+     *  story can't be steered from a pillar category. Both reel sizes can (content
+     *  plans render them through the campaign worker). Widen together with
+     *  content-plan-actions.ts (`PlanMedium`). */
+    medium?: "auto" | "image" | "carousel" | "reel" | "reel_long"
     /** Preferred overlay style: undefined/"auto" = system decides based on post type */
     overlayStyle?: "auto" | "default" | "top" | "cover" | "editorial" | "centered" | "none"
     /** Preferred aspect ratio: undefined/"auto" = from config default */
@@ -132,7 +133,9 @@ export interface PostFormat {
     medium: PostMedium
     /** Text overlay style */
     overlayStyle: OverlayStyle
-    /** Reel duration in seconds (default: 8, range: 5-8 for 1080p Veo 3.1) */
+    /** Reel duration in seconds — clamped per reel SIZE by `lib/reel-media.ts`
+     *  (`reel` 4–8 s, `reel_long` 10–20 s). The engine sets it after the format clamps,
+     *  so the copywriter and the director always see the same number. */
     reelDuration?: number
 }
 
@@ -413,9 +416,6 @@ export interface ClientConfig {
     /** Logo filename, loaded from instagram/assets/ or Supabase storage (see logo-loader.ts),
      *  e.g. "logo-mobilnamiru.png" */
     logoFile?: string
-
-    /** Veo tier for reel video generation (default "fast") */
-    videoTier?: "lite" | "fast" | "premium"
 
     /** @deprecated Legacy Satori text-overlay gradient — the native engine renders its own
      *  typography. Kept so old configs don't lose data; no longer read by the render pipeline. */

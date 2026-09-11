@@ -15,6 +15,8 @@ import { useCopyToClipboard } from "./hooks"
 import type { IGPost } from "./types"
 import { trackEvent } from "@/lib/analytics"
 import { parsePostMedia } from "@/lib/media-urls"
+import { isReelMedium, REEL_LABELS } from "@/lib/reel-media"
+import { ReelPlayer } from "./ReelPlayer"
 import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
 import { formatCzk, LOWEST_MONTHLY_HALERU } from "@/lib/pricing"
 import { isMediumType, MEDIA_CREDITS } from "@/lib/credits"
@@ -237,19 +239,28 @@ export function PostsTab({ projectId }: { projectId: string }) {
                             className="p-3 cursor-pointer group flex flex-col flex-1"
                         >
                         {/* Image Preview */}
-                        {cardMedia.thumbUrl ? (
+                        {(cardMedia.thumbUrl || cardMedia.videoUrl) ? (
                             // Fixed row height keeps the grid aligned; a story is centred inside
                             // it at 9:16 rather than being centre-cropped to look like a feed post.
                             <div className={`w-full h-56 rounded-sm bg-[#0f0f0f] overflow-hidden relative mb-4 ${cardMedia.aspect === "vertical" ? "flex items-center justify-center" : ""}`}>
-                                <img
-                                    src={cardMedia.thumbUrl}
-                                    alt=""
-                                    className={`object-cover group-hover:scale-105 transition-transform duration-700 ease-out ${cardMedia.aspect === "vertical" ? "h-full aspect-[9/16] rounded-sm" : "w-full h-full"}`}
-                                />
+                                {cardMedia.kind === "reel" && cardMedia.videoUrl ? (
+                                    // Reel se v mřížce PŘEHRÁVÁ (němě, po najetí) — do 9/2026 tu byl jen cover.
+                                    <ReelPlayer hoverPlay videoUrl={cardMedia.videoUrl} coverUrl={cardMedia.coverUrl} className="h-full aspect-[9/16] rounded-sm" />
+                                ) : (
+                                    <img
+                                        src={cardMedia.thumbUrl ?? undefined}
+                                        alt=""
+                                        className={`object-cover group-hover:scale-105 transition-transform duration-700 ease-out ${cardMedia.aspect === "vertical" ? "h-full aspect-[9/16] rounded-sm" : "w-full h-full"}`}
+                                    />
+                                )}
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
                                 {cardMedia.kind === "story" ? (
                                     <span className="absolute top-2 right-2 bg-black/70 border border-white/20 text-white/80 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm backdrop-blur-sm">
                                         📱 Story · {cardMedia.slideCount} {cardMedia.slideCount === 1 ? "snímek" : cardMedia.slideCount < 5 ? "snímky" : "snímků"}
+                                    </span>
+                                ) : cardMedia.kind === "reel" ? (
+                                    <span className="absolute top-2 right-2 bg-black/70 border border-white/20 text-white/80 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm backdrop-blur-sm">
+                                        🎬 {isReelMedium(post.media_type) ? REEL_LABELS[post.media_type] : "Reel"}{!cardMedia.videoUrl && " · bez videa"}
                                     </span>
                                 ) : cardMedia.kind === "carousel" && (
                                     <span className="absolute top-2 right-2 bg-black/70 border border-white/20 text-white/80 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm backdrop-blur-sm">
@@ -303,11 +314,11 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                 {post.image_url && (
                                     <InlineAction
                                         Icon={Download}
-                                        title="Stáhnout obrázek"
+                                        title={cardMedia.videoUrl ? "Stáhnout video" : "Stáhnout obrázek"}
                                         onClick={() => {
                                             const a = document.createElement("a")
-                                            a.href = post.image_url!.split("|")[0]
-                                            a.download = `post-${post.id.slice(0, 8)}.png`
+                                            a.href = cardMedia.videoUrl ?? cardMedia.urls[0]
+                                            a.download = `post-${post.id.slice(0, 8)}.${cardMedia.videoUrl ? "mp4" : "png"}`
                                             a.target = "_blank"
                                             a.click()
                                         }}
@@ -556,14 +567,17 @@ function PostDetailModal({
 
     const downloadImage = useCallback(async () => {
         if (imageUrls.length === 0) return
-        const url = imageUrls[carouselIndex] || imageUrls[0]
+        // U reelu se stahuje VIDEO, ne cover — cover je jen náhled do mřížky.
+        const url = media.kind === "reel" && media.videoUrl ? media.videoUrl : (imageUrls[carouselIndex] || imageUrls[0])
         try {
             const response = await fetch(url)
             const blob = await response.blob()
             const blobUrl = URL.createObjectURL(blob)
             const a = document.createElement("a")
             a.href = blobUrl
-            a.download = isCarousel
+            a.download = media.kind === "reel" && media.videoUrl
+                ? `ig-reel-${post.id.substring(0, 8)}.mp4`
+                : isCarousel
                 ? `ig-post-${post.id.substring(0, 8)}-slide${carouselIndex + 1}.png`
                 : `ig-post-${post.id.substring(0, 8)}.png`
             document.body.appendChild(a)
@@ -573,7 +587,7 @@ function PostDetailModal({
         } catch {
             window.open(url, "_blank")
         }
-    }, [post, carouselIndex, imageUrls, isCarousel])
+    }, [post, carouselIndex, imageUrls, isCarousel, media.kind, media.videoUrl])
 
     const hashtags = Array.isArray(post.hashtags) ? post.hashtags : []
     const hashtagsText = hashtags.join(" ")
@@ -632,13 +646,19 @@ function PostDetailModal({
                         <div className="lg:w-1/2 bg-[#0f0f0f] border-r border-white/10 flex flex-col items-center justify-start p-4 relative lg:sticky lg:top-0 lg:self-start">
                             {imageUrls.length > 0 ? (
                                 <>
-                                    <RegionSelectableImage
-                                        src={imageUrls[carouselIndex] || imageUrls[0]}
-                                        alt={isCarousel ? `Slide ${carouselIndex + 1}` : ""}
-                                        enabled={regionActive}
-                                        region={editRegion}
-                                        onRegion={setEditRegion}
-                                    />
+                                    {media.kind === "reel" && media.videoUrl ? (
+                                        // Detail reelu = přehrávač s ovládáním a zvukem. Do 9/2026 sem
+                                        // šla URL videa do <img> a reel se „nezobrazil".
+                                        <ReelPlayer controls videoUrl={media.videoUrl} coverUrl={media.coverUrl} className="w-full max-h-[70vh] aspect-[9/16] rounded-sm" />
+                                    ) : (
+                                        <RegionSelectableImage
+                                            src={imageUrls[carouselIndex] || imageUrls[0]}
+                                            alt={isCarousel ? `Slide ${carouselIndex + 1}` : ""}
+                                            enabled={regionActive}
+                                            region={editRegion}
+                                            onRegion={setEditRegion}
+                                        />
+                                    )}
                                     {isCarousel && (
                                         <>
                                             {/* Prev/Next Arrows */}
@@ -1543,7 +1563,7 @@ function VariantComparisonModal({
                                 const isLoser = selecting && selecting !== variant.id && done
                                 const hook = (variant.caption || "").split("\n")[0] || "—"
                                 const body = (variant.caption || "").split("\n").slice(1).join("\n").substring(0, 200)
-                                const firstImage = variant.image_url?.split("|")[0]
+                                const firstImage = parsePostMedia(variant.image_url, variant.media_type).thumbUrl ?? undefined
 
                                 return (
                                     <motion.div

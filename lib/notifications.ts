@@ -200,6 +200,7 @@ const MEDIA_LABELS: Record<MediumType, string> = {
     story: "📱 Story",
     carousel: "🖼️ Carousel",
     reel: "🎬 Reel",
+    reel_long: "🎥 Dlouhý reel",
 }
 
 function formatScheduled(post: CampaignDigestPost): string {

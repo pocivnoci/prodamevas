@@ -122,8 +122,13 @@ function main() {
 
     // Kdyby někdo přidal médium do enginu a zapomněl ho ocenit, `creditsForMedia`
     // by ho tiše účtovalo jako obrázek — tedy pod cenou.
-    check("ceník médií nemá díru mezi 1 a 5",
-        [1, 2, 3, 5].every(v => Object.values(MEDIA_CREDITS).includes(v as never)))
+    check("ceník médií nemá díru mezi 1 a 10",
+        [1, 2, 3, 5, 10].every(v => Object.values(MEDIA_CREDITS).includes(v as never)))
+
+    // Dlouhý reel je samostatné médium (lib/reel-media.ts) — stojí dvojnásobek,
+    // protože strop délky je 20 s proti 8 s a video se účtuje za vteřinu.
+    check("dlouhý reel stojí 2× krátký",
+        MEDIA_CREDITS.reel_long === 2 * MEDIA_CREDITS.reel)
 
     console.log("\n📒 JEDNA PRAVDA O ZŮSTATKU\n")
 

@@ -1,5 +1,6 @@
 "use server"
 
+import { isReelMedium } from "@/lib/reel-media"
 import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess } from "@/lib/auth-guard"
 import { creditGuard } from "./credit-guard"
@@ -71,7 +72,7 @@ export async function revisePost(
         let imagePrompt = original.image_prompt
         let imageStyle = original.image_style
 
-        const isSingleImage = original.media_type !== "carousel" && original.media_type !== "reel"
+        const isSingleImage = original.media_type !== "carousel" && !isReelMedium(original.media_type)
         if (parsed.imagePrompt && isSingleImage) {
             try {
                 const { renderImage } = await import("@/instagram/orchestrators/image-orchestrator")
@@ -204,7 +205,7 @@ export async function generatePostVariant(
         // silently billed at the cheapest rate (a story variant = 1 credit instead of 2).
         let variantMedium: MediumType = isMediumType(original.media_type) ? original.media_type : "image"
         // Kill-switches: the engine would clamp these anyway — bill what it will deliver.
-        if (variantMedium === "reel" && process.env.REELS_ENABLED !== "1") variantMedium = "carousel"
+        if (isReelMedium(variantMedium) && process.env.REELS_ENABLED !== "1") variantMedium = "carousel"
         if (variantMedium === "story" && process.env.STORIES_ENABLED !== "1") variantMedium = "image"
         const { creditGuard } = await import("./credit-guard")
         const guard = await creditGuard(projectSlug, "post_variant", undefined, variantMedium)

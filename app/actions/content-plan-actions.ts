@@ -1,5 +1,6 @@
 "use server"
 
+import { isReelMedium } from "@/lib/reel-media"
 import supabaseAdmin from "@/supabase/admin"
 import { buildFactsSection } from "@/instagram/caption-generator"
 import { requireProjectAccess } from "@/lib/auth-guard"
@@ -13,7 +14,7 @@ import type { ClientConfig } from "@/instagram/configs/types"
  *  are ephemeral and never enter the feed grid the plan is built around, so they are
  *  mapped to `image` at plan time (see effectiveMediums below). Widen together with the
  *  calendar and the campaign worker, not on its own. */
-export type PlanMedium = "image" | "carousel" | "reel"
+export type PlanMedium = "image" | "carousel" | "reel" | "reel_long"
 
 export interface ContentPlanItem {
     id: string
@@ -303,7 +304,7 @@ async function generateContentPlanInner(
                 // the campaign worker all assume feed media, and a story would silently eat a
                 // feed slot it never appears in.
                 let m: PlanMedium = configured === "story" ? "image" : configured
-                if (process.env.REELS_ENABLED !== "1" && m === "reel") {
+                if (process.env.REELS_ENABLED !== "1" && isReelMedium(m)) {
                     m = i % 3 === 0 ? "carousel" : "image"
                 }
                 if (m === "carousel") {
@@ -392,6 +393,7 @@ async function generateContentPlanInner(
             const pillarCfg = config.contentPillars[pillar]
             const medium = effectiveMedium(typeName, i)
             const formatLabel = medium === "carousel" ? "KARUSEL (statické obrázky/slidy — ŽÁDNÉ video)"
+                : medium === "reel_long" ? "DLOUHÝ REEL (video do 20 s)"
                 : medium === "reel" ? "REEL (krátké video)"
                 : "JEDEN STATICKÝ OBRÁZEK (ŽÁDNÉ video)"
             // The visual slot shapes the copy, not just the design: a typography cell needs a
@@ -1014,7 +1016,7 @@ export async function regeneratePlanItem(
     postType: string,
     existingHooks: string[],
     userTopic?: string,
-    medium?: "image" | "carousel" | "reel"
+    medium?: PlanMedium
 ): Promise<{ success: boolean; item?: RegeneratedPlanItem; error?: string }> {
     const { trackSpend, spendClientId } = await import("@/instagram/spend-tracker")
     return trackSpend(
@@ -1029,7 +1031,7 @@ async function regeneratePlanItemInner(
     postType: string,
     existingHooks: string[],
     userTopic?: string,
-    medium?: "image" | "carousel" | "reel"
+    medium?: PlanMedium
 ): Promise<{ success: boolean; item?: RegeneratedPlanItem; error?: string }> {
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
@@ -1070,7 +1072,7 @@ ${pillarSection}
 ## ÚKOL
 Vygeneruj JEDEN nový koncept pro post typu "${postType}".
 ${userTopic ? `Téma kampaně: "${userTopic}" — hook MUSÍ souviset s tímto tématem.` : ""}
-${medium ? `\n## FORMÁT POSTU: ${medium === "carousel" ? "KARUSEL (statické obrázky/slidy — ŽÁDNÉ video)" : medium === "reel" ? "REEL (krátké video)" : "JEDEN STATICKÝ OBRÁZEK (ŽÁDNÉ video)"}\n` : ""}
+${medium ? `\n## FORMÁT POSTU: ${medium === "carousel" ? "KARUSEL (statické obrázky/slidy — ŽÁDNÉ video)" : medium === "reel_long" ? "DLOUHÝ REEL (video do 20 s)" : medium === "reel" ? "REEL (krátké video)" : "JEDEN STATICKÝ OBRÁZEK (ŽÁDNÉ video)"}\n` : ""}
 
 ## NESMÍŠ OPAKOVAT tyto hooky:
 ${existingHooks.map(h => `- "${h}"`).join("\n")}
@@ -1081,7 +1083,7 @@ ${existingHooks.map(h => `- "${h}"`).join("\n")}
 - Hook max 8 slov, česky
 - Angle musí být konkrétní — ne "zajímavý pohled" ale "srovnání cen s konkurencí"
 - Topic: 3-5 slov shrnující o čem post bude
-${medium && medium !== "reel" ? `- ⚠️ Tohle je ${medium === "carousel" ? "KARUSEL" : "JEDEN OBRÁZEK"} — hook ani angle NESMÍ slibovat "video", "Reel", "scénář" ani "za 60 sekund ti ukážu". Mluv o tom, co bude na obrázcích.` : ""}
+${medium && !isReelMedium(medium) ? `- ⚠️ Tohle je ${medium === "carousel" ? "KARUSEL" : "JEDEN OBRÁZEK"} — hook ani angle NESMÍ slibovat "video", "Reel", "scénář" ani "za 60 sekund ti ukážu". Mluv o tom, co bude na obrázcích.` : ""}
 
 Vrať POUZE validní JSON:
 { "hookPreview": "český hook max 8 slov BEZ emoji", "angle": "1 věta o přístupu", "topic": "3-5 slov"${regenProducts.length ? `, "productIndex": číslo produktu nebo vynech` : ""} }`

@@ -264,7 +264,7 @@ for (const c of mediumCases) {
 test("reelové schéma explicitně obsahuje narration i soundEffect", () => {
     const keys = schemaKeys(buildVideoSchema(config))
     assert(keys.has("narration"), "narration chybí → generateVoiceover se nikdy nezavolá")
-    assert(keys.has("soundEffect"), "soundEffect chybí → Veo nedostane zvukovou stopu")
+    assert(keys.has("soundEffect"), "soundEffect chybí → video nedostane zvukovou stopu")
 })
 
 // ─── V4: rotace kontextu napříč kampaní ─────────────────────

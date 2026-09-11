@@ -2,6 +2,11 @@
 
 import { useEffect, useState } from "react"
 import { getIGPostsList, getProfilePreview } from "@/app/actions/admin-actions"
+import { parsePostMedia } from "@/lib/media-urls"
+
+/** Náhled do mřížky přes jediný parser — u reelu je to cover, nikdy .mp4 v <img>. */
+const thumbOf = (p: { image_url?: string | null; media_type?: string | null } | null | undefined) =>
+    p ? (parsePostMedia(p.image_url, p.media_type).thumbUrl ?? undefined) : undefined
 import { getFeedPatternPreview } from "@/app/actions/content-plan-actions"
 import { VISUAL_MODE_LABELS, type VisualMode } from "@/lib/feed-pattern"
 import { CaptionEditor } from "./shared"
@@ -93,11 +98,11 @@ export function FeedTab({ projectId }: { projectId: string }) {
                     <div className="w-20 h-20 rounded-full border-2 border-white/20 overflow-hidden flex-shrink-0 bg-white/5">
                         {(profile?.avatarUrl || posts[0]?.image_url) && (
                             <img
-                                src={profile?.avatarUrl || posts[0]!.image_url!.split("|")[0]}
+                                src={profile?.avatarUrl || thumbOf(posts[0])}
                                 alt=""
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
-                                    const fallback = posts[0]?.image_url?.split("|")[0]
+                                    const fallback = thumbOf(posts[0])
                                     if (fallback && e.currentTarget.src !== fallback) e.currentTarget.src = fallback
                                 }}
                             />
@@ -177,7 +182,7 @@ export function FeedTab({ projectId }: { projectId: string }) {
                             className="relative aspect-square overflow-hidden group cursor-pointer"
                         >
                             <img
-                                src={post.image_url!.split("|")[0]}
+                                src={thumbOf(post)}
                                 alt=""
                                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                             />
@@ -226,7 +231,7 @@ export function FeedTab({ projectId }: { projectId: string }) {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={() => setSelectedPost(null)}>
                     <div className="bg-[#0a0a0a] border border-white/10 rounded-sm max-w-lg w-full mx-4 max-h-[85vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
                         {selectedPost.image_url && (
-                            <img src={selectedPost.image_url.split("|")[0]} alt="" className="w-full aspect-square object-cover" />
+                            <img src={thumbOf(selectedPost)} alt="" className="w-full aspect-square object-cover" />
                         )}
                         <div className="p-5 space-y-3">
                             <div className="flex items-center gap-2">

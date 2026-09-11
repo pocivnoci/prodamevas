@@ -232,7 +232,9 @@ Co se změní až zpětně, v ročních přehledech:
 **Tohle je nejdůležitější bod celého dokumentu.**
 
 Ve chvíli, kdy Adela na IČO poprvé nakoupí službu od firmy neusazené v ČR — Google
-(Gemini API), Vercel, Supabase, Anthropic, Resend — vzniká ze zákona povinnost
+(Gemini API), Vercel, Supabase, Anthropic, BytePlus (Seedance video pro reely —
+brandové fotky a logo klienta putují při výrobě reelu do Singapuru, patří do
+evidence zpracování), Resend — vzniká ze zákona povinnost
 **registrovat se jako identifikovaná osoba k DPH** (ustanovení o identifikované osobě,
 § 6g–6l zákona o DPH `[OVĚŘIT označení po novele]`).
 
@@ -251,7 +253,7 @@ Spouštěče, které přijdou v nejbližší době:
 
 - **reklama na Meta / Google** — obojí fakturuje z Irska (plánuje se „brzy"),
 - **náklady Chrlitu po překlopení na IČO** — Google Gemini, Vercel, Supabase,
-  Anthropic, Resend,
+  Anthropic, BytePlus (Seedance), Resend,
 - **provize Stripe**, pokud půjdeme přes Stripe — Stripe Payments Europe je irská entita
   (ComGate jako česká firma tenhle spouštěč nemá, ale ostatní položky výše zůstávají,
   takže identifikovaná osoba je stejně nevyhnutelná).

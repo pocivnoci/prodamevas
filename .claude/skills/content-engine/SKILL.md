@@ -82,8 +82,9 @@ mezi tenanty stejně, jako to umí `setActiveProject()`.
   průběžný součet zevnitř, `logGeneration` ho ukládá do `ig_generation_log`
   (`prompt_tokens`, `output_tokens`, `thought_tokens`, `cached_tokens`, `model_calls`,
   `cost_usd`, `usage_breakdown`).
-- **Video jde přes `recordUnits`**, ne přes tokeny — Veo se účtuje za vteřinu a
-  operace nenese `usageMetadata`, takže by nejdražší médium vycházelo na nulu.
+- **Video jde přes `recordUnits`**, ne přes tokeny — Seedance (ModelArk) se účtuje
+  za vteřinu a rozlišení, klíč je `videoUnitKey(model, "480p")` (`lib/model-pricing.ts`);
+  účtuje se u ZADÁNÍ úlohy, resume z checkpointu nic nepočítá dvakrát.
 - `lib/model-pricing.ts` překládá spotřebu na dolary. **Neznámý model má cenu `null`,
   ne `0`** a ohlásí se; jeden neoceněný krok zneplatní součet celé generace. Vymyšlená
   nula vypadá v datech jako levný post — stejný důvod, proč `critic_score` loguje

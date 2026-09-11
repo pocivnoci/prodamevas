@@ -19,7 +19,7 @@ const ROOT = resolve(__dirname)
  * a přecenění by tiše kontrolovalo mrtvý ceník. Jedna konstanta = jedno místo,
  * které se u příštího přecenění mění.
  */
-const PRICING_SEED = "supabase/migrations/20260901_reels_dominance.sql"
+const PRICING_SEED = "supabase/migrations/20260911_reel_long.sql"
 let passed = 0
 let failed = 0
 const results: { name: string; status: "PASS" | "FAIL"; detail?: string }[] = []
@@ -640,6 +640,8 @@ test("13.10 reels v ceníku visí na vypínači, ne na textu", () => {
         "karty na landingu musí vypínač respektovat")
     assert(codeOnly("app/(dashboard)/dashboard/instagram/tabs/SubscriptionSection.tsx").includes("reelsEnabled"),
         "seznam funkcí v aplikaci musí vypínač respektovat")
+    // Zapnuté reely bez klíče k videu = každý reel padne a vrátí kredit.
+    assert(/ARK_API_KEY/.test(codeOnly("lib/agents/health-check.ts")), "health-check musí hlásit REELS_ENABLED=1 bez ARK_API_KEY")
 })
 
 test("13.11 váhy kreditů se v UI nepíšou číslem", () => {
@@ -757,7 +759,7 @@ test("13.18 rada, který tarif si koupit, sedí na seed", () => {
         .sort((a, b) => a.cena - b.cena)
     assert(tarify.length >= 4, `aserce musí reálně něco kontrolovat (našla ${tarify.length} tarifů)`)
 
-    for (const medium of ["image", "carousel", "story", "reel"]) {
+    for (const medium of ["image", "carousel", "story", "reel", "reel_long"]) {
         const doporuceny = getPlanForMedium(medium)
         const nejlevnejsi = tarify.find(t => t.media.includes(`"${medium}"`))
         assert(!!nejlevnejsi, `žádný tarif v seedu nemá médium ${medium}`)
@@ -1148,9 +1150,13 @@ test("12.3 no hardcoded gemini model strings outside models.ts", () => {
     assert(out === "", `Hardcoded model strings in: ${out}`)
 })
 
-test("12.4 validateConfig fills videoTier default", () => {
-    const content = fileContent("instagram/configs/index.ts")
-    assert(content.includes('videoTier: config.videoTier || "fast"'), "videoTier default missing")
+test("12.4 videoTier je pryč — reel má jediné rozlišení", () => {
+    // `videoTier` byl Veo dial (lite/fast/premium). Seedance jede jen na 480p:
+    // 720p by dlouhý reel poslal nad pásmo Kč/kredit z docs/UNIT_ECONOMICS_AND_PRICING.md.
+    // Kdyby se dial vrátil, musí se vrátit i s cenou v lib/model-pricing.ts.
+    assert(!codeOnly("instagram/configs/index.ts").includes("videoTier"), "validateConfig nesmí plnit mrtvý dial")
+    assert(!codeOnly("instagram/configs/types.ts").includes("videoTier"), "ClientConfig nesmí nabízet dial, který engine nečte")
+    assert(!codeOnly("app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx").includes("videoTier"), "Nastavení nesmí nabízet dial, který engine nečte")
 })
 
 test("12.5 AI Designer + QA exported from image-pipeline", () => {
@@ -1279,7 +1285,7 @@ test("13.1 story is priced — MediumType is derived from the credit table", () 
 test("13.2 clamps pin vertical media to 9:16 and rank by price", () => {
     const c = fileContent("instagram/format-clamps.ts")
     assert(c.includes('VERTICAL_MEDIA'), "clamps must name the vertical media set explicitly")
-    assert(c.includes('"reel", "story"'), "reel AND story must both be vertical")
+    assert(c.includes('[...REEL_MEDIA, "story"]'), "both reel sizes AND story must be vertical — built from REEL_MEDIA, never a literal")
     assert(c.includes("creditsForMedia(f.medium) > creditsForMedia(opts.chargedMedium)"), "billing cap must rank by the credit table, not a parallel MEDIUM_RANK map")
     assert(!codeOnly("instagram/format-clamps.ts").includes("MEDIUM_RANK"), "MEDIUM_RANK is a second ordering to keep in sync — it must stay deleted")
     assert(!codeOnly("instagram/autopilot.ts").includes("MEDIUM_RANK"), "MEDIUM_RANK must not come back in autopilot either")
@@ -1292,7 +1298,7 @@ test("13.3 story format survives a config reload", () => {
     // reconcileFormats runs on EVERY loadConfig and rebuilds postFormats from
     // postTypeDefs — without these defaults a story_* format reverts to image/4:5.
     const r = fileContent("instagram/configs/reconcile.ts")
-    assert(r.includes('medium === "reel" || medium === "story" ? "9:16"'), "reconcile must default story to 9:16")
+    assert(r.includes('isReelMedium(medium) || medium === "story" ? "9:16"'), "reconcile must default story (and both reel sizes) to 9:16")
     const cg = fileContent("instagram/caption-generator.ts")
     assert(cg.includes('typeName.startsWith("story_")'), "getPostFormat must honour the story_ prefix convention")
 })
@@ -1663,6 +1669,23 @@ test("13b.9 reels naostří agent, stories ne", () => {
     const cal = fileContent("app/actions/calendar-actions.ts")
     assert(!cal.includes("Reels zatím nejdou publikovat"), "plošné odmítnutí reelů musí zmizet")
     assert(cal.includes('media.kind === "reel" && !media.videoUrl'), "reel bez videa se odmítne dřív, než ho cron 4× zkusí")
+})
+
+test("13b.9b image_url se ve studiu nikdy neparsuje ručně", () => {
+    // `parsePostMedia` je JEDINÝ parser (lib/media-urls.ts). Ruční `split("|")[0]`
+    // v tabech dával .mp4 do <img> a reel byl v Kalendáři, Feedu i na Dashboardu
+    // rozbitá dlaždice. Reel se navíc musí umět PŘEHRÁT.
+    const fs = require("fs") as typeof import("fs")
+    const dir = "app/(dashboard)/dashboard/instagram/tabs"
+    for (const f of fs.readdirSync(dir).filter((n: string) => n.endsWith(".tsx"))) {
+        const src = codeOnly(`${dir}/${f}`)
+        assert(!/image_url[!?]?\.split\("\|"\)/.test(src), `${f}: image_url se parsuje jen přes parsePostMedia`)
+    }
+    assert(fileExists(`${dir}/ReelPlayer.tsx`), "studio musí mít přehrávač reelu")
+    const posts = codeOnly(`${dir}/PostsTab.tsx`)
+    assert(/<ReelPlayer hoverPlay/.test(posts) && /<ReelPlayer controls/.test(posts), "reel se přehrává v mřížce i v detailu")
+    assert(/media_type/.test(codeOnly("app/actions/calendar-actions.ts")) && /image_url, media_type/.test(codeOnly("app/actions/admin-actions.ts")),
+        "tabům se musí posílat media_type, jinak parser nepozná reel od karuselu")
 })
 
 test("13b.10 plný účet na mostu se pozná při připojování, ne až při publikaci", () => {
@@ -2158,32 +2181,29 @@ test("16.13 kampaň nedostane sedmkrát tentýž kontext (V4)", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
-// 17. REELOVÉ BLOKÁTORY (v8.8) — kvalita a tichá degradace
+// 17. REELY — Seedance, režisér, audio-first, žádná tichá degradace
 // ═══════════════════════════════════════════════════════════
 
-test("17.1 video director běží na Pro ladderu, ne na flash (V3)", () => {
-    const code = codeOnly("instagram/image-pipeline.ts")
-    const fn = code.slice(code.indexOf("export async function refineVideoPrompt"))
-    assert(!/model: getModel\("text"\)/.test(fn),
-        "video director je jediný kreativní krok mezi copywriterem a videem — nesmí na flash")
-    assert(/generateTextQuality\(refinementPrompt/.test(fn),
-        "musí jít přes kvalitní ladder (tvrdý retry + fallback + QualityUnavailableError)")
-    assert(/getModel\("textPro"\)/.test(fn), "ladder je textPro, stejný jako u copywritera")
-    assert(/json: false/.test(fn), "výstup je próza, ne JSON")
+test("17.1 video jde přes seedance-client, Veo je pryč", () => {
+    const reel = codeOnly("instagram/orchestrators/reel-orchestrator.ts")
+    assert(/from "\.\.\/seedance-client"/.test(reel), "orchestrátor musí video zadávat přes seedance-client")
+    assert(/from "\.\.\/reel-director"/.test(reel) && /from "\.\.\/reel-compositor"/.test(reel) && /from "\.\.\/reel-audio"/.test(reel),
+        "režisér, audio a kompozice jsou samostatné moduly — orchestrátor je skládá, nepíše je znovu")
+    assert(!/generateVideo\b/.test(codeOnly("instagram/gemini-client.ts")), "generateVideo (Veo) musí zůstat smazané")
+    assert(!fileExists("instagram/video-processor.ts"), "starý ffmpeg post-processing (SRT + Arial) musí zůstat smazaný")
+    assert(!/refineVideoPrompt/.test(codeOnly("instagram/image-pipeline.ts")), "prozaický video director nahradil storyboard režiséra")
+    const zbytky = execSync('grep -rliw "veo" instagram app lib utils scripts components || true', { encoding: "utf-8" }).trim()
+    assert(zbytky === "", `Veo se nesmí objevit v kódu (docs/historie jsou výjimka): ${zbytky}`)
 })
 
-test("17.2 reel neporušuje CTA politiku vypálenou URL do videa (V3)", () => {
-    const code = codeOnly("instagram/image-pipeline.ts")
-    const fn = code.slice(code.indexOf("export async function refineVideoPrompt"))
-    assert(/ctaPolicy\?: CtaPolicy/.test(fn), "refineVideoPrompt musí politiku vůbec dostat")
-    assert(!/MUST include \$\{config\.website\} branding \(text on screen or product placement\)\n/.test(fn),
-        "web se nesmí do závěru videa vypalovat natvrdo bez ohledu na pilíř")
-    assert(/!ctaPolicy\.allowWebsite/.test(fn),
-        "zákaz webu musí větvit podle politiky, ne podle formátu")
+test("17.2 režisér ctí CTA politiku a nepíše text do obrazu", () => {
+    const sb = codeOnly("instagram/reel-storyboard.ts")
+    assert(/allowWebsite/.test(sb) && /URL_RE/.test(sb), "storyboard bez povoleného webu nesmí obsahovat URL — validátor to hlídá")
+    assert(/no on-screen text/i.test(sb) && /no speech/i.test(sb), "finální prompt nese zákaz textu i řeči bez ohledu na model")
+    const reel = codeOnly("instagram/orchestrators/reel-orchestrator.ts")
+    assert(/ctx\.ctaPolicy/.test(reel), "reel orchestrátor musí politiku předat režisérovi")
     const types = fileContent("instagram/orchestrators/types.ts")
     assert(/ctaPolicy\?: CtaPolicy/.test(types), "RenderContext musí politiku přenést do orchestrátoru")
-    const reel = codeOnly("instagram/orchestrators/reel-orchestrator.ts")
-    assert(/ctx\.ctaPolicy/.test(reel), "reel orchestrátor ji musí předat dál")
 })
 
 test("17.3 CTA politika je k dispozici i postu z checkpointu (V3)", () => {
@@ -2191,36 +2211,101 @@ test("17.3 CTA politika je k dispozici i postu z checkpointu (V3)", () => {
     const resolveIdx = code.indexOf("const ctaPolicy = resolveCtaPolicyForPost")
     const megaIdx = code.indexOf("megaPrompt = buildMegaPrompt(")
     assert(resolveIdx > 0 && megaIdx > 0, "obě místa musí existovat")
-    // Checkpoint větev, která hlídá copywritera, je ta poslední před buildMegaPrompt.
-    // Resume z caption checkpointu přeskakuje CELOU copywriterskou větev, ale média
-    // renderuje — kdyby policy zůstala uvnitř else, resumnutý reel by ji neměl.
     const branchIdx = code.lastIndexOf("if (ck) {", megaIdx)
     assert(branchIdx > 0, "checkpoint větev před copywriterem musí existovat")
     assert(resolveIdx < branchIdx,
         "resolve CTA politiky musí být NAD checkpoint větví, ne uvnitř else")
 })
 
-test("17.4 ffmpeg binárka je připnutá pro obě reelové routy", () => {
+test("17.4 ffmpeg binárka i font titulků jsou připnuté pro všechny tři reelové routy", () => {
     const cfg = fileContent("next.config.ts")
-    assert(/"\/api\/ig-run-job": \[[^\]]*ffmpeg-static\/ffmpeg/.test(cfg),
-        "single-post cesta musí mít binárku v tracingu")
-    assert(/"\/api\/cron\/campaign-worker": \[[^\]]*ffmpeg-static\/ffmpeg/.test(cfg),
-        "kampaňový worker renderuje reely taky")
+    for (const route of ["/api/ig-run-job", "/api/cron/campaign-worker", "/api/cron/job-resume"]) {
+        const re = new RegExp(`"${route.replace(/\//g, "\\/")}": \\[[^\\]]*ffmpeg-static\\/ffmpeg[^\\]]*assets\\/fonts`)
+        assert(re.test(cfg), `${route}: binárka i assets/fonts musí být v tracingu (job-resume dokončuje zaparkované reely)`)
+    }
+    assert(fileExists("assets/fonts/Inter-Bold.ttf") && fileExists("assets/fonts/LICENSE-Inter.txt"),
+        "titulkový font musí být v repu i s licencí — libass ho čte jen přes fontsdir")
 })
 
-test("17.5 chybějící ffmpeg nesmí tiše degradovat reel", () => {
-    const vp = codeOnly("instagram/video-processor.ts")
-    // Starý getFfmpegPath vracel naslepo "ffmpeg" — na Vercelu spawn nesmyslné binárky,
-    // orchestrátor to chytil a reel za 5 kreditů odešel bez voiceoveru i titulků.
-    assert(/existsSync\(staticPath\)/.test(vp),
-        "existenci binárky je nutné ověřit, ne předpokládat")
-    assert(/throw new Error\(\s*`ffmpeg-static resolved to/.test(vp),
-        "chybějící nabundlovaná binárka musí být diagnostikovatelná chyba")
+test("17.5 chybějící ffmpeg nebo padlá kompozice nesmí tiše degradovat reel", () => {
+    const comp = codeOnly("instagram/reel-compositor.ts")
+    assert(/existsSync\(staticPath\)/.test(comp), "existenci binárky je nutné ověřit, ne předpokládat")
+    assert(/throw new Error\(\s*`ffmpeg-static resolved to/.test(comp), "chybějící nabundlovaná binárka musí být diagnostikovatelná chyba")
+    assert(/ass='\$\{escapeFilterPath\(o\.assPath\)\}':fontsdir=/.test(comp), "titulky jdou přes ass + fontsdir (drawtext ve statické binárce není)")
+    assert(/sidechaincompress/.test(comp), "atmosféra se pod řečí stlačuje, ne jen ztišuje")
     const reel = codeOnly("instagram/orchestrators/reel-orchestrator.ts")
-    const catchIdx = reel.indexOf("catch (ffErr)")
-    assert(catchIdx > 0, "catch kolem post-processingu musí existovat")
-    assert(/step: "ffmpeg-postprocess"/.test(reel.slice(catchIdx)),
-        "degradace postu za 5 kreditů se musí hlásit do Sentry, ne jen do konzole")
+    assert(!/catch \(ffErr\)/.test(reel) && !/catch \(vidErr\)/.test(reel),
+        "polykání chyb videa/kompozice zůstává smazané — reel bez titulků a voiceoveru není dodávka")
+    const composeIdx = reel.indexOf("catch (composeErr)")
+    assert(composeIdx > 0 && /captureReelError\(composeErr, "compose"/.test(reel.slice(composeIdx, composeIdx + 400)) && /throw composeErr/.test(reel.slice(composeIdx, composeIdx + 600)),
+        "pád kompozice jde do Sentry se stepem compose a chybu VYHAZUJE dál")
+})
+
+test("17.6 audio-first: TTS a časová osa před videem, délku určuje řeč", () => {
+    const reel = codeOnly("instagram/orchestrators/reel-orchestrator.ts")
+    const tts = reel.indexOf("synthesizeNarration(")
+    const submit = reel.indexOf("submitVideoTask(")
+    assert(tts > 0 && submit > 0 && tts < submit, "namluvení a měření musí předcházet zadání videa — TTS, které nejde, nesmí stát vteřinu videa")
+    assert(/buildTimeline\(/.test(reel) && /durationSeconds = timeline\.durationSeconds/.test(reel), "délka videa se čte z časové osy, ne z konfigurace")
+    assert(/condenseNarration\(/.test(reel), "příliš dlouhá řeč se zkracuje, ne usekává")
+    const audio = codeOnly("instagram/reel-audio.ts")
+    assert(/QualityUnavailableError\(`TTS nedostupné/.test(audio), "TTS mimo provoz = zaparkovat, ne selhat ani nedodat")
+    assert(!/generateVideo\b/.test(audio), "reel-audio je jen zvuk")
+})
+
+test("17.7 seedance-client: jeden tvar požadavku, rozpočet pollingu, účtování u zadání", () => {
+    const sc = codeOnly("instagram/seedance-client.ts")
+    assert((sc.match(/export function buildTaskBody/g) || []).length === 1 && (sc.match(/export function parseTaskStatus/g) || []).length === 1,
+        "tvar API ModelArk žije v buildTaskBody/parseTaskStatus a nikde jinde")
+    assert(!/content\.video_url|generate_audio|"image_url"/.test(codeOnly("instagram/orchestrators/reel-orchestrator.ts")),
+        "orchestrátor nesmí znát názvy polí ModelArk")
+    assert(/budgetMs/.test(sc) && /maxAttempts/.test(sc), "polling má rozpočet i strop pokusů — nikdy nekonečná smyčka")
+    assert(/recordUnits\(videoUnitKey\([^)]*\),\s*"seconds"/.test(sc), "video se účtuje ve vteřinách s klíčem model@rozlišení")
+    const submitIdx = sc.indexOf("export async function submitVideoTask")
+    assert(/withQualityRetry/.test(sc.slice(submitIdx)) && /QualityUnavailableError/.test(sc.slice(submitIdx)),
+        "přetížené Seedance se zkouší tvrdě a pak parkuje — nikdy nejede na horším modelu")
+    assert(!/veo|flash/i.test(sc), "žádný fallback na jiný video model")
+})
+
+test("17.8 video checkpoint: uložit před zadáním i po něm, resume polluje místo resubmitu", () => {
+    const reel = codeOnly("instagram/orchestrators/reel-orchestrator.ts")
+    const saves = reel.match(/saveVideoCheckpoint\?\.\(/g) || []
+    assert(saves.length >= 3, `checkpoint se ukládá před zadáním, po zadání a při parkování (nalezeno ${saves.length})`)
+    const firstSave = reel.indexOf("saveVideoCheckpoint?.(")
+    const submit = reel.indexOf("submitVideoTask(")
+    assert(firstSave > 0 && firstSave < submit, "první uložení (TTS + storyboard + voiceover v bucketu) musí předcházet zadání videa")
+    assert(/if \(vc\) \{/.test(reel) && /if \(!vc\.taskId\)/.test(reel), "resume: s checkpointem se nezadává znovu, bez taskId se zadá poprvé")
+    assert(/VideoPendingError\(/.test(reel) && /MAX_VIDEO_POLL_ROUNDS/.test(reel), "vyčerpaný rozpočet = zaparkovat s počítáním kol, ne nekonečně")
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(/video\?: VideoCheckpoint/.test(auto) && /saveVideoCheckpoint/.test(auto) && /videoCheckpoint: ck\?\.video/.test(auto),
+        "autopilot nese video checkpoint v caption checkpointu a předává ho orchestrátoru")
+    for (const f of ["app/api/ig-run-job/route.ts", "app/api/cron/job-resume/route.ts", "app/api/cron/campaign-worker/route.ts"]) {
+        const src = codeOnly(f)
+        assert(/isVideoPending/.test(src), `${f}: běžící video se musí parkovat, ne refundovat`)
+        assert(/deadlineAt/.test(src), `${f}: orchestrátor musí znát strop lambdy`)
+        const idx = src.indexOf("isVideoPending(err)")
+        const next = src.indexOf("isQualityUnavailable(err)", idx)
+        assert(idx > 0 && next > idx, `${f}: větev videa musí předcházet větvi nedostupné kvality`)
+        assert(!/refundJobCharge/.test(src.slice(idx, next)), `${f}: v parkovací větvi videa nesmí být refund`)
+    }
+    assert(/parkJobForVideo/.test(codeOnly("lib/job-park.ts")) && /retry_count/.test(codeOnly("lib/job-park.ts")),
+        "parkování kvůli videu má vlastní funkci s krátkým odstupem")
+})
+
+test("17.9 upload i bucket: z configu klienta, chyba hází", () => {
+    const reel = codeOnly("instagram/orchestrators/reel-orchestrator.ts")
+    assert(/config\.storageBucket \|\| "audit-screenshots"/.test(reel), "bucket se bere z configu klienta jako u obrázků, ne natvrdo")
+    assert(/throw new Error\(`Upload do/.test(reel), "neúspěšný upload je selhání, ne post bez média")
+    assert(/rethrowIfQualityUnavailable\(/.test(reel), "nedostupná kvalita coveru se nesmí spolknout (28.6)")
+})
+
+test("17.10 titulky: karty s bundlovaným fontem v bezpečné zóně, zalamujeme sami", () => {
+    const subs = codeOnly("instagram/reel-subtitles.ts")
+    assert(/WrapStyle: 2/.test(subs) && /wrapWords/.test(subs), "zalamování si dělá kód — libass by nechal řádek přetéct")
+    assert(/fontName: "Inter"/.test(subs), "styl musí odkazovat na bundlovaný font")
+    assert(/marginV: 290/.test(subs) && /marginR: 70/.test(subs), "karty sedí nad UI lištou a vlevo od sloupce ikon")
+    assert(!/Arial|FontSize=16/.test(subs), "žádný Arial 16 dole u okraje")
+    assert(fileContains("package.json", "tsx scripts/test-reel-pipeline.ts"), "čisté testy reelu musí být v guardu")
 })
 
 // ═══════════════════════════════════════════════════════════
@@ -2354,8 +2439,8 @@ test("20.2 každé volání modelu hlásí spotřebu", () => {
     // Obraz se účtuje za kus. Kdyby se hlásil tokeny, cena vyjde null a post je neoceněný.
     assert(/recordUnits\([^)]*"images"/.test(gem),
         "obrázkové volání musí hlásit jednotky, ne tokeny — Google účtuje za kus")
-    // Veo vrací operaci bez usageMetadata, takže musí jít přes jednotky.
-    assert(/recordUnits\([^)]*"seconds"/.test(gem),
+    // Video API nevrací tokeny, takže musí jít přes jednotky — dnes v seedance-client.
+    assert(/recordUnits\(videoUnitKey\([^)]*\),\s*"seconds"/.test(codeOnly("instagram/seedance-client.ts")),
         "video se musí měřit ve vteřinách — jinak nejdražší médium vychází na nulu")
     // Soudce běží u každého postu, klidně vícekrát.
     assert(/recordUsage\(/.test(codeOnly("instagram/anthropic-client.ts")),
@@ -3491,9 +3576,9 @@ test("28.4 emoji se nezapéká do názvu formátu", () => {
 test("28.6 nedostupná kvalita se nespolkne do postu bez obrázku", () => {
     const types = codeOnly("instagram/orchestrators/types.ts")
     assert(/rethrowIfQualityUnavailable/.test(types), "policy musí být na jednom místě")
-    for (const f of ["image", "carousel", "story"]) {
+    for (const f of ["image", "carousel", "story", "reel"]) {
         const src = codeOnly(`instagram/orchestrators/${f}-orchestrator.ts`)
-        assert(/rethrowIfQualityUnavailable\(err/.test(src),
+        assert(/rethrowIfQualityUnavailable\(/.test(src),
             `${f}: catch-all vrací prázdný render, takže by se QualityUnavailable spolklo a uložil by se post bez média`)
     }
 })
@@ -4368,6 +4453,10 @@ test("34.5 každý volající modelu má jasno, kdo ho účtuje", () => {
         "instagram/orchestrators/carousel-orchestrator.ts": "uvnitř generateOnePost",
         "instagram/orchestrators/story-orchestrator.ts": "uvnitř generateOnePost",
         "instagram/orchestrators/reel-orchestrator.ts": "uvnitř generateOnePost",
+        "instagram/seedance-client.ts": "uvnitř generateOnePost (reel)",
+        "instagram/reel-director.ts": "uvnitř generateOnePost (reel)",
+        "instagram/reel-audio.ts": "uvnitř generateOnePost (reel)",
+        "instagram/anthropic-client.ts": "brána k Claude — měří přes ni soudce i režisér",
         "instagram/plan-pipeline.ts": "uvnitř generateContentPlan (content_plan)",
         "instagram/feed-vision.ts": "uvnitř onboarding_config nebo recommendFeedPattern",
         "instagram/memory-agent.ts": "uvnitř generace příspěvku nebo operace learn",
@@ -4377,7 +4466,7 @@ test("34.5 každý volající modelu má jasno, kdo ho účtuje", () => {
         "app/onboarding/core.ts": "onboarding měří lib/agents/handlers.ts",
     }
 
-    const VOLANI = /\b(generateText|generateTextQuality|generateImage|generateImageWithReferences|editExistingImage|detectLogoPlacementArea|analyzeImagesWithText|generateVideo|generateVoiceover|embedTexts|embedText)\s*\(/
+    const VOLANI = /\b(generateText|generateTextQuality|generateImage|generateImageWithReferences|editExistingImage|detectLogoPlacementArea|analyzeImagesWithText|generateVideoSeedance|submitVideoTask|generateVoiceover|directWithClaude|embedTexts|embedText)\s*\(/
 
     const walk = (dir: string): string[] => {
         const out: string[] = []
@@ -4519,7 +4608,9 @@ test("35.4 tarif nesmí zhoršit obsah, jen výhled", () => {
 test("36.1 brána běží PŘED vizuálem, ne po něm", () => {
     const auto = codeOnly("instagram/autopilot.ts")
     const gate = auto.indexOf("checkCaptionFacts(config, captionData")
-    const checkpoint = auto.indexOf("const checkpoint: CaptionCheckpoint")
+    // Checkpoint je od 9/2026 `let` (video fáze reelu ho doplňuje o `video`), ale
+    // pořád je to hranice mezi textem a vizuálem.
+    const checkpoint = auto.indexOf("let checkpoint: CaptionCheckpoint")
     assert(gate > 0, "faktická brána v pipeline vůbec není")
     assert(gate < checkpoint,
         "hook se za chvíli vypálí do obrázku — po renderu se text opravuje jen přerenderováním")

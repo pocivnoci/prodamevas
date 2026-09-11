@@ -32,6 +32,7 @@ interface TokenPrice {
     source: string
 }
 
+const BYTEPLUS = "docs.byteplus.com/en/docs/ModelArk/1099320 (Seedance 2.5), ověřeno 2026-09-11"
 const GOOGLE = "ai.google.dev/gemini-api/docs/pricing, ověřeno 2026-08-10"
 
 const PRICES: Record<string, TokenPrice> = {
@@ -96,11 +97,24 @@ const ALIASES: Record<string, string> = {
 /** Co se u daného volání účtuje mimo tokeny. */
 export type UnitKind = "seconds" | "images" | "searches"
 
+/** Rozlišení videa, která Seedance přes ModelArk renderuje nativně. */
+export type VideoResolution = "480p" | "720p"
+
+/**
+ * Klíč sazby za video: model + rozlišení. Video se účtuje za vteřinu A za
+ * rozlišení (720p je ~2,3× dražší než 480p), takže samotné ID modelu cenu
+ * neurčí. Tenhle klíč zapisuje `recordUnits` v `instagram/seedance-client.ts`
+ * a tady se pod ním hledá sazba — jedno místo, kde se ta dvojice skládá.
+ */
+export function videoUnitKey(model: string, resolution: VideoResolution): string {
+    return `${resolveModelAlias(model)}@${resolution}`
+}
+
 /**
  * Jednotkové sazby — co se neúčtuje za tokeny.
  * Obraz per kus, video per vteřinu. Rozlišení bereme to, které engine skutečně
- * renderuje: video `resolution: "1080p"` (gemini-client.ts), obraz bez `imageSize`
- * (= 1K; „2K"/„4K" rozmazává gemini-3-pro-image, viz komentář tamtéž).
+ * renderuje: video 480p (klíč `videoUnitKey`, seedance-client.ts), obraz bez
+ * `imageSize` (= 1K; „2K"/„4K" rozmazává gemini-3-pro-image, viz komentář tamtéž).
  *
  * `perSearch` je jiný případ než ty dva: hledání na webu se účtuje **vedle** tokenů,
  * ne místo nich. Proto ho `instagram/fact-web.ts` zapisuje jako SAMOSTATNÝ záznam
@@ -108,10 +122,14 @@ export type UnitKind = "seconds" | "images" | "searches"
  * mlčky by zahodil tu druhou půlku ceny.
  */
 const UNIT_PRICES: Record<string, { perSecond?: number; perImage?: number; perSearch?: number; source: string }> = {
-    // Veo 3.1 @ 1080p
-    "veo-3.1-generate-preview": { perSecond: 0.40, source: GOOGLE },
-    "veo-3.1-fast-generate-preview": { perSecond: 0.12, source: `${GOOGLE} (1080p; 720p je 0,10)` },
-    "veo-3.1-lite-generate-preview": { perSecond: 0.08, source: `${GOOGLE} (1080p; 720p je 0,05)` },
+    // Seedance 2.5 přes BytePlus ModelArk — účtuje se za vteřinu videa a liší se
+    // rozlišením, proto klíč nese obojí (`videoUnitKey`). 480p je jediné, které
+    // engine renderuje; 720p řádek je tu, aby se dial NEDAL zapnout bez ceny.
+    // Sazby: docs.byteplus.com/en/docs/ModelArk/1099320 (Seedance 2.5 bez video vstupu
+    // $10.70/M tokenů; ceník uvádí $0,103/s @480p a $0,231/s @720p), ověřeno 2026-09-11.
+    // Zvuk se u 2.5 zvlášť neúčtuje. Klíč nese přesné ID z instagram/models.ts.
+    "dreamina-seedance-2-5-260628@480p": { perSecond: 0.10, source: BYTEPLUS },
+    "dreamina-seedance-2-5-260628@720p": { perSecond: 0.23, source: BYTEPLUS },
     // Nano Banana Pro / 2 @ 1K
     "gemini-3-pro-image": { perImage: 0.134, source: `${GOOGLE} (1K/2K)` },
     "gemini-3.1-flash-image": { perImage: 0.067, source: `${GOOGLE} (1K)` },
@@ -132,7 +150,7 @@ function rateForKind(up: { perSecond?: number; perImage?: number; perSearch?: nu
  *
  * Existuje proto, aby engine nemusel držet vlastní kopii cen. Do 9/2026 měl
  * `instagram/caption-generator.ts` v `COSTS` druhý sazebník za video a ten se
- * s tímhle souborem ROZEŠEL (Veo Fast 0,15 vs 0,12 USD/s, Lite 0,06 vs 0,08).
+ * s tímhle souborem ROZEŠEL (sazba Fast 0,15 vs 0,12 USD/s, Lite 0,06 vs 0,08).
  * Dvě pravdy o ceně znamenají, že žádný výpočet marže nesedí — a rozhoduje
  * ta, která má zdroj a datum, tedy tenhle soubor.
  */

@@ -2,6 +2,7 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { getPlanForMedium } from "@/lib/pricing"
+import { isReelMedium, REEL_LABELS } from "@/lib/reel-media"
 import { requireProjectAccess } from "@/lib/auth-guard"
 import { DEFAULT_IDEA_COOLDOWN_DAYS } from "@/instagram/service"
 import type { ContentPlanItem } from "./content-plan-actions"
@@ -61,12 +62,14 @@ export async function startCampaign(
 
         // Reel gating once, up-front (same rule as ig-create-job) — campaign-wide
         // default AND any per-item reel in the plan.
-        const wantsReel = options.medium === "reel" || items.some(it => it.medium === "reel")
-        if (!isSuperAdmin && wantsReel) {
+        const wantedReels = new Set([options.medium, ...items.map(it => it.medium)].filter(isReelMedium))
+        if (!isSuperAdmin && wantedReels.size > 0) {
             const { getClientSubscription, canUseMedium } = await import("@/lib/subscription")
             const sub = await getClientSubscription(clientId)
-            if (!canUseMedium(sub?.features, "reel")) {
-                return { success: false, error: `Reels jsou dostupné od balíčku ${getPlanForMedium("reel")}.` }
+            for (const m of wantedReels) {
+                if (!canUseMedium(sub?.features, m)) {
+                    return { success: false, error: `${REEL_LABELS[m]}: reels jsou dostupné od balíčku ${getPlanForMedium(m)}.` }
+                }
             }
         }
 

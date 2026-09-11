@@ -649,7 +649,6 @@ Příklady angle:
 
     postsPerWeek: 2,
     productCooldownDays: 14,
-    videoTier: "fast",
     psychologist: true,
     autoPublish: false,
     autoReplenishIdeas: true,

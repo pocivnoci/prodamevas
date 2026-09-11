@@ -209,3 +209,36 @@ Shipped on top of the phased program above:
 5. **Calibration.** Third anchor (3/10 failure) added to `SCORE_ANCHORS`; `overall` = pure rubric sum (the "brand-manager vibe correction" is gone). Expect a mild downward shift in `critic_score` — monitor avg critic/final score + editorial rounds week-over-week; re-tune anchor wording, not the 8/9 thresholds.
 6. **Chief Editor → sales gate.** The board no longer re-scores hook/storytelling/voice (critic's job); it gates publication on CTA–pillar fit, product-claim truthfulness (against injected product data), reason-to-act-now, and red flags. Loop mechanics (≤3 rounds, auto-approve ≥9, pushback, last-round leniency) unchanged.
 7. **Debug:** `DEBUG_PROMPT=1` dumps the fully assembled mega prompt (autopilot caption phase) — use with `npx tsx instagram/cli.ts --config=<slug> --type=<typ> --dry-run`.
+
+---
+
+## 9. Update 2026-09-11 — Seedance (BytePlus ModelArk) as the video provider; Claude as reel director
+
+§0 said "add exactly one new provider — Claude — at the judge layer". Reels break that
+rule on purpose, and this is the record of why:
+
+1. **Veo is gone.** The reel pipeline was switched off in production, never verified
+   end-to-end, and its voiceover/subtitle layer was a single TTS blob with guessed
+   timings. Instead of a second attempt on Veo, the video stage moved to **Seedance
+   via BytePlus ModelArk** (`instagram/seedance-client.ts`): reference-to-video with
+   several brand photos + product + logo (Veo took 3), native 9:16, 4–30 s, native
+   ambience. Only 480p is rendered (720p breaks the Kč/kredit band — see
+   `docs/UNIT_ECONOMICS_AND_PRICING.md`). There is **no cross-provider fallback**: an
+   overloaded Seedance parks the job (`QualityUnavailableError`), a running task parks
+   it too (`VideoPendingError` + video checkpoint), nothing degrades silently.
+2. **Claude gets a second role: the reel director** (`instagram/reel-director.ts`,
+   `getModel("reelDirector")` = Sonnet 5). It does not write copy — the Czech
+   narration comes from the Gemini copywriter and has passed the critic + fact gate —
+   it turns the measured narration timeline plus the brand's reference images into a
+   storyboard and one video prompt. Same fallback contract as the judge: Gemini
+   `textPro` ladder with the same JSON schema, never flash.
+3. **Audio-first.** TTS runs per sentence *before* the video is ordered; the measured
+   durations set the timeline, the video length and the subtitle cards
+   (`reel-audio.ts`, `reel-subtitles.ts`, `reel-compositor.ts`). A TTS outage costs
+   zero video seconds.
+4. **Data flow to note in the processing register:** brand photos, the product image
+   and the logo are sent to BytePlus (ap-southeast) as public URLs / data URLs for the
+   duration of the task.
+
+Net new dependency count: two (Claude, BytePlus). Everything else (text, image, TTS,
+embeddings) stays on Gemini.

@@ -31,6 +31,9 @@ const OPTIONAL = [
     "REPORT_FROM_EMAIL",       // bez ověřené domény se posílá z onboarding@resend.dev, který doručí JEN na adresu majitele Resend účtu
     "UPLOADPOST_API_KEY",      // most k publikaci na cizí profily, dokud neprojde 2. App Review — bez něj se volba v UI neukáže
     "UPLOADPOST_DEFAULT_TRANSPORT", // "uploadpost" přepne výchozí nabídku připojení pro nové tenanty; jinak platí "meta"
+    "ANTHROPIC_API_KEY",       // Claude: soudce, ověření faktů na webu a reelový režisér — bez něj vše padá na Gemini Pro ladder
+    "ARK_API_KEY",             // BytePlus ModelArk (Seedance) — bez něj se reel nedá vyrobit; REELS_ENABLED=1 bez klíče hlásí health-check
+    "ARK_BASE_URL",            // výchozí https://ark.ap-southeast.bytepluses.com/api/v3 — měnit jen při přesunu regionu
 ] as const
 
 export function validateEnv(): void {

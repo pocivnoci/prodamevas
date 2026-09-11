@@ -15,6 +15,9 @@ import { getPlanForMedium } from "@/lib/pricing"
 import { schedulePostAction } from "@/app/actions/calendar-actions"
 import { distributeSchedule, monthSpanDays, postsForSpan } from "@/lib/schedule-planner"
 import { MEDIA_CREDITS, type MediumType } from "@/lib/credits"
+import { isReelMedium, REEL_LABELS, type ReelMedium } from "@/lib/reel-media"
+import { isVideoUrl } from "@/lib/media-urls"
+import { ReelPlayer } from "./ReelPlayer"
 import { computeSlotIntents, VISUAL_MODE_LABELS, type FeedPatternId } from "@/lib/feed-pattern"
 import { getProducts } from "@/app/actions/product-actions"
 import { uploadCustomImage, type GenerateResult } from "@/app/actions/ig-generate-action"
@@ -67,7 +70,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     // it. Offering one the engine will clamp away is a broken promise — a "reel" that
     // ships as a carousel. `?? false` on the flags: an older API response without them
     // means we can't prove the engine will honour it.
-    const reelAllowed = (subscription?.allowedMedia?.includes("reel") ?? true) && (subscription?.reelsEnabled ?? false)
+    const reelAllowed = (m: ReelMedium) => (subscription?.allowedMedia?.includes(m) ?? true) && (subscription?.reelsEnabled ?? false)
     const storyAllowed = (subscription?.allowedMedia?.includes("story") ?? true) && (subscription?.storiesEnabled ?? false)
     // Posts still free within this month's plan allotment (plan posts cost 0 credits).
     const freeRemaining = subscription
@@ -862,7 +865,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     // re-clamped at generation, so we don't offer a misleading option.
     const handleTogglePlanMedium = (itemId: string) => {
         setContentPlan(prev => prev.map(p => {
-            if (p.id !== itemId || p.medium === "reel") return p
+            if (p.id !== itemId || isReelMedium(p.medium)) return p
             return { ...p, medium: p.medium === "carousel" ? "image" : "carousel" }
         }))
     }
@@ -1146,11 +1149,11 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                             </div>
                                             <div>
                                                 <label className="inline-flex items-center gap-1.5 text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold"><Film className="w-3 h-3 shrink-0" />Typ</label>
-                                                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                                                    {[{ value: "", label: "Auto", emoji: "🎲" }, { value: "image", label: "Obrázek", emoji: "🖼️" }, { value: "story", label: "Story", emoji: "📱" }, { value: "carousel", label: "Carousel", emoji: "📸" }, { value: "reel", label: "Reel", emoji: "🎬" }].map(opt => {
-                                                        const locked = (opt.value === "reel" && !reelAllowed) || (opt.value === "story" && !storyAllowed)
-                                                        const lockNote = opt.value === "reel"
-                                                            ? (subscription?.reelsEnabled === false ? "Reels připravujeme" : `Reels jsou dostupné od balíčku ${getPlanForMedium("reel")}`)
+                                                <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+                                                    {[{ value: "", label: "Auto", emoji: "🎲" }, { value: "image", label: "Obrázek", emoji: "🖼️" }, { value: "story", label: "Story", emoji: "📱" }, { value: "carousel", label: "Carousel", emoji: "📸" }, { value: "reel", label: REEL_LABELS.reel, emoji: "🎬" }, { value: "reel_long", label: REEL_LABELS.reel_long, emoji: "🎥" }].map(opt => {
+                                                        const locked = (isReelMedium(opt.value) && !reelAllowed(opt.value)) || (opt.value === "story" && !storyAllowed)
+                                                        const lockNote = isReelMedium(opt.value)
+                                                            ? (subscription?.reelsEnabled === false ? "Reels připravujeme" : `Reels jsou dostupné od balíčku ${getPlanForMedium(opt.value)}`)
                                                             : (subscription?.storiesEnabled === false ? "Stories připravujeme" : "Stories nejsou v tomto balíčku")
                                                         return (
                                                             <button key={opt.value} onClick={() => !locked && setMedium(opt.value)}
@@ -1162,7 +1165,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                                         ? "bg-white/10 border-white/30 text-white" : "bg-[#050505] border-white/10 text-white/40 hover:text-white"}`}>
                                                                 {locked ? "🔒" : opt.emoji} {opt.label}
                                                                 {locked ? <span className="block text-[8px] text-white/25 font-bold uppercase tracking-widest mt-0.5">
-                                                                    {lockNote.includes("připravujeme") ? "Brzy" : "Od Růst"}
+                                                                    {lockNote.includes("připravujeme") ? "Brzy" : `Od ${getPlanForMedium(opt.value)}`}
                                                                 </span> : (
                                                                     /* Cena formátu patří k VOLBĚ formátu. V Nastavení je pozdě —
                                                                        rozhodnutí „udělám reel za 5 kreditů" padá tady. */
@@ -1183,7 +1186,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                 />
                                                 <p className="mt-2 text-[10px] text-white/30 leading-relaxed">
                                                     AI vaši fotku zakomponuje do designu příspěvku — použije ji celou nebo její část jako vizuální základ a doplní typografii, branding a logo. Text příspěvku se řídí zadaným tématem, ne fotkou.
-                                                    {medium === "reel" && <span className="text-amber-400/60"> U reels se fotka nepoužije.</span>}
+                                                    {isReelMedium(medium) && <span className="text-amber-400/60"> U reels se fotka nepoužije.</span>}
                                                     {medium === "story" && <span className="text-white/40"> U storky se fotka použije na prvním snímku.</span>}
                                                 </p>
                                             </div>
@@ -1499,10 +1502,10 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                             {(() => {
                                                                 const m = item.medium === "carousel"
                                                                     ? { emoji: "📸", label: "Carousel", cls: "text-sky-300/70 border-sky-400/20 bg-sky-400/5" }
-                                                                    : item.medium === "reel"
-                                                                    ? { emoji: "🎬", label: "Reel", cls: "text-fuchsia-300/70 border-fuchsia-400/20 bg-fuchsia-400/5" }
+                                                                    : isReelMedium(item.medium)
+                                                                    ? { emoji: item.medium === "reel_long" ? "🎥" : "🎬", label: REEL_LABELS[item.medium], cls: "text-fuchsia-300/70 border-fuchsia-400/20 bg-fuchsia-400/5" }
                                                                     : { emoji: "🖼️", label: "1 obrázek", cls: "text-emerald-300/70 border-emerald-400/20 bg-emerald-400/5" }
-                                                                const editable = item.medium !== "reel"
+                                                                const editable = !isReelMedium(item.medium)
                                                                 return (
                                                                     <button
                                                                         type="button"
@@ -1893,6 +1896,10 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         <div className="mb-6 rounded-sm overflow-hidden bg-[#0f0f0f] shadow-inner border border-white/5">
                                             {(() => {
                                                 const urls = result.imageUrl?.split("|").filter(Boolean) || []
+                                                // Reel = „video|cover" — přehrát, ne strčit .mp4 do <img>.
+                                                if (isVideoUrl(urls[0])) {
+                                                    return <ReelPlayer controls videoUrl={urls[0]} coverUrl={urls[1]} className="w-full max-h-[600px] aspect-[9/16] mx-auto" />
+                                                }
                                                 if (urls.length > 1) {
                                                     return (
                                                         <div className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar">

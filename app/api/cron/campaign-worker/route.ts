@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
 import { generateOnePost } from "@/instagram/autopilot"
-import { isQualityUnavailable } from "@/utils/retry"
+import { isQualityUnavailable, isVideoPending } from "@/utils/retry"
+import { RENDER_BUDGET_MS } from "@/lib/job-park"
+import type { MediumType } from "@/lib/credits"
+import { isReelMedium } from "@/lib/reel-media"
 
 export const maxDuration = 800 // Vercel Pro cap (Fluid Compute) — full budget to drain a campaign.
 
@@ -19,7 +22,7 @@ export const maxDuration = 800 // Vercel Pro cap (Fluid Compute) — full budget
  */
 
 const LEASE_MS = 5 * 60 * 1000 // a stale lease (worker died) is reclaimable after this
-const BUDGET_MS = 700 * 1000   // stop taking new posts past this, leaving margin under 800s
+const BUDGET_MS = RENDER_BUDGET_MS // stop taking new posts past this, leaving margin under 800s (shared with the reel poller)
 // How long we keep deferring a post whose Pro engines stay overloaded before giving up
 // on it as a failure. "Quality over speed" — but not forever.
 const MAX_CAMPAIGN_AGE_MS = Number(process.env.CAMPAIGN_MAX_AGE_MS || 6 * 60 * 60 * 1000)
@@ -252,10 +255,10 @@ export async function GET(req: Request) {
 
         // Billed medium = what will actually render: pre-apply the same clamps the engine
         // uses (kill-switch, plan gating), so the media-weighted charge matches delivery.
-        let chargedMedium: "image" | "carousel" | "reel" =
-            itemMedium === "reel" || itemMedium === "carousel" ? itemMedium : "image"
-        if (chargedMedium === "reel" && process.env.REELS_ENABLED !== "1") chargedMedium = "carousel"
-        if (chargedMedium === "reel" && allowedMedia && !allowedMedia.includes("reel")) {
+        let chargedMedium: MediumType =
+            isReelMedium(itemMedium) || itemMedium === "carousel" ? itemMedium : "image"
+        if (isReelMedium(chargedMedium) && process.env.REELS_ENABLED !== "1") chargedMedium = "carousel"
+        if (isReelMedium(chargedMedium) && allowedMedia && !allowedMedia.includes(chargedMedium)) {
             chargedMedium = allowedMedia.includes("carousel") ? "carousel" : "image"
         }
 
@@ -416,6 +419,8 @@ export async function GET(req: Request) {
                 chargedMedium: ADMIN_BYPASS ? undefined : chargedMedium,
                 jobId: job.id,
                 resumeFrom,
+                // Zbytek rozpočtu TOHOTO ticku — reel podle něj krájí čekání na video.
+                deadlineAt: t0 + BUDGET_MS,
                 onProgress: async (stage: string, progress: number, message: string, editorialLog?: any[]) => {
                     const upd: Record<string, any> = { status: stage, progress, agent_message: message }
                     if (editorialLog?.length) {
@@ -459,6 +464,21 @@ export async function GET(req: Request) {
             previousPosts.push({ hook: (result.caption || "").split("\n")[0] || "", topic: postTopic || "auto" })
         } catch (err: any) {
             const msg = (err?.message || String(err)).substring(0, 500)
+
+            // Video u Seedance ještě renderuje (VideoPendingError): úloha je zadaná a
+            // zaplacená, checkpoint nese taskId. Zaparkovat item (status 'failed' bez
+            // retry_after — item vlastní worker, ne job-resume), nechat cursor, další
+            // tick dopolluje. Kredit zůstává.
+            if (isVideoPending(err)) {
+                await supabaseAdmin.from("ig_jobs").update({ status: "failed", retry_after: null, agent_message: "🎬 Video se ještě renderuje — pokračuji v dalším ticku", error: msg }).eq("id", job.id)
+                if (item) {
+                    item.jobId = job.id
+                    try { await supabaseAdmin.from("ig_campaigns").update({ plan }).eq("id", campaign.id) } catch { /* best-effort */ }
+                }
+                console.log(`   🎬 campaign ${campaign.id} item #${cursor + 1}: video still rendering — parked job ${job.id}, deferring to next tick`)
+                stopReason = "deferred"
+                break
+            }
 
             // QualityUnavailable = both Pro tiers are overloaded right now. We refuse to
             // ship a flash-quality post, so DEFER: PARK the job (charge kept, caption

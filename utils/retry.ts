@@ -17,6 +17,9 @@ const TRANSIENT_ERRORS = [
     "503", "UNAVAILABLE", "overloaded", "high demand", "429",
     "rate limit", "quota", "RESOURCE_EXHAUSTED", "deadline",
     "ECONNRESET", "ETIMEDOUT", "fetch failed", "socket hang up", "network",
+    // REST video API (ModelArk) hlásí přetížení i jako 5xx. Tokeny jsou schválně
+    // s prefixem „HTTP", aby „500" nechytlo třeba „max 500 chars" v jiné hlášce.
+    "HTTP 500", "HTTP 502", "HTTP 504",
 ]
 
 // Permanent for a given model = the model ID is gone/invalid → retrying it is
@@ -51,6 +54,27 @@ export class QualityUnavailableError extends Error {
 export function isQualityUnavailable(err: unknown): boolean {
     if ((err as any)?.isQualityUnavailable) return true
     return String((err as any)?.message || err).includes(QUALITY_UNAVAILABLE_MARKER)
+}
+
+/**
+ * Vyhozeno, když video na Seedance ještě renderuje a rozpočet lambdy došel.
+ * Není to selhání ani nedostupná kvalita: úloha u poskytovatele BĚŽÍ a je
+ * zaplacená, takže job se zaparkuje na pár minut (`lib/job-park.ts`
+ * `parkJobForVideo`) a resume ji jen dopolluje — nikdy nezadá znovu.
+ * Stejný string marker jako QualityUnavailableError, ze stejného důvodu.
+ */
+export const VIDEO_PENDING_MARKER = "VIDEO_PENDING"
+export class VideoPendingError extends Error {
+    readonly isVideoPending = true
+    constructor(readonly taskId: string, message: string) {
+        super(`${VIDEO_PENDING_MARKER}: ${message}`)
+        this.name = "VideoPendingError"
+    }
+}
+
+export function isVideoPending(err: unknown): boolean {
+    if ((err as any)?.isVideoPending) return true
+    return String((err as any)?.message || err).includes(VIDEO_PENDING_MARKER)
 }
 
 /**

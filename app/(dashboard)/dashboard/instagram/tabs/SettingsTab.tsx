@@ -10,6 +10,7 @@ import { generateCategoryPrompt } from "@/app/actions/content-plan-actions"
 import { getConnectionStatus, disconnectInstagram, syncUploadPostConnection, type ConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { SubscriptionSection } from "./SubscriptionSection"
 import { BillingSection } from "./BillingSection"
+import { isReelMedium, REEL_LABELS } from "@/lib/reel-media"
 import { ConsultationSection } from "./ConsultationSection"
 import { FEED_PATTERNS, computeSlotIntent, type FeedPatternId } from "@/lib/feed-pattern"
 import { PHOTO_POLICY_OPTIONS } from "@/lib/photo-policy"
@@ -1012,11 +1013,12 @@ const MEDIUM_OPTIONS = [
     { value: "image", label: "Obrázek" },
     { value: "story", label: "Story" },
     { value: "carousel", label: "Karusel" },
-    { value: "reel", label: "Reel" },
+    { value: "reel", label: REEL_LABELS.reel },
+    { value: "reel_long", label: REEL_LABELS.reel_long },
 ] as const
 const RATIO_OPTIONS = ["1:1", "4:5", "3:4"] as const
 /** Media pinned to 9:16 — mirrors VERTICAL_MEDIA in instagram/format-clamps.ts. */
-const isVerticalMedium = (m: string) => m === "reel" || m === "story"
+const isVerticalMedium = (m: string) => isReelMedium(m) || m === "story"
 // Static-media overlay styles (reels are always text-free "none").
 const OVERLAY_OPTIONS = [
     { value: "default", label: "Základní" },
@@ -1169,7 +1171,7 @@ function FormatsSection({ config, projectId, onReload }: { config: any; projectI
                     </label>
                 </div>
             </div>
-            {value.medium !== "reel" && (
+            {!isReelMedium(value.medium) && (
                 <div className="max-w-[240px]">
                     <FieldLabel hint="Jak headline sedí na obrázku — rozložení textu ve vizuálu">Styl textu</FieldLabel>
                     <select value={value.overlayStyle || (value.medium === "carousel" ? "cover" : "default")}
@@ -1576,16 +1578,6 @@ function VisualSection({ config, updateField, handleLogoUpload, logoUploading, p
                     </div>
                 </div>
 
-                <div>
-                    <FieldLabel hint="Kvalita/cena videa pro reels — Lite ~$0.06/s, Fast $0.15/s, Premium $0.40/s">Video kvalita (reels)</FieldLabel>
-                    <select value={config.videoTier || "fast"}
-                        onChange={(e) => updateField(["videoTier"], e.target.value)}
-                        className={inputClass}>
-                        <option value="lite">Lite — nejlevnější</option>
-                        <option value="fast">Fast — doporučeno</option>
-                        <option value="premium">Premium — nejvyšší kvalita</option>
-                    </select>
-                </div>
             </SectionCard>
 
             <SectionCard title="Vizuální Identita" description="Brand vstupy pro AI generování obrázků">

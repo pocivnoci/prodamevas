@@ -292,7 +292,6 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         postTypeDefs: warnOnScenicFormats(warnOnOversizedStructures(config.postTypeDefs || [], slug), slug),
         hashtagPools: config.hashtagPools || { core: [], niche: [], broad: [], trending: [], czech: [] },
         contentFocus: config.contentFocus || config.name || slug,
-        videoTier: config.videoTier || "fast",
         psychologist: config.psychologist ?? true,
         // igBaseline is optional with no default — undefined means "no scrape
         // data available" and all consumers (planWeek) must handle that.

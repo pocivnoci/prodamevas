@@ -11,6 +11,8 @@
  * "3 slidů".
  */
 
+import { isReelMedium } from "./reel-media"
+
 export type PostMediaKind = "image" | "carousel" | "reel" | "story"
 
 /** Extensions the render pipeline actually produces for video (reel MP4s), plus the
@@ -60,7 +62,9 @@ export function parsePostMedia(
         .map(u => u.trim())
         .filter(Boolean)
 
-    if (mediaType === "reel") {
+    // Obě velikosti reelu (`reel`, `reel_long`) mají tentýž tvar: video + cover.
+    // Velikost je věc ceny (media_type), ne přehrávání — konzument dostane kind "reel".
+    if (isReelMedium(mediaType)) {
         const videoUrl = urls[0]
         const coverUrl = urls[1]
         return {

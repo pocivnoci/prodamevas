@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { getPerformanceInsights, updateIGPostMetrics, syncMetricsAction } from "@/app/actions/admin-actions"
+import { parsePostMedia } from "@/lib/media-urls"
 import { getConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { getGrowthData, type GrowthData } from "@/app/actions/growth-actions"
 import { getVariantDuels } from "@/app/actions/ab-actions"
@@ -278,7 +279,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                                     <div className="flex items-center gap-3 min-w-0">
                                         {post.image_url && (
                                             <img
-                                                src={post.image_url.split("|")[0]}
+                                                src={parsePostMedia(post.image_url, post.media_type).thumbUrl ?? undefined}
                                                 alt=""
                                                 className="w-8 h-8 rounded-sm object-cover flex-shrink-0"
                                             />

@@ -7,7 +7,8 @@ import { Type } from "@google/genai"
 import { generateTextQuality } from "./gemini-client"
 import { judgeText } from "./judge"
 import { getModel, hasFallback, getTemperature } from "./models"
-import { unitRate } from "@/lib/model-pricing"
+import { unitRate, videoUnitKey } from "@/lib/model-pricing"
+import { isReelMedium, clampReelDuration, REEL_LIMITS, type ReelMedium } from "@/lib/reel-media"
 import type { ClientConfig, PostFormat, PostTypeDef, AudiencePersona, BrandVoiceExample } from "./configs/types"
 import type { PostType, PostIdea, Review } from "./types"
 import type { HookTemplate, ToneModifier } from "./types"
@@ -27,15 +28,14 @@ import { resolveCtaPolicy, buildCtaPolicySection, buildCtaPolicyJudgeBlock, type
 // - Nano Banana Pro (gemini-3-pro-image, 2K): ~$0.134 per image — see instagram/models.ts
 //
 // ⚠️ Sazby za VIDEO se tady schválně nepíšou. Držel je tu druhý sazebník, který
-//    se s `lib/model-pricing.ts` rozešel (Fast 0,15 vs 0,12 USD/s, Lite 0,06 vs
-//    0,08), takže odhad ceny reelu neseděl ani sám se sebou. Cena teď má jediný
-//    zdroj — ten, který u sazeb vede datum ověření a odkaz na ceník Googlu.
+//    se s `lib/model-pricing.ts` rozešel, takže odhad ceny reelu neseděl ani sám
+//    se sebou. Cena má jediný zdroj — ten, který u sazeb vede datum ověření a odkaz
+//    na ceník poskytovatele.
 
-/** Sazba za vteřinu videa podle tieru — čtená z jediného sazebníku. */
-function videoRate(tier: "lite" | "fast" | "premium", fallback: number): number {
-    const key = tier === "lite" ? "videoLite" : tier === "fast" ? "videoFast" : "videoPremium"
+/** Sazba za vteřinu videa (Seedance přes ModelArk, 480p) — čtená z jediného sazebníku. */
+function videoRate(fallback: number): number {
     // Neznámá sazba nesmí tiše vyrobit nulu: odhad „zadarmo" je horší než hrubý odhad.
-    return unitRate(getModel(key), "seconds") ?? fallback
+    return unitRate(videoUnitKey(getModel("video"), "480p"), "seconds") ?? fallback
 }
 
 export const COSTS = {
@@ -46,19 +46,16 @@ export const COSTS = {
     imageGeneration: 0.134,      // Nano Banana Pro GA 2K
     imageQA: 0.01,               // flash vision verify (native engine)
     imageCorrectiveEdit: 0.134,  // corrective text/logo edit retry (native engine, worst case 1×)
-    videoPerSecond: videoRate("fast", 0.12),   // @deprecated — use videoPerSecondByTier
-    videoPerSecondByTier: {
-        lite: videoRate("lite", 0.08),
-        fast: videoRate("fast", 0.12),
-        premium: videoRate("premium", 0.40),
-    } as Record<"lite" | "fast" | "premium", number>,
-    ttsVoiceover: 0.02,          // Gemini 3.1 Flash TTS (~$0.02 per request)
+    videoPerSecond: videoRate(0.10),   // Seedance 2.5 @ 480p přes ModelArk (lib/model-pricing.ts)
+    reelDirector: 0.04,          // Claude Sonnet 5 storyboard (~3k in / 1.5k out)
+    ttsVoiceover: 0.02,          // Gemini 3.1 Flash TTS — per reel (namluvení po řádcích, ~4–8 volání)
     perPost: 0.27,       // 3× text ($0.075) + context ($0.025) + designer ($0.03) + image ($0.134) + QA ($0.01)
     perStory: 0.56,      // 3× text + context + 1 designer (shared) + 3× image ($0.402) + 3× QA
     perCarousel: 0.75,   // 3× text + context + designer + 4× image ($0.536) + 4× QA + overhead
-    // Veo 8 s se sazbou z `lib/model-pricing.ts`; při 0,12 USD/s je to 0,96 USD,
-    // ne 1,20 jako podle staré, rozešlé sazby. Reel tím vychází o ~0,24 levněji.
-    perReel: 1.22,       // 3× text + context + Veo 3.1 Fast 8s ($0.96) + TTS ($0.02) + cover ($0.134) + QA
+    // Reel = 3× text + context + režisér ($0.04) + video (sazba × délka) + TTS ($0.02) + cover ($0.134) + QA.
+    // Krátký reel 8 s @ 0,10 USD/s → ~1,10 USD; dlouhý 15–20 s → ~1,9–2,3 USD (docs/UNIT_ECONOMICS_AND_PRICING.md).
+    perReel: 1.10,
+    perReelLong: 2.30,
 }
 
 // ============================================
@@ -231,22 +228,20 @@ export function selectOverlayVariant(
 }
 
 /**
- * Determine reel duration from config or convention.
- * Veo 3.1 supports 5-8s at 1080p.
+ * Délka reelu — z formátu, jinak z konvence názvu typu, vždy sražená do mezí
+ * VELIKOSTI reelu (`lib/reel-media.ts`): krátký 4–8 s, dlouhý 10–20 s. Skutečná
+ * délka videa se pak odvíjí od namluveného textu (audio-first) a tohle je jen
+ * cíl pro copywritera a strop pro režiséra.
  */
-export function getReelDuration(typeName: string, config?: ClientConfig): number {
-    // 1. Explicit per-type config
-    const typeFormat = config?.postFormats?.[typeName]
-    if (typeFormat?.reelDuration) return Math.min(8, Math.max(5, typeFormat.reelDuration))
+export function getReelDuration(typeName: string, config: ClientConfig | undefined, medium: ReelMedium, explicit?: number | null): number {
+    const requested = explicit
+        ?? config?.postFormats?.[typeName]?.reelDuration
+        ?? config?.defaultFormat?.reelDuration
+    if (requested) return clampReelDuration(medium, requested)
 
-    // 2. Default format config
-    if (config?.defaultFormat?.reelDuration) return Math.min(8, Math.max(5, config.defaultFormat.reelDuration))
-
-    // 3. Convention-based
-    if (typeName.includes("short") || typeName.includes("quick")) return 5
-    if (typeName.includes("long") || typeName.includes("tutorial")) return 8
-
-    return 8
+    if (typeName.includes("short") || typeName.includes("quick")) return REEL_LIMITS[medium].minSeconds
+    if (typeName.includes("long") || typeName.includes("tutorial")) return REEL_LIMITS[medium].maxSeconds
+    return clampReelDuration(medium)
 }
 
 export const IDEA_COOLDOWN_DAYS = 90
@@ -582,11 +577,11 @@ export function buildVideoSchema(config: ClientConfig) {
                     },
                     required: ["timeRange", "visual", "camera", "mood", "narration", "soundEffect"],
                 },
-                description: "3-4 detailed scenes for Veo 3.1 video generation. Each scene must specify what happens, camera movement, mood, Czech narration and a sound effect.",
+                description: "3-6 detailed scenes for AI video generation (3-4 for a short reel, 4-6 for a long one). Each scene must specify what happens, camera movement, mood, Czech narration and a sound effect.",
             },
             videoScript: {
                 type: Type.STRING,
-                description: "Fallback: single-string summary of all scenes for Veo 3.1 (used if scenes parsing fails)",
+                description: "Fallback: single-string summary of all scenes in English (used if scenes parsing fails)",
             },
             caption: {
                 type: Type.STRING,
@@ -1128,15 +1123,17 @@ ${recentCaptions.map((c, i) => {
 ## 🎯 ÚHEL (ANGLE COMMIT — PRVNÍ KROK)
 Než napíšeš první slovo: vyber JEDEN úhel a zapiš ho do pole "angle" (1 česká věta — jaký úhel volíš a čím se liší od postů výše). Celý post pak drž V TOMTO úhlu.
 
-${postFormat.medium === "reel" ? `
+${isReelMedium(postFormat.medium) ? `
 ## 🎬 INSTAGRAM REEL — FULL VIDEO PRODUCTION
-Toto je Instagram Reel (krátké video, ${postFormat.reelDuration || 8} sekund).
-Video bude generováno AI (Veo 3.1) s nativním zvukem + český voiceover z narrace.
+Toto je Instagram Reel (${postFormat.medium === "reel_long" ? "delší" : "krátké"} video, ${postFormat.reelDuration || 8} sekund).
+Video bude generováno AI (Seedance) s nativní atmosférou + český voiceover z narrace + české titulky.
+Délku videa určuje NAMLUVENÝ text: počítej zhruba 2,3 slova za vteřinu, celkem tedy nejvýš ~${Math.round((postFormat.reelDuration || 8) * 2.3)} slov narrace.
 
 ### PRAVIDLA PRO REELS:
 - **HOOK** musí být v prvních 1.5 sekundách — vizuálně i textově zaujmout
 - **PACING** musí být dynamický — žádné statické záběry delší než 3s
-- Každá scéna MUSÍ mít narration text (bude přečtený česky jako voiceover)
+- Každá scéna MUSÍ mít narration text (bude přečtený česky jako voiceover a zobrazený jako titulek)
+- Narration piš krátkými mluvenými větami — každá scéna 1–2 věty, žádné závorky ani výčty
 - Camera movements musí být plynulé a profesionální
 - Poslední scéna MUSÍ obsahovat CTA${policy.allowWebsite ? ` s ${config.website}` : " — engagement výzvu (otázka / uložit / sdílet), BEZ webu"}
 
@@ -1152,6 +1149,12 @@ ${(postFormat.reelDuration || 8) <= 5 ? `
 - Scene 1 (0-1.5s): HOOK — dramatický vizuál, narration = problém/otázka
 - Scene 2 (1.5-3.5s): VALUE — řešení/produkt v akci
 - Scene 3 (3.5-5s): CTA — ${policy.allowWebsite ? `result + ${config.website}` : "výsledek + engagement výzva (BEZ webu)"}
+` : (postFormat.reelDuration || 8) >= 10 ? `
+- Scene 1 (0-2s): HOOK — dramatický vizuál, narration = problém/otázka
+- Scene 2 (2-5s): KONTEXT — proč to řešit teď, pro koho
+- Scene 3 (5-${Math.round((postFormat.reelDuration || 15) * 0.6)}s): VALUE — hlavní obsah, důkaz, ukázka (klidně dvě scény)
+- Scene 4 (${Math.round((postFormat.reelDuration || 15) * 0.6)}-${(postFormat.reelDuration || 15) - 3}s): PAYOFF — výsledek, proměna, detail
+- Scene 5 (${(postFormat.reelDuration || 15) - 3}-${postFormat.reelDuration || 15}s): CTA — ${policy.allowWebsite ? `výsledek + ${config.website}` : "engagement výzva (BEZ webu)"}
 ` : `
 - Scene 1 (0-2s): HOOK — dramatický vizuál, narration = problém/otázka
 - Scene 2 (2-${(postFormat.reelDuration || 8) - 3}s): VALUE — hlavní obsah, důkaz, ukázka
@@ -1166,7 +1169,7 @@ overhead/bird's eye, low angle hero shot, smooth orbit, rack focus, handheld nat
 golden hour warmth, dramatic side-lighting, bright natural daylight, moody cinematic,
 neon glow, studio softbox, high-contrast editorial, morning mist, backlit silhouette
 
-### SOUND EFFECTS (pro Veo 3.1 nativní audio):
+### SOUND EFFECTS (pro nativní zvukovou stopu AI videa — atmosféra, ne řeč):
 Do každé scény přidej zvukový efekt/atmosféru — např. "city ambience", "door opening",
 "coffee pouring", "keyboard typing", "wind in trees", "footsteps on gravel"
 

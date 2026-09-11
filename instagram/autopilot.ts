@@ -41,7 +41,9 @@ import { matchProductInText } from "../lib/product-match"
 import { loadConfig } from "./configs"
 import type { ClientConfig, PostFormat, PostMedium } from "./configs/types"
 import { applyFormatClamps, liveKillSwitches, FEED_SAFE_RATIOS } from "./format-clamps"
+import { isReelMedium } from "../lib/reel-media"
 import type { PostType, PostIdea, Review } from "./types"
+import type { VideoCheckpoint } from "./orchestrators/types"
 
 // Module imports (refactored from monolith)
 import { isHookSimilar, isBodySimilar, createPillarMapper, findSemanticEcho } from "./service"
@@ -58,6 +60,7 @@ import {
     MAX_STORY_FRAMES,
     buildSmartWeekPlan,
     buildMegaPrompt,
+    getReelDuration,
     scorePost,
     rankDrafts,
     resolveCtaPolicyForPost,
@@ -165,6 +168,20 @@ export interface CaptionCheckpoint {
     /** Doklady z webu. Bez nich by se post dorenderovaný po pádu uložil bez zdrojů,
      *  které se za něj už zaplatily — a u tvrzení by zůstal štítek. */
     factSources?: FactSource[]
+    /** Video fáze reelu (TTS + storyboard + zadaná úloha) — viz orchestrators/types.ts. */
+    video?: VideoCheckpoint
+}
+
+/**
+ * Délka reelu podle VELIKOSTI média, ne podle starého stropu 5–8 s. Copywriter
+ * čte `postFormat.reelDuration` a režisér z ní počítá rozpočet slov, takže dlouhý
+ * reel bez tohohle dostane scénář na 8 vteřin. Mutuje formát na místě (stejně jako
+ * override kategorie o pár řádků výš) a běží PO clampech — clamp mohl velikost
+ * srazit (např. `reel_long` účtovaný jako `reel`).
+ */
+function pinReelDuration(format: PostFormat, typeName: string, config: ClientConfig): void {
+    if (!isReelMedium(format.medium)) return
+    format.reelDuration = getReelDuration(typeName, config, format.medium, format.reelDuration)
 }
 
 export async function generateOnePost(options: {
@@ -212,6 +229,9 @@ export async function generateOnePost(options: {
     jobId?: string
     /** Prior checkpoint from a failed job — skips the caption phase (copywriter/critic/editorial). */
     resumeFrom?: CaptionCheckpoint
+    /** Epoch ms, do kdy musí render skončit (strop lambdy). Reel z toho krájí rozpočet
+     *  na čekání na video; po vyčerpání se job zaparkuje, ne zabije. */
+    deadlineAt?: number
     /** Feed-pattern slot decided at plan time (campaigns). Passed in rather than recomputed so a
      *  resumed/retried post keeps the mode its neighbours were planned around. Omit for one-off
      *  posts — those derive it from the live feed. */
@@ -678,6 +698,7 @@ export async function generateOnePost(options: {
         ...liveKillSwitches(),
     }
     format = applyFormatClamps(format, clampOpts)
+    pinReelDuration(format, selectedType.name, config)
 
     // Smart overlay rotation — for image posts only, auto-select layout variant
     if (format.medium === "image" && format.overlayStyle === "default") {
@@ -699,9 +720,10 @@ export async function generateOnePost(options: {
     // window (up to MAX_CAMPAIGN_AGE_MS) and must win over the frozen format.
     if (ck) {
         format = applyFormatClamps(ck.format, clampOpts)
+        pinReelDuration(format, selectedType.name, config)
     }
 
-    const isReel = format.medium === "reel"
+    const isReel = isReelMedium(format.medium)
     const isCarousel = format.medium === "carousel"
     const isStory = format.medium === "story"
 
@@ -1143,9 +1165,10 @@ ${feedSummary}
     // Persist the caption checkpoint — a crash/timeout in the visual phase can resume
     // from here without re-burning the copywriter/critic/editorial Pro calls. The final
     // done-write overwrites ig_jobs.result, so a successful job carries no checkpoint.
+    let checkpoint: CaptionCheckpoint | undefined = ck
     if (options.jobId && !ck && !options.dryRun) {
         try {
-            const checkpoint: CaptionCheckpoint = {
+            checkpoint = {
                 stage: "caption",
                 captionData: captionData as CaptionCheckpoint["captionData"],
                 captionModel,
@@ -1169,6 +1192,19 @@ ${feedSummary}
             console.log("   💾 Caption checkpoint uložen (resume-ready)")
         } catch { /* best-effort — never fail the post over a checkpoint */ }
     }
+
+    // Video checkpoint (reel): zapisuje se do TÉHOŽ objektu jako `video`, aby resume
+    // našel text i video na jednom místě. Bez jobId (CLI, dry-run) není kam ukládat —
+    // orchestrátor pak jede v jednom kuse a při pádu se video zadá znovu.
+    const jobIdForCheckpoint = options.jobId
+    const saveVideoCheckpoint = jobIdForCheckpoint && !options.dryRun && checkpoint
+        ? async (video: VideoCheckpoint) => {
+            const merged: CaptionCheckpoint = { ...(checkpoint as CaptionCheckpoint), video }
+            checkpoint = merged
+            await supabaseAdmin.from("ig_jobs").update({ result: { checkpoint: merged } }).eq("id", jobIdForCheckpoint)
+            console.log(`   💾 Video checkpoint uložen${video.taskId ? ` (úloha ${video.taskId})` : " (před zadáním videa)"}`)
+        }
+        : undefined
 
     // Use client-specific hashtags
     let finalHashtags: string[]
@@ -1202,6 +1238,9 @@ ${feedSummary}
                 config, captionData: captionData as CaptionData, format, selectedType, report,
                 selectedProduct: selectedProduct as SelectedProduct | undefined,
                 linkedProductId, clientUuid, recentBriefs, recentArchetypes, ctaPolicy,
+                deadlineAt: options.deadlineAt,
+                videoCheckpoint: ck?.video,
+                saveVideoCheckpoint,
             })
             imageUrl = renderResult.imageUrl
             cost += renderResult.cost
@@ -1235,7 +1274,7 @@ ${feedSummary}
             // 1-credit image shipped, no refund) and the publisher later pushed a static
             // image through the video path (publish failure).
             if (format.medium !== "image") {
-                const missing = format.medium === "reel" ? "scén/skriptu" : format.medium === "story" ? "snímků" : "slides"
+                const missing = isReelMedium(format.medium) ? "scén/skriptu" : format.medium === "story" ? "snímků" : "slides"
                 console.warn(`   ⚠️ ${format.medium} caption bez ${missing} — renderuji single image, media_type opraven`)
                 format.medium = "image"
                 if (!(FEED_SAFE_RATIOS as readonly string[]).includes(format.aspectRatio)) format.aspectRatio = "4:5"
@@ -1275,7 +1314,7 @@ ${feedSummary}
             // 'image' | 'carousel' | 'reel' — drives how the publisher cron pushes media.
             // (Carousel slide URLs stay pipe-joined in image_url per the orchestrator convention.)
             media_type: format.medium,
-            image_style: renderResult?.imageStyle ?? (isReel ? "veo-3.1" : "native"),
+            image_style: renderResult?.imageStyle ?? (isReel ? "seedance" : "native"),
             design_brief: renderResult?.designBrief ?? null,
             status: "draft",
         })
