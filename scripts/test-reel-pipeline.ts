@@ -8,11 +8,12 @@
  * „video ještě běží", která musí přežít zabalení do obyčejné chyby.
  */
 
+import { readFileSync } from "fs"
 import { MEDIA_CREDITS } from "../lib/credits"
-import { REEL_MEDIA, REEL_LIMITS, isReelMedium, clampReelDuration, REEL_LABELS } from "../lib/reel-media"
+import { REEL_MEDIA, REEL_LIMITS, REEL_TIMELINE, isReelMedium, clampReelDuration, REEL_LABELS, SPOKEN_WORDS_PER_SECOND, plannedNarrationWords, plannedNarrationSentences, narrationWordBudget } from "../lib/reel-media"
 import { parsePostMedia } from "../lib/media-urls"
 import { applyFormatClamps } from "../instagram/format-clamps"
-import { wavInfo, pcmToWav, buildTimeline, assembleVoiceoverWav, wordCount, WORDS_PER_SECOND } from "../instagram/reel-audio"
+import { wavInfo, pcmToWav, buildTimeline, assembleVoiceoverWav, wordCount, TIMELINE_DEFAULTS } from "../instagram/reel-audio"
 import { chunkForSubtitles, wrapWords, buildAss, assTime, escapeAssText } from "../instagram/reel-subtitles"
 import { validateStoryboard, parseStoryboard, finalizeVideoPrompt, buildReelDirectorPrompt, type ReelStoryboard } from "../instagram/reel-storyboard"
 import { buildTaskBody, parseTaskStatus, MAX_REFERENCES } from "../instagram/seedance-client"
@@ -70,7 +71,38 @@ check("skládání: jedna stopa v délce videa (původní tempo)", near(mixedInf
 threw = false
 try { assembleVoiceoverWav([wav(1), pcmToWav(Buffer.alloc(48_000), 48_000, 1, 16)], [0, 2], 4) } catch { threw = true }
 check("skládání: různý formát klipů hází (žádný tichý resample)", threw)
-check("slova za vteřinu ~2,3 a wordCount počítá slova", WORDS_PER_SECOND === 2.3 && wordCount(["Ahoj světe", "tři slova tady"]) === 5)
+check("wordCount počítá slova", wordCount(["Ahoj světe", "tři slova tady"]) === 5)
+check("osa bere nájezd, mezery, dojezd i zrychlení z jednoho místa (lib/reel-media)", TIMELINE_DEFAULTS.leadInSeconds === REEL_TIMELINE.leadInSeconds && TIMELINE_DEFAULTS.gapSeconds === REEL_TIMELINE.gapSeconds && TIMELINE_DEFAULTS.tailSeconds === REEL_TIMELINE.tailSeconds && TIMELINE_DEFAULTS.maxTempo === REEL_TIMELINE.maxTempo)
+
+console.log("\n✂️ ROZPOČET SLOV NARRACE\n")
+// Živý test 11. 9. 2026: hlas mluvil 1,55–1,93 slova/s a cíl `délka × 2,3` ignoroval
+// nájezd, mezery i dojezd — obě velikosti reelu padly na „nevejde se ani po zkrácení".
+const speechFor = (words: number, rate: number, sentences: number) => Array.from({ length: sentences }, () => words / rate / sentences)
+const sentenceLines = (n: number) => Array.from({ length: n }, (_, i) => `věta ${i}`)
+check("plánovací tempo z měření (1,5–1,9 slova/s), ne optimistických 2,3", SPOKEN_WORDS_PER_SECOND >= 1.5 && SPOKEN_WORDS_PER_SECOND <= 1.9)
+for (const [medium, seconds] of [["reel", 8], ["reel", 4], ["reel_long", 15], ["reel_long", 20]] as const) {
+    const n = plannedNarrationSentences(seconds)
+    const words = plannedNarrationWords(seconds)
+    const limits = { minSeconds: REEL_LIMITS[medium].minSeconds, maxSeconds: seconds }
+    const planned = buildTimeline(sentenceLines(n), speechFor(words, SPOKEN_WORDS_PER_SECOND, n), limits)
+    const slowVoice = buildTimeline(sentenceLines(n), speechFor(words, 1.55, n), limits)
+    check(`copywriter ${medium} ${seconds}s: ${words} slov se vejde i pomalému hlasu (1,55 slova/s)`, words >= n && !planned.tooLong && planned.atempo === 1 && !slowVoice.tooLong, `tempo ${slowVoice.atempo}`)
+}
+// Skutečné případy z testu: krátký 18 slov za 11,58 s řeči (3 věty), dlouhý 46 slov za 23,88 s (5 vět).
+for (const [medium, words, speech, n] of [["reel", 18, 11.58, 3], ["reel_long", 46, 23.88, 5]] as const) {
+    const max = REEL_LIMITS[medium].maxSeconds
+    const rate = words / speech
+    const oldTarget = Math.floor(max * 2.3)
+    const old = buildTimeline(sentenceLines(n), speechFor(oldTarget, rate, n), REEL_LIMITS[medium], { maxTempo: REEL_TIMELINE.condensedMaxTempo })
+    const budget = narrationWordBudget({ words, speechSeconds: speech, sentences: n, maxSeconds: max })
+    const fits = buildTimeline(sentenceLines(n), speechFor(budget, rate, n), REEL_LIMITS[medium])
+    check(`zkrácení ${medium}: cíl z naměřeného tempa (${budget} slov) se vejde, starý (${oldTarget}) ne`, budget < words && budget >= n && !fits.tooLong && old.tooLong, `nový ${fits.totalSeconds}s, starý ${old.totalSeconds}s`)
+}
+check("rozpočet: aspoň slovo na větu a vždy méně slov, než bylo", narrationWordBudget({ words: 4, speechSeconds: 30, sentences: 3, maxSeconds: 8 }) === 3 && narrationWordBudget({ words: 5, speechSeconds: 2, sentences: 3, maxSeconds: 20 }) === 4)
+const orchestratorSrc = readFileSync("instagram/orchestrators/reel-orchestrator.ts", "utf-8")
+check("orchestrátor zkracuje podle naměřeného tempa nejvýš dvakrát, ne podle délky × konstanta", /narrationWordBudget\(/.test(orchestratorSrc) && /maxCondenseRounds = 2/.test(orchestratorSrc) && !/WORDS_PER_SECOND/.test(orchestratorSrc))
+const captionSrc = readFileSync("instagram/caption-generator.ts", "utf-8")
+check("prompt copywritera bere strop slov z plannedNarrationWords, ne z délky × 2,3", /plannedNarrationWords\(/.test(captionSrc) && !/\* 2\.3\)/.test(captionSrc))
 
 console.log("\n💬 TITULKOVÉ KARTY A ASS\n")
 const wrapped = wrapWords("Řekněte to česky s háčky a čárkami".split(" "), 18)

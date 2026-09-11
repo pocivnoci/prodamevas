@@ -23,12 +23,12 @@ import { pickBrandPhotos } from "../brand-photo-match"
 import { getConfigBrandImageObjects } from "../configs/types"
 import { COSTS, getPostTypeDef } from "../caption-generator"
 import { getModel } from "../models"
-import { REEL_LIMITS, isReelMedium } from "../../lib/reel-media"
+import { REEL_LIMITS, REEL_TIMELINE, isReelMedium, narrationWordBudget } from "../../lib/reel-media"
 import { RENDER_BUDGET_MS, MAX_VIDEO_POLL_ROUNDS } from "../../lib/job-park"
 import { VideoPendingError } from "../../utils/retry"
 import { seedanceEnabled, submitVideoTask, pollVideoTask, downloadVideo, MAX_REFERENCES, type SeedanceReference } from "../seedance-client"
 import { directReel, condenseNarration, finalizeVideoPrompt, type ReelReference } from "../reel-director"
-import { synthesizeNarration, buildTimeline, assembleVoiceoverWav, WORDS_PER_SECOND } from "../reel-audio"
+import { synthesizeNarration, buildTimeline, assembleVoiceoverWav, wordCount } from "../reel-audio"
 import { chunkForSubtitles, buildAss } from "../reel-subtitles"
 import { composeReel } from "../reel-compositor"
 import { loadLogo } from "../logo-loader"
@@ -73,19 +73,28 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
         let tts = await synthesizeNarration(lines, ttsOpts)
         cost += COSTS.ttsVoiceover
         let timeline = buildTimeline(lines, tts.durations, limits)
-        if (timeline.tooLong) {
-            // Řeč se nevejde ani se zrychlením → zkrátit text (beze změny významu), znovu namluvit.
-            const maxWords = Math.floor(limits.maxSeconds * WORDS_PER_SECOND)
-            console.log(`   ✂️ Narrace ${timeline.totalSeconds.toFixed(1)}s > strop ${limits.maxSeconds}s — zkracuji na ~${maxWords} slov`)
+        // Řeč se nevejde ani se zrychlením → zkrátit text (beze změny významu), znovu namluvit.
+        // Cíl se počítá z NAMĚŘENÉHO tempa hlasu a z času, který na řeč zbude po nájezdu,
+        // mezerách a dojezdu — `délka × 2,3 slova/s` sliboval o třetinu víc řeči a obě
+        // velikosti reelu na tom padaly. Druhé kolo pokryje model, který cíl přetáhne.
+        const maxCondenseRounds = 2
+        for (let round = 1; timeline.tooLong && round <= maxCondenseRounds; round++) {
+            const maxWords = narrationWordBudget({
+                words: wordCount(lines),
+                speechSeconds: tts.durations.reduce((a, b) => a + b, 0),
+                sentences: lines.length,
+                maxSeconds: limits.maxSeconds,
+            })
+            console.log(`   ✂️ Narrace ${timeline.totalSeconds.toFixed(1)}s > strop ${limits.maxSeconds}s — zkracuji na ~${maxWords} slov (kolo ${round}/${maxCondenseRounds})`)
             await report("video", 44, "✂️ Narrace je delší než strop reelu — zkracuji…")
             lines = await condenseNarration(lines, maxWords)
             cost += COSTS.reelDirector / 2
             tts = await synthesizeNarration(lines, ttsOpts)
             cost += COSTS.ttsVoiceover
-            timeline = buildTimeline(lines, tts.durations, limits, { maxTempo: 1.3 })
-            if (timeline.tooLong) {
-                throw new Error(`Narrace se do ${limits.maxSeconds}s nevejde ani po zkrácení (${timeline.totalSeconds.toFixed(1)}s) — reel neuseknu uprostřed CTA`)
-            }
+            timeline = buildTimeline(lines, tts.durations, limits, { maxTempo: REEL_TIMELINE.condensedMaxTempo })
+        }
+        if (timeline.tooLong) {
+            throw new Error(`Narrace se do ${limits.maxSeconds}s nevejde ani po zkrácení (${timeline.totalSeconds.toFixed(1)}s) — reel neuseknu uprostřed CTA`)
         }
         const durationSeconds = timeline.durationSeconds
         console.log(`   ✓ Osa: ${lines.length} vět, řeč do ${timeline.totalSeconds.toFixed(1)}s, video ${durationSeconds}s${timeline.atempo !== 1 ? `, tempo ×${timeline.atempo}` : ""}`)

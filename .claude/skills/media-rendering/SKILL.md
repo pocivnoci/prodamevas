@@ -71,6 +71,9 @@ Pipeline (`orchestrators/reel-orchestrator.ts`) je **od zvuku**:
    (`buildTimeline`: nájezd, mezery, dojezd, zrychlení do 1,15×, jinak `tooLong`).
    **Délka videa se odvozuje z řeči**, ne z configu. TTS mimo provoz =
    `QualityUnavailableError` = zaparkovat, a to DŘÍV, než se zaplatí vteřina videa.
+   Rozpočty slov žijí v `lib/reel-media.ts` a **odečítají čas mimo řeč**: copywriter
+   dostane `plannedNarrationWords` (česká řeč ~1,7 slova/s, ne 2,3), zkrácení míří na
+   `narrationWordBudget` z NAMĚŘENÉHO tempa hlasu a zkouší se nejvýš dvakrát.
 3. `reel-director.ts` (Claude Sonnet 5, fallback Gemini `textPro` ladder, stejný
    JSON): storyboard zarovnaný na osu, záběry ukazují na očíslované reference
    (brandové fotky z `pickBrandPhotos`, produkt, logo) a JEDEN anglický prompt.

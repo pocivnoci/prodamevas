@@ -13,6 +13,7 @@
 
 import { generateVoiceover } from "./gemini-client"
 import { QualityUnavailableError } from "../utils/retry"
+import { REEL_TIMELINE } from "../lib/reel-media"
 
 export interface WavInfo {
     sampleRate: number
@@ -106,11 +107,12 @@ export interface TimelineOptions {
     maxTempo: number
 }
 
+/** Čísla žijí v `lib/reel-media.ts` — rozpočty slov z nich odečítají čas mimo řeč. */
 export const TIMELINE_DEFAULTS: TimelineOptions = {
-    leadInSeconds: 0.5,
-    gapSeconds: 0.35,
-    tailSeconds: 1.0,
-    maxTempo: 1.15,
+    leadInSeconds: REEL_TIMELINE.leadInSeconds,
+    gapSeconds: REEL_TIMELINE.gapSeconds,
+    tailSeconds: REEL_TIMELINE.tailSeconds,
+    maxTempo: REEL_TIMELINE.maxTempo,
 }
 
 /**
@@ -188,9 +190,7 @@ export function assembleVoiceoverWav(clips: Buffer[], placements: number[], tota
     return pcmToWav(pcm, ref.sampleRate, ref.channels, ref.bitsPerSample)
 }
 
-/** Kolik slov se do dané délky vejde — česká mluvená řeč ≈ 2,3 slova/s. */
-export const WORDS_PER_SECOND = 2.3
-
+/** Rozpočty slov (kolik se vejde do reelu) počítá `lib/reel-media.ts` z času mimo řeč. */
 export function wordCount(lines: string[]): number {
     return lines.join(" ").split(/\s+/).filter(Boolean).length
 }

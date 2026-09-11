@@ -8,7 +8,7 @@ import { generateTextQuality } from "./gemini-client"
 import { judgeText } from "./judge"
 import { getModel, hasFallback, getTemperature } from "./models"
 import { unitRate, videoUnitKey } from "@/lib/model-pricing"
-import { isReelMedium, clampReelDuration, REEL_LIMITS, type ReelMedium } from "@/lib/reel-media"
+import { isReelMedium, clampReelDuration, REEL_LIMITS, plannedNarrationWords, SPOKEN_WORDS_PER_SECOND, type ReelMedium } from "@/lib/reel-media"
 import type { ClientConfig, PostFormat, PostTypeDef, AudiencePersona, BrandVoiceExample } from "./configs/types"
 import type { PostType, PostIdea, Review } from "./types"
 import type { HookTemplate, ToneModifier } from "./types"
@@ -1127,7 +1127,7 @@ ${isReelMedium(postFormat.medium) ? `
 ## 🎬 INSTAGRAM REEL — FULL VIDEO PRODUCTION
 Toto je Instagram Reel (${postFormat.medium === "reel_long" ? "delší" : "krátké"} video, ${postFormat.reelDuration || 8} sekund).
 Video bude generováno AI (Seedance) s nativní atmosférou + český voiceover z narrace + české titulky.
-Délku videa určuje NAMLUVENÝ text: počítej zhruba 2,3 slova za vteřinu, celkem tedy nejvýš ~${Math.round((postFormat.reelDuration || 8) * 2.3)} slov narrace.
+Délku videa určuje NAMLUVENÝ text. Česky se namluví jen ~${String(SPOKEN_WORDS_PER_SECOND).replace(".", ",")} slova za vteřinu a část videa zabere nádech na začátku, pauzy mezi scénami a dojezd — narrace všech scén dohromady má tedy NEJVÝŠ ${plannedNarrationWords(postFormat.reelDuration || 8)} slov. Delší narraci engine po namluvení zkracuje, napiš ji rovnou krátce.
 
 ### PRAVIDLA PRO REELS:
 - **HOOK** musí být v prvních 1.5 sekundách — vizuálně i textově zaujmout
