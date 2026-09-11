@@ -48,3 +48,58 @@ export const REEL_LABELS: Record<ReelMedium, string> = {
 export function reelCredits(medium: ReelMedium): number {
     return MEDIA_CREDITS[medium]
 }
+
+/**
+ * Časová osa narrace — čas, který z délky reelu ubírá nájezd, mezery a dojezd.
+ * Jediné místo s těmi čísly: `buildTimeline` (instagram/reel-audio.ts) z nich skládá
+ * osu a rozpočty slov níž je musí odečítat, jinak slibují víc řeči, než se do videa vejde.
+ */
+export const REEL_TIMELINE = {
+    leadInSeconds: 0.5,
+    gapSeconds: 0.35,
+    tailSeconds: 1.0,
+    maxTempo: 1.15,
+    /** Tolerance při kontrole už ZKRÁCENÉ narrace — o kus volnější než první pokus. */
+    condensedMaxTempo: 1.3,
+}
+
+/**
+ * Plánovací tempo české řeči — kolik slov se namluví za vteřinu ČISTÉ řeči, DŘÍV než
+ * existuje zvuk (prompt copywritera). Změřeno 11. 9. 2026 na Gemini TTS (hlas Kore):
+ * 2,17–2,37 slova/s po oříznutí ticha. Bez ořezu (`trimSilence` v reel-audio.ts) vycházelo
+ * 1,55–1,93, protože každý klip nese ~0,7 s ticha — a to se do krátkého reelu nevešlo.
+ */
+export const SPOKEN_WORDS_PER_SECOND = 2.2
+
+/** Kolik scén (= vět narrace) čeká prompt copywritera pro danou délku reelu. */
+export function plannedNarrationSentences(seconds: number): number {
+    return seconds >= 10 ? 5 : 3
+}
+
+/** Čas mimo řeč: nájezd + mezery mezi větami + dojezd. */
+export function narrationFixedSeconds(sentences: number): number {
+    return REEL_TIMELINE.leadInSeconds + REEL_TIMELINE.gapSeconds * Math.max(0, sentences - 1) + REEL_TIMELINE.tailSeconds
+}
+
+/**
+ * Strop slov narrace pro copywritera: čas na řeč v PŘIROZENÉM tempu × plánovací tempo.
+ * Zrychlení do `maxTempo` se tu schválně nepočítá — je to rezerva pro copywritera,
+ * který strop přetáhne, ne cíl.
+ */
+export function plannedNarrationWords(seconds: number): number {
+    const sentences = plannedNarrationSentences(seconds)
+    return Math.max(sentences, Math.floor((seconds - narrationFixedSeconds(sentences)) * SPOKEN_WORDS_PER_SECOND))
+}
+
+/**
+ * Cíl zkrácení z NAMĚŘENÉ řeči: tempo tohohle hlasu (slova / sekundy řeči) × čas, který
+ * na řeč opravdu zbude při `maxTempo`, s 10% rezervou na rozptyl TTS mezi voláními.
+ * Vrací aspoň slovo na větu a vždy méně slov, než narrace měla.
+ */
+export function narrationWordBudget(input: { words: number; speechSeconds: number; sentences: number; maxSeconds: number }): number {
+    const { words, speechSeconds, sentences, maxSeconds } = input
+    if (!(speechSeconds > 0) || words <= 0) return sentences
+    const rate = words / speechSeconds
+    const available = Math.max(0, maxSeconds * REEL_TIMELINE.maxTempo - narrationFixedSeconds(sentences))
+    return Math.max(sentences, Math.min(words - 1, Math.floor(rate * available * 0.9)))
+}

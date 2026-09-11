@@ -13,6 +13,7 @@
 
 import { generateVoiceover } from "./gemini-client"
 import { QualityUnavailableError } from "../utils/retry"
+import { REEL_TIMELINE } from "../lib/reel-media"
 
 export interface WavInfo {
     sampleRate: number
@@ -73,6 +74,44 @@ export function pcmToWav(pcm: Buffer, sampleRate: number, channels: number, bits
     return Buffer.concat([header, pcm])
 }
 
+/**
+ * Ořízne ticho na začátku a konci TTS klipu. Gemini TTS vrací každou větu s ~0,3 s ticha
+ * před a ~0,4 s za řečí — složený reel pak měl mezi větami přes sekundu mrtvého vzduchu
+ * a „délka řeči" nesla i to ticho. Pauzy řídí časová osa (`REEL_TIMELINE`), ne TTS.
+ * Nechává kousek dojezdu, aby se neusekly souhlásky; celý tichý klip nebo jiný formát
+ * než 16bit PCM vrací beze změny (prázdný klip hlídá volající).
+ */
+export function trimSilence(wav: Buffer, opts: { thresholdRms?: number; windowSeconds?: number; padSeconds?: number } = {}): Buffer {
+    const { thresholdRms = 600, windowSeconds = 0.02, padSeconds = 0.06 } = opts
+    const info = wavInfo(wav)
+    if (info.bitsPerSample !== 16) return wav
+    const frame = 2 * info.channels
+    const frames = Math.floor(info.dataBytes / frame)
+    const win = Math.max(1, Math.round(info.sampleRate * windowSeconds))
+    const loud = (start: number): boolean => {
+        const end = Math.min(frames, start + win)
+        let sum = 0
+        for (let f = start; f < end; f++) {
+            for (let c = 0; c < info.channels; c++) {
+                const v = wav.readInt16LE(info.dataOffset + f * frame + c * 2)
+                sum += v * v
+            }
+        }
+        return Math.sqrt(sum / Math.max(1, (end - start) * info.channels)) > thresholdRms
+    }
+    let first = 0
+    while (first < frames && !loud(first)) first += win
+    if (first >= frames) return wav
+    let last = frames
+    while (last > first && !loud(Math.max(first, last - win))) last -= win
+    const pad = Math.round(info.sampleRate * padSeconds)
+    const from = Math.max(0, first - pad)
+    const to = Math.min(frames, last + pad)
+    if (from === 0 && to === frames) return wav
+    const pcm = Buffer.from(wav.subarray(info.dataOffset + from * frame, info.dataOffset + to * frame))
+    return pcmToWav(pcm, info.sampleRate, info.channels, info.bitsPerSample)
+}
+
 export interface TimedLine {
     text: string
     /** Sekundy ve VÝSLEDNÉM videu (po případném zrychlení). */
@@ -106,11 +145,12 @@ export interface TimelineOptions {
     maxTempo: number
 }
 
+/** Čísla žijí v `lib/reel-media.ts` — rozpočty slov z nich odečítají čas mimo řeč. */
 export const TIMELINE_DEFAULTS: TimelineOptions = {
-    leadInSeconds: 0.5,
-    gapSeconds: 0.35,
-    tailSeconds: 1.0,
-    maxTempo: 1.15,
+    leadInSeconds: REEL_TIMELINE.leadInSeconds,
+    gapSeconds: REEL_TIMELINE.gapSeconds,
+    tailSeconds: REEL_TIMELINE.tailSeconds,
+    maxTempo: REEL_TIMELINE.maxTempo,
 }
 
 /**
@@ -188,9 +228,7 @@ export function assembleVoiceoverWav(clips: Buffer[], placements: number[], tota
     return pcmToWav(pcm, ref.sampleRate, ref.channels, ref.bitsPerSample)
 }
 
-/** Kolik slov se do dané délky vejde — česká mluvená řeč ≈ 2,3 slova/s. */
-export const WORDS_PER_SECOND = 2.3
-
+/** Rozpočty slov (kolik se vejde do reelu) počítá `lib/reel-media.ts` z času mimo řeč. */
 export function wordCount(lines: string[]): number {
     return lines.join(" ").split(/\s+/).filter(Boolean).length
 }
@@ -208,7 +246,8 @@ export async function synthesizeNarration(
     const durations: number[] = []
     for (const [i, text] of lines.entries()) {
         try {
-            const clip = await generateVoiceover(text, { voice: opts.voice, mood: opts.mood, audioTags: opts.audioTags })
+            // Ticho kolem věty ořezat DŘÍV, než se měří — pauzy dává osa, ne TTS.
+            const clip = trimSilence(await generateVoiceover(text, { voice: opts.voice, mood: opts.mood, audioTags: opts.audioTags }))
             const info = wavInfo(clip)
             if (info.durationSeconds < 0.2) throw new Error(`TTS vrátilo prázdný klip (${info.durationSeconds}s)`)
             clips.push(clip)
