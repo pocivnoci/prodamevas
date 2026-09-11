@@ -17,6 +17,9 @@ import supabaseAdmin from "@/supabase/admin"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const HOUR_MS = 60 * 60 * 1000
+// Kolik dní po termínu smí hotový příspěvek ležet, než je to nedoručení. Den
+// ujede běžně (ruční publikace, víkend); dva už znamenají, že to nikdo nehlídá.
+const OVERDUE_DAYS = 2
 
 export interface HealthProblem {
     icon: string
@@ -116,6 +119,57 @@ export async function buildHealthCheck(): Promise<HealthReport> {
             return data && data.length > 0
                 ? { icon: "💳", title: `${data.length}× předplatné v dunningu`, detail: `billing_failures: ${data.map(s => s.billing_failures).join(", ")} — billing-worker upomíná.` }
                 : null
+        }),
+
+        // Doručení — to, za co klient platí. Ostatní kontroly hlídají, jestli stroj
+        // běží; tahle, jestli se jeho výsledek dostal k zákazníkovi. Příspěvek `ready`
+        // po termínu neviděl nikdo kromě nás — a bez téhle kontroly se health check
+        // hlásil čistý i s desítkami takových. Tři dotazy celkem, žádný na klienta.
+        safe("doručení platícím", async () => {
+            const { data: subs, error: subErr } = await supabaseAdmin.from("subscriptions")
+                .select("client_id")
+                .eq("status", "active")
+            if (subErr) throw new Error(subErr.message)
+            const paying = [...new Set((subs || []).map(s => s.client_id).filter(Boolean))]
+            if (paying.length === 0) return null
+
+            // Výloha není zákazník: portfolio značky vlastníme my a nikomu se nedoručují.
+            const { NOT_SHOWCASE } = await import("@/lib/audience")
+            const { data: clients, error: clientErr } = await supabaseAdmin.from("clients")
+                .select("id, slug")
+                .in("id", paying)
+                .eq("is_active", true)
+                .or(NOT_SHOWCASE)
+            if (clientErr) throw new Error(clientErr.message)
+            if (!clients || clients.length === 0) return null
+
+            const { data: overdue, error: postErr } = await supabaseAdmin.from("ig_posts")
+                .select("client_id, scheduled_for")
+                .in("client_id", clients.map(c => c.id))
+                .eq("status", "ready")
+                .lt("scheduled_for", new Date(Date.now() - OVERDUE_DAYS * DAY_MS).toISOString())
+            if (postErr) throw new Error(postErr.message)
+            if (!overdue || overdue.length === 0) return null
+
+            const byClient = new Map<string, { count: number; oldest: string }>()
+            for (const p of overdue) {
+                const cur = byClient.get(p.client_id)
+                if (!cur) byClient.set(p.client_id, { count: 1, oldest: p.scheduled_for })
+                else {
+                    cur.count++
+                    if (p.scheduled_for < cur.oldest) cur.oldest = p.scheduled_for
+                }
+            }
+            const slugOf = new Map(clients.map(c => [c.id, c.slug]))
+            const perClient = [...byClient.entries()]
+                .sort((a, b) => b[1].count - a[1].count)
+                .map(([id, v]) => `${slugOf.get(id) ?? id}: ${v.count} (od ${new Date(v.oldest).toLocaleDateString("cs-CZ", { day: "numeric", month: "numeric" })})`)
+            const n = overdue.length
+            return {
+                icon: "📭",
+                title: `${byClient.size}× platící klient nedostal obsah — ${n} ${n === 1 ? "příspěvek" : n < 5 ? "příspěvky" : "příspěvků"} po termínu`,
+                detail: `${perClient.join(", ")}. Hotové příspěvky leží ve stavu ready přes ${OVERDUE_DAYS} dny po termínu. Publikuj je, nebo klientovi připoj Instagram a zapni auto-publikování.`,
+            }
         }),
 
         // Approvals sitting unanswered — includes ops actions (client_id NULL),
@@ -238,6 +292,25 @@ export async function buildHealthCheck(): Promise<HealthReport> {
                     title: `Na mostu zbývá poslední profil (${used}/${limit})`,
                     detail: "Navyš tarif dřív, než na strop narazí zákazník při připojování.",
                 }
+        }),
+
+        // Řádek `connected` u mostu slibuje upload-post, ne my — a v našich datech
+        // nejde poznat, že profil zmizel nebo nikdy nevznikl. Nastavení pak dál ukazuje
+        // „Připojeno" a publisher posílá příspěvky do prázdna. Kontrola jen hlásí;
+        // proč sama neopravuje, vysvětluje lib/channels/uploadpost-reconcile.ts.
+        safe("připojení na mostu", async () => {
+            const { isUploadPostConfigured } = await import("@/lib/channels/uploadpost-client")
+            if (!isUploadPostConfigured()) return null
+
+            const { findBridgeDrift, describeBridgeDrift } = await import("@/lib/channels/uploadpost-reconcile")
+            const drift = await findBridgeDrift()
+            if (drift.length === 0) return null
+            return {
+                icon: "🔌",
+                title: `${drift.length}× připojení Instagramu nesedí s upload-postem`,
+                detail: drift.map(d => `${d.slug ?? d.clientId}: ${describeBridgeDrift(d.kind)}`).join("; ") +
+                    " — dokud to nesedí, nezapínej těm klientům auto-publikování. Oprava: npx tsx scripts/uploadpost-reconcile.ts --apply",
+            }
         }),
     ]
 

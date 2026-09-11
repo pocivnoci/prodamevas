@@ -1928,7 +1928,9 @@ function InstagramConnectionSection({ projectId, onConnected }: { projectId: str
         setConnecting(true)
         const res = await syncUploadPostConnection(projectId)
         setConnecting(false)
-        setFlash(res.connected ? "Instagram úspěšně připojen" : "Připojení zatím nevidím — dokonči ho v otevřeném okně")
+        // Selhání není „ještě nedokončeno": účet, který už publikuje za jinou značku,
+        // by jinak tenant dokončoval donekonečna.
+        setFlash(res.connected ? "Instagram úspěšně připojen" : res.error || "Připojení zatím nevidím — dokonči ho v otevřeném okně")
         if (res.connected) await afterConnect()
         else await load()
     }
