@@ -5726,6 +5726,69 @@ test("38.6 „jen moje fotky“ musí dojít až k modelu, ne skončit v nastave
 })
 
 // ═══════════════════════════════════════════════════════════
+// 39. NÁPAD JE TÉMA, NE FORMÁT — A KATEGORIE DRŽÍ CELÝ SYSTÉM
+// ═══════════════════════════════════════════════════════════
+// Září 2026: nápady „Zábavné reels video…" padaly do obrázkových slotů plánu a vklad
+// z plánu ukládal nápady bez kategorie, takže čipy v záložce Nápady byly prázdné.
+// Detail pravidel: instagram/idea-rules.ts + scripts/test-idea-rules.ts.
+
+test("39.1 generátor nápadů nepředepisuje formát", () => {
+    const gen = codeOnly("instagram/idea-generator.ts")
+    assert(!/Typy postů:/.test(gen), "názvy typů (reel_…, carousel_…) do promptu nápadů nepatří — model z nich četl formát")
+    assert(/NÁPAD JE TÉMA, NE FORMÁT/.test(gen), "prompt musí formát výslovně zakázat")
+    assert(/prescribesFormat\(/.test(gen) && /neutralizeIdeaFormats\(/.test(gen), "kontrola v kódu: nápad s formátem jde na přepis")
+    assert(/nechávám jako téma/.test(gen), "co formátové slovo nese i po přepisu, je téma (značka o videích mluví) — zůstává, ale nahlas")
+    assert(!/accepted\.filter\(idea => !prescribesFormat/.test(gen), "regex téma od formátu nerozezná — mazat podle něj se nesmí")
+})
+
+test("39.2 vklad z plánu nese kategorii", () => {
+    const c = fileContent("app/actions/campaign-actions.ts")
+    assert(/subcategory: it\.categoryId \|\| null/.test(c), "startCampaign musí ukládat kategorii plánu jako subcategory")
+    assert(!/subcategory: null,/.test(c), "natvrdo null = nápad neviditelný pod čipy")
+    assert(/categoryId: it\.categoryId \|\| null/.test(c), "kategorie musí jet i na řádku plánu pro worker")
+})
+
+test("39.3 plán vybírá nápady po pilířích a ověřuje kategorii", () => {
+    const p = codeOnly("app/actions/content-plan-actions.ts")
+    assert(/getWeightedIdeasForPillars\(clientId/.test(p), "zásobník se do plánu bere po pilířích, s explicitním clientId")
+    assert(!/getWeightedIdeas\(count\)/.test(p), "globální výběr míchal pilíře")
+    assert(/bankIdea\.category === pillar/.test(p), "nápad z cizího pilíře se k postu neváže")
+    assert(/pillarCategories\.find\(c => c\.id === concept\.categoryId\)/.test(p), "categoryId od plánovače se ověřuje proti pilíři slotu")
+    assert(/KATEGORIE PILÍŘŮ/.test(p), "plánovač musí kategorie vidět")
+    const pipe = codeOnly("instagram/plan-pipeline.ts")
+    assert(/categoryId: \{ type: Type\.STRING \}/.test(pipe), "conceptSchema musí umět categoryId")
+})
+
+test("39.4 kategorie z plánu dojde až do enginu", () => {
+    const w = fileContent("app/api/cron/campaign-worker/route.ts")
+    assert((w.match(/categoryId: itemCategoryId/g) || []).length >= 2, "worker předává categoryId do jobu i do generateOnePost")
+    const a = codeOnly("instagram/autopilot.ts")
+    assert(/options\.categoryId/.test(a), "engine musí kategorii z plánu číst")
+    assert(/buildMegaPrompt\([^)]*_category\)/.test(a), "kategorie musí dojít do mega promptu")
+    const cg = codeOnly("instagram/caption-generator.ts")
+    assert(/KATEGORIE OBSAHU/.test(cg), "mega prompt musí kategorii injektovat i bez nápadu (kampaň jede na explicitní téma)")
+})
+
+test("39.5 koncept plánu nesmí slibovat formát, který slot nemá", () => {
+    const pipe = codeOnly("instagram/plan-pipeline.ts")
+    assert(/violatesSlot\(conceptText\(c\), mediumOf\(i\)\)/.test(pipe), "porušení formátu se hledá v kódu, ne jen v rubrice kritika")
+    assert(/forced: true/.test(pipe), "porušení formátu vynutí přepis i při dobrém skóre")
+    assert(/stillBad\.length === 0/.test(pipe), "vynucený přepis se přijme jen když formát drží")
+    const plan = codeOnly("app/actions/content-plan-actions.ts")
+    assert(/mediums: effectiveMediums/.test(plan), "pipeline musí dostat efektivní média slotů, ne hádat ze štítků")
+})
+
+test("39.6 nezařazené nápady se zařadí samy", () => {
+    const r = codeOnly("lib/agents/idea-replenish.ts")
+    assert(/classifyUncategorizedIdeas\(/.test(r), "denní doplnění zásobníku musí nezařazené nápady zařadit")
+    assert(/export async function enqueueReclassifyIfCategoriesChanged/.test(r), "změna kategorií v configu musí zařazení zařadit do fronty")
+    for (const f of ["app/actions/config-actions.ts", "app/actions/settings-actions.ts"]) {
+        assert(/enqueueReclassifyIfCategoriesChanged\(/.test(codeOnly(f)), `${f}: uložení pilířů musí frontu volat`)
+    }
+    assert(/test-idea-rules\.ts/.test(fileContent("package.json")), "čistá pravidla nápadů musí běžet v guardu")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 

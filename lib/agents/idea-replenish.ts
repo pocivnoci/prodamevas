@@ -29,6 +29,7 @@ import supabaseAdmin from "@/supabase/admin"
 import { NOT_SHOWCASE } from "@/lib/audience"
 import { MAX_POSTS_PER_WEEK } from "@/lib/schedule-planner"
 import { DEFAULT_IDEA_COOLDOWN_DAYS } from "@/instagram/service"
+import { findMiscategorized, categoryKeySet, type PillarCategoryMap } from "@/instagram/idea-rules"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -124,6 +125,8 @@ export interface ReplenishResult {
     added: number
     available: number
     target: number
+    /** Kolik nápadů bez platné kategorie dostalo kategorii (úklid před doplněním). */
+    classified?: number
     skipped?: string
 }
 
@@ -152,6 +155,29 @@ export async function replenishClient(clientId: string, slug: string, raw: Recor
         return { clientId, slug, added: 0, available: 0, target: 0, skipped: "opt-out (autoReplenishIdeas)" }
     }
 
+    // Úklid před doplněním: nápady bez platné kategorie (vklad z plánu před #131,
+    // přegenerované pilíře s novými id) zařadit, ať jsou v záložce Nápady pod svým
+    // čipem a plán je umí nabídnout správnému slotu. Jedno levné volání, a jen když
+    // je co zařazovat. Běží PŘED kontrolou spícího klienta: sem se posílá i klient,
+    // který si právě přepsal kategorie v Nastavení, a ten chce zařazení hned.
+    let classified = 0
+    try {
+        const { data: catRows, error: cErr } = await supabaseAdmin
+            .from("ig_post_ideas")
+            .select("id, category, subcategory")
+            .eq("client_id", clientId)
+            .eq("is_active", true)
+        if (cErr) throw new Error(cErr.message)
+        if (findMiscategorized(catRows || [], (raw.contentPillars || {}) as PillarCategoryMap).length > 0) {
+            const { loadConfig } = await import("@/instagram/configs")
+            const { classifyUncategorizedIdeas } = await import("@/instagram/idea-generator")
+            classified = (await classifyUncategorizedIdeas(await loadConfig(slug), clientId)).assigned
+        }
+    } catch (err) {
+        // Nahlas, ale nefatálně — doplnění zásobníku nesmí padnout na úklidu.
+        console.warn(`💡 idea-replenish (${slug}): zařazení nápadů selhalo: ${(err as Error)?.message?.slice(0, 160)}`)
+    }
+
     // Dormant tenant → no token spend. Any generated post in the window counts.
     const activitySince = new Date(Date.now() - ACTIVITY_WINDOW_DAYS * DAY_MS).toISOString()
     const { count: recentPosts, error: aErr } = await supabaseAdmin
@@ -161,7 +187,7 @@ export async function replenishClient(clientId: string, slug: string, raw: Recor
         .gte("created_at", activitySince)
     if (aErr) throw new Error(`activity read (${slug}): ${aErr.message}`)
     if (!recentPosts) {
-        return { clientId, slug, added: 0, available: 0, target: 0, skipped: `no post in ${ACTIVITY_WINDOW_DAYS} d` }
+        return { clientId, slug, added: 0, available: 0, target: 0, classified, skipped: `no post in ${ACTIVITY_WINDOW_DAYS} d` }
     }
 
     const { data: ideas, error: iErr } = await supabaseAdmin
@@ -181,7 +207,7 @@ export async function replenishClient(clientId: string, slug: string, raw: Recor
     const pillarDefs = (raw.contentPillars || {}) as Record<string, { ratio?: number }>
     const pillarIds = Object.keys(pillarDefs)
     if (pillarIds.length === 0) {
-        return { clientId, slug, added: 0, available: 0, target: 0, skipped: "no content pillars in config" }
+        return { clientId, slug, added: 0, available: 0, target: 0, classified, skipped: "no content pillars in config" }
     }
     const orphanAvailable = [...availableByPillar.entries()]
         .filter(([id]) => !pillarDefs[id])
@@ -195,7 +221,7 @@ export async function replenishClient(clientId: string, slug: string, raw: Recor
     const perWeek = Number(raw.postsPerWeek) || 4
     const plan = computeReplenishPlan(perWeek, pillars, orphanAvailable)
     if (plan.batches.length === 0) {
-        return { clientId, slug, added: 0, available: plan.available, target: plan.target }
+        return { clientId, slug, added: 0, available: plan.available, target: plan.target, classified }
     }
 
     const { loadConfig } = await import("@/instagram/configs")
@@ -211,8 +237,31 @@ export async function replenishClient(clientId: string, slug: string, raw: Recor
         added += rows?.length || 0
     }
 
-    console.log(`💡 idea-replenish: +${added} nápadů pro ${slug} (available ${plan.available}/${plan.target})`)
-    return { clientId, slug, added, available: plan.available, target: plan.target }
+    console.log(`💡 idea-replenish: +${added} nápadů pro ${slug} (available ${plan.available}/${plan.target}${classified ? `, zařazeno ${classified}` : ""})`)
+    return { clientId, slug, added, available: plan.available, target: plan.target, classified }
+}
+
+/**
+ * Po uložení konfigurace: když se změnila množina kategorií pilířů (přegenerování,
+ * přejmenování id), nápady v zásobníku zůstanou s id, které už nic neznamená — a
+ * v záložce Nápady spadnou pod „bez kategorie". Zařazení dělá `idea_replenish_client`
+ * (classifyUncategorizedIdeas); sem patří jen fronta, ať uložení nečeká na model.
+ * Nikdy nehází — uložení configu se kvůli frontě nesmí rozbít.
+ */
+export async function enqueueReclassifyIfCategoriesChanged(clientId: string, slug: string, before: unknown, after: unknown): Promise<boolean> {
+    try {
+        const a = categoryKeySet((before || {}) as PillarCategoryMap)
+        const b = categoryKeySet((after || {}) as PillarCategoryMap)
+        const changed = a.size !== b.size || [...b].some(k => !a.has(k))
+        if (!changed) return false
+        const { fanOutPerClient } = await import("./fan-out")
+        const out = await fanOutPerClient("idea_replenish_client", [clientId])
+        console.log(`🗂️ Kategorie pilířů ${slug} změněny → úloha na zařazení nápadů (${out.enqueued ? "zařazena" : out.skipped ? "už ve frontě" : "selhala"})`)
+        return true
+    } catch (e) {
+        console.warn(`🗂️ Fronta na zařazení nápadů (${slug}) selhala: ${(e as Error)?.message?.slice(0, 160)}`)
+        return false
+    }
 }
 
 /**

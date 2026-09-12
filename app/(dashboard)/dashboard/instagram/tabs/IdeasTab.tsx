@@ -113,6 +113,8 @@ export function IdeasTab({ projectId }: { projectId: string }) {
         })
         if (res.success) {
             await loadIdeas()
+            // Nové nápady rovnou pod jejich čipem — ať je vidět, že se zařadily.
+            if (categoryId) setFilterCategory(categoryId)
         } else {
             alert("Chyba při generování nápadů: " + res.error)
         }
@@ -221,6 +223,7 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                     {allCategories.map(cat => (
                         <button
                             key={cat.id}
+                            title={`Pilíř: ${cat.pillarLabel}`}
                             onClick={() => setFilterCategory(cat.id === filterCategory ? "all" : cat.id)}
                             className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest rounded-sm border transition-all ${
                                 filterCategory === cat.id

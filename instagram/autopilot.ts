@@ -221,6 +221,10 @@ export async function generateOnePost(options: {
      *  selection to that pillar's formats. Only meaningful when `type` is absent —
      *  an explicit type already decides the pillar. */
     category?: string
+    /** Kategorie pilíře (PillarCategory.id) přiřazená v plánu. Řídí úhel copywritera
+     *  a formátové preference kategorie i tehdy, když post jede na explicitní téma
+     *  (kampaň) a nápad ze zásobníku se do promptu nedostane. */
+    categoryId?: string
     campaignContext?: {
         postNumber: number
         totalPosts: number
@@ -675,9 +679,9 @@ export async function generateOnePost(options: {
     // Category format override — preferences from pillar category config
     const _pillarKey = _getPillarForType(selectedType.name)
     const _pillarCfg = config.contentPillars[_pillarKey]
-    const _category = idea?.subcategory
-        ? _pillarCfg?.categories?.find((c: any) => c.id === idea.subcategory)
-        : undefined
+    // Plán > nápad: kategorie z plánu je to, co uživatel viděl a schválil.
+    const _category = (options.categoryId ? _pillarCfg?.categories?.find((c: any) => c.id === options.categoryId) : undefined)
+        ?? (idea?.subcategory ? _pillarCfg?.categories?.find((c: any) => c.id === idea.subcategory) : undefined)
 
     if (_category?.medium && _category.medium !== "auto") {
         format.medium = _category.medium
@@ -810,7 +814,7 @@ export async function generateOnePost(options: {
     const postFormat = isReel ? "video script" : isCarousel ? "carousel" : "caption"
     await report("copywriter", 25, `✍️ Copywriter generuje ${postFormat}...`)
     console.log(`✍️  Generuji ${postFormat} (Pro copywriter ladder)...`)
-    megaPrompt = buildMegaPrompt(config, selectedType, idea, review, recentHooks, performance, options.topic, selectedProduct, format, options.approvedHook, ctaPolicy)
+    megaPrompt = buildMegaPrompt(config, selectedType, idea, review, recentHooks, performance, options.topic, selectedProduct, format, options.approvedHook, ctaPolicy, _category)
 
     // The user's uploaded photo will be the post's visual base — the caption must
     // work WITH it (not describe a different scene), but the photo is NOT the topic.

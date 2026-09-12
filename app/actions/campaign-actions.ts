@@ -139,7 +139,10 @@ export async function startCampaign(
                         .insert(toDeposit.map(it => ({
                             client_id: clientId,
                             category: it.pillar,
-                            subcategory: null,
+                            // Kategorie z plánu → nápad je od začátku pod svým čipem v záložce
+                            // Nápady. Dřív tu bylo natvrdo null a každý schválený plán sypal
+                            // do banky tucet nápadů „bez kategorie".
+                            subcategory: it.categoryId || null,
                             title: it.topic,
                             content: `${it.hookPreview}${it.angle ? ` — ${it.angle}` : ""}`,
                             keywords: [],
@@ -170,6 +173,8 @@ export async function startCampaign(
             medium: it.medium || null,
             productId: it.productId || null,
             ideaId: it.ideaId || null,
+            // Kategorie pilíře jede až do enginu (úhel copywritera + preference formátu).
+            categoryId: it.categoryId || null,
             scheduledFor: it.scheduledDate && it.scheduledTime
                 ? toScheduledFor(it.scheduledDate, it.scheduledTime)
                 : null,

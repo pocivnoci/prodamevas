@@ -250,6 +250,9 @@ export async function GET(req: Request) {
                 .maybeSingle()
             if (!ideaRow) itemIdeaId = undefined
         }
+        // Kategorie pilíře přiřazená v plánu — engine z ní bere úhel copywritera a
+        // preference formátu i tehdy, když post jede na explicitní téma.
+        const itemCategoryId: string | undefined = item?.categoryId || undefined
         // Per-item medium chosen in the plan (image/carousel) overrides the campaign-wide
         // default. generateOnePost still applies the reel kill-switch + feed-safe clamp.
         const itemMedium = item?.medium || opts.medium || undefined
@@ -342,6 +345,7 @@ export async function GET(req: Request) {
                         configName, type: postType, topic: postTopic, approvedHook,
                         approvedHookFlag, approvedHookSources,
                         ideaId: itemIdeaId,
+                        categoryId: itemCategoryId,
                         aspectRatio: opts.aspectRatio || undefined,
                         medium: itemMedium,
                         productId: item?.productId || undefined,
@@ -409,6 +413,7 @@ export async function GET(req: Request) {
                 configName, type: postType, topic: postTopic, approvedHook,
                 approvedHookFlag, approvedHookSources,
                 ideaId: itemIdeaId,
+                categoryId: itemCategoryId,
                 aspectRatio: opts.aspectRatio || undefined,
                 medium: itemMedium,
                 productId: item?.productId || undefined,

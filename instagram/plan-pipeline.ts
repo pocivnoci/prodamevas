@@ -24,6 +24,7 @@ import { Type } from "@google/genai"
 import { generateTextQuality } from "./gemini-client"
 import { judgeText } from "./judge"
 import { getModel, hasFallback, getTemperature } from "./models"
+import { violatesSlot, slotLabel, type SlotMedium } from "./idea-rules"
 
 export interface PlanConcept {
     hookPreview: string
@@ -31,6 +32,10 @@ export interface PlanConcept {
     topic: string
     qualityScore?: number
     ideaIndex?: number
+    /** Id kategorie pilíře, do které plánovač post zařadil (viz KATEGORIE PILÍŘŮ
+     *  v contextBlock). Akce ho ověří proti pilíři slotu — cizí nebo vymyšlené id
+     *  se zahodí. Bez něj se kategorie ztrácela mezi plánem a vkladem do zásobníku. */
+    categoryId?: string
     /** 1-based index into the numbered product list in contextBlock — which catalog
      *  product this post is actually built on. The action maps it to a real
      *  ig_products id; without it the product attached to a post is a coin flip. */
@@ -48,6 +53,9 @@ export interface PlanPipelineInput {
     typeList: string
     /** Recent hooks for the judge's similarity penalty (subset of contextBlock, structured). */
     recentHooks: string[]
+    /** Efektivní médium každého slotu (stejné pořadí jako typeList). Bez něj se médium
+     *  parsuje ze štítku „Formát:" v typeList — tohle je přesnější a levnější. */
+    mediums?: SlotMedium[]
     onStage?: (progress: number, message: string) => void | Promise<void>
 }
 
@@ -82,6 +90,8 @@ export const conceptSchema = {
             // 1-based index into the brand's numbered product list when the post is
             // built on one of them (see productFocusSection / product catalog block)
             productIndex: { type: Type.INTEGER },
+            // id kategorie pilíře slotu (KATEGORIE PILÍŘŮ v contextBlock); ověřuje akce
+            categoryId: { type: Type.STRING },
         },
         required: ["hookPreview", "angle", "topic", "qualityScore"],
     },
@@ -231,6 +241,7 @@ Vytvoř content plan na ${input.count} postů. Pro každý post napiš:
 - angle: 1 věta popisující úhel/přístup k tématu (česky)
 - topic: krátké téma v 3-5 slovech (česky)
 - qualityScore: 1-10 — ohodnoť kvalitu vlastního hooku (10 = zastaví scrollování, 1 = generické)
+- categoryId: id kategorie pilíře tohoto postu (viz KATEGORIE PILÍŘŮ v kontextu; vynech, když pilíř kategorie nemá)
 
 ${input.contextBlock}
 ${strategySection}
@@ -269,9 +280,28 @@ Vrať POUZE validní JSON pole s PŘESNĚ ${input.count} položkami:
     }
 
     // ── 4. Targeted revision of weak hooks (+ re-judge, keep the better) ──
-    const weak = judged
+    // Dva zdroje výtek: skóre kritika a FORMÁT. Koncept, který v obrázkovém slotu
+    // slibuje video (nebo slidy u jednoho obrázku), jde na přepis VŽDYCKY — i když
+    // ho kritik ohodnotil dobře a i když kritik zrovna neběží. Slib videa u obrázku
+    // není otázka vkusu, je to lež směrem ke čtenáři; nápad ze zásobníku, který
+    // formát předepisoval, se přesně tudy dostával do plánu.
+    const mediumOf = (i: number): SlotMedium => input.mediums?.[i]
+        ?? (/DLOUHÝ REEL/.test(formatLines[i] || "") ? "reel_long"
+            : /REEL/.test(formatLines[i] || "") ? "reel"
+            : /KARUSEL/.test(formatLines[i] || "") ? "carousel" : "image")
+    const conceptText = (c: PlanConcept) => `${c.hookPreview} ${c.angle} ${c.topic}`
+    const weak: { i: number; score: number; fix: string; forced?: boolean }[] = judged
         ? [...verdicts!.entries()].filter(([, v]) => v.score < REVISE_BELOW).map(([i, v]) => ({ i, ...v }))
         : []
+    concepts.forEach((c, i) => {
+        const bad = violatesSlot(conceptText(c), mediumOf(i))
+        if (bad.length === 0) return
+        const fix = `Text slibuje ${bad.join(", ")}, ale formát postu je ${slotLabel(mediumOf(i))} — přepiš tak, aby mluvil o tom, co bude v tomto formátu vidět. (Když je to TÉMA postu, ne slib formátu, nech to.)`
+        const existing = weak.find(w => w.i === i)
+        if (existing) { existing.fix = `${existing.fix ? existing.fix + " " : ""}${fix}`; existing.forced = true }
+        else weak.push({ i, score: c.qualityScore ?? 5, fix, forced: true })
+        console.warn(`   ⚠️ koncept #${i + 1} slibuje formát, který nemá (${bad.join(", ")} u ${slotLabel(mediumOf(i))}) — jde na přepis`)
+    })
     if (weak.length > 0) {
         await stage(78, `🔧 Přepisuji ${weak.length} slabých hooků podle kritiky…`)
         try {
@@ -328,7 +358,15 @@ Vrať POUZE validní JSON pole s PŘESNĚ ${weak.length} položkami:
                     const newScore = reVerdicts?.get(k)?.score
                     // No re-verdict → trust the revision (it addressed a concrete fix note)
                     // but don't fabricate a score above the original.
-                    const accept = newScore === undefined || newScore >= c.orig.score
+                    // Vynucený přepis (formát): originál je neplatný, takže vyhrává přepis,
+                    // pokud sám formát neporušuje — skóre kritika tu nerozhoduje.
+                    const stillBad = c.orig.forced ? violatesSlot(conceptText(c.rev), mediumOf(c.orig.i)) : []
+                    const accept = c.orig.forced
+                        ? stillBad.length === 0
+                        : newScore === undefined || newScore >= c.orig.score
+                    if (c.orig.forced && stillBad.length > 0) {
+                        console.warn(`   ⚠️ koncept #${c.orig.i + 1} slibuje ${stillBad.join(", ")} i po přepisu — zůstává původní znění, uživatel ho v plánu uvidí`)
+                    }
                     if (accept) {
                         concepts[c.orig.i] = {
                             hookPreview: c.rev.hookPreview,
@@ -336,6 +374,8 @@ Vrať POUZE validní JSON pole s PŘESNĚ ${weak.length} položkami:
                             topic: c.rev.topic,
                             qualityScore: newScore ?? c.orig.score,
                             ideaIndex: concepts[c.orig.i].ideaIndex,
+                            // Kategorie je vlastnost slotu, ne znění — přepis ji nemění.
+                            categoryId: concepts[c.orig.i].categoryId,
                             // Revision rewrites wording, not substance — the post is still
                             // about the same product. (If the rewrite happens to name a
                             // different one, the action's copy-level match overrides this.)
