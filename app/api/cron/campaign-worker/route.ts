@@ -5,6 +5,7 @@ import { isQualityUnavailable, isVideoPending } from "@/utils/retry"
 import { RENDER_BUDGET_MS } from "@/lib/job-park"
 import type { MediumType } from "@/lib/credits"
 import { isReelMedium } from "@/lib/reel-media"
+import { countLabel, POSTS } from "@/lib/plural"
 
 export const maxDuration = 800 // Vercel Pro cap (Fluid Compute) — full budget to drain a campaign.
 
@@ -600,14 +601,18 @@ Tým Chrlit`,
         }
 
         const posts = await getCampaignPosts(campaignId, clientId)
+        // Věty jsou přeformulované tak, aby sloveso nezáviselo na počtu: „všech 1
+        // příspěvků je připraveno" vzniklo z pevného tvaru u proměnné. Dvojtečkové
+        // uvození („Připraveno ke kontrole: 3 příspěvky") zvládne jakékoli číslo,
+        // skloňuje se jen podstatné jméno přes `countLabel`.
         const introParts = [
             "Dobrý den,",
             info.finalStatus === "done"
-                ? `váš obsah je hotový — všech ${info.total} příspěvků je připraveno ke kontrole. Každý má navržený termín, caption i hashtagy — zkontrolujte je a schvalte k publikaci:`
-                : `${info.successes} z ${info.total} příspěvků je připraveno ke kontrole:`,
+                ? `váš obsah je hotový. Připraveno ke kontrole: ${countLabel(info.total, POSTS)}. Každý má navržený termín, caption i hashtagy — zkontrolujte je a schvalte k publikaci:`
+                : `připraveno ke kontrole: ${countLabel(info.successes, POSTS)} z ${info.total}:`,
         ]
         if (info.failures > 0) {
-            introParts.push(`${info.failures} příspěvků se nepodařilo vygenerovat — kredity za ně byly vráceny.`)
+            introParts.push(`Nepodařilo se vygenerovat: ${countLabel(info.failures, POSTS)} — kredity za ně byly vráceny.`)
         }
         if (info.noCredits) {
             introParts.push("Kampaň se zastavila dřív — došly kredity. Po dobití můžete zbytek vygenerovat znovu.")
@@ -616,7 +621,7 @@ Tým Chrlit`,
         await sendNotification({
             to,
             kind: "notification",
-            subject: `Váš obsah je připraven — ${info.successes} z ${info.total} příspěvků`,
+            subject: `Váš obsah je připraven — ${countLabel(info.successes, POSTS)} z ${info.total}`,
             blocks: renderCampaignDigest(posts, {
                 intro: introParts.join("\n\n"),
                 ctaUrl,

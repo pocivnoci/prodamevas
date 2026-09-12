@@ -20,7 +20,7 @@ import { ReelPlayer } from "./ReelPlayer"
 import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
 import { formatCzk, LOWEST_MONTHLY_HALERU } from "@/lib/pricing"
 import { isMediumType, MEDIA_CREDITS } from "@/lib/credits"
-import { countLabel, CREDITS } from "@/lib/plural"
+import { countLabel, CREDITS, POSTS } from "@/lib/plural"
 import { Brain, ChartColumn, Check, CircleCheck, CircleX, ClipboardList, Download, Image, Lock, Package, RefreshCw, Send, Shuffle, Smartphone, Trash2, TriangleAlert, Trophy, X, type LucideIcon } from "lucide-react"
 
 /**
@@ -134,7 +134,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                         {status === "all" ? "Všechny" : status === "draft" ? "Koncepty" : status === "ready" ? "Připravené" : status === "scheduled" ? "Naplánované" : status === "posted" ? "Publikované" : status === "failed" ? "Selhalé" : "Plán"}
                     </button>
                 ))}
-                <span className="text-xs font-mono uppercase tracking-widest text-white/40 ml-auto whitespace-nowrap pl-4">{posts.length} z {total} příspěvků</span>
+                <span className="text-xs font-mono uppercase tracking-widest text-white/40 ml-auto whitespace-nowrap pl-4">{countLabel(posts.length, POSTS)} z {total}</span>
             </div>
 
             {/* Media filter — server-side (see getIGPostsList), because filtering a 15-row
@@ -180,7 +180,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                     {selectedIds.size > 0 && (
                         <button
                             onClick={async () => {
-                                if (!confirm(`Smazat ${selectedIds.size} příspěvků? Tato akce je nevratná.`)) return
+                                if (!confirm(`Smazat ${countLabel(selectedIds.size, POSTS)}? Tato akce je nevratná.`)) return
                                 setBulkDeleting(true)
                                 await deleteIGPosts(Array.from(selectedIds), projectId)
                                 setSelectedIds(new Set())

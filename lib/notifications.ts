@@ -24,6 +24,7 @@ import {
 } from "@/lib/mail/blocks"
 import { htmlToText } from "@/lib/mail/render-text"
 import { TYPE } from "@/lib/mail/tokens"
+import { countLabel, POSTS } from "@/lib/plural"
 
 // Odkazy a escapování se přestěhovaly do lib/mail/links.ts, aby na ně dosáhly
 // i cesty, které na transakční poštu sáhnout nesmějí. Re-export tu zůstává,
@@ -247,7 +248,9 @@ export function renderCampaignDigest(
         ...opts.intro.split(/\n{2,}/).map(p => p.trim()).filter(Boolean).map(paragraph),
         cards(items),
         posts.length > DIGEST_MAX_CARDS &&
-            paragraph(`…a dalších ${posts.length - DIGEST_MAX_CARDS} příspěvků najdete v aplikaci.`),
+            // „…a dalších 1 příspěvek" nešlo spravit jen skloňováním — „dalších" je
+            // 2. pád. Věta je proto přeformulovaná na 4. pád, kde `countLabel` sedí.
+            paragraph(`V aplikaci najdete ještě ${countLabel(posts.length - DIGEST_MAX_CARDS, POSTS)}.`),
         button(opts.ctaLabel, opts.ctaUrl),
     ])
 }

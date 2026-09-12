@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { getCompanyOverview, type ClientHealthDTO, type CompanyOverview } from "@/app/actions/company-actions"
+import { countLabel, DAYS_AGO } from "@/lib/plural"
 
 /**
  * Firma — cross-tenant přehled zdraví účtů.
@@ -34,7 +35,7 @@ function daysAgo(iso: string | null): string {
     const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
     if (d <= 0) return "dnes"
     if (d === 1) return "včera"
-    return `před ${d} dny`
+    return `před ${countLabel(d, DAYS_AGO)}`
 }
 
 /** Filtr přehledu. Read-only — deaktivaci i úklid dělají skripty s auditní stopou. */

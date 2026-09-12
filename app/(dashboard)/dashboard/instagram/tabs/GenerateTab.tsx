@@ -27,6 +27,7 @@ import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPostType, IGCategory, IGPostFormat } from "./types"
 import { creditsForMedia } from "@/lib/credits"
+import { countLabel, CREDITS, POSTS } from "@/lib/plural"
 import { Hint, HINTS } from "./Hint"
 import { trackEvent } from "@/lib/analytics"
 import { Award, Bot, CalendarDays, ChartColumn, Check, CircleCheck, ClipboardList, Compass, Film, Lightbulb, MessageCircle, Package, PenLine, Pencil, Pin, RefreshCw, Rocket, Ruler, Search, Sparkles, Star, Trash2, TriangleAlert, X } from "lucide-react"
@@ -50,12 +51,6 @@ const CADENCE_OPTIONS = [2, 3, 4, 5, 7, 10, 14] as const
 function snapToChip(n: number): number {
     return CADENCE_OPTIONS.reduce((best, c) =>
         Math.abs(c - n) < Math.abs(best - n) ? c : best, CADENCE_OPTIONS[0] as number)
-}
-
-function pluralPosts(n: number): string {
-    if (n === 1) return "příspěvek"
-    if (n >= 2 && n <= 4) return "příspěvky"
-    return "příspěvků"
 }
 
 /** "2026-07-18" → "18. 7." for the plan summary strip. */
@@ -1351,9 +1346,9 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     const est = planCost(batchCount)
                                     return (
                                         <div className="bg-[#050505] border border-white/10 rounded-sm px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-white/50 text-center">
-                                            {batchCount} {pluralPosts(batchCount)} · {postsPerWeek}× týdně{range ? ` · ${range}` : ""} · {planDuration === "trial"
+                                            {countLabel(batchCount, POSTS)} · {postsPerWeek}× týdně{range ? ` · ${range}` : ""} · {planDuration === "trial"
                                                 ? "ochutnávka"
-                                                : est === 0 ? "Zdarma — v rámci předplatného" : `Odhad: ~${est} kreditů`}
+                                                : est === 0 ? "Zdarma — v rámci předplatného" : `Odhad: ~${countLabel(est, CREDITS)}`}
                                         </div>
                                     )
                                 })()}
@@ -1736,11 +1731,11 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         {/* Bottom bar */}
                         <div className="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
                             <div className="flex items-center gap-4 text-[10px] text-white/30 font-bold uppercase tracking-widest">
-                                <span>{contentPlan.length} postů</span>
+                                <span>{countLabel(contentPlan.length, POSTS)}</span>
                                 <span>·</span>
                                 {(() => {
                                     const cost = batchCreditCost(contentPlan.map(p => p.medium), freeRemaining)
-                                    return <span>{cost === 0 ? "Zdarma — v rámci plánu" : `${cost} kreditů`}</span>
+                                    return <span>{cost === 0 ? "Zdarma — v rámci plánu" : countLabel(cost, CREDITS)}</span>
                                 })()}
                             </div>
 

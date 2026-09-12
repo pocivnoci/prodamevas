@@ -4240,6 +4240,37 @@ test("29.20 e-mail netipuje rod adresáta", () => {
         "počet dní čekání se musí skloňovat přes countLabel(…, DAYS)")
 })
 
+test("29.22 v zákaznickém textu se počty skloňují, ne lepí", () => {
+    // „všech 1 příspěvků je připraveno", „2 kreditů zbývá", „před 1 dny" — takhle
+    // vypadá text, kde se za proměnnou přilepil pevný tvar. Zákazník to čte jako
+    // strojový překlad zrovna ve chvíli, kdy mu produkt slibuje český obsah.
+    // Tyhle čtyři soubory jdou ven mimo registr šablon (digest kampaně, oznámení,
+    // kvalifikace leadu a obchodní digest), takže je aserce 29.x jinak nekryjí.
+    const zakaznicke = [
+        "app/api/cron/campaign-worker/route.ts",
+        "lib/notifications.ts",
+        "lib/agents/sales/qualify.ts",
+        "lib/agents/sales/digest.ts",
+    ]
+    // Interpolace, za kterou hned následuje počítané jméno v pevném tvaru.
+    // `${countLabel(n, POSTS)}` projde — tam už podstatné jméno vyrábí helper.
+    const lepenyTvar = /\$\{[^}]*\}\s*(příspěv\w*|kredit\w*|dní|dny|dnem|měsíc\w*|obrázk\w*|karusel\w*)\b/g
+    for (const f of zakaznicke) {
+        const src = codeOnly(f)
+        const hits = [...new Set(src.match(lepenyTvar) ?? [])]
+        assert(hits.length === 0,
+            `${f}: pevný tvar za proměnnou „${hits.join(", ")}" — použij countLabel(…) z lib/plural.ts`)
+        // A zároveň: když soubor počty vypisuje, musí helper skutečně importovat.
+        assert(/countLabel|\bplural\(/.test(src), `${f}: chybí import skloňování z lib/plural.ts`)
+    }
+    // Jedna kopie skloňování, ne pět. lib/credits.ts i taby měly vlastní `plural()`
+    // s vlastní představou o tom, co je „2–4"; sdílený modul je zdroj pravdy.
+    for (const f of ["lib/credits.ts", "app/(dashboard)/dashboard/instagram/tabs/GenerateTab.tsx"]) {
+        assert(!/function\s+plural\w*\s*\(/.test(codeOnly(f)),
+            `${f}: vlastní kopie skloňování — importuj z lib/plural.ts`)
+    }
+})
+
 test("29.21 jeden e-mail = jeden hlas", () => {
     // Follow-up nabídky se lámal třikrát v jedné zprávě: nadpis „Ozývám se
     // zpátky" a „nechci ji nechat zapadnout" (já), „posílali jsme" (my) a podpis
