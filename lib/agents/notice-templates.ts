@@ -14,6 +14,7 @@ import { MAX_BILLING_FAILURES } from "@/lib/billing-period"
 import { vatNotice } from "@/lib/legal"
 import { siteUrl, studioDeepLink } from "@/lib/mail/links"
 import { formatCzk } from "@/lib/pricing"
+import { countLabel, plural, POSTS } from "@/lib/plural"
 
 export type NoticeKind =
     | "renewal_upcoming"
@@ -23,6 +24,7 @@ export type NoticeKind =
     | "payment_recovered"
     | "generation_failed"
     | "publish_failed"
+    | "facts_pending"
 
 export interface NoticeVars {
     clientName?: string | null
@@ -47,6 +49,8 @@ export interface NoticeVars {
     termLabel?: string | null
     /** Proč to selhalo, jednou větou a bez technikálií. */
     reason?: string | null
+    /** Kolik věcí se zprávy týká — „3 příspěvky čekají". Skloňuje šablona. */
+    count?: number | null
 }
 
 export const KIND_LABELS: Record<NoticeKind, string> = {
@@ -57,6 +61,7 @@ export const KIND_LABELS: Record<NoticeKind, string> = {
     payment_recovered: "Platba se podařila",
     generation_failed: "Generování selhalo",
     publish_failed: "Publikace selhala",
+    facts_pending: "Příspěvky čekají na ověření faktů",
 }
 
 const APP_URL = () => siteUrl()
@@ -191,6 +196,26 @@ Zkusíme to automaticky znovu při dalším běhu — dělat nemusíte nic. Poku
 
 Tým Chrlit`,
             }
+
+        // Auto-publikování zadrželo příspěvek, protože v něm zůstalo tvrzení bez
+        // opory. Chodí JEDNOU DENNĚ a souhrnně: jeden e-mail na příspěvek by z
+        // opatrnosti udělal spam a klient by si příště vypnul kontrolu, ne text.
+        case "facts_pending": {
+            const n = typeof vars.count === "number" && vars.count > 0 ? vars.count : 1
+            const what = countLabel(n, POSTS)
+            return {
+                subject: `${what} ${plural(n, { one: "čeká", few: "čekají", many: "čeká" })} na ověření faktů`,
+                body: `Dobrý den,
+
+u <strong>${name}</strong> ${plural(n, { one: "je", few: "jsou", many: "je" })} ${what} s tvrzením, které nemá oporu v ověřených faktech — třeba číslo, letopočet, záruka nebo technický parametr. Automaticky ${plural(n, { one: "nevyjde", few: "nevyjdou", many: "nevyjde" })}: tohle je přesně ten typ údaje, za který se ručí vám, ne nám.
+
+Ve studiu u ${plural(n, { one: "něj", few: "nich", many: "nich" })} uvidíte, o které tvrzení jde. Buď ho potvrďte jedním kliknutím (uloží se mezi ověřená fakta), nebo ho z textu smažte — pak ${plural(n, { one: "příspěvek vyjde", few: "příspěvky vyjdou", many: "příspěvky vyjdou" })} v dalším termínu.
+
+<a href="${cal}">Otevřít kalendář →</a>
+
+Tým Chrlit`,
+            }
+        }
 
         case "publish_failed":
             return {

@@ -510,6 +510,7 @@ function VoiceSection({ config, updateField, updateArrayField, projectId }: {
 function FactsEditor({ config, updateField, projectId }: { config: any; updateField: (p: string[], v: any) => void; projectId: string }) {
     const facts: { text: string; source?: string; verifiedAt?: string }[] = config.brandFacts || []
     const modeIndex = factCheckModeIndex(config.factCheckMode ?? (config.factCheck === false ? "off" : undefined))
+    const publishFlagged = config.publishFlaggedPosts === true
     const [scanning, setScanning] = useState(false)
     const [scanMsg, setScanMsg] = useState<string | null>(null)
 
@@ -618,6 +619,28 @@ function FactsEditor({ config, updateField, projectId }: { config: any; updateFi
                 <p className="text-[10px] text-white/50 mt-3 bg-white/5 border border-white/10 rounded-sm px-3 py-2">
                     {FACT_CHECK_MODES[modeIndex].detail}
                 </p>
+
+                {/* Auto-publikování je bezobslužné: bez tohohle přepínače by označený
+                    příspěvek odešel na Instagram dřív, než ho kdokoli uvidí. Default
+                    je „počká na vás" — zapnout to jde, ale vědomě. */}
+                <div className="flex items-center justify-between gap-4 mt-5">
+                    <div>
+                        <p className="text-xs text-white/70 font-bold">Publikovat i příspěvky s neověřeným tvrzením</p>
+                        <p className="text-[9px] text-white/30 mt-0.5">
+                            Vypnuto: označený příspěvek se sám nezveřejní a počká, až tvrzení potvrdíte
+                            nebo smažete. Jednou denně vám o čekajících pošleme e-mail.
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => updateField(["publishFlaggedPosts"], !publishFlagged)}
+                        role="switch"
+                        aria-checked={publishFlagged}
+                        aria-label="Publikovat i příspěvky s neověřeným tvrzením"
+                        className={`shrink-0 relative w-12 h-6 rounded-full transition-colors border ${publishFlagged ? "bg-amber-500/30 border-amber-500/50" : "bg-white/5 border-white/15"}`}
+                    >
+                        <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${publishFlagged ? "left-6 bg-amber-400" : "left-0.5 bg-white/40"}`} />
+                    </button>
+                </div>
             </div>
         </div>
     )
