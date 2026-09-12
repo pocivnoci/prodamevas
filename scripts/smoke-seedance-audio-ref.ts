@@ -21,7 +21,18 @@
  * kandidátních tvarech. Odmítnutí (HTTP 400) je plnohodnotný výsledek a je ZDARMA — úloha
  * nevznikne, takže se nic neúčtuje. Účtuje se až tvar, který projde.
  *
- * Až nějaký tvar projde, patří do `seedance-client.ts` k ostatním polím — ne sem.
+ * Výsledek 12. 9. 2026
+ * --------------------
+ * První tvar PROŠEL: `content[] { type: "audio_url", audio_url: { url }, role: "reference_audio" }`
+ * — ModelArk stopu přijal, úloha doběhla (205 s, $0,80). Jenže model ji nepropustil,
+ * PŘEMLUVIL ji vlastním hlasem: z „Tříletá záruka, doprava zdarma…" udělal „Tříholta
+ * zarurka, dopraha des-se…" (přepis obou stop přes Gemini, `getModel("vision")`).
+ * Audio reference je pro Seedance obsahová předloha, ne stopa k přehrání — a česky
+ * syntetizovat neumí, takže dostal jen lepší scénář ke zkomolení. Nativní pokus
+ * (`smoke-seedance-dialogue.ts`) dopadl stejně. Mluvící český reel ze Seedance tedy
+ * NEJDE ani jednou cestou; zůstává b-roll + dabing z `reel-audio.ts`.
+ *
+ * Tvar audio pole do `seedance-client.ts` NEPATŘÍ, dokud pro něj není produkční užití.
  */
 
 import { writeFileSync } from "fs"
