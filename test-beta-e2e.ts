@@ -1272,6 +1272,48 @@ test("12.7 autopilot stores design_brief + qa_status", () => {
     assert(content.includes("recentBriefs"), "recentBriefs anti-repetition not wired")
 })
 
+test("12.10 art director zná obor — žádná jedna estetika pro všechny", () => {
+    // Do 9/2026 se `config.industry` v image-pipeline nevyskytoval ani jednou a kvalita
+    // snímku se předepisovala JEDINOU natvrdo zapsanou větou („editorial, cinematic
+    // lighting, real depth") pro vinařství i pro izolatéra. Odtud zadání „změnit fotky
+    // na Instagramu — různorodost, pestrost, různé obory, různé zpracování".
+    const p = codeOnly("instagram/image-pipeline.ts")
+    assert(p.includes("config.industryVisual"), "prompt designéra nečte oborový vizuální profil")
+    assert(/buildIndustryVisualLines\(config\)/.test(p), "obor a žánr se nevlévají do ## BRAND KIT")
+    // Natvrdo psaná estetika smí zůstat POUZE jako fallback uvnitř funkce, která
+    // nejdřív zkusí profil. Kdekoli jinde v promptu je to zase jeden vzhled pro všechny.
+    for (const [fn, needle] of [
+        ["photographyQualityBrief", "editorial, cinematic lighting"],
+        ["renderQualityBrief", "Editorial photography quality, cinematic lighting"],
+    ] as const) {
+        const occurrences = p.split(needle).length - 1
+        assert(occurrences === 1, `„${needle}" je v image-pipeline ${occurrences}× — smí zůstat jen jako fallback v ${fn}()`)
+        const fnStart = p.indexOf(`function ${fn}`)
+        const fnEnd = p.indexOf("\n}", fnStart)
+        assert(fnStart > 0 && p.indexOf(needle) > fnStart && p.indexOf(needle) < fnEnd,
+            `„${needle}" musí být uvnitř ${fn}() jako fallback, ne v promptu`)
+    }
+    // Profil je IDENTITA (žánr, světlo, řez), nikdy kompozice — tahle past už jednou
+    // zabila ukázkovou sérii, viz applyShowcaseKit v showcase-kit.ts.
+    const t = codeOnly("instagram/configs/types.ts")
+    assert(/photographicGenre/.test(t) && /lightingBrief/.test(t), "ClientConfig nezná oborový vizuální profil")
+    assert(codeOnly("instagram/configs/index.ts").includes("resolveIndustryVisual(config.industry)"),
+        "validateConfig musí profil odvodit z oboru — nové pole bez defaultu je tichá degradace")
+})
+
+test("12.11 mechanismus nezahazuje klientský visualStyle", () => {
+    // Mechanismus je sdílený napříč tenanty. Když přebil i vizuální styl formátu,
+    // dostal art director u téhož mechanismu doslova stejnou větu pro každou značku.
+    const c = codeOnly("instagram/caption-generator.ts")
+    assert(!/visualStyle: mechanism\.visualStyle,/.test(c),
+        "getPostTypeDef pořád přepisuje klientský visualStyle mechanismem")
+    assert(/ownVisual/.test(c), "getPostTypeDef musí klientský visualStyle připojit, ne zahodit")
+    // Prompt tvrdil „the brand defined how this post type should LOOK" i u textu,
+    // který přišel ze sdílené tabulky — lež v promptu, na kterou se model odvolával.
+    assert(!fileContent("instagram/image-pipeline.ts").includes("the brand defined how this post type should LOOK"),
+        "prompt designéra pořád tvrdí, že styl definovala značka")
+})
+
 // ═══════════════════════════════════════════════════════════
 // 12. Plan drafts / campaign arc / feed pattern
 // ═══════════════════════════════════════════════════════════

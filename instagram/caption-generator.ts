@@ -159,17 +159,28 @@ export function assembleCaption(hook: string, body: string | undefined, cta: str
  *  vlastnost konstrukce místo pravidla, které musí model dodržet.
  *
  *  `name`, `pillar`, `medium`, `aspectRatio`, `uses_product` i `manualOnly`
- *  zůstávají per klient — mechanismus mění POUZE text briefu. */
+ *  zůstávají per klient — mechanismus mění POUZE text briefu.
+ *
+ *  VÝJIMKA: `visualStyle` se od 9/2026 SČÍTÁ, nepřepisuje. Mechanismus je sdílený
+ *  napříč všemi tenanty, takže když přebil i vizuální styl, dostal art director
+ *  u téhož mechanismu doslova stejnou větu pro každou značku — a to byl jeden
+ *  z doložených zdrojů „všechny fotky vypadají stejně". Věcný důvod pro přebití
+ *  platí u `description` a `structure` (tam si model propašoval TÉMA postu),
+ *  u vizuálu žádný takový únik naměřený není. Pořadí je mechanismus → značka,
+ *  protože při konfliktu má poslední slovo značka. */
 export function getPostTypeDef(config: ClientConfig, typeName: string): PostTypeDef | undefined {
     const def = (config?.postTypeDefs ?? []).find(d => d.name === typeName)
     if (!def) return undefined
     const mechanism = getMechanism(def.mechanism)
     if (!mechanism) return def
+    const ownVisual = def.visualStyle?.trim()
     return {
         ...def,
         description: mechanism.description,
         structure: mechanism.structure,
-        visualStyle: mechanism.visualStyle,
+        visualStyle: ownVisual
+            ? `${mechanism.visualStyle} Značka k tomu žádá (má přednost): ${ownVisual}`
+            : mechanism.visualStyle,
     }
 }
 

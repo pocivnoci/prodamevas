@@ -535,10 +535,12 @@ export async function generateOnePost(options: {
     // 3b. Recent design fingerprints — anti-repetition input for the AI Designer.
     // Concept alone lets the model "diverge" in words while rendering the same layout,
     // so feed the structural attributes too and hard-ban the latest layout archetypes.
+    // Okno 8 postů, ne 6: při kadenci 4×/týden pokryje celé dva týdny, takže se
+    // designér nemůže vrátit ke „staršímu" nápadu, který divák viděl minulý pátek.
     const recentDesigns = recentPosts
         .map(p => (p as any).design_brief)
         .filter(Boolean)
-        .slice(0, 6)
+        .slice(0, 8)
     const recentBriefs = recentDesigns
         .map((d: any) => {
             const parts = [
@@ -546,14 +548,24 @@ export async function generateOnePost(options: {
                 d.layoutArchetype && `layout: ${d.layoutArchetype}`,
                 d.typography?.placement && `text: ${d.typography.placement}`,
                 d.typography?.styleDescription && `type: ${d.typography.styleDescription}`,
-                d.colorTreatment && `color: ${String(d.colorTreatment).substring(0, 80)}`,
+                // `colorTreatment` se dřív krátil na 80 znaků, což je přesně délka,
+                // po které z popisu gradingu zbyde „Warm, sun-drenched palette with"
+                // — tedy část, která je u téhle značky stejná vždycky. Rozlišující
+                // konec věty se uřízl a otisk přestal rozlišovat.
+                d.colorTreatment && `color: ${d.colorTreatment}`,
+                // Záběr a scéna je osa, na které se opakování pozná nejdřív (třikrát
+                // po sobě detail na šálek), a v otisku doteď nebyla vůbec.
+                d.composition && `scene: ${String(d.composition).substring(0, 200)}`,
             ]
             return parts.filter(Boolean).join(" | ")
         })
         .filter(Boolean)
+    // Ban posledních 5 archetypů (dřív 3): registr má 16 archetypů a každá rodina
+    // ≥ 4 členy, takže pětiprvkový zákaz rodinu nevyprázdní a zároveň udrží dva
+    // typografické posty po sobě od stejného skeletu.
     const recentArchetypes = [...new Set(
         recentDesigns
-            .slice(0, 3)
+            .slice(0, 5)
             .map((d: any) => d.layoutArchetype as string | undefined)
             .filter((a: any): a is string => Boolean(a))
     )]
