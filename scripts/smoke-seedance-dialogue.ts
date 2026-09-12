@@ -25,7 +25,8 @@ dotenv.config({ path: ".env.local" })
 
 const OUT_DIR = "audit-screenshots/spike"
 const BASE_URL = (process.env.ARK_BASE_URL || "https://ark.ap-southeast.bytepluses.com/api/v3").replace(/\/+$/, "")
-const MODEL = process.env.ARK_MODEL || "seedance-2-5-pro"
+// Stejné verzované ID jako produkce (instagram/models.ts `video`); spike nesmí importovat produkční modul.
+const MODEL = process.env.ARK_MODEL || "dreamina-seedance-2-5-260628"
 
 const CS = [
     "Dobrý den, vítejte u nás v kavárně.",
