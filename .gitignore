@@ -68,3 +68,6 @@ scripts/backups/
 
 # Vygenerované náhledy e-mailů (scripts/preview-emails.ts)
 .email-preview/
+
+# Videa ze živých smoke testů (scripts/smoke-*.ts) — výstup běhu, ne zdroj
+smoke-*.mp4
