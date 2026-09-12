@@ -65,9 +65,21 @@ Tři vrstvy, všechny multi-tenant:
   `requireProjectAccess(slug)` — nebo `requireClientAccess(uuid)`, když už máš
   `client_id` z řádku — a dovnitř předávej UUID. **Chybějící identifikátor nikdy
   nedefaultuj na skutečného tenanta — vyhoď výjimku.**
-- **`setActiveProject()` je modulově globální mutable stav** (`instagram/service.ts`);
-  při souběžných requestech v jedné lambdě umí zkřížit tenanty. Nový enginový kód bere
-  `clientId` **explicitním parametrem** — nepřidávej další volající `getActiveProject()`.
+- **Žádný stav tenanta v modulové proměnné.** `setActiveProject()` je dnes
+  AsyncLocalStorage, ale config tenanta v `let` na úrovni modulu (jak měl
+  `instagram/autopilot.ts` do 9/2026) při souběžných requestech v jedné lambdě zkříží
+  tenanty. Config i UUID se z loaderu **vrací** jedním přiřazením. Nový enginový kód
+  bere `clientId` **explicitním parametrem** — nepřidávej další volající
+  `getActiveProject()`.
+- **Tenant nikdy ze vstupu bez brány.** Slug z URL (`?reonboard=`, `?project=`),
+  `configName` v akci i `projectId` účtu jsou vstupy z prohlížeče; přihlášení samo
+  k zápisu do tenanta neopravňuje. Tenant PRÁCE a tenant ÚČTU je jeden slug.
+- **Crony mají jednu bránu** — `requireCron(req)` z `lib/cron-auth.ts` (konstantní čas,
+  fail closed). Rozpočet lambdy je jeden (`RENDER_BUDGET_MS` v `lib/job-park.ts`),
+  reaper zaseklých jobů jeden (`lib/job-reaper.ts`), pořadí denních cronů hlídá guard.
+- **Peníze nikdy potichu.** Refund, reconcile a zápis, který brání dvojímu účtování,
+  nesmí být v prázdném `catch` — selhání jde do logu a Sentry. Spotřeba modelů se
+  zapisuje i u běhu, který spadl nebo se zaparkoval (`post_partial` v `ai_spend`).
 - **Podmíněný claim, nikdy insert fallback.** Jednorázová akce se zabírá přes
   `UPDATE … WHERE id=? AND client_id=? AND status=?`. Když claim nevrátí řádek,
   **je to konec, ne důvod k insertu**. Platí pro drafty plánů, schválení produktové
@@ -75,7 +87,10 @@ Tři vrstvy, všechny multi-tenant:
 - **Kvalita se nedegraduje potichu.** Pro tiery mají fallback na druhé Pro, nikdy na
   flash. Když se stane něco horšího, musí to být vidět v logu.
 - **Zpětné vazby jsou posvátné.** Nový zdroj obsahu potřebuje `performance_score`
-  + váženou selekci, jinak se učicí smyčka přetrhne. Detail ve skillu `content-engine`.
+  + váženou selekci (nápady, recenze, formáty **i produkty**), jinak se učicí smyčka
+  přetrhne. Nový signál o preferenci (úprava, souboj, metrika) potřebuje konzumenta —
+  matice signál × konzument je v `docs/PROPOJENI_MODULU_2026-09.md`. Detail ve skillu
+  `content-engine`.
 - **Modely** — všechna ID v `instagram/models.ts`, vždy přes `getModel()`, nikdy
   hardcoded string (env override `GEMINI_MODEL_<ACTION>[_FALLBACK]`). Pro tier používá
   alias `gemini-pro-latest`, **nepinuj Pro preview ID**.
@@ -106,6 +121,9 @@ Skilly se načtou samy, když se úkolu týkají. Když víš dopředu, sáhni p
 | `media-rendering` | obrázky, karusely, stories, reely, feed pattern, vision QA, ffmpeg, **tisk** |
 | `post-editing` | „posuň nadpis", „zkrať text" — retuš hotového postu místo přegenerování |
 | `campaigns-plans` | durable worker, drafty plánů, zásobník nápadů, produktové řady |
+
+Průřezový audit vazeb mezi moduly (co je propojené, co ne, a proč):
+`docs/PROPOJENI_MODULU_2026-09.md`.
 
 `docs/` popisuje **stabilní architekturu, ne changelog**. Když si dokumentace a kód
 odporují, platí kód. Promptový audit: `docs/PROMPT_AUDIT_2026-08.md`, právní postup:
