@@ -1269,6 +1269,35 @@ test("12.9 feed-pattern grid count matches FeedTab's grid", () => {
     assert(f.includes('p.image_url && p.media_type !== "story"'), "FeedTab grid must filter on image_url AND exclude stories — keep countFeedPosts in sync")
 })
 
+test("12.10 měsíc plánu je kalendářní měsíc, ne čtyři týdny", () => {
+    // Počítadlo plánu předpokládalo na třech místech 7 položek = týden, 28 dní
+    // = měsíc a 30 postů = měsíční plán. Délku měsíce zná jen schedule-planner.
+    const p = fileContent("app/actions/content-plan-actions.ts")
+    assert(!codeOnly("app/actions/content-plan-actions.ts").includes("Math.floor(i / 7)"),
+        "číslo týdne musí dělit kadence (Math.floor(i / perWeek)), ne fixních 7 položek")
+    assert(p.includes("Math.floor(i / perWeek) + 1"), "week musí vycházet z postsPerWeek")
+    assert(p.includes("const spansWeeks = count > perWeek * 2"),
+        "práh pro rozdělení do týdnů i štítek týdne musí držet jeden výraz odvozený z kadence")
+
+    const g = fileContent("app/actions/ig-generate-action.ts")
+    const plan = g.slice(g.indexOf("export async function generateMonthlyPlan"))
+    assert(!codeOnly("app/actions/ig-generate-action.ts").includes("length: 27"),
+        "počet atrap plánu nesmí být literál — 27 platilo jen pro 4 týdny × 7 postů")
+    assert(plan.includes("postsForSpan(monthSpanDays(now)"),
+        "generateMonthlyPlan musí počet odvodit z postsForSpan(monthSpanDays(...))")
+    assert(plan.includes("SHOWCASE_POSTS"), "od počtu se musí odečíst ukázkové příspěvky z onboardingu")
+    assert(plan.includes("credit_period_start"),
+        "opakované generování se pozná podle kreditového okna, ne podle paušálních 25 dní")
+    assert(!plan.includes("daysSince < 25"), "paušálních 25 dní se nesmí vrátit")
+
+    const w = fileContent("app/(dashboard)/PaywallProvider.tsx")
+    assert(!w.includes("~30 příspěvků") && !w.includes("planPostsTotal || 30"),
+        "paywall nesmí slibovat 30 příspěvků — číslo říká jen předplatné")
+
+    const c = fileContent("app/actions/calendar-actions.ts")
+    assert(c.includes("spanDays"), "posun propadlých termínů musí distributeSchedule předat rozpětí")
+})
+
 // ═══════════════════════════════════════════════════════════
 // 13. INSTAGRAM STORIES (v8.4)
 // ═══════════════════════════════════════════════════════════

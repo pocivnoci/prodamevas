@@ -13,6 +13,7 @@ import { generateOnePost, generateBatch } from "@/instagram/autopilot"
 import supabaseAdmin from "@/supabase/admin"
 import { loadConfig } from "@/instagram/configs"
 import { requireAuth, requireProjectAccess } from "@/lib/auth-guard"
+import { MAX_POSTS_PER_WEEK, monthSpanDays, postsForSpan } from "@/lib/schedule-planner"
 
 
 
@@ -516,9 +517,20 @@ const PLACEHOLDER_HOOKS = [
 ]
 
 /**
- * Create 27 fake plan_locked posts from config — ZERO AI cost.
+ * Kolik příspěvků měsíce vznikne doopravdy v ukázkové kampani z onboardingu
+ * (`startOnboardingBootstrap`: `plan: [{}, {}, {}]`, `total: 3`) — o tolik míň
+ * atrap tady, jinak by plán ukazoval o tři příspěvky víc, než klient dostane.
+ */
+const SHOWCASE_POSTS = 3
+
+/**
+ * Vyplní zbytek měsíčního plánu atrapami `plan_locked` z configu — ZERO AI cost.
  * Uses client's post types + pillars to look realistic when blurred.
- * The 3 showcase posts run separately as the durable showcase campaign
+ *
+ * Počet drží kalendář, ne konstanta: `postsForSpan(monthSpanDays(now), perWeek)`
+ * minus ukázkové příspěvky. Natvrdo 27 platilo jen pro 4 týdny × 7 postů, takže
+ * v 31denním měsíci i při jiné než sedmidenní kadenci počítadlo lhalo.
+ * The showcase posts run separately as the durable showcase campaign
  * (startOnboardingBootstrap → campaign-worker), not from here.
  */
 export async function generateMonthlyPlan(options: {
@@ -532,18 +544,26 @@ export async function generateMonthlyPlan(options: {
         // Check if plan was already generated this month
         const { data: sub } = await supabaseAdmin
             .from("subscriptions")
-            .select("id, plan_generated_at")
+            .select("id, plan_generated_at, credit_period_start")
             .eq("client_id", clientId)
             .in("status", ["active", "trialing"])
             .order("created_at", { ascending: false })
             .limit(1)
             .single()
 
+        const now = new Date()
         if (sub?.plan_generated_at) {
             const lastGen = new Date(sub.plan_generated_at)
-            const now = new Date()
-            const daysSince = (now.getTime() - lastGen.getTime()) / (1000 * 60 * 60 * 24)
-            if (daysSince < 25) {
+            // Jeden plán na jedno KREDITOVÉ okno — to je ta hranice, po které
+            // klient dostane nový příděl kreditů (`lib/billing-period.ts`).
+            // Natvrdo „25 dní" pustilo v 31denním měsíci druhý plán o šest dní
+            // dřív, než se kredity obnovily. Bez okna (starý řádek, žádné
+            // předplatné) rozhodne skutečná délka měsíce, ne paušálních 25 dní.
+            const windowStart = sub.credit_period_start ? new Date(sub.credit_period_start) : null
+            const alreadyThisPeriod = windowStart && !Number.isNaN(windowStart.getTime())
+                ? lastGen >= windowStart
+                : (now.getTime() - lastGen.getTime()) / 86_400_000 < monthSpanDays(lastGen)
+            if (alreadyThisPeriod) {
                 return { success: false, postsCreated: 0, error: "Měsíční plán už byl vygenerován." }
             }
         }
@@ -560,8 +580,18 @@ export async function generateMonthlyPlan(options: {
 
         const typeMap = new Map((postTypes || []).map(t => [t.name, t.id]))
 
-        // Generate 27 template rows — cycle through week plan and pillars
-        const insertRows = Array.from({ length: 27 }, (_, i) => {
+        // Kolik atrap měsíc unese: kalendářní délka měsíce × kadence značky,
+        // minus příspěvky, které pro klienta vzniknou doopravdy.
+        const perWeek = Math.min(MAX_POSTS_PER_WEEK, Math.max(1, Math.round(Number(config.postsPerWeek) || 4)))
+        const teaserCount = Math.max(0, postsForSpan(monthSpanDays(now), perWeek) - SHOWCASE_POSTS)
+        if (teaserCount === 0) {
+            // Kadence 1×/týdně na krátký měsíc: ukázkové příspěvky pokryjí celý
+            // plán samy a insert prázdného pole by jen zbytečně sáhl do DB.
+            return { success: true, postsCreated: 0 }
+        }
+
+        // Generate template rows — cycle through week plan and pillars
+        const insertRows = Array.from({ length: teaserCount }, (_, i) => {
             const postTypeName = weekPlan[i % weekPlan.length]
             const pillar = pillarKeys[i % pillarKeys.length] || "reach"
             const hook = PLACEHOLDER_HOOKS[i % PLACEHOLDER_HOOKS.length]
