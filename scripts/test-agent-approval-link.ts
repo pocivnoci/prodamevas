@@ -8,7 +8,8 @@
  */
 
 import { approvalLinkUrl, signApprovalLink, verifyApprovalLink } from "../lib/agent-approval-link"
-import { buildLifecycleEmail, type LifecycleKind } from "../lib/agents/lifecycle"
+// Znění bez DB — `lifecycle.ts` tahá Supabase a bez .env.local by skript spadl.
+import { buildLifecycleEmail, type LifecycleKind } from "../lib/agents/lifecycle-templates"
 
 let failures = 0
 function check(name: string, ok: boolean, detail = "") {

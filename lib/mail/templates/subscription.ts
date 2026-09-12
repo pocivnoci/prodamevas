@@ -28,16 +28,16 @@ export const subscriptionRenewal: EmailTemplate = {
     fields: [
         { key: "planName", label: "Tarif", type: "text", required: true },
         { key: "termMonths", label: "Období (1, 3, 6 nebo 12)", type: "text", placeholder: "12", help: "Cena za období se dopočítá z ceníku, nepíše se ručně." },
-        { key: "price", label: "Částka (prázdné = z ceníku)", type: "text", placeholder: samplePrice(), help: "Vyplnit jen u nestandardní ceny." },
+        { key: "price", label: "Částka", type: "text", placeholder: samplePrice(), help: "Použije se jen bez vyplněného období — jinak cenu určí ceník." },
         { key: "renewsOn", label: "Datum obnovy", type: "text", required: true },
         { key: "manageUrl", label: "Odkaz na správu předplatného", type: "url", required: true },
     ],
     sample: {
         planName: samplePlanName(),
-        termMonths: "12",
-        // Prázdné = cena období se dopočítá z ceníku. Ukázka je v Mailingu
-        // předvyplnění formuláře, takže ručně opsané číslo by odsud odešlo.
-        price: "",
+        termMonths: "1",
+        // Ukázka je v Mailingu předvyplnění formuláře, takže musí sedět
+        // s ceníkem — u měsíčního období je cena období rovna měsíční sazbě.
+        price: samplePrice(),
         renewsOn: "5. 9. 2026",
         manageUrl: `${siteUrl()}/dashboard/instagram#billing`,
     },
@@ -47,10 +47,16 @@ export const subscriptionRenewal: EmailTemplate = {
     // se z obnovy stane chargeback. Číslo proto pochází z ceníku (`termPrice`),
     // ne z ruky.
     build: v => {
+        // Vyplněné období = cenu určuje ceník, ne ruka. Ručně psaná částka se
+        // uplatní jen tam, kde období není (jednorázová domluva) — jinak by
+        // stačilo zapomenout ji přepsat a roční zákazník by četl měsíční sazbu.
+        const hasTerm = /^(1|3|6|12)$/.test((v.termMonths || "").trim())
         const term = normalizeTermMonths(v.termMonths || "1")
         const plan = pickPlan(v.planName || "")
-        const price = v.price?.trim() || formatCzk(termPrice(plan.monthlyHaleru, term))
-        const forTerm = term === 1 ? "" : ` ${termLabel(term)}`
+        const price = hasTerm
+            ? formatCzk(termPrice(plan.monthlyHaleru, term))
+            : v.price?.trim() || formatCzk(plan.monthlyHaleru)
+        const forTerm = hasTerm && term > 1 ? ` ${termLabel(term)}` : ""
         return {
             subject: `Předplatné ${v.planName} se obnoví ${v.renewsOn}`,
             eyebrow: "Předplatné",

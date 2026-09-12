@@ -3987,7 +3987,7 @@ test("29.15 plátce DPH: brána strhává částku VČETNĚ daně", () => {
             `${what} (${file}): částka k stržení musí projít přes chargeableHaleru`)
     }
     // Obnova jde přes `renewalChargeHaleru`, což je `chargeableHaleru` + datum
-    // přechodu (viz 29.19): probíhající předplatné se do VAT_EFFECTIVE_FROM
+    // přechodu (viz 29.22): probíhající předplatné se do VAT_EFFECTIVE_FROM
     // strhává v původní výši a tutéž funkci musí volat i oznámení o obnově.
     assert(codeOnly("app/api/cron/billing-worker/route.ts").includes("renewalChargeHaleru"),
         "obnova předplatného: částka k stržení musí projít přes renewalChargeHaleru")
@@ -4053,7 +4053,7 @@ test("29.18 datum přechodu na DPH sedí s účinností podmínek", () => {
 
     // Obnova probíhajícího předplatného se do toho data nesmí zdražit. Větev
     // podle data žije v `renewalChargeHaleru` (`lib/pricing.ts`) — jedno místo
-    // pro strh i pro oznámení o něm, viz 29.19.
+    // pro strh i pro oznámení o něm, viz 29.22.
     const pricing = codeOnly("lib/pricing.ts")
     assert(/export function renewalChargeHaleru[\s\S]{0,300}VAT_EFFECTIVE_FROM/.test(pricing),
         "renewalChargeHaleru musí respektovat datum, od kterého se DPH připočítává")
@@ -4062,7 +4062,7 @@ test("29.18 datum přechodu na DPH sedí s účinností podmínek", () => {
         "obnova musí strhávat přes renewalChargeHaleru, jinak datum přechodu obejde")
 })
 
-test("29.19 obnova slibuje přesně tu částku, kterou strhne", () => {
+test("29.22 obnova slibuje přesně tu částku, kterou strhne", () => {
     // Oznámení „za tři dny vám strhneme" počítalo cenu období BEZ DPH, zatímco
     // billing-worker strhával s DPH — roční Růst sliboval 29 990 Kč a z karty
     // šlo 36 288 Kč. Rozdíl na výpisu je nejkratší cesta k chargebacku, takže
@@ -4097,7 +4097,7 @@ test("29.19 obnova slibuje přesně tu částku, kterou strhne", () => {
         `obnova na 12 měsíců musí uvést cenu období, ne měsíční sazbu — ${yearly.text.slice(0, 200)}`)
 })
 
-test("29.20 automatické e-maily mluví stejným hlasem jako registr", () => {
+test("29.23 automatické e-maily mluví stejným hlasem jako registr", () => {
     // Zákaznická pošta jde ze tří míst: registr šablon, `notice-templates.ts`
     // (peníze, incidenty) a `lifecycle-templates.ts` (pobídky). Do registru míří
     // aserce 29.6/29.8, ale ty dvě agentské cesty do 9/2026 nehlídal nikdo — a
@@ -4150,7 +4150,7 @@ test("29.20 automatické e-maily mluví stejným hlasem jako registr", () => {
     assert(!/Tomáš/.test(invite), "pozvánku podepisuje firma, ne jedna osoba")
 })
 
-test("29.21 haléře dělí stem jedině formatCzk()", () => {
+test("29.24 haléře dělí stem jedině formatCzk()", () => {
     // Ruční `/ 100` se pokaždé rozešlo se zbytkem aplikace: v potvrzení platby
     // chybělo zaokrouhlení a zákazník dostal „3 628,79 Kč" u částky, kterou má
     // doklad v celých korunách.
@@ -4223,15 +4223,20 @@ test("29.20 e-mail netipuje rod adresáta", () => {
         const hits = t.render(t.sample, "kdo@example.com").text.match(gendered) ?? []
         assert(hits.length === 0, `${t.id}: rodové oslovení „${hits.join(", ")}" — přepiš do přítomného času`)
     }
-    // Pozvánka z waitlistu jde mimo registr (vlastní text v agentovi), a přesně
-    // ta měla „Zapsal jste se… a čekal jste dlouho" hned dvakrát ve větě.
+    // Pozvánka z waitlistu měla „Zapsal jste se… a čekal jste dlouho" hned
+    // dvakrát ve větě — protože si v agentovi vedla vlastní text mimo registr.
+    // Od té doby se renderuje registrová šablona (kterou kryje smyčka výš), a
+    // agent smí dodat jen proměnné; vlastní věta by tuhle kontrolu zase obešla.
     const invite = codeOnly("lib/agents/waitlist-invite.ts")
     const inviteHits = invite.match(gendered) ?? []
     assert(inviteHits.length === 0,
         `lib/agents/waitlist-invite.ts: rodové oslovení „${inviteHits.join(", ")}"`)
+    assert(invite.includes('getTemplate("waitlist_invite")'),
+        "pozvánka se musí renderovat z registru — vlastní kopie textu tuhle kontrolu obejde")
     // „před 1 dny" je stejný druh nedbalosti jako špatný rod: počítané dny se
     // skloňují přes lib/plural.ts, ne lepením „dny" za číslo.
-    assert(invite.includes("countLabel") && invite.includes("DAYS"),
+    const inviteTemplate = codeOnly("lib/mail/templates/waitlist.ts")
+    assert(inviteTemplate.includes("countLabel") && inviteTemplate.includes("DAYS"),
         "počet dní čekání se musí skloňovat přes countLabel(…, DAYS)")
 })
 
