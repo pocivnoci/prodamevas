@@ -80,7 +80,10 @@ function planFeatureList(p: PlanRow, reelsEnabled: boolean): PlanFeatureItem[] {
     // Obě velikosti reelu; čísla jdou z MEDIA_CREDITS, nikdy ručně (aserce 13.11).
     if (hasReels) items.push({ text: `Reels (AI video) — ${MEDIA_CREDITS.reel} kreditů krátký, ${MEDIA_CREDITS.reel_long} dlouhý`, pending: !reelsEnabled })
 
-    if (f.allowed_actions.includes("post_variant")) items.push({ text: "A/B varianty příspěvků" })
+    // Ne „A/B varianty": netestuje se nic a zákazník to četl jako dva příspěvky
+    // v ceně jednoho. `generatePostVariant` účtuje každou verzi jako plný
+    // příspěvek podle média, takže cena musí být v odrážce, ne až v košíku.
+    if (f.allowed_actions.includes("post_variant")) items.push({ text: "Dvě verze příspěvku na výběr — účtují se jako dva příspěvky" })
     if (f.allowed_actions.includes("idea_generate")) items.push({ text: "AI nápady na obsah" })
     if (f.growth_tracking) items.push({ text: "Růstový dashboard — sledování followerů" })
     if (f.allowed_actions.some(a => a.startsWith("product_"))) items.push({ text: "Product studio — vizualizace & mockupy" })

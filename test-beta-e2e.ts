@@ -644,6 +644,37 @@ test("13.10 reels v ceníku visí na vypínači, ne na textu", () => {
     assert(/ARK_API_KEY/.test(codeOnly("lib/agents/health-check.ts")), "health-check musí hlásit REELS_ENABLED=1 bez ARK_API_KEY")
 })
 
+test("13.19 tarif neprodává A/B test, ale dvě verze za kredity navíc", () => {
+    // Zákazník četl „A/B varianty" jako dva příspěvky na výběr V CENĚ jednoho —
+    // a ještě jako měření výkonu. Ani jedno neplatí: `generatePostVariant` vyrobí
+    // plný příspěvek a účtuje ho podle média, vybírá člověk a nic se neměří.
+    // Odrážka proto nesmí mluvit o testu a MUSÍ říct, že se to účtuje navíc.
+    const { PLAN_COPY } = require("./lib/pricing")
+
+    let sVerzemi = 0
+    for (const [planId, copy] of Object.entries(PLAN_COPY as Record<string, { bullets: unknown[] }>)) {
+        for (const b of copy.bullets) {
+            const text = typeof b === "string" ? b : String((b as { text?: string }).text || "")
+            assert(!/A\/B/i.test(text), `${planId}: ceníková odrážka „${text}" mluví o A/B — netestuje se nic`)
+            if (/verze/i.test(text)) {
+                sVerzemi++
+                assert(/kredit|navíc|účtuj/i.test(text),
+                    `${planId}: „${text}" neříká, že druhá verze stojí kredity navíc — přesně to nedorozumění to působilo`)
+            }
+        }
+    }
+    assert(sVerzemi > 0, "žádný tarif dvě verze nenabízí — aserce by nic nekontrolovala")
+
+    // Seznam funkcí v aplikaci a nápověda k tarifům jsou druhé dvě místa, kde
+    // ten slib zákazník čte. Komentáře se strhávají, aby je nechytil tenhle text.
+    for (const f of [
+        "app/(dashboard)/dashboard/instagram/tabs/SubscriptionSection.tsx",
+        "app/(dashboard)/dashboard/instagram/tabs/FaqTab.tsx",
+    ]) {
+        assert(!/A\/B/i.test(codeOnly(f)), `${f}: kopie tarifu pořád mluví o A/B`)
+    }
+})
+
 test("13.11 váhy kreditů se v UI nepíšou číslem", () => {
     // Do 8/2026 stálo v aplikaci natvrdo „obrázek 1 kredit · carousel 3", zatímco
     // skutečné váhy žijí v MEDIA_CREDITS — a na landingu nebylo ani to, takže

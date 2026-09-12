@@ -4,6 +4,7 @@ import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown } from "lucide-react"
 import { EXTRA_CREDIT_HALERU, FALLBACK_PLANS, formatCzk } from "@/lib/pricing"
+import { ALL_MEDIA, MEDIA_CREDITS, type MediumType } from "@/lib/credits"
 
 // ─── FAQ Data ────────────────────────────────────────────────
 
@@ -16,11 +17,32 @@ import { EXTRA_CREDIT_HALERU, FALLBACK_PLANS, formatCzk } from "@/lib/pricing"
  */
 const PLAN_BLURB: Record<string, string> = {
     chrlit_start: "obrázky a carousely",
-    chrlit_rust: "navíc úprava hotových příspěvků, A/B varianty a růstový dashboard",
+    chrlit_rust: "navíc úprava hotových příspěvků, dvě verze příspěvku na výběr a růstový dashboard",
     chrlit_dominance: "navíc reels, product studio a prioritní generování",
     // Ne „pro agentury a e-shopy": víc profilů na účet není implementované ani
     // vynucované, takže by to prodávalo něco, co zákazník nedostane.
     chrlit_imperium: "nejvyšší objem pro jednu značku",
+}
+
+/** Názvy médií pro nápovědu; `Record<MediumType, …>` přestane kompilovat,
+ *  jakmile v `MEDIA_CREDITS` přibude médium bez popisku. */
+const MEDIA_NAZVY: Record<MediumType, string> = {
+    image: "obrázek",
+    story: "story",
+    carousel: "carousel",
+    reel: "reel",
+    reel_long: "dlouhý reel",
+}
+
+/**
+ * „obrázek 1 · story 2 · carousel 3 · reel 5" — váhy z `MEDIA_CREDITS`.
+ *
+ * Nápověda tu do 9/2026 tvrdila „Varianta stojí 1 kredit", což nebyla pravda ani
+ * u carouselu: `creditsForAction("post_variant", medium)` účtuje verzi stejně
+ * jako příspěvek téhož média. Čísla proto chodí z tabulky vah, ne z ruky.
+ */
+function mediaCenySentence(): string {
+    return ALL_MEDIA.map((m) => `${MEDIA_NAZVY[m]} ${MEDIA_CREDITS[m]}`).join(" · ")
 }
 
 /** „Start 20, Růst 70, Dominance 130, Impérium 260" — také z ceníku, ne z ruky. */
@@ -75,8 +97,8 @@ const FAQ_CATEGORIES: FaqCategory[] = [
                 a: "Chrlit podporuje typy jako tip, meme, carousel, behind_scenes, product_drop, recenze, challenge a další. Každý typ má jiný tón a formát — tip je edukativní, meme je vtipný, product_drop je prodejní. Typy jsou definované ve vaší konfiguraci.",
             },
             {
-                q: "Můžu regenerovat jen obrázek nebo jen text?",
-                a: "Ano. U každého postu máte varianty — můžete vygenerovat nový obrázek se stejným textem, nebo nový text ke stejnému obrázku. Varianta stojí 1 kredit.",
+                q: "Můžu u hotového příspěvku něco změnit?",
+                a: "Ano, dvěma způsoby. Úprava hotového příspěvku (od tarifu Růst) zasáhne do existujícího vizuálu nebo textu — „posuňte nadpis“, „zkraťte text“ — a stojí 1 kredit. Druhá možnost je „Dvě verze na výběr“: vygenerují se dva úplně nové příspěvky na stejné téma (jiný hook, vizuál i CTA), vy si vyberete jeden a zbylé se zahodí. Nejde o test — nic se neměří, jen si vybíráte.",
             },
         ],
     },
@@ -87,7 +109,7 @@ const FAQ_CATEGORIES: FaqCategory[] = [
         items: [
             {
                 q: "Kolik stojí jedna akce?",
-                a: "Post = 1 kredit. Varianta = 1 kredit. Generování nápadů = 1 kredit. Produktová vizualizace = 2 kredity. Design pro tisk = 3 kredity. Mockup = 2 kredity. Business Brief = 5 kreditů. Celá produktová řada = 8 kreditů.",
+                a: `Příspěvek stojí podle média (${mediaCenySentence()}). Každá verze v „Dvě verze na výběr“ je plnohodnotný příspěvek, takže se účtuje stejně jako on — dvě verze carouselu tedy stojí ${2 * MEDIA_CREDITS.carousel} kreditů, i když nakonec použijete jednu. Úprava hotového příspěvku = 1 kredit. Generování nápadů = 1 kredit. Produktová vizualizace = 2 kredity. Design pro tisk = 3 kredity. Mockup = 2 kredity. Business Brief = 5 kreditů. Celá produktová řada = 8 kreditů.`,
             },
             {
                 q: "Co se stane, když mi dojdou kredity?",

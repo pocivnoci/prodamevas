@@ -23,6 +23,15 @@ import { isMediumType, MEDIA_CREDITS } from "@/lib/credits"
 import { countLabel, CREDITS } from "@/lib/plural"
 import { Brain, ChartColumn, Check, CircleCheck, CircleX, ClipboardList, Download, Image, Lock, Package, RefreshCw, Send, Shuffle, Smartphone, Trash2, TriangleAlert, Trophy, X, type LucideIcon } from "lucide-react"
 
+/**
+ * Kolik verzí „na výběr" se generuje naráz.
+ *
+ * Server ho stejně ořízne na 2–3 (`generateMultipleVariants`), ale UI z něj počítá
+ * cenu i větu před generováním — proto jedno číslo, ne tři opsaná místa. Tvary
+ * vět jsou psané pro 2–4 (čeština), což se s tím ořezem kryje.
+ */
+const VARIANT_COUNT = 2
+
 // ═══════════════════════════════════════════════════════════
 // POSTS TAB  (with detail modal + copy/download)
 // ═══════════════════════════════════════════════════════════
@@ -511,6 +520,7 @@ function PostDetailModal({
     const [variantIds, setVariantIds] = useState<string[]>([])
     const [showVariantComparison, setShowVariantComparison] = useState(false)
     const [variantError, setVariantError] = useState<string | null>(null)
+    const [confirmVariants, setConfirmVariants] = useState(false)
     const [carouselIndex, setCarouselIndex] = useState(0)
     // Označená tvrzení řešená rovnou u příspěvku — bez opisování do Nastavení.
     const [factFlags, setFactFlags] = useState<string[]>(post.fact_flags || [])
@@ -544,7 +554,6 @@ function PostDetailModal({
     // Sazba se bere z média originálu, protože varianta jede ve stejném formátu
     // (`variant-actions.ts`). Když engine formát srazí vypínačem, strhne se
     // MÍŇ než je tady — u ceny je nadhodnotit se jediný bezpečný směr.
-    const VARIANT_COUNT = 2
     const variantCost = VARIANT_COUNT * MEDIA_CREDITS[isMediumType(post.media_type) ? post.media_type : "image"]
     // Multi-frame stories step through exactly like a carousel does — same arrows, same dots.
     const isCarousel = media.slideCount > 1
@@ -1054,42 +1063,71 @@ function PostDetailModal({
                         </button>
                     )}
 
-                    {/* A/B Variant System */}
-                    <button
-                        onClick={async () => {
-                            setGeneratingVariants(true)
-                            setVariantError(null)
-                            setVariantIds([])
-                            const result = await generateMultipleVariants(post.id, projectId, VARIANT_COUNT)
-                            if (result.success && result.variantIds.length > 0) {
-                                setVariantIds(result.variantIds)
-                                setShowVariantComparison(true)
-                            } else {
-                                setVariantError(result.error || "Generování selhalo")
-                            }
-                            setGeneratingVariants(false)
-                        }}
-                        disabled={generatingVariants}
-                        className={`px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all border ${
-                            generatingVariants
-                                ? "bg-violet-500/10 text-violet-300 border-violet-500/20 animate-pulse cursor-not-allowed"
+                    {/* Dvě verze na výběr — dřív „A/B Test". Netestuje se nic:
+                        vygenerují se dva PLNÉ příspěvky a každý se účtuje podle
+                        svého média (`creditsForAction("post_variant", medium)`).
+                        Cena se proto počítá z MEDIA_CREDITS a stojí na tlačítku
+                        i v potvrzení — účet přišel až po kliknutí a překvapil. */}
+                    {!confirmVariants ? (
+                        <button
+                            onClick={() => { setVariantError(null); if (variantIds.length > 0) setShowVariantComparison(true); else setConfirmVariants(true) }}
+                            disabled={generatingVariants}
+                            className={`px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all border ${
+                                generatingVariants
+                                    ? "bg-violet-500/10 text-violet-300 border-violet-500/20 animate-pulse cursor-not-allowed"
+                                    : variantIds.length > 0
+                                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 cursor-pointer"
+                                        : "bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 border-violet-500/20"
+                            }`}
+                        >
+                            {generatingVariants
+                                ? "⏳ Generuji dvě verze (~60s)…"
                                 : variantIds.length > 0
-                                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 cursor-pointer"
-                                    : "bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 border-violet-500/20"
-                        }`}
-                    >
-                        {generatingVariants
-                            ? `⏳ Generuji ${VARIANT_COUNT} varianty (~60s)...`
-                            : variantIds.length > 0
-                                ? "Zobrazit varianty"
-                                : `A/B Test · ${countLabel(variantCost, CREDITS)}`}
-                    </button>
+                                    ? "Zobrazit verze"
+                                    : `Dvě verze na výběr · ${countLabel(variantCost, CREDITS)}`}
+                        </button>
+                    ) : (
+                        <div className="w-full flex flex-col gap-2 p-3 rounded-sm bg-violet-500/5 border border-violet-500/20">
+                            <p className="text-[11px] text-white/60 leading-relaxed">
+                                Vygenerujeme {VARIANT_COUNT} nové verze tohoto příspěvku na stejné téma — jiný hook, vizuál i CTA.
+                                Každá je plnohodnotný příspěvek, takže vás vyjdou celkem na {countLabel(variantCost, CREDITS)}.
+                                Vyberete si jednu, zbylé se zahodí.
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    onClick={async () => {
+                                        setConfirmVariants(false)
+                                        setGeneratingVariants(true)
+                                        setVariantError(null)
+                                        setVariantIds([])
+                                        const result = await generateMultipleVariants(post.id, projectId, VARIANT_COUNT)
+                                        if (result.success && result.variantIds.length > 0) {
+                                            setVariantIds(result.variantIds)
+                                            setShowVariantComparison(true)
+                                        } else {
+                                            setVariantError(result.error || "Generování selhalo")
+                                        }
+                                        setGeneratingVariants(false)
+                                    }}
+                                    className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-violet-500/20 text-violet-300 hover:bg-violet-500/30 border border-violet-500/30 transition-all"
+                                >
+                                    Vygenerovat za {countLabel(variantCost, CREDITS)}
+                                </button>
+                                <button
+                                    onClick={() => setConfirmVariants(false)}
+                                    className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm text-white/40 hover:text-white/70 hover:bg-white/5 border border-transparent hover:border-white/10 transition-all"
+                                >
+                                    Zrušit
+                                </button>
+                            </div>
+                        </div>
+                    )}
                     {variantIds.length > 0 && !generatingVariants && (
                         <button
                             onClick={() => setShowVariantComparison(true)}
                             className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 border border-violet-500/20 transition-all"
                         >
-                            <span className="inline-flex items-center gap-1.5"><ChartColumn className="w-3.5 h-3.5 shrink-0" />Srovnat</span>
+                            <span className="inline-flex items-center gap-1.5"><ChartColumn className="w-3.5 h-3.5 shrink-0" />Porovnat</span>
                         </button>
                     )}
                     {variantError && (
@@ -1468,7 +1506,7 @@ function PostEditPanel({
 }
 
 // ═══════════════════════════════════════════════════════════
-// VARIANT COMPARISON MODAL — A/B side-by-side
+// VARIANT COMPARISON MODAL — dvě verze vedle sebe
 // ═══════════════════════════════════════════════════════════
 
 function VariantComparisonModal({
@@ -1534,9 +1572,9 @@ function VariantComparisonModal({
                     <div className="flex items-center gap-3">
                         <Shuffle className="w-5 h-5" />
                         <div>
-                            <h3 className="text-white font-black uppercase tracking-tighter">A/B Srovnání variant</h3>
+                            <h3 className="text-white font-black uppercase tracking-tighter">Dvě verze na výběr</h3>
                             <p className="text-[10px] text-white/40 font-mono tracking-widest uppercase">
-                                {done ? "Vítěz vybrán — systém se učí z tvé preference" : "Vyber nejlepší variantu"}
+                                {done ? "Verze vybrána — systém se učí z vaší preference" : "Vyberte lepší verzi — zbylé se zahodí"}
                             </p>
                         </div>
                     </div>
@@ -1552,7 +1590,7 @@ function VariantComparisonModal({
                         <div className="flex items-center justify-center py-20">
                             <div className="text-center">
                                 <div className="animate-spin w-8 h-8 border-2 border-violet-500/30 border-t-violet-500 rounded-full mx-auto mb-4" />
-                                <p className="text-xs text-white/40 font-bold uppercase tracking-widest">Načítám varianty...</p>
+                                <p className="text-xs text-white/40 font-bold uppercase tracking-widest">Načítám verze…</p>
                             </div>
                         </div>
                     ) : (
@@ -1589,10 +1627,10 @@ function VariantComparisonModal({
                                                         ? 'text-blue-400 bg-blue-500/10 border-blue-500/20'
                                                         : 'text-violet-400 bg-violet-500/10 border-violet-500/20'
                                                 }`}>
-                                                    {isOriginal ? "Originál" : `Varianta ${index}`}
+                                                    {isOriginal ? "Originál" : `Verze ${index}`}
                                                 </span>
                                                 {isWinner && (
-                                                    <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-emerald-400 animate-pulse"><Trophy className="w-3 h-3 shrink-0" />Vítěz</span>
+                                                    <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-emerald-400 animate-pulse"><Trophy className="w-3 h-3 shrink-0" />Vybráno</span>
                                                 )}
                                             </div>
                                             <span className="text-[9px] text-white/30 font-mono">{variant.ig_post_types?.emoji || "📸"}</span>
@@ -1624,7 +1662,7 @@ function VariantComparisonModal({
                                                             : 'bg-white/5 text-white/60 border-white/10 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/20'
                                                     } disabled:opacity-40 disabled:cursor-not-allowed`}
                                                 >
-                                                    {selecting === variant.id ? "⏳ Vybírám..." : "Vybrat jako vítěze"}
+                                                    {selecting === variant.id ? "⏳ Vybírám…" : "Vybrat tuhle verzi"}
                                                 </button>
                                             )}
                                         </div>
@@ -1637,7 +1675,7 @@ function VariantComparisonModal({
 
                 {done && (
                     <div className="px-6 py-3 border-t border-emerald-500/20 bg-emerald-500/5 flex items-center justify-center gap-2">
-                        <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-bold uppercase tracking-widest"><Brain className="w-3.5 h-3.5 shrink-0" />Preference uložena — AI se učí z tvého výběru</span>
+                        <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-bold uppercase tracking-widest"><Brain className="w-3.5 h-3.5 shrink-0" />Preference uložena — AI se učí z vašeho výběru</span>
                     </div>
                 )}
             </div>
