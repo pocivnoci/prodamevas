@@ -1419,6 +1419,10 @@ ${feedSummary}
             // téhož jsonb ukládá atribuce scenáristy: bez uloženého `hookPattern` nejde
             // spočítat výkon vzoru a vážený výběr by se učil z prázdna.
             design_brief: renderResult?.designBrief ?? (reelHookPattern ? { hookPattern: reelHookPattern, reelMode } : null),
+            // Reel: kde leží surové video, voiceover a časová osa, aby šly titulky
+            // přerenderovat bez nového videa (job `reel_recompose`, 0 kreditů).
+            // U ostatních médií zůstává NULL.
+            video_source: renderResult?.videoSource ?? null,
             status: "draft",
         })
 

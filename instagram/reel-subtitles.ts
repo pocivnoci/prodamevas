@@ -16,6 +16,7 @@
  */
 
 import type { TimedLine } from "./reel-audio"
+import type { SubtitleStyleConfig, SubtitlePreset, SubtitlePosition, SubtitleSize } from "./configs/types"
 
 export interface SubtitleCard {
     start: number
@@ -32,6 +33,10 @@ export const SUBTITLE_DEFAULTS = {
     /** Mezera mezi kartami, ať vidí divák střih textu. */
     gapSeconds: 0.05,
 } as const
+
+/** Rozvolněný tvar `SUBTITLE_DEFAULTS` — `as const` z něj dělá literálové typy,
+ *  takže preset s jiným počtem znaků na řádek by se do `Partial<typeof …>` nevešel. */
+export type SubtitleChunkOpts = { -readonly [K in keyof typeof SUBTITLE_DEFAULTS]: number }
 
 /** Hladové zalomení s vyvážením: dvouřádek nemá mít první řádek přeplněný a druhý o jednom slově. */
 export function wrapWords(words: string[], maxChars: number): string[] {
@@ -64,7 +69,7 @@ export function wrapWords(words: string[], maxChars: number): string[] {
 }
 
 /** Rozdělí větu na karty (skupiny slov, které se vejdou do `maxLines` řádků). */
-function splitIntoCards(text: string, o: typeof SUBTITLE_DEFAULTS): string[][] {
+function splitIntoCards(text: string, o: SubtitleChunkOpts): string[][] {
     const words = text.trim().split(/\s+/).filter(Boolean)
     const cards: string[][] = []
     let cur: string[] = []
@@ -86,7 +91,7 @@ function splitIntoCards(text: string, o: typeof SUBTITLE_DEFAULTS): string[][] {
  * podle počtu znaků (tempo řeči je v rámci věty zhruba rovnoměrné); karta pod
  * `minDisplaySeconds` se sloučí s předchozí.
  */
-export function chunkForSubtitles(timed: TimedLine[], opts: Partial<typeof SUBTITLE_DEFAULTS> = {}): SubtitleCard[] {
+export function chunkForSubtitles(timed: TimedLine[], opts: Partial<SubtitleChunkOpts> = {}): SubtitleCard[] {
     const o = { ...SUBTITLE_DEFAULTS, ...opts }
     const out: SubtitleCard[] = []
 
@@ -138,6 +143,9 @@ export interface AssStyle {
     primaryColour: string
     outlineColour: string
     backColour: string
+    /** 1 = obrys + stín (text „plave" v obraze), 3 = neprůhledný box za textem
+     *  (`outline` se pak chová jako odsazení boxu). Preset `cards` jede na 3. */
+    borderStyle: 1 | 3
 }
 
 export const ASS_DEFAULTS: AssStyle = {
@@ -153,6 +161,7 @@ export const ASS_DEFAULTS: AssStyle = {
     primaryColour: "&H00FFFFFF",
     outlineColour: "&H00000000",
     backColour: "&H80000000",
+    borderStyle: 1,
 }
 
 /** `H:MM:SS.cc` — ASS má setiny, ne milisekundy. */
@@ -183,7 +192,7 @@ export function buildAss(cards: SubtitleCard[], style: Partial<AssStyle> = {}): 
         "",
         "[V4+ Styles]",
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-        `Style: Chrlit,${s.fontName},${s.fontSize},${s.primaryColour},${s.primaryColour},${s.outlineColour},${s.backColour},-1,0,0,0,100,100,0,0,1,${s.outline},${s.shadow},2,${s.marginL},${s.marginR},${s.marginV},1`,
+        `Style: Chrlit,${s.fontName},${s.fontSize},${s.primaryColour},${s.primaryColour},${s.outlineColour},${s.backColour},-1,0,0,0,100,100,0,0,${s.borderStyle},${s.outline},${s.shadow},2,${s.marginL},${s.marginR},${s.marginV},1`,
         "",
         "[Events]",
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
@@ -192,4 +201,151 @@ export function buildAss(cards: SubtitleCard[], style: Partial<AssStyle> = {}): 
         `Dialogue: 0,${assTime(c.start)},${assTime(c.end)},Chrlit,,0,0,0,,${c.lines.map(escapeAssText).join("\\N")}`,
     )
     return [...header, ...events, ""].join("\n")
+}
+
+// ─── Styl titulků per značka ────────────────────────────────
+
+/**
+ * Tři presety, ne volný editor. Titulek je VYPÁLENÝ do videa — chyba ve stylu se
+ * pozná až na hotovém MP4 a opravit ji jde jen přerenderováním, takže povolujeme
+ * jen kombinace, které jsme viděli vyrenderované.
+ *
+ *   classic — dnešní vzhled: bílý text, černý obrys, poloprůhledný podklad.
+ *   cards   — větší písmo, míň znaků na řádek, NEPRŮHLEDNÝ box (`BorderStyle: 3`,
+ *             kde se `Outline` chová jako odsazení boxu). Čitelné i na neklidném
+ *             videu.
+ *   minimal — bez podkladu, tenký obrys. Nejmíň ruší obraz, ale na světlé scéně
+ *             se ztrácí — proto to není default.
+ *
+ * Font je vždy `Inter` z `assets/fonts` (připnutý v `next.config.ts`
+ * `outputFileTracingIncludes`). Nepřipnutý font = na Vercelu prázdné titulky,
+ * takže se odsud nevybírá.
+ */
+export const SUBTITLE_PRESETS: Record<SubtitlePreset, { chunk: Partial<SubtitleChunkOpts>; ass: Partial<AssStyle> }> = {
+    classic: {
+        chunk: {},
+        ass: {},
+    },
+    cards: {
+        // Větší písmo se na 18 znaků do bezpečné zóny nevejde — šířka řádku jde s ním.
+        chunk: { maxCharsPerLine: 13, minDisplaySeconds: 1.0 },
+        ass: { fontSize: 52, outline: 12, shadow: 0, backColour: "&H14000000", borderStyle: 3 },
+    },
+    minimal: {
+        // Plně průhledný `backColour`: při `BorderStyle: 1` se kreslí jako stín za textem.
+        chunk: { maxCharsPerLine: 20 },
+        ass: { fontSize: 34, outline: 1.5, shadow: 0, backColour: "&HFF000000" },
+    },
+}
+
+/**
+ * Svislé usazení. Držíme `Alignment: 2` (dole na střed) a hýbeme jen `MarginV`,
+ * protože u zarovnání 5/8 mění libass význam okrajů a „střed" by skočil jinam, než
+ * ukazuje náhled. Čísla jsou v jednotkách `PlayResY` (864) měřená ODSPODU:
+ * 290 = nad spodní UI lištou IG, 620 = pod horní lištou.
+ */
+const POSITION_MARGIN_V: Record<SubtitlePosition, number> = { bottom: 290, center: 400, top: 620 }
+
+/** Velikost škáluje písmo i šířku řádku PROTI SOBĚ — větší text, míň znaků na řádek. */
+const SIZE_SCALE: Record<SubtitleSize, number> = { s: 0.85, m: 1, l: 1.2 }
+
+export const SUBTITLE_STYLE_DEFAULT: Required<Pick<SubtitleStyleConfig, "preset" | "position" | "size">> = {
+    preset: "classic",
+    position: "bottom",
+    size: "m",
+}
+
+export function isSubtitlePreset(v: unknown): v is SubtitlePreset {
+    return v === "classic" || v === "cards" || v === "minimal"
+}
+
+/** `#RRGGBB` (s mřížkou i bez). Cokoli jiného se zahodí — do ASS se nesmí dostat řetězec, který libass nepřečte. */
+function isHexColour(v: unknown): v is string {
+    return typeof v === "string" && /^#?[0-9a-fA-F]{6}$/.test(v.trim())
+}
+
+/** `#RRGGBB` → `&HAABBGGRR` (ASS má bajty obráceně a alfu napřed; `00` = plně viditelné). */
+export function hexToAssColour(hex: string, alpha = "00"): string {
+    const h = hex.trim().replace(/^#/, "").toUpperCase()
+    return `&H${alpha.toUpperCase()}${h.slice(4, 6)}${h.slice(2, 4)}${h.slice(0, 2)}`
+}
+
+/** Clamp pro `validateConfig()` — nikdy nevrací `undefined` a nikdy nepustí neznámou hodnotu dál. */
+export function clampSubtitleStyle(raw: SubtitleStyleConfig | undefined): SubtitleStyleConfig {
+    const position = raw?.position && raw.position in POSITION_MARGIN_V ? raw.position : SUBTITLE_STYLE_DEFAULT.position
+    const size = raw?.size && raw.size in SIZE_SCALE ? raw.size : SUBTITLE_STYLE_DEFAULT.size
+    return {
+        preset: isSubtitlePreset(raw?.preset) ? raw.preset : SUBTITLE_STYLE_DEFAULT.preset,
+        position,
+        size,
+        ...(isHexColour(raw?.color) ? { color: raw!.color!.trim() } : {}),
+        ...(isHexColour(raw?.accent) ? { accent: raw!.accent!.trim() } : {}),
+    }
+}
+
+export interface ResolvedSubtitleStyle {
+    /** Override pro `chunkForSubtitles` — šířka řádku se mění s velikostí písma. */
+    chunkOpts: Partial<SubtitleChunkOpts>
+    /** Override pro `buildAss`. */
+    assStyle: Partial<AssStyle>
+    /** Co se z nastavení skutečně použilo — tohle se ukládá do `ig_posts.video_source`. */
+    style: SubtitleStyleConfig
+}
+
+/**
+ * Styl značky (nebo jednorázový override u přerenderování) → hotové vstupy pro
+ * `chunkForSubtitles` a `buildAss`. Čistá funkce bez IO; všechny tři presety
+ * hlídá `scripts/test-reel-pipeline.ts`.
+ */
+export function resolveSubtitleStyle(
+    source: { subtitleStyle?: SubtitleStyleConfig } | SubtitleStyleConfig | undefined,
+): ResolvedSubtitleStyle {
+    const raw = source && "subtitleStyle" in source
+        ? (source as { subtitleStyle?: SubtitleStyleConfig }).subtitleStyle
+        : (source as SubtitleStyleConfig | undefined)
+    const style = clampSubtitleStyle(raw)
+    const preset = SUBTITLE_PRESETS[style.preset]
+    const scale = SIZE_SCALE[style.size ?? "m"]
+
+    const baseFontSize = preset.ass.fontSize ?? ASS_DEFAULTS.fontSize
+    const baseChars = preset.chunk.maxCharsPerLine ?? SUBTITLE_DEFAULTS.maxCharsPerLine
+
+    const assStyle: Partial<AssStyle> = {
+        ...preset.ass,
+        fontSize: Math.round(baseFontSize * scale),
+        marginV: POSITION_MARGIN_V[style.position ?? "bottom"],
+        ...(style.color ? { primaryColour: hexToAssColour(style.color) } : {}),
+        // Akcent barví to, co je u presetu vidět: u `cards` podkladový box, jinde obrys.
+        ...(style.accent
+            ? style.preset === "cards"
+                ? { backColour: hexToAssColour(style.accent, "14") }
+                : { outlineColour: hexToAssColour(style.accent) }
+            : {}),
+    }
+
+    return {
+        chunkOpts: { ...preset.chunk, maxCharsPerLine: Math.max(8, Math.round(baseChars / scale)) },
+        assStyle,
+        style,
+    }
+}
+
+/**
+ * Uživatelem upravené karty (text + čas) → `SubtitleCard[]` se zalomením podle
+ * AKTUÁLNÍHO stylu. Text je uživatelův (nepřepisujeme ho), ale zalomení musí
+ * odpovídat zvolené šířce řádku — jinak by po přepnutí presetu přetekl.
+ */
+export function cardsFromEdits(
+    edits: { text: string; start: number; end: number }[],
+    opts: Partial<SubtitleChunkOpts> = {},
+): SubtitleCard[] {
+    const o = { ...SUBTITLE_DEFAULTS, ...opts }
+    return edits
+        .filter(c => c.text.trim() && c.end > c.start)
+        .map(c => ({
+            start: round3(c.start),
+            end: round3(Math.max(c.start + 0.1, c.end)),
+            lines: wrapWords(c.text.trim().split(/\s+/).filter(Boolean), o.maxCharsPerLine).slice(0, 3),
+        }))
+        .sort((a, b) => a.start - b.start)
 }

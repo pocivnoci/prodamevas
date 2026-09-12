@@ -202,6 +202,23 @@ seedované z top postů při onboardingu. Režim `mode: "text"` scenárista už 
 orchestrátor ho zatím nezpracuje — `scriptToScenes` dočasně mapuje `card` → `narration`,
 aby pipeline dojela (TODO pro R4).
 
+## Titulky — co je hotové (12. 9. 2026)
+
+Titulky se už nedají „odepsat" jen přegenerováním celého reelu. Po kompozici zůstává
+`ig_posts.video_source` (surové MP4 ze Seedance, voiceover WAV, časová osa, karty,
+`atempo`, délka, styl) a job `reel_recompose` z toho složí nové video s novými titulky
+— **bez Seedance, bez TTS, za 0 kreditů**. Cover se nemění. V detailu příspěvku jde
+přepsat text karet (časy sedí na řeči, a proto se needitují) a přepnout preset;
+krok se ukládá do `edit_history` a jde vrátit zpět.
+
+Vzhled titulků je nově `ClientConfig.subtitleStyle` — preset `classic | cards |
+minimal`, pozice, velikost a barvy, s defaultem ve `validateConfig()`. `classic` je
+dnešní vzhled, takže značka bez nastavení nic nepozná. Preset `cards` (velké písmo
+v plném boxu) je zároveň to, co bude potřebovat **textový režim** z fáze 3.
+
+Co zůstává nehotové (fáze 3): hudba, textový režim jako celek a vypálení
+`onScreenHook` ze scenáristy jako samostatné karty v první 1,5 s.
+
 ## Co se NEMĚNÍ
 
 Audio-first pořadí (délka videa z řeči), checkpointy a parkování, titulky v kódu,

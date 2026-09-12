@@ -11,6 +11,7 @@ import type { ShowcaseKit } from "../showcase-kit"
 import type { CtaPolicy } from "../cta-policy"
 import type { TimedLine } from "../reel-audio"
 import type { ReelStoryboard } from "../reel-director"
+import type { ReelVideoSource } from "../../lib/types/database"
 
 export type ProgressReporter = (stage: string, progress: number, message: string) => Promise<void>
 
@@ -156,4 +157,7 @@ export interface RenderResult {
      *  or the fallback "gemini-3.1-flash-image") — truthful even when a mid-generation 503
      *  silently dropped to the weaker fallback tier. Distinct from the static getModel("image"). */
     imageModel?: string
+    /** Reel only — zdrojové artefakty do `ig_posts.video_source`, aby šly titulky
+     *  přerenderovat bez nového videa (0 kreditů). Viz `instagram/reel-recompose.ts`. */
+    videoSource?: ReelVideoSource
 }

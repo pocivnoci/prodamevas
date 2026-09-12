@@ -13,6 +13,7 @@ import { findFinishedCopy } from "./format-brief"
 import { reconcileFormats } from "./reconcile"
 import { isFeedPattern } from "../../lib/feed-pattern"
 import { castVoice, isKnownVoice, type TtsProviderId } from "../../lib/voice-library"
+import { clampSubtitleStyle } from "../reel-subtitles"
 import { industryRiskFamily } from "../../lib/industry-risk"
 import { resolveIndustryVisual } from "../industry-visual-profiles"
 import { CAROUSEL_MAX_TOTAL_SLIDES } from "../caption-generator"
@@ -306,6 +307,11 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // Grid rhythm. Clamped, not defaulted-through: engine code indexes ARCHETYPE_GROUPS by
         // the derived visual mode, so a garbage value must never reach it.
         feedPattern: isFeedPattern(config.feedPattern) ? config.feedPattern : "none",
+        // Vzhled vypálených titulků v reelech. Clamp, ne default-through: `buildAss`
+        // skládá z presetu ASS styl a neznámou hodnotu by poznal až divák na videu.
+        // Default `classic` dole uprostřed ve střední velikosti = dnešní vzhled, takže
+        // značka, která o poli neví, dostane přesně to, co dostávala dosud.
+        subtitleStyle: clampSubtitleStyle(config.subtitleStyle),
         // Kolik smí být na obrázcích vymyšleno. Clamp, ne default-through: engine
         // podle hodnoty větví prompt i roli referenčních fotek, takže se k němu
         // nesmí dostat nic mimo tři známé stavy.

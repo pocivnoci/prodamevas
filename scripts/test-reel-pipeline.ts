@@ -18,7 +18,7 @@ import { wavInfo, pcmToWav, buildTimeline, assembleVoiceoverWav, wordCount, TIME
 import { CLIENT_BUCKET_MIME_TYPES } from "../lib/storage-buckets"
 import sharp from "sharp"
 import { referenceTooSmall, upscaleReference } from "../instagram/reel-references"
-import { chunkForSubtitles, wrapWords, buildAss, assTime, escapeAssText } from "../instagram/reel-subtitles"
+import { chunkForSubtitles, wrapWords, buildAss, assTime, escapeAssText, resolveSubtitleStyle, cardsFromEdits, hexToAssColour, ASS_DEFAULTS } from "../instagram/reel-subtitles"
 import { validateStoryboard, parseStoryboard, finalizeVideoPrompt, buildReelDirectorPrompt, type ReelStoryboard } from "../instagram/reel-storyboard"
 import { buildTaskBody, parseTaskStatus, MAX_REFERENCES } from "../instagram/seedance-client"
 import { buildComposeArgs, escapeFilterPath } from "../instagram/reel-compositor"
@@ -160,6 +160,71 @@ check("ASS: hlavička, styl s Interem a bezpečná zóna", /PlayResX: 486/.test(
 check("ASS: WrapStyle 2 — zalamujeme sami", /WrapStyle: 2/.test(ass))
 check("ASS: každá karta je Dialogue s \\N mezi řádky", (ass.match(/^Dialogue: /gm) || []).length === cards.length && ass.includes("\\N"))
 check("ASS: diakritika zůstává", ass.includes("rozdělit") || ass.includes("dlouhá"))
+
+console.log("\n🎨 STYL TITULKŮ A REKOMPOZICE\n")
+// Titulek je vypálený do videa — jediná oprava překlepu je složit kompozici znovu.
+// Aby to šlo bez nového Seedance videa a bez TTS, musí po reelu zbýt artefakty.
+for (const preset of ["classic", "cards", "minimal"] as const) {
+    const r = resolveSubtitleStyle({ subtitleStyle: { preset } })
+    const assForPreset = buildAss(chunkForSubtitles([{ text: "Ranní káva má chuť, kterou si pamatujete.", start: 0.5, end: 4 }], r.chunkOpts), r.assStyle)
+    const styleLine = (assForPreset.match(/^Style: Chrlit,.*$/m) || [""])[0]
+    check(`preset ${preset}: čistá funkce vrací chunkOpts i ASS styl`, r.style.preset === preset && typeof r.chunkOpts.maxCharsPerLine === "number" && typeof r.assStyle.fontSize === "number")
+    check(`preset ${preset}: ASS styl má 23 polí, bundlovaný font a platné barvy`,
+        styleLine.split(",").length === 23 && /,Inter,/.test(styleLine) && (styleLine.match(/&H[0-9A-F]{8}/g) || []).length === 4, styleLine)
+    check(`preset ${preset}: karty se vejdou na svou šířku řádku`,
+        chunkForSubtitles([{ text: "Ranní káva má chuť, kterou si pamatujete.", start: 0.5, end: 4 }], r.chunkOpts).every(c => c.lines.every(l => l.length <= r.chunkOpts.maxCharsPerLine!)))
+}
+const classic = resolveSubtitleStyle(undefined)
+const cardsPreset = resolveSubtitleStyle({ preset: "cards" })
+const minimalPreset = resolveSubtitleStyle({ preset: "minimal" })
+check("bez konfigurace je default classic dole ve střední velikosti", classic.style.preset === "classic" && classic.style.position === "bottom" && classic.style.size === "m")
+check("cards: větší písmo, míň znaků na řádek, neprůhledný box", (cardsPreset.assStyle.fontSize ?? 0) > (classic.assStyle.fontSize ?? 0) && (cardsPreset.chunkOpts.maxCharsPerLine ?? 99) < (classic.chunkOpts.maxCharsPerLine ?? 0) && cardsPreset.assStyle.borderStyle === 3)
+check("minimal: bez podkladu (plná průhlednost) a tenký obrys", minimalPreset.assStyle.backColour === "&HFF000000" && (minimalPreset.assStyle.outline ?? 9) < (classic.assStyle.outline ?? ASS_DEFAULTS.outline))
+check("velikost hýbe písmem i šířkou řádku proti sobě", (() => {
+    const s = resolveSubtitleStyle({ preset: "classic", size: "s" }), l = resolveSubtitleStyle({ preset: "classic", size: "l" })
+    return (s.assStyle.fontSize ?? 0) < (l.assStyle.fontSize ?? 0) && (s.chunkOpts.maxCharsPerLine ?? 0) > (l.chunkOpts.maxCharsPerLine ?? 0)
+})())
+check("pozice mění jen MarginV (Alignment zůstává 2 — u 5/8 mění libass význam okrajů)", (() => {
+    const margins = (["bottom", "center", "top"] as const).map(position => resolveSubtitleStyle({ preset: "classic", position }).assStyle.marginV)
+    return new Set(margins).size === 3 && margins.every(m => typeof m === "number" && m! > 0 && m! < ASS_DEFAULTS.playResY)
+})())
+check("nesmyslný preset i barva spadnou na default, ne do ASS", (() => {
+    const r = resolveSubtitleStyle({ preset: "neon" as never, color: "rgb(1,2,3)" as never, size: "xxl" as never })
+    return r.style.preset === "classic" && r.style.size === "m" && r.style.color === undefined && r.assStyle.primaryColour === undefined
+})())
+check("hex barva → ASS &HAABBGGRR (obrácené pořadí bajtů)", hexToAssColour("#FF8800") === "&H000088FF" && resolveSubtitleStyle({ preset: "classic", color: "#FF8800" }).assStyle.primaryColour === "&H000088FF")
+check("upravená karta se zalomí podle NOVÉ šířky řádku, ne podle staré", (() => {
+    const out = cardsFromEdits([{ text: "Tohle je nově napsaný delší titulek", start: 1, end: 3 }], cardsPreset.chunkOpts)
+    return out.length === 1 && out[0].lines.every(l => l.length <= cardsPreset.chunkOpts.maxCharsPerLine!) && out[0].lines.join(" ").includes("nově")
+})())
+check("prázdná i obrácená karta se zahodí (nesmyslné časy do ASS nepatří)", cardsFromEdits([{ text: "  ", start: 0, end: 2 }, { text: "ok", start: 3, end: 2 }]).length === 0)
+
+const subsSrc = readFileSync("instagram/reel-subtitles.ts", "utf-8")
+const configIdxSrc = readFileSync("instagram/configs/index.ts", "utf-8")
+check("subtitleStyle má default ve validateConfig (clamp, ne default-through)", /subtitleStyle: clampSubtitleStyle\(config\.subtitleStyle\)/.test(configIdxSrc))
+check("orchestrátor styl SKUTEČNĚ předává do chunkForSubtitles i buildAss", /resolveSubtitleStyle\(config\)/.test(orchestratorSrc) && /chunkForSubtitles\(vc\.timeline, subtitles\.chunkOpts\)/.test(orchestratorSrc) && /buildAss\(cards, subtitles\.assStyle\)/.test(orchestratorSrc))
+check("titulky sahají jen po bundlovaný font", /fontName: "Inter"/.test(subsSrc) && !/fontName: "(?!Inter)/.test(subsSrc))
+
+check("orchestrátor ukládá surové video a voiceover po kompozici NEMAŽE",
+    /ig-reels\/\$\{ts\}-raw\.mp4/.test(orchestratorSrc) && /videoSource/.test(orchestratorSrc) && !/storage\.from\(vc\.voiceoverBucket\)\.remove/.test(orchestratorSrc))
+check("surové video se hlídá proti kvótě bucketu", /CLIENT_BUCKET_SIZE_LIMIT/.test(orchestratorSrc))
+check("autopilot zapisuje video_source na řádek příspěvku", /video_source: renderResult\?\.videoSource \?\? null/.test(readFileSync("instagram/autopilot.ts", "utf-8")))
+
+// Komentáře pryč: modul VYSVĚTLUJE, proč se Seedance ani creditGuard nevolá, a ta
+// vysvětlivka by negativní aserci shodila vlastní dokumentací.
+const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1")
+const recomposeSrc = stripComments(readFileSync("instagram/reel-recompose.ts", "utf-8"))
+check("rekompozice nevolá Seedance, TTS ani jiný model", !/seedance-client|generateVoiceover|synthesizeNarration|gemini-client|directReel/.test(recomposeSrc))
+check("rekompozice nic neúčtuje (žádný creditGuard ani trackSpend)", !/creditGuard|recordUnits|trackSpend/.test(recomposeSrc))
+check("rekompozice je scoped na client_id (multi-tenancy)", (recomposeSrc.match(/\.eq\("client_id", clientId\)/g) || []).length >= 2)
+check("rekompozice zapisuje krok do edit_history se scope subtitles", /scope: "subtitles"/.test(recomposeSrc) && /edit_history/.test(recomposeSrc))
+check("rekompozice běží jobem, ne server action (ffmpeg je na desítky sekund)", (() => {
+    const route = readFileSync("app/api/ig-run-job/route.ts", "utf-8")
+    const action = readFileSync("app/actions/post-edit-actions.ts", "utf-8")
+    return /kind === "reel_recompose"/.test(route) && /runReelRecompose/.test(route)
+        && /recomposeReelSubtitles/.test(action) && !/runReelRecompose/.test(action)
+        && /charged: "none"/.test(action.slice(action.indexOf("recomposeReelSubtitles")))
+})())
 
 console.log("\n🎭 STORYBOARD\n")
 const good: ReelStoryboard = {

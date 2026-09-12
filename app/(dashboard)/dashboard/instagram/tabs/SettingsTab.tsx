@@ -15,6 +15,7 @@ import { ConsultationSection } from "./ConsultationSection"
 import { FEED_PATTERNS, computeSlotIntent, type FeedPatternId } from "@/lib/feed-pattern"
 import { PHOTO_POLICY_OPTIONS } from "@/lib/photo-policy"
 import { VOICE_LIBRARY, findVoice } from "@/lib/voice-library"
+import { SUBTITLE_PRESET_OPTIONS, SUBTITLE_POSITION_OPTIONS, SUBTITLE_SIZE_OPTIONS } from "@/lib/subtitle-presets"
 import { getConfigBrandImages } from "@/instagram/configs/types"
 import { Hint, HINTS } from "./Hint"
 import { FACT_CHECK_MODES, factCheckModeIndex } from "@/lib/fact-check-modes"
@@ -1660,6 +1661,54 @@ function VisualSection({ config, updateField, handleLogoUpload, logoUploading, p
                             Zatím nemáte nahranou ani jednu fotku značky — do té doby se nastavení nemá čeho chytit.
                         </span>
                     )}
+                </p>
+            </SectionCard>
+
+            <SectionCard
+                title="Titulky v reelech"
+                description="Vzhled titulků, které se vypalují do videa. Platí pro nové reely; u hotového reelu se dá styl přepnout v detailu příspěvku (bez kreditů)"
+            >
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {SUBTITLE_PRESET_OPTIONS.map(o => {
+                        const active = (config.subtitleStyle?.preset || "classic") === o.id
+                        return (
+                            <button
+                                key={o.id}
+                                onClick={() => updateField(["subtitleStyle", "preset"], o.id)}
+                                className={`text-left p-4 rounded-sm border transition-all ${active
+                                    ? "border-aisummit-cinnabar/50 bg-aisummit-cinnabar/10"
+                                    : "border-white/5 bg-[#0a0a0a] hover:border-white/20"}`}
+                            >
+                                <p className={`text-[10px] font-bold uppercase tracking-widest ${active ? "text-aisummit-cinnabar" : "text-white/60"}`}>
+                                    {o.label}
+                                </p>
+                                <p className="text-[9px] text-white/30 mt-1.5 leading-relaxed">{o.description}</p>
+                            </button>
+                        )
+                    })}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                        <FieldLabel hint="Svisle v bezpečné zóně Instagramu — dole nad UI lištou, na střed, nebo nahoře">Pozice</FieldLabel>
+                        <select value={config.subtitleStyle?.position || "bottom"}
+                            onChange={(e) => updateField(["subtitleStyle", "position"], e.target.value)}
+                            className={inputClass}>
+                            {SUBTITLE_POSITION_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <FieldLabel hint="Větší písmo = míň slov na řádek, karty se střídají rychleji">Velikost</FieldLabel>
+                        <select value={config.subtitleStyle?.size || "m"}
+                            onChange={(e) => updateField(["subtitleStyle", "size"], e.target.value)}
+                            className={inputClass}>
+                            {SUBTITLE_SIZE_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                        </select>
+                    </div>
+                </div>
+                <p className="text-[9px] text-white/25 mt-3 leading-relaxed">
+                    Instagram u reelu titulkovou stopu nebere — titulky se <strong className="text-white/40">vypalují do obrazu</strong>.
+                    Změna se proto projeví až na nově vyrobeném reelu; u hotového reelu ho jde přerenderovat v detailu příspěvku,
+                    a to zdarma (nové video se negeneruje).
                 </p>
             </SectionCard>
 

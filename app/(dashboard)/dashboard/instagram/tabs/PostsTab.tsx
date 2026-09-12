@@ -17,6 +17,7 @@ import { trackEvent } from "@/lib/analytics"
 import { parsePostMedia } from "@/lib/media-urls"
 import { isReelMedium, REEL_LABELS } from "@/lib/reel-media"
 import { ReelPlayer } from "./ReelPlayer"
+import { ReelSubtitlesPanel } from "./ReelSubtitlesPanel"
 import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
 import { formatCzk, LOWEST_MONTHLY_HALERU } from "@/lib/pricing"
 import { isMediumType, MEDIA_CREDITS } from "@/lib/credits"
@@ -658,7 +659,9 @@ function PostDetailModal({
                                     {media.kind === "reel" && media.videoUrl ? (
                                         // Detail reelu = přehrávač s ovládáním a zvukem. Do 9/2026 sem
                                         // šla URL videa do <img> a reel se „nezobrazil".
-                                        <ReelPlayer controls videoUrl={media.videoUrl} coverUrl={media.coverUrl} className="w-full max-h-[70vh] aspect-[9/16] rounded-sm" />
+                                        // `key` na URL: po přerenderování titulků má video jinou
+                                        // adresu a bez remountu by <source> zůstal na staré.
+                                        <ReelPlayer controls key={media.videoUrl} videoUrl={media.videoUrl} coverUrl={media.coverUrl} className="w-full max-h-[70vh] aspect-[9/16] rounded-sm" />
                                     ) : (
                                         <RegionSelectableImage
                                             src={imageUrls[carouselIndex] || imageUrls[0]}
@@ -930,6 +933,25 @@ function PostDetailModal({
                         </div>
                     </div>
                 </div>
+
+                {/* Titulky reelu — vypálené do videa, přerenderování stojí 0 kreditů */}
+                {media.kind === "reel" && (
+                    <ReelSubtitlesPanel
+                        post={post}
+                        projectId={projectId}
+                        onDone={(imageUrl, cards) => {
+                            // Modal drží vlastní kopii řádku (`editedPost`), takže refresh
+                            // seznamu za ním by nové video neukázal — přehrávač se překreslí
+                            // odsud a seznam se dorovná zvlášť.
+                            setEditedPost({
+                                ...post,
+                                image_url: imageUrl,
+                                video_source: post.video_source ? { ...post.video_source, cards } : post.video_source,
+                            })
+                            onRefresh()
+                        }}
+                    />
+                )}
 
                 {/* Edit Panel — targeted retouch; full re-generation is the separate opt-in below */}
                 <PostEditPanel

@@ -65,12 +65,63 @@ export interface IGPost {
     /** Previous states, one pushed before each editPost() call (newest last, capped at 10).
      *  Only the length matters to the UI — it drives the "Vrátit zpět" button. */
     edit_history?: PostEditHistoryEntry[] | null
+    /** Zdrojové artefakty reelu (`ig_posts.video_source`) — bez nich se titulky
+     *  přerenderovat nedají. NULL u všeho, co není reel, a u reelů před 9/2026. */
+    video_source?: ReelVideoSource | null
+}
+
+/** Jedna titulková karta tak, jak ji vidí uživatel: text a čas ve VÝSLEDNÉM videu. */
+export interface ReelSubtitleCard {
+    text: string
+    start: number
+    end: number
+}
+
+/**
+ * Co po reelu zbude, aby šly titulky přerenderovat bez nového videa.
+ *
+ * IG u reelu nebere titulkovou stopu — titulky jsou vypálené do obrazu, takže
+ * „přepiš titulek" = složit kompozici znovu (`instagram/reel-recompose.ts`).
+ * K tomu je potřeba surové video ze Seedance a voiceover WAV; obojí se do 9/2026
+ * zahazovalo hned po kompozici. Zdroj pravdy o tvaru sloupce je tenhle typ
+ * (migrace `supabase/migrations/20260912_reel_video_source.sql`).
+ */
+export interface ReelVideoSource {
+    /** Bucket značky (`config.storageBucket`) — obě cesty jsou relativní k němu. */
+    bucket: string
+    /** Surové MP4 ze Seedance, BEZ titulků a voiceoveru. Chybí, když bylo nad kvótou bucketu. */
+    rawVideoPath?: string
+    /** Složená voiceover stopa (WAV). Od 9/2026 se po kompozici nemaže. */
+    voiceoverPath?: string
+    /** Bucket voiceoveru, když se od `bucket` liší (klient si ho přenastavil mezi
+     *  checkpointem a kompozicí). Prázdné = tentýž bucket. */
+    voiceoverBucket?: string
+    /** Věty narrace s časy — z nich se karty chunkují znovu, když se změní styl. */
+    timeline: ReelSubtitleCard[]
+    /** Karty, které se skutečně vypálily. Tohle edituje uživatel v detailu příspěvku. */
+    cards: ReelSubtitleCard[]
+    /** Zrychlení voiceoveru z časové osy (1 = žádné) — kompozice ho musí zopakovat. */
+    atempo: number
+    durationSeconds: number
+    /** Styl titulků, se kterým se reel vyrenderoval (`SubtitleStyleConfig`). */
+    subtitleStyle?: {
+        preset: "classic" | "cards" | "minimal"
+        position?: "bottom" | "center" | "top"
+        size?: "s" | "m" | "l"
+        color?: string
+        accent?: string
+    }
+    /** Storyboard režiséra — kontext pro pozdější diagnostiku, kompozice ho nečte. */
+    storyboard?: unknown
+    /** `voiceover` = dnešní reel s namluvenou narrací. Připraveno na textový režim (R4). */
+    mode: "voiceover" | "text"
 }
 
 /** One undo step for editPost() — the post's state BEFORE that edit was applied. */
 export interface PostEditHistoryEntry {
     at: string
-    scope: "text" | "image" | "both"
+    /** `subtitles` = přerenderování titulků reelu (job `reel_recompose`, 0 kreditů). */
+    scope: "text" | "image" | "both" | "subtitles"
     instruction: string
     preserve?: string | null
     region?: { x: number; y: number; w: number; h: number } | null
@@ -80,6 +131,9 @@ export interface PostEditHistoryEntry {
     image_style: string | null
     caption: string | null
     hashtags: string[] | null
+    /** Jen u `scope: "subtitles"` — karty a styl PŘED přerenderováním, aby vrácení
+     *  zpět nevrátilo staré video s novými kartami. */
+    video_source?: ReelVideoSource | null
 }
 
 // ─── IG Post Type ────────────────────────────────────────────

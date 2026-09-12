@@ -2150,7 +2150,16 @@ test("15.2 úprava se zapisuje na místě a nikdy nezaloží nový řádek", () 
     const code = codeOnly("app/actions/post-edit-actions.ts")
     // Stejná doktrína jako u plan draftů a schvalování produktových řad: jediný
     // podmíněný zápis vlastněný klientem, žádný insert fallback.
-    assert(!code.includes(".insert("), "editPost nesmí vkládat nový příspěvek — úprava je in-place")
+    // Do 9/2026 tu stálo „soubor nesmí obsahovat .insert(" — dokud byl jediným
+    // zápisem update příspěvku, byla to táž věta. Od přerenderování titulků reelu
+    // (`recomposeReelSubtitles`) soubor ZAKLÁDÁ ŘÁDEK V `ig_jobs`, protože ffmpeg
+    // patří do routy s 800s stropem, ne do server action. Chráněná věc se tím
+    // nemění: do `ig_posts` se pořád jen aktualizuje.
+    const postsInsert = /from\("ig_posts"\)[\s\S]{0,200}?\.insert\(/.test(code)
+    assert(!postsInsert, "editPost nesmí vkládat nový příspěvek — úprava je in-place")
+    for (const m of code.matchAll(/\.from\("([a-z_]+)"\)[\s\S]{0,200}?\.insert\(/g)) {
+        assert(m[1] === "ig_jobs", `insert do ${m[1]} sem nepatří — jediný povolený je job rekompozice titulků`)
+    }
     assert(code.includes('.eq("client_id", clientId)'), "každý zápis musí být omezený na klienta")
     assert(code.includes("edit_history"), "předchozí stav se musí uložit do historie")
     assert(code.includes("revertPostEdit"), "musí existovat cesta zpět")
@@ -2583,6 +2592,38 @@ test("17.12 TTS za rozhraním: poskytovatel v instagram/tts, spike skripty bez p
         assert(!/from "\.\.\/(instagram|app|lib)\//.test(src), `${f}: spike skript nesmí importovat produkční modul`)
         assert(!fileContains("package.json", f), `${f}: živý spike nepatří do guardu`)
     }
+})
+
+test("17.13 titulky reelu jdou přepsat bez nového videa a bez kreditů", () => {
+    // Titulky jsou VYPÁLENÉ (IG u reelu titulkovou stopu nebere), takže překlep se
+    // do 9/2026 dal opravit jen přegenerováním celého reelu za 5–10 kreditů — a
+    // vrátilo to jiné video (Seedance není deterministické). Aby šla kompozice
+    // složit znovu, musí po reelu zbýt surové video a voiceover.
+    assert(fileExists("supabase/migrations/20260912_reel_video_source.sql"), "video_source potřebuje migraci")
+    assert(fileContains("supabase/migrations/20260912_reel_video_source.sql", "COMMENT ON COLUMN ig_posts.video_source"),
+        "sloupec musí mít komentář — jinak nikdo neví, co v tom JSONB je")
+
+    const reel = codeOnly("instagram/orchestrators/reel-orchestrator.ts")
+    assert(/ig-reels\/\$\{ts\}-raw\.mp4/.test(reel), "surové video ze Seedance se musí uložit, jinak není z čeho přerenderovat")
+    assert(!/storage\.from\(vc\.voiceoverBucket\)\.remove/.test(reel), "voiceover WAV se po kompozici NESMÍ mazat — potřebuje ho rekompozice")
+    assert(/resolveSubtitleStyle\(config\)/.test(reel), "styl titulků patří značce; buildAss override uměl, ale nikdo mu ho nedával")
+
+    const recompose = codeOnly("instagram/reel-recompose.ts")
+    assert(!/seedance-client|generateVoiceover|synthesizeNarration/.test(recompose),
+        "rekompozice nesmí sáhnout na Seedance ani TTS — to je celý smysl nulové ceny")
+    assert(!/creditGuard|trackSpend|recordUnits/.test(recompose), "rekompozice je zdarma: žádný guard, žádné účtování")
+    assert(/\.eq\("client_id", clientId\)/.test(recompose), "každý ig_* dotaz filtruje client_id (multi-tenancy)")
+
+    // Cesta: server action jen založí job, ffmpeg běží v routě s 800s stropem.
+    const route = codeOnly("app/api/ig-run-job/route.ts")
+    assert(/kind === "reel_recompose"/.test(route) && /runReelRecompose/.test(route), "rekompozice je druh jobu v ig-run-job")
+    const branch = route.slice(route.indexOf('kind === "reel_recompose"'), route.indexOf("const deadlineAt"))
+    assert(!/creditGuard|reconcileJobCharge|refundJobCharge/.test(branch), "v rekompoziční větvi není co účtovat ani vracet")
+    assert(/export async function recomposeReelSubtitles/.test(codeOnly("app/actions/post-edit-actions.ts")), "server action zakládá job a vrací jobId")
+
+    // Default stylu — bez něj by engine indexoval preset podle undefined.
+    assert(/subtitleStyle: clampSubtitleStyle/.test(codeOnly("instagram/configs/index.ts")), "subtitleStyle potřebuje clamp ve validateConfig")
+    assert(fileContains("app/actions/admin-actions.ts", "edit_history, video_source"), "detail příspěvku musí video_source dostat ze seznamu")
 })
 
 // ═══════════════════════════════════════════════════════════

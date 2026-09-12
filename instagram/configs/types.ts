@@ -140,6 +140,29 @@ export interface PostFormat {
     reelDuration?: number
 }
 
+// ─── Titulky reelů ──────────────────────────────────────────
+
+/** Tři presety, ne volný CSS. Preset mapuje na hotovou dvojici (chunkOpts + ASS styl)
+ *  v `instagram/reel-subtitles.ts`; cokoli mimo tyhle tři hodnot by `buildAss` poslalo
+ *  s neznámým stylem do libassu, a to se pozná až na vyrenderovaném videu. */
+export type SubtitlePreset = "classic" | "cards" | "minimal"
+export type SubtitlePosition = "bottom" | "center" | "top"
+export type SubtitleSize = "s" | "m" | "l"
+
+/** Jak vypadají vypálené titulky reelu. Značka to nastavuje jednou v Nastavení;
+ *  jednotlivý reel si to může přebít při přerenderování (`reel_recompose`). */
+export interface SubtitleStyleConfig {
+    preset: SubtitlePreset
+    /** Svislé usazení v bezpečné zóně IG. Default `bottom` (nad spodní UI lištou). */
+    position?: SubtitlePosition
+    /** Velikost písma. Menší velikost = víc znaků na řádek, ne užší karta. */
+    size?: SubtitleSize
+    /** Barva textu, `#RRGGBB`. Prázdné = bílá. */
+    color?: string
+    /** Barva obrysu/podkladu, `#RRGGBB`. Prázdné = černá. */
+    accent?: string
+}
+
 /** Stropy délky kreativního briefu formátu — drží formát INVARIANTEM.
  *
  *  Původních 400/600/400 znaků si storyboard vynutilo samo: do takového prostoru model
@@ -492,6 +515,12 @@ export interface ClientConfig {
      *  oboru a publika — ne konstanta: jediný sdílený preset „Kore" byl nejčastější
      *  stížnost na reely (všichni klienti zněli stejně). */
     voice?: BrandVoiceCasting
+
+    /** Jak vypadají VYPÁLENÉ titulky v reelech téhle značky. Vypálené proto, že IG
+     *  u reelu žádnou titulkovou stopu nebere — mění se tím obraz, ne metadata.
+     *  Default doplňuje `validateConfig()` (clamp, ne default-through: `buildAss`
+     *  z presetu skládá ASS styl a nesmí dostat neznámou hodnotu). */
+    subtitleStyle?: SubtitleStyleConfig
 
     /** Per-post-type format overrides (aspect ratio, medium, overlay style) */
     postFormats?: Record<string, PostFormat>

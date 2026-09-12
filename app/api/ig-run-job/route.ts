@@ -47,6 +47,34 @@ export async function POST(req: Request) {
     }
 
     const config = job.config as any
+
+    // ── Druhý druh jobu: přerenderování titulků reelu ──
+    // Jobs se rozlišují polem `config.kind` — chybějící hodnota je historická
+    // generace příspěvku (`generateOnePost`). Rekompozice běží tudy, a ne přes
+    // server action, protože ffmpeg u dvacetivteřinového reelu žere jednotky až
+    // desítky sekund; server action má kratší strop než tahle routa (800 s).
+    // Nestojí ŽÁDNÝ kredit: nevolá se Seedance, TTS ani jiný model, takže tu
+    // není co účtovat, reconcilovat ani refundovat.
+    if (config?.kind === "reel_recompose") {
+        try {
+            const { runReelRecompose } = await import("@/instagram/reel-recompose")
+            const { imageUrl, cards } = await runReelRecompose(
+                { clientId: job.client_id, postId: config.postId, cards: config.cards, subtitleStyle: config.subtitleStyle },
+                async (progress, message) => { await updateJob({ status: "video", progress, agent_message: message }) },
+            )
+            await updateJob({
+                status: "done", progress: 100, agent_message: "✅ Titulky přerenderované", retry_after: null,
+                result: { success: true, postId: config.postId, imageUrl, cards, cost: 0 },
+            })
+            return NextResponse.json({ success: true, jobId, postId: config.postId, imageUrl })
+        } catch (err: any) {
+            const msg = err?.message?.substring(0, 500) || "Unknown error"
+            console.error("ig-run-job reel_recompose error:", msg)
+            await updateJob({ status: "failed", agent_message: "❌ Přerenderování titulků selhalo", error: msg })
+            return NextResponse.json({ success: false, error: msg }, { status: 500 })
+        }
+    }
+
     // Strop lambdy: reel podle něj krájí čekání na video a raději se zaparkuje,
     // než aby ho Vercel zabil uprostřed pollingu.
     const deadlineAt = Date.now() + RENDER_BUDGET_MS

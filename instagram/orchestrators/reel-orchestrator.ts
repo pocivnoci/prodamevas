@@ -33,7 +33,9 @@ import { deliveryTags } from "../tts"
 import { referenceTooSmall, upscaleReference } from "../reel-references"
 import sharp from "sharp"
 import { createHash } from "crypto"
-import { chunkForSubtitles, buildAss } from "../reel-subtitles"
+import { chunkForSubtitles, buildAss, resolveSubtitleStyle } from "../reel-subtitles"
+import { CLIENT_BUCKET_SIZE_LIMIT } from "../../lib/storage-buckets"
+import type { ReelVideoSource } from "../../lib/types/database"
 import { composeReel } from "../reel-compositor"
 import { loadLogo } from "../logo-loader"
 import type { RenderContext, RenderResult, VideoCheckpoint } from "./types"
@@ -194,8 +196,11 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
 
     // ── 9. Kompozice: ducking + ASS titulky ──
     await report("video", 82, "🎞️ Skládám video, voiceover a titulky…")
-    const cards = chunkForSubtitles(vc.timeline)
-    const ass = buildAss(cards)
+    // Styl titulků patří ZNAČCE, ne enginu: `buildAss` override uměl od začátku,
+    // ale nikdo mu ho nedával, takže každý reel každého klienta vypadal stejně.
+    const subtitles = resolveSubtitleStyle(config)
+    const cards = chunkForSubtitles(vc.timeline, subtitles.chunkOpts)
+    const ass = buildAss(cards, subtitles.assStyle)
     let finalVideo: Buffer
     try {
         finalVideo = await composeReel({ videoBuffer: rawVideo, voiceoverWav, ass, atempo: vc.atempo, durationSeconds: vc.durationSeconds })
@@ -212,8 +217,40 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
     const ts = Date.now()
     const videoUrl = await uploadToBucket(bucket, `ig-reels/${ts}.mp4`, finalVideo, "video/mp4")
     console.log(`   ✓ Video URL: ${videoUrl}`)
-    // Voiceover už není potřeba — úklid je best-effort.
-    supabaseAdmin.storage.from(vc.voiceoverBucket).remove([vc.voiceoverPath]).then(() => {}, () => {})
+
+    // ── 10b. Zdrojové artefakty pro pozdější přerenderování titulků ──
+    // Titulky jsou vypálené (IG u reelu titulkovou stopu nebere), takže oprava
+    // překlepu = složit kompozici znovu. Bez surového videa a voiceoveru by to
+    // stálo celý reel znovu (5–10 kreditů) a vrátilo JINÉ video — proto se surové
+    // MP4 ukládá a voiceover se už NEMAŽE. Dohromady ~2× velikost hotového reelu,
+    // u 480p jednotky MB.
+    let rawVideoPath: string | undefined
+    if (rawVideo.length <= CLIENT_BUCKET_SIZE_LIMIT) {
+        try {
+            rawVideoPath = `ig-reels/${ts}-raw.mp4`
+            await uploadToBucket(bucket, rawVideoPath, rawVideo, "video/mp4")
+        } catch (rawErr) {
+            // Reel je hotový a nahraný — neuložený zdroj je ztráta pohodlí, ne dodávky.
+            // Ale musí to být vidět: bez něj se titulky editovat nedají (CLAUDE.md).
+            rawVideoPath = undefined
+            console.warn(`   ⚠️ Surové video se neuložilo (${String((rawErr as Error)?.message || rawErr).substring(0, 120)}) — titulky u tohohle reelu půjdou změnit jen přegenerováním`)
+        }
+    } else {
+        console.warn(`   ⚠️ Surové video má ${(rawVideo.length / 1024 / 1024).toFixed(1)} MB a nevejde se do kvóty bucketu (${CLIENT_BUCKET_SIZE_LIMIT / 1024 / 1024} MB) — titulky u tohohle reelu půjdou změnit jen přegenerováním`)
+    }
+    const videoSource: ReelVideoSource = {
+        bucket,
+        rawVideoPath,
+        voiceoverPath: vc.voiceoverPath,
+        ...(vc.voiceoverBucket !== bucket ? { voiceoverBucket: vc.voiceoverBucket } : {}),
+        timeline: vc.timeline.map(l => ({ text: l.text, start: l.start, end: l.end })),
+        cards: cards.map(c => ({ text: c.lines.join(" "), start: c.start, end: c.end })),
+        atempo: vc.atempo,
+        durationSeconds: vc.durationSeconds,
+        subtitleStyle: subtitles.style,
+        storyboard: vc.storyboard,
+        mode: "voiceover",
+    }
 
     // ── 11. Cover pro mřížku (native, s hookem) ──
     await report("video", 92, "🖼️ Generuji cover…")
@@ -247,6 +284,7 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
         cost,
         imageStyle: `seedance:${vc.model}@${vc.resolution}`,
         imageModel: vc.model,
+        videoSource,
     }
 }
 

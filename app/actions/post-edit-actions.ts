@@ -32,7 +32,8 @@ import { requireProjectAccess } from "@/lib/auth-guard"
 import { fetchImageBuffer, nearestAspectRatio } from "@/lib/image-buffer"
 import { parsePostMedia } from "@/lib/media-urls"
 import type { IGPost, PostEditHistoryEntry } from "@/lib/types/database"
-import type { ClientConfig } from "@/instagram/configs/types"
+import type { ClientConfig, SubtitleStyleConfig } from "@/instagram/configs/types"
+import { isReelMedium } from "@/lib/reel-media"
 
 /** How many undo steps a post keeps. Beyond this the oldest are dropped — jsonb on a
  *  hot table, and nobody undoes eleven edits back. */
@@ -127,7 +128,7 @@ async function editPostInner(
 
     // A reel is an MP4; the image model can't edit video. Text edits are still fine.
     if (wantsImage && media.kind === "reel") {
-        return { success: false, error: "Video u reelu nejde upravit — uprav text, nebo vygeneruj příspěvek znovu." }
+        return { success: false, error: "Obraz reelu nejde upravit — uprav text, přerenderuj titulky (bez kreditů), nebo vygeneruj příspěvek znovu." }
     }
     if (wantsImage && !media.thumbUrl) {
         return { success: false, error: "Příspěvek nemá obrázek k úpravě." }
@@ -525,14 +526,21 @@ export async function revertPostEdit(
         const previous = history[history.length - 1]
         if (!previous) return { success: false, error: "Není co vrátit." }
 
+        // Přerenderování titulků se textu ani návrhu nedotklo, takže se z jeho kroku
+        // vrací JEN video a jeho zdroj. Kdyby se vracel celý řádek, přepsal by
+        // caption a hashtagy hodnotami `null`, které si krok nikdy neodložil.
+        const subtitlesOnly = previous.scope === "subtitles"
         const { data: saved, error: saveErr } = await supabaseAdmin
             .from("ig_posts")
             .update({
-                caption: previous.caption,
-                hashtags: previous.hashtags,
+                ...(subtitlesOnly ? {} : {
+                    caption: previous.caption,
+                    hashtags: previous.hashtags,
+                    image_prompt: previous.image_prompt,
+                    image_style: previous.image_style,
+                }),
                 image_url: previous.image_url,
-                image_prompt: previous.image_prompt,
-                image_style: previous.image_style,
+                ...(previous.video_source !== undefined ? { video_source: previous.video_source } : {}),
                 edit_history: history.slice(0, -1),
             })
             .eq("id", postId)
@@ -548,6 +556,84 @@ export async function revertPostEdit(
         console.error("revertPostEdit error:", err?.message || err)
         return { success: false, error: err?.message || "Vrácení selhalo." }
     }
+}
+
+// ─── Titulky reelu ───────────────────────────────────────────
+
+export interface ReelSubtitleEdits {
+    /** Upravené karty (text uživatele, časy z renderu). Prázdné = jen změna stylu. */
+    cards?: { text: string; start: number; end: number }[]
+    /** Jednorázový styl jen pro tenhle reel; chybějící = styl, se kterým se vyrenderoval. */
+    subtitleStyle?: SubtitleStyleConfig
+}
+
+/**
+ * Přerenderuje VYPÁLENÉ titulky reelu — bez nového videa, bez hlasu, bez kreditu.
+ *
+ * Proč job a ne přímé volání: ffmpeg nad dvacetivteřinovým reelem běží jednotky až
+ * desítky sekund, což je nad pohodlným stropem server action. Tahle akce proto jen
+ * založí řádek v `ig_jobs` (druh `reel_recompose`) a vrátí `jobId` — spuštění
+ * obstará `/api/ig-run-job` a UI se ptá `/api/ig-job-status` jako u generování.
+ *
+ * Scope `subtitles` je čtvrtý vedle text/image/both a jediný, který mění VIDEO:
+ * `editPost` u reelu obrázkovou větev odmítá, protože obrázkový model MP4 needituje.
+ *
+ * Nula kreditů schválně — `creditGuard` se tu nevolá a `charged: "none"` znamená,
+ * že stuck-job reaper ani chybová větev nemají co vracet. Nevolá se žádný model:
+ * z uloženého surového videa a voiceoveru se jen znovu vypálí ASS.
+ */
+export async function recomposeReelSubtitles(
+    postId: string,
+    projectSlug: string,
+    edits: ReelSubtitleEdits = {},
+): Promise<{ success: boolean; jobId?: string; error?: string }> {
+    let clientId: string
+    try {
+        clientId = (await requireProjectAccess(projectSlug)).clientId
+    } catch (err: any) {
+        return { success: false, error: err?.message || "Neautorizovaný přístup." }
+    }
+
+    const { data: post } = await supabaseAdmin
+        .from("ig_posts")
+        .select("id, status, media_type, video_source")
+        .eq("id", postId)
+        .eq("client_id", clientId)
+        .maybeSingle()
+
+    if (!post) return { success: false, error: "Příspěvek nenalezen." }
+    if (post.status === "posted" || post.status === "posting") {
+        return { success: false, error: "Publikovaný reel už nejde přerenderovat — vytvoř variantu." }
+    }
+    if (!isReelMedium(post.media_type)) return { success: false, error: "Tenhle příspěvek není reel." }
+
+    const source = post.video_source as { rawVideoPath?: string; voiceoverPath?: string } | null
+    if (!source?.rawVideoPath || !source.voiceoverPath) {
+        return { success: false, error: "U tohohle reelu nemáme uložené surové video — titulky jdou změnit jen vygenerováním znovu." }
+    }
+
+    const { data: job, error } = await supabaseAdmin
+        .from("ig_jobs")
+        .insert({
+            client_id: clientId,
+            config: {
+                kind: "reel_recompose",
+                postId,
+                cards: edits.cards,
+                subtitleStyle: edits.subtitleStyle,
+                // Bez účtování — ať reaper i chybová větev vědí, že není co vracet.
+                charged: "none",
+                chargedCredits: 0,
+            },
+            status: "video",
+            progress: 5,
+            agent_message: "🎞️ Připravuji přerenderování titulků…",
+        })
+        .select("id")
+        .single()
+
+    if (error || !job) return { success: false, error: `Úlohu se nepodařilo založit: ${error?.message || "neznámá chyba"}` }
+    return { success: true, jobId: job.id }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
