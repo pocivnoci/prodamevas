@@ -32,6 +32,7 @@ import { footnote, heading, raw } from "@/lib/mail/blocks"
 import { renderEmail } from "@/lib/mail/layout"
 import { COLOR } from "@/lib/mail/tokens"
 import type { ComplianceItem } from "@/lib/agents/compliance-calendar"
+import { countLabel, POSTS } from "@/lib/plural"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -270,7 +271,7 @@ async function buildRisk(now: Date): Promise<BriefLine[]> {
             text: `${r.name} — ${describeRisks(r.risks)}`,
             detail: [
                 r.plan ? `plán ${r.plan}` : null,
-                r.postsLast14d === 0 ? "0 příspěvků za 14 dní" : `${r.postsLast14d} příspěvků za 14 dní`,
+                `${countLabel(r.postsLast14d, POSTS)} za 14 dní`,
                 r.creditsTotal > 0 ? `${r.creditsRemaining}/${r.creditsTotal} kreditů` : null,
             ].filter(Boolean).join(" · "),
         }))

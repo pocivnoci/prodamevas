@@ -7,6 +7,11 @@
  * 1-credit-per-post price sold reels below cost. See docs/UNIT_ECONOMICS_AND_PRICING.md §4.
  */
 
+// Skloňování počítaných jmen je sdílené (`lib/plural.ts`), ne lokální kopie: čtyři
+// kopie téhož `n === 1 ? … : …` se mezi sebou lišily v tom, co je „2–4" a co „5+".
+// `plural.ts` je stejně client-safe jako tenhle modul (žádné server importy).
+import { countLabel, CAROUSELS, IMAGES } from "@/lib/plural"
+
 /**
  * The price of every medium the engine can produce — and, via `MediumType` below,
  * the DEFINITION of which media exist at all.
@@ -54,17 +59,6 @@ export function creditsForMedia(medium?: string | null): number {
 }
 
 /**
- * Česká množná čísla: 1 / 2–4 / 5+. Bez toho vyjde „6 carousel" nebo „20 obrázek",
- * což na ceníku vypadá jako strojový překlad zrovna ve chvíli, kdy si člověk ověřuje,
- * co za svoje peníze dostane.
- */
-function plural(n: number, one: string, few: string, many: string): string {
-    if (n === 1) return one
-    if (n >= 2 && n <= 4) return few
-    return many
-}
-
-/**
  * „≈ 20 obrázků nebo 6 carouselů" — co si za daný počet kreditů reálně koupím.
  *
  * PROČ TO EXISTUJE: ceník do teď říkal jen „20 kreditů měsíčně" a vedle toho
@@ -88,8 +82,8 @@ export function creditExample(credits: number, opts?: { reels?: boolean }): stri
     // Obrázky jsou vždycky — je to nejlevnější médium, takže jich nikdy nevyjde nula.
     // Dražší média se vypisují jen když si jich tarif dovolí aspoň jedno: „0 carouselů"
     // není informace, je to jenom ošklivé místo na ceníku.
-    const casti = [`${obrazky} ${plural(obrazky, "obrázek", "obrázky", "obrázků")}`]
-    if (carousely > 0) casti.push(`${carousely} ${plural(carousely, "carousel", "carousely", "carouselů")}`)
+    const casti = [countLabel(obrazky, IMAGES)]
+    if (carousely > 0) casti.push(countLabel(carousely, CAROUSELS))
     // „reels" zůstává nesklonné — tak se ta funkce jmenuje i v UI a na Instagramu.
     if (opts?.reels && reely > 0) casti.push(`${reely} reels`)
 

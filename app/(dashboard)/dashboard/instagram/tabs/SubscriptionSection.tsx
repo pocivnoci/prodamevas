@@ -15,6 +15,7 @@ import { LEGAL, vatNotice } from "@/lib/legal"
 const vatSuffix = LEGAL.vatStatus === "payer" ? " bez DPH" : ""
 import { CheckCircle2, Clock, Gift } from "lucide-react"
 import { creditExample, MEDIA_CREDITS } from "@/lib/credits"
+import { countLabel, CREDITS, MONTHS, POSTS } from "@/lib/plural"
 import { useEffect, useState } from "react"
 import {
     BILLING_TERMS,
@@ -69,7 +70,7 @@ function planFeatureList(p: PlanRow, reelsEnabled: boolean): PlanFeatureItem[] {
     const hasReels = !f.allowed_media || f.allowed_media.includes("reel")
 
     const items: PlanFeatureItem[] = [
-        { text: `${f.credits_per_month} kreditů měsíčně` },
+        { text: `${countLabel(f.credits_per_month, CREDITS)} měsíčně` },
         // Váhy se sem nepíšou číslem — do teď tu stálo „obrázek 1 kredit · carousel 3"
         // ručně, zatímco skutečné váhy žijí v MEDIA_CREDITS. Dvě pravdy o ceně.
         { text: creditExample(f.credits_per_month, { reels: hasReels && reelsEnabled }) },
@@ -78,7 +79,7 @@ function planFeatureList(p: PlanRow, reelsEnabled: boolean): PlanFeatureItem[] {
     // Reels se nezamlčují, jen se přiznají: vypínač REELS_ENABLED je potichu
     // překlápí na carousel, takže je nabídnout jako hotovou funkci by byl mis-sale.
     // Obě velikosti reelu; čísla jdou z MEDIA_CREDITS, nikdy ručně (aserce 13.11).
-    if (hasReels) items.push({ text: `Reels (AI video) — ${MEDIA_CREDITS.reel} kreditů krátký, ${MEDIA_CREDITS.reel_long} dlouhý`, pending: !reelsEnabled })
+    if (hasReels) items.push({ text: `Reels (AI video) — krátký ${countLabel(MEDIA_CREDITS.reel, CREDITS)}, dlouhý ${countLabel(MEDIA_CREDITS.reel_long, CREDITS)}`, pending: !reelsEnabled })
 
     // Ne „A/B varianty": netestuje se nic a zákazník to četl jako dva příspěvky
     // v ceně jednoho. `generatePostVariant` účtuje každou verzi jako plný
@@ -468,12 +469,6 @@ function ManageBillingLink({ projectId }: { projectId: string }) {
     )
 }
 
-/** „1 měsíc", „3 měsíce", „6 měsíců" — délka daru, ne kadence platby jako v ceníku. */
-function monthsLabel(months: number): string {
-    if (months === 1) return "1 měsíc"
-    return months < 5 ? `${months} měsíce` : `${months} měsíců`
-}
-
 /**
  * Tarif zdarma — jen pro správce.
  *
@@ -547,12 +542,12 @@ function GiftPlanControl({ projectId, plans, subscription, onDone }: {
                     <div className="flex flex-wrap items-center gap-2">
                         <select value={selected.id} onChange={e => setPlanId(e.target.value)} className={selectClass} aria-label="Tarif">
                             {paidPlans.map(p => (
-                                <option key={p.id} value={p.id}>{p.name} · {p.features.credits_per_month} kreditů/měs</option>
+                                <option key={p.id} value={p.id}>{p.name} · {countLabel(p.features.credits_per_month, CREDITS)}/měs</option>
                             ))}
                         </select>
                         <select value={term} onChange={e => setTerm(Number(e.target.value) as TermMonths)} className={selectClass} aria-label="Období">
                             {BILLING_TERMS.map(t => (
-                                <option key={t.months} value={t.months}>{monthsLabel(t.months)}</option>
+                                <option key={t.months} value={t.months}>{countLabel(t.months, MONTHS)}</option>
                             ))}
                         </select>
                         <button
@@ -566,7 +561,7 @@ function GiftPlanControl({ projectId, plans, subscription, onDone }: {
             ) : (
                 <div className="flex flex-wrap items-center gap-3">
                     <p className="text-[10px] text-white/60 font-bold">
-                        {selected.name} zdarma na {monthsLabel(term)} — opravdu?
+                        {selected.name} zdarma na {countLabel(term, MONTHS)} — opravdu?
                     </p>
                     <div className="ml-auto flex items-center gap-3">
                         <button
@@ -678,9 +673,12 @@ function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState
                 </div>
                 <div className="flex items-center justify-between mt-1">
                     <span className="text-[9px] text-white/20 font-bold">
+                        {/* „Zbývá: N" místo „N zbývá" — sloveso by se muselo shodovat
+                            s počtem („1 příspěvek zbývá" / „3 příspěvky zbývají"), takhle
+                            se skloňuje jen podstatné jméno. */}
                         {usePostQuota
-                            ? `${remainingUnits} ${remainingUnits === 1 ? "příspěvek zdarma zbývá" : remainingUnits >= 2 && remainingUnits <= 4 ? "příspěvky zdarma zbývají" : "příspěvků zdarma zbývá"}`
-                            : `${remainingUnits} kreditů zbývá`}
+                            ? `Zbývá: ${countLabel(remainingUnits, POSTS)} zdarma`
+                            : `Zbývá: ${countLabel(remainingUnits, CREDITS)}`}
                     </span>
                     {!usePostQuota && creditResetAt && !giftLastWindow ? (
                         <span className="text-[9px] text-white/20 font-bold">

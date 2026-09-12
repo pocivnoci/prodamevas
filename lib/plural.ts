@@ -36,6 +36,16 @@ export const REELS: PluralForms = { one: "reel", few: "reely", many: "reelů" }
 export const IMAGES: PluralForms = { one: "obrázek", few: "obrázky", many: "obrázků" }
 export const BRANDS: PluralForms = { one: "značka", few: "značky", many: "značek" }
 export const CREDITS: PluralForms = { one: "kredit", few: "kredity", many: "kreditů" }
+/** „1 zájemce / 3 zájemci / 7 zájemců" — obchodní fronta v denním přehledu. */
+export const LEADS: PluralForms = { one: "zájemce", few: "zájemci", many: "zájemců" }
 export const MONTHS: PluralForms = { one: "měsíc", few: "měsíce", many: "měsíců" }
 /** „26 dní" — kolik dní něco trvá. Ne „před 26 dny", to je jiný pád. */
 export const DAYS: PluralForms = { one: "den", few: "dny", many: "dní" }
+/**
+ * 7. pád po předložce „před": „před 1 dnem", „před 3 dny", „před 26 dny".
+ *
+ * Vlastní tvar, protože `DAYS` je 1. pád a po „před" z něj vyjde „před 26 dní".
+ * Pro 2+ je tvar shodný, ale jedničku to zachrání — a ta padne pokaždé, když se
+ * něco stalo předevčírem.
+ */
+export const DAYS_AGO: PluralForms = { one: "dnem", few: "dny", many: "dny" }

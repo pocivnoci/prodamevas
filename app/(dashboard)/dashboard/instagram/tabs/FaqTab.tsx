@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown } from "lucide-react"
 import { EXTRA_CREDIT_HALERU, FALLBACK_PLANS, formatCzk } from "@/lib/pricing"
 import { ALL_MEDIA, MEDIA_CREDITS, type MediumType } from "@/lib/credits"
+import { countLabel, CREDITS } from "@/lib/plural"
 
 // ─── FAQ Data ────────────────────────────────────────────────
 
@@ -52,7 +53,7 @@ function creditsSentence(): string {
 
 function plansSentence(): string {
     const list = FALLBACK_PLANS.map(
-        (p) => `${p.name} (${formatCzk(p.monthlyHaleru)}, ${p.creditsPerMonth} kreditů — ${PLAN_BLURB[p.id] ?? ""})`,
+        (p) => `${p.name} (${formatCzk(p.monthlyHaleru)}, ${countLabel(p.creditsPerMonth, CREDITS)} — ${PLAN_BLURB[p.id] ?? ""})`,
     )
     const last = list.pop()
     return `Čtyři plány: ${list.join(", ")} a ${last}.`
@@ -109,7 +110,7 @@ const FAQ_CATEGORIES: FaqCategory[] = [
         items: [
             {
                 q: "Kolik stojí jedna akce?",
-                a: `Příspěvek stojí podle média (${mediaCenySentence()}). Každá verze v „Dvě verze na výběr“ je plnohodnotný příspěvek, takže se účtuje stejně jako on — dvě verze carouselu tedy stojí ${2 * MEDIA_CREDITS.carousel} kreditů, i když nakonec použijete jednu. Úprava hotového příspěvku = 1 kredit. Generování nápadů = 1 kredit. Produktová vizualizace = 2 kredity. Design pro tisk = 3 kredity. Mockup = 2 kredity. Business Brief = 5 kreditů. Celá produktová řada = 8 kreditů.`,
+                a: `Příspěvek stojí podle média (${mediaCenySentence()}). Každá verze v „Dvě verze na výběr“ je plnohodnotný příspěvek, takže se účtuje stejně jako on — dvě verze carouselu tedy stojí ${countLabel(2 * MEDIA_CREDITS.carousel, CREDITS)}, i když nakonec použijete jednu. Úprava hotového příspěvku = 1 kredit. Generování nápadů = 1 kredit. Produktová vizualizace = 2 kredity. Design pro tisk = 3 kredity. Mockup = 2 kredity. Business Brief = 5 kreditů. Celá produktová řada = 8 kreditů.`,
             },
             {
                 q: "Co se stane, když mi dojdou kredity?",
