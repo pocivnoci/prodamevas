@@ -3981,12 +3981,20 @@ test("29.15 plátce DPH: brána strhává částku VČETNĚ daně", () => {
     const chargePaths: Array<[string, string]> = [
         ["app/api/payments/create/route.ts", "ComGate"],
         ["lib/payments/checkout.ts", "Stripe"],
-        ["app/api/cron/billing-worker/route.ts", "obnova předplatného"],
     ]
     for (const [file, what] of chargePaths) {
         assert(codeOnly(file).includes("chargeableHaleru"),
             `${what} (${file}): částka k stržení musí projít přes chargeableHaleru`)
     }
+    // Obnova jde přes `renewalChargeHaleru`, což je `chargeableHaleru` + datum
+    // přechodu (viz 29.19): probíhající předplatné se do VAT_EFFECTIVE_FROM
+    // strhává v původní výši a tutéž funkci musí volat i oznámení o obnově.
+    assert(codeOnly("app/api/cron/billing-worker/route.ts").includes("renewalChargeHaleru"),
+        "obnova předplatného: částka k stržení musí projít přes renewalChargeHaleru")
+    const pricingSrc = codeOnly("lib/pricing.ts")
+    const renewalFn = pricingSrc.slice(pricingSrc.indexOf("export function renewalChargeHaleru"))
+    assert(renewalFn.slice(0, 300).includes("chargeableHaleru"),
+        "renewalChargeHaleru musí DPH připočítávat přes chargeableHaleru, ne vlastním násobením")
 
     // Doklad musí sedět s tím, co brána strhla. `payments.amount` je hrubá
     // částka, takže Fakturoid z ní má daň VYPOČÍTAT, ne připočítat navrch —
@@ -4043,10 +4051,123 @@ test("29.18 datum přechodu na DPH sedí s účinností podmínek", () => {
     assert(terms.includes(`EFFECTIVE_FROM = "${czech}"`),
         `podmínky musí nabýt účinnosti ${czech} (podle VAT_EFFECTIVE_FROM), našel jsem něco jiného`)
 
-    // Obnova probíhajícího předplatného se do toho data nesmí zdražit.
+    // Obnova probíhajícího předplatného se do toho data nesmí zdražit. Větev
+    // podle data žije v `renewalChargeHaleru` (`lib/pricing.ts`) — jedno místo
+    // pro strh i pro oznámení o něm, viz 29.19.
+    const pricing = codeOnly("lib/pricing.ts")
+    assert(/export function renewalChargeHaleru[\s\S]{0,300}VAT_EFFECTIVE_FROM/.test(pricing),
+        "renewalChargeHaleru musí respektovat datum, od kterého se DPH připočítává")
     const worker = codeOnly("app/api/cron/billing-worker/route.ts")
-    assert(worker.includes("VAT_EFFECTIVE_FROM"),
-        "obnova musí respektovat datum, od kterého se DPH připočítává")
+    assert(worker.includes("renewalChargeHaleru"),
+        "obnova musí strhávat přes renewalChargeHaleru, jinak datum přechodu obejde")
+})
+
+test("29.19 obnova slibuje přesně tu částku, kterou strhne", () => {
+    // Oznámení „za tři dny vám strhneme" počítalo cenu období BEZ DPH, zatímco
+    // billing-worker strhával s DPH — roční Růst sliboval 29 990 Kč a z karty
+    // šlo 36 288 Kč. Rozdíl na výpisu je nejkratší cesta k chargebacku, takže
+    // obě cesty musí volat tutéž funkci.
+    for (const [file, what] of [
+        ["lib/agents/billing-watch.ts", "oznámení o obnově"],
+        ["app/api/cron/billing-worker/route.ts", "strh obnovy"],
+    ] as Array<[string, string]>) {
+        assert(codeOnly(file).includes("renewalChargeHaleru"),
+            `${what} (${file}): částka obnovy musí projít přes renewalChargeHaleru`)
+    }
+    // Větev podle VAT_EFFECTIVE_FROM smí žít jen uvnitř té jedné funkce.
+    const pricing = codeOnly("lib/pricing.ts")
+    assert(/export function renewalChargeHaleru/.test(pricing) && pricing.includes("VAT_EFFECTIVE_FROM"),
+        "renewalChargeHaleru musí datum přechodu na DPH řešit sama")
+    for (const file of ["lib/agents/billing-watch.ts", "app/api/cron/billing-worker/route.ts"]) {
+        assert(!codeOnly(file).includes("VAT_EFFECTIVE_FROM"),
+            `${file}: druhá kopie větve o DPH se vždycky rozejde — patří do renewalChargeHaleru`)
+    }
+
+    // A totéž číslo musí umět i šablona obnovy v registru: měsíční sazba jako
+    // cena obnovy je táž lež, jen ručně napsaná.
+    const { getTemplate } = require("./lib/mail/registry")
+    const { formatCzk, termPrice, FALLBACK_PLANS } = require("./lib/pricing")
+    const renewal = getTemplate("subscription_renewal")
+    assert(!!renewal, "šablona subscription_renewal musí být v registru")
+    assert(renewal.fields.some((f: { key: string }) => f.key === "termMonths"),
+        "šablona obnovy musí znát délku období, jinak nabízí měsíční cenu jako cenu roku")
+    const rust = FALLBACK_PLANS.find((p: { name: string }) => p.name === "Růst")
+    const yearly = renewal.render({ ...renewal.sample, planName: "Růst", termMonths: "12", price: "" })
+    assert(yearly.text.includes(formatCzk(termPrice(rust.monthlyHaleru, 12))),
+        `obnova na 12 měsíců musí uvést cenu období, ne měsíční sazbu — ${yearly.text.slice(0, 200)}`)
+})
+
+test("29.20 automatické e-maily mluví stejným hlasem jako registr", () => {
+    // Zákaznická pošta jde ze tří míst: registr šablon, `notice-templates.ts`
+    // (peníze, incidenty) a `lifecycle-templates.ts` (pobídky). Do registru míří
+    // aserce 29.6/29.8, ale ty dvě agentské cesty do 9/2026 nehlídal nikdo — a
+    // psaly bez pozdravu, bez podpisu a v první osobě jednotného čísla.
+    const { buildCustomerNotice } = require("./lib/agents/notice-templates")
+    const { buildLifecycleEmail } = require("./lib/agents/lifecycle-templates")
+    const { vatNotice } = require("./lib/legal")
+
+    const messages: Array<[string, { subject: string; body: string }]> = []
+    for (const kind of ["renewal_upcoming", "charge_failed", "manual_renew", "expired",
+        "payment_recovered", "generation_failed", "publish_failed"] as const) {
+        messages.push([`notice:${kind}`, buildCustomerNotice(kind, {
+            clientName: "Kavárna Alchymista", clientId: "00000000-0000-0000-0000-000000000000",
+            amountHaleru: 362_880, netHaleru: 299_900, date: "3. 12. 2026", auto: true,
+            attempt: 2, termLabel: "na 12 měsíců", what: "příspěvek plánovaný na 12. 8.", reason: "vypršel token",
+        })])
+    }
+    for (const kind of ["activation_nudge", "credit_low", "winback", "dormant",
+        "ig_disconnected", "waitlist_drip"] as const) {
+        const msg = buildLifecycleEmail(kind, {
+            clientName: "Kavárna Alchymista", clientId: "00000000-0000-0000-0000-000000000000",
+            creditsRemaining: 2, creditsTotal: 45,
+        })
+        assert(!!msg, `lifecycle ${kind}: šablona musí s kompletními daty něco vrátit`)
+        messages.push([`lifecycle:${kind}`, msg!])
+    }
+
+    for (const [id, m] of messages) {
+        const text = `${m.subject}\n${m.body}`
+        assert(m.subject.length > 0 && m.body.length > 40, `${id}: prázdná zpráva`)
+        assert(!/undefined|\bnull\b|\[object Object\]|NaN|\?\s*kredit/.test(text),
+            `${id}: prosákla proměnná — ${text.slice(0, 140)}`)
+        assert(m.body.startsWith("Dobrý den,"), `${id}: zpráva musí otevírat „Dobrý den,"`)
+        assert(m.body.includes("Tým Chrlit"), `${id}: zpráva se musí podepsat „Tým Chrlit"`)
+        // První osoba jednotného čísla = druhý hlas. Podepisuje se firma.
+        assert(!/\bjsem\b|\bmi\b\s|Tomáš/.test(text), `${id}: mluví jednotlivec, ne firma — ${text.slice(0, 140)}`)
+        // Rodové příčestí o adresátovi („založil jste si") se netrefí půlce lidí.
+        assert(!/\bjste\s+(?:si\s+|se\s+)?\w*(?:al|il|ěl|ala|ila)\b|\w+(?:al|il|ěl)\s+jste\b/.test(text),
+            `${id}: rodové příčestí o adresátovi — ${text.slice(0, 140)}`)
+        // Kde padne částka, tam patří věta o DPH (totéž pravidlo jako 29.8).
+        if (/\d[\d\u00a0\u202f ]*Kč/.test(text)) {
+            assert(m.body.includes(vatNotice()), `${id}: cena bez věty o DPH`)
+        }
+    }
+
+    // Pozvánka z waitlistu má jediné znění — to v registru.
+    const invite = codeOnly("lib/agents/waitlist-invite.ts")
+    assert(invite.includes('getTemplate("waitlist_invite")'),
+        "waitlist-invite musí renderovat registrovou šablonu, ne mít vlastní kopii textu")
+    assert(!/Tomáš/.test(invite), "pozvánku podepisuje firma, ne jedna osoba")
+})
+
+test("29.21 haléře dělí stem jedině formatCzk()", () => {
+    // Ruční `/ 100` se pokaždé rozešlo se zbytkem aplikace: v potvrzení platby
+    // chybělo zaokrouhlení a zákazník dostal „3 628,79 Kč" u částky, kterou má
+    // doklad v celých korunách.
+    const dirs = ["lib", "app/api", "app/actions"]
+    const offenders: string[] = []
+    const walk = (dir: string) => {
+        for (const entry of readdirSync(resolve(ROOT, dir), { withFileTypes: true })) {
+            const rel = `${dir}/${entry.name}`
+            if (entry.isDirectory()) { walk(rel); continue }
+            if (!/\.tsx?$/.test(entry.name)) continue
+            if (rel === "lib/pricing.ts") continue // jediné povolené místo
+            if (/\/\s*100\s*\)?\s*\)?\.toLocaleString/.test(codeOnly(rel))) offenders.push(rel)
+        }
+    }
+    for (const d of dirs) walk(d)
+    assert(offenders.length === 0,
+        `formátování peněz patří do formatCzk() z lib/pricing.ts — ruční dělení stem je v: ${offenders.join(", ")}`)
 })
 
 test("29.17 identita je s.r.o. se zápisem v rejstříku, ne živnost", () => {
