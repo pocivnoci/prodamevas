@@ -2470,6 +2470,76 @@ test("17.10 titulky: karty s bundlovaným fontem v bezpečné zóně, zalamujeme
     assert(fileContains("package.json", "tsx scripts/test-reel-pipeline.ts"), "čisté testy reelu musí být v guardu")
 })
 
+test("17.11 hlas značky: casting per klient, ne jeden preset pro všechny", () => {
+    // Hlavní stížnost na reely do 12. 9. 2026: `config.ttsVoice || "Kore"` znamenalo,
+    // že kavárna i izolatér mluví stejným hlasem — `ttsVoice` nikdo nenastavoval.
+    const reel = codeOnly("instagram/orchestrators/reel-orchestrator.ts")
+    assert(!/config\.ttsVoice/.test(reel), "orchestrátor nesmí číst zrušené config.ttsVoice")
+    assert(!/"Kore"/.test(reel), "žádný natvrdo psaný hlas v orchestrátoru — hlas patří značce")
+    assert(/config\.voice/.test(reel) && /voiceId/.test(reel), "hlas se bere z config.voice")
+    assert(/deliveryTags\(/.test(reel) && !/mood: "professional"/.test(reel),
+        "přednes se odvozuje z nálad scén, ne z natvrdo psaného „professional\" pro všechny")
+
+    // Default NESMÍ být konstanta: kdyby byl, jsme zpátky u jednoho hlasu pro flotilu.
+    const cfg = codeOnly("instagram/configs/index.ts")
+    assert(/castVoice\(/.test(cfg) && /voice: resolveVoice\(/.test(cfg),
+        "validateConfig doplňuje voice deterministickým castingem")
+    const vlib = codeOnly("lib/voice-library.ts")
+    assert(!/instagram\/|supabase\/|process\.env/.test(vlib), "knihovna hlasů musí zůstat client-safe (čte ji Nastavení)")
+
+    // Živý test castingu — 20 vzorových značek musí dostat aspoň 8 různých hlasů.
+    const { castVoice, VOICE_LIBRARY, isKnownVoice } = require("./lib/voice-library") as typeof import("./lib/voice-library")
+    assert(VOICE_LIBRARY.length >= 30, `knihovna má ${VOICE_LIBRARY.length} hlasů, čekáme aspoň 30`)
+    const znacky = [
+        { brand: "Kavárna U Lípy", industry: "Gastronomie / Kavárna", persona: "Přátelský barista" },
+        { brand: "Restaurace Na Statku", industry: "Gastronomie / Restaurace", persona: "Hostitel, co zve dovnitř" },
+        { brand: "Vinařství Podlužan", industry: "Gastronomie / Vinařství", persona: "Klidný vinař, tradice" },
+        { brand: "Salon Bella", industry: "Krása / Salon", persona: "Pečující kadeřnice" },
+        { brand: "FitZone", industry: "Fitness / Wellness", persona: "Energický trenér" },
+        { brand: "Eshop Bota", industry: "E-commerce", persona: "Rychlý a věcný prodejce" },
+        { brand: "Izolace Novák", industry: "Řemeslo / Služby", persona: "Poctivý řemeslník" },
+        { brand: "Kouč Dvořák", industry: "Poradenství / Koučink", persona: "Odborný poradce" },
+        { brand: "Foto Klára", industry: "Fotografie / Kreativa", persona: "Jemná fotografka" },
+        { brand: "TaskApp", industry: "Aplikace / SaaS", persona: "Věcný produktový hlas" },
+        { brand: "Penzion Vyhlídka", industry: "Ubytování / Penzion", persona: "Vřelý hostitel" },
+        { brand: "Klinika Estetik", industry: "Zdraví / Estetika", persona: "Empatický lékař" },
+        { brand: "Reality Morava", industry: "Reality / Realitní služby", persona: "Seriózní makléř" },
+        { brand: "Pekárna Koláč", industry: "Gastronomie / Pekárna", persona: "Rodinná pekárna" },
+        { brand: "AutoServis Rych", industry: "Autoservis", persona: "Přímý mechanik" },
+        { brand: "Jazyková škola Lingua", industry: "Vzdělávání / Kurzy", persona: "Trpělivý lektor" },
+        { brand: "Interiéry Dřevo", industry: "Interiér / Nábytek", persona: "Designér s citem" },
+        { brand: "Second Hand Retro", industry: "Móda / Oblečení", persona: "Hravá stylistka" },
+        { brand: "Účetní Bílá", industry: "Poradenství / Účetnictví", persona: "Precizní expert" },
+        { brand: "Wellness Klid", industry: "Wellness", persona: "Klidný průvodce" },
+    ]
+    const vybrane = znacky.map(z => castVoice({ persona: z.persona, industry: z.industry, brand: z.brand }))
+    assert(vybrane.every(v => isKnownVoice(v)), "casting musí vracet hlas z knihovny")
+    const ruznych = new Set(vybrane).size
+    assert(ruznych >= 8, `20 značek dostalo jen ${ruznych} různých hlasů — default se chová jako konstanta`)
+    assert(castVoice({ persona: znacky[0].persona, industry: znacky[0].industry, brand: znacky[0].brand }) === vybrane[0],
+        "casting musí být deterministický — stejná značka = stejný hlas v každém reelu")
+})
+
+test("17.12 TTS za rozhraním: poskytovatel v instagram/tts, spike skripty bez produkce", () => {
+    const gc = codeOnly("instagram/gemini-client.ts")
+    assert(!/prebuiltVoiceConfig/.test(gc), "syntéza hlasu žije v instagram/tts/gemini.ts, ne v bráně k modelům")
+    assert(/export \{ generateVoiceover \} from "\.\/tts\/gemini"/.test(gc), "gemini-client drží jen tenkou obálku kvůli zpětné kompatibilitě")
+    const prov = codeOnly("instagram/tts/gemini.ts")
+    assert(/prebuiltVoiceConfig/.test(prov) && /getModel\("tts"\)/.test(prov), "Gemini poskytovatel bere ID modelu z registru")
+    const idx = codeOnly("instagram/tts/index.ts")
+    assert(/throw new Error/.test(idx), "neznámý poskytovatel hází — tichý fallback by dodal cizí hlas")
+    assert(!/elevenlabs:/.test(idx), "ElevenLabs zatím jen jako TODO, ne zapojený poskytovatel")
+    const audio = codeOnly("instagram/reel-audio.ts")
+    assert(/getTtsProvider\(/.test(audio) && /voice\.voiceId/.test(audio), "reel-audio bere poskytovatele i hlas zvenčí")
+
+    // Spike je experiment: kdyby importoval produkci, měřil by naši pipeline, ne API.
+    for (const f of ["scripts/smoke-seedance-dialogue.ts", "scripts/smoke-seedance-audio-ref.ts", "scripts/smoke-reel-voice.ts"]) {
+        const src = codeOnly(f)
+        assert(!/from "\.\.\/(instagram|app|lib)\//.test(src), `${f}: spike skript nesmí importovat produkční modul`)
+        assert(!fileContains("package.json", f), `${f}: živý spike nepatří do guardu`)
+    }
+})
+
 // ═══════════════════════════════════════════════════════════
 // 18. FAKTURACE: ostrá číselná řada patří ostrým platbám (v8.9)
 // ═══════════════════════════════════════════════════════════
@@ -4845,6 +4915,7 @@ test("34.5 každý volající modelu má jasno, kdo ho účtuje", () => {
         "instagram/seedance-client.ts": "uvnitř generateOnePost (reel)",
         "instagram/reel-director.ts": "uvnitř generateOnePost (reel)",
         "instagram/reel-audio.ts": "uvnitř generateOnePost (reel)",
+        "instagram/tts/gemini.ts": "brána k TTS — měří ji volající (reel-orchestrator, previewVoice)",
         "instagram/anthropic-client.ts": "brána k Claude — měří přes ni soudce i režisér",
         "instagram/plan-pipeline.ts": "uvnitř generateContentPlan (content_plan)",
         "instagram/feed-vision.ts": "uvnitř onboarding_config nebo recommendFeedPattern",

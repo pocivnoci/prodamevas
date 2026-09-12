@@ -68,3 +68,6 @@ scripts/backups/
 
 # Vygenerované náhledy e-mailů (scripts/preview-emails.ts)
 .email-preview/
+
+# Spike výstupy (živé smoke testy Seedance) — videa, ne zdroják
+audit-screenshots/spike/
