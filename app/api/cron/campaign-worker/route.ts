@@ -460,7 +460,7 @@ export async function GET(req: Request) {
                     }).eq("id", result.id)
                     const { schedulePost } = await import("@/instagram/service")
                     const date = String(item.scheduledFor).split("T")[0]
-                    await schedulePost(date, result.id, item.timeSlot || "afternoon")
+                    await schedulePost(date, result.id, item.timeSlot || "afternoon", clientId)
                 } catch (schedErr) {
                     console.warn(`   ⚠️ schedule stamp failed for ${result.id}: ${(schedErr as Error)?.message?.substring(0, 80)}`)
                 }

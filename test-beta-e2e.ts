@@ -3245,15 +3245,19 @@ test("23.15 výloha se nikde nepočítá jako zákazník", () => {
 })
 
 test("23.18 showcase kit nesmí obarvit další posty", () => {
-    // Ukázkový karusel na vlastním účtu jede v paletě jiného oboru. Kit se proto
-    // MUSÍ aplikovat na lokální kopii: CLIENT_CONFIG je modulově globální a
-    // cachovaná napříč posty jedné lambdy (ensureConfig), takže mutace by
-    // obarvila i další posty klienta a poznalo by se to až na hotovém feedu.
     const auto = codeOnly("instagram/autopilot.ts")
-    assert(/const config = options\.showcaseKit\s*\n?\s*\? applyShowcaseKit\(CLIENT_CONFIG!/.test(auto),
-        "kit se musí aplikovat na lokální kopii configu, ne na CLIENT_CONFIG")
-    assert(!/CLIENT_CONFIG\s*=\s*applyShowcaseKit/.test(auto),
-        "applyShowcaseKit se nikdy nesmí zapsat zpátky do modulově globální CLIENT_CONFIG")
+    // Ukázkový karusel na vlastním účtu jede v paletě jiného oboru. Kit se proto
+    // MUSÍ aplikovat na lokální kopii: loadConfig vrací objekt z cache sdílené
+    // v lambdě — mutace by prosákla do dalších postů téhož klienta.
+    assert(/const config = options\.showcaseKit\s*\n?\s*\? applyShowcaseKit\(loadedConfig,/.test(auto),
+        "kit se musí aplikovat na lokální kopii configu, ne na sdílený objekt")
+    // Modulově globální config tenanta je zakázaný: proměnná sdílená lambdou
+    // umožňovala, aby request A po awaitu četl config klienta B (Fluid Compute
+    // multiplexuje requesty). Config se z ensureConfig VRACÍ.
+    assert(!/CLIENT_CONFIG/.test(auto),
+        "autopilot nesmí držet config tenanta v modulové proměnné")
+    assert(/const \{ clientUuid, config: loadedConfig \} = await ensureConfig\(/.test(auto),
+        "generateOnePost bere uuid i config z ensureConfig jedním přiřazením")
 
     const kit = codeOnly("instagram/showcase-kit.ts")
     const applyFn = kit.slice(kit.indexOf("export function applyShowcaseKit"))
@@ -3963,6 +3967,48 @@ test("28.3 nedostupná kvalita zakázku odloží, nevrátí ji jako selhání", 
     assert(/\.eq\("status",\s*"failed"\)/.test(resume) && /not\("retry_after",\s*"is",\s*null\)/.test(resume),
         "sweep musí job zabírat podmíněným claimem, jinak dva ticky vyrobí dva posty za jeden kredit")
     assert(fileContains("vercel.json", "/api/cron/job-resume"), "sweep musí být v cronu")
+})
+
+test("31.11 zápis do tenanta jde jen přes bránu projektu", () => {
+    // Nálezy auditu 9/2026: čtyři cesty zapisovaly do tenanta zvoleného vstupem
+    // z prohlížeče (slug v URL, configName v akci) jen po ověření PŘIHLÁŠENÍ —
+    // re-onboarding tak přepsal config cizí značky, recenze a nápady se daly
+    // generovat do cizího ig_reviews / ig_post_ideas, upload šel do sdíleného
+    // bucketu bez omezení typu. Brána projektu je jediná přípustná forma.
+    const onboarding = codeOnly("app/onboarding/actions.ts")
+    const save = onboarding.slice(onboarding.indexOf("export async function saveReviewedConfig"))
+    assert(/if \(existingClientSlug\) await requireProjectAccess\(existingClientSlug\)/.test(save),
+        "saveReviewedConfig musí ověřit vlastnictví slugu z ?reonboard= dřív, než sáhne na klienta")
+
+    const gen = codeOnly("app/actions/ig-generate-action.ts")
+    for (const fn of ["triggerBatchGeneration", "triggerAIIdeasGeneration", "triggerAIReviewsGeneration", "uploadCustomImage"]) {
+        const start = gen.indexOf(`export async function ${fn}`)
+        assert(start >= 0, `${fn} musí existovat`)
+        const body = gen.slice(start, gen.indexOf("export async function", start + 10))
+        assert(/requireProjectAccess\(/.test(body), `${fn}: přihlášení nestačí — tenant z vstupu musí projít requireProjectAccess`)
+    }
+    // Účet a práce jsou jeden tenant: druhý parametr smí být jen tentýž projekt.
+    assert(/options\.projectId !== slug/.test(gen) && /options\.projectId !== options\.configName/.test(gen),
+        "projectId (účet) a configName (práce) se musí shodovat")
+    assert(/CLIENT_BUCKET_MIME_TYPES\.includes\(file\.type\)/.test(gen), "upload do sdíleného bucketu musí mít allow-list typů")
+
+    // Čtení postů podle id z prohlížeče bez client_id = cizí caption v paměti značky.
+    const memory = codeOnly("instagram/memory-agent.ts")
+    const variant = memory.slice(memory.indexOf("export async function learnFromVariantSelection"), memory.indexOf("const winner = posts.find"))
+    assert(/\.in\("id", allIds\)\s*\.eq\("client_id", clientId\)/.test(variant),
+        "learnFromVariantSelection musí filtrovat client_id")
+
+    const service = codeOnly("instagram/service.ts")
+    assert(/export async function markIdeaAsUsed\(ideaId: string, clientId: string\)/.test(service)
+        && /export async function markReviewAsUsed\(reviewId: string, clientId: string\)/.test(service),
+        "spotřebování nápadu/recenze bere clientId explicitně")
+    assert(/client_id: clientId,\s*\n\s*date,/.test(service), "záznam kalendáře nese client_id")
+
+    // Globální čtení formátů všech tenantů patří jen super adminovi.
+    const admin = codeOnly("app/actions/admin-actions.ts")
+    const types = admin.slice(admin.indexOf("export async function getIGPostTypes"), admin.indexOf("let clientId: string"))
+    assert(/requireSuperAdmin/.test(types) && !/requireAuth\(\)/.test(types),
+        "getIGPostTypes bez slugu = všechny tenanty → jen super admin")
 })
 
 test("28.7 zaseklý job se reapuje i bez otevřeného tabu — a nikdy dvakrát", () => {

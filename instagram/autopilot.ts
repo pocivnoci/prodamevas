@@ -83,39 +83,47 @@ import { renderStory } from "./orchestrators/story-orchestrator"
 import { renderImage } from "./orchestrators/image-orchestrator"
 import type { CaptionData, SelectedProduct, RenderResult } from "./orchestrators/types"
 
-// Active client config (set from --config flag or ensureConfig)
-let CLIENT_CONFIG: ClientConfig | null = null
+/**
+ * Sluby, pro které už tahle lambda srovnala ig_post_types s configem. Jen příznak —
+ * žádná data tenanta, takže sdílení mezi souběžnými requesty nevadí. Bez toho by
+ * každý post kampaně znovu spouštěl reconcile formátů.
+ */
+const postTypesEnsured = new Set<string>()
 
 /**
- * Smart config loader — ensures CLIENT_CONFIG is set before generation.
- * Called automatically by generateOnePost/generateBatch when invoked from server actions.
- * No-op if config is already loaded for the same client.
+ * Načte config tenanta pro JEDNU generaci a vrátí ho volajícímu.
+ *
+ * Config se vrací, NE ukládá do modulové proměnné. Dřív tu byla proměnná sdílená
+ * celou lambdou: `ensureConfig` ji nastavil, pak ještě awaitoval `ensurePostTypes`,
+ * a `generateOnePost` si ji přečetl až po návratu. Na Vercel Fluid Compute
+ * obsluhuje jedna instance víc requestů najednou, takže request A (klient a) se
+ * mohl probudit s configem klienta b, který mezitím nastavil request B: post
+ * uložený pod client_id A, ale psaný hlasem, produkty a paletou B. Přesně ta
+ * záměna tenantů, před kterou CLAUDE.md varuje — jen ne v setActiveProject
+ * (ten je dnes AsyncLocalStorage), ale tady.
  */
-async function ensureConfig(configName?: string): Promise<string> {
+async function ensureConfig(configName?: string): Promise<{ clientUuid: string; config: ClientConfig }> {
     if (!configName) {
         throw new Error("ensureConfig: chybí configName — tenant musí být vždy explicitní")
     }
     const name = configName
 
     // Resolve slug → uuid DETERMINISTICALLY (cached), never via the ambient
-    // AsyncLocalStorage store. ensureConfig runs BEFORE generateOnePost enters its
-    // withActiveProject scope, so the store isn't set here — and when CLIENT_CONFIG is
-    // already cached (2nd+ post of a worker run), the old `return getActiveProject()`
-    // threw "No active client set", killing every post after the first in a campaign.
+    // AsyncLocalStorage store — ensureConfig runs BEFORE generateOnePost enters its
+    // withActiveProject scope, so the store isn't set here.
     const { resolveClientId } = await import("./configs")
     const clientUuid = await resolveClientId(name)
-
-    if (CLIENT_CONFIG && CLIENT_CONFIG.id === name) {
-        return clientUuid // config already loaded for this tenant
-    }
-    CLIENT_CONFIG = await loadConfig(name)
+    const config = await loadConfig(name) // loadConfig má vlastní krátkou cache
 
     setActiveProject(clientUuid) // fallback for legacy code paths
-    console.log(`🏢 Config loaded: ${CLIENT_CONFIG.name} (${name} → ${clientUuid.substring(0, 8)}...)`)
+    console.log(`🏢 Config loaded: ${config.name} (${name} → ${clientUuid.substring(0, 8)}...)`)
 
-    // Auto-create any missing post types in DB for this client
-    await ensurePostTypes(CLIENT_CONFIG, clientUuid)
-    return clientUuid
+    // Auto-create any missing post types in DB for this client — jednou za lambdu a slug.
+    if (!postTypesEnsured.has(name)) {
+        await ensurePostTypes(config, clientUuid)
+        postTypesEnsured.add(name)
+    }
+    return { clientUuid, config }
 }
 
 // ============================================
@@ -258,19 +266,20 @@ export async function generateOnePost(options: {
     onProgress?: (stage: string, progress: number, message: string, editorialLog?: EditorialMessage[]) => Promise<void>
 }): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number; mediaType: PostMedium }> {
     const report = options.onProgress || (async () => { }) // no-op if not provided
-    const clientUuid = await ensureConfig(options.configName)
+    // Jedno přiřazení, jeden request: uuid i config přijdou spolu, takže se config
+    // nikdy nečte ze sdíleného stavu až po dalším await.
+    const { clientUuid, config: loadedConfig } = await ensureConfig(options.configName)
     const ck = options.resumeFrom?.stage === "caption" ? options.resumeFrom : undefined
 
     // Wrap entire generation in request-scoped context to prevent race conditions.
     // withUsageScope sčítá spotřebu tokenů všech volání modelu uvnitř — taky
     // request-scoped, takže souběžné generace v jedné lambdě se nemíchají.
     return withActiveProject(clientUuid, () => withUsageScope(async () => {
-    // Showcase kit se aplikuje na LOKÁLNÍ KOPII. CLIENT_CONFIG je modulově globální
-    // a cachovaná napříč posty jedné lambdy (ensureConfig) — mutace by prosákla do
-    // dalších postů téhož klienta a ty by zůstaly v cizí paletě.
+    // Showcase kit se aplikuje na LOKÁLNÍ KOPII: loadConfig vrací objekt z krátké
+    // cache sdílené v lambdě, mutace by prosákla do dalších postů téhož klienta.
     const config = options.showcaseKit
-        ? applyShowcaseKit(CLIENT_CONFIG!, options.showcaseKit, options.showcaseMode ?? "ukazka")
-        : CLIENT_CONFIG!
+        ? applyShowcaseKit(loadedConfig, options.showcaseKit, options.showcaseMode ?? "ukazka")
+        : loadedConfig
     const startTime = Date.now()
     let cost = ck?.costSoFar ?? 0
     // Embedding finálního captionu. Spočítá ho sémantická brána (krok 6) a použije
@@ -1443,8 +1452,8 @@ ${feedSummary}
         })
 
         postId = post.id
-        if (idea) await markIdeaAsUsed(idea.id)
-        if (review) await markReviewAsUsed(review.id)
+        if (idea) await markIdeaAsUsed(idea.id, clientUuid)
+        if (review) await markReviewAsUsed(review.id, clientUuid)
 
         // Track product usage for cooldown rotation
         if (linkedProductId) {
@@ -1528,8 +1537,7 @@ export async function generateBatch(options: {
     dryRun: boolean
     topic?: string
 }) {
-    await ensureConfig(options.configName)
-    const config = CLIENT_CONFIG!
+    const { config } = await ensureConfig(options.configName)
     const { count, dryRun } = options
     const estimatedCost = count * COSTS.perPost
 

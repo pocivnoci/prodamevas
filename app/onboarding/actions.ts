@@ -401,16 +401,19 @@ export async function saveReviewedConfig(
     existingClientSlug?: string,
 ): Promise<{ success: boolean; clientSlug?: string; error?: string }> {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return { success: false, error: 'Nepřihlášený uživatel' }
+        // Re-onboarding zapisuje do EXISTUJÍCÍHO tenanta (config, název, web, produkty,
+        // paměť). Slug přichází z URL (`?reonboard=`), takže ho musí ověřit brána —
+        // jinak by kdokoli přihlášený přepsal značku cizímu klientovi. Nový klient
+        // žádný slug nemá, tam stačí přihlášení.
+        if (existingClientSlug) await requireProjectAccess(existingClientSlug)
+        const { userId } = await requireAuth()
 
         // Ukládání má JEDNO tělo — v core.ts. Tenhle dvojník se roky mirroroval ručně
         // a rozcházel se (viz aserce 31.3): bucket, RBAC link, produkty, trial i seed
         // paměti musí být všude stejné, jinak se onboarding z UI a onboarding z workera
         // chovají jinak. Tady zůstává jen session — core ji vidět nesmí.
         const { saveConfigCore } = await import('@/app/onboarding/core')
-        const savedSlug = await saveConfigCore(config, analysis, { userId: user.id, existingClientSlug })
+        const savedSlug = await saveConfigCore(config, analysis, { userId, existingClientSlug })
         return { success: true, clientSlug: savedSlug }
     } catch (error) {
         console.error('Save config error:', error)

@@ -728,12 +728,16 @@ export async function learnFromVariantSelection(
     const clientId = explicitClientId || getActiveProject()
     const allIds = [winnerId, ...loserIds]
 
+    // client_id ve filtru je povinné (CLAUDE.md): id přicházejí z prohlížeče a bez
+    // něj by se cizí captiony dostaly do promptu a jako „preference" do paměti
+    // téhle značky — se source_post_ids cizího tenanta.
     const { data: posts } = await supabaseAdmin
         .from("ig_posts")
         .select("id, caption, image_prompt, image_style")
         .in("id", allIds)
+        .eq("client_id", clientId)
 
-    if (!posts || posts.length < 2) return { memoriesCreated: 0 }
+    if (!posts || posts.length < 2 || posts.length < allIds.length) return { memoriesCreated: 0 }
 
     const winner = posts.find(p => p.id === winnerId)
     const losers = posts.filter(p => p.id !== winnerId)

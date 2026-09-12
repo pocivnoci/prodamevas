@@ -284,12 +284,14 @@ export async function getIdeaById(ideaId: string): Promise<PostIdea | null> {
     return data;
 }
 
-export async function markIdeaAsUsed(ideaId: string): Promise<void> {
-    // Get current count and increment
+export async function markIdeaAsUsed(ideaId: string, clientId: string): Promise<void> {
+    // client_id ve filtru (CLAUDE.md): id nápadu přichází zvenčí a bez tenanta by
+    // se dal „spotřebovat" nápad cizí značky.
     const { data } = await supabaseAdmin
         .from("ig_post_ideas")
         .select("used_count")
         .eq("id", ideaId)
+        .eq("client_id", clientId)
         .single();
 
     await supabaseAdmin
@@ -298,7 +300,8 @@ export async function markIdeaAsUsed(ideaId: string): Promise<void> {
             used_count: (data?.used_count ?? 0) + 1,
             last_used_at: new Date().toISOString()
         })
-        .eq("id", ideaId);
+        .eq("id", ideaId)
+        .eq("client_id", clientId);
 }
 
 
@@ -319,11 +322,12 @@ export async function batchInsertIdeas(ideas: any[]): Promise<number> {
 // REVIEWS
 // ============================================
 
-export async function markReviewAsUsed(reviewId: string): Promise<void> {
+export async function markReviewAsUsed(reviewId: string, clientId: string): Promise<void> {
     await supabaseAdmin
         .from("ig_reviews")
         .update({ used_at: new Date().toISOString() })
-        .eq("id", reviewId);
+        .eq("id", reviewId)
+        .eq("client_id", clientId);
 }
 
 // ============================================
@@ -386,11 +390,16 @@ export async function createPost(post: any): Promise<Post> {
 export async function schedulePost(
     date: string,
     postId: string,
-    timeSlot: string = "afternoon"
+    timeSlot: string = "afternoon",
+    clientId: string,
 ): Promise<ContentCalendar> {
+    if (!clientId) throw new Error("schedulePost: chybí clientId — záznam kalendáře musí patřit tenantovi")
+    // client_id se dřív nezapisoval vůbec: řádek kalendáře bez tenanta nešel ani
+    // vyfiltrovat, ani smazat s klientem (FK je ON DELETE CASCADE, ale NULL nekaskáduje).
     const { data, error } = await supabaseAdmin
         .from("ig_content_calendar")
         .insert({
+            client_id: clientId,
             date,
             post_id: postId,
             time_slot: timeSlot

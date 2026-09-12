@@ -404,10 +404,12 @@ export async function getIGPostTypes(configName?: string): Promise<(IGPostType &
     const dedupeByName = (rows: any[]) =>
         rows.filter((pt, i, self) => self.findIndex(t => t.name === pt.name) === i)
 
-    // Admin/global view (no project): keep the deduped global set
+    // Admin/global view (no project): keep the deduped global set. Jen pro super
+    // admina — bez slugu je to čtení přes VŠECHNY tenanty (názvy a AI popisy
+    // cizích formátů), a přihlášení samo o sobě k tomu neopravňuje.
     if (!configName) {
-        const { requireAuth } = await import("@/lib/auth-guard")
-        try { await requireAuth() } catch { return [] }
+        const { requireSuperAdmin } = await import("@/lib/auth-guard")
+        try { await requireSuperAdmin() } catch { return [] }
         const { data } = await supabaseAdmin.from("ig_post_types").select("*").order("name")
         return dedupeByName(data || [])
     }

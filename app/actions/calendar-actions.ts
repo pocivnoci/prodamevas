@@ -410,7 +410,7 @@ export async function schedulePostAction(
         // Calendar entry — best-effort, non-fatal (mirrors planWeekAction).
         try {
             const { schedulePost } = await import("@/instagram/service")
-            await schedulePost(date, postId, time)
+            await schedulePost(date, postId, time, clientId)
         } catch { /* calendar insert is non-critical */ }
 
         return { success: true }
