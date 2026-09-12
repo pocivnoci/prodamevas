@@ -19,11 +19,16 @@ import Link from 'next/link'
  * `planId` / `termMonths` nesou volbu z ceníku. Kdo klikne na konkrétní kartu,
  * přichází s rozhodnutím — ztratit ho znamená ptát se znovu na to, co už řekl.
  */
-export function ContactForm({ planId, termMonths, subdued = false }: {
+export function ContactForm({ planId, termMonths, subdued = false, inviteRequired = true }: {
     planId?: string | null
     termMonths?: number
     /** Formulář stojí pod jiným, hlavním tlačítkem — nesmí s ním soupeřit barvou. */
     subdued?: boolean
+    /** Stav brány bety — PROP ze serveru, ne `process.env` v prohlížeči (klient
+     *  k proměnné nemá přístup a četl by `undefined`). Zkratka „mám kód pozvánky"
+     *  dává smysl jen u zavřené brány; po otevření je registrace veřejná a
+     *  odkaz by sliboval podmínku, která neexistuje. */
+    inviteRequired?: boolean
 } = {}) {
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
     const [errorMsg, setErrorMsg] = useState('')
@@ -68,11 +73,13 @@ export function ContactForm({ planId, termMonths, subdued = false }: {
                 <p className="text-gray-400 text-center text-sm">
                     Ozveme se vám do jednoho pracovního dne. Podíváme se přitom na váš web, ať máme co ukázat.
                 </p>
-                <div className="mt-6 text-center">
-                    <Link href="/register" className="text-xs text-white/50 hover:text-white transition-colors underline decoration-white/30 underline-offset-4">
-                        Máte kód pozvánky? Zaregistrujte se
-                    </Link>
-                </div>
+                {inviteRequired && (
+                    <div className="mt-6 text-center">
+                        <Link href="/register" className="text-xs text-white/50 hover:text-white transition-colors underline decoration-white/30 underline-offset-4">
+                            Máte kód pozvánky? Zaregistrujte se
+                        </Link>
+                    </div>
+                )}
             </div>
         )
     }
@@ -141,9 +148,11 @@ export function ContactForm({ planId, termMonths, subdued = false }: {
                 )}
             </form>
             <div className="mt-6 text-center space-y-3">
-                <Link href="/register" className="block text-xs text-white/50 hover:text-white transition-colors underline decoration-white/30 underline-offset-4">
-                    Máte kód pozvánky? Vstupte zde
-                </Link>
+                {inviteRequired && (
+                    <Link href="/register" className="block text-xs text-white/50 hover:text-white transition-colors underline decoration-white/30 underline-offset-4">
+                        Máte kód pozvánky? Vstupte zde
+                    </Link>
+                )}
                 {/* Telefon je osobní údaj navíc oproti waitlistu, takže tu musí být
                     vidět, k čemu ho bereme a kde se dá dočíst zbytek. */}
                 <p className="text-[10px] text-white/25">
