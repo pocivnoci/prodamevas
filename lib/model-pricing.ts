@@ -34,6 +34,7 @@ interface TokenPrice {
 
 const BYTEPLUS = "docs.byteplus.com/en/docs/ModelArk/1099320 (Seedance 2.5), ověřeno 2026-09-11"
 const GOOGLE = "ai.google.dev/gemini-api/docs/pricing, ověřeno 2026-08-10"
+const ELEVENLABS = "elevenlabs.io/pricing/api, ověřeno 2026-09-12"
 
 const PRICES: Record<string, TokenPrice> = {
     // ── Flash tiery ────────────────────────────────────────────────────────────
@@ -103,7 +104,7 @@ const ALIASES: Record<string, string> = {
 }
 
 /** Co se u daného volání účtuje mimo tokeny. */
-export type UnitKind = "seconds" | "images" | "searches"
+export type UnitKind = "seconds" | "images" | "searches" | "characters"
 
 /** Rozlišení videa, která Seedance přes ModelArk renderuje nativně. */
 export type VideoResolution = "480p" | "720p"
@@ -120,7 +121,7 @@ export function videoUnitKey(model: string, resolution: VideoResolution): string
 
 /**
  * Jednotkové sazby — co se neúčtuje za tokeny.
- * Obraz per kus, video per vteřinu. Rozlišení bereme to, které engine skutečně
+ * Obraz per kus, video per vteřinu, hlas ElevenLabs per znak. Rozlišení bereme to, které engine skutečně
  * renderuje: video 480p (klíč `videoUnitKey`, seedance-client.ts), obraz bez
  * `imageSize` (= 1K; „2K"/„4K" rozmazává gemini-3-pro-image, viz komentář tamtéž).
  *
@@ -129,7 +130,7 @@ export function videoUnitKey(model: string, resolution: VideoResolution): string
  * (`recordUnits`) vedle tokenového (`recordUsage`) — jeden záznam neumí obojí a
  * mlčky by zahodil tu druhou půlku ceny.
  */
-const UNIT_PRICES: Record<string, { perSecond?: number; perImage?: number; perSearch?: number; source: string }> = {
+const UNIT_PRICES: Record<string, { perSecond?: number; perImage?: number; perSearch?: number; perCharacter?: number; source: string }> = {
     // Seedance 2.5 přes BytePlus ModelArk — účtuje se za vteřinu videa a liší se
     // rozlišením, proto klíč nese obojí (`videoUnitKey`). 480p je jediné, které
     // engine renderuje; 720p řádek je tu, aby se dial NEDAL zapnout bez ceny.
@@ -144,12 +145,20 @@ const UNIT_PRICES: Record<string, { perSecond?: number; perImage?: number; perSe
     // Web search server tool — $10 / 1000 hledání. Účtuje se za každé hledání bez
     // ohledu na počet výsledků; hledání, které skončí chybou, se neúčtuje.
     "claude-haiku-4-5": { perSearch: 0.01, source: "platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool, ověřeno 2026-09-07" },
+    // ElevenLabs účtuje za ZNAK vstupu (tagy přednesu v textu se počítají taky), ne za
+    // tokeny ani vteřiny: v3 i Multilingual v2 stojí 0,10 USD / 1 000 znaků (Flash/Turbo
+    // poloviční, ale ty nepoužíváme — horší čeština). Reel má 150–300 znaků → 1,5–3 centy.
+    // Předplatné (Creator 22 USD = 220 000 znaků) vychází na tutéž sazbu, takže číslo
+    // platí i pro kredity tarifu. Zapisuje `instagram/tts/elevenlabs.ts`.
+    "eleven_v3": { perCharacter: 0.0001, source: ELEVENLABS },
+    "eleven_multilingual_v2": { perCharacter: 0.0001, source: ELEVENLABS },
 }
 
 /** Sazba za jednotku daného druhu, nebo `undefined`, když ji model nemá. */
-function rateForKind(up: { perSecond?: number; perImage?: number; perSearch?: number } | undefined, kind: UnitKind): number | undefined {
+function rateForKind(up: { perSecond?: number; perImage?: number; perSearch?: number; perCharacter?: number } | undefined, kind: UnitKind): number | undefined {
     if (kind === "seconds") return up?.perSecond
     if (kind === "images") return up?.perImage
+    if (kind === "characters") return up?.perCharacter
     return up?.perSearch
 }
 

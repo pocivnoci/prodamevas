@@ -89,6 +89,13 @@ export const MODELS = {
     reelScript: { primary: "claude-opus-5", fallback: "claude-sonnet-5" },
     /** Czech voiceover */
     tts: { primary: "gemini-3.1-flash-tts-preview", fallback: "gemini-2.5-flash-preview-tts" },
+    /** Hlas značky přes ElevenLabs (`instagram/tts/elevenlabs.ts`; proč ne jen Gemini:
+     *  docs/DESIGN_reels-v2_2026-09-12.md, fáze 1). `eleven_v3` umí češtinu a čte tagy
+     *  přednesu; fallback `eleven_multilingual_v2` je SE STEJNÝM hlasem (voiceId sdílí) —
+     *  jiný hlas by nebyl fallback, ale cizí hlas. Na Gemini se nepadá nikdy: když
+     *  ElevenLabs mlčí, reel se parkuje. Env override GEMINI_MODEL_TTSELEVENLABS[_FALLBACK]
+     *  (název klíče je historický, platí pro všechny vendory). */
+    ttsElevenlabs: { primary: "eleven_v3", fallback: "eleven_multilingual_v2" },
     /** Cross-family JUDGE — Anthropic Claude for the Critic + Chief Editor (the design rule:
      *  writer family ≠ judge family). A different family from the Gemini copywriter removes
      *  self-preference bias and makes the quality gate a genuine second opinion. `claude-sonnet-5`

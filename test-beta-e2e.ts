@@ -2530,7 +2530,7 @@ test("17.12 TTS za rozhraním: poskytovatel v instagram/tts, spike skripty bez p
     assert(/getTtsProvider\(/.test(audio) && /voice\.voiceId/.test(audio), "reel-audio bere poskytovatele i hlas zvenčí")
 
     // Spike je experiment: kdyby importoval produkci, měřil by naši pipeline, ne API.
-    for (const f of ["scripts/smoke-seedance-dialogue.ts", "scripts/smoke-seedance-audio-ref.ts", "scripts/smoke-reel-voice.ts"]) {
+    for (const f of ["scripts/smoke-seedance-dialogue.ts", "scripts/smoke-seedance-audio-ref.ts", "scripts/smoke-reel-voice.ts", "scripts/smoke-elevenlabs-voice.ts"]) {
         const src = codeOnly(f)
         assert(!/from "\.\.\/(instagram|app|lib)\//.test(src), `${f}: spike skript nesmí importovat produkční modul`)
         assert(!fileContains("package.json", f), `${f}: živý spike nepatří do guardu`)

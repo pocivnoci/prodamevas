@@ -12,6 +12,7 @@
  */
 
 import { getTtsProvider } from "./tts"
+import { pcmToWav } from "./tts/wav"
 import type { TtsProvider } from "./tts/types"
 import { QualityUnavailableError } from "../utils/retry"
 import { REEL_TIMELINE } from "../lib/reel-media"
@@ -55,25 +56,9 @@ export function wavInfo(buf: Buffer): WavInfo {
     throw new Error("wavInfo: WAV bez chunku data")
 }
 
-/** Holé PCM → přehratelný WAV (tatáž hlavička, jakou skládá gemini-client). */
-export function pcmToWav(pcm: Buffer, sampleRate: number, channels: number, bitsPerSample: number): Buffer {
-    const blockAlign = (channels * bitsPerSample) / 8
-    const header = Buffer.alloc(44)
-    header.write("RIFF", 0, "latin1")
-    header.writeUInt32LE(36 + pcm.length, 4)
-    header.write("WAVE", 8, "latin1")
-    header.write("fmt ", 12, "latin1")
-    header.writeUInt32LE(16, 16)
-    header.writeUInt16LE(1, 20)
-    header.writeUInt16LE(channels, 22)
-    header.writeUInt32LE(sampleRate, 24)
-    header.writeUInt32LE(sampleRate * blockAlign, 28)
-    header.writeUInt16LE(blockAlign, 32)
-    header.writeUInt16LE(bitsPerSample, 34)
-    header.write("data", 36, "latin1")
-    header.writeUInt32LE(pcm.length, 40)
-    return Buffer.concat([header, pcm])
-}
+/** Holé PCM → přehratelný WAV. Hlavička žije v `tts/wav.ts` (jedna pro Gemini i
+ *  ElevenLabs); tady zůstává export, protože časová osa i testy ji berou odsud. */
+export { pcmToWav }
 
 /**
  * Ořízne ticho na začátku a konci TTS klipu. Gemini TTS vrací každou větu s ~0,3 s ticha

@@ -18,6 +18,7 @@ import { GoogleGenAI } from "@google/genai"
 import { getModel } from "../models"
 import { recordUsage } from "../usage-meter"
 import type { TtsProvider, TtsSynthesizeOptions } from "./types"
+import { pcmToWav } from "./wav"
 import dotenv from "dotenv"
 
 dotenv.config({ path: ".env.local" })
@@ -51,25 +52,7 @@ export function toPlayableAudio(raw: Buffer, mimeType?: string): Buffer {
 
     const rate = Number(/rate=(\d+)/i.exec(mimeType || "")?.[1]) || 24_000
     const channels = Number(/channels=(\d+)/i.exec(mimeType || "")?.[1]) || 1
-    const bits = 16
-    const blockAlign = (channels * bits) / 8
-
-    const header = Buffer.alloc(44)
-    header.write("RIFF", 0, "latin1")
-    header.writeUInt32LE(36 + raw.length, 4)
-    header.write("WAVE", 8, "latin1")
-    header.write("fmt ", 12, "latin1")
-    header.writeUInt32LE(16, 16)          // délka fmt bloku
-    header.writeUInt16LE(1, 20)           // 1 = nekomprimované PCM
-    header.writeUInt16LE(channels, 22)
-    header.writeUInt32LE(rate, 24)
-    header.writeUInt32LE(rate * blockAlign, 28)
-    header.writeUInt16LE(blockAlign, 32)
-    header.writeUInt16LE(bits, 34)
-    header.write("data", 36, "latin1")
-    header.writeUInt32LE(raw.length, 40)
-
-    return Buffer.concat([header, raw])
+    return pcmToWav(raw, rate, channels, 16)
 }
 
 /**
