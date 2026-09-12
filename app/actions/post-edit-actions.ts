@@ -334,7 +334,26 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`,
                     saved.caption || "",
                     [postId],
                     clientId,
-                ).catch(() => { /* non-fatal */ })
+                ).catch((err: unknown) => console.warn(`⚠️ učení z revize selhalo: ${(err as Error)?.message?.slice(0, 120)}`))
+            )
+        } catch { /* non-fatal — the edit is already saved */ }
+
+        // Úprava OBRAZU („posuň nadpis", „změň barvu") se dřív neučila vůbec —
+        // learnFromRevision porovnává text. Přitom je to nejčastější retuš a každá
+        // stojí 1–2 volání obrazového modelu. Zapisuje se jako vizuální paměť
+        // s confidence 0.3, tedy POD prahem retrievalu (0.4): jednorázová poznámka
+        // zůstane spát, opakovaná instrukce ji potvrdí a teprve pak ji dostane
+        // art director. Stejná doktrína jako learnFromCriticInsights. Žádné volání AI.
+        if (imageChanged && !(wantsText && saved.caption !== historyEntry.caption)) try {
+            const { waitUntil } = await import("@vercel/functions")
+            const { upsertMemory } = await import("@/instagram/memory-agent")
+            waitUntil(
+                upsertMemory(clientId, {
+                    type: "visual",
+                    content: `Úprava vizuálu na přání klienta: ${instruction.trim().slice(0, 160)}`,
+                    confidence: 0.3,
+                    sourcePostIds: [postId],
+                }).catch((err: unknown) => console.warn(`⚠️ učení z úpravy vizuálu selhalo: ${(err as Error)?.message?.slice(0, 120)}`))
             )
         } catch { /* non-fatal — the edit is already saved */ }
 
@@ -478,7 +497,7 @@ export async function saveManualText(
                     saved.caption || "",
                     [postId],
                     clientId,
-                ).catch(() => { /* non-fatal */ })
+                ).catch((err: unknown) => console.warn(`⚠️ učení z revize selhalo: ${(err as Error)?.message?.slice(0, 120)}`))
             )
         } catch { /* non-fatal — text je uložený */ }
 

@@ -284,12 +284,14 @@ export async function getIdeaById(ideaId: string): Promise<PostIdea | null> {
     return data;
 }
 
-export async function markIdeaAsUsed(ideaId: string): Promise<void> {
-    // Get current count and increment
+export async function markIdeaAsUsed(ideaId: string, clientId: string): Promise<void> {
+    // client_id ve filtru (CLAUDE.md): id nápadu přichází zvenčí a bez tenanta by
+    // se dal „spotřebovat" nápad cizí značky.
     const { data } = await supabaseAdmin
         .from("ig_post_ideas")
         .select("used_count")
         .eq("id", ideaId)
+        .eq("client_id", clientId)
         .single();
 
     await supabaseAdmin
@@ -298,7 +300,8 @@ export async function markIdeaAsUsed(ideaId: string): Promise<void> {
             used_count: (data?.used_count ?? 0) + 1,
             last_used_at: new Date().toISOString()
         })
-        .eq("id", ideaId);
+        .eq("id", ideaId)
+        .eq("client_id", clientId);
 }
 
 
@@ -319,11 +322,12 @@ export async function batchInsertIdeas(ideas: any[]): Promise<number> {
 // REVIEWS
 // ============================================
 
-export async function markReviewAsUsed(reviewId: string): Promise<void> {
+export async function markReviewAsUsed(reviewId: string, clientId: string): Promise<void> {
     await supabaseAdmin
         .from("ig_reviews")
         .update({ used_at: new Date().toISOString() })
-        .eq("id", reviewId);
+        .eq("id", reviewId)
+        .eq("client_id", clientId);
 }
 
 // ============================================
@@ -386,11 +390,16 @@ export async function createPost(post: any): Promise<Post> {
 export async function schedulePost(
     date: string,
     postId: string,
-    timeSlot: string = "afternoon"
+    timeSlot: string = "afternoon",
+    clientId: string,
 ): Promise<ContentCalendar> {
+    if (!clientId) throw new Error("schedulePost: chybí clientId — záznam kalendáře musí patřit tenantovi")
+    // client_id se dřív nezapisoval vůbec: řádek kalendáře bez tenanta nešel ani
+    // vyfiltrovat, ani smazat s klientem (FK je ON DELETE CASCADE, ale NULL nekaskáduje).
     const { data, error } = await supabaseAdmin
         .from("ig_content_calendar")
         .insert({
+            client_id: clientId,
             date,
             post_id: postId,
             time_slot: timeSlot
@@ -555,27 +564,29 @@ export async function scoreConsistencyAndEmbed(
  * Called when metrics are entered for published posts.
  * This is the key feedback loop: Metrics → Ideas/Reviews → Future selection.
  */
-export async function propagateMetricsToSources(explicitClientId?: string): Promise<{ ideasUpdated: number; reviewsUpdated: number; typesUpdated: number }> {
+export async function propagateMetricsToSources(explicitClientId?: string): Promise<{ ideasUpdated: number; reviewsUpdated: number; typesUpdated: number; productsUpdated: number }> {
     const clientId = explicitClientId || getActiveProject()
 
-    // Get posts that have metrics AND linked ideas/reviews/types
+    // Get posts that have metrics AND linked ideas/reviews/types/products
     const { data: posts } = await supabaseAdmin
         .from("ig_posts")
-        .select("id, idea_id, review_id, post_type_id, likes, comments, saves, reach, shares, link_clicks")
+        .select("id, idea_id, review_id, post_type_id, product_id, likes, comments, saves, reach, shares, link_clicks")
         .eq("client_id", clientId)
         .eq("status", "posted")
         .not("likes", "is", null)
 
-    if (!posts || posts.length === 0) return { ideasUpdated: 0, reviewsUpdated: 0, typesUpdated: 0 }
+    if (!posts || posts.length === 0) return { ideasUpdated: 0, reviewsUpdated: 0, typesUpdated: 0, productsUpdated: 0 }
 
     let ideasUpdated = 0
     let reviewsUpdated = 0
     let typesUpdated = 0
+    let productsUpdated = 0
 
-    // Group metrics by idea_id / review_id / post_type_id
+    // Group metrics by idea_id / review_id / post_type_id / product_id
     const ideaMetrics: Record<string, number[]> = {}
     const reviewMetrics: Record<string, number[]> = {}
     const typeMetrics: Record<string, number[]> = {}
+    const productMetrics: Record<string, number[]> = {}
 
     for (const post of posts) {
         // Váhy: uložení > komentář > lajk, protože stoupá cena, kterou za ně divák
@@ -600,6 +611,10 @@ export async function propagateMetricsToSources(explicitClientId?: string): Prom
         if (post.post_type_id) {
             if (!typeMetrics[post.post_type_id]) typeMetrics[post.post_type_id] = []
             typeMetrics[post.post_type_id].push(engagement)
+        }
+        if (post.product_id) {
+            if (!productMetrics[post.product_id]) productMetrics[post.product_id] = []
+            productMetrics[post.product_id].push(engagement)
         }
     }
 
@@ -643,7 +658,28 @@ export async function propagateMetricsToSources(explicitClientId?: string): Prom
         typesUpdated++
     }
 
-    return { ideasUpdated, reviewsUpdated, typesUpdated }
+    // PRODUKTY — poslední zdroj obsahu bez zpětné vazby (invariant CLAUDE.md).
+    // Sloupce přidává migrace 20260912_product_performance.sql; do jejího nasazení
+    // je zápis best-effort a hlásí se do logu, ne potichu (výběr produktu pak jede
+    // bez váhy, jako dřív).
+    for (const [productId, scores] of Object.entries(productMetrics)) {
+        const avgScore = scores.reduce((s, v) => s + v, 0) / scores.length
+        const { error } = await supabaseAdmin
+            .from("ig_products")
+            .update({
+                performance_score: avgScore,
+                times_used_with_metrics: scores.length,
+            })
+            .eq("id", productId)
+            .eq("client_id", clientId)
+        if (error) {
+            console.warn(`⚠️ ig_products.performance_score se nezapsal (${error.message.slice(0, 80)}) — proběhla migrace 20260912_product_performance?`)
+            break
+        }
+        productsUpdated++
+    }
+
+    return { ideasUpdated, reviewsUpdated, typesUpdated, productsUpdated }
 }
 
 /**

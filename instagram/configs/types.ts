@@ -573,7 +573,8 @@ export interface ClientConfig {
     imageBrief?: ImageBriefItem[]
 
     /** Snapshot from the onboarding IG scrape — cold-start baseline for
-     *  planning (bestPostingTimes → planWeek) and performance context
+     *  planning (bestPostingTimes → resolvePostingTimes v lib/schedule-planner,
+     *  dokud nejsou vlastní naměřené sloty) and performance context
      *  until the engine has its own metrics. */
     igBaseline?: {
         followerCount: number

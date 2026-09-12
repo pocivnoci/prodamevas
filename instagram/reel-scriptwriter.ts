@@ -103,6 +103,10 @@ export interface ReelScriptInput {
     reviews?: { quote: string; author?: string }[]
     /** Blok kontextového agenta (svátky, počasí, sezóna). */
     signals?: string
+    /** Brand memory (pattern / preference / avoid) — tentýž blok, jaký dostal
+     *  copywriter (`formatMemoriesForPrompt`). Scénář narraci copywritera
+     *  NAHRAZUJE, takže bez něj by naučené vzory značky do reelu nedotekly. */
+    memorySection?: string
     /** Posledních ~8 reelů (nejnovější první) — anti-repeat hooků i vzorů. */
     pastReels?: PastReel[]
     /** Vzory nabídnuté scenáristovi. Když chybí, builder si je zváží sám. */
@@ -219,7 +223,7 @@ ${input.caption ? `- Caption (jde pod video, neopakuj ho doslova):\n"""${input.c
 - Persona: ${config.brandVoice?.persona || "—"}
 - Zaměření obsahu: ${config.contentFocus || "—"}
 ${voiceExamples ? `- Takhle značka zní (ukázky):\n${voiceExamples}` : ""}
-
+${input.memorySection ? `${input.memorySection.trim()}\n` : ""}
 ## OVĚŘENÁ FAKTA O ZNAČCE
 ${facts || "(žádná ověřená fakta — nepiš ŽÁDNÁ konkrétní čísla, ceny, procenta ani záruky)"}
 

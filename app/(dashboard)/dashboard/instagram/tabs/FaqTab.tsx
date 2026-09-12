@@ -4,7 +4,7 @@ import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown } from "lucide-react"
 import { EXTRA_CREDIT_HALERU, FALLBACK_PLANS, formatCzk } from "@/lib/pricing"
-import { ALL_MEDIA, MEDIA_CREDITS, type MediumType } from "@/lib/credits"
+import { MEDIA_CREDITS, ACTION_CREDITS, mediaCreditsSentence } from "@/lib/credits"
 import { countLabel, CREDITS } from "@/lib/plural"
 
 // ─── FAQ Data ────────────────────────────────────────────────
@@ -25,25 +25,17 @@ const PLAN_BLURB: Record<string, string> = {
     chrlit_imperium: "nejvyšší objem pro jednu značku",
 }
 
-/** Názvy médií pro nápovědu; `Record<MediumType, …>` přestane kompilovat,
- *  jakmile v `MEDIA_CREDITS` přibude médium bez popisku. */
-const MEDIA_NAZVY: Record<MediumType, string> = {
-    image: "obrázek",
-    story: "story",
-    carousel: "carousel",
-    reel: "reel",
-    reel_long: "dlouhý reel",
+/** Váhy z `MEDIA_CREDITS` — viz mediaCreditsSentence v lib/credits.ts. */
+function mediaCenySentence(): string {
+    return mediaCreditsSentence()
 }
 
-/**
- * „obrázek 1 · story 2 · carousel 3 · reel 5" — váhy z `MEDIA_CREDITS`.
- *
- * Nápověda tu do 9/2026 tvrdila „Varianta stojí 1 kredit", což nebyla pravda ani
- * u carouselu: `creditsForAction("post_variant", medium)` účtuje verzi stejně
- * jako příspěvek téhož média. Čísla proto chodí z tabulky vah, ne z ruky.
- */
-function mediaCenySentence(): string {
-    return ALL_MEDIA.map((m) => `${MEDIA_NAZVY[m]} ${MEDIA_CREDITS[m]}`).join(" · ")
+/** Ceny akcí z `ACTION_CREDITS`; ruční čísla tu jednou už lhala („Varianta stojí 1 kredit"). */
+function actionCenySentence(): string {
+    const k = (n: number) => countLabel(n, CREDITS)
+    return `Úprava hotového příspěvku = ${k(ACTION_CREDITS.post_edit)}. Generování nápadů = ${k(ACTION_CREDITS.idea_generate)}. `
+        + `Produktová vizualizace = ${k(ACTION_CREDITS.product_visual)}. Design pro tisk = ${k(ACTION_CREDITS.product_design)}. `
+        + `Mockup = ${k(ACTION_CREDITS.product_mockup)}. Business Brief = ${k(ACTION_CREDITS.product_brief)}. Celá produktová řada = ${k(ACTION_CREDITS.product_line)}.`
 }
 
 /** „Start 20, Růst 70, Dominance 130, Impérium 260" — také z ceníku, ne z ruky. */
@@ -110,7 +102,7 @@ const FAQ_CATEGORIES: FaqCategory[] = [
         items: [
             {
                 q: "Kolik stojí jedna akce?",
-                a: `Příspěvek stojí podle média (${mediaCenySentence()}). Každá verze v „Dvě verze na výběr“ je plnohodnotný příspěvek, takže se účtuje stejně jako on — dvě verze carouselu tedy stojí ${countLabel(2 * MEDIA_CREDITS.carousel, CREDITS)}, i když nakonec použijete jednu. Úprava hotového příspěvku = 1 kredit. Generování nápadů = 1 kredit. Produktová vizualizace = 2 kredity. Design pro tisk = 3 kredity. Mockup = 2 kredity. Business Brief = 5 kreditů. Celá produktová řada = 8 kreditů.`,
+                a: `Příspěvek stojí podle média (${mediaCenySentence()}). Každá verze v „Dvě verze na výběr“ je plnohodnotný příspěvek, takže se účtuje stejně jako on — dvě verze carouselu tedy stojí ${countLabel(2 * MEDIA_CREDITS.carousel, CREDITS)}, i když nakonec použijete jednu. ${actionCenySentence()}`,
             },
             {
                 q: "Co se stane, když mi dojdou kredity?",

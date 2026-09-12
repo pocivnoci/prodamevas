@@ -35,31 +35,10 @@ const ADMIN_BYPASS: CanPerformResult = {
 
 // ─── Types ───────────────────────────────────────────────────
 
-export type ActionType =
-    | "post"
-    | "post_edit"
-    | "post_variant"
-    | "idea_generate"
-    | "product_ideas"
-    | "product_visual"
-    | "product_design"
-    | "product_mockup"
-    | "product_brief"
-    | "product_line"
-
-/** How many credits each action costs (for EXTRA posts, not plan posts) */
-export const ACTION_CREDITS: Record<ActionType, number> = {
-    post: 1,               // base = image; carousel/reel are weighted via creditsForMedia()
-    post_edit: 1,          // targeted retouch = ONE image call — flat, never media-weighted
-    post_variant: 1,       // base = image; weighted via creditsForMedia()
-    idea_generate: 1,      // batch of ideas
-    product_ideas: 2,      // 5 product ideas
-    product_visual: 2,     // Imagen render
-    product_design: 3,     // concept + render
-    product_mockup: 2,     // photorealistic mockup
-    product_brief: 5,      // full business analysis
-    product_line: 8,       // whole line: Pro-ladder strategy + N SKUs + specs + repair round
-}
+// Ceník akcí žije v client-safe lib/credits.ts (UI z něj skládá nápovědu);
+// tady zůstává re-export, aby backend i guard (13.14) měli jeden import.
+export { ACTION_CREDITS, type ActionType } from "@/lib/credits"
+import { ACTION_CREDITS, type ActionType } from "@/lib/credits"
 
 /**
  * Media-weighted credit costs (COGS-aligned: 1 credit ≈ $0.30 of AI cost).
@@ -929,13 +908,28 @@ export async function refundJobCharge(
     if (charged === "plan") {
         await decrementPlanPostCount(clientId)
     } else if (charged === "credits") {
-        await supabaseAdmin.from("credit_transactions").insert({
+        let credits = chargedCredits
+        if (credits == null) {
+            // Legacy job bez chargedCredits: paušál `ACTION_CREDITS.post` (1) by u reelu
+            // vrátil 1 z 5 (resp. z 10). Médium je v configu jobu — jeden dotaz navíc
+            // jen pro tuhle historickou cestu.
+            const { data: job } = await supabaseAdmin.from("ig_jobs").select("config").eq("id", jobId).eq("client_id", clientId).maybeSingle()
+            const cfg = (job?.config ?? {}) as { chargedMedium?: string; medium?: string }
+            const medium = cfg.chargedMedium ?? cfg.medium
+            credits = medium ? _creditsForMedia(medium) : ACTION_CREDITS.post
+        }
+        const { error } = await supabaseAdmin.from("credit_transactions").insert({
             client_id: clientId,
             action: "post_refund",
-            credits: -(chargedCredits ?? ACTION_CREDITS.post),
+            credits: -credits,
             description: "Refund: generování selhalo",
             reference_id: jobId,
         })
+        // 23505 = unikátní index (action, reference_id): druhý refund téhož jobu je
+        // záměrně no-op. Cokoli jiného je skutečná chyba a musí být vidět.
+        if (error && error.code !== "23505") {
+            throw new Error(`refundJobCharge(${jobId}): ${error.message}`)
+        }
     }
 }
 

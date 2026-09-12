@@ -20,7 +20,10 @@ import { resolveIndustryVisual } from "../industry-visual-profiles"
 import { CAROUSEL_MAX_TOTAL_SLIDES } from "../caption-generator"
 
 export interface ClientMeta {
+    /** Slug — identifikátor na hranici UI (`projectId` ve StudioContextu). */
     id: string
+    /** UUID `clients.id` — aby deep link z e-mailu (`?project=<uuid>`) našel značku. */
+    clientId: string
     name: string
     icon: string
     description: string
@@ -397,12 +400,13 @@ export async function getAvailableClients(): Promise<ClientMeta[]> {
         // Super admin sees everything
         const { data, error } = await supabaseAdmin
             .from("clients")
-            .select("slug, name, website")
+            .select("id, slug, name, website")
             .eq("is_active", true)
 
         if (error || !data) return []
         return data.map(client => ({
             id: client.slug,
+            clientId: client.id,
             name: client.name,
             icon: "📱",
             description: client.website || ""
@@ -420,13 +424,14 @@ export async function getAvailableClients(): Promise<ClientMeta[]> {
     const clientIds = links.map(l => l.client_id)
     const { data, error } = await supabaseAdmin
         .from("clients")
-        .select("slug, name, website")
+        .select("id, slug, name, website")
         .eq("is_active", true)
         .in("id", clientIds)
 
     if (error || !data) return []
     return data.map(client => ({
         id: client.slug,
+        clientId: client.id,
         name: client.name,
         icon: "📱",
         description: client.website || ""

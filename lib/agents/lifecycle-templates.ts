@@ -9,6 +9,7 @@
  */
 
 import { siteUrl, studioDeepLink } from "@/lib/mail/links"
+import type { StudioSection } from "@/app/(dashboard)/StudioContext"
 import { countLabel, CREDITS } from "@/lib/plural"
 
 export type LifecycleKind =
@@ -35,7 +36,7 @@ export function buildLifecycleEmail(
     const brand = vars.clientName?.trim() || null
     /** „ — Kavárna Alchymista" v apozici, nebo nic. */
     const tag = brand ? ` — ${brand}` : ""
-    const studio = (section: string) =>
+    const studio = (section: StudioSection) =>
         vars.clientId ? studioDeepLink(vars.clientId, section) : `${siteUrl()}/dashboard/instagram`
     const sign = "\n\nTým Chrlit"
 
@@ -55,7 +56,7 @@ export function buildLifecycleEmail(
                 subject: `Kredity skoro vyčerpané${tag}`,
                 body: `Dobrý den,\n\n` +
                     `v plánu${brand ? ` pro značku <strong>${brand}</strong>` : ""} zbývá ${vars.creditsRemaining} z ${countLabel(Number(vars.creditsTotal), CREDITS)}. Aby obsah nepřestal vycházet, navyšte prosím plán nebo si dokupte kredity.\n\n` +
-                    `<a href="${studio("subscription")}">Spravovat předplatné →</a>${sign}`,
+                    `<a href="${studio("settings")}">Spravovat předplatné →</a>${sign}`,
             }
         }
         case "winback":
@@ -63,7 +64,7 @@ export function buildLifecycleEmail(
                 subject: `Instagram mezitím spí — vraťte se do Chrlitu${tag}`,
                 body: `Dobrý den,\n\n` +
                     `předplatné${brand ? ` pro značku <strong>${brand}</strong>` : ""} vypršelo a účet přestal dostávat nový obsah. Nastavení, značku i naučené preference máme uložené — návrat je otázka jednoho kliknutí.\n\n` +
-                    `<a href="${studio("subscription")}">Obnovit předplatné →</a>${sign}`,
+                    `<a href="${studio("settings")}">Obnovit předplatné →</a>${sign}`,
             }
         case "dormant":
             return {

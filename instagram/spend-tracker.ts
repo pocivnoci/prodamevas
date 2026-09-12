@@ -28,6 +28,8 @@ export type SpendOperation =
     | "print"                 // tiskový engine — brief, artwork, mockup
     | "content_plan"          // hluboká pipeline obsahového plánu
     | "post_edit"             // retuš hotového příspěvku (edit obrázku)
+    | "post_revise"           // přepis příspěvku podle uživatele (revisePost — celá pipeline)
+    | "post_partial"          // generace, která nedoběhla k zápisu do ig_generation_log (pád, parkování)
     | "learn"                 // učení z metrik (analyzeAndLearn)
     | "sales_preview"         // ukázka pro obchodního agenta
     | "brand_facts"           // vytažení ověřených faktů z webu značky
@@ -77,6 +79,20 @@ export async function trackSpend<T>(
             if (usage) await persist(operation, opts, usage)
         }
     })
+}
+
+/**
+ * Zápis naměřené spotřeby mimo `trackSpend` — pro `generateOnePost`, který má
+ * vlastní scope (usage jde do ig_generation_log), ale při pádu nebo zaparkování
+ * k zápisu nedojde. Právě neúspěšné a zaparkované reely (Seedance už účtoval)
+ * byly v datech nejlevnější, protože v nich nebyly vůbec.
+ */
+export async function persistSpend(
+    operation: SpendOperation,
+    opts: { clientId?: string | null; refId?: string | null },
+    usage: { promptTokens: number; outputTokens: number; thoughtTokens: number; cachedTokens: number; calls: number; breakdown: unknown[] },
+): Promise<void> {
+    return persist(operation, opts, usage)
 }
 
 async function persist(

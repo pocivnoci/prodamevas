@@ -39,7 +39,7 @@ export const subscriptionRenewal: EmailTemplate = {
         // s ceníkem — u měsíčního období je cena období rovna měsíční sazbě.
         price: samplePrice(),
         renewsOn: "5. 9. 2026",
-        manageUrl: `${siteUrl()}/dashboard/instagram#billing`,
+        manageUrl: `${siteUrl()}/dashboard/instagram#settings`,
     },
     // Strhává se cena ZAPLACENÉHO OBDOBÍ, ne měsíční sazba tarifu. Do 9/2026 tu
     // stála měsíční cena jako cena obnovy, takže roční zákazník četl 2 999 Kč
@@ -92,7 +92,7 @@ export const subscriptionChargeFailed: EmailTemplate = {
         attempt: "2",
         maxAttempts: String(MAX_BILLING_FAILURES),
         graceNote: "Účet zůstává aktivní ještě 3 dny.",
-        payUrl: `${siteUrl()}/dashboard/instagram#billing`,
+        payUrl: `${siteUrl()}/dashboard/instagram#settings`,
     },
     build: v => ({
         subject: "Platbu se nepodařilo strhnout",
@@ -124,7 +124,7 @@ export const subscriptionExpired: EmailTemplate = {
     sample: {
         planName: samplePlanName(),
         price: samplePriceMonthly(),
-        renewUrl: `${siteUrl()}/dashboard/instagram#billing`,
+        renewUrl: `${siteUrl()}/dashboard/instagram#settings`,
     },
     build: v => ({
         subject: "Vaše předplatné skončilo",
@@ -165,7 +165,7 @@ export const subscriptionWinback: EmailTemplate = {
         code: "ZPATKY",
         codeNote: "První měsíc zdarma",
         price: samplePriceMonthly(),
-        ctaUrl: `${siteUrl()}/dashboard/instagram#billing`,
+        ctaUrl: `${siteUrl()}/dashboard/instagram#settings`,
     },
     build: v => ({
         subject: v.headline,

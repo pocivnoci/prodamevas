@@ -304,8 +304,14 @@ export async function confirmPlanAction(
             try {
                 const config = await loadConfig(projectSlug)
                 perWeek = Number(config?.postsPerWeek) || 4
-                times = Array.isArray(config?.postingTimes) && config.postingTimes.length > 0
-                    ? (config.postingTimes as string[]) : undefined
+                // Naměřené časy → baseline z onboardingu → ruční nastavení → výchozí.
+                const { resolvePostingTimes } = await import("@/lib/schedule-planner")
+                const { measuredTimeSlots } = await import("@/instagram/performance")
+                times = resolvePostingTimes({
+                    measured: await measuredTimeSlots(clientId).catch(() => null),
+                    baseline: config?.igBaseline?.bestPostingTimes,
+                    configured: config?.postingTimes,
+                })
             } catch { /* výchozí kadence stačí, tohle nesmí potvrzení shodit */ }
             // Rozpětí podle kalendáře, ne podle týdnů: hustota se odvodí ze
             // skutečné délky měsíce (28–31 dní), takže celý propadlý měsíc se
@@ -410,7 +416,7 @@ export async function schedulePostAction(
         // Calendar entry — best-effort, non-fatal (mirrors planWeekAction).
         try {
             const { schedulePost } = await import("@/instagram/service")
-            await schedulePost(date, postId, time)
+            await schedulePost(date, postId, time, clientId)
         } catch { /* calendar insert is non-critical */ }
 
         return { success: true }

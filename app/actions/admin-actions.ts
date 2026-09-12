@@ -84,25 +84,31 @@ export async function getDashboardStats(projectSlug: string) {
                 type_emoji: (p.ig_post_types as any)?.emoji || "📸",
             }))
 
-        // This week calendar (Mon-Sun)
+        // This week calendar (Mon-Sun) — dny v PRAŽSKÉM čase. Server běží v UTC,
+        // takže `toISOString().split("T")[0]` dával postu z 23:30 včerejšek a
+        // přehled ho ukazoval o den vedle; CalendarTab a plánovač počítají lokálně.
+        const { toPragueDateStr } = await import("@/lib/schedule-planner")
         const now = new Date()
-        const dayOfWeek = now.getDay() // 0=Sun
+        const todayStr = toPragueDateStr(now)
+        const [ty, tm, td] = todayStr.split("-").map(Number)
+        const todayLocal = new Date(Date.UTC(ty, tm - 1, td))
+        const dayOfWeek = todayLocal.getUTCDay() // 0=Sun
         const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
-        const monday = new Date(now)
-        monday.setDate(now.getDate() + mondayOffset)
-        monday.setHours(0, 0, 0, 0)
+        const monday = new Date(todayLocal)
+        monday.setUTCDate(todayLocal.getUTCDate() + mondayOffset)
 
         const weekDays: { date: string; dayName: string; isToday: boolean; posts: { id: string; caption: string; image_url: string | null; media_type?: string | null; status: string; type_emoji: string }[] }[] = []
         const dayNames = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"]
         for (let i = 0; i < 7; i++) {
             const d = new Date(monday)
-            d.setDate(monday.getDate() + i)
+            d.setUTCDate(monday.getUTCDate() + i)
             const dateStr = d.toISOString().split("T")[0]
-            const isToday = dateStr === now.toISOString().split("T")[0]
-            // Match posts by scheduled_for or created_at date
+            const isToday = dateStr === todayStr
+            // Match posts by scheduled_for or created_at date (v Praze)
             const dayPosts = allPosts.filter(p => {
-                const postDate = (p.scheduled_for || p.created_at || "").split("T")[0]
-                return postDate === dateStr
+                const iso = p.scheduled_for || p.created_at
+                if (!iso) return false
+                return toPragueDateStr(new Date(iso)) === dateStr
             }).slice(0, 2).map(p => ({
                 id: p.id,
                 caption: p.caption?.split("\n")[0]?.substring(0, 40) || "—",
@@ -404,10 +410,12 @@ export async function getIGPostTypes(configName?: string): Promise<(IGPostType &
     const dedupeByName = (rows: any[]) =>
         rows.filter((pt, i, self) => self.findIndex(t => t.name === pt.name) === i)
 
-    // Admin/global view (no project): keep the deduped global set
+    // Admin/global view (no project): keep the deduped global set. Jen pro super
+    // admina — bez slugu je to čtení přes VŠECHNY tenanty (názvy a AI popisy
+    // cizích formátů), a přihlášení samo o sobě k tomu neopravňuje.
     if (!configName) {
-        const { requireAuth } = await import("@/lib/auth-guard")
-        try { await requireAuth() } catch { return [] }
+        const { requireSuperAdmin } = await import("@/lib/auth-guard")
+        try { await requireSuperAdmin() } catch { return [] }
         const { data } = await supabaseAdmin.from("ig_post_types").select("*").order("name")
         return dedupeByName(data || [])
     }
@@ -463,7 +471,7 @@ export async function checkIsAdmin(): Promise<boolean> {
 /**
  * Get available clients from config registry (for dashboard project selector)
  */
-export async function getAvailableIGClients(): Promise<{ id: string; name: string; icon: string; description: string }[]> {
+export async function getAvailableIGClients(): Promise<{ id: string; clientId: string; name: string; icon: string; description: string }[]> {
     const { getAvailableClients } = await import("@/instagram/configs")
     return getAvailableClients()
 }
@@ -761,7 +769,7 @@ export async function refundPayment(paymentId: string, reason?: string): Promise
         })
         .eq("id", paymentId)
         .eq("status", "PAID")
-        .select("id, client_id, subscription_id, amount, currency, provider, provider_ref, label")
+        .select("id, client_id, subscription_id, amount, currency, provider, provider_ref, label, kind, credits_granted")
         .maybeSingle()
 
     if (!payment) {
@@ -769,6 +777,39 @@ export async function refundPayment(paymentId: string, reason?: string): Promise
     }
 
     const steps: string[] = []
+
+    // 1b. Dobití kreditů nemá subscription_id, takže krok 2 by ho minul: peníze zpět
+    // A kredity by zůstaly. Storno je kladný řádek (spotřeba) proti zápornému
+    // `credit_topup` z on-paid.ts; idempotentní přes index (action, reference_id).
+    // Ledger klampuje `used` na ≥ 0, takže už utracené kredity se do mínusu nedostanou —
+    // to je shovívavý směr a je vědomý.
+    if (payment.kind === "credits" && Number(payment.credits_granted) > 0) {
+        const { error } = await supabaseAdmin.from("credit_transactions").insert({
+            client_id: payment.client_id,
+            action: "credit_topup_refund",
+            credits: Number(payment.credits_granted),
+            description: `Storno dobití — platba ${payment.id} vrácena`,
+            reference_id: payment.id,
+        })
+        if (error && error.code !== "23505") {
+            steps.push(`⚠️ Odečíst ${payment.credits_granted} kreditů ručně — storno v ledgeru selhalo: ${error.message}`)
+        } else {
+            steps.push(`Kredity (${payment.credits_granted}) z tohoto dobití byly odečteny automaticky.`)
+        }
+    }
+
+    // 1c. Zaplacená služba (nastavení značky): vrácené peníze = zrušená schůzka.
+    // Řádek `consultations` z on-paid.ts jinak zůstane ve stavu 'paid' a brief ji
+    // dál nabízí k zabookování. Zrušit jde jen dosud neproběhlou ('paid' / 'booked').
+    if (payment.kind === "service") {
+        const { data: cancelled } = await supabaseAdmin
+            .from("consultations")
+            .update({ status: "cancelled" })
+            .eq("payment_id", payment.id)
+            .in("status", ["entitled", "paid", "booked"])
+            .select("id")
+        if (cancelled?.length) steps.push("Schůzka k této platbě byla zrušena automaticky.")
+    }
 
     // 2. Předplatné končí OKAMŽITĚ — peníze se vrací celé, ne poměrnou částí.
     let stripeRef: string | null = null

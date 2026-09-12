@@ -579,6 +579,8 @@ export async function analyzeAndLearn(
         reach: number
         shares: number
         link_clicks: number
+        /** Zhlédnutí — metrics-sync je posílá od 2026-08-31, ale tenhle typ je neznal. */
+        views?: number
     }[],
     explicitClientId?: string
 ): Promise<{ memoriesCreated: number; memoriesUpdated: number }> {
@@ -590,12 +592,18 @@ export async function analyzeAndLearn(
     const clientId = explicitClientId || getActiveProject()
 
     // Calculate engagement scores
+    // Míra engagementu na zhlédnutí odděluje „skvělý obsah, malé publikum" od
+    // „velké publikum, slabý obsah". Bez ní analyzátor připisoval čisté štěstí
+    // distribuce hookovému vzoru a zapisoval ho do paměti s confidence 0.5+.
     const scored = posts.map(p => ({
         ...p,
         engagement: (p.likes || 0) + (p.comments || 0) * 3 + (p.saves || 0) * 5,
         conversionScore: (p.link_clicks || 0) * 10 + (p.saves || 0),
         hook: p.caption.split("\n")[0] || "",
+        rate: (p.views ?? 0) > 0 ? ((p.likes || 0) + (p.comments || 0) * 3 + (p.saves || 0) * 5) / (p.views as number) : null,
     })).sort((a, b) => b.engagement - a.engagement)
+    const viewsLine = (p: { views?: number; rate: number | null }) =>
+        p.rate != null ? ` | Zhlédnutí: ${p.views} (míra ${(p.rate * 100).toFixed(1)} %)` : ""
 
     const avgEngagement = scored.reduce((s, p) => s + p.engagement, 0) / scored.length
     const topPosts = scored.filter(p => p.engagement > avgEngagement * 1.5)
@@ -611,12 +619,13 @@ export async function analyzeAndLearn(
 Jsi analytik Instagramu. Analyzuj tyto posty a identifikuj KONKRÉTNÍ vzorce.
 
 ## TOP POSTY (vysoký engagement):
-${topPosts.map((p, i) => `${i + 1}. Hook: "${p.hook}" | Engagement: ${p.engagement} | Saves: ${p.saves} | Comments: ${p.comments}${p.post_type_name ? ` | Typ: ${p.post_type_name}` : ""}`).join("\n")}
+${topPosts.map((p, i) => `${i + 1}. Hook: "${p.hook}" | Engagement: ${p.engagement} | Saves: ${p.saves} | Comments: ${p.comments}${viewsLine(p)}${p.post_type_name ? ` | Typ: ${p.post_type_name}` : ""}`).join("\n")}
 
 ## SLABÉ POSTY (nízký engagement):
-${bottomPosts.map((p, i) => `${i + 1}. Hook: "${p.hook}" | Engagement: ${p.engagement} | Saves: ${p.saves} | Comments: ${p.comments}${p.post_type_name ? ` | Typ: ${p.post_type_name}` : ""}`).join("\n")}
+${bottomPosts.map((p, i) => `${i + 1}. Hook: "${p.hook}" | Engagement: ${p.engagement} | Saves: ${p.saves} | Comments: ${p.comments}${viewsLine(p)}${p.post_type_name ? ` | Typ: ${p.post_type_name}` : ""}`).join("\n")}
 
 ## Průměrný engagement: ${avgEngagement.toFixed(0)}
+Když má post málo zhlédnutí, nízký engagement o obsahu nic neříká — nevyvozuj z něj pravidlo. Vysoká míra při malém dosahu je naopak silný signál o obsahu.
 
 Extrahuj max 3 pravidla. Každé pravidlo musí být:
 - Konkrétní a akcionovatelné (ne obecné "buď kreativní")
@@ -728,12 +737,16 @@ export async function learnFromVariantSelection(
     const clientId = explicitClientId || getActiveProject()
     const allIds = [winnerId, ...loserIds]
 
+    // client_id ve filtru je povinné (CLAUDE.md): id přicházejí z prohlížeče a bez
+    // něj by se cizí captiony dostaly do promptu a jako „preference" do paměti
+    // téhle značky — se source_post_ids cizího tenanta.
     const { data: posts } = await supabaseAdmin
         .from("ig_posts")
         .select("id, caption, image_prompt, image_style")
         .in("id", allIds)
+        .eq("client_id", clientId)
 
-    if (!posts || posts.length < 2) return { memoriesCreated: 0 }
+    if (!posts || posts.length < 2 || posts.length < allIds.length) return { memoriesCreated: 0 }
 
     const winner = posts.find(p => p.id === winnerId)
     const losers = posts.filter(p => p.id !== winnerId)

@@ -133,6 +133,9 @@ export async function POST(req: Request) {
                 caption: result.caption,
                 imageUrl: result.imageUrl,
                 cost: result.cost,
+                // Médium, které skutečně vzniklo — UI podle něj vykreslí story jako
+                // story a ne jako karusel (heuristika „víc URL = karusel" to nepozná).
+                mediaType: result.mediaType,
             },
         })
 

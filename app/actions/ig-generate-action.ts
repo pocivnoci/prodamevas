@@ -18,6 +18,9 @@ import { MAX_POSTS_PER_WEEK, monthSpanDays, postsForSpan } from "@/lib/schedule-
 
 
 export interface GenerateResult {
+    /** Médium, které skutečně vzniklo (`ig_jobs.result.mediaType`) — UI podle něj
+     *  vykreslí story jako story; heuristika „víc URL = karusel" to nepozná. */
+    mediaType?: string | null
     success: boolean
     postId?: string
     caption?: string
@@ -53,11 +56,20 @@ export async function triggerBatchGeneration(options: {
     message: string
 }> {
     try {
-        await requireAuth()
-        // Upfront credit check for entire batch
+        // Tenant PRÁCE a tenant ÚČTU je jeden a tentýž. Dřív šla práce podle
+        // `configName` a účet podle `projectId` — dva nezávislé vstupy z prohlížeče,
+        // takže se dalo generovat do cizí značky a zaplatit (nebo nezaplatit) za
+        // vlastní. Brána běží nad slugem, který skutečně řídí generování.
+        const slug = options.configName || options.projectId
+        if (!slug) return { success: false, generated: 0, errors: 0, message: "Chybí identifikace projektu." }
+        if (options.projectId && options.projectId !== slug) {
+            return { success: false, generated: 0, errors: 0, message: "projectId a configName musí být tentýž projekt." }
+        }
+        await requireProjectAccess(slug)
+        // Upfront credit check for entire batch — vždy, ne jen když někdo poslal projectId.
         let batchGuard: Awaited<ReturnType<typeof creditGuardBatch>> | null = null
-        if (options.projectId && !options.dryRun) {
-            batchGuard = await creditGuardBatch(options.projectId, "post", options.count)
+        if (!options.dryRun) {
+            batchGuard = await creditGuardBatch(slug, "post", options.count)
             if (!batchGuard.ok) {
                 return { success: false, generated: 0, errors: 0, message: batchGuard.error || "Nedostatek kreditů" }
             }
@@ -65,7 +77,7 @@ export async function triggerBatchGeneration(options: {
 
         await withRetry(
             () => generateBatch({
-                configName: options.configName,
+                configName: slug,
                 count: options.count,
                 dryRun: options.dryRun,
                 topic: options.topic || undefined,
@@ -221,7 +233,12 @@ export async function triggerAIIdeasGeneration(options: {
     projectId?: string
 }): Promise<{ success: boolean; generatedCount: number; error?: string }> {
     try {
-        await requireAuth()
+        // Brána nad slugem, podle kterého se generuje; `projectId` (účet) smí být jen
+        // tentýž projekt — jinak jde práce do jedné značky a účet druhé.
+        if (options.projectId && options.projectId !== options.configName) {
+            return { success: false, generatedCount: 0, error: "projectId a configName musí být tentýž projekt." }
+        }
+        await requireProjectAccess(options.configName)
         // Credit check + commit with single guard instance
         let guard: Awaited<ReturnType<typeof creditGuard>> | null = null
         if (options.projectId) {
@@ -302,7 +319,9 @@ export async function triggerAIReviewsGeneration(options: {
     count?: number
 }): Promise<{ success: boolean; generatedCount: number; error?: string }> {
     try {
-        await requireAuth()
+        // Recenze se zapisují do ig_reviews tenanta z configName a engine z nich pak
+        // píše posty — pouhé přihlášení nesmí stačit k zápisu do cizí značky.
+        await requireProjectAccess(options.configName)
         const { loadConfig } = await import("@/instagram/configs")
         const { generateAIReviews } = await import("@/instagram/review-generator")
 
@@ -451,9 +470,19 @@ export async function uploadCustomImage(
     formData: FormData
 ): Promise<{ success: boolean; publicUrl?: string; error?: string }> {
     try {
-        await requireAuth()
+        // Vlastnictví projektu + omezení obsahu: bucket je veřejný a sdílený, takže
+        // bez allow-listu by sem kdokoli přihlášený uložil libovolný soubor (i HTML)
+        // pod naší doménou na rok do cache. Stejné typy a strop jako klientské buckety.
+        await requireProjectAccess(projectId)
         const file = formData.get("file") as File
         if (!file) return { success: false, error: "No file provided" }
+        const { CLIENT_BUCKET_MIME_TYPES, CLIENT_BUCKET_SIZE_LIMIT } = await import("@/lib/storage-buckets")
+        if (!file.type.startsWith("image/") || !CLIENT_BUCKET_MIME_TYPES.includes(file.type)) {
+            return { success: false, error: "Nahrát jde jen obrázek (PNG, JPEG nebo WebP)." }
+        }
+        if (file.size > CLIENT_BUCKET_SIZE_LIMIT) {
+            return { success: false, error: "Soubor je příliš velký." }
+        }
 
         const fileName = `${projectId}_custom_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`
         const arrayBuffer = await file.arrayBuffer()

@@ -16,7 +16,7 @@ import { schedulePostAction } from "@/app/actions/calendar-actions"
 import { distributeSchedule, monthSpanDays, postsForSpan } from "@/lib/schedule-planner"
 import { MEDIA_CREDITS, type MediumType } from "@/lib/credits"
 import { isReelMedium, REEL_LABELS, type ReelMedium } from "@/lib/reel-media"
-import { isVideoUrl } from "@/lib/media-urls"
+import { parsePostMedia } from "@/lib/media-urls"
 import { ReelPlayer } from "./ReelPlayer"
 import { computeSlotIntents, VISUAL_MODE_LABELS, type FeedPatternId } from "@/lib/feed-pattern"
 import { getProducts } from "@/app/actions/product-actions"
@@ -1902,21 +1902,23 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     <div className="bg-[#0a0a0a] rounded-sm p-4 sm:p-6 border border-white/10 shadow-lg">
                                         <div className="mb-6 rounded-sm overflow-hidden bg-[#0f0f0f] shadow-inner border border-white/5">
                                             {(() => {
-                                                const urls = result.imageUrl?.split("|").filter(Boolean) || []
-                                                // Reel = „video|cover" — přehrát, ne strčit .mp4 do <img>.
-                                                if (isVideoUrl(urls[0])) {
-                                                    return <ReelPlayer controls videoUrl={urls[0]} coverUrl={urls[1]} className="w-full max-h-[600px] aspect-[9/16] mx-auto" />
+                                                // Jediný povolený parser médií (lib/media-urls.ts) — ruční split("|")
+                                                // tu vykresloval třísnímkovou story jako karusel.
+                                                const media = parsePostMedia(result.imageUrl, result.mediaType)
+                                                if (media.kind === "reel" || media.videoUrl) {
+                                                    return <ReelPlayer controls videoUrl={media.videoUrl || media.urls[0]} coverUrl={media.coverUrl} className="w-full max-h-[600px] aspect-[9/16] mx-auto" />
                                                 }
-                                                if (urls.length > 1) {
+                                                const frameClass = media.aspect === "vertical" ? "aspect-[9/16] mx-auto max-w-[340px]" : ""
+                                                if (media.urls.length > 1) {
                                                     return (
                                                         <div className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar">
-                                                            {urls.map((u, i) => (
-                                                                <img key={i} src={u} className="w-full h-auto max-h-[500px] object-contain snap-center shrink-0 border-r border-white/5 last:border-0" alt={`Slide ${i}`} />
+                                                            {media.urls.map((u, i) => (
+                                                                <img key={i} src={u} className={`w-full h-auto max-h-[500px] object-contain snap-center shrink-0 border-r border-white/5 last:border-0 ${frameClass}`} alt={media.kind === "story" ? `Snímek ${i + 1}` : `Slide ${i + 1}`} />
                                                             ))}
                                                         </div>
                                                     )
                                                 }
-                                                return <img src={urls[0]} className="w-full h-auto max-h-[500px] object-contain" alt="Vygenerovaný obsah" />
+                                                return <img src={media.thumbUrl || media.urls[0]} className={`w-full h-auto max-h-[500px] object-contain ${frameClass}`} alt="Vygenerovaný obsah" />
                                             })()}
                                         </div>
 

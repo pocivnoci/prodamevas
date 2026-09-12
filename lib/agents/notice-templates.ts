@@ -11,6 +11,7 @@
  */
 
 import { MAX_BILLING_FAILURES } from "@/lib/billing-period"
+import type { StudioSection } from "@/app/(dashboard)/StudioContext"
 import { vatNotice } from "@/lib/legal"
 import { siteUrl, studioDeepLink } from "@/lib/mail/links"
 import { formatCzk } from "@/lib/pricing"
@@ -65,7 +66,7 @@ export const KIND_LABELS: Record<NoticeKind, string> = {
 }
 
 const APP_URL = () => siteUrl()
-const link = (clientId: string | null | undefined, section: string) =>
+const link = (clientId: string | null | undefined, section: StudioSection) =>
     clientId ? studioDeepLink(clientId, section) : `${APP_URL()}/dashboard/instagram`
 
 /**
@@ -95,7 +96,10 @@ const vatFootnote = (vars: NoticeVars) =>
 
 export function buildCustomerNotice(kind: NoticeKind, vars: NoticeVars): { subject: string; body: string } {
     const name = vars.clientName || "váš účet"
-    const sub = link(vars.clientId, "subscription")
+    // Předplatné žije v sekci Nastavení — „subscription" není sekce a hash na ni
+    // parseHash tiše překlopil na dashboard; každé „Spravovat předplatné →" tak
+    // zákazníka poslalo na přehled.
+    const sub = link(vars.clientId, "settings")
     const cal = link(vars.clientId, "calendar")
 
     switch (kind) {

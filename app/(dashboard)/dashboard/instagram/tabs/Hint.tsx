@@ -14,6 +14,7 @@
  */
 
 import { useState } from "react"
+import { mediaCreditsSentence } from "@/lib/credits"
 
 export function Hint({ children, label = "proč to je důležité" }: { children: React.ReactNode; label?: string }) {
     const [open, setOpen] = useState(false)
@@ -53,7 +54,7 @@ export const HINTS = {
 
     voiceExamples: "Jeden až tři příspěvky, které se vám opravdu líbí, drží tón silněji než jakékoli nastavení výš — model se učí z ukázky, ne z popisu.",
 
-    formats: "Formát určuje cenu: obrázek 1 kredit, story 2, carousel 3, reel 5. Zapnout všechno znamená vyčerpat měsíční příděl rychleji, než čekáte.",
+    formats: `Formát určuje cenu: ${mediaCreditsSentence()} (kreditů). Zapnout všechno znamená vyčerpat měsíční příděl rychleji, než čekáte.`,
 
     cadence: "Kadence má odpovídat tomu, co reálně stihnete zveřejnit. Vygenerovaný a nezveřejněný příspěvek stál kredit a nevydělal nic.",
 

@@ -132,6 +132,41 @@ export async function buildWeeklyReport(): Promise<WeeklyReport> {
             .map(([slug, n]) => `${slug} ${n}×`).join(", ")
     } catch { /* sloupec ještě nemigrovaný — sekci přeskoč */ }
 
+    // Náklady a kvalita za týden: ig_generation_log ty sloupce nese od 8/2026,
+    // ale report četl jen strategii — tržby bez COGS a bez detektoru propadu
+    // skóre kritika. Stejný řádek, jen víc sloupců; null cost = neznámá sazba,
+    // ne nula (viz spend-tracker), proto se počítá zvlášť.
+    let cogsLine = ""
+    let qualityLine = ""
+    try {
+        const { data: week } = await supabaseAdmin
+            .from("ig_generation_log")
+            .select("cost_usd, critic_score, qa_status")
+            .gte("created_at", since)
+        const { data: spend } = await supabaseAdmin
+            .from("ai_spend")
+            .select("cost_usd")
+            .gte("created_at", since)
+        const rows = week || []
+        const priced = [...rows, ...(spend || [])].filter(r => r.cost_usd != null)
+        const unpriced = [...rows, ...(spend || [])].length - priced.length
+        if (priced.length > 0) {
+            const { USD_TO_CZK } = await import("@/lib/model-pricing")
+            const czk = Math.round(priced.reduce((a, r) => a + Number(r.cost_usd), 0) * USD_TO_CZK)
+            const margin = revenueCzk > 0 ? ` · hrubá marže ${Math.round((1 - czk / revenueCzk) * 100)} %` : ""
+            cogsLine = `${czk.toLocaleString("cs-CZ")} Kč${unpriced > 0 ? ` (+${unpriced}× bez sazby)` : ""}${margin}`
+        }
+        const scored = rows.filter(r => r.critic_score != null)
+        const qaRows = rows.filter(r => r.qa_status != null)
+        if (scored.length > 0) {
+            const avg = scored.reduce((a, r) => a + Number(r.critic_score), 0) / scored.length
+            // qa_status: "pass" | "retry_pass" | "native_forced" — poslední znamená, že
+            // vision QA neprošlo ani po opravném kole a vizuál se vydal vynuceně.
+            const qaForced = qaRows.length > 0 ? Math.round((qaRows.filter(r => r.qa_status === "native_forced").length / qaRows.length) * 100) : null
+            qualityLine = `⌀ kritik ${avg.toFixed(1)}/10 (${scored.length}×)${qaForced != null ? ` · vizuál vynucen bez QA ${qaForced} %` : ""}`
+        }
+    } catch { /* sloupce ještě nemigrované — sekci přeskoč */ }
+
     const v = (n: number) => (n < 0 ? "—" : String(n))
 
     const rows: [string, string][] = [
@@ -147,6 +182,8 @@ export async function buildWeeklyReport(): Promise<WeeklyReport> {
     if (flaggedPosts > 0) {
         rows.push(["🚩 Posty s neověřeným tvrzením", `${flaggedPosts}${flaggedClients ? ` (${flaggedClients})` : ""}`])
     }
+    if (cogsLine) rows.push(["💸 Náklady na modely (7 dní)", cogsLine])
+    if (qualityLine) rows.push(["🎯 Kvalita (7 dní)", qualityLine])
     if (strategyLine) rows.push(["⚖️ Pipeline (30 dní)", strategyLine])
 
     const subject = `📊 Chrlit — týdenní report (${fmtRange})`

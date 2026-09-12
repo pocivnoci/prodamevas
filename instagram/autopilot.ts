@@ -83,39 +83,47 @@ import { renderStory } from "./orchestrators/story-orchestrator"
 import { renderImage } from "./orchestrators/image-orchestrator"
 import type { CaptionData, SelectedProduct, RenderResult } from "./orchestrators/types"
 
-// Active client config (set from --config flag or ensureConfig)
-let CLIENT_CONFIG: ClientConfig | null = null
+/**
+ * Sluby, pro které už tahle lambda srovnala ig_post_types s configem. Jen příznak —
+ * žádná data tenanta, takže sdílení mezi souběžnými requesty nevadí. Bez toho by
+ * každý post kampaně znovu spouštěl reconcile formátů.
+ */
+const postTypesEnsured = new Set<string>()
 
 /**
- * Smart config loader — ensures CLIENT_CONFIG is set before generation.
- * Called automatically by generateOnePost/generateBatch when invoked from server actions.
- * No-op if config is already loaded for the same client.
+ * Načte config tenanta pro JEDNU generaci a vrátí ho volajícímu.
+ *
+ * Config se vrací, NE ukládá do modulové proměnné. Dřív tu byla proměnná sdílená
+ * celou lambdou: `ensureConfig` ji nastavil, pak ještě awaitoval `ensurePostTypes`,
+ * a `generateOnePost` si ji přečetl až po návratu. Na Vercel Fluid Compute
+ * obsluhuje jedna instance víc requestů najednou, takže request A (klient a) se
+ * mohl probudit s configem klienta b, který mezitím nastavil request B: post
+ * uložený pod client_id A, ale psaný hlasem, produkty a paletou B. Přesně ta
+ * záměna tenantů, před kterou CLAUDE.md varuje — jen ne v setActiveProject
+ * (ten je dnes AsyncLocalStorage), ale tady.
  */
-async function ensureConfig(configName?: string): Promise<string> {
+async function ensureConfig(configName?: string): Promise<{ clientUuid: string; config: ClientConfig }> {
     if (!configName) {
         throw new Error("ensureConfig: chybí configName — tenant musí být vždy explicitní")
     }
     const name = configName
 
     // Resolve slug → uuid DETERMINISTICALLY (cached), never via the ambient
-    // AsyncLocalStorage store. ensureConfig runs BEFORE generateOnePost enters its
-    // withActiveProject scope, so the store isn't set here — and when CLIENT_CONFIG is
-    // already cached (2nd+ post of a worker run), the old `return getActiveProject()`
-    // threw "No active client set", killing every post after the first in a campaign.
+    // AsyncLocalStorage store — ensureConfig runs BEFORE generateOnePost enters its
+    // withActiveProject scope, so the store isn't set here.
     const { resolveClientId } = await import("./configs")
     const clientUuid = await resolveClientId(name)
-
-    if (CLIENT_CONFIG && CLIENT_CONFIG.id === name) {
-        return clientUuid // config already loaded for this tenant
-    }
-    CLIENT_CONFIG = await loadConfig(name)
+    const config = await loadConfig(name) // loadConfig má vlastní krátkou cache
 
     setActiveProject(clientUuid) // fallback for legacy code paths
-    console.log(`🏢 Config loaded: ${CLIENT_CONFIG.name} (${name} → ${clientUuid.substring(0, 8)}...)`)
+    console.log(`🏢 Config loaded: ${config.name} (${name} → ${clientUuid.substring(0, 8)}...)`)
 
-    // Auto-create any missing post types in DB for this client
-    await ensurePostTypes(CLIENT_CONFIG, clientUuid)
-    return clientUuid
+    // Auto-create any missing post types in DB for this client — jednou za lambdu a slug.
+    if (!postTypesEnsured.has(name)) {
+        await ensurePostTypes(config, clientUuid)
+        postTypesEnsured.add(name)
+    }
+    return { clientUuid, config }
 }
 
 // ============================================
@@ -258,19 +266,27 @@ export async function generateOnePost(options: {
     onProgress?: (stage: string, progress: number, message: string, editorialLog?: EditorialMessage[]) => Promise<void>
 }): Promise<{ id?: string; caption: string; imageUrl?: string; cost: number; mediaType: PostMedium }> {
     const report = options.onProgress || (async () => { }) // no-op if not provided
-    const clientUuid = await ensureConfig(options.configName)
+    // Jedno přiřazení, jeden request: uuid i config přijdou spolu, takže se config
+    // nikdy nečte ze sdíleného stavu až po dalším await.
+    const { clientUuid, config: loadedConfig } = await ensureConfig(options.configName)
     const ck = options.resumeFrom?.stage === "caption" ? options.resumeFrom : undefined
 
     // Wrap entire generation in request-scoped context to prevent race conditions.
     // withUsageScope sčítá spotřebu tokenů všech volání modelu uvnitř — taky
     // request-scoped, takže souběžné generace v jedné lambdě se nemíchají.
     return withActiveProject(clientUuid, () => withUsageScope(async () => {
-    // Showcase kit se aplikuje na LOKÁLNÍ KOPII. CLIENT_CONFIG je modulově globální
-    // a cachovaná napříč posty jedné lambdy (ensureConfig) — mutace by prosákla do
-    // dalších postů téhož klienta a ty by zůstaly v cizí paletě.
+    // Spotřeba modelů se zapisuje v `logGeneration` na šťastné cestě. Běh, který
+    // spadne nebo se zaparkuje (VideoPending, QualityUnavailable), k ní nedojde —
+    // a přitom je to ten nejdražší druh běhu: Seedance už video účtoval, Pro texty
+    // jsou napsané. Stejná zásada jako v trackSpend (aserce 34.1): neúspěch se
+    // musí zapsat, jinak vypadá zadarmo. `finally` níž to zachytí do ai_spend.
+    let spendLogged = false
+    try {
+    // Showcase kit se aplikuje na LOKÁLNÍ KOPII: loadConfig vrací objekt z krátké
+    // cache sdílené v lambdě, mutace by prosákla do dalších postů téhož klienta.
     const config = options.showcaseKit
-        ? applyShowcaseKit(CLIENT_CONFIG!, options.showcaseKit, options.showcaseMode ?? "ukazka")
-        : CLIENT_CONFIG!
+        ? applyShowcaseKit(loadedConfig, options.showcaseKit, options.showcaseMode ?? "ukazka")
+        : loadedConfig
     const startTime = Date.now()
     let cost = ck?.costSoFar ?? 0
     // Embedding finálního captionu. Spočítá ho sémantická brána (krok 6) a použije
@@ -659,14 +675,47 @@ export async function generateOnePost(options: {
                 .eq("client_id", clientUuid)
                 .or(`last_used_at.is.null,last_used_at.lt.${cooldownDate.toISOString()}`)
                 .order("last_used_at", { ascending: true, nullsFirst: true })
-                .limit(5)
+                .limit(8)
 
             if (candidates && candidates.length > 0) {
-                // Pick from top 3 least-recently-used (slight randomness to avoid predictability)
-                const pick = candidates[Math.floor(Math.random() * Math.min(3, candidates.length))]
+                // Vážený výběr podle naměřeného výkonu (stejný perfFactor jako u formátů:
+                // ×[0.5, 1.6] proti průměru, až od 2 měřených použití, neměřené = 1).
+                // Do 9/2026 tu byla čistá náhoda ze tří nejdéle nepoužitých — produkty
+                // byly jediný zdroj obsahu bez zpětné vazby, ačkoli právě jejich posty
+                // vedou na link_clicks. Skóre je best-effort: bez migrace
+                // 20260912_product_performance jede výběr bez váhy a řekne to v logu.
+                const pool = candidates.slice(0, Math.min(5, candidates.length))
+                let weights = pool.map(() => 1)
+                try {
+                    const { data: scored, error } = await supabaseAdmin
+                        .from("ig_products")
+                        .select("id, performance_score, times_used_with_metrics")
+                        .in("id", pool.map(c => c.id))
+                        .eq("client_id", clientUuid)
+                    if (error) throw new Error(error.message)
+                    const byId = new Map((scored || []).map(r => [r.id, r]))
+                    const measured = (scored || []).filter(r => r.performance_score != null && (r.times_used_with_metrics ?? 0) >= 2)
+                    const avg = measured.length >= 2 ? measured.reduce((a, r) => a + Number(r.performance_score), 0) / measured.length : 0
+                    if (avg > 0) {
+                        weights = pool.map(c => {
+                            const r = byId.get(c.id)
+                            if (!r || r.performance_score == null || (r.times_used_with_metrics ?? 0) < 2) return 1
+                            return Math.min(1.6, Math.max(0.5, Number(r.performance_score) / avg))
+                        })
+                    }
+                } catch (err) {
+                    console.warn(`   ⚠️ výkon produktů nejde číst (${(err as Error)?.message?.slice(0, 80)}) — výběr bez váhy; proběhla migrace 20260912_product_performance?`)
+                }
+                let roll = Math.random() * weights.reduce((a, w) => a + w, 0)
+                let pick = pool[pool.length - 1]
+                for (let i = 0; i < pool.length; i++) {
+                    roll -= weights[i]
+                    if (roll <= 0) { pick = pool[i]; break }
+                }
                 selectedProduct = toSelectedProduct(pick)
                 linkedProductId = pick.id
-                console.log(`   🛍️ Smart product (cooldown ${cooldownDays}d): "${selectedProduct.name}"`)
+                const shifts = pool.map((c, i) => `${c.name}=${weights[i].toFixed(2)}`).filter(x => !x.endsWith("=1.00"))
+                console.log(`   🛍️ Smart product (cooldown ${cooldownDays}d${shifts.length ? `, váhy ${shifts.join(", ")}` : ""}): "${selectedProduct.name}"`)
             } else {
                 console.log(`   ℹ️ All products in cooldown (${cooldownDays}d) — generating without product`)
             }
@@ -832,13 +881,19 @@ Uživatel nahrál vlastní fotku, která bude vizuálním základem příspěvku
 
     // Inject brand memories (long-term learning from past performance) — retrieved by
     // relevance to the topic/idea when available (pipeline v2), not just top-confidence.
+    // Blok se drží mimo try, protože ho dostane i scenárista reelů (6a): paměť
+    // „co u téhle značky funguje / čemu se vyhnout" se učí z metrik VŠECH postů
+    // včetně reelů, ale dřív ji četl jen copywriter — scénář, který narraci
+    // copywritera nahrazuje, o ni přišel a učicí smyčka se u reelů přetrhla.
+    let memorySection = ""
     try {
         const memoryTopic = options.topic || idea?.title || undefined
         // Jen textové typy: formatMemoriesForPrompt vizuální paměti zahazuje, takže by
         // jinak ujídaly sloty z limitu a copywriter by dostal míň pravidel, než si řekl.
         const memories = await getBrandMemories(8, clientUuid, _getPillarForType(selectedType.name), memoryTopic, ["pattern", "preference", "avoid"])
         if (memories.length > 0) {
-            megaPrompt += formatMemoriesForPrompt(memories)
+            memorySection = formatMemoriesForPrompt(memories)
+            megaPrompt += memorySection
             console.log(`   🧠 Brand memory: ${memories.length} vzorců načteno`)
         }
     } catch {
@@ -1140,6 +1195,7 @@ ${feedSummary}
                 brandPhotos: getConfigBrandImageObjects(config).map(img => ({ description: img.description || "", tags: img.tags || [] })),
                 reviews: (reviewRows || []).map(r => ({ quote: r.quote, author: r.customer_initials || undefined })),
                 signals: contextBlock || undefined,
+                memorySection: memorySection || undefined,
                 pastReels,
             })
 
@@ -1436,8 +1492,8 @@ ${feedSummary}
         })
 
         postId = post.id
-        if (idea) await markIdeaAsUsed(idea.id)
-        if (review) await markReviewAsUsed(review.id)
+        if (idea) await markIdeaAsUsed(idea.id, clientUuid)
+        if (review) await markReviewAsUsed(review.id, clientUuid)
 
         // Track product usage for cooldown rotation
         if (linkedProductId) {
@@ -1478,6 +1534,7 @@ ${feedSummary}
             // v docs/pricing (blended $0,50/post) měřením per příspěvek.
             usage: currentUsage() ?? undefined,
         })
+        spendLogged = true
 
         // Close the loop: persist recurring critic "fix" notes into brand memory so they
         // become standing "avoid" rules instead of expiring after 5 posts. Fire-and-forget.
@@ -1508,6 +1565,15 @@ ${feedSummary}
     console.log("═".repeat(60) + "\n")
 
     return { id: postId, caption: fullCaption, imageUrl, cost, mediaType: format.medium }
+    } finally {
+        if (!spendLogged) {
+            const usage = currentUsage()
+            if (usage && usage.calls > 0) {
+                const { persistSpend } = await import("./spend-tracker")
+                await persistSpend("post_partial", { clientId: clientUuid, refId: options.jobId ?? null }, usage)
+            }
+        }
+    }
     })) // end withActiveProject + withUsageScope
 }
 
@@ -1521,8 +1587,7 @@ export async function generateBatch(options: {
     dryRun: boolean
     topic?: string
 }) {
-    await ensureConfig(options.configName)
-    const config = CLIENT_CONFIG!
+    const { clientUuid, config } = await ensureConfig(options.configName)
     const { count, dryRun } = options
     const estimatedCost = count * COSTS.perPost
 
@@ -1574,7 +1639,9 @@ export async function generateBatch(options: {
     })
 
     try {
-        const editorialPlanResult = await reviewContentPlan(config, planSlots)
+        // Produkty pro šéfredaktora z ŽIVÉHO katalogu; config.products je zmražený snapshot.
+        const planProducts = await getCatalogProducts(clientUuid, config.products).catch(() => [])
+        const editorialPlanResult = await reviewContentPlan(config, planSlots, undefined, planProducts)
         totalCost += editorialPlanResult.totalTokenCost
 
         if (editorialPlanResult.approved) {

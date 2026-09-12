@@ -265,7 +265,13 @@ async function generatePrintBriefInner(
     const geo = resolvePrintGeometry(opts.category)
     const bv = config.brandVoice
     // Typový filtr v dotazu, ne za ním — viz getBrandMemories (limit je v SQL).
-    const visual = await getBrandMemories(6, clientId, undefined, undefined, ["visual"]).catch(() => [])
+    // Tisk četl jen vizuální paměť; pravidla značky („nikdy neslibuj slevu",
+    // preference tónu) se do tiskového textu nikdy nedostala, ačkoli je copywriter
+    // i scenárista dostávají. Stejný formatMemoriesForPrompt, stejná pravidla.
+    const [visual, rules] = await Promise.all([
+        getBrandMemories(6, clientId, undefined, undefined, ["visual"]).catch(() => []),
+        getBrandMemories(5, clientId, undefined, undefined, ["preference", "avoid"]).catch(() => []),
+    ])
 
     const palette = [
         config.feedAesthetic?.colorPalette,
@@ -293,9 +299,9 @@ ${opts.line.siblings?.length ? `Sousední produkty v řadě: ${opts.line.sibling
 Artwork musí být OKAMŽITĚ rozpoznatelný jako součást téhle řady (shodná struktura, typografie a logika),
 ale odlišitelný od sousedních kroků — typicky barevným odlišením kroku, ne jinou kompozicí.` : ""
 
-    const memorySection = visual.length > 0
+    const memorySection = (visual.length > 0
         ? `\n## CO U TÉHLE ZNAČKY VIZUÁLNĚ FUNGUJE\n${formatMemoriesForPrompt(visual)}`
-        : ""
+        : "") + (rules.length > 0 ? `\n${formatMemoriesForPrompt(rules)}` : "")
 
     const antiRepeat = opts.recentBriefs?.length
         ? `\n## POSLEDNÍ DESIGNY (NEOPAKUJ JE)\n${opts.recentBriefs.slice(0, 5).map(b => `- ${b}`).join("\n")}`

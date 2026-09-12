@@ -2129,9 +2129,18 @@ test("15.3 úprava obrázku je zpoplatněná, úprava textu ne", () => {
     assert(/wantsImage \? await creditGuard/.test(code), "textová úprava se nesmí účtovat")
     assert(code.includes("guard.commit"), "kredit se strhává až po úspěchu")
 
+    // Ceník akcí žije v client-safe lib/credits.ts (UI z něj skládá nápovědu);
+    // lib/subscription.ts ho jen re-exportuje a rozhoduje o vážení.
+    const credits = fileContent("lib/credits.ts")
+    assert(credits.includes('post_edit: 1'), "post_edit musí stát 1 kredit")
+    assert(/export \{ ACTION_CREDITS, type ActionType \} from "@\/lib\/credits"/.test(fileContent("lib/subscription.ts")),
+        "backend bere ceník akcí z lib/credits.ts, ne z vlastní kopie")
     const sub = fileContent("lib/subscription.ts")
-    assert(sub.includes('post_edit: 1'), "post_edit musí stát 1 kredit")
     assert(!/action === "post" \|\| action === "post_edit"/.test(sub), "post_edit je plochý — edit je jedno volání modelu bez ohledu na médium")
+    // Nápověda a hinty skládají čísla z tabulek, ne z ruky (jednou už lhaly).
+    const faq = codeOnly("app/(dashboard)/dashboard/instagram/tabs/FaqTab.tsx")
+    assert(/ACTION_CREDITS\.post_edit/.test(faq) && !/= 1 kredit\. Generování nápadů = 1 kredit/.test(faq), "FAQ bere ceny akcí z ACTION_CREDITS")
+    assert(/mediaCreditsSentence\(\)/.test(codeOnly("app/(dashboard)/dashboard/instagram/tabs/Hint.tsx")), "hint o formátech bere váhy z MEDIA_CREDITS")
 })
 
 test("15.4 post_edit je povolený na všech plánech, které umí generovat", () => {
@@ -3024,6 +3033,63 @@ test("23.6 brief běží po skenech a po penězích", () => {
     }
     assert(hourOf("/api/cron/billing-worker") < hourOf("/api/cron/daily-ops"),
         "billing-worker musí běžet před daily-ops — jinak brief reportuje včerejší peníze")
+
+    // Totéž pro metriky: do 9/2026 běžel ig-metrics-sync v 07:00, tedy AŽ PO daily-ops
+    // (05:30) i weekly-report (06:00) — brief i report tak stály na 25 h starém
+    // engagementu a učení z metrik proběhlo až po tom, co si ho reporty přečetly.
+    assert(hourOf("/api/cron/ig-token-refresh") < hourOf("/api/cron/ig-metrics-sync"),
+        "token se obnovuje před syncem metrik, jinak sync na prošlém tokenu selže")
+    assert(hourOf("/api/cron/ig-metrics-sync") < hourOf("/api/cron/daily-ops"),
+        "metriky musí dorazit před daily-ops — brief a učení čtou dnešní čísla, ne včerejší")
+    assert(hourOf("/api/cron/ig-metrics-sync") < hourOf("/api/cron/weekly-report"),
+        "metriky musí dorazit před weekly-report")
+    assert(hourOf("/api/cron/growth-snapshot") < hourOf("/api/cron/weekly-report"),
+        "snímek růstu před týdenním reportem, ne ve stejnou minutu")
+})
+
+test("23.6b crony sdílí jednu bránu a jeden rozpočet", () => {
+    // Brána cronů byla 11× opsaná a jako jediná porovnávala tajemství obyčejným `!==`.
+    const routes = sourceFiles("app/api/cron").filter(f => f.endsWith("route.ts"))
+    assert(routes.length >= 10, "cron routy se musí dát najít")
+    for (const r of routes) {
+        const src = codeOnly(r)
+        assert(src.includes('from "@/lib/cron-auth"') && /requireCron\(req\)/.test(src), `${r}: brána cronu je jedna — requireCron`)
+        assert(!/!== `Bearer/.test(src) && !/process\.env\.CRON_SECRET/.test(src), `${r}: tajemství se neporovnává ručně`)
+    }
+    assert(/timingSafeEqual/.test(codeOnly("lib/cron-auth.ts")), "brána porovnává v konstantním čase")
+    assert(/if \(!secret\) return false/.test(codeOnly("lib/cron-auth.ts")), "bez CRON_SECRET neprojde nikdo (fail closed)")
+    // Rozpočet lambdy je jeden (lib/job-park.ts) — publisher si ho dřív držel jako literál.
+    assert(/BUDGET_MS = RENDER_BUDGET_MS/.test(codeOnly("app/api/cron/ig-publisher/route.ts")), "ig-publisher bere rozpočet z job-park")
+})
+
+test("23.6c workery nezakopávají o vlastní lease a neumlčují peníze", () => {
+    // agent-runner: prošlá lease běžící úlohy = spadlý pokus. Bez započtení se
+    // handler, který zabije lambdu, přebíral každou minutu navždy — max_attempts
+    // na něj nedosáhl a u AI handlerů to byl neomezený účet.
+    const runner = codeOnly("lib/agent-runner.ts")
+    const claim = runner.slice(runner.indexOf("async function claimNext"), runner.indexOf("async function beatLease"))
+    assert(/select\("id, type, attempts, max_attempts"\)/.test(claim), "claimNext musí číst attempts a max_attempts")
+    assert(/crashed >= \(c\.max_attempts \|\| 3\)/.test(claim), "reclaim nad stropem úlohu uzavře místo dalšího běhu")
+    assert(/attempts: crashed/.test(claim), "reclaim spadlý pokus započítá")
+
+    // campaign-worker: tep lease jen u běžící kampaně (jinak tep po uvolnění lease
+    // kampaň na 5 min zamkne) a peníze nikdy potichu.
+    const worker = codeOnly("app/api/cron/campaign-worker/route.ts")
+    const beat = worker.slice(worker.indexOf("const heartbeat = setInterval"), worker.indexOf("}, 60_000)"))
+    assert(/\.eq\("status", "running"\)/.test(beat), "heartbeat kampaně musí mít filtr status=running")
+    assert(!/catch \{ \/\* best-effort \*\/ \}/.test(worker.slice(worker.indexOf("refundJobCharge("))), "refund/reconcile nesmí být v tichém catch")
+    assert(/mustSucceed\("vrácení kreditu"/.test(worker) && /mustSucceed\("dorovnání ceny/.test(worker), "refund i reconcile jdou přes mustSucceed (log + Sentry)")
+    assert(/\.eq\("config->>campaignId", campaign\.id\)/.test(worker), "kontinuita kampaně se filtruje v SQL, ne stažením celé historie tenanta")
+
+    // ig-publisher: odpojený IG je přechodný stav, ne trvalé selhání postu.
+    const pub = codeOnly("app/api/cron/ig-publisher/route.ts")
+    assert(!/failPermanent\("Instagram není připojený/.test(pub) && /failTransient\("Instagram není připojený/.test(pub),
+        "nepřipojený Instagram = transient (token obnoví cron, zákazník se připojuje)")
+
+    // Učení z revize je „nejkvalitnější signál v systému" — jeho pád nesmí být němý.
+    for (const f of ["app/actions/variant-actions.ts", "app/actions/post-edit-actions.ts"]) {
+        assert(!/\.catch\(\(\) => \{ \/\* non-fatal \*\/ \}\)/.test(codeOnly(f)), `${f}: učení z revize nesmí mít němý catch`)
+    }
 })
 
 test("23.7 hranice mezi oznámením a přemlouváním se nesmí pohnout", () => {
@@ -3245,15 +3311,19 @@ test("23.15 výloha se nikde nepočítá jako zákazník", () => {
 })
 
 test("23.18 showcase kit nesmí obarvit další posty", () => {
-    // Ukázkový karusel na vlastním účtu jede v paletě jiného oboru. Kit se proto
-    // MUSÍ aplikovat na lokální kopii: CLIENT_CONFIG je modulově globální a
-    // cachovaná napříč posty jedné lambdy (ensureConfig), takže mutace by
-    // obarvila i další posty klienta a poznalo by se to až na hotovém feedu.
     const auto = codeOnly("instagram/autopilot.ts")
-    assert(/const config = options\.showcaseKit\s*\n?\s*\? applyShowcaseKit\(CLIENT_CONFIG!/.test(auto),
-        "kit se musí aplikovat na lokální kopii configu, ne na CLIENT_CONFIG")
-    assert(!/CLIENT_CONFIG\s*=\s*applyShowcaseKit/.test(auto),
-        "applyShowcaseKit se nikdy nesmí zapsat zpátky do modulově globální CLIENT_CONFIG")
+    // Ukázkový karusel na vlastním účtu jede v paletě jiného oboru. Kit se proto
+    // MUSÍ aplikovat na lokální kopii: loadConfig vrací objekt z cache sdílené
+    // v lambdě — mutace by prosákla do dalších postů téhož klienta.
+    assert(/const config = options\.showcaseKit\s*\n?\s*\? applyShowcaseKit\(loadedConfig,/.test(auto),
+        "kit se musí aplikovat na lokální kopii configu, ne na sdílený objekt")
+    // Modulově globální config tenanta je zakázaný: proměnná sdílená lambdou
+    // umožňovala, aby request A po awaitu četl config klienta B (Fluid Compute
+    // multiplexuje requesty). Config se z ensureConfig VRACÍ.
+    assert(!/CLIENT_CONFIG/.test(auto),
+        "autopilot nesmí držet config tenanta v modulové proměnné")
+    assert(/const \{ clientUuid, config: loadedConfig \} = await ensureConfig\(/.test(auto),
+        "generateOnePost bere uuid i config z ensureConfig jedním přiřazením")
 
     const kit = codeOnly("instagram/showcase-kit.ts")
     const applyFn = kit.slice(kit.indexOf("export function applyShowcaseKit"))
@@ -3963,6 +4033,159 @@ test("28.3 nedostupná kvalita zakázku odloží, nevrátí ji jako selhání", 
     assert(/\.eq\("status",\s*"failed"\)/.test(resume) && /not\("retry_after",\s*"is",\s*null\)/.test(resume),
         "sweep musí job zabírat podmíněným claimem, jinak dva ticky vyrobí dva posty za jeden kredit")
     assert(fileContains("vercel.json", "/api/cron/job-resume"), "sweep musí být v cronu")
+})
+
+test("31.11 zápis do tenanta jde jen přes bránu projektu", () => {
+    // Nálezy auditu 9/2026: čtyři cesty zapisovaly do tenanta zvoleného vstupem
+    // z prohlížeče (slug v URL, configName v akci) jen po ověření PŘIHLÁŠENÍ —
+    // re-onboarding tak přepsal config cizí značky, recenze a nápady se daly
+    // generovat do cizího ig_reviews / ig_post_ideas, upload šel do sdíleného
+    // bucketu bez omezení typu. Brána projektu je jediná přípustná forma.
+    const onboarding = codeOnly("app/onboarding/actions.ts")
+    const save = onboarding.slice(onboarding.indexOf("export async function saveReviewedConfig"))
+    assert(/if \(existingClientSlug\) await requireProjectAccess\(existingClientSlug\)/.test(save),
+        "saveReviewedConfig musí ověřit vlastnictví slugu z ?reonboard= dřív, než sáhne na klienta")
+
+    const gen = codeOnly("app/actions/ig-generate-action.ts")
+    for (const fn of ["triggerBatchGeneration", "triggerAIIdeasGeneration", "triggerAIReviewsGeneration", "uploadCustomImage"]) {
+        const start = gen.indexOf(`export async function ${fn}`)
+        assert(start >= 0, `${fn} musí existovat`)
+        const body = gen.slice(start, gen.indexOf("export async function", start + 10))
+        assert(/requireProjectAccess\(/.test(body), `${fn}: přihlášení nestačí — tenant z vstupu musí projít requireProjectAccess`)
+    }
+    // Účet a práce jsou jeden tenant: druhý parametr smí být jen tentýž projekt.
+    assert(/options\.projectId !== slug/.test(gen) && /options\.projectId !== options\.configName/.test(gen),
+        "projectId (účet) a configName (práce) se musí shodovat")
+    assert(/CLIENT_BUCKET_MIME_TYPES\.includes\(file\.type\)/.test(gen), "upload do sdíleného bucketu musí mít allow-list typů")
+
+    // Čtení postů podle id z prohlížeče bez client_id = cizí caption v paměti značky.
+    const memory = codeOnly("instagram/memory-agent.ts")
+    const variant = memory.slice(memory.indexOf("export async function learnFromVariantSelection"), memory.indexOf("const winner = posts.find"))
+    assert(/\.in\("id", allIds\)\s*\.eq\("client_id", clientId\)/.test(variant),
+        "learnFromVariantSelection musí filtrovat client_id")
+
+    const service = codeOnly("instagram/service.ts")
+    assert(/export async function markIdeaAsUsed\(ideaId: string, clientId: string\)/.test(service)
+        && /export async function markReviewAsUsed\(reviewId: string, clientId: string\)/.test(service),
+        "spotřebování nápadu/recenze bere clientId explicitně")
+    assert(/client_id: clientId,\s*\n\s*date,/.test(service), "záznam kalendáře nese client_id")
+
+    // Globální čtení formátů všech tenantů patří jen super adminovi.
+    const admin = codeOnly("app/actions/admin-actions.ts")
+    const types = admin.slice(admin.indexOf("export async function getIGPostTypes"), admin.indexOf("let clientId: string"))
+    assert(/requireSuperAdmin/.test(types) && !/requireAuth\(\)/.test(types),
+        "getIGPostTypes bez slugu = všechny tenanty → jen super admin")
+})
+
+test("31.12 odkaz z e-mailu vede na sekci, která existuje", () => {
+    // Šablony předplatného posílaly na #subscription a #billing — ani jedno není
+    // sekce, parseHash to tiše překlopil na dashboard a „Opravit kartu →" vedlo
+    // na přehled. Registr sekcí je jeden (nav.ts); každý hash v šablonách a
+    // každý studioDeepLink musí být v něm.
+    const nav = codeOnly("app/(dashboard)/nav.ts")
+    const sections = new Set<string>()
+    for (const m of nav.matchAll(/id: "([a-z]+)"/g)) sections.add(m[1])
+    const sub = nav.match(/SUBSECTIONS: StudioSection\[\] = \[([^\]]*)\]/)
+    for (const m of (sub?.[1] || "").matchAll(/"([a-z]+)"/g)) sections.add(m[1])
+    assert(sections.has("settings") && sections.has("posts"), "registr sekcí se musí dát přečíst")
+
+    const files = ["lib/agents/notice-templates.ts", "lib/agents/lifecycle-templates.ts", "lib/mail/templates/subscription.ts", "app/api/cron/campaign-worker/route.ts"]
+    for (const f of files) {
+        const src = codeOnly(f)
+        for (const m of src.matchAll(/\/dashboard\/instagram#([a-z]+)/g)) {
+            assert(sections.has(m[1]), `${f}: hash #${m[1]} není sekce studia`)
+        }
+        for (const m of src.matchAll(/(?:studioDeepLink|studio|link)\([^)]*?"([a-z]+)"\)/g)) {
+            assert(sections.has(m[1]), `${f}: deep link na "${m[1]}" — taková sekce není`)
+        }
+        assert(!/"subscription"\)|"billing"\)|#subscription|#billing/.test(src), `${f}: předplatné žije v #settings`)
+    }
+    // Typ místo stringu: překlep se má projevit při buildu, ne u zákazníka.
+    assert(/section: StudioSection = "calendar"/.test(codeOnly("lib/mail/links.ts")), "studioDeepLink má sekci typovanou registrem")
+    // Banner nad obsahem: ?section= nikdo nečte, sekce je hash — proto navigace hookem.
+    const banner = codeOnly("app/(dashboard)/BillingBanner.tsx")
+    assert(/useStudioNavigate\(\)/.test(banner) && !/\?section=/.test(banner), "BillingBanner naviguje hookem, ne mrtvým query parametrem")
+    // Hook musí přepnout route i bez options — jinak je sidebar mimo /dashboard/instagram „zaseknutý".
+    const ctx = codeOnly("app/(dashboard)/StudioContext.tsx")
+    const hook = ctx.slice(ctx.indexOf("export function useStudioNavigate"))
+    assert(!/if \(!opts\) \{ setActiveSection\(s\); return \}/.test(hook), "useStudioNavigate nesmí bez options přeskočit router.push")
+    // Deep link z agentů nese UUID, sidebar slug — obojí se mapuje přes vlastní seznam.
+    assert(/c\.id === id \|\| c\.clientId === id/.test(ctx), "?project= musí umět slug i UUID")
+})
+
+test("41.1 signály, které se sbíraly a nikdo je nečetl, mají konzumenta", () => {
+    // Audit 9/2026: systém sbíral pět druhů signálu o preferencích a výkonu a
+    // spotřebovával sotva jeden. Každá vazba níž je zdarma (žádné nové volání AI,
+    // nebo jedno na nově rozhodnutý duel) a bez ní se učicí smyčka trhala.
+
+    // Produkty: poslední zdroj obsahu bez performance_score + vážené selekce.
+    const service = codeOnly("instagram/service.ts")
+    const prop = service.slice(service.indexOf("export async function propagateMetricsToSources"))
+    assert(/product_id/.test(prop) && /\.from\("ig_products"\)[\s\S]*performance_score: avgScore/.test(prop),
+        "propagateMetricsToSources musí psát výkon i produktům")
+    assert(fileExists("supabase/migrations/20260912_product_performance.sql"), "výkon produktů má migraci")
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(!/candidates\[Math\.floor\(Math\.random\(\) \* Math\.min\(3, candidates\.length\)\)\]/.test(auto),
+        "produkt se nevybírá čistou náhodou")
+    assert(/select\("id, performance_score, times_used_with_metrics"\)/.test(auto) && /Math\.min\(1\.6, Math\.max\(0\.5,/.test(auto),
+        "výběr produktu váží naměřený výkon stejným faktorem jako formáty")
+
+    // Zhlédnutí: metrics-sync je posílal, analyzátor je neuměl přijmout.
+    const memory = codeOnly("instagram/memory-agent.ts")
+    const learn = memory.slice(memory.indexOf("export async function analyzeAndLearn"), memory.indexOf("Extrahuj max 3 pravidla"))
+    assert(/views\?: number/.test(learn) && /viewsLine\(p\)/.test(learn), "analyzeAndLearn musí zhlédnutí přijmout a dát je do promptu")
+    assert(/nízký engagement o obsahu nic neříká/.test(learn), "prompt musí modelu říct, že malý dosah není pravidlo")
+
+    // Úprava obrazu („posuň nadpis") se učí jako vizuální paměť pod prahem retrievalu.
+    const edit = codeOnly("app/actions/post-edit-actions.ts")
+    assert(/type: "visual",[\s\S]*confidence: 0\.3/.test(edit.slice(edit.indexOf("if (imageChanged && !(wantsText"))), "úprava vizuálu → upsertMemory visual 0.3")
+
+    // Tisk dostává i pravidla značky, ne jen vizuál.
+    assert(/\["preference", "avoid"\]/.test(codeOnly("instagram/print-pipeline.ts")), "tiskový brief čte preference/avoid")
+
+    // Rozhodnuté A/B duely se učí z naměřeného vítěze — věta v ab-duel.ts je teď pravda.
+    const subs = codeOnly("lib/events/subscribers.ts")
+    assert(/buildDuels\(/.test(subs) && /learnFromVariantSelection\(winner\.id, \[loser\.id\], clientId\)/.test(subs), "metrics.updated učí z rozhodnutých duelů")
+    assert(/\.contains\("source_post_ids", \[winner\.id, loser\.id\]\)/.test(subs), "už zpracovaný duel se nesmí platit podruhé")
+
+    // Naměřený nejlepší čas publikace dojde až do plánovače.
+    const planner = codeOnly("lib/schedule-planner.ts")
+    assert(/export function resolvePostingTimes/.test(planner) && /minMeasured \?\? 6/.test(planner), "resolvePostingTimes s prahem vzorku")
+    assert(/export async function measuredTimeSlots\(clientId: string\)/.test(codeOnly("instagram/performance.ts")), "naměřené sloty berou clientId explicitně")
+    for (const f of ["app/actions/calendar-actions.ts", "lib/agents/auto-publish.ts"]) {
+        const src = codeOnly(f)
+        assert(/resolvePostingTimes\(\{/.test(src) && /measuredTimeSlots\(clientId\)/.test(src) && /igBaseline[\s\S]{0,160}bestPostingTimes/.test(src),
+            `${f}: plánovač musí brát naměřené časy → baseline → config`)
+    }
+})
+
+test("28.7 zaseklý job se reapuje i bez otevřeného tabu — a nikdy dvakrát", () => {
+    // Reaper žil jen v pollingu z prohlížeče: job, který nikdo nesledoval (cron
+    // resume, zavřený tab), visel týdny se strženým kreditem a ranní brief ho
+    // jen hlásil. Jedna logika pro obě cesty, jinak se práh a pořadí claim →
+    // refund rozejdou přesně tam, kde jde o peníze.
+    assert(fileExists("lib/job-reaper.ts"), "reaper musí mít vlastní sdílený modul")
+    const reaper = codeOnly("lib/job-reaper.ts")
+    assert(/STUCK_AFTER_MS = 15 \* 60 \* 1000/.test(reaper),
+        "práh musí přesahovat maxDuration běhu (800 s), jinak označí živý render za mrtvý")
+    // Claim je podmíněný UPDATE a refund jde AŽ za ním, jen když claim vrátil řádek.
+    const claimAt = reaper.indexOf('.not("status", "in"')
+    const refundAt = reaper.indexOf("refundJobCharge(")
+    assert(claimAt > 0 && refundAt > claimAt, "refund smí jít jen za podmíněným claimem — jinak dva reapery vrátí kredit dvakrát")
+    assert(/if \(!claimed \|\| claimed\.length === 0\) return false/.test(reaper),
+        "když claim nevrátí řádek, reaper končí bez refundu")
+    // Kampaňové joby drží platbu schválně a worker si je sám zvedne z checkpointu.
+    assert(/isCampaignJob/.test(reaper) && /campaignId/.test(reaper), "kampaňové joby reaper přeskakuje")
+
+    for (const route of ["app/api/ig-job-status/route.ts", "app/api/cron/job-resume/route.ts"]) {
+        const src = codeOnly(route)
+        assert(src.includes("@/lib/job-reaper"), `${route} musí reapovat přes sdílený modul`)
+        assert(!/STUCK_AFTER_MS\s*=/.test(src), `${route} nesmí mít vlastní práh — práh je jeden`)
+    }
+    assert(/sweepStuckJobs\(\)/.test(codeOnly("app/api/cron/job-resume/route.ts")),
+        "cron musí zaseklé joby zametat nezávisle na tom, kdo se dívá")
+    assert(/isCampaignJob\(job\)/.test(codeOnly("app/api/ig-job-status/route.ts")),
+        "polling nesmí selhat kampaňový job, který si worker drží k resume")
 })
 
 test("28.4 emoji se nezapéká do názvu formátu", () => {
@@ -5053,6 +5276,41 @@ test("34.5 každý volající modelu má jasno, kdo ho účtuje", () => {
         )
     }
     assert(volajicich > 20, `aserce musí reálně něco kontrolovat (našla jen ${volajicich} volajících)`)
+})
+
+test("34.8 neúspěšná generace, embeddingy, revize a refundy se počítají", () => {
+    // generateOnePost zapisoval spotřebu jen na šťastné cestě — spadlý nebo
+    // zaparkovaný reel (Seedance už účtoval) byl v datech nejlevnější, protože
+    // v nich nebyl vůbec. Stejná zásada jako 34.1 pro trackSpend.
+    const auto = codeOnly("instagram/autopilot.ts")
+    const gen = auto.slice(auto.indexOf("export async function generateOnePost"), auto.indexOf("export async function generateBatch"))
+    assert(/let spendLogged = false/.test(gen) && /spendLogged = true/.test(gen), "generateOnePost si drží, jestli spotřebu zapsal")
+    assert(/\} finally \{[\s\S]*if \(!spendLogged\)[\s\S]*persistSpend\("post_partial"/.test(gen),
+        "nezapsaná spotřeba (pád, parkování) musí jít do ai_spend jako post_partial")
+    assert(/"post_partial"/.test(codeOnly("instagram/spend-tracker.ts")) && /export async function persistSpend/.test(codeOnly("instagram/spend-tracker.ts")),
+        "spend-tracker musí umět zapsat cizí scope (persistSpend)")
+
+    // Embeddingy: jediná brána k modelům bez měřiče, ačkoli sazby v model-pricing byly.
+    const gemini = codeOnly("instagram/gemini-client.ts")
+    const embed = gemini.slice(gemini.indexOf("export async function embedTexts"), gemini.indexOf("export async function embedText("))
+    assert(/recordUsage\(model, \{ promptTokenCount:/.test(embed), "embedTexts musí zapsat spotřebu (odhad tokenů ze znaků)")
+
+    // revisePost = celá pipeline za paušál; jako jediná cesta běžela mimo měření.
+    const variant = codeOnly("app/actions/variant-actions.ts")
+    const revise = variant.slice(variant.indexOf("export async function revisePost"), variant.indexOf("export async function generatePostVariant"))
+    assert(/trackSpend\("post_revise"/.test(revise), "revisePost se měří přes trackSpend")
+
+    // Refund legacy jobu bez chargedCredits vracel paušál 1 i za reel (5/10).
+    const sub = codeOnly("lib/subscription.ts")
+    const refund = sub.slice(sub.indexOf("export async function refundJobCharge"), sub.indexOf("export async function reconcileJobCharge"))
+    assert(/cfg\.chargedMedium \?\? cfg\.medium/.test(refund) && /_creditsForMedia\(medium\)/.test(refund), "legacy refund se odvozuje z média jobu")
+    assert(/error\.code !== "23505"/.test(refund), "refund hlásí skutečnou DB chybu, jen duplicitu (23505) mlčky přeskočí")
+
+    // Vrácená platba za kredity / službu musí vzít i to, co koupila.
+    const admin = codeOnly("app/actions/admin-actions.ts")
+    const rp = admin.slice(admin.indexOf("export async function refundPayment"))
+    assert(/action: "credit_topup_refund"/.test(rp) && /reference_id: payment\.id/.test(rp), "refund dobití kreditů musí kredity stornovat")
+    assert(/\.from\("consultations"\)[\s\S]*status: "cancelled"/.test(rp), "refund služby musí zrušit schůzku")
 })
 
 test("34.6 vnořené měření nesmí okrást to nadřazené", () => {
