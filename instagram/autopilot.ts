@@ -275,6 +275,13 @@ export async function generateOnePost(options: {
     // withUsageScope sčítá spotřebu tokenů všech volání modelu uvnitř — taky
     // request-scoped, takže souběžné generace v jedné lambdě se nemíchají.
     return withActiveProject(clientUuid, () => withUsageScope(async () => {
+    // Spotřeba modelů se zapisuje v `logGeneration` na šťastné cestě. Běh, který
+    // spadne nebo se zaparkuje (VideoPending, QualityUnavailable), k ní nedojde —
+    // a přitom je to ten nejdražší druh běhu: Seedance už video účtoval, Pro texty
+    // jsou napsané. Stejná zásada jako v trackSpend (aserce 34.1): neúspěch se
+    // musí zapsat, jinak vypadá zadarmo. `finally` níž to zachytí do ai_spend.
+    let spendLogged = false
+    try {
     // Showcase kit se aplikuje na LOKÁLNÍ KOPII: loadConfig vrací objekt z krátké
     // cache sdílené v lambdě, mutace by prosákla do dalších postů téhož klienta.
     const config = options.showcaseKit
@@ -1494,6 +1501,7 @@ ${feedSummary}
             // v docs/pricing (blended $0,50/post) měřením per příspěvek.
             usage: currentUsage() ?? undefined,
         })
+        spendLogged = true
 
         // Close the loop: persist recurring critic "fix" notes into brand memory so they
         // become standing "avoid" rules instead of expiring after 5 posts. Fire-and-forget.
@@ -1524,6 +1532,15 @@ ${feedSummary}
     console.log("═".repeat(60) + "\n")
 
     return { id: postId, caption: fullCaption, imageUrl, cost, mediaType: format.medium }
+    } finally {
+        if (!spendLogged) {
+            const usage = currentUsage()
+            if (usage && usage.calls > 0) {
+                const { persistSpend } = await import("./spend-tracker")
+                await persistSpend("post_partial", { clientId: clientUuid, refId: options.jobId ?? null }, usage)
+            }
+        }
+    }
     })) // end withActiveProject + withUsageScope
 }
 

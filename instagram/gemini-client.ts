@@ -533,6 +533,16 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
             contents: texts,
             config: { outputDimensionality: EMBEDDING_DIMS },
         })
+        // Jediná brána k modelům, která se neměřila: sazby pro embeddingy v
+        // model-pricing existovaly, ale recordUsage se tu nikdy nevolal, takže každý
+        // post měl cost_usd bez embeddingů a dávkové embedování paměti bylo neviditelné.
+        // embedContent nevrací tokeny — účtují se vstupní tokeny, odhad ~4 znaky/token
+        // z billableCharacterCount (nebo z délky textů). Nikdy nesmí shodit volání.
+        try {
+            const chars = Number((res as { metadata?: { billableCharacterCount?: number } }).metadata?.billableCharacterCount)
+                || texts.reduce((n, t) => n + t.length, 0)
+            recordUsage(model, { promptTokenCount: Math.ceil(chars / 4) }, "embed")
+        } catch { /* měření nesmí shodit embedding */ }
         const vectors = (res.embeddings || []).map(e => e.values || [])
         if (vectors.length !== texts.length || vectors.some(v => v.length !== EMBEDDING_DIMS)) {
             throw new Error(`embedContent returned ${vectors.length}/${texts.length} vectors`)

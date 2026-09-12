@@ -5223,6 +5223,41 @@ test("34.5 každý volající modelu má jasno, kdo ho účtuje", () => {
     assert(volajicich > 20, `aserce musí reálně něco kontrolovat (našla jen ${volajicich} volajících)`)
 })
 
+test("34.8 neúspěšná generace, embeddingy, revize a refundy se počítají", () => {
+    // generateOnePost zapisoval spotřebu jen na šťastné cestě — spadlý nebo
+    // zaparkovaný reel (Seedance už účtoval) byl v datech nejlevnější, protože
+    // v nich nebyl vůbec. Stejná zásada jako 34.1 pro trackSpend.
+    const auto = codeOnly("instagram/autopilot.ts")
+    const gen = auto.slice(auto.indexOf("export async function generateOnePost"), auto.indexOf("export async function generateBatch"))
+    assert(/let spendLogged = false/.test(gen) && /spendLogged = true/.test(gen), "generateOnePost si drží, jestli spotřebu zapsal")
+    assert(/\} finally \{[\s\S]*if \(!spendLogged\)[\s\S]*persistSpend\("post_partial"/.test(gen),
+        "nezapsaná spotřeba (pád, parkování) musí jít do ai_spend jako post_partial")
+    assert(/"post_partial"/.test(codeOnly("instagram/spend-tracker.ts")) && /export async function persistSpend/.test(codeOnly("instagram/spend-tracker.ts")),
+        "spend-tracker musí umět zapsat cizí scope (persistSpend)")
+
+    // Embeddingy: jediná brána k modelům bez měřiče, ačkoli sazby v model-pricing byly.
+    const gemini = codeOnly("instagram/gemini-client.ts")
+    const embed = gemini.slice(gemini.indexOf("export async function embedTexts"), gemini.indexOf("export async function embedText("))
+    assert(/recordUsage\(model, \{ promptTokenCount:/.test(embed), "embedTexts musí zapsat spotřebu (odhad tokenů ze znaků)")
+
+    // revisePost = celá pipeline za paušál; jako jediná cesta běžela mimo měření.
+    const variant = codeOnly("app/actions/variant-actions.ts")
+    const revise = variant.slice(variant.indexOf("export async function revisePost"), variant.indexOf("export async function generatePostVariant"))
+    assert(/trackSpend\("post_revise"/.test(revise), "revisePost se měří přes trackSpend")
+
+    // Refund legacy jobu bez chargedCredits vracel paušál 1 i za reel (5/10).
+    const sub = codeOnly("lib/subscription.ts")
+    const refund = sub.slice(sub.indexOf("export async function refundJobCharge"), sub.indexOf("export async function reconcileJobCharge"))
+    assert(/cfg\.chargedMedium \?\? cfg\.medium/.test(refund) && /_creditsForMedia\(medium\)/.test(refund), "legacy refund se odvozuje z média jobu")
+    assert(/error\.code !== "23505"/.test(refund), "refund hlásí skutečnou DB chybu, jen duplicitu (23505) mlčky přeskočí")
+
+    // Vrácená platba za kredity / službu musí vzít i to, co koupila.
+    const admin = codeOnly("app/actions/admin-actions.ts")
+    const rp = admin.slice(admin.indexOf("export async function refundPayment"))
+    assert(/action: "credit_topup_refund"/.test(rp) && /reference_id: payment\.id/.test(rp), "refund dobití kreditů musí kredity stornovat")
+    assert(/\.from\("consultations"\)[\s\S]*status: "cancelled"/.test(rp), "refund služby musí zrušit schůzku")
+})
+
 test("34.6 vnořené měření nesmí okrást to nadřazené", () => {
     // `usageStorage.run()` nadřazený akumulátor ZASTÍNÍ. Kdyby si vnitřní scope
     // volání nechal jen pro sebe, příspěvek by v ig_generation_log vyšel levnější,

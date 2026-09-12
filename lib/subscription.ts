@@ -929,13 +929,28 @@ export async function refundJobCharge(
     if (charged === "plan") {
         await decrementPlanPostCount(clientId)
     } else if (charged === "credits") {
-        await supabaseAdmin.from("credit_transactions").insert({
+        let credits = chargedCredits
+        if (credits == null) {
+            // Legacy job bez chargedCredits: paušál `ACTION_CREDITS.post` (1) by u reelu
+            // vrátil 1 z 5 (resp. z 10). Médium je v configu jobu — jeden dotaz navíc
+            // jen pro tuhle historickou cestu.
+            const { data: job } = await supabaseAdmin.from("ig_jobs").select("config").eq("id", jobId).eq("client_id", clientId).maybeSingle()
+            const cfg = (job?.config ?? {}) as { chargedMedium?: string; medium?: string }
+            const medium = cfg.chargedMedium ?? cfg.medium
+            credits = medium ? _creditsForMedia(medium) : ACTION_CREDITS.post
+        }
+        const { error } = await supabaseAdmin.from("credit_transactions").insert({
             client_id: clientId,
             action: "post_refund",
-            credits: -(chargedCredits ?? ACTION_CREDITS.post),
+            credits: -credits,
             description: "Refund: generování selhalo",
             reference_id: jobId,
         })
+        // 23505 = unikátní index (action, reference_id): druhý refund téhož jobu je
+        // záměrně no-op. Cokoli jiného je skutečná chyba a musí být vidět.
+        if (error && error.code !== "23505") {
+            throw new Error(`refundJobCharge(${jobId}): ${error.message}`)
+        }
     }
 }
 

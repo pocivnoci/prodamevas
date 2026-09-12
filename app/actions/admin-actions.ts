@@ -763,7 +763,7 @@ export async function refundPayment(paymentId: string, reason?: string): Promise
         })
         .eq("id", paymentId)
         .eq("status", "PAID")
-        .select("id, client_id, subscription_id, amount, currency, provider, provider_ref, label")
+        .select("id, client_id, subscription_id, amount, currency, provider, provider_ref, label, kind, credits_granted")
         .maybeSingle()
 
     if (!payment) {
@@ -771,6 +771,39 @@ export async function refundPayment(paymentId: string, reason?: string): Promise
     }
 
     const steps: string[] = []
+
+    // 1b. Dobití kreditů nemá subscription_id, takže krok 2 by ho minul: peníze zpět
+    // A kredity by zůstaly. Storno je kladný řádek (spotřeba) proti zápornému
+    // `credit_topup` z on-paid.ts; idempotentní přes index (action, reference_id).
+    // Ledger klampuje `used` na ≥ 0, takže už utracené kredity se do mínusu nedostanou —
+    // to je shovívavý směr a je vědomý.
+    if (payment.kind === "credits" && Number(payment.credits_granted) > 0) {
+        const { error } = await supabaseAdmin.from("credit_transactions").insert({
+            client_id: payment.client_id,
+            action: "credit_topup_refund",
+            credits: Number(payment.credits_granted),
+            description: `Storno dobití — platba ${payment.id} vrácena`,
+            reference_id: payment.id,
+        })
+        if (error && error.code !== "23505") {
+            steps.push(`⚠️ Odečíst ${payment.credits_granted} kreditů ručně — storno v ledgeru selhalo: ${error.message}`)
+        } else {
+            steps.push(`Kredity (${payment.credits_granted}) z tohoto dobití byly odečteny automaticky.`)
+        }
+    }
+
+    // 1c. Zaplacená služba (nastavení značky): vrácené peníze = zrušená schůzka.
+    // Řádek `consultations` z on-paid.ts jinak zůstane ve stavu 'paid' a brief ji
+    // dál nabízí k zabookování. Zrušit jde jen dosud neproběhlou ('paid' / 'booked').
+    if (payment.kind === "service") {
+        const { data: cancelled } = await supabaseAdmin
+            .from("consultations")
+            .update({ status: "cancelled" })
+            .eq("payment_id", payment.id)
+            .in("status", ["entitled", "paid", "booked"])
+            .select("id")
+        if (cancelled?.length) steps.push("Schůzka k této platbě byla zrušena automaticky.")
+    }
 
     // 2. Předplatné končí OKAMŽITĚ — peníze se vrací celé, ne poměrnou částí.
     let stripeRef: string | null = null

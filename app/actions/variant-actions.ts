@@ -30,6 +30,12 @@ export async function revisePost(
     if (!guard.ok) return { success: false, error: guard.error }
     const clientId = guard.clientId
 
+    // Celá pipeline (Pro copywriter + judge + brief + render + QA) běžela mimo
+    // jakýkoli měřič — jediná taková cesta v produktu; sourozenci post_edit i
+    // generatePostVariant se měří. Účtuje se paušál 1 kredit (retuš textu), a bez
+    // měření nešlo říct, jestli je to nad nebo pod cenou.
+    const { trackSpend } = await import("@/instagram/spend-tracker")
+    return trackSpend("post_revise", { clientId, refId: postId }, async () => {
     try {
         // 1. Load original post (must belong to this client)
         const { data: original, error: fetchErr } = await supabaseAdmin
@@ -173,6 +179,7 @@ export async function revisePost(
         console.error("revisePost error:", err?.message || err)
         return { success: false, error: err?.message || String(err) }
     }
+    }) // end trackSpend
 }
 
 // ─── Post Variant Generation ─────────────────────────────────
