@@ -943,3 +943,76 @@ export async function deleteClient(
     }
 }
 
+
+// ─── Hlas značky ─────────────────────────────────────────────────────
+
+/** Jedna věta, na které je slyšet tempo i barva hlasu — a která se hodí do reelu. */
+/** Sdílený bucket ukázek — ne klientský: ukázka je katalogová, ne obsah značky. */
+const VOICE_SAMPLE_BUCKET = "voice-samples"
+
+const VOICE_SAMPLE_SENTENCE = "Dobrý den, tohle je ukázka hlasu, kterým bude mluvit váš reel."
+
+/**
+ * Ukázka hlasu pro Nastavení. Syntetizuje se JEDNOU pro celou flotilu a cachuje
+ * v bucketu pod `voice-samples/{provider}-{voiceId}.wav`.
+ *
+ * Proč sdíleně a ne per tenant: věta je pořád stejná a hlas taky, takže per
+ * klientská kopie by byla 30× stejný soubor u každé značky a 30× zaplacené TTS za
+ * každého nového klienta. Nic klientského v tom souboru není — je to katalogová
+ * ukázka, ne obsah značky. Přístup ke klientovi se přesto ověřuje
+ * (`requireProjectAccess`): jinak by šlo tlačítkem „Poslechnout" utrácet za TTS
+ * bez přihlášení k jakémukoli projektu.
+ */
+export async function previewVoice(
+    projectSlug: string,
+    voiceId: string,
+): Promise<{ success: boolean; url?: string; error?: string }> {
+    try {
+        await requireProjectAccess(projectSlug)
+
+        const { findVoice } = await import("@/lib/voice-library")
+        const profile = findVoice(voiceId)
+        if (!profile) return { success: false, error: `Hlas „${voiceId}" v knihovně není` }
+
+        const file = `${profile.provider}-${profile.id}.wav`
+        const publicUrl = () => supabaseAdmin.storage.from(VOICE_SAMPLE_BUCKET).getPublicUrl(file).data.publicUrl
+
+        // Cache hit = žádné volání modelu. `list` s hledáním jména, ne `download`:
+        // stačí vědět, že soubor je — stahovat ho má prohlížeč, ne lambda.
+        const { data: existing } = await supabaseAdmin.storage
+            .from(VOICE_SAMPLE_BUCKET).list("", { search: file })
+        if (existing?.some(f => f.name === file)) return { success: true, url: publicUrl() }
+
+        const { trackSpend, spendClientId } = await import("@/instagram/spend-tracker")
+        const wav = await trackSpend(
+            "other",
+            { clientId: await spendClientId(projectSlug), refId: `ukázka_hlasu:${profile.id}` },
+            async () => {
+                const { getTtsProvider } = await import("@/instagram/tts")
+                return getTtsProvider(profile.provider).synthesize(VOICE_SAMPLE_SENTENCE, {
+                    voiceId: profile.id,
+                    language: "cs",
+                })
+            },
+        )
+
+        // Bucket se zakládá líně: ukázky hlasů jsou nová věc a nikdo je nemá
+        // v migracích. „Already exists" není chyba, jen druhý běh.
+        const { error: bucketError } = await supabaseAdmin.storage.createBucket(VOICE_SAMPLE_BUCKET, {
+            public: true,
+            allowedMimeTypes: ["audio/wav"],
+            fileSizeLimit: 5 * 1024 * 1024,
+        })
+        if (bucketError && !/exist/i.test(bucketError.message)) throw bucketError
+
+        const { error: uploadError } = await supabaseAdmin.storage
+            .from(VOICE_SAMPLE_BUCKET)
+            .upload(file, wav, { contentType: "audio/wav", cacheControl: "31536000", upsert: true })
+        if (uploadError) throw uploadError
+
+        return { success: true, url: publicUrl() }
+    } catch (err: any) {
+        console.error("previewVoice error:", err?.message || err)
+        return { success: false, error: err?.message || String(err) }
+    }
+}
