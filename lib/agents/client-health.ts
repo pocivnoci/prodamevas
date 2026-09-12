@@ -46,6 +46,10 @@ export interface ClientHealthRow {
     creditsRemaining: number
     creditsTotal: number
     risks: ClientRisk[]
+    /** `false` = značka je v karanténě (viz scripts/neaktivni-klienti.ts). */
+    isActive: boolean
+    /** Kdy začala karanténa. NULL u živé značky. */
+    deactivatedAt: string | null
 }
 
 const RISK_LABELS: Record<ClientRisk, string> = {
@@ -61,17 +65,30 @@ export function describeRisks(risks: ClientRisk[]): string {
     return risks.map(r => RISK_LABELS[r]).join(", ")
 }
 
-export async function buildClientHealth(now: Date = new Date()): Promise<ClientHealthRow[]> {
+/**
+ * Zdraví zákaznických účtů.
+ *
+ * `includeDeactivated` je vědomě VOLBA, ne nový default: brief, návrhy úkolů
+ * i lifecycle z těchhle řádků dělají práci pro člověka a deaktivovaná značka
+ * žádnou práci negeneruje — jen by vrátila zpátky ten šum, kvůli kterému se
+ * deaktivovala. Zapíná ji jen čtecí přehled (tab Firma), kde má správce vidět,
+ * co je v karanténě.
+ */
+export async function buildClientHealth(
+    now: Date = new Date(),
+    opts: { includeDeactivated?: boolean } = {},
+): Promise<ClientHealthRow[]> {
     // Značky z výlohy sem nepatří. Vlastníme je my, takže „nic negeneruje" u nich
     // není riziko odchodu, ale popis stavu, ve kterém mají být — a v briefu
     // i v tabu Firma vytlačovaly skutečné zákazníky. Přes ně se to dostávalo
     // až do fronty schválení jako pobídka zakladateli, ať aktivuje Rohlík.
-    const { data: clients } = await supabaseAdmin
+    let dotaz = supabaseAdmin
         .from("clients")
-        .select("id, name, slug")
-        .eq("is_active", true)
+        .select("id, name, slug, is_active, deactivated_at")
         .or(NOT_SHOWCASE)
         .order("created_at", { ascending: true })
+    if (!opts.includeDeactivated) dotaz = dotaz.eq("is_active", true)
+    const { data: clients } = await dotaz
     if (!clients || clients.length === 0) return []
 
     const [activity, connections] = await Promise.all([
@@ -129,7 +146,7 @@ async function loadConnections(): Promise<Map<string, { status: string; expiresA
 }
 
 async function buildRow(
-    client: { id: string; name: string; slug: string },
+    client: { id: string; name: string; slug: string; is_active?: boolean | null; deactivated_at?: string | null },
     activity: Activity,
     connections: Map<string, { status: string; expiresAt: string | null }>,
     now: Date,
@@ -183,6 +200,8 @@ async function buildRow(
         igTokenExpiresAt: tokenExpiresAt,
         creditsRemaining: sub?.creditsRemaining ?? 0,
         creditsTotal: sub?.creditsTotal ?? 0,
+        isActive: client.is_active !== false,
+        deactivatedAt: client.deactivated_at ?? null,
         risks,
     }
 }

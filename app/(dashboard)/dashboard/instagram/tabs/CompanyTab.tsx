@@ -37,9 +37,19 @@ function daysAgo(iso: string | null): string {
     return `před ${d} dny`
 }
 
+/** Filtr přehledu. Read-only — deaktivaci i úklid dělají skripty s auditní stopou. */
+type Filtr = "aktivni" | "deaktivovane" | "vse"
+
+const FILTR_LABEL: Record<Filtr, string> = {
+    aktivni: "Aktivní",
+    deaktivovane: "V karanténě",
+    vse: "Vše",
+}
+
 export function CompanyTab() {
     const [data, setData] = useState<CompanyOverview | null>(null)
     const [loading, setLoading] = useState(true)
+    const [filtr, setFiltr] = useState<Filtr>("aktivni")
 
     const load = useCallback(async () => {
         try { setData(await getCompanyOverview()) } catch { setData(null) }
@@ -65,12 +75,32 @@ export function CompanyTab() {
         )
     }
 
+    const zobrazene = data.clients.filter(c =>
+        filtr === "vse" ? true : filtr === "aktivni" ? c.isActive : !c.isActive)
+
     return (
         <div className="space-y-5">
             <div className="flex flex-wrap gap-3">
-                <Stat label="Klientů" value={String(data.clients.length)} />
+                <Stat label="Aktivních klientů" value={String(data.clients.filter(c => c.isActive).length)} />
                 <Stat label="V riziku" value={String(data.atRisk)} tone={data.atRisk > 0 ? "warn" : "ok"} />
+                <Stat label="V karanténě" value={String(data.deactivated)} />
                 <Stat label="Nedokončený onboarding" value={String(data.stalledOnboardings)} tone={data.stalledOnboardings > 0 ? "warn" : "ok"} />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+                {(["aktivni", "deaktivovane", "vse"] as Filtr[]).map(f => (
+                    <button
+                        key={f}
+                        onClick={() => setFiltr(f)}
+                        className={`px-3 py-1.5 rounded-sm border text-[9px] uppercase tracking-widest font-bold transition-colors ${
+                            filtr === f
+                                ? "border-white/20 bg-white/10 text-white"
+                                : "border-white/5 bg-[#080808] text-white/40 hover:text-white/70"
+                        }`}
+                    >
+                        {FILTR_LABEL[f]}
+                    </button>
+                ))}
             </div>
 
             <div className="overflow-x-auto border border-white/5 rounded-sm">
@@ -83,13 +113,14 @@ export function CompanyTab() {
                         </tr>
                     </thead>
                     <tbody>
-                        {data.clients.map(c => <Row key={c.clientId} c={c} />)}
+                        {zobrazene.map(c => <Row key={c.clientId} c={c} />)}
                     </tbody>
                 </table>
             </div>
 
             <p className="text-[9px] text-white/20 font-bold uppercase tracking-widest">
-                Sestaveno {new Date(data.generatedAt).toLocaleString("cs-CZ")} · stejná data pohánějí ranní brief
+                Sestaveno {new Date(data.generatedAt).toLocaleString("cs-CZ")} · stejná data pohánějí ranní brief ·
+                karanténa = deaktivovaná značka čekající na úklid (akce dělá brief, ne tenhle přehled)
             </p>
         </div>
     )
@@ -99,8 +130,11 @@ function Row({ c }: { c: ClientHealthDTO }) {
     return (
         <tr className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors">
             <td className="px-4 py-3">
-                <p className="text-xs font-bold text-white">{c.name}</p>
-                <p className="text-[9px] text-white/25 font-bold">{c.slug}</p>
+                <p className={`text-xs font-bold ${c.isActive ? "text-white" : "text-white/40"}`}>{c.name}</p>
+                <p className="text-[9px] text-white/25 font-bold">
+                    {c.slug}
+                    {!c.isActive && ` · v karanténě od ${c.deactivatedAt ? new Date(c.deactivatedAt).toLocaleDateString("cs-CZ") : "?"}`}
+                </p>
             </td>
             <td className="px-4 py-3">
                 <p className="text-[10px] text-white/60 font-bold">{c.plan || "—"}</p>

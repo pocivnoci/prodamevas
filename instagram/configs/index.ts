@@ -299,6 +299,9 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // Souhlas klienta s ukázkou ve výloze. Default false — publikovat cizí značku
         // se souhlasem, který nikdo nedal, je horší než ji neukázat vůbec.
         isCaseStudy: config.isCaseStudy === true,
+        // Razítko anonymizace nemá default — `undefined` znamená „živá značka".
+        // Vyplněné je jen u řádků, které přežily kvůli dokladům.
+        anonymizedAt: config.anonymizedAt,
     })
 }
 

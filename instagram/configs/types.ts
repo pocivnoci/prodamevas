@@ -510,6 +510,16 @@ export interface ClientConfig {
      * až ve chvíli, kdy klient kývne.
      */
     isCaseStudy?: boolean
+
+    /**
+     * Kdy byla značka anonymizována (`scripts/smazat-opustene-klienty.ts`).
+     *
+     * Klient s platbou nebo dokladem se nemaže — `invoices.client_id` kaskáduje
+     * a daňové doklady musí přežít ~10 let. Místo smazání se řádek `clients`
+     * vyprázdní a dostane tohle razítko: podle něj se pozná, že prázdná značka
+     * není rozbitý onboarding, ale splněná žádost o výmaz.
+     */
+    anonymizedAt?: string
 }
 
 // ─── Brand Image Type ────────────────────────────────────────────────
