@@ -61,6 +61,24 @@ function codeOnly(filePath: string): string {
         .replace(/(^|[^:])\/\/.*$/gm, "$1")
 }
 
+/** Zdrojové soubory pod adresářem — rekurzivně, relativní cesty, bez node_modules
+ *  a tečkových položek. Jen textové přípony: binární přílohy (obrázky, fonty,
+ *  video) obsahují náhodné sekvence bajtů, které vypadají jako slovo — `grep -rliw`
+ *  tak „našel" Veo ve dvou JPEGách referenčních fotek. A protože BSD grep, GNU grep
+ *  i ugrep zacházejí s binárkou jinak, sken zdrojů nesmí záviset na tom, který
+ *  grep a locale zrovna běží — proto walk v TS, ne shell. */
+const SOURCE_EXTS = [".ts", ".tsx", ".js", ".mjs", ".md", ".json", ".css", ".sql", ".sh"]
+function sourceFiles(dir: string): string[] {
+    const out: string[] = []
+    for (const e of readdirSync(resolve(ROOT, dir), { withFileTypes: true })) {
+        if (e.name === "node_modules" || e.name.startsWith(".")) continue
+        const rel = `${dir}/${e.name}`
+        if (e.isDirectory()) out.push(...sourceFiles(rel))
+        else if (SOURCE_EXTS.some(ext => e.name.endsWith(ext))) out.push(rel)
+    }
+    return out
+}
+
 // ═══════════════════════════════════════════════════════════
 // 1. PlanUnlockModal Bug Fix
 // ═══════════════════════════════════════════════════════════
@@ -2348,8 +2366,12 @@ test("17.1 video jde přes seedance-client, Veo je pryč", () => {
     assert(!/generateVideo\b/.test(codeOnly("instagram/gemini-client.ts")), "generateVideo (Veo) musí zůstat smazané")
     assert(!fileExists("instagram/video-processor.ts"), "starý ffmpeg post-processing (SRT + Arial) musí zůstat smazaný")
     assert(!/refineVideoPrompt/.test(codeOnly("instagram/image-pipeline.ts")), "prozaický video director nahradil storyboard režiséra")
-    const zbytky = execSync('grep -rliw "veo" instagram app lib utils scripts components || true', { encoding: "utf-8" }).trim()
-    assert(zbytky === "", `Veo se nesmí objevit v kódu (docs/historie jsou výjimka): ${zbytky}`)
+    // Jen zdroje (sourceFiles), ne celé adresáře: JPEGy referenčních fotek jinak
+    // „obsahují" slovo veo náhodou a aserce padá na obrázku, ne na kódu.
+    const zbytky = ["instagram", "app", "lib", "utils", "scripts", "components"]
+        .flatMap(dir => sourceFiles(dir))
+        .filter(f => /\bveo\b/i.test(fileContent(f)))
+    assert(zbytky.length === 0, `Veo se nesmí objevit v kódu (docs/historie jsou výjimka): ${zbytky.join(", ")}`)
 })
 
 test("17.2 režisér ctí CTA politiku a nepíše text do obrazu", () => {
