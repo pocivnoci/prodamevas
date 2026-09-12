@@ -34,6 +34,7 @@ import { COLOR } from "@/lib/mail/tokens"
 import { formatCzk } from "@/lib/pricing"
 import type { ComplianceItem } from "@/lib/agents/compliance-calendar"
 import { countLabel, POSTS } from "@/lib/plural"
+import { isQuestionForHuman } from "@/lib/tasks/question"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -50,6 +51,8 @@ export interface DailyBrief {
     money: BriefLine[]
     /** Zákazníci v riziku + nedokončený onboarding. */
     risk: BriefLine[]
+    /** Úkoly, které se zasekly: po termínu, prošlé odložení, nezodpovězená otázka. */
+    tasks: BriefLine[]
     /** Obchod: co odešlo, kdo odpověděl, co drhne. Prázdné = ticho. */
     sales: BriefLine[]
     /** Co agent za posledních 24 h udělal sám (audit z agent_actions). */
@@ -206,9 +209,10 @@ async function buildDid(now: Date): Promise<BriefLine[]> {
 // ── Sestavení ───────────────────────────────────────────────────────────────
 
 export async function buildDailyBrief(now: Date = new Date()): Promise<DailyBrief> {
-    const [money, risk, did, needsYou, system, compliance, sales] = await Promise.all([
+    const [money, risk, tasks, did, needsYou, system, compliance, sales] = await Promise.all([
         buildMoney(now).catch(() => [] as BriefLine[]),
         buildRisk(now).catch(() => [] as BriefLine[]),
+        buildTasks(now).catch(() => [] as BriefLine[]),
         buildDid(now).catch(() => [] as BriefLine[]),
         listPendingApprovals().catch(() => [] as PendingAction[]),
         buildSystem().catch(() => [] as HealthProblem[]),
@@ -220,9 +224,9 @@ export async function buildDailyBrief(now: Date = new Date()): Promise<DailyBrie
     ])
 
     return {
-        quiet: money.length === 0 && risk.length === 0 && needsYou.length === 0
+        quiet: money.length === 0 && risk.length === 0 && tasks.length === 0 && needsYou.length === 0
             && system.length === 0 && compliance.length === 0 && sales.length === 0,
-        money, risk, did, needsYou, system, compliance, sales,
+        money, risk, tasks, did, needsYou, system, compliance, sales,
         clientLabels: await resolveClientLabels(needsYou),
         checkedAt: now.toISOString(),
     }
@@ -303,12 +307,62 @@ async function buildRisk(now: Date): Promise<BriefLine[]> {
     return lines
 }
 
+/**
+ * Zaseklé úkoly.
+ *
+ * Tři situace, které nikdo nikdy nenajde sám, protože se nedějí — jen trvají:
+ *  1. termín je za námi a úkol je pořád otevřený,
+ *  2. `blocked_until` uplynulo, takže důvod k čekání zmizel, ale úkol zůstal
+ *     odložený (přesně ten stav, kvůli kterému to datum vzniklo),
+ *  3. AI se zeptala a víc než dva dny nemá odpověď — a do té doby stojí.
+ *
+ * Dva dny, ne jeden: ptát se po jednom dni znamená hlásit i otázky položené
+ * včera odpoledne. Čistá funkce vedle `buildRisk`, bez zásahu do zbytku briefu.
+ */
+async function buildTasks(now: Date): Promise<BriefLine[]> {
+    const todayIso = now.toISOString().slice(0, 10)
+    const { data } = await supabaseAdmin
+        .from("tasks")
+        .select("title, owner_email, due_date, blocked_on, blocked_until, updated_at")
+        .not("status", "in", "(done,dropped)")
+
+    const rows = data ?? []
+    const lines: BriefLine[] = []
+    const who = (owner: string | null) => owner ? owner.split("@")[0] : "nikdo"
+
+    for (const t of rows) {
+        const title = String(t.title)
+        if (t.due_date && String(t.due_date) < todayIso) {
+            lines.push({ icon: "⏰", text: `Po termínu: ${title}`, detail: `Termín ${t.due_date} · ${who(t.owner_email)}` })
+            continue
+        }
+        if (t.blocked_until && String(t.blocked_until) < todayIso) {
+            lines.push({ icon: "⏸", text: `Čekání skončilo: ${title}`, detail: `${t.blocked_on || "odloženo"} · do ${t.blocked_until}` })
+            continue
+        }
+        if (isQuestionForHuman(t.blocked_on)) {
+            const waitingDays = Math.floor((now.getTime() - new Date(String(t.updated_at)).getTime()) / DAY_MS)
+            if (waitingDays > 2) {
+                lines.push({
+                    icon: "❓",
+                    text: `AI čeká na odpověď ${waitingDays} dní: ${title}`,
+                    detail: String(t.blocked_on),
+                })
+            }
+        }
+    }
+    // Brief má být krátký; zbytek je v sekci Úkoly, kam ho pošle jedno kliknutí.
+    return lines.slice(0, 10)
+}
+
 // ── Render ──────────────────────────────────────────────────────────────────
 
 const URGENCY_ICON: Record<string, string> = { now: "🔴", soon: "🟠", info: "⚪" }
 
 export function renderDailyBrief(b: DailyBrief): { subject: string; html: string; text: string } {
-    const todo = b.needsYou.length
+    // Zaseklé úkoly čekají na člověka stejně jako schválení — do počtu v předmětu
+    // patří obojí, jinak by e-mail hlásil „jen ke čtení" nad pěti prošlými termíny.
+    const todo = b.needsYou.length + b.tasks.length
     // Předmět nese verdikt, ne počet problémů: z pohledu na lištu má být hned
     // jasné, jestli se musí něco udělat, nebo jestli stačí přečíst.
     const subject = todo > 0
@@ -324,6 +378,7 @@ function renderHtml(b: DailyBrief): string {
     if (b.needsYou.length > 0) {
         parts.push(section("Co potřebuje tebe", b.needsYou.map(a => approvalHtml(a, b.clientLabels)).join("")))
     }
+    if (b.tasks.length > 0) parts.push(section("Úkoly", b.tasks.map(lineHtml).join("")))
     if (b.money.length > 0) parts.push(section("Peníze", b.money.map(lineHtml).join("")))
     if (b.sales.length > 0) parts.push(section("Obchod", b.sales.map(lineHtml).join("")))
     if (b.risk.length > 0) parts.push(section("Zákazníci v riziku", b.risk.map(lineHtml).join("")))
@@ -396,6 +451,7 @@ function renderText(b: DailyBrief): string {
         out.push(title.toUpperCase(), ...lines.map(l => `  ${l}`), "")
     }
     add("Co potřebuje tebe", b.needsYou.map(a => `${a.action} (${a.agentType}) — schval v dashboardu → Schválení`))
+    add("Úkoly", b.tasks.map(l => `${l.icon} ${l.text}${l.detail ? ` — ${l.detail}` : ""}`))
     add("Peníze", b.money.map(l => `${l.icon} ${l.text}${l.detail ? ` — ${l.detail}` : ""}`))
     add("Obchod", b.sales.map(l => `${l.icon} ${l.text}${l.detail ? ` — ${l.detail}` : ""}`))
     add("Zákazníci v riziku", b.risk.map(l => `${l.icon} ${l.text}${l.detail ? ` — ${l.detail}` : ""}`))

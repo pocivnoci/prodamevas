@@ -232,6 +232,25 @@ check("navrhuje se nejvýš pár úkolů na běh", /MAX_PER_RUN\s*=\s*[1-5]\b/.t
 // Sync nesmí hlásit návrhy AI jako „chybí v tabulce" — v tabulce nikdy nebyly.
 check("sync přeskakuje návrhy od AI", file("lib/tasks/sheet-sync.ts").includes('"ai:%"'))
 
+// ── 7. Zaseklé úkoly v ranním briefu ────────────────────────
+// Úkol po termínu a nezodpovězená otázka se nedějí, jen trvají — nikdo je sám
+// nenajde. Brief je jediný kanál, který se čte denně.
+const brief = codeOnly("lib/agents/daily-brief.ts")
+check("brief má sekci Úkoly", brief.includes("buildTasks") && brief.includes('section("Úkoly"'))
+check("zaseklé úkoly se počítají do „co čeká na tebe“",
+    /const todo = b\.needsYou\.length \+ b\.tasks\.length/.test(brief),
+    "jinak by předmět hlásil „jen ke čtení“ nad pěti prošlými termíny")
+
+// Prokliky mezi adminskými sekcemi. Bez `useStudioNavigate` se přepne jen tenant
+// a člověk zůstane stát na stejné obrazovce (viz CLAUDE.md, navigace).
+for (const tab of ["CompanyTab", "ApprovalsTab", "LeadsTab"]) {
+    check(`${tab} naviguje registrem, ne ručně`,
+        codeOnly(`app/(dashboard)/dashboard/instagram/tabs/${tab}.tsx`).includes("useStudioNavigate"))
+}
+check("titulek sekce se odvozuje z nav.ts",
+    codeOnly("app/(dashboard)/dashboard/instagram/page.tsx").includes("navItem(activeSection)?.label"),
+    "druhá kopie názvu se rozešla — leads a emails byly bez nadpisu")
+
 // Běh přes agent stack, ne mimo něj: i ruční spuštění musí nechat řádek v auditu.
 const dailyOps = codeOnly("app/api/cron/daily-ops/route.ts")
 check("třídič i navrhovač běží přes requestAction", dailyOps.includes("task_triage") && dailyOps.includes("task_propose"))

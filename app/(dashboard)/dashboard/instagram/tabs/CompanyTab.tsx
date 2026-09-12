@@ -1,15 +1,22 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { ExternalLink, ListPlus } from "lucide-react"
 import { getCompanyOverview, type ClientHealthDTO, type CompanyOverview } from "@/app/actions/company-actions"
 import { countLabel, DAYS_AGO } from "@/lib/plural"
+import { createTask, listTeam } from "@/app/actions/task-actions"
+import { useStudio, useStudioNavigate } from "@/app/(dashboard)/StudioContext"
 
 /**
  * Firma — cross-tenant přehled zdraví účtů.
  *
- * Read-only. Akce mají svoje místo v ranním briefu, kde po nich zůstane
- * schvalovací záznam; dvě cesty k témuž rozhodnutí by znamenaly, že jen
- * jedna z nich je v auditu.
+ * **Pořád read-only, pokud jde o zákazníka.** Zásah do jeho účtu patří do
+ * briefu, kde po něm zůstane schvalovací záznam; dvě cesty k témuž rozhodnutí
+ * by znamenaly, že jen jedna z nich je v auditu.
+ *
+ * Co tu naopak chybělo: z řádku „Selhává platba" se nedalo nikam jít. Proklik
+ * do studia a založení úkolu nejsou akce nad zákazníkem — jsou to poznámky
+ * pro nás, a bez nich se riziko přepsalo na papír vedle klávesnice.
  */
 
 const RISK_STYLE: Record<string, string> = {
@@ -51,18 +58,42 @@ export function CompanyTab() {
     const [data, setData] = useState<CompanyOverview | null>(null)
     const [loading, setLoading] = useState(true)
     const [filtr, setFiltr] = useState<Filtr>("aktivni")
+    const [error, setError] = useState<string | null>(null)
+    /** Kdo dostane úkol „ozvat se" — obchod, ne zakladatel. */
+    const [managerEmail, setManagerEmail] = useState<string | null>(null)
 
     const load = useCallback(async () => {
-        try { setData(await getCompanyOverview()) } catch { setData(null) }
+        // Prázdný seznam a rozbitý dotaz vypadaly stejně („Zatím žádní klienti").
+        // Pro tab, který má hlásit rizika, je to nejhorší možná záměna.
+        try { setData(await getCompanyOverview()); setError(null) }
+        catch (err) { setData(null); setError((err as Error)?.message || "Přehled se nepodařilo načíst.") }
         setLoading(false)
     }, [])
 
     useEffect(() => { load() }, [load])
+    useEffect(() => {
+        listTeam()
+            .then(team => setManagerEmail(team.find(m => m.active && m.role === "manager")?.email ?? null))
+            .catch(() => setManagerEmail(null))
+    }, [])
 
     if (loading) {
         return (
             <div className="flex items-center justify-center py-20">
                 <div className="animate-spin rounded-full h-8 w-8 border-2 border-white/20 border-t-white/80" />
+            </div>
+        )
+    }
+
+    if (error) {
+        return (
+            <div className="border border-red-500/20 bg-red-500/5 rounded-sm p-6 text-center space-y-3">
+                <p className="text-[10px] text-red-300 uppercase font-bold tracking-widest">Přehled se nenačetl</p>
+                <p className="text-xs text-white/40">{error}</p>
+                <button
+                    onClick={() => { setLoading(true); void load() }}
+                    className="px-4 py-2 text-[9px] font-bold uppercase tracking-widest rounded-sm border border-white/15 text-white/60 hover:text-white hover:bg-white/5 transition-all"
+                >Zkusit znovu</button>
             </div>
         )
     }
@@ -114,7 +145,7 @@ export function CompanyTab() {
                         </tr>
                     </thead>
                     <tbody>
-                        {zobrazene.map(c => <Row key={c.clientId} c={c} />)}
+                        {zobrazene.map(c => <Row key={c.clientId} c={c} managerEmail={managerEmail} />)}
                     </tbody>
                 </table>
             </div>
@@ -127,11 +158,37 @@ export function CompanyTab() {
     )
 }
 
-function Row({ c }: { c: ClientHealthDTO }) {
+function Row({ c, managerEmail }: { c: ClientHealthDTO; managerEmail: string | null }) {
+    const { setProjectId } = useStudio()
+    const navigate = useStudioNavigate()
+    const [taskState, setTaskState] = useState<"idle" | "busy" | "done" | "error">("idle")
+
+    /**
+     * Z rizika rovnou úkol. Název nese důvod, ne jen jméno — „Ozvat se: Pekárna
+     * — Selhává platba" se dá po týdnu přečíst, samotné jméno ne.
+     */
+    const createFollowUp = async () => {
+        setTaskState("busy")
+        const res = await createTask({
+            title: `Ozvat se: ${c.name} — ${c.risksLabel || "riziko"}`,
+            note: `Plán ${c.plan || "—"} · ${c.postsLast14d} příspěvků za 14 dní`,
+            ownerEmail: managerEmail,
+            priority: c.risks.includes("dunning") ? 1 : 2,
+            clientId: c.clientId,
+        })
+        setTaskState(res.success ? "done" : "error")
+    }
+
     return (
         <tr className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors">
             <td className="px-4 py-3">
-                <p className={`text-xs font-bold ${c.isActive ? "text-white" : "text-white/40"}`}>{c.name}</p>
+                <button
+                    onClick={() => { setProjectId(c.slug); navigate("dashboard") }}
+                    title="Otevřít studio klienta"
+                    className={`inline-flex items-center gap-1.5 text-xs font-bold transition-colors ${c.isActive ? "text-white hover:text-white/70" : "text-white/40 hover:text-white/70"}`}
+                >
+                    {c.name}<ExternalLink className="w-3 h-3 shrink-0 opacity-40" />
+                </button>
                 <p className="text-[9px] text-white/25 font-bold">
                     {c.slug}
                     {!c.isActive && ` · v karanténě od ${c.deactivatedAt ? new Date(c.deactivatedAt).toLocaleDateString("cs-CZ") : "?"}`}
@@ -145,12 +202,21 @@ function Row({ c }: { c: ClientHealthDTO }) {
                 {c.risks.length === 0 ? (
                     <span className="text-[10px] text-emerald-400/70 font-bold">v pořádku</span>
                 ) : (
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex flex-wrap items-center gap-1">
                         {c.risks.map(r => (
                             <span key={r} className={`text-[9px] px-2 py-0.5 rounded-full border font-bold uppercase ${RISK_STYLE[r] || "text-white/50 border-white/15 bg-white/5"}`}>
                                 {RISK_LABEL[r] || r}
                             </span>
                         ))}
+                        <button
+                            onClick={createFollowUp}
+                            disabled={taskState === "busy" || taskState === "done"}
+                            title="Založit úkol ozvat se — s odkazem na klienta"
+                            className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-white/35 hover:text-white transition-colors disabled:opacity-40"
+                        >
+                            <ListPlus className="w-3 h-3 shrink-0" />
+                            {taskState === "done" ? "úkol založen" : taskState === "error" ? "nepovedlo se" : taskState === "busy" ? "…" : "úkol"}
+                        </button>
                     </div>
                 )}
             </td>

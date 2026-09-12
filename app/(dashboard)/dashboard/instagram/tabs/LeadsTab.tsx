@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Building2, CalendarClock, Phone, Plus, RefreshCw, Trash2, X } from "lucide-react"
+import { Building2, CalendarClock, ListPlus, Mail, Phone, Plus, RefreshCw, Trash2, X } from "lucide-react"
 import {
     listLeads, listLeadEvents, createLead, updateLead, setLeadStatus, addLeadContact, deleteLead,
 } from "@/app/actions/lead-actions"
@@ -14,6 +14,8 @@ import {
 // Pole se chovají jako buňky tabulky a stejná trojice je i v Úkolech — bydlí
 // proto ve `shared.tsx`, ne dvakrát okopírovaná.
 import { DateField, Field, FilterChip, Select } from "./shared"
+import { createTask } from "@/app/actions/task-actions"
+import { useStudioNavigate } from "@/app/(dashboard)/StudioContext"
 
 /**
  * Evidence klientů.
@@ -215,6 +217,24 @@ function LeadDetail({ lead, onChanged, onDeleted }: {
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [confirmDelete, setConfirmDelete] = useState(false)
+    const [taskState, setTaskState] = useState<"idle" | "busy" | "done">("idle")
+    const navigate = useStudioNavigate()
+
+    /**
+     * Z leadu úkol. Termín se bere z „dalšího kontaktu" — datum už je domluvené
+     * a opisovat ho podruhé znamená, že se jednou opíše špatně.
+     */
+    const createFollowUp = async () => {
+        setTaskState("busy")
+        const res = await createTask({
+            title: `Zavolat: ${lead.contact_person || lead.company || "kontakt"}`,
+            note: [lead.phone, lead.next_step].filter(Boolean).join(" · ") || null,
+            ownerEmail: lead.owner_email,
+            dueDate: lead.next_contact_at ? lead.next_contact_at.slice(0, 10) : null,
+        })
+        if (res.success) setTaskState("done")
+        else { setTaskState("idle"); setError(res.error || "Úkol se nepodařilo založit.") }
+    }
 
     /** Ukládá se na blur, ne na každý znak: pole se chová jako buňka v tabulce. */
     const save = async (patch: LeadPatch) => {
@@ -274,6 +294,22 @@ function LeadDetail({ lead, onChanged, onDeleted }: {
             {error && <p className="text-[10px] text-red-400">{error}</p>}
 
             <ContactThread lead={lead} onChanged={onChanged} />
+
+            {/* Co s leadem dál — obojí vede jinam do studia, aby se nemuselo
+                přepisovat jméno ani adresa do druhé obrazovky. */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+                <button
+                    onClick={createFollowUp}
+                    disabled={taskState !== "idle"}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded-sm border border-white/10 text-white/50 hover:text-white hover:bg-white/5 transition-all disabled:opacity-40"
+                ><ListPlus className="w-3 h-3 shrink-0" />{taskState === "done" ? "Úkol založen" : "Založit úkol"}</button>
+                {lead.email && (
+                    <button
+                        onClick={() => navigate("mailing", { to: lead.email! })}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded-sm border border-white/10 text-white/50 hover:text-white hover:bg-white/5 transition-all"
+                    ><Mail className="w-3 h-3 shrink-0" />Napsat e-mail</button>
+                )}
+            </div>
 
             <div className="flex items-center gap-3 pt-1">
                 <span className="text-[9px] text-white/20 uppercase tracking-widest font-bold">
