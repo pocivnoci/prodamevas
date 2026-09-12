@@ -5046,6 +5046,79 @@ test("36.4b posuvník opatrnosti vynucuje KÓD, ne prompt", () => {
         "neznámá hodnota režimu musí spadnout na default, ne do pipeline")
 })
 
+test("36.4b2 rizikový obor dostane přísnější bránu i přísnější default", () => {
+    // Prompt je čistá funkce, takže se dá porovnat obor proti oboru bez modelu.
+    // Hydroizolace: „naše izolace vydrží 4 bary podle ČSN P 73 0606" — norma se na
+    // webu najde a brána dřív pustila i tu druhou půlku věty, která je závazek
+    // téhle firmy. Kavárna ten odstavec dostat nesmí: u ní je „pečeme od pěti"
+    // konkrétnost, ne riziko, a přitvrzený prompt by z postů udělal vatu.
+    const { buildFactCheckPrompt } = require("./instagram/fact-check")
+    const base = { name: "Test", website: "https://test.cz", brandFacts: [] }
+    const technical = buildFactCheckPrompt({ ...base, industry: "Hydroizolace" }, [{ text: "Naše izolace vydrží 4 bary.", display: false }])
+    const cafe = buildFactCheckPrompt({ ...base, industry: "Kavárna" }, [{ text: "Pečeme od pěti ráno.", display: false }])
+
+    assert(/TECHNICKÝ \/ ŘEMESLNÝ OBOR/.test(technical),
+        "technický obor musí dostat blok o parametrech vlastní práce")
+    assert(/ROZDĚL/.test(technical), "hybridní tvrzení (norma + vlastní práce) se musí rozdělit")
+    assert(/Záruční lhůta a životnost jsou `risk` bez výjimky/.test(technical),
+        "záruka a životnost jsou závazek, ne technický údaj k dohledání")
+    assert(!/TECHNICKÝ \/ ŘEMESLNÝ OBOR/.test(cafe),
+        "kavárna přísnější blok dostat nesmí — jinak brána sebere postům konkrétnost")
+
+    // Obor bez diakritiky ani s jinou předponou nesmí propadnout.
+    const { industryRiskFamily } = require("./lib/industry-risk")
+    assert(industryRiskFamily("hydroizolace staveb") === "technical", "hydroizolace je technický obor")
+    assert(industryRiskFamily("Strechy a klempirstvi") === "technical", "porovnává se bez diakritiky")
+    assert(industryRiskFamily("Investiční fond") === "finance" && industryRiskFamily("Estetická klinika") === "health",
+        "finance a zdraví zůstávají vlastními rodinami")
+    assert(industryRiskFamily("Kavárna") === null && industryRiskFamily("") === null,
+        "běžný obor ani prázdná hodnota rizikový není")
+
+    const showcase = codeOnly("instagram/showcase-kit.ts")
+    assert(!/const REGULATED_INDUSTRY_HINTS = \[/.test(showcase) && /from "@\/lib\/industry-risk"/.test(showcase),
+        "showcase si seznam rizikových oborů NESMÍ definovat podruhé — dvě kopie se rozejdou")
+
+    const cfg = codeOnly("instagram/configs/index.ts")
+    assert(/industryRiskFamily\(config\.industry\) \? "safe" : "balanced"/.test(cfg),
+        "u rizikového oboru je výchozí režim safe; nastavená hodnota uživatele má přednost")
+})
+
+test("36.4b3 šéfredaktor vidí ověřená fakta, ne jen produktová data", () => {
+    // Kritik pravdivost neboduje vůbec a šéfredaktor kontroloval jen produkt —
+    // „záruka 10 let" tak prošla prodejní bránou bez jediného dokladu.
+    const eb = codeOnly("instagram/editorial-board.ts")
+    assert(/buildFactsSection/.test(eb) && /safeFacts\(config\)/.test(eb),
+        "prompt šéfredaktora musí nést ověřená fakta značky")
+    assert(/Každé číslo, rok, záruka, certifikát a technický parametr/.test(eb),
+        "kritérium PRAVDIVOST musí jmenovat, co přesně potřebuje oporu")
+})
+
+test("36.4b4 označený příspěvek se sám nepublikuje", () => {
+    // Nejvážnější díra brány: dashboard varoval, ale auto-publikování fact_status
+    // vůbec nečetlo — a jelo dál na Instagram klienta.
+    const auto = codeOnly("lib/agents/auto-publish.ts")
+    assert(/findFactFlaggedPosts/.test(auto), "ostřicí agent musí stav brány číst")
+    assert(/config\.publishFlaggedPosts === true/.test(auto), "zadržení jde vypnout jen vědomě v Nastavení")
+    assert(/🚩/.test(auto) && /facts_pending/.test(auto),
+        "zadržení musí být vidět v logu a jednou denně i u zákazníka — tiché zadržení je horší než publikace")
+
+    const pub = codeOnly("app/api/cron/ig-publisher/route.ts")
+    assert(/findFactFlaggedPosts/.test(pub), "publisher musí filtrovat označené příspěvky i sám za sebe")
+    assert(/publishFlaggedPosts === true/.test(pub), "přepínač klienta platí i tady")
+
+    const modes = codeOnly("lib/fact-check-modes.ts")
+    assert(/export function isFactFlagged/.test(modes), "predikát označeného stavu má jediný zdroj pravdy")
+    const exp = codeOnly("scripts/export-portfolio.ts")
+    assert(/isFactFlagged/.test(exp) && !/\.eq\("fact_status", "flagged"\)/.test(exp),
+        "výloha portfolia musí používat tentýž predikát, ne vlastní řetězec")
+
+    const cfg = codeOnly("instagram/configs/index.ts")
+    assert(/publishFlaggedPosts: config\.publishFlaggedPosts \?\? false/.test(cfg),
+        "default je NEPUBLIKOVAT — bezobslužné publikování nesmí vydat neověřené tvrzení")
+    const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx")
+    assert(/publishFlaggedPosts/.test(ui), "přepínač musí být v Nastavení u kontroly tvrzení")
+})
+
 test("36.4c oba posuvníky slibují uživateli totéž", () => {
     const lib = codeOnly("lib/fact-check-modes.ts")
     assert(/FACT_CHECK_MODES/.test(lib), "stupně posuvníku mají jediný zdroj pravdy")

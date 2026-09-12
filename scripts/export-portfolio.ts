@@ -19,6 +19,7 @@
 import { writeFileSync } from "fs"
 import { join } from "path"
 import supabaseAdmin from "../supabase/admin"
+import { isFactFlagged } from "../lib/fact-check-modes"
 
 type MediaType = "post" | "carousel" | "reel"
 
@@ -129,10 +130,14 @@ async function main() {
     try {
         const { data: flagged } = await supabaseAdmin
             .from("ig_generation_log")
-            .select("post_id")
-            .eq("fact_status", "flagged")
+            .select("post_id, fact_status")
+            .not("fact_status", "is", null)
             .in("client_id", portfolioClients.map(c => c.id))
-        for (const row of flagged || []) if (row.post_id) flaggedPostIds.add(row.post_id as string)
+        // Predikát, ne řetězec v dotazu: co znamená „označený", má jediný zdroj
+        // pravdy (`isFactFlagged`) sdílený s publisherem i ostřicím agentem.
+        for (const row of flagged || []) {
+            if (row.post_id && isFactFlagged(row.fact_status as string | null)) flaggedPostIds.add(row.post_id as string)
+        }
         if (flaggedPostIds.size) console.log(`   🚩 ${flaggedPostIds.size} příspěvků s neověřeným tvrzením — do portfolia nepůjdou`)
     } catch { /* sloupec nemigrovaný — filtr se neuplatní, export nepadá */ }
 

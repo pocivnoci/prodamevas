@@ -331,6 +331,17 @@ export interface ClientConfig {
      */
     factCheckMode?: "off" | "safe" | "balanced" | "bold"
 
+    /**
+     * Smí auto-publikování vydat i příspěvek, kterému brána nechala nepodložené
+     * tvrzení (`fact_status = "flagged"`)? Default `false` (viz validateConfig).
+     *
+     * Brána označený post dosud jen ukazovala v dashboardu — kdo měl zapnuté
+     * auto-publikování, tomu odešel na Instagram sám, protože publisher
+     * `fact_status` vůbec nečetl. Označený post proto čeká na člověka a klient
+     * o čekajících dostane jednou denně e-mail. Zapnout to jde, ale vědomě.
+     */
+    publishFlaggedPosts?: boolean
+
     /** Content pillars for Growth Engine */
     contentPillars: Record<string, ContentPillar>
 

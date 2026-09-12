@@ -118,6 +118,7 @@ export async function sendCustomerNotice(payload: Record<string, unknown>): Prom
         // od začátku nepředávalo, takže věta v ní byla mrtvý kód.
         termLabel: (payload.termLabel as string) ?? null,
         reason: (payload.reason as string) ?? null,
+        count: typeof payload.count === "number" ? payload.count : null,
     })
 
     const { sendNotification } = await import("@/lib/notifications")

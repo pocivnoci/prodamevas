@@ -22,6 +22,7 @@
 
 import type { ClientConfig, FeedAesthetic, OverlayGradient } from "./configs/types"
 import type { VisualMode } from "../lib/feed-pattern"
+import { isRegulatedIndustry } from "@/lib/industry-risk"
 
 /** Čtyři výhody, které série rotuje. Text je zadání pro copywritera, ne hotová věta. */
 export const SHOWCASE_BENEFITS = {
@@ -127,18 +128,14 @@ export interface ShowcaseKit {
 /**
  * Obory, kde `guardrails` nejsou volitelné (vynucuje `npm run guard`).
  *
- * Dvě rodiny, obě s vlastním českým zákonem za zády:
- *  • finance — precedens commitu 2ba162e6 (garantovaný výnos, „absolutní jistota"),
- *  • zdraví a estetika — reklama nesmí slibovat léčebný účinek ani výsledek zákroku.
+ * Seznam žije v `lib/industry-risk.ts` — tentýž profil rizika čte i faktická brána
+ * (`instagram/fact-check.ts`). Dvě kopie by se rozešly: showcase by hlídal finance
+ * a zdraví, brána by o nich nevěděla, a stavebnictví by nehlídal ani jeden.
  */
-export const REGULATED_INDUSTRY_HINTS = [
-    "invest", "výnos", "vynos", "financ", "půd", "pud", "úvěr", "uver", "pojiš", "pojis",
-    "zdrav", "medicín", "medicin", "klinik", "estetick", "lékař", "lekar", "dentál", "dental",
-]
+export { REGULATED_INDUSTRY_HINTS } from "@/lib/industry-risk"
 
 export function isRegulatedShowcase(kit: Pick<ShowcaseKit, "industryLabel">): boolean {
-    const s = kit.industryLabel.toLowerCase()
-    return REGULATED_INDUSTRY_HINTS.some(h => s.includes(h))
+    return isRegulatedIndustry(kit.industryLabel)
 }
 
 /** Naše vlastní paleta. Ukázka pro cizí obor se od ní musí barevně odlepit. */

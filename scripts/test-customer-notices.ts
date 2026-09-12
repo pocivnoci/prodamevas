@@ -86,6 +86,7 @@ async function templates() {
     const kinds = [
         "renewal_upcoming", "charge_failed", "manual_renew",
         "expired", "payment_recovered", "generation_failed", "publish_failed",
+        "facts_pending",
     ] as const
 
     for (const kind of kinds) {
@@ -132,6 +133,22 @@ async function templates() {
     check("dunning počítá pokusy podle MAX_BILLING_FAILURES",
         failed.body.includes(`pokus 2 z ${MAX_BILLING_FAILURES}`), failed.body.slice(0, 200))
     check("selhaná platba nese větu o DPH", failed.body.includes(vatNotice()))
+
+    // ── Zadržené příspěvky: jeden e-mail denně, správně skloněný ────────────
+    // Oznámení chodí souhrnně, takže v něm padne počet — a „3 příspěvek čeká"
+    // je přesně ten strojový překlad, kvůli kterému by si klient kontrolu vypnul.
+    const one = buildCustomerNotice("facts_pending", { clientName: "Hydroizolace MIVA", count: 1 })
+    const few = buildCustomerNotice("facts_pending", { clientName: "Hydroizolace MIVA", count: 3 })
+    const many = buildCustomerNotice("facts_pending", { clientName: "Hydroizolace MIVA", count: 7 })
+    check("jeden příspěvek se skloňuje jednotně", /1 příspěvek čeká/.test(one.subject), one.subject)
+    check("tři příspěvky mají tvar pro 2–4", /3 příspěvky čekají/.test(few.subject), few.subject)
+    check("sedm příspěvků má tvar pro 5+", /7 příspěvků čeká/.test(many.subject), many.subject)
+    check("zpráva říká, že příspěvky samy nevyjdou", /nevyjd/.test(few.body), few.body.slice(0, 200))
+    check("zpráva vede do studia", /kalend/i.test(few.body))
+    check("drží vykání a podpis", /Dobrý den,/.test(few.body) && /Tým Chrlit/.test(few.body))
+    // Chybějící počet nesmí prosáknout jako „0 příspěvků" ani „undefined".
+    const noCount = buildCustomerNotice("facts_pending", { clientName: "Hydroizolace MIVA" })
+    check("bez počtu zpráva pořád dává smysl", /1 příspěvek/.test(noCount.subject), noCount.subject)
 
     // Zpráva bez čísla větu o DPH nepotřebuje — a nesmí ji mít.
     const noPrice = buildCustomerNotice("manual_renew", { clientName: "Květiny" })

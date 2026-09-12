@@ -12,6 +12,7 @@ import { isPhotoPolicy } from "../../lib/photo-policy"
 import { findFinishedCopy } from "./format-brief"
 import { reconcileFormats } from "./reconcile"
 import { isFeedPattern } from "../../lib/feed-pattern"
+import { industryRiskFamily } from "../../lib/industry-risk"
 import { resolveIndustryVisual } from "../industry-visual-profiles"
 import { CAROUSEL_MAX_TOTAL_SLIDES } from "../caption-generator"
 
@@ -246,9 +247,20 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // Posuvník opatrnosti. Starý boolean zůstává zdrojem jen pro klienty, kteří
         // ho stihli vypnout — jinak vyhrává mode. Neznámá hodnota spadne na default,
         // ne do pipeline: brána větví podle režimu a nesmí dostat nesmysl.
+        // U rizikového oboru (finance, zdraví, technika/řemeslo) je výchozí režim
+        // `safe`, ne `balanced`: nepodložený parametr vlastní práce („vydrží 4 bary",
+        // „záruka 10 let") není nudný post, ale reklamační podklad — a ten se nesmí
+        // spolehnout na to, že si klient posuvník sám přitáhne. Je to CLAMP jen na
+        // default: hodnota, kterou uživatel skutečně nastavil, má přednost a nepřepisuje
+        // se (jinak by se přepínač v Nastavení tvářil jako rozbitý).
         factCheckMode: (["off", "safe", "balanced", "bold"] as const).includes(config.factCheckMode as never)
             ? config.factCheckMode
-            : config.factCheck === false ? "off" : "balanced",
+            : config.factCheck === false ? "off"
+                : industryRiskFamily(config.industry) ? "safe" : "balanced",
+        // Smí ven i příspěvek, kterému brána nechala nepodložené tvrzení? Default NE:
+        // auto-publikování je bezobslužné, takže označený post by odešel jménem klienta
+        // dřív, než ho kdokoli uvidí. Zapnutí je vědomé rozhodnutí v Nastavení.
+        publishFlaggedPosts: config.publishFlaggedPosts ?? false,
         ctaStrategies: config.ctaStrategies || { soft: [], medium: [], hard: [], none: [] },
         feedAesthetic: config.feedAesthetic || {
             colorPalette: "Neutrální",

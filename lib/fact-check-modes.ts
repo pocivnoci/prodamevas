@@ -46,3 +46,16 @@ export function factCheckModeIndex(mode: string | undefined): number {
     const i = FACT_CHECK_MODES.findIndex(m => m.value === mode)
     return i === -1 ? FACT_CHECK_MODES.findIndex(m => m.value === DEFAULT_FACT_CHECK_MODE) : i
 }
+
+/**
+ * Nechala brána v textu nepodložené tvrzení? (`ig_generation_log.fact_status`)
+ *
+ * Predikát, ne porovnání s řetězcem na čtyřech místech: stav čte výloha portfolia,
+ * auto-publikování i publisher, a rozejít se v tom, co znamená „označený", by
+ * znamenalo, že jedna cesta post zadrží a druhá ho pustí. `FactStatus` žije
+ * v `instagram/fact-check.ts` (server-only), proto se tu bere jako volný řetězec —
+ * tenhle modul čtou i klientské komponenty.
+ */
+export function isFactFlagged(status: string | null | undefined): boolean {
+    return status === "flagged"
+}

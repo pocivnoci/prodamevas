@@ -5,6 +5,7 @@ import { getChannelAdapter } from "@/lib/channels"
 import type { Channel, FormattedContent, MediaType } from "@/lib/channels/types"
 import { isMediumType } from "@/lib/credits"
 import { parsePostMedia } from "@/lib/media-urls"
+import { findFactFlaggedPosts } from "@/lib/fact-gate"
 
 export const maxDuration = 800 // Vercel Pro cap (Fluid Compute).
 
@@ -69,11 +70,55 @@ export async function GET(req: Request) {
         return NextResponse.json({ success: true, idle: true })
     }
 
+    // ── Faktická brána má přednost před kalendářem ──────────────────────────
+    //
+    // Druhá pojistka za ostřicím agentem (lib/agents/auto-publish.ts). Sem se
+    // označený příspěvek dostane jinou cestou — někdo ho naplánoval ručně, nebo
+    // ho brána označila až PO naostření (retuš, přehodnocení). Publikace je
+    // nevratná, takže tenhle krok nesmí viset jen na agentovi před ní.
+    //
+    // Nevrací se sem v dalším ticku: zadržený příspěvek padá zpátky na `ready`
+    // s vysvětlením v `publish_error`. Nechat ho `scheduled` by znamenalo, že se
+    // fronta každou minutu pokouší o totéž a v logu z toho je šum.
+    const clientIds = [...new Set(due.map(p => p.client_id).filter(Boolean))] as string[]
+    const allowFlagged = new Set<string>()
+    if (clientIds.length > 0) {
+        const { data: clients } = await supabaseAdmin
+            .from("clients")
+            .select("id, config")
+            .in("id", clientIds)
+        for (const c of clients || []) {
+            if ((c.config as Record<string, unknown> | null)?.publishFlaggedPosts === true) allowFlagged.add(c.id as string)
+        }
+    }
+    const gated = due.filter(p => !allowFlagged.has(p.client_id))
+    const flaggedIds = await findFactFlaggedPosts(gated.map(p => p.id))
+
     let published = 0
     let failed = 0
     let deferred = 0
+    let heldForFacts = 0
 
     for (const post of due) {
+        if (flaggedIds.has(post.id)) {
+            const { data: held } = await supabaseAdmin
+                .from("ig_posts")
+                .update({
+                    status: "ready",
+                    publish_error: "Čeká na ověření faktů — v textu zůstalo tvrzení bez opory v ověřených faktech.",
+                    updated_at: nowIso(),
+                })
+                .eq("id", post.id)
+                .eq("status", "scheduled")
+                .select("id")
+                .maybeSingle()
+            if (held) {
+                heldForFacts++
+                console.warn(`   🚩 Příspěvek ${post.id} zadržela faktická brána — nepublikuje se, čeká na člověka`)
+            }
+            continue
+        }
+
         if (Date.now() - t0 > BUDGET_MS) break
 
         // ── Atomic claim: only the worker that flips scheduled→posting proceeds. ──
@@ -184,5 +229,5 @@ export async function GET(req: Request) {
         }
     }
 
-    return NextResponse.json({ success: true, published, failed, deferred, considered: due.length })
+    return NextResponse.json({ success: true, published, failed, deferred, heldForFacts, considered: due.length })
 }

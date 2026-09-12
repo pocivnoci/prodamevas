@@ -30,6 +30,7 @@
 import type { ClientConfig } from "./configs/types"
 import { judgeText } from "./judge"
 import { verifyClaimsOnWeb, type FactSource, type WebCheckInput } from "./fact-web"
+import { industryRiskFamily } from "@/lib/industry-risk"
 
 export type { FactSource } from "./fact-web"
 
@@ -241,6 +242,65 @@ export function applyFactFixes<T>(data: T, fixes: { find: string; replace: strin
 }
 
 /**
+ * Přitvrzení pro rizikový obor — prázdný řetězec pro kavárnu, odstavec pro izolatéra.
+ *
+ * Obecný prompt brány je psaný pro průměrného klienta, a průměrný klient je kavárna:
+ * tvrzení „pečeme od pěti ráno" nikoho nepoškodí. U technického oboru je ale KAŽDÝ
+ * parametr vlastní práce závazek, který se ověřuje reklamací, ne googlením — a brána
+ * ho dřív pouštěla jako `unsure`, protože „norma se přece na webu najde". Norma ano,
+ * vlastní izolace ne. Blok se proto točí kolem JEDNÉ hranice: čí je ten údaj.
+ */
+function buildRiskFamilyBlock(industry?: string): string {
+    const family = industryRiskFamily(industry)
+    if (!family) return ""
+
+    if (family === "technical") {
+        return `
+## ⚠️ TECHNICKÝ / ŘEMESLNÝ OBOR — PŘÍSNĚJŠÍ PRAVIDLO NA PARAMETRY
+Tahle značka prodává práci, kterou zákazník reklamuje, ne čte. Proto:
+1. **Technický parametr VLASTNÍ práce nebo vlastního produktu je VŽDYCKY \`risk\`,
+   nikdy \`unsure\`.** Tloušťka, tlak, únosnost, spád, tepelný odpor, výdrž,
+   životnost v letech, doba schnutí, délka záruky. Na veřejném webu se dá najít
+   norma — ne to, co odvedla TAHLE firma. Nedohledatelnost není důvod ke smíru.
+2. **Hybridní tvrzení ROZDĚL na dvě.** „Naše izolace vydrží 4 bary podle ČSN P 73 0606"
+   jsou dva claims: citace normy (\`unsure\`, scope "world", query na znění normy)
+   a výkon vlastní práce (\`risk\`). Doložená norma NEPROPOUŠTÍ větu jako celek —
+   přesně tudy propadlo „splňujeme" bez jediného dokladu.
+3. **Záruční lhůta a životnost jsou \`risk\` bez výjimky** — i „až", i „běžně",
+   i „obvykle". A NEHEDGUJ je: „dlouholetá záruka", „dlouhá životnost" je pořád
+   týž závazek, jen nezměřitelný, takže z něj v opravě nedělej rozmazanou verzi.
+   Buď stojí v ověřených faktech, nebo v textu být nemá.
+4. **Nikdy nevyrob NOVÉ číslo — ani v těle textu, nejen v nadpisu.** Oprava smí být
+   obecnější, ne jinak konkrétní: „vydrží 4 bary" → věta o tom, kde se to používá,
+   ne „vydrží 2 bary" a ne „vydrží vysoký tlak".
+`
+    }
+
+    if (family === "finance") {
+        return `
+## ⚠️ FINANČNÍ OBOR — PŘÍSNĚJŠÍ PRAVIDLO NA VÝNOSY A GARANCE
+1. **Výnos, zhodnocení, úrok, garance odkupu a „jistota" jsou VŽDYCKY \`risk\`**,
+   i když se podobné číslo najde na webu: ten výnos slibuje TAHLE značka.
+2. **Hybridní tvrzení rozděl** — obecná tržní data (\`unsure\`, scope "world") od
+   slibu téhle značky (\`risk\`).
+3. **Nehedguj.** „Nadprůměrné zhodnocení", „prakticky bez rizika" je týž slib,
+   jen nevymahatelný. Buď je v ověřených faktech, nebo v textu být nemá.
+`
+    }
+
+    return `
+## ⚠️ ZDRAVOTNICKÝ / ESTETICKÝ OBOR — PŘÍSNĚJŠÍ PRAVIDLO NA ÚČINKY
+1. **Zdravotní nebo estetický účinek, výsledek zákroku a doba rekonvalescence jsou
+   VŽDYCKY \`risk\`** — i „pomáhá", „uleví", „omladí". Slibuje je tahle značka
+   konkrétnímu člověku, veřejný zdroj ji z toho nevyviní.
+2. **Hybridní tvrzení rozděl** — obecný fakt o látce či metodě (\`unsure\`, scope
+   "world") od slibu výsledku u téhle kliniky (\`risk\`).
+3. **Nehedguj** na „viditelné zlepšení" ani „většina klientů" — to je týž slib
+   bez čísla. Bez opory v ověřených faktech v textu být nemá.
+`
+}
+
+/**
  * Prompt brány. Čistá funkce (exportovaná kvůli guardu) — ŽÁDNÉ volání modelu.
  */
 export function buildFactCheckPrompt(
@@ -302,6 +362,7 @@ Konkrétní tvrzení, které si čtenář může ověřit a přistihnout značku
 - slib nebo garance („do 24 hodin", „garantujeme vrácení peněz")
 - tvrzení o účincích (zdravotní, výkonnostní), které by muselo mít oporu
 
+${buildRiskFamilyBlock(config.industry)}
 ## JAK ROZHODUJEŠ
 Nejdřív se zeptej: **je to tvrzení o TÉHLE ZNAČCE, nebo o světě?** Podle toho se liší,
 kdo ho může doložit.
