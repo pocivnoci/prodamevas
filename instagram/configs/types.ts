@@ -9,6 +9,8 @@ import type { BrandVoiceConfig } from "../types"
 import type { FeedPatternId } from "../../lib/feed-pattern"
 import type { PhotoPolicy } from "../../lib/photo-policy"
 import type { MediumType } from "../../lib/credits"
+import type { TtsProviderId } from "../../lib/voice-library"
+import type { ReelMode } from "../../lib/reel-media"
 
 // ─── Product ────────────────────────────────────────────────
 
@@ -139,6 +141,29 @@ export interface PostFormat {
     reelDuration?: number
 }
 
+// ─── Titulky reelů ──────────────────────────────────────────
+
+/** Tři presety, ne volný CSS. Preset mapuje na hotovou dvojici (chunkOpts + ASS styl)
+ *  v `instagram/reel-subtitles.ts`; cokoli mimo tyhle tři hodnot by `buildAss` poslalo
+ *  s neznámým stylem do libassu, a to se pozná až na vyrenderovaném videu. */
+export type SubtitlePreset = "classic" | "cards" | "minimal"
+export type SubtitlePosition = "bottom" | "center" | "top"
+export type SubtitleSize = "s" | "m" | "l"
+
+/** Jak vypadají vypálené titulky reelu. Značka to nastavuje jednou v Nastavení;
+ *  jednotlivý reel si to může přebít při přerenderování (`reel_recompose`). */
+export interface SubtitleStyleConfig {
+    preset: SubtitlePreset
+    /** Svislé usazení v bezpečné zóně IG. Default `bottom` (nad spodní UI lištou). */
+    position?: SubtitlePosition
+    /** Velikost písma. Menší velikost = víc znaků na řádek, ne užší karta. */
+    size?: SubtitleSize
+    /** Barva textu, `#RRGGBB`. Prázdné = bílá. */
+    color?: string
+    /** Barva obrysu/podkladu, `#RRGGBB`. Prázdné = černá. */
+    accent?: string
+}
+
 /** Stropy délky kreativního briefu formátu — drží formát INVARIANTEM.
  *
  *  Původních 400/600/400 znaků si storyboard vynutilo samo: do takového prostoru model
@@ -200,6 +225,15 @@ export interface PostTypeDef {
 }
 
 // ─── Audience Persona ───────────────────────────────────────
+
+/** Hlas značky — poskytovatel + konkrétní hlas z `lib/voice-library.ts`. */
+export interface BrandVoiceCasting {
+    provider: TtsProviderId
+    /** ID hlasu v knihovně poskytovatele (Gemini prebuilt, např. "Sulafat"). */
+    voiceId: string
+    /** Volitelný styl přednesu („klidně a věcně") — konstantní přes celý reel. */
+    style?: string
+}
 
 export interface AudiencePersona {
     /** Short label, e.g. "Začátečník", "Skeptik" */
@@ -265,6 +299,25 @@ export interface ImageBriefItem {
 
 // ─── Client Config ──────────────────────────────────────────
 
+/**
+ * Oborový vizuální profil. Všechna pole jsou volná česká věta pro model — registr
+ * hodnot žije v `instagram/industry-visual-profiles.ts`, tady je jen tvar.
+ *
+ * ⚠️ Záměrně tu NENÍ nic o kompozici, záběru ani rozvržení. To je osa, na které má
+ * engine rotovat (archetypy + anti-repeat); předepsaná by ji umlčela — přesně tak
+ * se z devíti značek stala jedna šablona s vyměněným hexem (viz `showcase-kit.ts`).
+ */
+export interface IndustryVisual {
+    /** Fotografický žánr oboru — např. „dokumentární reportáž z místa práce". */
+    photographicGenre: string
+    /** Jak se v tomhle oboru svítí — světlo, kontrast, denní doba. */
+    lightingBrief: string
+    /** Typografický řez oboru. Doplňuje `feedAesthetic.typographyStyle`, nenahrazuje ho. */
+    typographyStyle?: string
+    /** Princip palety („barvu nese produkt, pozadí zůstane neutrální"), ne konkrétní hexy. */
+    palettePrinciple?: string
+}
+
 export interface ClientConfig {
     /** Unique client ID (used as project_id in DB) */
     id: string
@@ -312,6 +365,17 @@ export interface ClientConfig {
      */
     factCheckMode?: "off" | "safe" | "balanced" | "bold"
 
+    /**
+     * Smí auto-publikování vydat i příspěvek, kterému brána nechala nepodložené
+     * tvrzení (`fact_status = "flagged"`)? Default `false` (viz validateConfig).
+     *
+     * Brána označený post dosud jen ukazovala v dashboardu — kdo měl zapnuté
+     * auto-publikování, tomu odešel na Instagram sám, protože publisher
+     * `fact_status` vůbec nečetl. Označený post proto čeká na člověka a klient
+     * o čekajících dostane jednou denně e-mail. Zapnout to jde, ale vědomě.
+     */
+    publishFlaggedPosts?: boolean
+
     /** Content pillars for Growth Engine */
     contentPillars: Record<string, ContentPillar>
 
@@ -320,6 +384,19 @@ export interface ClientConfig {
 
     /** Visual identity for feed cohesion */
     feedAesthetic: FeedAesthetic
+
+    /**
+     * Oborová vizuální identita — JAKÝ druh snímku to vlastně je.
+     *
+     * Doteď art director obor neznal vůbec: `config.industry` se v `image-pipeline.ts`
+     * nevyskytoval ani jednou a kvalita se předepisovala jedinou natvrdo zapsanou větou
+     * („editorial, cinematic lighting, real depth") pro vinařství i pro izolatéra.
+     * Odtud „všechny fotky vypadají stejně".
+     *
+     * Prázdné = dnešní chování (fallback texty v `image-pipeline.ts`). `validateConfig()`
+     * profil odvozuje z `industry` přes `INDUSTRY_VISUAL_PROFILES`.
+     */
+    industryVisual?: IndustryVisual
 
     /** Visual rhythm of the profile GRID (see lib/feed-pattern.ts). Deliberately top-level and
      *  not part of feedAesthetic: feedAesthetic describes a single image and is poured into the
@@ -430,8 +507,28 @@ export interface ClientConfig {
     /** Video script instructions (what to show, visual focus) */
     videoFocus?: string
 
-    /** TTS voice preset for voiceover (Gemini TTS voice name, e.g. "Kore", "Puck", "Charon") */
+    /** @deprecated Nahrazeno `voice`. `validateConfig()` starou hodnotu přebere jako
+     *  voiceId, pokud ji knihovna zná; nový kód čte jen `config.voice`. */
     ttsVoice?: string
+
+    /** Hlas značky pro voiceover reelů. Default ve `validateConfig()` je
+     *  DETERMINISTICKÝ CASTING (`castVoice` z `lib/voice-library.ts`) z persony,
+     *  oboru a publika — ne konstanta: jediný sdílený preset „Kore" byl nejčastější
+     *  stížnost na reely (všichni klienti zněli stejně). */
+    voice?: BrandVoiceCasting
+
+    /** Jak vypadají VYPÁLENÉ titulky v reelech téhle značky. Vypálené proto, že IG
+     *  u reelu žádnou titulkovou stopu nebere — mění se tím obraz, ne metadata.
+     *  Default doplňuje `validateConfig()` (clamp, ne default-through: `buildAss`
+     *  z presetu skládá ASS styl a nesmí dostat neznámou hodnotu). */
+    subtitleStyle?: SubtitleStyleConfig
+
+    /** Ze kterých režimů reelu smí scenárista vybírat: `voiceover` (namluvená
+     *  narrace) a/nebo `text` (karty na obraze, hudba ze Seedance, žádné TTS).
+     *  Default ve `validateConfig()` je OBOJÍ — u vizuálních oborů (móda, gastro,
+     *  interiéry) je textový reel přirozenější než vypravěč nad obrazem. Značka,
+     *  která hlas chce vždycky, si `text` odklikne v Nastavení. */
+    reelModes?: ReelMode[]
 
     /** Per-post-type format overrides (aspect ratio, medium, overlay style) */
     postFormats?: Record<string, PostFormat>
@@ -510,6 +607,16 @@ export interface ClientConfig {
      * až ve chvíli, kdy klient kývne.
      */
     isCaseStudy?: boolean
+
+    /**
+     * Kdy byla značka anonymizována (`scripts/smazat-opustene-klienty.ts`).
+     *
+     * Klient s platbou nebo dokladem se nemaže — `invoices.client_id` kaskáduje
+     * a daňové doklady musí přežít ~10 let. Místo smazání se řádek `clients`
+     * vyprázdní a dostane tohle razítko: podle něj se pozná, že prázdná značka
+     * není rozbitý onboarding, ale splněná žádost o výmaz.
+     */
+    anonymizedAt?: string
 }
 
 // ─── Brand Image Type ────────────────────────────────────────────────

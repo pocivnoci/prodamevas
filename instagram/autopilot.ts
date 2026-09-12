@@ -33,15 +33,18 @@ import {
     getIdeaById,
     countFeedPosts,
     toSelectedProduct,
+    getCatalogProducts,
 } from "./service"
 import { withUsageScope, currentUsage } from "./usage-meter"
 import { computeSlotIntent, type SlotIntent } from "../lib/feed-pattern"
 import { applyShowcaseKit, type ShowcaseKit } from "./showcase-kit"
 import { matchProductInText } from "../lib/product-match"
 import { loadConfig } from "./configs"
-import type { ClientConfig, PostFormat, PostMedium } from "./configs/types"
+import { getConfigBrandImageObjects, type ClientConfig, type PostFormat, type PostMedium } from "./configs/types"
 import { applyFormatClamps, liveKillSwitches, FEED_SAFE_RATIOS } from "./format-clamps"
-import { isReelMedium } from "../lib/reel-media"
+import { isReelMedium, REEL_MEDIA, type ReelMedium } from "../lib/reel-media"
+import { reelScriptwriterEnabled } from "./reel-scriptwriter"
+import { isQualityUnavailable } from "../utils/retry"
 import type { PostType, PostIdea, Review } from "./types"
 import type { VideoCheckpoint } from "./orchestrators/types"
 
@@ -170,6 +173,12 @@ export interface CaptionCheckpoint {
     factSources?: FactSource[]
     /** Video fáze reelu (TTS + storyboard + zadaná úloha) — viz orchestrators/types.ts. */
     video?: VideoCheckpoint
+    /** Hook vzor, který zvolil scenárista reelu (`lib/hook-patterns.ts`). Nese se přes
+     *  resume, jinak by dorenderovaný reel ztratil atribuci a vážený výběr vzorů by
+     *  se učil z děravých dat. */
+    hookPattern?: string | null
+    /** Režim reelu ze scenáristy ("voiceover" | "text"). */
+    reelMode?: string | null
 }
 
 /**
@@ -535,10 +544,12 @@ export async function generateOnePost(options: {
     // 3b. Recent design fingerprints — anti-repetition input for the AI Designer.
     // Concept alone lets the model "diverge" in words while rendering the same layout,
     // so feed the structural attributes too and hard-ban the latest layout archetypes.
+    // Okno 8 postů, ne 6: při kadenci 4×/týden pokryje celé dva týdny, takže se
+    // designér nemůže vrátit ke „staršímu" nápadu, který divák viděl minulý pátek.
     const recentDesigns = recentPosts
         .map(p => (p as any).design_brief)
         .filter(Boolean)
-        .slice(0, 6)
+        .slice(0, 8)
     const recentBriefs = recentDesigns
         .map((d: any) => {
             const parts = [
@@ -546,14 +557,24 @@ export async function generateOnePost(options: {
                 d.layoutArchetype && `layout: ${d.layoutArchetype}`,
                 d.typography?.placement && `text: ${d.typography.placement}`,
                 d.typography?.styleDescription && `type: ${d.typography.styleDescription}`,
-                d.colorTreatment && `color: ${String(d.colorTreatment).substring(0, 80)}`,
+                // `colorTreatment` se dřív krátil na 80 znaků, což je přesně délka,
+                // po které z popisu gradingu zbyde „Warm, sun-drenched palette with"
+                // — tedy část, která je u téhle značky stejná vždycky. Rozlišující
+                // konec věty se uřízl a otisk přestal rozlišovat.
+                d.colorTreatment && `color: ${d.colorTreatment}`,
+                // Záběr a scéna je osa, na které se opakování pozná nejdřív (třikrát
+                // po sobě detail na šálek), a v otisku doteď nebyla vůbec.
+                d.composition && `scene: ${String(d.composition).substring(0, 200)}`,
             ]
             return parts.filter(Boolean).join(" | ")
         })
         .filter(Boolean)
+    // Ban posledních 5 archetypů (dřív 3): registr má 16 archetypů a každá rodina
+    // ≥ 4 členy, takže pětiprvkový zákaz rodinu nevyprázdní a zároveň udrží dva
+    // typografické posty po sobě od stejného skeletu.
     const recentArchetypes = [...new Set(
         recentDesigns
-            .slice(0, 3)
+            .slice(0, 5)
             .map((d: any) => d.layoutArchetype as string | undefined)
             .filter((a: any): a is string => Boolean(a))
     )]
@@ -735,6 +756,10 @@ export async function generateOnePost(options: {
     // phase silently dropped it on the way to the renderer.
     type CaptionPhaseData = CaptionData
     let captionData: CaptionPhaseData
+    /** Hook vzor a režim zvolený scenáristou reelu — ukládá se k postu, aby se z něj
+     *  dal spočítat výkon vzoru a vážit příští výběr (invariant zpětné vazby). */
+    let reelHookPattern: string | null = null
+    let reelMode: string | null = null
     let megaPrompt = ""
     let captionModel = getModel("textPro")
     let score = 7
@@ -774,6 +799,8 @@ export async function generateOnePost(options: {
         factStatus = ck.factStatus ?? null
         factFlags = ck.factFlags ?? []
         factSources = ck.factSources ?? []
+        reelHookPattern = ck.hookPattern ?? null
+        reelMode = ck.reelMode ?? null
         megaPrompt = ck.megaPromptHead || "[resumed from checkpoint]"
         if (isReel && captionData.caption) captionData.body = captionData.caption
         console.log(`   ♻️ Resume z caption checkpointu — přeskakuji copywriter/critic/editorial (hook: "${captionData.hook.substring(0, 50)}...")`)
@@ -1056,6 +1083,82 @@ ${feedSummary}
         }
     }
 
+    // 6a. Scenárista reelů (Claude Opus 5) — specialista na video místo copywritera.
+    // Běží PŘED kritikem, redakcí i faktickou bránou: narrace, kterou napíše, musí
+    // projít přesně týmiž branami jako text od copywritera (invariant „faktická brána
+    // nad narrací" z docs/DESIGN_reels-v2_2026-09-12.md). Copywriterův caption a
+    // hashtagy zůstávají — přepisuje se jen hook a scény.
+    // Nikdy fatální: scénář je vylepšení nad funkční pipeline, takže když Opus i Sonnet
+    // i Gemini ladder selžou, jede se s tím, co napsal copywriter (a je to vidět v logu).
+    if (isReel && reelScriptwriterEnabled()) {
+        await report("copywriter", 40, "🎞️ Scenárista píše scénář reelu...")
+        try {
+            const { writeReelScript, scriptToScenes, reelScore } = await import("./reel-scriptwriter")
+            const duration = format.reelDuration || 8
+
+            // Posledních 8 reelů klienta: hook (první řádek captionu), zvolený vzor
+            // a naměřená síla. client_id ve filtru je povinné — cizí reely by vážily
+            // vzory téhle značky.
+            const { data: reelRows } = await supabaseAdmin
+                .from("ig_posts")
+                .select("caption, design_brief, likes, comments, saves")
+                .eq("client_id", clientUuid)
+                .in("media_type", [...REEL_MEDIA])
+                .order("created_at", { ascending: false })
+                .limit(8)
+            const pastReels = (reelRows || []).map(r => ({
+                hook: (r.caption || "").split("\n").find(Boolean)?.slice(0, 80) || "",
+                hookPattern: (r.design_brief as { hookPattern?: string } | null)?.hookPattern ?? null,
+                score: reelScore(r),
+            }))
+
+            // Produkty vždy z ŽIVÉHO katalogu; config.products je zmražený onboarding snapshot.
+            const catalogProducts = await getCatalogProducts(clientUuid, config.products).catch(() => [])
+            const { data: reviewRows } = await supabaseAdmin
+                .from("ig_reviews")
+                .select("quote, customer_initials")
+                .eq("client_id", clientUuid)
+                .eq("is_approved", true)
+                .limit(3)
+
+            const { script } = await writeReelScript({
+                config,
+                medium: format.medium as ReelMedium,
+                durationSeconds: duration,
+                postType: selectedType.name,
+                typeDef: (config.postTypeDefs ?? []).find(d => d.name === selectedType.name),
+                ctaPolicy,
+                angle: captionData.angle,
+                copywriterHook: captionData.hook,
+                caption: captionData.caption || captionData.body,
+                selectedProduct,
+                catalogProducts,
+                brandPhotos: getConfigBrandImageObjects(config).map(img => ({ description: img.description || "", tags: img.tags || [] })),
+                reviews: (reviewRows || []).map(r => ({ quote: r.quote, author: r.customer_initials || undefined })),
+                signals: contextBlock || undefined,
+                pastReels,
+            })
+
+            captionData.hook = script.hook
+            captionData.scenes = scriptToScenes(script, duration)
+            // Režim i hook do obrazu musí dojet až k orchestrátoru — jede se podle
+            // nich TTS (nebo ne) a první titulková karta. `captionData` je zároveň
+            // obsah caption checkpointu, takže to přežije i resume.
+            captionData.reelMode = script.mode
+            captionData.onScreenHook = script.onScreenHook
+            reelHookPattern = script.hookPattern
+            reelMode = script.mode
+            cost += COSTS.reelScript
+            console.log(`   🎞️ Scénář nahradil narraci copywritera (vzor "${script.hookPattern}", režim ${script.mode})`)
+        } catch (err: any) {
+            // Vyčerpané Pro tiery se NEobcházejí — job se zaparkuje a dokončí později
+            // (stejné pravidlo jako u renderu a režiséra). Jakákoli jiná chyba znamená
+            // návrat k dosavadnímu chování: narraci napsal copywriter. Hlasitě, ne potichu.
+            if (isQualityUnavailable(err)) throw err
+            console.warn(`   ⚠️ Scenárista reelu selhal — jedu s narrací copywritera: ${String(err?.message || err).slice(0, 160)}`)
+        }
+    }
+
     // 6b. Quality gate — Critic + Chief Editor multi-round review.
     // Best-of-2 already scored the winner via the ranking judge — no second critic call.
     if (strategyUsed !== "bestof2") {
@@ -1187,6 +1290,8 @@ ${feedSummary}
                 factStatus,
                 factFlags,
                 factSources,
+                hookPattern: reelHookPattern,
+                reelMode,
             }
             await supabaseAdmin.from("ig_jobs").update({ result: { checkpoint } }).eq("id", options.jobId)
             console.log("   💾 Caption checkpoint uložen (resume-ready)")
@@ -1315,7 +1420,14 @@ ${feedSummary}
             // (Carousel slide URLs stay pipe-joined in image_url per the orchestrator convention.)
             media_type: format.medium,
             image_style: renderResult?.imageStyle ?? (isReel ? "seedance" : "native"),
-            design_brief: renderResult?.designBrief ?? null,
+            // Reel dnes žádný `designBrief` nemá (vizuál řeší storyboard), takže se do
+            // téhož jsonb ukládá atribuce scenáristy: bez uloženého `hookPattern` nejde
+            // spočítat výkon vzoru a vážený výběr by se učil z prázdna.
+            design_brief: renderResult?.designBrief ?? (reelHookPattern ? { hookPattern: reelHookPattern, reelMode } : null),
+            // Reel: kde leží surové video, voiceover a časová osa, aby šly titulky
+            // přerenderovat bez nového videa (job `reel_recompose`, 0 kreditů).
+            // U ostatních médií zůstává NULL.
+            video_source: renderResult?.videoSource ?? null,
             status: "draft",
         })
 

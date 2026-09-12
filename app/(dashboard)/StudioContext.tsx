@@ -61,12 +61,34 @@ function readStoredProject(): string | null {
     }
 }
 
+/**
+ * Hash nese sekci a nepovinné parametry: `#tasks?id=<uuid>`, `#mailing?to=…`.
+ *
+ * Query ZA hashem, ne před ním: sekce je stav uvnitř jedné stránky, takže
+ * `?id=…#tasks` by poslalo parametr na server (a v logu by skončilo UUID úkolu),
+ * zatímco tenhle tvar zůstane v prohlížeči. Adresa zároveň jde poslat kolegovi —
+ * a to je celý smysl: „koukni na tenhle úkol" místo „otevři Úkoly a najdi ho".
+ */
+function parseHash(raw: string): { section: StudioSection; params: Record<string, string> } {
+    const hash = raw.startsWith("#") ? raw.slice(1) : raw
+    const [name, query] = hash.split("?")
+    const section = VALID_SECTIONS.includes(name as StudioSection) ? (name as StudioSection) : "dashboard"
+    const params: Record<string, string> = {}
+    if (query) {
+        for (const [k, v] of new URLSearchParams(query)) params[k] = v
+    }
+    return { section, params }
+}
+
 function getInitialSection(): StudioSection {
     if (typeof window === "undefined") return "dashboard"
-    const hash = window.location.hash.slice(1)
-    return VALID_SECTIONS.includes(hash as StudioSection)
-        ? (hash as StudioSection)
-        : "dashboard"
+    return parseHash(window.location.hash).section
+}
+
+function getInitialDeepLink(): Record<string, string> | null {
+    if (typeof window === "undefined") return null
+    const { params } = parseHash(window.location.hash)
+    return Object.keys(params).length > 0 ? params : null
 }
 
 export interface SubscriptionState {
@@ -119,7 +141,7 @@ export interface SubscriptionState {
 
 interface StudioState {
     activeSection: StudioSection
-    setActiveSection: (s: StudioSection, opts?: { replace?: boolean }) => void
+    setActiveSection: (s: StudioSection, opts?: { replace?: boolean; query?: Record<string, string> }) => void
     projectId: string
     setProjectId: (id: string) => void
     /** Značky, na které tenhle účet vidí. */
@@ -137,6 +159,20 @@ interface StudioState {
     /** Zvýší se při tažení pro obnovení; `page.tsx` ho má v `key`, takže se tab přemountuje. */
     refreshNonce: number
     bumpRefresh: () => void
+    /**
+     * Parametry za hashem pro právě otevřenou sekci (`#tasks?id=…`). Tab si je
+     * přečte při příchodu — rozbalí úkol, předvyplní příjemce — a zahodí přes
+     * `clearDeepLink()`, aby se to nedělo znovu při každém překreslení.
+     */
+    deepLink: Record<string, string> | null
+    clearDeepLink: () => void
+    /**
+     * Čísla do odznaků v navigaci, klíčované `NavItem.badge`. Drží je kontext,
+     * protože je čte sidebar i spodní lišta a obojí je v DOM zároveň — dva
+     * nezávislé fetche by znamenaly dvě server akce na každé načtení studia.
+     */
+    navBadges: Record<string, number>
+    refreshNavBadges: () => void
 }
 
 const StudioContext = createContext<StudioState>({
@@ -154,6 +190,10 @@ const StudioContext = createContext<StudioState>({
     navDirection: 0,
     refreshNonce: 0,
     bumpRefresh: () => {},
+    deepLink: null,
+    clearDeepLink: () => {},
+    navBadges: {},
+    refreshNavBadges: () => {},
 })
 
 export function StudioProvider({ children }: { children: ReactNode }) {
@@ -165,15 +205,24 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     const currentRef = useRef<StudioSection>(activeSection)
     currentRef.current = activeSection
 
-    const setActiveSection = useCallback((s: StudioSection, opts?: { replace?: boolean }) => {
+    const [deepLink, setDeepLink] = useState<Record<string, string> | null>(getInitialDeepLink)
+    const clearDeepLink = useCallback(() => setDeepLink(null), [])
+    const [navBadges, setNavBadges] = useState<Record<string, number>>({})
+
+    const setActiveSection = useCallback((s: StudioSection, opts?: { replace?: boolean; query?: Record<string, string> }) => {
         const from = SWIPE_ORDER.indexOf(currentRef.current)
         const to = SWIPE_ORDER.indexOf(s)
         setNavDirection(from >= 0 && to >= 0 && from !== to ? Math.sign(to - from) : 0)
 
         setActiveSectionRaw(s)
+        // Parametry se nastaví rovnou, ne až z `popstate` — ten se při vlastním
+        // `pushState` nespustí a cílový tab by o deep-linku nevěděl.
+        setDeepLink(opts?.query && Object.keys(opts.query).length > 0 ? opts.query : null)
+
         // `replace` je pro ťuknutí na už otevřenou položku lišty — jinak by se
         // historie zaplnila stejným záznamem a tlačítko zpět by přestalo fungovat.
-        const url = `#${s}`
+        const query = opts?.query ? new URLSearchParams(opts.query).toString() : ""
+        const url = query ? `#${s}?${query}` : `#${s}`
         if (opts?.replace) window.history.replaceState(null, "", url)
         else window.history.pushState(null, "", url)
         trackEvent('tab_viewed', { tab_name: s })
@@ -243,14 +292,34 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     // Browser back/forward navigation
     useEffect(() => {
         const handler = () => {
-            const hash = window.location.hash.slice(1)
-            if (VALID_SECTIONS.includes(hash as StudioSection)) {
-                setActiveSectionRaw(hash as StudioSection)
-            }
+            const raw = window.location.hash.slice(1)
+            const name = raw.split("?")[0]
+            if (!VALID_SECTIONS.includes(name as StudioSection)) return
+            const { section, params } = parseHash(raw)
+            setActiveSectionRaw(section)
+            setDeepLink(Object.keys(params).length > 0 ? params : null)
         }
         window.addEventListener("popstate", handler)
         return () => window.removeEventListener("popstate", handler)
     }, [])
+
+    /**
+     * Odznaky v navigaci. Otázka od AI visí na úkolu, dokud na ni někdo
+     * neodpoví — a bez čísla u položky „Úkoly" se na ni přijde jen tak, že se
+     * tam někdo náhodou podívá.
+     *
+     * Akce je adminská a pro běžného uživatele vyhodí výjimku; to není chyba,
+     * jen nula. Načítá se jednou při mountu, ne na časovač: číslo, které se
+     * mění párkrát denně, nestojí za opakovaný dotaz.
+     */
+    const refreshNavBadges = useCallback(() => {
+        import("@/app/actions/task-actions")
+            .then(m => m.countTasksAwaitingAnswer())
+            .then(count => setNavBadges(prev => ({ ...prev, tasksAwaitingAnswer: count })))
+            .catch(() => { /* není admin, nebo je databáze mimo — odznak prostě není */ })
+    }, [])
+
+    useEffect(() => { refreshNavBadges() }, [refreshNavBadges])
 
     const refreshSubscription = useCallback(async () => {
         if (!projectId) return
@@ -304,6 +373,8 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             subscription, subscriptionLoading, refreshSubscription,
             generateIntent, setGenerateIntent,
             navDirection, refreshNonce, bumpRefresh,
+            deepLink, clearDeepLink,
+            navBadges, refreshNavBadges,
         }}>
             {children}
         </StudioContext.Provider>
@@ -328,8 +399,15 @@ export function useStudioNavigate() {
     const pathname = usePathname()
     const router = useRouter()
 
-    return useCallback((s: StudioSection, opts?: { replace?: boolean }) => {
-        setActiveSection(s, opts)
+    /**
+     * Druhý parametr je buď volby (`{ replace: true }`), nebo rovnou parametry
+     * pro cílový tab (`{ to: "…" }`) — proklik „Napsat e-mail" se tak píše
+     * `navigate("mailing", { to: lead.email })` a nemusí znát vnitřek Mailingu.
+     */
+    return useCallback((s: StudioSection, opts?: { replace?: boolean } | Record<string, string>) => {
+        if (!opts) { setActiveSection(s); return }
+        const { replace, ...rest } = opts as { replace?: boolean } & Record<string, string>
+        setActiveSection(s, { replace, query: Object.keys(rest).length > 0 ? rest : undefined })
         if (pathname !== "/dashboard/instagram") router.push("/dashboard/instagram")
     }, [setActiveSection, pathname, router])
 }

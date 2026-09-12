@@ -22,9 +22,13 @@ import { BOTTOM_NAV_LEFT, BOTTOM_NAV_RIGHT, navItem, navMatches } from "./nav"
  */
 
 function NavSlot({ section, onNavigate }: { section: StudioSection; onNavigate: (s: StudioSection, active: boolean) => void }) {
-    const { activeSection } = useStudio()
+    const { activeSection, navBadges } = useStudio()
     const item = navItem(section)
     if (!item) return null
+
+    // Odznak čte lišta z téhož registru jako sidebar (`NavItem.badge`) — kdyby
+    // ho uměl jen sidebar, na telefonu by číslo nebylo vidět vůbec.
+    const badge = item.badge ? navBadges[item.badge] : undefined
 
     const active = navMatches(item, activeSection)
     const Icon = item.icon
@@ -40,7 +44,14 @@ function NavSlot({ section, onNavigate }: { section: StudioSection; onNavigate: 
             {active && (
                 <span className="absolute top-0 inset-x-3 h-[2px] bg-aisummit-cinnabar shadow-[0_0_8px_rgba(230,57,70,0.7)]" />
             )}
-            <Icon className={`w-5 h-5 transition-transform ${active ? "scale-110" : ""}`} />
+            <span className="relative">
+                <Icon className={`w-5 h-5 transition-transform ${active ? "scale-110" : ""}`} />
+                {badge ? (
+                    <span className="absolute -top-1.5 -right-2 min-w-3.5 px-1 rounded-sm bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[8px] font-bold leading-[14px] text-center">
+                        {badge}
+                    </span>
+                ) : null}
+            </span>
             <span className="text-[9px] font-bold uppercase tracking-widest leading-none">
                 {item.shortLabel ?? item.label}
             </span>

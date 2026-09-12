@@ -4,9 +4,9 @@
  *
  * Dvě věci se tu hlídají, protože obě selžou tiše:
  *
- * 1. **Sync nesmí sáhnout na sloupce, které vlastní aplikace.** Kdyby ano, každé
- *    pondělí a čtvrtek by přepsal stav i vlastníka a nikdo by si toho nevšiml až
- *    do chvíle, kdy by se hledal odbavený úkol.
+ * 1. **Import z Google tabulky smí jen zakládat.** Zdroj pravdy je databáze;
+ *    jediný `.update()` v importéru by tiše přepsal, co do úkolu někdo napsal
+ *    v appce — a všimlo by si toho až ve chvíli, kdy se to hledá.
  * 2. **Každá akce nad úkoly musí projít `requireSuperAdmin()`.** Chybějící brána
  *    nic nerozbije — jen otevře interní backlog komukoliv s odkazem.
  */
@@ -73,29 +73,29 @@ check("„opravit generování postů“ je produkt", suggestRole("opravit gener
 check("neutrální text nikoho nenavrhne", suggestRole("koupit kafe") === null)
 check("bez diakritiky se hledá stejně", normalizeText("SCHŮZKA") === "schuzka")
 
-// ── 3. Sync nesahá na sloupce aplikace ──────────────────────
+// ── 3. Import z tabulky jen zakládá ─────────────────────────
+// Do 9/2026 tabulka vlastnila title/note/priority a sync je přepisoval. Dneska
+// je zdroj pravdy databáze, takže importér smí jen INSERT. Kontroluje se tvar
+// zápisu nad `tasks`, ne jednotlivé sloupce — jedna silná aserce místo tří
+// slabých, které by přehlédly, kdyby se do update větve přidal sloupec nový.
 const syncCode = codeOnly("lib/tasks/sheet-sync.ts")
 
-// Update větev smí nést jen sloupce tabulky. `owner_email` se v souboru vyskytuje
-// legitimně u ZAKLÁDÁNÍ nového úkolu (návrh vlastníka), proto se kontroluje tvar
-// zápisu, ne pouhý výskyt slova.
-const updateBlock = syncCode.slice(syncCode.indexOf('.from("tasks")\n            .update('))
 check(
-    "update ze syncu nepřepisuje stav úkolu",
-    !/\bstatus:/.test(updateBlock),
-    "sync by přepsal, co tým odbavil",
-)
-check(
-    "update ze syncu nepřepisuje vlastníka",
-    !/owner_email:/.test(updateBlock),
-    "ručně přiřazený úkol by se v úterý vrátil na návrh podle klíčových slov",
-)
-check(
-    "update ze syncu nepřepisuje termín",
-    !/due_date:/.test(updateBlock),
+    "import nikdy neupravuje existující úkol",
+    !/\.update\(/.test(syncCode),
+    "co člověk v appce upřesnil, by příští import zahodil",
 )
 check("sync nemaže úkoly, které z tabulky zmizely", !syncCode.includes(".delete("))
 check("sync zakládá přes source_key", syncCode.includes("source_key: task.sourceKey"))
+
+// Cron by z importu udělal zpátky sync — a s ním i tichý přepis. Rozvrh proto
+// ve `vercel.json` být nesmí; route zůstává jako ruční spuštění za CRON_SECRET.
+const vercelJson = file("vercel.json")
+check(
+    "import úkolů nemá cron ve vercel.json",
+    !vercelJson.includes("tasks-sync"),
+    "naplánovaný běh by z jednosměrného importu udělal zpátky obousměrný sync",
+)
 
 // Unikátní index je to, na čem stojí idempotence — bez něj sync duplikuje.
 // Bez komentářů: `client_id` se v hlavičce migrace legitimně vysvětluje slovy.
@@ -137,6 +137,15 @@ check("každá akce volá requireSuperAdmin()", missingGuard.length === 0, missi
 const cron = codeOnly("app/api/cron/tasks-sync/route.ts")
 check("cron route kontroluje CRON_SECRET", cron.includes("CRON_SECRET") && cron.includes("Bearer"))
 
+// Zakládací formulář byl dlouho jen „název + vlastník" a zbytek polí se nedal
+// vyplnit odnikud. Termín a klient musí jít zadat rovnou, jinak se nedoplní nikdy.
+const createBody = actions.slice(
+    actions.indexOf("export async function createTask"),
+    actions.indexOf("export async function setTaskStatus"))
+check("createTask umí termín i klienta",
+    /dueDate\?:/.test(createBody) && /clientId\?:/.test(createBody) &&
+    createBody.includes("due_date:") && createBody.includes("client_id:"))
+
 // ── 5. Registr navigace ─────────────────────────────────────
 // Sekce mimo registr je dosažitelná jen ručním hashem a v sidebaru chybí — přesně
 // ta chyba, kvůli které registr vznikl.
@@ -148,6 +157,19 @@ check(
     page.includes('activeSection === "tasks" && isAdmin'),
     "bez toho ji otevře kdokoliv přes #tasks",
 )
+
+// Sekce je stav, ne route: `setProjectId` sám přepne tenanta a nechá člověka
+// stát na Úkolech. Přepínat se smí jen přes `useStudioNavigate()`.
+const tasksTab = codeOnly("app/(dashboard)/dashboard/instagram/tabs/TasksTab.tsx")
+check("TasksTab přepíná sekce přes useStudioNavigate", tasksTab.includes("useStudioNavigate"))
+// Odznak s počtem otázek patří do registru, ne natvrdo do sidebaru — jinak ho
+// spodní lišta ani rozbalovací panel mít nebudou.
+const navFile = file("app/(dashboard)/nav.ts")
+check("odznak u Úkolů je součást registru navigace",
+    /id: "tasks"[^}]*badge: "tasksAwaitingAnswer"/.test(navFile))
+check("sidebar i spodní lišta čtou odznaky z kontextu",
+    file("app/(dashboard)/StudioNavPanel.tsx").includes("navBadges[item.badge]") &&
+    file("app/(dashboard)/BottomNav.tsx").includes("navBadges[item.badge]"))
 
 // ── 6. Ruční úprava textu příspěvku ─────────────────────────
 const postEdit = codeOnly("app/actions/post-edit-actions.ts")
@@ -209,6 +231,25 @@ check("navrhuje se nejvýš pár úkolů na běh", /MAX_PER_RUN\s*=\s*[1-5]\b/.t
 
 // Sync nesmí hlásit návrhy AI jako „chybí v tabulce" — v tabulce nikdy nebyly.
 check("sync přeskakuje návrhy od AI", file("lib/tasks/sheet-sync.ts").includes('"ai:%"'))
+
+// ── 7. Zaseklé úkoly v ranním briefu ────────────────────────
+// Úkol po termínu a nezodpovězená otázka se nedějí, jen trvají — nikdo je sám
+// nenajde. Brief je jediný kanál, který se čte denně.
+const brief = codeOnly("lib/agents/daily-brief.ts")
+check("brief má sekci Úkoly", brief.includes("buildTasks") && brief.includes('section("Úkoly"'))
+check("zaseklé úkoly se počítají do „co čeká na tebe“",
+    /const todo = b\.needsYou\.length \+ b\.tasks\.length/.test(brief),
+    "jinak by předmět hlásil „jen ke čtení“ nad pěti prošlými termíny")
+
+// Prokliky mezi adminskými sekcemi. Bez `useStudioNavigate` se přepne jen tenant
+// a člověk zůstane stát na stejné obrazovce (viz CLAUDE.md, navigace).
+for (const tab of ["CompanyTab", "ApprovalsTab", "LeadsTab"]) {
+    check(`${tab} naviguje registrem, ne ručně`,
+        codeOnly(`app/(dashboard)/dashboard/instagram/tabs/${tab}.tsx`).includes("useStudioNavigate"))
+}
+check("titulek sekce se odvozuje z nav.ts",
+    codeOnly("app/(dashboard)/dashboard/instagram/page.tsx").includes("navItem(activeSection)?.label"),
+    "druhá kopie názvu se rozešla — leads a emails byly bez nadpisu")
 
 // Běh přes agent stack, ne mimo něj: i ruční spuštění musí nechat řádek v auditu.
 const dailyOps = codeOnly("app/api/cron/daily-ops/route.ts")

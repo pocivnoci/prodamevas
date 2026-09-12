@@ -12,7 +12,7 @@
 
 **Wedge:** *Done-for-you, not do-it-yourself.* Global tools (Buffer, Predis.ai, Ocoya) schedule or draft; Chrlit **runs the account** and does it in language that doesn't read as machine-translated — the weak spot of every global competitor in CEE.
 
-**Model:** Subscription (490 / 990 / 1990 Kč/mo) with cost-weighted usage. ~55–60% gross margin after the pricing fix in §5.
+**Model:** Subscription (999 / 2 999 / 4 999 / 8 999 Kč/mo bez DPH, viz `lib/pricing.ts`) with cost-weighted usage. ~55–60% gross margin after the pricing fix in §5.
 
 **The bootstrap goal:** profitability is a *customer-count* problem, not a funding problem —
 
@@ -68,18 +68,19 @@ Top-down estimate of **Instagram-relevant SMBs** (B2C retail/e-shop/gastro/servi
 
 **The fix (mandatory):** today every post costs 1 credit regardless of media, which sells **reels at ~40% of cost** and makes reel-heavy Růst/Dominance customers net-negative (full analysis in the unit-econ doc). Weight credits by cost and **make reels the tier line** (reels are both the biggest cost *and* the top upgrade reason):
 
-> ⚠️ **Ceny v tomhle dokumentu jsou z éry v4 a už neplatí.** Aktuální ceník je
-> v6 (Start 999 · Růst 2 999 · Dominance 4 999 · Impérium 8 999 Kč) —
-> `supabase/migrations/20260901_pricing_v6.sql` a `lib/pricing.ts`. Marže níž
-> odpovídají starým cenám; přepočet je samostatná práce.
+> ⚠️ **Ceník níž je opsaný z kódu (v6, bez DPH) — zdrojem pravdy zůstává
+> `lib/pricing.ts` (`FALLBACK_PLANS`) a `supabase/migrations/20260901_pricing_v6.sql`.**
+> Marže a jednotková ekonomika v tabulkách níž jsou pořád z éry v4 a odpovídají
+> starým cenám; přepočet je samostatná práce.
 
-| Tier | Price/mo | Credits | Media | Reels | Extras |
+| Tier | Price/mo (bez DPH) | Credits | Media | Reels | Extras |
 |---|---|---|---|---|---|
-| **Start** | 490 Kč | 20 | image + carousel | ❌ | content ideas |
-| **Růst** ★ | 990 Kč | 45 | + reels | ~up to 8/mo | A/B variants, growth dashboard |
-| **Dominance** | 1990 Kč | 110 | + premium reels | more, premium Veo | product studio, priority |
+| **Start** | 999 Kč | 20 | image + carousel | ❌ | content ideas |
+| **Růst** ★ | 2 999 Kč | 70 | + reels | ~up to 8/mo | A/B variants, growth dashboard |
+| **Dominance** | 4 999 Kč | 130 | + premium reels | more, premium Veo | product studio, priority |
+| **Impérium** | 8 999 Kč | 260 | + premium reels | more, premium Veo | nejvyšší priorita |
 
-Credit weights: **image = 1 · carousel = 3 · reel = 5** (products stay value-priced). Because expensive media drains credits faster, **the worst case caps itself** — no separate reel limit needed. Extra credits: 15–20 Kč.
+Credit weights: **image = 1 · carousel = 3 · reel = 5** (products stay value-priced). Because expensive media drains credits faster, **the worst case caps itself** — no separate reel limit needed. Extra credits: 49 Kč/kredit (`EXTRA_CREDIT_HALERU`).
 
 **Add annual plans** (pay 10, get 12): cash upfront + lower churn — outsized value for a bootstrap.
 

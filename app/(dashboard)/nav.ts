@@ -31,6 +31,13 @@ export const GROUP_LABELS: Record<NavGroupId, string> = {
     admin: "Admin",
 }
 
+/**
+ * Klíč do `StudioContext.navBadges`. Odznak je součást registru, ne výjimka
+ * v JSX sidebaru: kdyby se číslo dopisovalo natvrdo, spodní lišta a rozbalovací
+ * panel by ho neměly — přesně ta chyba, kvůli které registr vznikl.
+ */
+export type NavBadgeId = "tasksAwaitingAnswer"
+
 export interface NavItem {
     id: StudioSection
     /** Plný název — sidebar a rozbalovací panel. */
@@ -44,6 +51,8 @@ export interface NavItem {
      * tatáž část aplikace.
      */
     matches?: StudioSection[]
+    /** Nenulové číslo z `navBadges[badge]` se vykreslí jako odznak. */
+    badge?: NavBadgeId
     group: NavGroupId
 }
 
@@ -65,7 +74,9 @@ export const NAV_ITEMS: NavItem[] = [
     { id: "faq", label: "Nápověda", icon: CircleQuestionMark, group: "account" },
     { id: "settings", label: "Nastavení", icon: Settings, group: "account" },
 
-    { id: "tasks", label: "Úkoly", icon: ListChecks, group: "admin" },
+    // Otázka od AI čeká na odpověď, dokud si jí někdo nevšimne — odznak je
+    // jediné místo, kde je vidět bez otevření sekce.
+    { id: "tasks", label: "Úkoly", icon: ListChecks, badge: "tasksAwaitingAnswer", group: "admin" },
     { id: "leads", label: "Obchod", shortLabel: "Obchod", icon: Handshake, group: "admin" },
     { id: "products", label: "Produkty", icon: Package, group: "admin" },
     { id: "company", label: "Firma", icon: Building2, group: "admin" },

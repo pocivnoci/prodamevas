@@ -31,6 +31,8 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { MAX_POSTS_PER_WEEK } from "@/lib/schedule-planner"
+import { findFactFlaggedPosts } from "@/lib/fact-gate"
+import { countLabel, POSTS } from "@/lib/plural"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const FORWARD_BUFFER_WEEKS = 2 // keep ~2 weeks of posts armed ahead
@@ -41,6 +43,8 @@ export interface ArmResult {
     armed: number
     queued: number // forward-scheduled posts after this run
     skipped?: string
+    /** Kolik příspěvků zadržela faktická brána (nepodložené tvrzení v textu). */
+    flagged?: number
 }
 
 /** Arm one client's ready posts if it's opted in and connected. */
@@ -117,7 +121,18 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
     // příspěvek s termínem — a klientovi, který si vygeneroval jednotlivé posty
     // (ty termín nedostávají), se auto-publikování nikdy nerozjelo.
     let armed = 0
+    // Faktická brána má přednost před kalendářem. Označený příspěvek se NEOSTŘÍ:
+    // auto-publikování je bezobslužné, takže by jménem klienta odešlo tvrzení,
+    // které si nikdo neověřil — a zpátky to vzít nejde. Klient si to může vědomě
+    // přepnout (`publishFlaggedPosts`), default je ale „počká na člověka".
+    const allowFlagged = config.publishFlaggedPosts === true
+    const flaggedIds = allowFlagged
+        ? new Set<string>()
+        : await findFactFlaggedPosts((ready || []).map(p => p.id))
+    let flagged = 0
+
     for (const post of ready || []) {
+        if (flaggedIds.has(post.id)) { flagged++; continue }
         // Conditional flip: only arm if the post is still `ready` (a concurrent
         // manual schedule/delete can't be clobbered). `scheduled_for` se NEMĚNÍ.
         const { data, error } = await supabaseAdmin
@@ -150,7 +165,7 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
     // takže se drží kadence značky a naplní jen dopředný zásobník.
     const target = perWeek * FORWARD_BUFFER_WEEKS
     const stillNeeded = target - (queuedCount + armed)
-    if (stillNeeded <= 0) return { clientId, slug, armed, queued: queuedCount + armed }
+    if (stillNeeded <= 0) return finish({ clientId, slug, armed, queued: queuedCount + armed, flagged })
 
     const { data: undated } = await supabaseAdmin
         .from("ig_posts")
@@ -162,7 +177,16 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
         .or("media_type.is.null,media_type.neq.story")
         .order("created_at", { ascending: true })
         .limit(stillNeeded)
-    if (!undated || undated.length === 0) return { clientId, slug, armed, queued: queuedCount + armed }
+    if (!undated || undated.length === 0) return finish({ clientId, slug, armed, queued: queuedCount + armed, flagged })
+
+    const undatedFlagged = allowFlagged
+        ? new Set<string>()
+        : await findFactFlaggedPosts(undated.map(p => p.id))
+    const armable = undated.filter(p => {
+        if (undatedFlagged.has(p.id)) { flagged++; return false }
+        return true
+    })
+    if (armable.length === 0) return finish({ clientId, slug, armed, queued: queuedCount + armed, flagged })
 
     const { distributeSchedule, toScheduledFor } = await import("@/lib/schedule-planner")
     // Navazujeme za poslední už naostřený slot, ať se fronta nekříží sama se sebou.
@@ -170,9 +194,9 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
     const startDate = lastQueued ? new Date(lastQueued.getTime() + DAY_MS) : undefined
     const times = Array.isArray(config.postingTimes) && (config.postingTimes as string[]).length > 0
         ? (config.postingTimes as string[]) : undefined
-    const slots = distributeSchedule(undated.length, { postsPerWeek: perWeek, startDate, timeSlots: times })
+    const slots = distributeSchedule(armable.length, { postsPerWeek: perWeek, startDate, timeSlots: times })
 
-    for (let i = 0; i < undated.length; i++) {
+    for (let i = 0; i < armable.length; i++) {
         const slot = slots[i]
         if (!slot) break
         const { data } = await supabaseAdmin
@@ -185,7 +209,7 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
                 publish_attempts: 0,
                 updated_at: new Date().toISOString(),
             })
-            .eq("id", undated[i].id)
+            .eq("id", armable[i].id)
             .eq("status", "ready")
             // Tvrdá pojistka proti přepsání plánu: kdyby mezitím termín někdo
             // nastavil, tenhle update neprojde a post zůstane jeho.
@@ -195,7 +219,35 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
         if (data) armed++
     }
 
-    return { clientId, slug, armed, queued: queuedCount + armed }
+    return finish({ clientId, slug, armed, queued: queuedCount + armed, flagged })
+}
+
+/**
+ * Zadržené příspěvky se řeknou nahlas — v logu a jednou denně klientovi.
+ *
+ * Tiché zadržení je horší než publikace: klient má zapnuté auto-publikování,
+ * kouká na prázdný feed a nemá jak zjistit proč. Oznámení chodí SOUHRNNĚ, ne
+ * na každý příspěvek — jeden e-mail denně se přečte, deset se odhlásí.
+ */
+async function finish(result: ArmResult): Promise<ArmResult> {
+    if (!result.flagged) return result
+    console.warn(`   🚩 [${result.slug}] faktická brána zadržela ${countLabel(result.flagged, POSTS)} — nepodložené tvrzení, čekají na člověka`)
+    try {
+        const { proposeCustomerNotice } = await import("@/lib/agents/customer-notices")
+        await proposeCustomerNotice({
+            clientId: result.clientId,
+            kind: "facts_pending",
+            // Výjimka z pravidla „dedupeKey nikdy nesmí být dnešek": tohle není
+            // jednorázová událost s vlastním id, ale STAV, který trvá, dokud ho
+            // člověk nevyřeší. Den je tedy přesně to, co zprávu dělá jedinečnou —
+            // a zároveň strop „jednou denně", o který tu jde.
+            dedupeKey: `facts_pending:${new Date().toISOString().slice(0, 10)}`,
+            vars: { clientId: result.clientId, count: result.flagged },
+        })
+    } catch (err: any) {
+        console.warn(`   ⚠️ [${result.slug}] oznámení o čekajících příspěvcích se nepodařilo založit: ${err?.message || err}`)
+    }
+    return result
 }
 
 /**

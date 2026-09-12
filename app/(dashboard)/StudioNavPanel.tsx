@@ -23,10 +23,12 @@ import {
  * odmountuje.
  */
 
-function NavButton({ item, active, onSelect, layoutId }: {
+function NavButton({ item, active, onSelect, layoutId, badge }: {
     item: NavItem
     active: boolean
     onSelect: () => void
+    /** Nenulové číslo z registru (`NavItem.badge`) — jinak se nekreslí nic. */
+    badge?: number
     /** framer-motion sdílí layoutId globálně — sidebar a sheet musí mít každý svůj,
      *  jinak indikátor přeletí přes celou obrazovku, když jsou oba v DOM. */
     layoutId: string
@@ -52,7 +54,12 @@ function NavButton({ item, active, onSelect, layoutId }: {
             )}
             <Icon className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${active ? "scale-110" : "opacity-60 group-hover:opacity-100"}`} />
             <span className="relative z-10">{item.label}</span>
-            {active && (
+            {badge ? (
+                <span className="relative z-10 ml-auto min-w-4 px-1 py-0.5 rounded-sm bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[9px] font-bold leading-none text-center">
+                    {badge}
+                </span>
+            ) : null}
+            {active && !badge && (
                 <div className="relative z-10 ml-auto w-1.5 h-1.5 bg-aisummit-cinnabar rounded-full shadow-[0_0_6px_rgba(229,83,63,0.6)]" />
             )}
         </button>
@@ -66,7 +73,7 @@ export function StudioNavPanel({ variant, onNavigate }: {
 }) {
     const {
         activeSection, projectId, setProjectId, clients, isAdmin,
-        subscription, subscriptionLoading, setGenerateIntent,
+        subscription, subscriptionLoading, setGenerateIntent, navBadges,
     } = useStudio()
     const navigate = useStudioNavigate()
 
@@ -141,6 +148,7 @@ export function StudioNavPanel({ variant, onNavigate }: {
                                             active={navMatches(item, activeSection)}
                                             onSelect={() => go(item.id)}
                                             layoutId={layoutId}
+                                            badge={item.badge ? navBadges[item.badge] : undefined}
                                         />
                                     ))}
                                 </div>
@@ -160,6 +168,7 @@ export function StudioNavPanel({ variant, onNavigate }: {
                                         active={navMatches(item, activeSection)}
                                         onSelect={() => go(item.id)}
                                         layoutId={layoutId}
+                                        badge={item.badge ? navBadges[item.badge] : undefined}
                                     />
                                 ))}
                             </div>

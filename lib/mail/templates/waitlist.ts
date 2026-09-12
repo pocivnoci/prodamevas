@@ -80,6 +80,8 @@ export const waitlistInvite: EmailTemplate = {
         blocks: compact([
             heading(v.headline),
             paragraph(
+                // Bez rodových příčestí o adresátovi („zapsal jste se") — e-mail
+                // neví, komu píše, a půlce příjemců se netrefí do rodu.
                 waited(v.waitedDays)
                     ? `Dobrý den,\n\nna seznamu u nás čekáte už ${waited(v.waitedDays)} a teď jsme na vás vyšli. Uvolnilo se místo — kód níž vám otevře přístup.`
                     : "Dobrý den,\n\nuvolnilo se místo. Kód níž vám otevře přístup do Chrlitu.",

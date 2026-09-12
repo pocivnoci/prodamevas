@@ -8,6 +8,7 @@ import supabaseAdmin from "@/supabase/admin"
 import { NOT_SHOWCASE } from "@/lib/audience"
 import { footnote, heading, list } from "@/lib/mail/blocks"
 import { renderEmail } from "@/lib/mail/layout"
+import { countLabel, POSTS } from "@/lib/plural"
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -158,7 +159,7 @@ export async function buildWeeklyReport(): Promise<WeeklyReport> {
         blocks: [
             heading("Týdenní report"),
             list(rows.map(([k, val]) => `**${k}** — ${val}`)),
-            footnote(`Automatický report od Chrlit ops-agenta · ${pendingApprovals > 0 ? `máš ${pendingApprovals} akcí ke schválení v dashboardu` : "nic nečeká na schválení"}${flaggedPosts > 0 ? ` · ${flaggedPosts} příspěvků čeká na ověření faktu` : ""}`),
+            footnote(`Automatický report od Chrlit ops-agenta · ${pendingApprovals > 0 ? `máš ${pendingApprovals} akcí ke schválení v dashboardu` : "nic nečeká na schválení"}${flaggedPosts > 0 ? ` · na ověření faktu čeká ${countLabel(flaggedPosts, POSTS)}` : ""}`),
         ],
     })
 

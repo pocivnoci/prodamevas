@@ -1,7 +1,7 @@
 /**
  * Reel Orchestrator — audio-first video pipeline
  * ==============================================
- * narrace (copywriter) → TTS po větách + měření → časová osa → režisér (Claude:
+ * narrace (scenárista) → TTS po větách + měření → časová osa → režisér (Claude:
  * storyboard + prompt) → voiceover stopa do bucketu → CHECKPOINT → Seedance
  * (ModelArk, async) → CHECKPOINT s taskId → polling v rozpočtu lambdy → stažení
  * → kompozice (ffmpeg: ducking + ASS titulky) → upload → native cover.
@@ -11,6 +11,10 @@
  * se za video zaplatí. Dvě uložení checkpointu znamenají, že pád lambdy nebo
  * vyčerpaný rozpočet („video ještě renderuje") nikdy nezadá video podruhé —
  * `VideoPendingError` job zaparkuje a resume dopolluje.
+ *
+ * Textový reel (`captionData.reelMode === "text"`) jde touž cestou, jen bez zvuku:
+ * osu staví ČTECÍ tempo karet (`reel-text-timeline.ts`), TTS se nevolá vůbec,
+ * hudbu a atmosféru dodá rovnou Seedance a karty vypaluje týž ASS engine.
  *
  * Nic se tu nepolyká: selhání videa, kompozice nebo uploadu je selhání jobu
  * (refund), nedostupná kvalita (TTS, Pro ladder, přetížené Seedance) parkuje.
@@ -23,22 +27,29 @@ import { pickBrandPhotos } from "../brand-photo-match"
 import { getConfigBrandImageObjects } from "../configs/types"
 import { COSTS, getPostTypeDef } from "../caption-generator"
 import { getModel } from "../models"
-import { REEL_LIMITS, REEL_TIMELINE, isReelMedium, narrationWordBudget } from "../../lib/reel-media"
+import { REEL_LIMITS, REEL_TIMELINE, isReelMedium, narrationWordBudget, type ReelMode } from "../../lib/reel-media"
 import { RENDER_BUDGET_MS, MAX_VIDEO_POLL_ROUNDS } from "../../lib/job-park"
 import { VideoPendingError } from "../../utils/retry"
 import { seedanceEnabled, submitVideoTask, pollVideoTask, downloadVideo, MAX_REFERENCES, type SeedanceReference } from "../seedance-client"
 import { directReel, condenseNarration, finalizeVideoPrompt, type ReelReference } from "../reel-director"
-import { synthesizeNarration, buildTimeline, assembleVoiceoverWav, wordCount } from "../reel-audio"
+import { synthesizeNarration, buildTimeline, assembleVoiceoverWav, wordCount, type TimedLine } from "../reel-audio"
+import { buildTextTimeline, textCardWordBudget } from "../reel-text-timeline"
+import { deliveryTags } from "../tts"
 import { referenceTooSmall, upscaleReference } from "../reel-references"
 import sharp from "sharp"
 import { createHash } from "crypto"
-import { chunkForSubtitles, buildAss } from "../reel-subtitles"
+import { chunkForSubtitles, buildAss, resolveSubtitleStyle } from "../reel-subtitles"
+import { CLIENT_BUCKET_SIZE_LIMIT } from "../../lib/storage-buckets"
+import type { ReelVideoSource } from "../../lib/types/database"
 import { composeReel } from "../reel-compositor"
 import { loadLogo } from "../logo-loader"
 import type { RenderContext, RenderResult, VideoCheckpoint } from "./types"
 import { rethrowIfQualityUnavailable } from "./types"
 
 const RESOLUTION = "480p" as const
+/** Hlasitost zvuku ze Seedance v textovém reelu. Pod voiceoverem jede atmosféra na
+ *  0,6, aby nepřebíjela řeč; bez řeči je hudba celý zvuk a jede naplno. */
+const TEXT_AMBIENT_LEVEL = 1
 /** Rezerva za pollingem na stažení, kompozici, upload a cover. */
 const POST_VIDEO_RESERVE_MS = 120_000
 const MIN_POLL_BUDGET_MS = 15_000
@@ -58,49 +69,38 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
     const deadlineAt = ctx.deadlineAt ?? Date.now() + RENDER_BUDGET_MS
     let cost = 0
     let vc: VideoCheckpoint | undefined = ctx.videoCheckpoint
+    // Režim rozhoduje o TTS, o promptu pro Seedance i o kompozici, takže se čte
+    // JEDNOU a z checkpointu přednostně: resume nesmí přepnout režim uprostřed
+    // reelu (voiceover WAV by pak chyběl, nebo by se platil podruhé).
+    const reelMode: ReelMode = vc?.mode ?? (captionData.reelMode === "text" ? "text" : "voiceover")
 
     if (vc) {
         cost += vc.costUsd
         console.log(`♻️ Reel: navazuji z video checkpointu (${vc.taskId ? `úloha ${vc.taskId}, kolo ${vc.pollRounds}` : "před zadáním videa"}, ${vc.durationSeconds}s)`)
         await report("video", 50, vc.taskId ? "♻️ Navazuji na běžící render videa…" : "♻️ Navazuji — zadávám video…")
     } else {
-        // ── 1. Narrace = věty copywritera (prošly kritikem, redakcí i faktickou bránou) ──
-        let lines = (captionData.scenes ?? []).map(s => (s.narration || "").trim()).filter(Boolean)
-        if (lines.length === 0) throw new Error("Reel bez narrace — copywriter nevrátil žádnou větu k namluvení")
-        const moods = [...new Set((captionData.scenes || []).map(s => s.mood).filter(Boolean))].slice(0, 2)
-        const ttsOpts = { voice: config.ttsVoice || "Kore", mood: "professional", audioTags: moods }
+        // ── 1. Věty: narrace (voiceover), nebo textové karty (text) ──
+        // Obojí prošlo kritikem, redakcí i faktickou bránou — textový režim není
+        // obchvat bran, jen jiný způsob doručení téže věty (`scriptToScenes`).
+        const sceneLines = (captionData.scenes ?? []).map(s => (s.narration || "").trim()).filter(Boolean)
+        // Hook do obrazu je v textovém reelu PRVNÍ karta: v prvních 1,5 s není co
+        // slyšet, takže když nic nesvítí, divák neví, o čem video je.
+        const hookCard = (captionData.onScreenHook || "").trim()
+        const lines = reelMode === "text" && hookCard && hookCard !== sceneLines[0]
+            ? [hookCard, ...sceneLines]
+            : sceneLines
+        if (lines.length === 0) {
+            throw new Error(reelMode === "text"
+                ? "Textový reel bez jediné karty — scenárista nevrátil žádný text na obraz"
+                : "Reel bez narrace — copywriter nevrátil žádnou větu k namluvení")
+        }
 
-        // ── 2. TTS po větách + měření → časová osa ──
-        await report("video", 40, `🎙️ Namlouvám narraci (${lines.length} vět)…`)
-        console.log(`🎙️ TTS po větách (${lines.length}) — délka videa se odvodí z řeči…`)
-        let tts = await synthesizeNarration(lines, ttsOpts)
-        cost += COSTS.ttsVoiceover
-        let timeline = buildTimeline(lines, tts.durations, limits)
-        // Řeč se nevejde ani se zrychlením → zkrátit text (beze změny významu), znovu namluvit.
-        // Cíl se počítá z NAMĚŘENÉHO tempa hlasu a z času, který na řeč zbude po nájezdu,
-        // mezerách a dojezdu — `délka × 2,3 slova/s` sliboval o třetinu víc řeči a obě
-        // velikosti reelu na tom padaly. Druhé kolo pokryje model, který cíl přetáhne.
-        const maxCondenseRounds = 2
-        for (let round = 1; timeline.tooLong && round <= maxCondenseRounds; round++) {
-            const maxWords = narrationWordBudget({
-                words: wordCount(lines),
-                speechSeconds: tts.durations.reduce((a, b) => a + b, 0),
-                sentences: lines.length,
-                maxSeconds: limits.maxSeconds,
-            })
-            console.log(`   ✂️ Narrace ${timeline.totalSeconds.toFixed(1)}s > strop ${limits.maxSeconds}s — zkracuji na ~${maxWords} slov (kolo ${round}/${maxCondenseRounds})`)
-            await report("video", 44, "✂️ Narrace je delší než strop reelu — zkracuji…")
-            lines = await condenseNarration(lines, maxWords)
-            cost += COSTS.reelDirector / 2
-            tts = await synthesizeNarration(lines, ttsOpts)
-            cost += COSTS.ttsVoiceover
-            timeline = buildTimeline(lines, tts.durations, limits, { maxTempo: REEL_TIMELINE.condensedMaxTempo })
-        }
-        if (timeline.tooLong) {
-            throw new Error(`Narrace se do ${limits.maxSeconds}s nevejde ani po zkrácení (${timeline.totalSeconds.toFixed(1)}s) — reel neuseknu uprostřed CTA`)
-        }
-        const durationSeconds = timeline.durationSeconds
-        console.log(`   ✓ Osa: ${lines.length} vět, řeč do ${timeline.totalSeconds.toFixed(1)}s, video ${durationSeconds}s${timeline.atempo !== 1 ? `, tempo ×${timeline.atempo}` : ""}`)
+        // ── 2. Časová osa: z naměřené řeči, nebo ze čtecího tempa karet ──
+        const prepared = reelMode === "text"
+            ? await prepareTextTimeline(lines, limits, report)
+            : await prepareVoiceoverTimeline(ctx, lines, limits, report)
+        cost += prepared.cost
+        const durationSeconds = prepared.durationSeconds
 
         // ── 3. Reference: brandové fotky + produkt + logo ──
         const references = await loadReelReferences(ctx)
@@ -109,25 +109,30 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
         // ── 4. Režisér: storyboard zarovnaný na osu + prompt pro Seedance ──
         await report("video", 48, "🎬 Režisér skládá storyboard…")
         const typeDef = getPostTypeDef(config, selectedType.name)
+        const textOnly = reelMode === "text"
         const { storyboard } = await directReel({
             config, clientId: ctx.clientUuid, medium, durationSeconds,
-            hook: captionData.hook, narration: timeline.lines, scenes: captionData.scenes,
+            hook: captionData.hook, narration: prepared.timeline, scenes: captionData.scenes,
             cta: captionData.cta, postType: selectedType.name, typeDef,
-            ctaPolicy: ctx.ctaPolicy, selectedProduct: ctx.selectedProduct, references,
+            ctaPolicy: ctx.ctaPolicy, selectedProduct: ctx.selectedProduct, references, textOnly,
         })
         cost += COSTS.reelDirector
-        const videoPrompt = finalizeVideoPrompt(storyboard, { durationSeconds, ctaPolicy: ctx.ctaPolicy })
+        const videoPrompt = finalizeVideoPrompt(storyboard, { durationSeconds, ctaPolicy: ctx.ctaPolicy, textOnly })
 
         // ── 5. Voiceover stopa do bucketu — přežije parkování jobu ──
-        const voiceoverWav = assembleVoiceoverWav(tts.clips, timeline.placements, durationSeconds * timeline.atempo)
-        const voiceoverPath = `ig-reels/${Date.now()}-vo.wav`
-        await uploadToBucket(bucket, voiceoverPath, voiceoverWav, "audio/wav")
+        let voiceoverPath: string | undefined
+        if (prepared.voiceoverWav) {
+            voiceoverPath = `ig-reels/${Date.now()}-vo.wav`
+            await uploadToBucket(bucket, voiceoverPath, prepared.voiceoverWav, "audio/wav")
+        }
 
         vc = {
-            provider: "seedance", model, resolution: RESOLUTION, durationSeconds, atempo: timeline.atempo,
-            timeline: timeline.lines, storyboard, videoPrompt,
+            provider: "seedance", model, resolution: RESOLUTION, durationSeconds, atempo: prepared.atempo,
+            timeline: prepared.timeline, storyboard, videoPrompt,
             referenceUrls: references.map(r => r.url),
-            voiceoverBucket: bucket, voiceoverPath, pollRounds: 0, costUsd: cost,
+            mode: reelMode,
+            ...(voiceoverPath ? { voiceoverBucket: bucket, voiceoverPath } : {}),
+            pollRounds: 0, costUsd: cost,
         }
         await ctx.saveVideoCheckpoint?.(vc)
     }
@@ -178,15 +183,27 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
     await report("video", 78, "📥 Stahuji video…")
     const rawVideo = await downloadVideo(polled.videoUrl)
     console.log(`   ✓ Video staženo (${(rawVideo.length / 1024 / 1024).toFixed(1)} MB)`)
-    const voiceoverWav = await downloadFromBucket(vc.voiceoverBucket, vc.voiceoverPath)
+    const voiceoverWav = vc.voiceoverPath
+        ? await downloadFromBucket(vc.voiceoverBucket || bucket, vc.voiceoverPath)
+        : undefined
 
     // ── 9. Kompozice: ducking + ASS titulky ──
-    await report("video", 82, "🎞️ Skládám video, voiceover a titulky…")
-    const cards = chunkForSubtitles(vc.timeline)
-    const ass = buildAss(cards)
+    await report("video", 82, voiceoverWav ? "🎞️ Skládám video, voiceover a titulky…" : "🎞️ Vypaluji textové karty do videa…")
+    // Styl titulků patří ZNAČCE, ne enginu: `buildAss` override uměl od začátku,
+    // ale nikdo mu ho nedával, takže každý reel každého klienta vypadal stejně.
+    // Textový reel má jiný výchozí preset (`cards`) — karta tam nese sdělení, ne
+    // doprovod řeči.
+    const subtitles = resolveSubtitleStyle(config, { reelMode })
+    const cards = chunkForSubtitles(vc.timeline, subtitles.chunkOpts)
+    const ass = buildAss(cards, subtitles.assStyle)
     let finalVideo: Buffer
     try {
-        finalVideo = await composeReel({ videoBuffer: rawVideo, voiceoverWav, ass, atempo: vc.atempo, durationSeconds: vc.durationSeconds })
+        finalVideo = await composeReel({
+            videoBuffer: rawVideo, voiceoverWav, ass, atempo: vc.atempo, durationSeconds: vc.durationSeconds,
+            // Bez řeči není co potlačovat: hudba a atmosféra ze Seedance jsou celá
+            // stopa a jedou naplno, místo 0,6 pod voiceoverem.
+            ...(voiceoverWav ? {} : { ambientLevel: TEXT_AMBIENT_LEVEL }),
+        })
     } catch (composeErr) {
         // Tvrdé selhání — reel bez titulků a voiceoveru se nedodává. Ale ať je v Sentry
         // vidět, že padla KOMPOZICE, ne model (jiná oprava, jiný člověk).
@@ -200,8 +217,42 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
     const ts = Date.now()
     const videoUrl = await uploadToBucket(bucket, `ig-reels/${ts}.mp4`, finalVideo, "video/mp4")
     console.log(`   ✓ Video URL: ${videoUrl}`)
-    // Voiceover už není potřeba — úklid je best-effort.
-    supabaseAdmin.storage.from(vc.voiceoverBucket).remove([vc.voiceoverPath]).then(() => {}, () => {})
+
+    // ── 10b. Zdrojové artefakty pro pozdější přerenderování titulků ──
+    // Titulky jsou vypálené (IG u reelu titulkovou stopu nebere), takže oprava
+    // překlepu = složit kompozici znovu. Bez surového videa a voiceoveru by to
+    // stálo celý reel znovu (5–10 kreditů) a vrátilo JINÉ video — proto se surové
+    // MP4 ukládá a voiceover se už NEMAŽE. Dohromady ~2× velikost hotového reelu,
+    // u 480p jednotky MB.
+    let rawVideoPath: string | undefined
+    if (rawVideo.length <= CLIENT_BUCKET_SIZE_LIMIT) {
+        try {
+            rawVideoPath = `ig-reels/${ts}-raw.mp4`
+            await uploadToBucket(bucket, rawVideoPath, rawVideo, "video/mp4")
+        } catch (rawErr) {
+            // Reel je hotový a nahraný — neuložený zdroj je ztráta pohodlí, ne dodávky.
+            // Ale musí to být vidět: bez něj se titulky editovat nedají (CLAUDE.md).
+            rawVideoPath = undefined
+            console.warn(`   ⚠️ Surové video se neuložilo (${String((rawErr as Error)?.message || rawErr).substring(0, 120)}) — titulky u tohohle reelu půjdou změnit jen přegenerováním`)
+        }
+    } else {
+        console.warn(`   ⚠️ Surové video má ${(rawVideo.length / 1024 / 1024).toFixed(1)} MB a nevejde se do kvóty bucketu (${CLIENT_BUCKET_SIZE_LIMIT / 1024 / 1024} MB) — titulky u tohohle reelu půjdou změnit jen přegenerováním`)
+    }
+    const videoSource: ReelVideoSource = {
+        bucket,
+        rawVideoPath,
+        // Textový reel voiceover nemá — `null` by rekompozici říkalo „chybí zdroj",
+        // proto se pole rovnou vynechává a pravdu o něm nese `mode`.
+        ...(vc.voiceoverPath ? { voiceoverPath: vc.voiceoverPath } : {}),
+        ...(vc.voiceoverPath && vc.voiceoverBucket && vc.voiceoverBucket !== bucket ? { voiceoverBucket: vc.voiceoverBucket } : {}),
+        timeline: vc.timeline.map(l => ({ text: l.text, start: l.start, end: l.end })),
+        cards: cards.map(c => ({ text: c.lines.join(" "), start: c.start, end: c.end })),
+        atempo: vc.atempo,
+        durationSeconds: vc.durationSeconds,
+        subtitleStyle: subtitles.style,
+        storyboard: vc.storyboard,
+        mode: reelMode,
+    }
 
     // ── 11. Cover pro mřížku (native, s hookem) ──
     await report("video", 92, "🖼️ Generuji cover…")
@@ -235,6 +286,130 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
         cost,
         imageStyle: `seedance:${vc.model}@${vc.resolution}`,
         imageModel: vc.model,
+        videoSource,
+    }
+}
+
+// ─── Časová osa ─────────────────────────────────────────────────────────────
+
+interface PreparedTimeline {
+    /** Věty po případném zkrácení. */
+    lines: string[]
+    /** Věty s časy, jak zazní/se ukážou ve videu. */
+    timeline: TimedLine[]
+    durationSeconds: number
+    atempo: number
+    /** USD utracené za tuhle fázi (TTS a případná kola zkracování). */
+    cost: number
+    /** Složená voiceover stopa; textový reel žádnou nemá. */
+    voiceoverWav?: Buffer
+}
+
+/**
+ * Mluvený reel: TTS po větách → naměřené délky → osa. Když se řeč nevejde ani se
+ * zrychlením, text se zkrátí a namluví znovu (nejvýš dvakrát) — cíl se počítá
+ * z NAMĚŘENÉHO tempa hlasu a z času, který na řeč zbude po nájezdu, mezerách a
+ * dojezdu; `délka × 2,3 slova/s` sliboval o třetinu víc řeči a obě velikosti
+ * reelu na tom padaly.
+ */
+async function prepareVoiceoverTimeline(
+    ctx: RenderContext,
+    initialLines: string[],
+    limits: { minSeconds: number; maxSeconds: number },
+    report: RenderContext["report"],
+): Promise<PreparedTimeline> {
+    const { config, captionData } = ctx
+    // Hlas značky je v configu (casting ve `validateConfig()`), ne tady — jediný
+    // sdílený preset „Kore" byl nejčastější stížnost na reely. Přednes se odvozuje
+    // z nálad scén přes `deliveryTags()`: `scenes[].mood` popisuje SVĚTLO, takže
+    // se z něj bere jen to, co dává smysl hlasu (dřív se posílalo celé, i s
+    // natvrdo předřazeným „professional" pro všechny).
+    const voice = config.voice
+    if (!voice?.voiceId) throw new Error("Reel bez hlasu značky: config.voice doplňuje validateConfig() — tenhle config přišel mimo loadConfig()")
+    const ttsOpts = {
+        provider: voice.provider,
+        voiceId: voice.voiceId,
+        style: voice.style,
+        tags: deliveryTags((captionData.scenes || []).map(s => s.mood)),
+    }
+
+    let lines = initialLines
+    let cost = 0
+    await report("video", 40, `🎙️ Namlouvám narraci (${lines.length} vět)…`)
+    console.log(`🎙️ TTS po větách (${lines.length}) — délka videa se odvodí z řeči…`)
+    let tts = await synthesizeNarration(lines, ttsOpts)
+    cost += COSTS.ttsVoiceover
+    let timeline = buildTimeline(lines, tts.durations, limits)
+    const maxCondenseRounds = 2
+    for (let round = 1; timeline.tooLong && round <= maxCondenseRounds; round++) {
+        const maxWords = narrationWordBudget({
+            words: wordCount(lines),
+            speechSeconds: tts.durations.reduce((a, b) => a + b, 0),
+            sentences: lines.length,
+            maxSeconds: limits.maxSeconds,
+        })
+        console.log(`   ✂️ Narrace ${timeline.totalSeconds.toFixed(1)}s > strop ${limits.maxSeconds}s — zkracuji na ~${maxWords} slov (kolo ${round}/${maxCondenseRounds})`)
+        await report("video", 44, "✂️ Narrace je delší než strop reelu — zkracuji…")
+        lines = await condenseNarration(lines, maxWords)
+        cost += COSTS.reelDirector / 2
+        tts = await synthesizeNarration(lines, ttsOpts)
+        cost += COSTS.ttsVoiceover
+        timeline = buildTimeline(lines, tts.durations, limits, { maxTempo: REEL_TIMELINE.condensedMaxTempo })
+    }
+    if (timeline.tooLong) {
+        throw new Error(`Narrace se do ${limits.maxSeconds}s nevejde ani po zkrácení (${timeline.totalSeconds.toFixed(1)}s) — reel neuseknu uprostřed CTA`)
+    }
+    const durationSeconds = timeline.durationSeconds
+    console.log(`   ✓ Osa: ${lines.length} vět, řeč do ${timeline.totalSeconds.toFixed(1)}s, video ${durationSeconds}s${timeline.atempo !== 1 ? `, tempo ×${timeline.atempo}` : ""}`)
+
+    return {
+        lines,
+        timeline: timeline.lines,
+        durationSeconds,
+        atempo: timeline.atempo,
+        cost,
+        voiceoverWav: assembleVoiceoverWav(tts.clips, timeline.placements, durationSeconds * timeline.atempo),
+    }
+}
+
+/**
+ * Textový reel: žádné TTS, žádný voiceover, žádný `COSTS.ttsVoiceover`. Osa se
+ * počítá ze čtecího tempa karet (`buildTextTimeline`) a délku videa určuje ona,
+ * stejně jako u řeči. Když se karty nevejdou, zkracuje se text (nejvýš dvakrát) —
+ * zrychlit čtení nejde.
+ *
+ * Tahle větev je záměrně samostatná funkce: „textový režim nevolá TTS" je aserce
+ * v `scripts/test-reel-pipeline.ts` nad jejím TĚLEM, ne nad celým souborem.
+ */
+async function prepareTextTimeline(
+    initialCards: string[],
+    limits: { minSeconds: number; maxSeconds: number },
+    report: RenderContext["report"],
+): Promise<PreparedTimeline> {
+    let lines = initialCards
+    let cost = 0
+    await report("video", 40, `🪧 Skládám osu z ${lines.length} textových karet (bez hlasu)…`)
+    console.log(`🪧 Textový reel — osa ze čtecího tempa (${lines.length} karet), žádné TTS…`)
+    let timeline = buildTextTimeline(lines, limits)
+    const maxCondenseRounds = 2
+    for (let round = 1; timeline.tooLong && round <= maxCondenseRounds; round++) {
+        const maxWords = textCardWordBudget({ words: wordCount(lines), cards: lines.length, maxSeconds: limits.maxSeconds })
+        console.log(`   ✂️ Karty ${timeline.totalSeconds.toFixed(1)}s > strop ${limits.maxSeconds}s — zkracuji na ~${maxWords} slov (kolo ${round}/${maxCondenseRounds})`)
+        await report("video", 44, "✂️ Textu je na reel moc — zkracuji karty…")
+        lines = await condenseNarration(lines, maxWords)
+        cost += COSTS.reelDirector / 2
+        timeline = buildTextTimeline(lines, limits)
+    }
+    if (timeline.tooLong) {
+        throw new Error(`Textové karty se do ${limits.maxSeconds}s nevejdou ani po zkrácení (${timeline.totalSeconds.toFixed(1)}s) — reel neuseknu uprostřed CTA`)
+    }
+    console.log(`   ✓ Osa: ${lines.length} karet do ${timeline.totalSeconds.toFixed(1)}s, video ${timeline.durationSeconds}s`)
+    return {
+        lines,
+        timeline: timeline.lines,
+        durationSeconds: timeline.durationSeconds,
+        atempo: 1,
+        cost,
     }
 }
 

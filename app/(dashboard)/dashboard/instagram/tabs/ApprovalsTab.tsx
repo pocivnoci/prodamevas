@@ -6,7 +6,8 @@ import {
     getAgentPolicies, revokeAgentPolicy,
     type PendingApprovalDTO, type AgentPolicyDTO,
 } from "@/app/actions/approval-actions"
-import { X } from "lucide-react"
+import { ExternalLink, X } from "lucide-react"
+import { useStudio, useStudioNavigate } from "@/app/(dashboard)/StudioContext"
 
 const RISK_LABELS: Record<string, { label: string; cls: string }> = {
     outbound: { label: "Odchozí (zákazník)", cls: "text-amber-400 border-amber-500/30 bg-amber-500/10" },
@@ -21,6 +22,11 @@ export function ApprovalsTab() {
     const [policies, setPolicies] = useState<AgentPolicyDTO[]>([])
     const [loading, setLoading] = useState(true)
     const [busy, setBusy] = useState<string | null>(null)
+    // Chyba schválení patří k tlačítku, které selhalo. `alert()` ji vytrhl
+    // z kontextu a po odkliknutí po ní nezbylo nic.
+    const [error, setError] = useState<string | null>(null)
+    const { setProjectId } = useStudio()
+    const navigate = useStudioNavigate()
 
     const load = useCallback(async () => {
         // No synchronous setState here — initial `loading` is already true; reloads
@@ -34,8 +40,9 @@ export function ApprovalsTab() {
 
     const decide = async (id: string, approve: boolean) => {
         setBusy(id)
+        setError(null)
         const res = approve ? await approveAgentAction(id) : await rejectAgentAction(id)
-        if (!res.ok) alert(res.error || "Nepodařilo se")
+        if (!res.ok) setError(res.error || "Rozhodnutí se nepodařilo uložit.")
         await load()
         setBusy(null)
     }
@@ -116,6 +123,7 @@ export function ApprovalsTab() {
             <p className="text-[10px] text-white/40 leading-relaxed mb-4">
                 Tyto akce navrhl agent, ale jsou rizikové (odchozí / utrácí / nevratné), takže nic neproběhne bez vašeho souhlasu.
             </p>
+            {error && <p className="text-[10px] text-red-400">❌ {error}</p>}
             {items.map(item => {
                 const risk = RISK_LABELS[item.riskTier] || { label: item.riskTier, cls: "text-white/50 border-white/15 bg-white/5" }
                 return (
@@ -123,9 +131,27 @@ export function ApprovalsTab() {
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
                             <span className="text-[8px] px-2 py-0.5 rounded-sm border font-bold uppercase tracking-widest text-white/50 border-white/10 bg-white/5">{item.agentType}</span>
                             <span className={`text-[8px] px-2 py-0.5 rounded-sm border font-bold uppercase tracking-widest ${risk.cls}`}>{risk.label}</span>
-                            <span className={`text-[8px] px-2 py-0.5 rounded-sm border font-bold uppercase tracking-widest ${item.clientLabel ? "text-sky-400/70 border-sky-500/20 bg-sky-500/10" : "text-purple-400/70 border-purple-500/20 bg-purple-500/10"}`}>
-                                {item.clientLabel || "OPS · celý systém"}
-                            </span>
+                            {/* Schválení se často rozhoduje podle toho, jak klient
+                                vypadá — tak ať se tam dá jedním kliknutím. Slug je
+                                v závorce za jménem (`Název (slug)`). */}
+                            {item.clientLabel ? (
+                                <button
+                                    onClick={() => {
+                                        const slug = item.clientLabel?.match(/\(([^)]+)\)$/)?.[1]
+                                        if (!slug) return
+                                        setProjectId(slug)
+                                        navigate("dashboard")
+                                    }}
+                                    title="Otevřít studio klienta"
+                                    className="inline-flex items-center gap-1 text-[8px] px-2 py-0.5 rounded-sm border font-bold uppercase tracking-widest text-sky-400/70 border-sky-500/20 bg-sky-500/10 hover:text-sky-200 transition-colors"
+                                >
+                                    {item.clientLabel}<ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                                </button>
+                            ) : (
+                                <span className="text-[8px] px-2 py-0.5 rounded-sm border font-bold uppercase tracking-widest text-purple-400/70 border-purple-500/20 bg-purple-500/10">
+                                    OPS · celý systém
+                                </span>
+                            )}
                             <span className="text-[9px] text-white/25 ml-auto">{new Date(item.createdAt).toLocaleString("cs-CZ")}</span>
                         </div>
                         <p className="text-white/80 text-sm font-bold mb-2">{item.action}</p>

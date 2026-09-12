@@ -43,18 +43,23 @@ export function pickAngle(s: LeadSignals, now: Date = new Date()): Angle {
     return "cas"
 }
 
+/**
+ * Mluví firma, ne jedna osoba: podpis je firemní (`signature()`), takže „nechal
+ * jsem" v těle za něj stavělo muže, který se nikde nepředstavil — a půlce
+ * adresátů se navíc netrefilo do rodu. Jeden hlas („my") napříč celou poštou.
+ */
 const BODY: Record<Angle, (previewUrl: string) => string> = {
     cas: (url) =>
-        `Nechal jsem naši AI vygenerovat ukázku příspěvků přímo z vašeho webu — vašimi barvami, o vašich věcech. ` +
+        `Nechali jsme naši AI vygenerovat ukázku příspěvků přímo z vašeho webu — vašimi barvami, o vašich věcech. ` +
         `Můžete se na ni podívat tady: ${url}\n\n` +
         `Chrlit umí připravit obsah na celý měsíc dopředu. Ukázka je zdarma a nezávazná.`,
     penize: (url) =>
-        `Vygeneroval jsem z vašeho webu ukázku příspěvků — podívat se můžete tady: ${url}\n\n` +
+        `Vygenerovali jsme z vašeho webu ukázku příspěvků — podívat se můžete tady: ${url}\n\n` +
         `Agentura si za měsíc obsahu řekne o 15 tisíc. Chrlit dělá totéž ${lowestPriceClaim()}. ` +
         `Ukázka je zdarma a nezávazná.`,
     vyloha: (url) =>
         `Zákazníci si vás před návštěvou projedou na Instagramu — a ten teď působí, jako byste měli zavřeno. ` +
-        `Vygeneroval jsem z vašeho webu ukázku, jak by mohl vypadat: ${url}\n\n` +
+        `Vygenerovali jsme z vašeho webu ukázku, jak by mohl vypadat: ${url}\n\n` +
         `Ukázka je zdarma a nezávazná.`,
 }
 

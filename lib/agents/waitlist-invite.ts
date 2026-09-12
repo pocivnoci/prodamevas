@@ -10,12 +10,16 @@
  * zapsané 25.–26. 7. — a nikdo jim za sedmnáct dní neodepsal. Byli to tehdy
  * nejteplejší kontakty, jaké produkt měl.
  *
- * Zpoždění se v e-mailu **přizná**. Omluva, která ho zamlčí, působí hůř než ta,
- * co ho pojmenuje.
+ * Zpoždění se v e-mailu **přizná** — ale text sám se tu nepíše. Znění je
+ * registrová šablona `waitlist_invite` (`lib/mail/templates/waitlist.ts`): tenhle
+ * modul měl vlastní kopii v jiném hlase („já", podpis „Tomáš, Chrlit"), takže
+ * dva skoro stejné e-maily mluvily za dvě různé firmy a v náhledové galerii byl
+ * vidět jen jeden z nich.
  */
 
 import supabaseAdmin from "@/supabase/admin"
-import { countLabel, DAYS } from "@/lib/plural"
+import type { Block } from "@/lib/mail/blocks"
+import { getTemplate } from "@/lib/mail/registry"
 import { sendNotification, siteUrl } from "@/lib/notifications"
 
 export interface WaitlistRow {
@@ -57,31 +61,30 @@ function daysWaiting(createdAt: string): number {
     return Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 86_400_000))
 }
 
-export function renderInvite(row: WaitlistRow, code: string): { subject: string; body: string } {
+/**
+ * Proměnné pro šablonu `waitlist_invite`.
+ *
+ * Zpoždění pojmenovat konkrétně: „omlouváme se za prodlevu" je fráze, „čekáte
+ * 17 dní" je přiznání, kterému se dá věřit. Pod týden se počet dní vynechává —
+ * šablona pak pošle kratší variantu věty.
+ */
+export function inviteVars(row: WaitlistRow, code: string): Record<string, string> {
     const days = daysWaiting(row.created_at)
-    // Zpoždění pojmenovat konkrétně. „Omlouváme se za prodlevu" je fráze;
-    // „čekáte 17 dní" je přiznání, kterému se dá věřit.
-    //
-    // Přítomný čas není stylistika: rod adresáta neznáme a „zapsal jste se"
-    // je půlce příjemců špatně. Vykání to neřeší — pomocné sloveso je množné,
-    // příčestí singulární a rodové. Věta proto žádné příčestí o adresátovi
-    // nemá. Stejné pravidlo jako v `lib/mail/templates/waitlist.ts`.
-    const delay = days >= 7
-        ? `Na seznamu u nás čekáte už ${countLabel(days, DAYS)} — omlouvám se, ozývám se až teď.`
-        : `Máte u nás zápis na seznamu zájemců, tak se ozývám.`
-
     return {
-        subject: "Váš přístup do Chrlitu je připravený",
-        body: [
-            "Dobrý den,",
-            delay,
-            "Chrlit se z vašeho webu naučí značku a napíše hotové příspěvky na Instagram — texty, obrázky i hashtagy. Nemusíte nic vyplňovat ani nastavovat.",
-            `<b>Váš kód: ${code}</b>`,
-            `Stačí ho zadat při registraci na <a href="${siteUrl()}/register">${siteUrl().replace(/^https?:\/\//, "")}/register</a>, vložit adresu svého webu a za pár minut uvidíte první příspěvky.`,
-            "Prvních pár příspěvků je zdarma a nezávazně — chci hlavně vědět, jestli to, co vám to napíše, sedí. Když ne, napište mi rovnou zpátky na tenhle e-mail, čtu to já.",
-            "Tomáš, Chrlit",
-        ].join("\n\n"),
+        headline: "Máte přístup do Chrlitu",
+        code,
+        waitedDays: days >= 7 ? String(days) : "",
+        expiresNote: "",
+        ctaUrl: `${siteUrl()}/register`,
     }
+}
+
+/** Pozvánka vyrenderovaná z registru — jediné znění, jeden hlas, vidět v galerii. */
+export function renderInvite(row: WaitlistRow, code: string): { subject: string; blocks: Block[] } {
+    const template = getTemplate("waitlist_invite")
+    if (!template) throw new Error("Šablona waitlist_invite chybí v registru")
+    const draft = template.build(inviteVars(row, code))
+    return { subject: draft.subject, blocks: draft.blocks }
 }
 
 export interface InviteResult {
@@ -110,7 +113,7 @@ export async function sendWaitlistInvites(opts: { code: string; limit?: number; 
         await supabaseAdmin.from("waitlist")
             .update({ invited_at: new Date().toISOString() }).eq("id", row.id)
         // kind "notification" → kontrola email_optouts + odhlašovací patička.
-        await sendNotification({ to: row.email, subject: msg.subject, body: msg.body, kind: "notification" })
+        await sendNotification({ to: row.email, subject: msg.subject, blocks: msg.blocks, kind: "notification" })
         out.push({ email: row.email, sent: true })
     }
     return out

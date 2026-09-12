@@ -23,6 +23,10 @@
  * Jediné tvrdé vyřazení je teď „nemám jak se s nimi spojit" — což je fakt, ne dohad.
  */
 
+// Zdůvodnění i první věta cold mailu obsahují počty dní; pevný tvar u proměnné
+// dá „před 1 dny" a to v oslovovacím e-mailu působí jako robot.
+import { countLabel, DAYS, DAYS_AGO } from "@/lib/plural"
+
 /** Nejnižší skóre, se kterým se ještě oslovuje. */
 export const QUALIFY_THRESHOLD = 45
 
@@ -117,16 +121,16 @@ export function qualifyLead(s: LeadSignals, now: Date = new Date()): Qualificati
         reasons.push("kadenci se nepodařilo zjistit")
         score += 10
     } else if (idle >= 180) {
-        reasons.push(`neposlali nic ${idle} dní — profil vypadá opuštěně`)
+        reasons.push(`neposlali nic ${countLabel(idle, DAYS)} — profil vypadá opuštěně`)
         score += 35
     } else if (idle >= 30) {
-        reasons.push(`neposlali nic ${idle} dní`)
+        reasons.push(`neposlali nic ${countLabel(idle, DAYS)}`)
         score += 35
     } else if (idle >= 10) {
-        reasons.push(`postují nepravidelně (naposled před ${idle} dny)`)
+        reasons.push(`postují nepravidelně (naposled před ${countLabel(idle, DAYS_AGO)})`)
         score += 30
     } else {
-        reasons.push(`postují pravidelně (naposled před ${idle} dny) — Instagramu už čas věnují`)
+        reasons.push(`postují pravidelně (naposled před ${countLabel(idle, DAYS_AGO)}) — Instagramu už čas věnují`)
         score += 30
     }
 
@@ -180,7 +184,7 @@ export function openingLine(s: LeadSignals, now: Date = new Date()): string {
         return `koukal jsem na váš web a Instagram — poslední příspěvek je starý přes půl roku.`
     }
     if (idle !== null && idle >= 30) {
-        return `koukal jsem na váš web a Instagram — poslední příspěvek je starý ${idle} dní.`
+        return `koukal jsem na váš web a Instagram — poslední příspěvek je starý ${countLabel(idle, DAYS)}.`
     }
     if (idle !== null && idle >= 10) {
         return `koukal jsem na váš web a Instagram — postujete, ale nepravidelně.`

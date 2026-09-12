@@ -23,6 +23,15 @@ import type { PerformanceInsight } from "../instagram/performance"
 import { resolveCtaPolicy, buildCtaPolicyJudgeBlock } from "../instagram/cta-policy"
 import { buildPhotoFidelitySection } from "../instagram/photo-fidelity"
 import { isPhotoPolicy, prefersRealPhotos, PHOTO_POLICY_OPTIONS, type PhotoPolicy } from "../lib/photo-policy"
+import { INDUSTRY_VISUAL_PROFILES, CATEGORY_VISUAL_KEYS, resolveIndustryVisual, industryVisualByKey } from "../instagram/industry-visual-profiles"
+import { CATEGORY_DEFAULTS } from "../app/onboarding/core"
+import {
+    buildReelScriptPrompt, parseReelScript, validateReelScript, scriptToScenes,
+    bannedHookPatterns, statsFromReels, type ReelScriptInput,
+} from "../instagram/reel-scriptwriter"
+import { buildReelDirectorPrompt, finalizeVideoPrompt } from "../instagram/reel-storyboard"
+import { pickHookPatterns, hookPatternWeights, HOOK_PATTERNS } from "../lib/hook-patterns"
+import { plannedNarrationWords } from "../lib/reel-media"
 
 let passed = 0
 let failed = 0
@@ -489,11 +498,74 @@ test("mechanismus přebíjí per-klientský brief formátu", () => {
     assert(def?.description === MECHANISMS.srovnani.description,
         "description se nebere z mechanismu — per-klientské téma se propsalo do promptu")
     assert(def?.structure === MECHANISMS.srovnani.structure, "structure se nebere z mechanismu")
-    assert(def?.visualStyle === MECHANISMS.srovnani.visualStyle, "visualStyle se nebere z mechanismu")
+    // `visualStyle` se od 9/2026 SČÍTÁ, ne přepisuje (dřív tu stála rovnost). Mechanismus
+    // je sdílený napříč tenanty, takže když přebil i vizuál, dostal art director u téhož
+    // mechanismu doslova stejnou větu pro každou značku — jeden z doložených zdrojů
+    // „všechny fotky vypadají stejně". Věcný důvod pro přebití (model si do briefu
+    // propašoval TÉMA) platí u description a structure, u vizuálu naměřený není.
+    assert(!!def?.visualStyle?.startsWith(MECHANISMS.srovnani.visualStyle),
+        "mechanismus není základem vizuálního stylu")
     // Vše ostatní MUSÍ zůstat per klient — na `name` visí ig_post_types,
     // weekPlan, členství v pilířích i post_type_id starých příspěvků.
     assert(def?.name === "meme" && def?.pillar === "dosah",
         "mechanismus přepsal i identitu formátu — to rozbije vazby v DB")
+})
+
+test("klientský visualStyle se mechanismem nezahazuje", () => {
+    // Regrese, kvůli které byl obor ve vizuálu neviditelný: klient si v Nastavení
+    // napsal, jak má formát vypadat, a `getPostTypeDef` to zahodil ve prospěch
+    // sdílené věty. Značka musí zůstat v textu a mít poslední slovo.
+    const own = "Zavřený ateliér, jen svíčka a kov, nikdy denní světlo."
+    const def = getPostTypeDef({
+        ...config,
+        postTypeDefs: [{
+            name: "meme", display_name: "Meme", pillar: "dosah",
+            description: "x", structure: "y", visualStyle: own, mechanism: "srovnani",
+        }],
+    } as any, "meme")
+    assert(def!.visualStyle!.includes(own), "klientský visualStyle se ztratil")
+    assert(def!.visualStyle!.includes(MECHANISMS.srovnani.visualStyle), "mechanismus zmizel")
+    assert(def!.visualStyle!.indexOf(MECHANISMS.srovnani.visualStyle) < def!.visualStyle!.indexOf(own),
+        "pořadí je obrácené — poslední slovo musí mít značka")
+})
+
+test("oborový vizuální profil: identita ano, kompozice ne", () => {
+    // Profil smí předepsat žánr, světlo, řez a princip palety. Jakmile začne
+    // předepisovat kompozici, vznikne z devíti značek jedna šablona s vyměněným
+    // hexem — přesně tak jednou padla ukázková série (viz showcase-kit.ts).
+    // Zarovnání sazby („zarovnání vlevo") je vlastnost ŘEZU, ne kompozice snímku —
+    // hlídá se jen to, co rozhoduje o rozvržení obrazu.
+    const COMPOSITION_WORDS = /(kompozic|rozvržen|umísti|v rohu|pruh přes|jako inset|celoplošn\w* výplň)/i
+    for (const [key, p] of Object.entries(INDUSTRY_VISUAL_PROFILES)) {
+        assert(p.photographicGenre.length > 15, `${key}: chybí fotografický žánr`)
+        assert(p.lightingBrief.length > 15, `${key}: chybí popis světla`)
+        assert(p.match.length > 0, `${key}: profil nejde najít podle oboru`)
+        assert(p.match.every(m => m === m.toLowerCase() && m === m.normalize("NFD").replace(/[̀-ͯ]/g, "")),
+            `${key}: hledací podřetězce musí být malými písmeny a bez diakritiky`)
+        for (const [field, text] of Object.entries(p)) {
+            if (typeof text !== "string") continue
+            assert(!COMPOSITION_WORDS.test(text), `${key}.${field} předepisuje kompozici: „${text}"`)
+        }
+    }
+})
+
+test("každá kategorie onboardingu najde svůj vizuální profil", () => {
+    // Volný text oboru („Gastronomie / Kavárna") se hledá podřetězcem a vyhrává
+    // nejdelší shoda. Bez téhle aserce by nová položka registru mohla tiše ukrást
+    // kategorii cizí obor („Reality / Realitní služby" vs. řemeslné „služby").
+    for (const [cat, def] of Object.entries(CATEGORY_DEFAULTS)) {
+        const expected = CATEGORY_VISUAL_KEYS[cat]
+        const resolved = resolveIndustryVisual(def.industry)
+        if (!expected) {
+            assert(!resolved, `kategorie "${cat}" nemá mít profil, ale dostala ho`)
+            continue
+        }
+        assert(!!resolved, `kategorie "${cat}" (${def.industry}) nenašla profil`)
+        assert(resolved!.photographicGenre === industryVisualByKey(expected)!.photographicGenre,
+            `kategorie "${cat}" spadla do jiného profilu než ${expected}`)
+    }
+    assert(!resolveIndustryVisual(""), "prázdný obor musí vrátit prázdno, ne náhradní obor")
+    assert(!resolveIndustryVisual("něco úplně jiného"), "neznámý obor nesmí dostat cizí žánr")
 })
 
 test("mechanismy samy projdou testem invariantu", () => {
@@ -956,6 +1028,160 @@ test("politika fotek má tři stavy a poznají se od nesmyslu", () => {
         "bez nastavení se chování nemění")
     assert(prefersRealPhotos({ photoPolicy: "prefer-real" }) && prefersRealPhotos({ photoPolicy: "only-real" }),
         "oba přísnější stupně musí sáhnout po reálné fotce")
+})
+
+// ─── R3: scenárista reelů (Claude Opus 5) ───────────────────
+
+console.log("\n🎞️ R3 — builder scenáristy reelů")
+
+const reelConfig = {
+    ...config,
+    industry: "hydroizolace střech",
+    brandFacts: [{ text: "Pracujeme od roku 2011" }],
+    brandVoiceExamples: [{ caption: "Takhle mluvíme o práci na střeše.", note: "top post" }],
+    brandReferenceImages: [{ url: "https://x/1.jpg", tags: ["střecha"], description: "detail natavování pásu" }],
+    industryVisual: { photographicGenre: "dokumentární reportáž z místa práce", lightingBrief: "tvrdé denní světlo" },
+} as unknown as ClientConfig
+
+const reelPolicy = resolveCtaPolicy({ pillarCtaStrategy: "soft", website: "https://test.cz" })
+
+const reelInput: ReelScriptInput = {
+    config: reelConfig,
+    medium: "reel",
+    durationSeconds: 8,
+    postType: "behind_scenes",
+    ctaPolicy: reelPolicy,
+    angle: "Jeden den na střeše",
+    copywriterHook: "Zatéká?",
+    caption: "Caption od copywritera",
+    catalogProducts: [{ name: "Revize střechy", type: "služba" }],
+    brandPhotos: [{ description: "detail natavování pásu", tags: ["střecha"] }],
+    reviews: [{ quote: "Přijeli druhý den.", author: "J. N." }],
+    signals: "Sezóna: podzim",
+    pastReels: [
+        { hook: "Zatéká ti?", hookPattern: "question", score: 40 },
+        { hook: "POV: neděle večer", hookPattern: "pov", score: 10 },
+        { hook: "Tři místa", hookPattern: "three_things", score: 5 },
+    ],
+}
+
+test("scénář nese ověřená fakta značky", () => {
+    const p = buildReelScriptPrompt(reelInput)
+    assert(p.includes("Pracujeme od roku 2011"), "fakta značky v promptu chybí — scénář by si čísla vymyslel")
+    assert(/ŽÁDNÁ NOVÁ ČÍSLA/.test(p), "chybí zákaz nových čísel — narrace jde rovnou na faktickou bránu")
+})
+
+test("scénář nabízí hook vzory a ty zakázané vyloučí", () => {
+    const p = buildReelScriptPrompt(reelInput)
+    assert(p.includes("HOOK VZORY"), "paleta hook vzorů v promptu chybí")
+    assert(/Zakázané vzory/.test(p), "anti-repeat posledních reelů se do promptu nedostal")
+    for (const banned of ["question", "pov", "three_things"]) {
+        assert(!new RegExp(`\\*\\*${banned}\\*\\*`).test(p), `vzor "${banned}" je z posledních reelů, nesmí být v nabídce`)
+    }
+})
+
+test("scénář dostane rozpočet slov i data o klientovi", () => {
+    const p = buildReelScriptPrompt(reelInput)
+    assert(p.includes(`NEJVÝŠ ${plannedNarrationWords(8)} slov`), "rozpočet slov chybí — narrace se do videa nevejde")
+    assert(p.includes("detail natavování pásu"), "popisy brandových fotek chybí (co reálně existuje k natočení)")
+    assert(p.includes("Přijeli druhý den"), "recenze (hlas zákazníka) chybí")
+    assert(p.includes("Revize střechy"), "živý katalog produktů chybí")
+    assert(p.includes("Sezóna: podzim"), "signály (svátky/počasí) chybí")
+    assert(p.includes("dokumentární reportáž"), "oborový vizuální profil chybí")
+    assert(p.includes("Takhle mluvíme o práci"), "ukázky hlasu značky chybí")
+    assert(/TECHNICKÝ/.test(p), "riziková rodina oboru se do pravidel nepromítla")
+})
+
+test("anti-repeat vzorů bere poslední tři reely", () => {
+    assert(bannedHookPatterns(reelInput.pastReels, 3).length === 3, "zakázat se mají vzory posledních tří reelů")
+    assert(bannedHookPatterns([], 3).length === 0, "bez historie se nezakazuje nic")
+})
+
+test("výběr vzorů je vážený podle výkonu, ne čistý los", () => {
+    const stats = statsFromReels([
+        { hook: "a", hookPattern: "myth", score: 100 },
+        { hook: "b", hookPattern: "mistake", score: 1 },
+    ])
+    const myth = stats.find(s => s.id === "myth")!
+    assert(myth.performanceScore === 100 && myth.timesUsedWithMetrics === 1, "výkon vzoru se počítá z reelů klienta")
+    // Váhy jsou to jediné, co nese zpětnou vazbu — proto se ověřují bez náhody.
+    const w = hookPatternWeights(HOOK_PATTERNS, stats)
+    assert(w.get("myth") === 3, "výrazně nadprůměrný vzor má mít trojnásobnou váhu")
+    assert(w.get("mistake") === 1, "prokazatelně slabší vzor má mít jednu váhu")
+    assert(w.get("pov") === 2, "nevyzkoušený vzor má mít průzkumnou dvojku, ne nulu")
+    // A los se nad nimi opravdu odehraje: vyloučený vzor se z nabídky nedostane.
+    const picks = pickHookPatterns({ stats, exclude: ["myth"], count: 3, random: () => 0 })
+    assert(picks.every(p => p.id !== "myth"), "anti-repeat musí vzor z nabídky vyhodit")
+    assert(new Set(picks.map(p => p.id)).size === picks.length, "vzory v nabídce se nesmí opakovat")
+})
+
+test("nevalidní scénář neprojde validátorem", () => {
+    const ctx = { durationSeconds: 8, allowWebsite: false, bannedPatterns: ["pov"] }
+    const bad = parseReelScript(JSON.stringify({
+        hookPattern: "vymysleny-vzor", hook: "", mode: "voiceover",
+        beats: [{ visual: "shot", camera: "dolly", mood: "warm" }],
+        cta: "Mrkni na test.cz", onScreenHook: "Tohle je moc dlouhá karta na dva řádky",
+    }))
+    const problems = validateReelScript(bad, ctx)
+    assert(problems.some(p => p.includes("hookPattern")), "neznámý vzor musí propadnout")
+    assert(problems.some(p => p.includes("onScreenHook")), "karta delší než 2×18 znaků musí propadnout")
+    assert(problems.some(p => p.includes("hook")), "prázdný hook musí propadnout")
+    assert(problems.some(p => /URL|doménu/.test(p)), "web při zakázané politice CTA musí propadnout")
+})
+
+test("textový režim nese kartu v narration, ale označí scénu jako textovou", () => {
+    const script = parseReelScript(JSON.stringify({
+        hookPattern: "process", hook: "Jak to vzniká", mode: "text",
+        beats: [{ card: "Krok jedna", visual: "shot", camera: "pan", mood: "warm" }],
+        cta: "Ulož si to", onScreenHook: "Jak to vzniká",
+    }))
+    assert(script.mode === "text", "režim text se musí přečíst")
+    const scenes = scriptToScenes(script, 8)
+    // Karta zůstává v `narration` schválně: je to táž věta, kterou čte kritik
+    // i faktická brána — jen ji divák čte, místo aby ji slyšel.
+    assert(scenes[0].narration === "Krok jedna", "text karty patří do narration (prochází branami)")
+    assert(scenes[0].textOnly === true, "scéna musí nést příznak textOnly, jinak by ji orchestrátor namluvil")
+    assert(scriptToScenes(parseReelScript(JSON.stringify({
+        hookPattern: "process", hook: "H", mode: "voiceover",
+        beats: [{ narration: "Věta", visual: "shot", camera: "pan", mood: "warm" }],
+        cta: "Ulož si to", onScreenHook: "H",
+    })), 8)[0].textOnly === undefined, "mluvený reel textOnly nenese")
+})
+
+test("scenárista respektuje režimy povolené značkou", () => {
+    const both = buildReelScriptPrompt(reelInput)
+    assert(/"voiceover"/.test(both) && /"text"/.test(both), "s výchozím nastavením se nabízí oba režimy")
+    const onlyVoice = buildReelScriptPrompt({ ...reelInput, allowedModes: ["voiceover"] })
+    assert(!/beaty nesou "card"/.test(onlyVoice), "zakázaný textový režim se nesmí nabízet — Opus by ho vybral a validátor by kolo zahodil")
+    assert(/povoluje jen režim "voiceover"/.test(onlyVoice), "jediný povolený režim se musí říct natvrdo")
+    const problems = validateReelScript(parseReelScript(JSON.stringify({
+        hookPattern: "process", hook: "Jak to vzniká", mode: "text",
+        beats: [{ card: "Krok jedna", visual: "shot", camera: "pan", mood: "warm" }, { card: "Krok dva", visual: "s", camera: "c", mood: "m" }],
+        cta: "Ulož si to", onScreenHook: "Jak to vzniká",
+    })), { durationSeconds: 8, allowWebsite: false, allowedModes: ["voiceover"] })
+    assert(problems.some(p => /nepovoluje/.test(p)), "režim mimo nastavení značky musí propadnout validací")
+})
+
+test("režisér textového reelu dostane karty, hudbu a zákaz textu v obraze", () => {
+    const base = {
+        config: reelConfig, clientId: "c", medium: "reel" as const, durationSeconds: 8,
+        hook: "Jak to vzniká",
+        narration: [{ text: "Krok jedna", start: 0.5, end: 2 }],
+        cta: "Ulož si to", postType: "behind_scenes", references: [],
+    }
+    const textPrompt = buildReelDirectorPrompt({ ...base, textOnly: true }, "", "")
+    assert(/no narration/i.test(textPrompt), "režisér musí vědět, že nikdo nemluví")
+    assert(/ON-SCREEN TEXT CARDS/.test(textPrompt), "časová osa jsou karty, ne repliky")
+    assert(/music/i.test(textPrompt), "bez hlasu nese zvuk hudba — musí si o ni říct Seedance")
+    assert(/no on-screen text|free of any text/i.test(textPrompt), "text v obraze zůstává zakázaný (karty vypaluje náš ASS engine)")
+    const voicePrompt = buildReelDirectorPrompt(base, "", "")
+    assert(/SPOKEN NARRATION/.test(voicePrompt) && !/music/i.test(voicePrompt), "mluvený reel si o hudbu neříká (přebila by voiceover)")
+
+    const sb = { shots: [], audioMood: "calm morning", soundDesign: ["steam"], coverScene: "cup", videoPrompt: "A shot of a cup on a table with morning light and steam rising slowly." }
+    const finalText = finalizeVideoPrompt(sb, { durationSeconds: 8, textOnly: true })
+    assert(/background music/i.test(finalText) && /calm morning/.test(finalText), "finální prompt textového reelu žádá hudbu podle nálady")
+    assert(/no speech/i.test(finalText) && /no on-screen text/i.test(finalText), "zákazy řeči i textu platí dál")
+    assert(!/background music/i.test(finalizeVideoPrompt(sb, { durationSeconds: 8 })), "mluvený reel hudbu nechce")
 })
 
 // ─── Report ─────────────────────────────────────────────────

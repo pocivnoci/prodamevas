@@ -18,7 +18,7 @@ import {
     type FeedPatternId,
     type VisualMode,
 } from "../lib/feed-pattern"
-import { LAYOUT_ARCHETYPES } from "../instagram/image-pipeline"
+import { LAYOUT_ARCHETYPES, LAYOUT_ARCHETYPE_BRIEFS } from "../instagram/image-pipeline"
 
 let passed = 0
 let failed = 0
@@ -61,6 +61,22 @@ console.log("Archetype groups:")
         `unknown: ${grouped.filter(a => !all.includes(a)).join(", ")}`)
     check("every group is non-empty (an empty group would make its slot unrenderable)",
         Object.values(ARCHETYPE_GROUPS).every(g => g.length > 0))
+    // Zákaz posledních archetypů se aplikuje UVNITŘ rodiny (generateDesignBrief).
+    // Rodina o dvou členech (stav do 9/2026 u typography i graphic) se dvěma posty
+    // vyprázdnila, ban se musel zahodit a archetyp se zopakoval. Okno banu je dnes
+    // 5 postů, takže pod čtyřmi členy by se rodina vyprazdňovala prakticky pořád.
+    for (const [mode, group] of Object.entries(ARCHETYPE_GROUPS)) {
+        check(`rodina "${mode}" má aspoň 4 archetypy (jinak ji zákaz vyprázdní)`,
+            group.length >= 4, `${group.length}: ${group.join(", ")}`)
+    }
+    check("každý archetyp je právě v jedné rodině",
+        all.length === grouped.length && new Set(grouped).size === all.length,
+        `archetypů ${all.length}, v rodinách ${grouped.length}`)
+    // Holý slug modelu nic neřekne — šestnáct nepopsaných slugů znamená, že si
+    // pod polovinou z nich představí totéž, a rotace přestane rotovat.
+    check("každý archetyp má popis pro model",
+        all.every(a => (LAYOUT_ARCHETYPE_BRIEFS[a] || "").length > 20),
+        `bez popisu: ${all.filter(a => !(LAYOUT_ARCHETYPE_BRIEFS[a] || "").length).join(", ")}`)
 }
 
 // ── "none" and garbage impose nothing ──

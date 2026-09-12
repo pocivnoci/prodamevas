@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { motion } from "framer-motion"
 import {
     checkManualRecipients,
@@ -169,6 +170,27 @@ export function MailingTab() {
     useEffect(() => {
         getMailingSegments().then(setCounts).catch(() => setError("Nepodařilo se načíst segmenty (jen pro super-admina)."))
     }, [])
+
+    /**
+     * Příchod z jiné sekce: `#mailing?to=adresa` (tlačítko „Napsat e-mail"
+     * v evidenci klientů). Přepne na ruční adresy a adresu předvyplní — jinak
+     * by se musela z leadu opsat ručně, což je jediný krok, kde se dá splést
+     * příjemce.
+     *
+     * Stav se nastavuje v naplánované úloze, ne v těle efektu: synchronní
+     * setState v efektu je render navíc při každém otevření Mailingu.
+     */
+    const { deepLink, clearDeepLink } = useStudio()
+    useEffect(() => {
+        const to = deepLink?.to
+        if (!to) return
+        const timer = setTimeout(() => {
+            setSegment("manual")
+            setManualRaw(to)
+            clearDeepLink()
+        }, 0)
+        return () => clearTimeout(timer)
+    }, [deepLink, clearDeepLink])
 
     // Load the individual addresses whenever the segment changes; default all checked.
     useEffect(() => {

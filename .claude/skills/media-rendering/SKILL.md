@@ -100,6 +100,33 @@ Pipeline (`orchestrators/reel-orchestrator.ts`) je **od zvuku**:
    **selhání jobu** (refund + Sentry `step: compose`), nikdy reel bez titulků.
 7. Cover zůstává native (Nano Banana Pro + QA); `rethrowIfQualityUnavailable` platí
    i tady.
+8. Po kompozici se **artefakty schovají**: surové MP4 do `{bucket}/ig-reels/{ts}-raw.mp4`,
+   voiceover WAV se **nemaže** a do `ig_posts.video_source` (migrace 20260912) jde
+   časová osa, karty, `atempo`, délka a styl titulků. Bez toho by oprava překlepu
+   stála celý reel znovu — a Seedance vrátí pokaždé jiné video.
+
+**Titulky jsou vypálené** (IG u reelu titulkovou stopu nebere), takže „změň titulek"
+= složit kompozici znovu: job `reel_recompose` (`app/api/ig-run-job`, druh se pozná
+podle `config.kind`) stáhne raw MP4 + WAV, vypálí nové ASS a přepíše `image_url`
+(cover beze změny). **0 kreditů, žádné volání modelu** — `instagram/reel-recompose.ts`
+nesmí vidět `seedance-client`, `generateVoiceover` ani `creditGuard`. Server action
+`recomposeReelSubtitles` jen zakládá job; UI polluje `ig-job-status` a krok se ukládá
+do `edit_history` se `scope: "subtitles"`.
+
+**Styl titulků patří značce**: `ClientConfig.subtitleStyle`
+(`classic|cards|minimal` + pozice/velikost/barvy, clamp ve `validateConfig()`) →
+`resolveSubtitleStyle()` → `chunkForSubtitles`/`buildAss`. Font jen z bundlovaných
+(`assets/fonts`); pozice se řeší `MarginV`, `Alignment` zůstává 2.
+
+**Textový reel** (`captionData.reelMode === "text"` ze scenáristy, povolený přes
+`ClientConfig.reelModes` — default obojí): stejná pipeline **bez TTS**. Osa vzniká ze
+čtecího tempa karet (`buildTextTimeline` v `instagram/reel-text-timeline.ts`: 3 slova/s,
+min. 1,2 s na kartu, `atempo` vždy 1), režisér dostane karty místo replik a Seedance
+se v promptu žádá o nativní hudbu podle nálady; `composeReel` jede bez `voiceoverWav`
+(loudnorm, žádný sidechain) a `ambientLevel` na 1,0. Výchozí preset titulků je `cards`,
+první karta je `onScreenHook`, `video_source.mode = "text"` a `voiceoverPath` chybí —
+rekompozice s tím počítá. **Kredity stejné jako u mluveného reelu.** TTS ve větvi
+`prepareTextTimeline()` je zakázané a hlídá to guard.
 
 **CTA politika platí i na obraz** — `ctaPolicy` jde přes `RenderContext` do
 režiséra; resolve v `autopilot.ts` **musí zůstat nad checkpoint větví**.

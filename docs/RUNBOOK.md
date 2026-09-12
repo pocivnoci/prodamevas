@@ -152,6 +152,53 @@ si ulož výsledek dotazu stranou. Číselná řada dokladů je nevratná.
 
 ---
 
+## 8. Opuštění klienti: deaktivace → karanténa → smazání/anonymizace
+
+Tři kroky, každý ručně a s dry runem. Zásady zpracování slibují smazání nebo
+anonymizaci údajů účtu **30 dní po zrušení**, u daňových dokladů naopak ~10 let —
+proto se klient s platbou nebo fakturou nikdy nemaže, jen anonymizuje.
+
+### Krok 1 — najdi a deaktivuj
+
+```bash
+npx tsx scripts/neaktivni-klienti.ts                # jen výpis
+npx tsx scripts/neaktivni-klienti.ts --deaktivuj    # is_active=false + deactivated_at
+```
+
+Kandidát = > 90 dní bez obsahu ∧ bez `active`/`trialing` předplatného ∧ nikdy
+nezaplatil ∧ není výloha. Krok je vratný: `is_active = true` značku oživí.
+
+### Krok 2 — karanténa
+
+`deactivated_at` (migrace `20260912_karantena_klientu.sql`, pouští se v SQL
+editoru) je začátek 30denní lhůty. Během ní se nic nemaže — je to jediné okno,
+ve kterém jde omyl prvního kroku ještě opravit.
+
+### Krok 3 — smazat, nebo anonymizovat
+
+```bash
+npx tsx scripts/smazat-opustene-klienty.ts          # dry run, počty per tabulka
+npx tsx scripts/smazat-opustene-klienty.ts --yes    # provede
+```
+
+Kandidát = `is_active=false` ∧ `deactivated_at` starší než `--dny` (30)
+∧ není výloha/reference ∧ nemá připojený Instagram. Pak:
+
+| Stav klienta | Co se stane |
+|---|---|
+| Má řádek v `invoices` nebo `payments` | **Anonymizace** — smaže se obsah a bucket, řádek `clients` zůstane s neutrálními údaji (`config.anonymizedAt`). Doklady, platby a předplatné se nedotýkají. |
+| Nemá ani jedno | **Smazání** — bucket, profil u upload-postu, obsahové tabulky a nakonec `DELETE FROM clients`. |
+
+### Co NEDĚLAT
+
+1. **Nemazat `DELETE FROM clients` ručně u platícího klienta.** `invoices.client_id`
+   i `payments.client_id` kaskádují — doklady zmizí a číselná řada se nevrátí.
+2. **Nevyprazdňovat `audit-screenshots`.** Je to sdílený bucket značek bez vlastního
+   `storageBucket`; skript ho proto odmítá.
+3. **Nemazat uživatele v `auth.users`.** Jeden člověk může mít víc značek.
+
+---
+
 ## Čísla, která se hodí znát
 
 | Věc | Hodnota | Kde |

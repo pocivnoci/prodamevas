@@ -217,7 +217,7 @@ export async function getIGPostsList(
                 reach, shares, profile_visits, views, link_clicks, content_pillar,
                 created_at, updated_at, client_id,
                 media_type, ig_media_id, permalink, publish_error,
-                feedback, revision_of, image_style, edit_history,
+                feedback, revision_of, image_style, edit_history, video_source,
                 ig_post_types ( name, display_name, emoji )
             `)
             .eq("client_id", clientId)
@@ -794,7 +794,10 @@ export async function refundPayment(paymentId: string, reason?: string): Promise
         }
     }
 
-    const amountCzk = Math.round(payment.amount / 100).toLocaleString("cs-CZ")
+    // Formátování peněz má jediné místo (`formatCzk`) — ruční dělení stem se
+    // pokaždé rozešlo se zbytkem aplikace v zaokrouhlení.
+    const { formatCzkAmount } = await import("@/lib/pricing")
+    const amountCzk = formatCzkAmount(payment.amount)
 
     // 3b. Peníze zpátky. U Stripu to jde přes API, takže se to nemá dělat ručně —
     // ruční krok znamená prodlevu a riziko, že se na něj zapomene, zatímco

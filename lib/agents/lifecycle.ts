@@ -30,16 +30,17 @@
 import supabaseAdmin from "@/supabase/admin"
 import { requestAction } from "@/lib/agent-safety"
 import { isInternalEmail, NOT_SHOWCASE } from "@/lib/audience"
-import { getOwnerEmail, siteUrl, studioDeepLink } from "@/lib/notifications"
+import { buildLifecycleEmail, type LifecycleKind } from "@/lib/agents/lifecycle-templates"
+import { getOwnerEmail } from "@/lib/notifications"
 import { isSuperAdminEmail } from "@/lib/super-admins"
+
+// Znění e-mailů žije v `lifecycle-templates.ts` (čistá funkce, bez DB).
+export { buildLifecycleEmail }
+export type { LifecycleKind }
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const MAX_PROPOSALS_PER_RUN = 15
 const MAX_WAITLIST_PER_RUN = 10
-
-export type LifecycleKind =
-    | "activation_nudge" | "credit_low" | "winback" | "waitlist_drip"
-    | "dormant" | "ig_disconnected"
 
 /** Re-proposal block window per kind (days; null = once ever). */
 const DEDUPE_DAYS: Record<LifecycleKind, number | null> = {
@@ -291,63 +292,25 @@ export async function scanLifecycle(): Promise<LifecycleProposal[]> {
 
 // ── Templates + send (runs only AFTER founder approval) ─────────────────────
 
-export function buildLifecycleEmail(kind: LifecycleKind, vars: { clientName?: string | null; clientId?: string | null; creditsRemaining?: number; creditsTotal?: number }): { subject: string; body: string } {
-    const name = vars.clientName ? ` pro ${vars.clientName}` : ""
-    switch (kind) {
-        case "activation_nudge":
-            return {
-                subject: "Váš obsah čeká — spusťte první kampaň",
-                body: `Založili jste si Chrlit${name}, ale zatím jste nespustili žádnou vlastní kampaň. Ukázkové posty už na vás čekají v dashboardu.\n\n` +
-                    `Stačí jedno kliknutí a AI vám připraví celý týdenní plán obsahu — texty, obrázky, kalendář.\n\n` +
-                    `<a href="${vars.clientId ? studioDeepLink(vars.clientId, "plan") : siteUrl() + "/dashboard/instagram"}">Otevřít studio →</a>`,
-            }
-        case "credit_low":
-            return {
-                subject: "Kredity skoro vyčerpané",
-                body: `V plánu${name} zbývá ${vars.creditsRemaining ?? "málo"} z ${vars.creditsTotal ?? "?"} kreditů. Aby obsah nepřestal vycházet, navyšte plán nebo dokupte kredity.\n\n` +
-                    `<a href="${vars.clientId ? studioDeepLink(vars.clientId, "subscription") : siteUrl() + "/dashboard/instagram"}">Spravovat předplatné →</a>`,
-            }
-        case "winback":
-            return {
-                subject: "Instagram mezitím spí — vraťte se k Chrlit",
-                body: `Předplatné${name} vypršelo a účet přestal dostávat nový obsah. Vaše nastavení, značka i naučené preference zůstávají uložené — návrat je otázka jednoho kliknutí.\n\n` +
-                    `<a href="${vars.clientId ? studioDeepLink(vars.clientId, "subscription") : siteUrl()}">Obnovit předplatné →</a>`,
-            }
-        case "dormant":
-            return {
-                subject: "Váš Instagram je pár kliknutí od dalšího týdne obsahu",
-                body: `Za poslední dva týdny nevznikl${name ? ` pro${name.replace(" pro", "")}` : ""} žádný nový příspěvek — a účet, který přestane publikovat, ztrácí dosah rychleji, než ho pak jde získat zpátky.\n\n` +
-                    `Značku i naučené preference máme uložené, takže týdenní plán vznikne na jedno kliknutí.\n\n` +
-                    `<a href="${vars.clientId ? studioDeepLink(vars.clientId, "plan") : siteUrl() + "/dashboard/instagram"}">Vygenerovat obsah →</a>`,
-            }
-        case "ig_disconnected":
-            return {
-                subject: "Propojení s Instagramem je potřeba obnovit",
-                body: `Účet${name} nemá funkční propojení s Instagramem — přístup od Meta po čase vyprší a je potřeba ho jednou za čas potvrdit.\n\n` +
-                    `Dokud je odpojený, příspěvky se sice vygenerují, ale nemají se kam publikovat. Obnovení je otázka dvou kliknutí:\n\n` +
-                    `<a href="${vars.clientId ? studioDeepLink(vars.clientId, "settings") : siteUrl() + "/dashboard/instagram"}">Připojit Instagram →</a>`,
-            }
-        case "waitlist_drip":
-            return {
-                subject: "Nezapomněli jsme na vás",
-                body: `Jste na čekací listině Chrlit Studia. Pouštíme dovnitř postupně, aby každý nový účet dostal plnou kvalitu — další vlna pozvánek je na cestě.\n\n` +
-                    `Díky za trpělivost. Ozveme se, jakmile na vás přijde řada.`,
-            }
-    }
-}
-
 /** Handler body for `send_lifecycle_email` — payload comes from an approved proposal. */
 export async function sendLifecycleEmail(payload: Record<string, unknown>): Promise<{ ok: boolean; kind: string; to: string }> {
     const kind = String(payload.kind || "") as LifecycleKind
     const to = String(payload.email || "").trim().toLowerCase()
     if (!to || !(kind in DEDUPE_DAYS)) throw new Error(`send_lifecycle_email: invalid payload (kind=${payload.kind}, email=${payload.email})`)
 
-    const { subject, body } = buildLifecycleEmail(kind, {
+    const msg = buildLifecycleEmail(kind, {
         clientName: (payload.clientName as string) || null,
         clientId: (payload.clientId as string) || null,
         creditsRemaining: typeof payload.creditsRemaining === "number" ? payload.creditsRemaining : undefined,
         creditsTotal: typeof payload.creditsTotal === "number" ? payload.creditsTotal : undefined,
     })
+    // Šablona si řekla, že jí chybí čísla, bez kterých by zpráva lhala. Není to
+    // chyba tasku (retry by ji neopravil) — jen se nic nepošle.
+    if (!msg) {
+        console.warn(`send_lifecycle_email: ${kind} pro ${to} nemá data, neodesílám`)
+        return { ok: false, kind, to }
+    }
+    const { subject, body } = msg
     const { sendNotification } = await import("@/lib/notifications")
     await sendNotification({ to, subject, body, kind: "notification" })
     return { ok: true, kind, to }

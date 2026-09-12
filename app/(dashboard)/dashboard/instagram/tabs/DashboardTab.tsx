@@ -6,6 +6,7 @@ import { getDashboardStats } from "@/app/actions/admin-actions"
 import { parsePostMedia } from "@/lib/media-urls"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { Bookmark, CalendarDays, Camera, ChartColumn, CircleAlert, CircleCheck, Eye, FileText, Heart, Lightbulb, MessageCircle, RefreshCw, Send, TriangleAlert, type LucideIcon } from "lucide-react"
+import { countLabel, POSTS } from "@/lib/plural"
 
 // ═══════════════════════════════════════════════════════════
 // TYPES
@@ -95,7 +96,7 @@ function computeStatus(stats: DashboardStats): DashboardStatus {
     if (stats.ready > 0) {
         return {
             level: "ok",
-            message: `${stats.ready} ${stats.ready === 1 ? "příspěvek připraven" : stats.ready < 5 ? "příspěvky připraveny" : "příspěvků připraveno"} k publikování`,
+            message: `K publikování je připraveno: ${countLabel(stats.ready, POSTS)}`,
         }
     }
 
@@ -135,7 +136,7 @@ function computeActionItems(stats: DashboardStats): ActionItem[] {
     if (stats.ready > 0) {
         items.push({
             emoji: "📤",
-            label: `${stats.ready} ${stats.ready === 1 ? "příspěvek" : stats.ready < 5 ? "příspěvky" : "příspěvků"} k publikování`,
+            label: `${countLabel(stats.ready, POSTS)} k publikování`,
             detail: "Připraveno na Instagram",
             section: "posts",
             priority: 2,

@@ -55,8 +55,7 @@ export async function GET(req: Request) {
     const { isRecurringEnabled, chargeRecurring, generateRenewalRefId, isMockPaymentMode } = await import("@/lib/comgate")
     const { MAX_BILLING_FAILURES, rollLapsedCreditWindows } = await import("@/lib/subscription")
     const { resolveTermMonths } = await import("@/lib/billing-period")
-    const { termPrice, termLabel, normalizeTermMonths, chargeableHaleru } = await import("@/lib/pricing")
-    const { VAT_EFFECTIVE_FROM } = await import("@/lib/legal")
+    const { termPrice, termLabel, normalizeTermMonths, renewalChargeHaleru } = await import("@/lib/pricing")
 
     // 0. Nejdřív posunout každé propadlé KREDITOVÉ okno — nezávisle na tom, jestli
     // je splatná obnova. U ročního plánu je tohle jediné, co kredity resetuje
@@ -197,11 +196,11 @@ export async function GET(req: Request) {
             // Cena období bez DPH — základ, na kterém se zákazník dohodl.
             const netRenewal = termPrice(plan.price_czk, normalizeTermMonths(termMonths))
             // DPH se k probíhajícímu předplatnému připočítává až od data, ke
-            // kterému platí nové podmínky. Zvednout cenu o pětinu bez ohlášení
-            // by porušilo vlastní článek o změně ceny — a zákazník by to poznal
-            // až z výpisu.
-            const vatLive = new Date().toISOString().slice(0, 10) >= VAT_EFFECTIVE_FROM
-            const renewalAmount = vatLive ? chargeableHaleru(netRenewal) : netRenewal
+            // kterému platí nové podmínky (`renewalChargeHaleru`). Tentýž výpočet
+            // používá i oznámení „za tři dny vám strhneme" (`billing-watch.ts`) —
+            // dokud byla ta větev na dvou místech, e-mail sliboval jinou částku,
+            // než jaká šla z karty.
+            const renewalAmount = renewalChargeHaleru(netRenewal)
 
             // 4. Automatická obnova uloženým tokenem.
             if (sub.recurring_trans_id && isRecurringEnabled() && !isMockPaymentMode()) {
@@ -269,7 +268,7 @@ export async function GET(req: Request) {
                         },
                     })
                     await bumpFailures(sub.id, failures)
-                    await notice("charge_failed", `${sub.id}:${attempt}`, { attempt })
+                    await notice("charge_failed", `${sub.id}:${attempt}`, { attempt, amountHaleru: renewalAmount, netHaleru: netRenewal })
                     console.warn(`⚠️ billing-worker: recurring charge failed for ${client.slug}: ${chargeErr?.message}`)
                 }
                 continue

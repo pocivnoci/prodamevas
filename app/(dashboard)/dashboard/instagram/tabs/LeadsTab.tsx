@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Building2, CalendarClock, Phone, Plus, RefreshCw, Trash2, X } from "lucide-react"
+import { Building2, CalendarClock, ListPlus, Mail, Phone, Plus, RefreshCw, Trash2, X } from "lucide-react"
 import {
     listLeads, listLeadEvents, createLead, updateLead, setLeadStatus, addLeadContact, deleteLead,
 } from "@/app/actions/lead-actions"
@@ -11,6 +11,11 @@ import {
     CONTACT_KINDS, CONTACT_KIND_LABELS,
     type Lead, type LeadEvent, type ContactKind, type LeadPatch,
 } from "@/lib/leads"
+// Pole se chovají jako buňky tabulky a stejná trojice je i v Úkolech — bydlí
+// proto ve `shared.tsx`, ne dvakrát okopírovaná.
+import { DateField, Field, FilterChip, Select } from "./shared"
+import { createTask } from "@/app/actions/task-actions"
+import { useStudioNavigate } from "@/app/(dashboard)/StudioContext"
 
 /**
  * Evidence klientů.
@@ -54,16 +59,6 @@ function czDateTime(iso: string | null): string {
     const year = d.getFullYear() === now.getFullYear() ? "" : ` ${d.getFullYear()}`
     const time = d.getHours() || d.getMinutes() ? ` ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}` : ""
     return `${d.getDate()}. ${d.getMonth() + 1}.${year}${time}`
-}
-
-/** ISO → hodnota pro `datetime-local`, v místním čase. Bez posunu by schůzka
- *  ve 12:00 vyskočila v poli jako 10:00 a někdo by ji „opravil". */
-function toLocalInput(iso: string | null): string {
-    if (!iso) return ""
-    const d = new Date(iso)
-    if (Number.isNaN(d.getTime())) return ""
-    const pad = (n: number) => String(n).padStart(2, "0")
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 /** Do 48 hodin = to je ta věc, kvůli které se obrazovka ráno otevírá. */
@@ -167,17 +162,6 @@ export function LeadsTab() {
     )
 }
 
-function FilterChip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
-    return (
-        <button
-            onClick={onClick}
-            className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest rounded-sm border transition-all ${
-                active ? "bg-white/10 text-white border-white/20" : "bg-transparent text-white/35 border-white/10 hover:text-white/70"
-            }`}
-        >{label}</button>
-    )
-}
-
 // ─── Řádek ───────────────────────────────────────────────────
 
 function LeadRow({ lead, expanded, onToggle, onChanged, onDeleted }: {
@@ -233,6 +217,24 @@ function LeadDetail({ lead, onChanged, onDeleted }: {
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [confirmDelete, setConfirmDelete] = useState(false)
+    const [taskState, setTaskState] = useState<"idle" | "busy" | "done">("idle")
+    const navigate = useStudioNavigate()
+
+    /**
+     * Z leadu úkol. Termín se bere z „dalšího kontaktu" — datum už je domluvené
+     * a opisovat ho podruhé znamená, že se jednou opíše špatně.
+     */
+    const createFollowUp = async () => {
+        setTaskState("busy")
+        const res = await createTask({
+            title: `Zavolat: ${lead.contact_person || lead.company || "kontakt"}`,
+            note: [lead.phone, lead.next_step].filter(Boolean).join(" · ") || null,
+            ownerEmail: lead.owner_email,
+            dueDate: lead.next_contact_at ? lead.next_contact_at.slice(0, 10) : null,
+        })
+        if (res.success) setTaskState("done")
+        else { setTaskState("idle"); setError(res.error || "Úkol se nepodařilo založit.") }
+    }
 
     /** Ukládá se na blur, ne na každý znak: pole se chová jako buňka v tabulce. */
     const save = async (patch: LeadPatch) => {
@@ -292,6 +294,22 @@ function LeadDetail({ lead, onChanged, onDeleted }: {
             {error && <p className="text-[10px] text-red-400">{error}</p>}
 
             <ContactThread lead={lead} onChanged={onChanged} />
+
+            {/* Co s leadem dál — obojí vede jinam do studia, aby se nemuselo
+                přepisovat jméno ani adresa do druhé obrazovky. */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+                <button
+                    onClick={createFollowUp}
+                    disabled={taskState !== "idle"}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded-sm border border-white/10 text-white/50 hover:text-white hover:bg-white/5 transition-all disabled:opacity-40"
+                ><ListPlus className="w-3 h-3 shrink-0" />{taskState === "done" ? "Úkol založen" : "Založit úkol"}</button>
+                {lead.email && (
+                    <button
+                        onClick={() => navigate("mailing", { to: lead.email! })}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded-sm border border-white/10 text-white/50 hover:text-white hover:bg-white/5 transition-all"
+                    ><Mail className="w-3 h-3 shrink-0" />Napsat e-mail</button>
+                )}
+            </div>
 
             <div className="flex items-center gap-3 pt-1">
                 <span className="text-[9px] text-white/20 uppercase tracking-widest font-bold">
@@ -434,82 +452,6 @@ function ContactThread({ lead, onChanged }: { lead: Lead; onChanged: (lead: Lead
                 </div>
             )}
         </div>
-    )
-}
-
-// ─── Pole ────────────────────────────────────────────────────
-
-function Field({ label, value, onSave, multiline }: {
-    label: string
-    value: string | null
-    onSave: (v: string) => void | Promise<void>
-    multiline?: boolean
-}) {
-    const [draft, setDraft] = useState(value ?? "")
-    const [synced, setSynced] = useState(value ?? "")
-
-    // Zdroj pravdy je řádek, ne rozepsané pole — po uložení i po cizí změně musí
-    // pole ukazovat, co v databázi opravdu je. Srovnává se při renderu; efekt by
-    // hodnotu nejdřív vykreslil starou a hned přepsal, a psaní by přišlo o znak.
-    if (synced !== (value ?? "")) { setSynced(value ?? ""); setDraft(value ?? "") }
-
-    const commit = () => { if (draft !== (value ?? "")) void onSave(draft) }
-    const Tag = multiline ? "textarea" : "input"
-
-    return (
-        <label className="block">
-            <span className="block text-[8px] font-bold uppercase tracking-widest text-white/30 mb-1">{label}</span>
-            <Tag
-                value={draft}
-                rows={multiline ? 2 : undefined}
-                onChange={(e: React.ChangeEvent<HTMLInputElement & HTMLTextAreaElement>) => setDraft(e.target.value)}
-                onBlur={commit}
-                onKeyDown={(e: React.KeyboardEvent) => {
-                    if (e.key === "Escape") { setDraft(value ?? ""); (e.target as HTMLElement).blur() }
-                    if (e.key === "Enter" && !multiline) (e.target as HTMLElement).blur()
-                }}
-                className="w-full px-2.5 py-1.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs resize-y focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
-            />
-        </label>
-    )
-}
-
-function Select({ label, value, options, onSave }: {
-    label: string
-    value: string | null
-    options: Record<string, string>
-    onSave: (v: string) => void | Promise<void>
-}) {
-    return (
-        <label className="block">
-            <span className="block text-[8px] font-bold uppercase tracking-widest text-white/30 mb-1">{label}</span>
-            <select
-                value={value ?? ""}
-                onChange={e => void onSave(e.target.value)}
-                className="w-full px-2.5 py-1.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-white/20"
-            >
-                <option value="">—</option>
-                {Object.entries(options).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-        </label>
-    )
-}
-
-function DateField({ label, value, onSave }: {
-    label: string
-    value: string | null
-    onSave: (v: string) => void | Promise<void>
-}) {
-    return (
-        <label className="block">
-            <span className="block text-[8px] font-bold uppercase tracking-widest text-white/30 mb-1">{label}</span>
-            <input
-                type="datetime-local"
-                defaultValue={toLocalInput(value)}
-                onChange={e => void onSave(e.target.value ? new Date(e.target.value).toISOString() : "")}
-                className="w-full px-2.5 py-1.5 bg-[#050505] border border-white/10 rounded-sm text-white/80 text-xs focus:outline-none focus:ring-1 focus:ring-white/20"
-            />
-        </label>
     )
 }
 

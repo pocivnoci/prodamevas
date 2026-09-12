@@ -18,6 +18,7 @@ import supabaseAdmin from "@/supabase/admin"
 import type { BriefLine } from "@/lib/agents/daily-brief"
 import { DAILY_SEND_CAP } from "./pipeline"
 import { isOutreachConfigured, outreachSetupHint } from "./transport"
+import { countLabel, DAYS, LEADS } from "@/lib/plural"
 
 const DEN_MS = 24 * 3600_000
 
@@ -85,8 +86,8 @@ async function inboundLines(now: Date, since: Date): Promise<BriefLine[]> {
         const dni = Math.floor((now.getTime() - new Date(stari[0].created_at).getTime()) / DEN_MS)
         lines.push({
             icon: dni >= 3 ? "🔴" : "⏳",
-            text: `${stari.length} ${stari.length === 1 ? "zájemce čeká" : "zájemců čeká"} na ozvání`,
-            detail: `nejdéle ${dni} ${dni === 1 ? "den" : dni < 5 ? "dny" : "dní"} — ${popis(stari[0])}`,
+            text: `${countLabel(stari.length, LEADS)} čeká na ozvání`,
+            detail: `nejdéle ${countLabel(dni, DAYS)} — ${popis(stari[0])}`,
         })
     }
 
@@ -156,7 +157,7 @@ export async function buildSalesLines(now: Date = new Date()): Promise<BriefLine
         const days = Math.floor(queued / Math.max(1, DAILY_SEND_CAP))
         lines.push({
             icon: "📥", text: `${queued} kvalifikovaných leadů ve frontě`,
-            detail: days >= 1 ? `vystačí na ${days} dní` : "vystačí na necelý den",
+            detail: days >= 1 ? `vystačí na ${countLabel(days, DAYS)}` : "vystačí na necelý den",
         })
     }
 

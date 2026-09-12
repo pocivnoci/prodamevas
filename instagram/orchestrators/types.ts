@@ -11,6 +11,8 @@ import type { ShowcaseKit } from "../showcase-kit"
 import type { CtaPolicy } from "../cta-policy"
 import type { TimedLine } from "../reel-audio"
 import type { ReelStoryboard } from "../reel-director"
+import type { ReelVideoSource } from "../../lib/types/database"
+import type { ReelMode } from "../../lib/reel-media"
 
 export type ProgressReporter = (stage: string, progress: number, message: string) => Promise<void>
 
@@ -25,7 +27,12 @@ export interface CaptionData {
     imageSubtext?: string
     accentWords?: string[]
     videoScript?: string
-    scenes?: { timeRange: string; visual: string; camera: string; mood: string; narration?: string; soundEffect?: string }[]
+    scenes?: { timeRange: string; visual: string; camera: string; mood: string; narration?: string; soundEffect?: string; textOnly?: boolean }[]
+    /** Reel: režim ze scenáristy. `text` = karty na obraze, žádné TTS (orchestrátor
+     *  si ho NESMÍ domýšlet ze scén — checkpoint i resume jedou z téhle hodnoty). */
+    reelMode?: ReelMode
+    /** Reel: hook vypálený do obrazu jako první karta (≤ 2 řádky × 18 znaků). */
+    onScreenHook?: string
     caption?: string
     slides?: { headline: string; subtext: string; imagePrompt: string }[]
     /** Story only — 1-3 vertical frames INCLUDING the first (frames[0].headline === hook). */
@@ -110,8 +117,11 @@ export interface VideoCheckpoint {
     storyboard: ReelStoryboard
     videoPrompt: string
     referenceUrls: string[]
-    voiceoverBucket: string
-    voiceoverPath: string
+    /** Textový reel žádný voiceover nemá — obě cesty proto chybí. Chybějící hodnota
+     *  u starých checkpointů (před textovým režimem) znamená `voiceover`. */
+    mode?: ReelMode
+    voiceoverBucket?: string
+    voiceoverPath?: string
     /** Chybí, když pád přišel mezi TTS a zadáním úlohy — resume zadá poprvé. */
     taskId?: string
     submittedAt?: string
@@ -156,4 +166,7 @@ export interface RenderResult {
      *  or the fallback "gemini-3.1-flash-image") — truthful even when a mid-generation 503
      *  silently dropped to the weaker fallback tier. Distinct from the static getModel("image"). */
     imageModel?: string
+    /** Reel only — zdrojové artefakty do `ig_posts.video_source`, aby šly titulky
+     *  přerenderovat bez nového videa (0 kreditů). Viz `instagram/reel-recompose.ts`. */
+    videoSource?: ReelVideoSource
 }

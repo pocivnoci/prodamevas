@@ -13,7 +13,8 @@ import dotenv from "dotenv"
 dotenv.config({ path: ".env.local" })
 
 import supabaseAdmin from "../supabase/admin"
-import { pendingInvites, renderInvite, sendWaitlistInvites } from "../lib/agents/waitlist-invite"
+import { inviteVars, pendingInvites, sendWaitlistInvites } from "../lib/agents/waitlist-invite"
+import { getTemplate } from "../lib/mail/registry"
 
 const args = process.argv.slice(2)
 const DRY = args.includes("--dry-run")
@@ -36,11 +37,15 @@ async function main() {
         return
     }
 
-    const preview = renderInvite(rows[0], code)
+    // Náhled jede přes tentýž registr jako ostré odeslání — kdyby si skript
+    // renderoval po svém, ukazoval by něco jiného, než co odejde.
+    const template = getTemplate("waitlist_invite")
+    if (!template) throw new Error("Šablona waitlist_invite chybí v registru")
+    const preview = template.render(inviteVars(rows[0], code))
     console.log("   UKÁZKA ZPRÁVY")
     console.log("   " + "─".repeat(66))
     console.log(`   Předmět: ${preview.subject}`)
-    console.log(preview.body.split("\n\n").map(p => "   " + p.replace(/<[^>]+>/g, "")).join("\n\n"))
+    console.log(preview.text.split("\n\n").map(p => "   " + p.replace(/<[^>]+>/g, "")).join("\n\n"))
     console.log("   " + "─".repeat(66))
     console.log(`\n   příjemci (${Math.min(rows.length, limit)}):`)
     for (const r of rows.slice(0, limit)) {

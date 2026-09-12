@@ -8,8 +8,23 @@
  * importu sám spustí, takže by z něj `npm run guard` nemohl číst.
  */
 
-import type { PostTypeDef } from "./configs/types"
+import type { FeedAesthetic, PostTypeDef } from "./configs/types"
 import type { ShowcaseKit } from "./showcase-kit"
+import { INDUSTRY_VISUAL_PROFILES } from "./industry-visual-profiles"
+
+/**
+ * Vizuální identita oboru se bere ze SDÍLENÉHO registru, ne z kopie tady.
+ *
+ * Tytéž dvě věty (jak se v oboru svítí a jakým řezem se v něm sází) potřebuje
+ * i engine pro platícího klienta z toho oboru — a dvě kopie by se rozešly už při
+ * první opravě. Registr je autorita, kit z něj jen čerpá; `dominantColor`,
+ * `visualMode` a hlas zůstávají autorské, protože to je volba PRO UKÁZKU, ne
+ * vlastnost oboru.
+ */
+function visualOf(key: keyof typeof INDUSTRY_VISUAL_PROFILES): Partial<FeedAesthetic> {
+    const p = INDUSTRY_VISUAL_PROFILES[key]
+    return { typographyStyle: p.typographyStyle, feel: p.lightingBrief }
+}
 
 export const SHOWCASE_TYPE = "ukazka_oboru"
 
@@ -60,8 +75,7 @@ export const KITS: ShowcaseKit[] = [
         industryLabel: "Investice do zemědělské půdy",
         brandName: "ORNICE",
         feedAesthetic: {
-            typographyStyle: "elegantní vysoce kontrastní serif, velkorysý prostrk, sentence case",
-            feel: "Poledne nad polem: ostré slunce, sytá zeleň až k obzoru, vzduch se chvěje. Otevřené a prosvětlené.",
+            ...visualOf("agropuda"),
         },
         voiceBrief: "věcný, konzervativní, edukativní — mluví o půdě jako o věci, kterou lze vidět a obejít, ne jako o produktu",
         guardrails: "ŽÁDNÁ čísla o zhodnocení, ŽÁDNÉ garance odkupu, ŽÁDNÉ srovnání s jinými třídami aktiv, ŽÁDNÉ sliby jistoty ani bezpečí.",
@@ -77,8 +91,7 @@ export const KITS: ShowcaseKit[] = [
         industryLabel: "Lázeňské hotelnictví",
         brandName: "HOTEL PRAMEN",
         feedAesthetic: {
-            typographyStyle: "klasicistní didone serif s vysokým kontrastem, centrovaná sazba, kapitálky",
-            feel: "Lázně za jasného dopoledne: světlo se láme na hladině, bílý kámen, sklo. Vzdušné a svěží, nikdy noční.",
+            ...visualOf("hotel"),
         },
         voiceBrief: "zdvořilý, zvoucí, s citem pro detail — popisuje zážitek, ne vybavení",
     },
@@ -93,8 +106,7 @@ export const KITS: ShowcaseKit[] = [
         industryLabel: "Rodinné vinařství",
         brandName: "VINAŘSTVÍ POD SKALOU",
         feedAesthetic: {
-            typographyStyle: "humanistická antikva s měkkým perem, malá písmena, řídký sazební obraz",
-            feel: "Vinice v plném slunci: rozpálená hlína, listy prosvícené naskrz, čisté nebe. Živé a teplé.",
+            ...visualOf("vinarstvi"),
         },
         voiceBrief: "rodinný, hrdý, konkrétní — mluví o ročníku, trati a počasí, ne o superlativech",
     },
@@ -109,8 +121,7 @@ export const KITS: ShowcaseKit[] = [
         industryLabel: "Kadeřnictví a vlasová péče",
         brandName: "STUDIO VLNA",
         feedAesthetic: {
-            typographyStyle: "geometrický grotesk ve velmi lehkém řezu, extrémní prostrk, malá písmena",
-            feel: "Salon zalitý denním světlem z velkého okna. Lesk vlasů, bílé plochy, sytý akcent. Svěží, ne noční klub.",
+            ...visualOf("kadernictvi"),
         },
         voiceBrief: "sebevědomý a pečující, mluví ke klientce jako profesionál k dospělé ženě, bez pusinkování",
     },
@@ -125,8 +136,7 @@ export const KITS: ShowcaseKit[] = [
         industryLabel: "Koupelnové studio",
         brandName: "KOUPELNY OBZOR",
         feedAesthetic: {
-            typographyStyle: "technický grotesk stálé šířky, malé kapitálky, přesné mřížkové zarovnání",
-            feel: "Koupelna v ranním světle: voda, chrom a bílý obklad plné odlesků. Čisté, prosvětlené, ostré.",
+            ...visualOf("koupelny"),
         },
         voiceBrief: "praktický a přímý, mluví v milimetrech a materiálech, prodává jistotu odvedené práce",
     },
@@ -141,8 +151,7 @@ export const KITS: ShowcaseKit[] = [
         industryLabel: "Rozvoz potravin",
         brandName: "SPÍŽKA",
         feedAesthetic: {
-            typographyStyle: "kulatý bezpatkový tučný řez, sytá spodní dotažnice, přátelské sentence case",
-            feel: "Zeleninový pult v dopoledním slunci: kapky vody, syté barvy, denní světlo. Svěží a rychlé.",
+            ...visualOf("potraviny"),
         },
         voiceBrief: "svižný, praktický, lidový — mluví o tom, co je dneska čerstvé, a šetří čas",
     },
@@ -157,8 +166,7 @@ export const KITS: ShowcaseKit[] = [
         industryLabel: "Prémiové reality",
         brandName: "DŮM & KLÍČ",
         feedAesthetic: {
-            typographyStyle: "úzký modernistický grotesk, kapitálky, velmi jemné vlasové linky",
-            feel: "Byt zalitý sluncem: dlouhá světlá okna, teplé dřevo, vzduch. Otevřené a prostorné, nikdy šero.",
+            ...visualOf("reality"),
         },
         voiceBrief: "zdrženlivý a přesný, nechává mluvit dispozici a lokalitu, nikdy nekřičí",
     },
@@ -173,8 +181,7 @@ export const KITS: ShowcaseKit[] = [
         industryLabel: "Estetická medicína",
         brandName: "KLINIKA ZÁŘE",
         feedAesthetic: {
-            typographyStyle: "čistý neo-grotesk se středním řezem, klinicky přesné zarovnání vlevo",
-            feel: "Klinika v plném denním světle: bílý prostor, sytý akcent, čistá pleť. Svěží, ne sterilně studené.",
+            ...visualOf("estetika"),
         },
         voiceBrief: "odborný, klidný, střízlivý — vysvětluje zákrok a jeho meze, mluví o péči, ne o proměně",
         guardrails: "ŽÁDNÉ sliby výsledku, ŽÁDNÉ před/po srovnání, ŽÁDNÁ tvrzení o léčbě ani o zdravotním přínosu.",
@@ -190,8 +197,7 @@ export const KITS: ShowcaseKit[] = [
         industryLabel: "Motorová maziva a autochemie",
         brandName: "OKTAN",
         feedAesthetic: {
-            typographyStyle: "extra kondenzovaný industriální grotesk, kurzíva, verzálky, agresivní spád",
-            feel: "Dílna s otevřenými vraty do slunce: lesklý lak, sytá modř, ostré světlo na kovu. Energické, ne šero.",
+            ...visualOf("autochemie"),
         },
         voiceBrief: "drsný odborník z dílny — mluví o motoru konkrétně, technicky, bez marketingové omáčky",
     },
@@ -207,8 +213,7 @@ export const KITS: ShowcaseKit[] = [
         feedAesthetic: {
             colorPalette: "#FFC107 (zlatý vývar), #34A853 (svěží koriandr), #1A1A1A (černý sezam)",
             accentColor: "#34A853",
-            typographyStyle: "výrazný markerový font s texturou tahu připomínající ručně psané denní menu, přirozeně nepravidelný prostrk, sentence case pro autentický a organický vzhled",
-            feel: "Rušná a voňavá atmosféra asijské tržnice plná páry, svěžích bylinek a bezprostředního pouličního ruchu.",
+            ...visualOf("vietnamska_restaurace"),
         },
         voiceBrief: "jako když vás oblíbený strýček s úsměvem zve k bohatě prostřenému stolu a okamžitě vám podává horkou misku nudlí",
     },
@@ -224,8 +229,7 @@ export const KITS: ShowcaseKit[] = [
         feedAesthetic: {
             colorPalette: "#00B4D8 (Letní tyrkys), #03045E (Noční hladina), #FFD166 (Sluneční svit)",
             accentColor: "#FFD166",
-            typographyStyle: "široký architektonický grotesk v polotučném řezu, velká počáteční písmena všech slov (Title Case), velmi těsný prostrk evokující celistvost vodní hladiny",
-            feel: "Snímek evokuje horké letní odpoledne u zrcadlově čisté vody, dominantní tyrkysovou rozbíjí jen teplé odlesky slunce dopadající na luxusní dlažbu.",
+            ...visualOf("tvorba_bazenu"),
         },
         voiceBrief: "vysvětluje stavební i technologické detaily zcela srozumitelně a vždy s ohledem na budoucí zážitek z bezstarostného koupání",
     },
@@ -241,8 +245,7 @@ export const KITS: ShowcaseKit[] = [
         feedAesthetic: {
             colorPalette: "#681126 (Tmavě bordó), #D4AF37 (Zlatý okr), #F4EAD5 (Světlý pergamen)",
             accentColor: "#D4AF37",
-            typographyStyle: "robustní egyptienka se silnými patkami ve středním řezu, běžná velikost písmen, přirozený prostrk evokující fyzickou hmotnost a neotřesitelnou stabilitu",
-            feel: "Snímek kombinuje hluboké matné plochy s ostře řezanými hranami a drobnými zlatavými detaily evokujícími bezpečí bankovního trezoru.",
+            ...visualOf("investice_do_zlata"),
         },
         voiceBrief: "vysvětluje principy uchování bohatství s rozvahou a důrazem na ochranu kupní síly.",
         guardrails: "Nesmí slibovat zaručené zisky, nesmí tvrdit, že cena zlata může jen růst, a nesmí zamlčovat kurzová rizika nebo poplatky spojené s nákupem a úschovou slitků.",
@@ -259,8 +262,7 @@ export const KITS: ShowcaseKit[] = [
         feedAesthetic: {
             colorPalette: "#538B31 - sytá trávová zeleň, #8B5A2B - zemitá hněď, #F4D03F - sluneční žlutá",
             accentColor: "#F4D03F",
-            typographyStyle: "hrubší dřevorytný serif v polotučném řezu, běžná velikost písmen s nepravidelnými okraji tahů, zahuštěný prostrk evokující hustý organický porost",
-            feel: "Snímek působí zemitě a svěže, s důrazem na ranní měkké světlo, sytou živou zeleň a hmatatelnou drsnou texturu kůry a vlhké hlíny.",
+            ...visualOf("zahradnictvi"),
         },
         voiceBrief: "předává srozumitelné a léty ověřené rady přímo od hlíny, s hlubokou úctou ke každé rostlině",
     },
@@ -276,8 +278,7 @@ export const KITS: ShowcaseKit[] = [
         feedAesthetic: {
             colorPalette: "#FF6F59 (korálový západ slunce), #254441 (hluboký stín džungle), #FFF3E3 (světlý písek)",
             accentColor: "#254441",
-            typographyStyle: "čistý humanistický grotesk střídající lehký a velmi tučný řez, klasická velikost písmen s jemně rozšířeným prostrkem evokujícím volný prostor",
-            feel: "Prosluněná a hřejivá atmosféra, ze které sálá energie dálav a příslib letního dobrodružství.",
+            ...visualOf("cestovni_kancelar"),
         },
         voiceBrief: "líčí zážitky z cest s nakažlivým nadšením a láká k objevování nepoznaného.",
     },
@@ -293,8 +294,7 @@ export const KITS: ShowcaseKit[] = [
         feedAesthetic: {
             colorPalette: "#155D67 (hluboká petrolejová), #D97736 (tlumená oranžová), #F4F6F7 (kancelářská šedobílá)",
             accentColor: "#D97736",
-            typographyStyle: "Racionální statické bezpatkové písmo se zřetelnou kresbou číslic, polotučný řez, klasická velikost písmen (sentence case), standardní prostrk zajišťující maximální čitelnost strukturovaných dat",
-            feel: "Precizní a čistá kompozice založená na ostrých liniích barevných bloků, která evokuje naprostý pořádek v dokumentech, systematičnost a bezpečí",
+            ...visualOf("ucetni_kancelar"),
         },
         voiceBrief: "překládá složitý jazyk daňových zákonů do jasných a praktických rad bez zbytečného úřednického balastu",
         guardrails: "Nesmí garantovat konkrétní výši daňových vratek, slibovat beztrestnost u finančního úřadu ani poskytovat právní rady přesahující rámec daňové evidence",
@@ -311,8 +311,7 @@ export const KITS: ShowcaseKit[] = [
         feedAesthetic: {
             colorPalette: "#8E44AD (Průmyslová fialová), #F39C12 (Výstražná oranžová), #E5E7E9 (Hrubý beton)",
             accentColor: "#F39C12",
-            typographyStyle: "Masivní šablonové písmo (stencil) v tučném řezu, sázené verzálkami se standardním prostrkem, evokující drsné průmyslové značení a techniku.",
-            feel: "Drsná a industriální atmosféra s ostrým denním světlem, které nekompromisně odhaluje texturu materiálu a demonstruje hrubou sílu.",
+            ...visualOf("cisteni_fasad"),
         },
         voiceBrief: "Mluví v krátkých a úderných větách bez zbytečné omáčky, přímo k věci a s absolutním zaměřením na jasně odvedenou práci.",
     },

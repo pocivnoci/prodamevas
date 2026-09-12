@@ -5,14 +5,16 @@
 -- čím začít a kdo na to smí sáhnout. („prezentace zpracování změna" — tenhle
 -- řádek nešlo přečíst ani člověkem, ani modelem.)
 --
--- **Vlastnictví sloupců je pořád ta hlavní myšlenka**, jen přibyl třetí vlastník:
+-- Vlastnictví sloupců (stav po 9/2026, kdy sync skončil a databáze se stala
+-- jediným zdrojem pravdy):
 --
---   tabulka (sync) vlastní  → title, note, priority
---   aplikace (lidi) vlastní → status, owner_email, due_date
---   AI vlastní              → spec, next_step, effort, agent, spec_at
+--   lidi vlastní → title, note, priority, status, owner_email, due_date,
+--                  client_id, blocked_on, blocked_until, result
+--   AI vlastní   → spec, next_step, effort, agent, spec_at
 --
--- AI zásadně NEPÍŠE do title/note. Kdyby psala, přetahovala by se se syncem
--- a `updateTask` by každý úkol vytrhlo z tabulky (source='app').
+-- Google tabulka nevlastní nic — je to historický import (`lib/tasks/sheet-sync.ts`).
+-- AI dál NEPÍŠE do title/note: člověk musí poznat svou vlastní větu a nemít
+-- pocit, že mu ji někdo pod rukama přepsal.
 --
 -- Spustit v SQL editoru Supabase / přes Management API query endpoint,
 -- NIKDY `db push`. Bezpečné opakovaně.

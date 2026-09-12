@@ -644,6 +644,37 @@ test("13.10 reels v ceníku visí na vypínači, ne na textu", () => {
     assert(/ARK_API_KEY/.test(codeOnly("lib/agents/health-check.ts")), "health-check musí hlásit REELS_ENABLED=1 bez ARK_API_KEY")
 })
 
+test("13.19 tarif neprodává A/B test, ale dvě verze za kredity navíc", () => {
+    // Zákazník četl „A/B varianty" jako dva příspěvky na výběr V CENĚ jednoho —
+    // a ještě jako měření výkonu. Ani jedno neplatí: `generatePostVariant` vyrobí
+    // plný příspěvek a účtuje ho podle média, vybírá člověk a nic se neměří.
+    // Odrážka proto nesmí mluvit o testu a MUSÍ říct, že se to účtuje navíc.
+    const { PLAN_COPY } = require("./lib/pricing")
+
+    let sVerzemi = 0
+    for (const [planId, copy] of Object.entries(PLAN_COPY as Record<string, { bullets: unknown[] }>)) {
+        for (const b of copy.bullets) {
+            const text = typeof b === "string" ? b : String((b as { text?: string }).text || "")
+            assert(!/A\/B/i.test(text), `${planId}: ceníková odrážka „${text}" mluví o A/B — netestuje se nic`)
+            if (/verze/i.test(text)) {
+                sVerzemi++
+                assert(/kredit|navíc|účtuj/i.test(text),
+                    `${planId}: „${text}" neříká, že druhá verze stojí kredity navíc — přesně to nedorozumění to působilo`)
+            }
+        }
+    }
+    assert(sVerzemi > 0, "žádný tarif dvě verze nenabízí — aserce by nic nekontrolovala")
+
+    // Seznam funkcí v aplikaci a nápověda k tarifům jsou druhé dvě místa, kde
+    // ten slib zákazník čte. Komentáře se strhávají, aby je nechytil tenhle text.
+    for (const f of [
+        "app/(dashboard)/dashboard/instagram/tabs/SubscriptionSection.tsx",
+        "app/(dashboard)/dashboard/instagram/tabs/FaqTab.tsx",
+    ]) {
+        assert(!/A\/B/i.test(codeOnly(f)), `${f}: kopie tarifu pořád mluví o A/B`)
+    }
+})
+
 test("13.11 váhy kreditů se v UI nepíšou číslem", () => {
     // Do 8/2026 stálo v aplikaci natvrdo „obrázek 1 kredit · carousel 3", zatímco
     // skutečné váhy žijí v MEDIA_CREDITS — a na landingu nebylo ani to, takže
@@ -1159,6 +1190,51 @@ test("12.4 videoTier je pryč — reel má jediné rozlišení", () => {
     assert(!codeOnly("app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx").includes("videoTier"), "Nastavení nesmí nabízet dial, který engine nečte")
 })
 
+test("12.4b scenárista reelů jede na Pro a nikdy na flash", () => {
+    // Reel stojí na prvních 1,5 s; scénář je to jediné, co o nich rozhoduje.
+    // Pravidlo „Pro tiery mají fallback na druhé Pro" tu platí dvakrát: ladder je
+    // Opus 5 → Sonnet 5 → Gemini textPro. Flash by dodal generický reel za cenu reelu.
+    const models = codeOnly("instagram/models.ts")
+    assert(/reelScript:\s*\{[^}]*primary:\s*"claude-opus-5"/.test(models), "reelScript.primary musí být claude-opus-5")
+    assert(/reelScript:\s*\{[^}]*fallback:\s*"claude-sonnet-5"/.test(models), "reelScript potřebuje Pro fallback (Sonnet 5)")
+    const at = models.indexOf("reelScript:")
+    const entry = models.slice(at, models.indexOf("\n", at))
+    assert(!/flash/i.test(entry), "flash se do scenáristy nesmí dostat ani jako fallback")
+    // Neoceněný model zapíše do ai_spend nulu, což je k nerozeznání od levného volání.
+    assert(codeOnly("lib/model-pricing.ts").includes('"claude-opus-5"'), "claude-opus-5 musí mít sazbu v jediném sazebníku")
+    assert(codeOnly("instagram/caption-generator.ts").includes("reelScript:"), "COSTS.reelScript chybí — scénář by se v odhadu ceny reelu ztratil")
+})
+
+test("12.4c scenárista běží PŘED branami a jeho vzor se ukládá", () => {
+    const auto = codeOnly("instagram/autopilot.ts")
+    const script = auto.indexOf("reelScriptwriterEnabled()")
+    const facts = auto.indexOf("await checkCaptionFacts(")
+    const critic = auto.indexOf("await scorePost(")
+    assert(script > 0, "autopilot scenáristu vůbec nevolá")
+    assert(script < critic && script < facts,
+        "scénář musí vzniknout PŘED kritikem i faktickou bránou — narrace se nesmí bránám vyhnout")
+    assert(auto.includes("COSTS.reelScript"), "náklad scénáře se musí připočíst do ceny postu")
+    assert(/hookPattern: reelHookPattern/.test(auto),
+        "zvolený hook vzor se musí uložit k postu, jinak se z něj nedá spočítat výkon")
+    assert(auto.includes("REEL_SCRIPTWRITER") || codeOnly("instagram/reel-scriptwriter.ts").includes("REEL_SCRIPTWRITER"),
+        "scenárista potřebuje kill switch")
+})
+
+test("12.4d hook vzory se vybírají váženě, ne losem", () => {
+    // Invariant „nový zdroj obsahu potřebuje performance_score + váženou selekci"
+    // (skill content-engine): bez vah by se paleta hooků nikdy nenaučila, co funguje.
+    const hooks = codeOnly("lib/hook-patterns.ts")
+    assert(hooks.includes("export function hookPatternWeights"), "váhy musí být oddělené a ověřitelné bez náhody")
+    assert(hooks.includes("export function hookPatternStats"), "výkon vzoru se musí počítat z reelů klienta")
+    const picker = hooks.slice(hooks.indexOf("export function pickHookPatterns"))
+    assert(picker.includes("hookPatternWeights"), "výběr musí losovat NAD váhami, ne z holého seznamu")
+    assert(!/Math\.random\(\)/.test(picker.slice(0, picker.indexOf("hookPatternWeights"))),
+        "žádný los před tím, než se spočítají váhy")
+    assert(hooks.includes("exclude"), "anti-repeat (vzory posledních reelů) musí jít vyloučit")
+    // Klientsky bezpečný modul: sáhne po něm i dashboard, server-only import by ho shodil.
+    assert(!/from "\.\.\/supabase|from "@\/supabase|server-only/.test(hooks), "hook-patterns musí zůstat bez server importů")
+})
+
 test("12.5 AI Designer + QA exported from image-pipeline", () => {
     const content = fileContent("instagram/image-pipeline.ts")
     assert(content.includes("export async function generateDesignBrief"), "generateDesignBrief missing")
@@ -1179,6 +1255,48 @@ test("12.7 autopilot stores design_brief + qa_status", () => {
     assert(content.includes("design_brief: renderResult?.designBrief"), "design_brief not stored on post")
     assert(content.includes("qaStatus: renderResult?.qaStatus"), "qaStatus not logged")
     assert(content.includes("recentBriefs"), "recentBriefs anti-repetition not wired")
+})
+
+test("12.10 art director zná obor — žádná jedna estetika pro všechny", () => {
+    // Do 9/2026 se `config.industry` v image-pipeline nevyskytoval ani jednou a kvalita
+    // snímku se předepisovala JEDINOU natvrdo zapsanou větou („editorial, cinematic
+    // lighting, real depth") pro vinařství i pro izolatéra. Odtud zadání „změnit fotky
+    // na Instagramu — různorodost, pestrost, různé obory, různé zpracování".
+    const p = codeOnly("instagram/image-pipeline.ts")
+    assert(p.includes("config.industryVisual"), "prompt designéra nečte oborový vizuální profil")
+    assert(/buildIndustryVisualLines\(config\)/.test(p), "obor a žánr se nevlévají do ## BRAND KIT")
+    // Natvrdo psaná estetika smí zůstat POUZE jako fallback uvnitř funkce, která
+    // nejdřív zkusí profil. Kdekoli jinde v promptu je to zase jeden vzhled pro všechny.
+    for (const [fn, needle] of [
+        ["photographyQualityBrief", "editorial, cinematic lighting"],
+        ["renderQualityBrief", "Editorial photography quality, cinematic lighting"],
+    ] as const) {
+        const occurrences = p.split(needle).length - 1
+        assert(occurrences === 1, `„${needle}" je v image-pipeline ${occurrences}× — smí zůstat jen jako fallback v ${fn}()`)
+        const fnStart = p.indexOf(`function ${fn}`)
+        const fnEnd = p.indexOf("\n}", fnStart)
+        assert(fnStart > 0 && p.indexOf(needle) > fnStart && p.indexOf(needle) < fnEnd,
+            `„${needle}" musí být uvnitř ${fn}() jako fallback, ne v promptu`)
+    }
+    // Profil je IDENTITA (žánr, světlo, řez), nikdy kompozice — tahle past už jednou
+    // zabila ukázkovou sérii, viz applyShowcaseKit v showcase-kit.ts.
+    const t = codeOnly("instagram/configs/types.ts")
+    assert(/photographicGenre/.test(t) && /lightingBrief/.test(t), "ClientConfig nezná oborový vizuální profil")
+    assert(codeOnly("instagram/configs/index.ts").includes("resolveIndustryVisual(config.industry)"),
+        "validateConfig musí profil odvodit z oboru — nové pole bez defaultu je tichá degradace")
+})
+
+test("12.11 mechanismus nezahazuje klientský visualStyle", () => {
+    // Mechanismus je sdílený napříč tenanty. Když přebil i vizuální styl formátu,
+    // dostal art director u téhož mechanismu doslova stejnou větu pro každou značku.
+    const c = codeOnly("instagram/caption-generator.ts")
+    assert(!/visualStyle: mechanism\.visualStyle,/.test(c),
+        "getPostTypeDef pořád přepisuje klientský visualStyle mechanismem")
+    assert(/ownVisual/.test(c), "getPostTypeDef musí klientský visualStyle připojit, ne zahodit")
+    // Prompt tvrdil „the brand defined how this post type should LOOK" i u textu,
+    // který přišel ze sdílené tabulky — lež v promptu, na kterou se model odvolával.
+    assert(!fileContent("instagram/image-pipeline.ts").includes("the brand defined how this post type should LOOK"),
+        "prompt designéra pořád tvrdí, že styl definovala značka")
 })
 
 // ═══════════════════════════════════════════════════════════
@@ -1267,6 +1385,35 @@ test("12.9 feed-pattern grid count matches FeedTab's grid", () => {
     assert(fn.includes("media_type.is.null"), "countFeedPosts must keep legacy NULL media_type rows (.neq() alone drops them)")
     const f = fileContent("app/(dashboard)/dashboard/instagram/tabs/FeedTab.tsx")
     assert(f.includes('p.image_url && p.media_type !== "story"'), "FeedTab grid must filter on image_url AND exclude stories — keep countFeedPosts in sync")
+})
+
+test("12.12 měsíc plánu je kalendářní měsíc, ne čtyři týdny", () => {
+    // Počítadlo plánu předpokládalo na třech místech 7 položek = týden, 28 dní
+    // = měsíc a 30 postů = měsíční plán. Délku měsíce zná jen schedule-planner.
+    const p = fileContent("app/actions/content-plan-actions.ts")
+    assert(!codeOnly("app/actions/content-plan-actions.ts").includes("Math.floor(i / 7)"),
+        "číslo týdne musí dělit kadence (Math.floor(i / perWeek)), ne fixních 7 položek")
+    assert(p.includes("Math.floor(i / perWeek) + 1"), "week musí vycházet z postsPerWeek")
+    assert(p.includes("const spansWeeks = count > perWeek * 2"),
+        "práh pro rozdělení do týdnů i štítek týdne musí držet jeden výraz odvozený z kadence")
+
+    const g = fileContent("app/actions/ig-generate-action.ts")
+    const plan = g.slice(g.indexOf("export async function generateMonthlyPlan"))
+    assert(!codeOnly("app/actions/ig-generate-action.ts").includes("length: 27"),
+        "počet atrap plánu nesmí být literál — 27 platilo jen pro 4 týdny × 7 postů")
+    assert(plan.includes("postsForSpan(monthSpanDays(now)"),
+        "generateMonthlyPlan musí počet odvodit z postsForSpan(monthSpanDays(...))")
+    assert(plan.includes("SHOWCASE_POSTS"), "od počtu se musí odečíst ukázkové příspěvky z onboardingu")
+    assert(plan.includes("credit_period_start"),
+        "opakované generování se pozná podle kreditového okna, ne podle paušálních 25 dní")
+    assert(!plan.includes("daysSince < 25"), "paušálních 25 dní se nesmí vrátit")
+
+    const w = fileContent("app/(dashboard)/PaywallProvider.tsx")
+    assert(!w.includes("~30 příspěvků") && !w.includes("planPostsTotal || 30"),
+        "paywall nesmí slibovat 30 příspěvků — číslo říká jen předplatné")
+
+    const c = fileContent("app/actions/calendar-actions.ts")
+    assert(c.includes("spanDays"), "posun propadlých termínů musí distributeSchedule předat rozpětí")
 })
 
 // ═══════════════════════════════════════════════════════════
@@ -1943,7 +2090,16 @@ test("15.2 úprava se zapisuje na místě a nikdy nezaloží nový řádek", () 
     const code = codeOnly("app/actions/post-edit-actions.ts")
     // Stejná doktrína jako u plan draftů a schvalování produktových řad: jediný
     // podmíněný zápis vlastněný klientem, žádný insert fallback.
-    assert(!code.includes(".insert("), "editPost nesmí vkládat nový příspěvek — úprava je in-place")
+    // Do 9/2026 tu stálo „soubor nesmí obsahovat .insert(" — dokud byl jediným
+    // zápisem update příspěvku, byla to táž věta. Od přerenderování titulků reelu
+    // (`recomposeReelSubtitles`) soubor ZAKLÁDÁ ŘÁDEK V `ig_jobs`, protože ffmpeg
+    // patří do routy s 800s stropem, ne do server action. Chráněná věc se tím
+    // nemění: do `ig_posts` se pořád jen aktualizuje.
+    const postsInsert = /from\("ig_posts"\)[\s\S]{0,200}?\.insert\(/.test(code)
+    assert(!postsInsert, "editPost nesmí vkládat nový příspěvek — úprava je in-place")
+    for (const m of code.matchAll(/\.from\("([a-z_]+)"\)[\s\S]{0,200}?\.insert\(/g)) {
+        assert(m[1] === "ig_jobs", `insert do ${m[1]} sem nepatří — jediný povolený je job rekompozice titulků`)
+    }
     assert(code.includes('.eq("client_id", clientId)'), "každý zápis musí být omezený na klienta")
     assert(code.includes("edit_history"), "předchozí stav se musí uložit do historie")
     assert(code.includes("revertPostEdit"), "musí existovat cesta zpět")
@@ -2243,10 +2399,13 @@ test("17.5 chybějící ffmpeg nebo padlá kompozice nesmí tiše degradovat ree
 
 test("17.6 audio-first: TTS a časová osa před videem, délku určuje řeč", () => {
     const reel = codeOnly("instagram/orchestrators/reel-orchestrator.ts")
-    const tts = reel.indexOf("synthesizeNarration(")
+    // Osa se od textového režimu staví ve dvou funkcích (mluvená přes TTS, textová
+    // ze čtecího tempa) — pořadí se proto měří na místě volání, ne na `synthesizeNarration`.
+    const timeline = reel.indexOf("prepareVoiceoverTimeline(ctx")
     const submit = reel.indexOf("submitVideoTask(")
-    assert(tts > 0 && submit > 0 && tts < submit, "namluvení a měření musí předcházet zadání videa — TTS, které nejde, nesmí stát vteřinu videa")
-    assert(/buildTimeline\(/.test(reel) && /durationSeconds = timeline\.durationSeconds/.test(reel), "délka videa se čte z časové osy, ne z konfigurace")
+    assert(timeline > 0 && submit > 0 && timeline < submit, "namluvení a měření musí předcházet zadání videa — TTS, které nejde, nesmí stát vteřinu videa")
+    assert(/synthesizeNarration\(/.test(reel) && /buildTimeline\(/.test(reel) && /durationSeconds = prepared\.durationSeconds/.test(reel),
+        "délka videa se čte z časové osy, ne z konfigurace")
     assert(/condenseNarration\(/.test(reel), "příliš dlouhá řeč se zkracuje, ne usekává")
     const audio = codeOnly("instagram/reel-audio.ts")
     assert(/QualityUnavailableError\(`TTS nedostupné/.test(audio), "TTS mimo provoz = zaparkovat, ne selhat ani nedodat")
@@ -2306,6 +2465,133 @@ test("17.10 titulky: karty s bundlovaným fontem v bezpečné zóně, zalamujeme
     assert(/marginV: 290/.test(subs) && /marginR: 70/.test(subs), "karty sedí nad UI lištou a vlevo od sloupce ikon")
     assert(!/Arial|FontSize=16/.test(subs), "žádný Arial 16 dole u okraje")
     assert(fileContains("package.json", "tsx scripts/test-reel-pipeline.ts"), "čisté testy reelu musí být v guardu")
+})
+
+test("17.11 hlas značky: casting per klient, ne jeden preset pro všechny", () => {
+    // Hlavní stížnost na reely do 12. 9. 2026: `config.ttsVoice || "Kore"` znamenalo,
+    // že kavárna i izolatér mluví stejným hlasem — `ttsVoice` nikdo nenastavoval.
+    const reel = codeOnly("instagram/orchestrators/reel-orchestrator.ts")
+    assert(!/config\.ttsVoice/.test(reel), "orchestrátor nesmí číst zrušené config.ttsVoice")
+    assert(!/"Kore"/.test(reel), "žádný natvrdo psaný hlas v orchestrátoru — hlas patří značce")
+    assert(/config\.voice/.test(reel) && /voiceId/.test(reel), "hlas se bere z config.voice")
+    assert(/deliveryTags\(/.test(reel) && !/mood: "professional"/.test(reel),
+        "přednes se odvozuje z nálad scén, ne z natvrdo psaného „professional\" pro všechny")
+
+    // Default NESMÍ být konstanta: kdyby byl, jsme zpátky u jednoho hlasu pro flotilu.
+    const cfg = codeOnly("instagram/configs/index.ts")
+    assert(/castVoice\(/.test(cfg) && /voice: resolveVoice\(/.test(cfg),
+        "validateConfig doplňuje voice deterministickým castingem")
+    const vlib = codeOnly("lib/voice-library.ts")
+    assert(!/instagram\/|supabase\/|process\.env/.test(vlib), "knihovna hlasů musí zůstat client-safe (čte ji Nastavení)")
+
+    // Živý test castingu — 20 vzorových značek musí dostat aspoň 8 různých hlasů.
+    const { castVoice, VOICE_LIBRARY, isKnownVoice } = require("./lib/voice-library") as typeof import("./lib/voice-library")
+    assert(VOICE_LIBRARY.length >= 30, `knihovna má ${VOICE_LIBRARY.length} hlasů, čekáme aspoň 30`)
+    const znacky = [
+        { brand: "Kavárna U Lípy", industry: "Gastronomie / Kavárna", persona: "Přátelský barista" },
+        { brand: "Restaurace Na Statku", industry: "Gastronomie / Restaurace", persona: "Hostitel, co zve dovnitř" },
+        { brand: "Vinařství Podlužan", industry: "Gastronomie / Vinařství", persona: "Klidný vinař, tradice" },
+        { brand: "Salon Bella", industry: "Krása / Salon", persona: "Pečující kadeřnice" },
+        { brand: "FitZone", industry: "Fitness / Wellness", persona: "Energický trenér" },
+        { brand: "Eshop Bota", industry: "E-commerce", persona: "Rychlý a věcný prodejce" },
+        { brand: "Izolace Novák", industry: "Řemeslo / Služby", persona: "Poctivý řemeslník" },
+        { brand: "Kouč Dvořák", industry: "Poradenství / Koučink", persona: "Odborný poradce" },
+        { brand: "Foto Klára", industry: "Fotografie / Kreativa", persona: "Jemná fotografka" },
+        { brand: "TaskApp", industry: "Aplikace / SaaS", persona: "Věcný produktový hlas" },
+        { brand: "Penzion Vyhlídka", industry: "Ubytování / Penzion", persona: "Vřelý hostitel" },
+        { brand: "Klinika Estetik", industry: "Zdraví / Estetika", persona: "Empatický lékař" },
+        { brand: "Reality Morava", industry: "Reality / Realitní služby", persona: "Seriózní makléř" },
+        { brand: "Pekárna Koláč", industry: "Gastronomie / Pekárna", persona: "Rodinná pekárna" },
+        { brand: "AutoServis Rych", industry: "Autoservis", persona: "Přímý mechanik" },
+        { brand: "Jazyková škola Lingua", industry: "Vzdělávání / Kurzy", persona: "Trpělivý lektor" },
+        { brand: "Interiéry Dřevo", industry: "Interiér / Nábytek", persona: "Designér s citem" },
+        { brand: "Second Hand Retro", industry: "Móda / Oblečení", persona: "Hravá stylistka" },
+        { brand: "Účetní Bílá", industry: "Poradenství / Účetnictví", persona: "Precizní expert" },
+        { brand: "Wellness Klid", industry: "Wellness", persona: "Klidný průvodce" },
+    ]
+    const vybrane = znacky.map(z => castVoice({ persona: z.persona, industry: z.industry, brand: z.brand }))
+    assert(vybrane.every(v => isKnownVoice(v)), "casting musí vracet hlas z knihovny")
+    const ruznych = new Set(vybrane).size
+    assert(ruznych >= 8, `20 značek dostalo jen ${ruznych} různých hlasů — default se chová jako konstanta`)
+    assert(castVoice({ persona: znacky[0].persona, industry: znacky[0].industry, brand: znacky[0].brand }) === vybrane[0],
+        "casting musí být deterministický — stejná značka = stejný hlas v každém reelu")
+})
+
+test("17.12 TTS za rozhraním: poskytovatel v instagram/tts, spike skripty bez produkce", () => {
+    const gc = codeOnly("instagram/gemini-client.ts")
+    assert(!/prebuiltVoiceConfig/.test(gc), "syntéza hlasu žije v instagram/tts/gemini.ts, ne v bráně k modelům")
+    assert(/export \{ generateVoiceover \} from "\.\/tts\/gemini"/.test(gc), "gemini-client drží jen tenkou obálku kvůli zpětné kompatibilitě")
+    const prov = codeOnly("instagram/tts/gemini.ts")
+    assert(/prebuiltVoiceConfig/.test(prov) && /getModel\("tts"\)/.test(prov), "Gemini poskytovatel bere ID modelu z registru")
+    const idx = codeOnly("instagram/tts/index.ts")
+    assert(/throw new Error/.test(idx), "neznámý poskytovatel hází — tichý fallback by dodal cizí hlas")
+    assert(!/elevenlabs:/.test(idx), "ElevenLabs zatím jen jako TODO, ne zapojený poskytovatel")
+    const audio = codeOnly("instagram/reel-audio.ts")
+    assert(/getTtsProvider\(/.test(audio) && /voice\.voiceId/.test(audio), "reel-audio bere poskytovatele i hlas zvenčí")
+
+    // Spike je experiment: kdyby importoval produkci, měřil by naši pipeline, ne API.
+    for (const f of ["scripts/smoke-seedance-dialogue.ts", "scripts/smoke-seedance-audio-ref.ts", "scripts/smoke-reel-voice.ts"]) {
+        const src = codeOnly(f)
+        assert(!/from "\.\.\/(instagram|app|lib)\//.test(src), `${f}: spike skript nesmí importovat produkční modul`)
+        assert(!fileContains("package.json", f), `${f}: živý spike nepatří do guardu`)
+    }
+})
+
+test("17.13 titulky reelu jdou přepsat bez nového videa a bez kreditů", () => {
+    // Titulky jsou VYPÁLENÉ (IG u reelu titulkovou stopu nebere), takže překlep se
+    // do 9/2026 dal opravit jen přegenerováním celého reelu za 5–10 kreditů — a
+    // vrátilo to jiné video (Seedance není deterministické). Aby šla kompozice
+    // složit znovu, musí po reelu zbýt surové video a voiceover.
+    assert(fileExists("supabase/migrations/20260912_reel_video_source.sql"), "video_source potřebuje migraci")
+    assert(fileContains("supabase/migrations/20260912_reel_video_source.sql", "COMMENT ON COLUMN ig_posts.video_source"),
+        "sloupec musí mít komentář — jinak nikdo neví, co v tom JSONB je")
+
+    const reel = codeOnly("instagram/orchestrators/reel-orchestrator.ts")
+    assert(/ig-reels\/\$\{ts\}-raw\.mp4/.test(reel), "surové video ze Seedance se musí uložit, jinak není z čeho přerenderovat")
+    assert(!/storage\.from\(vc\.voiceoverBucket\)\.remove/.test(reel), "voiceover WAV se po kompozici NESMÍ mazat — potřebuje ho rekompozice")
+    // Od textového režimu se styl řeší i s režimem: textový reel má jiný výchozí
+    // preset (`cards`), protože karta v něm nese sdělení, ne doprovod řeči.
+    assert(/resolveSubtitleStyle\(config, \{ reelMode \}\)/.test(reel), "styl titulků patří značce; buildAss override uměl, ale nikdo mu ho nedával")
+
+    const recompose = codeOnly("instagram/reel-recompose.ts")
+    assert(!/seedance-client|generateVoiceover|synthesizeNarration/.test(recompose),
+        "rekompozice nesmí sáhnout na Seedance ani TTS — to je celý smysl nulové ceny")
+    assert(!/creditGuard|trackSpend|recordUnits/.test(recompose), "rekompozice je zdarma: žádný guard, žádné účtování")
+    assert(/\.eq\("client_id", clientId\)/.test(recompose), "každý ig_* dotaz filtruje client_id (multi-tenancy)")
+
+    // Cesta: server action jen založí job, ffmpeg běží v routě s 800s stropem.
+    const route = codeOnly("app/api/ig-run-job/route.ts")
+    assert(/kind === "reel_recompose"/.test(route) && /runReelRecompose/.test(route), "rekompozice je druh jobu v ig-run-job")
+    const branch = route.slice(route.indexOf('kind === "reel_recompose"'), route.indexOf("const deadlineAt"))
+    assert(!/creditGuard|reconcileJobCharge|refundJobCharge/.test(branch), "v rekompoziční větvi není co účtovat ani vracet")
+    assert(/export async function recomposeReelSubtitles/.test(codeOnly("app/actions/post-edit-actions.ts")), "server action zakládá job a vrací jobId")
+
+    // Default stylu — bez něj by engine indexoval preset podle undefined.
+    assert(/subtitleStyle: clampSubtitleStyle/.test(codeOnly("instagram/configs/index.ts")), "subtitleStyle potřebuje clamp ve validateConfig")
+    assert(fileContains("app/actions/admin-actions.ts", "edit_history, video_source"), "detail příspěvku musí video_source dostat ze seznamu")
+})
+
+test("17.14 textový reel: oba režimy povolené, TTS se přeskočí", () => {
+    // Textový reel (karty + hudba, žádný voiceover) je rovnocenný formát, ne
+    // experiment — default proto musí být OBOJÍ, jinak se nikdy nevyrobí.
+    const { clampReelModes } = require("./lib/reel-media") as typeof import("./lib/reel-media")
+    const def = clampReelModes(undefined)
+    assert(def.includes("voiceover") && def.includes("text"), "default reelModes je obojí")
+    assert(clampReelModes([]).join() === "voiceover", "prázdný výběr padá na hlas, ne na reel, který nejde vyrobit")
+    assert(/reelModes: clampReelModes/.test(codeOnly("instagram/configs/index.ts")), "reelModes potřebuje clamp ve validateConfig")
+
+    // Účtování se nemění: textový reel stojí stejně jako mluvený (levnější je jen
+    // pro nás — chybí TTS). Cena je v tabulce médií, ne v orchestrátoru.
+    const reel = codeOnly("instagram/orchestrators/reel-orchestrator.ts")
+    const branch = reel.slice(reel.indexOf("async function prepareTextTimeline"))
+    const body = branch.slice(0, branch.indexOf("\n}"))
+    assert(body.length > 200 && !/synthesizeNarration|ttsVoiceover/.test(body), "textová větev nesmí volat TTS ani účtovat voiceover")
+    assert(/mode: reelMode/.test(reel), "video_source musí nést režim — rekompozice podle něj pozná, že WAV chybět má")
+
+    // Rekompozice titulků musí jít i u reelu bez voiceoveru (0 kreditů platí dál).
+    assert(/source\?\.mode === "text"/.test(codeOnly("instagram/reel-recompose.ts")), "rekompozice musí textový reel rozpoznat")
+    assert(/textOnly \|\| !!source\?\.voiceoverPath/.test(codeOnly("app/(dashboard)/dashboard/instagram/tabs/ReelSubtitlesPanel.tsx")),
+        "detail reelu nesmí u textového reelu tvrdit, že chybí zdroj")
 })
 
 // ═══════════════════════════════════════════════════════════
@@ -2817,6 +3103,50 @@ test("23.17 opuštěná značka se deaktivuje, nemaže", () => {
     // kliknutím (viz aserce 23.16).
     assert(/neq\('status', 'plan_locked'\)/.test(src),
         "aktivita se měří skutečným obsahem, ne zamčenými teasery")
+})
+
+test("23.21 druhý stupeň úklidu nesmí smazat daňové doklady", () => {
+    // `invoices.client_id` i `payments.client_id` mají ON DELETE CASCADE
+    // (20260730_billing_invoices.sql), takže DELETE klienta vezme s sebou
+    // vystavené doklady. Zásady zpracování (`app/privacy/page.tsx`) přitom
+    // slibují daňovou evidenci ~10 let a výslovně říkají, že tuhle povinnost
+    // nelze zkrátit žádostí o výmaz. Proto platící historie = anonymizace,
+    // nikdy DELETE.
+    const src = codeOnly("scripts/smazat-opustene-klienty.ts")
+    assert(/from\('invoices'\)/.test(src) && /from\('payments'\)/.test(src),
+        "mazací skript se musí zeptat na doklady i na platby, než cokoli smaže")
+    assert(/maPenize/.test(src) && /\.delete\(\)/.test(src),
+        "rozhodnutí smazat/anonymizovat musí viset na existenci peněz")
+    // Ani jednu z peněžních tabulek skript nesmí mazat sám.
+    for (const t of ["invoices", "payments", "subscriptions", "credit_transactions"]) {
+        assert(!new RegExp(`from\\('${t}'\\)\\s*\\.delete`).test(src),
+            `${t} se v úklidu klientů nemaže — daňová a účetní stopa`)
+    }
+
+    // Výloha ani reference nejsou zákazníci a jejich obsah drží marketingová
+    // zeď; pravidlo „kdo je zákazník" má jediný zdroj v lib/audience.ts.
+    assert(/isShowcaseConfig/.test(src) && /isReference/.test(src),
+        "výloha ani reference nesmí padnout do úklidu opuštěných značek")
+
+    // Mazání je nevratné: výchozí běh smí jen ukazovat.
+    assert(/--yes/.test(src) && /includes\('--yes'\)/.test(src),
+        "ostrý běh musí vyžadovat --yes, dry run je výchozí")
+    // Podmíněný claim, ne slepé mazání — oživená značka vypadne z dávky.
+    assert(/\.eq\('is_active', false\)/.test(src),
+        "před mazáním musí být podmíněný claim na is_active = false")
+
+    // Karanténa potřebuje razítko; bez něj by druhý stupeň neměl od čeho
+    // počítat „30 dní po zrušení účtu".
+    const prvni = codeOnly("scripts/neaktivni-klienti.ts")
+    assert(/deactivated_at/.test(prvni),
+        "deaktivace musí zapsat deactivated_at — začátek karantény")
+    assert(/deactivated_at/.test(fileContent("supabase/migrations/20260912_karantena_klientu.sql")),
+        "sloupec karantény musí mít migraci")
+
+    // Sdílený bucket (`audit-screenshots`) patří víc značkám naráz — jeden
+    // klient ho nesmí vyprázdnit. Seznam bucketů se nikdy nepíše natvrdo.
+    assert(/storageBucket/.test(src) && /SDILENE_BUCKETY/.test(src),
+        "bucket se bere z config.storageBucket a sdílený se vynechává")
 })
 
 test("23.16 zamčená atrapa není nález faktické brány", () => {
@@ -3817,12 +4147,20 @@ test("29.15 plátce DPH: brána strhává částku VČETNĚ daně", () => {
     const chargePaths: Array<[string, string]> = [
         ["app/api/payments/create/route.ts", "ComGate"],
         ["lib/payments/checkout.ts", "Stripe"],
-        ["app/api/cron/billing-worker/route.ts", "obnova předplatného"],
     ]
     for (const [file, what] of chargePaths) {
         assert(codeOnly(file).includes("chargeableHaleru"),
             `${what} (${file}): částka k stržení musí projít přes chargeableHaleru`)
     }
+    // Obnova jde přes `renewalChargeHaleru`, což je `chargeableHaleru` + datum
+    // přechodu (viz 29.22): probíhající předplatné se do VAT_EFFECTIVE_FROM
+    // strhává v původní výši a tutéž funkci musí volat i oznámení o obnově.
+    assert(codeOnly("app/api/cron/billing-worker/route.ts").includes("renewalChargeHaleru"),
+        "obnova předplatného: částka k stržení musí projít přes renewalChargeHaleru")
+    const pricingSrc = codeOnly("lib/pricing.ts")
+    const renewalFn = pricingSrc.slice(pricingSrc.indexOf("export function renewalChargeHaleru"))
+    assert(renewalFn.slice(0, 300).includes("chargeableHaleru"),
+        "renewalChargeHaleru musí DPH připočítávat přes chargeableHaleru, ne vlastním násobením")
 
     // Doklad musí sedět s tím, co brána strhla. `payments.amount` je hrubá
     // částka, takže Fakturoid z ní má daň VYPOČÍTAT, ne připočítat navrch —
@@ -3879,10 +4217,123 @@ test("29.18 datum přechodu na DPH sedí s účinností podmínek", () => {
     assert(terms.includes(`EFFECTIVE_FROM = "${czech}"`),
         `podmínky musí nabýt účinnosti ${czech} (podle VAT_EFFECTIVE_FROM), našel jsem něco jiného`)
 
-    // Obnova probíhajícího předplatného se do toho data nesmí zdražit.
+    // Obnova probíhajícího předplatného se do toho data nesmí zdražit. Větev
+    // podle data žije v `renewalChargeHaleru` (`lib/pricing.ts`) — jedno místo
+    // pro strh i pro oznámení o něm, viz 29.22.
+    const pricing = codeOnly("lib/pricing.ts")
+    assert(/export function renewalChargeHaleru[\s\S]{0,300}VAT_EFFECTIVE_FROM/.test(pricing),
+        "renewalChargeHaleru musí respektovat datum, od kterého se DPH připočítává")
     const worker = codeOnly("app/api/cron/billing-worker/route.ts")
-    assert(worker.includes("VAT_EFFECTIVE_FROM"),
-        "obnova musí respektovat datum, od kterého se DPH připočítává")
+    assert(worker.includes("renewalChargeHaleru"),
+        "obnova musí strhávat přes renewalChargeHaleru, jinak datum přechodu obejde")
+})
+
+test("29.22 obnova slibuje přesně tu částku, kterou strhne", () => {
+    // Oznámení „za tři dny vám strhneme" počítalo cenu období BEZ DPH, zatímco
+    // billing-worker strhával s DPH — roční Růst sliboval 29 990 Kč a z karty
+    // šlo 36 288 Kč. Rozdíl na výpisu je nejkratší cesta k chargebacku, takže
+    // obě cesty musí volat tutéž funkci.
+    for (const [file, what] of [
+        ["lib/agents/billing-watch.ts", "oznámení o obnově"],
+        ["app/api/cron/billing-worker/route.ts", "strh obnovy"],
+    ] as Array<[string, string]>) {
+        assert(codeOnly(file).includes("renewalChargeHaleru"),
+            `${what} (${file}): částka obnovy musí projít přes renewalChargeHaleru`)
+    }
+    // Větev podle VAT_EFFECTIVE_FROM smí žít jen uvnitř té jedné funkce.
+    const pricing = codeOnly("lib/pricing.ts")
+    assert(/export function renewalChargeHaleru/.test(pricing) && pricing.includes("VAT_EFFECTIVE_FROM"),
+        "renewalChargeHaleru musí datum přechodu na DPH řešit sama")
+    for (const file of ["lib/agents/billing-watch.ts", "app/api/cron/billing-worker/route.ts"]) {
+        assert(!codeOnly(file).includes("VAT_EFFECTIVE_FROM"),
+            `${file}: druhá kopie větve o DPH se vždycky rozejde — patří do renewalChargeHaleru`)
+    }
+
+    // A totéž číslo musí umět i šablona obnovy v registru: měsíční sazba jako
+    // cena obnovy je táž lež, jen ručně napsaná.
+    const { getTemplate } = require("./lib/mail/registry")
+    const { formatCzk, termPrice, FALLBACK_PLANS } = require("./lib/pricing")
+    const renewal = getTemplate("subscription_renewal")
+    assert(!!renewal, "šablona subscription_renewal musí být v registru")
+    assert(renewal.fields.some((f: { key: string }) => f.key === "termMonths"),
+        "šablona obnovy musí znát délku období, jinak nabízí měsíční cenu jako cenu roku")
+    const rust = FALLBACK_PLANS.find((p: { name: string }) => p.name === "Růst")
+    const yearly = renewal.render({ ...renewal.sample, planName: "Růst", termMonths: "12", price: "" })
+    assert(yearly.text.includes(formatCzk(termPrice(rust.monthlyHaleru, 12))),
+        `obnova na 12 měsíců musí uvést cenu období, ne měsíční sazbu — ${yearly.text.slice(0, 200)}`)
+})
+
+test("29.23 automatické e-maily mluví stejným hlasem jako registr", () => {
+    // Zákaznická pošta jde ze tří míst: registr šablon, `notice-templates.ts`
+    // (peníze, incidenty) a `lifecycle-templates.ts` (pobídky). Do registru míří
+    // aserce 29.6/29.8, ale ty dvě agentské cesty do 9/2026 nehlídal nikdo — a
+    // psaly bez pozdravu, bez podpisu a v první osobě jednotného čísla.
+    const { buildCustomerNotice } = require("./lib/agents/notice-templates")
+    const { buildLifecycleEmail } = require("./lib/agents/lifecycle-templates")
+    const { vatNotice } = require("./lib/legal")
+
+    const messages: Array<[string, { subject: string; body: string }]> = []
+    for (const kind of ["renewal_upcoming", "charge_failed", "manual_renew", "expired",
+        "payment_recovered", "generation_failed", "publish_failed"] as const) {
+        messages.push([`notice:${kind}`, buildCustomerNotice(kind, {
+            clientName: "Kavárna Alchymista", clientId: "00000000-0000-0000-0000-000000000000",
+            amountHaleru: 362_880, netHaleru: 299_900, date: "3. 12. 2026", auto: true,
+            attempt: 2, termLabel: "na 12 měsíců", what: "příspěvek plánovaný na 12. 8.", reason: "vypršel token",
+        })])
+    }
+    for (const kind of ["activation_nudge", "credit_low", "winback", "dormant",
+        "ig_disconnected", "waitlist_drip"] as const) {
+        const msg = buildLifecycleEmail(kind, {
+            clientName: "Kavárna Alchymista", clientId: "00000000-0000-0000-0000-000000000000",
+            creditsRemaining: 2, creditsTotal: 45,
+        })
+        assert(!!msg, `lifecycle ${kind}: šablona musí s kompletními daty něco vrátit`)
+        messages.push([`lifecycle:${kind}`, msg!])
+    }
+
+    for (const [id, m] of messages) {
+        const text = `${m.subject}\n${m.body}`
+        assert(m.subject.length > 0 && m.body.length > 40, `${id}: prázdná zpráva`)
+        assert(!/undefined|\bnull\b|\[object Object\]|NaN|\?\s*kredit/.test(text),
+            `${id}: prosákla proměnná — ${text.slice(0, 140)}`)
+        assert(m.body.startsWith("Dobrý den,"), `${id}: zpráva musí otevírat „Dobrý den,"`)
+        assert(m.body.includes("Tým Chrlit"), `${id}: zpráva se musí podepsat „Tým Chrlit"`)
+        // První osoba jednotného čísla = druhý hlas. Podepisuje se firma.
+        assert(!/\bjsem\b|\bmi\b\s|Tomáš/.test(text), `${id}: mluví jednotlivec, ne firma — ${text.slice(0, 140)}`)
+        // Rodové příčestí o adresátovi („založil jste si") se netrefí půlce lidí.
+        assert(!/\bjste\s+(?:si\s+|se\s+)?\w*(?:al|il|ěl|ala|ila)\b|\w+(?:al|il|ěl)\s+jste\b/.test(text),
+            `${id}: rodové příčestí o adresátovi — ${text.slice(0, 140)}`)
+        // Kde padne částka, tam patří věta o DPH (totéž pravidlo jako 29.8).
+        if (/\d[\d\u00a0\u202f ]*Kč/.test(text)) {
+            assert(m.body.includes(vatNotice()), `${id}: cena bez věty o DPH`)
+        }
+    }
+
+    // Pozvánka z waitlistu má jediné znění — to v registru.
+    const invite = codeOnly("lib/agents/waitlist-invite.ts")
+    assert(invite.includes('getTemplate("waitlist_invite")'),
+        "waitlist-invite musí renderovat registrovou šablonu, ne mít vlastní kopii textu")
+    assert(!/Tomáš/.test(invite), "pozvánku podepisuje firma, ne jedna osoba")
+})
+
+test("29.24 haléře dělí stem jedině formatCzk()", () => {
+    // Ruční `/ 100` se pokaždé rozešlo se zbytkem aplikace: v potvrzení platby
+    // chybělo zaokrouhlení a zákazník dostal „3 628,79 Kč" u částky, kterou má
+    // doklad v celých korunách.
+    const dirs = ["lib", "app/api", "app/actions"]
+    const offenders: string[] = []
+    const walk = (dir: string) => {
+        for (const entry of readdirSync(resolve(ROOT, dir), { withFileTypes: true })) {
+            const rel = `${dir}/${entry.name}`
+            if (entry.isDirectory()) { walk(rel); continue }
+            if (!/\.tsx?$/.test(entry.name)) continue
+            if (rel === "lib/pricing.ts") continue // jediné povolené místo
+            if (/\/\s*100\s*\)?\s*\)?\.toLocaleString/.test(codeOnly(rel))) offenders.push(rel)
+        }
+    }
+    for (const d of dirs) walk(d)
+    assert(offenders.length === 0,
+        `formátování peněz patří do formatCzk() z lib/pricing.ts — ruční dělení stem je v: ${offenders.join(", ")}`)
 })
 
 test("29.17 identita je s.r.o. se zápisem v rejstříku, ne živnost", () => {
@@ -3938,16 +4389,52 @@ test("29.20 e-mail netipuje rod adresáta", () => {
         const hits = t.render(t.sample, "kdo@example.com").text.match(gendered) ?? []
         assert(hits.length === 0, `${t.id}: rodové oslovení „${hits.join(", ")}" — přepiš do přítomného času`)
     }
-    // Pozvánka z waitlistu jde mimo registr (vlastní text v agentovi), a přesně
-    // ta měla „Zapsal jste se… a čekal jste dlouho" hned dvakrát ve větě.
+    // Pozvánka z waitlistu měla „Zapsal jste se… a čekal jste dlouho" hned
+    // dvakrát ve větě — protože si v agentovi vedla vlastní text mimo registr.
+    // Od té doby se renderuje registrová šablona (kterou kryje smyčka výš), a
+    // agent smí dodat jen proměnné; vlastní věta by tuhle kontrolu zase obešla.
     const invite = codeOnly("lib/agents/waitlist-invite.ts")
     const inviteHits = invite.match(gendered) ?? []
     assert(inviteHits.length === 0,
         `lib/agents/waitlist-invite.ts: rodové oslovení „${inviteHits.join(", ")}"`)
+    assert(invite.includes('getTemplate("waitlist_invite")'),
+        "pozvánka se musí renderovat z registru — vlastní kopie textu tuhle kontrolu obejde")
     // „před 1 dny" je stejný druh nedbalosti jako špatný rod: počítané dny se
     // skloňují přes lib/plural.ts, ne lepením „dny" za číslo.
-    assert(invite.includes("countLabel") && invite.includes("DAYS"),
+    const inviteTemplate = codeOnly("lib/mail/templates/waitlist.ts")
+    assert(inviteTemplate.includes("countLabel") && inviteTemplate.includes("DAYS"),
         "počet dní čekání se musí skloňovat přes countLabel(…, DAYS)")
+})
+
+test("29.25 v zákaznickém textu se počty skloňují, ne lepí", () => {
+    // „všech 1 příspěvků je připraveno", „2 kreditů zbývá", „před 1 dny" — takhle
+    // vypadá text, kde se za proměnnou přilepil pevný tvar. Zákazník to čte jako
+    // strojový překlad zrovna ve chvíli, kdy mu produkt slibuje český obsah.
+    // Tyhle čtyři soubory jdou ven mimo registr šablon (digest kampaně, oznámení,
+    // kvalifikace leadu a obchodní digest), takže je aserce 29.x jinak nekryjí.
+    const zakaznicke = [
+        "app/api/cron/campaign-worker/route.ts",
+        "lib/notifications.ts",
+        "lib/agents/sales/qualify.ts",
+        "lib/agents/sales/digest.ts",
+    ]
+    // Interpolace, za kterou hned následuje počítané jméno v pevném tvaru.
+    // `${countLabel(n, POSTS)}` projde — tam už podstatné jméno vyrábí helper.
+    const lepenyTvar = /\$\{[^}]*\}\s*(příspěv\w*|kredit\w*|dní|dny|dnem|měsíc\w*|obrázk\w*|karusel\w*)\b/g
+    for (const f of zakaznicke) {
+        const src = codeOnly(f)
+        const hits = [...new Set(src.match(lepenyTvar) ?? [])]
+        assert(hits.length === 0,
+            `${f}: pevný tvar za proměnnou „${hits.join(", ")}" — použij countLabel(…) z lib/plural.ts`)
+        // A zároveň: když soubor počty vypisuje, musí helper skutečně importovat.
+        assert(/countLabel|\bplural\(/.test(src), `${f}: chybí import skloňování z lib/plural.ts`)
+    }
+    // Jedna kopie skloňování, ne pět. lib/credits.ts i taby měly vlastní `plural()`
+    // s vlastní představou o tom, co je „2–4"; sdílený modul je zdroj pravdy.
+    for (const f of ["lib/credits.ts", "app/(dashboard)/dashboard/instagram/tabs/GenerateTab.tsx"]) {
+        assert(!/function\s+plural\w*\s*\(/.test(codeOnly(f)),
+            `${f}: vlastní kopie skloňování — importuj z lib/plural.ts`)
+    }
 })
 
 test("29.21 jeden e-mail = jeden hlas", () => {
@@ -4481,7 +4968,9 @@ test("34.5 každý volající modelu má jasno, kdo ho účtuje", () => {
         "instagram/orchestrators/reel-orchestrator.ts": "uvnitř generateOnePost",
         "instagram/seedance-client.ts": "uvnitř generateOnePost (reel)",
         "instagram/reel-director.ts": "uvnitř generateOnePost (reel)",
+        "instagram/reel-scriptwriter.ts": "uvnitř generateOnePost (reel)",
         "instagram/reel-audio.ts": "uvnitř generateOnePost (reel)",
+        "instagram/tts/gemini.ts": "brána k TTS — měří ji volající (reel-orchestrator, previewVoice)",
         "instagram/anthropic-client.ts": "brána k Claude — měří přes ni soudce i režisér",
         "instagram/plan-pipeline.ts": "uvnitř generateContentPlan (content_plan)",
         "instagram/feed-vision.ts": "uvnitř onboarding_config nebo recommendFeedPattern",
@@ -4681,6 +5170,79 @@ test("36.4b posuvník opatrnosti vynucuje KÓD, ne prompt", () => {
     const cfg = codeOnly("instagram/configs/index.ts")
     assert(/factCheckMode/.test(cfg) && /"balanced"/.test(cfg),
         "neznámá hodnota režimu musí spadnout na default, ne do pipeline")
+})
+
+test("36.4b2 rizikový obor dostane přísnější bránu i přísnější default", () => {
+    // Prompt je čistá funkce, takže se dá porovnat obor proti oboru bez modelu.
+    // Hydroizolace: „naše izolace vydrží 4 bary podle ČSN P 73 0606" — norma se na
+    // webu najde a brána dřív pustila i tu druhou půlku věty, která je závazek
+    // téhle firmy. Kavárna ten odstavec dostat nesmí: u ní je „pečeme od pěti"
+    // konkrétnost, ne riziko, a přitvrzený prompt by z postů udělal vatu.
+    const { buildFactCheckPrompt } = require("./instagram/fact-check")
+    const base = { name: "Test", website: "https://test.cz", brandFacts: [] }
+    const technical = buildFactCheckPrompt({ ...base, industry: "Hydroizolace" }, [{ text: "Naše izolace vydrží 4 bary.", display: false }])
+    const cafe = buildFactCheckPrompt({ ...base, industry: "Kavárna" }, [{ text: "Pečeme od pěti ráno.", display: false }])
+
+    assert(/TECHNICKÝ \/ ŘEMESLNÝ OBOR/.test(technical),
+        "technický obor musí dostat blok o parametrech vlastní práce")
+    assert(/ROZDĚL/.test(technical), "hybridní tvrzení (norma + vlastní práce) se musí rozdělit")
+    assert(/Záruční lhůta a životnost jsou `risk` bez výjimky/.test(technical),
+        "záruka a životnost jsou závazek, ne technický údaj k dohledání")
+    assert(!/TECHNICKÝ \/ ŘEMESLNÝ OBOR/.test(cafe),
+        "kavárna přísnější blok dostat nesmí — jinak brána sebere postům konkrétnost")
+
+    // Obor bez diakritiky ani s jinou předponou nesmí propadnout.
+    const { industryRiskFamily } = require("./lib/industry-risk")
+    assert(industryRiskFamily("hydroizolace staveb") === "technical", "hydroizolace je technický obor")
+    assert(industryRiskFamily("Strechy a klempirstvi") === "technical", "porovnává se bez diakritiky")
+    assert(industryRiskFamily("Investiční fond") === "finance" && industryRiskFamily("Estetická klinika") === "health",
+        "finance a zdraví zůstávají vlastními rodinami")
+    assert(industryRiskFamily("Kavárna") === null && industryRiskFamily("") === null,
+        "běžný obor ani prázdná hodnota rizikový není")
+
+    const showcase = codeOnly("instagram/showcase-kit.ts")
+    assert(!/const REGULATED_INDUSTRY_HINTS = \[/.test(showcase) && /from "@\/lib\/industry-risk"/.test(showcase),
+        "showcase si seznam rizikových oborů NESMÍ definovat podruhé — dvě kopie se rozejdou")
+
+    const cfg = codeOnly("instagram/configs/index.ts")
+    assert(/industryRiskFamily\(config\.industry\) \? "safe" : "balanced"/.test(cfg),
+        "u rizikového oboru je výchozí režim safe; nastavená hodnota uživatele má přednost")
+})
+
+test("36.4b3 šéfredaktor vidí ověřená fakta, ne jen produktová data", () => {
+    // Kritik pravdivost neboduje vůbec a šéfredaktor kontroloval jen produkt —
+    // „záruka 10 let" tak prošla prodejní bránou bez jediného dokladu.
+    const eb = codeOnly("instagram/editorial-board.ts")
+    assert(/buildFactsSection/.test(eb) && /safeFacts\(config\)/.test(eb),
+        "prompt šéfredaktora musí nést ověřená fakta značky")
+    assert(/Každé číslo, rok, záruka, certifikát a technický parametr/.test(eb),
+        "kritérium PRAVDIVOST musí jmenovat, co přesně potřebuje oporu")
+})
+
+test("36.4b4 označený příspěvek se sám nepublikuje", () => {
+    // Nejvážnější díra brány: dashboard varoval, ale auto-publikování fact_status
+    // vůbec nečetlo — a jelo dál na Instagram klienta.
+    const auto = codeOnly("lib/agents/auto-publish.ts")
+    assert(/findFactFlaggedPosts/.test(auto), "ostřicí agent musí stav brány číst")
+    assert(/config\.publishFlaggedPosts === true/.test(auto), "zadržení jde vypnout jen vědomě v Nastavení")
+    assert(/🚩/.test(auto) && /facts_pending/.test(auto),
+        "zadržení musí být vidět v logu a jednou denně i u zákazníka — tiché zadržení je horší než publikace")
+
+    const pub = codeOnly("app/api/cron/ig-publisher/route.ts")
+    assert(/findFactFlaggedPosts/.test(pub), "publisher musí filtrovat označené příspěvky i sám za sebe")
+    assert(/publishFlaggedPosts === true/.test(pub), "přepínač klienta platí i tady")
+
+    const modes = codeOnly("lib/fact-check-modes.ts")
+    assert(/export function isFactFlagged/.test(modes), "predikát označeného stavu má jediný zdroj pravdy")
+    const exp = codeOnly("scripts/export-portfolio.ts")
+    assert(/isFactFlagged/.test(exp) && !/\.eq\("fact_status", "flagged"\)/.test(exp),
+        "výloha portfolia musí používat tentýž predikát, ne vlastní řetězec")
+
+    const cfg = codeOnly("instagram/configs/index.ts")
+    assert(/publishFlaggedPosts: config\.publishFlaggedPosts \?\? false/.test(cfg),
+        "default je NEPUBLIKOVAT — bezobslužné publikování nesmí vydat neověřené tvrzení")
+    const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx")
+    assert(/publishFlaggedPosts/.test(ui), "přepínač musí být v Nastavení u kontroly tvrzení")
 })
 
 test("36.4c oba posuvníky slibují uživateli totéž", () => {

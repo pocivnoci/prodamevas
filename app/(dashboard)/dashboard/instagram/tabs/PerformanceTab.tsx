@@ -10,6 +10,7 @@ import type { Duel } from "@/lib/ab-duel"
 import { LOCKED_ANALYTICS_COPY, type AnalyticsDepth } from "@/lib/analytics-depth"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { Anchor, Bookmark, Brain, ChartColumn, Check, Eye, Heart, Link, Lock, LockOpen, MessageCircle, Search, Share2, Swords, TrendingUp } from "lucide-react"
+import { countLabel, POSTS } from "@/lib/plural"
 
 export function PerformanceTab({ projectId }: { projectId: string }) {
     const [posts, setPosts] = useState<any[]>([])
@@ -64,7 +65,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
         setSyncMsg(null)
         const r = await syncMetricsAction(projectId)
         if (r.success) {
-            setSyncMsg(`Načteno ${r.synced ?? 0} příspěvků z Instagramu${r.matched ? `, nově propojeno ${r.matched}` : ""}.`)
+            setSyncMsg(`Z Instagramu načteno: ${countLabel(r.synced ?? 0, POSTS)}${r.matched ? `, nově propojeno ${r.matched}` : ""}.`)
             await loadData(false)
         } else {
             setSyncMsg(`${r.error || "Synchronizace selhala"}`)
@@ -117,7 +118,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
             {/* ── Růst profilu ───────────────────────────────── */}
             <GrowthSection projectId={projectId} />
 
-            {/* ── A/B souboje ────────────────────────────────── */}
+            {/* ── Souboje verzí ────────────────────────────────── */}
             <AbDuelsSection projectId={projectId} />
 
             {/* ── Statistiky výkonu ──────────────────────────── */}
@@ -365,7 +366,8 @@ function LockedInsights() {
 }
 
 /**
- * A/B souboje.
+ * Souboje verzí (dřív „A/B souboje" — slovo test bylo zavádějící, měří se až
+ * po publikaci a dvě verze se účtují jako dva příspěvky).
  *
  * Varianty se generovaly od vzniku tarifu Růst, ale nikdo je nikdy neporovnal —
  * zákazník dostal dvě verze, jednu vybral a tím to skončilo. Tahle sekce je ta
@@ -373,7 +375,7 @@ function LockedInsights() {
  *
  * Sekce se nevykreslí vůbec, když tarif na varianty nemá (server vrátí
  * `allowed: false`) nebo když zákazník žádnou variantu nevytvořil — prázdný
- * nadpis „A/B souboje" u někoho, kdo je nikdy nepoužil, je jen šum.
+ * nadpis „Souboje verzí" u někoho, kdo je nikdy nepoužil, je jen šum.
  */
 function AbDuelsSection({ projectId }: { projectId: string }) {
     const [duels, setDuels] = useState<Duel[]>([])
@@ -399,7 +401,7 @@ function AbDuelsSection({ projectId }: { projectId: string }) {
     return (
         <div>
             <h2 className="text-lg font-black uppercase tracking-tight text-white flex items-center gap-2 mb-1">
-                <span className="inline-flex items-center gap-1.5"><Swords className="w-3.5 h-3.5 shrink-0" />A/B souboje</span>
+                <span className="inline-flex items-center gap-1.5"><Swords className="w-3.5 h-3.5 shrink-0" />Souboje verzí</span>
             </h2>
             <p className="text-[10px] text-white/30 mb-4">
                 {rozhodnute > 0

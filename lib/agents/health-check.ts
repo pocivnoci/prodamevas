@@ -14,6 +14,7 @@
  */
 
 import supabaseAdmin from "@/supabase/admin"
+import { countLabel, POSTS } from "@/lib/plural"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const HOUR_MS = 60 * 60 * 1000
@@ -167,7 +168,7 @@ export async function buildHealthCheck(): Promise<HealthReport> {
             const n = overdue.length
             return {
                 icon: "📭",
-                title: `${byClient.size}× platící klient nedostal obsah — ${n} ${n === 1 ? "příspěvek" : n < 5 ? "příspěvky" : "příspěvků"} po termínu`,
+                title: `${byClient.size}× platící klient nedostal obsah — ${countLabel(n, POSTS)} po termínu`,
                 detail: `${perClient.join(", ")}. Hotové příspěvky leží ve stavu ready přes ${OVERDUE_DAYS} dny po termínu. Publikuj je, nebo klientovi připoj Instagram a zapni auto-publikování.`,
             }
         }),

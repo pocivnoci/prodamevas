@@ -31,12 +31,18 @@ export interface ClientHealthDTO {
     creditsTotal: number
     risks: string[]
     risksLabel: string
+    /** `false` = značka je v karanténě (deaktivovaná, čeká na úklid). */
+    isActive: boolean
+    deactivatedAt: string | null
 }
 
 export interface CompanyOverview {
     clients: ClientHealthDTO[]
-    /** Kolik účtů má aspoň jedno riziko — číslo, které má smysl sledovat. */
+    /** Kolik ŽIVÝCH účtů má aspoň jedno riziko — číslo, které má smysl sledovat.
+     *  Deaktivované se nepočítají: jejich „rizika" už nikdo neřeší. */
     atRisk: number
+    /** Kolik značek je v karanténě (deaktivované, ještě nesmazané). */
+    deactivated: number
     /** Registrace, které nikdy nedojely do studia. */
     stalledOnboardings: number
     generatedAt: string
@@ -46,8 +52,11 @@ export async function getCompanyOverview(): Promise<CompanyOverview> {
     await requireSuperAdmin()
 
     const { buildClientHealth, describeRisks, countStalledOnboardings } = await import("@/lib/agents/client-health")
+    // Deaktivované se tady ukazují schválně: přehled je jediné místo, kde je
+    // správce uvidí dřív, než je druhý stupeň úklidu smaže. Brief ani návrhy
+    // úkolů je dál nedostávají — to je výchozí chování buildClientHealth.
     const [rows, stalled] = await Promise.all([
-        buildClientHealth(),
+        buildClientHealth(new Date(), { includeDeactivated: true }),
         countStalledOnboardings(),
     ])
 
@@ -67,11 +76,14 @@ export async function getCompanyOverview(): Promise<CompanyOverview> {
         creditsTotal: r.creditsTotal,
         risks: r.risks,
         risksLabel: describeRisks(r.risks),
+        isActive: r.isActive,
+        deactivatedAt: r.deactivatedAt,
     }))
 
     return {
         clients,
-        atRisk: clients.filter(c => c.risks.length > 0).length,
+        atRisk: clients.filter(c => c.isActive && c.risks.length > 0).length,
+        deactivated: clients.filter(c => !c.isActive).length,
         stalledOnboardings: stalled.count,
         generatedAt: new Date().toISOString(),
     }

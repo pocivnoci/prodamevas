@@ -330,3 +330,126 @@ export function CaptionEditor({
         </div>
     )
 }
+
+// ═══════════════════════════════════════════════════════════
+// POLE ADMINSKÝCH TABŮ — buňka tabulky, ne formulář
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Tahle trojice vznikla v `LeadsTab` a `TasksTab` si ji obkresloval podruhé.
+ * Chování je u obou stejné a je to chování TABULKY: klikneš do buňky, přepíšeš,
+ * odklikneš — uloží se. Žádné tlačítko „Uložit", žádný dialog.
+ */
+
+/** Textové pole, které se ukládá na blur. Escape vrátí původní hodnotu. */
+export function Field({ label, value, onSave, multiline, placeholder }: {
+    label: string
+    value: string | null
+    onSave: (v: string) => void | Promise<void>
+    multiline?: boolean
+    placeholder?: string
+}) {
+    const [draft, setDraft] = useState(value ?? "")
+    const [synced, setSynced] = useState(value ?? "")
+
+    // Zdroj pravdy je řádek, ne rozepsané pole — po uložení i po cizí změně musí
+    // pole ukazovat, co v databázi opravdu je. Srovnává se při renderu; efekt by
+    // hodnotu nejdřív vykreslil starou a hned přepsal, a psaní by přišlo o znak.
+    if (synced !== (value ?? "")) { setSynced(value ?? ""); setDraft(value ?? "") }
+
+    const commit = () => { if (draft !== (value ?? "")) void onSave(draft) }
+    const Tag = multiline ? "textarea" : "input"
+
+    return (
+        <label className="block">
+            <span className="block text-[8px] font-bold uppercase tracking-widest text-white/30 mb-1">{label}</span>
+            <Tag
+                value={draft}
+                rows={multiline ? 2 : undefined}
+                placeholder={placeholder}
+                onChange={(e: React.ChangeEvent<HTMLInputElement & HTMLTextAreaElement>) => setDraft(e.target.value)}
+                onBlur={commit}
+                onKeyDown={(e: React.KeyboardEvent) => {
+                    if (e.key === "Escape") { setDraft(value ?? ""); (e.target as HTMLElement).blur() }
+                    if (e.key === "Enter" && !multiline) (e.target as HTMLElement).blur()
+                }}
+                className="w-full px-2.5 py-1.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs resize-y focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
+            />
+        </label>
+    )
+}
+
+/** Výběr z číselníku. Prázdná hodnota je platná — „nezadáno" není chyba. */
+export function Select({ label, value, options, onSave, emptyLabel = "—" }: {
+    label: string
+    value: string | null
+    options: Record<string, string>
+    onSave: (v: string) => void | Promise<void>
+    emptyLabel?: string
+}) {
+    return (
+        <label className="block">
+            <span className="block text-[8px] font-bold uppercase tracking-widest text-white/30 mb-1">{label}</span>
+            <select
+                value={value ?? ""}
+                onChange={e => void onSave(e.target.value)}
+                className="w-full px-2.5 py-1.5 bg-[#050505] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-white/20"
+            >
+                <option value="" className="bg-[#0a0a0a]">{emptyLabel}</option>
+                {Object.entries(options).map(([k, v]) => <option key={k} value={k} className="bg-[#0a0a0a]">{v}</option>)}
+            </select>
+        </label>
+    )
+}
+
+/**
+ * Datum, nebo datum s časem.
+ *
+ * `mode="date"` posílá `YYYY-MM-DD` beze změny — sloupec `date` žádné pásmo nemá
+ * a převod přes `new Date()` by termín posunul o den zpátky každému, kdo sedí
+ * východně od Greenwiche. `mode="datetime"` naopak posílá ISO v UTC.
+ */
+export function DateField({ label, value, onSave, mode = "datetime" }: {
+    label: string
+    value: string | null
+    onSave: (v: string) => void | Promise<void>
+    mode?: "date" | "datetime"
+}) {
+    return (
+        <label className="block">
+            <span className="block text-[8px] font-bold uppercase tracking-widest text-white/30 mb-1">{label}</span>
+            <input
+                type={mode === "date" ? "date" : "datetime-local"}
+                defaultValue={mode === "date" ? (value ?? "") : toLocalInput(value)}
+                onChange={e => {
+                    const raw = e.target.value
+                    if (mode === "date") { void onSave(raw); return }
+                    void onSave(raw ? new Date(raw).toISOString() : "")
+                }}
+                className="w-full px-2.5 py-1.5 bg-[#050505] border border-white/10 rounded-sm text-white/80 text-xs focus:outline-none focus:ring-1 focus:ring-white/20"
+            />
+        </label>
+    )
+}
+
+/** ISO → hodnota pro `datetime-local`, v místním čase. Bez posunu by schůzka
+ *  ve 12:00 vyskočila v poli jako 10:00 a někdo by ji „opravil". */
+function toLocalInput(iso: string | null): string {
+    if (!iso) return ""
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return ""
+    const pad = (n: number) => String(n).padStart(2, "0")
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/** Filtrační štítek. Stejný v Obchodu i v Úkolech — dřív byl okopírovaný. */
+export function FilterChip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+    return (
+        <button
+            onClick={onClick}
+            className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest rounded-sm border transition-all ${
+                active ? "bg-white/10 text-white border-white/20" : "bg-transparent text-white/35 border-white/10 hover:text-white/70"
+            }`}
+        >{label}</button>
+    )
+}

@@ -298,7 +298,7 @@ export async function confirmPlanAction(
         let shiftSlots: { date: string; time: string }[] = []
         if (overdue.length > 0) {
             const { loadConfig } = await import("@/instagram/configs")
-            const { distributeSchedule } = await import("@/lib/schedule-planner")
+            const { distributeSchedule, monthSpanDays, postsForSpan } = await import("@/lib/schedule-planner")
             let perWeek = 4
             let times: string[] | undefined
             try {
@@ -307,7 +307,15 @@ export async function confirmPlanAction(
                 times = Array.isArray(config?.postingTimes) && config.postingTimes.length > 0
                     ? (config.postingTimes as string[]) : undefined
             } catch { /* výchozí kadence stačí, tohle nesmí potvrzení shodit */ }
-            shiftSlots = distributeSchedule(overdue.length, { postsPerWeek: perWeek, timeSlots: times })
+            // Rozpětí podle kalendáře, ne podle týdnů: hustota se odvodí ze
+            // skutečné délky měsíce (28–31 dní), takže celý propadlý měsíc se
+            // rozprostře přes celý nový měsíc a ne jen do čtyř týdnů. U pár
+            // příspěvků vyjde rozpětí úměrně krátké — poměr dnů na příspěvek
+            // zůstává stejný.
+            const monthSpan = monthSpanDays(new Date())
+            const daysPerPost = monthSpan / postsForSpan(monthSpan, perWeek)
+            const spanDays = Math.max(1, Math.round(overdue.length * daysPerPost))
+            shiftSlots = distributeSchedule(overdue.length, { postsPerWeek: perWeek, timeSlots: times, spanDays })
         }
 
         const { toScheduledFor } = await import("@/lib/schedule-planner")

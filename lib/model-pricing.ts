@@ -72,6 +72,14 @@ const PRICES: Record<string, TokenPrice> = {
     // od 2026-09-01 zrušil. cachedIn 0.20 = řádek „Cache Hits & Refreshes".
     "claude-sonnet-5": { in: 2, out: 10, cachedIn: 0.20, source: "platform.claude.com/docs/en/about-claude/pricing, ověřeno 2026-08-31 (standardní sazba)" },
 
+    // ── Scenárista reelů ───────────────────────────────────────────────────────
+    // Nejdražší textový model v enginu a jediný, který běží na Opusu. Platí se za
+    // prvních 1,5 s reelu (docs/DESIGN_reels-v2_2026-09-12.md); proti videu
+    // (1,10–2,30 USD/reel) je to zaokrouhlovací chyba. cachedIn 0,50 = řádek
+    // „Cache Hits & Refreshes" (0,1× vstupu). Fast mode NEPOUŽÍVÁME — má vlastní
+    // sazbu 10/50 a scenárista běží uvnitř 800s jobu, kde latence nikoho netlačí.
+    "claude-opus-5": { in: 5, out: 25, cachedIn: 0.50, source: "platform.claude.com/docs/en/about-claude/pricing, ověřeno 2026-09-12" },
+
     // ── Ověřování faktů na webu ────────────────────────────────────────────────
     // Levný tier schválně: krok umí jen DOLOŽIT tvrzení citací, nikdy přepsat text
     // (instagram/fact-web.ts). Tokeny jsou tu navíc objemné — vrácené výsledky

@@ -35,11 +35,20 @@ export interface SlotIntent {
  * Visual modes → the designer's layout archetypes. Every LAYOUT_ARCHETYPES value appears
  * exactly once; if that list ever changes, this mapping must be updated with it (the engine
  * asserts membership, so an unmapped archetype simply never gets picked by a pattern).
+ *
+ * KAŽDÁ RODINA MUSÍ MÍT ≥ 4 ČLENY — a `scripts/test-feed-pattern.ts` to tvrdí. Zákaz
+ * archetypů z posledních postů se aplikuje UVNITŘ rodiny (viz `generateDesignBrief`);
+ * s dvoučlennou rodinou (což byl stav do 9/2026 u `typography` i `graphic`) ho stačilo
+ * vyčerpat dvěma posty, ban se musel zahodit a rodina se začala opakovat. Okno banu je
+ * dnes 5 postů, takže pod čtyřmi členy by se rodina vyprazdňovala prakticky pořád.
  */
 export const ARCHETYPE_GROUPS: Record<VisualMode, readonly string[]> = {
-    photo: ["full-bleed-photo", "candid-lifestyle", "editorial-magazine", "product-hero"],
-    typography: ["poster-typography", "type-driven"],
-    graphic: ["color-block-graphic", "split-layout"],
+    photo: [
+        "full-bleed-photo", "candid-lifestyle", "editorial-magazine", "product-hero",
+        "documentary-reportage", "product-flatlay", "texture-macro",
+    ],
+    typography: ["poster-typography", "type-driven", "quote-frame", "lettering-hand"],
+    graphic: ["color-block-graphic", "split-layout", "illustration-flat", "mockup-device", "infographic-data"],
 }
 
 export const VISUAL_MODE_LABELS: Record<VisualMode, { label: string; icon: string }> = {

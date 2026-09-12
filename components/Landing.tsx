@@ -10,6 +10,7 @@ import { ContactForm } from "@/components/ContactForm"
 import { Reveal } from "@/components/Reveal"
 import { fadeUp, SPRING, EASE_OUT } from "@/lib/motion"
 import { CONTACT_ANCHOR } from "@/lib/cta"
+import { countLabel, CREDITS } from "@/lib/plural"
 import { creditExample } from "@/lib/credits"
 import { REFERENCE_BRANDS } from "@/lib/reference-data"
 import { LEGAL, formatAddress, vatNotice } from "@/lib/legal"
@@ -550,7 +551,7 @@ export function Landing({
                   <li className="flex items-start gap-2.5 text-xs text-white/70">
                     <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 text-aisummit-cinnabar shrink-0" />
                     <span>
-                      {plan.creditsPerMonth} kreditů měsíčně
+                      {countLabel(plan.creditsPerMonth, CREDITS)} měsíčně
                       <span className="block text-[10px] text-white/35 font-medium mt-0.5">
                         {creditExample(plan.creditsPerMonth, { reels: reelsEnabled && plan.allowsReels })}
                       </span>

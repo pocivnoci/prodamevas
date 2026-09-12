@@ -75,6 +75,18 @@ export const MODELS = {
      *  Jen s ANTHROPIC_API_KEY (kill switch CLAUDE_DIRECTOR=off); jinak `textPro` Pro
      *  ladder se stejným JSON schématem. Env override: GEMINI_MODEL_REELDIRECTOR. */
     reelDirector: { primary: "claude-sonnet-5" },
+    /** Reelový SCENÁRISTA — Claude Opus 5 (`instagram/reel-scriptwriter.ts`). Píše hook,
+     *  beaty a narraci reelu místo copywritera; ten dál dodává námět, caption a hashtagy.
+     *  Proč nejvyšší tier zrovna tady: reel má jediný úkol — zastavit palec a udržet
+     *  pozornost do CTA — a rozhoduje o tom prvních 1,5 s, které se nedají opravit
+     *  střihem ani hlasem. Náklad ~0,10–0,20 USD na reel je proti ceně videa
+     *  (1,10–2,30 USD) zaokrouhlovací chyba (docs/DESIGN_reels-v2_2026-09-12.md).
+     *  Jiná rodina než copywriter (Gemini) ze stejného důvodu jako u soudce a režiséra.
+     *  Fallback je DRUHÝ Pro (Sonnet 5), nikdy flash — pravidlo „kvalita se nedegraduje
+     *  potichu"; po Sonnetu následuje Gemini `textPro` Pro ladder se stejným schématem.
+     *  Jen s ANTHROPIC_API_KEY (kill switch REEL_SCRIPTWRITER=off). Env override:
+     *  GEMINI_MODEL_REELSCRIPT / GEMINI_MODEL_REELSCRIPT_FALLBACK. */
+    reelScript: { primary: "claude-opus-5", fallback: "claude-sonnet-5" },
     /** Czech voiceover */
     tts: { primary: "gemini-3.1-flash-tts-preview", fallback: "gemini-2.5-flash-preview-tts" },
     /** Cross-family JUDGE — Anthropic Claude for the Critic + Chief Editor (the design rule:

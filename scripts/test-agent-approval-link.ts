@@ -8,7 +8,8 @@
  */
 
 import { approvalLinkUrl, signApprovalLink, verifyApprovalLink } from "../lib/agent-approval-link"
-import { buildLifecycleEmail, type LifecycleKind } from "../lib/agents/lifecycle"
+// Znění bez DB — `lifecycle.ts` tahá Supabase a bez .env.local by skript spadl.
+import { buildLifecycleEmail, type LifecycleKind } from "../lib/agents/lifecycle-templates"
 
 let failures = 0
 function check(name: string, ok: boolean, detail = "") {
@@ -63,14 +64,18 @@ const actionId = "11111111-2222-3333-4444-555555555555"
 
 // ── Lifecycle templates ─────────────────────────────────────────────────────
 for (const kind of ["activation_nudge", "credit_low", "winback", "waitlist_drip"] as LifecycleKind[]) {
-    const { subject, body } = buildLifecycleEmail(kind, {
+    const msg = buildLifecycleEmail(kind, {
         clientName: "Testovací klient", clientId: actionId, creditsRemaining: 2, creditsTotal: 45,
     })
-    check(`template ${kind}`, subject.length > 0 && body.length > 40, subject)
+    check(`template ${kind}`, !!msg && msg.subject.length > 0 && msg.body.length > 40, msg?.subject)
 }
 {
-    const { body } = buildLifecycleEmail("credit_low", { creditsRemaining: 2, creditsTotal: 45 })
-    check("credit_low carries numbers", body.includes("2") && body.includes("45"))
+    const msg = buildLifecycleEmail("credit_low", { creditsRemaining: 2, creditsTotal: 45 })
+    check("credit_low carries numbers", !!msg && msg.body.includes("2") && msg.body.includes("45"))
+}
+{
+    // Bez čísel se e-mail neposílá vůbec — „zbývá málo z ?" je horší než mlčení.
+    check("credit_low bez čísel se neposílá", buildLifecycleEmail("credit_low", { clientName: "Testovací klient" }) === null)
 }
 
 console.log(failures === 0 ? "\n🎉 Vše prošlo." : `\n💥 ${failures} selhání.`)

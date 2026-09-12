@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, upsertPostFormat, removePostFormat, suggestPostFormat, recommendFeedPattern, suggestBrandFacts, type PostFormatInput } from "@/app/actions/config-actions"
+import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, upsertPostFormat, removePostFormat, suggestPostFormat, recommendFeedPattern, suggestBrandFacts, previewVoice, type PostFormatInput } from "@/app/actions/config-actions"
 import { syncConfigProductsToDb } from "@/app/actions/product-actions"
 import { CatalogSection } from "./products/CatalogSection"
 import { generateCategoryPrompt } from "@/app/actions/content-plan-actions"
@@ -14,6 +14,8 @@ import { isReelMedium, REEL_LABELS } from "@/lib/reel-media"
 import { ConsultationSection } from "./ConsultationSection"
 import { FEED_PATTERNS, computeSlotIntent, type FeedPatternId } from "@/lib/feed-pattern"
 import { PHOTO_POLICY_OPTIONS } from "@/lib/photo-policy"
+import { VOICE_LIBRARY, findVoice } from "@/lib/voice-library"
+import { SUBTITLE_PRESET_OPTIONS, SUBTITLE_POSITION_OPTIONS, SUBTITLE_SIZE_OPTIONS } from "@/lib/subtitle-presets"
 import { getConfigBrandImages } from "@/instagram/configs/types"
 import { Hint, HINTS } from "./Hint"
 import { FACT_CHECK_MODES, factCheckModeIndex } from "@/lib/fact-check-modes"
@@ -476,6 +478,10 @@ function VoiceSection({ config, updateField, updateArrayField, projectId }: {
                 </div>
             </SectionCard>
 
+            <SectionCard title="Hlas značky" description="Kterým hlasem mluví voiceover ve vašich reelech">
+                <BrandVoicePicker config={config} updateField={updateField} projectId={projectId} />
+            </SectionCard>
+
             <SectionCard title="CTA Variace" description="Výzvy k akci které AI používá v příspěvcích">
                 <div>
                     <FieldLabel hint="Oddělené čárkou — AI si vybírá podle kontextu">CTA fráze</FieldLabel>
@@ -498,6 +504,85 @@ function VoiceSection({ config, updateField, updateArrayField, projectId }: {
 }
 
 /**
+ * Výběr hlasu značky.
+ *
+ * Ukázka se přehrává až na kliknutí, ne na najetí: syntéza prvního poslechu stojí
+ * volání TTS (pak už je v bucketu pro celou flotilu) a automatické spouštění zvuku
+ * v aplikaci nikdo nechce. Vybraný hlas se ukládá společným tlačítkem „Uložit"
+ * nahoře, stejně jako zbytek nastavení.
+ */
+function BrandVoicePicker({ config, updateField, projectId }: {
+    config: any
+    updateField: (p: string[], v: any) => void
+    projectId: string
+}) {
+    const selectedId: string | undefined = config.voice?.voiceId
+    const [playing, setPlaying] = useState<string | null>(null)
+    const [error, setError] = useState<string | null>(null)
+
+    const play = async (voiceId: string) => {
+        setError(null)
+        setPlaying(voiceId)
+        try {
+            const res = await previewVoice(projectId, voiceId)
+            if (!res.success || !res.url) throw new Error(res.error || "Ukázku se nepodařilo připravit")
+            const audio = new Audio(res.url)
+            audio.onended = () => setPlaying(null)
+            audio.onerror = () => { setError("Ukázku nejde přehrát"); setPlaying(null) }
+            await audio.play()
+        } catch (err: any) {
+            setError(err?.message || String(err))
+            setPlaying(null)
+        }
+    }
+
+    return (
+        <div className="space-y-3">
+            <p className="text-[10px] text-white/40 leading-relaxed">
+                Hlas vybíráme podle persony a oboru už při onboardingu — tady ho můžete přebít.
+                První poslech se chvíli připravuje, další je okamžitý.
+            </p>
+            {error && (
+                <p className="text-[10px] font-bold uppercase tracking-widest text-red-400">{error}</p>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {VOICE_LIBRARY.map(v => {
+                    const active = v.id === selectedId
+                    return (
+                        <div key={v.id}
+                            className={`flex items-start gap-3 p-3 rounded-sm border transition-all ${
+                                active ? "bg-emerald-500/10 border-emerald-500/30" : "bg-white/[0.02] border-white/5 hover:border-white/15"
+                            }`}>
+                            <button
+                                onClick={() => updateField(["voice"], { ...(config.voice || {}), provider: v.provider, voiceId: v.id })}
+                                className="flex-1 text-left cursor-pointer"
+                            >
+                                <span className={`block text-[11px] font-black uppercase tracking-widest ${active ? "text-emerald-400" : "text-white/80"}`}>
+                                    {v.id}
+                                </span>
+                                <span className="block text-[10px] text-white/40 mt-1 leading-snug">{v.label}</span>
+                            </button>
+                            <button
+                                onClick={() => play(v.id)}
+                                disabled={playing !== null}
+                                className="shrink-0 px-3 py-2 rounded-sm border border-white/10 bg-white/5 hover:bg-white/10 text-[9px] font-bold uppercase tracking-widest text-white/60 disabled:opacity-40 cursor-pointer"
+                            >
+                                {playing === v.id ? "Hraje…" : "Poslechnout"}
+                            </button>
+                        </div>
+                    )
+                })}
+            </div>
+            {selectedId && !findVoice(selectedId) && (
+                <p className="text-[10px] text-amber-400/80">
+                    Uložený hlas „{selectedId}" v knihovně není — po uložení se vybere znovu podle značky.
+                </p>
+            )}
+        </div>
+    )
+}
+
+/**
  * Editor ověřených faktů.
  *
  * Fakt je řádek, volitelně `tvrzení | zdroj`. Textarea, ne formulář s poli: seznam
@@ -510,6 +595,7 @@ function VoiceSection({ config, updateField, updateArrayField, projectId }: {
 function FactsEditor({ config, updateField, projectId }: { config: any; updateField: (p: string[], v: any) => void; projectId: string }) {
     const facts: { text: string; source?: string; verifiedAt?: string }[] = config.brandFacts || []
     const modeIndex = factCheckModeIndex(config.factCheckMode ?? (config.factCheck === false ? "off" : undefined))
+    const publishFlagged = config.publishFlaggedPosts === true
     const [scanning, setScanning] = useState(false)
     const [scanMsg, setScanMsg] = useState<string | null>(null)
 
@@ -618,6 +704,28 @@ function FactsEditor({ config, updateField, projectId }: { config: any; updateFi
                 <p className="text-[10px] text-white/50 mt-3 bg-white/5 border border-white/10 rounded-sm px-3 py-2">
                     {FACT_CHECK_MODES[modeIndex].detail}
                 </p>
+
+                {/* Auto-publikování je bezobslužné: bez tohohle přepínače by označený
+                    příspěvek odešel na Instagram dřív, než ho kdokoli uvidí. Default
+                    je „počká na vás" — zapnout to jde, ale vědomě. */}
+                <div className="flex items-center justify-between gap-4 mt-5">
+                    <div>
+                        <p className="text-xs text-white/70 font-bold">Publikovat i příspěvky s neověřeným tvrzením</p>
+                        <p className="text-[9px] text-white/30 mt-0.5">
+                            Vypnuto: označený příspěvek se sám nezveřejní a počká, až tvrzení potvrdíte
+                            nebo smažete. Jednou denně vám o čekajících pošleme e-mail.
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => updateField(["publishFlaggedPosts"], !publishFlagged)}
+                        role="switch"
+                        aria-checked={publishFlagged}
+                        aria-label="Publikovat i příspěvky s neověřeným tvrzením"
+                        className={`shrink-0 relative w-12 h-6 rounded-full transition-colors border ${publishFlagged ? "bg-amber-500/30 border-amber-500/50" : "bg-white/5 border-white/15"}`}
+                    >
+                        <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${publishFlagged ? "left-6 bg-amber-400" : "left-0.5 bg-white/40"}`} />
+                    </button>
+                </div>
             </div>
         </div>
     )
@@ -1553,6 +1661,69 @@ function VisualSection({ config, updateField, handleLogoUpload, logoUploading, p
                             Zatím nemáte nahranou ani jednu fotku značky — do té doby se nastavení nemá čeho chytit.
                         </span>
                     )}
+                </p>
+            </SectionCard>
+
+            <SectionCard
+                title="Titulky v reelech"
+                description="Vzhled titulků, které se vypalují do videa. Platí pro nové reely; u hotového reelu se dá styl přepnout v detailu příspěvku (bez kreditů)"
+            >
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {SUBTITLE_PRESET_OPTIONS.map(o => {
+                        const active = (config.subtitleStyle?.preset || "classic") === o.id
+                        return (
+                            <button
+                                key={o.id}
+                                onClick={() => updateField(["subtitleStyle", "preset"], o.id)}
+                                className={`text-left p-4 rounded-sm border transition-all ${active
+                                    ? "border-aisummit-cinnabar/50 bg-aisummit-cinnabar/10"
+                                    : "border-white/5 bg-[#0a0a0a] hover:border-white/20"}`}
+                            >
+                                <p className={`text-[10px] font-bold uppercase tracking-widest ${active ? "text-aisummit-cinnabar" : "text-white/60"}`}>
+                                    {o.label}
+                                </p>
+                                <p className="text-[9px] text-white/30 mt-1.5 leading-relaxed">{o.description}</p>
+                            </button>
+                        )
+                    })}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                        <FieldLabel hint="Svisle v bezpečné zóně Instagramu — dole nad UI lištou, na střed, nebo nahoře">Pozice</FieldLabel>
+                        <select value={config.subtitleStyle?.position || "bottom"}
+                            onChange={(e) => updateField(["subtitleStyle", "position"], e.target.value)}
+                            className={inputClass}>
+                            {SUBTITLE_POSITION_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <FieldLabel hint="Větší písmo = míň slov na řádek, karty se střídají rychleji">Velikost</FieldLabel>
+                        <select value={config.subtitleStyle?.size || "m"}
+                            onChange={(e) => updateField(["subtitleStyle", "size"], e.target.value)}
+                            className={inputClass}>
+                            {SUBTITLE_SIZE_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                        </select>
+                    </div>
+                </div>
+                <label className="flex items-start gap-2.5 cursor-pointer mt-4 pt-4 border-t border-white/5">
+                    <input
+                        type="checkbox"
+                        checked={(config.reelModes ?? ["voiceover", "text"]).includes("text")}
+                        onChange={(e) => updateField(["reelModes"], e.target.checked ? ["voiceover", "text"] : ["voiceover"])}
+                        className="mt-0.5 accent-emerald-500"
+                    />
+                    <span className="text-[10px] text-white/40 leading-relaxed">
+                        Povolit reely bez hlasu
+                        <span className="block text-white/25">
+                            Scenárista pak u vizuálních námětů (jídlo, interiér, proměna) může místo vypravěče zvolit
+                            <strong className="text-white/40"> textové karty a hudbu</strong>. Stojí stejně jako reel s hlasem.
+                        </span>
+                    </span>
+                </label>
+                <p className="text-[9px] text-white/25 mt-3 leading-relaxed">
+                    Instagram u reelu titulkovou stopu nebere — titulky se <strong className="text-white/40">vypalují do obrazu</strong>.
+                    Změna se proto projeví až na nově vyrobeném reelu; u hotového reelu ho jde přerenderovat v detailu příspěvku,
+                    a to zdarma (nové video se negeneruje).
                 </p>
             </SectionCard>
 

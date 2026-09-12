@@ -6,12 +6,17 @@
 
 import { isSuperAdminEmail } from "../../lib/super-admins"
 import supabaseAdmin from "../../supabase/admin"
-import type { ClientConfig } from "./types"
+import type { ClientConfig, BrandVoiceCasting } from "./types"
 import { FORMAT_BRIEF_LIMITS } from "./types"
 import { isPhotoPolicy } from "../../lib/photo-policy"
 import { findFinishedCopy } from "./format-brief"
 import { reconcileFormats } from "./reconcile"
 import { isFeedPattern } from "../../lib/feed-pattern"
+import { castVoice, isKnownVoice, type TtsProviderId } from "../../lib/voice-library"
+import { clampSubtitleStyle } from "../reel-subtitles"
+import { clampReelModes } from "../../lib/reel-media"
+import { industryRiskFamily } from "../../lib/industry-risk"
+import { resolveIndustryVisual } from "../industry-visual-profiles"
 import { CAROUSEL_MAX_TOTAL_SLIDES } from "../caption-generator"
 
 export interface ClientMeta {
@@ -200,6 +205,31 @@ function normalizeHandle(raw: string | undefined, slug: string): string {
     return ""
 }
 
+/**
+ * Hlas značky. Pořadí je záměrné: uložený výběr klienta > starý `ttsVoice`
+ * (migrace) > DETERMINISTICKÝ CASTING z persony, oboru a publika.
+ *
+ * Poslední krok je to podstatné — kdyby default byla konstanta, vrátili bychom se
+ * do stavu, kdy „Kore" mluví za kavárnu i za izolatéra. Casting je čistá funkce
+ * (`lib/voice-library.ts`), takže stejná značka dostane týž hlas při každém načtení
+ * configu; jméno značky je v seedu, aby dva cold configy bez persony a oboru
+ * neskončily na jednom hlase.
+ */
+function resolveVoice(config: ClientConfig, slug: string): BrandVoiceCasting {
+    const provider: TtsProviderId = config.voice?.provider === "elevenlabs" ? "elevenlabs" : "gemini"
+    const chosen = config.voice?.voiceId
+    const legacy = config.ttsVoice
+    const voiceId = isKnownVoice(chosen) ? chosen!
+        : isKnownVoice(legacy) ? legacy!
+            : castVoice({
+                persona: config.brandVoice?.persona,
+                industry: config.industry,
+                audience: (config.audiencePersonas || []).map(p => `${p.label} ${p.ageRange}`).join(" "),
+                brand: config.name || slug,
+            }, provider)
+    return { provider, voiceId, style: config.voice?.style }
+}
+
 function validateConfig(config: ClientConfig, slug: string): ClientConfig {
     // reconcileFormats self-heals the four format sources on every load — drift
     // (e.g. a format orphaned by a deleted pillar) never reaches the pipeline.
@@ -232,6 +262,8 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
             toneByPostType: config.brandVoice?.toneByPostType ?? {},
         },
         contentPillars: config.contentPillars || {},
+        // Hlas značky — viz resolveVoice(). Nikdy konstanta pro všechny.
+        voice: resolveVoice(config, slug),
         // Voice anchor (few-shot). Optional feature — default to empty so the copywriter
         // prompt simply omits the section until the brand has curated/auto-promoted examples.
         brandVoiceExamples: config.brandVoiceExamples || [],
@@ -245,9 +277,20 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // Posuvník opatrnosti. Starý boolean zůstává zdrojem jen pro klienty, kteří
         // ho stihli vypnout — jinak vyhrává mode. Neznámá hodnota spadne na default,
         // ne do pipeline: brána větví podle režimu a nesmí dostat nesmysl.
+        // U rizikového oboru (finance, zdraví, technika/řemeslo) je výchozí režim
+        // `safe`, ne `balanced`: nepodložený parametr vlastní práce („vydrží 4 bary",
+        // „záruka 10 let") není nudný post, ale reklamační podklad — a ten se nesmí
+        // spolehnout na to, že si klient posuvník sám přitáhne. Je to CLAMP jen na
+        // default: hodnota, kterou uživatel skutečně nastavil, má přednost a nepřepisuje
+        // se (jinak by se přepínač v Nastavení tvářil jako rozbitý).
         factCheckMode: (["off", "safe", "balanced", "bold"] as const).includes(config.factCheckMode as never)
             ? config.factCheckMode
-            : config.factCheck === false ? "off" : "balanced",
+            : config.factCheck === false ? "off"
+                : industryRiskFamily(config.industry) ? "safe" : "balanced",
+        // Smí ven i příspěvek, kterému brána nechala nepodložené tvrzení? Default NE:
+        // auto-publikování je bezobslužné, takže označený post by odešel jménem klienta
+        // dřív, než ho kdokoli uvidí. Zapnutí je vědomé rozhodnutí v Nastavení.
+        publishFlaggedPosts: config.publishFlaggedPosts ?? false,
         ctaStrategies: config.ctaStrategies || { soft: [], medium: [], hard: [], none: [] },
         feedAesthetic: config.feedAesthetic || {
             colorPalette: "Neutrální",
@@ -257,9 +300,24 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
             feel: "Moderní a čistý",
             phoneModel: "iPhone 16 Pro",
         },
+        // Oborová vizuální identita. Uložený profil vyhrává (uživatel/onboarding ho mohl
+        // upravit), jinak se odvodí z `industry`. Neznámý obor = undefined = dnešní chování
+        // s natvrdo psaným fallbackem v image-pipeline; NIKDY náhradní obor, protože cizí
+        // žánr je horší než žádný.
+        industryVisual: config.industryVisual ?? resolveIndustryVisual(config.industry),
         // Grid rhythm. Clamped, not defaulted-through: engine code indexes ARCHETYPE_GROUPS by
         // the derived visual mode, so a garbage value must never reach it.
         feedPattern: isFeedPattern(config.feedPattern) ? config.feedPattern : "none",
+        // Vzhled vypálených titulků v reelech. Clamp, ne default-through: `buildAss`
+        // skládá z presetu ASS styl a neznámou hodnotu by poznal až divák na videu.
+        // Default `classic` dole uprostřed ve střední velikosti = dnešní vzhled, takže
+        // značka, která o poli neví, dostane přesně to, co dostávala dosud.
+        subtitleStyle: clampSubtitleStyle(config.subtitleStyle),
+        // Povolené režimy reelu. Default OBOJÍ: textový reel (karty + hudba, bez TTS)
+        // je rovnocenný formát, ne experiment — u vizuálních oborů vychází líp než
+        // vypravěč nad obrazem. Clamp, ne default-through: scenárista podle seznamu
+        // větví prompt a orchestrátor podle režimu vynechává TTS.
+        reelModes: clampReelModes(config.reelModes),
         // Kolik smí být na obrázcích vymyšleno. Clamp, ne default-through: engine
         // podle hodnoty větví prompt i roli referenčních fotek, takže se k němu
         // nesmí dostat nic mimo tři známé stavy.
@@ -299,6 +357,9 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // Souhlas klienta s ukázkou ve výloze. Default false — publikovat cizí značku
         // se souhlasem, který nikdo nedal, je horší než ji neukázat vůbec.
         isCaseStudy: config.isCaseStudy === true,
+        // Razítko anonymizace nemá default — `undefined` znamená „živá značka".
+        // Vyplněné je jen u řádků, které přežily kvůli dokladům.
+        anonymizedAt: config.anonymizedAt,
     })
 }
 

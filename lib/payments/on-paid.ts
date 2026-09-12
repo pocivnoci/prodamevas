@@ -22,8 +22,10 @@
 
 import { after } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
+import { vatNotice } from "@/lib/legal"
 // Konvence refId, ne klient brány — jádro nesmí záviset na jedné z bran.
 import { isRenewalRefId } from "@/lib/payments/ref-id"
+import { countLabel, CREDITS } from "@/lib/plural"
 
 export type PaymentProvider = "comgate" | "stripe"
 
@@ -116,7 +118,7 @@ async function grantPurchasedCredits(payment: PaidPaymentRow): Promise<boolean> 
         client_id: payment.client_id,
         action: TOPUP_ACTION,
         credits: -credits, // záporně = přírůstek
-        description: `Dobití ${credits} kreditů`,
+        description: `Dobití: ${countLabel(credits, CREDITS)}`,
         reference_id: payment.id,
     })
 
@@ -125,7 +127,7 @@ async function grantPurchasedCredits(payment: PaidPaymentRow): Promise<boolean> 
         console.error(`🚨 Kredity z platby ${payment.id} se nepřipsaly: ${error.message}`)
         return false
     }
-    console.log(`⚡ Připsáno ${credits} kreditů klientovi ${payment.client_id}`)
+    console.log(`⚡ Připsáno: ${countLabel(credits, CREDITS)} klientovi ${payment.client_id}`)
     return true
 }
 
@@ -285,10 +287,10 @@ export async function deliverPaidArtifacts(
             await sendNotification({
                 to,
                 kind: "transactional",
-                subject: `Připsáno ${payment.credits_granted} kreditů`,
+                subject: `Připsáno: ${countLabel(payment.credits_granted ?? 0, CREDITS)}`,
                 body: `Dobrý den,
 
-na váš účet jsme připsali <strong>${payment.credits_granted} kreditů</strong>. Můžete rovnou pokračovat v generování — nic dalšího dělat nemusíte.
+na váš účet jsme připsali <strong>${countLabel(payment.credits_granted ?? 0, CREDITS)}</strong>. Můžete rovnou pokračovat v generování — nic dalšího dělat nemusíte.
 
 Kredity platí do konce probíhajícího kreditového období, stejně jako ty z tarifu.
 
@@ -333,8 +335,13 @@ Tým Chrlit`,
             .maybeSingle()
         if (planRow?.name) planName = planRow.name
 
+        // Haléře na koruny převádí jedině `formatCzk()`. Ruční dělení stem tady
+        // zaokrouhlení vynechávalo, takže v potvrzení stálo „3 628,79 Kč",
+        // zatímco doklad i ceník mluví v celých korunách. Jeden převod, jedno číslo.
+        const { formatCzk, formatCzkAmount } = await import("@/lib/pricing")
+        const isCzk = payment.currency === "CZK" || !payment.currency
         const amountStr = typeof payment.amount === "number"
-            ? `${(payment.amount / 100).toLocaleString("cs-CZ")} ${payment.currency === "CZK" || !payment.currency ? "Kč" : payment.currency}`
+            ? isCzk ? formatCzk(payment.amount) : `${formatCzkAmount(payment.amount)} ${payment.currency}`
             : null
 
         await sendNotification({
@@ -353,7 +360,7 @@ ${invoiceLine}
 
 <a href="${siteUrl()}/dashboard/instagram">Přejít do studia →</a>
 
-Tým Chrlit`,
+Tým Chrlit${amountStr ? `\n\n<small>${vatNotice()}</small>` : ""}`,
         })
     } catch (err: any) {
         console.warn(`on-paid: doručení dokladu/potvrzení selhalo: ${err?.message}`)
