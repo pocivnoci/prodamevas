@@ -9,6 +9,11 @@
  *   npx tsx scripts/smoke-seedance-dialogue.ts              # česky (~0,80 USD za 8 s)
  *   npx tsx scripts/smoke-seedance-dialogue.ts --lang=en    # totéž anglicky pro srovnání
  *
+ * Z cloudové session Claude Code: klíč je jako „API credential" prostředí a proxy ho
+ * připojí sama — v env je jen `ARK_API_KEY=proxy` a skript pak žádnou Authorization
+ * hlavičku neposílá (dvě by se přetahovaly). Stažení videa jde z jiného hostu než API;
+ * když ho síť nepustí, skript vypíše URL a skončí — video si stáhnete ručně.
+ *
  * Otázka, na kterou odpovídá: Seedance 2.5 umí podle veřejných zdrojů nativní dialog
  * s lip-syncem (EN, ZH, JA, KO, ES, FR, DE, PT — čeština v seznamu NENÍ). Náš
  * produkční prompt řeč výslovně zakazuje, takže to nikdo nikdy nezkusil. Tenhle
@@ -54,6 +59,28 @@ function buildPrompt(lang: "cs" | "en"): string {
     ].join("\n")
 }
 
+/**
+ * `ARK_API_KEY=proxy` = klíč připojuje agent proxy cloudového prostředí (API credential);
+ * vlastní hlavičku pak NEPOSÍLAT, jinak by se s tou od proxy přetahovala.
+ */
+function arkHeaders(key: string): Record<string, string> {
+    const h: Record<string, string> = { "Content-Type": "application/json" }
+    if (key !== "proxy") h.Authorization = `Bearer ${key}`
+    return h
+}
+
+/** Výsledné video leží na jiném hostu než API; zavřená síť ho nemusí pustit. */
+async function downloadVideo(url: string): Promise<Buffer | null> {
+    try {
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return Buffer.from(await res.arrayBuffer())
+    } catch (err) {
+        console.error(`⚠️ Video se nepodařilo stáhnout (${(err as Error).message}). Otevři URL výše v prohlížeči — úloha proběhla, jen síť tady nepustí host s výsledkem.`)
+        return null
+    }
+}
+
 async function main() {
     const dry = process.argv.includes("--dry")
     const lang = (process.argv.find(a => a.startsWith("--lang="))?.split("=")[1] === "en" ? "en" : "cs") as "cs" | "en"
@@ -74,7 +101,7 @@ async function main() {
 
     const key = process.env.ARK_API_KEY
     if (!key) { console.error("❌ ARK_API_KEY chybí"); process.exit(1) }
-    const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }
+    const headers = arkHeaders(key)
 
     const submit = await fetch(`${BASE_URL}/contents/generations/tasks`, { method: "POST", headers, body: JSON.stringify(body) })
     const submitText = await submit.text()
@@ -99,7 +126,8 @@ async function main() {
     if (!videoUrl) { console.error("❌ Úloha nedoběhla v rozpočtu"); process.exit(1) }
 
     console.log(`🔗 URL videa: ${videoUrl}`)
-    const mp4 = Buffer.from(await (await fetch(videoUrl)).arrayBuffer())
+    const mp4 = await downloadVideo(videoUrl)
+    if (!mp4) return
     mkdirSync(OUT_DIR, { recursive: true })
     const out = `${OUT_DIR}/seedance-dialogue-${lang}-${Date.now()}.mp4`
     writeFileSync(out, mp4)

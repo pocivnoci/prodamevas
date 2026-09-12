@@ -9,6 +9,11 @@
  *   npx tsx scripts/smoke-reel-voice.ts                 # všech 30 hlasů (~30 volání TTS)
  *   npx tsx scripts/smoke-reel-voice.ts --voice=Sulafat,Kore
  *   npx tsx scripts/smoke-reel-voice.ts --force         # přegeneruje i to, co v bucketu je
+ *   npx tsx scripts/smoke-reel-voice.ts --local         # bez Supabase: WAV do audit-screenshots/spike/voices/
+ *
+ * Z cloudové session Claude Code: `GEMINI_API_KEY=proxy` = klíč připojí proxy prostředí
+ * (API credential) a skript volá Gemini surovým fetch bez hlavičky; `--local` obchází
+ * Supabase storage, které z té sítě není dosažitelné.
  *
  * Seznam hlasů je tu SCHVÁLNĚ zkopírovaný a ne naimportovaný z `lib/voice-library.ts`:
  * spike skripty nesmí záviset na produkčním kódu (hlídá to aserce v `npm run guard`),
@@ -16,6 +21,7 @@
  * dopiš ho sem.
  */
 
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs"
 import { GoogleGenAI } from "@google/genai"
 import { createClient } from "@supabase/supabase-js"
 import dotenv from "dotenv"
@@ -23,6 +29,7 @@ import dotenv from "dotenv"
 dotenv.config({ path: ".env.local" })
 
 const BUCKET = process.env.SPIKE_BUCKET || "voice-samples"
+const LOCAL_DIR = "audit-screenshots/spike/voices"
 const TTS_MODEL = process.env.SPIKE_TTS_MODEL || "gemini-3.1-flash-tts-preview"
 
 const SENTENCES = [
@@ -56,51 +63,83 @@ function seconds(buf: Buffer): number {
     return Math.round((buf.readUInt32LE(40) / byteRate) * 100) / 100
 }
 
+/** Jedna syntéza: SDK s klíčem, nebo surový fetch, když klíč připojuje proxy prostředí. */
+async function synthesize(apiKey: string, voice: string): Promise<Buffer> {
+    const speechConfig = { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
+    let res: any
+    if (apiKey === "proxy") {
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL}:generateContent`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts: [{ text: SENTENCES.join(" ") }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig } }),
+        })
+        const text = await r.text()
+        if (!r.ok) throw new Error(`Gemini TTS ${r.status}: ${text.slice(0, 200)}`)
+        res = JSON.parse(text)
+    } else {
+        const ai = new GoogleGenAI({ apiKey })
+        res = await ai.models.generateContent({
+            model: TTS_MODEL,
+            contents: SENTENCES.join(" "),
+            config: { responseModalities: ["AUDIO"], speechConfig } as any,
+        })
+    }
+    const inline = res?.candidates?.[0]?.content?.parts?.[0]?.inlineData
+    if (!inline?.data) throw new Error("TTS nevrátilo audio")
+    const raw = Buffer.from(inline.data, "base64")
+    return raw.subarray(0, 4).toString("latin1") === "RIFF" ? raw : wav(raw)
+}
+
 async function main() {
     const only = (process.argv.find(a => a.startsWith("--voice="))?.split("=")[1] || "")
         .split(",").map(s => s.trim()).filter(Boolean)
     const force = process.argv.includes("--force")
+    const local = process.argv.includes("--local")
     const voices = only.length ? VOICES.filter(v => only.includes(v)) : VOICES
     if (voices.length === 0) { console.error(`❌ Žádný ze zadaných hlasů neznám: ${only.join(", ")}`); process.exit(1) }
 
     const apiKey = process.env.GEMINI_API_KEY
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!apiKey || !url || !key) { console.error("❌ Chybí GEMINI_API_KEY / NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY"); process.exit(1) }
+    if (!apiKey) { console.error("❌ Chybí GEMINI_API_KEY"); process.exit(1) }
+    if (!local && (!url || !key)) { console.error("❌ Chybí NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY (nebo použij --local)"); process.exit(1) }
 
-    const ai = new GoogleGenAI({ apiKey })
-    const supabase = createClient(url, key)
-    await supabase.storage.createBucket(BUCKET, { public: true, allowedMimeTypes: ["audio/wav"], fileSizeLimit: 5 * 1024 * 1024 })
+    const supabase = local ? null : createClient(url!, key!)
+    if (supabase) await supabase.storage.createBucket(BUCKET, { public: true, allowedMimeTypes: ["audio/wav"], fileSizeLimit: 5 * 1024 * 1024 })
+    if (local) mkdirSync(LOCAL_DIR, { recursive: true })
 
     const rows: { voice: string; seconds: number; url: string }[] = []
     for (const voice of voices) {
         const path = `spike-${voice}.wav`
         try {
+            if (local) {
+                const file = `${LOCAL_DIR}/${path}`
+                if (!force && existsSync(file)) {
+                    const buf = readFileSync(file)
+                    rows.push({ voice, seconds: seconds(buf), url: file })
+                    console.log(`   ↺ ${voice} — už na disku`)
+                    continue
+                }
+                const buf = await synthesize(apiKey, voice)
+                writeFileSync(file, buf)
+                rows.push({ voice, seconds: seconds(buf), url: file })
+                console.log(`   ✅ ${voice} — ${seconds(buf)} s`)
+                continue
+            }
             if (!force) {
-                const { data } = await supabase.storage.from(BUCKET).list("", { search: path })
+                const { data } = await supabase!.storage.from(BUCKET).list("", { search: path })
                 if (data?.some(f => f.name === path)) {
-                    const dl = await supabase.storage.from(BUCKET).download(path)
+                    const dl = await supabase!.storage.from(BUCKET).download(path)
                     const buf = Buffer.from(await dl.data!.arrayBuffer())
-                    rows.push({ voice, seconds: seconds(buf), url: supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl })
+                    rows.push({ voice, seconds: seconds(buf), url: supabase!.storage.from(BUCKET).getPublicUrl(path).data.publicUrl })
                     console.log(`   ↺ ${voice} — už v bucketu`)
                     continue
                 }
             }
-            const res: any = await ai.models.generateContent({
-                model: TTS_MODEL,
-                contents: SENTENCES.join(" "),
-                config: {
-                    responseModalities: ["AUDIO"],
-                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
-                } as any,
-            })
-            const inline = res?.candidates?.[0]?.content?.parts?.[0]?.inlineData
-            if (!inline?.data) throw new Error("TTS nevrátilo audio")
-            const raw = Buffer.from(inline.data, "base64")
-            const buf = raw.subarray(0, 4).toString("latin1") === "RIFF" ? raw : wav(raw)
-            const { error } = await supabase.storage.from(BUCKET).upload(path, buf, { contentType: "audio/wav", upsert: true })
+            const buf = await synthesize(apiKey, voice)
+            const { error } = await supabase!.storage.from(BUCKET).upload(path, buf, { contentType: "audio/wav", upsert: true })
             if (error) throw error
-            rows.push({ voice, seconds: seconds(buf), url: supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl })
+            rows.push({ voice, seconds: seconds(buf), url: supabase!.storage.from(BUCKET).getPublicUrl(path).data.publicUrl })
             console.log(`   ✅ ${voice} — ${seconds(buf)} s`)
         } catch (err) {
             console.log(`   ❌ ${voice} — ${(err as Error).message?.slice(0, 120)}`)
@@ -108,7 +147,7 @@ async function main() {
     }
 
     console.log(`\n📊 ${rows.length}/${voices.length} hlasů, stejný text (${SENTENCES.join(" ").split(/\s+/).length} slov)\n`)
-    console.log("HLAS".padEnd(16) + "DÉLKA".padEnd(9) + "URL")
+    console.log("HLAS".padEnd(16) + "DÉLKA".padEnd(9) + (local ? "SOUBOR" : "URL"))
     for (const r of rows.sort((a, b) => a.seconds - b.seconds)) {
         console.log(r.voice.padEnd(16) + `${r.seconds} s`.padEnd(9) + r.url)
     }
