@@ -320,24 +320,52 @@ async function generateContentPlanInner(
         // keeps the historical ¼ so an unspecified brief behaves exactly as before.
         const CAROUSEL_DIVISOR: Record<CarouselShare, number> = { low: 6, auto: 4, high: 2 }
         const carouselCap = Math.floor(count / CAROUSEL_DIVISOR[carouselShare || "auto"])
+        // Tarif rozhoduje o médiích STEJNĚ jako worker (`allowed_media`): co tarif
+        // nedovolí, plán nenabídne. Agro-invest 12. 9. 2026: náhled sliboval čtyři
+        // reely, tarif trial je nedovoluje, worker je překlopil na karusel — a z prvních
+        // sedmi postů bylo šest karuselů. Náhled musí ukazovat, co se doopravdy vyrobí.
+        let allowedMedia: string[] | undefined
+        try {
+            const { getClientSubscription } = await import("@/lib/subscription")
+            allowedMedia = (await getClientSubscription(clientId))?.features?.allowed_media
+        } catch (e: any) {
+            console.warn(`📋 [content-plan] tarif se nepodařilo přečíst — média bez omezení tarifem: ${e?.message}`)
+        }
+        const mediumAvailable = (m: PlanMedium): boolean =>
+            !isReelMedium(m) || (process.env.REELS_ENABLED === "1" && (!allowedMedia || allowedMedia.includes(m)))
         const effectiveMediums: PlanMedium[] = (() => {
             let carouselsKept = 0
-            return typeSequence.map((typeName, i) => {
+            let prev: PlanMedium | undefined
+            let demotedReels = 0
+            let splitRuns = 0
+            const out = typeSequence.map((typeName, i) => {
                 const configured = getPostFormat(config, typeName).medium
                 // v2: stories in content plans. Until then a story-format post type planned
                 // into a batch renders as a single image — the plan preview, the calendar and
                 // the campaign worker all assume feed media, and a story would silently eat a
                 // feed slot it never appears in.
                 let m: PlanMedium = configured === "story" ? "image" : configured
-                if (process.env.REELS_ENABLED !== "1" && isReelMedium(m)) {
+                if (!mediumAvailable(m)) {
                     m = i % 3 === 0 ? "carousel" : "image"
+                    demotedReels++
+                }
+                // Dva karusely za sebou stačí, tři ne: týdenní rotace začíná karuselovými
+                // typy, takže bez tohohle plán otevíral třemi karusely v řadě.
+                if (m === "carousel" && prev === "carousel") {
+                    m = "image"
+                    splitRuns++
                 }
                 if (m === "carousel") {
                     if (carouselsKept >= carouselCap) m = "image"
                     else carouselsKept++
                 }
+                prev = m
                 return m
             })
+            if (demotedReels > 0 || splitRuns > 0) {
+                console.log(`📋 [content-plan] média: ${demotedReels} reelů nedostupných (${process.env.REELS_ENABLED === "1" ? "tarif" : "REELS_ENABLED"}) → obrázek/karusel · ${splitRuns}× rozdělena řada karuselů · ${carouselsKept} karuselů z ${count}`)
+            }
+            return out
         })()
         // ─── Feed pattern: assign each planned post its cell in the profile grid. Computed
         // once here (not in the worker) so the whole batch is planned against one consistent
