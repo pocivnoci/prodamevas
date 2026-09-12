@@ -16,7 +16,7 @@
  * CO se stalo.
  *
  * Vyšší tarify vidí **co z těch čísel plyne**: který formát funguje nejlíp, v jaký
- * čas, jaká je konverze, které pilíře táhnou a jak dopadly A/B souboje. To je
+ * čas, jaká je konverze, které pilíře táhnou a jak dopadly souboje verzí. To je
  * práce, kterou by jinak dělal člověk nad tabulkou — a přesně to se platí.
  *
  * ⚠️ **Ořez platí VÝHRADNĚ pro čtení v UI, nikdy pro engine.** `analyzePerformance()`
@@ -69,5 +69,5 @@ export function trimInsightsForDepth<T extends Record<string, unknown> | null>(
 /** Co se zákazníkovi napíše na zamčenou kartu. Jedna věta, žádné výčitky. */
 export const LOCKED_ANALYTICS_COPY = {
     title: "Co z čísel plyne",
-    body: "Čísla u příspěvků vidíš celá. Vyhodnocení — který formát a čas fungují nejlíp, jaká je konverze a jak dopadly A/B souboje — je od tarifu Růst výš.",
+    body: "Čísla u příspěvků vidíš celá. Vyhodnocení — který formát a čas fungují nejlíp, jaká je konverze a jak dopadly souboje verzí — je od tarifu Růst výš.",
 } as const

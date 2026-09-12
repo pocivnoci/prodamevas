@@ -300,7 +300,7 @@ export function PrintSection({
                     <label className="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" checked={abMode} onChange={e => setAbMode(e.target.checked)}
                             className="accent-amber-500" />
-                        <span className="text-[10px] uppercase tracking-widest font-bold text-white/50">A/B varianty (2× kredity)</span>
+                        <span className="text-[10px] uppercase tracking-widest font-bold text-white/50">Dva návrhy na výběr (2× kredity)</span>
                     </label>
                 </div>
 

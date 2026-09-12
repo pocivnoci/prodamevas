@@ -277,7 +277,12 @@ export const PLAN_COPY: Record<string, PlanCopy> = {
         bullets: [
             "Až na denní obsah",
             "Úprava hotového příspěvku",
-            "A/B varianty příspěvků",
+            // Dřív „A/B varianty příspěvků" — zavádějící na dvakrát: nic se
+            // netestuje a kupující si pod tím představil dva příspěvky na výběr
+            // v ceně jednoho. `generateMultipleVariants` přitom vyrobí DVA plné
+            // příspěvky a každý se účtuje podle svého média. Odrážka proto mluví
+            // o ceně, ne o testu.
+            "Dvě verze příspěvku na výběr (za kredity navíc)",
             "Sledování růstu followerů",
         ],
         highlight: true,
