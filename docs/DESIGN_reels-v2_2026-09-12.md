@@ -117,6 +117,44 @@ hlasy knihovny do bucketu, poslech vedle sebe; pak 2 živé reely na `chrlit`
 4. Textový režim bez hlasu: chceme ho jako rovnocenný formát?
 5. Hudba: koupit licencovanou knihovnu, nebo generovat?
 
+## Scénář — co je hotové (12. 9. 2026)
+
+Fáze 2 je nasazená. Narraci reelu už nepíše copywriter, ale **samostatný scenárista**
+(`instagram/reel-scriptwriter.ts`) na **Claude Opus 5** (`models.ts` → `reelScript`,
+fallback Claude Sonnet 5, pak Gemini `textPro` Pro ladder se stejným JSON schématem;
+flash nikdy, `QualityUnavailableError` parkuje job). Sazba Opusu je v
+`lib/model-pricing.ts` (5/25/0,50 USD za MTok, ověřeno 12. 9. 2026), odhad v
+`COSTS.reelScript` = 0,15 USD/reel. Kill switch: `REEL_SCRIPTWRITER=off`.
+
+**Co scenárista dostane:** úhel, hook a caption od copywritera, ověřená fakta
+(`buildFactsSection`), živý katalog produktů (`getCatalogProducts`), popisy brandových
+fotek (co reálně existuje k natočení), ukázky hlasu značky, schválené recenze, oborový
+vizuální profil (`industryVisual`), rizikovou rodinu oboru (`industryRiskFamily`),
+signály kontextového agenta, posledních 8 reelů (hook + vzor + naměřená síla přes
+`engagementScore`) a rozpočet slov z `lib/reel-media.ts`.
+
+**Hook systém:** `lib/hook-patterns.ts` — 10 pojmenovaných vzorů (POV, před/po, mýtus,
+„3 věci", příběh zákazníka, otázka, „nikdo vám neřekne", proces, konkrétní číslo, častá
+chyba), každý s návodem a ukázkami ze dvou oborů. Výběr je **vážený podle výkonu**
+(`hookPatternWeights`: nevyzkoušený 2×, nadprůměrný 2×, výrazně nadprůměrný 3×, slabší
+1× — táž mechanika jako `getWeightedIdeas`), s **anti-repeat** na vzory posledních tří
+reelů. Zvolený vzor se ukládá do `ig_posts.design_brief.hookPattern` (reel jiný design
+brief nemá) a nese se přes caption checkpoint, takže smyčka drží i po resume.
+
+**Výstup** je JSON `{ hookPattern, hook, mode, beats[{narration|card, visual, camera,
+mood, sfx}], cta, onScreenHook }`, ručně validovaný (`validateReelScript`) na známý
+vzor, rozpočet slov, délku titulkové karty (≤ 2 × 18 znaků) a politiku CTA; jedno
+opravné kolo jako u režiséra. Autopilot ho vkládá **po copywriterovi a před kritikem,
+redakcí i faktickou bránou** — narrace prochází přesně týmiž branami jako dřív; caption
+a hashtagy zůstávají copywriterovi.
+
+**Co zatím chybí:** historie vlastního IG (`lib/ig-scraper.ts`) se do promptu nedostává —
+HikerAPI se nikam neukládá (cron `growth-snapshot` bere jen počet sledujících), takže by
+to byl živý placený request na každý reel; nepřímo ji zastupují `brandVoiceExamples`
+seedované z top postů při onboardingu. Režim `mode: "text"` scenárista už volí, ale
+orchestrátor ho zatím nezpracuje — `scriptToScenes` dočasně mapuje `card` → `narration`,
+aby pipeline dojela (TODO pro R4).
+
 ## Co se NEMĚNÍ
 
 Audio-first pořadí (délka videa z řeči), checkpointy a parkování, titulky v kódu,

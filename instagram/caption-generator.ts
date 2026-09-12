@@ -48,6 +48,9 @@ export const COSTS = {
     imageCorrectiveEdit: 0.134,  // corrective text/logo edit retry (native engine, worst case 1×)
     videoPerSecond: videoRate(0.10),   // Seedance 2.5 @ 480p přes ModelArk (lib/model-pricing.ts)
     reelDirector: 0.04,          // Claude Sonnet 5 storyboard (~3k in / 1.5k out)
+    // Claude Opus 5 scénář reelu (~8k in / 2k out při $5/$25 za MTok ≈ 0,09 USD;
+    // adaptivní thinking se účtuje výstupní sazbou, proto 0,15 s rezervou).
+    reelScript: 0.15,
     ttsVoiceover: 0.02,          // Gemini 3.1 Flash TTS — per reel (namluvení po řádcích, ~4–8 volání)
     perPost: 0.27,       // 3× text ($0.075) + context ($0.025) + designer ($0.03) + image ($0.134) + QA ($0.01)
     perStory: 0.56,      // 3× text + context + 1 designer (shared) + 3× image ($0.402) + 3× QA

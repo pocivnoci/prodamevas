@@ -296,3 +296,60 @@ export async function directWithClaude(
     console.log(`   🎬 ${opts.label ?? "reel-director"}: ${model}`)
     return text
 }
+
+// ─── Obecná kreativní brána (scenárista reelů) ──────────────────────────────
+
+/**
+ * Claude s VOLITELNÝM modelem — `judgeWithClaude` i `directWithClaude` mají model
+ * zadrátovaný přes `getModel("judge" | "reelDirector")`, takže scenárista, který
+ * má vlastní žebřík (Opus 5 → Sonnet 5), se přes ně zavolat nedal.
+ *
+ * Tvar požadavku je stejný jako u režiséra a ze stejného důvodu:
+ *  - **žádná `temperature`** — Opus 5 i Sonnet 5 jsou „5-generation" modely a
+ *    `temperature`/`top_p`/`top_k` odmítají chybou 400. Kreativita se řídí
+ *    `output_config.effort`, ne teplotou.
+ *  - `effort: "high"` (výchozí) — psaní scénáře je ta nejdražší úvaha v celém
+ *    reelu a zároveň ta, kterou nejde opravit později. `low` si bere soudce,
+ *    `medium` režisér; tady se nešetří.
+ *  - **`thinking` se neposílá** — na Opusu 5 je adaptivní uvažování zapnuté
+ *    implicitně a explicitní vypnutí mu leze do výstupu (tool volání a `<thinking>`
+ *    tagy v textu). Vypínat ho by navíc bylo přesně to tiché zhoršení kvality,
+ *    které se tu jinde nepřipouští.
+ */
+export async function writeWithClaude(
+    prompt: string,
+    opts: {
+        /** Konkrétní model — volající si ho bere z `getModel("reelScript", tier)`. */
+        model: string
+        label?: string
+        maxTokens?: number
+        effort?: "low" | "medium" | "high"
+        images?: { buffer: Buffer; mimeType?: string; label?: string }[]
+    },
+): Promise<string> {
+    const { model } = opts
+    const content: Anthropic.ContentBlockParam[] = []
+    for (const img of opts.images ?? []) {
+        if (img.label) content.push({ type: "text", text: img.label })
+        content.push(await toImageBlock(img))
+    }
+    content.push({ type: "text", text: prompt })
+
+    const resp = await getClient().messages.create({
+        model,
+        max_tokens: opts.maxTokens ?? 4096,
+        output_config: { effort: opts.effort ?? "high" },
+        messages: [{ role: "user", content }],
+    })
+
+    recordUsage(model, {
+        promptTokenCount: resp.usage?.input_tokens,
+        candidatesTokenCount: resp.usage?.output_tokens,
+        cachedContentTokenCount: resp.usage?.cache_read_input_tokens,
+    }, opts.label ?? "claude-write")
+
+    const text = resp.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text
+    if (!text) throw new Error(`Claude (${model}) nevrátil žádný text`)
+    console.log(`   ✍️  ${opts.label ?? "claude-write"}: ${model}`)
+    return text
+}

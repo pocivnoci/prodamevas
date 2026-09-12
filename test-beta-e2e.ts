@@ -1250,6 +1250,51 @@ test("12.4 videoTier je pryč — reel má jediné rozlišení", () => {
     assert(!codeOnly("app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx").includes("videoTier"), "Nastavení nesmí nabízet dial, který engine nečte")
 })
 
+test("12.4b scenárista reelů jede na Pro a nikdy na flash", () => {
+    // Reel stojí na prvních 1,5 s; scénář je to jediné, co o nich rozhoduje.
+    // Pravidlo „Pro tiery mají fallback na druhé Pro" tu platí dvakrát: ladder je
+    // Opus 5 → Sonnet 5 → Gemini textPro. Flash by dodal generický reel za cenu reelu.
+    const models = codeOnly("instagram/models.ts")
+    assert(/reelScript:\s*\{[^}]*primary:\s*"claude-opus-5"/.test(models), "reelScript.primary musí být claude-opus-5")
+    assert(/reelScript:\s*\{[^}]*fallback:\s*"claude-sonnet-5"/.test(models), "reelScript potřebuje Pro fallback (Sonnet 5)")
+    const at = models.indexOf("reelScript:")
+    const entry = models.slice(at, models.indexOf("\n", at))
+    assert(!/flash/i.test(entry), "flash se do scenáristy nesmí dostat ani jako fallback")
+    // Neoceněný model zapíše do ai_spend nulu, což je k nerozeznání od levného volání.
+    assert(codeOnly("lib/model-pricing.ts").includes('"claude-opus-5"'), "claude-opus-5 musí mít sazbu v jediném sazebníku")
+    assert(codeOnly("instagram/caption-generator.ts").includes("reelScript:"), "COSTS.reelScript chybí — scénář by se v odhadu ceny reelu ztratil")
+})
+
+test("12.4c scenárista běží PŘED branami a jeho vzor se ukládá", () => {
+    const auto = codeOnly("instagram/autopilot.ts")
+    const script = auto.indexOf("reelScriptwriterEnabled()")
+    const facts = auto.indexOf("await checkCaptionFacts(")
+    const critic = auto.indexOf("await scorePost(")
+    assert(script > 0, "autopilot scenáristu vůbec nevolá")
+    assert(script < critic && script < facts,
+        "scénář musí vzniknout PŘED kritikem i faktickou bránou — narrace se nesmí bránám vyhnout")
+    assert(auto.includes("COSTS.reelScript"), "náklad scénáře se musí připočíst do ceny postu")
+    assert(/hookPattern: reelHookPattern/.test(auto),
+        "zvolený hook vzor se musí uložit k postu, jinak se z něj nedá spočítat výkon")
+    assert(auto.includes("REEL_SCRIPTWRITER") || codeOnly("instagram/reel-scriptwriter.ts").includes("REEL_SCRIPTWRITER"),
+        "scenárista potřebuje kill switch")
+})
+
+test("12.4d hook vzory se vybírají váženě, ne losem", () => {
+    // Invariant „nový zdroj obsahu potřebuje performance_score + váženou selekci"
+    // (skill content-engine): bez vah by se paleta hooků nikdy nenaučila, co funguje.
+    const hooks = codeOnly("lib/hook-patterns.ts")
+    assert(hooks.includes("export function hookPatternWeights"), "váhy musí být oddělené a ověřitelné bez náhody")
+    assert(hooks.includes("export function hookPatternStats"), "výkon vzoru se musí počítat z reelů klienta")
+    const picker = hooks.slice(hooks.indexOf("export function pickHookPatterns"))
+    assert(picker.includes("hookPatternWeights"), "výběr musí losovat NAD váhami, ne z holého seznamu")
+    assert(!/Math\.random\(\)/.test(picker.slice(0, picker.indexOf("hookPatternWeights"))),
+        "žádný los před tím, než se spočítají váhy")
+    assert(hooks.includes("exclude"), "anti-repeat (vzory posledních reelů) musí jít vyloučit")
+    // Klientsky bezpečný modul: sáhne po něm i dashboard, server-only import by ho shodil.
+    assert(!/from "\.\.\/supabase|from "@\/supabase|server-only/.test(hooks), "hook-patterns musí zůstat bez server importů")
+})
+
 test("12.5 AI Designer + QA exported from image-pipeline", () => {
     const content = fileContent("instagram/image-pipeline.ts")
     assert(content.includes("export async function generateDesignBrief"), "generateDesignBrief missing")
@@ -4844,6 +4889,7 @@ test("34.5 každý volající modelu má jasno, kdo ho účtuje", () => {
         "instagram/orchestrators/reel-orchestrator.ts": "uvnitř generateOnePost",
         "instagram/seedance-client.ts": "uvnitř generateOnePost (reel)",
         "instagram/reel-director.ts": "uvnitř generateOnePost (reel)",
+        "instagram/reel-scriptwriter.ts": "uvnitř generateOnePost (reel)",
         "instagram/reel-audio.ts": "uvnitř generateOnePost (reel)",
         "instagram/anthropic-client.ts": "brána k Claude — měří přes ni soudce i režisér",
         "instagram/plan-pipeline.ts": "uvnitř generateContentPlan (content_plan)",

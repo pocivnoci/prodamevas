@@ -25,6 +25,12 @@ import { buildPhotoFidelitySection } from "../instagram/photo-fidelity"
 import { isPhotoPolicy, prefersRealPhotos, PHOTO_POLICY_OPTIONS, type PhotoPolicy } from "../lib/photo-policy"
 import { INDUSTRY_VISUAL_PROFILES, CATEGORY_VISUAL_KEYS, resolveIndustryVisual, industryVisualByKey } from "../instagram/industry-visual-profiles"
 import { CATEGORY_DEFAULTS } from "../app/onboarding/core"
+import {
+    buildReelScriptPrompt, parseReelScript, validateReelScript, scriptToScenes,
+    bannedHookPatterns, statsFromReels, type ReelScriptInput,
+} from "../instagram/reel-scriptwriter"
+import { pickHookPatterns, hookPatternWeights, HOOK_PATTERNS } from "../lib/hook-patterns"
+import { plannedNarrationWords } from "../lib/reel-media"
 
 let passed = 0
 let failed = 0
@@ -1021,6 +1027,116 @@ test("politika fotek má tři stavy a poznají se od nesmyslu", () => {
         "bez nastavení se chování nemění")
     assert(prefersRealPhotos({ photoPolicy: "prefer-real" }) && prefersRealPhotos({ photoPolicy: "only-real" }),
         "oba přísnější stupně musí sáhnout po reálné fotce")
+})
+
+// ─── R3: scenárista reelů (Claude Opus 5) ───────────────────
+
+console.log("\n🎞️ R3 — builder scenáristy reelů")
+
+const reelConfig = {
+    ...config,
+    industry: "hydroizolace střech",
+    brandFacts: [{ text: "Pracujeme od roku 2011" }],
+    brandVoiceExamples: [{ caption: "Takhle mluvíme o práci na střeše.", note: "top post" }],
+    brandReferenceImages: [{ url: "https://x/1.jpg", tags: ["střecha"], description: "detail natavování pásu" }],
+    industryVisual: { photographicGenre: "dokumentární reportáž z místa práce", lightingBrief: "tvrdé denní světlo" },
+} as unknown as ClientConfig
+
+const reelPolicy = resolveCtaPolicy({ pillarCtaStrategy: "soft", website: "https://test.cz" })
+
+const reelInput: ReelScriptInput = {
+    config: reelConfig,
+    medium: "reel",
+    durationSeconds: 8,
+    postType: "behind_scenes",
+    ctaPolicy: reelPolicy,
+    angle: "Jeden den na střeše",
+    copywriterHook: "Zatéká?",
+    caption: "Caption od copywritera",
+    catalogProducts: [{ name: "Revize střechy", type: "služba" }],
+    brandPhotos: [{ description: "detail natavování pásu", tags: ["střecha"] }],
+    reviews: [{ quote: "Přijeli druhý den.", author: "J. N." }],
+    signals: "Sezóna: podzim",
+    pastReels: [
+        { hook: "Zatéká ti?", hookPattern: "question", score: 40 },
+        { hook: "POV: neděle večer", hookPattern: "pov", score: 10 },
+        { hook: "Tři místa", hookPattern: "three_things", score: 5 },
+    ],
+}
+
+test("scénář nese ověřená fakta značky", () => {
+    const p = buildReelScriptPrompt(reelInput)
+    assert(p.includes("Pracujeme od roku 2011"), "fakta značky v promptu chybí — scénář by si čísla vymyslel")
+    assert(/ŽÁDNÁ NOVÁ ČÍSLA/.test(p), "chybí zákaz nových čísel — narrace jde rovnou na faktickou bránu")
+})
+
+test("scénář nabízí hook vzory a ty zakázané vyloučí", () => {
+    const p = buildReelScriptPrompt(reelInput)
+    assert(p.includes("HOOK VZORY"), "paleta hook vzorů v promptu chybí")
+    assert(/Zakázané vzory/.test(p), "anti-repeat posledních reelů se do promptu nedostal")
+    for (const banned of ["question", "pov", "three_things"]) {
+        assert(!new RegExp(`\\*\\*${banned}\\*\\*`).test(p), `vzor "${banned}" je z posledních reelů, nesmí být v nabídce`)
+    }
+})
+
+test("scénář dostane rozpočet slov i data o klientovi", () => {
+    const p = buildReelScriptPrompt(reelInput)
+    assert(p.includes(`NEJVÝŠ ${plannedNarrationWords(8)} slov`), "rozpočet slov chybí — narrace se do videa nevejde")
+    assert(p.includes("detail natavování pásu"), "popisy brandových fotek chybí (co reálně existuje k natočení)")
+    assert(p.includes("Přijeli druhý den"), "recenze (hlas zákazníka) chybí")
+    assert(p.includes("Revize střechy"), "živý katalog produktů chybí")
+    assert(p.includes("Sezóna: podzim"), "signály (svátky/počasí) chybí")
+    assert(p.includes("dokumentární reportáž"), "oborový vizuální profil chybí")
+    assert(p.includes("Takhle mluvíme o práci"), "ukázky hlasu značky chybí")
+    assert(/TECHNICKÝ/.test(p), "riziková rodina oboru se do pravidel nepromítla")
+})
+
+test("anti-repeat vzorů bere poslední tři reely", () => {
+    assert(bannedHookPatterns(reelInput.pastReels, 3).length === 3, "zakázat se mají vzory posledních tří reelů")
+    assert(bannedHookPatterns([], 3).length === 0, "bez historie se nezakazuje nic")
+})
+
+test("výběr vzorů je vážený podle výkonu, ne čistý los", () => {
+    const stats = statsFromReels([
+        { hook: "a", hookPattern: "myth", score: 100 },
+        { hook: "b", hookPattern: "mistake", score: 1 },
+    ])
+    const myth = stats.find(s => s.id === "myth")!
+    assert(myth.performanceScore === 100 && myth.timesUsedWithMetrics === 1, "výkon vzoru se počítá z reelů klienta")
+    // Váhy jsou to jediné, co nese zpětnou vazbu — proto se ověřují bez náhody.
+    const w = hookPatternWeights(HOOK_PATTERNS, stats)
+    assert(w.get("myth") === 3, "výrazně nadprůměrný vzor má mít trojnásobnou váhu")
+    assert(w.get("mistake") === 1, "prokazatelně slabší vzor má mít jednu váhu")
+    assert(w.get("pov") === 2, "nevyzkoušený vzor má mít průzkumnou dvojku, ne nulu")
+    // A los se nad nimi opravdu odehraje: vyloučený vzor se z nabídky nedostane.
+    const picks = pickHookPatterns({ stats, exclude: ["myth"], count: 3, random: () => 0 })
+    assert(picks.every(p => p.id !== "myth"), "anti-repeat musí vzor z nabídky vyhodit")
+    assert(new Set(picks.map(p => p.id)).size === picks.length, "vzory v nabídce se nesmí opakovat")
+})
+
+test("nevalidní scénář neprojde validátorem", () => {
+    const ctx = { durationSeconds: 8, allowWebsite: false, bannedPatterns: ["pov"] }
+    const bad = parseReelScript(JSON.stringify({
+        hookPattern: "vymysleny-vzor", hook: "", mode: "voiceover",
+        beats: [{ visual: "shot", camera: "dolly", mood: "warm" }],
+        cta: "Mrkni na test.cz", onScreenHook: "Tohle je moc dlouhá karta na dva řádky",
+    }))
+    const problems = validateReelScript(bad, ctx)
+    assert(problems.some(p => p.includes("hookPattern")), "neznámý vzor musí propadnout")
+    assert(problems.some(p => p.includes("onScreenHook")), "karta delší než 2×18 znaků musí propadnout")
+    assert(problems.some(p => p.includes("hook")), "prázdný hook musí propadnout")
+    assert(problems.some(p => /URL|doménu/.test(p)), "web při zakázané politice CTA musí propadnout")
+})
+
+test("textový režim mapuje karty na narraci, aby pipeline nespadla", () => {
+    const script = parseReelScript(JSON.stringify({
+        hookPattern: "process", hook: "Jak to vzniká", mode: "text",
+        beats: [{ card: "Krok jedna", visual: "shot", camera: "pan", mood: "warm" }],
+        cta: "Ulož si to", onScreenHook: "Jak to vzniká",
+    }))
+    assert(script.mode === "text", "režim text se musí přečíst")
+    const scenes = scriptToScenes(script, 8)
+    assert(scenes[0].narration === "Krok jedna", "dokud R4 nedodá osu z karet, card se mapuje na narration")
 })
 
 // ─── Report ─────────────────────────────────────────────────
