@@ -5,6 +5,12 @@
  *
  *   npx tsx scripts/smoke-seedance-audio-ref.ts --dry   # jen vypíše tělo požadavku
  *   npx tsx scripts/smoke-seedance-audio-ref.ts         # namluví větu, nahraje ji a pošle úlohu
+ *   npx tsx scripts/smoke-seedance-audio-ref.ts --local # bez Supabase: WAV jde jako data URL
+ *
+ * Z cloudové session Claude Code: klíče jsou „API credentials" prostředí (proxy je
+ * připojí), v env je jen `ARK_API_KEY=proxy` a `GEMINI_API_KEY=proxy`; skript pak
+ * neposílá vlastní hlavičky a Gemini volá surovým fetch místo SDK (SDK hlavičku
+ * vyžaduje). `--local` obchází Supabase storage, které z té sítě není dosažitelné.
  *
  * Postup: Gemini TTS namluví jednu českou větu → WAV se nahraje do veřejného
  * bucketu (URL musí být dosažitelná zvenku) → ModelArk dostane úlohu, jejíž
@@ -53,19 +59,52 @@ function wav(pcm: Buffer, rate = 24_000, channels = 1, bits = 16): Buffer {
 async function synthesize(): Promise<Buffer> {
     const apiKey = process.env.GEMINI_API_KEY
     if (!apiKey) throw new Error("GEMINI_API_KEY chybí")
-    const ai = new GoogleGenAI({ apiKey })
-    const res: any = await ai.models.generateContent({
-        model: TTS_MODEL,
-        contents: SENTENCE,
-        config: {
-            responseModalities: ["AUDIO"],
-            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICE } } },
-        } as any,
-    })
+    const speechConfig = { voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICE } } }
+    let res: any
+    if (apiKey === "proxy") {
+        // Klíč připojí proxy prostředí; SDK by poslalo vlastní (neplatnou) hlavičku.
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL}:generateContent`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts: [{ text: SENTENCE }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig } }),
+        })
+        const text = await r.text()
+        if (!r.ok) throw new Error(`Gemini TTS ${r.status}: ${text.slice(0, 300)}`)
+        res = JSON.parse(text)
+    } else {
+        const ai = new GoogleGenAI({ apiKey })
+        res = await ai.models.generateContent({
+            model: TTS_MODEL,
+            contents: SENTENCE,
+            config: { responseModalities: ["AUDIO"], speechConfig } as any,
+        })
+    }
     const inline = res?.candidates?.[0]?.content?.parts?.[0]?.inlineData
     if (!inline?.data) throw new Error("TTS nevrátilo audio")
     const raw = Buffer.from(inline.data, "base64")
     return raw.subarray(0, 4).toString("latin1") === "RIFF" ? raw : wav(raw)
+}
+
+/**
+ * `ARK_API_KEY=proxy` = klíč připojuje agent proxy cloudového prostředí (API credential);
+ * vlastní hlavičku pak NEPOSÍLAT, jinak by se s tou od proxy přetahovala.
+ */
+function arkHeaders(key: string): Record<string, string> {
+    const h: Record<string, string> = { "Content-Type": "application/json" }
+    if (key !== "proxy") h.Authorization = `Bearer ${key}`
+    return h
+}
+
+/** Výsledné video leží na jiném hostu než API; zavřená síť ho nemusí pustit. */
+async function downloadVideo(url: string): Promise<Buffer | null> {
+    try {
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return Buffer.from(await res.arrayBuffer())
+    } catch (err) {
+        console.error(`⚠️ Video se nepodařilo stáhnout (${(err as Error).message}). Otevři URL výše v prohlížeči — úloha proběhla, jen síť tady nepustí host s výsledkem.`)
+        return null
+    }
 }
 
 async function upload(buf: Buffer): Promise<string> {
@@ -82,10 +121,24 @@ async function upload(buf: Buffer): Promise<string> {
 
 async function main() {
     const dry = process.argv.includes("--dry")
+    const local = process.argv.includes("--local")
     const audioType = process.env.ARK_AUDIO_TYPE ?? "audio_url"
 
-    const audioUrl = dry ? "https://example.invalid/spike.wav" : await upload(await synthesize())
-    if (!dry) console.log(`🎙️ Hlas nahraný: ${audioUrl}`)
+    // `--local`: bez Supabase — WAV jde do těla požadavku jako data URL (stejný tvar,
+    // jakým produkce posílá logo z bufferu jako obrázkovou referenci).
+    let audioUrl = "https://example.invalid/spike.wav"
+    if (!dry) {
+        const wavBuf = await synthesize()
+        if (local) {
+            mkdirSync(OUT_DIR, { recursive: true })
+            writeFileSync(`${OUT_DIR}/spike-audioref-${VOICE}.wav`, wavBuf)
+            audioUrl = `data:audio/wav;base64,${wavBuf.toString("base64")}`
+            console.log(`🎙️ Hlas uložen do ${OUT_DIR}/spike-audioref-${VOICE}.wav a přiložen jako data URL (${(wavBuf.length / 1024).toFixed(0)} kB)`)
+        } else {
+            audioUrl = await upload(wavBuf)
+            console.log(`🎙️ Hlas nahraný: ${audioUrl}`)
+        }
+    }
 
     const prompt = [
         "Vertical 9:16 shot inside a small specialty coffee shop, warm morning light.",
@@ -108,12 +161,14 @@ async function main() {
     }
 
     console.log(`🎬 ${MODEL} @ ${BASE_URL} — audio položka typu „${audioType}"`)
-    console.log("📦 Tělo požadavku:\n" + JSON.stringify(body, null, 2))
+    // Data URL by zaplavila log — v ukázce těla se zkracuje.
+    const shown = JSON.parse(JSON.stringify(body, (k, v) => (typeof v === "string" && v.startsWith("data:audio/") ? `${v.slice(0, 40)}… (${v.length} znaků)` : v)))
+    console.log("📦 Tělo požadavku:\n" + JSON.stringify(shown, null, 2))
     if (dry) return
 
     const key = process.env.ARK_API_KEY
     if (!key) { console.error("❌ ARK_API_KEY chybí"); process.exit(1) }
-    const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }
+    const headers = arkHeaders(key)
 
     const submit = await fetch(`${BASE_URL}/contents/generations/tasks`, { method: "POST", headers, body: JSON.stringify(body) })
     const submitText = await submit.text()
@@ -138,7 +193,9 @@ async function main() {
     }
     if (!videoUrl) { console.error("❌ Úloha nedoběhla v rozpočtu"); process.exit(1) }
 
-    const mp4 = Buffer.from(await (await fetch(videoUrl)).arrayBuffer())
+    console.log(`🔗 URL videa: ${videoUrl}`)
+    const mp4 = await downloadVideo(videoUrl)
+    if (!mp4) return
     mkdirSync(OUT_DIR, { recursive: true })
     const out = `${OUT_DIR}/seedance-audioref-${Date.now()}.mp4`
     writeFileSync(out, mp4)
