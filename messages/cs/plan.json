@@ -1,3 +1,82 @@
 {
-  "plan": {}
+  "plan": {
+    "tab": {
+      "calendar": "Kalendář",
+      "feed": "Feed náhled"
+    },
+    "calendar": {
+      "title": "Content Calendar",
+      "prevWeek": "Předchozí týden",
+      "nextWeek": "Následující týden",
+      "today": "Dnes",
+      "planWeek": "Naplánovat týden",
+      "confirming": "Potvrzuji…",
+      "confirmPlan": "Potvrdit plán ({count})",
+      "confirmFailed": "Potvrzení se nezdařilo",
+      "confirmedCount": "Naplánováno: {count}",
+      "shiftedCount": "{count} s propadlým termínem posunuto dopředu",
+      "skippedCount": "{count} přeskočeno",
+      "moveFailed": "Posun se nezdařil",
+      "summary": {
+        "pending": "{count} čeká na potvrzení",
+        "scheduled": "{count} naplánováno",
+        "overdue": "{count} s propadlým termínem",
+        "failed": "{count} selhalo"
+      },
+      "free": "Volno",
+      "status": {
+        "draft": "Koncept",
+        "ready": "Čeká na potvrzení",
+        "scheduled": "Naplánováno",
+        "posting": "Publikuje se",
+        "posted": "Publikováno",
+        "failed": "Selhalo"
+      },
+      "move": {
+        "label": "Přesunout termín",
+        "button": "Posunout"
+      },
+      "approve": "Schválit",
+      "info": {
+        "plan": "<strong>Naplánuj týden:</strong> AI analyzuje počasí, svátky a výkon značky, pak strategicky naplánuje posty na celý týden.",
+        "weather": "<strong>Počasí:</strong> Když je dostupná předpověď, plán ji zohlední. Jinak plánuje podle kalendáře, svátků a výkonu značky.",
+        "workflow": "<strong>Workflow:</strong> Naplánuj → zkontroluj drafty → schval → publikuj."
+      }
+    },
+    "feed": {
+      "empty": {
+        "title": "Žádné příspěvky s obrázky",
+        "body": "Vygenerujte obsah v sekci Generovat"
+      },
+      "stats": {
+        "posts": "příspěvků",
+        "followers": "sledujících",
+        "posted": "publikováno",
+        "scheduled": "naplánováno",
+        "drafts": "drafty"
+      },
+      "pattern": {
+        "label": "Vzor feedu",
+        "gridAligned": "Nejlépe drží tvar při publikování po celých řádcích",
+        "nextPost": "Další post v pořadí: {mode}",
+        "names": {
+          "none": "Bez vzoru",
+          "checkerboard": "Šachovnice",
+          "rows": "Řádky",
+          "columns": "Sloupce",
+          "diagonal": "Diagonála"
+        }
+      },
+      "visualMode": {
+        "photo": "Fotka",
+        "typography": "Typo",
+        "graphic": "Grafika"
+      },
+      "legend": {
+        "posted": "Publikováno",
+        "scheduled": "Naplánováno",
+        "draft": "Draft"
+      }
+    }
+  }
 }

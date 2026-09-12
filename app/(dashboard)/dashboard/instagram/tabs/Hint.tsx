@@ -14,9 +14,12 @@
  */
 
 import { useState } from "react"
-import { mediaCreditsSentence } from "@/lib/credits"
+import { createTranslator, useTranslations } from "next-intl"
+import { ALL_MEDIA, MEDIA_CREDITS, mediaCreditsSentence } from "@/lib/credits"
+import csHelp from "@/messages/cs/help.json"
 
-export function Hint({ children, label = "proč to je důležité" }: { children: React.ReactNode; label?: string }) {
+export function Hint({ children, label }: { children: React.ReactNode; label?: string }) {
+    const t = useTranslations("help.hint")
     const [open, setOpen] = useState(false)
 
     return (
@@ -28,7 +31,7 @@ export function Hint({ children, label = "proč to je důležité" }: { children
                 className="self-start inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-white/25 hover:text-white/60 transition-colors"
             >
                 <span className="w-3.5 h-3.5 rounded-full border border-current inline-flex items-center justify-center text-[8px] leading-none">?</span>
-                {label}
+                {label ?? t("defaultLabel")}
             </button>
             {open && (
                 <span className="mt-2 block max-w-prose rounded-sm border border-white/10 bg-[#080808] px-3 py-2 text-[11px] leading-relaxed text-white/50">
@@ -39,32 +42,67 @@ export function Hint({ children, label = "proč to je důležité" }: { children
     )
 }
 
+type HelpTranslator = ReturnType<typeof useTranslations<"help">>
+
+/**
+ * „obrázek 1 · story 2 · carousel 3 · reel 5 · dlouhý reel 10" v jazyce uživatele.
+ *
+ * Lokalizovaná obdoba `mediaCreditsSentence()` z lib/credits.ts: váhy jsou tatáž
+ * tabulka `MEDIA_CREDITS` (nikdy z ruky), jen názvy médií jdou z messages
+ * (`help.media.*`) místo z českého slovníku knihovny.
+ */
+export function localizedMediaCreditsSentence(t: HelpTranslator): string {
+    return ALL_MEDIA.map((m) => `${t(`media.${m}`)} ${MEDIA_CREDITS[m]}`).join(" · ")
+}
+
 /**
  * Texty na jednom místě, ne rozeseté po JSX.
  *
  * Důvod je praktický: tohle je jediné místo, kde se dá přečíst, co všechno
  * zákazníkovi slibujeme — a při změně chování se to musí přepsat spolu s kódem.
+ * Znění žije v `messages/<locale>/help.json` (`help.hint.*`); tenhle hook ho
+ * vrací v jazyce uživatele. Volá se uvnitř komponenty: `const hints = useHints()`.
  */
+export function useHints() {
+    const t = useTranslations("help")
+    return {
+        tone: t("hint.tone"),
+        pillars: t("hint.pillars"),
+        facts: t("hint.facts"),
+        voiceExamples: t("hint.voiceExamples"),
+        formats: t("hint.formats", { media: localizedMediaCreditsSentence(t) }),
+        cadence: t("hint.cadence"),
+        autoPublish: t("hint.autoPublish"),
+        credits: t("hint.credits"),
+        products: t("hint.products"),
+        instagram: t("hint.instagram"),
+        term: t("hint.term"),
+    }
+}
+
+/**
+ * Most pro statické `HINTS.x` (SettingsTab, GenerateTab, ProductsTab,
+ * SubscriptionSection): stejné klíče a stejné české znění jako dřív, ale zdroj
+ * je `messages/cs/help.json`, ne druhá kopie textu. Modulová konstanta nemá odkud
+ * znát jazyk uživatele, proto je vždy česky — nový kód bere `useHints()`.
+ * Až poslední čtenář přejde na hook, tenhle blok se smaže.
+ */
+const tCs = createTranslator({
+    locale: "cs",
+    messages: csHelp as Parameters<typeof createTranslator>[0]["messages"],
+    namespace: "help.hint",
+})
+
 export const HINTS = {
-    tone: "Z tónu se učí každý budoucí příspěvek, ne jen ten nejbližší. Změna se projeví až u nově generovaného obsahu — hotové příspěvky přepsat nejde, jen přegenerovat za kredit.",
-
-    pillars: "Pilíře rozhodují, o čem se vůbec bude psát. Bez nich plán sklouzne k náhodným příspěvkům, které nikam nevedou. Tři až pět je ideál; víc jich značka neuhraje.",
-
-    facts: "AI si čísla a roky domýšlí stejně plynule, jako je opisuje — a lež v příspěvku odnese vaše značka, ne engine. Co tady nestojí, to o vás nenapíše: místo vymyšleného údaje napíše větu bez něj.",
-
-    voiceExamples: "Jeden až tři příspěvky, které se vám opravdu líbí, drží tón silněji než jakékoli nastavení výš — model se učí z ukázky, ne z popisu.",
-
-    formats: `Formát určuje cenu: ${mediaCreditsSentence()} (kreditů). Zapnout všechno znamená vyčerpat měsíční příděl rychleji, než čekáte.`,
-
-    cadence: "Kadence má odpovídat tomu, co reálně stihnete zveřejnit. Vygenerovaný a nezveřejněný příspěvek stál kredit a nevydělal nic.",
-
-    autoPublish: "Zapnutím se příspěvky zveřejní samy podle kalendáře, bez vašeho schválení. Zpátky to vzít nejde — smazat post na Instagramu můžete, ale kdo ho viděl, ten ho viděl.",
-
-    credits: "Kredity se obnovují každý měsíc a nevyčerpané propadají — i u předplatného zaplaceného na rok dopředu. Vybírejte tarif podle toho, kolik reálně zveřejníte.",
-
-    products: "Katalog je živý zdroj pro produktové vizualizace. Co v něm chybí, o tom engine neumí psát konkrétně — a obecný příspěvek o produktu neprodává.",
-
-    instagram: "Bez propojení účtu se nedá měřit výkon, takže se učicí smyčka nemá z čeho učit a doporučení zůstanou obecná.",
-
-    term: "Delší období platíte dopředu a cenu tím zamykáte na celou dobu. Kredity se ale i tak obnovují každý měsíc — předplacením roku je nedostáváte dopředu.",
+    tone: tCs("tone"),
+    pillars: tCs("pillars"),
+    facts: tCs("facts"),
+    voiceExamples: tCs("voiceExamples"),
+    formats: tCs("formats", { media: mediaCreditsSentence() }),
+    cadence: tCs("cadence"),
+    autoPublish: tCs("autoPublish"),
+    credits: tCs("credits"),
+    products: tCs("products"),
+    instagram: tCs("instagram"),
+    term: tCs("term"),
 } as const

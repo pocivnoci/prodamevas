@@ -1,3 +1,52 @@
 {
-  "shared": {}
+  "shared": {
+    "copy": {
+      "copied": "Copied",
+      "copy": "Copy"
+    },
+    "status": {
+      "draft": "DRAFT",
+      "plan_draft": "PLAN",
+      "plan_locked": "LOCKED",
+      "ready": "READY",
+      "scheduled": "SCHEDULED",
+      "posting": "PUBLISHING…",
+      "posted": "PUBLISHED",
+      "failed": "FAILED",
+      "archived": "ARCHIVED"
+    },
+    "pillar": {
+      "reach": "REACH",
+      "value": "VALUE",
+      "convert": "CONVERSION",
+      "connect": "CONNECTION"
+    },
+    "metrics": {
+      "title": "Metrics",
+      "saving": "Saving...",
+      "save": "Save",
+      "likes": "Likes",
+      "comments": "Comments",
+      "saves": "Saves",
+      "reach": "Reach",
+      "views": "Views",
+      "shares": "↗️ Shares",
+      "profileVisits": "Profile visits",
+      "linkClicks": "Link clicks",
+      "conversion": "Conversion"
+    },
+    "caption": {
+      "saveFailed": "Saving failed.",
+      "lockedTitle": "A published text can no longer be edited — create a variant",
+      "editTitle": "Click to rewrite the text",
+      "edit": "Edit",
+      "placeholder": "Post text — saved exactly as you write it",
+      "hashtagsPlaceholder": "Hashtags separated by spaces (optional)",
+      "unchanged": "The text is the same as the saved one",
+      "saving": "Saving…",
+      "save": "Save text",
+      "cancel": "Cancel",
+      "free": "Free · can be undone"
+    }
+  }
 }

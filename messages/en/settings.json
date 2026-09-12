@@ -1,3 +1,634 @@
 {
-  "settings": {}
+  "settings": {
+    "common": {
+      "loading": "Loading…",
+      "remove": "Delete",
+      "cancel": "Cancel"
+    },
+    "header": {
+      "subtitle": "Brand configuration",
+      "save": "Save",
+      "saving": "Saving..."
+    },
+    "status": {
+      "loadFailed": "Could not load the configuration.",
+      "logoUploaded": "Logo uploaded. Refresh the page to see it.",
+      "logoUploadFailed": "Logo upload failed.",
+      "saved": "Settings saved.",
+      "saveFailed": "Save failed.",
+      "notFound": "Configuration not found"
+    },
+    "tabs": {
+      "publish": "Publishing",
+      "basic": "Basics",
+      "voice": "Text style",
+      "pillars": "Topics",
+      "formats": "Formats",
+      "visual": "Visuals",
+      "products": "Products",
+      "manage": "Manage",
+      "audience": "Audience",
+      "hashtags": "Hashtags",
+      "cta": "CTA",
+      "advanced": "Advanced",
+      "advancedPrefix": "Advanced:"
+    },
+    "basic": {
+      "title": "Basic Information",
+      "description": "Your brand identity and contact details",
+      "name": "Client name",
+      "website": "Website",
+      "instagram": "Instagram handle",
+      "instagramPlaceholder": "@handle",
+      "focus": "What we create content about",
+      "focusHint": "A short description of the content focus",
+      "focusPlaceholder": "E.g. A guesthouse and trips into nature",
+      "language": "Content language",
+      "languageHint": "The language your brand speaks to its audience — posts, hashtags, text in images and voiceover. Does not change the dashboard language.",
+      "character": "Character description",
+      "characterHint": "Description of the main character for a consistent look in AI images",
+      "characterPlaceholder": "E.g. Man, 35, dark hair, beard, wears a flannel shirt..."
+    },
+    "voice": {
+      "persona": {
+        "title": "Persona & Tone",
+        "description": "How your brand speaks — what the AI says and how it says it",
+        "label": "Persona — who we are, how we speak",
+        "hint": "A detailed description of who we are, how we speak and how we treat customers",
+        "placeholder": "We are a friendly guesthouse in the middle of nature. We talk like a friend recommending their favourite spot..."
+      },
+      "traits": {
+        "label": "Tone of voice",
+        "hint": "Comma-separated — they shape the text style",
+        "placeholder": "Friendly, Informal, Helpful, Witty"
+      },
+      "values": {
+        "label": "Brand values",
+        "hint": "Comma-separated — the brand’s core values",
+        "placeholder": "Authenticity, Quality, Nature"
+      },
+      "antiPatterns": {
+        "label": "What we never say",
+        "hint": "Comma-separated — words and phrases the AI will never use",
+        "placeholder": "Hey guys, Buy now, Corporate speak, Discount pressure"
+      },
+      "brandVoice": {
+        "title": "Brand voice",
+        "description": "The voice that narrates the voiceover in your reels",
+        "intro": "We pick the voice from your persona and industry during onboarding — here you can override it. The first listen takes a moment to prepare, the next is instant.",
+        "previewFailed": "Could not prepare the sample",
+        "playFailed": "The sample cannot be played",
+        "play": "Listen",
+        "playing": "Playing…",
+        "unknown": "The saved voice “{id}” is not in the library — after saving, one is picked again to match the brand."
+      },
+      "library": {
+        "Zephyr": "Bright, fresh female voice — fast pace, suits fashion and lifestyle",
+        "Puck": "Playful male voice with a spark — light content, food, entertainment",
+        "Charon": "Matter-of-fact male voice — explains, does not overact; consulting and services",
+        "Kore": "Firm female voice — trustworthy, no pathos",
+        "Fenrir": "Pumped-up male voice — energy, sport, challenges",
+        "Leda": "Youthful female voice — lightness, beauty and fashion",
+        "Orus": "Decisive male voice — crafts, technology, concrete promises",
+        "Aoede": "Light, airy female voice — cosy venues and experiences",
+        "Callirrhoe": "Calm, relaxed female voice — wellness, care, slow pace",
+        "Autonoe": "Bright female voice with drive — e-shops and news",
+        "Enceladus": "Quiet, breathy male voice — intimate and slow shots",
+        "Iapetus": "Clean male voice — clear explanations without extra emotion",
+        "Umbriel": "Easy-going male voice — neighbourly tone, local businesses",
+        "Algieba": "Smooth male voice — cultivated, suits wine and design",
+        "Despina": "Soft female voice — self-care, gentle brands",
+        "Erinome": "Distinct female voice — guides and explanations",
+        "Algenib": "Rougher male voice — honest manual work, no gloss",
+        "Rasalgethi": "Informative male voice — an expert who gets to the point",
+        "Laomedeia": "Fired-up female voice — deals, discounts, challenges",
+        "Achernar": "Subdued female voice — calm, trust, slow imagery",
+        "Alnilam": "Firm male voice — certainty and concrete numbers",
+        "Schedar": "Even male voice — neutral, never overacts",
+        "Gacrux": "Mature female voice — experience and tradition",
+        "Pulcherrima": "Punchy female voice — pushes forward, suits a hook",
+        "Achird": "Friendly male voice — like the business owner speaking",
+        "Zubenelgenubi": "Laid-back male voice — talks like a person, not an ad",
+        "Vindemiatrix": "Gentle female voice — sensitive topics and care",
+        "Sadachbia": "Lively female voice — brisk, holds attention well",
+        "Sadaltager": "Knowledgeable male voice — explains even complex things",
+        "Sulafat": "Warm female voice — an invitation inside, hospitality",
+        "KIDKfqJyZ6ASuyzsKfh5": "Calm, kind male voice — explains without hurry; consulting and education",
+        "vP4R9CqQI4q0HlVrXJWj": "Strong, deep male voice with a Moravian colour — honest work and certainty",
+        "uYFJyGaibp4N2VwYQshk": "Velvety conversational male voice — talks like the business owner, not an ad",
+        "daJ4gHLkIVFskWuoLuDX": "Smooth, engaging male voice — modern services and products",
+        "U48DQ1c9SVmD2BVCSiHL": "Clean narrator’s male voice with Prague diction — slow imagery and atmosphere",
+        "7FpO7yFcBAfqM6vZJCg7": "Bright male voice with drive — deals, news, challenges",
+        "MpbYQvoTmXjHkaxtLiSh": "Young, lively female voice — social media, fashion and beauty",
+        "bF7C2fCv7Zf30iT84wZ1": "Warm, confident female voice with Prague diction — an invitation inside",
+        "OAAjJsQDvpg3sVjiLgyl": "Soft, balanced female voice — self-care and gentle brands",
+        "7JbZPqJGWUfXXBim0T8U": "Energetic, trustworthy female voice — sport, discounts, challenges",
+        "12CHcREbuPdJY02VY7zT": "Friendly, informative female voice — guides and explanations",
+        "2qbJHyAaz7tHCfVZS6z3": "Soothing female voice — sensitive topics and care"
+      },
+      "cta": {
+        "title": "CTA variations",
+        "description": "Calls to action the AI uses in posts",
+        "label": "CTA phrases",
+        "hint": "Comma-separated — the AI picks by context",
+        "placeholder": "Link in bio 👆\nSend us a DM\nMore on the website 🔗\nSave for later 📌",
+        "eachLine": "One variation per line"
+      },
+      "factsTitle": "Verified facts",
+      "factsDescription": "The only numbers, years, prices and guarantees the AI may claim about the brand",
+      "hooksTitle": "Opening line templates",
+      "hooksDescription": "Patterns for opening lines — '{{topic}}' is replaced automatically"
+    },
+    "facts": {
+      "label": "Facts about the brand",
+      "hint": "One fact per line. After a vertical bar you can add the source — where it can be verified.",
+      "placeholder": "Baking since 1998 | chrlit.cz/about\nDelivery within 24 hours in Prague\n2-year warranty on everything",
+      "note": "What is not listed here, the AI will not state as a fact — instead of a made-up number it writes the sentence without one. You do not need to enter the live product catalogue (prices, names); the engine reads it itself.",
+      "scan": "Load from website",
+      "scanning": "Reading the website…",
+      "scanReadFailed": "Could not read the website",
+      "scanNothing": "I found no new specific detail on the website — nothing was added.",
+      "scanAdded": "{count, plural, one {Added # suggestion from the website} other {Added # suggestions from the website}} — review them and delete any that do not fit. Remember to save with the button above.",
+      "scanFailed": "Scan failed",
+      "verifiedAt": "Last confirmed {date}",
+      "checkLabel": "Claim check in the finished text",
+      "checkHint": "Neither end of the slider lets a lie through. It only changes whether the engine fixes an unsupported claim itself or sends it to you.",
+      "modes": {
+        "off": {
+          "label": "Off",
+          "detail": "No check runs. The AI is still forbidden to invent details, but nobody checks it."
+        },
+        "safe": {
+          "label": "Careful",
+          "detail": "Fixes everything it dares to, including headlines in the image. Safest — and sometimes dullest."
+        },
+        "balanced": {
+          "label": "Balanced",
+          "detail": "Fixes the post text; in the headline it only swaps a wrong number for the right one. An unsupported headline is left alone and flagged for you."
+        },
+        "bold": {
+          "label": "Bold",
+          "detail": "Rewrites nothing. The text keeps its punch and every risky claim comes to you flagged for a decision."
+        }
+      },
+      "publishFlagged": "Publish posts with unverified claims too",
+      "publishFlaggedHint": "Off: a flagged post does not publish itself and waits until you confirm or delete the claim. Once a day we e-mail you about the ones waiting."
+    },
+    "hooks": {
+      "empty": "No templates yet. Add the first pattern for better AI copy.",
+      "item": "Hook #{n}",
+      "remove": "✕ Delete",
+      "pattern": "Pattern",
+      "patternHint": "Pattern with the '{{topic}}' placeholder",
+      "patternPlaceholder": "Did you know that '{{topic}}'?",
+      "example": "Example",
+      "examplePlaceholder": "Did you know that 73% of people...",
+      "trigger": "Emotional trigger",
+      "triggers": {
+        "curiosity": "Curiosity",
+        "fear": "Fear",
+        "hope": "Hope",
+        "humor": "Humour",
+        "urgency": "Urgency",
+        "empathy": "Empathy"
+      },
+      "bestFor": "For which formats",
+      "bestForHint": "None selected = the template applies to all formats",
+      "staleTitle": "This format no longer exists — click to remove",
+      "add": "+ Add template"
+    },
+    "pillars": {
+      "title": "Content topics",
+      "description": "Topic categories define your content mix. Each topic has a ratio — the total should add up to ~1.0",
+      "newLabel": "New topic",
+      "lastPillar": "This is the last topic — it cannot be deleted, the formats would have nowhere to belong.",
+      "removeConfirm": "The topic contains {count, plural, one {# format} other {# formats}}: {formats}.\nAfter saving they move to the topic “{target}”. Continue?",
+      "sum": "Ratio total: {sum}",
+      "sumOk": "OK",
+      "sumWarn": "Should be ~1.0",
+      "namePlaceholder": "Topic name",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "What this topic covers, which subjects...",
+      "ratio": "Ratio",
+      "ratioHint": "Share of content (0.0–1.0)",
+      "ctaLabel": "CTA strategy",
+      "cta": {
+        "none": "No CTA",
+        "soft": "Soft",
+        "medium": "Medium",
+        "hard": "Direct sale"
+      },
+      "kpi": "Target metrics",
+      "kpiHint": "Comma-separated",
+      "kpiPlaceholder": "engagement, saves, reach",
+      "ideaPrompt": "Idea prompt (for AI)",
+      "ideaPromptHint": "Specific instructions for the AI when generating ideas in this topic",
+      "ideaPromptPlaceholder": "Focus on practical tips, use numbers and statistics...",
+      "categories": "Categories",
+      "categoriesHint": "Topic angles — contest, education, tip, FAQ... The AI generates ideas per category",
+      "categoryIdPlaceholder": "id (slug)",
+      "categoryNamePlaceholder": "Name",
+      "categoryPromptPlaceholder": "AI prompt hint (optional)",
+      "categoryGenerateTitle": "The AI generates a prompt hint from the category name",
+      "auto": "Auto",
+      "mediumTitle": "Format",
+      "medium": {
+        "image": "Image",
+        "carousel": "Carousel"
+      },
+      "overlayTitle": "Text style",
+      "overlay": {
+        "default": "Classic (bottom)",
+        "top": "Top",
+        "cover": "Full cover",
+        "editorial": "Editorial",
+        "centered": "Centred",
+        "none": "No text"
+      },
+      "aspectTitle": "Aspect ratio",
+      "aspect": {
+        "square": "1:1 Square",
+        "feed": "4:5 IG Feed",
+        "portrait": "3:4 Portrait"
+      },
+      "addCategory": "+ Add category",
+      "add": "+ Add new topic"
+    },
+    "formats": {
+      "title": "Post formats",
+      "description": "Each format is one post type (a template) you pick when generating. A “with product” format automatically attaches a real product photo. “Manual only” means the AI never picks it on its own (contests, limited drops) — only you choose it in Create.",
+      "empty": "No brand formats — add the first one below.",
+      "suggestFailed": "AI suggestion failed",
+      "saveFailed": "Saving the format failed",
+      "removeFailed": "Deleting the format failed",
+      "removeConfirm": "Really delete the format \"{name}\"? Already generated posts stay.",
+      "name": "Format name",
+      "namePlaceholder": "Merch giveaway",
+      "descriptionLabel": "Description (for AI)",
+      "descriptionHint": "WHAT the post shows and WHY it works for your brand — the AI copywriter reads this",
+      "descriptionPlaceholder": "Contest post: 1) like it, 2) follow our profile, 3) tag a friend in the comments — the winner gets a free product...",
+      "structure": "Content structure (optional)",
+      "structureHint": "Content skeleton — slide outline for a carousel, scenes for a reel, text build-up for an image. Empty = the generic template for the medium",
+      "structurePlaceholder": "Slide 1 (COVER): question about the prize · Slide 2: contest rules · Slide 3: what you win · Slide 4: deadline + CTA",
+      "visualStyle": "Visual style (optional)",
+      "visualStyleHint": "How the posts should look — composition, mood, props. The AI designer follows this when designing the visual",
+      "visualStylePlaceholder": "Product on a bold coloured background, confetti, big numbers, energetic mood...",
+      "pillar": "Topic",
+      "medium": "Medium",
+      "media": {
+        "image": "Image",
+        "story": "Story",
+        "carousel": "Carousel",
+        "reel": "Reel",
+        "reel_long": "Long reel"
+      },
+      "aspect": "Aspect ratio",
+      "withProduct": "With product",
+      "manualOnly": "Manual only",
+      "overlay": "Text style",
+      "overlayHint": "How the headline sits on the image — text layout in the visual",
+      "overlays": {
+        "default": "Basic",
+        "top": "Top",
+        "cover": "Cover (big headline)",
+        "centered": "Centred",
+        "editorial": "Editorial",
+        "split": "Split",
+        "minimal": "Minimal",
+        "full-typo": "Typography",
+        "step": "Steps"
+      },
+      "badgeManual": "manual only",
+      "badgeProduct": "product",
+      "saving": "Saving...",
+      "save": "Save format",
+      "new": "New format",
+      "cancel": "✕ Cancel",
+      "ai": {
+        "label": "✨ Let AI fill it in",
+        "hint": "Type a post type and the AI fills in the rest of the form — then review it and save",
+        "placeholder": "e.g. contest, giveaway, behind the scenes, how-to…",
+        "thinking": "AI is thinking…",
+        "fill": "Fill in"
+      },
+      "create": "Create format",
+      "add": "+ Add new format"
+    },
+    "audience": {
+      "title": "Target Audience",
+      "description": "Audience personas — the AI adapts tone, hooks and CTAs for each group",
+      "empty": "No personas defined. The AI will not personalise content.",
+      "newLabel": "New persona",
+      "namePlaceholder": "Persona name",
+      "age": "Age range",
+      "ctaStyle": "CTA approach",
+      "cta": {
+        "soft": "Soft",
+        "medium": "Medium",
+        "hard": "Direct"
+      },
+      "pain": "Pain points",
+      "painHint": "Comma-separated — what this persona struggles with",
+      "painPlaceholder": "No time, does not know where to start, is sceptical",
+      "triggers": "Triggers",
+      "triggersHint": "Comma-separated — what content works on them",
+      "triggersPlaceholder": "Numbers, stories, social proof",
+      "add": "+ Add persona"
+    },
+    "visual": {
+      "pattern": {
+        "title": "Feed pattern",
+        "description": "The shape your profile grid should form when someone opens your Instagram",
+        "suggestTitle": "Not sure which pattern?",
+        "suggestWithHandle": "The AI looks at your real profile <em>@{handle}</em> and recommends a pattern that fits how you already look.",
+        "suggestNoHandle": "Add your Instagram account in Basics and the AI will recommend a pattern based on your real profile.",
+        "analyze": "Analyse my feed",
+        "analyzing": "⏳ Analysing feed…",
+        "analyzeFailed": "Analysis failed.",
+        "recommended": "✓ Recommended: {label}",
+        "basedOn": "Your feed today builds on: {list}",
+        "noneHint": "Your feed does not reveal enough for a recommendation yet — pick a pattern manually, you will see the change right away in the Feed preview.",
+        "selectedBelow": "Selected below — remember to save",
+        "gridAligned": "Publish in rows of 3",
+        "note": "The pattern only sets the layout <strong>family</strong> for each grid position — within it, posts still differ in composition, crop and typography. The setting applies to all new posts (campaign and single ones).",
+        "patterns": {
+          "none": {
+            "label": "No pattern",
+            "description": "Every post decides for itself. Maximum variety, no rhythm in the grid."
+          },
+          "checkerboard": {
+            "label": "Checkerboard",
+            "description": "Alternates a photo and a typographic post. In a three-column grid this forms a checkerboard — it keeps its shape even as posts thin out."
+          },
+          "rows": {
+            "label": "Rows",
+            "description": "A full row of photos, a full row of typography. A calm, editorial feed."
+          },
+          "columns": {
+            "label": "Columns",
+            "description": "Typographic middle column, photographic outer ones. Creates a vertical spine for the profile."
+          },
+          "diagonal": {
+            "label": "Diagonal",
+            "description": "Every fourth post is a graphic accent in the brand colour — a diagonal rhythm forms in the grid."
+          }
+        }
+      },
+      "photos": {
+        "title": "Where posts get their photos",
+        "description": "When the AI may invent a scene and when it must build on your real photo",
+        "note": "Upload your photos in the <strong>Brand photos</strong> section. The more there are and the better they are tagged, the more often the engine lands on a photo that fits the post. Text and logo are always drawn into the photo — what gets limited is <strong>inventing the scene</strong>, not the graphics.",
+        "noPhotos": "You have not uploaded a single brand photo yet — until then this setting has nothing to work with.",
+        "policies": {
+          "free": {
+            "label": "Free hand",
+            "description": "The AI may invent the scene. Your photos serve as a reference for style, setting and products."
+          },
+          "prefer-real": {
+            "label": "Prefer my photos",
+            "description": "When one of your photos fits the post, the post must build on it — and this is checked. Without a fitting photo the AI fills in the scene."
+          },
+          "only-real": {
+            "label": "Only my photos",
+            "description": "Photos are never invented. Without a fitting photo of yours, the post goes to typography or graphics."
+          }
+        }
+      },
+      "subtitles": {
+        "title": "Subtitles in reels",
+        "description": "The look of the subtitles burned into the video. Applies to new reels; on a finished reel the style can be switched in the post detail (no credits)",
+        "presets": {
+          "pop": {
+            "label": "Highlight",
+            "description": "Bigger type and the word being spoken in the brand colour. Today’s reel standard — the default."
+          },
+          "classic": {
+            "label": "Classic",
+            "description": "White text with an outline and a subtle backdrop. Readable on anything, does not overpower the image."
+          },
+          "cards": {
+            "label": "Cards",
+            "description": "Large type in a solid box, a few words at a time. Holds attention even without sound."
+          },
+          "minimal": {
+            "label": "Minimal",
+            "description": "Just a thin outline, no backdrop. Least intrusive, but gets lost on a bright scene."
+          }
+        },
+        "position": "Position",
+        "positionHint": "Vertically within Instagram’s safe zone — bottom above the UI bar, centre, or top",
+        "positions": {
+          "bottom": "Bottom",
+          "center": "Centre",
+          "top": "Top"
+        },
+        "size": "Size",
+        "sizeHint": "Bigger type = fewer words per line, cards change faster",
+        "sizes": {
+          "s": "Small",
+          "m": "Medium",
+          "l": "Large"
+        },
+        "allowSilent": "Allow reels without a voice",
+        "allowSilentNote": "For visual subjects (food, interior, makeover) the scriptwriter can then choose <strong>text cards and music</strong> instead of a narrator. Costs the same as a reel with a voice.",
+        "note": "Instagram does not accept a subtitle track for reels — subtitles are <strong>burned into the picture</strong>. The change therefore only shows on a newly produced reel; a finished reel can be re-rendered in the post detail, free of charge (no new video is generated)."
+      },
+      "style": {
+        "title": "Visual style",
+        "description": "How the AI Designer renders post images (typography, logo, video)",
+        "typography": "Typography style",
+        "typographyHint": "A free description of the type style — the AI Designer follows it (not a font file)",
+        "typographyPlaceholder": "Bold condensed grotesk, uppercase / elegant high-contrast serif",
+        "logoPlacement": "Logo position",
+        "logoPlacementHint": "Auto = the AI picks the position and alternates it between posts",
+        "logo": {
+          "auto": "Auto — AI decides (recommended)",
+          "top-left": "Top left",
+          "top-right": "Top right",
+          "bottom-left": "Bottom left",
+          "bottom-right": "Bottom right"
+        }
+      },
+      "identity": {
+        "title": "Visual Identity",
+        "description": "Brand inputs for AI image generation",
+        "feel": "Mood & photo style",
+        "feelHint": "Description of the mood for AI image generation",
+        "feelPlaceholder": "Natural, warm, daylight, rustic",
+        "accent": "Accent colour",
+        "accentHint": "Hex colour for highlighted keywords in the text",
+        "custom": "Custom instructions (for AI)",
+        "customHint": "Extra visual instructions for the image prompt",
+        "customPlaceholder": "Always include green plants, wooden textures...",
+        "imageInstructions": "Image instructions (per type)",
+        "imageInstructionsHint": "Specific image instructions by post type — the AI uses them in the mega prompt",
+        "instructionPlaceholder": "Describe the scene, what should be in the image...",
+        "addInstruction": "+ Add instruction for a type",
+        "noInstructions": "No instructions — the AI uses the default scene description. Tip: add _default for a global instruction.",
+        "videoFocus": "Video focus",
+        "videoFocusHint": "Instructions for video content",
+        "videoFocusPlaceholder": "Focus on interiors, first-person view, B-roll..."
+      },
+      "logo": {
+        "title": "Logo",
+        "description": "Watermark on images",
+        "alt": "Logo",
+        "uploading": "Uploading...",
+        "replace": "Replace logo",
+        "upload": "Upload logo (PNG/JPG)",
+        "note": "Max 5 MB. We recommend a PNG with a transparent background."
+      }
+    },
+    "hashtags": {
+      "title": "Hashtag groups",
+      "description": "The AI picks a mix of hashtags from these groups for every post",
+      "placeholder": "#hashtag1, #hashtag2, #hashtag3",
+      "pools": {
+        "core": {
+          "label": "Core",
+          "description": "The brand’s basic hashtags — always added"
+        },
+        "niche": {
+          "label": "Niche",
+          "description": "Narrowly targeted at your audience"
+        },
+        "broad": {
+          "label": "Broad",
+          "description": "Wide-reach hashtags"
+        },
+        "trending": {
+          "label": "Trending",
+          "description": "Current trends and seasonal"
+        },
+        "czech": {
+          "label": "Local",
+          "description": "Hashtags in the brand’s language and market (the “czech” key stays because of stored data)"
+        }
+      },
+      "more": "{count, plural, one {+# more} other {+# more}}",
+      "count": "{count, plural, one {# hashtag} other {# hashtags}}"
+    },
+    "cta": {
+      "title": "CTA Strategies",
+      "description": "Calls to action by intensity — the AI picks based on topic and persona",
+      "strategies": {
+        "none": {
+          "label": "No CTA",
+          "description": "Pure content without a call to action",
+          "placeholder": "— no CTA in this style —"
+        },
+        "soft": {
+          "label": "Soft CTA",
+          "description": "A gentle nudge — save, share, think about it",
+          "placeholder": "Save for later 📌\nWhat do you think?\nWould you ❤️ this?"
+        },
+        "medium": {
+          "label": "Medium CTA",
+          "description": "A clear call — comment, send to a friend",
+          "placeholder": "Send to a friend 📲\nWrite a comment\nTap the link in bio"
+        },
+        "hard": {
+          "label": "Direct sale",
+          "description": "Direct selling — buy, order, book",
+          "placeholder": "Order on the website 🛒\nBook your slot\nBuy now — limited edition"
+        }
+      },
+      "count": "One variation per line • {count, plural, one {# variation} other {# variations}}"
+    },
+    "connection": {
+      "title": "Instagram account",
+      "flash": {
+        "connected": "Instagram connected",
+        "denied": "Connection cancelled on Instagram’s side",
+        "pending": "I cannot see the connection yet — finish it and click Verify",
+        "limit": "The profile limit on upload-post is used up — you cannot connect another account without upgrading the plan",
+        "error": "Connection failed, try again",
+        "pendingWindow": "I cannot see the connection yet — finish it in the open window"
+      },
+      "connected": "Connected",
+      "bridgeInfo": "The link does not expire · publishing and metrics run automatically",
+      "tokenInfo": "Token valid until {date} · renews automatically",
+      "disconnect": "Disconnect",
+      "disconnecting": "Disconnecting…",
+      "expired": "Connection expired",
+      "connectTitle": "Connect Instagram",
+      "configured": "Links your Instagram Business account for metrics and publishing",
+      "notConfigured": "Instagram linking is not configured in this installation yet",
+      "verify": "Verify",
+      "connect": "Connect"
+    },
+    "autoPublish": {
+      "title": "Auto-publishing",
+      "description": "Posts go out on their own — on the day and hour they have in the plan. The plan sets the frequency, not this page.",
+      "saveFailed": "Save failed",
+      "on": "On — posts go out according to the plan",
+      "off": "Off",
+      "toggle": "Publish automatically",
+      "toggleHint": "Finished posts publish themselves at the scheduled time — no clicking.",
+      "notConnected": "The account is not connected yet — the setting is saved, but publishing only starts once Instagram is connected (section above).",
+      "byPlan": "According to the plan",
+      "next": "The next post goes out <em>{date}</em>",
+      "none": "There is no upcoming date in the plan yet.",
+      "counts": "{armed} armed · {waiting, plural, one {# waiting} other {# waiting}} for confirmation{overdue, plural, =0 {} one { · # overdue} other { · # overdue}}",
+      "overdueNote": "Overdue dates do not move on their own — content written for a specific day should not go out a week later. Confirm or move them in the plan.",
+      "lastPosted": "Last published {date}",
+      "openOnInstagram": "open on Instagram",
+      "loadFailed": "Could not load the plan.",
+      "openPlan": "Open plan"
+    },
+    "manage": {
+      "title": "Client management",
+      "reonboard": {
+        "title": "Full re-onboarding",
+        "description": "Re-analyses the website, asks new questions and regenerates the whole config from scratch",
+        "button": "Re-onboarding"
+      },
+      "rescan": {
+        "title": "Re-scan website",
+        "description": "Goes through {site} again and downloads new photos",
+        "site": "the website",
+        "button": "Scan",
+        "scanning": "Scanning…",
+        "foundUrls": "{count, plural, one {found # URL on the website} other {found # URLs on the website}}",
+        "existing": "{count, plural, one {# existing photo} other {# existing photos}}",
+        "downloaded": "{count, plural, one {# new downloaded} other {# new downloaded}}"
+      },
+      "sync": {
+        "title": "Product sync",
+        "description": "Imports products from the configuration into the catalogue (for @ mentions)",
+        "button": "Sync",
+        "syncing": "Syncing…",
+        "result": "{synced, plural, one {# new} other {# new}} · {skipped, plural, one {# skipped} other {# skipped}}"
+      },
+      "delete": {
+        "title": "Delete client",
+        "description": "Removes the client, all posts and stored photos. Cannot be undone!",
+        "confirm": "Really delete",
+        "deleting": "Deleting…",
+        "failed": "Deletion failed: {error}"
+      }
+    },
+    "handoff": {
+      "title": "Brand handover",
+      "description": "Who owns {name} and which e-mail to transfer it to",
+      "done": "Handed over.",
+      "failed": "Handover failed.",
+      "cancelFailed": "Cancellation failed.",
+      "owners": "Owners",
+      "ownersHint": "Links in user_clients. An admin can access the project even without a link.",
+      "noOwners": "Nobody yet — the brand exists only under admin access.",
+      "you": "you",
+      "pending": "Awaiting registration",
+      "pendingHint": "The account does not exist yet. The link is created on the first sign-in with this address.",
+      "copied": "Copied",
+      "copyInvite": "Copy invite link",
+      "email": "New owner’s e-mail",
+      "emailHint": "If the account does not exist yet, we send an invite and assign the brand after registration.",
+      "emailPlaceholder": "customer@company.com",
+      "replace": "Detach current owners — only the new e-mail will have the brand.",
+      "replaceNote": "Applies only to an account that already exists; nobody is detached for an invite.",
+      "transfer": "Hand over brand",
+      "transferring": "Handing over…"
+    }
+  }
 }

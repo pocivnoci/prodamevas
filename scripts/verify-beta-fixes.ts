@@ -171,8 +171,10 @@ test('validateConfig provides defaults for contentFocus', () => {
 console.log('\n🔄 Fix 5: Error Recovery')
 
 test('GenerateTab has retry button for single post failures', () => {
+    // Text žije v messages (jazyk UI); tab ho bere klíčem.
     const code = readFile('app/(dashboard)/dashboard/instagram/tabs/GenerateTab.tsx')
-    return code.includes('Zkusit znovu') && code.includes('!result.success')
+    const cs = readFile('messages/cs/generate.json')
+    return code.includes('t("result.retry")') && cs.includes('"Zkusit znovu"') && code.includes('!result.success')
 })
 
 test('GenerateTab retry re-triggers handleGenerate', () => {
@@ -182,7 +184,8 @@ test('GenerateTab retry re-triggers handleGenerate', () => {
 
 test('GenerateTab has retry for batch failures', () => {
     const code = readFile('app/(dashboard)/dashboard/instagram/tabs/GenerateTab.tsx')
-    return code.includes('Zkusit selhané znovu') && code.includes('batchResult.errors > 0')
+    const cs = readFile('messages/cs/generate.json')
+    return code.includes('t("batch.retryFailed")') && cs.includes('"Zkusit selhané znovu"') && code.includes('batchResult.errors > 0')
 })
 
 // ═══════════════════════════════════════════════

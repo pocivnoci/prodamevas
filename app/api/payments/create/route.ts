@@ -14,6 +14,7 @@ import { activeGateway, createStripeCheckout, paymentLabel } from "@/lib/payment
 import { enqueueTask } from "@/lib/agent-runner"
 import { CONSULTATION, EXTRA_CREDIT_HALERU, chargeableHaleru, creditPackPrice, normalizeTermMonths, parseCreditPack, termPrice } from "@/lib/pricing"
 import { countLabel, CREDITS } from "@/lib/plural"
+import { paymentPageLanguage } from "@/lib/i18n/server"
 
 /**
  * Cena jednoho dokoupeného kreditu podle TARIFU klienta.
@@ -144,6 +145,7 @@ export async function POST(req: NextRequest) {
         if (activeGateway() === "stripe") {
             const result = await createStripeCheckout({
                 client, plan, payerEmail, termMonths,
+                locale: await paymentPageLanguage(),
                 kind: creditPack ? "credits" : isService ? "service" : "subscription",
                 creditsGranted: creditPack ?? undefined,
                 // Klient si řekne o vestavěnou pokladnu; ComGate ji neumí, takže
@@ -190,6 +192,8 @@ export async function POST(req: NextRequest) {
                 curr: "CZK",
                 label: label.substring(0, 40),
                 email: payerEmail || "noreply@chrlit.cz",
+                // Platební stránka v jazyce UI kupujícího — brána umí cs/en/sk.
+                lang: await paymentPageLanguage(),
                 // Init a recurring series so the billing worker can auto-renew month 2+.
                 // Gated on COMGATE_RECURRING=1 (needs the merchant contract) — without it
                 // the flag would fail payment creation entirely.

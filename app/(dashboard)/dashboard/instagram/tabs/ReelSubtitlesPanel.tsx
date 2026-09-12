@@ -14,6 +14,7 @@
  */
 
 import { useState } from "react"
+import { useTranslations } from "next-intl"
 import { recomposeReelSubtitles } from "@/app/actions/post-edit-actions"
 import { SUBTITLE_PRESET_OPTIONS } from "@/lib/subtitle-presets"
 import type { IGPost, ReelSubtitleCard } from "@/lib/types/database"
@@ -29,6 +30,7 @@ export function ReelSubtitlesPanel({ post, projectId, onDone }: {
     /** Nové `image_url` a karty — detail si jimi překreslí přehrávač, aniž by se zavřel. */
     onDone: (imageUrl: string, cards: ReelSubtitleCard[]) => void
 }) {
+    const t = useTranslations("posts")
     const source = post.video_source ?? null
     // Textový reel voiceover nikdy neměl — chybějící WAV u něj není chybějící zdroj.
     const textOnly = source?.mode === "text"
@@ -52,14 +54,14 @@ export function ReelSubtitlesPanel({ post, projectId, onDone }: {
 
     const run = async () => {
         if (busy || !canRecompose) return
-        setBusy(true); setError(null); setStatus("Zakládám úlohu…")
+        setBusy(true); setError(null); setStatus(t("subtitles.creatingJob"))
 
         const created = await recomposeReelSubtitles(post.id, projectId, {
             cards: cards.map(c => ({ text: c.text, start: c.start, end: c.end })),
             subtitleStyle: { ...(source.subtitleStyle ?? {}), preset },
         })
         if (!created.success || !created.jobId) {
-            setBusy(false); setStatus(null); setError(created.error || "Úlohu se nepodařilo založit.")
+            setBusy(false); setStatus(null); setError(created.error || t("subtitles.createFailed"))
             return
         }
 
@@ -88,35 +90,34 @@ export function ReelSubtitlesPanel({ post, projectId, onDone }: {
                 }
                 if (job.status === "failed") {
                     setBusy(false); setStatus(null)
-                    setError(job.error || "Přerenderování selhalo.")
+                    setError(job.error || t("subtitles.renderFailed"))
                     return
                 }
                 if (job.agentMessage) setStatus(job.agentMessage)
             } catch { /* výpadek pollingu není výsledek — zkusíme znovu */ }
         }
         setBusy(false); setStatus(null)
-        setError("Přerenderování trvá nezvykle dlouho. Zavřete detail a za chvíli ho otevřete znovu.")
+        setError(t("subtitles.timeout"))
     }
 
     return (
         <div className="px-4 sm:px-6 py-3 border-t border-white/10 bg-[#030303] space-y-3">
             <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-white/60">Titulky</span>
-                <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/70">bez kreditů</span>
+                <span className="text-[9px] font-bold uppercase tracking-widest text-white/60">{t("subtitles.title")}</span>
+                <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/70">{t("subtitles.free")}</span>
                 {textOnly && (
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-sky-400/70">Textový reel (bez hlasu)</span>
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-sky-400/70">{t("subtitles.textOnly")}</span>
                 )}
-                <span className="text-[10px] text-white/30">· vypálené do videa, mění se přerenderováním</span>
+                <span className="text-[10px] text-white/30">{t("subtitles.burnedIn")}</span>
             </div>
 
             {!canRecompose ? (
                 <p className="text-[10px] text-amber-400/80 leading-relaxed">
-                    Tenhle reel vznikl dřív, než jsme si začali schovávat surové video — titulky u něj jdou
-                    změnit jen vygenerováním znovu. U nových reelů to už půjde tady.
+                    {t("subtitles.legacy")}
                 </p>
             ) : locked ? (
                 <p className="text-[10px] text-white/40 leading-relaxed">
-                    Publikovaný reel už na Instagramu nezměníme — titulky jdou upravit jen u varianty.
+                    {t("subtitles.locked")}
                 </p>
             ) : (
                 <>
@@ -127,26 +128,26 @@ export function ReelSubtitlesPanel({ post, projectId, onDone }: {
                                 key={o.id}
                                 onClick={() => setPreset(o.id)}
                                 disabled={busy}
-                                title={o.description}
+                                title={t(`subtitles.preset.${o.id}.description`)}
                                 className={`px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded-sm border transition-all disabled:opacity-40 ${
                                     preset === o.id
                                         ? "bg-white/10 text-white border-white/20"
                                         : "bg-transparent text-white/40 border-white/10 hover:text-white/70"
                                 }`}
                             >
-                                {o.label}
+                                {t(`subtitles.preset.${o.id}.label`)}
                             </button>
                         ))}
                     </div>
 
                     <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
                         {cards.length === 0 && (
-                            <p className="text-[10px] text-white/30">Tenhle reel nemá uložené žádné karty.</p>
+                            <p className="text-[10px] text-white/30">{t("subtitles.noCards")}</p>
                         )}
                         {cards.map((card, i) => (
                             <div key={i} className="flex items-start gap-2">
                                 <span className="text-[9px] font-mono text-white/25 pt-2 w-20 shrink-0 tabular-nums">
-                                    {card.start.toFixed(1)}–{card.end.toFixed(1)} s
+                                    {t("subtitles.cardTime", { start: card.start.toFixed(1), end: card.end.toFixed(1) })}
                                 </span>
                                 <input
                                     value={card.text}
@@ -164,18 +165,18 @@ export function ReelSubtitlesPanel({ post, projectId, onDone }: {
                             disabled={busy || !dirty}
                             className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded-sm border border-white/20 bg-white/10 text-white hover:bg-white/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                         >
-                            {busy ? "Renderuji…" : "Přerenderovat titulky (bez kreditů)"}
+                            {busy ? t("subtitles.rendering") : t("subtitles.render")}
                         </button>
-                        {!dirty && !busy && <span className="text-[10px] text-white/25">Změňte text nebo styl</span>}
+                        {!dirty && !busy && <span className="text-[10px] text-white/25">{t("subtitles.dirtyHint")}</span>}
                         {status && <span className="text-[10px] text-white/50">{status}</span>}
                     </div>
 
                     {error && <p className="text-[10px] text-red-400/80 leading-relaxed">{error}</p>}
                     <p className="text-[9px] text-white/25 leading-relaxed">
                         {textOnly
-                            ? "Časy vycházejí ze čtecího tempa karet a měnit je nejde — kratší karta by se nestihla přečíst."
-                            : "Časy sedí na namluvené řeči a měnit je nejde — jinak by se titulek rozešel s hlasem."}{" "}
-                        Nové video nahradí staré; předchozí verzi vrátí „Vrátit zpět&ldquo;.
+                            ? t("subtitles.timingText")
+                            : t("subtitles.timingVoice")}{" "}
+                        {t("subtitles.replaceNote")}
                     </p>
                 </>
             )}

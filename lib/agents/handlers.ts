@@ -256,6 +256,8 @@ registerHandler("onboarding_analyze", async (task: AgentTask) => {
         url?: string
         igHandle?: string
         info?: Parameters<typeof buildManualAnalysisCore>[0]
+        /** Jazyk UI toho, kdo průvodce spustil (`app/onboarding/actions.ts`). */
+        uiLocale?: string
     }
     const say = (n: number, m: string) => reportProgress(task.id, n, m)
 
@@ -280,7 +282,7 @@ registerHandler("onboarding_analyze", async (task: AgentTask) => {
     // celý objekt (~100–300 KB) doletět do prohlížeče a hned se vrátit zpátky.
     await say(93, "Připravuju otázky na míru…")
     const questions = await trackSpend("onboarding_analyze", { refId: task.id },
-        () => generateQuestionsCore(analysis))
+        () => generateQuestionsCore(analysis, p.uiLocale))
 
     await say(100, "Hotovo")
     return { analysis, questions }

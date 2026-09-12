@@ -40,6 +40,16 @@ export async function syncLocaleCookieFromUser(user: { user_metadata?: Record<st
     jar.set(LOCALE_COOKIE, preferred, localeCookieOptions())
 }
 
+/**
+ * Jazyk platební stránky (ComGate `lang`, Stripe `locale`) = jazyk UI, ve kterém
+ * kupující právě klikl na „Zaplatit". Brány umí jen podmnožinu; co neumí, jede
+ * anglicky, ne česky.
+ */
+export async function paymentPageLanguage(): Promise<"cs" | "en"> {
+    const locale = await resolveUiLocale()
+    return locale === "cs" ? "cs" : "en"
+}
+
 /** Jazyk, který si návštěvník zvolil ještě před registrací — ať se uloží k účtu. */
 export async function currentLocaleCookie(): Promise<UiLocale | null> {
     const jar = await cookies()

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { useFormatter, useTranslations } from "next-intl"
 import {
     getIGPostTypes,
     getIGPostFormats,
@@ -15,7 +16,7 @@ import { getPlanForMedium } from "@/lib/pricing"
 import { schedulePostAction } from "@/app/actions/calendar-actions"
 import { distributeSchedule, monthSpanDays, postsForSpan } from "@/lib/schedule-planner"
 import { MEDIA_CREDITS, type MediumType } from "@/lib/credits"
-import { isReelMedium, REEL_LABELS, type ReelMedium } from "@/lib/reel-media"
+import { isReelMedium, type ReelMedium } from "@/lib/reel-media"
 import { parsePostMedia } from "@/lib/media-urls"
 import { ReelPlayer } from "./ReelPlayer"
 import { computeSlotIntents, VISUAL_MODE_LABELS, type FeedPatternId } from "@/lib/feed-pattern"
@@ -27,8 +28,7 @@ import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
 import { useCopyToClipboard } from "./hooks"
 import type { IGPostType, IGCategory, IGPostFormat } from "./types"
 import { creditsForMedia } from "@/lib/credits"
-import { countLabel, CREDITS, POSTS } from "@/lib/plural"
-import { Hint, HINTS } from "./Hint"
+import { Hint, useHints } from "./Hint"
 import { trackEvent } from "@/lib/analytics"
 import { Award, Bot, CalendarDays, ChartColumn, Check, CircleCheck, ClipboardList, Compass, Film, Lightbulb, MessageCircle, Package, PenLine, Pencil, Pin, RefreshCw, Rocket, Ruler, Search, Sparkles, Star, Trash2, TriangleAlert, X } from "lucide-react"
 
@@ -53,14 +53,25 @@ function snapToChip(n: number): number {
         Math.abs(c - n) < Math.abs(best - n) ? c : best, CADENCE_OPTIONS[0] as number)
 }
 
-/** "2026-07-18" → "18. 7." for the plan summary strip. */
-function shortCzDate(dateStr: string): string {
-    const [, m, d] = dateStr.split("-")
-    return `${Number(d)}. ${Number(m)}.`
-}
+/**
+ * Hook ručně přidané položky plánu. Zároveň smluvní sentinel pro server: `startCampaign`
+ * podle prefixu „Nový post" pozná, že koncept nikdo nevymyslel, a nezaloží z něj nápad
+ * v zásobníku. Uložená hodnota proto zůstává česky bez ohledu na jazyk UI — karta ji
+ * zobrazuje přes `t("preview.newItemHook")`.
+ */
+const NEW_ITEM_HOOK = "Nový post — klikni 🔄 pro vygenerování konceptu" // i18n-ignore: sentinel v datech plánu, campaign-actions.ts ho poznává přes startsWith("Nový post")
 
 export function GenerateTab({ projectId }: { projectId: string }) {
     const { refreshSubscription, setActiveSection, subscription, generateIntent, setGenerateIntent } = useStudio()
+    const t = useTranslations("generate")
+    const hints = useHints()
+    const fmt = useFormatter()
+    /** "2026-07-18" → krátké datum v jazyce UI („18. 7.") pro souhrn plánu. Poledne UTC,
+     *  aby den neposunula zóna prohlížeče ani Europe/Prague. */
+    const shortDate = (dateStr: string): string => {
+        const [y, m, d] = dateStr.split("-").map(Number)
+        return fmt.dateTime(new Date(Date.UTC(y, m - 1, d, 12)), { day: "numeric", month: "numeric" })
+    }
     // A medium must pass BOTH gates: the plan allows it AND the engine can actually make
     // it. Offering one the engine will clamp away is a broken promise — a "reel" that
     // ships as a carousel. `?? false` on the flags: an older API response without them
@@ -222,7 +233,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         })
         if (!createRes.ok) {
             const err = await createRes.json().catch(() => ({}))
-            return { success: false, error: err.error || "Nepodařilo se vytvořit úlohu" }
+            return { success: false, error: err.error || t("errors.createJob") }
         }
         const { jobId } = await createRes.json()
         jobIdRef.current = jobId
@@ -268,7 +279,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
 
             const data = await result.json()
             if (!result.ok || !data.success) {
-                return { success: false, error: data.error || "Generování selhalo" }
+                return { success: false, error: data.error || t("errors.generationFailed") }
             }
 
             // Final fetch of editorial log — ensures we always have it
@@ -288,7 +299,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         } catch (err: any) {
             pollingActive = false
             setAgentStatus(null)
-            return { success: false, error: err.message || "Chyba sítě" }
+            return { success: false, error: err.message || t("errors.network") }
         }
     }
 
@@ -312,7 +323,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                 misses++
                 setPollHealthy(false)
                 if (misses > 15) { // ~1 min of failed polls — give up the UI poll; the worker keeps going regardless
-                    setBatchResult({ generated: 0, errors: 0, message: res.error || "Ztracen kontakt s kampaní (běží dál na pozadí)", success: false } as any)
+                    setBatchResult({ generated: 0, errors: 0, message: res.error || t("errors.campaignLost"), success: false } as any)
                     setCampaignId(null)
                     setPollHealthy(true)
                     return
@@ -330,10 +341,10 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                     generated: c.successes,
                     errors: c.failures,
                     message: c.status === "done"
-                        ? `Úspěšně vygenerováno ${c.successes} z ${c.total} postů`
+                        ? t("campaign.done", { successes: c.successes, total: c.total })
                         : c.status === "failed"
-                            ? (c.error || `Všech ${c.total} postů selhalo`)
-                            : `Vygenerováno ${c.successes} z ${c.total}${c.error ? ` — ${c.error}` : ""}`,
+                            ? (c.error || t("campaign.allFailed", { total: c.total }))
+                            : `${t("campaign.partial", { successes: c.successes, total: c.total })}${c.error ? ` — ${c.error}` : ""}`,
                     success: c.successes > 0,
                 } as any)
                 setCampaignId(null)
@@ -463,7 +474,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                     : (medium ? [medium] : undefined),
             )
             if (!creditCheck.ok) {
-                setCreditError(creditCheck.error || "Nedostatek kreditů")
+                setCreditError(creditCheck.error || t("errors.notEnoughCredits"))
                 setGenerating(false)
                 showPlanUnlockModal()
                 return
@@ -493,7 +504,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                     setBatchResult({
                         generated: 0,
                         errors: totalPosts,
-                        message: startRes.error || "Nepodařilo se spustit kampaň",
+                        message: startRes.error || t("errors.campaignStart"),
                         success: false,
                     } as any)
                 } else {
@@ -511,7 +522,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                     formData.append("file", customImageFile)
                     const uploadRes = await uploadCustomImage(projectId, formData)
                     if (!uploadRes.success || !uploadRes.publicUrl) {
-                        setResult({ success: false, error: uploadRes.error || "Při nahrávání obrázku došlo k chybě." })
+                        setResult({ success: false, error: uploadRes.error || t("errors.upload") })
                         setGenerating(false)
                         setStep(2)
                         return
@@ -552,7 +563,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                 }
             }
         } catch (err: any) {
-            const errorMsg = err?.message || "Neznámá chyba při generování"
+            const errorMsg = err?.message || t("errors.unknown")
             if (batchMode) {
                 setBatchResult({
                     generated: 0,
@@ -591,23 +602,23 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     // „Měsíc" má `days: null`, protože délku určuje kalendář, ne čtyři týdny: napevno
     // 28 dní znamenalo, že v 30- i 31denním měsíci zůstal konec bez jediného příspěvku.
     const PLAN_DURATIONS = [
-        { key: "trial", label: "Zkouška", days: 0 },
-        { key: "1w", label: "Týden", days: 7 },
-        { key: "2w", label: "Dva týdny", days: 14 },
-        { key: "month", label: "Měsíc", days: null },
+        { key: "trial", label: t("plan.durations.trial"), days: 0 },
+        { key: "1w", label: t("plan.durations.1w"), days: 7 },
+        { key: "2w", label: t("plan.durations.2w"), days: 14 },
+        { key: "month", label: t("plan.durations.month"), days: null },
     ] as const
 
     const CAMPAIGN_GOALS: { key: CampaignGoal; label: string; emoji: string; hint: string }[] = [
-        { key: "reach", label: "Dosah", emoji: "📣", hint: "Zasáhnout nové lidi — sdílitelné, srozumitelné i bez znalosti značky" },
-        { key: "engagement", label: "Komunita", emoji: "💬", hint: "Vyvolat reakce — otázky, názory, uložení" },
-        { key: "sales", label: "Prodej", emoji: "🛒", hint: "Vést k nákupu — konkrétní produkt, konkrétní důvod jednat" },
-        { key: "launch", label: "Novinka", emoji: "🚀", hint: "Uvést novinku — série se stoupajícím obloukem" },
+        { key: "reach", label: t("plan.goals.reach.label"), emoji: "📣", hint: t("plan.goals.reach.hint") },
+        { key: "engagement", label: t("plan.goals.engagement.label"), emoji: "💬", hint: t("plan.goals.engagement.hint") },
+        { key: "sales", label: t("plan.goals.sales.label"), emoji: "🛒", hint: t("plan.goals.sales.hint") },
+        { key: "launch", label: t("plan.goals.launch.label"), emoji: "🚀", hint: t("plan.goals.launch.hint") },
     ]
 
     const CAROUSEL_SHARES: { key: CarouselShare; label: string; emoji: string; hint: string }[] = [
-        { key: "low", label: "Víc fotek", emoji: "📷", hint: "levnější" },
-        { key: "auto", label: "Vyvážené", emoji: "⚖️", hint: "doporučeno" },
-        { key: "high", label: "Víc karuselů", emoji: "🎠", hint: "dražší" },
+        { key: "low", label: t("plan.carouselShare.low.label"), emoji: "📷", hint: t("plan.carouselShare.low.hint") },
+        { key: "auto", label: t("plan.carouselShare.auto.label"), emoji: "⚖️", hint: t("plan.carouselShare.auto.hint") },
+        { key: "high", label: t("plan.carouselShare.high.label"), emoji: "🎠", hint: t("plan.carouselShare.high.hint") },
     ]
 
     const toggleFocusProduct = (id: string) => {
@@ -733,14 +744,14 @@ export function GenerateTab({ projectId }: { projectId: string }) {
         const r = await schedulePostAction(projectId, result.postId, date, singleSchedTime)
         setSingleScheduling(false)
         if (r.success) setSingleScheduled(`${date} ${singleSchedTime}`)
-        else alert(r.error || "Plánování selhalo")
+        else alert(r.error || t("errors.scheduleFailed"))
     }
 
     // Content Plan: generate plan preview. The deep pipeline runs ~1-2 min server-side, so we
     // poll its ig_jobs breadcrumb (via planRunId) and show live stage messages on the button.
     const handleGeneratePlan = async () => {
         setPlanGenerating(true)
-        setPlanProgress({ progress: 5, message: "Připravuji kontext značky…" })
+        setPlanProgress({ progress: 5, message: t("plan.preparingContext") })
         const runId = crypto.randomUUID()
         const poll = setInterval(async () => {
             try {
@@ -775,7 +786,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                 setPlanPattern(result.feedPattern || null)
                 setStep(2)
             } else {
-                alert(result.error || "Generování plánu selhalo")
+                alert(result.error || t("errors.planFailed"))
             }
         } catch (err: any) {
             // Bez tohohle catche byl `try/finally` němý: když serverová akce vyhodila
@@ -784,10 +795,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
             // od „tlačítko nefunguje". Plán běží 1-2 minuty, takže tichý pád je tu
             // obzvlášť matoucí.
             console.error("[content-plan] generování selhalo:", err)
-            alert(
-                `Generování plánu se nepodařilo dokončit.\n\n${err?.message || String(err)}\n\n` +
-                `Pokud jsi byl(a) dlouho nečinný(á), zkus stránku načíst znovu a přihlásit se.`
-            )
+            alert(t("errors.planCrashed", { error: err?.message || String(err) }))
         } finally {
             clearInterval(poll)
             setPlanProgress(null)
@@ -876,13 +884,13 @@ export function GenerateTab({ projectId }: { projectId: string }) {
             id: `plan_${Date.now()}_add`,
             postType: lastItem?.postType || "auto",
             postTypeEmoji: lastItem?.postTypeEmoji || "📝",
-            postTypeLabel: lastItem?.postTypeLabel || "Auto",
+            postTypeLabel: lastItem?.postTypeLabel || t("labels.auto"),
             medium: lastItem?.medium || "image",
             pillar: lastItem?.pillar || "content",
             pillarEmoji: lastItem?.pillarEmoji || "📋",
-            hookPreview: "Nový post — klikni 🔄 pro vygenerování konceptu",
+            hookPreview: NEW_ITEM_HOOK,
             angle: "",
-            topic: topic || "volné téma",
+            topic: topic || "volné téma", // i18n-ignore: jde do promptu copywritera (prompt je česky), ne do UI
             day: contentPlan.length + 1,
             week: contentPlan.length >= 14 ? Math.floor(contentPlan.length / 7) + 1 : undefined,
         }
@@ -899,7 +907,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     // Throw the saved preview away and start over from the brief.
     const handleDiscardPlan = async () => {
         if (!draftId) return
-        if (!confirm("Zahodit vygenerovaný plán? Tuhle akci nelze vrátit.")) return
+        if (!confirm(t("preview.discardConfirm"))) return
         const id = draftId
         // Clear locally first so the autosave effect can't immediately re-save the plan
         // we're deleting.
@@ -924,13 +932,13 @@ export function GenerateTab({ projectId }: { projectId: string }) {
     // Simplified steps: Single = 2 steps, Plan = 3 steps
     const steps = batchMode
         ? [
-            { id: 1, label: "Zadání" },
-            { id: 2, label: "Plán" },
-            { id: 3, label: "Výsledek" },
+            { id: 1, label: t("steps.brief") },
+            { id: 2, label: t("steps.plan") },
+            { id: 3, label: t("steps.result") },
         ]
         : [
-            { id: 1, label: "Zadání" },
-            { id: 2, label: "Výsledek" },
+            { id: 1, label: t("steps.brief") },
+            { id: 2, label: t("steps.result") },
         ]
 
     const resultStep = batchMode ? 3 : 2
@@ -948,7 +956,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                             : "text-white/40 hover:text-white"
                         }`}
                     >
-                        <span className="inline-flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 shrink-0" />Jeden příspěvek</span>
+                        <span className="inline-flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 shrink-0" />{t("mode.single")}</span>
                     </button>
                     <button
                         onClick={() => { setBatchMode(true); setStep(1) }}
@@ -957,7 +965,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                             : "text-white/40 hover:text-white"
                         }`}
                     >
-                        <span className="inline-flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5 shrink-0" />Obsahový plán</span>
+                        <span className="inline-flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5 shrink-0" />{t("mode.plan")}</span>
                     </button>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1009,18 +1017,18 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                             /* ── SINGLE POST ── */
                             <div className="max-w-2xl mx-auto space-y-8">
                                 <div className="text-center">
-                                    <h2 className="text-3xl font-black tracking-tighter uppercase text-white/90 mb-2">Nový příspěvek</h2>
-                                    <p className="text-white/40 text-sm">Řekněte AI o čem má psát, nebo nechte vše na automatice.</p>
+                                    <h2 className="text-3xl font-black tracking-tighter uppercase text-white/90 mb-2">{t("single.title")}</h2>
+                                    <p className="text-white/40 text-sm">{t("single.subtitle")}</p>
                                 </div>
 
                                 {/* Topic */}
                                 <div>
                                     <div className="flex items-center justify-between mb-2">
-                                        <label className="text-[10px] text-white/50 uppercase tracking-widest font-bold">O čem?</label>
+                                        <label className="text-[10px] text-white/50 uppercase tracking-widest font-bold">{t("single.topicLabel")}</label>
                                         {(savedIdeas.length > 0 || approvedReviews.length > 0) && (
                                             <button type="button" onClick={() => setShowIdeaPicker(!showIdeaPicker)}
                                                 className="text-[9px] font-bold uppercase tracking-widest text-emerald-400 hover:text-emerald-300 transition-colors">
-                                                {showIdeaPicker ? "Skrýt" : "Vybrat z nápadů"}
+                                                {showIdeaPicker ? t("single.hideIdeas") : t("single.pickIdeas")}
                                             </button>
                                         )}
                                     </div>
@@ -1028,7 +1036,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         <div className="mb-3 bg-[#050505] border border-white/10 rounded-sm p-3 max-h-52 overflow-y-auto space-y-1">
                                             {savedIdeas.length > 0 && (
                                                 <>
-                                                    <span className="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-white/30 block mb-1"><Lightbulb className="w-3 h-3 shrink-0" />Nápady</span>
+                                                    <span className="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-white/30 block mb-1"><Lightbulb className="w-3 h-3 shrink-0" />{t("single.ideas")}</span>
                                                     {savedIdeas.slice(0, 10).map((idea: any) => (
                                                         <button key={idea.id} type="button"
                                                             onClick={() => { setTopic(`${idea.title}: ${idea.content}`); setSelectedIdeaId(idea.id); setShowIdeaPicker(false) }}
@@ -1041,11 +1049,11 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                             )}
                                             {approvedReviews.length > 0 && (
                                                 <>
-                                                    <span className="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-white/30 block mb-1 mt-2"><Star className="w-3 h-3 shrink-0" />Recenze</span>
+                                                    <span className="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-white/30 block mb-1 mt-2"><Star className="w-3 h-3 shrink-0" />{t("single.reviews")}</span>
                                                     {approvedReviews.slice(0, 5).map((review: any) => (
                                                         <button key={review.id} type="button"
                                                             onClick={() => {
-                                                                setTopic(`Recenze zákazníka: "${review.quote}" — ${review.customer_initials || "Anonym"}`)
+                                                                setTopic(`Recenze zákazníka: "${review.quote}" — ${review.customer_initials || "Anonym"}`) // i18n-ignore: předvyplněné zadání pro copywritera (prompt je česky)
                                                                 setSelectedIdeaId(null)
                                                                 const reviewType = postTypes.find(pt => pt.name === "recenze" || pt.name === "review" || pt.name === "testimonial")
                                                                 if (reviewType) setSelectedType(reviewType.name)
@@ -1061,13 +1069,13 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         </div>
                                     )}
                                     <textarea
-                                        placeholder="Např. Jarní slevy, Nová kolekce, Péče o pleť... nebo nechte prázdné a AI vybere samo."
+                                        placeholder={t("single.topicPlaceholder")}
                                         value={topic} onChange={(e) => { setTopic(e.target.value); setSelectedIdeaId(null) }} rows={2}
                                         className="w-full px-5 py-4 bg-[#050505] border border-white/10 rounded-sm text-white placeholder:text-white/30 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all shadow-sm resize-none"
                                     />
                                     {selectedIdeaId && (
                                         <div className="mt-2 flex items-center gap-2">
-                                            <span className="inline-flex items-center gap-1.5 text-[9px] px-2 py-1 rounded-sm bg-emerald-500/10 text-emerald-400/80 uppercase tracking-widest font-bold border border-emerald-500/20"><Lightbulb className="w-3 h-3 shrink-0" />Napojeno na nápad — příspěvek se započítá do jeho výkonu</span>
+                                            <span className="inline-flex items-center gap-1.5 text-[9px] px-2 py-1 rounded-sm bg-emerald-500/10 text-emerald-400/80 uppercase tracking-widest font-bold border border-emerald-500/20"><Lightbulb className="w-3 h-3 shrink-0" />{t("single.linkedIdea")}</span>
                                             <button type="button" onClick={() => setSelectedIdeaId(null)}
                                                 className="text-[9px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors">
                                                 ✕
@@ -1081,18 +1089,18 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 <div>
                                     <button type="button" onClick={() => setShowAdvanced(!showAdvanced)}
                                         className="text-[10px] text-white/20 hover:text-white/40 font-bold uppercase tracking-widest transition-colors flex items-center gap-2 mb-3">
-                                        <span>{showAdvanced ? "▼" : "▶"}</span> Pokročilé
+                                        <span>{showAdvanced ? "▼" : "▶"}</span> {t("single.advanced")}
                                     </button>
                                     {showAdvanced && (
                                         <div className="space-y-5 pl-4 border-l border-white/10">
                                             {/* Category pills */}
                                             <div>
-                                                <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Zaměření</label>
+                                                <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">{t("single.focus")}</label>
                                                 <div className="flex flex-wrap gap-2">
                                                     <button onClick={() => setCategory("auto")}
                                                         className={`px-4 py-2.5 rounded-sm border text-xs font-bold transition-all flex items-center gap-2 ${category === "auto" || category === ""
                                                             ? "border-white/30 bg-white/10 text-white" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
-                                                        <Bot className="w-4 h-4 grayscale opacity-80" /> Automaticky
+                                                        <Bot className="w-4 h-4 grayscale opacity-80" /> {t("single.auto")}
                                                     </button>
                                                     {categories.map(cat => (
                                                         <button key={cat.id} onClick={() => setCategory(cat.id)}
@@ -1107,10 +1115,10 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                             {/* Product selector */}
                                             {catalogProducts.length > 0 && (
                                                 <div>
-                                                    <label className="inline-flex items-center gap-1.5 text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold"><Package className="w-3 h-3 shrink-0" />Produkt</label>
+                                                    <label className="inline-flex items-center gap-1.5 text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold"><Package className="w-3 h-3 shrink-0" />{t("labels.product")}</label>
                                                     <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)}
                                                         className="w-full px-5 py-3.5 bg-[#050505] border border-white/10 rounded-sm text-white text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all">
-                                                        <option value="">AI vybere automaticky</option>
+                                                        <option value="">{t("single.productAuto")}</option>
                                                         {catalogProducts.map((p: any) => (
                                                             <option key={p.id} value={p.id}>{p.name}{p.price ? ` — ${p.price}` : ''}</option>
                                                         ))}
@@ -1120,10 +1128,10 @@ export function GenerateTab({ projectId }: { projectId: string }) {
 
                                             {/* Format selector */}
                                             <div>
-                                                <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">Formát</label>
+                                                <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">{t("single.format")}</label>
                                                 <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)}
                                                     className="w-full px-5 py-3.5 bg-[#050505] border border-white/10 rounded-sm text-white text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all">
-                                                    <option value="">AI vybere nejlepší formát</option>
+                                                    <option value="">{t("single.formatAuto")}</option>
                                                     {postTypes.filter(pt => pt.is_active).filter(pt => category === "auto" || category === "" || pt.pillarId === category)
                                                         .map(pt => (<option key={pt.id} value={pt.name}>{pt.display_name}</option>))}
                                                 </select>
@@ -1135,9 +1143,9 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                 })()}
                                             </div>
                                             <div>
-                                                <label className="inline-flex items-center gap-1.5 text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold"><Ruler className="w-3 h-3 shrink-0" />Poměr stran</label>
+                                                <label className="inline-flex items-center gap-1.5 text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold"><Ruler className="w-3 h-3 shrink-0" />{t("single.aspectRatio")}</label>
                                                 <div className="grid grid-cols-4 gap-2">
-                                                    {[{ value: "", label: "Auto" }, { value: "1:1", label: "1:1" }, { value: "4:5", label: "4:5" }, { value: "3:4", label: "3:4" }].map(opt => (
+                                                    {[{ value: "", label: t("labels.auto") }, { value: "1:1", label: "1:1" }, { value: "4:5", label: "4:5" }, { value: "3:4", label: "3:4" }].map(opt => (
                                                         <button key={opt.value} onClick={() => setAspectRatio(opt.value)}
                                                             className={`py-2.5 rounded-sm text-center transition-all border text-xs font-bold ${aspectRatio === opt.value
                                                                 ? "bg-white/10 border-white/30 text-white" : "bg-[#050505] border-white/10 text-white/40 hover:text-white"}`}>
@@ -1147,13 +1155,15 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className="inline-flex items-center gap-1.5 text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold"><Film className="w-3 h-3 shrink-0" />Typ</label>
+                                                <label className="inline-flex items-center gap-1.5 text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold"><Film className="w-3 h-3 shrink-0" />{t("single.type")}</label>
                                                 <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
-                                                    {[{ value: "", label: "Auto", emoji: "🎲" }, { value: "image", label: "Obrázek", emoji: "🖼️" }, { value: "story", label: "Story", emoji: "📱" }, { value: "carousel", label: "Carousel", emoji: "📸" }, { value: "reel", label: REEL_LABELS.reel, emoji: "🎬" }, { value: "reel_long", label: REEL_LABELS.reel_long, emoji: "🎥" }].map(opt => {
+                                                    {[{ value: "", label: t("labels.auto"), emoji: "🎲" }, { value: "image", label: t("media.image"), emoji: "🖼️" }, { value: "story", label: t("media.story"), emoji: "📱" }, { value: "carousel", label: t("media.carousel"), emoji: "📸" }, { value: "reel", label: t("media.reel"), emoji: "🎬" }, { value: "reel_long", label: t("media.reel_long"), emoji: "🎥" }].map(opt => {
                                                         const locked = (isReelMedium(opt.value) && !reelAllowed(opt.value)) || (opt.value === "story" && !storyAllowed)
+                                                        // Kill-switch („připravujeme") vs. tarif — rozhoduje stav, ne text hlášky.
+                                                        const comingSoon = isReelMedium(opt.value) ? subscription?.reelsEnabled === false : subscription?.storiesEnabled === false
                                                         const lockNote = isReelMedium(opt.value)
-                                                            ? (subscription?.reelsEnabled === false ? "Reels připravujeme" : `Reels jsou dostupné od balíčku ${getPlanForMedium(opt.value)}`)
-                                                            : (subscription?.storiesEnabled === false ? "Stories připravujeme" : "Stories nejsou v tomto balíčku")
+                                                            ? (comingSoon ? t("media.reelsSoon") : t("media.reelsFromPlan", { plan: getPlanForMedium(opt.value) }))
+                                                            : (comingSoon ? t("media.storiesSoon") : t("media.storiesNotInPlan"))
                                                         return (
                                                             <button key={opt.value} onClick={() => !locked && setMedium(opt.value)}
                                                                 disabled={locked}
@@ -1164,12 +1174,12 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                                         ? "bg-white/10 border-white/30 text-white" : "bg-[#050505] border-white/10 text-white/40 hover:text-white"}`}>
                                                                 {locked ? "🔒" : opt.emoji} {opt.label}
                                                                 {locked ? <span className="block text-[8px] text-white/25 font-bold uppercase tracking-widest mt-0.5">
-                                                                    {lockNote.includes("připravujeme") ? "Brzy" : `Od ${getPlanForMedium(opt.value)}`}
+                                                                    {comingSoon ? t("media.soon") : t("media.fromPlan", { plan: getPlanForMedium(opt.value) })}
                                                                 </span> : (
                                                                     /* Cena formátu patří k VOLBĚ formátu. V Nastavení je pozdě —
                                                                        rozhodnutí „udělám reel za 5 kreditů" padá tady. */
                                                                     <span className="block text-[8px] font-bold uppercase tracking-widest mt-0.5 text-white/30">
-                                                                        {opt.value === "" ? "dle typu" : `${MEDIA_CREDITS[opt.value as MediumType]} kr.`}
+                                                                        {opt.value === "" ? t("media.byType") : t("media.creditsShort", { n: MEDIA_CREDITS[opt.value as MediumType] })}
                                                                     </span>
                                                                 )}
                                                             </button>
@@ -1178,15 +1188,15 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">Vlastní fotka</label>
+                                                <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">{t("single.customPhoto")}</label>
                                                 <input type="file" accept="image/png, image/jpeg, image/webp"
                                                     onChange={(e) => { const file = e.target.files?.[0]; if (file) setCustomImageFile(file); else setCustomImageFile(null) }}
                                                     className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white/70 text-xs focus:outline-none file:mr-3 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-white cursor-pointer"
                                                 />
                                                 <p className="mt-2 text-[10px] text-white/30 leading-relaxed">
-                                                    AI vaši fotku zakomponuje do designu příspěvku — použije ji celou nebo její část jako vizuální základ a doplní typografii, branding a logo. Text příspěvku se řídí zadaným tématem, ne fotkou.
-                                                    {isReelMedium(medium) && <span className="text-amber-400/60"> U reels se fotka nepoužije.</span>}
-                                                    {medium === "story" && <span className="text-white/40"> U storky se fotka použije na prvním snímku.</span>}
+                                                    {t("single.customPhotoHint")}
+                                                    {isReelMedium(medium) && <span className="text-amber-400/60"> {t("single.customPhotoReels")}</span>}
+                                                    {medium === "story" && <span className="text-white/40"> {t("single.customPhotoStory")}</span>}
                                                 </p>
                                             </div>
                                         </div>
@@ -1198,21 +1208,21 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     className={`w-full py-5 rounded-sm transition-all flex items-center justify-center gap-3 text-sm font-black tracking-wider uppercase ${generating
                                         ? "bg-white/5 text-white/30 cursor-wait border border-white/10"
                                         : "bg-aisummit-cinnabar text-white shadow-[0_0_20px_rgba(229,83,63,0.3)] hover:shadow-[0_0_30px_rgba(229,83,63,0.5)] hover:scale-[1.01] active:scale-[0.99]"}`}>
-                                    {generating ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-transparent rounded-full animate-spin" /> Pracuji na tom...</>)
-                                        : (<><Sparkles className="w-3.5 h-3.5 shrink-0" />Vytvořit příspěvek</>)}
+                                    {generating ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-transparent rounded-full animate-spin" /> {t("single.working")}</>)
+                                        : (<><Sparkles className="w-3.5 h-3.5 shrink-0" />{t("single.submit")}</>)}
                                 </button>
                             </div>
                         ) : (
                             /* ── CONTENT PLAN ── */
                             <div className="max-w-2xl mx-auto space-y-8">
                                 <div className="text-center">
-                                    <h2 className="text-3xl font-black tracking-tighter uppercase text-white/90 mb-2">Obsahový plán</h2>
-                                    <p className="text-white/40 text-sm">AI navrhne sérii příspěvků. Vy schválíte a spustíte.</p>
+                                    <h2 className="text-3xl font-black tracking-tighter uppercase text-white/90 mb-2">{t("mode.plan")}</h2>
+                                    <p className="text-white/40 text-sm">{t("plan.subtitle")}</p>
                                 </div>
 
                                 {/* Duration → derives post count from the brand's real cadence */}
                                 <div>
-                                    <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Jak dlouhý plán?</label>
+                                    <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">{t("plan.durationLabel")}</label>
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                         {PLAN_DURATIONS.map(opt => {
                                             const c = durationToCount(opt.key)
@@ -1232,12 +1242,12 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     estimate AND calendar spread. Recommendation = what the
                                     subscription affords for the selected duration. */}
                                 <div>
-                                    <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Příspěvků týdně</label>
+                                    <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">{t("plan.perWeekLabel")}</label>
                                     {/* Vysvětlivka „kolik to stojí" sedí TADY, protože tohle je
                                         jediné místo, kde se kadence volí. V Nastavení bývala druhá
                                         volba frekvence, která ale plán neřídila — jen si s ním
                                         odporovala. */}
-                                    <div className="mb-3"><Hint label="kolik to stojí">{HINTS.cadence}</Hint></div>
+                                    <div className="mb-3"><Hint label={t("plan.cadenceHintLabel")}>{hints.cadence}</Hint></div>
                                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                                         {CADENCE_OPTIONS.map(c => {
                                             const overBudget = planDuration !== "trial" && subscription != null
@@ -1248,10 +1258,10 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                         ? "border-aisummit-cinnabar/50 bg-aisummit-cinnabar/10 text-aisummit-cinnabar" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
                                                     {c}×
                                                     {recommendedCadence === c && (
-                                                        <span className="block text-[8px] font-bold uppercase tracking-widest opacity-50 mt-0.5">Doporučeno</span>
+                                                        <span className="block text-[8px] font-bold uppercase tracking-widest opacity-50 mt-0.5">{t("plan.recommended")}</span>
                                                     )}
                                                     {overBudget && (
-                                                        <span className="block text-[8px] font-bold uppercase tracking-widest text-amber-500/70 mt-0.5">Nad rámec kreditů</span>
+                                                        <span className="block text-[8px] font-bold uppercase tracking-widest text-amber-500/70 mt-0.5">{t("plan.overBudget")}</span>
                                                     )}
                                                 </button>
                                             )
@@ -1262,12 +1272,12 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 {/* Campaign goal — steers the planner prompt, and (once there's
                                     engagement data) tilts the pillar mix toward it. */}
                                 <div>
-                                    <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Cíl kampaně</label>
+                                    <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">{t("plan.goalLabel")}</label>
                                     <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                                         <button onClick={() => setGoal("")}
                                             className={`px-3 py-2.5 rounded-sm border text-[11px] font-bold transition-all ${goal === ""
                                                 ? "border-white/30 bg-white/10 text-white" : "border-white/5 bg-[#0a0a0a] text-white/40 hover:border-white/20 hover:text-white/70"}`}>
-                                            <span className="inline-flex items-center gap-1.5"><Bot className="w-3.5 h-3.5 shrink-0" />Auto</span>
+                                            <span className="inline-flex items-center gap-1.5"><Bot className="w-3.5 h-3.5 shrink-0" />{t("labels.auto")}</span>
                                         </button>
                                         {CAMPAIGN_GOALS.map(g => (
                                             <button key={g.key} onClick={() => setGoal(g.key)} title={g.hint}
@@ -1281,7 +1291,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
 
                                 {/* Format mix — carousels cost more credits, so the share is the user's call */}
                                 <div>
-                                    <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">Mix formátů</label>
+                                    <label className="text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold">{t("plan.mixLabel")}</label>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                         {CAROUSEL_SHARES.map(s => (
                                             <button key={s.key} onClick={() => setCarouselShare(s.key)}
@@ -1297,7 +1307,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 {/* Product focus — the campaign revolves around these */}
                                 {catalogProducts.length > 0 && (
                                     <div>
-                                        <label className="inline-flex items-center gap-1.5 text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold"><Package className="w-3 h-3 shrink-0" />Zaměřit na produkty (volitelné)</label>
+                                        <label className="inline-flex items-center gap-1.5 text-[10px] text-white/40 mb-3 block uppercase tracking-widest font-bold"><Package className="w-3 h-3 shrink-0" />{t("plan.focusProducts")}</label>
                                         <div className="flex flex-wrap gap-2">
                                             {catalogProducts.map(p => {
                                                 const on = focusProductIds.includes(p.id)
@@ -1312,7 +1322,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         </div>
                                         {focusProductIds.length > 0 && (
                                             <p className="text-[9px] text-white/25 mt-2 font-bold uppercase tracking-widest">
-                                                Produkty se rozdělí mezi produktové posty v plánu
+                                                {t("plan.focusProductsHint")}
                                             </p>
                                         )}
                                     </div>
@@ -1320,8 +1330,8 @@ export function GenerateTab({ projectId }: { projectId: string }) {
 
                                 {/* Topic */}
                                 <div>
-                                    <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">Téma kampaně (volitelné)</label>
-                                    <textarea placeholder="Např. Letní kolekce, Vánoční kampaň... nebo nechte prázdné."
+                                    <label className="text-[10px] text-white/50 mb-2 block uppercase tracking-widest font-bold">{t("plan.topicLabel")}</label>
+                                    <textarea placeholder={t("plan.topicPlaceholder")}
                                         value={topic} onChange={(e) => setTopic(e.target.value)} rows={2}
                                         className="w-full px-5 py-4 bg-[#050505] border border-white/10 rounded-sm text-white placeholder:text-white/30 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all shadow-sm resize-none"
                                     />
@@ -1330,7 +1340,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 {/* Schedule — set up-front so the generated plan lands on real dates
                                     immediately (still editable per post in the preview). */}
                                 <div>
-                                    <label className="inline-flex items-center gap-1.5 text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold"><CalendarDays className="w-3 h-3 shrink-0" />Začít od</label>
+                                    <label className="inline-flex items-center gap-1.5 text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold"><CalendarDays className="w-3 h-3 shrink-0" />{t("plan.startLabel")}</label>
                                     <input type="date" value={scheduleStart}
                                         onChange={(e) => handleScheduleChange(e.target.value, postsPerWeek)}
                                         className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30" />
@@ -1345,14 +1355,14 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         spanDays: durationSpan(planDuration) || undefined,
                                     })
                                     const range = slots.length > 0
-                                        ? `${shortCzDate(slots[0].date)} – ${shortCzDate(slots[slots.length - 1].date)}`
+                                        ? t("plan.range", { from: shortDate(slots[0].date), to: shortDate(slots[slots.length - 1].date) })
                                         : null
                                     const est = planCost(batchCount)
                                     return (
                                         <div className="bg-[#050505] border border-white/10 rounded-sm px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-white/50 text-center">
-                                            {countLabel(batchCount, POSTS)} · {postsPerWeek}× týdně{range ? ` · ${range}` : ""} · {planDuration === "trial"
-                                                ? "ochutnávka"
-                                                : est === 0 ? "Zdarma — v rámci předplatného" : `Odhad: ~${countLabel(est, CREDITS)}`}
+                                            {t("counts.posts", { count: batchCount })} · {t("plan.perWeek", { n: postsPerWeek })}{range ? ` · ${range}` : ""} · {planDuration === "trial"
+                                                ? t("plan.taste")
+                                                : est === 0 ? t("plan.freeInSubscription") : t("plan.estimate", { count: est })}
                                         </div>
                                     )
                                 })()}
@@ -1362,8 +1372,8 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     className={`w-full py-5 rounded-sm transition-all flex items-center justify-center gap-3 text-sm font-black tracking-wider uppercase ${planGenerating
                                         ? "bg-white/5 text-white/30 cursor-wait border border-white/10"
                                         : "bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] hover:scale-[1.01] active:scale-[0.99]"}`}>
-                                    {planGenerating ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-transparent rounded-full animate-spin" /> {planProgress?.message || "AI plánuje…"}</>)
-                                        : (<><ClipboardList className="w-3.5 h-3.5 shrink-0" />Vytvořit plán</>)}
+                                    {planGenerating ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-transparent rounded-full animate-spin" /> {planProgress?.message || t("plan.planning")}</>)
+                                        : (<><ClipboardList className="w-3.5 h-3.5 shrink-0" />{t("plan.submit")}</>)}
                                 </button>
                                 {planGenerating && (
                                     <div className="space-y-1.5">
@@ -1372,7 +1382,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                 style={{ width: `${planProgress?.progress ?? 5}%` }} />
                                         </div>
                                         <p className="text-[9px] text-white/25 font-bold uppercase tracking-widest text-center">
-                                            Hloubkové plánování: stratég → koncepty → nezávislá oponentura → revize (~1–2 min)
+                                            {t("plan.deepPlanning")}
                                         </p>
                                     </div>
                                 )}
@@ -1393,16 +1403,16 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         className="bg-[#0f0f0f] rounded-sm p-8 sm:p-12 border border-white/10"
                     >
                         <div className="text-center mb-8">
-                            <h2 className="text-4xl font-black uppercase tracking-tighter text-white/90 mb-3">Plán obsahu</h2>
+                            <h2 className="text-4xl font-black uppercase tracking-tighter text-white/90 mb-3">{t("preview.title")}</h2>
                             <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">
-                                AI navrhuje strategický mix {contentPlan.length} postů. Upravte a schvalte.
+                                {t("preview.subtitle", { count: contentPlan.length })}
                             </p>
                         </div>
 
                         {/* Campaign arc from the strategist stage */}
                         {planStrategy && (
                             <div className="mb-6 bg-[#050505] border border-emerald-500/15 rounded-sm p-5">
-                                <p className="inline-flex items-center gap-1.5 text-[9px] text-emerald-400/60 font-bold uppercase tracking-widest mb-2"><Compass className="w-3 h-3 shrink-0" />Kampaňová linka</p>
+                                <p className="inline-flex items-center gap-1.5 text-[9px] text-emerald-400/60 font-bold uppercase tracking-widest mb-2"><Compass className="w-3 h-3 shrink-0" />{t("preview.arc")}</p>
                                 <p className="text-sm text-white/70 leading-relaxed">{planStrategy}</p>
                             </div>
                         )}
@@ -1423,7 +1433,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                     width: `${(count / contentPlan.length) * 100}%`,
                                                     backgroundColor: `hsl(${idx * 70}, 50%, 45%)`
                                                 }}
-                                                title={`${key}: ${count} postů`}
+                                                title={t("preview.pillarTitle", { pillar: key, count })}
                                             />
                                         ))}
                                     </div>
@@ -1442,7 +1452,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         {/* Schedule bar — auto-distributes posting times; editable per post below */}
                         <div className="max-w-2xl mx-auto mb-6 bg-[#0a0a0a] border border-white/10 rounded-sm p-4 flex flex-wrap items-end gap-4">
                             <div>
-                                <label className="inline-flex items-center gap-1.5 block text-[8px] text-white/40 font-bold uppercase tracking-widest mb-1.5"><CalendarDays className="w-3 h-3 shrink-0" />Začít od</label>
+                                <label className="inline-flex items-center gap-1.5 block text-[8px] text-white/40 font-bold uppercase tracking-widest mb-1.5"><CalendarDays className="w-3 h-3 shrink-0" />{t("plan.startLabel")}</label>
                                 <input
                                     type="date"
                                     value={scheduleStart}
@@ -1451,19 +1461,19 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 />
                             </div>
                             <div>
-                                <label className="block text-[8px] text-white/40 font-bold uppercase tracking-widest mb-1.5">Příspěvků týdně</label>
+                                <label className="block text-[8px] text-white/40 font-bold uppercase tracking-widest mb-1.5">{t("plan.perWeekLabel")}</label>
                                 <select
                                     value={postsPerWeek}
                                     onChange={(e) => handleScheduleChange(scheduleStart, Number(e.target.value))}
                                     className="px-3 py-1.5 bg-[#050505] border border-white/20 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
                                 >
                                     {[1, 2, 3, 4, 5, 6, 7, 10, 14].map(n => (
-                                        <option key={n} value={n}>{n === 14 ? "14 (2×/den)" : n === 10 ? "10" : n}</option>
+                                        <option key={n} value={n}>{n === 14 ? t("preview.twicePerDay") : n === 10 ? "10" : n}</option>
                                     ))}
                                 </select>
                             </div>
                             <p className="text-[9px] text-white/30 flex-1 min-w-[140px] leading-relaxed">
-                                Časy se rozloží automaticky. Každý post lze upravit níže.
+                                {t("preview.autoTimes")}
                             </p>
                         </div>
 
@@ -1480,7 +1490,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                             {showWeekHeader && (
                                                 <div className="flex items-center gap-3 pt-6 pb-2">
                                                     <div className="h-px flex-1 bg-white/10" />
-                                                    <span className="text-[9px] font-black uppercase tracking-widest text-white/30">Týden {item.week}</span>
+                                                    <span className="text-[9px] font-black uppercase tracking-widest text-white/30">{t("preview.week", { n: item.week ?? 0 })}</span>
                                                     <div className="h-px flex-1 bg-white/10" />
                                                 </div>
                                             )}
@@ -1500,17 +1510,17 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                             <span className="text-[8px] px-1.5 py-0.5 bg-white/5 border border-white/10 rounded-sm text-white/40 font-bold uppercase tracking-wider">{item.postTypeLabel}</span>
                                                             {(() => {
                                                                 const m = item.medium === "carousel"
-                                                                    ? { emoji: "📸", label: "Carousel", cls: "text-sky-300/70 border-sky-400/20 bg-sky-400/5" }
+                                                                    ? { emoji: "📸", label: t("media.carousel"), cls: "text-sky-300/70 border-sky-400/20 bg-sky-400/5" }
                                                                     : isReelMedium(item.medium)
-                                                                    ? { emoji: item.medium === "reel_long" ? "🎥" : "🎬", label: REEL_LABELS[item.medium], cls: "text-fuchsia-300/70 border-fuchsia-400/20 bg-fuchsia-400/5" }
-                                                                    : { emoji: "🖼️", label: "1 obrázek", cls: "text-emerald-300/70 border-emerald-400/20 bg-emerald-400/5" }
+                                                                    ? { emoji: item.medium === "reel_long" ? "🎥" : "🎬", label: t(`media.${item.medium}`), cls: "text-fuchsia-300/70 border-fuchsia-400/20 bg-fuchsia-400/5" }
+                                                                    : { emoji: "🖼️", label: t("media.singleImage"), cls: "text-emerald-300/70 border-emerald-400/20 bg-emerald-400/5" }
                                                                 const editable = !isReelMedium(item.medium)
                                                                 return (
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => editable && handleTogglePlanMedium(item.id)}
                                                                         disabled={!editable}
-                                                                        title={editable ? "Přepnout formát: 1 obrázek ⇄ carousel" : "Reel"}
+                                                                        title={editable ? t("preview.toggleFormat") : t("media.reel")}
                                                                         className={`text-[10px] sm:text-[8px] min-h-[32px] sm:min-h-0 px-2 sm:px-1.5 py-1 sm:py-0.5 border rounded-sm font-bold uppercase tracking-wider transition-all ${m.cls} ${editable ? "cursor-pointer hover:brightness-150" : "cursor-default"}`}
                                                                     >{m.emoji} {m.label}{editable ? " ⇄" : ""}</button>
                                                                 )
@@ -1518,19 +1528,20 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                             {/* Feed-pattern slot: which cell of the grid rhythm this post fills */}
                                                             {item.slotIntent && (() => {
                                                                 const vm = VISUAL_MODE_LABELS[item.slotIntent.visualMode]
+                                                                const modeLabel = t(`visualMode.${item.slotIntent.visualMode}`)
                                                                 return (
                                                                     <span
-                                                                        title={`Vzor feedu: ${vm.label} — pozice v mřížce profilu`}
+                                                                        title={t("preview.feedPatternTitle", { mode: modeLabel })}
                                                                         className="text-[8px] px-1.5 py-0.5 border border-white/10 bg-white/[0.03] text-white/40 rounded-sm font-bold uppercase tracking-wider"
                                                                     >
-                                                                        {vm.icon} {vm.label}
+                                                                        {vm.icon} {modeLabel}
                                                                     </span>
                                                                 )
                                                             })()}
                                                             <span className="text-[8px] text-white/20">{item.pillarEmoji} {item.pillar}</span>
                                                             {item.ideaTitle && (
                                                                 <span
-                                                                    title="Ze zásobníku témat"
+                                                                    title={t("preview.fromIdeaBank")}
                                                                     className="text-[8px] px-1.5 py-0.5 border border-violet-400/20 bg-violet-400/5 text-violet-300/70 rounded-sm font-bold uppercase tracking-wider"
                                                                 >
                                                                     💡 {item.ideaTitle}
@@ -1538,7 +1549,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                             )}
                                                             {item.categoryLabel && (
                                                                 <span
-                                                                    title="Kategorie pilíře — úhel, který post drží"
+                                                                    title={t("preview.categoryTitle")}
                                                                     className="text-[8px] px-1.5 py-0.5 border border-emerald-400/20 bg-emerald-400/5 text-emerald-300/70 rounded-sm font-bold uppercase tracking-wider"
                                                                 >
                                                                     {item.categoryEmoji} {item.categoryLabel}
@@ -1548,7 +1559,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
 
                                                         {/* Hook preview */}
                                                         <p className="text-white/80 text-sm font-bold leading-snug mb-1">
-                                                            &ldquo;{item.hookPreview}&rdquo;
+                                                            &ldquo;{item.hookPreview === NEW_ITEM_HOOK ? t("preview.newItemHook") : item.hookPreview}&rdquo;
                                                         </p>
 
                                                         {/* Tvrzení v hooku, které nemáme čím podložit — MUSÍ být vidět PŘED
@@ -1556,11 +1567,11 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                             a to smí platit jen tehdy, když uživatel věděl, co propouští. */}
                                                         {item.factFlag && (
                                                             <p
-                                                                title="Tohle tvrzení nemáme čím podložit. Uprav hook, nebo doplň fakt v Nastavení → Ověřená fakta. Když ho schválíš takhle, příspěvek dostane varování."
+                                                                title={t("preview.factFlagTitle")}
                                                                 className="flex items-start gap-1 text-[10px] text-amber-400/80 leading-relaxed mb-1"
                                                             >
                                                                 <TriangleAlert className="w-3 h-3 shrink-0 mt-[1px]" />
-                                                                <span>Bez opory ve faktech: {item.factFlag}</span>
+                                                                <span>{t("preview.factFlag", { claim: item.factFlag })}</span>
                                                             </p>
                                                         )}
 
@@ -1569,9 +1580,9 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                         {item.factSources && item.factSources.length > 0 && (
                                                             <p className="flex items-start gap-1 text-[10px] text-emerald-400/60 leading-relaxed mb-1">
                                                                 <CircleCheck className="w-3 h-3 shrink-0 mt-[1px]" />
-                                                                <span>Ověřeno: {[...new Set(item.factSources.map(v => {
+                                                                <span>{t("preview.verified", { sources: [...new Set(item.factSources.map(v => {
                                                                     try { return new URL(v.url).hostname.replace(/^www\./, "") } catch { return v.url }
-                                                                }))].join(", ")}</span>
+                                                                }))].join(", ") })}</span>
                                                             </p>
                                                         )}
 
@@ -1630,7 +1641,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                                     <span className="text-[9px] text-blue-400 font-bold">@{item.productName}</span>
                                                                     <button
                                                                         onClick={() => handleSetProduct(item.id, null)}
-                                                                        aria-label="Odebrat produkt"
+                                                                        aria-label={t("preview.removeProduct")}
                                                                         // Na dotyku vidět vždy — jinak produkt z položky nešel odebrat.
                                                                         className="min-w-[28px] min-h-[28px] flex items-center justify-center text-xs sm:text-[8px] text-blue-400/70 sm:text-blue-400/40 hover:text-red-400 transition-colors sm:opacity-0 sm:group-hover:opacity-100 cursor-pointer"
                                                                     >
@@ -1644,9 +1655,9 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                                         setProductSearch("")
                                                                     }}
                                                                     className="inline-flex items-center gap-1 px-2 py-1 text-[9px] text-white/25 hover:text-white/50 font-bold uppercase tracking-widest transition-colors"
-                                                                    title="Přiřadit produkt"
+                                                                    title={t("preview.assignProduct")}
                                                                 >
-                                                                    <span>@</span> Produkt
+                                                                    <span>@</span> {t("labels.product")}
                                                                 </button>
                                                             )}
 
@@ -1658,7 +1669,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                                             autoFocus
                                                                             value={productSearch}
                                                                             onChange={(e) => setProductSearch(e.target.value)}
-                                                                            placeholder="Hledat produkt..."
+                                                                            placeholder={t("preview.searchProduct")}
                                                                             className="w-full px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/50"
                                                                         />
                                                                     </div>
@@ -1689,7 +1700,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                                             ))
                                                                         }
                                                                         {catalogProducts.filter(p => !productSearch || p.name.toLowerCase().includes(productSearch.toLowerCase())).length === 0 && (
-                                                                            <p className="px-3 py-4 text-[10px] text-white/30 text-center">Žádné produkty nenalezeny</p>
+                                                                            <p className="px-3 py-4 text-[10px] text-white/30 text-center">{t("preview.noProducts")}</p>
                                                                         )}
                                                                     </div>
                                                                 </div>
@@ -1702,7 +1713,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                         <button
                                                             onClick={() => setEditingPlanItem(editingPlanItem === item.id ? null : item.id)}
                                                             className="p-1.5 text-white/20 hover:text-white/60 transition-colors"
-                                                            title="Upravit téma"
+                                                            title={t("preview.editTopic")}
                                                         >
                                                             <Pencil className="w-3 h-3 text-[10px]" />
                                                         </button>
@@ -1710,14 +1721,14 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                             onClick={() => handleRegenerateItem(item.id)}
                                                             disabled={regeneratingItem === item.id}
                                                             className="p-1.5 text-white/20 hover:text-amber-400/80 transition-colors disabled:opacity-30"
-                                                            title="Jiný koncept"
+                                                            title={t("preview.regenerate")}
                                                         >
                                                             <RefreshCw className="w-3 h-3 text-[10px]" />
                                                         </button>
                                                         <button
                                                             onClick={() => handleRemovePlanItem(item.id)}
                                                             className="p-1.5 text-white/20 hover:text-red-400/80 transition-colors"
-                                                            title="Odebrat"
+                                                            title={t("preview.remove")}
                                                         >
                                                             <X className="w-3 h-3 text-[10px]" />
                                                         </button>
@@ -1736,18 +1747,18 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 onClick={handleAddPlanItem}
                                 className="flex items-center gap-2 px-5 py-2.5 bg-[#0a0a0a] border border-dashed border-white/15 rounded-sm text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white/60 hover:border-white/30 transition-all"
                             >
-                                <span>+</span> Přidat post
+                                <span>+</span> {t("preview.addPost")}
                             </button>
                         </div>
 
                         {/* Bottom bar */}
                         <div className="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
                             <div className="flex items-center gap-4 text-[10px] text-white/30 font-bold uppercase tracking-widest">
-                                <span>{countLabel(contentPlan.length, POSTS)}</span>
+                                <span>{t("counts.posts", { count: contentPlan.length })}</span>
                                 <span>·</span>
                                 {(() => {
                                     const cost = batchCreditCost(contentPlan.map(p => p.medium), freeRemaining)
-                                    return <span>{cost === 0 ? "Zdarma — v rámci plánu" : countLabel(cost, CREDITS)}</span>
+                                    return <span>{cost === 0 ? t("preview.freeInPlan") : t("counts.credits", { count: cost })}</span>
                                 })()}
                             </div>
 
@@ -1756,21 +1767,21 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     onClick={() => setStep(1)}
                                     className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest text-white/40 bg-white/5 border border-white/10 hover:text-white hover:bg-white/10 transition-all"
                                 >
-                                    ← Zpět na brief
+                                    {t("preview.backToBrief")}
                                 </button>
                                 {draftId && (
                                     <button
                                         onClick={handleDiscardPlan}
                                         disabled={generating}
                                         className="inline-flex items-center gap-1.5 justify-center px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest text-white/40 bg-white/5 border border-white/10 hover:text-red-400 hover:border-red-400/30 transition-all disabled:opacity-50"
-                                    ><Trash2 className="w-3 h-3 shrink-0" />Zahodit plán</button>
+                                    ><Trash2 className="w-3 h-3 shrink-0" />{t("preview.discard")}</button>
                                 )}
                                 <button
                                     onClick={handleApproveAndGenerate}
                                     disabled={contentPlan.length === 0 || generating}
                                     className="px-8 py-3 rounded-sm text-[10px] font-black uppercase tracking-widest bg-aisummit-cinnabar text-white shadow-[0_0_15px_rgba(229,83,63,0.3)] hover:shadow-[0_0_20px_rgba(229,83,63,0.6)] transition-all disabled:opacity-50"
                                 >
-                                    ✅ Schválit & generovat ({contentPlan.length})
+                                    {t("preview.approve", { count: contentPlan.length })}
                                 </button>
                             </div>
                         </div>
@@ -1790,7 +1801,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                             <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0f0f0f] z-10">
                                 <div className="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-aisummit-cinnabar via-[#0f0f0f] to-[#0f0f0f] pointer-events-none mix-blend-screen animate-pulse"></div>
                                 <div className="w-16 h-16 border-[3px] border-white/10 border-t-aisummit-cinnabar rounded-full animate-spin mx-auto mb-8 shadow-sm relative z-10" />
-                                <h3 className="text-2xl font-black uppercase tracking-tighter text-white mb-4 relative z-10">{batchProgress ? `Generuji post ${batchProgress.current} z ${batchProgress.total}...` : "Kreativní proces probíhá..."}</h3>
+                                <h3 className="text-2xl font-black uppercase tracking-tighter text-white mb-4 relative z-10">{batchProgress ? t("progress.batch", { current: batchProgress.current, total: batchProgress.total }) : t("progress.creative")}</h3>
                                 {agentStatus && !batchProgress && (
                                     <div className="relative z-10 mb-4 w-full max-w-xs">
                                         <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mb-3">
@@ -1807,11 +1818,11 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 {/* Editorial conversation log */}
                                 {editorialLog.length > 0 && (
                                     <div className="relative z-10 w-full max-w-md mt-4">
-                                        <div className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2 text-center">Konverzace agentů</div>
+                                        <div className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2 text-center">{t("progress.agentLog")}</div>
                                         <div className="bg-[#050505] border border-white/10 rounded-sm p-3 max-h-40 overflow-y-auto space-y-1.5">
                                             {editorialLog.map((msg, i) => {
                                                 const RoleIcon = { strategist: ChartColumn, copywriter: PenLine, critic: Search, chief_editor: Award }[msg.role] || MessageCircle
-                                                const roleLabel = { strategist: "Stratég", copywriter: "Copywriter", critic: "Kritik", chief_editor: "Šéfredaktor" }[msg.role] || msg.role
+                                                const roleLabel = t.has(`roles.${msg.role}`) ? t(`roles.${msg.role}`) : msg.role
                                                 const actionColor = msg.action === "approve" ? "text-emerald-400"
                                                     : msg.action === "revise" ? "text-amber-400"
                                                     : msg.action === "pushback" ? "text-purple-400"
@@ -1842,38 +1853,38 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                     single post is slow, so the spinner never reads as "frozen" (QA #4). */}
                                 {batchProgress && (batchProgress.successes > 0 || batchProgress.failures > 0) && (
                                     <p className="text-[9px] font-bold uppercase tracking-widest mb-4 relative z-10 text-center">
-                                        <span className="text-emerald-400/80"><Check className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{batchProgress.successes} hotovo</span>
+                                        <span className="text-emerald-400/80"><Check className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{t("progress.done", { n: batchProgress.successes })}</span>
                                         {batchProgress.failures > 0 && (
-                                            <span className="text-amber-400/80"> · {batchProgress.failures} přeskočeno</span>
+                                            <span className="text-amber-400/80"> · {t("progress.skipped", { n: batchProgress.failures })}</span>
                                         )}
                                     </p>
                                 )}
                                 {batchProgress && campaignId && (
                                     <p className="text-[9px] text-emerald-400/70 font-bold uppercase tracking-widest mb-4 relative z-10 text-center max-w-xs">
-                                        Kampaň běží na serveru — okno můžete klidně zavřít, generování pokračuje.
+                                        {t("progress.serverSide")}
                                     </p>
                                 )}
                                 {batchProgress && !pollHealthy && (
                                     <p className="text-[9px] text-amber-400/80 font-bold uppercase tracking-widest mb-4 relative z-10 text-center max-w-xs animate-pulse">
-                                        Obnovuji spojení se serverem… generování běží dál na pozadí.
+                                        {t("progress.reconnecting")}
                                     </p>
                                 )}
                                 {/* Quality-over-speed explainer — generation runs the top engines with
                                     hard retries under load, so it can take noticeably longer. Tell the
                                     user why, without exposing model/engine internals. */}
                                 <p className="text-[10px] text-white/45 mb-5 relative z-10 text-center max-w-sm leading-relaxed normal-case">
-                                    ⚡ Pracujeme na tom v <span className="text-white/75 font-bold">nejvyšší možné kvalitě</span>. Někdy to chvíli zabere — <span className="text-white/75 font-bold">kvalita má přednost před rychlostí</span>.
+                                    {t.rich("progress.quality", { b: chunks => <span className="text-white/75 font-bold">{chunks}</span> })}
                                 </p>
                                 <div className="h-6 overflow-hidden relative z-10">
                                     <motion.div
                                         animate={{ y: [0, -24, -48, -72, -96] }}
                                         transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
                                     >
-                                        <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest h-6 flex items-center">Architekt analyzuje brand identitu...</p>
-                                        <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest h-6 flex items-center">Copywriter skládá úderné texty...</p>
-                                        <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest h-6 flex items-center">Generuji vizuální prompt pro AI...</p>
-                                        <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest h-6 flex items-center">Generuji obrázek...</p>
-                                        <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest h-6 flex items-center">Finální leštění a optimalizace...</p>
+                                        <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest h-6 flex items-center">{t("progress.stages.architect")}</p>
+                                        <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest h-6 flex items-center">{t("progress.stages.copywriter")}</p>
+                                        <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest h-6 flex items-center">{t("progress.stages.visualPrompt")}</p>
+                                        <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest h-6 flex items-center">{t("progress.stages.image")}</p>
+                                        <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest h-6 flex items-center">{t("progress.stages.polish")}</p>
                                     </motion.div>
                                 </div>
                             </div>
@@ -1884,7 +1895,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         {result.success ? "✨" : "⚠️"}
                                     </span>
                                     <h2 className="text-3xl font-black uppercase tracking-tighter text-white mb-2">
-                                        {result.success ? "Prezentace návrhu" : "Něco se pokazilo"}
+                                        {result.success ? t("result.title") : t("result.failed")}
                                     </h2>
                                     {result.error && <p className="text-aisummit-cinnabar font-bold uppercase tracking-widest text-[10px]">{result.error}</p>}
                                     {!result.success && (
@@ -1892,7 +1903,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                             onClick={() => { setResult(null); setStep(1); setTimeout(() => handleGenerate(), 100) }}
                                             className="mt-4 px-6 py-3 rounded-sm text-[10px] font-black uppercase tracking-widest bg-aisummit-cinnabar text-white shadow-[0_0_15px_rgba(229,83,63,0.3)] hover:shadow-[0_0_20px_rgba(229,83,63,0.5)] transition-all"
                                         >
-                                            <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />Zkusit znovu</span>
+                                            <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />{t("result.retry")}</span>
                                         </button>
                                     )}
                                 </div>
@@ -1913,21 +1924,21 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                     return (
                                                         <div className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar">
                                                             {media.urls.map((u, i) => (
-                                                                <img key={i} src={u} className={`w-full h-auto max-h-[500px] object-contain snap-center shrink-0 border-r border-white/5 last:border-0 ${frameClass}`} alt={media.kind === "story" ? `Snímek ${i + 1}` : `Slide ${i + 1}`} />
+                                                                <img key={i} src={u} className={`w-full h-auto max-h-[500px] object-contain snap-center shrink-0 border-r border-white/5 last:border-0 ${frameClass}`} alt={media.kind === "story" ? t("result.storyFrame", { n: i + 1 }) : t("result.slide", { n: i + 1 })} />
                                                             ))}
                                                         </div>
                                                     )
                                                 }
-                                                return <img src={media.thumbUrl || media.urls[0]} className={`w-full h-auto max-h-[500px] object-contain ${frameClass}`} alt="Vygenerovaný obsah" />
+                                                return <img src={media.thumbUrl || media.urls[0]} className={`w-full h-auto max-h-[500px] object-contain ${frameClass}`} alt={t("result.generatedAlt")} />
                                             })()}
                                         </div>
 
                                         {result.caption && (
                                             <div className="space-y-3">
                                                 <div className="flex items-center justify-between">
-                                                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Finální Copy</span>
+                                                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{t("result.finalCopy")}</span>
                                                     <button onClick={() => copyToClipboard(result.caption!, "final")} className="text-[10px] font-bold uppercase tracking-widest text-aisummit-cinnabar hover:text-white transition-colors">
-                                                        {copiedField === "final" ? "Zkopírováno" : "Kopírovat text"}
+                                                        {copiedField === "final" ? t("result.copied") : t("result.copy")}
                                                     </button>
                                                 </div>
                                                 <p className="text-white/70 font-medium leading-relaxed whitespace-pre-wrap bg-[#0f0f0f] p-5 rounded-sm border border-white/5 shadow-sm">{result.caption}</p>
@@ -1938,28 +1949,22 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         {editorialLog.length > 0 && (
                                             <div className="mt-6 pt-5 border-t border-white/5">
                                                 <div className="flex items-center gap-2 mb-3">
-                                                    <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest">Kontrola kvality</span>
+                                                    <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest">{t("result.qualityCheck")}</span>
                                                     <span className="text-[8px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400/70 rounded-sm font-bold uppercase tracking-widest border border-emerald-500/10">
-                                                        {editorialLog.some(m => m.action === "approve") ? "Schváleno" : "Dokončeno"}
+                                                        {editorialLog.some(m => m.action === "approve") ? t("result.approved") : t("result.finished")}
                                                     </span>
                                                 </div>
                                                 <div className="bg-[#080808] border border-white/5 rounded-sm p-3 space-y-2">
                                                     {editorialLog.map((msg, i) => {
                                                         const RoleIcon = { strategist: ChartColumn, copywriter: PenLine, critic: Search, chief_editor: Award }[msg.role] || MessageCircle
-                                                        const roleLabel = { strategist: "Stratég", copywriter: "Copywriter", critic: "Kritik", chief_editor: "Šéfredaktor" }[msg.role] || msg.role
+                                                        const roleLabel = t.has(`roles.${msg.role}`) ? t(`roles.${msg.role}`) : msg.role
                                                         const actionColor = msg.action === "approve" ? "text-emerald-400"
                                                             : msg.action === "revise" ? "text-amber-400"
                                                             : msg.action === "pushback" ? "text-purple-400"
                                                             : msg.action === "reject" ? "text-red-400"
                                                             : msg.action === "fix" ? "text-sky-400"
                                                             : "text-white/40"
-                                                        const actionLabel = msg.action === "approve" ? "schválil"
-                                                            : msg.action === "revise" ? "vrátil k úpravě"
-                                                            : msg.action === "pushback" ? "nesouhlasí"
-                                                            : msg.action === "reject" ? "zamítl"
-                                                            : msg.action === "fix" ? "opravil"
-                                                            : msg.action === "propose" ? "navrhl"
-                                                            : msg.action
+                                                        const actionLabel = t.has(`editorialActions.${msg.action}`) ? t(`editorialActions.${msg.action}`) : msg.action
                                                         return (
                                                             <div key={i} className="flex items-start gap-2 py-1">
                                                                 <RoleIcon className="w-3.5 h-3.5 shrink-0 mt-0.5 text-white/50" />
@@ -1979,9 +1984,9 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         {/* Schedule this post */}
                                         {result.success && result.postId && (
                                             <div className="pt-6 mt-6 border-t border-white/10">
-                                                <span className="inline-flex items-center gap-1.5 block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3"><CalendarDays className="w-3 h-3 shrink-0" />Naplánovat na Instagram</span>
+                                                <span className="inline-flex items-center gap-1.5 block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3"><CalendarDays className="w-3 h-3 shrink-0" />{t("result.scheduleTitle")}</span>
                                                 {singleScheduled ? (
-                                                    <p className="text-[11px] text-emerald-400 font-bold">✅ Naplánováno na {singleScheduled} — uvidíš to v Plánovači</p>
+                                                    <p className="text-[11px] text-emerald-400 font-bold">{t("result.scheduled", { when: singleScheduled })}</p>
                                                 ) : (
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         <input
@@ -2001,7 +2006,7 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                             disabled={singleScheduling}
                                                             className="px-5 py-2 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all disabled:opacity-50"
                                                         >
-                                                            {singleScheduling ? "Plánuji…" : "Naplánovat"}
+                                                            {singleScheduling ? t("result.scheduling") : t("result.schedule")}
                                                         </button>
                                                     </div>
                                                 )}
@@ -2013,13 +2018,13 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                 onClick={() => setActiveSection("posts")}
                                                 className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
                                             >
-                                                <span className="inline-flex items-center gap-1.5"><ClipboardList className="w-3.5 h-3.5 shrink-0" />Otevřít v Příspěvcích</span>
+                                                <span className="inline-flex items-center gap-1.5"><ClipboardList className="w-3.5 h-3.5 shrink-0" />{t("result.openPosts")}</span>
                                             </button>
                                             <button
                                                 onClick={() => { setResult(null); setStep(1); setSingleScheduled(null); setSingleSchedDate("") }}
                                                 className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-white/5 text-white/60 border border-white/10 hover:text-white hover:bg-white/10 transition-all"
                                             >
-                                                <span className="inline-flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 shrink-0" />Generovat další</span>
+                                                <span className="inline-flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 shrink-0" />{t("result.generateNext")}</span>
                                             </button>
                                         </div>
                                     </div>
@@ -2030,17 +2035,17 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                 <span className="inline-flex items-center justify-center w-20 h-20 rounded-sm bg-emerald-500/10 text-emerald-400 shadow-sm border border-emerald-500/20 mb-2">
                                     <Rocket className="w-8 h-8" />
                                 </span>
-                                <h2 className="text-4xl font-black uppercase tracking-tighter text-white">Kampaň spuštěna</h2>
+                                <h2 className="text-4xl font-black uppercase tracking-tighter text-white">{t("batch.title")}</h2>
                                 <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest">{batchResult.message}</p>
 
                                 <div className="grid grid-cols-2 gap-4 mt-8">
                                     <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-sm p-6 shadow-sm">
                                         <p className="text-5xl font-black text-emerald-500 mb-2">{batchResult.generated}</p>
-                                        <p className="text-[10px] font-bold tracking-widest uppercase text-emerald-500/50">Úspěch</p>
+                                        <p className="text-[10px] font-bold tracking-widest uppercase text-emerald-500/50">{t("batch.success")}</p>
                                     </div>
                                     <div className="bg-aisummit-cinnabar/5 border border-aisummit-cinnabar/10 rounded-sm p-6 shadow-sm">
                                         <p className="text-5xl font-black text-aisummit-cinnabar mb-2">{batchResult.errors}</p>
-                                        <p className="text-[10px] font-bold tracking-widest uppercase text-aisummit-cinnabar/50">Selhání</p>
+                                        <p className="text-[10px] font-bold tracking-widest uppercase text-aisummit-cinnabar/50">{t("batch.failures")}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-center gap-3 mt-8 flex-wrap">
@@ -2048,30 +2053,30 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                         onClick={() => setActiveSection("posts")}
                                         className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
                                     >
-                                        <span className="inline-flex items-center gap-1.5"><ClipboardList className="w-3.5 h-3.5 shrink-0" />Otevřít v Příspěvcích</span>
+                                        <span className="inline-flex items-center gap-1.5"><ClipboardList className="w-3.5 h-3.5 shrink-0" />{t("result.openPosts")}</span>
                                     </button>
                                     {batchResult.errors > 0 && (
                                         <button
                                             onClick={() => { setBatchResult(null); setStep(1) }}
                                             className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-aisummit-cinnabar/10 text-aisummit-cinnabar border border-aisummit-cinnabar/20 hover:bg-aisummit-cinnabar/20 transition-all"
                                         >
-                                            <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />Zkusit selhané znovu</span>
+                                            <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />{t("batch.retryFailed")}</span>
                                         </button>
                                     )}
                                     <button
                                         onClick={() => { setStep(1); setContentPlan([]) }}
                                         className="px-6 py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-white/5 text-white/60 border border-white/10 hover:text-white hover:bg-white/10 transition-all"
                                     >
-                                        <span className="inline-flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 shrink-0" />Vytvořit další</span>
+                                        <span className="inline-flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 shrink-0" />{t("batch.createNext")}</span>
                                     </button>
                                 </div>
                             </div>
                         ) : (
                             <div className="text-center text-white/40">
                                 <p className="text-5xl mb-4 opacity-30 grayscale">✨</p>
-                                <p className="text-xl font-black uppercase tracking-tighter text-white/50 mb-2">Čekám na zadání</p>
-                                <p className="font-bold uppercase tracking-widest text-[10px]">Vraťte se na krok Brief a spusťte generování.</p>
-                                <button onClick={() => setStep(1)} className="mt-6 px-6 py-2 rounded-sm text-[10px] font-bold tracking-widest uppercase bg-white/5 text-white/50 border border-white/10 hover:text-white hover:bg-white/10 transition-colors">Zpět na Zadání</button>
+                                <p className="text-xl font-black uppercase tracking-tighter text-white/50 mb-2">{t("empty.title")}</p>
+                                <p className="font-bold uppercase tracking-widest text-[10px]">{t("empty.body")}</p>
+                                <button onClick={() => setStep(1)} className="mt-6 px-6 py-2 rounded-sm text-[10px] font-bold tracking-widest uppercase bg-white/5 text-white/50 border border-white/10 hover:text-white hover:bg-white/10 transition-colors">{t("empty.back")}</button>
                             </div>
                         )}
                     </motion.div>

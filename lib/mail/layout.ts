@@ -8,6 +8,7 @@
  * na kterou se nikdo nedívá.
  */
 
+import { DEFAULT_UI_LOCALE, type UiLocale } from "@/lib/i18n/locales"
 import { formatIdentityLine, LEGAL } from "@/lib/legal"
 import type { Block } from "./blocks"
 import { stripInline } from "./inline"
@@ -30,6 +31,19 @@ export interface MailDocument {
     unsubscribeEmail?: string
     /** `ops` = interní pošta zakladateli: bez identifikace podnikatele a bez odhlášení. */
     variant?: "customer" | "ops"
+    /** Jazyk příjemce (`user_metadata.locale`). Řídí chrome (patička, `lang`); obsah
+     *  bloků si překládá volající. Chybí = čeština. */
+    locale?: UiLocale
+}
+
+/** Texty patičky — jediné, co layout sám píše. Bloky přicházejí přeložené. */
+const CHROME: Record<UiLocale, { internal: string; unsubscribe: string }> = {
+    cs: { internal: "Interní zpráva ze studia", unsubscribe: "Odhlásit odběr" },
+    en: { internal: "Internal studio message", unsubscribe: "Unsubscribe" },
+}
+
+function chrome(doc: MailDocument) {
+    return CHROME[doc.locale ?? DEFAULT_UI_LOCALE]
 }
 
 /**
@@ -62,12 +76,12 @@ function footerHtml(doc: MailDocument): string {
         `<p style="${TYPE.legal};color:${COLOR.onBandStrong};font-weight:700;letter-spacing:.18em;text-transform:uppercase;margin:0 0 10px">Chrlit</p>`,
     ]
     if (doc.variant === "ops") {
-        rows.push(`<p style="${TYPE.legal};margin:0">Interní zpráva ze studia · ${link(siteUrl(), "chrlit.cz")}</p>`)
+        rows.push(`<p style="${TYPE.legal};margin:0">${chrome(doc).internal} · ${link(siteUrl(), "chrlit.cz")}</p>`)
     } else {
         rows.push(`<p style="${TYPE.legal};margin:0 0 6px">${formatIdentityLine()}</p>`)
         rows.push(`<p style="${TYPE.legal};margin:0">${link(siteUrl(), "chrlit.cz")} · ${link(`mailto:${LEGAL.email}`, LEGAL.email)}</p>`)
         if (doc.kind === "notification" && doc.unsubscribeEmail) {
-            rows.push(`<p style="${TYPE.legal};margin:12px 0 0">${link(unsubscribeUrl(doc.unsubscribeEmail), "Odhlásit odběr")}</p>`)
+            rows.push(`<p style="${TYPE.legal};margin:12px 0 0">${link(unsubscribeUrl(doc.unsubscribeEmail), chrome(doc).unsubscribe)}</p>`)
         }
     }
     return rows.join("\n      ")
@@ -76,7 +90,7 @@ function footerHtml(doc: MailDocument): string {
 function footerText(doc: MailDocument): string {
     const rows = ["CHRLIT"]
     if (doc.variant === "ops") {
-        rows.push(`Interní zpráva ze studia · ${siteUrl()}`)
+        rows.push(`${chrome(doc).internal} · ${siteUrl()}`)
     } else {
         rows.push(formatIdentityLine())
         rows.push(`${siteUrl()} · ${LEGAL.email}`)
@@ -84,7 +98,7 @@ function footerText(doc: MailDocument): string {
             // Odhlášení musí být i tady. Kdo čte textovou verzi a odkaz nenajde,
             // neodhlásí se — klikne na „spam", a to platíme doručitelností všeho
             // ostatního, včetně dokladů.
-            rows.push(`Odhlásit odběr: ${unsubscribeUrl(doc.unsubscribeEmail)}`)
+            rows.push(`${chrome(doc).unsubscribe}: ${unsubscribeUrl(doc.unsubscribeEmail)}`)
         }
     }
     return rows.join("\n")
@@ -95,7 +109,7 @@ export function renderEmail(doc: MailDocument): { html: string; text: string } {
     const bandPad = `${28}px ${METRIC.pad}px`
 
     const html = `<!doctype html>
-<html lang="cs">
+<html lang="${doc.locale ?? DEFAULT_UI_LOCALE}">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />

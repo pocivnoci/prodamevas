@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
+import { useFormatter, useTranslations } from "next-intl"
 import { getWeekPosts, approvePost, confirmPlanAction, movePost } from "@/app/actions/calendar-actions"
 import { parsePostMedia } from "@/lib/media-urls"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
@@ -39,17 +40,8 @@ const STATUS_ICON: Record<string, LucideIcon> = {
     failed: TriangleAlert,
 }
 
-const STATUS_LABEL: Record<string, string> = {
-    draft: "Koncept",
-    ready: "Čeká na potvrzení",
-    scheduled: "Naplánováno",
-    posting: "Publikuje se",
-    posted: "Publikováno",
-    failed: "Selhalo",
-}
-
-const DAY_NAMES = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"]
-const DAY_NAMES_FULL = ["Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek", "Sobota", "Neděle"]
+// Popisky stavů žijí v messages (`plan.calendar.status.<stav>`), názvy dnů dává
+// formatter next-intl — viz `statusLabel` a `dayName` v komponentě.
 
 function getMonday(d: Date): Date {
     const day = d.getDay()
@@ -64,8 +56,17 @@ function formatDate(d: Date): string {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
+/** Kalendářní den ("YYYY-MM-DD") pro formatter: parsuje se jako půlnoc UTC, což je
+ *  v Europe/Prague (zóna formatteru) vždy týž den — nezávisle na zóně prohlížeče. */
+function calendarDay(iso: string): Date {
+    return new Date(iso)
+}
+
 export function CalendarTab({ projectId }: { projectId: string }) {
     const { setActiveSection, setGenerateIntent } = useStudio()
+    const t = useTranslations("plan.calendar")
+    const tc = useTranslations("common")
+    const format = useFormatter()
     const [weekStart, setWeekStart] = useState(() => getMonday(new Date()))
     const [posts, setPosts] = useState<CalendarPost[]>([])
     const [loading, setLoading] = useState(true)
@@ -77,6 +78,9 @@ export function CalendarTab({ projectId }: { projectId: string }) {
     const moveTimeRef = useRef<string>("")
 
     const weekStartStr = formatDate(weekStart)
+
+    /** Popisek stavu podle hodnoty; neznámý stav se ukáže tak, jak přišel. */
+    const statusLabel = (status: string) => t.has(`status.${status}`) ? t(`status.${status}`) : status
 
     const loadPosts = useCallback(async () => {
         if (!projectId) return
@@ -121,12 +125,12 @@ export function CalendarTab({ projectId }: { projectId: string }) {
         setConfirming(false)
 
         if (!res.success) {
-            setNotice(res.error || "Potvrzení se nezdařilo")
+            setNotice(res.error || t("confirmFailed"))
             return
         }
-        const parts = [`Naplánováno: ${res.confirmed ?? 0}`]
-        if (res.shifted) parts.push(`${res.shifted} s propadlým termínem posunuto dopředu`)
-        if (res.skipped) parts.push(`${res.skipped} přeskočeno`)
+        const parts = [t("confirmedCount", { count: res.confirmed ?? 0 })]
+        if (res.shifted) parts.push(t("shiftedCount", { count: res.shifted }))
+        if (res.skipped) parts.push(t("skippedCount", { count: res.skipped }))
         setNotice(parts.join(" · "))
         await loadPosts()
     }
@@ -141,7 +145,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
             setSelectedPost(null)
             await loadPosts()
         } else {
-            setNotice("Posun se nezdařil")
+            setNotice(t("moveFailed"))
         }
     }
 
@@ -166,11 +170,12 @@ export function CalendarTab({ projectId }: { projectId: string }) {
         const dateStr = formatDate(d)
         const dayPosts = posts.filter(p => p.scheduled_for?.startsWith(dateStr))
         const isToday = formatDate(new Date()) === dateStr
-        return { date: d, dateStr, dayPosts, isToday, dayName: DAY_NAMES[i], dayNameFull: DAY_NAMES_FULL[i] }
+        return { date: d, dateStr, dayPosts, isToday, dayName: format.dateTime(calendarDay(dateStr), { weekday: "short" }) }
     })
 
     const weekEndDate = new Date(weekStart)
     weekEndDate.setDate(weekEndDate.getDate() + 6)
+    const weekEndStr = formatDate(weekEndDate)
 
     // Přehled týdne. `ready` s termínem = návrh čekající na potvrzení; propadlý
     // termín znamená, že ho nikdo nepotvrdil včas a agent ho schválně nechal být.
@@ -187,20 +192,20 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                 Tři tlačítka namačkaná vpravo měla terč pod 40 px. */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h2 className="text-xl font-black uppercase tracking-tight text-white flex items-center gap-2"><CalendarDays className="w-4 h-4 shrink-0" />Content Calendar</h2>
+                    <h2 className="text-xl font-black uppercase tracking-tight text-white flex items-center gap-2"><CalendarDays className="w-4 h-4 shrink-0" />{t("title")}</h2>
                     <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">
-                        {weekStart.getDate()}.{weekStart.getMonth() + 1}. – {weekEndDate.getDate()}.{weekEndDate.getMonth() + 1}.{weekEndDate.getFullYear()}
+                        {format.dateTime(calendarDay(weekStartStr), { day: "numeric", month: "numeric" })} – {format.dateTime(calendarDay(weekEndStr), { day: "numeric", month: "numeric", year: "numeric" })}
                     </p>
                 </div>
 
                 <div className="grid grid-cols-3 sm:flex sm:items-center gap-2">
-                    <button onClick={prevWeek} aria-label="Předchozí týden" className="min-h-[44px] px-3 bg-white/5 border border-white/10 rounded-sm text-white/50 hover:text-white hover:bg-white/10 transition-all text-sm font-bold cursor-pointer">
+                    <button onClick={prevWeek} aria-label={t("prevWeek")} className="min-h-[44px] px-3 bg-white/5 border border-white/10 rounded-sm text-white/50 hover:text-white hover:bg-white/10 transition-all text-sm font-bold cursor-pointer">
                         ←
                     </button>
                     <button onClick={thisWeek} className="min-h-[44px] px-4 bg-white/5 border border-white/10 rounded-sm text-white/50 hover:text-white hover:bg-white/10 transition-all text-[10px] font-bold uppercase tracking-widest cursor-pointer">
-                        Dnes
+                        {t("today")}
                     </button>
-                    <button onClick={nextWeek} aria-label="Následující týden" className="min-h-[44px] px-3 bg-white/5 border border-white/10 rounded-sm text-white/50 hover:text-white hover:bg-white/10 transition-all text-sm font-bold cursor-pointer">
+                    <button onClick={nextWeek} aria-label={t("nextWeek")} className="min-h-[44px] px-3 bg-white/5 border border-white/10 rounded-sm text-white/50 hover:text-white hover:bg-white/10 transition-all text-sm font-bold cursor-pointer">
                         →
                     </button>
                 </div>
@@ -211,7 +216,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                 <button
                     onClick={handlePlanWeek}
                     className="inline-flex items-center gap-1.5 justify-center w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-emerald-600/20 to-emerald-500/10 border border-emerald-500/30 rounded-sm text-emerald-400 text-xs font-bold uppercase tracking-widest hover:from-emerald-600/30 hover:to-emerald-500/20 transition-all shadow-lg shadow-emerald-900/20 cursor-pointer"
-                ><Wand className="w-3.5 h-3.5 shrink-0" />Naplánovat týden →</button>
+                ><Wand className="w-3.5 h-3.5 shrink-0" />{t("planWeek")} →</button>
 
                 {/* Bez tohohle kroku byl termín v kalendáři jen návrh: publisher bere
                     výhradně `scheduled`, takže `ready` příspěvek termín prošvihl. */}
@@ -220,16 +225,16 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                         onClick={handleConfirmWeek}
                         disabled={confirming}
                         className="inline-flex items-center gap-1.5 justify-center w-full sm:w-auto px-6 py-3 bg-pink-500/10 border border-pink-500/30 rounded-sm text-pink-400 text-xs font-bold uppercase tracking-widest hover:bg-pink-500/20 transition-all cursor-pointer disabled:opacity-50"
-                    ><Clock className="w-3.5 h-3.5 shrink-0" />{confirming ? "Potvrzuji…" : `Potvrdit plán (${pendingCount})`}</button>
+                    ><Clock className="w-3.5 h-3.5 shrink-0" />{confirming ? t("confirming") : t("confirmPlan", { count: pendingCount })}</button>
                 )}
             </div>
 
             {/* Stav týdne — kolik z něj doopravdy vyjde */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-bold uppercase tracking-widest">
-                <span className="text-emerald-400/70">{pendingCount} čeká na potvrzení</span>
-                <span className="text-pink-400/70">{scheduledCount} naplánováno</span>
-                {overdueCount > 0 && <span className="text-amber-400/80">{overdueCount} s propadlým termínem</span>}
-                {failedCount > 0 && <span className="text-red-400/80">{failedCount} selhalo</span>}
+                <span className="text-emerald-400/70">{t("summary.pending", { count: pendingCount })}</span>
+                <span className="text-pink-400/70">{t("summary.scheduled", { count: scheduledCount })}</span>
+                {overdueCount > 0 && <span className="text-amber-400/80">{t("summary.overdue", { count: overdueCount })}</span>}
+                {failedCount > 0 && <span className="text-red-400/80">{t("summary.failed", { count: failedCount })}</span>}
             </div>
 
             {notice && (
@@ -290,7 +295,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                 ))}
 
                                 {day.dayPosts.length === 0 && (
-                                    <p className="text-[11px] text-white/20 py-2">Volno</p>
+                                    <p className="text-[11px] text-white/20 py-2">{t("free")}</p>
                                 )}
                             </div>
                         </div>
@@ -323,7 +328,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                 </div>
                                 {day.isToday && (
                                     <span className="text-[8px] text-emerald-400 font-bold uppercase tracking-widest bg-emerald-500/10 px-2 py-0.5 rounded-sm border border-emerald-500/20">
-                                        Dnes
+                                        {t("today")}
                                     </span>
                                 )}
                             </div>
@@ -370,7 +375,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                 {/* Empty slot */}
                                 {day.dayPosts.length === 0 && (
                                     <div className="flex items-center justify-center h-20 border border-dashed border-white/10 rounded-sm">
-                                        <span className="text-[9px] text-white/20">Volno</span>
+                                        <span className="text-[9px] text-white/20">{t("free")}</span>
                                     </div>
                                 )}
                             </div>
@@ -399,7 +404,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                         : selectedPost.status === "failed" ? "text-red-400"
                                         : "text-amber-400"
                                 }`}>
-                                    {STATUS_LABEL[selectedPost.status] || selectedPost.status}
+                                    {statusLabel(selectedPost.status)}
                                 </span>
                                 {selectedPost.post_type && (
                                     <span className="text-[9px] text-white/40 font-bold uppercase tracking-widest">
@@ -428,7 +433,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                 mizerně — tohle funguje všude a čte se to i hlasovým odečtem. */}
                             {selectedPost.status !== "posted" && selectedPost.scheduled_for && (
                                 <div className="pt-4 border-t border-white/10 space-y-2">
-                                    <label className="block text-[9px] font-bold uppercase tracking-widest text-white/40">Přesunout termín</label>
+                                    <label className="block text-[9px] font-bold uppercase tracking-widest text-white/40">{t("move.label")}</label>
                                     <div className="flex gap-2">
                                         <input
                                             type="date"
@@ -451,7 +456,7 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                             disabled={moving}
                                             className="min-h-[44px] px-4 bg-white/5 border border-white/10 rounded-sm text-white/60 text-[10px] font-bold uppercase tracking-widest hover:bg-white/10 hover:text-white transition-all cursor-pointer disabled:opacity-50"
                                         >
-                                            {moving ? "…" : "Posunout"}
+                                            {moving ? "…" : t("move.button")}
                                         </button>
                                     </div>
                                 </div>
@@ -464,14 +469,14 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                                         onClick={() => handleApprove(selectedPost.id)}
                                         className="flex-1 min-h-[44px] px-4 bg-emerald-500/10 border border-emerald-500/30 rounded-sm text-emerald-400 text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-500/20 transition-all cursor-pointer"
                                     >
-                                        <span className="inline-flex items-center gap-1.5"><CircleCheck className="w-3.5 h-3.5 shrink-0" />Schválit</span>
+                                        <span className="inline-flex items-center gap-1.5"><CircleCheck className="w-3.5 h-3.5 shrink-0" />{t("approve")}</span>
                                     </button>
                                 )}
                                 <button
                                     onClick={() => setSelectedPost(null)}
                                     className="flex-1 min-h-[44px] px-4 bg-white/5 border border-white/10 rounded-sm text-white/50 text-[10px] font-bold uppercase tracking-widest hover:bg-white/10 hover:text-white transition-all cursor-pointer"
                                 >
-                                    Zavřít
+                                    {tc("close")}
                                 </button>
                             </div>
                         </div>
@@ -479,11 +484,11 @@ export function CalendarTab({ projectId }: { projectId: string }) {
                 </div>
             )}
 
-            {/* Info */}
+            {/* Info — tučná návěští jdou z messages přes <strong> tag (t.rich), ať překlad drží markup. */}
             <div className="bg-[#0a0a0a]/60 border border-white/5 rounded-sm p-4 text-[10px] text-white/30 tracking-wide space-y-1">
-                <p><CalendarDays className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" /><strong className="text-white/50">Naplánuj týden:</strong> AI analyzuje počasí, svátky a výkon značky, pak strategicky naplánuje posty na celý týden.</p>
-                <p><CloudSun className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" /><strong className="text-white/50">Počasí:</strong> Když je dostupná předpověď, plán ji zohlední. Jinak plánuje podle kalendáře, svátků a výkonu značky.</p>
-                <p><FileText className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" /><strong className="text-white/50">Workflow:</strong> Naplánuj → zkontroluj drafty → schval → publikuj.</p>
+                <p><CalendarDays className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" />{t.rich("info.plan", { strong: chunks => <strong className="text-white/50">{chunks}</strong> })}</p>
+                <p><CloudSun className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" />{t.rich("info.weather", { strong: chunks => <strong className="text-white/50">{chunks}</strong> })}</p>
+                <p><FileText className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" />{t.rich("info.workflow", { strong: chunks => <strong className="text-white/50">{chunks}</strong> })}</p>
             </div>
         </div>
     )

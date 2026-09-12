@@ -1,3 +1,224 @@
 {
-  "billing": {}
+  "billing": {
+    "subscription": {
+      "title": "Subscription & Credits",
+      "hints": {
+        "credits": "how credits work",
+        "term": "what a longer term means"
+      },
+      "noSubscription": "You have no active subscription.",
+      "errors": {
+        "activate": "Plan activation failed.",
+        "createPayment": "Could not create the payment.",
+        "openGateway": "Could not open the payment gateway."
+      },
+      "term": {
+        "1": {
+          "label": "Monthly",
+          "short": "monthly",
+          "note": "no commitment · cancel anytime"
+        },
+        "3": {
+          "label": "3 months",
+          "short": "for 3 months",
+          "badge": "−5 %",
+          "note": "paid once per quarter"
+        },
+        "6": {
+          "label": "6 months",
+          "short": "for 6 months",
+          "badge": "−10 %",
+          "note": "paid once per half-year"
+        },
+        "12": {
+          "label": "12 months",
+          "short": "for 12 months",
+          "badge": "2 months free",
+          "note": "price locked for a whole year"
+        }
+      },
+      "locked": {
+        "paid": "You have paid {term}{until, select, none {} other { until {until}}}.",
+        "contact": "Want a higher plan? Write to us — we will carry the remaining period over."
+      },
+      "plans": {
+        "taglines": {
+          "chrlit_start": "Kick-start your profile",
+          "chrlit_rust": "Growing together",
+          "chrlit_dominance": "Own your market",
+          "chrlit_imperium": "Build an empire"
+        },
+        "recommended": "Recommended",
+        "yours": "Your plan",
+        "perMonth": "Kč/mo{vat, select, payer { excl. VAT} other {}}",
+        "oneOff": "{amount} paid once {term}",
+        "gross": "{amount} incl. VAT{months, plural, =1 { monthly} other { {term}}}",
+        "savings": "You save {amount}",
+        "pending": "coming soon",
+        "features": {
+          "credits": "{count, plural, one {# credit} other {# credits}} per month",
+          "reels": "Reels (AI video) — short {short, plural, one {# credit} other {# credits}}, long {long, plural, one {# credit} other {# credits}}",
+          "variants": "Two versions of a post to choose from — billed as two posts",
+          "ideas": "AI content ideas",
+          "growth": "Growth dashboard — follower tracking",
+          "productStudio": "Product studio — visualisations & mockups",
+          "analyticsFull": "Full performance analytics",
+          "analyticsBasic": "Basic analytics",
+          "priorityHighest": "Highest priority in the queue",
+          "priorityHigh": "Priority generation",
+          "humanReview": "Content reviewed by a marketing specialist",
+          "humanSupport": "Priority support — e-mail and phone"
+        },
+        "button": {
+          "active": "Active",
+          "contact": "Write to us",
+          "processing": "Processing...",
+          "payGift": "Pay for {name}",
+          "switch": "Switch to {name}"
+        },
+        "note": {
+          "payGift": "The paid period starts right away — the rest of the free plan does not carry over",
+          "tierChange": "The new plan starts right away — the unused rest of the current period does not carry over"
+        }
+      },
+      "vatNotice": {
+        "payer": "Prices are exclusive of VAT. VAT of {rate} % is added to the price.",
+        "identified": "I am not a VAT payer (a person identified for VAT under the VAT Act). The prices shown are final.",
+        "none": "I am not a VAT payer. The prices shown are final."
+      },
+      "portal": "Payment card and invoices →",
+      "gift": {
+        "title": "Free plan · admin only",
+        "runningGift": "A free plan is running{until, select, none {} other { until {until}}}. The next one can be given once this one ends.",
+        "runningPaid": "The client has a paid plan{until, select, none {} other { until {until}}} — a free one can be given only after it ends.",
+        "intro": "A paid plan without payment, to try things out. It ends on its own — nothing is charged and the client decides whether to continue.",
+        "planAria": "Plan",
+        "termAria": "Term",
+        "planOption": "{name} · {count, plural, one {# credit} other {# credits}}/mo",
+        "months": "{count, plural, one {# month} other {# months}}",
+        "give": "Give for free",
+        "confirm": "{name} free for {count, plural, one {# month} other {# months}} — really?",
+        "back": "Back",
+        "giving": "Giving…",
+        "yes": "Yes, give it",
+        "done": "Done.",
+        "failed": "That did not work.",
+        "failedRetry": "That did not work. Please try again."
+      },
+      "current": {
+        "trialDays": "Trial · {days}d left",
+        "trialPosts": "Trial · 3 free posts",
+        "gift": "Free",
+        "active": "Active",
+        "expired": "Expired",
+        "ends": "Ends {until, select, none {at the end of the period} other {{until}}}",
+        "refresh": "Refresh",
+        "freePosts": "Free posts",
+        "usedCredits": "Credits used",
+        "purchased": "(+{count} purchased)",
+        "remainingPosts": "Remaining: {count, plural, one {# free post} other {# free posts}}",
+        "remainingCredits": "Remaining: {count, plural, one {# credit} other {# credits}}",
+        "creditsRenew": "Credits renew on {date}",
+        "renews": "Renews on {date}",
+        "giftUntil": "Free plan until {date} · credits renew monthly",
+        "termRenews": "You pay {term} · the subscription renews on {date}",
+        "topUp": "Top up credits",
+        "giftNote": "Free plan{until, select, none {} other { until {until}}}. Nothing will be charged — if you want to continue, pick a plan below."
+      },
+      "cancel": {
+        "failed": "That could not be done.",
+        "failedRetry": "That could not be done. Please try again.",
+        "ending": "Your subscription ends{until, select, none { at the end of the period} other { on {until}}}. Until then it works as before.",
+        "resuming": "Resuming…",
+        "resume": "Resume subscription",
+        "cancel": "Cancel subscription",
+        "confirm": "Cancel? The plan keeps running{until, select, none { until the end of the paid period} other { until {until}}} and then will not renew.",
+        "keep": "Keep it running",
+        "cancelling": "Cancelling…",
+        "yes": "Yes, cancel"
+      }
+    },
+    "details": {
+      "consent": {
+        "text": "I agree to the service being made available immediately after payment and I acknowledge that I thereby lose the right to withdraw from the contract within 14 days under Section 1837 of the Czech Civil Code.",
+        "required": "Without consent to immediate performance, the service cannot be made available right away."
+      },
+      "form": {
+        "errors": {
+          "save": "Saving failed.",
+          "consent": "Saving the consent failed."
+        },
+        "invoiceAs": "Bill me as",
+        "customerType": {
+          "company": "Company / sole trader",
+          "consumer": "Not a business"
+        },
+        "companyName": "Company name",
+        "personName": "Full name",
+        "companyNamePlaceholder": "Corner Café s.r.o.",
+        "personNamePlaceholder": "Jane Smith",
+        "ico": "Company ID (IČO)",
+        "icoPlaceholder": "12345678",
+        "dic": "VAT ID (DIČ)",
+        "dicPlaceholder": "CZ12345678",
+        "optional": "(optional)",
+        "street": "Street and number",
+        "streetPlaceholder": "Dlouhá 12",
+        "zip": "Postcode",
+        "zipPlaceholder": "110 00",
+        "city": "City",
+        "cityPlaceholder": "Prague",
+        "email": "E-mail for invoices",
+        "emailPlaceholder": "accounting@company.com",
+        "saving": "Saving…",
+        "saved": "Saved ✓",
+        "save": "Save details",
+        "back": "Back"
+      },
+      "modal": {
+        "title": "Billing details",
+        "intro": "We need them to issue a tax invoice. You fill them in once."
+      },
+      "section": {
+        "title": "Billing",
+        "invoices": "Issued invoices",
+        "empty": "No invoices yet. We issue the first one after your first payment.",
+        "preparing": "Being prepared…",
+        "amount": "{amount, number} Kč",
+        "open": "Open",
+        "status": {
+          "failed": "Being resolved",
+          "pending": "Pending"
+        },
+        "failedNote": "Issuing one of the invoices failed. We will deliver it to you later — the payment is fine and the service is running."
+      }
+    },
+    "consultation": {
+      "title": "Tailored brand setup",
+      "errors": {
+        "booking": "Could not prepare the booking link.",
+        "payment": "Could not create the payment."
+      },
+      "booked": {
+        "confirmed": "Appointment confirmed: {date}",
+        "info": "The video call link is in your confirmation e-mail. No need to prepare — we will go through your brand beforehand.",
+        "open": "Open call"
+      },
+      "entitled": {
+        "included": "Included in your subscription",
+        "paid": "Paid",
+        "pickSlot": "All that is left is to pick a time. The session takes {minutes, plural, one {# minute} other {# minutes}} and is online.",
+        "weWillReachOut": "We will e-mail you ourselves to arrange a time.",
+        "opening": "Opening…",
+        "pick": "Pick a time"
+      },
+      "offer": {
+        "pitch": "{minutes, plural, one {# minute} other {# minutes}} online with the person who builds Chrlit. We go through your brand, fine-tune the tone and pillars, and you leave with a configured profile and your first month of content. No need to prepare — the proposal is ready in advance.",
+        "included": "Included with 6- and 12-month subscriptions",
+        "vat": "excl. VAT · {gross} incl. VAT",
+        "processing": "Processing…",
+        "order": "Order"
+      }
+    }
+  }
 }

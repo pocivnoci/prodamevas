@@ -7,12 +7,14 @@ import { getConnectionStatus } from "@/app/actions/ig-connection-actions"
 import { getGrowthData, type GrowthData } from "@/app/actions/growth-actions"
 import { getVariantDuels } from "@/app/actions/ab-actions"
 import type { Duel } from "@/lib/ab-duel"
-import { LOCKED_ANALYTICS_COPY, type AnalyticsDepth } from "@/lib/analytics-depth"
+import type { AnalyticsDepth } from "@/lib/analytics-depth"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { Anchor, Bookmark, Brain, ChartColumn, Check, Eye, Heart, Link, Lock, LockOpen, MessageCircle, Search, Share2, Swords, TrendingUp } from "lucide-react"
-import { countLabel, POSTS } from "@/lib/plural"
+import { useFormatter, useTranslations } from "next-intl"
 
 export function PerformanceTab({ projectId }: { projectId: string }) {
+    const t = useTranslations("performance.tab")
+    const format = useFormatter()
     const [posts, setPosts] = useState<any[]>([])
     const [insights, setInsights] = useState<any>(null)
     const [pillarLabels, setPillarLabels] = useState<Record<string, { emoji: string; label: string }>>({})
@@ -65,10 +67,10 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
         setSyncMsg(null)
         const r = await syncMetricsAction(projectId)
         if (r.success) {
-            setSyncMsg(`Z Instagramu načteno: ${countLabel(r.synced ?? 0, POSTS)}${r.matched ? `, nově propojeno ${r.matched}` : ""}.`)
+            setSyncMsg(t("sync.done", { count: r.synced ?? 0, matched: r.matched ?? 0 }))
             await loadData(false)
         } else {
-            setSyncMsg(`${r.error || "Synchronizace selhala"}`)
+            setSyncMsg(`${r.error || t("sync.failed")}`)
         }
         setSyncing(false)
     }
@@ -95,12 +97,12 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
     }
 
     const metricFields = [
-        { key: "likes", Icon: Heart, title: "Likes" },
-        { key: "comments", Icon: MessageCircle, title: "Komentáře" },
-        { key: "saves", Icon: Bookmark, title: "Uložení" },
-        { key: "reach", Icon: Eye, title: "Reach" },
-        { key: "shares", Icon: Share2, title: "Sdílení" },
-        { key: "link_clicks", Icon: Link, title: "Kliky" },
+        { key: "likes", Icon: Heart, title: t("metrics.likes") },
+        { key: "comments", Icon: MessageCircle, title: t("metrics.comments") },
+        { key: "saves", Icon: Bookmark, title: t("metrics.saves") },
+        { key: "reach", Icon: Eye, title: t("metrics.reach") },
+        { key: "shares", Icon: Share2, title: t("metrics.shares") },
+        { key: "link_clicks", Icon: Link, title: t("metrics.link_clicks") },
     ]
 
     if (loading) {
@@ -112,6 +114,9 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
     }
 
     const hasData = insights && insights.avgEngagement > 0
+
+    /** Zvýraznění v infoboxu (`<strong>` v messages). */
+    const strong = (chunks: React.ReactNode) => <strong className="text-white/50">{chunks}</strong>
 
     return (
         <div className="space-y-8">
@@ -125,17 +130,17 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
             <div>
                 <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
                     <h2 className="text-lg font-black uppercase tracking-tight text-white flex items-center gap-2">
-                        <span className="inline-flex items-center gap-1.5"><ChartColumn className="w-3.5 h-3.5 shrink-0" />Statistiky výkonu</span>
-                        {!hasData && <span className="text-[10px] font-normal normal-case tracking-normal text-white/30">— zatím žádná data, zadej metriky níže</span>}
+                        <span className="inline-flex items-center gap-1.5"><ChartColumn className="w-3.5 h-3.5 shrink-0" />{t("stats.title")}</span>
+                        {!hasData && <span className="text-[10px] font-normal normal-case tracking-normal text-white/30">{t("stats.noDataYet")}</span>}
                     </h2>
                     {connected && (
                         <button
                             onClick={handleSync}
                             disabled={syncing}
-                            title="Stáhne aktuální metriky z propojeného Instagramu"
+                            title={t("stats.syncTitle")}
                             className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-[#0f0f0f] border border-white/10 text-white/70 hover:bg-white/10 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
-                            {syncing ? "⏳ Načítám…" : "Načíst metriky z Instagramu"}
+                            {syncing ? t("stats.syncing") : t("stats.sync")}
                         </button>
                     )}
                 </div>
@@ -146,23 +151,23 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                         {/* Key Metrics */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                             <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
-                                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">Průměrná interakce</div>
+                                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">{t("stats.avgEngagement")}</div>
                                 <div className="text-2xl font-black text-white">{Math.round(insights.avgEngagement)}</div>
                             </div>
                             {depth === "full" && (
                                 <>
                                     <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
-                                        <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">Konverzní poměr</div>
+                                        <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">{t("stats.conversionRate")}</div>
                                         <div className="text-2xl font-black text-white">{(insights.conversionRate * 100).toFixed(1)}%</div>
                                     </div>
                                     <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
-                                        <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">Nejlepší čas</div>
+                                        <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">{t("stats.bestTime")}</div>
                                         <div className="text-2xl font-black text-white">{insights.bestTimeSlots?.[0] || "—"}</div>
                                     </div>
                                 </>
                             )}
                             <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
-                                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">Postů s daty</div>
+                                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">{t("stats.postsWithData")}</div>
                                 <div className="text-2xl font-black text-white">{posts.filter((p: any) => p.likes !== null && p.likes > 0).length}</div>
                             </div>
                         </div>
@@ -174,7 +179,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                             {/* Best Hooks */}
                             <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
-                                <div className="inline-flex items-center gap-1.5 text-[10px] text-white/40 uppercase tracking-wider mb-3"><Anchor className="w-3 h-3 shrink-0" />Nejlepší hooky</div>
+                                <div className="inline-flex items-center gap-1.5 text-[10px] text-white/40 uppercase tracking-wider mb-3"><Anchor className="w-3 h-3 shrink-0" />{t("stats.bestHooks")}</div>
                                 <div className="space-y-2">
                                     {insights.bestHooks?.slice(0, 5).map((hook: string, i: number) => (
                                         <div key={i} className="flex items-start gap-2">
@@ -183,14 +188,14 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                                         </div>
                                     ))}
                                     {(!insights.bestHooks || insights.bestHooks.length === 0) && (
-                                        <span className="text-xs text-white/30">Žádná data</span>
+                                        <span className="text-xs text-white/30">{t("stats.noData")}</span>
                                     )}
                                 </div>
                             </div>
 
                             {/* Top Patterns */}
                             <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-4">
-                                <div className="inline-flex items-center gap-1.5 text-[10px] text-white/40 uppercase tracking-wider mb-3"><Search className="w-3 h-3 shrink-0" />Detekované vzorce</div>
+                                <div className="inline-flex items-center gap-1.5 text-[10px] text-white/40 uppercase tracking-wider mb-3"><Search className="w-3 h-3 shrink-0" />{t("stats.patterns")}</div>
                                 <div className="flex flex-wrap gap-2">
                                     {insights.topPatterns?.map((pattern: string, i: number) => (
                                         <span key={i} className="inline-flex items-center px-3 py-1.5 bg-white/5 border border-white/10 rounded-sm text-[11px] text-white/70 font-medium">
@@ -198,7 +203,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                                         </span>
                                     ))}
                                     {(!insights.topPatterns || insights.topPatterns.length === 0) && (
-                                        <span className="text-xs text-white/30">Zadej metriky k postům pro detekci vzorců</span>
+                                        <span className="text-xs text-white/30">{t("stats.patternsEmpty")}</span>
                                     )}
                                 </div>
                             </div>
@@ -208,7 +213,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                         {/* Per-Pillar Performance */}
                         {depth === "full" && insights.pillarPerformance && Object.keys(insights.pillarPerformance).length > 0 && (
                             <div>
-                                <div className="inline-flex items-center gap-1.5 text-[10px] text-white/40 uppercase tracking-wider mb-3"><ChartColumn className="w-3 h-3 shrink-0" />Výkon podle témat</div>
+                                <div className="inline-flex items-center gap-1.5 text-[10px] text-white/40 uppercase tracking-wider mb-3"><ChartColumn className="w-3 h-3 shrink-0" />{t("stats.byPillar")}</div>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                     {Object.entries(insights.pillarPerformance).map(([key, perf]: [string, any]) => {
                                         const label = pillarLabels[key]
@@ -230,8 +235,8 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                 ) : (
                     <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-6 text-center">
                         <Brain className="w-6 h-6 mb-2 text-white/40" />
-                        <div className="text-sm text-white/50">Zadej metriky k publikovaným postům níže</div>
-                        <div className="text-[10px] text-white/30 mt-1">Statistiky se zobrazí po přidání dat k alespoň 3 postům</div>
+                        <div className="text-sm text-white/50">{t("stats.emptyTitle")}</div>
+                        <div className="text-[10px] text-white/30 mt-1">{t("stats.emptyBody")}</div>
                     </div>
                 )}
             </div>
@@ -239,20 +244,20 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
             {/* ── Manual Metrics Input ──────────────────────── */}
             <div>
                 <h2 className="text-lg font-black uppercase tracking-tight text-white mb-4 flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5"><ChartColumn className="w-3.5 h-3.5 shrink-0" />Manuální zadávání metrik</span>
-                    <span className="text-[10px] font-normal normal-case tracking-normal text-white/30">— {posts.length} postů</span>
+                    <span className="inline-flex items-center gap-1.5"><ChartColumn className="w-3.5 h-3.5 shrink-0" />{t("manual.title")}</span>
+                    <span className="text-[10px] font-normal normal-case tracking-normal text-white/30">{t("manual.count", { count: posts.length })}</span>
                 </h2>
 
                 {posts.length === 0 ? (
                     <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-6 text-center">
-                        <div className="text-sm text-white/50">Žádné publikované posty</div>
-                        <div className="text-[10px] text-white/30 mt-1">Vygeneruj posty a označ je jako "posted"</div>
+                        <div className="text-sm text-white/50">{t("manual.emptyTitle")}</div>
+                        <div className="text-[10px] text-white/30 mt-1">{t("manual.emptyBody")}</div>
                     </div>
                 ) : (
                     <div className="space-y-2">
                         {/* Header */}
                         <div className="hidden sm:grid grid-cols-[1fr_repeat(6,60px)_70px] gap-2 px-3 py-2">
-                            <div className="text-[9px] text-white/30 uppercase tracking-wider">Post</div>
+                            <div className="text-[9px] text-white/30 uppercase tracking-wider">{t("manual.post")}</div>
                             {metricFields.map(f => (
                                 <div key={f.key} className="flex justify-center text-white/30" title={f.title}><f.Icon className="w-3.5 h-3.5" /><span className="sr-only">{f.title}</span></div>
                             ))}
@@ -292,7 +297,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                                                     {post.ig_post_types?.emoji || "📝"} {postType}
                                                 </span>
                                                 <span className="text-[9px] text-white/20">
-                                                    {post.posted_at ? new Date(post.posted_at).toLocaleDateString("cs") : new Date(post.created_at).toLocaleDateString("cs")}
+                                                    {format.dateTime(new Date(post.posted_at || post.created_at), { day: "numeric", month: "numeric", year: "numeric" })}
                                                 </span>
                                             </div>
                                         </div>
@@ -324,7 +329,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
                                                     : "bg-white/5 text-white/60 border border-white/10 hover:bg-white/10 hover:text-white"
                                             }`}
                                     >
-                                        {isSaved ? <Check className="w-3.5 h-3.5" /> : isSaving ? "..." : "Uložit"}
+                                        {isSaved ? <Check className="w-3.5 h-3.5" /> : isSaving ? "..." : t("manual.save")}
                                     </button>
                                 </div>
                             )
@@ -335,9 +340,9 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
 
             {/* Info */}
             <div className="bg-[#0a0a0a]/60 border border-white/5 rounded-sm p-4 text-[10px] text-white/30 tracking-wide space-y-1">
-                <p><Brain className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" /><strong className="text-white/50">Neural Engine:</strong> Zadané metriky automaticky ovlivní příští generování — AI se naučí, co funguje líp.</p>
-                <p><ChartColumn className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" /><strong className="text-white/50">Insights:</strong> Zobrazí se po zadání metrik k alespoň 3 postům se statusem "posted".</p>
-                <p><Link className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" /><strong className="text-white/50">Meta API:</strong> Automatické stahování metrik bude přidáno později — zatím zadávej ručně z IG Insights.</p>
+                <p><Brain className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" />{t.rich("info.engine", { strong })}</p>
+                <p><ChartColumn className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" />{t.rich("info.insights", { strong })}</p>
+                <p><Link className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" />{t.rich("info.meta", { strong })}</p>
             </div>
         </div>
     )
@@ -352,14 +357,15 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
  * rozhodnutí. Čísla u příspěvků zůstávají celá — platí se za jejich vyhodnocení.
  */
 function LockedInsights() {
+    const t = useTranslations("performance.tab")
     return (
         <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-5 mb-4 flex items-start gap-3">
             <Lock className="w-4 h-4 shrink-0 text-white/30 mt-0.5" />
             <div>
                 <div className="text-[10px] text-white/40 uppercase tracking-widest font-bold mb-1.5">
-                    {LOCKED_ANALYTICS_COPY.title}
+                    {t("locked.title")}
                 </div>
-                <p className="text-xs text-white/50 leading-relaxed max-w-xl">{LOCKED_ANALYTICS_COPY.body}</p>
+                <p className="text-xs text-white/50 leading-relaxed max-w-xl">{t("locked.body")}</p>
             </div>
         </div>
     )
@@ -378,6 +384,7 @@ function LockedInsights() {
  * nadpis „Souboje verzí" u někoho, kdo je nikdy nepoužil, je jen šum.
  */
 function AbDuelsSection({ projectId }: { projectId: string }) {
+    const t = useTranslations("performance.tab")
     const [duels, setDuels] = useState<Duel[]>([])
     const [allowed, setAllowed] = useState(false)
     const [loading, setLoading] = useState(true)
@@ -401,12 +408,12 @@ function AbDuelsSection({ projectId }: { projectId: string }) {
     return (
         <div>
             <h2 className="text-lg font-black uppercase tracking-tight text-white flex items-center gap-2 mb-1">
-                <span className="inline-flex items-center gap-1.5"><Swords className="w-3.5 h-3.5 shrink-0" />Souboje verzí</span>
+                <span className="inline-flex items-center gap-1.5"><Swords className="w-3.5 h-3.5 shrink-0" />{t("duels.title")}</span>
             </h2>
             <p className="text-[10px] text-white/30 mb-4">
                 {rozhodnute > 0
-                    ? `${rozhodnute} z ${duels.length} už má jasný výsledek.`
-                    : "Zatím žádný souboj nemá průkazný rozdíl."}
+                    ? t("duels.decided", { decided: rozhodnute, total: duels.length })
+                    : t("duels.none")}
             </p>
 
             <div className="space-y-3">
@@ -420,13 +427,13 @@ function AbDuelsSection({ projectId }: { projectId: string }) {
                                         ? "text-white/45 border-white/10 bg-white/5"
                                         : "text-white/30 border-white/5 bg-white/[0.02]"
                             }`}>
-                                {d.verdict === "rozhodnuto" ? "Rozhodnuto" : d.verdict === "tesne" ? "Bez rozdílu" : "Čeká na data"}
+                                {t(`duels.verdict.${d.verdict}`)}
                             </span>
                             <span className="text-[11px] text-white/50">{d.summary}</span>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
-                            {([["original", "Původní"], ["variant", "Varianta"]] as const).map(([klic, popis]) => {
+                            {([["original", t("duels.original")], ["variant", t("duels.variant")]] as const).map(([klic, popis]) => {
                                 const post = d[klic]
                                 const vyhral = d.winner === klic
                                 return (
@@ -454,6 +461,8 @@ function AbDuelsSection({ projectId }: { projectId: string }) {
 }
 
 function GrowthSection({ projectId }: { projectId: string }) {
+    const t = useTranslations("performance.tab")
+    const format = useFormatter()
     const { subscription, setActiveSection } = useStudio()
     const [growth, setGrowth] = useState<GrowthData | null>(null)
     const [growthLoading, setGrowthLoading] = useState(true)
@@ -470,14 +479,14 @@ function GrowthSection({ projectId }: { projectId: string }) {
         return (
             <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-6 flex items-center justify-between gap-4 flex-wrap">
                 <div>
-                    <h2 className="inline-flex items-center gap-1.5 text-lg font-black uppercase tracking-tight text-white mb-1"><TrendingUp className="w-4 h-4 shrink-0" />Růst profilu</h2>
-                    <p className="text-xs text-white/40">Týdenní sledování followerů a graf růstu od startu je dostupný od balíčku <strong className="text-white/70">Růst</strong>.</p>
+                    <h2 className="inline-flex items-center gap-1.5 text-lg font-black uppercase tracking-tight text-white mb-1"><TrendingUp className="w-4 h-4 shrink-0" />{t("growth.title")}</h2>
+                    <p className="text-xs text-white/40">{t.rich("growth.lockedBody", { strong: (chunks) => <strong className="text-white/70">{chunks}</strong> })}</p>
                 </div>
                 <button
                     onClick={() => setActiveSection("settings")}
                     className="px-5 py-2.5 rounded-sm bg-aisummit-cinnabar text-white text-[9px] font-bold uppercase tracking-widest hover:bg-aisummit-cinnabar/90 transition-all"
                 >
-                    <span className="inline-flex items-center gap-1.5"><LockOpen className="w-3.5 h-3.5 shrink-0" />Odemknout</span>
+                    <span className="inline-flex items-center gap-1.5"><LockOpen className="w-3.5 h-3.5 shrink-0" />{t("growth.unlock")}</span>
                 </button>
             </div>
         )
@@ -495,19 +504,19 @@ function GrowthSection({ projectId }: { projectId: string }) {
     return (
         <div className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-6">
             <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <h2 className="inline-flex items-center gap-1.5 text-lg font-black uppercase tracking-tight text-white"><TrendingUp className="w-4 h-4 shrink-0" />Růst profilu</h2>
+                <h2 className="inline-flex items-center gap-1.5 text-lg font-black uppercase tracking-tight text-white"><TrendingUp className="w-4 h-4 shrink-0" />{t("growth.title")}</h2>
                 <div className="flex items-center gap-4">
                     {growth?.currentFollowers !== null && growth?.currentFollowers !== undefined && (
                         <div className="text-right">
-                            <div className="text-[9px] text-white/40 uppercase tracking-widest font-bold">Followers</div>
-                            <div className="text-xl font-black text-white">{growth.currentFollowers.toLocaleString("cs")}</div>
+                            <div className="text-[9px] text-white/40 uppercase tracking-widest font-bold">{t("growth.followers")}</div>
+                            <div className="text-xl font-black text-white">{format.number(growth.currentFollowers)}</div>
                         </div>
                     )}
                     {growth?.deltaSinceStart !== null && growth?.deltaSinceStart !== undefined && (
                         <div className="text-right">
-                            <div className="text-[9px] text-white/40 uppercase tracking-widest font-bold">Od startu</div>
+                            <div className="text-[9px] text-white/40 uppercase tracking-widest font-bold">{t("growth.sinceStart")}</div>
                             <div className={`text-xl font-black ${growth.deltaSinceStart >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                                {growth.deltaSinceStart >= 0 ? "+" : ""}{growth.deltaSinceStart.toLocaleString("cs")}
+                                {growth.deltaSinceStart >= 0 ? "+" : ""}{format.number(growth.deltaSinceStart)}
                             </div>
                         </div>
                     )}
@@ -519,8 +528,8 @@ function GrowthSection({ projectId }: { projectId: string }) {
             ) : (
                 <p className="text-xs text-white/30">
                     {points.length === 1
-                        ? `Výchozí bod: ${points[0].followers.toLocaleString("cs")} followerů (${new Date(points[0].date).toLocaleDateString("cs")}). První týdenní snapshot se pořídí v pondělí ráno — graf poroste s vámi.`
-                        : "Zatím žádná data — snapshoty followerů se pořizují automaticky každé pondělí."}
+                        ? t("growth.baseline", { followers: points[0].followers, date: format.dateTime(new Date(points[0].date), { day: "numeric", month: "numeric", year: "numeric" }) })
+                        : t("growth.empty")}
                 </p>
             )}
         </div>
@@ -528,6 +537,7 @@ function GrowthSection({ projectId }: { projectId: string }) {
 }
 
 function GrowthChart({ points }: { points: { date: string; followers: number }[] }) {
+    const format = useFormatter()
     const W = 800
     const H = 160
     const PAD = 8
@@ -549,8 +559,8 @@ function GrowthChart({ points }: { points: { date: string; followers: number }[]
                 ))}
             </svg>
             <div className="flex justify-between mt-1">
-                <span className="text-[9px] text-white/25 font-bold">{new Date(points[0].date).toLocaleDateString("cs")}</span>
-                <span className="text-[9px] text-white/25 font-bold">{new Date(points[points.length - 1].date).toLocaleDateString("cs")}</span>
+                <span className="text-[9px] text-white/25 font-bold">{format.dateTime(new Date(points[0].date), { day: "numeric", month: "numeric", year: "numeric" })}</span>
+                <span className="text-[9px] text-white/25 font-bold">{format.dateTime(new Date(points[points.length - 1].date), { day: "numeric", month: "numeric", year: "numeric" })}</span>
             </div>
         </div>
     )

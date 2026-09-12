@@ -1,3 +1,200 @@
 {
-  "help": {}
+  "help": {
+    "faq": {
+      "categories": {
+        "generating": "Generating content",
+        "credits": "Credits & plan",
+        "settings": "Settings & configuration",
+        "products": "Products & visuals",
+        "tips": "Tips & tricks"
+      },
+      "credits": "{count, plural, one {# credit} other {# credits}}",
+      "actions": "Editing a finished post = {postEdit}. Generating ideas = {ideaGenerate}. Product visual = {productVisual}. Print design = {productDesign}. Mockup = {productMockup}. Business Brief = {productBrief}. A whole product line = {productLine}.",
+      "planItem": "{name} ({price}, {credits, plural, one {# credit} other {# credits}} — {blurb})",
+      "planBlurb": {
+        "chrlit_start": "images and carousels",
+        "chrlit_rust": "plus editing finished posts, two versions of a post to choose from and the growth dashboard",
+        "chrlit_dominance": "plus reels, product studio and priority generation",
+        "chrlit_imperium": "the highest volume for a single brand"
+      },
+      "items": {
+        "howItWorks": {
+          "q": "How does post generation work?",
+          "a": "The AI reads your brand configuration (tone of voice, colours, products, content topics) and generates a caption, an image and hashtags from it. The result matches your brand — it uses your colours, font and communication style."
+        },
+        "whyDifferent": {
+          "q": "Why is the result different every time?",
+          "a": "The AI generates content with a certain amount of creativity (temperature). That is intentional — you want a varied feed, not repeating templates. If you want a consistent style, refine your brand voice in Settings."
+        },
+        "quality": {
+          "q": "What affects output quality?",
+          "a": "Mostly the quality of your configuration. The more detailed your text style (persona, tone of voice, what we don't say), topics with categories and opening-line templates — the more precise the output. Investing in Settings pays off."
+        },
+        "batch": {
+          "q": "How does batch generation work?",
+          "a": "You can generate several posts at once (e.g. a whole week). Posts are generated sequentially — one after another — to keep quality and variety. Each post costs 1 credit."
+        },
+        "postTypes": {
+          "q": "What do the different post types mean?",
+          "a": "Chrlit supports types such as tip, meme, carousel, behind_scenes, product_drop, review, challenge and more. Each type has its own tone and format — a tip is educational, a meme is funny, a product_drop sells. The types are defined in your configuration."
+        },
+        "editPost": {
+          "q": "Can I change something in a finished post?",
+          "a": "Yes, in two ways. Editing a finished post (from the Růst plan) changes the existing visual or text — “move the headline”, “shorten the text” — and costs 1 credit. The other option is “Two versions to choose from”: two completely new posts on the same topic are generated (different hook, visual and CTA), you pick one and the other is discarded. It is not a test — nothing is measured, you just choose."
+        },
+        "actionCost": {
+          "q": "How much does one action cost?",
+          "a": "A post costs according to its medium ({media}). Each version in “Two versions to choose from” is a full post, so it is charged like one — two versions of a carousel therefore cost {carouselPair}, even if you end up using one. {actions}"
+        },
+        "outOfCredits": {
+          "q": "What happens when I run out of credits?",
+          "a": "You cannot generate more content until you buy extra credits or wait for the reset next month. Existing posts stay — nothing is deleted."
+        },
+        "topUp": {
+          "q": "How does topping up credits work?",
+          "a": "You can buy extra credits at any time for {price} each. Go to Settings → Subscription and top up. Credits are added immediately."
+        },
+        "rollover": {
+          "q": "Do unused credits carry over to the next month?",
+          "a": "No. Every month you get credits according to your plan ({creditsList}). Unused credits expire. If you need more, top up for {price} each."
+        },
+        "trial": {
+          "q": "How does the trial work?",
+          "a": "3 free posts, no credit card and no time limit. From your content plan you have 3 posts fully unlocked to try; the rest unlock once you pick a plan. Nothing is deleted — the generated posts stay yours."
+        },
+        "plans": {
+          "q": "What are the plans and how do I top up credits?",
+          "a": "Four plans: {plans}. Prices are monthly; longer terms cost less. When you run out of credits, top up for {price} each in Settings → Subscription."
+        },
+        "longerTerms": {
+          "q": "How does paying for 3, 6 or 12 months work?",
+          "a": "You pay once up front and have peace of mind. A quarter saves you 5 %, half a year 10 % and for a year you pay only ten months — two are free. Your price is also locked for the whole term: even if the price list goes up in the meantime, it affects you only at renewal. Credits still renew every month exactly like on the monthly plan."
+        },
+        "refund": {
+          "q": "What if I change my mind after paying for a year?",
+          "a": "You have 30 days to reconsider — write to us and we refund the money, no questions asked. After that the prepaid term runs its course; you can cancel the subscription at any time to the end of the term, so the next term is not charged."
+        },
+        "upgrade": {
+          "q": "Can I move to a higher plan in the middle of a prepaid term?",
+          "a": "Yes, but not with one click — we would credit you the rest of the paid term and that has to be done by hand. Write to us and we transfer the remaining term to the new plan."
+        },
+        "tone": {
+          "q": "How do I change the tone of voice?",
+          "a": "In Settings → Text style. Adjust the persona, voice traits and anti-patterns. Changes apply to all newly generated posts. Existing posts stay unchanged."
+        },
+        "addProduct": {
+          "q": "How do I add a new product?",
+          "a": "In Settings → Products. Add a name, type, price and description. The AI then uses it in product_drop posts and product visuals."
+        },
+        "colors": {
+          "q": "Can I change the colours and gradient?",
+          "a": "Yes, in Settings → Visual identity. You can change the overlay gradient (3 colours), font, accent colour and the overall feel of the feed. We recommend darker, saturated colours — white text has to stay readable."
+        },
+        "pillars": {
+          "q": "What are content topics?",
+          "a": "Topics define your content strategy: Reach (viral content), Value (education), Conversion (sales), Connection (community). Each topic has a ratio (what % of content), post types and categories. The AI uses them to decide what to generate."
+        },
+        "hookTemplates": {
+          "q": "How do opening-line templates work?",
+          "a": "Opening-line templates are patterns for the first line of a caption — the thing that catches attention in the feed. Examples: '''{{'topic'}}'? Nobody says this.'' or ''3 mistakes you make with '{{'product'}}'''. The AI uses them as inspiration, not verbatim."
+        },
+        "reonboarding": {
+          "q": "How do I run re-onboarding?",
+          "a": "At the very bottom of Settings you will find the Re-onboarding button. The AI analyses your website again and regenerates the whole configuration. Existing posts are not lost."
+        },
+        "pipeline": {
+          "q": "What is the product pipeline?",
+          "a": "A feature for e-shops and brands with products. The AI designs a whole product line as a system (each product gets its own step, role and place on the price ladder), or individual product ideas. For approved products it then generates print graphics, mockups and a Business Brief with a cost and margin analysis."
+        },
+        "mockups": {
+          "q": "How do mockups work?",
+          "a": "The AI generates a photorealistic image of the product — a T-shirt on a model, a mug on a table, a box in context. Ideal for testing new designs or presenting to customers."
+        },
+        "printDesign": {
+          "q": "What is Print design?",
+          "a": "The AI creates flat print graphics for products and packaging — T-shirts, posters, bottle labels, wrap-around labels. The output is a PNG scaled to the physical size at 300 DPI, with a transparent background for prints, plus a preview with marked bleed and safe margin and a text brief for the printer. It is a basis for the printer, not final production data: colours are in RGB and large formats need the graphics converted to vectors."
+        },
+        "commercialUse": {
+          "q": "Can I use the generated images commercially?",
+          "a": "Yes. All AI-generated images are yours — you can use them on Instagram, your website, in ads and on products. Chrlit claims no rights to generated content."
+        },
+        "betterResults": {
+          "q": "How do I get better results?",
+          "a": "1) Fill in a detailed text style — above all what we don't say (what not to use). 2) Add brand photos — the AI learns the style from them. 3) Use categories in topics for more targeted content. 4) Check Memory regularly — the AI learns from performance."
+        },
+        "postsPerWeek": {
+          "q": "How many posts a week is optimal?",
+          "a": "For most brands 3-5 posts a week. Fewer and you lose visibility, more and you risk audience fatigue. Chrlit helps you stay consistent without stress."
+        },
+        "brain": {
+          "q": "How does AI Memory (Brain) work?",
+          "a": "Chrlit analyses how your posts perform (likes, comments, saves) and learns what works. It gradually adapts the strategy — more of the content that resonates, less of what doesn't. The longer you use it, the better the results."
+        },
+        "otherLanguage": {
+          "q": "Can I generate content in a language other than Czech?",
+          "a": "Your brand can speak Czech, Slovak, English, German or Polish — the content language is set in Settings → Basic information and is guessed from your website during onboarding. It drives post copy, hashtags, text in images and reel voiceovers. The Chrlit interface itself is currently available in Czech and English."
+        },
+        "ideas": {
+          "q": "How do I make the most of Ideas?",
+          "a": "Ideas are a pool of topics the AI draws from on its own for new posts. Let the AI generate a batch of ideas for a specific topic (Reach, Value, Conversion...), go through them and switch off or delete the weak ones. You can also pick an idea by hand when generating — the post then counts towards its performance."
+        },
+        "usedIdea": {
+          "q": "What happens to an idea after it is used?",
+          "a": "Nothing is deleted. A used idea takes a break (cooldown) so your feed does not repeat itself, and then comes back into play. Ideas with good results get picked by the AI more often — you can tell by the 🔥 Works tag. You can switch an idea off or delete it at any time."
+        }
+      },
+      "tour": {
+        "title": "Studio guide",
+        "body": "Walk through the introductory overview of features again.",
+        "replay": "▶ Replay the guide"
+      },
+      "footer": {
+        "title": "Didn't find an answer?",
+        "body": "Write to us at <a>info@chrlit.cz</a>"
+      }
+    },
+    "media": {
+      "image": "image",
+      "story": "story",
+      "carousel": "carousel",
+      "reel": "reel",
+      "reel_long": "long reel"
+    },
+    "tutorial": {
+      "welcome": "Welcome to Chrlit Studio",
+      "closeX": "Close ✕",
+      "title": "Everything is ready",
+      "subtitle": "The AI analysed your website and tailored the studio to you",
+      "tips": {
+        "generate": {
+          "title": "Generate",
+          "body": "Create a post with one click — pick a topic and the AI does the rest"
+        },
+        "posts": {
+          "title": "Posts",
+          "body": "Every generated post is in Posts — copy the text and download the image"
+        },
+        "settings": {
+          "title": "Settings",
+          "body": "Fine-tune the text style, topics and visual style any time in Settings"
+        }
+      },
+      "close": "Close",
+      "cta": "Create your first post"
+    },
+    "hint": {
+      "defaultLabel": "why it matters",
+      "tone": "Every future post learns from the tone, not just the next one. A change shows only in newly generated content — finished posts cannot be rewritten, only regenerated for a credit.",
+      "pillars": "Pillars decide what gets written about at all. Without them the plan slides into random posts that lead nowhere. Three to five is ideal; a brand cannot sustain more.",
+      "facts": "The AI makes up numbers and years as fluently as it copies them — and a lie in a post lands on your brand, not the engine. What is not listed here it will not claim about you: instead of an invented figure it writes the sentence without one.",
+      "voiceExamples": "One to three posts you genuinely like hold the tone more firmly than any setting above — the model learns from the example, not the description.",
+      "formats": "The format sets the price: {media} (credits). Switching everything on means burning through the monthly allowance faster than you expect.",
+      "cadence": "The cadence should match what you can realistically publish. A generated post that never goes out cost a credit and earned nothing.",
+      "autoPublish": "When on, posts publish themselves by the calendar, without your approval. There is no taking it back — you can delete a post on Instagram, but whoever saw it, saw it.",
+      "credits": "Credits renew every month and unused ones expire — even on a subscription paid a year ahead. Pick the plan by how much you will really publish.",
+      "products": "The catalogue is the live source for product visuals. What is missing from it, the engine cannot write about specifically — and a generic post about a product does not sell.",
+      "instagram": "Without a connected account performance cannot be measured, so the learning loop has nothing to learn from and recommendations stay generic.",
+      "term": "You pay a longer term up front and lock the price for the whole period. Credits still renew every month — prepaying a year does not give them to you in advance."
+    }
+  }
 }

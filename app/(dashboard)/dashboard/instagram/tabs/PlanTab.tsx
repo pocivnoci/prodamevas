@@ -2,16 +2,19 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
+import { useTranslations } from "next-intl"
 import { CalendarTab } from "./CalendarTab"
 import { FeedTab } from "./FeedTab"
 
+/** `label` je klíč v namespace `plan.tab` — text se bere přes `t()` v místě renderu. */
 const SUB_TABS = [
-    { id: "calendar" as const, label: "Kalendář", icon: "📅" },
-    { id: "feed" as const, label: "Feed náhled", icon: "📱" },
+    { id: "calendar" as const, label: "calendar", icon: "📅" },
+    { id: "feed" as const, label: "feed", icon: "📱" },
 ]
 
 export function PlanTab({ projectId }: { projectId: string }) {
     const [activeTab, setActiveTab] = useState<"calendar" | "feed">("calendar")
+    const t = useTranslations("plan.tab")
 
     return (
         <div className="space-y-6">
@@ -37,7 +40,7 @@ export function PlanTab({ projectId }: { projectId: string }) {
                         )}
                         <span className="relative z-10 flex items-center gap-2">
                             <span>{tab.icon}</span>
-                            <span>{tab.label}</span>
+                            <span>{t(tab.label)}</span>
                         </span>
                     </button>
                 ))}

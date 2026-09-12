@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { useTranslations } from "next-intl"
 import { useStudio, type StudioSection } from "@/app/(dashboard)/StudioContext"
 import { Camera, Rocket, Settings, Sparkles } from "lucide-react"
 
@@ -20,6 +21,7 @@ export function TutorialOverlay({
     onClose: () => void
 }) {
     const { setActiveSection } = useStudio()
+    const t = useTranslations("help.tutorial")
 
     const handleDismiss = useCallback(() => {
         localStorage.setItem(STORAGE_KEY, "true")
@@ -69,13 +71,13 @@ export function TutorialOverlay({
                         {/* Header */}
                         <div className="flex items-center justify-between px-6 py-3 border-b border-white/5">
                             <span className="text-[9px] text-white/30 font-bold uppercase tracking-widest">
-                                Vítejte v Chrlit Studio
+                                {t("welcome")}
                             </span>
                             <button
                                 onClick={handleDismiss}
                                 className="text-[10px] text-white/30 font-bold uppercase tracking-widest hover:text-white/60 transition-colors px-2 py-1"
                             >
-                                Zavřít ✕
+                                {t("closeX")}
                             </button>
                         </div>
 
@@ -88,10 +90,10 @@ export function TutorialOverlay({
                             </div>
 
                             <h2 className="text-2xl font-black uppercase tracking-tight text-white text-center mb-2">
-                                Vše je připraveno
+                                {t("title")}
                             </h2>
                             <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest text-center mb-8">
-                                AI analyzovala váš web a nastavila studio na míru
+                                {t("subtitle")}
                             </p>
 
                             {/* 3 key tips */}
@@ -99,22 +101,22 @@ export function TutorialOverlay({
                                 <div className="flex items-start gap-3 bg-white/5 border border-white/10 rounded-sm p-4">
                                     <Rocket className="w-5 h-5 mt-0.5" />
                                     <div>
-                                        <p className="text-xs font-bold text-white/80">Generovat</p>
-                                        <p className="text-[11px] text-white/40 mt-0.5">Vytvořte příspěvek jedním klikem — vyberte téma a AI udělá zbytek</p>
+                                        <p className="text-xs font-bold text-white/80">{t("tips.generate.title")}</p>
+                                        <p className="text-[11px] text-white/40 mt-0.5">{t("tips.generate.body")}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-3 bg-white/5 border border-white/10 rounded-sm p-4">
                                     <Camera className="w-5 h-5 mt-0.5" />
                                     <div>
-                                        <p className="text-xs font-bold text-white/80">Příspěvky</p>
-                                        <p className="text-[11px] text-white/40 mt-0.5">Všechny vygenerované posty najdete v Příspěvcích — zkopírujte text a stáhněte obrázek</p>
+                                        <p className="text-xs font-bold text-white/80">{t("tips.posts.title")}</p>
+                                        <p className="text-[11px] text-white/40 mt-0.5">{t("tips.posts.body")}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-3 bg-white/5 border border-white/10 rounded-sm p-4">
                                     <Settings className="w-5 h-5 mt-0.5" />
                                     <div>
-                                        <p className="text-xs font-bold text-white/80">Nastavení</p>
-                                        <p className="text-[11px] text-white/40 mt-0.5">Dolaďte styl textu, témata a vizuální styl kdykoliv v Nastavení</p>
+                                        <p className="text-xs font-bold text-white/80">{t("tips.settings.title")}</p>
+                                        <p className="text-[11px] text-white/40 mt-0.5">{t("tips.settings.body")}</p>
                                     </div>
                                 </div>
                             </div>
@@ -126,12 +128,12 @@ export function TutorialOverlay({
                                 onClick={handleDismiss}
                                 className="px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white hover:bg-white/5 rounded-sm transition-all border border-transparent hover:border-white/10"
                             >
-                                Zavřít
+                                {t("close")}
                             </button>
                             <button
                                 onClick={handleStartGenerating}
                                 className="inline-flex items-center gap-1.5 justify-center px-8 py-3 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all shadow-[0_0_25px_rgba(229,83,63,0.3)]"
-                            ><Rocket className="w-3 h-3 shrink-0" />Vytvořit první příspěvek</button>
+                            ><Rocket className="w-3 h-3 shrink-0" />{t("cta")}</button>
                         </div>
                     </div>
                 </motion.div>

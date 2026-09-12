@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
+import { useTranslations } from "next-intl"
 import type { IGPost } from "./types"
 import { useCopyToClipboard } from "./hooks"
 import { publishNowAction, getPostPublishStatus } from "@/app/actions/calendar-actions"
@@ -39,6 +40,7 @@ export function PublishHandoffModal({
     onClose: () => void
     onMarkedPosted: (postId: string) => void
 }) {
+    const t = useTranslations("posts")
     const { copiedField, copyToClipboard } = useCopyToClipboard()
     const [idx, setIdx] = useState(0)
     const [sharing, setSharing] = useState(false)
@@ -111,17 +113,17 @@ export function PublishHandoffModal({
                 await navigator.share({ files, title: "Instagram" })
                 setShared(true)
             } else {
-                setError("Tento prohlížeč neumí přímé sdílení — použij Uložit obrázek + Kopírovat popisek.")
+                setError(t("handoff.shareUnsupported"))
             }
         } catch (e: unknown) {
             // User dismissing the share sheet throws AbortError — that's not an error.
             if (!(e instanceof DOMException && e.name === "AbortError")) {
-                setError("Sdílení se nezdařilo. Použij Uložit obrázek + Kopírovat popisek níže.")
+                setError(t("handoff.shareFailed"))
             }
         } finally {
             setSharing(false)
         }
-    }, [imageUrls, fullText])
+    }, [imageUrls, fullText, t])
 
     const saveImages = useCallback(async () => {
         for (let i = 0; i < imageUrls.length; i++) {
@@ -152,7 +154,7 @@ export function PublishHandoffModal({
         if (!mounted.current) return
         if (!r.success) {
             setPubState("failed")
-            setPubMsg(r.error || "Publikace selhala.")
+            setPubMsg(r.error || t("handoff.publishFailed"))
             return
         }
         // Armed for the next ig-publisher tick (≤60s). Poll until posted/failed.
@@ -165,16 +167,16 @@ export function PublishHandoffModal({
                 setPermalink(s.permalink)
             } else if (s?.status === "failed") {
                 setPubState("failed")
-                setPubMsg(s.error || "Publikace selhala.")
+                setPubMsg(s.error || t("handoff.publishFailed"))
             } else if (Date.now() < deadline) {
                 setTimeout(tick, 4000)
             } else {
                 setPubState("idle")
-                setPubMsg("Publikuje se na pozadí — za chvíli se objeví ve stavu Publikované.")
+                setPubMsg(t("handoff.publishingBackground"))
             }
         }
         setTimeout(tick, 4000)
-    }, [post.id])
+    }, [post.id, t])
 
     const btnBase = "px-4 py-3 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all flex items-center justify-center gap-2 border"
     const btnGhost = `${btnBase} bg-[#0f0f0f] text-white/70 hover:bg-white/10 hover:text-white border-white/10`
@@ -196,7 +198,7 @@ export function PublishHandoffModal({
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
                     <h3 className="text-white font-black uppercase tracking-tighter text-sm flex items-center gap-2">
-                        <Smartphone className="w-4 h-4" /> Publikovat na Instagram
+                        <Smartphone className="w-4 h-4" /> {t("common.publishToInstagram")}
                     </h3>
                     <button
                         onClick={onClose}
@@ -212,7 +214,7 @@ export function PublishHandoffModal({
                             <div className="relative w-full bg-[#0f0f0f] rounded-sm border border-white/10 overflow-hidden">
                                 <img
                                     src={imageUrls[idx] || imageUrls[0]}
-                                    alt={isCarousel ? `Slide ${idx + 1}` : ""}
+                                    alt={isCarousel ? t("common.slideAlt", { n: idx + 1 }) : ""}
                                     className="w-full max-h-[44vh] object-contain mx-auto"
                                 />
                                 {isCarousel && (
@@ -228,7 +230,7 @@ export function PublishHandoffModal({
                                             key={i}
                                             onClick={() => setIdx(i)}
                                             className={`w-2 h-2 rounded-full transition-all ${i === idx ? "bg-white scale-125" : "bg-white/30 hover:bg-white/50"}`}
-                                            aria-label={`Slide ${i + 1}`}
+                                            aria-label={t("common.slideAlt", { n: i + 1 })}
                                         />
                                     ))}
                                 </div>
@@ -237,7 +239,7 @@ export function PublishHandoffModal({
                     ) : (
                         <div className="w-full h-40 rounded-sm bg-[#0f0f0f]/50 border border-white/5 flex flex-col items-center justify-center gap-2">
                             <Image className="w-6 h-6 opacity-50" />
-                            <span className="text-white/40 font-bold uppercase tracking-widest text-[10px]">Bez obrázku</span>
+                            <span className="text-white/40 font-bold uppercase tracking-widest text-[10px]">{t("common.noImage")}</span>
                         </div>
                     )}
 
@@ -245,9 +247,9 @@ export function PublishHandoffModal({
                     {canAutoPublish && (
                         pubState === "posted" ? (
                             <div className="w-full px-4 py-3.5 text-xs font-black uppercase tracking-widest rounded-sm bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center gap-2">
-                                <span className="inline-flex items-center gap-1.5"><CircleCheck className="w-3.5 h-3.5 shrink-0" />Publikováno!</span>
+                                <span className="inline-flex items-center gap-1.5"><CircleCheck className="w-3.5 h-3.5 shrink-0" />{t("handoff.published")}</span>
                                 {permalink && (
-                                    <a href={permalink} target="_blank" rel="noopener noreferrer" className="underline hover:text-emerald-300 normal-case tracking-normal">otevřít ↗</a>
+                                    <a href={permalink} target="_blank" rel="noopener noreferrer" className="underline hover:text-emerald-300 normal-case tracking-normal">{t("handoff.open")}</a>
                                 )}
                             </div>
                         ) : (
@@ -257,8 +259,8 @@ export function PublishHandoffModal({
                                 className="w-full px-4 py-3.5 text-xs font-black uppercase tracking-widest rounded-sm bg-gradient-to-r from-aisummit-cinnabar/30 to-orange-600/30 text-aisummit-cinnabar border border-aisummit-cinnabar/30 hover:from-aisummit-cinnabar/40 hover:to-orange-600/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                             >
                                 {pubState === "publishing"
-                                    ? "⏳ Publikuje se… (do minuty)"
-                                    : isStory ? "Přidat do stories" : "Publikovat hned"}
+                                    ? t("handoff.publishing")
+                                    : isStory ? t("handoff.addToStories") : t("handoff.publishNow")}
                             </button>
                         )
                     )}
@@ -266,7 +268,7 @@ export function PublishHandoffModal({
                         <p className={`text-[11px] text-center ${pubState === "failed" ? "text-red-400" : "text-white/50"}`}>{pubMsg}</p>
                     )}
                     {canAutoPublish && shareSupported && imageUrls.length > 0 && pubState !== "posted" && (
-                        <p className="text-[10px] text-white/25 text-center uppercase tracking-widest">nebo sdílej ručně</p>
+                        <p className="text-[10px] text-white/25 text-center uppercase tracking-widest">{t("handoff.orManual")}</p>
                     )}
 
                     {/* Manual share CTA — phone only (Web Share files). Primary when not connected. */}
@@ -276,7 +278,7 @@ export function PublishHandoffModal({
                             disabled={sharing}
                             className={`w-full px-4 py-3.5 text-xs font-black uppercase tracking-widest rounded-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${canAutoPublish ? "bg-[#0f0f0f] text-white/70 border border-white/10 hover:bg-white/10 hover:text-white" : "bg-gradient-to-r from-aisummit-cinnabar/30 to-orange-600/30 text-aisummit-cinnabar border border-aisummit-cinnabar/30 hover:from-aisummit-cinnabar/40 hover:to-orange-600/40"}`}
                         >
-                            {sharing ? "⏳ Připravuji…" : shared ? "Sdíleno — popisek je v schránce" : "Sdílet do Instagramu"}
+                            {sharing ? t("handoff.preparing") : shared ? t("handoff.shared") : t("handoff.share")}
                         </button>
                     )}
 
@@ -284,8 +286,7 @@ export function PublishHandoffModal({
                     {!shareSupported && !canAutoPublish && (
                         <div className="rounded-sm border border-white/10 bg-[#0f0f0f] p-3 text-center">
                             <p className="text-[11px] text-white/60 leading-relaxed">
-                                📱 Pro přímé sdílení do Instagramu otevři tuto stránku <strong className="text-white/80">na telefonu</strong>.
-                                Tady na počítači použij <strong className="text-white/80">Kopírovat popisek</strong> + <strong className="text-white/80">Uložit obrázek</strong>.
+                                {t.rich("handoff.desktopHint", { strong: (chunks) => <strong className="text-white/80">{chunks}</strong> })}
                             </p>
                         </div>
                     )}
@@ -297,17 +298,17 @@ export function PublishHandoffModal({
                     {/* Caption — the paste source */}
                     <div>
                         <div className="flex items-center justify-between mb-2">
-                            <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Popisek</span>
+                            <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">{t("handoff.captionLabel")}</span>
                             <button
                                 onClick={() => copyToClipboard(fullText, "caption")}
                                 className="text-[10px] font-bold uppercase tracking-widest text-aisummit-cinnabar hover:text-orange-400 transition-colors"
                             >
-                                {copiedField === "caption" ? "Zkopírováno!" : "Kopírovat popisek"}
+                                {copiedField === "caption" ? t("common.copied") : t("handoff.copyCaption")}
                             </button>
                         </div>
                         <div className="rounded-sm border border-white/10 bg-[#0f0f0f] p-3 max-h-40 overflow-y-auto">
                             <p className="text-xs text-white/70 leading-relaxed whitespace-pre-wrap select-text">
-                                {fullText || "Bez textu"}
+                                {fullText || t("common.noText")}
                             </p>
                         </div>
                     </div>
@@ -316,7 +317,7 @@ export function PublishHandoffModal({
                     <div className="grid grid-cols-2 gap-2">
                         {imageUrls.length > 0 && (
                             <button onClick={saveImages} className={btnGhost}>
-                                ⬇️ {isCarousel ? "Uložit slidy" : "Uložit obrázek"}
+                                ⬇️ {isCarousel ? t("handoff.saveSlides") : t("handoff.saveImage")}
                             </button>
                         )}
                         <a
@@ -325,17 +326,17 @@ export function PublishHandoffModal({
                             rel="noopener noreferrer"
                             className={`${btnGhost} ${imageUrls.length > 0 ? "" : "col-span-2"}`}
                         >
-                            ↗ Otevřít Instagram
+                            {t("handoff.openInstagram")}
                         </a>
                     </div>
 
                     {/* Micro-guide */}
                     <div className="rounded-sm border border-white/5 bg-white/[0.02] p-3">
-                        <p className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-2">Jak na to</p>
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-2">{t("handoff.guide.title")}</p>
                         <ol className="text-[11px] text-white/55 leading-relaxed space-y-1 list-decimal list-inside">
-                            <li>Klepni <strong className="text-white/75">Sdílet do Instagramu</strong> → vyber Instagram.</li>
-                            <li>V Instagramu podrž pole popisku → <strong className="text-white/75">Vložit</strong>.</li>
-                            <li>Publikuj a vrať se sem.</li>
+                            <li>{t.rich("handoff.guide.step1", { strong: (chunks) => <strong className="text-white/75">{chunks}</strong> })}</li>
+                            <li>{t.rich("handoff.guide.step2", { strong: (chunks) => <strong className="text-white/75">{chunks}</strong> })}</li>
+                            <li>{t("handoff.guide.step3")}</li>
                         </ol>
                     </div>
                 </div>
@@ -343,14 +344,14 @@ export function PublishHandoffModal({
                 {/* Footer */}
                 <div className="px-4 py-3 bg-[#050505] border-t border-white/10 flex items-center justify-between gap-2">
                     <button onClick={onClose} className="text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors">
-                        Zavřít
+                        {t("handoff.close")}
                     </button>
                     {post.status !== "posted" && (
                         <button
                             onClick={() => onMarkedPosted(post.id)}
                             className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all border border-emerald-500/20"
                         >
-                            <span className="inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5 shrink-0" />Označit jako publikováno</span>
+                            <span className="inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5 shrink-0" />{t("handoff.markPosted")}</span>
                         </button>
                     )}
                 </div>

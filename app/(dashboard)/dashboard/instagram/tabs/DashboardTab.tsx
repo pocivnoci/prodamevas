@@ -2,11 +2,11 @@
 
 import { useEffect, useState, useMemo } from "react"
 import { motion } from "framer-motion"
+import { useFormatter, useTranslations } from "next-intl"
 import { getDashboardStats } from "@/app/actions/admin-actions"
 import { parsePostMedia } from "@/lib/media-urls"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { Bookmark, CalendarDays, Camera, ChartColumn, CircleAlert, CircleCheck, Eye, FileText, Heart, Lightbulb, MessageCircle, RefreshCw, Send, TriangleAlert, type LucideIcon } from "lucide-react"
-import { countLabel, POSTS } from "@/lib/plural"
 
 // ═══════════════════════════════════════════════════════════
 // TYPES
@@ -61,6 +61,10 @@ interface DashboardStats {
     } | null
 }
 
+/** Překladač namespace `dashboard`. Status i seznam akcí se počítají mimo komponentu
+ *  (čisté funkce nad statistikami), texty ale musí jít z messages — berou si ho parametrem. */
+type Translate = ReturnType<typeof useTranslations<"dashboard">>
+
 // ═══════════════════════════════════════════════════════════
 // STATUS LOGIC — "Is everything OK?"
 // ═══════════════════════════════════════════════════════════
@@ -73,13 +77,13 @@ interface DashboardStatus {
     action?: { label: string; section: string }
 }
 
-function computeStatus(stats: DashboardStats): DashboardStatus {
+function computeStatus(stats: DashboardStats, t: Translate): DashboardStatus {
     // Critical: nothing to publish and nothing in draft
     if (stats.ready === 0 && stats.drafts === 0 && stats.totalPosts > 0) {
         return {
             level: "critical",
-            message: "Žádný obsah k publikování — vygenerujte nové příspěvky",
-            action: { label: "Generovat", section: "generate" },
+            message: t("status.noContent"),
+            action: { label: t("cta.generate"), section: "generate" },
         }
     }
 
@@ -87,8 +91,8 @@ function computeStatus(stats: DashboardStats): DashboardStatus {
     if (stats.ready === 0 && stats.drafts > 0) {
         return {
             level: "warning",
-            message: `${stats.drafts} ${stats.drafts === 1 ? "koncept čeká" : stats.drafts < 5 ? "koncepty čekají" : "konceptů čeká"} na schválení`,
-            action: { label: "Schválit", section: "posts" },
+            message: t("status.draftsWaiting", { count: stats.drafts }),
+            action: { label: t("cta.approve"), section: "posts" },
         }
     }
 
@@ -96,15 +100,15 @@ function computeStatus(stats: DashboardStats): DashboardStatus {
     if (stats.ready > 0) {
         return {
             level: "ok",
-            message: `K publikování je připraveno: ${countLabel(stats.ready, POSTS)}`,
+            message: t("status.readyToPublish", { count: stats.ready }),
         }
     }
 
     // New user
     return {
         level: "warning",
-        message: "Začněte tvořit obsah",
-        action: { label: "Vytvořit první", section: "generate" },
+        message: t("status.startCreating"),
+        action: { label: t("cta.createFirst"), section: "generate" },
     }
 }
 
@@ -120,14 +124,14 @@ interface ActionItem {
     priority: number
 }
 
-function computeActionItems(stats: DashboardStats): ActionItem[] {
+function computeActionItems(stats: DashboardStats, t: Translate): ActionItem[] {
     const items: ActionItem[] = []
 
     if (stats.drafts > 0) {
         items.push({
             emoji: "📝",
-            label: `${stats.drafts} ${stats.drafts === 1 ? "koncept" : stats.drafts < 5 ? "koncepty" : "konceptů"} ke schválení`,
-            detail: "Zkontrolujte a schvalte",
+            label: t("actions.draftsToApprove", { count: stats.drafts }),
+            detail: t("actions.draftsToApproveDetail"),
             section: "posts",
             priority: 1,
         })
@@ -136,8 +140,8 @@ function computeActionItems(stats: DashboardStats): ActionItem[] {
     if (stats.ready > 0) {
         items.push({
             emoji: "📤",
-            label: `${countLabel(stats.ready, POSTS)} k publikování`,
-            detail: "Připraveno na Instagram",
+            label: t("actions.readyToPublish", { count: stats.ready }),
+            detail: t("actions.readyToPublishDetail"),
             section: "posts",
             priority: 2,
         })
@@ -150,8 +154,8 @@ function computeActionItems(stats: DashboardStats): ActionItem[] {
         const least = sorted[0]
         items.push({
             emoji: least[1].emoji,
-            label: `Chybí ${least[1].display_name}`,
-            detail: `Jen ${least[1].count}× — oživte mix`,
+            label: t("actions.missingType", { type: least[1].display_name }),
+            detail: t("actions.missingTypeDetail", { count: least[1].count }),
             section: "generate",
             priority: 3,
         })
@@ -161,8 +165,8 @@ function computeActionItems(stats: DashboardStats): ActionItem[] {
     if (stats.postsThisWeek === 0 && stats.totalPosts > 0) {
         items.push({
             emoji: "📅",
-            label: "Tento týden žádný post",
-            detail: "Naplánujte obsah",
+            label: t("actions.noPostThisWeek"),
+            detail: t("actions.noPostThisWeekDetail"),
             section: "generate",
             priority: 0,
         })
@@ -172,8 +176,8 @@ function computeActionItems(stats: DashboardStats): ActionItem[] {
     if (stats.quickMetrics === null && stats.posted > 5) {
         items.push({
             emoji: "📊",
-            label: "Chybí metriky",
-            detail: "Zadejte likes/saves pro lepší AI",
+            label: t("actions.missingMetrics"),
+            detail: t("actions.missingMetricsDetail"),
             section: "performance",
             priority: 4,
         })
@@ -185,8 +189,8 @@ function computeActionItems(stats: DashboardStats): ActionItem[] {
     if (stats.ideasAvailable < 5 && (stats.ideas > 0 || stats.posted > 0)) {
         items.push({
             emoji: "💡",
-            label: "Docházejí nápady",
-            detail: "Doplňte zásobník témat",
+            label: t("actions.ideasLow"),
+            detail: t("actions.ideasLowDetail"),
             section: "inspiration",
             priority: 3,
         })
@@ -201,6 +205,9 @@ function computeActionItems(stats: DashboardStats): ActionItem[] {
 
 export function DashboardTab({ projectId }: { projectId: string }) {
     const { setActiveSection, setGenerateIntent } = useStudio()
+    const t = useTranslations("dashboard")
+    const tc = useTranslations("common")
+    const format = useFormatter()
     // Deep-link into GenerateTab pre-configured (hero + secondary CTAs).
     const goGenerate = (intent: { mode: "plan" | "single"; duration?: "1w" | "2w" | "month" }) => {
         setGenerateIntent(intent)
@@ -235,8 +242,8 @@ export function DashboardTab({ projectId }: { projectId: string }) {
             })
     }, [projectId])
 
-    const status = useMemo(() => stats ? computeStatus(stats) : null, [stats])
-    const actionItems = useMemo(() => stats ? computeActionItems(stats) : [], [stats])
+    const status = useMemo(() => stats ? computeStatus(stats, t) : null, [stats, t])
+    const actionItems = useMemo(() => stats ? computeActionItems(stats, t) : [], [stats, t])
 
     // ─── Loading skeleton ───
     if (loading) {
@@ -259,8 +266,8 @@ export function DashboardTab({ projectId }: { projectId: string }) {
         return (
             <div className="text-center py-20 border border-dashed border-white/10 rounded-sm">
                 <p className="text-3xl mb-3">⚠️</p>
-                <p className="text-white/60 font-black uppercase tracking-tight text-sm mb-2">Nepodařilo se načíst data</p>
-                <p className="text-white/30 text-xs font-medium mb-6">Zkontrolujte připojení a zkuste to znovu</p>
+                <p className="text-white/60 font-black uppercase tracking-tight text-sm mb-2">{t("error.title")}</p>
+                <p className="text-white/30 text-xs font-medium mb-6">{t("error.body")}</p>
                 <button
                     onClick={() => {
                         setLoading(true)
@@ -271,7 +278,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                     }}
                     className="px-6 py-2.5 bg-white/10 border border-white/20 text-white rounded-sm text-[10px] font-black uppercase tracking-widest hover:bg-white/15 transition-all"
                 >
-                    <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />Zkusit znovu</span>
+                    <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />{tc("retry")}</span>
                 </button>
             </div>
         )
@@ -290,8 +297,8 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                     <div className="flex items-center gap-3">
                         <CalendarDays className="w-6 h-6 leading-none" />
                         <div>
-                            <p className="text-xs font-black uppercase tracking-tight text-white">Váš první plán obsahu čeká na schválení</p>
-                            <p className="text-[10px] text-white/40 font-medium mt-0.5">AI ho připravila při onboardingu — stačí zkontrolovat a spustit.</p>
+                            <p className="text-xs font-black uppercase tracking-tight text-white">{t("draftPlan.title")}</p>
+                            <p className="text-[10px] text-white/40 font-medium mt-0.5">{t("draftPlan.body")}</p>
                         </div>
                     </div>
                     {/* Plain section switch — a generateIntent would reset GenerateTab to step 1
@@ -300,7 +307,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                         onClick={() => setActiveSection("generate")}
                         className="shrink-0 px-5 py-2.5 bg-violet-500/15 border border-violet-400/30 text-violet-200 rounded-sm text-[10px] font-black uppercase tracking-widest hover:bg-violet-500/25 transition-all"
                     >
-                        Zkontrolovat →
+                        {t("draftPlan.review")} →
                     </button>
                 </motion.div>
             )}
@@ -316,22 +323,22 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                     <div className="flex items-start gap-4">
                         <CalendarDays className="w-8 h-8 sm: leading-none" />
                         <div>
-                            <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white">Obsah na měsíc</h2>
+                            <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white">{t("hero.title")}</h2>
                             <p className="text-white/50 text-xs sm:text-sm font-medium mt-1 max-w-md">
-                                AI vytvoří celý měsíc příspěvků. Vy je schválíte, my je zveřejníme.
+                                {t("hero.body")}
                             </p>
                             <div className="flex items-center gap-4 mt-3">
                                 <button
                                     onClick={() => goGenerate({ mode: "plan", duration: "1w" })}
                                     className="text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
                                 >
-                                    nebo: Týden →
+                                    {t("hero.orWeek")} →
                                 </button>
                                 <button
                                     onClick={() => goGenerate({ mode: "single" })}
                                     className="text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
                                 >
-                                    Jeden příspěvek →
+                                    {t("hero.single")} →
                                 </button>
                             </div>
                         </div>
@@ -340,7 +347,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                         onClick={() => goGenerate({ mode: "plan", duration: "month" })}
                         className="shrink-0 w-full sm:w-auto px-8 py-3.5 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm text-xs font-black uppercase tracking-widest hover:opacity-90 transition-all shadow-[0_0_30px_rgba(229,83,63,0.3)]"
                     >
-                        Spustit →
+                        {t("hero.start")} →
                     </button>
                 </div>
             </motion.div>
@@ -392,26 +399,26 @@ export function DashboardTab({ projectId }: { projectId: string }) {
             {/* ──── PRIMARY PIPELINE (2 action cards) ──── */}
             <div className="grid grid-cols-2 gap-3">
                 <ActionCard
-                    icon="📝" label="Koncepty" count={stats.drafts}
-                    color="amber" actionLabel="Schválit"
+                    icon="📝" label={t("counts.drafts")} count={stats.drafts}
+                    color="amber" actionLabel={t("cta.approve")}
                     onClick={() => setActiveSection("posts")}
                 />
                 <ActionCard
-                    icon="✅" label="Připravené" count={stats.ready}
-                    color="blue" actionLabel="Publikovat"
+                    icon="✅" label={t("counts.ready")} count={stats.ready}
+                    color="blue" actionLabel={t("cta.publish")}
                     onClick={() => setActiveSection("posts")}
                 />
             </div>
 
             {/* ──── Secondary counts (compact, not primary) ──── */}
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-1">
-                <SecondaryCount Icon={Send} label="Publikováno" count={stats.posted} />
-                <SecondaryCount Icon={Lightbulb} label="Nápady" count={stats.ideas} onClick={() => setActiveSection("inspiration")} />
+                <SecondaryCount Icon={Send} label={t("counts.posted")} count={stats.posted} />
+                <SecondaryCount Icon={Lightbulb} label={t("counts.ideas")} count={stats.ideas} onClick={() => setActiveSection("inspiration")} />
                 {stats.quickMetrics && (
                     <>
                         <div className="w-px h-4 bg-white/10" />
-                        <SecondaryCount Icon={Heart} label="Ø Lajky" count={stats.quickMetrics.avgLikes} onClick={() => setActiveSection("performance")} />
-                        <SecondaryCount Icon={Bookmark} label="Ø Uložení" count={stats.quickMetrics.avgSaves} onClick={() => setActiveSection("performance")} />
+                        <SecondaryCount Icon={Heart} label={t("metrics.avgLikes")} count={stats.quickMetrics.avgLikes} onClick={() => setActiveSection("performance")} />
+                        <SecondaryCount Icon={Bookmark} label={t("metrics.avgSaves")} count={stats.quickMetrics.avgSaves} onClick={() => setActiveSection("performance")} />
                     </>
                 )}
             </div>
@@ -427,12 +434,12 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                     className="lg:col-span-2 bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-5"
                 >
                     <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40">Tento týden</h2>
+                        <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40">{t("week.title")}</h2>
                         <button
                             onClick={() => setActiveSection("calendar")}
                             className="text-[9px] font-bold uppercase tracking-widest text-white/25 hover:text-white/50 transition-colors"
                         >
-                            Kalendář →
+                            {t("week.calendar")} →
                         </button>
                     </div>
                     <div className="flex sm:grid sm:grid-cols-7 gap-2 overflow-x-auto scrollbar-hide snap-x [&>*]:w-[68px] [&>*]:shrink-0 sm:[&>*]:w-auto">
@@ -447,10 +454,13 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                                             : "border-white/5 bg-transparent"
                                 }`}
                             >
+                                {/* Zkratka dne z data, ne ze serverového `dayName` (ten je česky natvrdo).
+                                    "YYYY-MM-DD" se parsuje jako půlnoc UTC — v Europe/Prague (zóna
+                                    formatteru) je to vždy týž den. */}
                                 <span className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${
                                     day.isToday ? "text-aisummit-cinnabar" : "text-white/30"
                                 }`}>
-                                    {day.dayName}
+                                    {format.dateTime(new Date(day.date), { weekday: "short" })}
                                 </span>
                                 <span className={`text-[8px] font-mono mb-2 ${
                                     day.isToday ? "text-white/50" : "text-white/15"
@@ -494,7 +504,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                     transition={{ delay: 0.15 }}
                     className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-5 flex flex-col"
                 >
-                    <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-4">Co teď</h2>
+                    <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-4">{t("next.title")}</h2>
 
                     {actionItems.length > 0 ? (
                         <div className="flex-1 flex flex-col gap-2">
@@ -517,7 +527,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                         <div className="flex-1 flex items-center justify-center">
                             <div className="text-center">
                                 <p className="text-2xl mb-2 opacity-20">✨</p>
-                                <p className="text-[9px] text-white/25 font-bold uppercase tracking-widest">Vše hotovo</p>
+                                <p className="text-[9px] text-white/25 font-bold uppercase tracking-widest">{t("next.allDone")}</p>
                             </div>
                         </div>
                     )}
@@ -527,7 +537,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                         onClick={() => goGenerate({ mode: "plan", duration: "month" })}
                         className="mt-4 w-full py-3 bg-gradient-to-r from-aisummit-cinnabar/80 to-orange-600/60 border border-aisummit-cinnabar/30 text-white rounded-sm text-[10px] font-black uppercase tracking-widest hover:from-aisummit-cinnabar hover:to-orange-600 transition-all shadow-[0_0_20px_rgba(229,83,63,0.15)] hover:shadow-[0_0_30px_rgba(229,83,63,0.3)]"
                     >
-                        <span className="inline-flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5 shrink-0" />Obsah na měsíc</span>
+                        <span className="inline-flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5 shrink-0" />{t("hero.title")}</span>
                     </button>
                 </motion.div>
             </div>
@@ -540,12 +550,12 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                     transition={{ delay: 0.2 }}
                 >
                     <div className="flex items-center justify-between mb-3">
-                        <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40">Poslední příspěvky</h2>
+                        <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40">{t("recent.title")}</h2>
                         <button
                             onClick={() => setActiveSection("posts")}
                             className="text-[9px] font-bold uppercase tracking-widest text-white/25 hover:text-white/50 transition-colors"
                         >
-                            Vše →
+                            {t("recent.all")} →
                         </button>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -570,7 +580,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                                         {/* Badge média — přes parser, ne přes počet svislítek: reel má „video|cover", ne dva slidy */}
                                         {(() => {
                                             const m = parsePostMedia(post.image_url, post.media_type)
-                                            if (m.kind === "reel") return <span className="absolute top-2 left-2 bg-black/60 text-white/70 text-[8px] font-bold px-1.5 py-0.5 rounded-sm">🎬 Reel</span>
+                                            if (m.kind === "reel") return <span className="absolute top-2 left-2 bg-black/60 text-white/70 text-[8px] font-bold px-1.5 py-0.5 rounded-sm">🎬 {t("recent.reel")}</span>
                                             if (m.slideCount > 1) return <span className="absolute top-2 left-2 bg-black/60 text-white/70 text-[8px] font-bold px-1.5 py-0.5 rounded-sm">📸 {m.slideCount}</span>
                                             return null
                                         })()}
@@ -602,23 +612,23 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                     className="bg-[#0a0a0a]/80 border border-white/10 rounded-sm p-5"
                 >
                     <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40">Výkon příspěvků</h2>
+                        <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/40">{t("metrics.title")}</h2>
                         <button
                             onClick={() => setActiveSection("performance")}
                             className="text-[9px] font-bold uppercase tracking-widest text-white/25 hover:text-white/50 transition-colors"
                         >
-                            Detail →
+                            {t("metrics.detail")} →
                         </button>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <MetricCard Icon={Heart} label="Ø Lajky" value={stats.quickMetrics.avgLikes} />
-                        <MetricCard Icon={MessageCircle} label="Ø Komentáře" value={stats.quickMetrics.avgComments} />
-                        <MetricCard Icon={Bookmark} label="Ø Uložení" value={stats.quickMetrics.avgSaves} />
-                        <MetricCard Icon={Eye} label="Ø Dosah" value={stats.quickMetrics.avgReach} />
+                        <MetricCard Icon={Heart} label={t("metrics.avgLikes")} value={stats.quickMetrics.avgLikes} />
+                        <MetricCard Icon={MessageCircle} label={t("metrics.avgComments")} value={stats.quickMetrics.avgComments} />
+                        <MetricCard Icon={Bookmark} label={t("metrics.avgSaves")} value={stats.quickMetrics.avgSaves} />
+                        <MetricCard Icon={Eye} label={t("metrics.avgReach")} value={stats.quickMetrics.avgReach} />
                     </div>
                     <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/5">
                         <span className="text-[9px] text-white/25 font-bold uppercase tracking-widest">
-                            Z {stats.quickMetrics.postsWithMetrics} příspěvků s metrikami
+                            {t("metrics.basis", { count: stats.quickMetrics.postsWithMetrics })}
                         </span>
                     </div>
                 </motion.div>
@@ -633,15 +643,15 @@ export function DashboardTab({ projectId }: { projectId: string }) {
                     className="text-center py-16 border border-dashed border-white/10 rounded-sm"
                 >
                     <p className="text-4xl mb-4">✨</p>
-                    <p className="text-white/60 font-black uppercase tracking-tight text-lg mb-2">Začněte tvořit</p>
+                    <p className="text-white/60 font-black uppercase tracking-tight text-lg mb-2">{t("empty.title")}</p>
                     <p className="text-white/30 text-xs font-medium mb-6 max-w-sm mx-auto">
-                        Ještě nemáte žádné příspěvky. Nechte AI připravit obsah na celý měsíc — schválíte a zveřejníte.
+                        {t("empty.body")}
                     </p>
                     <button
                         onClick={() => goGenerate({ mode: "plan", duration: "month" })}
                         className="px-8 py-3 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm text-xs font-black uppercase tracking-widest hover:opacity-90 transition-opacity shadow-[0_0_30px_rgba(229,83,63,0.3)]"
                     >
-                        <span className="inline-flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5 shrink-0" />Vytvořit obsah na měsíc</span>
+                        <span className="inline-flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5 shrink-0" />{t("empty.cta")}</span>
                     </button>
                 </motion.div>
             )}
@@ -686,6 +696,7 @@ function ActionCard({ icon, label, count, color, actionLabel, onClick }: {
 function SecondaryCount({ Icon, label, count, onClick }: {
     Icon: LucideIcon; label: string; count: number; onClick?: () => void
 }) {
+    const format = useFormatter()
     const Tag = onClick ? "button" : "div"
     return (
         <Tag
@@ -694,16 +705,17 @@ function SecondaryCount({ Icon, label, count, onClick }: {
         >
             <Icon className="w-4 h-4 shrink-0 text-white/40" />
             <span className="text-[9px] text-white/25 font-bold uppercase tracking-widest">{label}</span>
-            <span className="text-xs text-white/50 font-black">{count.toLocaleString("cs-CZ")}</span>
+            <span className="text-xs text-white/50 font-black">{format.number(count)}</span>
         </Tag>
     )
 }
 
 function MetricCard({ Icon, label, value }: { Icon: LucideIcon; label: string; value: number }) {
+    const format = useFormatter()
     return (
         <div className="bg-white/[0.02] border border-white/5 rounded-sm p-3 text-center">
             <Icon className="w-4 h-4 shrink-0 text-white/40" />
-            <p className="text-lg font-black text-white/80 mt-1">{value.toLocaleString("cs-CZ")}</p>
+            <p className="text-lg font-black text-white/80 mt-1">{format.number(value)}</p>
             <p className="text-[8px] font-bold uppercase tracking-widest text-white/30 mt-0.5">{label}</p>
         </div>
     )

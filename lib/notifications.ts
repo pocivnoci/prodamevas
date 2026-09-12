@@ -14,6 +14,7 @@
  * that triggered it (auth redirect, payment webhook, campaign finalize).
  */
 
+import type { UiLocale } from "@/lib/i18n/locales"
 import supabaseAdmin from "@/supabase/admin"
 import { isMediumType, type MediumType } from "@/lib/credits"
 import { parsePostMedia } from "@/lib/media-urls"
@@ -116,6 +117,8 @@ export async function sendNotification(opts: {
     /** Ruční override textové části. Jinak se odvodí z bloků. */
     text?: string
     kind: MailKind
+    /** Jazyk příjemce (`user_metadata.locale`); chybí = čeština. Obsah překládá volající. */
+    locale?: UiLocale
 }): Promise<void> {
     const to = opts.to?.trim().toLowerCase()
     if (!to) return
@@ -134,6 +137,7 @@ export async function sendNotification(opts: {
             blocks: opts.blocks ?? legacyBlocks(opts.subject, opts),
             kind: opts.kind,
             unsubscribeEmail: opts.kind === "notification" ? to : undefined,
+            locale: opts.locale,
         })
         const { sendEmail } = await import("@/lib/email")
         // Prázdný řetězec by Resend poslal jako skutečnou prázdnou textovou část

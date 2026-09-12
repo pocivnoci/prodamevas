@@ -10,6 +10,7 @@
  * šablona se v Mailingu objeví sama — bez zásahu do UI.
  */
 
+import type { UiLocale } from "@/lib/i18n/locales"
 import type { Block } from "./blocks"
 import { renderEmail, type MailKind } from "./layout"
 
@@ -62,6 +63,8 @@ export function renderTemplate<V extends TemplateVars>(
     template: EmailTemplate<V>,
     vars: V,
     unsubscribeEmail?: string,
+    /** Jazyk příjemce — zatím řídí jen chrome; šablony samy jsou česky (marketing). */
+    locale?: UiLocale,
 ): RenderedTemplate {
     const draft = template.build(vars)
     const { html, text } = renderEmail({
@@ -71,6 +74,7 @@ export function renderTemplate<V extends TemplateVars>(
         blocks: draft.blocks,
         kind: template.kind,
         unsubscribeEmail,
+        locale,
     })
     return { subject: draft.subject, html, text }
 }

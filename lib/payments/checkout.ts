@@ -67,6 +67,8 @@ export function activeGateway(): Gateway {
 }
 
 export interface CheckoutInput {
+    /** Jazyk pokladny Stripe = jazyk UI kupujícího (`paymentPageLanguage()`); chybí = čeština. */
+    locale?: "cs" | "en"
     client: { id: string; slug: string; name: string }
     /** `price_czk` je MĚSÍČNÍ cena tarifu — cena období z ní vzniká přes termPrice(). */
     plan: { id: string; name: string; price_czk: number }
@@ -158,6 +160,7 @@ export async function createStripeCheckout(input: CheckoutInput): Promise<Checko
     // by u ní znamenalo strhávat 999 Kč každý měsíc za schůzku, která byla jednou.
     const session = await getStripe().checkout.sessions.create({
         mode: isService ? "payment" : "subscription",
+        locale: input.locale ?? "cs",
         line_items: [{
             quantity: 1,
             price_data: {

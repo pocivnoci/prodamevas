@@ -1,3 +1,103 @@
 {
-  "brand": {}
+  "brand": {
+    "header": {
+      "title": "Brand & Reference Fotky",
+      "body": "Nahraj fotky produktů, lidí, prostředí — AI je použije jako referenci při generování příspěvků. Čím více kvalitních fotek, tím realističtější výstup."
+    },
+    "messages": {
+      "briefRegenerated": "Shot list přegenerován podle aktuální značky",
+      "briefFailed": "Generování shot listu selhalo",
+      "uploadFailed": "Nahrání selhalo",
+      "uploadFailedRetry": "Nahrání selhalo — zkus to prosím znovu",
+      "uploaded": "{count, plural, one {# fotka nahrána} few {# fotky nahrány} other {# fotek nahráno}}",
+      "uploadedPartial": "Nahráno {done} z {total}.",
+      "uploadedListFailed": "Nahráno {done} z {total}, ale seznam se nepodařilo načíst. Obnov stránku.",
+      "deleted": "Fotka smazána",
+      "deleteFailed": "Smazání selhalo",
+      "retagged": "AI přeznačila {count, plural, one {# fotku} few {# fotky} other {# fotek}}",
+      "retagFailed": "Přeznačení selhalo",
+      "tagsSaved": "Uloženo — AI už štítky ani popis nepřepíše",
+      "saveFailed": "Uložení selhalo"
+    },
+    "brief": {
+      "loading": "Skládám shot list — co ještě dofotit, aby AI měla z čeho brát…",
+      "title": "Co ještě chybí",
+      "itemCount": "{count, plural, one {# položka} few {# položky} other {# položek}}",
+      "regenerating": "Generuji…",
+      "regenerate": "Přegenerovat",
+      "must": "Důležité"
+    },
+    "upload": {
+      "progress": "Nahrávám {current} z {total}…",
+      "uploading": "Nahrávám…",
+      "aiNote": "Každou fotku ještě popisuje AI, chvíli to trvá. Kartu můžeš nechat otevřenou.",
+      "dropHint": "Přetáhni fotky sem nebo klikni pro výběr",
+      "formats": "JPG, PNG, WebP • velké fotky zmenšíme za tebe • produkty, lidi, prostředí"
+    },
+    "grid": {
+      "emptyTitle": "Zatím žádné fotky",
+      "emptyBody": "Nahraj fotky produktů a značky pro lepší AI generování",
+      "count": "{count, plural, one {# fotka} few {# fotky} other {# fotek}} · AI štítky",
+      "retagTitle": "Nechej AI znovu projít a oštítkovat všechny fotky",
+      "retagging": "Přeznačuji…",
+      "retag": "Přeznačit AI",
+      "altFallback": "Brand image {n}",
+      "delete": "Smazat",
+      "deleteAria": "Smazat fotku",
+      "editTags": "Upravit štítky",
+      "userTagged": "Štítky i popis nastavil člověk — AI je nepřepíše",
+      "untagged": "bez štítku"
+    },
+    "editor": {
+      "title": "Štítky a popis fotky",
+      "intro": "Podle štítků se rozhoduje, ke kterým příspěvkům se fotka přiloží. Vyber 1–4.",
+      "descriptionLabel": "Popis pro engine",
+      "descriptionPlaceholder": "Např. Majitel Petr — na fotkách vždycky v modré košili",
+      "descriptionHelp": "Tuhle větu dostane engine ke každému příspěvku, kde fotku použije. Napiš, co na ní není vidět: jméno, roli, materiál, kde to je.",
+      "personNote": "👤 Tuhle tvář bude engine držet napříč příspěvky — nenahradí ji fotobankovým modelem.",
+      "saving": "Ukládám…",
+      "save": "Uložit",
+      "cancel": "Zrušit"
+    },
+    "tags": {
+      "person": { "label": "Konkrétní osoba", "hint": "portrét JEDNOHO konkrétního člověka značky (majitel, tvář značky) — ne dav, ne skupina" },
+      "team": { "label": "Tým", "hint": "zaměstnanci, kolektiv při práci" },
+      "people": { "label": "Lidé obecně", "hint": "zákazníci, dav, skupinové foto bez konkrétní tváře značky" },
+      "exterior": { "label": "Exteriér", "hint": "venkovní záběr budovy, fasáda, vchod" },
+      "interior": { "label": "Interiér", "hint": "vnitřní prostor, místnost" },
+      "bedroom": { "label": "Ložnice", "hint": "ložnice" },
+      "bathroom": { "label": "Koupelna", "hint": "koupelna" },
+      "kitchen": { "label": "Kuchyně", "hint": "kuchyně" },
+      "living": { "label": "Obývací pokoj", "hint": "obývací pokoj" },
+      "pool": { "label": "Bazén", "hint": "bazén" },
+      "garden": { "label": "Zahrada", "hint": "zahrada" },
+      "terrace": { "label": "Terasa", "hint": "terasa" },
+      "parking": { "label": "Parkoviště", "hint": "parkoviště" },
+      "restaurant": { "label": "Restaurace", "hint": "restaurace, jídelna" },
+      "bar": { "label": "Bar", "hint": "bar, výčep" },
+      "lobby": { "label": "Recepce", "hint": "recepce, lobby, společný prostor" },
+      "shop": { "label": "Prodejna", "hint": "prodejna, obchod" },
+      "warehouse": { "label": "Sklad", "hint": "sklad" },
+      "office": { "label": "Kancelář", "hint": "kancelář, pracovna" },
+      "conference": { "label": "Konferenčka", "hint": "konferenční či školicí prostor" },
+      "product": { "label": "Produkt", "hint": "záběr na konkrétní produkt, zboží, výrobek" },
+      "packaging": { "label": "Obal", "hint": "balení, krabice, obal produktu" },
+      "food": { "label": "Jídlo", "hint": "jídlo" },
+      "drink": { "label": "Nápoj", "hint": "nápoj" },
+      "logo": { "label": "Logo", "hint": "logo značky" },
+      "branding": { "label": "Vizuální identita", "hint": "vizuální identita, tiskoviny, merch" },
+      "event": { "label": "Akce", "hint": "akce, událost, slavnostní příležitost" },
+      "nature": { "label": "Příroda", "hint": "příroda, krajina, exteriér bez budov" },
+      "view": { "label": "Výhled", "hint": "výhled, panorama" },
+      "sport": { "label": "Sport", "hint": "sportovní aktivita" },
+      "wellness": { "label": "Wellness", "hint": "wellness, relaxace" },
+      "detail": { "label": "Detail", "hint": "detail, textura, makro záběr BEZ rozpoznatelné tváře" }
+    },
+    "info": {
+      "tip": "💡 <strong>Tip:</strong> Nahraj fotky produktů — AI je zakomponuje do reálných scén místo generování od nuly.",
+      "face": "👤 <strong>Tvář značky:</strong> Portrét konkrétního člověka označ štítkem <tag>Konkrétní osoba</tag> — engine ho pak drží napříč příspěvky místo fotobankového modelu.",
+      "tags": "🏷️ <strong>Oprava štítků:</strong> Klikni na štítky pod fotkou. Ruční štítek už AI nikdy nepřepíše — ani při „Přeznačit AI“.",
+      "environment": "🏙️ <strong>Prostředí:</strong> Fotky prodejny/kanceláře pomohou zachovat autentičnost behind-the-scenes postů."
+    }
+  }
 }

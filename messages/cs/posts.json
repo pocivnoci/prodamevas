@@ -1,3 +1,241 @@
 {
-  "posts": {}
+  "posts": {
+    "common": {
+      "noImage": "Bez obrázku",
+      "noText": "Bez textu",
+      "copied": "Zkopírováno!",
+      "copyText": "Kopírovat text",
+      "downloadImage": "Stáhnout obrázek",
+      "publishToInstagram": "Publikovat na Instagram",
+      "slideAlt": "Slide {n}"
+    },
+    "list": {
+      "loadError": "Nepodařilo se načíst příspěvky",
+      "retry": "Zkusit znovu",
+      "status": {
+        "all": "Všechny",
+        "draft": "Koncepty",
+        "ready": "Připravené",
+        "scheduled": "Naplánované",
+        "posted": "Publikované",
+        "failed": "Selhalé",
+        "plan_locked": "Plán"
+      },
+      "countOfTotal": "{count, plural, one {# příspěvek} few {# příspěvky} other {# příspěvků}} z {total}",
+      "media": {
+        "all": "Vše",
+        "image": "Obrázky",
+        "story": "Stories",
+        "carousel": "Carousely",
+        "reel": "Reels"
+      },
+      "selectAll": "Vybrat vše",
+      "deselectAll": "Odznačit vše",
+      "selectedCount": "{count} vybráno",
+      "confirmBulkDelete": "Smazat {count, plural, one {# příspěvek} few {# příspěvky} other {# příspěvků}}? Tato akce je nevratná.",
+      "deleting": "Mažu…",
+      "deleteSelected": "🗑 Smazat {count}",
+      "loadingMore": "Načítám...",
+      "loadMore": "Načíst další ({remaining} zbývá)",
+      "empty": {
+        "title": "Prázdné plátno",
+        "body": "Zatím zde nejsou žádné příspěvky. Přepněte do sekce Generovat a nechte se inspirovat."
+      },
+      "card": {
+        "storyBadge": "📱 Story · {count, plural, one {# snímek} few {# snímky} other {# snímků}}",
+        "reelLabel": {
+          "reel": "Reel",
+          "reel_long": "Dlouhý reel"
+        },
+        "reelBadge": "🎬 {label}{video, select, none { · bez videa} other {}}",
+        "carouselBadge": "📸 {count, plural, one {# slide} few {# slidy} other {# slidů}}",
+        "qaWarningTitle": "Vizuální QA neprošla čistě ani po opravách — zkontroluj text a diakritiku v obrázku před publikací",
+        "qaWarning": "Zkontroluj text",
+        "genericType": "Generický Post",
+        "factFlagTitle": "Faktická brána označila tvrzení, které nemá oporu v ověřených faktech značky:\n{flags}\n\nDoplň fakt v Nastavení → Ověřená fakta, nebo to tvrzení z textu smaž.",
+        "checkFacts": "Ověř fakta",
+        "downloadVideo": "Stáhnout video",
+        "markReady": "Označit jako Připraveno",
+        "markPosted": "Označit jako Publikováno"
+      }
+    },
+    "locked": {
+      "badge": "Zamčený obsah",
+      "defaultType": "Příspěvek",
+      "placeholder": "Obsah příspěvku je zamčený...",
+      "unlockFrom": "🔓 Odemknout od {price}"
+    },
+    "detail": {
+      "actionFailed": "Akce selhala",
+      "defaultType": "Post",
+      "factFlagsBadge": "{count}× ověř fakta",
+      "noImage": "Žádný obrázek",
+      "captionLabel": "Caption",
+      "hashtagsLabel": "Hashtags ({count})",
+      "imagePromptLabel": "Image Prompt",
+      "facts": {
+        "title": "Tvrzení bez opory ve faktech",
+        "body": "Engine to nenašel v ověřených faktech značky. Když to platí, potvrď to — uloží se mezi fakta a příště s tím může pracovat rovnou. Když to neplatí, přepiš text sám.",
+        "rewrite": "Není to pravda — přepsat text",
+        "saving": "Ukládám…",
+        "confirm": "Je to pravda"
+      },
+      "sources": {
+        "title": "Ověřeno na webu",
+        "copy": "Kopírovat zdroje",
+        "body": "Engine si tohle sám dohledal. Zdroje se do příspěvku nepíšou — když je chceš uvést, vlož je do prvního komentáře.",
+        "quote": "„{quote}\""
+      },
+      "editorial": {
+        "title": "🧠 Editorial Board ({count})"
+      },
+      "fullTextLabel": "Celý text (caption + hashtags)",
+      "copyAll": "Kopírovat vše",
+      "publishFailed": "⚠ Publikování selhalo: {error}",
+      "downloadSlide": "Stáhnout slide {n}",
+      "markReady": "→ Označit jako Připraveno",
+      "markPosted": "Publikováno",
+      "backToDraft": "← Zpět na Koncept",
+      "viewOnInstagram": "↗ Zobrazit na Instagramu",
+      "archive": "Archivovat",
+      "retryScheduling": "Plánuji…",
+      "retryPublish": "↻ Zkusit publikovat znovu",
+      "variants": {
+        "generating": "⏳ Generuji dvě verze (~60s)…",
+        "show": "Zobrazit verze",
+        "cta": "Dvě verze na výběr · {credits, plural, one {# kredit} few {# kredity} other {# kreditů}}",
+        "explain": "Vygenerujeme {count, plural, one {# novou verzi} few {# nové verze} other {# nových verzí}} tohoto příspěvku na stejné téma — jiný hook, vizuál i CTA. Každá je plnohodnotný příspěvek, takže vás vyjdou celkem na {credits, plural, one {# kredit} few {# kredity} other {# kreditů}}. Vyberete si jednu, zbylé se zahodí.",
+        "failed": "Generování selhalo",
+        "confirm": "Vygenerovat za {credits, plural, one {# kredit} few {# kredity} other {# kreditů}}",
+        "cancel": "Zrušit",
+        "compare": "Porovnat"
+      },
+      "delete": "Smazat",
+      "confirmDelete": "Opravdu smazat?"
+    },
+    "region": {
+      "hint": "Táhni myší přes místo, které chceš změnit"
+    },
+    "edit": {
+      "done": "Hotovo — upraveno.",
+      "failed": "Úprava selhala.",
+      "reverted": "Vráceno na předchozí verzi.",
+      "revertFailed": "Vrácení selhalo.",
+      "scope": {
+        "text": "Text",
+        "image": "Obrázek",
+        "both": "Obojí"
+      },
+      "reelLocked": "Video u reelu nejde upravit — použij Vygenerovat znovu",
+      "noImage": "Příspěvek nemá obrázek",
+      "oneCredit": "1 kredit",
+      "regionMarked": "◻ oblast označena",
+      "regionClear": "× zrušit",
+      "regionHint": "· táhni myší přes náhled a označ místo",
+      "slideOf": "· snímek {n}/{total}",
+      "revert": "↩ Vrátit zpět ({count})",
+      "placeholderImage": "Co změnit — např: dej nadpis výš a zmenši ho",
+      "placeholderText": "Co změnit — např: zkrať popisek, přidej cenu",
+      "preservePlaceholder": "Nesahej na… (nepovinné) — např: foto a barvy",
+      "busy": "Upravuji...",
+      "submit": "Upravit",
+      "regenerate": {
+        "open": "Nebo vygenerovat úplně znovu…",
+        "warning": "Vytvoří nový příspěvek s úplně novým vizuálem — jiná fotka, jiná kompozice",
+        "created": "Nový draft vytvořen — najdeš ho v seznamu",
+        "placeholder": "Co má být jinak na úplně novém příspěvku...",
+        "busy": "Generuji...",
+        "confirm": "Opravdu?",
+        "submit": "Znovu (1 kredit)"
+      }
+    },
+    "compare": {
+      "title": "Dvě verze na výběr",
+      "done": "Verze vybrána — systém se učí z vaší preference",
+      "pick": "Vyberte lepší verzi — zbylé se zahodí",
+      "loading": "Načítám verze…",
+      "original": "Originál",
+      "version": "Verze {n}",
+      "selected": "Vybráno",
+      "selecting": "⏳ Vybírám…",
+      "select": "Vybrat tuhle verzi",
+      "saved": "Preference uložena — AI se učí z vašeho výběru"
+    },
+    "handoff": {
+      "shareUnsupported": "Tento prohlížeč neumí přímé sdílení — použij Uložit obrázek + Kopírovat popisek.",
+      "shareFailed": "Sdílení se nezdařilo. Použij Uložit obrázek + Kopírovat popisek níže.",
+      "publishFailed": "Publikace selhala.",
+      "publishingBackground": "Publikuje se na pozadí — za chvíli se objeví ve stavu Publikované.",
+      "published": "Publikováno!",
+      "open": "otevřít ↗",
+      "publishing": "⏳ Publikuje se… (do minuty)",
+      "addToStories": "Přidat do stories",
+      "publishNow": "Publikovat hned",
+      "orManual": "nebo sdílej ručně",
+      "preparing": "⏳ Připravuji…",
+      "shared": "Sdíleno — popisek je v schránce",
+      "share": "Sdílet do Instagramu",
+      "desktopHint": "📱 Pro přímé sdílení do Instagramu otevři tuto stránku <strong>na telefonu</strong>. Tady na počítači použij <strong>Kopírovat popisek</strong> + <strong>Uložit obrázek</strong>.",
+      "captionLabel": "Popisek",
+      "copyCaption": "Kopírovat popisek",
+      "saveSlides": "Uložit slidy",
+      "saveImage": "Uložit obrázek",
+      "openInstagram": "↗ Otevřít Instagram",
+      "guide": {
+        "title": "Jak na to",
+        "step1": "Klepni <strong>Sdílet do Instagramu</strong> → vyber Instagram.",
+        "step2": "V Instagramu podrž pole popisku → <strong>Vložit</strong>.",
+        "step3": "Publikuj a vrať se sem."
+      },
+      "close": "Zavřít",
+      "markPosted": "Označit jako publikováno"
+    },
+    "reel": {
+      "play": "Přehrát",
+      "replay": "Přehrát znovu",
+      "pause": "Pozastavit",
+      "mute": "Vypnout zvuk",
+      "unmute": "Zapnout zvuk",
+      "position": "Pozice ve videu",
+      "fullscreen": "Celá obrazovka"
+    },
+    "subtitles": {
+      "creatingJob": "Zakládám úlohu…",
+      "createFailed": "Úlohu se nepodařilo založit.",
+      "renderFailed": "Přerenderování selhalo.",
+      "timeout": "Přerenderování trvá nezvykle dlouho. Zavřete detail a za chvíli ho otevřete znovu.",
+      "title": "Titulky",
+      "free": "bez kreditů",
+      "textOnly": "Textový reel (bez hlasu)",
+      "burnedIn": "· vypálené do videa, mění se přerenderováním",
+      "legacy": "Tenhle reel vznikl dřív, než jsme si začali schovávat surové video — titulky u něj jdou změnit jen vygenerováním znovu. U nových reelů to už půjde tady.",
+      "locked": "Publikovaný reel už na Instagramu nezměníme — titulky jdou upravit jen u varianty.",
+      "preset": {
+        "pop": {
+          "label": "Zvýraznění",
+          "description": "Větší písmo a právě mluvené slovo v barvě značky. Dnešní standard reelů — výchozí."
+        },
+        "classic": {
+          "label": "Klasické",
+          "description": "Bílý text s obrysem a jemným podkladem. Čitelné na všem, nepřebíjí obraz."
+        },
+        "cards": {
+          "label": "Karty",
+          "description": "Velké písmo v plném boxu, po pár slovech. Drží pozornost i bez zvuku."
+        },
+        "minimal": {
+          "label": "Minimal",
+          "description": "Jen tenký obrys, žádný podklad. Nejmíň ruší, ale na světlé scéně se ztrácí."
+        }
+      },
+      "noCards": "Tenhle reel nemá uložené žádné karty.",
+      "cardTime": "{start}–{end} s",
+      "rendering": "Renderuji…",
+      "render": "Přerenderovat titulky (bez kreditů)",
+      "dirtyHint": "Změňte text nebo styl",
+      "timingText": "Časy vycházejí ze čtecího tempa karet a měnit je nejde — kratší karta by se nestihla přečíst.",
+      "timingVoice": "Časy sedí na namluvené řeči a měnit je nejde — jinak by se titulek rozešel s hlasem.",
+      "replaceNote": "Nové video nahradí staré; předchozí verzi vrátí „Vrátit zpět“."
+    }
+  }
 }

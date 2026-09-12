@@ -1,3 +1,79 @@
 {
-  "dashboard": {}
+  "dashboard": {
+    "cta": {
+      "generate": "Generovat",
+      "approve": "Schválit",
+      "publish": "Publikovat",
+      "createFirst": "Vytvořit první"
+    },
+    "status": {
+      "noContent": "Žádný obsah k publikování — vygenerujte nové příspěvky",
+      "draftsWaiting": "{count, plural, one {# koncept čeká} few {# koncepty čekají} other {# konceptů čeká}} na schválení",
+      "readyToPublish": "K publikování je připraveno: {count, plural, one {# příspěvek} few {# příspěvky} other {# příspěvků}}",
+      "startCreating": "Začněte tvořit obsah"
+    },
+    "actions": {
+      "draftsToApprove": "{count, plural, one {# koncept} few {# koncepty} other {# konceptů}} ke schválení",
+      "draftsToApproveDetail": "Zkontrolujte a schvalte",
+      "readyToPublish": "{count, plural, one {# příspěvek} few {# příspěvky} other {# příspěvků}} k publikování",
+      "readyToPublishDetail": "Připraveno na Instagram",
+      "missingType": "Chybí {type}",
+      "missingTypeDetail": "Jen {count}× — oživte mix",
+      "noPostThisWeek": "Tento týden žádný post",
+      "noPostThisWeekDetail": "Naplánujte obsah",
+      "missingMetrics": "Chybí metriky",
+      "missingMetricsDetail": "Zadejte likes/saves pro lepší AI",
+      "ideasLow": "Docházejí nápady",
+      "ideasLowDetail": "Doplňte zásobník témat"
+    },
+    "error": {
+      "title": "Nepodařilo se načíst data",
+      "body": "Zkontrolujte připojení a zkuste to znovu"
+    },
+    "draftPlan": {
+      "title": "Váš první plán obsahu čeká na schválení",
+      "body": "AI ho připravila při onboardingu — stačí zkontrolovat a spustit.",
+      "review": "Zkontrolovat"
+    },
+    "hero": {
+      "title": "Obsah na měsíc",
+      "body": "AI vytvoří celý měsíc příspěvků. Vy je schválíte, my je zveřejníme.",
+      "orWeek": "nebo: Týden",
+      "single": "Jeden příspěvek",
+      "start": "Spustit"
+    },
+    "counts": {
+      "drafts": "Koncepty",
+      "ready": "Připravené",
+      "posted": "Publikováno",
+      "ideas": "Nápady"
+    },
+    "metrics": {
+      "avgLikes": "Ø Lajky",
+      "avgComments": "Ø Komentáře",
+      "avgSaves": "Ø Uložení",
+      "avgReach": "Ø Dosah",
+      "title": "Výkon příspěvků",
+      "detail": "Detail",
+      "basis": "Z {count, plural, one {# příspěvku} other {# příspěvků}} s metrikami"
+    },
+    "week": {
+      "title": "Tento týden",
+      "calendar": "Kalendář"
+    },
+    "next": {
+      "title": "Co teď",
+      "allDone": "Vše hotovo"
+    },
+    "recent": {
+      "title": "Poslední příspěvky",
+      "all": "Vše",
+      "reel": "Reel"
+    },
+    "empty": {
+      "title": "Začněte tvořit",
+      "body": "Ještě nemáte žádné příspěvky. Nechte AI připravit obsah na celý měsíc — schválíte a zveřejníte.",
+      "cta": "Vytvořit obsah na měsíc"
+    }
+  }
 }

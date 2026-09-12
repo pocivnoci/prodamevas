@@ -1,5 +1,6 @@
 'use server'
 
+import { resolveUiLocale } from '@/lib/i18n/server'
 import { createClient } from '@/supabase/server'
 import supabaseAdmin from '@/supabase/admin'
 import { requireAuth, requireProjectAccess } from '@/lib/auth-guard'
@@ -37,7 +38,9 @@ async function enqueueOnboarding(
         const { enqueueTask } = await import('@/lib/agent-runner')
         const taskId = await enqueueTask({
             type,
-            payload,
+            // Jazyk UI toho, kdo průvodce spustil: otázky dotazníku jsou rozhovor
+            // s ním, ne obsah značky. Handler běží mimo request, cookie tam není.
+            payload: { ...payload, uiLocale: await resolveUiLocale() },
             requestedBy: userId,
             priority: 10, // člověk čeká u obrazovky — má přednost před nočními agenty
             // Jediný pokus: opakovat víceminutovou práci s Pro modely by tiše utratilo

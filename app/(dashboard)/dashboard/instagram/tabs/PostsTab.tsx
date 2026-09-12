@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { createPortal } from "react-dom"
 import { motion } from "framer-motion"
+import { useFormatter, useTranslations } from "next-intl"
 import { getIGPostsList, updateIGPostStatus, getEditorialLog } from "@/app/actions/admin-actions"
 import { deleteIGPost, deleteIGPosts } from "@/app/actions/post-actions"
 import { revisePost, generateMultipleVariants, selectVariantWinner, getVariantGroup } from "@/app/actions/variant-actions"
@@ -15,13 +16,12 @@ import { useCopyToClipboard } from "./hooks"
 import type { IGPost } from "./types"
 import { trackEvent } from "@/lib/analytics"
 import { parsePostMedia } from "@/lib/media-urls"
-import { isReelMedium, REEL_LABELS } from "@/lib/reel-media"
+import { isReelMedium } from "@/lib/reel-media"
 import { ReelPlayer } from "./ReelPlayer"
 import { ReelSubtitlesPanel } from "./ReelSubtitlesPanel"
 import { usePaywall } from "@/app/(dashboard)/PaywallProvider"
 import { formatCzk, LOWEST_MONTHLY_HALERU } from "@/lib/pricing"
 import { isMediumType, MEDIA_CREDITS } from "@/lib/credits"
-import { countLabel, CREDITS, POSTS } from "@/lib/plural"
 import { Brain, ChartColumn, Check, CircleCheck, CircleX, ClipboardList, Download, Image, Lock, Package, RefreshCw, Send, Shuffle, Smartphone, Trash2, TriangleAlert, Trophy, X, type LucideIcon } from "lucide-react"
 
 /**
@@ -38,6 +38,8 @@ const VARIANT_COUNT = 2
 // ═══════════════════════════════════════════════════════════
 
 export function PostsTab({ projectId }: { projectId: string }) {
+    const t = useTranslations("posts")
+    const format = useFormatter()
     const [posts, setPosts] = useState<IGPost[]>([])
     const [loading, setLoading] = useState(true)
     const [loadingMore, setLoadingMore] = useState(false)
@@ -72,7 +74,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
             setHasMore(result.hasMore)
             setPage(pageNum)
         } catch (err: any) {
-            setError(err?.message || "Nepodařilo se načíst příspěvky")
+            setError(err?.message || t("list.loadError"))
             if (!append) setPosts([])
         }
         setLoading(false)
@@ -114,7 +116,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
         <div className="text-center py-12">
             <p className="text-aisummit-cinnabar mb-4 font-bold uppercase tracking-widest text-sm"><CircleX className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{error}</p>
             <button onClick={() => loadPosts(0)} className="px-5 py-2.5 bg-[#0f0f0f] shadow-sm border border-white/10 text-white rounded-sm text-xs font-bold uppercase tracking-widest hover:bg-white/10 transition-colors">
-                <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />Zkusit znovu</span>
+                <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />{t("list.retry")}</span>
             </button>
         </div>
     )
@@ -132,21 +134,21 @@ export function PostsTab({ projectId }: { projectId: string }) {
                             : "text-white/50 bg-[#0f0f0f] border-white/10 hover:text-white hover:bg-white/5"
                             }`}
                     >
-                        {status === "all" ? "Všechny" : status === "draft" ? "Koncepty" : status === "ready" ? "Připravené" : status === "scheduled" ? "Naplánované" : status === "posted" ? "Publikované" : status === "failed" ? "Selhalé" : "Plán"}
+                        {t(`list.status.${status}`)}
                     </button>
                 ))}
-                <span className="text-xs font-mono uppercase tracking-widest text-white/40 ml-auto whitespace-nowrap pl-4">{countLabel(posts.length, POSTS)} z {total}</span>
+                <span className="text-xs font-mono uppercase tracking-widest text-white/40 ml-auto whitespace-nowrap pl-4">{t("list.countOfTotal", { count: posts.length, total })}</span>
             </div>
 
             {/* Media filter — server-side (see getIGPostsList), because filtering a 15-row
                 page in the browser would hide most matches and look broken. */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide -mt-3">
                 {[
-                    { value: "all", label: "Vše" },
-                    { value: "image", label: "Obrázky" },
-                    { value: "story", label: "Stories" },
-                    { value: "carousel", label: "Carousely" },
-                    { value: "reel", label: "Reels" },
+                    { value: "all", label: t("list.media.all") },
+                    { value: "image", label: t("list.media.image") },
+                    { value: "story", label: t("list.media.story") },
+                    { value: "carousel", label: t("list.media.carousel") },
+                    { value: "reel", label: t("list.media.reel") },
                 ].map(m => (
                     <button
                         key={m.value}
@@ -172,16 +174,16 @@ export function PostsTab({ projectId }: { projectId: string }) {
                             }}
                             className="text-[9px] text-white/40 hover:text-white/70 font-bold uppercase tracking-widest transition-colors"
                         >
-                            {selectedIds.size === posts.length && posts.length > 0 ? "Odznačit vše" : "Vybrat vše"}
+                            {selectedIds.size === posts.length && posts.length > 0 ? t("list.deselectAll") : t("list.selectAll")}
                         </button>
                         {selectedIds.size > 0 && (
-                            <span className="text-[9px] text-white/30">{selectedIds.size} vybráno</span>
+                            <span className="text-[9px] text-white/30">{t("list.selectedCount", { count: selectedIds.size })}</span>
                         )}
                     </div>
                     {selectedIds.size > 0 && (
                         <button
                             onClick={async () => {
-                                if (!confirm(`Smazat ${countLabel(selectedIds.size, POSTS)}? Tato akce je nevratná.`)) return
+                                if (!confirm(t("list.confirmBulkDelete", { count: selectedIds.size }))) return
                                 setBulkDeleting(true)
                                 await deleteIGPosts(Array.from(selectedIds), projectId)
                                 setSelectedIds(new Set())
@@ -191,7 +193,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                             disabled={bulkDeleting}
                             className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all border border-red-500/20 disabled:opacity-50 whitespace-nowrap"
                         >
-                            {bulkDeleting ? "Mažu…" : `🗑 Smazat ${selectedIds.size}`}
+                            {bulkDeleting ? t("list.deleting") : t("list.deleteSelected", { count: selectedIds.size })}
                         </button>
                     )}
                 </div>
@@ -266,55 +268,55 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
                                 {cardMedia.kind === "story" ? (
                                     <span className="absolute top-2 right-2 bg-black/70 border border-white/20 text-white/80 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm backdrop-blur-sm">
-                                        📱 Story · {cardMedia.slideCount} {cardMedia.slideCount === 1 ? "snímek" : cardMedia.slideCount < 5 ? "snímky" : "snímků"}
+                                        {t("list.card.storyBadge", { count: cardMedia.slideCount })}
                                     </span>
                                 ) : cardMedia.kind === "reel" ? (
                                     <span className="absolute top-2 right-2 bg-black/70 border border-white/20 text-white/80 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm backdrop-blur-sm">
-                                        🎬 {isReelMedium(post.media_type) ? REEL_LABELS[post.media_type] : "Reel"}{!cardMedia.videoUrl && " · bez videa"}
+                                        {t("list.card.reelBadge", { label: isReelMedium(post.media_type) ? t(`list.card.reelLabel.${post.media_type}`) : t("list.card.reelLabel.reel"), video: cardMedia.videoUrl ? "yes" : "none" })}
                                     </span>
                                 ) : cardMedia.kind === "carousel" && (
                                     <span className="absolute top-2 right-2 bg-black/70 border border-white/20 text-white/80 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm backdrop-blur-sm">
-                                        📸 {cardMedia.slideCount} slidů
+                                        {t("list.card.carouselBadge", { count: cardMedia.slideCount })}
                                     </span>
                                 )}
                                 {post.qa_status === "native_forced" && (
                                     <span
-                                        title="Vizuální QA neprošla čistě ani po opravách — zkontroluj text a diakritiku v obrázku před publikací"
+                                        title={t("list.card.qaWarningTitle")}
                                         className="inline-flex items-center gap-1.5 absolute top-2 left-2 bg-red-950/80 border border-red-500/40 text-red-300 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm backdrop-blur-sm"
-                                    ><TriangleAlert className="w-3 h-3 shrink-0" />Zkontroluj text</span>
+                                    ><TriangleAlert className="w-3 h-3 shrink-0" />{t("list.card.qaWarning")}</span>
                                 )}
                             </div>
                         ) : (
                             <div className="w-full h-56 rounded-sm bg-[#0f0f0f]/50 border border-white/5 flex flex-col items-center justify-center mb-4 gap-2">
                                 <Image className="w-6 h-6 opacity-50" />
-                                <span className="text-white/40 font-bold uppercase tracking-widest text-[10px]">Bez obrázku</span>
+                                <span className="text-white/40 font-bold uppercase tracking-widest text-[10px]">{t("common.noImage")}</span>
                             </div>
                         )}
 
                         <div className="flex-1 px-3 pb-3 flex flex-col">
                             <div className="flex items-start justify-between gap-2 mb-4">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{post.ig_post_types?.display_name || "Generický Post"}</span>
+                                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{post.ig_post_types?.display_name || t("list.card.genericType")}</span>
                                     {post.content_pillar && <PillarBadge pillar={post.content_pillar} />}
                                     {post.fact_status === "flagged" && (
                                         <span
-                                            title={`Faktická brána označila tvrzení, které nemá oporu v ověřených faktech značky:\n${(post.fact_flags || []).join("\n") || "—"}\n\nDoplň fakt v Nastavení → Ověřená fakta, nebo to tvrzení z textu smaž.`}
+                                            title={t("list.card.factFlagTitle", { flags: (post.fact_flags || []).join("\n") || "—" })}
                                             className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/30 text-amber-400/80 text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-sm"
-                                        ><TriangleAlert className="w-3 h-3 shrink-0" />Ověř fakta</span>
+                                        ><TriangleAlert className="w-3 h-3 shrink-0" />{t("list.card.checkFacts")}</span>
                                     )}
                                 </div>
                                 <span className="text-sm bg-white/5 shadow-sm border border-white/10 px-2 py-1 rounded-sm">{post.ig_post_types?.emoji || "📸"}</span>
                             </div>
 
                             <p className="text-sm text-white/70 line-clamp-2 leading-relaxed mb-4 font-medium">
-                                {post.caption || "Bez textu"}
+                                {post.caption || t("common.noText")}
                             </p>
 
                             {/* Inline quick actions — always visible */}
                             <div className="flex items-center gap-1.5 mb-3" onClick={(e) => e.stopPropagation()}>
                                 <InlineAction
                                     Icon={ClipboardList}
-                                    title="Kopírovat text"
+                                    title={t("common.copyText")}
                                     onClick={() => {
                                         if (post.caption) {
                                             navigator.clipboard.writeText(post.caption + (post.hashtags ? "\n\n" + post.hashtags : ""))
@@ -324,7 +326,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                 {post.image_url && (
                                     <InlineAction
                                         Icon={Download}
-                                        title={cardMedia.videoUrl ? "Stáhnout video" : "Stáhnout obrázek"}
+                                        title={cardMedia.videoUrl ? t("list.card.downloadVideo") : t("common.downloadImage")}
                                         onClick={() => {
                                             const a = document.createElement("a")
                                             a.href = cardMedia.videoUrl ?? cardMedia.urls[0]
@@ -337,14 +339,14 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                 {post.image_url && (
                                     <InlineAction
                                         Icon={Smartphone}
-                                        title="Publikovat na Instagram"
+                                        title={t("common.publishToInstagram")}
                                         onClick={() => setHandoffPost(post)}
                                     />
                                 )}
                                 {(post.status === "draft" || post.status === "plan_draft") && (
                                     <InlineAction
                                         Icon={CircleCheck}
-                                        title="Označit jako Připraveno"
+                                        title={t("list.card.markReady")}
                                         onClick={() => handleStatusChange(post.id, "ready")}
                                         accent="blue"
                                     />
@@ -352,7 +354,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                                 {post.status === "ready" && (
                                     <InlineAction
                                         Icon={Send}
-                                        title="Označit jako Publikováno"
+                                        title={t("list.card.markPosted")}
                                         onClick={() => handleStatusChange(post.id, "posted")}
                                         accent="emerald"
                                     />
@@ -362,7 +364,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                             <div className="flex items-center justify-between mt-auto pt-3 border-t border-white/10">
                                 <StatusBadge status={post.status} />
                                 <span className="text-[10px] font-mono uppercase tracking-widest text-white/40">
-                                    {new Date(post.created_at).toLocaleDateString("cs-CZ")}
+                                    {format.dateTime(new Date(post.created_at))}
                                 </span>
                             </div>
                         </div>
@@ -381,7 +383,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
                         disabled={loadingMore}
                         className="px-8 py-3 bg-[#0f0f0f] border border-white/10 text-white/70 rounded-sm text-xs font-bold uppercase tracking-widest hover:bg-white/5 hover:text-white hover:border-white/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                        {loadingMore ? "Načítám..." : `Načíst další (${total - posts.length} zbývá)`}
+                        {loadingMore ? t("list.loadingMore") : t("list.loadMore", { remaining: total - posts.length })}
                     </button>
                 </div>
             )}
@@ -392,8 +394,8 @@ export function PostsTab({ projectId }: { projectId: string }) {
                         initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                         className="text-center py-24 xl:py-32 text-white/40"
                     >
-                        <p className="text-4xl mb-4 text-white/20 font-black tracking-tighter uppercase">Prázdné plátno</p>
-                        <p className="font-bold tracking-widest text-xs uppercase text-white/40">Zatím zde nejsou žádné příspěvky. Přepněte do sekce Generovat a nechte se inspirovat.</p>
+                        <p className="text-4xl mb-4 text-white/20 font-black tracking-tighter uppercase">{t("list.empty.title")}</p>
+                        <p className="font-bold tracking-widest text-xs uppercase text-white/40">{t("list.empty.body")}</p>
                     </motion.div>
                 )
             }
@@ -430,6 +432,7 @@ export function PostsTab({ projectId }: { projectId: string }) {
 
 // Small icon button for card-level quick actions
 function LockedPostCard({ post }: { post: IGPost }) {
+    const t = useTranslations("posts")
     const { showPlanUnlockModal } = usePaywall()
     return (
         <div
@@ -440,13 +443,13 @@ function LockedPostCard({ post }: { post: IGPost }) {
             <div className="w-full h-56 rounded-sm bg-[#0f0f0f]/50 border border-white/5 flex flex-col items-center justify-center mb-4 gap-2 relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-white/[0.01]" />
                 <Lock className="w-6 h-6 opacity-30" />
-                <span className="text-white/30 font-bold uppercase tracking-widest text-[9px]">Zamčený obsah</span>
+                <span className="text-white/30 font-bold uppercase tracking-widest text-[9px]">{t("locked.badge")}</span>
             </div>
 
             <div className="flex-1 px-3 pb-3 flex flex-col">
                 <div className="flex items-start justify-between gap-2 mb-4">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{post.ig_post_types?.display_name || "Příspěvek"}</span>
+                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{post.ig_post_types?.display_name || t("locked.defaultType")}</span>
                         {post.content_pillar && <PillarBadge pillar={post.content_pillar} />}
                     </div>
                     <span className="inline-flex items-center bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-sm">
@@ -456,12 +459,12 @@ function LockedPostCard({ post }: { post: IGPost }) {
 
                 {/* Blurred caption snippet */}
                 <p className="text-sm text-white/30 line-clamp-2 leading-relaxed mb-4 font-medium select-none" style={{ filter: "blur(3px)" }}>
-                    {post.caption?.slice(0, 80) || "Obsah příspěvku je zamčený..."}
+                    {post.caption?.slice(0, 80) || t("locked.placeholder")}
                 </p>
 
                 <div className="mt-auto pt-3 border-t border-white/10">
                     <button className="w-full py-2 bg-gradient-to-r from-aisummit-cinnabar/20 to-orange-600/20 border border-aisummit-cinnabar/20 rounded-sm text-[9px] font-black uppercase tracking-widest text-aisummit-cinnabar hover:from-aisummit-cinnabar/30 hover:to-orange-600/30 transition-all">
-                        🔓 Odemknout od {formatCzk(LOWEST_MONTHLY_HALERU)}
+                        {t("locked.unlockFrom", { price: formatCzk(LOWEST_MONTHLY_HALERU) })}
                     </button>
                 </div>
             </div>
@@ -504,6 +507,8 @@ function PostDetailModal({
     onRefresh: () => void
     onPublish: (post: IGPost) => void
 }) {
+    const t = useTranslations("posts")
+    const format = useFormatter()
     const { copiedField, copyToClipboard } = useCopyToClipboard()
     // Edits update the post IN PLACE, so the modal renders the freshest row it has —
     // the list behind it refreshes separately and must not blank the modal mid-edit.
@@ -537,7 +542,7 @@ function PostDetailModal({
         const result = await retryPublishAction(projectId, post.id)
         setRetrying(false)
         if (result.success) onRefresh()
-        else alert(result.error || "Akce selhala")
+        else alert(result.error || t("detail.actionFailed"))
     }
 
     // Fetch editorial log on mount
@@ -632,13 +637,13 @@ function PostDetailModal({
                     <div className="flex items-center gap-3 flex-wrap">
                         <span className="text-lg bg-white/5 px-2 py-1 rounded-sm border border-white/10">{post.ig_post_types?.emoji || "📸"}</span>
                         <div>
-                            <h3 className="text-white font-black uppercase tracking-tighter">{post.ig_post_types?.display_name || "Post"}</h3>
-                            <p className="text-[10px] text-white/40 font-mono tracking-widest uppercase">{new Date(post.created_at).toLocaleString("cs-CZ")}</p>
+                            <h3 className="text-white font-black uppercase tracking-tighter">{post.ig_post_types?.display_name || t("detail.defaultType")}</h3>
+                            <p className="text-[10px] text-white/40 font-mono tracking-widest uppercase">{format.dateTime(new Date(post.created_at), { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" })}</p>
                         </div>
                         {post.content_pillar && <PillarBadge pillar={post.content_pillar} />}
                         {factFlags.length > 0 && (
                             <span className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/30 text-amber-400/80 text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-sm">
-                                <TriangleAlert className="w-3 h-3 shrink-0" />{factFlags.length}× ověř fakta
+                                <TriangleAlert className="w-3 h-3 shrink-0" />{t("detail.factFlagsBadge", { count: factFlags.length })}
                             </span>
                         )}
                         <StatusBadge status={post.status} />
@@ -670,7 +675,7 @@ function PostDetailModal({
                                     ) : (
                                         <RegionSelectableImage
                                             src={imageUrls[carouselIndex] || imageUrls[0]}
-                                            alt={isCarousel ? `Slide ${carouselIndex + 1}` : ""}
+                                            alt={isCarousel ? t("common.slideAlt", { n: carouselIndex + 1 }) : ""}
                                             enabled={regionActive}
                                             region={editRegion}
                                             onRegion={setEditRegion}
@@ -714,7 +719,7 @@ function PostDetailModal({
                             ) : (
                                 <div className="text-white/20 text-center py-20 border border-white/5 rounded-sm p-12 flex flex-col items-center justify-center">
                                     <p className="text-4xl mb-4">🖼️</p>
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">Žádný obrázek</p>
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">{t("detail.noImage")}</p>
                                 </div>
                             )}
                         </div>
@@ -726,7 +731,7 @@ function PostDetailModal({
                                 musel nejdřív uhodnout, že úprava textu nežije u textu. */}
                             <div id="post-caption">
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Caption</span>
+                                    <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">{t("detail.captionLabel")}</span>
                                     <CopyButton
                                         onClick={() => copyToClipboard(post.caption || "", "caption")}
                                         copied={copiedField === "caption"}
@@ -751,7 +756,7 @@ function PostDetailModal({
                             {hashtags.length > 0 && !captionEditing && (
                                 <div>
                                     <div className="flex items-center justify-between mb-2">
-                                        <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Hashtags ({hashtags.length})</span>
+                                        <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">{t("detail.hashtagsLabel", { count: hashtags.length })}</span>
                                         <CopyButton
                                             onClick={() => copyToClipboard(hashtagsText, "hashtags")}
                                             copied={copiedField === "hashtags"}
@@ -775,7 +780,7 @@ function PostDetailModal({
                             {post.image_prompt && (
                                 <div>
                                     <div className="flex items-center justify-between mb-2">
-                                        <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Image Prompt</span>
+                                        <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">{t("detail.imagePromptLabel")}</span>
                                         <CopyButton
                                             onClick={() => copyToClipboard(post.image_prompt || "", "prompt")}
                                             copied={copiedField === "prompt"}
@@ -794,11 +799,10 @@ function PostDetailModal({
                                 <div className="border border-amber-500/25 bg-amber-500/[0.04] rounded-sm p-3">
                                     <div className="flex items-center gap-2 mb-2">
                                         <TriangleAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                                        <span className="text-[10px] font-bold text-amber-400/90 uppercase tracking-widest">Tvrzení bez opory ve faktech</span>
+                                        <span className="text-[10px] font-bold text-amber-400/90 uppercase tracking-widest">{t("detail.facts.title")}</span>
                                     </div>
                                     <p className="text-[10px] text-white/40 mb-2">
-                                        Engine to nenašel v ověřených faktech značky. Když to platí, potvrď to — uloží se
-                                        mezi fakta a příště s tím může pracovat rovnou. Když to neplatí, přepiš text sám.
+                                        {t("detail.facts.body")}
                                     </p>
                                     {/* Druhá půlka rady, kterou karta dává už dlouho („nebo to tvrzení
                                         z textu smaž"). Pokyn pro model je na tohle špatný nástroj:
@@ -810,7 +814,7 @@ function PostDetailModal({
                                         }}
                                         className="mb-3 text-[9px] font-bold uppercase tracking-widest text-white/40 hover:text-white underline underline-offset-4 decoration-white/20"
                                     >
-                                        Není to pravda — přepsat text
+                                        {t("detail.facts.rewrite")}
                                     </button>
                                     <div className="space-y-2">
                                         {factFlags.map((flag, i) => {
@@ -833,7 +837,7 @@ function PostDetailModal({
                                                             onRefresh()
                                                         }}
                                                         className="shrink-0 px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-sm text-[9px] font-bold uppercase tracking-widest text-emerald-400 disabled:opacity-40"
-                                                    >{confirmingFact === claim ? "Ukládám…" : "Je to pravda"}</button>
+                                                    >{confirmingFact === claim ? t("detail.facts.saving") : t("detail.facts.confirm")}</button>
                                                 </div>
                                             )
                                         })}
@@ -850,24 +854,23 @@ function PostDetailModal({
                                     <div className="flex items-center justify-between gap-2 mb-2">
                                         <div className="flex items-center gap-2">
                                             <CircleCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                                            <span className="text-[10px] font-bold text-emerald-400/90 uppercase tracking-widest">Ověřeno na webu</span>
+                                            <span className="text-[10px] font-bold text-emerald-400/90 uppercase tracking-widest">{t("detail.sources.title")}</span>
                                         </div>
                                         <CopyButton
                                             onClick={() => copyToClipboard(sourcesLine, "sources")}
                                             copied={copiedField === "sources"}
-                                            label="Kopírovat zdroje"
+                                            label={t("detail.sources.copy")}
                                         />
                                     </div>
                                     <p className="text-[10px] text-white/40 mb-3">
-                                        Engine si tohle sám dohledal. Zdroje se do příspěvku nepíšou —
-                                        když je chceš uvést, vlož je do prvního komentáře.
+                                        {t("detail.sources.body")}
                                     </p>
                                     <div className="space-y-2">
                                         {factSources.map((src, i) => (
                                             <div key={i} className="bg-black/30 border border-white/5 rounded-sm px-3 py-2">
                                                 <p className="text-xs text-white/70">{src.claim}</p>
                                                 {src.quote && (
-                                                    <p className="text-[10px] text-white/35 italic mt-1">„{src.quote}"</p>
+                                                    <p className="text-[10px] text-white/35 italic mt-1">{t("detail.sources.quote", { quote: src.quote })}</p>
                                                 )}
                                                 <a
                                                     href={src.url}
@@ -888,7 +891,7 @@ function PostDetailModal({
                                         onClick={() => setEditorialOpen(!editorialOpen)}
                                         className="flex items-center justify-between w-full mb-2 group"
                                     >
-                                        <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">🧠 Editorial Board ({editorialLog.length})</span>
+                                        <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">{t("detail.editorial.title", { count: editorialLog.length })}</span>
                                         <span className="text-[10px] text-white/30 group-hover:text-white/50 transition-colors">{editorialOpen ? '▲' : '▼'}</span>
                                     </button>
                                     {editorialOpen && (
@@ -920,11 +923,11 @@ function PostDetailModal({
                             {/* Copy All / Full Text */}
                             <div>
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Celý text (caption + hashtags)</span>
+                                    <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">{t("detail.fullTextLabel")}</span>
                                     <CopyButton
                                         onClick={() => copyToClipboard(fullText, "full")}
                                         copied={copiedField === "full"}
-                                        label="Kopírovat vše"
+                                        label={t("detail.copyAll")}
                                     />
                                 </div>
                             </div>
@@ -993,7 +996,7 @@ function PostDetailModal({
                 {post.status === "failed" && post.publish_error && (
                     <div className="px-4 sm:px-6 pb-2">
                         <p className="text-[10px] text-red-400 leading-relaxed">
-                            ⚠ Publikování selhalo: {post.publish_error}
+                            {t("detail.publishFailed", { error: post.publish_error })}
                         </p>
                     </div>
                 )}
@@ -1008,7 +1011,7 @@ function PostDetailModal({
                             onClick={downloadImage}
                             className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-[#0f0f0f] text-white/70 hover:bg-white/10 hover:text-white transition-all flex items-center gap-2 border border-white/10"
                         >
-                            ⬇️ {isCarousel ? `Stáhnout slide ${carouselIndex + 1}` : "Stáhnout obrázek"}
+                            ⬇️ {isCarousel ? t("detail.downloadSlide", { n: carouselIndex + 1 }) : t("common.downloadImage")}
                         </button>
                     )}
 
@@ -1017,7 +1020,7 @@ function PostDetailModal({
                         onClick={() => copyToClipboard(fullText, "full-btn")}
                         className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-[#0f0f0f] text-white/70 hover:bg-white/10 hover:text-white transition-all flex items-center gap-2 border border-white/10"
                     >
-                        {copiedField === "full-btn" ? "Zkopírováno!" : "Kopírovat text"}
+                        {copiedField === "full-btn" ? t("common.copied") : t("common.copyText")}
                     </button>
 
                     {/* Publish to Instagram (mobile handoff) */}
@@ -1026,7 +1029,7 @@ function PostDetailModal({
                             onClick={() => onPublish(post)}
                             className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-gradient-to-r from-aisummit-cinnabar/20 to-orange-600/20 text-aisummit-cinnabar hover:from-aisummit-cinnabar/30 hover:to-orange-600/30 transition-all flex items-center gap-2 border border-aisummit-cinnabar/30"
                         >
-                            <span className="inline-flex items-center gap-1.5"><Smartphone className="w-3.5 h-3.5 shrink-0" />Publikovat na Instagram</span>
+                            <span className="inline-flex items-center gap-1.5"><Smartphone className="w-3.5 h-3.5 shrink-0" />{t("common.publishToInstagram")}</span>
                         </button>
                     )}
 
@@ -1040,13 +1043,13 @@ function PostDetailModal({
                                 onClick={() => onStatusChange(post.id, "ready")}
                                 className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all border border-blue-500/20"
                             >
-                                → Označit jako Připraveno
+                                {t("detail.markReady")}
                             </button>
                             <button
                                 onClick={() => onStatusChange(post.id, "posted")}
                                 className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all border border-emerald-500/20"
                             >
-                                <span className="inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5 shrink-0" />Publikováno</span>
+                                <span className="inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5 shrink-0" />{t("detail.markPosted")}</span>
                             </button>
                         </>
                     )}
@@ -1056,13 +1059,13 @@ function PostDetailModal({
                                 onClick={() => onStatusChange(post.id, "draft")}
                                 className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-all border border-amber-500/20"
                             >
-                                ← Zpět na Koncept
+                                {t("detail.backToDraft")}
                             </button>
                             <button
                                 onClick={() => onStatusChange(post.id, "posted")}
                                 className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all border border-emerald-500/20"
                             >
-                                <span className="inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5 shrink-0" />Publikováno</span>
+                                <span className="inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5 shrink-0" />{t("detail.markPosted")}</span>
                             </button>
                         </>
                     )}
@@ -1075,14 +1078,14 @@ function PostDetailModal({
                                     rel="noopener noreferrer"
                                     className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all border border-emerald-500/20"
                                 >
-                                    ↗ Zobrazit na Instagramu
+                                    {t("detail.viewOnInstagram")}
                                 </a>
                             )}
                             <button
                                 onClick={() => onStatusChange(post.id, "archived")}
                                 className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-white/5 text-white/40 hover:bg-white/10 transition-all border border-white/10"
                             >
-                                <span className="inline-flex items-center gap-1.5"><Package className="w-3.5 h-3.5 shrink-0" />Archivovat</span>
+                                <span className="inline-flex items-center gap-1.5"><Package className="w-3.5 h-3.5 shrink-0" />{t("detail.archive")}</span>
                             </button>
                         </>
                     )}
@@ -1092,7 +1095,7 @@ function PostDetailModal({
                             disabled={retrying}
                             className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all border border-red-500/20 disabled:opacity-50"
                         >
-                            {retrying ? "Plánuji…" : "↻ Zkusit publikovat znovu"}
+                            {retrying ? t("detail.retryScheduling") : t("detail.retryPublish")}
                         </button>
                     )}
 
@@ -1114,17 +1117,15 @@ function PostDetailModal({
                             }`}
                         >
                             {generatingVariants
-                                ? "⏳ Generuji dvě verze (~60s)…"
+                                ? t("detail.variants.generating")
                                 : variantIds.length > 0
-                                    ? "Zobrazit verze"
-                                    : `Dvě verze na výběr · ${countLabel(variantCost, CREDITS)}`}
+                                    ? t("detail.variants.show")
+                                    : t("detail.variants.cta", { credits: variantCost })}
                         </button>
                     ) : (
                         <div className="w-full flex flex-col gap-2 p-3 rounded-sm bg-violet-500/5 border border-violet-500/20">
                             <p className="text-[11px] text-white/60 leading-relaxed">
-                                Vygenerujeme {VARIANT_COUNT} nové verze tohoto příspěvku na stejné téma — jiný hook, vizuál i CTA.
-                                Každá je plnohodnotný příspěvek, takže vás vyjdou celkem na {countLabel(variantCost, CREDITS)}.
-                                Vyberete si jednu, zbylé se zahodí.
+                                {t("detail.variants.explain", { count: VARIANT_COUNT, credits: variantCost })}
                             </p>
                             <div className="flex flex-wrap gap-2">
                                 <button
@@ -1138,19 +1139,19 @@ function PostDetailModal({
                                             setVariantIds(result.variantIds)
                                             setShowVariantComparison(true)
                                         } else {
-                                            setVariantError(result.error || "Generování selhalo")
+                                            setVariantError(result.error || t("detail.variants.failed"))
                                         }
                                         setGeneratingVariants(false)
                                     }}
                                     className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-violet-500/20 text-violet-300 hover:bg-violet-500/30 border border-violet-500/30 transition-all"
                                 >
-                                    Vygenerovat za {countLabel(variantCost, CREDITS)}
+                                    {t("detail.variants.confirm", { credits: variantCost })}
                                 </button>
                                 <button
                                     onClick={() => setConfirmVariants(false)}
                                     className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm text-white/40 hover:text-white/70 hover:bg-white/5 border border-transparent hover:border-white/10 transition-all"
                                 >
-                                    Zrušit
+                                    {t("detail.variants.cancel")}
                                 </button>
                             </div>
                         </div>
@@ -1160,7 +1161,7 @@ function PostDetailModal({
                             onClick={() => setShowVariantComparison(true)}
                             className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 border border-violet-500/20 transition-all"
                         >
-                            <span className="inline-flex items-center gap-1.5"><ChartColumn className="w-3.5 h-3.5 shrink-0" />Porovnat</span>
+                            <span className="inline-flex items-center gap-1.5"><ChartColumn className="w-3.5 h-3.5 shrink-0" />{t("detail.variants.compare")}</span>
                         </button>
                     )}
                     {variantError && (
@@ -1186,14 +1187,14 @@ function PostDetailModal({
                             onClick={() => setConfirmDelete(true)}
                             className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20"
                         >
-                            <span className="inline-flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5 shrink-0" />Smazat</span>
+                            <span className="inline-flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5 shrink-0" />{t("detail.delete")}</span>
                         </button>
                     ) : (
                         <button
                             onClick={() => onDelete(post.id)}
                             className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse"
                         >
-                            <span className="inline-flex items-center gap-1.5"><TriangleAlert className="w-3.5 h-3.5 shrink-0" />Opravdu smazat?</span>
+                            <span className="inline-flex items-center gap-1.5"><TriangleAlert className="w-3.5 h-3.5 shrink-0" />{t("detail.confirmDelete")}</span>
                         </button>
                     )}
                 </div>
@@ -1229,6 +1230,7 @@ function RegionSelectableImage({
     region: { x: number; y: number; w: number; h: number } | null
     onRegion: (r: { x: number; y: number; w: number; h: number } | null) => void
 }) {
+    const t = useTranslations("posts")
     const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null)
     const wrapRef = useRef<HTMLDivElement>(null)
 
@@ -1298,7 +1300,7 @@ function RegionSelectableImage({
             {enabled && !region && !dragStart && (
                 <div className="absolute inset-0 flex items-end justify-center pb-3 pointer-events-none">
                     <span className="text-[9px] uppercase tracking-widest font-bold text-white/70 bg-black/70 px-2 py-1 rounded-sm border border-white/10">
-                        Táhni myší přes místo, které chceš změnit
+                        {t("region.hint")}
                     </span>
                 </div>
             )}
@@ -1339,6 +1341,7 @@ function PostEditPanel({
         run: () => Promise<void>
     }
 }) {
+    const t = useTranslations("posts")
     const isReel = mediaKind === "reel"
     const hasImage = !!post.image_url && !isReel
     const [scope, setScope] = useState<EditScope>(hasImage ? "image" : "text")
@@ -1375,10 +1378,10 @@ function PostEditPanel({
             onEdited(res.post)
             setInstruction("")
             setPreserve("")
-            setResult({ ok: true, message: res.warning || "Hotovo — upraveno." })
+            setResult({ ok: true, message: res.warning || t("edit.done") })
             trackEvent("post_edited", { scope, region: !!region })
         } else {
-            setResult({ ok: false, message: res.error || "Úprava selhala." })
+            setResult({ ok: false, message: res.error || t("edit.failed") })
         }
     }
 
@@ -1389,9 +1392,9 @@ function PostEditPanel({
         setBusy(false)
         if (res.success && res.post) {
             onEdited(res.post)
-            setResult({ ok: true, message: "Vráceno na předchozí verzi." })
+            setResult({ ok: true, message: t("edit.reverted") })
         } else {
-            setResult({ ok: false, message: res.error || "Vrácení selhalo." })
+            setResult({ ok: false, message: res.error || t("edit.revertFailed") })
         }
     }
 
@@ -1403,9 +1406,9 @@ function PostEditPanel({
                 the image preview, which is what the region drag needs to be usable. */}
             <div className="flex items-center gap-1.5 flex-wrap">
                 {([
-                    { id: "text" as const, label: "Text" },
-                    { id: "image" as const, label: "Obrázek" },
-                    { id: "both" as const, label: "Obojí" },
+                    { id: "text" as const, label: t("edit.scope.text") },
+                    { id: "image" as const, label: t("edit.scope.image") },
+                    { id: "both" as const, label: t("edit.scope.both") },
                 ]).map(opt => {
                     const disabled = opt.id !== "text" && !hasImage
                     return (
@@ -1413,7 +1416,7 @@ function PostEditPanel({
                             key={opt.id}
                             onClick={() => { if (disabled) return; setScope(opt.id) }}
                             disabled={disabled}
-                            title={disabled ? (isReel ? "Video u reelu nejde upravit — použij Vygenerovat znovu" : "Příspěvek nemá obrázek") : undefined}
+                            title={disabled ? (isReel ? t("edit.reelLocked") : t("edit.noImage")) : undefined}
                             className={`px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded-sm border transition-all ${
                                 scope === opt.id
                                     ? "bg-white/10 text-white border-white/20"
@@ -1425,17 +1428,17 @@ function PostEditPanel({
                     )
                 })}
                 {touchesImage && (
-                    <span className="text-[9px] uppercase tracking-widest font-bold text-amber-400/70 ml-1">1 kredit</span>
+                    <span className="text-[9px] uppercase tracking-widest font-bold text-amber-400/70 ml-1">{t("edit.oneCredit")}</span>
                 )}
                 {touchesImage && hasImage && (
                     <span className="text-[10px] text-white/35 ml-1">
                         {region ? (
                             <>
-                                <span className="text-emerald-400">◻ oblast označena</span>{" "}
-                                <button onClick={onClearRegion} className="underline hover:text-white/70">× zrušit</button>
+                                <span className="text-emerald-400">{t("edit.regionMarked")}</span>{" "}
+                                <button onClick={onClearRegion} className="underline hover:text-white/70">{t("edit.regionClear")}</button>
                             </>
-                        ) : "· táhni myší přes náhled a označ místo"}
-                        {slideCount > 1 && <span className="text-white/25"> · snímek {slideIndex + 1}/{slideCount}</span>}
+                        ) : t("edit.regionHint")}
+                        {slideCount > 1 && <span className="text-white/25"> {t("edit.slideOf", { n: slideIndex + 1, total: slideCount })}</span>}
                     </span>
                 )}
                 {historyDepth > 0 && (
@@ -1444,7 +1447,7 @@ function PostEditPanel({
                         disabled={busy}
                         className="ml-auto text-[9px] uppercase tracking-widest font-bold text-white/40 hover:text-white underline disabled:opacity-40"
                     >
-                        ↩ Vrátit zpět ({historyDepth})
+                        {t("edit.revert", { count: historyDepth })}
                     </button>
                 )}
             </div>
@@ -1455,7 +1458,7 @@ function PostEditPanel({
                 <textarea
                     value={instruction}
                     onChange={e => setInstruction(e.target.value)}
-                    placeholder={touchesImage ? "Co změnit — např: dej nadpis výš a zmenši ho" : "Co změnit — např: zkrať popisek, přidej cenu"}
+                    placeholder={touchesImage ? t("edit.placeholderImage") : t("edit.placeholderText")}
                     rows={2}
                     className="w-full px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-xs resize-none focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
                 />
@@ -1463,7 +1466,7 @@ function PostEditPanel({
                     <input
                         value={preserve}
                         onChange={e => setPreserve(e.target.value)}
-                        placeholder="Nesahej na… (nepovinné) — např: foto a barvy"
+                        placeholder={t("edit.preservePlaceholder")}
                         className="flex-1 px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
                     />
                     <button
@@ -1474,9 +1477,9 @@ function PostEditPanel({
                         {busy ? (
                             <span className="flex items-center gap-1.5">
                                 <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" /></svg>
-                                Upravuji...
+                                {t("edit.busy")}
                             </span>
-                        ) : "Upravit"}
+                        ) : t("edit.submit")}
                     </button>
                 </div>
             </div>
@@ -1494,19 +1497,19 @@ function PostEditPanel({
                         onClick={() => setShowRegenerate(true)}
                         className="text-[9px] uppercase tracking-widest font-bold text-white/25 hover:text-white/50 transition-colors"
                     >
-                        <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />Nebo vygenerovat úplně znovu…</span>
+                        <span className="inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5 shrink-0" />{t("edit.regenerate.open")}</span>
                     </button>
                 ) : (
                     <div className="space-y-2">
-                        <p className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest font-bold text-amber-400/70"><TriangleAlert className="w-3 h-3 shrink-0" />Vytvoří nový příspěvek s úplně novým vizuálem — jiná fotka, jiná kompozice</p>
+                        <p className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest font-bold text-amber-400/70"><TriangleAlert className="w-3 h-3 shrink-0" />{t("edit.regenerate.warning")}</p>
                         {regenerate.revisionResult?.success ? (
-                            <p className="inline-flex items-center gap-1.5 text-xs text-emerald-400"><CircleCheck className="w-3.5 h-3.5 shrink-0" />Nový draft vytvořen — najdeš ho v seznamu</p>
+                            <p className="inline-flex items-center gap-1.5 text-xs text-emerald-400"><CircleCheck className="w-3.5 h-3.5 shrink-0" />{t("edit.regenerate.created")}</p>
                         ) : (
                             <div className="flex gap-2 items-start">
                                 <textarea
                                     value={regenerate.feedbackText}
                                     onChange={e => regenerate.setFeedbackText(e.target.value)}
-                                    placeholder="Co má být jinak na úplně novém příspěvku..."
+                                    placeholder={t("edit.regenerate.placeholder")}
                                     rows={2}
                                     className="flex-1 px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-xs resize-none focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
                                 />
@@ -1522,9 +1525,9 @@ function PostEditPanel({
                                     {regenerate.revising ? (
                                         <span className="flex items-center gap-1.5">
                                             <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" /></svg>
-                                            Generuji...
+                                            {t("edit.regenerate.busy")}
                                         </span>
-                                    ) : confirmRegenerate ? "Opravdu?" : "Znovu (1 kredit)"}
+                                    ) : confirmRegenerate ? t("edit.regenerate.confirm") : t("edit.regenerate.submit")}
                                 </button>
                             </div>
                         )}
@@ -1553,6 +1556,7 @@ function VariantComparisonModal({
     onClose: () => void
     onWinnerSelected: () => void
 }) {
+    const t = useTranslations("posts")
     const [variants, setVariants] = useState<any[]>([])
     const [originalId, setOriginalId] = useState(originalPostId)
     const [loading, setLoading] = useState(true)
@@ -1605,9 +1609,9 @@ function VariantComparisonModal({
                     <div className="flex items-center gap-3">
                         <Shuffle className="w-5 h-5" />
                         <div>
-                            <h3 className="text-white font-black uppercase tracking-tighter">Dvě verze na výběr</h3>
+                            <h3 className="text-white font-black uppercase tracking-tighter">{t("compare.title")}</h3>
                             <p className="text-[10px] text-white/40 font-mono tracking-widest uppercase">
-                                {done ? "Verze vybrána — systém se učí z vaší preference" : "Vyberte lepší verzi — zbylé se zahodí"}
+                                {done ? t("compare.done") : t("compare.pick")}
                             </p>
                         </div>
                     </div>
@@ -1623,7 +1627,7 @@ function VariantComparisonModal({
                         <div className="flex items-center justify-center py-20">
                             <div className="text-center">
                                 <div className="animate-spin w-8 h-8 border-2 border-violet-500/30 border-t-violet-500 rounded-full mx-auto mb-4" />
-                                <p className="text-xs text-white/40 font-bold uppercase tracking-widest">Načítám verze…</p>
+                                <p className="text-xs text-white/40 font-bold uppercase tracking-widest">{t("compare.loading")}</p>
                             </div>
                         </div>
                     ) : (
@@ -1660,10 +1664,10 @@ function VariantComparisonModal({
                                                         ? 'text-blue-400 bg-blue-500/10 border-blue-500/20'
                                                         : 'text-violet-400 bg-violet-500/10 border-violet-500/20'
                                                 }`}>
-                                                    {isOriginal ? "Originál" : `Verze ${index}`}
+                                                    {isOriginal ? t("compare.original") : t("compare.version", { n: index })}
                                                 </span>
                                                 {isWinner && (
-                                                    <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-emerald-400 animate-pulse"><Trophy className="w-3 h-3 shrink-0" />Vybráno</span>
+                                                    <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-emerald-400 animate-pulse"><Trophy className="w-3 h-3 shrink-0" />{t("compare.selected")}</span>
                                                 )}
                                             </div>
                                             <span className="text-[9px] text-white/30 font-mono">{variant.ig_post_types?.emoji || "📸"}</span>
@@ -1695,7 +1699,7 @@ function VariantComparisonModal({
                                                             : 'bg-white/5 text-white/60 border-white/10 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/20'
                                                     } disabled:opacity-40 disabled:cursor-not-allowed`}
                                                 >
-                                                    {selecting === variant.id ? "⏳ Vybírám…" : "Vybrat tuhle verzi"}
+                                                    {selecting === variant.id ? t("compare.selecting") : t("compare.select")}
                                                 </button>
                                             )}
                                         </div>
@@ -1708,7 +1712,7 @@ function VariantComparisonModal({
 
                 {done && (
                     <div className="px-6 py-3 border-t border-emerald-500/20 bg-emerald-500/5 flex items-center justify-center gap-2">
-                        <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-bold uppercase tracking-widest"><Brain className="w-3.5 h-3.5 shrink-0" />Preference uložena — AI se učí z vašeho výběru</span>
+                        <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-bold uppercase tracking-widest"><Brain className="w-3.5 h-3.5 shrink-0" />{t("compare.saved")}</span>
                     </div>
                 )}
             </div>

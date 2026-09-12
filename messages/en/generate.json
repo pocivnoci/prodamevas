@@ -1,3 +1,240 @@
 {
-  "generate": {}
+  "generate": {
+    "labels": {
+      "auto": "Auto",
+      "product": "Product"
+    },
+    "mode": {
+      "single": "Single post",
+      "plan": "Content plan"
+    },
+    "steps": {
+      "brief": "Brief",
+      "plan": "Plan",
+      "result": "Result"
+    },
+    "errors": {
+      "createJob": "Could not create the job",
+      "generationFailed": "Generation failed",
+      "network": "Network error",
+      "campaignLost": "Lost contact with the campaign (it keeps running in the background)",
+      "notEnoughCredits": "Not enough credits",
+      "campaignStart": "Could not start the campaign",
+      "upload": "Something went wrong while uploading the image.",
+      "unknown": "Unknown error during generation",
+      "scheduleFailed": "Scheduling failed",
+      "planFailed": "Plan generation failed",
+      "planCrashed": "Plan generation could not be completed.\n\n{error}\n\nIf you were idle for a long time, try reloading the page and signing in again."
+    },
+    "campaign": {
+      "done": "Successfully generated {successes} of {total, plural, one {# post} other {# posts}}",
+      "allFailed": "{total, plural, one {The post failed} other {All # posts failed}}",
+      "partial": "Generated {successes} of {total}"
+    },
+    "counts": {
+      "posts": "{count, plural, one {# post} other {# posts}}",
+      "credits": "{count, plural, one {# credit} other {# credits}}"
+    },
+    "media": {
+      "image": "Image",
+      "story": "Story",
+      "carousel": "Carousel",
+      "reel": "Reel",
+      "reel_long": "Long reel",
+      "singleImage": "1 image",
+      "byType": "by type",
+      "creditsShort": "{n} cr.",
+      "reelsSoon": "Reels are coming soon",
+      "reelsFromPlan": "Reels are available from the {plan} plan",
+      "storiesSoon": "Stories are coming soon",
+      "storiesNotInPlan": "Stories are not part of this plan",
+      "soon": "Soon",
+      "fromPlan": "From {plan}"
+    },
+    "visualMode": {
+      "photo": "Photo",
+      "typography": "Type",
+      "graphic": "Graphic"
+    },
+    "single": {
+      "title": "New post",
+      "subtitle": "Tell the AI what to write about, or leave it all to autopilot.",
+      "topicLabel": "About what?",
+      "hideIdeas": "Hide",
+      "pickIdeas": "Pick from ideas",
+      "ideas": "Ideas",
+      "reviews": "Reviews",
+      "topicPlaceholder": "E.g. Spring sale, New collection, Skin care... or leave it empty and the AI picks for you.",
+      "linkedIdea": "Linked to an idea — the post counts toward its performance",
+      "advanced": "Advanced",
+      "focus": "Focus",
+      "auto": "Automatic",
+      "productAuto": "AI picks automatically",
+      "format": "Format",
+      "formatAuto": "AI picks the best format",
+      "aspectRatio": "Aspect ratio",
+      "type": "Type",
+      "customPhoto": "Your own photo",
+      "customPhotoHint": "The AI works your photo into the post design — it uses all of it or a part of it as the visual base and adds typography, branding and the logo. The post text follows the topic you set, not the photo.",
+      "customPhotoReels": "For reels the photo is not used.",
+      "customPhotoStory": "For a story the photo goes on the first frame.",
+      "working": "Working on it...",
+      "submit": "Create post"
+    },
+    "plan": {
+      "subtitle": "The AI drafts a series of posts. You approve and launch.",
+      "durationLabel": "How long a plan?",
+      "durations": {
+        "trial": "Taster",
+        "1w": "Week",
+        "2w": "Two weeks",
+        "month": "Month"
+      },
+      "perWeekLabel": "Posts per week",
+      "cadenceHintLabel": "what it costs",
+      "recommended": "Recommended",
+      "overBudget": "Over your credits",
+      "goalLabel": "Campaign goal",
+      "goals": {
+        "reach": {
+          "label": "Reach",
+          "hint": "Reach new people — shareable, clear even without knowing the brand"
+        },
+        "engagement": {
+          "label": "Community",
+          "hint": "Spark reactions — questions, opinions, saves"
+        },
+        "sales": {
+          "label": "Sales",
+          "hint": "Drive purchases — a specific product, a specific reason to act"
+        },
+        "launch": {
+          "label": "Launch",
+          "hint": "Introduce something new — a series with a rising arc"
+        }
+      },
+      "mixLabel": "Format mix",
+      "carouselShare": {
+        "low": {
+          "label": "More photos",
+          "hint": "cheaper"
+        },
+        "auto": {
+          "label": "Balanced",
+          "hint": "recommended"
+        },
+        "high": {
+          "label": "More carousels",
+          "hint": "pricier"
+        }
+      },
+      "focusProducts": "Focus on products (optional)",
+      "focusProductsHint": "The products are spread across the product posts in the plan",
+      "topicLabel": "Campaign topic (optional)",
+      "topicPlaceholder": "E.g. Summer collection, Christmas campaign... or leave it empty.",
+      "startLabel": "Start from",
+      "range": "{from} – {to}",
+      "perWeek": "{n}× a week",
+      "taste": "taster",
+      "freeInSubscription": "Free — included in your subscription",
+      "estimate": "Estimate: ~{count, plural, one {# credit} other {# credits}}",
+      "preparingContext": "Preparing brand context…",
+      "planning": "AI is planning…",
+      "submit": "Create plan",
+      "deepPlanning": "Deep planning: strategist → concepts → independent review → revision (~1–2 min)"
+    },
+    "preview": {
+      "title": "Content plan",
+      "subtitle": "The AI proposes a strategic mix of {count, plural, one {# post} other {# posts}}. Edit and approve.",
+      "arc": "Campaign arc",
+      "pillarTitle": "{pillar}: {count, plural, one {# post} other {# posts}}",
+      "autoTimes": "Times are spread automatically. Every post can be edited below.",
+      "twicePerDay": "14 (2×/day)",
+      "week": "Week {n}",
+      "toggleFormat": "Switch format: 1 image ⇄ carousel",
+      "feedPatternTitle": "Feed pattern: {mode} — position in the profile grid",
+      "fromIdeaBank": "From the idea bank",
+      "categoryTitle": "Pillar category — the angle the post keeps",
+      "factFlagTitle": "We have nothing to back this claim. Edit the hook, or add the fact in Settings → Verified facts. If you approve it as is, the post gets a warning.",
+      "factFlag": "No factual backing: {claim}",
+      "verified": "Verified: {sources}",
+      "newItemHook": "New post — click 🔄 to generate a concept",
+      "removeProduct": "Remove product",
+      "assignProduct": "Assign a product",
+      "searchProduct": "Search products...",
+      "noProducts": "No products found",
+      "editTopic": "Edit topic",
+      "regenerate": "Another concept",
+      "remove": "Remove",
+      "addPost": "Add post",
+      "freeInPlan": "Free — included in your plan",
+      "backToBrief": "← Back to brief",
+      "discard": "Discard plan",
+      "discardConfirm": "Discard the generated plan? This cannot be undone.",
+      "approve": "✅ Approve & generate ({count})"
+    },
+    "progress": {
+      "batch": "Generating post {current} of {total}...",
+      "creative": "Creative process in progress...",
+      "agentLog": "Agent conversation",
+      "done": "{n} done",
+      "skipped": "{n} skipped",
+      "serverSide": "The campaign runs on the server — feel free to close this window, generation continues.",
+      "reconnecting": "Reconnecting to the server… generation keeps running in the background.",
+      "quality": "⚡ We are working on it at the <b>highest possible quality</b>. Sometimes it takes a while — <b>quality comes before speed</b>.",
+      "stages": {
+        "architect": "Architect is analysing the brand identity...",
+        "copywriter": "Copywriter is crafting punchy text...",
+        "visualPrompt": "Generating the visual prompt for the AI...",
+        "image": "Generating the image...",
+        "polish": "Final polish and optimisation..."
+      }
+    },
+    "roles": {
+      "strategist": "Strategist",
+      "copywriter": "Copywriter",
+      "critic": "Critic",
+      "chief_editor": "Editor-in-chief"
+    },
+    "editorialActions": {
+      "approve": "approved",
+      "revise": "sent back for revision",
+      "pushback": "pushed back",
+      "reject": "rejected",
+      "fix": "fixed",
+      "propose": "proposed"
+    },
+    "result": {
+      "title": "Draft presentation",
+      "failed": "Something went wrong",
+      "retry": "Try again",
+      "storyFrame": "Frame {n}",
+      "slide": "Slide {n}",
+      "generatedAlt": "Generated content",
+      "finalCopy": "Final copy",
+      "copied": "Copied",
+      "copy": "Copy text",
+      "qualityCheck": "Quality check",
+      "approved": "Approved",
+      "finished": "Finished",
+      "scheduleTitle": "Schedule on Instagram",
+      "scheduled": "✅ Scheduled for {when} — you will see it in the Planner",
+      "scheduling": "Scheduling…",
+      "schedule": "Schedule",
+      "openPosts": "Open in Posts",
+      "generateNext": "Generate another"
+    },
+    "batch": {
+      "title": "Campaign launched",
+      "success": "Succeeded",
+      "failures": "Failed",
+      "retryFailed": "Retry the failed ones",
+      "createNext": "Create another"
+    },
+    "empty": {
+      "title": "Waiting for a brief",
+      "body": "Go back to the Brief step and start generating.",
+      "back": "Back to Brief"
+    }
+  }
 }

@@ -123,7 +123,9 @@ check(
 )
 check(
     "Nastavení ukáže chybu sesouhlasení, ne „zatím nevidím“",
-    /res\.error \|\| "Připojení zatím nevidím/.test(read("app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx")),
+    // Text žije v messages (next-intl); kód nese klíč — hlídá se pořadí (chyba má přednost) i český zdroj.
+    /res\.error \|\| t\("connection\.flash\.pendingWindow"\)/.test(read("app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx"))
+        && /^Připojení zatím nevidím/.test(JSON.parse(read("messages/cs/settings.json")).settings.connection.flash.pendingWindow),
 )
 
 // ── 4. Denní kontrola jen čte ───────────────────────────────────────────────

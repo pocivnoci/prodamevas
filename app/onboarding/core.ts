@@ -17,6 +17,7 @@
  * Typy jsou v `./types.ts`, aby mezi tímhle souborem a `actions.ts` nevznikl cyklus.
  */
 
+import { isUiLocale, DEFAULT_UI_LOCALE, type UiLocale } from '@/lib/i18n/locales'
 import supabaseAdmin from '@/supabase/admin'
 import { generateText } from '@/instagram/gemini-client'
 import { getModel } from '@/instagram/models'
@@ -459,7 +460,11 @@ const FALLBACK_QUESTIONS: OnboardingQuestion[] = [
  * Nikdy nehází: každé selhání (model, JSON, nesmyslný tvar) končí pevným
  * dotazníkem. Ptát se hůř je pořád nekonečně lepší než se nezeptat vůbec.
  */
-export async function generateQuestionsCore(analysis: WebsiteAnalysis): Promise<OnboardingQuestion[]> {
+/** Otázky dotazníku jdou v jazyce UI toho, kdo odpovídá — je to rozhovor s UŽIVATELEM, ne obsah značky. */
+const QUESTION_LANGUAGE: Record<UiLocale, string> = { cs: "česky, tykáním", en: "in English, addressing the owner directly and informally (\"you\")" } // rozhovor s UŽIVATELEM
+
+export async function generateQuestionsCore(analysis: WebsiteAnalysis, uiLocale?: string): Promise<OnboardingQuestion[]> {
+    const questionLanguage = QUESTION_LANGUAGE[isUiLocale(uiLocale) ? uiLocale : DEFAULT_UI_LOCALE]
     const prompt = `Jsi stratég značky. Pro TUHLE konkrétní firmu napiš 5 doplňujících otázek, které se zeptají na to, co z webu nejde vyčíst, a co potřebuješ vědět, než jí začneš psát Instagram.
 
 FIRMA: ${analysis.companyName}
@@ -474,7 +479,7 @@ ${analysis.igInsights ? `UŽ POSTUJE NA IG: engagement ${(analysis.igInsights.av
 - Ptej se KONKRÉTNĚ na tuhle firmu. „Jaký je tvůj cíl?" umí položit kdokoli — zeptej se tak, aby bylo poznat, že jsi četl, co dělají.
 - Každá otázka musí měnit, jak budou vypadat příspěvky. Na co neumíš navázat obsah, se neptej.
 - Ptej se na to, co z webu NEJDE zjistit: sezónnost, tabu, kdo doopravdy nakupuje, čím se liší od konkurence, co v minulosti nefungovalo.
-- Přesně 5 otázek, česky, tykáním. (Otázky jsou rozhovor s UŽIVATELEM, ne obsah značky — jdou v jazyce dashboardu, ne v jazyce značky.)
+- Přesně 5 otázek, ${questionLanguage} — otázky, možnosti i placeholdery. (Rozhovor s UŽIVATELEM, ne obsah značky: jazyk dashboardu, ne jazyk značky.)
 
 ## CO MUSÍ ZAZNÍT
 Každá odpověď sytí konkrétní pole konfigurace, takže se musí ptát právě jedna otázka na každou z těchto os. Formulaci si ale vymysli pro TUHLE firmu — osa říká, NA CO se ptáš, ne JAK.

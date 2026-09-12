@@ -1,3 +1,82 @@
 {
-  "plan": {}
+  "plan": {
+    "tab": {
+      "calendar": "Calendar",
+      "feed": "Feed preview"
+    },
+    "calendar": {
+      "title": "Content Calendar",
+      "prevWeek": "Previous week",
+      "nextWeek": "Next week",
+      "today": "Today",
+      "planWeek": "Plan the week",
+      "confirming": "Confirming…",
+      "confirmPlan": "Confirm plan ({count})",
+      "confirmFailed": "Confirmation failed",
+      "confirmedCount": "Scheduled: {count}",
+      "shiftedCount": "{count} past due moved forward",
+      "skippedCount": "{count} skipped",
+      "moveFailed": "Move failed",
+      "summary": {
+        "pending": "{count} awaiting confirmation",
+        "scheduled": "{count} scheduled",
+        "overdue": "{count} past due",
+        "failed": "{count} failed"
+      },
+      "free": "Free",
+      "status": {
+        "draft": "Draft",
+        "ready": "Awaiting confirmation",
+        "scheduled": "Scheduled",
+        "posting": "Publishing",
+        "posted": "Published",
+        "failed": "Failed"
+      },
+      "move": {
+        "label": "Move the date",
+        "button": "Move"
+      },
+      "approve": "Approve",
+      "info": {
+        "plan": "<strong>Plan the week:</strong> AI analyses the weather, holidays and brand performance, then strategically schedules posts for the whole week.",
+        "weather": "<strong>Weather:</strong> When a forecast is available, the plan takes it into account. Otherwise it plans by the calendar, holidays and brand performance.",
+        "workflow": "<strong>Workflow:</strong> Plan → review drafts → approve → publish."
+      }
+    },
+    "feed": {
+      "empty": {
+        "title": "No posts with images",
+        "body": "Generate content in the Generate section"
+      },
+      "stats": {
+        "posts": "posts",
+        "followers": "followers",
+        "posted": "published",
+        "scheduled": "scheduled",
+        "drafts": "drafts"
+      },
+      "pattern": {
+        "label": "Feed pattern",
+        "gridAligned": "Keeps its shape best when you publish in whole rows",
+        "nextPost": "Next post in line: {mode}",
+        "names": {
+          "none": "No pattern",
+          "checkerboard": "Checkerboard",
+          "rows": "Rows",
+          "columns": "Columns",
+          "diagonal": "Diagonal"
+        }
+      },
+      "visualMode": {
+        "photo": "Photo",
+        "typography": "Typo",
+        "graphic": "Graphic"
+      },
+      "legend": {
+        "posted": "Published",
+        "scheduled": "Scheduled",
+        "draft": "Draft"
+      }
+    }
+  }
 }

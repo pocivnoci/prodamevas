@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
+import { useTranslations } from "next-intl"
 import { Maximize2, Pause, Play, RotateCcw, Volume2, VolumeX } from "lucide-react"
 
 /**
@@ -31,6 +32,7 @@ export function ReelPlayer({ videoUrl, coverUrl, controls = false, hoverPlay = f
     className?: string
 }) {
     const ref = useRef<HTMLVideoElement>(null)
+    const t = useTranslations("posts")
     const [playing, setPlaying] = useState(false)
     const [ended, setEnded] = useState(false)
     const [muted, setMuted] = useState(!controls)
@@ -137,7 +139,7 @@ export function ReelPlayer({ videoUrl, coverUrl, controls = false, hoverPlay = f
                 <button
                     type="button"
                     onClick={toggle}
-                    aria-label={ended ? "Přehrát znovu" : "Přehrát"}
+                    aria-label={ended ? t("reel.replay") : t("reel.play")}
                     className="absolute inset-0 flex items-center justify-center"
                 >
                     <span className="w-16 h-16 rounded-full bg-black/55 border border-white/20 backdrop-blur-sm flex items-center justify-center text-white">
@@ -150,8 +152,8 @@ export function ReelPlayer({ videoUrl, coverUrl, controls = false, hoverPlay = f
             <button
                 type="button"
                 onClick={toggleMute}
-                aria-label={muted ? "Zapnout zvuk" : "Vypnout zvuk"}
-                title={muted ? "Zapnout zvuk" : "Vypnout zvuk"}
+                aria-label={muted ? t("reel.unmute") : t("reel.mute")}
+                title={muted ? t("reel.unmute") : t("reel.mute")}
                 className="absolute top-3 right-3 w-9 h-9 rounded-full bg-black/55 border border-white/15 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-black/75 transition-colors"
             >
                 {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
@@ -159,13 +161,13 @@ export function ReelPlayer({ videoUrl, coverUrl, controls = false, hoverPlay = f
 
             {/* Spodní lišta: přehrát, čas, posuvník, celá obrazovka. */}
             <div className="absolute inset-x-0 bottom-0 px-3 pb-2.5 pt-10 bg-gradient-to-t from-black/75 via-black/25 to-transparent flex items-center gap-2.5">
-                <button type="button" onClick={toggle} aria-label={playing ? "Pozastavit" : "Přehrát"} className="w-8 h-8 flex items-center justify-center text-white/90 hover:text-white">
+                <button type="button" onClick={toggle} aria-label={playing ? t("reel.pause") : t("reel.play")} className="w-8 h-8 flex items-center justify-center text-white/90 hover:text-white">
                     {playing ? <Pause className="w-4 h-4" fill="currentColor" /> : <Play className="w-4 h-4" fill="currentColor" />}
                 </button>
                 <span className="text-[10px] font-mono text-white/70 tabular-nums whitespace-nowrap">{fmt(current)} / {fmt(duration)}</span>
                 <div
                     role="slider"
-                    aria-label="Pozice ve videu"
+                    aria-label={t("reel.position")}
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={Math.round(pct)}
@@ -177,7 +179,7 @@ export function ReelPlayer({ videoUrl, coverUrl, controls = false, hoverPlay = f
                         <div className="h-full rounded-full bg-white" style={{ width: `${pct}%` }} />
                     </div>
                 </div>
-                <button type="button" onClick={fullscreen} aria-label="Celá obrazovka" title="Celá obrazovka" className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white">
+                <button type="button" onClick={fullscreen} aria-label={t("reel.fullscreen")} title={t("reel.fullscreen")} className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white">
                     <Maximize2 className="w-4 h-4" />
                 </button>
             </div>

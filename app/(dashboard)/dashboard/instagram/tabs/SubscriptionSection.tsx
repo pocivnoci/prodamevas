@@ -7,25 +7,23 @@ import { activateFreePlan } from "@/app/actions/settings-actions"
 import { hasBillingDetails, cancelSubscription, resumeSubscription, billingPortalUrl } from "@/app/actions/billing-actions"
 import { giftPlan } from "@/app/actions/admin-actions"
 import { BillingModal } from "./BillingSection"
-import { Hint, HINTS } from "./Hint"
+import { Hint, useHints } from "./Hint"
 import { CreditPacks } from "@/app/(dashboard)/CreditPacks"
-import { LEGAL, vatNotice } from "@/lib/legal"
+import { LEGAL, VAT_RATE_PCT, vatNotice } from "@/lib/legal"
 
-/** U plátce DPH nesmí cena v ceníku vypadat jako konečná. U neplátce je prázdné. */
-const vatSuffix = LEGAL.vatStatus === "payer" ? " bez DPH" : ""
+/** U plátce DPH nesmí cena v ceníku vypadat jako konečná. U neplátce se dodatek nevykreslí. */
+const vatPayer = LEGAL.vatStatus === "payer"
 import { CheckCircle2, Clock, Gift } from "lucide-react"
 import { creditExample, MEDIA_CREDITS } from "@/lib/credits"
-import { countLabel, CREDITS, MONTHS, POSTS } from "@/lib/plural"
 import { useEffect, useState } from "react"
+import { useFormatter, useLocale, useTranslations } from "next-intl"
 import {
     BILLING_TERMS,
     DEFAULT_TERM_MONTHS,
     chargeableHaleru,
     formatCzk,
     formatCzkAmount,
-    getTerm,
     monthlyEquivalent,
-    termLabel,
     termPrice,
     termSavings,
     planPriority,
@@ -51,12 +49,13 @@ interface PlanRow {
     }
 }
 
-/** Marketing one-liners per tier */
-const PLAN_TAGLINES: Record<string, string> = {
-    chrlit_start: "Nakopni profil",
-    chrlit_rust: "Rosteme spolu",
-    chrlit_dominance: "Ovládni svůj trh",
-    chrlit_imperium: "Postav impérium",
+/** Texty tabu (`billing.subscription.*` v messages) — předává se pomocným funkcím mimo komponentu. */
+type SubscriptionT = ReturnType<typeof useTranslations<"billing.subscription">>
+
+/** Datum bez času v jazyce UI („12. 9. 2026"); next-intl nese locale i pražskou zónu. */
+function dateOnly(format: ReturnType<typeof useFormatter>, iso: string): string {
+    const d = new Date(iso)
+    return Number.isNaN(d.getTime()) ? "" : format.dateTime(d, { dateStyle: "medium" })
 }
 
 /** `pending` = tarif to obsahuje, ale zatím to nejde použít (dnes jen reels). */
@@ -65,12 +64,12 @@ interface PlanFeatureItem {
     pending?: boolean
 }
 
-function planFeatureList(p: PlanRow, reelsEnabled: boolean): PlanFeatureItem[] {
+function planFeatureList(p: PlanRow, reelsEnabled: boolean, t: SubscriptionT): PlanFeatureItem[] {
     const f = p.features
     const hasReels = !f.allowed_media || f.allowed_media.includes("reel")
 
     const items: PlanFeatureItem[] = [
-        { text: `${countLabel(f.credits_per_month, CREDITS)} měsíčně` },
+        { text: t("plans.features.credits", { count: f.credits_per_month }) },
         // Váhy se sem nepíšou číslem — do teď tu stálo „obrázek 1 kredit · carousel 3"
         // ručně, zatímco skutečné váhy žijí v MEDIA_CREDITS. Dvě pravdy o ceně.
         { text: creditExample(f.credits_per_month, { reels: hasReels && reelsEnabled }) },
@@ -79,27 +78,27 @@ function planFeatureList(p: PlanRow, reelsEnabled: boolean): PlanFeatureItem[] {
     // Reels se nezamlčují, jen se přiznají: vypínač REELS_ENABLED je potichu
     // překlápí na carousel, takže je nabídnout jako hotovou funkci by byl mis-sale.
     // Obě velikosti reelu; čísla jdou z MEDIA_CREDITS, nikdy ručně (aserce 13.11).
-    if (hasReels) items.push({ text: `Reels (AI video) — krátký ${countLabel(MEDIA_CREDITS.reel, CREDITS)}, dlouhý ${countLabel(MEDIA_CREDITS.reel_long, CREDITS)}`, pending: !reelsEnabled })
+    if (hasReels) items.push({ text: t("plans.features.reels", { short: MEDIA_CREDITS.reel, long: MEDIA_CREDITS.reel_long }), pending: !reelsEnabled })
 
     // Ne „A/B varianty": netestuje se nic a zákazník to četl jako dva příspěvky
     // v ceně jednoho. `generatePostVariant` účtuje každou verzi jako plný
     // příspěvek podle média, takže cena musí být v odrážce, ne až v košíku.
-    if (f.allowed_actions.includes("post_variant")) items.push({ text: "Dvě verze příspěvku na výběr — účtují se jako dva příspěvky" })
-    if (f.allowed_actions.includes("idea_generate")) items.push({ text: "AI nápady na obsah" })
-    if (f.growth_tracking) items.push({ text: "Růstový dashboard — sledování followerů" })
-    if (f.allowed_actions.some(a => a.startsWith("product_"))) items.push({ text: "Product studio — vizualizace & mockupy" })
-    items.push({ text: f.analytics === "full" ? "Plná analytika výkonu" : "Základní analytika" })
+    if (f.allowed_actions.includes("post_variant")) items.push({ text: t("plans.features.variants") })
+    if (f.allowed_actions.includes("idea_generate")) items.push({ text: t("plans.features.ideas") })
+    if (f.growth_tracking) items.push({ text: t("plans.features.growth") })
+    if (f.allowed_actions.some(a => a.startsWith("product_"))) items.push({ text: t("plans.features.productStudio") })
+    items.push({ text: f.analytics === "full" ? t("plans.features.analyticsFull") : t("plans.features.analyticsBasic") })
 
     // Dva stupně, ne jeden příznak — jinak by Impérium slibovalo „nejvyšší"
     // prioritu a dostalo přesně tu samou frontu jako Dominance.
     const prio = planPriority(f)
-    if (prio >= PRIORITY.highest) items.push({ text: "Nejvyšší priorita ve frontě" })
-    else if (prio > PRIORITY.none) items.push({ text: "Prioritní generování" })
+    if (prio >= PRIORITY.highest) items.push({ text: t("plans.features.priorityHighest") })
+    else if (prio > PRIORITY.none) items.push({ text: t("plans.features.priorityHigh") })
 
     // Lidská část služby se čte z tarifu, ne z kopie — stejně jako priorita.
     if (f.human_support) {
-        items.push({ text: "Obsah kontroluje marketingový specialista" })
-        items.push({ text: "Přednostní podpora — e-mail i telefon" })
+        items.push({ text: t("plans.features.humanReview") })
+        items.push({ text: t("plans.features.humanSupport") })
     }
 
     return items
@@ -107,6 +106,10 @@ function planFeatureList(p: PlanRow, reelsEnabled: boolean): PlanFeatureItem[] {
 
 export function SubscriptionSection({ projectId }: { projectId: string }) {
     const { subscription, subscriptionLoading, refreshSubscription } = useStudio()
+    const t = useTranslations("billing.subscription")
+    const hints = useHints()
+    const format = useFormatter()
+    const locale = useLocale()
     const [plans, setPlans] = useState<PlanRow[]>([])
     const [upgradingPlanId, setUpgradingPlanId] = useState<string | null>(null)
     /** Klíč vestavěné pokladny. Neprázdný = pokladna je otevřená nad studiem. */
@@ -157,7 +160,7 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                 if (res.success) {
                     refreshSubscription()
                 } else {
-                    alert(res.error || "Aktivace plánu selhala.")
+                    alert(res.error || t("errors.activate"))
                 }
                 return
             }
@@ -173,7 +176,7 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
 
             await startPayment(planId)
         } catch (err) {
-            alert("Nepodařilo se vytvořit platbu.")
+            alert(t("errors.createPayment"))
         } finally {
             setUpgradingPlanId(null)
         }
@@ -202,7 +205,7 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                 ;(checkout ?? openCheckoutWindow()).go(data.redirectUrl)
             } else {
                 checkout?.abort()
-                alert(data.error || "Platební bránu se nepodařilo otevřít.")
+                alert(data.error || t("errors.openGateway"))
             }
         } catch (err) {
             checkout?.abort()
@@ -219,7 +222,7 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
         try {
             await startPayment(planId)
         } catch {
-            alert("Nepodařilo se vytvořit platbu.")
+            alert(t("errors.createPayment"))
         } finally {
             setUpgradingPlanId(null)
         }
@@ -255,9 +258,9 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
 
             <div className="border-b border-white/10 pb-2">
                 <h3 className="text-sm font-black uppercase tracking-widest text-white/70">
-                    Předplatné & Kredity
+                    {t("title")}
                 </h3>
-                <div className="mt-2"><Hint label="jak fungují kredity">{HINTS.credits}</Hint></div>
+                <div className="mt-2"><Hint label={t("hints.credits")}>{hints.credits}</Hint></div>
             </div>
 
             {/* Current plan status */}
@@ -265,7 +268,7 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                 <CurrentPlanCard sub={subscription} onRefresh={refreshSubscription} projectId={projectId} />
             ) : (
                 <div className="bg-aisummit-cinnabar/10 border border-aisummit-cinnabar/20 rounded-sm p-4">
-                    <p className="text-white/60 text-xs">Nemáte aktivní předplatné.</p>
+                    <p className="text-white/60 text-xs">{t("noSubscription")}</p>
                 </div>
             )}
 
@@ -276,39 +279,41 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
             {plans.length > 0 && !lockedTerm && (
                 <div className="flex justify-center">
                     <div className="grid grid-cols-2 sm:flex bg-[#080808] p-1 rounded-sm border border-white/10 gap-1">
-                        {BILLING_TERMS.map(t => {
-                            const active = t.months === term
+                        {BILLING_TERMS.map(option => {
+                            const active = option.months === term
                             return (
                                 <button
-                                    key={t.months}
-                                    onClick={() => setTerm(t.months)}
+                                    key={option.months}
+                                    onClick={() => setTerm(option.months)}
                                     className={`px-3 sm:px-4 py-2 text-[9px] font-bold uppercase tracking-widest rounded-sm transition-all flex items-center justify-center gap-1.5 ${
                                         active
                                             ? "bg-aisummit-cinnabar/20 text-aisummit-cinnabar border border-aisummit-cinnabar/30"
                                             : "text-white/40 hover:text-white border border-transparent"
                                     }`}
                                 >
-                                    {t.label}
-                                    {t.badge && (
+                                    {t(`term.${option.months}.label`)}
+                                    {option.badge && (
                                         <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold ${
                                             active ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-white/30"
                                         }`}>
-                                            {t.badge}
+                                            {t(`term.${option.months}.badge`)}
                                         </span>
                                     )}
                                 </button>
                             )
                         })}
                     </div>
-                    <div className="mt-3 flex justify-center"><Hint label="co znamená delší období">{HINTS.term}</Hint></div>
+                    <div className="mt-3 flex justify-center"><Hint label={t("hints.term")}>{hints.term}</Hint></div>
                 </div>
             )}
 
             {lockedTerm && (
                 <p className="text-center text-[9px] text-white/30 font-bold uppercase tracking-widest leading-relaxed">
-                    Máte zaplaceno {termLabel((subscription?.termMonths ?? 1) as TermMonths)}
-                    {subscription?.currentPeriodEnd ? ` do ${new Date(subscription.currentPeriodEnd).toLocaleDateString("cs-CZ")}` : ""}.
-                    <br />Chcete vyšší tarif? Napište nám — zbývající období převedeme.
+                    {t("locked.paid", {
+                        term: t(`term.${(subscription?.termMonths ?? 1) as TermMonths}.short`),
+                        until: subscription?.currentPeriodEnd ? dateOnly(format, subscription.currentPeriodEnd) : "none",
+                    })}
+                    <br />{t("locked.contact")}
                 </p>
             )}
 
@@ -348,43 +353,45 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                                     <h4 className="text-xs font-black uppercase tracking-widest text-white">{plan.name}</h4>
                                     {highlight && !isYours && (
                                         <span className="text-[8px] bg-aisummit-cinnabar/20 text-aisummit-cinnabar px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
-                                            Doporučeno
+                                            {t("plans.recommended")}
                                         </span>
                                     )}
                                     {isYours && (
                                         <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
-                                            Váš plán
+                                            {t("plans.yours")}
                                         </span>
                                     )}
                                 </div>
+                                {/* Marketingový slogan tarifu žije v messages (`plans.taglines.<id>`);
+                                    tarif bez sloganu ukáže popis z DB. */}
                                 <p className="text-[9px] text-white/30 font-bold uppercase tracking-widest mb-3">
-                                    {PLAN_TAGLINES[plan.id] || plan.description || ""}
+                                    {t.has(`plans.taglines.${plan.id}`) ? t(`plans.taglines.${plan.id}`) : plan.description || ""}
                                 </p>
                                 {/* `price_czk` je MĚSÍČNÍ cena; cenu období z ní počítá
                                     sdílené pravidlo, ať ceník a strh nikdy nemluví jinak. */}
                                 <div className="mb-1">
                                     <span className="text-3xl font-black text-white">{formatCzkAmount(monthlyEquivalent(plan.price_czk, term))}</span>
-                                    <span className="text-white/40 text-[10px] font-bold ml-1">Kč/měs{vatSuffix}</span>
+                                    <span className="text-white/40 text-[10px] font-bold ml-1">{t("plans.perMonth", { vat: LEGAL.vatStatus })}</span>
                                 </div>
                                 <p className="text-[9px] text-white/30 font-bold mb-1">
                                     {term === 1
-                                        ? getTerm(term).note
-                                        : `${formatCzk(termPrice(plan.price_czk, term))} jednorázově ${termLabel(term)}`}
+                                        ? t(`term.${term}.note`)
+                                        : t("plans.oneOff", { amount: formatCzk(termPrice(plan.price_czk, term)), term: t(`term.${term}.short`) })}
                                 </p>
                                 {/* Kolik reálně odejde z karty. U plátce DPH musí být
                                     hrubá částka vidět TADY, u tlačítka — ne až na dokladu. */}
-                                {vatSuffix && (
+                                {vatPayer && (
                                     <p className="text-[9px] text-white/25 font-bold mb-1">
-                                        {formatCzk(chargeableHaleru(termPrice(plan.price_czk, term)))} s DPH {term === 1 ? "měsíčně" : `za ${termLabel(term)}`}
+                                        {t("plans.gross", { amount: formatCzk(chargeableHaleru(termPrice(plan.price_czk, term))), months: term, term: t(`term.${term}.short`) })}
                                     </p>
                                 )}
                                 <p className="text-[9px] font-bold mb-3 h-3">
                                     {termSavings(plan.price_czk, term) > 0 && (
-                                        <span className="text-emerald-400">Ušetříte {formatCzk(termSavings(plan.price_czk, term))}</span>
+                                        <span className="text-emerald-400">{t("plans.savings", { amount: formatCzk(termSavings(plan.price_czk, term)) })}</span>
                                     )}
                                 </p>
                                 <ul className="space-y-1.5 mb-4 flex-1">
-                                    {planFeatureList(plan, subscription?.reelsEnabled === true).map((f, i) => (
+                                    {planFeatureList(plan, subscription?.reelsEnabled === true, t).map((f, i) => (
                                         <li
                                             key={i}
                                             className={`flex items-center gap-1.5 text-[10px] ${f.pending ? "text-white/25" : "text-white/50"}`}
@@ -397,7 +404,7 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                                             {f.text}
                                             {f.pending && (
                                                 <span className="text-[8px] uppercase tracking-widest font-bold text-white/35 border border-white/10 rounded-sm px-1 py-0.5 shrink-0">
-                                                    připravujeme
+                                                    {t("plans.pending")}
                                                 </span>
                                             )}
                                         </li>
@@ -413,18 +420,18 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
                                     } ${upgradingPlanId === plan.id ? "opacity-50" : ""}`}
                                 >
                                     {isCurrent
-                                        ? "Aktivní"
+                                        ? t("plans.button.active")
                                         : blockedByTerm
-                                            ? "Napište nám"
+                                            ? t("plans.button.contact")
                                             : upgradingPlanId === plan.id
-                                                ? "Zpracování..."
-                                                : payForGift ? `Zaplatit ${plan.name}` : `Přejít na ${plan.name}`}
+                                                ? t("plans.button.processing")
+                                                : payForGift ? t("plans.button.payGift", { name: plan.name }) : t("plans.button.switch", { name: plan.name })}
                                 </button>
                                 {(isTierChange || payForGift) && !blockedByTerm && (
                                     <p className="mt-2 text-[8px] leading-relaxed text-white/25 font-bold uppercase tracking-widest">
                                         {payForGift
-                                            ? "Placené období začne ihned — zbytek tarifu zdarma se nepřevádí"
-                                            : "Nový plán začne platit ihned — nevyčerpaný zbytek stávajícího období se nepřevádí"}
+                                            ? t("plans.note.payGift")
+                                            : t("plans.note.tierChange")}
                                     </p>
                                 )}
                             </div>
@@ -434,8 +441,11 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
             )}
             {/* Věta o DPH patří pod ceník, ne jen do obchodních podmínek: cena bez
                 upřesnění vypadá u plátce jako konečná a zákazník pak na výpisu
-                najde o pětinu víc. */}
-            <p className="text-center mt-3 text-[9px] text-white/20 font-bold uppercase tracking-widest">{vatNotice()}</p>
+                najde o pětinu víc. Česky ji dává lib/legal.ts (jediný zdroj i pro
+                e-maily a podmínky); v jiném jazyce UI překlad podle režimu plátce. */}
+            <p className="text-center mt-3 text-[9px] text-white/20 font-bold uppercase tracking-widest">
+                {locale === "cs" ? vatNotice() : t(`vatNotice.${LEGAL.vatStatus}`, { rate: VAT_RATE_PCT })}
+            </p>
         </div>
     )
 }
@@ -448,6 +458,7 @@ export function SubscriptionSection({ projectId }: { projectId: string }) {
  * načítá dopředu a při prázdné odpovědi se nevykreslí nic.
  */
 function ManageBillingLink({ projectId }: { projectId: string }) {
+    const t = useTranslations("billing.subscription")
     const [url, setUrl] = useState<string | null>(null)
 
     useEffect(() => {
@@ -464,7 +475,7 @@ function ManageBillingLink({ projectId }: { projectId: string }) {
             href={url}
             className="text-[9px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
         >
-            Platební karta a doklady →
+            {t("portal")}
         </a>
     )
 }
@@ -484,6 +495,8 @@ function GiftPlanControl({ projectId, plans, subscription, onDone }: {
     onDone: () => void
 }) {
     const { isAdmin } = useStudio()
+    const t = useTranslations("billing.subscription")
+    const format = useFormatter()
     const [planId, setPlanId] = useState<string | null>(null)
     const [term, setTerm] = useState<TermMonths>(1)
     const [confirming, setConfirming] = useState(false)
@@ -499,7 +512,7 @@ function GiftPlanControl({ projectId, plans, subscription, onDone }: {
 
     const live = subscription?.status === "active"
     const until = subscription?.currentPeriodEnd
-        ? new Date(String(subscription.currentPeriodEnd)).toLocaleDateString("cs")
+        ? dateOnly(format, String(subscription.currentPeriodEnd))
         : null
 
     async function grant(plan: PlanRow) {
@@ -507,13 +520,13 @@ function GiftPlanControl({ projectId, plans, subscription, onDone }: {
         setResult(null)
         try {
             const res = await giftPlan(projectId, plan.id, term)
-            setResult({ ok: res.success, text: res.success ? (res.message || "Hotovo.") : (res.error || "Nepodařilo se to.") })
+            setResult({ ok: res.success, text: res.success ? (res.message || t("gift.done")) : (res.error || t("gift.failed")) })
             if (res.success) {
                 setConfirming(false)
                 onDone()
             }
         } catch {
-            setResult({ ok: false, text: "Nepodařilo se to. Zkus to prosím znovu." })
+            setResult({ ok: false, text: t("gift.failedRetry") })
         } finally {
             setBusy(false)
         }
@@ -525,43 +538,43 @@ function GiftPlanControl({ projectId, plans, subscription, onDone }: {
         <div className="border border-dashed border-white/10 rounded-sm p-4 space-y-3">
             <div className="flex items-center gap-2">
                 <Gift className="w-3.5 h-3.5 text-white/30 shrink-0" />
-                <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest">Tarif zdarma · jen správce</p>
+                <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest">{t("gift.title")}</p>
             </div>
 
             {live ? (
                 <p className="text-[10px] text-white/40 leading-relaxed">
                     {subscription?.provider === "gift"
-                        ? `Tarif zdarma běží${until ? ` do ${until}` : ""}. Další jde dát, až tenhle skončí.`
-                        : `Klient má zaplacený tarif${until ? ` do ${until}` : ""} — zdarma jde dát až po jeho skončení.`}
+                        ? t("gift.runningGift", { until: until ?? "none" })
+                        : t("gift.runningPaid", { until: until ?? "none" })}
                 </p>
             ) : !confirming ? (
                 <div className="space-y-3">
                     <p className="text-[10px] text-white/40 leading-relaxed">
-                        Placený tarif bez platby, na vyzkoušení. Na konci sám skončí — nic se nestrhne a klient si vybere, jestli pokračovat.
+                        {t("gift.intro")}
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
-                        <select value={selected.id} onChange={e => setPlanId(e.target.value)} className={selectClass} aria-label="Tarif">
+                        <select value={selected.id} onChange={e => setPlanId(e.target.value)} className={selectClass} aria-label={t("gift.planAria")}>
                             {paidPlans.map(p => (
-                                <option key={p.id} value={p.id}>{p.name} · {countLabel(p.features.credits_per_month, CREDITS)}/měs</option>
+                                <option key={p.id} value={p.id}>{t("gift.planOption", { name: p.name, count: p.features.credits_per_month })}</option>
                             ))}
                         </select>
-                        <select value={term} onChange={e => setTerm(Number(e.target.value) as TermMonths)} className={selectClass} aria-label="Období">
-                            {BILLING_TERMS.map(t => (
-                                <option key={t.months} value={t.months}>{countLabel(t.months, MONTHS)}</option>
+                        <select value={term} onChange={e => setTerm(Number(e.target.value) as TermMonths)} className={selectClass} aria-label={t("gift.termAria")}>
+                            {BILLING_TERMS.map(option => (
+                                <option key={option.months} value={option.months}>{t("gift.months", { count: option.months })}</option>
                             ))}
                         </select>
                         <button
                             onClick={() => { setResult(null); setConfirming(true) }}
                             className="px-4 py-2 text-[9px] font-bold uppercase tracking-widest rounded-sm bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all cursor-pointer"
                         >
-                            Dát zdarma
+                            {t("gift.give")}
                         </button>
                     </div>
                 </div>
             ) : (
                 <div className="flex flex-wrap items-center gap-3">
                     <p className="text-[10px] text-white/60 font-bold">
-                        {selected.name} zdarma na {countLabel(term, MONTHS)} — opravdu?
+                        {t("gift.confirm", { name: selected.name, count: term })}
                     </p>
                     <div className="ml-auto flex items-center gap-3">
                         <button
@@ -569,14 +582,14 @@ function GiftPlanControl({ projectId, plans, subscription, onDone }: {
                             disabled={busy}
                             className="text-[9px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 disabled:opacity-40 transition-colors"
                         >
-                            Zpět
+                            {t("gift.back")}
                         </button>
                         <button
                             onClick={() => grant(selected)}
                             disabled={busy}
                             className="text-[9px] font-bold uppercase tracking-widest text-emerald-400 hover:text-emerald-300 disabled:opacity-40 transition-colors"
                         >
-                            {busy ? "Dávám…" : "Ano, dát zdarma"}
+                            {busy ? t("gift.giving") : t("gift.yes")}
                         </button>
                     </div>
                 </div>
@@ -590,6 +603,8 @@ function GiftPlanControl({ projectId, plans, subscription, onDone }: {
 }
 
 function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState; onRefresh: () => void; projectId: string }) {
+    const t = useTranslations("billing.subscription")
+    const format = useFormatter()
     const isTrial = sub.status === "trialing"
     const isGift = sub.provider === "gift"
     // The v2 trial has NO monthly credits (credits_per_month=0) — its real quota is
@@ -625,22 +640,22 @@ function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState
                     <span className="text-lg font-black text-white">{String(sub.planName ?? "")}</span>
                     {isTrial && (
                         <span className="text-[9px] bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full font-bold uppercase">
-                            {trialDays !== null ? `Trial · ${trialDays}d zbývá` : "Trial · 3 příspěvky zdarma"}
+                            {trialDays !== null ? t("current.trialDays", { days: trialDays }) : t("current.trialPosts")}
                         </span>
                     )}
                     {sub.status === "active" && (
                         <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full font-bold uppercase">
-                            {isGift ? "Zdarma" : "Aktivní"}
+                            {isGift ? t("current.gift") : t("current.active")}
                         </span>
                     )}
                     {sub.status === "expired" && (
                         <span className="text-[9px] bg-red-500/20 text-red-400 px-3 py-1 rounded-full font-bold uppercase">
-                            Vypršel
+                            {t("current.expired")}
                         </span>
                     )}
                     {sub.cancelAtPeriodEnd && sub.status !== "expired" && (
                         <span className="text-[9px] bg-white/10 text-white/60 px-3 py-1 rounded-full font-bold uppercase">
-                            Končí {periodEnd ? new Date(periodEnd).toLocaleDateString("cs") : "koncem období"}
+                            {t("current.ends", { until: periodEnd ? dateOnly(format, periodEnd) : "none" })}
                         </span>
                     )}
                 </div>
@@ -648,7 +663,7 @@ function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState
                     onClick={onRefresh}
                     className="text-[9px] text-white/30 hover:text-white/60 font-bold uppercase tracking-widest transition-colors"
                 >
-                    ↻ Aktualizovat
+                    ↻ {t("current.refresh")}
                 </button>
             </div>
 
@@ -656,12 +671,12 @@ function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState
             <div className="mb-2">
                 <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] text-white/40 font-bold">
-                        {usePostQuota ? "Příspěvky zdarma" : "Využité kredity"}
+                        {usePostQuota ? t("current.freePosts") : t("current.usedCredits")}
                     </span>
                     <span className="text-[10px] text-white/60 font-bold">
                         {usedUnits} / {totalUnits}
                         {!usePostQuota && (sub.creditsPurchased ?? 0) > 0 && (
-                            <span className="text-emerald-400/70 ml-1">(+{sub.creditsPurchased} dokoupeno)</span>
+                            <span className="text-emerald-400/70 ml-1">{t("current.purchased", { count: sub.creditsPurchased ?? 0 })}</span>
                         )}
                     </span>
                 </div>
@@ -677,16 +692,16 @@ function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState
                             s počtem („1 příspěvek zbývá" / „3 příspěvky zbývají"), takhle
                             se skloňuje jen podstatné jméno. */}
                         {usePostQuota
-                            ? `Zbývá: ${countLabel(remainingUnits, POSTS)} zdarma`
-                            : `Zbývá: ${countLabel(remainingUnits, CREDITS)}`}
+                            ? t("current.remainingPosts", { count: remainingUnits })
+                            : t("current.remainingCredits", { count: remainingUnits })}
                     </span>
                     {!usePostQuota && creditResetAt && !giftLastWindow ? (
                         <span className="text-[9px] text-white/20 font-bold">
-                            Kredity se obnoví {new Date(creditResetAt).toLocaleDateString("cs")}
+                            {t("current.creditsRenew", { date: dateOnly(format, creditResetAt) })}
                         </span>
                     ) : periodEnd && !isGift ? (
                         <span className="text-[9px] text-white/20 font-bold">
-                            Obnoví se {new Date(periodEnd).toLocaleDateString("cs")}
+                            {t("current.renews", { date: dateOnly(format, periodEnd) })}
                         </span>
                     ) : null}
                 </div>
@@ -695,8 +710,8 @@ function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState
                 {periodEnd && creditResetAt && new Date(periodEnd).toDateString() !== new Date(creditResetAt).toDateString() && (
                     <p className="text-[9px] text-white/20 font-bold mt-1">
                         {isGift
-                            ? `Tarif zdarma do ${new Date(periodEnd).toLocaleDateString("cs")} · kredity se obnovují měsíčně`
-                            : `Platíte ${termLabel((sub.termMonths ?? 1) as TermMonths)} · předplatné se obnovuje ${new Date(periodEnd).toLocaleDateString("cs")}`}
+                            ? t("current.giftUntil", { date: dateOnly(format, periodEnd) })
+                            : t("current.termRenews", { term: t(`term.${(sub.termMonths ?? 1) as TermMonths}.short`), date: dateOnly(format, periodEnd) })}
                     </p>
                 )}
             </div>
@@ -705,14 +720,14 @@ function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState
                 kdy si říká „potřebuju víc". Ne o dvě obrazovky níž. */}
             {!isTrial && sub.status === "active" && (
                 <div className="mt-5 pt-4 border-t border-white/5">
-                    <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest mb-2">Dobít kredity</p>
+                    <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest mb-2">{t("current.topUp")}</p>
                     <CreditPacks />
                 </div>
             )}
 
             {!isTrial && sub.status === "active" && (isGift ? (
                 <p className="mt-5 pt-4 border-t border-white/5 text-[10px] text-white/40 font-bold leading-relaxed">
-                    Tarif zdarma{periodEnd ? ` do ${new Date(periodEnd).toLocaleDateString("cs")}` : ""}. Nic se nestrhne — když chcete pokračovat, vyberte si plán níž.
+                    {t("current.giftNote", { until: periodEnd ? dateOnly(format, periodEnd) : "none" })}
                 </p>
             ) : (
                 <CancelControl sub={sub} projectId={projectId} onRefresh={onRefresh} />
@@ -729,11 +744,13 @@ function CurrentPlanCard({ sub, onRefresh, projectId }: { sub: SubscriptionState
  * Proto je i text potvrzení o datu, ne o „ztratíte přístup".
  */
 function CancelControl({ sub, projectId, onRefresh }: { sub: SubscriptionState; projectId: string; onRefresh: () => void }) {
+    const t = useTranslations("billing.subscription")
+    const format = useFormatter()
     const [confirming, setConfirming] = useState(false)
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    const until = sub.currentPeriodEnd ? new Date(String(sub.currentPeriodEnd)).toLocaleDateString("cs") : null
+    const until = sub.currentPeriodEnd ? dateOnly(format, String(sub.currentPeriodEnd)) : null
 
     async function run(action: "cancel" | "resume") {
         setBusy(true)
@@ -742,10 +759,10 @@ function CancelControl({ sub, projectId, onRefresh }: { sub: SubscriptionState; 
             const res = action === "cancel"
                 ? await cancelSubscription(projectId)
                 : await resumeSubscription(projectId)
-            if (!res.success) setError(res.error || "Nepodařilo se to provést.")
+            if (!res.success) setError(res.error || t("cancel.failed"))
             else { setConfirming(false); onRefresh() }
         } catch {
-            setError("Nepodařilo se to provést. Zkuste to prosím znovu.")
+            setError(t("cancel.failedRetry"))
         } finally {
             setBusy(false)
         }
@@ -755,14 +772,14 @@ function CancelControl({ sub, projectId, onRefresh }: { sub: SubscriptionState; 
         return (
             <div className="mt-5 pt-4 border-t border-white/5 flex flex-wrap items-center gap-3">
                 <p className="text-[10px] text-white/40 font-bold">
-                    Předplatné končí{until ? ` ${until}` : " koncem období"}. Do té doby funguje beze změny.
+                    {t("cancel.ending", { until: until ?? "none" })}
                 </p>
                 <button
                     onClick={() => run("resume")}
                     disabled={busy}
                     className="ml-auto text-[9px] font-bold uppercase tracking-widest text-emerald-400 hover:text-emerald-300 disabled:opacity-40 transition-colors"
                 >
-                    {busy ? "Obnovuji…" : "Obnovit předplatné"}
+                    {busy ? t("cancel.resuming") : t("cancel.resume")}
                 </button>
                 {error && <p className="w-full text-[10px] text-red-400">{error}</p>}
             </div>
@@ -777,14 +794,14 @@ function CancelControl({ sub, projectId, onRefresh }: { sub: SubscriptionState; 
                         onClick={() => setConfirming(true)}
                         className="text-[9px] font-bold uppercase tracking-widest text-white/25 hover:text-white/50 transition-colors"
                     >
-                        Zrušit předplatné
+                        {t("cancel.cancel")}
                     </button>
                     <ManageBillingLink projectId={projectId} />
                 </div>
             ) : (
                 <div className="flex flex-wrap items-center gap-3">
                     <p className="text-[10px] text-white/50 font-bold">
-                        Zrušit? Plán poběží{until ? ` do ${until}` : " do konce zaplaceného období"} a pak se neobnoví.
+                        {t("cancel.confirm", { until: until ?? "none" })}
                     </p>
                     <div className="ml-auto flex items-center gap-3">
                         <button
@@ -792,14 +809,14 @@ function CancelControl({ sub, projectId, onRefresh }: { sub: SubscriptionState; 
                             disabled={busy}
                             className="text-[9px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 disabled:opacity-40 transition-colors"
                         >
-                            Nechat běžet
+                            {t("cancel.keep")}
                         </button>
                         <button
                             onClick={() => run("cancel")}
                             disabled={busy}
                             className="text-[9px] font-bold uppercase tracking-widest text-aisummit-cinnabar hover:opacity-80 disabled:opacity-40 transition-colors"
                         >
-                            {busy ? "Ruším…" : "Ano, zrušit"}
+                            {busy ? t("cancel.cancelling") : t("cancel.yes")}
                         </button>
                     </div>
                 </div>

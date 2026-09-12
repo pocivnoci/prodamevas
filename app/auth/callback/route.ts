@@ -94,17 +94,23 @@ export async function GET(request: Request) {
                             return
                         }
                         const { sendNotification, siteUrl } = await import('@/lib/notifications')
+                        // Jazyk účtu, ne cookie: `after()` běží až po odpovědi a účet
+                        // je jediné místo, které volbu uživatele bezpečně nese.
+                        const { mailTranslator, localeOfUser } = await import('@/lib/mail/i18n')
+                        const locale = localeOfUser(user)
+                        const t = await mailTranslator(locale)
                         await sendNotification({
                             to: user.email,
                             kind: 'transactional',
-                            subject: 'Vítejte v Chrlit — účet je aktivní',
-                            body: `Dobrý den,
+                            locale,
+                            subject: t('welcome.subject'),
+                            body: `${t('welcome.greeting')}
 
-váš účet je potvrzený a připravený. Chrlit se naučí vaši značku a chrlí za vás hotové příspěvky — stačí zadat web, projít krátké nastavení a spustit první generování.
+${t('welcome.body')}
 
-<a href="${siteUrl()}/dashboard/instagram">Otevřít studio →</a>
+<a href="${siteUrl()}/dashboard/instagram">${t('welcome.cta')}</a>
 
-Tým Chrlit`,
+${t('welcome.signature')}`,
                         })
                     } catch (err) {
                         console.warn(`auth-callback: welcome e-mail failed: ${(err as Error)?.message}`)

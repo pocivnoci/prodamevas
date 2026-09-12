@@ -14,6 +14,7 @@ import type { UiLocale } from "./locales"
 export const MESSAGE_FILES = [
     "core",
     "auth",
+    "mail",
     // taby studia — jeden soubor na tab (namespace = jméno souboru)
     "settings",
     "generate",
@@ -26,6 +27,12 @@ export const MESSAGE_FILES = [
     "help",
     "shared",
     "billing",
+    "products",
+    "adminOnboard",
+    "adminOps",
+    "adminGrowth",
+    // průvodce novým zákazníkem (app/onboarding)
+    "onboarding",
 ] as const
 
 export type Messages = Record<string, unknown>

@@ -113,6 +113,18 @@ v jakém pořadí jde zbytek. Pravidla, která z toho plynou, jsou ve skillu
 - Guard: `scripts/test-i18n.ts` (parita klíčů cs/en vč. ICU proměnných, registr
   nese klíče, každá sekce má text, migrované soubory bez češtiny natvrdo, zapojení).
 
+### Platby, doklady, e-maily: hotovo v téhle větvi
+
+- ComGate `lang` a Stripe `locale` = jazyk UI, ve kterém kupující platí
+  (`paymentPageLanguage()` v `lib/i18n/server.ts`).
+- Fakturoid `language` podle země fakturační adresy (`fakturoidLanguage`: CZ→cz,
+  SK→sk, DE/AT/CH→de, PL→pl, jinak en) — u subjektu i dokladu.
+- Layout e-mailu nese `locale` (`<html lang>`, patička, odhlášení);
+  `sendNotification` a `renderTemplate` ho předávají. `lib/mail/i18n.ts`:
+  `mailTranslator(locale)` (next-intl `createTranslator` nad `messages/<locale>/mail.json`,
+  funguje i v cronech bez request kontextu) + `localeOfUser`. První lokalizovaný
+  transakční e-mail: uvítání po potvrzení účtu (`app/auth/callback/route.ts`).
+
 ## Osa 2 — jazyk UI: co zbývá
 
 Pořadí je dané tím, co vidí platící zákazník nejdřív a co se nejhůř přepisuje
@@ -122,12 +134,13 @@ zpětně:
    každý tab vlastní namespace v messages, hlášky ze server actions přes
    `getTranslations()`; guard aserce, které pinnují české labely (např. §9
    „Instrukce pro obrázky"), se přesměrují na `messages/cs.json`.
-2. **E-maily uživateli** — šablony dostanou `locale`, transakční (aktivace,
-   obnova, faktura) nejdřív; marketingové broadcasty zůstávají česky, dokud není
-   cizojazyčná báze zákazníků.
-3. **Platby a doklady** — ComGate `lang` z locale uživatele; Fakturoid `language`
-   podle země fakturační adresy (cz/sk/en); měna zůstává CZK, dokud se neotevře
-   ceník v EUR (obchodní rozhodnutí, viz `brain/GTM/Ceník.md`).
+2. **E-maily uživateli** — obsah šablon (`lib/mail/templates/*`, zprávy agentů
+   v `lib/agents/*-templates.ts`) přes `mailTranslator(localeOfUser(...))`;
+   transakční (aktivace, obnova, faktura) nejdřív; jazyk příjemce se bere z účtu
+   (`user_clients` → `auth.admin.getUserById` → `user_metadata.locale`).
+   Marketingové broadcasty zůstávají česky, dokud není cizojazyčná báze zákazníků.
+3. **Měna** zůstává CZK, dokud se neotevře ceník v EUR (obchodní rozhodnutí, viz
+   `brain/GTM/Ceník.md`).
 4. **Marketing** — landing a `/aplikace` až s rozhodnutím o trhu (SK „téměř
    zadarmo", PL „skutečná práce" — `docs/BUSINESS_PLAN.md`). `lib/plural.ts`
    (české tvary počtů) zůstává pro nemigrované taby; migrovaný text používá ICU

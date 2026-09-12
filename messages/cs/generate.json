@@ -1,3 +1,240 @@
 {
-  "generate": {}
+  "generate": {
+    "labels": {
+      "auto": "Auto",
+      "product": "Produkt"
+    },
+    "mode": {
+      "single": "Jeden příspěvek",
+      "plan": "Obsahový plán"
+    },
+    "steps": {
+      "brief": "Zadání",
+      "plan": "Plán",
+      "result": "Výsledek"
+    },
+    "errors": {
+      "createJob": "Nepodařilo se vytvořit úlohu",
+      "generationFailed": "Generování selhalo",
+      "network": "Chyba sítě",
+      "campaignLost": "Ztracen kontakt s kampaní (běží dál na pozadí)",
+      "notEnoughCredits": "Nedostatek kreditů",
+      "campaignStart": "Nepodařilo se spustit kampaň",
+      "upload": "Při nahrávání obrázku došlo k chybě.",
+      "unknown": "Neznámá chyba při generování",
+      "scheduleFailed": "Plánování selhalo",
+      "planFailed": "Generování plánu selhalo",
+      "planCrashed": "Generování plánu se nepodařilo dokončit.\n\n{error}\n\nPokud jsi byl(a) dlouho nečinný(á), zkus stránku načíst znovu a přihlásit se."
+    },
+    "campaign": {
+      "done": "Úspěšně vygenerováno {successes} z {total, plural, one {# postu} other {# postů}}",
+      "allFailed": "{total, plural, one {# post selhal} few {Všechny # posty selhaly} other {Všech # postů selhalo}}",
+      "partial": "Vygenerováno {successes} z {total}"
+    },
+    "counts": {
+      "posts": "{count, plural, one {# příspěvek} few {# příspěvky} other {# příspěvků}}",
+      "credits": "{count, plural, one {# kredit} few {# kredity} other {# kreditů}}"
+    },
+    "media": {
+      "image": "Obrázek",
+      "story": "Story",
+      "carousel": "Carousel",
+      "reel": "Reel",
+      "reel_long": "Dlouhý reel",
+      "singleImage": "1 obrázek",
+      "byType": "dle typu",
+      "creditsShort": "{n} kr.",
+      "reelsSoon": "Reels připravujeme",
+      "reelsFromPlan": "Reels jsou dostupné od balíčku {plan}",
+      "storiesSoon": "Stories připravujeme",
+      "storiesNotInPlan": "Stories nejsou v tomto balíčku",
+      "soon": "Brzy",
+      "fromPlan": "Od {plan}"
+    },
+    "visualMode": {
+      "photo": "Fotka",
+      "typography": "Typo",
+      "graphic": "Grafika"
+    },
+    "single": {
+      "title": "Nový příspěvek",
+      "subtitle": "Řekněte AI o čem má psát, nebo nechte vše na automatice.",
+      "topicLabel": "O čem?",
+      "hideIdeas": "Skrýt",
+      "pickIdeas": "Vybrat z nápadů",
+      "ideas": "Nápady",
+      "reviews": "Recenze",
+      "topicPlaceholder": "Např. Jarní slevy, Nová kolekce, Péče o pleť... nebo nechte prázdné a AI vybere samo.",
+      "linkedIdea": "Napojeno na nápad — příspěvek se započítá do jeho výkonu",
+      "advanced": "Pokročilé",
+      "focus": "Zaměření",
+      "auto": "Automaticky",
+      "productAuto": "AI vybere automaticky",
+      "format": "Formát",
+      "formatAuto": "AI vybere nejlepší formát",
+      "aspectRatio": "Poměr stran",
+      "type": "Typ",
+      "customPhoto": "Vlastní fotka",
+      "customPhotoHint": "AI vaši fotku zakomponuje do designu příspěvku — použije ji celou nebo její část jako vizuální základ a doplní typografii, branding a logo. Text příspěvku se řídí zadaným tématem, ne fotkou.",
+      "customPhotoReels": "U reels se fotka nepoužije.",
+      "customPhotoStory": "U storky se fotka použije na prvním snímku.",
+      "working": "Pracuji na tom...",
+      "submit": "Vytvořit příspěvek"
+    },
+    "plan": {
+      "subtitle": "AI navrhne sérii příspěvků. Vy schválíte a spustíte.",
+      "durationLabel": "Jak dlouhý plán?",
+      "durations": {
+        "trial": "Zkouška",
+        "1w": "Týden",
+        "2w": "Dva týdny",
+        "month": "Měsíc"
+      },
+      "perWeekLabel": "Příspěvků týdně",
+      "cadenceHintLabel": "kolik to stojí",
+      "recommended": "Doporučeno",
+      "overBudget": "Nad rámec kreditů",
+      "goalLabel": "Cíl kampaně",
+      "goals": {
+        "reach": {
+          "label": "Dosah",
+          "hint": "Zasáhnout nové lidi — sdílitelné, srozumitelné i bez znalosti značky"
+        },
+        "engagement": {
+          "label": "Komunita",
+          "hint": "Vyvolat reakce — otázky, názory, uložení"
+        },
+        "sales": {
+          "label": "Prodej",
+          "hint": "Vést k nákupu — konkrétní produkt, konkrétní důvod jednat"
+        },
+        "launch": {
+          "label": "Novinka",
+          "hint": "Uvést novinku — série se stoupajícím obloukem"
+        }
+      },
+      "mixLabel": "Mix formátů",
+      "carouselShare": {
+        "low": {
+          "label": "Víc fotek",
+          "hint": "levnější"
+        },
+        "auto": {
+          "label": "Vyvážené",
+          "hint": "doporučeno"
+        },
+        "high": {
+          "label": "Víc karuselů",
+          "hint": "dražší"
+        }
+      },
+      "focusProducts": "Zaměřit na produkty (volitelné)",
+      "focusProductsHint": "Produkty se rozdělí mezi produktové posty v plánu",
+      "topicLabel": "Téma kampaně (volitelné)",
+      "topicPlaceholder": "Např. Letní kolekce, Vánoční kampaň... nebo nechte prázdné.",
+      "startLabel": "Začít od",
+      "range": "{from} – {to}",
+      "perWeek": "{n}× týdně",
+      "taste": "ochutnávka",
+      "freeInSubscription": "Zdarma — v rámci předplatného",
+      "estimate": "Odhad: ~{count, plural, one {# kredit} few {# kredity} other {# kreditů}}",
+      "preparingContext": "Připravuji kontext značky…",
+      "planning": "AI plánuje…",
+      "submit": "Vytvořit plán",
+      "deepPlanning": "Hloubkové plánování: stratég → koncepty → nezávislá oponentura → revize (~1–2 min)"
+    },
+    "preview": {
+      "title": "Plán obsahu",
+      "subtitle": "AI navrhuje strategický mix {count, plural, one {# postu} other {# postů}}. Upravte a schvalte.",
+      "arc": "Kampaňová linka",
+      "pillarTitle": "{pillar}: {count, plural, one {# post} few {# posty} other {# postů}}",
+      "autoTimes": "Časy se rozloží automaticky. Každý post lze upravit níže.",
+      "twicePerDay": "14 (2×/den)",
+      "week": "Týden {n}",
+      "toggleFormat": "Přepnout formát: 1 obrázek ⇄ carousel",
+      "feedPatternTitle": "Vzor feedu: {mode} — pozice v mřížce profilu",
+      "fromIdeaBank": "Ze zásobníku témat",
+      "categoryTitle": "Kategorie pilíře — úhel, který post drží",
+      "factFlagTitle": "Tohle tvrzení nemáme čím podložit. Uprav hook, nebo doplň fakt v Nastavení → Ověřená fakta. Když ho schválíš takhle, příspěvek dostane varování.",
+      "factFlag": "Bez opory ve faktech: {claim}",
+      "verified": "Ověřeno: {sources}",
+      "newItemHook": "Nový post — klikni 🔄 pro vygenerování konceptu",
+      "removeProduct": "Odebrat produkt",
+      "assignProduct": "Přiřadit produkt",
+      "searchProduct": "Hledat produkt...",
+      "noProducts": "Žádné produkty nenalezeny",
+      "editTopic": "Upravit téma",
+      "regenerate": "Jiný koncept",
+      "remove": "Odebrat",
+      "addPost": "Přidat post",
+      "freeInPlan": "Zdarma — v rámci plánu",
+      "backToBrief": "← Zpět na brief",
+      "discard": "Zahodit plán",
+      "discardConfirm": "Zahodit vygenerovaný plán? Tuhle akci nelze vrátit.",
+      "approve": "✅ Schválit & generovat ({count})"
+    },
+    "progress": {
+      "batch": "Generuji post {current} z {total}...",
+      "creative": "Kreativní proces probíhá...",
+      "agentLog": "Konverzace agentů",
+      "done": "{n} hotovo",
+      "skipped": "{n} přeskočeno",
+      "serverSide": "Kampaň běží na serveru — okno můžete klidně zavřít, generování pokračuje.",
+      "reconnecting": "Obnovuji spojení se serverem… generování běží dál na pozadí.",
+      "quality": "⚡ Pracujeme na tom v <b>nejvyšší možné kvalitě</b>. Někdy to chvíli zabere — <b>kvalita má přednost před rychlostí</b>.",
+      "stages": {
+        "architect": "Architekt analyzuje brand identitu...",
+        "copywriter": "Copywriter skládá úderné texty...",
+        "visualPrompt": "Generuji vizuální prompt pro AI...",
+        "image": "Generuji obrázek...",
+        "polish": "Finální leštění a optimalizace..."
+      }
+    },
+    "roles": {
+      "strategist": "Stratég",
+      "copywriter": "Copywriter",
+      "critic": "Kritik",
+      "chief_editor": "Šéfredaktor"
+    },
+    "editorialActions": {
+      "approve": "schválil",
+      "revise": "vrátil k úpravě",
+      "pushback": "nesouhlasí",
+      "reject": "zamítl",
+      "fix": "opravil",
+      "propose": "navrhl"
+    },
+    "result": {
+      "title": "Prezentace návrhu",
+      "failed": "Něco se pokazilo",
+      "retry": "Zkusit znovu",
+      "storyFrame": "Snímek {n}",
+      "slide": "Slide {n}",
+      "generatedAlt": "Vygenerovaný obsah",
+      "finalCopy": "Finální Copy",
+      "copied": "Zkopírováno",
+      "copy": "Kopírovat text",
+      "qualityCheck": "Kontrola kvality",
+      "approved": "Schváleno",
+      "finished": "Dokončeno",
+      "scheduleTitle": "Naplánovat na Instagram",
+      "scheduled": "✅ Naplánováno na {when} — uvidíš to v Plánovači",
+      "scheduling": "Plánuji…",
+      "schedule": "Naplánovat",
+      "openPosts": "Otevřít v Příspěvcích",
+      "generateNext": "Generovat další"
+    },
+    "batch": {
+      "title": "Kampaň spuštěna",
+      "success": "Úspěch",
+      "failures": "Selhání",
+      "retryFailed": "Zkusit selhané znovu",
+      "createNext": "Vytvořit další"
+    },
+    "empty": {
+      "title": "Čekám na zadání",
+      "body": "Vraťte se na krok Brief a spusťte generování.",
+      "back": "Zpět na Zadání"
+    }
+  }
 }

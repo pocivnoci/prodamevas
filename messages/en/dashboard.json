@@ -1,3 +1,79 @@
 {
-  "dashboard": {}
+  "dashboard": {
+    "cta": {
+      "generate": "Generate",
+      "approve": "Approve",
+      "publish": "Publish",
+      "createFirst": "Create the first one"
+    },
+    "status": {
+      "noContent": "Nothing to publish — generate new posts",
+      "draftsWaiting": "{count, plural, one {# draft is waiting} other {# drafts are waiting}} for approval",
+      "readyToPublish": "Ready to publish: {count, plural, one {# post} other {# posts}}",
+      "startCreating": "Start creating content"
+    },
+    "actions": {
+      "draftsToApprove": "{count, plural, one {# draft} other {# drafts}} to approve",
+      "draftsToApproveDetail": "Review and approve",
+      "readyToPublish": "{count, plural, one {# post} other {# posts}} to publish",
+      "readyToPublishDetail": "Ready for Instagram",
+      "missingType": "Missing {type}",
+      "missingTypeDetail": "Only {count}× — refresh the mix",
+      "noPostThisWeek": "No post this week",
+      "noPostThisWeekDetail": "Plan your content",
+      "missingMetrics": "Missing metrics",
+      "missingMetricsDetail": "Enter likes/saves for better AI",
+      "ideasLow": "Running out of ideas",
+      "ideasLowDetail": "Top up the topic bank"
+    },
+    "error": {
+      "title": "Could not load data",
+      "body": "Check your connection and try again"
+    },
+    "draftPlan": {
+      "title": "Your first content plan is waiting for approval",
+      "body": "AI prepared it during onboarding — just review it and launch.",
+      "review": "Review"
+    },
+    "hero": {
+      "title": "A month of content",
+      "body": "AI creates a whole month of posts. You approve them, we publish them.",
+      "orWeek": "or: A week",
+      "single": "A single post",
+      "start": "Start"
+    },
+    "counts": {
+      "drafts": "Drafts",
+      "ready": "Ready",
+      "posted": "Published",
+      "ideas": "Ideas"
+    },
+    "metrics": {
+      "avgLikes": "Ø Likes",
+      "avgComments": "Ø Comments",
+      "avgSaves": "Ø Saves",
+      "avgReach": "Ø Reach",
+      "title": "Post performance",
+      "detail": "Details",
+      "basis": "From {count, plural, one {# post} other {# posts}} with metrics"
+    },
+    "week": {
+      "title": "This week",
+      "calendar": "Calendar"
+    },
+    "next": {
+      "title": "Next steps",
+      "allDone": "All done"
+    },
+    "recent": {
+      "title": "Latest posts",
+      "all": "All",
+      "reel": "Reel"
+    },
+    "empty": {
+      "title": "Start creating",
+      "body": "You have no posts yet. Let AI prepare a whole month of content — you approve and publish.",
+      "cta": "Create a month of content"
+    }
+  }
 }

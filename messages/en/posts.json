@@ -1,3 +1,241 @@
 {
-  "posts": {}
+  "posts": {
+    "common": {
+      "noImage": "No image",
+      "noText": "No text",
+      "copied": "Copied!",
+      "copyText": "Copy text",
+      "downloadImage": "Download image",
+      "publishToInstagram": "Publish to Instagram",
+      "slideAlt": "Slide {n}"
+    },
+    "list": {
+      "loadError": "Could not load posts",
+      "retry": "Try again",
+      "status": {
+        "all": "All",
+        "draft": "Drafts",
+        "ready": "Ready",
+        "scheduled": "Scheduled",
+        "posted": "Published",
+        "failed": "Failed",
+        "plan_locked": "Plan"
+      },
+      "countOfTotal": "{count, plural, one {# post} other {# posts}} of {total}",
+      "media": {
+        "all": "All",
+        "image": "Images",
+        "story": "Stories",
+        "carousel": "Carousels",
+        "reel": "Reels"
+      },
+      "selectAll": "Select all",
+      "deselectAll": "Deselect all",
+      "selectedCount": "{count} selected",
+      "confirmBulkDelete": "Delete {count, plural, one {# post} other {# posts}}? This cannot be undone.",
+      "deleting": "Deleting…",
+      "deleteSelected": "🗑 Delete {count}",
+      "loadingMore": "Loading...",
+      "loadMore": "Load more ({remaining} left)",
+      "empty": {
+        "title": "Blank canvas",
+        "body": "No posts here yet. Switch to Generate and get inspired."
+      },
+      "card": {
+        "storyBadge": "📱 Story · {count, plural, one {# frame} other {# frames}}",
+        "reelLabel": {
+          "reel": "Reel",
+          "reel_long": "Long reel"
+        },
+        "reelBadge": "🎬 {label}{video, select, none { · no video} other {}}",
+        "carouselBadge": "📸 {count, plural, one {# slide} other {# slides}}",
+        "qaWarningTitle": "Visual QA did not pass cleanly even after fixes — check the text and diacritics in the image before publishing",
+        "qaWarning": "Check the text",
+        "genericType": "Generic post",
+        "factFlagTitle": "The fact gate flagged a claim that is not backed by the brand’s verified facts:\n{flags}\n\nAdd the fact in Settings → Verified facts, or remove the claim from the text.",
+        "checkFacts": "Verify facts",
+        "downloadVideo": "Download video",
+        "markReady": "Mark as Ready",
+        "markPosted": "Mark as Published"
+      }
+    },
+    "locked": {
+      "badge": "Locked content",
+      "defaultType": "Post",
+      "placeholder": "The post content is locked...",
+      "unlockFrom": "🔓 Unlock from {price}"
+    },
+    "detail": {
+      "actionFailed": "Action failed",
+      "defaultType": "Post",
+      "factFlagsBadge": "{count}× verify facts",
+      "noImage": "No image",
+      "captionLabel": "Caption",
+      "hashtagsLabel": "Hashtags ({count})",
+      "imagePromptLabel": "Image Prompt",
+      "facts": {
+        "title": "Claims without factual backing",
+        "body": "The engine did not find this among the brand’s verified facts. If it is true, confirm it — it gets saved as a fact and can be used directly next time. If it is not, rewrite the text yourself.",
+        "rewrite": "It is not true — rewrite the text",
+        "saving": "Saving…",
+        "confirm": "It is true"
+      },
+      "sources": {
+        "title": "Verified on the web",
+        "copy": "Copy sources",
+        "body": "The engine looked this up itself. Sources are not written into the post — if you want to cite them, paste them into the first comment.",
+        "quote": "“{quote}”"
+      },
+      "editorial": {
+        "title": "🧠 Editorial Board ({count})"
+      },
+      "fullTextLabel": "Full text (caption + hashtags)",
+      "copyAll": "Copy all",
+      "publishFailed": "⚠ Publishing failed: {error}",
+      "downloadSlide": "Download slide {n}",
+      "markReady": "→ Mark as Ready",
+      "markPosted": "Published",
+      "backToDraft": "← Back to Draft",
+      "viewOnInstagram": "↗ View on Instagram",
+      "archive": "Archive",
+      "retryScheduling": "Scheduling…",
+      "retryPublish": "↻ Try publishing again",
+      "variants": {
+        "generating": "⏳ Generating two versions (~60s)…",
+        "show": "Show versions",
+        "cta": "Two versions to choose from · {credits, plural, one {# credit} other {# credits}}",
+        "explain": "We will generate {count, plural, one {# new version} other {# new versions}} of this post on the same topic — a different hook, visual and CTA. Each is a full post, so together they cost {credits, plural, one {# credit} other {# credits}}. You pick one, the rest is discarded.",
+        "failed": "Generation failed",
+        "confirm": "Generate for {credits, plural, one {# credit} other {# credits}}",
+        "cancel": "Cancel",
+        "compare": "Compare"
+      },
+      "delete": "Delete",
+      "confirmDelete": "Really delete?"
+    },
+    "region": {
+      "hint": "Drag over the spot you want to change"
+    },
+    "edit": {
+      "done": "Done — edited.",
+      "failed": "Edit failed.",
+      "reverted": "Reverted to the previous version.",
+      "revertFailed": "Revert failed.",
+      "scope": {
+        "text": "Text",
+        "image": "Image",
+        "both": "Both"
+      },
+      "reelLocked": "A reel’s video cannot be edited — use Generate again",
+      "noImage": "The post has no image",
+      "oneCredit": "1 credit",
+      "regionMarked": "◻ area marked",
+      "regionClear": "× clear",
+      "regionHint": "· drag over the preview to mark the spot",
+      "slideOf": "· frame {n}/{total}",
+      "revert": "↩ Undo ({count})",
+      "placeholderImage": "What to change — e.g.: move the headline up and make it smaller",
+      "placeholderText": "What to change — e.g.: shorten the caption, add the price",
+      "preservePlaceholder": "Keep untouched… (optional) — e.g.: the photo and colours",
+      "busy": "Editing...",
+      "submit": "Edit",
+      "regenerate": {
+        "open": "Or generate from scratch…",
+        "warning": "Creates a new post with a completely new visual — a different photo, a different composition",
+        "created": "New draft created — you will find it in the list",
+        "placeholder": "What should be different about the brand-new post...",
+        "busy": "Generating...",
+        "confirm": "Really?",
+        "submit": "Again (1 credit)"
+      }
+    },
+    "compare": {
+      "title": "Two versions to choose from",
+      "done": "Version chosen — the system learns from your preference",
+      "pick": "Pick the better version — the rest is discarded",
+      "loading": "Loading versions…",
+      "original": "Original",
+      "version": "Version {n}",
+      "selected": "Chosen",
+      "selecting": "⏳ Choosing…",
+      "select": "Pick this version",
+      "saved": "Preference saved — the AI learns from your choice"
+    },
+    "handoff": {
+      "shareUnsupported": "This browser cannot share directly — use Save image + Copy caption.",
+      "shareFailed": "Sharing failed. Use Save image + Copy caption below.",
+      "publishFailed": "Publishing failed.",
+      "publishingBackground": "Publishing in the background — it will show up as Published shortly.",
+      "published": "Published!",
+      "open": "open ↗",
+      "publishing": "⏳ Publishing… (within a minute)",
+      "addToStories": "Add to stories",
+      "publishNow": "Publish now",
+      "orManual": "or share manually",
+      "preparing": "⏳ Preparing…",
+      "shared": "Shared — the caption is on your clipboard",
+      "share": "Share to Instagram",
+      "desktopHint": "📱 To share straight to Instagram, open this page <strong>on your phone</strong>. Here on a computer, use <strong>Copy caption</strong> + <strong>Save image</strong>.",
+      "captionLabel": "Caption",
+      "copyCaption": "Copy caption",
+      "saveSlides": "Save slides",
+      "saveImage": "Save image",
+      "openInstagram": "↗ Open Instagram",
+      "guide": {
+        "title": "How to",
+        "step1": "Tap <strong>Share to Instagram</strong> → pick Instagram.",
+        "step2": "In Instagram, long-press the caption field → <strong>Paste</strong>.",
+        "step3": "Publish and come back here."
+      },
+      "close": "Close",
+      "markPosted": "Mark as published"
+    },
+    "reel": {
+      "play": "Play",
+      "replay": "Play again",
+      "pause": "Pause",
+      "mute": "Mute",
+      "unmute": "Unmute",
+      "position": "Position in video",
+      "fullscreen": "Full screen"
+    },
+    "subtitles": {
+      "creatingJob": "Creating the job…",
+      "createFailed": "The job could not be created.",
+      "renderFailed": "Re-rendering failed.",
+      "timeout": "Re-rendering is taking unusually long. Close the detail and open it again in a moment.",
+      "title": "Subtitles",
+      "free": "no credits",
+      "textOnly": "Text reel (no voice)",
+      "burnedIn": "· burned into the video, changed by re-rendering",
+      "legacy": "This reel was made before we started keeping the raw video — its subtitles can only be changed by generating again. New reels can be edited right here.",
+      "locked": "A published reel can no longer be changed on Instagram — subtitles can only be edited on a variant.",
+      "preset": {
+        "pop": {
+          "label": "Highlight",
+          "description": "Bigger type with the word being spoken in the brand colour. Today’s reel standard — the default."
+        },
+        "classic": {
+          "label": "Classic",
+          "description": "White text with an outline and a subtle backdrop. Readable on anything, does not overpower the image."
+        },
+        "cards": {
+          "label": "Cards",
+          "description": "Large type in a solid box, a few words at a time. Holds attention even without sound."
+        },
+        "minimal": {
+          "label": "Minimal",
+          "description": "Just a thin outline, no backdrop. Least intrusive, but gets lost on a bright scene."
+        }
+      },
+      "noCards": "This reel has no saved cards.",
+      "cardTime": "{start}–{end} s",
+      "rendering": "Rendering…",
+      "render": "Re-render subtitles (no credits)",
+      "dirtyHint": "Change the text or the style",
+      "timingText": "Timings follow the reading pace of the cards and cannot be changed — a shorter card would not be readable in time.",
+      "timingVoice": "Timings follow the spoken narration and cannot be changed — otherwise the subtitle would drift from the voice.",
+      "replaceNote": "The new video replaces the old one; “Undo” brings back the previous version."
+    }
+  }
 }

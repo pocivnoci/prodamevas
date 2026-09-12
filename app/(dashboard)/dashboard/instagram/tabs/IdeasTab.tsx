@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react"
 import { motion } from "framer-motion"
+import { useTranslations } from "next-intl"
 import { getIGIdeasList, getIGCategories } from "@/app/actions/admin-actions"
 import { addNewIdea, triggerAIIdeasGeneration, deleteIdea, setIdeaActive } from "@/app/actions/ig-generate-action"
 import { LoadingSpinner } from "./shared"
@@ -23,6 +24,8 @@ export function IdeasTab({ projectId }: { projectId: string }) {
     const [saving, setSaving] = useState(false)
     const [generatingAI, setGeneratingAI] = useState(false)
     const [filterCategory, setFilterCategory] = useState<string>("all")
+    const t = useTranslations("inspiration.ideas")
+    const tc = useTranslations("common")
 
     const loadIdeas = async () => {
         if (!projectId) return
@@ -116,7 +119,7 @@ export function IdeasTab({ projectId }: { projectId: string }) {
             // Nové nápady rovnou pod jejich čipem — ať je vidět, že se zařadily.
             if (categoryId) setFilterCategory(categoryId)
         } else {
-            alert("Chyba při generování nápadů: " + res.error)
+            alert(t("generateError", { error: res.error ?? "" }))
         }
         setGeneratingAI(false)
     }
@@ -124,17 +127,17 @@ export function IdeasTab({ projectId }: { projectId: string }) {
     const handleToggleActive = async (idea: any) => {
         const res = await setIdeaActive(idea.id, projectId, !(idea.is_active !== false))
         if (!res.success) {
-            alert("Chyba: " + res.error)
+            alert(t("error", { error: res.error ?? "" }))
             return
         }
         loadIdeas()
     }
 
     const handleDelete = async (idea: any) => {
-        if (!confirm("Opravdu smazat nápad? Tohle nejde vrátit.")) return
+        if (!confirm(t("deleteConfirm"))) return
         const res = await deleteIdea(idea.id, projectId)
         if (!res.success) {
-            alert("Chyba: " + res.error)
+            alert(t("error", { error: res.error ?? "" }))
             return
         }
         loadIdeas()
@@ -146,17 +149,17 @@ export function IdeasTab({ projectId }: { projectId: string }) {
         <div className="space-y-4">
             {/* Explainer — what this bank actually does */}
             <div className="bg-[#0a0a0a] border border-white/5 rounded-sm p-4">
-                <p className="inline-flex items-center gap-1.5 text-[9px] text-white/40 font-bold uppercase tracking-widest mb-1"><Lightbulb className="w-3 h-3 shrink-0" />Zásobník témat</p>
+                <p className="inline-flex items-center gap-1.5 text-[9px] text-white/40 font-bold uppercase tracking-widest mb-1"><Lightbulb className="w-3 h-3 shrink-0" />{t("explainer.title")}</p>
                 <p className="text-xs text-white/50">
-                    AI si odsud bere témata pro vaše příspěvky — nápady, které fungují, používá častěji.
-                    Po použití se nápad nemaže, jen si dá pauzu, aby se váš feed neopakoval.
-                    Měsíční plán si témata přednostně vybírá odsud — a nová schválená témata sem ukládá zpět.
+                    {t("explainer.body")}
                 </p>
             </div>
 
             <div className="flex items-center justify-between">
                 <span className="text-[10px] text-white/40 tracking-widest uppercase font-bold">
-                    {filteredIdeas.length}{filterCategory !== "all" ? ` / ${ideas.length}` : ""} nápadů
+                    {filterCategory !== "all"
+                        ? t("countFiltered", { shown: filteredIdeas.length, total: ideas.length })
+                        : t("count", { count: filteredIdeas.length })}
                 </span>
                 <div className="flex items-center gap-3">
                     {/* AI Generation — 2-level dropdown (pillar → category) */}
@@ -173,12 +176,12 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                             disabled={generatingAI}
                             className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-[0_0_15px_rgba(16,185,129,0.1)] appearance-none cursor-pointer pr-8 ${generatingAI ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-500/20'}`}
                         >
-                            <option value="">{generatingAI ? "Generuji..." : "AI Nápady (10x)"}</option>
+                            <option value="">{generatingAI ? t("generating") : t("generateAi")}</option>
                             {pillars.map(pillar => (
                                 pillar.categories && pillar.categories.length > 0 ? (
                                     <optgroup key={pillar.id} label={`${pillar.emoji} ${pillar.label}`}>
                                         <option value={pillar.id}>
-                                            {pillar.emoji} Vše ({pillar.label})
+                                            {pillar.emoji} {t("allInPillar", { pillar: pillar.label })}
                                         </option>
                                         {pillar.categories.map(cat => (
                                             <option key={`${pillar.id}:${cat.id}`} value={`${pillar.id}:${cat.id}`}>
@@ -202,7 +205,7 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                         onClick={() => setShowForm(!showForm)}
                         className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest bg-white/5 text-white/50 border border-white/10 rounded-sm hover:text-white hover:bg-white/10 transition-colors"
                     >
-                        + Přidat ručně
+                        {t("addManually")}
                     </button>
                 </div>
             </div>
@@ -218,12 +221,12 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                                 : "bg-white/3 text-white/40 border-white/5 hover:text-white/60 hover:border-white/10"
                         }`}
                     >
-                        Vše
+                        {t("all")}
                     </button>
                     {allCategories.map(cat => (
                         <button
                             key={cat.id}
-                            title={`Pilíř: ${cat.pillarLabel}`}
+                            title={t("pillarTitle", { pillar: cat.pillarLabel })}
                             onClick={() => setFilterCategory(cat.id === filterCategory ? "all" : cat.id)}
                             className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest rounded-sm border transition-all ${
                                 filterCategory === cat.id
@@ -243,7 +246,7 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                                     : "bg-white/3 text-white/40 border-white/5 hover:text-white/60 hover:border-white/10"
                             }`}
                         >
-                            Bez kategorie
+                            {t("uncategorized")}
                         </button>
                     )}
                 </div>
@@ -253,13 +256,13 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                 <div className="bg-[#0f0f0f] border border-white/10 rounded-sm p-6 space-y-4 shadow-lg shrink-0">
                     <input
                         type="text"
-                        placeholder="Název..."
+                        placeholder={t("form.titlePlaceholder")}
                         value={newIdea.title}
                         onChange={(e) => setNewIdea(prev => ({ ...prev, title: e.target.value }))}
                         className="w-full px-4 py-2.5 bg-[#050505] border border-white/10 rounded-sm text-white placeholder:text-white/30 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all font-medium"
                     />
                     <textarea
-                        placeholder="Obsah nápadu..."
+                        placeholder={t("form.contentPlaceholder")}
                         value={newIdea.content}
                         onChange={(e) => setNewIdea(prev => ({ ...prev, content: e.target.value }))}
                         rows={3}
@@ -285,7 +288,7 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                                     onChange={(e) => setNewIdea(prev => ({ ...prev, subcategory: e.target.value }))}
                                     className="px-4 py-2 bg-[#050505] border border-white/10 rounded-sm text-white/70 text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all"
                                 >
-                                    <option value="">— Kategorie —</option>
+                                    <option value="">{t("form.categoryPlaceholder")}</option>
                                     {selectedPillar.categories.map(c => (
                                         <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>
                                     ))}
@@ -297,7 +300,7 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                             disabled={saving}
                             className="px-6 py-2.5 bg-aisummit-cinnabar text-white text-[10px] font-black uppercase tracking-widest rounded-sm border border-aisummit-cinnabar/30 hover:bg-aisummit-cinnabar/90 transition-all shadow-[0_0_15px_rgba(229,83,63,0.3)]"
                         >
-                            {saving ? "Ukládám..." : "Uložit"}
+                            {saving ? t("form.saving") : tc("save")}
                         </button>
                     </div>
                 </div>
@@ -337,22 +340,22 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                                 <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
                                     {!isActive && (
                                         <span className="text-[9px] px-2 py-1 rounded-sm bg-amber-500/10 text-amber-400/80 uppercase tracking-widest font-bold border border-amber-500/20">
-                                            Vypnuto
+                                            {t("badges.off")}
                                         </span>
                                     )}
                                     {isProven && (
-                                        <span className="inline-flex items-center gap-1.5 text-[9px] px-2 py-1 rounded-sm bg-emerald-500/10 text-emerald-400 uppercase tracking-widest font-bold border border-emerald-500/20"><Flame className="w-3 h-3 shrink-0" />Funguje</span>
+                                        <span className="inline-flex items-center gap-1.5 text-[9px] px-2 py-1 rounded-sm bg-emerald-500/10 text-emerald-400 uppercase tracking-widest font-bold border border-emerald-500/20"><Flame className="w-3 h-3 shrink-0" />{t("badges.proven")}</span>
                                     )}
                                     {isResting && (
-                                        <span className="inline-flex items-center gap-1.5 text-[9px] px-2 py-1 rounded-sm bg-white/5 text-white/30 uppercase tracking-widest font-bold border border-white/10"><Moon className="w-3 h-3 shrink-0" />Odpočívá</span>
+                                        <span className="inline-flex items-center gap-1.5 text-[9px] px-2 py-1 rounded-sm bg-white/5 text-white/30 uppercase tracking-widest font-bold border border-white/10"><Moon className="w-3 h-3 shrink-0" />{t("badges.resting")}</span>
                                     )}
                                     {usedCount === 0 ? (
                                         <span className="text-[9px] px-2 py-1 rounded-sm bg-white/5 text-white/40 uppercase tracking-widest font-bold border border-white/10">
-                                            Nové
+                                            {t("badges.new")}
                                         </span>
                                     ) : (
                                         <span className="text-[9px] px-2 py-1 rounded-sm bg-white/5 text-white/40 uppercase tracking-widest font-bold border border-white/10">
-                                            ×{usedCount} použito
+                                            {t("badges.used", { count: usedCount })}
                                         </span>
                                     )}
                                     {catInfo && (
@@ -370,13 +373,13 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                                     onClick={() => handleToggleActive(idea)}
                                     className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest rounded-sm bg-white/3 text-white/40 border border-white/5 hover:text-white/70 hover:border-white/10 transition-all"
                                 >
-                                    {isActive ? "⏸ Vypnout" : "▶ Zapnout"}
+                                    {isActive ? t("turnOff") : t("turnOn")}
                                 </button>
                                 <button
                                     onClick={() => handleDelete(idea)}
                                     className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest rounded-sm bg-white/3 text-white/40 border border-white/5 hover:text-red-400 hover:border-red-500/20 transition-all"
                                 >
-                                    <span className="inline-flex items-center gap-1.5"><X className="w-3.5 h-3.5 shrink-0" />Smazat</span>
+                                    <span className="inline-flex items-center gap-1.5"><X className="w-3.5 h-3.5 shrink-0" />{t("delete")}</span>
                                 </button>
                             </div>
                         </motion.div>
@@ -388,7 +391,7 @@ export function IdeasTab({ projectId }: { projectId: string }) {
                 <div className="text-center py-12 text-white/40">
                     <p className="text-4xl mb-3 grayscale opacity-30">💡</p>
                     <p className="text-[10px] uppercase font-bold tracking-widest">
-                        {filterCategory !== "all" ? "Žádné nápady v této kategorii" : "Žádné nápady"}
+                        {filterCategory !== "all" ? t("emptyFiltered") : t("empty")}
                     </p>
                 </div>
             )}

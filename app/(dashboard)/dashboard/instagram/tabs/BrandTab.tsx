@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import { motion } from "framer-motion"
+import { useTranslations } from "next-intl"
 import {
     uploadBrandImage,
     deleteBrandImage,
@@ -17,6 +18,7 @@ import { LoadingSpinner } from "./shared"
 import { Camera, Image, TriangleAlert } from "lucide-react"
 
 export function BrandTab({ projectId }: { projectId: string }) {
+    const t = useTranslations("brand")
     const [images, setImages] = useState<BrandImage[]>([])
     const [loading, setLoading] = useState(true)
     const [uploading, setUploading] = useState(false)
@@ -75,9 +77,9 @@ export function BrandTab({ projectId }: { projectId: string }) {
         const res = await ensureImageBrief(projectId, { force: true })
         if (res.success && res.brief) {
             setImageBrief(res.brief)
-            setMessage({ type: 'success', text: 'Shot list přegenerován podle aktuální značky' })
+            setMessage({ type: 'success', text: t("messages.briefRegenerated") })
         } else {
-            setMessage({ type: 'error', text: res.error || 'Generování shot listu selhalo' })
+            setMessage({ type: 'error', text: res.error || t("messages.briefFailed") })
         }
         setBriefLoading(false)
     }
@@ -171,10 +173,10 @@ export function BrandTab({ projectId }: { projectId: string }) {
                                 : [...prev, { url, tags: [], description: '' }])
                         }
                     } else {
-                        lastError = result.error || 'Nahrání selhalo'
+                        lastError = result.error || t("messages.uploadFailed")
                     }
                 } catch {
-                    lastError = 'Nahrání selhalo — zkus to prosím znovu'
+                    lastError = t("messages.uploadFailedRetry")
                 }
                 setProgress(p => ({ done: p.done + 1, total: p.total }))
             }
@@ -195,11 +197,11 @@ export function BrandTab({ projectId }: { projectId: string }) {
             // Kolik prošlo A kolik ne — dřív se ukázala jen poslední chyba, takže
             // „3 z 5 se nenahrály“ vypadalo stejně jako „všechno je v pořádku“.
             if (successCount === list.length) {
-                setMessage({ type: 'success', text: `${successCount} ${successCount === 1 ? 'fotka nahrána' : 'fotek nahráno'}` })
+                setMessage({ type: 'success', text: t("messages.uploaded", { count: successCount }) })
             } else if (successCount > 0) {
-                setMessage({ type: 'error', text: `Nahráno ${successCount} z ${list.length}. ${lastError || ''}`.trim() })
+                setMessage({ type: 'error', text: `${t("messages.uploadedPartial", { done: successCount, total: list.length })} ${lastError || ''}`.trim() })
             } else {
-                setMessage({ type: 'error', text: lastError || 'Nahrání selhalo' })
+                setMessage({ type: 'error', text: lastError || t("messages.uploadFailed") })
             }
 
             // Dotažení štítků a popisů. Selhat smí — fotky už nahrané jsou a v mřížce
@@ -207,7 +209,7 @@ export function BrandTab({ projectId }: { projectId: string }) {
             try {
                 await loadImages()
             } catch {
-                setMessage({ type: 'error', text: `Nahráno ${successCount} z ${list.length}, ale seznam se nepodařilo načíst. Obnov stránku.` })
+                setMessage({ type: 'error', text: t("messages.uploadedListFailed", { done: successCount, total: list.length }) })
             }
         } finally {
             setProgress({ done: 0, total: 0 })
@@ -219,9 +221,9 @@ export function BrandTab({ projectId }: { projectId: string }) {
         const result = await deleteBrandImage(projectId, imageUrl)
         if (result.success) {
             setImages(prev => prev.filter(im => im.url !== imageUrl))
-            setMessage({ type: 'success', text: 'Fotka smazána' })
+            setMessage({ type: 'success', text: t("messages.deleted") })
         } else {
-            setMessage({ type: 'error', text: result.error || 'Smazání selhalo' })
+            setMessage({ type: 'error', text: result.error || t("messages.deleteFailed") })
         }
     }
 
@@ -231,10 +233,10 @@ export function BrandTab({ projectId }: { projectId: string }) {
         setMessage(null)
         const result = await retagBrandImages(projectId)
         if (result.success) {
-            setMessage({ type: 'success', text: `AI přeznačila ${result.count} ${result.count === 1 ? 'fotku' : 'fotek'}` })
+            setMessage({ type: 'success', text: t("messages.retagged", { count: result.count }) })
             await loadImages()
         } else {
-            setMessage({ type: 'error', text: result.error || 'Přeznačení selhalo' })
+            setMessage({ type: 'error', text: result.error || t("messages.retagFailed") })
         }
         setRetagging(false)
     }
@@ -259,10 +261,10 @@ export function BrandTab({ projectId }: { projectId: string }) {
         if (result.success) {
             setImages(prev => prev.map(im =>
                 im.url === editing.url ? { ...im, tags: draftTags, description, userTagged: true } : im))
-            setMessage({ type: 'success', text: 'Uloženo — AI už štítky ani popis nepřepíše' })
+            setMessage({ type: 'success', text: t("messages.tagsSaved") })
             setEditing(null)
         } else {
-            setMessage({ type: 'error', text: result.error || 'Uložení selhalo' })
+            setMessage({ type: 'error', text: result.error || t("messages.saveFailed") })
         }
         setSavingTags(false)
     }
@@ -273,14 +275,16 @@ export function BrandTab({ projectId }: { projectId: string }) {
         handleUpload(e.dataTransfer.files)
     }
 
+    /** Zvýraznění v infoboxu (`<strong>` v messages). */
+    const strong = (chunks: React.ReactNode) => <strong className="text-white/50">{chunks}</strong>
+
     return (
         <div className="space-y-6">
             {/* Header */}
             <div className="bg-[#0a0a0a]/90 backdrop-blur-xl border border-white/10 rounded-sm p-6 shadow-sm">
-                <h2 className="text-lg font-black uppercase tracking-tight text-white">Brand & Reference Fotky</h2>
+                <h2 className="text-lg font-black uppercase tracking-tight text-white">{t("header.title")}</h2>
                 <p className="text-white/50 text-xs mt-1 tracking-wide">
-                    Nahraj fotky produktů, lidí, prostředí — AI je použije jako referenci při generování příspěvků.
-                    Čím více kvalitních fotek, tím realističtější výstup.
+                    {t("header.body")}
                 </p>
             </div>
 
@@ -288,7 +292,7 @@ export function BrandTab({ projectId }: { projectId: string }) {
             {imageBrief.length === 0 && briefLoading && (
                 <div className="bg-[#0a0a0a]/90 border border-blue-500/20 rounded-sm p-4 flex items-center gap-3">
                     <div className="w-4 h-4 border-2 border-white/10 border-t-blue-400/70 rounded-full animate-spin shrink-0" />
-                    <span className="text-xs text-white/50">Skládám shot list — co ještě dofotit, aby AI měla z čeho brát…</span>
+                    <span className="text-xs text-white/50">{t("brief.loading")}</span>
                 </div>
             )}
             {imageBrief.length > 0 && (
@@ -299,9 +303,9 @@ export function BrandTab({ projectId }: { projectId: string }) {
                             className="flex items-center gap-2 cursor-pointer min-w-0"
                         >
                             <Camera className="w-5 h-5 shrink-0" />
-                            <span className="text-sm font-bold text-white">Co ještě chybí</span>
+                            <span className="text-sm font-bold text-white">{t("brief.title")}</span>
                             <span className="text-[10px] text-blue-400/60 font-mono">
-                                {imageBrief.reduce((sum, cat) => sum + cat.items.length, 0)} položek
+                                {t("brief.itemCount", { count: imageBrief.reduce((sum, cat) => sum + cat.items.length, 0) })}
                             </span>
                         </button>
                         <div className="flex items-center gap-3 shrink-0">
@@ -310,7 +314,7 @@ export function BrandTab({ projectId }: { projectId: string }) {
                                 disabled={briefLoading}
                                 className="text-[9px] uppercase tracking-widest font-bold text-white/30 hover:text-white/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                             >
-                                {briefLoading ? 'Generuji…' : 'Přegenerovat'}
+                                {briefLoading ? t("brief.regenerating") : t("brief.regenerate")}
                             </button>
                             <button
                                 onClick={() => setBriefCollapsed(!briefCollapsed)}
@@ -329,7 +333,7 @@ export function BrandTab({ projectId }: { projectId: string }) {
                                         <span className="text-xs font-bold text-white/70">{cat.category}</span>
                                         <span className="text-[9px] text-white/30">({cat.count})</span>
                                         {cat.priority === 'must' && (
-                                            <span className="text-[8px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400/80 border border-amber-500/15 font-bold uppercase tracking-wider">Důležité</span>
+                                            <span className="text-[8px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400/80 border border-amber-500/15 font-bold uppercase tracking-wider">{t("brief.must")}</span>
                                         )}
                                     </div>
                                     <div className="space-y-1 ml-5">
@@ -380,8 +384,8 @@ export function BrandTab({ projectId }: { projectId: string }) {
                         <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         <span className="text-white/50 text-xs font-bold uppercase tracking-wider">
                             {progress.total > 1
-                                ? `Nahrávám ${Math.min(progress.done + 1, progress.total)} z ${progress.total}…`
-                                : "Nahrávám…"}
+                                ? t("upload.progress", { current: Math.min(progress.done + 1, progress.total), total: progress.total })
+                                : t("upload.uploading")}
                         </span>
                         {/* Proužek postupu, ne jen kolečko: u pěti fotek to trvá desítky
                             sekund a bez čísla to vypadá zaseknutě — přesně proto zákaznice
@@ -395,17 +399,17 @@ export function BrandTab({ projectId }: { projectId: string }) {
                             </div>
                         )}
                         <span className="text-white/25 text-[10px] tracking-wide">
-                            Každou fotku ještě popisuje AI, chvíli to trvá. Kartu můžeš nechat otevřenou.
+                            {t("upload.aiNote")}
                         </span>
                     </div>
                 ) : (
                     <div className="flex flex-col items-center gap-3">
                         <Camera className="w-8 h-8" />
                         <span className="text-white/50 text-xs font-bold uppercase tracking-wider">
-                            Přetáhni fotky sem nebo klikni pro výběr
+                            {t("upload.dropHint")}
                         </span>
                         <span className="text-white/30 text-[10px] tracking-wide">
-                            JPG, PNG, WebP • velké fotky zmenšíme za tebe • produkty, lidi, prostředí
+                            {t("upload.formats")}
                         </span>
                     </div>
                 )}
@@ -419,20 +423,20 @@ export function BrandTab({ projectId }: { projectId: string }) {
             ) : images.length === 0 ? (
                 <div className="text-center py-12 text-white/30">
                     <Image className="w-8 h-8 block mb-4" />
-                    <p className="text-xs font-bold uppercase tracking-wider">Zatím žádné fotky</p>
-                    <p className="text-[10px] mt-1 tracking-wide">Nahraj fotky produktů a značky pro lepší AI generování</p>
+                    <p className="text-xs font-bold uppercase tracking-wider">{t("grid.emptyTitle")}</p>
+                    <p className="text-[10px] mt-1 tracking-wide">{t("grid.emptyBody")}</p>
                 </div>
             ) : (
                 <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                        <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">{images.length} fotek · AI štítky</p>
+                        <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">{t("grid.count", { count: images.length })}</p>
                         <button
                             onClick={handleRetag}
                             disabled={retagging}
                             className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 rounded-sm text-[9px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50"
-                            title="Nechej AI znovu projít a oštítkovat všechny fotky"
+                            title={t("grid.retagTitle")}
                         >
-                            {retagging ? "Přeznačuji…" : "Přeznačit AI"}
+                            {retagging ? t("grid.retagging") : t("grid.retag")}
                         </button>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
@@ -440,7 +444,7 @@ export function BrandTab({ projectId }: { projectId: string }) {
                             <div key={img.url} className="group relative aspect-square bg-[#0f0f0f] border border-white/10 rounded-sm overflow-hidden shadow-sm">
                                 <img
                                     src={img.url}
-                                    alt={img.description || `Brand image ${i + 1}`}
+                                    alt={img.description || t("grid.altFallback", { n: i + 1 })}
                                     title={img.description || ""}
                                     className="w-full h-full object-cover"
                                     loading="lazy"
@@ -451,7 +455,7 @@ export function BrandTab({ projectId }: { projectId: string }) {
                                         onClick={(e) => { e.stopPropagation(); handleDelete(img.url) }}
                                         className="bg-red-500/80 hover:bg-red-500 text-white px-3 py-1.5 rounded-sm text-[10px] font-bold uppercase tracking-wider transition-colors shadow-sm cursor-pointer"
                                     >
-                                        Smazat
+                                        {t("grid.delete")}
                                     </button>
                                 </div>
 
@@ -460,7 +464,7 @@ export function BrandTab({ projectId }: { projectId: string }) {
                                     vidět, co se maže. */}
                                 <button
                                     onClick={(e) => { e.stopPropagation(); handleDelete(img.url) }}
-                                    aria-label="Smazat fotku"
+                                    aria-label={t("grid.deleteAria")}
                                     className="sm:hidden absolute top-1.5 right-1.5 w-9 h-9 rounded-sm bg-black/70 border border-white/15 text-red-400 flex items-center justify-center active:bg-black/90 transition-colors cursor-pointer"
                                 >
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -471,7 +475,7 @@ export function BrandTab({ projectId }: { projectId: string }) {
                                     vůbec přiloží, takže musí jít opravit. */}
                                 <button
                                     onClick={(e) => { e.stopPropagation(); openTagEditor(img) }}
-                                    title="Upravit štítky"
+                                    title={t("grid.editTags")}
                                     className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-2 text-left cursor-pointer hover:from-black"
                                 >
                                     {img.tags && img.tags.length > 0 ? (
@@ -480,11 +484,11 @@ export function BrandTab({ projectId }: { projectId: string }) {
                                                 <span key={t} className={`text-[8px] px-1 py-0.5 rounded-sm font-bold uppercase tracking-wider ${t === 'person' ? 'bg-emerald-500/30 text-emerald-200' : 'bg-white/15 text-white/80'}`}>{t}</span>
                                             ))}
                                             {img.userTagged && (
-                                                <span title="Štítky i popis nastavil člověk — AI je nepřepíše" className="text-[8px] text-emerald-400/80 font-bold">✓</span>
+                                                <span title={t("grid.userTagged")} className="text-[8px] text-emerald-400/80 font-bold">✓</span>
                                             )}
                                         </div>
                                     ) : (
-                                        <span className="inline-flex items-center gap-1.5 text-[8px] text-amber-400/90 font-bold uppercase tracking-wider"><TriangleAlert className="w-3 h-3 shrink-0" />bez štítku</span>
+                                        <span className="inline-flex items-center gap-1.5 text-[8px] text-amber-400/90 font-bold uppercase tracking-wider"><TriangleAlert className="w-3 h-3 shrink-0" />{t("grid.untagged")}</span>
                                     )}
                                 </button>
                             </div>
@@ -499,9 +503,9 @@ export function BrandTab({ projectId }: { projectId: string }) {
                     <div className="flex items-start gap-3">
                         <img src={editing.url} alt="" className="w-20 h-20 object-cover rounded-sm border border-white/10 shrink-0" />
                         <div className="min-w-0">
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Štítky a popis fotky</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">{t("editor.title")}</p>
                             <p className="text-[10px] text-white/30 mt-2 tracking-wide">
-                                Podle štítků se rozhoduje, ke kterým příspěvkům se fotka přiloží. Vyber 1–4.
+                                {t("editor.intro")}
                             </p>
                         </div>
                     </div>
@@ -510,19 +514,18 @@ export function BrandTab({ projectId }: { projectId: string }) {
                         člověk dopíše, co ta fotka JE — a to model jinak nemá odkud vzít. */}
                     <div>
                         <label className="text-[10px] font-bold uppercase tracking-widest text-white/50">
-                            Popis pro engine
+                            {t("editor.descriptionLabel")}
                         </label>
                         <textarea
                             value={draftDescription}
                             onChange={e => setDraftDescription(e.target.value.slice(0, BRAND_DESCRIPTION_MAX))}
                             rows={2}
-                            placeholder="Např. Majitel Petr — na fotkách vždycky v modré košili"
+                            placeholder={t("editor.descriptionPlaceholder")}
                             className="mt-1.5 w-full bg-[#0f0f0f] border border-white/10 rounded-sm px-3 py-2 text-xs text-white/85 placeholder:text-white/20 focus:border-white/30 focus:outline-none resize-none"
                         />
                         <div className="flex items-start justify-between gap-3 mt-1">
                             <p className="text-[10px] text-white/30 tracking-wide">
-                                Tuhle větu dostane engine ke každému příspěvku, kde fotku použije. Napiš, co na ní
-                                není vidět: jméno, roli, materiál, kde to je.
+                                {t("editor.descriptionHelp")}
                             </p>
                             <span className={`text-[10px] font-bold shrink-0 ${draftDescription.length >= BRAND_DESCRIPTION_MAX ? 'text-amber-400/80' : 'text-white/25'}`}>
                                 {draftDescription.length}/{BRAND_DESCRIPTION_MAX}
@@ -531,24 +534,24 @@ export function BrandTab({ projectId }: { projectId: string }) {
                     </div>
 
                     <div className="flex flex-wrap gap-1.5">
-                        {BRAND_IMAGE_TAGS.map(t => {
-                            const on = draftTags.includes(t.id)
+                        {BRAND_IMAGE_TAGS.map(tag => {
+                            const on = draftTags.includes(tag.id)
                             const full = !on && draftTags.length >= 4
                             return (
                                 <button
-                                    key={t.id}
-                                    onClick={() => toggleDraftTag(t.id)}
+                                    key={tag.id}
+                                    onClick={() => toggleDraftTag(tag.id)}
                                     disabled={full}
-                                    title={t.hint}
+                                    title={t(`tags.${tag.id}.hint`)}
                                     className={`px-2 py-1 rounded-sm text-[9px] font-bold uppercase tracking-wider border transition-colors cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed ${
                                         on
-                                            ? t.id === 'person'
+                                            ? tag.id === 'person'
                                                 ? 'bg-emerald-500/25 border-emerald-400/40 text-emerald-200'
                                                 : 'bg-white/20 border-white/30 text-white'
                                             : 'bg-white/5 border-white/10 text-white/50 hover:border-white/25'
                                     }`}
                                 >
-                                    {t.label}
+                                    {t(`tags.${tag.id}.label`)}
                                 </button>
                             )
                         })}
@@ -556,7 +559,7 @@ export function BrandTab({ projectId }: { projectId: string }) {
 
                     {draftTags.includes('person') && (
                         <p className="text-[10px] text-emerald-300/80 tracking-wide">
-                            👤 Tuhle tvář bude engine držet napříč příspěvky — nenahradí ji fotobankovým modelem.
+                            {t("editor.personNote")}
                         </p>
                     )}
 
@@ -566,13 +569,13 @@ export function BrandTab({ projectId }: { projectId: string }) {
                             disabled={savingTags || draftTags.length === 0}
                             className="px-4 py-2 bg-white text-black rounded-sm text-[10px] font-bold uppercase tracking-widest disabled:opacity-40 cursor-pointer"
                         >
-                            {savingTags ? "Ukládám…" : "Uložit"}
+                            {savingTags ? t("editor.saving") : t("editor.save")}
                         </button>
                         <button
                             onClick={() => setEditing(null)}
                             className="px-4 py-2 bg-white/5 border border-white/10 text-white/60 rounded-sm text-[10px] font-bold uppercase tracking-widest cursor-pointer"
                         >
-                            Zrušit
+                            {t("editor.cancel")}
                         </button>
                         <span className="text-[10px] text-white/25 tracking-wide">{draftTags.length}/4</span>
                     </div>
@@ -581,10 +584,10 @@ export function BrandTab({ projectId }: { projectId: string }) {
 
             {/* Info */}
             <div className="bg-[#0a0a0a]/60 border border-white/5 rounded-sm p-4 text-[10px] text-white/30 tracking-wide space-y-1">
-                <p>💡 <strong className="text-white/50">Tip:</strong> Nahraj fotky produktů — AI je zakomponuje do reálných scén místo generování od nuly.</p>
-                <p>👤 <strong className="text-white/50">Tvář značky:</strong> Portrét konkrétního člověka označ štítkem <strong className="text-emerald-300/70">Konkrétní osoba</strong> — engine ho pak drží napříč příspěvky místo fotobankového modelu.</p>
-                <p>🏷️ <strong className="text-white/50">Oprava štítků:</strong> Klikni na štítky pod fotkou. Ruční štítek už AI nikdy nepřepíše — ani při „Přeznačit AI“.</p>
-                <p>🏙️ <strong className="text-white/50">Prostředí:</strong> Fotky prodejny/kanceláře pomohou zachovat autentičnost behind-the-scenes postů.</p>
+                <p>{t.rich("info.tip", { strong })}</p>
+                <p>{t.rich("info.face", { strong, tag: (chunks) => <strong className="text-emerald-300/70">{chunks}</strong> })}</p>
+                <p>{t.rich("info.tags", { strong })}</p>
+                <p>{t.rich("info.environment", { strong })}</p>
             </div>
         </div>
     )

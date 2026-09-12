@@ -1,3 +1,59 @@
 {
-  "inspiration": {}
+  "inspiration": {
+    "tab": {
+      "ideas": "Nápady",
+      "reviews": "Recenze"
+    },
+    "ideas": {
+      "explainer": {
+        "title": "Zásobník témat",
+        "body": "AI si odsud bere témata pro vaše příspěvky — nápady, které fungují, používá častěji. Po použití se nápad nemaže, jen si dá pauzu, aby se váš feed neopakoval. Měsíční plán si témata přednostně vybírá odsud — a nová schválená témata sem ukládá zpět."
+      },
+      "count": "{count, plural, one {# nápad} few {# nápady} other {# nápadů}}",
+      "countFiltered": "{shown} / {total, plural, one {# nápad} few {# nápady} other {# nápadů}}",
+      "generating": "Generuji...",
+      "generateAi": "AI Nápady (10x)",
+      "allInPillar": "Vše ({pillar})",
+      "addManually": "+ Přidat ručně",
+      "all": "Vše",
+      "pillarTitle": "Pilíř: {pillar}",
+      "uncategorized": "Bez kategorie",
+      "form": {
+        "titlePlaceholder": "Název...",
+        "contentPlaceholder": "Obsah nápadu...",
+        "categoryPlaceholder": "— Kategorie —",
+        "saving": "Ukládám..."
+      },
+      "badges": {
+        "off": "Vypnuto",
+        "proven": "Funguje",
+        "resting": "Odpočívá",
+        "new": "Nové",
+        "used": "×{count} použito"
+      },
+      "turnOff": "⏸ Vypnout",
+      "turnOn": "▶ Zapnout",
+      "delete": "Smazat",
+      "deleteConfirm": "Opravdu smazat nápad? Tohle nejde vrátit.",
+      "generateError": "Chyba při generování nápadů: {error}",
+      "error": "Chyba: {error}",
+      "empty": "Žádné nápady",
+      "emptyFiltered": "Žádné nápady v této kategorii"
+    },
+    "reviews": {
+      "count": "{count, plural, one {# recenze} few {# recenze} other {# recenzí}}",
+      "generating": "Generuji...",
+      "generateAi": "AI Recenze (5x)",
+      "addManually": "+ Přidat manuálně",
+      "form": {
+        "quotePlaceholder": "Text recenze...",
+        "initialsPlaceholder": "Iniciály (J.D.)",
+        "saving": "Ukládám..."
+      },
+      "anonymous": "Anonym",
+      "approved": "Schváleno",
+      "generateError": "Chyba při generování recenzí: {error}",
+      "empty": "Žádné recenze"
+    }
+  }
 }

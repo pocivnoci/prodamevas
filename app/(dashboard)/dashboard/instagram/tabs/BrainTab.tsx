@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { useTranslations } from "next-intl"
 import {
     getBrandMemoriesList,
     createBrandMemory,
@@ -21,14 +22,16 @@ interface BrandMemory {
     updated_at?: string
 }
 
+/** Ikony a barvy podle typu paměti; popisky jsou v messages (`performance.brain.types.<typ>`). */
 const MEMORY_TYPES = {
-    pattern: { label: "Co funguje", Icon: CircleCheck, color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
-    preference: { label: "Styl značky", Icon: Target, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20" },
-    avoid: { label: "Vyhnout se", Icon: CircleX, color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20" },
-    visual: { label: "Vizuální", Icon: Image, color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
+    pattern: { Icon: CircleCheck, color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
+    preference: { Icon: Target, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20" },
+    avoid: { Icon: CircleX, color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20" },
+    visual: { Icon: Image, color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
 } as const
 
 export function BrainTab({ projectId }: { projectId: string }) {
+    const t = useTranslations("performance.brain")
     const [memories, setMemories] = useState<BrandMemory[]>([])
     const [loading, setLoading] = useState(true)
     const [filter, setFilter] = useState<string>("all")
@@ -106,17 +109,17 @@ export function BrainTab({ projectId }: { projectId: string }) {
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                        <Brain className="w-5 h-5" /> Paměť značky
+                        <Brain className="w-5 h-5" /> {t("title")}
                     </h2>
                     <p className="text-[10px] uppercase tracking-widest text-white/30 mt-1">
-                        Naučené vzorce z reálného výkonu • {memories.length} pravidel
+                        {t("subtitle", { count: memories.length })}
                     </p>
                 </div>
                 <button
                     onClick={() => setShowAddForm(!showAddForm)}
                     className="px-3 py-1.5 text-[10px] uppercase tracking-widest font-bold rounded bg-white/5 border border-white/10 text-white/60 hover:text-white hover:border-white/20 transition-all"
                 >
-                    {showAddForm ? "Zavřít" : "+ Přidat pravidlo"}
+                    {showAddForm ? t("close") : t("add")}
                 </button>
             </div>
 
@@ -141,20 +144,20 @@ export function BrainTab({ projectId }: { projectId: string }) {
                                                 : "bg-white/5 border-white/5 text-white/30 hover:text-white/50"
                                         }`}
                                     >
-                                        <cfg.Icon className="w-3.5 h-3.5 shrink-0" /> {cfg.label}
+                                        <cfg.Icon className="w-3.5 h-3.5 shrink-0" /> {t(`types.${key}`)}
                                     </button>
                                 ))}
                             </div>
                             <textarea
                                 value={newContent}
                                 onChange={e => setNewContent(e.target.value)}
-                                placeholder="Pravidlo česky, např. 'Otázky v hooky mají 2× vyšší engagement než tvrzení'"
+                                placeholder={t("placeholder")}
                                 className="w-full bg-[#050505] border border-white/10 rounded px-3 py-2 text-sm text-white/80 placeholder:text-white/20 resize-none focus:outline-none focus:border-white/20"
                                 rows={2}
                             />
                             <div className="flex items-center gap-4">
                                 <label className="text-[9px] uppercase tracking-widest text-white/30 font-bold">
-                                    Jistota: {(newConfidence * 100).toFixed(0)}%
+                                    {t("confidence", { pct: (newConfidence * 100).toFixed(0) })}
                                 </label>
                                 <input
                                     type="range"
@@ -170,7 +173,7 @@ export function BrainTab({ projectId }: { projectId: string }) {
                                     disabled={saving || !newContent.trim()}
                                     className="px-4 py-1.5 text-[10px] uppercase tracking-widest font-bold rounded bg-aisummit-cinnabar/20 border border-aisummit-cinnabar/30 text-aisummit-cinnabar hover:bg-aisummit-cinnabar/30 transition-all disabled:opacity-30"
                                 >
-                                    {saving ? "..." : "Uložit"}
+                                    {saving ? "..." : t("save")}
                                 </button>
                             </div>
                         </div>
@@ -180,7 +183,7 @@ export function BrainTab({ projectId }: { projectId: string }) {
 
             {/* Filter tabs */}
             <div className="flex gap-1.5 flex-wrap">
-                {[{ key: "all", label: "Vše", Icon: ClipboardList }, ...Object.entries(MEMORY_TYPES).map(([key, cfg]) => ({ key, label: cfg.label, Icon: cfg.Icon }))].map(tab => (
+                {[{ key: "all", label: t("filterAll"), Icon: ClipboardList }, ...Object.entries(MEMORY_TYPES).map(([key, cfg]) => ({ key, label: t(`types.${key}`), Icon: cfg.Icon }))].map(tab => (
                     <button
                         key={tab.key}
                         onClick={() => setFilter(tab.key)}
@@ -197,13 +200,13 @@ export function BrainTab({ projectId }: { projectId: string }) {
 
             {/* Memory cards */}
             {loading ? (
-                <div className="text-center py-12 text-white/20 text-xs uppercase tracking-widest">Načítám...</div>
+                <div className="text-center py-12 text-white/20 text-xs uppercase tracking-widest">{t("loading")}</div>
             ) : filtered.length === 0 ? (
                 <div className="text-center py-12">
                     <p className="text-white/20 text-xs uppercase tracking-widest">
                         {memories.length === 0
-                            ? "Žádné naučené vzorce — systém se naučí po zadání metrik u 3+ postů"
-                            : "Žádné vzorce v této kategorii"}
+                            ? t("emptyAll")
+                            : t("emptyFilter")}
                     </p>
                 </div>
             ) : (
@@ -249,13 +252,13 @@ export function BrainTab({ projectId }: { projectId: string }) {
                                                     disabled={saving}
                                                     className="px-3 py-1 text-[9px] uppercase tracking-widest font-bold rounded bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30 transition-all"
                                                 >
-                                                    Uložit
+                                                    {t("save")}
                                                 </button>
                                                 <button
                                                     onClick={() => setEditingId(null)}
                                                     className="px-3 py-1 text-[9px] uppercase tracking-widest font-bold rounded bg-white/5 border border-white/10 text-white/40 hover:text-white/60 transition-all"
                                                 >
-                                                    Zrušit
+                                                    {t("cancel")}
                                                 </button>
                                             </div>
                                         </div>
@@ -281,14 +284,14 @@ export function BrainTab({ projectId }: { projectId: string }) {
                                                         </span>
                                                     </div>
                                                     <span className="text-[9px] text-white/15">
-                                                        {mem.times_confirmed}× potvrzeno
+                                                        {t("confirmed", { count: mem.times_confirmed })}
                                                     </span>
                                                     <span className="text-[9px] text-white/15">
-                                                        {ageInDays}d staré
+                                                        {t("age", { days: ageInDays })}
                                                     </span>
                                                     {mem.source_post_ids?.length > 0 && (
                                                         <span className="text-[9px] text-white/15">
-                                                            {mem.source_post_ids.length} zdrojů
+                                                            {t("sources", { count: mem.source_post_ids.length })}
                                                         </span>
                                                     )}
                                                 </div>
@@ -299,8 +302,8 @@ export function BrainTab({ projectId }: { projectId: string }) {
                                                 <button
                                                     onClick={() => startEdit(mem)}
                                                     className="p-2 sm:p-1 text-white/40 sm:text-white/20 hover:text-white/60 transition-colors cursor-pointer"
-                                                    title="Upravit"
-                                                    aria-label="Upravit"
+                                                    title={t("edit")}
+                                                    aria-label={t("edit")}
                                                 >
                                                     <svg className="w-4 h-4 sm:w-3.5 sm:h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                                         <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -309,8 +312,8 @@ export function BrainTab({ projectId }: { projectId: string }) {
                                                 <button
                                                     onClick={() => handleDelete(mem.id)}
                                                     className="p-2 sm:p-1 text-white/40 sm:text-white/20 hover:text-red-400 transition-colors cursor-pointer"
-                                                    title="Smazat"
-                                                    aria-label="Smazat"
+                                                    title={t("delete")}
+                                                    aria-label={t("delete")}
                                                 >
                                                     <svg className="w-4 h-4 sm:w-3.5 sm:h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

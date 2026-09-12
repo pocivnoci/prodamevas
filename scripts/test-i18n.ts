@@ -12,6 +12,7 @@
 
 import { readFileSync, readdirSync } from "fs"
 import { resolve } from "path"
+import { parse, TYPE, type MessageFormatElement } from "@formatjs/icu-messageformat-parser"
 
 const ROOT = resolve(__dirname, "..")
 let passed = 0
@@ -58,7 +59,7 @@ const en = loadLocale("en")
 const csFiles = readdirSync(resolve(ROOT, "messages/cs")).filter(f => f.endsWith(".json")).sort()
 const enFiles = readdirSync(resolve(ROOT, "messages/en")).filter(f => f.endsWith(".json")).sort()
 check("cs a en mají stejné soubory zpráv", csFiles.join(",") === enFiles.join(","), `cs: ${csFiles.join(",")} | en: ${enFiles.join(",")}`)
-const registered = [...codeOnly("lib/i18n/messages.ts").matchAll(/^\s+"([a-z-]+)",$/gm)].map(m => m[1]).sort()
+const registered = [...codeOnly("lib/i18n/messages.ts").matchAll(/^\s+"([a-zA-Z-]+)",$/gm)].map(m => m[1]).sort()
 check("každý soubor zpráv je v MESSAGE_FILES (a naopak)", registered.join(",") === csFiles.map(f => f.replace(/\.json$/, "")).join(","),
     `registr: ${registered.join(",")} | soubory: ${csFiles.join(",")}`)
 const missingEn = [...cs.keys()].filter(k => !en.has(k))
@@ -67,10 +68,32 @@ check("en.json má všechny klíče z cs.json", missingEn.length === 0, missingE
 check("en.json nemá klíče navíc", extraEn.length === 0, extraEn.slice(0, 5).join(", "))
 check("žádný prázdný text v cs.json", [...cs.values()].every(v => v.trim().length > 0))
 check("žádný prázdný text v en.json", [...en.values()].every(v => v.trim().length > 0))
-// ICU: stejné proměnné v obou jazycích, jinak překlad vyhodí chybu až za běhu.
-const vars = (s: string) => [...s.matchAll(/\{(\w+)[,}]/g)].map(m => m[1]).sort().join(",")
-const icuDrift = [...cs.entries()].filter(([k, v]) => en.has(k) && vars(v) !== vars(en.get(k)!)).map(([k]) => k)
-check("ICU proměnné se v překladu neztrácejí", icuDrift.length === 0, icuDrift.slice(0, 5).join(", "))
+// ICU: každá zpráva musí jít naparsovat (rozbitý plural spadne až v prohlížeči) a
+// překlad musí brát STEJNÉ proměnné a rich tagy jako zdroj — jinak next-intl vyhodí
+// chybu až za běhu, u jednoho jazyka a jednoho stavu.
+function icuArgs(message: string): string[] | null {
+    const out = new Set<string>()
+    const walk = (els: MessageFormatElement[]) => {
+        for (const el of els) {
+            if (el.type === TYPE.argument || el.type === TYPE.number || el.type === TYPE.date || el.type === TYPE.time) out.add(el.value)
+            else if (el.type === TYPE.plural || el.type === TYPE.select) { out.add(el.value); for (const opt of Object.values(el.options)) walk(opt.value) }
+            else if (el.type === TYPE.tag) { out.add(`<${el.value}>`); walk(el.children) }
+        }
+    }
+    try { walk(parse(message)) } catch { return null }
+    return [...out].sort()
+}
+const broken: string[] = []
+const drift: string[] = []
+for (const [k, v] of cs) {
+    const a = icuArgs(v)
+    const b = en.has(k) ? icuArgs(en.get(k)!) : undefined
+    if (a === null) broken.push(`cs:${k}`)
+    if (b === null) broken.push(`en:${k}`)
+    if (a && b && a.join(",") !== b.join(",")) drift.push(`${k} (cs: ${a.join(",") || "—"} | en: ${b.join(",") || "—"})`)
+}
+check("každá zpráva je platné ICU", broken.length === 0, broken.slice(0, 5).join(", "))
+check("ICU proměnné a tagy se v překladu neztrácejí", drift.length === 0, drift.slice(0, 3).join("; "))
 
 // ── 2. Registr navigace nese klíče ──
 const nav = codeOnly("app/(dashboard)/nav.ts")
@@ -107,11 +130,21 @@ const MIGRATED = [
     "app/reset-password/page.tsx",
     "components/auth/PasswordField.tsx",
     "components/i18n/LanguageSwitcher.tsx",
+    // taby studia (vlna 1)
+    ...[
+        "SettingsTab", "GenerateTab", "PostsTab", "PublishHandoffModal", "ReelPlayer", "ReelSubtitlesPanel",
+        "DashboardTab", "PlanTab", "CalendarTab", "FeedTab", "InspirationTab", "IdeasTab", "ReviewsTab",
+        "BrandTab", "PerformanceTab", "BrainTab", "FaqTab", "TutorialOverlay", "Hint", "shared",
+        "SubscriptionSection", "BillingSection", "ConsultationSection",
+    ].map(f => `app/(dashboard)/dashboard/instagram/tabs/${f}.tsx`),
 ]
 const CZECH = /[ěščřžýáíéúůťďňĚŠČŘŽÝÁÍÉÚŮŤĎŇ]/
+// `console.*` jsou logy, ne UI; `i18n-ignore` na řádku = vědomá výjimka (sentinel
+// v datech, text vázaný na prompt) — musí mít vedle sebe důvod.
+const IGNORED = /console\.(log|warn|error|info)|i18n-ignore/
 for (const f of MIGRATED) {
-    const offenders = codeOnly(f).split("\n").filter(l => CZECH.test(l))
-    check(`${f}: žádný český text mimo komentáře`, offenders.length === 0, offenders[0]?.trim().slice(0, 80))
+    const offenders = codeOnly(f).split("\n").filter(l => CZECH.test(l) && !IGNORED.test(l))
+    check(`${f}: žádný český text mimo komentáře`, offenders.length === 0, offenders[0]?.trim().slice(0, 100))
 }
 
 // ── 4. Zapojení ──
@@ -123,6 +156,13 @@ check("registrace ukládá zvolený jazyk k účtu", codeOnly("app/register/acti
 check("přepínač jazyka je v navigaci studia", codeOnly("app/(dashboard)/StudioNavPanel.tsx").includes("<LanguageSwitcher />"))
 check("kořenový layout zůstává statický (bez next-intl)", !codeOnly("app/layout.tsx").includes("next-intl"))
 check("locale-actions exportuje jen async funkce", !/^export (const|function|let)/m.test(codeOnly("app/actions/locale-actions.ts")))
+
+// ── 5. Platby, doklady, e-maily ──
+check("platební stránka ComGate jde v jazyce UI kupujícího", codeOnly("app/api/payments/create/route.ts").includes("lang: await paymentPageLanguage()"))
+check("Stripe Checkout dostává locale kupujícího", codeOnly("lib/payments/checkout.ts").includes("locale:") && codeOnly("app/api/payments/create/route.ts").includes("locale: await paymentPageLanguage()"))
+check("jazyk dokladu Fakturoidu jde podle země odběratele, ne natvrdo", !/language: "cz"/.test(codeOnly("lib/fakturoid.ts")) && (codeOnly("lib/fakturoid.ts").match(/fakturoidLanguage\(/g) || []).length >= 3)
+check("layout e-mailu nese jazyk příjemce (lang + patička)", codeOnly("lib/mail/layout.ts").includes("doc.locale") && !codeOnly("lib/mail/layout.ts").includes('<html lang="cs">'))
+check("uvítací e-mail jde v jazyce účtu přes mailTranslator", codeOnly("app/auth/callback/route.ts").includes("mailTranslator(locale)") && cs.has("mail.welcome.subject"))
 
 console.log("\n" + "─".repeat(60))
 console.log(`  ✅ ${passed} prošlo | ❌ ${failed} selhalo`)

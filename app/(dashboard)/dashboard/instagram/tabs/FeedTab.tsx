@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useFormatter, useTranslations } from "next-intl"
 import { getIGPostsList, getProfilePreview } from "@/app/actions/admin-actions"
 import { parsePostMedia } from "@/lib/media-urls"
 
@@ -8,7 +9,7 @@ import { parsePostMedia } from "@/lib/media-urls"
 const thumbOf = (p: { image_url?: string | null; media_type?: string | null } | null | undefined) =>
     p ? (parsePostMedia(p.image_url, p.media_type).thumbUrl ?? undefined) : undefined
 import { getFeedPatternPreview } from "@/app/actions/content-plan-actions"
-import { VISUAL_MODE_LABELS, type VisualMode } from "@/lib/feed-pattern"
+import { VISUAL_MODE_LABELS, type FeedPatternId, type VisualMode } from "@/lib/feed-pattern"
 import { CaptionEditor } from "./shared"
 import { Square } from "lucide-react"
 
@@ -36,7 +37,11 @@ export function FeedTab({ projectId }: { projectId: string }) {
     const [loading, setLoading] = useState(true)
     const [selectedPost, setSelectedPost] = useState<FeedPost | null>(null)
     // The grid rhythm + the modes of the posts that haven't been made yet.
-    const [pattern, setPattern] = useState<{ patternId: string; label: string; gridAligned: boolean; ghostRoles: VisualMode[] } | null>(null)
+    // `label` ze serveru je český text z lib/feed-pattern — popisek se bere z messages podle `patternId`.
+    const [pattern, setPattern] = useState<{ patternId: FeedPatternId; label: string; gridAligned: boolean; ghostRoles: VisualMode[] } | null>(null)
+    const t = useTranslations("plan.feed")
+    const tc = useTranslations("common")
+    const format = useFormatter()
 
     useEffect(() => {
         if (!projectId) return
@@ -78,8 +83,8 @@ export function FeedTab({ projectId }: { projectId: string }) {
         return (
             <div className="text-center py-20">
                 <p className="text-4xl mb-3 opacity-30">📱</p>
-                <p className="text-[10px] text-white/40 uppercase font-bold tracking-widest">Žádné příspěvky s obrázky</p>
-                <p className="text-[10px] text-white/25 mt-1">Vygenerujte obsah v sekci Generovat</p>
+                <p className="text-[10px] text-white/40 uppercase font-bold tracking-widest">{t("empty.title")}</p>
+                <p className="text-[10px] text-white/25 mt-1">{t("empty.body")}</p>
             </div>
         )
     }
@@ -115,23 +120,23 @@ export function FeedTab({ projectId }: { projectId: string }) {
                         <div className="flex flex-wrap gap-x-6 gap-y-2 sm:gap-8">
                             <div className="text-center">
                                 <p className="text-white font-black text-lg">{profile?.postCount ?? posts.length}</p>
-                                <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">příspěvků</p>
+                                <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">{t("stats.posts")}</p>
                             </div>
                             <div className="text-center">
-                                <p className="text-white font-black text-lg">{profile?.followerCount != null ? profile.followerCount.toLocaleString("cs-CZ") : "—"}</p>
-                                <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">sledujících</p>
+                                <p className="text-white font-black text-lg">{profile?.followerCount != null ? format.number(profile.followerCount) : "—"}</p>
+                                <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">{t("stats.followers")}</p>
                             </div>
                             <div className="text-center">
                                 <p className="text-emerald-400 font-black text-lg">{posted}</p>
-                                <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">publikováno</p>
+                                <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">{t("stats.posted")}</p>
                             </div>
                             <div className="text-center">
                                 <p className="text-blue-400 font-black text-lg">{ready}</p>
-                                <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">naplánováno</p>
+                                <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">{t("stats.scheduled")}</p>
                             </div>
                             <div className="text-center">
                                 <p className="text-amber-400 font-black text-lg">{drafts}</p>
-                                <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">drafty</p>
+                                <p className="text-[9px] text-white/40 uppercase tracking-widest font-bold">{t("stats.drafts")}</p>
                             </div>
                         </div>
                     </div>
@@ -142,12 +147,12 @@ export function FeedTab({ projectId }: { projectId: string }) {
             {pattern && pattern.patternId !== "none" && (
                 <div className="flex items-center justify-between gap-4 bg-[#0a0a0a]/80 border border-white/10 rounded-sm px-4 py-3">
                     <div className="flex items-center gap-3">
-                        <span className="text-[9px] text-white/40 uppercase tracking-widest font-bold">Vzor feedu</span>
-                        <span className="text-[11px] text-aisummit-cinnabar font-bold uppercase tracking-widest"><Square className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{pattern.label}</span>
+                        <span className="text-[9px] text-white/40 uppercase tracking-widest font-bold">{t("pattern.label")}</span>
+                        <span className="text-[11px] text-aisummit-cinnabar font-bold uppercase tracking-widest"><Square className="w-3.5 h-3.5 shrink-0 inline-block align-[-2px] mr-1" />{t(`pattern.names.${pattern.patternId}`)}</span>
                     </div>
                     {pattern.gridAligned && (
                         <span className="text-[9px] text-white/25 font-bold uppercase tracking-widest text-right">
-                            Nejlépe drží tvar při publikování po celých řádcích
+                            {t("pattern.gridAligned")}
                         </span>
                     )}
                 </div>
@@ -157,15 +162,16 @@ export function FeedTab({ projectId }: { projectId: string }) {
                 so the posts that don't exist yet belong above the ones that do. */}
             <div className="grid grid-cols-3 gap-1">
                 {(pattern?.ghostRoles || []).map((mode, i) => {
-                    const m = VISUAL_MODE_LABELS[mode]
+                    // Ikona z lib, popisek z messages podle hodnoty (`VISUAL_MODE_LABELS.label` je česky natvrdo).
+                    const modeLabel = t(`visualMode.${mode}`)
                     return (
                         <div
                             key={`ghost-${i}`}
-                            title={`Další post v pořadí: ${m.label}`}
+                            title={t("pattern.nextPost", { mode: modeLabel })}
                             className="relative aspect-square border border-dashed border-white/15 bg-white/[0.02] flex flex-col items-center justify-center gap-1"
                         >
-                            <span className="text-lg opacity-30">{m.icon}</span>
-                            <span className="text-[8px] text-white/25 uppercase tracking-widest font-bold">{m.label}</span>
+                            <span className="text-lg opacity-30">{VISUAL_MODE_LABELS[mode].icon}</span>
+                            <span className="text-[8px] text-white/25 uppercase tracking-widest font-bold">{modeLabel}</span>
                         </div>
                     )
                 })}
@@ -201,7 +207,7 @@ export function FeedTab({ projectId }: { projectId: string }) {
                             {/* Scheduled date — so the grid reads as a future plan */}
                             {post.scheduled_for && (
                                 <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1 text-[9px] font-bold text-white/90 text-left">
-                                    📅 {new Date(post.scheduled_for).toLocaleDateString("cs-CZ", { day: "numeric", month: "numeric" })}
+                                    📅 {format.dateTime(new Date(post.scheduled_for), { day: "numeric", month: "numeric" })}
                                     {post.time_slot ? ` · ${post.time_slot}` : ""}
                                 </div>
                             )}
@@ -214,15 +220,15 @@ export function FeedTab({ projectId }: { projectId: string }) {
             <div className="flex items-center gap-6 justify-center">
                 <div className="flex items-center gap-1.5">
                     <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span className="text-[9px] text-white/40 uppercase tracking-widest font-bold">Publikováno</span>
+                    <span className="text-[9px] text-white/40 uppercase tracking-widest font-bold">{t("legend.posted")}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                     <div className="w-2 h-2 rounded-full bg-blue-500" />
-                    <span className="text-[9px] text-white/40 uppercase tracking-widest font-bold">Naplánováno</span>
+                    <span className="text-[9px] text-white/40 uppercase tracking-widest font-bold">{t("legend.scheduled")}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                     <div className="w-2 h-2 rounded-full bg-amber-500" />
-                    <span className="text-[9px] text-white/40 uppercase tracking-widest font-bold">Draft</span>
+                    <span className="text-[9px] text-white/40 uppercase tracking-widest font-bold">{t("legend.draft")}</span>
                 </div>
             </div>
 
@@ -265,7 +271,7 @@ export function FeedTab({ projectId }: { projectId: string }) {
                                 onClick={() => setSelectedPost(null)}
                                 className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-sm text-white/50 text-[10px] font-bold uppercase tracking-widest hover:bg-white/10 hover:text-white transition-all"
                             >
-                                Zavřít
+                                {tc("close")}
                             </button>
                         </div>
                     </div>

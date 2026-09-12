@@ -1,0 +1,11 @@
+{
+  "mail": {
+    "welcome": {
+      "subject": "Welcome to Chrlit — your account is active",
+      "greeting": "Hello,",
+      "body": "your account is confirmed and ready. Chrlit learns your brand and churns out finished posts for you — enter your website, go through a short setup and start the first generation.",
+      "cta": "Open the studio →",
+      "signature": "The Chrlit team"
+    }
+  }
+}

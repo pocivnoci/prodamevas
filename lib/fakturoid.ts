@@ -145,6 +145,21 @@ export interface BillingDetails {
 interface FakturoidSubject { id: number; custom_id: string | null }
 
 /**
+ * Jazyk dokladu podle země fakturační adresy. Fakturoid umí cz, sk, en, de, pl…;
+ * doklad pro slovenskou firmu v češtině projde, pro německou ne. Neznámá země =
+ * angličtina, ne čeština: cizí odběratel si česky nepřečte ani „daňový doklad".
+ */
+export function fakturoidLanguage(countryCode: string | null | undefined): "cz" | "sk" | "de" | "pl" | "en" {
+    switch ((countryCode || "").trim().toUpperCase()) {
+        case "CZ": return "cz"
+        case "SK": return "sk"
+        case "DE": case "AT": case "CH": return "de"
+        case "PL": return "pl"
+        default: return "en"
+    }
+}
+
+/**
  * Najde subjekt podle `custom_id` (= náš client UUID) nebo ho založí.
  * Díky custom_id nevzniká při každé platbě nový odběratel.
  */
@@ -171,7 +186,7 @@ export async function ensureSubject(clientId: string, billing: BillingDetails): 
             zip: billing.zip,
             country: billing.countryCode,
             email: billing.email || undefined,
-            language: "cz",
+            language: fakturoidLanguage(billing.countryCode),
             currency: "CZK",
         },
     })
@@ -243,7 +258,7 @@ export async function issueInvoice(input: IssueInvoiceInput): Promise<FakturoidI
                 due: 0,
                 payment_method: "card",
                 currency: "CZK",
-                language: "cz",
+                language: fakturoidLanguage(input.billing.countryCode),
                 // `amountHaleru` je to, co brána reálně strhla — tedy částka
                 // VČETNĚ DPH. `prices_kind: "with_vat"` říká Fakturoidu, ať z ní
                 // daň vypočítá, místo aby ji připočetl navrch: jinak by doklad

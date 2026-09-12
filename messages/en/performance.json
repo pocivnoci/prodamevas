@@ -1,3 +1,99 @@
 {
-  "performance": {}
+  "performance": {
+    "tab": {
+      "sync": {
+        "done": "Loaded from Instagram: {count, plural, one {# post} other {# posts}}{matched, plural, =0 {} other {, # newly linked}}.",
+        "failed": "Sync failed"
+      },
+      "metrics": {
+        "likes": "Likes",
+        "comments": "Comments",
+        "saves": "Saves",
+        "reach": "Reach",
+        "shares": "Shares",
+        "link_clicks": "Clicks"
+      },
+      "stats": {
+        "title": "Performance stats",
+        "noDataYet": "— no data yet, enter metrics below",
+        "syncTitle": "Pulls current metrics from the connected Instagram account",
+        "syncing": "⏳ Loading…",
+        "sync": "Load metrics from Instagram",
+        "avgEngagement": "Average engagement",
+        "conversionRate": "Conversion rate",
+        "bestTime": "Best time",
+        "postsWithData": "Posts with data",
+        "bestHooks": "Best hooks",
+        "noData": "No data",
+        "patterns": "Detected patterns",
+        "patternsEmpty": "Enter post metrics to detect patterns",
+        "byPillar": "Performance by topic",
+        "emptyTitle": "Enter metrics for the published posts below",
+        "emptyBody": "Stats appear once at least 3 posts have data"
+      },
+      "locked": {
+        "title": "What the numbers say",
+        "body": "You see the full numbers for every post. The evaluation — which format and time work best, what the conversion is and how the version duels turned out — is available from the Růst plan up."
+      },
+      "manual": {
+        "title": "Manual metrics entry",
+        "count": "— {count, plural, one {# post} other {# posts}}",
+        "emptyTitle": "No published posts",
+        "emptyBody": "Generate posts and mark them as \"posted\"",
+        "post": "Post",
+        "save": "Save"
+      },
+      "info": {
+        "engine": "<strong>Neural Engine:</strong> The metrics you enter automatically shape the next generation — the AI learns what works better.",
+        "insights": "<strong>Insights:</strong> Appear once metrics are entered for at least 3 posts with the \"posted\" status.",
+        "meta": "<strong>Meta API:</strong> Automatic metric import is coming later — for now, enter them manually from IG Insights."
+      },
+      "duels": {
+        "title": "Version duels",
+        "decided": "{decided} of {total} already have a clear result.",
+        "none": "No duel shows a conclusive difference yet.",
+        "verdict": {
+          "rozhodnuto": "Decided",
+          "tesne": "No difference",
+          "ceka": "Waiting for data"
+        },
+        "original": "Original",
+        "variant": "Variant"
+      },
+      "growth": {
+        "title": "Profile growth",
+        "lockedBody": "Weekly follower tracking and a growth chart since the start are available from the <strong>Růst</strong> plan.",
+        "unlock": "Unlock",
+        "followers": "Followers",
+        "sinceStart": "Since start",
+        "baseline": "Starting point: {followers, plural, one {# follower} other {# followers}} ({date}). The first weekly snapshot is taken on Monday morning — the chart grows with you.",
+        "empty": "No data yet — follower snapshots are taken automatically every Monday."
+      }
+    },
+    "brain": {
+      "title": "Brand memory",
+      "subtitle": "Patterns learned from real performance • {count, plural, one {# rule} other {# rules}}",
+      "close": "Close",
+      "add": "+ Add rule",
+      "types": {
+        "pattern": "What works",
+        "preference": "Brand style",
+        "avoid": "Avoid",
+        "visual": "Visual"
+      },
+      "placeholder": "A rule in plain words, e.g. ''Questions in hooks get twice the engagement of statements''",
+      "confidence": "Confidence: {pct}%",
+      "save": "Save",
+      "cancel": "Cancel",
+      "filterAll": "All",
+      "loading": "Loading...",
+      "emptyAll": "No learned patterns yet — the system learns once 3+ posts have metrics",
+      "emptyFilter": "No patterns in this category",
+      "confirmed": "confirmed {count}×",
+      "age": "{days}d old",
+      "sources": "{count, plural, one {# source} other {# sources}}",
+      "edit": "Edit",
+      "delete": "Delete"
+    }
+  }
 }

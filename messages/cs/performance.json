@@ -1,3 +1,99 @@
 {
-  "performance": {}
+  "performance": {
+    "tab": {
+      "sync": {
+        "done": "Z Instagramu načteno: {count, plural, one {# příspěvek} few {# příspěvky} other {# příspěvků}}{matched, plural, =0 {} other {, nově propojeno #}}.",
+        "failed": "Synchronizace selhala"
+      },
+      "metrics": {
+        "likes": "Likes",
+        "comments": "Komentáře",
+        "saves": "Uložení",
+        "reach": "Reach",
+        "shares": "Sdílení",
+        "link_clicks": "Kliky"
+      },
+      "stats": {
+        "title": "Statistiky výkonu",
+        "noDataYet": "— zatím žádná data, zadej metriky níže",
+        "syncTitle": "Stáhne aktuální metriky z propojeného Instagramu",
+        "syncing": "⏳ Načítám…",
+        "sync": "Načíst metriky z Instagramu",
+        "avgEngagement": "Průměrná interakce",
+        "conversionRate": "Konverzní poměr",
+        "bestTime": "Nejlepší čas",
+        "postsWithData": "Postů s daty",
+        "bestHooks": "Nejlepší hooky",
+        "noData": "Žádná data",
+        "patterns": "Detekované vzorce",
+        "patternsEmpty": "Zadej metriky k postům pro detekci vzorců",
+        "byPillar": "Výkon podle témat",
+        "emptyTitle": "Zadej metriky k publikovaným postům níže",
+        "emptyBody": "Statistiky se zobrazí po přidání dat k alespoň 3 postům"
+      },
+      "locked": {
+        "title": "Co z čísel plyne",
+        "body": "Čísla u příspěvků vidíš celá. Vyhodnocení — který formát a čas fungují nejlíp, jaká je konverze a jak dopadly souboje verzí — je od tarifu Růst výš."
+      },
+      "manual": {
+        "title": "Manuální zadávání metrik",
+        "count": "— {count, plural, one {# post} few {# posty} other {# postů}}",
+        "emptyTitle": "Žádné publikované posty",
+        "emptyBody": "Vygeneruj posty a označ je jako \"posted\"",
+        "post": "Post",
+        "save": "Uložit"
+      },
+      "info": {
+        "engine": "<strong>Neural Engine:</strong> Zadané metriky automaticky ovlivní příští generování — AI se naučí, co funguje líp.",
+        "insights": "<strong>Insights:</strong> Zobrazí se po zadání metrik k alespoň 3 postům se statusem \"posted\".",
+        "meta": "<strong>Meta API:</strong> Automatické stahování metrik bude přidáno později — zatím zadávej ručně z IG Insights."
+      },
+      "duels": {
+        "title": "Souboje verzí",
+        "decided": "{decided} z {total} už má jasný výsledek.",
+        "none": "Zatím žádný souboj nemá průkazný rozdíl.",
+        "verdict": {
+          "rozhodnuto": "Rozhodnuto",
+          "tesne": "Bez rozdílu",
+          "ceka": "Čeká na data"
+        },
+        "original": "Původní",
+        "variant": "Varianta"
+      },
+      "growth": {
+        "title": "Růst profilu",
+        "lockedBody": "Týdenní sledování followerů a graf růstu od startu je dostupný od balíčku <strong>Růst</strong>.",
+        "unlock": "Odemknout",
+        "followers": "Followers",
+        "sinceStart": "Od startu",
+        "baseline": "Výchozí bod: {followers, plural, one {# follower} few {# followeři} other {# followerů}} ({date}). První týdenní snapshot se pořídí v pondělí ráno — graf poroste s vámi.",
+        "empty": "Zatím žádná data — snapshoty followerů se pořizují automaticky každé pondělí."
+      }
+    },
+    "brain": {
+      "title": "Paměť značky",
+      "subtitle": "Naučené vzorce z reálného výkonu • {count, plural, one {# pravidlo} few {# pravidla} other {# pravidel}}",
+      "close": "Zavřít",
+      "add": "+ Přidat pravidlo",
+      "types": {
+        "pattern": "Co funguje",
+        "preference": "Styl značky",
+        "avoid": "Vyhnout se",
+        "visual": "Vizuální"
+      },
+      "placeholder": "Pravidlo česky, např. ''Otázky v hooky mají 2× vyšší engagement než tvrzení''",
+      "confidence": "Jistota: {pct}%",
+      "save": "Uložit",
+      "cancel": "Zrušit",
+      "filterAll": "Vše",
+      "loading": "Načítám...",
+      "emptyAll": "Žádné naučené vzorce — systém se naučí po zadání metrik u 3+ postů",
+      "emptyFilter": "Žádné vzorce v této kategorii",
+      "confirmed": "{count}× potvrzeno",
+      "age": "{days}d staré",
+      "sources": "{count, plural, one {# zdroj} few {# zdroje} other {# zdrojů}}",
+      "edit": "Upravit",
+      "delete": "Smazat"
+    }
+  }
 }

@@ -1,3 +1,52 @@
 {
-  "shared": {}
+  "shared": {
+    "copy": {
+      "copied": "Zkopírováno",
+      "copy": "Kopírovat"
+    },
+    "status": {
+      "draft": "KONCEPT",
+      "plan_draft": "PLÁN",
+      "plan_locked": "ZAMČENO",
+      "ready": "PŘIPRAVENO",
+      "scheduled": "NAPLÁNOVÁNO",
+      "posting": "PUBLIKUJE SE…",
+      "posted": "PUBLIKOVÁNO",
+      "failed": "SELHALO",
+      "archived": "ARCHIVOVÁNO"
+    },
+    "pillar": {
+      "reach": "DOSAH",
+      "value": "HODNOTA",
+      "convert": "KONVERZE",
+      "connect": "PROPOJENÍ"
+    },
+    "metrics": {
+      "title": "Metriky",
+      "saving": "Ukládám...",
+      "save": "Uložit",
+      "likes": "Lajky",
+      "comments": "Komentáře",
+      "saves": "Uložení",
+      "reach": "Dosah",
+      "views": "Zhlédnutí",
+      "shares": "↗️ Sdílení",
+      "profileVisits": "Návštěvy profilu",
+      "linkClicks": "Prokliknutí",
+      "conversion": "Konverze"
+    },
+    "caption": {
+      "saveFailed": "Uložení selhalo.",
+      "lockedTitle": "Publikovaný text už nejde upravit — vytvoř variantu",
+      "editTitle": "Kliknutím text přepíšeš",
+      "edit": "Upravit",
+      "placeholder": "Text příspěvku — uloží se přesně tak, jak ho napíšeš",
+      "hashtagsPlaceholder": "Hashtagy oddělené mezerou (nepovinné)",
+      "unchanged": "Text se od uloženého neliší",
+      "saving": "Ukládám…",
+      "save": "Uložit text",
+      "cancel": "Zrušit",
+      "free": "Zdarma · jde vrátit zpět"
+    }
+  }
 }

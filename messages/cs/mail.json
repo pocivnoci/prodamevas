@@ -1,0 +1,11 @@
+{
+  "mail": {
+    "welcome": {
+      "subject": "Vítejte v Chrlit — účet je aktivní",
+      "greeting": "Dobrý den,",
+      "body": "váš účet je potvrzený a připravený. Chrlit se naučí vaši značku a chrlí za vás hotové příspěvky — stačí zadat web, projít krátké nastavení a spustit první generování.",
+      "cta": "Otevřít studio →",
+      "signature": "Tým Chrlit"
+    }
+  }
+}

@@ -239,7 +239,9 @@ test("4.6 validateConfig handles empty config object", async () => {
 
 test("5.1 GenerateTab has retry button", () => {
     const content = fileContent("app/(dashboard)/dashboard/instagram/tabs/GenerateTab.tsx")
-    assert(content.includes("Zkusit znovu"), "Should have 'Zkusit znovu' button")
+    // Text tlačítka žije v messages (next-intl); kód nese jen klíč.
+    const messages = JSON.parse(fileContent("messages/cs/generate.json"))
+    assert(content.includes('t("result.retry")') && messages.generate.result.retry === "Zkusit znovu", "Should have 'Zkusit znovu' button")
 })
 
 test("5.2 retry button resets state and re-triggers generation", () => {
@@ -275,7 +277,9 @@ test("6.4 PostsTab imports getEditorialLog", () => {
 
 test("6.5 PostDetailModal displays editorial log", () => {
     const content = fileContent("app/(dashboard)/dashboard/instagram/tabs/PostsTab.tsx")
-    assert(content.includes("Editorial Board"), "Should show 'Editorial Board' section")
+    // Nadpis sekce žije v messages (posts.detail.editorial.title), tab nese jen klíč.
+    const editorial = JSON.parse(fileContent("messages/cs/posts.json")).posts?.detail?.editorial ?? {}
+    assert(String(editorial.title ?? "").includes("Editorial Board"), "Should show 'Editorial Board' section")
     assert(content.includes("editorialLog"), "Should use editorialLog state")
 })
 
@@ -348,12 +352,13 @@ test("7.0c Gesta jdou vypnout a nesmí krást vodorovné scrollery", () => {
 })
 
 test("7.1 CalendarTab has empty slot indicator", () => {
-    const content = fileContent("app/(dashboard)/dashboard/instagram/tabs/CalendarTab.tsx")
+    // Texty tabu žijí v messages (next-intl, namespace plan.calendar), ne v JSX.
+    const content = JSON.stringify(JSON.parse(fileContent("messages/cs/plan.json")).plan.calendar)
     assert(content.includes("Volno"), "Should show 'Volno' for empty days")
 })
 
 test("7.2 CalendarTab has 'Plan week' CTA", () => {
-    const content = fileContent("app/(dashboard)/dashboard/instagram/tabs/CalendarTab.tsx")
+    const content = JSON.stringify(JSON.parse(fileContent("messages/cs/plan.json")).plan.calendar)
     assert(content.includes("Naplánuj týden"), "Should have 'Naplánuj týden' button")
 })
 
@@ -403,12 +408,17 @@ test("8.4 Bootstrap seeds the idea bank before the showcase campaign", () => {
 test("9.1 SettingsTab has imageInstructions editor", () => {
     const content = fileContent("app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx")
     assert(content.includes("imageInstructions"), "Should reference imageInstructions")
-    assert(content.includes("Instrukce pro obrázky"), "Should have Czech label for image instructions")
+    // Popisky tabu žijí v messages (next-intl); český zdroj je messages/cs/settings.json.
+    const settingsCs = JSON.parse(fileContent("messages/cs/settings.json")).settings
+    assert(settingsCs.visual.identity.imageInstructions.includes("Instrukce pro obrázky"), "Should have Czech label for image instructions")
 })
 
 test("9.2 imageInstructions editor has add button", () => {
     const content = fileContent("app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx")
-    assert(content.includes("Přidat instrukci pro typ"), "Should have add button")
+    // Text tlačítka žije v messages; kód nese klíč.
+    assert(content.includes('t("visual.identity.addInstruction")'), "Should have add button")
+    const settingsCs = JSON.parse(fileContent("messages/cs/settings.json")).settings
+    assert(settingsCs.visual.identity.addInstruction.includes("Přidat instrukci pro typ"), "Should have add button (Czech text in messages/cs/settings.json)")
 })
 
 test("9.3 imageInstructions editor has delete button", () => {
@@ -420,7 +430,10 @@ test("9.3 imageInstructions editor has delete button", () => {
 
 test("9.4 imageInstructions empty state has helper text", () => {
     const content = fileContent("app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx")
-    assert(content.includes("_default"), "Should mention _default key as tip")
+    // Nápověda žije v messages; kód nese klíč.
+    assert(content.includes('t("visual.identity.noInstructions")'), "Should render the empty-state helper")
+    const settingsCs = JSON.parse(fileContent("messages/cs/settings.json")).settings
+    assert(settingsCs.visual.identity.noInstructions.includes("_default"), "Should mention _default key as tip")
 })
 
 test("9.5 imageInstructions matches config type (Record<string, string>)", () => {
@@ -688,6 +701,9 @@ test("13.19 tarif neprodává A/B test, ale dvě verze za kredity navíc", () =>
     for (const f of [
         "app/(dashboard)/dashboard/instagram/tabs/SubscriptionSection.tsx",
         "app/(dashboard)/dashboard/instagram/tabs/FaqTab.tsx",
+        // texty FAQ žijí v messages (help.faq.*)
+        "messages/cs/help.json",
+        "messages/en/help.json",
     ]) {
         assert(!/A\/B/i.test(codeOnly(f)), `${f}: kopie tarifu pořád mluví o A/B`)
     }
@@ -818,7 +834,8 @@ test("13.18 rada, který tarif si koupit, sedí na seed", () => {
 
     // A nikde už nesmí být natvrdo psaný název tarifu vedle slova reels.
     for (const f of ["app/actions/campaign-actions.ts", "app/api/ig-create-job/route.ts",
-                     "app/(dashboard)/dashboard/instagram/tabs/GenerateTab.tsx"]) {
+                     "app/(dashboard)/dashboard/instagram/tabs/GenerateTab.tsx",
+                     "messages/cs/generate.json"]) {
         const c = codeOnly(f)
         assert(!/balíčku (Start|Růst|Dominance|Impérium)/.test(c),
             `${f}: název tarifu v hlášce musí vzniknout z getPlanForMedium, ne být napsaný`)
@@ -2185,9 +2202,11 @@ test("15.7 přegenerování je zpoplatněné a zůstává opt-in", () => {
 
     const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/PostsTab.tsx")
     assert(ui.includes("editPost"), "PostsTab musí nabízet cílenou úpravu")
-    assert(ui.includes("Vygenerovat úplně znovu") || ui.includes("vygenerovat úplně znovu"),
+    // Popisky tlačítek žijí v messages (posts.edit.*), tab nese jen klíče.
+    const edit = JSON.parse(fileContent("messages/cs/posts.json")).posts?.edit ?? {}
+    assert(/vygenerovat úplně znovu/i.test(String(edit.regenerate?.open ?? "")),
         "přegenerování musí být samostatná, jasně označená akce")
-    assert(ui.includes("Vrátit zpět"), "musí jít vrátit poslední úpravu")
+    assert(String(edit.revert ?? "").includes("Vrátit zpět"), "musí jít vrátit poslední úpravu")
 })
 
 test("15.8 fetchImageBuffer má jedinou definici", () => {
@@ -3713,6 +3732,9 @@ test("25.3b cena tarifu nesmí být napsaná v textu aplikace", () => {
 
     for (const f of [
         "app/(dashboard)/dashboard/instagram/tabs/FaqTab.tsx",
+        // texty FAQ žijí v messages (help.faq.*)
+        "messages/cs/help.json",
+        "messages/en/help.json",
         "components/Landing.tsx",
         "app/page.tsx",
     ]) {
@@ -3913,11 +3935,13 @@ test("26.6 vysvětlivky jsou jen tam, kde chyba něco stojí", () => {
     for (const key of ["tone", "pillars", "formats", "cadence", "autoPublish", "credits"]) {
         assert(new RegExp(`${key}:`).test(hints), `chybí vysvětlivka pro ${key}`)
     }
+    // Znění vysvětlivek žije v messages (`help.hint.*`) — text se kontroluje tam.
+    const hintTexts = JSON.parse(fileContent("messages/cs/help.json")).help.hint
     // Nevratná akce se musí označit jako nevratná.
-    assert(/Zpátky to vzít nejde/.test(hints),
+    assert(/Zpátky to vzít nejde/.test(hintTexts.autoPublish),
         "auto-publikování musí říct, že zveřejnění nejde vzít zpět")
     // Prepaid zákazník se nesmí dozvědět až ve třetím měsíci, že kredity propadají.
-    assert(/i u předplatného zaplaceného na rok/.test(hints),
+    assert(/i u předplatného zaplaceného na rok/.test(hintTexts.credits),
         "propadání kreditů musí být řečené i u ročního předplatného")
 })
 
@@ -4464,11 +4488,18 @@ test("29.16 cena bez DPH to musí říct tam, kde se ukazuje", () => {
         assert(codeOnly(f).includes("vatNotice()"), `${f}: ceník musí nést větu o DPH z lib/legal.ts`)
     }
     // Menší cenovky (kredity, konzultace, paywall) nemají celou větu, ale musí
-    // aspoň říct „bez DPH" — a odvodit to z identity, ne natvrdo.
+    // aspoň říct „bez DPH" — a odvodit to z identity, ne natvrdo. U tabu
+    // migrovaného na messages žije text v messages/cs/<ns>.json; v kódu zůstává
+    // jen podmínka na identitě.
+    const COPY_IN_MESSAGES: Record<string, () => string> = {
+        "app/(dashboard)/dashboard/instagram/tabs/ConsultationSection.tsx":
+            () => JSON.stringify(JSON.parse(fileContent("messages/cs/billing.json")).billing?.consultation ?? {}),
+    }
     for (const f of ["app/(dashboard)/CreditPacks.tsx", "app/(dashboard)/PaywallProvider.tsx",
                      "app/(dashboard)/dashboard/instagram/tabs/ConsultationSection.tsx"]) {
         const src = codeOnly(f)
-        assert(src.includes("LEGAL.vatStatus") && /bez DPH/.test(src),
+        const copy = COPY_IN_MESSAGES[f]?.() ?? src
+        assert(src.includes("LEGAL.vatStatus") && /bez DPH/.test(copy),
             `${f}: cena musí odlišit základ od částky s daní`)
     }
 })
@@ -5752,7 +5783,9 @@ test("37.6 zdroje se ukládají, nesou přes resume a jsou vidět", () => {
     const admin = codeOnly("app/actions/admin-actions.ts")
     assert(/fact_sources/.test(admin), "seznam postů musí doklady připojit")
     const ui = fileContent("app/(dashboard)/dashboard/instagram/tabs/PostsTab.tsx")
-    assert(/Ověřeno na webu/.test(ui) && /rel="noopener noreferrer nofollow"/.test(ui),
+    // Nadpis panelu žije v messages (posts.detail.sources.title), odkaz zůstává v tabu.
+    const sources = JSON.parse(fileContent("messages/cs/posts.json")).posts?.detail?.sources ?? {}
+    assert(/Ověřeno na webu/.test(String(sources.title ?? "")) && /rel="noopener noreferrer nofollow"/.test(ui),
         "zdroj se musí ukázat jako skutečný odkaz — doklad, který nikdo neuvidí, je stejný jako žádný")
 })
 

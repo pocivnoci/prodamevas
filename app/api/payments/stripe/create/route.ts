@@ -9,6 +9,7 @@
  * platbu identicky.
  */
 
+import { paymentPageLanguage } from "@/lib/i18n/server"
 import { NextRequest, NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
 import { createStripeCheckout } from "@/lib/payments/checkout"
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        const result = await createStripeCheckout({ client, plan, payerEmail, termMonths: term })
+        const result = await createStripeCheckout({ client, plan, payerEmail, termMonths: term, locale: await paymentPageLanguage() })
         return NextResponse.json({ success: true, sessionId: result.providerRef, redirect: result.redirectUrl, redirectUrl: result.redirectUrl })
     } catch (err: any) {
         console.error("Stripe create error:", err?.message || err)

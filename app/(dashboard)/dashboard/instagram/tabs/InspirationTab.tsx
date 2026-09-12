@@ -2,16 +2,19 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
+import { useTranslations } from "next-intl"
 import { IdeasTab } from "./IdeasTab"
 import { ReviewsTab } from "./ReviewsTab"
 
+/** `label` je klíč v namespace `inspiration.tab` — text se bere přes `t()` v místě renderu. */
 const SUB_TABS = [
-    { id: "ideas" as const, label: "Nápady", icon: "💡" },
-    { id: "reviews" as const, label: "Recenze", icon: "⭐" },
+    { id: "ideas" as const, label: "ideas", icon: "💡" },
+    { id: "reviews" as const, label: "reviews", icon: "⭐" },
 ]
 
 export function InspirationTab({ projectId }: { projectId: string }) {
     const [activeTab, setActiveTab] = useState<"ideas" | "reviews">("ideas")
+    const t = useTranslations("inspiration.tab")
 
     return (
         <div className="space-y-6">
@@ -37,7 +40,7 @@ export function InspirationTab({ projectId }: { projectId: string }) {
                         )}
                         <span className="relative z-10 flex items-center gap-2">
                             <span>{tab.icon}</span>
-                            <span>{tab.label}</span>
+                            <span>{t(tab.label)}</span>
                         </span>
                     </button>
                 ))}

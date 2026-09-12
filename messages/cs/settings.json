@@ -1,3 +1,634 @@
 {
-  "settings": {}
+  "settings": {
+    "common": {
+      "loading": "Načítám…",
+      "remove": "Smazat",
+      "cancel": "Zrušit"
+    },
+    "header": {
+      "subtitle": "Konfigurace značky",
+      "save": "Uložit",
+      "saving": "Ukládám..."
+    },
+    "status": {
+      "loadFailed": "Nepodařilo se načíst konfiguraci.",
+      "logoUploaded": "Logo nahráno. Refresh stránky pro zobrazení.",
+      "logoUploadFailed": "Upload loga selhal.",
+      "saved": "Nastavení úspěšně uloženo.",
+      "saveFailed": "Uložení selhalo.",
+      "notFound": "Konfigurace nebyla nalezena"
+    },
+    "tabs": {
+      "publish": "Publikování",
+      "basic": "Základní",
+      "voice": "Styl textu",
+      "pillars": "Témata",
+      "formats": "Formáty",
+      "visual": "Vizuál",
+      "products": "Produkty",
+      "manage": "Správa",
+      "audience": "Publikum",
+      "hashtags": "Hashtagy",
+      "cta": "CTA",
+      "advanced": "Pokročilé",
+      "advancedPrefix": "Pokročilé:"
+    },
+    "basic": {
+      "title": "Základní Informace",
+      "description": "Identita vaší značky a kontaktní údaje",
+      "name": "Název klienta",
+      "website": "Web",
+      "instagram": "Instagram Handle",
+      "instagramPlaceholder": "@handle",
+      "focus": "O čem tvoříme obsah",
+      "focusHint": "Krátký popis zaměření obsahu",
+      "focusPlaceholder": "Např. O penzionu a cestování do přírody",
+      "language": "Jazyk obsahu",
+      "languageHint": "Jazyk, kterým značka mluví k publiku — posty, hashtagy, text v obrázcích i voiceover. Nemění jazyk dashboardu.",
+      "character": "Popis postavy (Character Description)",
+      "characterHint": "Popis hlavní postavy pro konzistentní vizuál v AI obrázcích",
+      "characterPlaceholder": "Např. Muž 35 let, tmavé vlasy, vousy, nosí flanelovou košili..."
+    },
+    "voice": {
+      "persona": {
+        "title": "Persona & Tón",
+        "description": "Jak vaše značka mluví — co AI říká a jak to říká",
+        "label": "Persona — kdo jsme, jak mluvíme",
+        "hint": "Detailní popis kdo jsme, jak mluvíme, jaký máme přístup k zákazníkům",
+        "placeholder": "Jsme přátelský penzion uprostřed přírody. Mluvíme jako kamarád, co doporučuje svůj oblíbený kout..."
+      },
+      "traits": {
+        "label": "Tón komunikace",
+        "hint": "Oddělené čárkou — určují styl textu",
+        "placeholder": "Přátelský, Neformální, Nápomocný, Vtipný"
+      },
+      "values": {
+        "label": "Hodnoty značky (Values)",
+        "hint": "Oddělené čárkou — core values značky",
+        "placeholder": "Autenticita, Kvalita, Příroda"
+      },
+      "antiPatterns": {
+        "label": "Co neříkáme",
+        "hint": "Oddělené čárkou — slova a fráze, které AI nikdy nepoužije",
+        "placeholder": "Ahoj lidi, Kupte si, Korporátní jazyk, Slevový nátlak"
+      },
+      "brandVoice": {
+        "title": "Hlas značky",
+        "description": "Kterým hlasem mluví voiceover ve vašich reelech",
+        "intro": "Hlas vybíráme podle persony a oboru už při onboardingu — tady ho můžete přebít. První poslech se chvíli připravuje, další je okamžitý.",
+        "previewFailed": "Ukázku se nepodařilo připravit",
+        "playFailed": "Ukázku nejde přehrát",
+        "play": "Poslechnout",
+        "playing": "Hraje…",
+        "unknown": "Uložený hlas „{id}\" v knihovně není — po uložení se vybere znovu podle značky."
+      },
+      "library": {
+        "Zephyr": "Jasný, svěží ženský hlas — rychlé tempo, hodí se na módu a lifestyle",
+        "Puck": "Hravý mužský hlas s jiskrou — odlehčený obsah, gastro, zábava",
+        "Charon": "Věcný mužský hlas — vysvětluje, nepřehrává; poradenství a služby",
+        "Kore": "Pevný ženský hlas — důvěryhodný, bez patosu",
+        "Fenrir": "Nabuzený mužský hlas — energie, sport, výzvy",
+        "Leda": "Mladistvý ženský hlas — lehkost, krása a móda",
+        "Orus": "Rozhodný mužský hlas — řemeslo, technika, konkrétní sliby",
+        "Aoede": "Lehký, vzdušný ženský hlas — útulné podniky a zážitky",
+        "Callirrhoe": "Klidný, uvolněný ženský hlas — wellness, péče, pomalé tempo",
+        "Autonoe": "Jasný ženský hlas s tahem — e-shopy a novinky",
+        "Enceladus": "Tichý, dechový mužský hlas — intimní a pomalé záběry",
+        "Iapetus": "Čistý mužský hlas — srozumitelné vysvětlování bez emocí navíc",
+        "Umbriel": "Pohodový mužský hlas — sousedský tón, lokální podniky",
+        "Algieba": "Hladký mužský hlas — kultivovaný, hodí se k vínu a designu",
+        "Despina": "Hebký ženský hlas — péče o sebe, jemné značky",
+        "Erinome": "Zřetelný ženský hlas — návody a vysvětlení",
+        "Algenib": "Drsnější mužský hlas — poctivá práce rukama, žádný lesk",
+        "Rasalgethi": "Informativní mužský hlas — odborník, který mluví k věci",
+        "Laomedeia": "Rozjetý ženský hlas — akce, slevy, výzvy",
+        "Achernar": "Tlumený ženský hlas — klid, důvěra, pomalé obrazy",
+        "Alnilam": "Pevný mužský hlas — jistota a konkrétní čísla",
+        "Schedar": "Vyrovnaný mužský hlas — neutrální, nikdy nepřehraje",
+        "Gacrux": "Zralý ženský hlas — zkušenost a tradice",
+        "Pulcherrima": "Průrazný ženský hlas — tlačí dopředu, hodí se na hook",
+        "Achird": "Přátelský mužský hlas — jako když mluví majitel podniku",
+        "Zubenelgenubi": "Ležérní mužský hlas — mluví jako člověk, ne jako reklama",
+        "Vindemiatrix": "Jemný ženský hlas — citlivá témata a péče",
+        "Sadachbia": "Živý ženský hlas — svižný, dobře drží pozornost",
+        "Sadaltager": "Znalý mužský hlas — vysvětlí i složitou věc",
+        "Sulafat": "Vřelý ženský hlas — pozvání dovnitř, pohostinnost",
+        "KIDKfqJyZ6ASuyzsKfh5": "Klidný, laskavý mužský hlas — vysvětluje bez spěchu; poradenství a vzdělávání",
+        "vP4R9CqQI4q0HlVrXJWj": "Silný, hluboký mužský hlas s moravským zabarvením — poctivá práce a jistota",
+        "uYFJyGaibp4N2VwYQshk": "Sametový konverzační mužský hlas — mluví jako majitel podniku, ne jako reklama",
+        "daJ4gHLkIVFskWuoLuDX": "Hladký, poutavý mužský hlas — moderní služby a produkty",
+        "U48DQ1c9SVmD2BVCSiHL": "Čistý vypravěčský mužský hlas s pražskou dikcí — pomalé obrazy a atmosféra",
+        "7FpO7yFcBAfqM6vZJCg7": "Jasný mužský hlas s tahem — akce, novinky, výzvy",
+        "MpbYQvoTmXjHkaxtLiSh": "Mladý, živý ženský hlas — sociální sítě, móda a krása",
+        "bF7C2fCv7Zf30iT84wZ1": "Vřelý, sebejistý ženský hlas s pražskou dikcí — pozvání dovnitř",
+        "OAAjJsQDvpg3sVjiLgyl": "Měkký, vyvážený ženský hlas — péče o sebe a jemné značky",
+        "7JbZPqJGWUfXXBim0T8U": "Energický, důvěryhodný ženský hlas — sport, slevy, výzvy",
+        "12CHcREbuPdJY02VY7zT": "Přátelský informativní ženský hlas — návody a vysvětlení",
+        "2qbJHyAaz7tHCfVZS6z3": "Uklidňující ženský hlas — citlivá témata a péče"
+      },
+      "cta": {
+        "title": "CTA Variace",
+        "description": "Výzvy k akci které AI používá v příspěvcích",
+        "label": "CTA fráze",
+        "hint": "Oddělené čárkou — AI si vybírá podle kontextu",
+        "placeholder": "Odkaz v bio 👆\nNapiš nám DM\nVíce na webu 🔗\nUlož si na později 📌",
+        "eachLine": "Každá variace na novém řádku"
+      },
+      "factsTitle": "Ověřená fakta",
+      "factsDescription": "Jediná čísla, roky, ceny a garance, které smí AI o značce tvrdit",
+      "hooksTitle": "Šablony úvodních vět",
+      "hooksDescription": "Vzory pro úvodní věty — '{{topic}}' se nahradí automaticky"
+    },
+    "facts": {
+      "label": "Fakta o značce",
+      "hint": "Jeden fakt na řádek. Za svislítko můžete připsat zdroj — kde se to dá ověřit.",
+      "placeholder": "Pečeme od roku 1998 | chrlit.cz/o-nas\nDovážíme do 24 hodin po Praze\nNa všechno dáváme záruku 2 roky",
+      "note": "Co tady není, to AI nenapíše jako fakt — místo vymyšleného čísla napíše větu bez něj. Živý katalog produktů (ceny, názvy) sem psát nemusíte, ten engine čte sám.",
+      "scan": "Načíst z webu",
+      "scanning": "Čtu web…",
+      "scanReadFailed": "Web se nepodařilo přečíst",
+      "scanNothing": "Na webu jsem nenašel žádný nový konkrétní údaj — nic jsem nepřidal.",
+      "scanAdded": "{count, plural, one {Přidán # návrh z webu} few {Přidány # návrhy z webu} other {Přidáno # návrhů z webu}} — projděte je a nesedící smažte. Uložit nezapomeňte tlačítkem nahoře.",
+      "scanFailed": "Sken selhal",
+      "verifiedAt": "Naposledy potvrzeno {date}",
+      "checkLabel": "Kontrola tvrzení v hotovém textu",
+      "checkHint": "Ani jeden konec posuvníku nepustí lež. Mění se jen to, jestli nepodložené tvrzení opraví engine sám, nebo ho pošle vám.",
+      "modes": {
+        "off": {
+          "label": "Vypnuto",
+          "detail": "Kontrola neběží. AI má pořád zakázáno vymýšlet si údaje, ale nikdo to po ní nekontroluje."
+        },
+        "safe": {
+          "label": "Opatrné",
+          "detail": "Opraví všechno, na co si troufne, včetně nadpisů v obrázku. Nejbezpečnější — a občas nejnudnější."
+        },
+        "balanced": {
+          "label": "Vyvážené",
+          "detail": "V textu příspěvku opraví, v nadpisu vymění jen špatné číslo za správné. Nadpis bez opory nechá být a označí ho vám."
+        },
+        "bold": {
+          "label": "Odvážné",
+          "detail": "Nepřepisuje nic. Text si drží úder a všechna riziková tvrzení dostanete označená k rozhodnutí."
+        }
+      },
+      "publishFlagged": "Publikovat i příspěvky s neověřeným tvrzením",
+      "publishFlaggedHint": "Vypnuto: označený příspěvek se sám nezveřejní a počká, až tvrzení potvrdíte nebo smažete. Jednou denně vám o čekajících pošleme e-mail."
+    },
+    "hooks": {
+      "empty": "Žádné šablony. Přidejte první vzor pro lepší AI texty.",
+      "item": "Hook #{n}",
+      "remove": "✕ Smazat",
+      "pattern": "Vzor",
+      "patternHint": "Vzor s '{{topic}}' zástupcem",
+      "patternPlaceholder": "Věděli jste, že '{{topic}}'?",
+      "example": "Příklad",
+      "examplePlaceholder": "Věděli jste, že 73% lidí...",
+      "trigger": "Emoční spoušť",
+      "triggers": {
+        "curiosity": "Zvědavost",
+        "fear": "Obava",
+        "hope": "Naděje",
+        "humor": "Humor",
+        "urgency": "Urgence",
+        "empathy": "Empatie"
+      },
+      "bestFor": "Pro které formáty",
+      "bestForHint": "Nevybráno = šablona platí pro všechny formáty",
+      "staleTitle": "Tenhle formát už neexistuje — klikni pro odebrání",
+      "add": "+ Přidat šablonu"
+    },
+    "pillars": {
+      "title": "Témata obsahu",
+      "description": "Tematické kategorie definují mix vašeho obsahu. Každé téma má poměr (ratio) — celkový součet by měl být ~1.0",
+      "newLabel": "Nové téma",
+      "lastPillar": "Toto je poslední téma — nelze smazat, formáty by neměly kam patřit.",
+      "removeConfirm": "Téma obsahuje {count, plural, one {# formát} few {# formáty} other {# formátů}}: {formats}.\nPo uložení se přesunou do tématu „{target}\". Pokračovat?",
+      "sum": "Součet ratios: {sum}",
+      "sumOk": "OK",
+      "sumWarn": "Měl by být ~1.0",
+      "namePlaceholder": "Název tématu",
+      "descriptionLabel": "Popis",
+      "descriptionPlaceholder": "Co toto téma pokrývá, jaké téma...",
+      "ratio": "Poměr",
+      "ratioHint": "Poměr obsahu (0.0–1.0)",
+      "ctaLabel": "CTA Strategie",
+      "cta": {
+        "none": "Žádné CTA",
+        "soft": "Jemné",
+        "medium": "Střední",
+        "hard": "Přímý prodej"
+      },
+      "kpi": "Cílové metriky",
+      "kpiHint": "Oddělené čárkou",
+      "kpiPlaceholder": "interakce, uložení, dosah",
+      "ideaPrompt": "Idea Prompt (pro AI)",
+      "ideaPromptHint": "Specifické instrukce pro AI při generování nápadů v tomto tématu",
+      "ideaPromptPlaceholder": "Zaměř se na praktické tipy, používej čísla a statistiky...",
+      "categories": "Kategorie",
+      "categoriesHint": "Tematické úhly — soutěž, edukace, tip, FAQ... AI generuje nápady per kategorie",
+      "categoryIdPlaceholder": "id (slug)",
+      "categoryNamePlaceholder": "Název",
+      "categoryPromptPlaceholder": "AI prompt hint (volitelné)",
+      "categoryGenerateTitle": "AI vygeneruje prompt hint na základě názvu kategorie",
+      "auto": "Auto",
+      "mediumTitle": "Formát",
+      "medium": {
+        "image": "Obrázek",
+        "carousel": "Carousel"
+      },
+      "overlayTitle": "Styl textu",
+      "overlay": {
+        "default": "Klasický (dole)",
+        "top": "Nahoře",
+        "cover": "Přes celý",
+        "editorial": "Editoriál",
+        "centered": "Na střed",
+        "none": "Bez textu"
+      },
+      "aspectTitle": "Poměr stran",
+      "aspect": {
+        "square": "1:1 Čtverec",
+        "feed": "4:5 IG Feed",
+        "portrait": "3:4 Na výšku"
+      },
+      "addCategory": "+ Přidat kategorii",
+      "add": "+ Přidat nové téma"
+    },
+    "formats": {
+      "title": "Formáty příspěvků",
+      "description": "Každý formát je jeden typ postu (šablona), který si vybíráte při generování. Formát „s produktem“ automaticky přikládá reálnou fotku produktu. „Jen ručně“ znamená, že ho AI nikdy nezvolí sama (soutěže, limitky) — vyberete ho jen vy v Tvorbě.",
+      "empty": "Žádné brand formáty — přidejte první níže.",
+      "suggestFailed": "AI návrh selhal",
+      "saveFailed": "Uložení formátu selhalo",
+      "removeFailed": "Smazání formátu selhalo",
+      "removeConfirm": "Opravdu smazat formát \"{name}\"? Už vygenerované posty zůstanou.",
+      "name": "Název formátu",
+      "namePlaceholder": "Soutěž o merch",
+      "descriptionLabel": "Popis (pro AI)",
+      "descriptionHint": "CO post ukazuje a PROČ funguje pro vaši značku — čte to AI copywriter",
+      "descriptionPlaceholder": "Soutěžní post: 1) dej like, 2) sleduj náš profil, 3) označ kámoše v komentáři — výherce získá produkt zdarma...",
+      "structure": "Struktura obsahu (volitelné)",
+      "structureHint": "Kostra obsahu — u karuselu osnova slidů, u reelu scény, u obrázku stavba textu. Prázdné = obecná šablona média",
+      "structurePlaceholder": "Slide 1 (COVER): otázka o výhře · Slide 2: podmínky soutěže · Slide 3: co vyhrajete · Slide 4: deadline + CTA",
+      "visualStyle": "Vizuální styl (volitelné)",
+      "visualStyleHint": "Jak mají posty vypadat — kompozice, nálada, rekvizity. Řídí se tím AI designer při návrhu vizuálu",
+      "visualStylePlaceholder": "Produkt na výrazném barevném pozadí, konfety, velká čísla, energická nálada...",
+      "pillar": "Téma",
+      "medium": "Médium",
+      "media": {
+        "image": "Obrázek",
+        "story": "Story",
+        "carousel": "Karusel",
+        "reel": "Reel",
+        "reel_long": "Dlouhý reel"
+      },
+      "aspect": "Poměr stran",
+      "withProduct": "S produktem",
+      "manualOnly": "Jen ručně",
+      "overlay": "Styl textu",
+      "overlayHint": "Jak headline sedí na obrázku — rozložení textu ve vizuálu",
+      "overlays": {
+        "default": "Základní",
+        "top": "Nahoře",
+        "cover": "Cover (velký nadpis)",
+        "centered": "Na střed",
+        "editorial": "Editorial",
+        "split": "Split",
+        "minimal": "Minimal",
+        "full-typo": "Typografie",
+        "step": "Kroky"
+      },
+      "badgeManual": "jen ručně",
+      "badgeProduct": "produkt",
+      "saving": "Ukládám...",
+      "save": "Uložit formát",
+      "new": "Nový formát",
+      "cancel": "✕ Zrušit",
+      "ai": {
+        "label": "✨ Nech AI vyplnit",
+        "hint": "Napiš typ postu a AI vyplní zbytek formuláře — pak si ho zkontroluj a ulož",
+        "placeholder": "např. soutěž, giveaway, zákulisí, návod…",
+        "thinking": "AI přemýšlí…",
+        "fill": "Vyplnit"
+      },
+      "create": "Vytvořit formát",
+      "add": "+ Přidat nový formát"
+    },
+    "audience": {
+      "title": "Cílové Publikum",
+      "description": "Persony publika — AI přizpůsobí tón, hooky a CTA pro každou skupinu",
+      "empty": "Žádné persony definovány. AI nebude personalizovat obsah.",
+      "newLabel": "Nová persona",
+      "namePlaceholder": "Název persony",
+      "age": "Věkový rozsah",
+      "ctaStyle": "CTA přístup",
+      "cta": {
+        "soft": "Jemné",
+        "medium": "Střední",
+        "hard": "Přímý"
+      },
+      "pain": "Pain Points",
+      "painHint": "Oddělené čárkou — s čím se tato persona trápí",
+      "painPlaceholder": "Nemá čas, neví kde začít, je skeptický",
+      "triggers": "Triggery",
+      "triggersHint": "Oddělené čárkou — jaký obsah na ně funguje",
+      "triggersPlaceholder": "Čísla, příběhy, sociální důkaz",
+      "add": "+ Přidat personu"
+    },
+    "visual": {
+      "pattern": {
+        "title": "Vzor feedu",
+        "description": "Jaký tvar má vytvářet mřížka profilu, když si někdo otevře váš Instagram",
+        "suggestTitle": "Nevíte, který vzor?",
+        "suggestWithHandle": "AI se podívá na váš skutečný profil <em>@{handle}</em> a doporučí vzor, který sedí k tomu, jak už vypadáte.",
+        "suggestNoHandle": "Doplňte Instagram účet v Základních údajích a AI vám vzor doporučí podle vašeho skutečného profilu.",
+        "analyze": "Analyzovat můj feed",
+        "analyzing": "⏳ Analyzuji feed…",
+        "analyzeFailed": "Analýza selhala.",
+        "recommended": "✓ Doporučeno: {label}",
+        "basedOn": "Váš feed dnes staví na: {list}",
+        "noneHint": "Z vašeho feedu se zatím nedá vyčíst dost na doporučení — vyberte vzor ručně, změnu uvidíte hned v Náhledu feedu.",
+        "selectedBelow": "Vybráno níže — nezapomeňte uložit",
+        "gridAligned": "Publikujte po řádcích (3)",
+        "note": "Vzor určuje jen <strong>rodinu</strong> layoutu pro každou pozici v mřížce — uvnitř ní se posty pořád liší kompozicí, výřezem i typografií. Nastavení platí pro všechny nové posty (kampaň i jednotlivé).",
+        "patterns": {
+          "none": {
+            "label": "Bez vzoru",
+            "description": "Každý post se rozhoduje sám za sebe. Maximální rozmanitost, žádný rytmus v mřížce."
+          },
+          "checkerboard": {
+            "label": "Šachovnice",
+            "description": "Střídá fotku a typografický post. V mřížce o třech sloupcích vznikne šachovnice — drží tvar i když posty ubydou."
+          },
+          "rows": {
+            "label": "Řádky",
+            "description": "Celý řádek fotek, celý řádek typografie. Klidný, redakční feed."
+          },
+          "columns": {
+            "label": "Sloupce",
+            "description": "Prostřední sloupec typografický, krajní fotografické. Vytvoří svislou páteř profilu."
+          },
+          "diagonal": {
+            "label": "Diagonála",
+            "description": "Každý čtvrtý post je grafický akcent v barvě značky — v mřížce vznikne diagonální rytmus."
+          }
+        }
+      },
+      "photos": {
+        "title": "Odkud berou posty fotky",
+        "description": "Kdy smí AI scénu vymyslet a kdy musí stát na vaší skutečné fotce",
+        "note": "Vaše fotky nahrajete v sekci <strong>Fotky značky</strong>. Čím víc jich je a čím lépe jsou oštítkované, tím častěji se engine trefí do fotky, která k postu sedí. Text a logo se do fotky dokreslují vždycky — omezuje se <strong>vymýšlení scény</strong>, ne grafika.",
+        "noPhotos": "Zatím nemáte nahranou ani jednu fotku značky — do té doby se nastavení nemá čeho chytit.",
+        "policies": {
+          "free": {
+            "label": "Volná ruka",
+            "description": "AI si scénu může vymyslet. Vaše fotky slouží jako reference stylu, prostředí a produktů."
+          },
+          "prefer-real": {
+            "label": "Přednost mým fotkám",
+            "description": "Když k postu sedí některá vaše fotka, post na ní musí stát — a kontroluje se to. Bez sedící fotky si AI scénu domyslí."
+          },
+          "only-real": {
+            "label": "Jen moje fotky",
+            "description": "Fotografie se nevymýšlí nikdy. Bez sedící vaší fotky jde post do typografie nebo grafiky."
+          }
+        }
+      },
+      "subtitles": {
+        "title": "Titulky v reelech",
+        "description": "Vzhled titulků, které se vypalují do videa. Platí pro nové reely; u hotového reelu se dá styl přepnout v detailu příspěvku (bez kreditů)",
+        "presets": {
+          "pop": {
+            "label": "Zvýraznění",
+            "description": "Větší písmo a právě mluvené slovo v barvě značky. Dnešní standard reelů — výchozí."
+          },
+          "classic": {
+            "label": "Klasické",
+            "description": "Bílý text s obrysem a jemným podkladem. Čitelné na všem, nepřebíjí obraz."
+          },
+          "cards": {
+            "label": "Karty",
+            "description": "Velké písmo v plném boxu, po pár slovech. Drží pozornost i bez zvuku."
+          },
+          "minimal": {
+            "label": "Minimal",
+            "description": "Jen tenký obrys, žádný podklad. Nejmíň ruší, ale na světlé scéně se ztrácí."
+          }
+        },
+        "position": "Pozice",
+        "positionHint": "Svisle v bezpečné zóně Instagramu — dole nad UI lištou, na střed, nebo nahoře",
+        "positions": {
+          "bottom": "Dole",
+          "center": "Na střed",
+          "top": "Nahoře"
+        },
+        "size": "Velikost",
+        "sizeHint": "Větší písmo = míň slov na řádek, karty se střídají rychleji",
+        "sizes": {
+          "s": "Malé",
+          "m": "Střední",
+          "l": "Velké"
+        },
+        "allowSilent": "Povolit reely bez hlasu",
+        "allowSilentNote": "Scenárista pak u vizuálních námětů (jídlo, interiér, proměna) může místo vypravěče zvolit <strong>textové karty a hudbu</strong>. Stojí stejně jako reel s hlasem.",
+        "note": "Instagram u reelu titulkovou stopu nebere — titulky se <strong>vypalují do obrazu</strong>. Změna se proto projeví až na nově vyrobeném reelu; u hotového reelu ho jde přerenderovat v detailu příspěvku, a to zdarma (nové video se negeneruje)."
+      },
+      "style": {
+        "title": "Vizuální styl",
+        "description": "Jak AI Designer renderuje obrázky postů (typografie, logo, video)",
+        "typography": "Styl typografie",
+        "typographyHint": "Volný popis stylu písma — AI Designer se jím řídí (nejde o soubor fontu)",
+        "typographyPlaceholder": "Bold condensed grotesk, uppercase / elegantní serif s vysokým kontrastem",
+        "logoPlacement": "Pozice loga",
+        "logoPlacementHint": "Auto = AI volí pozici a střídá ji mezi posty",
+        "logo": {
+          "auto": "Auto — AI rozhodne (doporučeno)",
+          "top-left": "Vlevo nahoře",
+          "top-right": "Vpravo nahoře",
+          "bottom-left": "Vlevo dole",
+          "bottom-right": "Vpravo dole"
+        }
+      },
+      "identity": {
+        "title": "Vizuální Identita",
+        "description": "Brand vstupy pro AI generování obrázků",
+        "feel": "Atmosféra & Styl fotek",
+        "feelHint": "Popis atmosféry pro AI generování obrázků",
+        "feelPlaceholder": "Přírodní, hřejivý, denní světlo, rustikální",
+        "accent": "Barva zvýraznění",
+        "accentHint": "Hex barva pro zvýrazněná klíčová slova v textu",
+        "custom": "Vlastní instrukce (pro AI)",
+        "customHint": "Extra vizuální instrukce pro image prompt",
+        "customPlaceholder": "Vždy zahrnout zelené rostliny, dřevěné textury...",
+        "imageInstructions": "Instrukce pro obrázky (per typ)",
+        "imageInstructionsHint": "Specifické instrukce pro obrázky dle typu postu — AI je použije v mega promptu",
+        "instructionPlaceholder": "Popis scény, co má být na obrázku...",
+        "addInstruction": "+ Přidat instrukci pro typ",
+        "noInstructions": "Žádné instrukce — AI použije defaultní popis scény. Tip: přidej _default pro globální instrukci.",
+        "videoFocus": "Zaměření videí",
+        "videoFocusHint": "Instrukce pro video obsah",
+        "videoFocusPlaceholder": "Zaměřit na interiéry, pohled z první osoby, B-roll..."
+      },
+      "logo": {
+        "title": "Logo",
+        "description": "Vodoznak na obrázcích",
+        "alt": "Logo",
+        "uploading": "Nahrávám...",
+        "replace": "Nahradit logo",
+        "upload": "Nahrát logo (PNG/JPG)",
+        "note": "Max 5 MB. Doporučujeme PNG s průhledným pozadím."
+      }
+    },
+    "hashtags": {
+      "title": "Skupiny hashtagů",
+      "description": "AI vybírá mix hashtagů z těchto skupin pro každý post",
+      "placeholder": "#hashtag1, #hashtag2, #hashtag3",
+      "pools": {
+        "core": {
+          "label": "Core",
+          "description": "Základní hashtagy značky — vždy přidány"
+        },
+        "niche": {
+          "label": "Niche",
+          "description": "Úzce cílené pro vaše publikum"
+        },
+        "broad": {
+          "label": "Broad",
+          "description": "Široce dosahové hashtagy"
+        },
+        "trending": {
+          "label": "Trending",
+          "description": "Aktuální trendy a sezónní"
+        },
+        "czech": {
+          "label": "Lokální",
+          "description": "Hashtagy v jazyce a trhu značky (klíč „czech“ zůstává kvůli uloženým datům)"
+        }
+      },
+      "more": "{count, plural, one {+# další} few {+# další} other {+# dalších}}",
+      "count": "{count, plural, one {# hashtag} few {# hashtagy} other {# hashtagů}}"
+    },
+    "cta": {
+      "title": "CTA Strategie",
+      "description": "Výzvy k akci podle intenzity — AI vybírá na základě tématu a persony",
+      "strategies": {
+        "none": {
+          "label": "Žádné CTA",
+          "description": "Čistý obsah bez výzvy k akci",
+          "placeholder": "— žádné CTA v tomto stylu —"
+        },
+        "soft": {
+          "label": "Jemné CTA",
+          "description": "Jemné pobídnutí — ulož, sdílej, přemýšlej",
+          "placeholder": "Ulož si na později 📌\nCo říkáte?\nDáte ❤️?"
+        },
+        "medium": {
+          "label": "Střední CTA",
+          "description": "Jasná výzva — komentuj, pošli kamarádovi",
+          "placeholder": "Pošli kamarádovi 📲\nNapiš do komentáře\nKlikni na odkaz v bio"
+        },
+        "hard": {
+          "label": "Přímý prodej",
+          "description": "Přímý prodej — kup, objednej, rezervuj",
+          "placeholder": "Objednej na webu 🛒\nRezervuj si termín\nKupuj teď — limitovaná edice"
+        }
+      },
+      "count": "Každá variace na novém řádku • {count, plural, one {# variace} few {# variace} other {# variací}}"
+    },
+    "connection": {
+      "title": "Instagram účet",
+      "flash": {
+        "connected": "Instagram úspěšně připojen",
+        "denied": "Připojení zrušeno na straně Instagramu",
+        "pending": "Připojení zatím nevidím — dokonči ho a klikni na Ověřit",
+        "limit": "Na upload-postu je vyčerpaný limit profilů — bez navýšení tarifu další účet nepřipojíš",
+        "error": "Připojení se nezdařilo, zkus to znovu",
+        "pendingWindow": "Připojení zatím nevidím — dokonči ho v otevřeném okně"
+      },
+      "connected": "Připojeno",
+      "bridgeInfo": "Propojení nevyprchává · publikování i metriky běží automaticky",
+      "tokenInfo": "Token platí do {date} · obnovuje se automaticky",
+      "disconnect": "Odpojit",
+      "disconnecting": "Odpojuji…",
+      "expired": "Připojení vypršelo",
+      "connectTitle": "Připojit Instagram",
+      "configured": "Propojí tvůj Instagram Business účet pro metriky a publikování",
+      "notConfigured": "Instagram propojení zatím není v této instalaci nakonfigurováno",
+      "verify": "Ověřit",
+      "connect": "Připojit"
+    },
+    "autoPublish": {
+      "title": "Auto-publikování",
+      "description": "Příspěvky vycházejí samy — v den a hodinu, které mají v plánu. Frekvenci určuje plán, ne tahle stránka.",
+      "saveFailed": "Uložení selhalo",
+      "on": "Zapnuto — příspěvky vyjdou podle plánu",
+      "off": "Vypnuto",
+      "toggle": "Publikovat automaticky",
+      "toggleHint": "Hotové příspěvky se samy vydají v naplánovaný čas — bez klikání.",
+      "notConnected": "Účet zatím není připojený — nastavení se uloží, ale publikovat se začne až po připojení Instagramu (sekce výše).",
+      "byPlan": "Podle plánu",
+      "next": "Nejbližší příspěvek vyjde <em>{date}</em>",
+      "none": "V plánu zatím není žádný budoucí termín.",
+      "counts": "{armed} naostřeno · {waiting, plural, one {# čeká} few {# čekají} other {# čeká}} na potvrzení{overdue, plural, =0 {} one { · # propadl} few { · # propadly} other { · # propadlo}}",
+      "overdueNote": "Propadlé termíny se samy neposouvají — obsah psaný na konkrétní den nemá vyjít o týden později. Potvrď nebo přesuň je v plánu.",
+      "lastPosted": "Naposledy zveřejněno {date}",
+      "openOnInstagram": "otevřít na Instagramu",
+      "loadFailed": "Plán se nepodařilo načíst.",
+      "openPlan": "Otevřít plán"
+    },
+    "manage": {
+      "title": "Správa klienta",
+      "reonboard": {
+        "title": "Kompletní re-onboarding",
+        "description": "Znovu analyzuje web, položí nové otázky a přegeneruje celý config od základu",
+        "button": "Re-onboarding"
+      },
+      "rescan": {
+        "title": "Re-skenovat web",
+        "description": "Znovu projde {site} a stáhne nové fotky",
+        "site": "web",
+        "button": "Skenovat",
+        "scanning": "Skenuji…",
+        "foundUrls": "{count, plural, one {nalezena # URL na webu} few {nalezeny # URL na webu} other {nalezeno # URL na webu}}",
+        "existing": "{count, plural, one {# existující fotka} few {# existující fotky} other {# existujících fotek}}",
+        "downloaded": "{count, plural, one {# nová stažena} few {# nové staženy} other {# nových staženo}}"
+      },
+      "sync": {
+        "title": "Sync produktů",
+        "description": "Importuje produkty z konfigurace do katalogu (pro @ mention)",
+        "button": "Sync",
+        "syncing": "Syncuji…",
+        "result": "{synced, plural, one {# nový} few {# nové} other {# nových}} · {skipped, plural, one {# přeskočen} few {# přeskočeny} other {# přeskočeno}}"
+      },
+      "delete": {
+        "title": "Smazat klienta",
+        "description": "Odstraní klienta, všechny příspěvky i uložené fotky. Nelze vrátit!",
+        "confirm": "Opravdu smazat",
+        "deleting": "Mažu…",
+        "failed": "Smazání se nezdařilo: {error}"
+      }
+    },
+    "handoff": {
+      "title": "Předání značky",
+      "description": "Komu patří {name} a na jaký e-mail ji převést",
+      "done": "Předáno.",
+      "failed": "Předání selhalo.",
+      "cancelFailed": "Zrušení selhalo.",
+      "owners": "Vlastníci",
+      "ownersHint": "Vazby v user_clients. Správce se do projektu dostane i bez vazby.",
+      "noOwners": "Zatím nikdo — značka existuje jen pod správcovským přístupem.",
+      "you": "ty",
+      "pending": "Čeká na registraci",
+      "pendingHint": "Účet zatím neexistuje. Vazba vznikne při prvním přihlášení na tuhle adresu.",
+      "copied": "Zkopírováno",
+      "copyInvite": "Zkopírovat odkaz s pozvánkou",
+      "email": "E-mail nového vlastníka",
+      "emailHint": "Když účet ještě neexistuje, pošleme pozvánku a značku připíšeme po registraci.",
+      "emailPlaceholder": "zakaznik@firma.cz",
+      "replace": "Odpojit dosavadní vlastníky — značku bude mít jen nový e-mail.",
+      "replaceNote": "Platí jen pro účet, který už existuje; u pozvánky se nikdo neodpojuje.",
+      "transfer": "Předat značku",
+      "transferring": "Předávám…"
+    }
+  }
 }

@@ -1,3 +1,224 @@
 {
-  "billing": {}
+  "billing": {
+    "subscription": {
+      "title": "Předplatné & Kredity",
+      "hints": {
+        "credits": "jak fungují kredity",
+        "term": "co znamená delší období"
+      },
+      "noSubscription": "Nemáte aktivní předplatné.",
+      "errors": {
+        "activate": "Aktivace plánu selhala.",
+        "createPayment": "Nepodařilo se vytvořit platbu.",
+        "openGateway": "Platební bránu se nepodařilo otevřít."
+      },
+      "term": {
+        "1": {
+          "label": "Měsíčně",
+          "short": "měsíčně",
+          "note": "bez závazku · zrušit kdykoliv"
+        },
+        "3": {
+          "label": "3 měsíce",
+          "short": "na 3 měsíce",
+          "badge": "−5 %",
+          "note": "zaplatíte jednou na čtvrt roku"
+        },
+        "6": {
+          "label": "6 měsíců",
+          "short": "na 6 měsíců",
+          "badge": "−10 %",
+          "note": "zaplatíte jednou na půl roku"
+        },
+        "12": {
+          "label": "12 měsíců",
+          "short": "na 12 měsíců",
+          "badge": "2 měsíce zdarma",
+          "note": "cena zamčená na celý rok"
+        }
+      },
+      "locked": {
+        "paid": "Máte zaplaceno {term}{until, select, none {} other { do {until}}}.",
+        "contact": "Chcete vyšší tarif? Napište nám — zbývající období převedeme."
+      },
+      "plans": {
+        "taglines": {
+          "chrlit_start": "Nakopni profil",
+          "chrlit_rust": "Rosteme spolu",
+          "chrlit_dominance": "Ovládni svůj trh",
+          "chrlit_imperium": "Postav impérium"
+        },
+        "recommended": "Doporučeno",
+        "yours": "Váš plán",
+        "perMonth": "Kč/měs{vat, select, payer { bez DPH} other {}}",
+        "oneOff": "{amount} jednorázově {term}",
+        "gross": "{amount} s DPH{months, plural, =1 { měsíčně} other { za {term}}}",
+        "savings": "Ušetříte {amount}",
+        "pending": "připravujeme",
+        "features": {
+          "credits": "{count, plural, one {# kredit} few {# kredity} other {# kreditů}} měsíčně",
+          "reels": "Reels (AI video) — krátký {short, plural, one {# kredit} few {# kredity} other {# kreditů}}, dlouhý {long, plural, one {# kredit} few {# kredity} other {# kreditů}}",
+          "variants": "Dvě verze příspěvku na výběr — účtují se jako dva příspěvky",
+          "ideas": "AI nápady na obsah",
+          "growth": "Růstový dashboard — sledování followerů",
+          "productStudio": "Product studio — vizualizace & mockupy",
+          "analyticsFull": "Plná analytika výkonu",
+          "analyticsBasic": "Základní analytika",
+          "priorityHighest": "Nejvyšší priorita ve frontě",
+          "priorityHigh": "Prioritní generování",
+          "humanReview": "Obsah kontroluje marketingový specialista",
+          "humanSupport": "Přednostní podpora — e-mail i telefon"
+        },
+        "button": {
+          "active": "Aktivní",
+          "contact": "Napište nám",
+          "processing": "Zpracování...",
+          "payGift": "Zaplatit {name}",
+          "switch": "Přejít na {name}"
+        },
+        "note": {
+          "payGift": "Placené období začne ihned — zbytek tarifu zdarma se nepřevádí",
+          "tierChange": "Nový plán začne platit ihned — nevyčerpaný zbytek stávajícího období se nepřevádí"
+        }
+      },
+      "vatNotice": {
+        "payer": "Ceny jsou uvedeny bez DPH. K ceně se připočítává DPH {rate} %.",
+        "identified": "Nejsem plátce DPH (identifikovaná osoba dle zákona o DPH). Uvedené ceny jsou konečné.",
+        "none": "Nejsem plátce DPH. Uvedené ceny jsou konečné."
+      },
+      "portal": "Platební karta a doklady →",
+      "gift": {
+        "title": "Tarif zdarma · jen správce",
+        "runningGift": "Tarif zdarma běží{until, select, none {} other { do {until}}}. Další jde dát, až tenhle skončí.",
+        "runningPaid": "Klient má zaplacený tarif{until, select, none {} other { do {until}}} — zdarma jde dát až po jeho skončení.",
+        "intro": "Placený tarif bez platby, na vyzkoušení. Na konci sám skončí — nic se nestrhne a klient si vybere, jestli pokračovat.",
+        "planAria": "Tarif",
+        "termAria": "Období",
+        "planOption": "{name} · {count, plural, one {# kredit} few {# kredity} other {# kreditů}}/měs",
+        "months": "{count, plural, one {# měsíc} few {# měsíce} other {# měsíců}}",
+        "give": "Dát zdarma",
+        "confirm": "{name} zdarma na {count, plural, one {# měsíc} few {# měsíce} other {# měsíců}} — opravdu?",
+        "back": "Zpět",
+        "giving": "Dávám…",
+        "yes": "Ano, dát zdarma",
+        "done": "Hotovo.",
+        "failed": "Nepodařilo se to.",
+        "failedRetry": "Nepodařilo se to. Zkus to prosím znovu."
+      },
+      "current": {
+        "trialDays": "Trial · {days}d zbývá",
+        "trialPosts": "Trial · 3 příspěvky zdarma",
+        "gift": "Zdarma",
+        "active": "Aktivní",
+        "expired": "Vypršel",
+        "ends": "Končí {until, select, none {koncem období} other {{until}}}",
+        "refresh": "Aktualizovat",
+        "freePosts": "Příspěvky zdarma",
+        "usedCredits": "Využité kredity",
+        "purchased": "(+{count} dokoupeno)",
+        "remainingPosts": "Zbývá: {count, plural, one {# příspěvek} few {# příspěvky} other {# příspěvků}} zdarma",
+        "remainingCredits": "Zbývá: {count, plural, one {# kredit} few {# kredity} other {# kreditů}}",
+        "creditsRenew": "Kredity se obnoví {date}",
+        "renews": "Obnoví se {date}",
+        "giftUntil": "Tarif zdarma do {date} · kredity se obnovují měsíčně",
+        "termRenews": "Platíte {term} · předplatné se obnovuje {date}",
+        "topUp": "Dobít kredity",
+        "giftNote": "Tarif zdarma{until, select, none {} other { do {until}}}. Nic se nestrhne — když chcete pokračovat, vyberte si plán níž."
+      },
+      "cancel": {
+        "failed": "Nepodařilo se to provést.",
+        "failedRetry": "Nepodařilo se to provést. Zkuste to prosím znovu.",
+        "ending": "Předplatné končí{until, select, none { koncem období} other { {until}}}. Do té doby funguje beze změny.",
+        "resuming": "Obnovuji…",
+        "resume": "Obnovit předplatné",
+        "cancel": "Zrušit předplatné",
+        "confirm": "Zrušit? Plán poběží{until, select, none { do konce zaplaceného období} other { do {until}}} a pak se neobnoví.",
+        "keep": "Nechat běžet",
+        "cancelling": "Ruším…",
+        "yes": "Ano, zrušit"
+      }
+    },
+    "details": {
+      "consent": {
+        "text": "Souhlasím se zpřístupněním služby ihned po zaplacení a beru na vědomí, že tím ztrácím právo odstoupit od smlouvy do 14 dnů podle § 1837 občanského zákoníku.",
+        "required": "Bez souhlasu se zahájením plnění nelze službu zpřístupnit ihned."
+      },
+      "form": {
+        "errors": {
+          "save": "Uložení selhalo.",
+          "consent": "Uložení souhlasu selhalo."
+        },
+        "invoiceAs": "Fakturuji jako",
+        "customerType": {
+          "company": "Firma / OSVČ",
+          "consumer": "Nepodnikám"
+        },
+        "companyName": "Název firmy",
+        "personName": "Jméno a příjmení",
+        "companyNamePlaceholder": "Kavárna U Lípy s.r.o.",
+        "personNamePlaceholder": "Jan Novák",
+        "ico": "IČO",
+        "icoPlaceholder": "12345678",
+        "dic": "DIČ",
+        "dicPlaceholder": "CZ12345678",
+        "optional": "(nepovinné)",
+        "street": "Ulice a číslo popisné",
+        "streetPlaceholder": "Dlouhá 12",
+        "zip": "PSČ",
+        "zipPlaceholder": "110 00",
+        "city": "Město",
+        "cityPlaceholder": "Praha",
+        "email": "E-mail pro faktury",
+        "emailPlaceholder": "ucetni@firma.cz",
+        "saving": "Ukládám…",
+        "saved": "Uloženo ✓",
+        "save": "Uložit údaje",
+        "back": "Zpět"
+      },
+      "modal": {
+        "title": "Fakturační údaje",
+        "intro": "Potřebujeme je k vystavení daňového dokladu. Vyplníte jednou."
+      },
+      "section": {
+        "title": "Fakturace",
+        "invoices": "Vystavené doklady",
+        "empty": "Zatím žádné doklady. První vystavíme po první platbě.",
+        "preparing": "Připravuje se…",
+        "amount": "{amount, number} Kč",
+        "open": "Otevřít",
+        "status": {
+          "failed": "Řešíme",
+          "pending": "Čeká"
+        },
+        "failedNote": "U některého dokladu se vystavení nezdařilo. Doklad vám doručíme dodatečně — platba je v pořádku a služba běží."
+      }
+    },
+    "consultation": {
+      "title": "Nastavení značky na míru",
+      "errors": {
+        "booking": "Odkaz na rezervaci se nepodařilo připravit.",
+        "payment": "Platbu se nepodařilo založit."
+      },
+      "booked": {
+        "confirmed": "Termín potvrzen: {date}",
+        "info": "Odkaz na video hovor máte v e-mailu s potvrzením. Připravovat se nemusíte — projdeme si vaši značku předem.",
+        "open": "Otevřít hovor"
+      },
+      "entitled": {
+        "included": "V ceně předplatného",
+        "paid": "Zaplaceno",
+        "pickSlot": "Zbývá vybrat termín. Schůzka trvá {minutes, plural, one {# minutu} few {# minuty} other {# minut}} a je online.",
+        "weWillReachOut": "Ozveme se vám sami e-mailem a domluvíme termín.",
+        "opening": "Otevírám…",
+        "pick": "Vybrat termín"
+      },
+      "offer": {
+        "pitch": "{minutes, plural, one {# minuta} few {# minuty} other {# minut}} online s člověkem, který Chrlit staví. Projdeme vaši značku, doladíme tón i pilíře a odejdete s nastaveným profilem a prvním měsícem obsahu. Připravovat se nemusíte — návrh máme hotový předem.",
+        "included": "U předplatného na 6 a 12 měsíců v ceně",
+        "vat": "bez DPH · {gross} s DPH",
+        "processing": "Zpracování…",
+        "order": "Objednat"
+      }
+    }
+  }
 }

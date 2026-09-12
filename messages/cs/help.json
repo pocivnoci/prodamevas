@@ -1,3 +1,200 @@
 {
-  "help": {}
+  "help": {
+    "faq": {
+      "categories": {
+        "generating": "Generování obsahu",
+        "credits": "Kredity & plán",
+        "settings": "Nastavení & konfigurace",
+        "products": "Produkty & vizualizace",
+        "tips": "Tipy & triky"
+      },
+      "credits": "{count, plural, one {# kredit} few {# kredity} other {# kreditů}}",
+      "actions": "Úprava hotového příspěvku = {postEdit}. Generování nápadů = {ideaGenerate}. Produktová vizualizace = {productVisual}. Design pro tisk = {productDesign}. Mockup = {productMockup}. Business Brief = {productBrief}. Celá produktová řada = {productLine}.",
+      "planItem": "{name} ({price}, {credits, plural, one {# kredit} few {# kredity} other {# kreditů}} — {blurb})",
+      "planBlurb": {
+        "chrlit_start": "obrázky a carousely",
+        "chrlit_rust": "navíc úprava hotových příspěvků, dvě verze příspěvku na výběr a růstový dashboard",
+        "chrlit_dominance": "navíc reels, product studio a prioritní generování",
+        "chrlit_imperium": "nejvyšší objem pro jednu značku"
+      },
+      "items": {
+        "howItWorks": {
+          "q": "Jak funguje generování příspěvků?",
+          "a": "AI přečte vaši brand konfiguraci (tón komunikace, barvy, produkty, témata obsahu) a na základě toho vygeneruje caption, obrázek a hashtagy. Výsledek odpovídá vaší značce — používá vaše barvy, font a styl komunikace."
+        },
+        "whyDifferent": {
+          "q": "Proč je výsledek pokaždé jiný?",
+          "a": "AI generuje obsah s určitou mírou kreativity (temperature). To je záměr — chcete různorodý feed, ne opakující se šablony. Pokud chcete konzistentní styl, upřesněte brand voice v nastavení."
+        },
+        "quality": {
+          "q": "Co ovlivní kvalitu výstupu?",
+          "a": "Hlavně kvalita konfigurace. Čím detailnější máte styl textu (persona, tón komunikace, co neříkáme), témata s kategoriemi, a šablony úvodních vět — tím přesnější výstup dostanete. Investice do nastavení se vyplatí."
+        },
+        "batch": {
+          "q": "Jak funguje batch generování?",
+          "a": "Můžete vygenerovat více postů najednou (např. celý týden). Posty se generují sekvenčně — jeden po druhém — aby se zachovala kvalita a různorodost. Každý post stojí 1 kredit."
+        },
+        "postTypes": {
+          "q": "Co znamenají různé typy postů?",
+          "a": "Chrlit podporuje typy jako tip, meme, carousel, behind_scenes, product_drop, recenze, challenge a další. Každý typ má jiný tón a formát — tip je edukativní, meme je vtipný, product_drop je prodejní. Typy jsou definované ve vaší konfiguraci."
+        },
+        "editPost": {
+          "q": "Můžu u hotového příspěvku něco změnit?",
+          "a": "Ano, dvěma způsoby. Úprava hotového příspěvku (od tarifu Růst) zasáhne do existujícího vizuálu nebo textu — „posuňte nadpis“, „zkraťte text“ — a stojí 1 kredit. Druhá možnost je „Dvě verze na výběr“: vygenerují se dva úplně nové příspěvky na stejné téma (jiný hook, vizuál i CTA), vy si vyberete jeden a zbylé se zahodí. Nejde o test — nic se neměří, jen si vybíráte."
+        },
+        "actionCost": {
+          "q": "Kolik stojí jedna akce?",
+          "a": "Příspěvek stojí podle média ({media}). Každá verze v „Dvě verze na výběr“ je plnohodnotný příspěvek, takže se účtuje stejně jako on — dvě verze carouselu tedy stojí {carouselPair}, i když nakonec použijete jednu. {actions}"
+        },
+        "outOfCredits": {
+          "q": "Co se stane, když mi dojdou kredity?",
+          "a": "Nemůžete generovat další obsah, dokud si nedokoupíte kredity nebo nečekáte na reset v dalším měsíci. Existující posty zůstávají — nic se nesmaže."
+        },
+        "topUp": {
+          "q": "Jak funguje dobíjení kreditů?",
+          "a": "Kdykoli si můžete dokoupit extra kredity za {price}/ks. Jdete do Nastavení → Předplatné a dobíjete. Kredity se přičtou okamžitě."
+        },
+        "rollover": {
+          "q": "Převádí se nevyčerpané kredity do dalšího měsíce?",
+          "a": "Ne. Každý měsíc dostanete kredity podle svého plánu ({creditsList}). Nevyčerpané kredity propadnou. Pokud potřebujete víc, dobijte si je za {price}/ks."
+        },
+        "trial": {
+          "q": "Jak funguje trial?",
+          "a": "3 posty zdarma, bez kreditky a bez časového limitu. Z plánu obsahu máte 3 příspěvky plně odemčené k vyzkoušení; zbytek se odemkne po výběru plánu. Nic se nesmaže — vygenerované posty vám zůstanou."
+        },
+        "plans": {
+          "q": "Jaké jsou plány a jak si dobiju kredity?",
+          "a": "Čtyři plány: {plans}. Ceny jsou měsíční; při delším období platíte míň. Když kredity dojdou, dobijete si je za {price}/ks v Nastavení → Předplatné."
+        },
+        "longerTerms": {
+          "q": "Jak funguje placení na 3, 6 nebo 12 měsíců?",
+          "a": "Zaplatíte jednou dopředu a máte klid. Za čtvrt roku ušetříte 5 %, za půl roku 10 % a za rok platíte jen deset měsíců — dva jsou zdarma. Cenu máte navíc zamčenou na celé období: i kdyby se ceník mezitím zvedl, vás se to dotkne až při obnově. Kredity se přitom obnovují každý měsíc úplně stejně jako u měsíčního plánu."
+        },
+        "refund": {
+          "q": "Co když si to rozmyslím po zaplacení na rok?",
+          "a": "Máte 30 dní na rozmyšlenou — napište nám a peníze vrátíme, bez udání důvodu. Po té lhůtě předplacené období doběhne; předplatné jde kdykoli vypovědět k jeho konci, takže se další období už nestrhne."
+        },
+        "upgrade": {
+          "q": "Můžu uprostřed předplaceného období přejít na vyšší tarif?",
+          "a": "Ano, ale ne jedním klikem — napsali bychom vám tím zbytek zaplaceného období k dobru a to musíme udělat ručně. Napište nám a zbývající období převedeme do nového tarifu."
+        },
+        "tone": {
+          "q": "Jak změním tón komunikace?",
+          "a": "V Nastavení → Styl textu. Upravte personu, voice traits a anti-patterns. Změny se projeví u všech nově generovaných postů. Existující posty zůstávají beze změny."
+        },
+        "addProduct": {
+          "q": "Jak přidám nový produkt?",
+          "a": "V Nastavení → Produkty. Přidejte název, typ, cenu a popis. AI ho pak bude používat v product_drop postech a produktových vizualizacích."
+        },
+        "colors": {
+          "q": "Můžu změnit barvy a gradient?",
+          "a": "Ano, v Nastavení → Vizuální identita. Změníte overlay gradient (3 barvy), font, accent color a celkový feel feedu. Doporučujeme tmavší, syté barvy — bílý text musí být čitelný."
+        },
+        "pillars": {
+          "q": "Co jsou témata obsahu?",
+          "a": "Témata definují strategii obsahu: Dosah (virální obsah), Hodnota (edukace), Konverze (prodej), Propojení (komunita). Každé téma má poměr (kolik % obsahu), post typy a kategorie. AI podle nich vybírá, co generovat."
+        },
+        "hookTemplates": {
+          "q": "Jak fungují šablony úvodních vět?",
+          "a": "Šablony úvodních vět jsou vzory pro první řádek captionů — to, co zaujme v feedu. Příklady: '''{{'téma'}}'? Tohle nikdo neříká.'' nebo ''3 chyby, které děláš s '{{'produkt'}}'''. AI je používá jako inspiraci, ne doslova."
+        },
+        "reonboarding": {
+          "q": "Jak spustím re-onboarding?",
+          "a": "V Nastavení úplně dole najdete tlačítko Re-onboarding. AI znovu analyzuje váš web a přegeneruje celou konfiguraci. Stávající posty se neztratí."
+        },
+        "pipeline": {
+          "q": "Co je produktový pipeline?",
+          "a": "Funkce pro e-shopy a značky s produkty. AI navrhne celou produktovou řadu jako systém (každý produkt dostane svůj krok, roli a místo v cenovém žebříčku), nebo jednotlivé produktové nápady. Ke schváleným produktům pak vygeneruje tiskovou grafiku, mockupy a Business Brief s analýzou nákladů a marží."
+        },
+        "mockups": {
+          "q": "Jak fungují mockupy?",
+          "a": "AI vygeneruje fotorealistický obrázek produktu — tričko na modelce, hrnek na stole, krabička v kontextu. Ideální pro testování nových designů nebo prezentaci zákazníkům."
+        },
+        "printDesign": {
+          "q": "Co je Design pro tisk?",
+          "a": "AI vytvoří plochou tiskovou grafiku pro produkty a obaly — trička, plakáty, etikety lahví, ovinové etikety. Výstup je PNG doškálované na fyzický rozměr při 300 DPI, u potisků s průhledným pozadím, plus náhled s vyznačenou spadávkou a bezpečným okrajem a textové zadání pro tiskárnu. Je to podklad pro tiskaře, ne hotová produkční data: barvy jsou v RGB a pro velké formáty je potřeba grafiku převést do vektorů."
+        },
+        "commercialUse": {
+          "q": "Můžu použít vygenerované obrázky komerčně?",
+          "a": "Ano. Všechny AI-generované obrázky jsou vaše — můžete je používat na Instagramu, webu, v reklamách i na produktech. Chrlit si nenárokuje žádná práva na vygenerovaný obsah."
+        },
+        "betterResults": {
+          "q": "Jak dostanu lepší výsledky?",
+          "a": "1) Vyplňte detailní styl textu — hlavně co neříkáme (co nepoužívat). 2) Přidejte fotky značky — AI se z nich učí styl. 3) Používejte kategorie v tématech pro cílenější obsah. 4) Pravidelně kontrolujte Paměť — AI se učí z výkonu."
+        },
+        "postsPerWeek": {
+          "q": "Kolik postů na týden je optimální?",
+          "a": "Pro většinu značek 3-5 postů týdně. Méně a ztrácíte viditelnost, víc a riskujete únavu publika. Chrlit vám pomůže udržet konzistenci bez stresu."
+        },
+        "brain": {
+          "q": "Jak funguje AI Paměť (Brain)?",
+          "a": "Chrlit analyzuje výkon vašich postů (liky, komentáře, uložení) a učí se, co funguje. Postupně přizpůsobuje strategii — víc obsahu, který rezonuje, méně toho, co nefunguje. Čím déle ho používáte, tím lepší výsledky."
+        },
+        "otherLanguage": {
+          "q": "Můžu generovat obsah v jiném jazyce než češtině?",
+          "a": "Značka může mluvit česky, slovensky, anglicky, německy nebo polsky — jazyk obsahu se nastavuje v Nastavení → Základní informace a při onboardingu se odhadne z webu. Řídí texty postů, hashtagy, text v obrázcích i voiceover reelů. Rozhraní Chrlitu je česky a anglicky — přepíná se v navigaci studia."
+        },
+        "ideas": {
+          "q": "Jak nejlépe využít Nápady?",
+          "a": "Nápady jsou zásobník témat, ze kterého si AI sama bere náměty pro nové příspěvky. Nechte AI vygenerovat dávku nápadů pro konkrétní téma (Dosah, Hodnota, Konverze...), projděte je a slabé vypněte nebo smažte. Nápad můžete také ručně vybrat při generování — příspěvek se pak započítá do jeho výkonu."
+        },
+        "usedIdea": {
+          "q": "Co se stane s nápadem po použití?",
+          "a": "Nic se nemaže. Použitý nápad si dá pauzu (cooldown), aby se váš feed neopakoval, a po ní se vrací do hry. Nápady, které mají dobré výsledky, si AI vybírá častěji — poznáte je podle štítku 🔥 Funguje. Nápad můžete kdykoli vypnout nebo smazat."
+        }
+      },
+      "tour": {
+        "title": "Průvodce studiem",
+        "body": "Znovu si projděte úvodní přehled funkcí.",
+        "replay": "▶ Přehrát průvodce"
+      },
+      "footer": {
+        "title": "Nenašli jste odpověď?",
+        "body": "Napište nám na <a>info@chrlit.cz</a>"
+      }
+    },
+    "media": {
+      "image": "obrázek",
+      "story": "story",
+      "carousel": "carousel",
+      "reel": "reel",
+      "reel_long": "dlouhý reel"
+    },
+    "tutorial": {
+      "welcome": "Vítejte v Chrlit Studio",
+      "closeX": "Zavřít ✕",
+      "title": "Vše je připraveno",
+      "subtitle": "AI analyzovala váš web a nastavila studio na míru",
+      "tips": {
+        "generate": {
+          "title": "Generovat",
+          "body": "Vytvořte příspěvek jedním klikem — vyberte téma a AI udělá zbytek"
+        },
+        "posts": {
+          "title": "Příspěvky",
+          "body": "Všechny vygenerované posty najdete v Příspěvcích — zkopírujte text a stáhněte obrázek"
+        },
+        "settings": {
+          "title": "Nastavení",
+          "body": "Dolaďte styl textu, témata a vizuální styl kdykoliv v Nastavení"
+        }
+      },
+      "close": "Zavřít",
+      "cta": "Vytvořit první příspěvek"
+    },
+    "hint": {
+      "defaultLabel": "proč to je důležité",
+      "tone": "Z tónu se učí každý budoucí příspěvek, ne jen ten nejbližší. Změna se projeví až u nově generovaného obsahu — hotové příspěvky přepsat nejde, jen přegenerovat za kredit.",
+      "pillars": "Pilíře rozhodují, o čem se vůbec bude psát. Bez nich plán sklouzne k náhodným příspěvkům, které nikam nevedou. Tři až pět je ideál; víc jich značka neuhraje.",
+      "facts": "AI si čísla a roky domýšlí stejně plynule, jako je opisuje — a lež v příspěvku odnese vaše značka, ne engine. Co tady nestojí, to o vás nenapíše: místo vymyšleného údaje napíše větu bez něj.",
+      "voiceExamples": "Jeden až tři příspěvky, které se vám opravdu líbí, drží tón silněji než jakékoli nastavení výš — model se učí z ukázky, ne z popisu.",
+      "formats": "Formát určuje cenu: {media} (kreditů). Zapnout všechno znamená vyčerpat měsíční příděl rychleji, než čekáte.",
+      "cadence": "Kadence má odpovídat tomu, co reálně stihnete zveřejnit. Vygenerovaný a nezveřejněný příspěvek stál kredit a nevydělal nic.",
+      "autoPublish": "Zapnutím se příspěvky zveřejní samy podle kalendáře, bez vašeho schválení. Zpátky to vzít nejde — smazat post na Instagramu můžete, ale kdo ho viděl, ten ho viděl.",
+      "credits": "Kredity se obnovují každý měsíc a nevyčerpané propadají — i u předplatného zaplaceného na rok dopředu. Vybírejte tarif podle toho, kolik reálně zveřejníte.",
+      "products": "Katalog je živý zdroj pro produktové vizualizace. Co v něm chybí, o tom engine neumí psát konkrétně — a obecný příspěvek o produktu neprodává.",
+      "instagram": "Bez propojení účtu se nedá měřit výkon, takže se učicí smyčka nemá z čeho učit a doporučení zůstanou obecná.",
+      "term": "Delší období platíte dopředu a cenu tím zamykáte na celou dobu. Kredity se ale i tak obnovují každý měsíc — předplacením roku je nedostáváte dopředu."
+    }
+  }
 }

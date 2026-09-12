@@ -182,7 +182,11 @@ function main() {
     check("nahrávání běží ve smyčce, ne jedním blokujícím průchodem", /CONCURRENCY/.test(tab))
     check("uživatel vidí, kolikátá fotka se nahrává", /progress\.total/.test(tab),
         "ukazatel bez čísel se po minutě nedá odlišit od zaseknutého programu")
-    check("částečný neúspěch se přizná (`Nahráno X z Y`)", /Nahráno \$\{successCount\} z/.test(tab),
+    // Znění hlášek žije v messages (`brand.messages.*`) — text se kontroluje tam,
+    // v tabu jen to, že se správný klíč opravdu použije.
+    const brandTexts = JSON.parse(fs.readFileSync(path.join(root, "messages/cs/brand.json"), "utf-8")).brand
+    check("částečný neúspěch se přizná (`Nahráno X z Y`)",
+        /messages\.uploadedPartial/.test(tab) && /Nahráno \{done\} z \{total\}/.test(brandTexts.messages.uploadedPartial),
         "dřív se ukázala jen poslední chyba, takže 3 z 5 vypadaly jako úspěch")
 
     // Naměřeno na produkci: osm fotek bylo ve storage i v konfiguraci, a přesto se
@@ -196,7 +200,7 @@ function main() {
     check("i načtení seznamu vypíná své kolečko ve `finally`",
         /\} finally \{\s*setLoading\(false\)/.test(tab))
     check("selhání dotažení seznamu neshodí celé nahrání",
-        /seznam se nepodařilo načíst/.test(tab))
+        /messages\.uploadedListFailed/.test(tab) && /seznam se nepodařilo načíst/.test(brandTexts.messages.uploadedListFailed))
     check("fotka se objeví v mřížce hned, ne až na konci dávky",
         /setImages\(prev => prev\.some/.test(tab),
         "server actions jedou po jedné — bez průběžného doplňování je to minuta u kolečka")

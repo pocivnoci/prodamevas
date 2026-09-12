@@ -1,12 +1,14 @@
 "use client"
 
 import { useState } from "react"
+import { useTranslations } from "next-intl"
 import { updateIGPostMetrics } from "@/app/actions/admin-actions"
 import { trackEvent } from "@/lib/analytics"
 import type { IGPost } from "./types"
 import { ChartColumn } from "lucide-react"
 
 export function CopyButton({ onClick, copied, label }: { onClick: () => void; copied: boolean; label?: string }) {
+    const t = useTranslations("shared")
     return (
         <button
             onClick={onClick}
@@ -15,27 +17,29 @@ export function CopyButton({ onClick, copied, label }: { onClick: () => void; co
                 : "bg-white/5 text-white/50 border-white/10 hover:bg-white/10 hover:text-white"
                 }`}
         >
-            {copied ? "Zkopírováno" : label || "Kopírovat"}
+            {copied ? t("copy.copied") : label || t("copy.copy")}
         </button>
     )
 }
 
 export function StatusBadge({ status }: { status: string }) {
-    const config: Record<string, { text: string; class: string }> = {
-        draft: { text: "KONCEPT", class: "bg-amber-500/10 text-amber-500 border-amber-500/20" },
-        plan_draft: { text: "PLÁN", class: "bg-violet-500/10 text-violet-400 border-violet-500/20" },
-        plan_locked: { text: "ZAMČENO", class: "bg-amber-500/10 text-amber-500/60 border-amber-500/15" },
-        ready: { text: "PŘIPRAVENO", class: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
-        scheduled: { text: "NAPLÁNOVÁNO", class: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20" },
-        posting: { text: "PUBLIKUJE SE…", class: "bg-cyan-500/10 text-cyan-300 border-cyan-500/20 animate-pulse" },
-        posted: { text: "PUBLIKOVÁNO", class: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
-        failed: { text: "SELHALO", class: "bg-red-500/10 text-red-400 border-red-500/20" },
-        archived: { text: "ARCHIVOVÁNO", class: "bg-white/5 text-white/40 border-white/10" },
+    const t = useTranslations("shared")
+    // Popisky stavů jsou v messages (`shared.status.<stav>`); tady jen barvy.
+    const config: Record<string, string> = {
+        draft: "bg-amber-500/10 text-amber-500 border-amber-500/20",
+        plan_draft: "bg-violet-500/10 text-violet-400 border-violet-500/20",
+        plan_locked: "bg-amber-500/10 text-amber-500/60 border-amber-500/15",
+        ready: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+        scheduled: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
+        posting: "bg-cyan-500/10 text-cyan-300 border-cyan-500/20 animate-pulse",
+        posted: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+        failed: "bg-red-500/10 text-red-400 border-red-500/20",
+        archived: "bg-white/5 text-white/40 border-white/10",
     }
-    const badge = config[status] || config.draft
+    const key = config[status] ? status : "draft"
     return (
-        <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-sm border ${badge.class}`}>
-            {badge.text}
+        <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-sm border ${config[key]}`}>
+            {t(`status.${key}`)}
         </span>
     )
 }
@@ -49,11 +53,13 @@ export function LoadingSpinner() {
 }
 
 export function PillarBadge({ pillar }: { pillar: string }) {
-    const config: Record<string, { emoji: string; label: string; color: string }> = {
-        reach: { emoji: "🔥", label: "DOSAH", color: "text-amber-500 bg-amber-500/10 border-amber-500/20" },
-        value: { emoji: "📚", label: "HODNOTA", color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
-        convert: { emoji: "💰", label: "KONVERZE", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
-        connect: { emoji: "🤝", label: "PROPOJENÍ", color: "text-purple-400 bg-purple-500/10 border-purple-500/20" },
+    const t = useTranslations("shared")
+    // Popisky pilířů jsou v messages (`shared.pillar.<pilíř>`); tady emoji a barvy.
+    const config: Record<string, { emoji: string; color: string }> = {
+        reach: { emoji: "🔥", color: "text-amber-500 bg-amber-500/10 border-amber-500/20" },
+        value: { emoji: "📚", color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
+        convert: { emoji: "💰", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
+        connect: { emoji: "🤝", color: "text-purple-400 bg-purple-500/10 border-purple-500/20" },
     }
 
     const badge = config[pillar]
@@ -62,7 +68,7 @@ export function PillarBadge({ pillar }: { pillar: string }) {
     return (
         <span className={`text-[9px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-sm border ${badge.color} flex items-center gap-1`}>
             <span>{badge.emoji}</span>
-            <span>{badge.label}</span>
+            <span>{t(`pillar.${pillar}`)}</span>
         </span>
     )
 }
@@ -82,6 +88,7 @@ export function MetricInput({ label, value, onChange }: { label: string; value: 
 }
 
 export function MetricsInputForm({ post, onUpdate }: { post: IGPost; onUpdate: () => void }) {
+    const t = useTranslations("shared")
     const [metrics, setMetrics] = useState({
         likes: post.likes || 0,
         comments: post.comments || 0,
@@ -107,38 +114,38 @@ export function MetricsInputForm({ post, onUpdate }: { post: IGPost; onUpdate: (
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between">
-                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-white/40 uppercase tracking-widest"><ChartColumn className="w-3 h-3 shrink-0" />Metriky</span>
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-white/40 uppercase tracking-widest"><ChartColumn className="w-3 h-3 shrink-0" />{t("metrics.title")}</span>
                 <button
                     onClick={handleSave}
                     disabled={saving}
                     className="px-3 py-1.5 text-[10px] uppercase font-bold tracking-widest rounded-sm bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all border border-blue-500/20 disabled:opacity-50"
                 >
-                    {saving ? "Ukládám..." : "Uložit"}
+                    {saving ? t("metrics.saving") : t("metrics.save")}
                 </button>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
                 {/* Engagement metrics */}
-                <MetricInput label="Lajky" value={metrics.likes} onChange={(v) => setMetrics({ ...metrics, likes: v })} />
-                <MetricInput label="Komentáře" value={metrics.comments} onChange={(v) => setMetrics({ ...metrics, comments: v })} />
-                <MetricInput label="Uložení" value={metrics.saves} onChange={(v) => setMetrics({ ...metrics, saves: v })} />
+                <MetricInput label={t("metrics.likes")} value={metrics.likes} onChange={(v) => setMetrics({ ...metrics, likes: v })} />
+                <MetricInput label={t("metrics.comments")} value={metrics.comments} onChange={(v) => setMetrics({ ...metrics, comments: v })} />
+                <MetricInput label={t("metrics.saves")} value={metrics.saves} onChange={(v) => setMetrics({ ...metrics, saves: v })} />
 
                 {/* Growth Engine metrics */}
-                <MetricInput label="Dosah" value={metrics.reach} onChange={(v) => setMetrics({ ...metrics, reach: v })} />
-                <MetricInput label="Zhlédnutí" value={metrics.views} onChange={(v) => setMetrics({ ...metrics, views: v })} />
-                <MetricInput label="↗️ Sdílení" value={metrics.shares} onChange={(v) => setMetrics({ ...metrics, shares: v })} />
-                <MetricInput label="Návštěvy profilu" value={metrics.profile_visits} onChange={(v) => setMetrics({ ...metrics, profile_visits: v })} />
-                <MetricInput label="Prokliknutí" value={metrics.link_clicks} onChange={(v) => setMetrics({ ...metrics, link_clicks: v })} />
+                <MetricInput label={t("metrics.reach")} value={metrics.reach} onChange={(v) => setMetrics({ ...metrics, reach: v })} />
+                <MetricInput label={t("metrics.views")} value={metrics.views} onChange={(v) => setMetrics({ ...metrics, views: v })} />
+                <MetricInput label={t("metrics.shares")} value={metrics.shares} onChange={(v) => setMetrics({ ...metrics, shares: v })} />
+                <MetricInput label={t("metrics.profileVisits")} value={metrics.profile_visits} onChange={(v) => setMetrics({ ...metrics, profile_visits: v })} />
+                <MetricInput label={t("metrics.linkClicks")} value={metrics.link_clicks} onChange={(v) => setMetrics({ ...metrics, link_clicks: v })} />
             </div>
 
             {/* Calculated scores */}
             <div className="flex gap-3 pt-4 border-t border-white/10 mt-4">
                 <div className="flex-1 bg-amber-500/5 rounded-sm p-3 border border-amber-500/10">
-                    <p className="text-[9px] text-amber-500/50 uppercase tracking-widest font-bold">Dosah</p>
+                    <p className="text-[9px] text-amber-500/50 uppercase tracking-widest font-bold">{t("metrics.reach")}</p>
                     <p className="text-2xl font-black text-amber-500">{reachScore}</p>
                 </div>
                 <div className="flex-1 bg-emerald-500/5 rounded-sm p-3 border border-emerald-500/10">
-                    <p className="text-[9px] text-emerald-500/50 uppercase tracking-widest font-bold">Konverze</p>
+                    <p className="text-[9px] text-emerald-500/50 uppercase tracking-widest font-bold">{t("metrics.conversion")}</p>
                     <p className="text-2xl font-black text-emerald-500">{conversionScore}</p>
                 </div>
             </div>
@@ -192,6 +199,7 @@ export function CaptionEditor({
     onEditingChange?: (editing: boolean) => void
     emptyLabel?: string
 }) {
+    const t = useTranslations("shared")
     const savedCaption = post.caption || ""
     const savedHashtags = (post.hashtags || []).join(" ")
     const [selfEditing, setSelfEditing] = useState(false)
@@ -236,7 +244,7 @@ export function CaptionEditor({
             setEditing(false)
             trackEvent("post_text_edited_manually", {})
         } else {
-            setError(res.error || "Uložení selhalo.")
+            setError(res.error || t("caption.saveFailed"))
         }
     }
 
@@ -255,7 +263,7 @@ export function CaptionEditor({
                     role={locked ? undefined : "button"}
                     tabIndex={locked ? undefined : 0}
                     onKeyDown={e => { if (!locked && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setEditing(true) } }}
-                    title={locked ? "Publikovaný text už nejde upravit — vytvoř variantu" : "Kliknutím text přepíšeš"}
+                    title={locked ? t("caption.lockedTitle") : t("caption.editTitle")}
                     className={`bg-[#0f0f0f] border rounded-sm p-4 max-h-60 overflow-y-auto shadow-inner transition-colors ${
                         locked
                             ? "border-white/5"
@@ -271,7 +279,7 @@ export function CaptionEditor({
                         onClick={() => setEditing(true)}
                         className="absolute top-2 right-2 px-2 py-1 rounded-sm border border-white/10 bg-black/60 text-[9px] font-bold uppercase tracking-widest text-white/40 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-white hover:border-white/25 transition-all"
                     >
-                        Upravit
+                        {t("caption.edit")}
                     </button>
                 )}
             </div>
@@ -290,7 +298,7 @@ export function CaptionEditor({
                     // se dá zkratkou, kterou má na tohle zbytek světa.
                     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void save() }
                 }}
-                placeholder="Text příspěvku — uloží se přesně tak, jak ho napíšeš"
+                placeholder={t("caption.placeholder")}
                 rows={10}
                 className="w-full px-3 py-2 bg-[#050505] border border-white/20 rounded-sm text-white text-sm resize-y focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20 leading-relaxed"
             />
@@ -302,7 +310,7 @@ export function CaptionEditor({
                         if (e.key === "Escape") { e.preventDefault(); cancel() }
                         if (e.key === "Enter") { e.preventDefault(); void save() }
                     }}
-                    placeholder="Hashtagy oddělené mezerou (nepovinné)"
+                    placeholder={t("caption.hashtagsPlaceholder")}
                     className="w-full px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
                 />
             )}
@@ -310,20 +318,20 @@ export function CaptionEditor({
                 <button
                     onClick={save}
                     disabled={busy || !draftCaption.trim() || !dirty}
-                    title={!dirty ? "Text se od uloženého neliší" : undefined}
+                    title={!dirty ? t("caption.unchanged") : undefined}
                     className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-white/10 text-white border border-white/20 hover:bg-white/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                    {busy ? "Ukládám…" : "Uložit text"}
+                    {busy ? t("caption.saving") : t("caption.save")}
                 </button>
                 <button
                     onClick={cancel}
                     disabled={busy}
                     className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm text-white/40 hover:text-white transition-all disabled:opacity-40"
                 >
-                    Zrušit
+                    {t("caption.cancel")}
                 </button>
                 <span className="text-[9px] text-white/25 uppercase tracking-widest font-bold ml-auto text-right">
-                    Zdarma · jde vrátit zpět
+                    {t("caption.free")}
                 </span>
             </div>
             {error && <p className="text-[10px] text-red-400">{error}</p>}

@@ -1,3 +1,103 @@
 {
-  "brand": {}
+  "brand": {
+    "header": {
+      "title": "Brand & Reference Photos",
+      "body": "Upload photos of products, people and places — the AI uses them as references when generating posts. The more good photos, the more realistic the output."
+    },
+    "messages": {
+      "briefRegenerated": "Shot list regenerated for the current brand",
+      "briefFailed": "Generating the shot list failed",
+      "uploadFailed": "Upload failed",
+      "uploadFailedRetry": "Upload failed — please try again",
+      "uploaded": "{count, plural, one {# photo uploaded} other {# photos uploaded}}",
+      "uploadedPartial": "Uploaded {done} of {total}.",
+      "uploadedListFailed": "Uploaded {done} of {total}, but the list could not be loaded. Reload the page.",
+      "deleted": "Photo deleted",
+      "deleteFailed": "Deleting failed",
+      "retagged": "AI retagged {count, plural, one {# photo} other {# photos}}",
+      "retagFailed": "Retagging failed",
+      "tagsSaved": "Saved — the AI will no longer overwrite the tags or the description",
+      "saveFailed": "Saving failed"
+    },
+    "brief": {
+      "loading": "Putting together a shot list — what to shoot next so the AI has enough to work with…",
+      "title": "What is still missing",
+      "itemCount": "{count, plural, one {# item} other {# items}}",
+      "regenerating": "Generating…",
+      "regenerate": "Regenerate",
+      "must": "Important"
+    },
+    "upload": {
+      "progress": "Uploading {current} of {total}…",
+      "uploading": "Uploading…",
+      "aiNote": "The AI still describes every photo, it takes a moment. You can leave this tab open.",
+      "dropHint": "Drag photos here or click to choose",
+      "formats": "JPG, PNG, WebP • we shrink large photos for you • products, people, places"
+    },
+    "grid": {
+      "emptyTitle": "No photos yet",
+      "emptyBody": "Upload product and brand photos for better AI generation",
+      "count": "{count, plural, one {# photo} other {# photos}} · AI tags",
+      "retagTitle": "Let the AI go through all photos again and tag them",
+      "retagging": "Retagging…",
+      "retag": "Retag with AI",
+      "altFallback": "Brand image {n}",
+      "delete": "Delete",
+      "deleteAria": "Delete photo",
+      "editTags": "Edit tags",
+      "userTagged": "Tags and description set by a person — the AI will not overwrite them",
+      "untagged": "untagged"
+    },
+    "editor": {
+      "title": "Photo tags and description",
+      "intro": "Tags decide which posts the photo gets attached to. Pick 1–4.",
+      "descriptionLabel": "Description for the engine",
+      "descriptionPlaceholder": "E.g. Owner Petr — always in a blue shirt in photos",
+      "descriptionHelp": "The engine gets this sentence with every post that uses the photo. Write what is not visible: name, role, material, where it is.",
+      "personNote": "👤 The engine will keep this face across posts — it will not replace it with a stock model.",
+      "saving": "Saving…",
+      "save": "Save",
+      "cancel": "Cancel"
+    },
+    "tags": {
+      "person": { "label": "Specific person", "hint": "a portrait of ONE specific person of the brand (owner, face of the brand) — not a crowd, not a group" },
+      "team": { "label": "Team", "hint": "employees, the crew at work" },
+      "people": { "label": "People in general", "hint": "customers, a crowd, a group photo without a specific brand face" },
+      "exterior": { "label": "Exterior", "hint": "outdoor shot of the building, facade, entrance" },
+      "interior": { "label": "Interior", "hint": "indoor space, a room" },
+      "bedroom": { "label": "Bedroom", "hint": "bedroom" },
+      "bathroom": { "label": "Bathroom", "hint": "bathroom" },
+      "kitchen": { "label": "Kitchen", "hint": "kitchen" },
+      "living": { "label": "Living room", "hint": "living room" },
+      "pool": { "label": "Pool", "hint": "pool" },
+      "garden": { "label": "Garden", "hint": "garden" },
+      "terrace": { "label": "Terrace", "hint": "terrace" },
+      "parking": { "label": "Parking", "hint": "parking lot" },
+      "restaurant": { "label": "Restaurant", "hint": "restaurant, dining room" },
+      "bar": { "label": "Bar", "hint": "bar, taproom" },
+      "lobby": { "label": "Reception", "hint": "reception, lobby, shared space" },
+      "shop": { "label": "Shop", "hint": "shop, store" },
+      "warehouse": { "label": "Warehouse", "hint": "warehouse" },
+      "office": { "label": "Office", "hint": "office, study" },
+      "conference": { "label": "Conference room", "hint": "conference or training space" },
+      "product": { "label": "Product", "hint": "a shot of a specific product, goods, item" },
+      "packaging": { "label": "Packaging", "hint": "packaging, box, product wrap" },
+      "food": { "label": "Food", "hint": "food" },
+      "drink": { "label": "Drink", "hint": "drink" },
+      "logo": { "label": "Logo", "hint": "brand logo" },
+      "branding": { "label": "Visual identity", "hint": "visual identity, print materials, merch" },
+      "event": { "label": "Event", "hint": "event, occasion, celebration" },
+      "nature": { "label": "Nature", "hint": "nature, landscape, outdoors without buildings" },
+      "view": { "label": "View", "hint": "view, panorama" },
+      "sport": { "label": "Sport", "hint": "sports activity" },
+      "wellness": { "label": "Wellness", "hint": "wellness, relaxation" },
+      "detail": { "label": "Detail", "hint": "detail, texture, macro shot WITHOUT a recognisable face" }
+    },
+    "info": {
+      "tip": "💡 <strong>Tip:</strong> Upload product photos — the AI places them into real scenes instead of generating from scratch.",
+      "face": "👤 <strong>Face of the brand:</strong> Tag a portrait of a specific person as <tag>Specific person</tag> — the engine then keeps them across posts instead of a stock model.",
+      "tags": "🏷️ <strong>Fixing tags:</strong> Click the tags under a photo. A manual tag is never overwritten by the AI — not even with “Retag with AI”.",
+      "environment": "🏙️ <strong>Places:</strong> Photos of your shop or office help keep behind-the-scenes posts authentic."
+    }
+  }
 }

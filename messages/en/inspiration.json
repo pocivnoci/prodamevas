@@ -1,3 +1,59 @@
 {
-  "inspiration": {}
+  "inspiration": {
+    "tab": {
+      "ideas": "Ideas",
+      "reviews": "Reviews"
+    },
+    "ideas": {
+      "explainer": {
+        "title": "Topic bank",
+        "body": "AI takes topics for your posts from here — ideas that work get used more often. A used idea is not deleted, it just takes a break so your feed does not repeat itself. The monthly plan picks topics from here first — and saves newly approved topics back here."
+      },
+      "count": "{count, plural, one {# idea} other {# ideas}}",
+      "countFiltered": "{shown} / {total, plural, one {# idea} other {# ideas}}",
+      "generating": "Generating...",
+      "generateAi": "AI Ideas (10x)",
+      "allInPillar": "All ({pillar})",
+      "addManually": "+ Add manually",
+      "all": "All",
+      "pillarTitle": "Pillar: {pillar}",
+      "uncategorized": "No category",
+      "form": {
+        "titlePlaceholder": "Title...",
+        "contentPlaceholder": "Idea content...",
+        "categoryPlaceholder": "— Category —",
+        "saving": "Saving..."
+      },
+      "badges": {
+        "off": "Off",
+        "proven": "Works",
+        "resting": "Resting",
+        "new": "New",
+        "used": "×{count} used"
+      },
+      "turnOff": "⏸ Turn off",
+      "turnOn": "▶ Turn on",
+      "delete": "Delete",
+      "deleteConfirm": "Really delete this idea? This cannot be undone.",
+      "generateError": "Error generating ideas: {error}",
+      "error": "Error: {error}",
+      "empty": "No ideas",
+      "emptyFiltered": "No ideas in this category"
+    },
+    "reviews": {
+      "count": "{count, plural, one {# review} other {# reviews}}",
+      "generating": "Generating...",
+      "generateAi": "AI Reviews (5x)",
+      "addManually": "+ Add manually",
+      "form": {
+        "quotePlaceholder": "Review text...",
+        "initialsPlaceholder": "Initials (J.D.)",
+        "saving": "Saving..."
+      },
+      "anonymous": "Anonymous",
+      "approved": "Approved",
+      "generateError": "Error generating reviews: {error}",
+      "empty": "No reviews"
+    }
+  }
 }

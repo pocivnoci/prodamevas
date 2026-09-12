@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { useFormatter, useTranslations } from "next-intl"
 import { FileText, ExternalLink, AlertTriangle, Check } from "lucide-react"
 import {
     getBillingDetails,
@@ -32,9 +33,13 @@ const EMPTY: BillingDetailsInput = {
     email: "",
 }
 
-/** Přesné znění se ukládá do DB — v případném sporu se prokazuje ono, ne odkaz na komponentu. */
-export const INSTANT_ACCESS_CONSENT_TEXT =
-    "Souhlasím se zpřístupněním služby ihned po zaplacení a beru na vědomí, že tím ztrácím právo odstoupit od smlouvy do 14 dnů podle § 1837 občanského zákoníku."
+/**
+ * Klíč znění souhlasu se zahájením plnění v `messages/<locale>/billing.json`
+ * (namespace `billing.details`). Zobrazuje se a ukládá TÝŽ text — v jazyce, ve
+ * kterém ho uživatel četl a odklikl. Přesné znění se ukládá do DB — v případném
+ * sporu se prokazuje ono, ne odkaz na komponentu.
+ */
+export const INSTANT_ACCESS_CONSENT_TEXT = "consent.text"
 
 const LABEL = "block text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5"
 const INPUT =
@@ -52,6 +57,9 @@ export function BillingForm({
     onSaved?: () => void
     onCancel?: () => void
 }) {
+    const t = useTranslations("billing.details")
+    /** Přesně tohle znění uživatel vidí u zaškrtávátka a přesně tohle se ukládá. */
+    const consentText = t(INSTANT_ACCESS_CONSENT_TEXT)
     const [form, setForm] = useState<BillingDetailsInput>(EMPTY)
     const [consentGiven, setConsentGiven] = useState(false)
     const [alreadyConsented, setAlreadyConsented] = useState(false)
@@ -93,20 +101,20 @@ export function BillingForm({
     const handleSubmit = async () => {
         setError(null)
         if (needsConsent && !consentGiven) {
-            setError("Bez souhlasu se zahájením plnění nelze službu zpřístupnit ihned.")
+            setError(t("consent.required"))
             return
         }
         setSaving(true)
         try {
             const res = await saveBillingDetails(projectId, form)
             if (!res.success) {
-                setError(res.error || "Uložení selhalo.")
+                setError(res.error || t("form.errors.save"))
                 return
             }
             if (needsConsent && consentGiven) {
-                const consent = await recordInstantAccessConsent(projectId, INSTANT_ACCESS_CONSENT_TEXT)
+                const consent = await recordInstantAccessConsent(projectId, consentText)
                 if (!consent.success) {
-                    setError(consent.error || "Uložení souhlasu selhalo.")
+                    setError(consent.error || t("form.errors.consent"))
                     return
                 }
                 setAlreadyConsented(true)
@@ -127,9 +135,9 @@ export function BillingForm({
         <div className="space-y-4">
             {/* Typ zákazníka řídí právní režim, ne jen vzhled formuláře. */}
             <div>
-                <span className={LABEL}>Fakturuji jako</span>
+                <span className={LABEL}>{t("form.invoiceAs")}</span>
                 <div className="grid grid-cols-2 gap-2">
-                    {([["company", "Firma / OSVČ"], ["consumer", "Nepodnikám"]] as const).map(([value, label]) => (
+                    {(["company", "consumer"] as const).map(value => (
                         <button
                             key={value}
                             type="button"
@@ -140,49 +148,49 @@ export function BillingForm({
                                     : "bg-[#050505] border-white/10 text-white/40 hover:text-white/70"
                             }`}
                         >
-                            {label}
+                            {t(`form.customerType.${value}`)}
                         </button>
                     ))}
                 </div>
             </div>
 
             <div>
-                <label className={LABEL}>{form.customerType === "company" ? "Název firmy" : "Jméno a příjmení"}</label>
-                <input className={INPUT} value={form.name} onChange={e => set("name", e.target.value)} placeholder={form.customerType === "company" ? "Kavárna U Lípy s.r.o." : "Jan Novák"} />
+                <label className={LABEL}>{form.customerType === "company" ? t("form.companyName") : t("form.personName")}</label>
+                <input className={INPUT} value={form.name} onChange={e => set("name", e.target.value)} placeholder={form.customerType === "company" ? t("form.companyNamePlaceholder") : t("form.personNamePlaceholder")} />
             </div>
 
             {form.customerType === "company" && (
                 <div className="grid grid-cols-2 gap-3">
                     <div>
-                        <label className={LABEL}>IČO</label>
-                        <input className={INPUT} value={form.ico} onChange={e => set("ico", e.target.value)} placeholder="12345678" inputMode="numeric" />
+                        <label className={LABEL}>{t("form.ico")}</label>
+                        <input className={INPUT} value={form.ico} onChange={e => set("ico", e.target.value)} placeholder={t("form.icoPlaceholder")} inputMode="numeric" />
                     </div>
                     <div>
-                        <label className={LABEL}>DIČ <span className="text-white/20">(nepovinné)</span></label>
-                        <input className={INPUT} value={form.dic} onChange={e => set("dic", e.target.value)} placeholder="CZ12345678" />
+                        <label className={LABEL}>{t("form.dic")} <span className="text-white/20">{t("form.optional")}</span></label>
+                        <input className={INPUT} value={form.dic} onChange={e => set("dic", e.target.value)} placeholder={t("form.dicPlaceholder")} />
                     </div>
                 </div>
             )}
 
             <div>
-                <label className={LABEL}>Ulice a číslo popisné</label>
-                <input className={INPUT} value={form.street} onChange={e => set("street", e.target.value)} placeholder="Dlouhá 12" />
+                <label className={LABEL}>{t("form.street")}</label>
+                <input className={INPUT} value={form.street} onChange={e => set("street", e.target.value)} placeholder={t("form.streetPlaceholder")} />
             </div>
 
             <div className="grid grid-cols-3 gap-3">
                 <div>
-                    <label className={LABEL}>PSČ</label>
-                    <input className={INPUT} value={form.zip} onChange={e => set("zip", e.target.value)} placeholder="110 00" inputMode="numeric" />
+                    <label className={LABEL}>{t("form.zip")}</label>
+                    <input className={INPUT} value={form.zip} onChange={e => set("zip", e.target.value)} placeholder={t("form.zipPlaceholder")} inputMode="numeric" />
                 </div>
                 <div className="col-span-2">
-                    <label className={LABEL}>Město</label>
-                    <input className={INPUT} value={form.city} onChange={e => set("city", e.target.value)} placeholder="Praha" />
+                    <label className={LABEL}>{t("form.city")}</label>
+                    <input className={INPUT} value={form.city} onChange={e => set("city", e.target.value)} placeholder={t("form.cityPlaceholder")} />
                 </div>
             </div>
 
             <div>
-                <label className={LABEL}>E-mail pro faktury <span className="text-white/20">(nepovinné)</span></label>
-                <input className={INPUT} value={form.email} onChange={e => set("email", e.target.value)} placeholder="ucetni@firma.cz" type="email" />
+                <label className={LABEL}>{t("form.email")} <span className="text-white/20">{t("form.optional")}</span></label>
+                <input className={INPUT} value={form.email} onChange={e => set("email", e.target.value)} placeholder={t("form.emailPlaceholder")} type="email" />
             </div>
 
             {needsConsent && (
@@ -193,7 +201,7 @@ export function BillingForm({
                         onChange={e => setConsentGiven(e.target.checked)}
                         className="mt-0.5 accent-white shrink-0"
                     />
-                    <span className="text-[11px] text-white/60 leading-relaxed">{INSTANT_ACCESS_CONSENT_TEXT}</span>
+                    <span className="text-[11px] text-white/60 leading-relaxed">{consentText}</span>
                 </label>
             )}
 
@@ -211,7 +219,7 @@ export function BillingForm({
                     disabled={saving}
                     className="flex-1 bg-white text-black py-2.5 rounded-sm text-[10px] font-black uppercase tracking-widest hover:bg-white/90 disabled:opacity-40 transition-colors"
                 >
-                    {saving ? "Ukládám…" : savedNote ? "Uloženo ✓" : "Uložit údaje"}
+                    {saving ? t("form.saving") : savedNote ? t("form.saved") : t("form.save")}
                 </button>
                 {onCancel && (
                     <button
@@ -219,7 +227,7 @@ export function BillingForm({
                         onClick={onCancel}
                         className="px-5 border border-white/10 rounded-sm text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
                     >
-                        Zpět
+                        {t("form.back")}
                     </button>
                 )}
             </div>
@@ -237,12 +245,13 @@ export function BillingModal({
     onDone: () => void
     onClose: () => void
 }) {
+    const t = useTranslations("billing.details")
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 overflow-y-auto">
             <div className="bg-[#0f0f0f] border border-white/10 rounded-sm p-6 w-full max-w-md my-8">
-                <h3 className="text-sm font-black uppercase tracking-widest text-white mb-1">Fakturační údaje</h3>
+                <h3 className="text-sm font-black uppercase tracking-widest text-white mb-1">{t("modal.title")}</h3>
                 <p className="text-[11px] text-white/40 mb-5 leading-relaxed">
-                    Potřebujeme je k vystavení daňového dokladu. Vyplníte jednou.
+                    {t("modal.intro")}
                 </p>
                 <BillingForm projectId={projectId} requireConsent onSaved={onDone} onCancel={onClose} />
             </div>
@@ -252,6 +261,8 @@ export function BillingModal({
 
 /** Sekce v Nastavení: uložené údaje + seznam vystavených dokladů. */
 export function BillingSection({ projectId }: { projectId: string }) {
+    const t = useTranslations("billing.details")
+    const format = useFormatter()
     const [invoices, setInvoices] = useState<InvoiceRecord[]>([])
     const [loadingInvoices, setLoadingInvoices] = useState(true)
 
@@ -268,18 +279,18 @@ export function BillingSection({ projectId }: { projectId: string }) {
     return (
         <div className="bg-[#0f0f0f] border border-white/5 rounded-sm p-6 space-y-6">
             <h3 className="text-sm font-black uppercase tracking-widest text-white/70 border-b border-white/10 pb-2">
-                Fakturace
+                {t("section.title")}
             </h3>
 
             <BillingForm projectId={projectId} />
 
             <div>
-                <h4 className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-3">Vystavené doklady</h4>
+                <h4 className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-3">{t("section.invoices")}</h4>
 
                 {loadingInvoices ? (
                     <div className="h-12 bg-white/5 rounded-sm animate-pulse" />
                 ) : invoices.length === 0 ? (
-                    <p className="text-[11px] text-white/30">Zatím žádné doklady. První vystavíme po první platbě.</p>
+                    <p className="text-[11px] text-white/30">{t("section.empty")}</p>
                 ) : (
                     <ul className="divide-y divide-white/5 border border-white/5 rounded-sm">
                         {invoices.map(inv => (
@@ -287,13 +298,11 @@ export function BillingSection({ projectId }: { projectId: string }) {
                                 <FileText className="w-3.5 h-3.5 text-white/25 shrink-0" />
                                 <div className="flex-1 min-w-0">
                                     <p className="text-xs text-white/80 truncate">
-                                        {inv.number || "Připravuje se…"}
+                                        {inv.number || t("section.preparing")}
                                     </p>
                                     <p className="text-[10px] text-white/30">
-                                        {inv.issuedAt
-                                            ? new Date(inv.issuedAt).toLocaleDateString("cs-CZ")
-                                            : new Date(inv.createdAt).toLocaleDateString("cs-CZ")}
-                                        {inv.totalCzk != null && ` · ${(inv.totalCzk / 100).toLocaleString("cs-CZ")} Kč`}
+                                        {format.dateTime(new Date(inv.issuedAt || inv.createdAt), { dateStyle: "medium" })}
+                                        {inv.totalCzk != null && ` · ${t("section.amount", { amount: inv.totalCzk / 100 })}`}
                                     </p>
                                 </div>
                                 {inv.status === "issued" && inv.publicUrl ? (
@@ -303,13 +312,13 @@ export function BillingSection({ projectId }: { projectId: string }) {
                                         rel="noopener noreferrer"
                                         className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-white/50 hover:text-white transition-colors shrink-0"
                                     >
-                                        Otevřít <ExternalLink className="w-3 h-3" />
+                                        {t("section.open")} <ExternalLink className="w-3 h-3" />
                                     </a>
                                 ) : inv.status === "issued" ? (
                                     <Check className="w-3.5 h-3.5 text-white/30 shrink-0" />
                                 ) : (
                                     <span className="text-[9px] font-bold uppercase tracking-widest text-aisummit-cinnabar/70 shrink-0">
-                                        {inv.status === "failed" ? "Řešíme" : "Čeká"}
+                                        {inv.status === "failed" ? t("section.status.failed") : t("section.status.pending")}
                                     </span>
                                 )}
                             </li>
@@ -319,7 +328,7 @@ export function BillingSection({ projectId }: { projectId: string }) {
 
                 {invoices.some(i => i.status === "failed") && (
                     <p className="text-[10px] text-white/30 mt-3 leading-relaxed">
-                        U některého dokladu se vystavení nezdařilo. Doklad vám doručíme dodatečně — platba je v pořádku a služba běží.
+                        {t("section.failedNote")}
                     </p>
                 )}
             </div>
