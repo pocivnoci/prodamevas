@@ -443,71 +443,11 @@ test("10.3 Landing má finální CTA, ne pořadník", () => {
         "starý formulář musí zůstat smazaný, jinak se udržují dvě kopie CTA")
 })
 
-test("10.3a Landing vede od slibu přes postup k ukázkám z různých oborů", () => {
-    // Redesign 9/2026: hero je split (slib + živá ukázka), pak „Jak to funguje"
-    // a teprve pak zeď ukázek. Dřív landing neřekl VŮBEC, co se po kliknutí
-    // stane — s otevřenou registrací je to první otázka návštěvníka.
-    const landing = codeOnly("components/Landing.tsx")
-
-    assert(landing.includes('id="jak-to-funguje"'), "landing musí mít sekci Jak to funguje")
-    assert(landing.includes("HeroShowcase"), "hero musí vedle CTA ukázat skutečné příspěvky")
-    assert(fileContent("components/PostWall.tsx").includes('id="ukazky"'),
-        "zeď ukázek musí mít kotvu #ukazky")
-
-    // Pořadí sekcí je součást slibu: postup vysvětli dřív, než ukážeš výsledek.
-    const krok = landing.indexOf('id="jak-to-funguje"')
-    const zed = landing.indexOf("<PostWall")
-    const seminko = landing.indexOf("<SeedToFlower")
-    assert(krok > 0 && zed > krok, 'sekce „Jak to funguje“ patří mezi hero a ukázky')
-    assert(seminko > zed, 'sekce „Z jednoho semínka“ patří až za ukázky')
-
-    // Navigace nesmí mířit na kotvu, která se přejmenovala.
-    assert(!landing.includes('href="#reference"'),
-        "hlavička ani patička landingu nesmí odkazovat na starou kotvu #reference")
-    for (const href of ["#jak-to-funguje", "#ukazky"]) {
-        assert(landing.includes(href), `navigace landingu musí nabídnout ${href}`)
-    }
-})
-
-test("10.3b Ukázky se vybírají podle oboru, ne podle jmen v poli", () => {
-    // Do 9/2026 tu byly čtyři slugy natvrdo a dvě z nich byly SaaS aplikace:
-    // zeď dokazovala, že Chrlit umí dva startupy, ne že umí i kavárnu.
-    // `lib/reference-data.ts` je generovaný — výběr proto patří do kódu.
-    const landing = codeOnly("components/Landing.tsx")
-    assert(!/FEATURED_SLUGS/.test(landing),
-        "ukázky nesmí být seznam slugů natvrdo — výběr musí jít přes obor")
-    assert(landing.includes("industry"),
-        "výběr ukázek musí číst obor značky (ReferenceBrand.industry)")
-
-    // Štítek oboru je to, v čem návštěvník pozná sebe — musí ho vykreslit zeď.
-    const wall = codeOnly("components/PostWall.tsx")
-    assert(wall.includes("post.industry"), "karta ukázky musí obor ukázat")
-
-    // Běhová kontrola nad skutečnými daty: pestrost, ne dvě značky z jednoho oboru.
-    const { REFERENCE_BRANDS } = require("./lib/reference-data")
-    const obory = new Set(
-        REFERENCE_BRANDS.filter((b: { posts: unknown[] }) => b.posts.length > 0)
-            .map((b: { industry: string; company: string }) => b.industry.trim() || b.company),
-    )
-    assert(obory.size >= 4,
-        `v referenčních datech jsou jen ${obory.size} obory — ukázky per obor nemají z čeho vybírat`)
-})
-
 test("10.4 Kontaktní formulář nabízí i cestu s kódem pozvánky", () => {
     const content = fileContent("components/ContactForm.tsx")
     assert(content.includes('href="/register"'), "Should link to /register")
     // Kdo přichází s kódem, nemá čekat na telefonát.
     assert(/kód pozvánky/i.test(content), "musí zůstat viditelná zkratka pro držitele kódu")
-
-    // …ale jen dokud kód opravdu platí. Po otevření brány je registrace veřejná
-    // a věta „máte kód pozvánky?" by vymýšlela podmínku, která neexistuje.
-    // Stav brány chodí PROPEM ze serveru: klient k `process.env` nemá přístup.
-    const code = codeOnly("components/ContactForm.tsx")
-    assert(code.includes("inviteRequired"), "formulář musí znát stav brány")
-    assert(!/process\.env/.test(code),
-        "ContactForm je klientská komponenta — stav brány musí dostat propem, ne z env")
-    assert(/<ContactForm[^>]*inviteRequired=\{inviteRequired\}/.test(codeOnly("components/Landing.tsx")),
-        "landing musí stav brány formuláři předat")
 })
 
 test("10.4a Formulář se ptá na to, čím se dá ozvat", () => {

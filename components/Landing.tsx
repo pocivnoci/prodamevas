@@ -34,66 +34,42 @@ function hostFromUrl(u: string): string {
   try { return new URL(u).hostname.replace(/^www\./, "") } catch { return u.replace(/^https?:\/\//, "") }
 }
 
-/**
- * Ukázky se vybírají podle OBORU, ne podle jmen v poli.
- *
- * Do teď tu byly čtyři slugy natvrdo a dvě z nich byly SaaS aplikace — zeď pak
- * dokazovala, že Chrlit umí dva startupy, ne že umí i kavárnu. Návštěvník
- * hledá sebe: dokud v ukázkách nevidí svůj obor, nemá co uvěřit.
- *
- * `lib/reference-data.ts` je generovaný (`scripts/export-references.ts`) —
- * tenhle soubor ho jen čte, nikdy nepřepisuje.
- */
-const brandLabel = (b: (typeof REFERENCE_BRANDS)[number]) => b.industry.trim() || b.company
+// Featured mix on the landing: 2 strongest local-SMB demos + 2 modern startup/app
+// demos — proof that speaks to both audiences. Falls back gracefully if a featured
+// brand has no posts yet (e.g. startups not generated).
+const FEATURED_SLUGS = ["kavarna-zrno", "vinarstvi-pod-strani", "flowtask", "brevia"]
 
-/** Jedna značka na obor, v pořadí, v jakém je vyexportoval skript (stabilní build). */
-const BRANDS_BY_INDUSTRY = (() => {
-  const seen = new Set<string>()
-  const out: typeof REFERENCE_BRANDS = []
-  for (const b of REFERENCE_BRANDS) {
-    if (b.posts.length === 0) continue
-    const key = brandLabel(b)
-    if (seen.has(key)) continue
-    seen.add(key)
-    out.push(b)
-  }
-  return out
+const FEATURED_BRANDS = (() => {
+  const withPosts = REFERENCE_BRANDS.filter((b) => b.posts.length > 0)
+  const curated = FEATURED_SLUGS
+    .map((s) => withPosts.find((b) => b.slug === s))
+    .filter((b): b is (typeof withPosts)[number] => Boolean(b))
+  return curated.length > 0 ? curated : withPosts.slice(0, 4)
 })()
 
+// The post wall shows REAL posts the Chrlit engine generated for Chrlit's OWN
+// brand (dogfood). Falls back to the featured demo brands if that data is missing.
 const toWall = (b: (typeof REFERENCE_BRANDS)[number]): WallPost[] =>
   b.posts.map((p) => ({
     imageUrl: p.imageUrl,
     caption: p.caption,
     hashtags: p.hashtags,
     company: b.company,
-    // Vlastní značka Chrlitu obor nemá — tam je štítkem jméno, ne prázdno.
-    industry: brandLabel(b),
     emoji: b.emoji,
     handle: hostFromUrl(b.website).split(".")[0],
   }))
 
-/**
- * Zeď ukázek: round-robin přes obory, ne blok po značce. Jeden pruh musí být
- * pestrý sám o sobě — pruh se posouvá a člověk z něj uvidí jen výsek.
- */
 const WALL_POSTS: WallPost[] = (() => {
-  const perBrand = BRANDS_BY_INDUSTRY.map(toWall)
-  const total = perBrand.reduce((n, a) => n + a.length, 0)
+  const own = REFERENCE_BRANDS.find((b) => b.slug === "chrlit")
+  if (own && own.posts.length > 0) return toWall(own)
+  // fallback: round-robin across featured demo brands
+  const perBrand = FEATURED_BRANDS.map(toWall)
   const out: WallPost[] = []
-  for (let i = 0; out.length < total; i++) {
+  for (let i = 0; out.length < perBrand.reduce((n, a) => n + a.length, 0); i++) {
     for (const arr of perBrand) if (arr[i]) out.push(arr[i])
   }
   return out
 })()
-
-/**
- * Ukázka v heru: první příspěvek ze čtyř RŮZNÝCH oborů. Vlastní značka Chrlitu
- * se sem nepočítá — „Chrlit dělá Instagram Chrlitu" o cizím oboru nedokazuje nic.
- */
-const HERO_POSTS: WallPost[] = BRANDS_BY_INDUSTRY
-  .filter((b) => b.industry.trim())
-  .slice(0, 4)
-  .map((b) => toWall(b)[0])
 
 /**
  * Landing.
@@ -194,10 +170,7 @@ export function Landing({
             <Link href="/portfolio" className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors hidden sm:block">
               Portfolio
             </Link>
-            <Link href="#jak-to-funguje" className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors hidden md:block">
-              Jak to funguje
-            </Link>
-            <Link href="#ukazky" className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors hidden sm:block">
+            <Link href="#reference" className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors hidden sm:block">
               Ukázky
             </Link>
             <Link href="#pricing" className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors hidden sm:block">
@@ -234,8 +207,7 @@ export function Landing({
               <nav className="max-w-7xl mx-auto px-6 py-3 flex flex-col">
                 {[
                   { href: "/portfolio", label: "Portfolio" },
-                  { href: "#jak-to-funguje", label: "Jak to funguje" },
-                  { href: "#ukazky", label: "Ukázky" },
+                  { href: "#reference", label: "Ukázky" },
                   { href: "#pricing", label: "Ceník" },
                   { href: "/login", label: "Přihlásit se" },
                 ].map((l) => (
@@ -254,16 +226,11 @@ export function Landing({
         </AnimatePresence>
       </motion.header>
 
-      {/* HERO — vlevo slib a CTA, vpravo důkaz.
-          Do teď to byl jen text v `max-w-3xl`: co za ty peníze vznikne, se
-          člověk dozvěděl až po odscrollování. Ukázka proto stojí hned vedle
-          tlačítka. Na mobilu se sloupce skládají pod sebe a ukázka jde AŽ POD
-          CTA — nad ohybem musí zůstat, co se má kliknout. */}
-      <section className="relative z-10 pt-32 pb-16 md:pt-40 md:pb-20">
-        <div className="max-w-7xl mx-auto px-6 w-full">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 lg:gap-16 items-center">
+      {/* HERO — the promise + final CTA, centered */}
+      <section className="relative z-10 pt-32 pb-16 md:pt-40 md:pb-20 min-h-[78dvh] flex items-center">
+        <div className="max-w-3xl mx-auto px-6 w-full">
           <motion.div
-            className="flex flex-col items-center text-center lg:items-start lg:text-left"
+            className="flex flex-col items-center text-center"
             initial={reduce ? false : { opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1, ease: EASE_OUT }}
@@ -288,7 +255,7 @@ export function Landing({
                 blog, portfolio i hlavička podstránek a ty o bráně nevědí nic. */}
             <div id={CONTACT_ANCHOR} className="w-full sm:max-w-md mt-2 relative z-20 scroll-mt-[28rem]">
               {inviteRequired ? (
-                <ContactForm planId={pickedPlan} termMonths={term} inviteRequired={inviteRequired} />
+                <ContactForm planId={pickedPlan} termMonths={term} />
               ) : (
                 <>
                   <Link
@@ -308,7 +275,7 @@ export function Landing({
                       <p className="text-xs text-white/45 text-center mb-4">
                         Nechte kontakt a ozveme se vám do jednoho pracovního dne.
                       </p>
-                      <ContactForm planId={pickedPlan} termMonths={term} subdued inviteRequired={inviteRequired} />
+                      <ContactForm planId={pickedPlan} termMonths={term} subdued />
                     </div>
                   ) : (
                     <button
@@ -327,56 +294,6 @@ export function Landing({
               {ctaNote}
             </p>
           </motion.div>
-
-          <HeroShowcase posts={HERO_POSTS} reduce={Boolean(reduce)} />
-          </div>
-        </div>
-      </section>
-
-      {/* JAK TO FUNGUJE — tři kroky mezi slibem a důkazem.
-          Landing to dřív neměl vůbec (přiznávalo to i FAQ). Se samoobslužnou
-          registrací je to první otázka návštěvníka: co se stane, když kliknu. */}
-      <section id="jak-to-funguje" className="relative z-10 py-24 border-t border-white/5 bg-[#0a0a0a] scroll-mt-20">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center mb-14 max-w-2xl mx-auto">
-            <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/20 mb-4">Od adresy webu k hotovému profilu</p>
-            <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-white uppercase">Jak to funguje</h2>
-            <p className="text-white/50 font-medium text-lg">Tři kroky. Vaše práce je první z nich a trvá minutu.</p>
-          </div>
-
-          <Reveal stagger className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {[
-              {
-                step: "01",
-                title: "Zadáte web",
-                desc: "Vložíte adresu svého webu. Nic dalšího psát nemusíte — a když web nemáte, projdeme s vámi pár otázek místo něj.",
-              },
-              {
-                step: "02",
-                title: "Chrlit se naučí značku",
-                desc: "Přečte si web a vytáhne z něj barvy, tón hlasu i produkty. Podle toho pak vypadá a mluví každý příspěvek.",
-              },
-              {
-                step: "03",
-                title: "Dostanete měsíc obsahu",
-                desc: "Desítky hotových příspěvků i s termíny. Co schválíte, to Chrlit ve svůj čas sám zveřejní na vašem Instagramu.",
-              },
-            ].map(({ step, title, desc }) => (
-              <motion.div
-                key={step}
-                variants={fadeUp}
-                className="relative bg-[#050505] border border-white/10 rounded-sm p-8 hover:border-aisummit-cinnabar/30 transition-colors"
-              >
-                <div className="text-[10px] font-black uppercase tracking-[0.3em] text-aisummit-cinnabar mb-6">Krok {step}</div>
-                <h3 className="text-base font-black uppercase tracking-widest text-white mb-2">{title}</h3>
-                <p className="text-white/40 text-sm leading-relaxed">{desc}</p>
-              </motion.div>
-            ))}
-          </Reveal>
-
-          <p className="text-center mt-12 text-[9px] font-bold uppercase tracking-[0.3em] text-white/20">
-            Bez potvrzení neodejde nic · Automatické publikování si zapnete, až budete chtít
-          </p>
         </div>
       </section>
 
@@ -734,8 +651,7 @@ export function Landing({
             <h4 className="font-bold mb-5 text-white/70 tracking-widest uppercase text-[10px]">Produkt</h4>
             <ul className="space-y-3 text-[10px] tracking-wider uppercase text-white/30 font-bold">
               <li><Link href="/portfolio" className="hover:text-white transition-colors">Portfolio</Link></li>
-              <li><Link href="#jak-to-funguje" className="hover:text-white transition-colors">Jak to funguje</Link></li>
-              <li><Link href="#ukazky" className="hover:text-white transition-colors">Ukázky</Link></li>
+              <li><Link href="#reference" className="hover:text-white transition-colors">Ukázky</Link></li>
               <li><Link href="#pricing" className="hover:text-white transition-colors">Ceník</Link></li>
               <li><Link href="/blog" className="hover:text-white transition-colors">Blog</Link></li>
               <li><Link href="/aplikace" className="hover:text-white transition-colors">Do telefonu</Link></li>
@@ -776,9 +692,8 @@ export function Landing({
 }
 
 // ─── FAQ Accordion ──────────────────────────────────────────
-// Jen nákupní námitky. „Jak to funguje" má od redesignu vlastní sekci nahoře
-// (#jak-to-funguje), takže se sem už neschovává — tady zůstávají jen otázky,
-// které brání koupi. Detailní návod dál žije uvnitř produktu.
+// Only buying-objection questions — the "how it works" detail intentionally lives
+// inside the product, not on the landing page.
 
 const FAQ_ITEMS = [
   {
@@ -859,52 +774,5 @@ function FaqAccordion() {
         )
       })}
     </div>
-  )
-}
-
-// ─── Hero showcase ──────────────────────────────────────────
-/**
- * Živá ukázka vedle hlavního tlačítka: první příspěvek ze čtyř různých oborů.
- *
- * Není to galerie a schválně nemá lightbox ani ovládání — v heru má jediný úkol
- * (ukázat, co vznikne), a všechno klikací by soupeřilo s CTA. Kdo chce víc, jde
- * o sekci níž do „Ukázek" (`#ukazky`), kde se posty otvírají.
- */
-function HeroShowcase({ posts, reduce }: { posts: WallPost[]; reduce: boolean }) {
-  if (posts.length === 0) return null
-  return (
-    <motion.div
-      className="relative w-full"
-      initial={reduce ? false : { opacity: 0, y: 24 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, delay: 0.25, ease: EASE_OUT }}
-    >
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        {posts.slice(0, 4).map((p, i) => (
-          <figure
-            key={i}
-            className={`relative overflow-hidden rounded-sm border border-white/10 bg-[#0a0a0a] ${i % 2 === 1 ? "lg:translate-y-8" : ""}`}
-          >
-            <img
-              src={p.imageUrl}
-              alt={`Příspěvek vygenerovaný v Chrlit pro ${p.company}`}
-              loading="lazy"
-              draggable={false}
-              className="aspect-[4/5] w-full object-cover"
-            />
-            <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-3 py-2.5">
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm leading-none">{p.emoji}</span>
-                <span className="truncate text-[9px] font-black uppercase tracking-widest text-white/85">{p.company}</span>
-              </div>
-              <p className="mt-0.5 truncate text-[8px] font-bold uppercase tracking-widest text-white/45">{p.industry}</p>
-            </figcaption>
-          </figure>
-        ))}
-      </div>
-      <p className="mt-6 lg:mt-10 text-center lg:text-left text-[9px] font-bold uppercase tracking-widest text-white/25">
-        Skutečné příspěvky z různých oborů · vygeneroval Chrlit
-      </p>
-    </motion.div>
   )
 }

@@ -16,9 +16,6 @@ export type WallPost = {
   caption: string
   hashtags: string
   company: string
-  /** Obor značky (`ReferenceBrand.industry`). Prázdný u vlastní značky Chrlitu,
-   *  kde se místo něj ukazuje jméno — proto to sem chodí už rozhodnuté z volajícího. */
-  industry: string
   emoji: string
   handle: string
 }
@@ -37,16 +34,10 @@ function Card({ post, onOpen }: { post: WallPost; onOpen: () => void }) {
         draggable={false}
         className="h-full w-auto object-cover block"
       />
-      {/* brand chip — pod jménem značky obor, protože ukázky mají dokazovat
-          šířku záběru („tohle umí i pro mě"), ne jen že existují. */}
-      <div className="absolute inset-x-0 bottom-0 px-2.5 py-2 bg-gradient-to-t from-black/85 to-transparent pointer-events-none">
-        <div className="flex items-center gap-1.5">
-          <span className="text-sm leading-none">{post.emoji}</span>
-          <span className="text-[9px] font-black uppercase tracking-widest text-white/85 truncate">{post.company}</span>
-        </div>
-        {post.industry && post.industry !== post.company && (
-          <p className="mt-0.5 text-[8px] font-bold uppercase tracking-widest text-white/45 truncate">{post.industry}</p>
-        )}
+      {/* brand chip */}
+      <div className="absolute inset-x-0 bottom-0 px-2.5 py-2 bg-gradient-to-t from-black/80 to-transparent flex items-center gap-1.5 pointer-events-none">
+        <span className="text-sm leading-none">{post.emoji}</span>
+        <span className="text-[9px] font-black uppercase tracking-widest text-white/85 truncate">{post.company}</span>
       </div>
       {/* hover scrim */}
       <div className="absolute inset-0 bg-black/0 group-hover/card:bg-black/40 transition-all flex items-center justify-center">
@@ -100,11 +91,7 @@ export function PostWall({ posts }: { posts: WallPost[] }) {
   const rowB = posts.filter((_, i) => i % 2 === 1)
 
   return (
-    <section id="ukazky" className="relative z-10 py-16 md:py-20 border-t border-white/5 bg-[#050505] overflow-hidden">
-      {/* Historická kotva: patička i hlavička podstránek (SiteHeader/SiteFooter)
-          míří pořád na `#reference`. Sekce se jmenuje `#ukazky`, ale starý odkaz
-          nesmí skončit na prázdno. */}
-      <span id="reference" aria-hidden className="block" />
+    <section id="reference" className="relative z-10 py-16 md:py-20 border-t border-white/5 bg-[#050505] overflow-hidden">
       {/* marquee keyframes (scoped) */}
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes pw-l { from { transform: translateX(0) } to { transform: translateX(-50%) } }
@@ -112,9 +99,9 @@ export function PostWall({ posts }: { posts: WallPost[] }) {
       `}} />
 
       <div className="text-center mb-8 px-6">
-        <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/20 mb-2">Skutečné příspěvky · Různé obory · 100 % od Chrlit</p>
+        <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/20 mb-2">Náš vlastní Instagram · 100 % od Chrlit</p>
         <h2 className="text-2xl md:text-3xl font-black tracking-tighter text-white uppercase">
-          Kavárna, salon, vinařství i aplikace. <span className="text-aisummit-cinnabar">Klikněte a prohlédněte.</span>
+          Tohle si Chrlit vytvořil sám. <span className="text-aisummit-cinnabar">Klikni a prohlédni.</span>
         </h2>
       </div>
 
@@ -148,9 +135,6 @@ export function PostWall({ posts }: { posts: WallPost[] }) {
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-base">{selected.emoji}</span>
                   <span className="px-2 py-1 bg-white/5 border border-white/10 rounded-sm text-[9px] font-black uppercase tracking-widest text-white/70">{selected.company}</span>
-                  {selected.industry && selected.industry !== selected.company && (
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-white/30">{selected.industry}</span>
-                  )}
                   <span className="text-white/20 text-[9px] ml-auto">Vygenerováno AI</span>
                 </div>
                 <p className="text-white/60 text-sm leading-relaxed whitespace-pre-line">{selected.caption}</p>
