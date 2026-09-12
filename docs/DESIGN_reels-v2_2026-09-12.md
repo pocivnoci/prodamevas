@@ -121,8 +121,8 @@ za znak, žádný pád na Gemini — reel se parkuje), modely v `instagram/model
 **12 rodilých českých hlasů** z komunitní knihovny ElevenLabs (globální `voice_id`,
 zobrazované `name`; hlas musí být přidaný do účtu). Kdo mluví za značku: vybraný hlas
 (`validateConfig` bere poskytovatele z něj), jinak **`DEFAULT_TTS_PROVIDER`** v
-`lib/voice-library.ts` — zatím `gemini`; přepnutí na `elevenlabs` je jedna konstanta a
-rozhodnutí po poslechu. Poslech 12. 9.: 21 premade hlasů × v3 i v2 (42 ukázek, přepis
+`lib/voice-library.ts` — od 12. 9. 2026 `elevenlabs` (rodilé hlasy); Gemini zůstává
+volbou per značka v Nastavení, ne fallbackem. Poslech 12. 9.: 21 premade hlasů × v3 i v2 (42 ukázek, přepis
 Gemini 48/50 bez chyby), spike `scripts/smoke-elevenlabs-voice.ts`, výstupy
 `audit-screenshots/spike/elevenlabs/`. Seedance jako zdroj řeči padl (čeština i audio
 reference neobstály; tvar reference v API je `{ type: "audio_url", audio_url: { url },

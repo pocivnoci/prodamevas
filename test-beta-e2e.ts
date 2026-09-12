@@ -2542,9 +2542,14 @@ test("17.12 TTS za rozhraním: poskytovatel v instagram/tts, spike skripty bez p
     assert(el11.length >= 8, `ElevenLabs knihovna má ${el11.length} hlasů, čekáme aspoň 8`)
     assert(el11.every(v => v.name && /^[A-Za-z0-9]{20}$/.test(v.id)), "ElevenLabs hlas má zobrazované jméno a 20znakové voice_id")
     assert(new Set(el11.map(v => v.gender)).size === 2, "ElevenLabs knihovna má oba vnímané rody — casting potřebuje pestrost")
-    const el11Cast = ["Kavárna U Lípy|Gastronomie / Kavárna|Přátelský barista", "Izolace Novák|Řemeslo / Služby|Poctivý řemeslník", "Salon Bella|Krása / Salon|Pečující kadeřnice", "TaskApp|Aplikace / SaaS|Věcný produktový hlas"]
-        .map(s => { const [brand, industry, persona] = s.split("|"); return cast({ brand, industry, persona }, "elevenlabs") })
-    assert(el11Cast.every(id => el11.some(v => v.id === id)) && new Set(el11Cast).size >= 3, "casting nad ElevenLabs vrací hlasy z jeho fondu a různé značky dostanou různé hlasy")
+    const el11Brands = ["Kavárna U Lípy|Gastronomie / Kavárna|Přátelský barista", "Izolace Novák|Řemeslo / Služby|Poctivý řemeslník", "Salon Bella|Krása / Salon|Pečující kadeřnice", "TaskApp|Aplikace / SaaS|Věcný produktový hlas", "FitZone|Fitness / Wellness|Energický trenér", "Wellness Klid|Wellness|Klidný průvodce", "Reality Morava|Reality / Realitní služby|Seriózní makléř", "Second Hand Retro|Móda / Oblečení|Hravá stylistka"]
+    const el11Cast = el11Brands.map(s => { const [brand, industry, persona] = s.split("|"); return cast({ brand, industry, persona }, "elevenlabs") })
+    assert(el11Cast.every(id => el11.some(v => v.id === id)) && new Set(el11Cast).size >= 4, `casting nad ElevenLabs vrací hlasy z jeho fondu a 8 značek dostane aspoň 4 různé (dostaly ${new Set(el11Cast).size})`)
+    // Obor a persona se mají PROTNOUT: fond 12 hlasů je malý a sjednocení by dalo
+    // energickému trenérovi klidného vypravěče jen proto, že fitness sousedí s wellness.
+    const el11Temper = (i: number) => el11.find(v => v.id === el11Cast[i])!.temperament
+    assert(["energetic", "playful"].includes(el11Temper(4)), `energický trenér má energický hlas, ne ${el11Temper(4)}`)
+    assert(["calm", "warm"].includes(el11Temper(5)), `klidný průvodce wellness má klidný hlas, ne ${el11Temper(5)}`)
     const audio = codeOnly("instagram/reel-audio.ts")
     assert(/getTtsProvider\(/.test(audio) && /voice\.voiceId/.test(audio), "reel-audio bere poskytovatele i hlas zvenčí")
 

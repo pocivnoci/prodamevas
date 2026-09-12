@@ -21,11 +21,13 @@
 export type TtsProviderId = "gemini" | "elevenlabs"
 
 /**
- * Výchozí poskytovatel pro značky bez vlastního výběru. Přepnutí na `elevenlabs`
- * je rozhodnutí po poslechu — jedna konstanta, aby se výchozí hlas všech značek
- * nedal změnit omylem uprostřed kódu a aby ho `validateConfig()` i UI četly odsud.
+ * Výchozí poskytovatel pro značky bez vlastního výběru: ElevenLabs s rodilými českými
+ * hlasy (rozhodnutí 12. 9. 2026 po poslechu — Gemini TTS má anglickou prozodii, což
+ * byla nejčastější stížnost na reely). Jedna konstanta, aby se výchozí hlas všech
+ * značek nedal změnit omylem uprostřed kódu a aby ho `validateConfig()` i UI četly
+ * odsud. Gemini zůstává v knihovně jako volba per značka, ne jako fallback.
  */
-export const DEFAULT_TTS_PROVIDER: TtsProviderId = "gemini"
+export const DEFAULT_TTS_PROVIDER: TtsProviderId = "elevenlabs"
 
 /** Temperament = jak hlas působí. Casting jím vybírá kandidáty pro obor a personu. */
 export type VoiceTemperament = "warm" | "energetic" | "calm" | "authoritative" | "playful"
@@ -93,18 +95,20 @@ export const VOICE_LIBRARY: VoiceProfile[] = [
     { id: "Sulafat", provider: "gemini", gender: "female", temperament: "warm", pace: "medium", fits: ["kavarna", "gastro", "ubytovani", "sluzby"], label: "Vřelý ženský hlas — pozvání dovnitř, pohostinnost" },
 
     // ── ElevenLabs, rodilí čeští mluvčí (komunitní knihovna, 12. 9. 2026) ─────────
-    { id: "KIDKfqJyZ6ASuyzsKfh5", name: "Jan", provider: "elevenlabs", gender: "male", temperament: "calm", pace: "medium", fits: ["poradenstvi", "vzdelavani", "zdravi", "finance"], label: "Klidný, laskavý mužský hlas — vysvětluje bez spěchu; poradenství a vzdělávání" },
-    { id: "vP4R9CqQI4q0HlVrXJWj", name: "Zdeněk", provider: "elevenlabs", gender: "male", temperament: "authoritative", pace: "slow", fits: ["remeslo", "stavebnictvi", "reality", "autoservis"], label: "Silný, hluboký mužský hlas s moravským zabarvením — poctivá práce a jistota" },
-    { id: "uYFJyGaibp4N2VwYQshk", name: "Adam", provider: "elevenlabs", gender: "male", temperament: "warm", pace: "medium", fits: ["kavarna", "gastro", "lokalni", "sluzby"], label: "Sametový konverzační mužský hlas — mluví jako majitel podniku, ne jako reklama" },
-    { id: "daJ4gHLkIVFskWuoLuDX", name: "Oliver", provider: "elevenlabs", gender: "male", temperament: "warm", pace: "medium", fits: ["saas", "sluzby", "e-commerce", "technika"], label: "Hladký, poutavý mužský hlas — moderní služby a produkty" },
-    { id: "U48DQ1c9SVmD2BVCSiHL", name: "Zazy", provider: "elevenlabs", gender: "male", temperament: "calm", pace: "slow", fits: ["wellness", "ubytovani", "fotografie", "interier"], label: "Čistý vypravěčský mužský hlas s pražskou dikcí — pomalé obrazy a atmosféra" },
-    { id: "7FpO7yFcBAfqM6vZJCg7", name: "Jan B.", provider: "elevenlabs", gender: "male", temperament: "energetic", pace: "medium", fits: ["e-commerce", "fitness", "zabava", "sport"], label: "Jasný mužský hlas s tahem — akce, novinky, výzvy" },
-    { id: "MpbYQvoTmXjHkaxtLiSh", name: "Anet", provider: "elevenlabs", gender: "female", temperament: "playful", pace: "fast", fits: ["moda", "krasa", "zabava", "e-commerce"], label: "Mladý, živý ženský hlas — sociální sítě, móda a krása" },
-    { id: "bF7C2fCv7Zf30iT84wZ1", name: "Jana", provider: "elevenlabs", gender: "female", temperament: "warm", pace: "medium", fits: ["kavarna", "ubytovani", "interier", "gastro"], label: "Vřelý, sebejistý ženský hlas s pražskou dikcí — pozvání dovnitř" },
-    { id: "OAAjJsQDvpg3sVjiLgyl", name: "Denisa", provider: "elevenlabs", gender: "female", temperament: "calm", pace: "medium", fits: ["krasa", "wellness", "moda", "fotografie"], label: "Měkký, vyvážený ženský hlas — péče o sebe a jemné značky" },
-    { id: "7JbZPqJGWUfXXBim0T8U", name: "Katty", provider: "elevenlabs", gender: "female", temperament: "energetic", pace: "fast", fits: ["fitness", "e-commerce", "zabava", "sport"], label: "Energický, důvěryhodný ženský hlas — sport, slevy, výzvy" },
-    { id: "12CHcREbuPdJY02VY7zT", name: "Hanka", provider: "elevenlabs", gender: "female", temperament: "authoritative", pace: "medium", fits: ["vzdelavani", "poradenstvi", "zdravi", "saas"], label: "Přátelský informativní ženský hlas — návody a vysvětlení" },
-    { id: "2qbJHyAaz7tHCfVZS6z3", name: "Hana", provider: "elevenlabs", gender: "female", temperament: "calm", pace: "slow", fits: ["zdravi", "wellness", "ubytovani", "vzdelavani"], label: "Uklidňující ženský hlas — citlivá témata a péče" },
+    // `fits` jsou širší než u Gemini schválně: fond má 12 hlasů a casting potřebuje
+    // na každé oborové klíčové slovo aspoň 3 kandidáty, jinak vybírá z celé knihovny.
+    { id: "KIDKfqJyZ6ASuyzsKfh5", name: "Jan", provider: "elevenlabs", gender: "male", temperament: "calm", pace: "medium", fits: ["poradenstvi", "vzdelavani", "zdravi", "finance", "reality", "technika", "sluzby", "stavebnictvi"], label: "Klidný, laskavý mužský hlas — vysvětluje bez spěchu; poradenství a vzdělávání" },
+    { id: "vP4R9CqQI4q0HlVrXJWj", name: "Zdeněk", provider: "elevenlabs", gender: "male", temperament: "authoritative", pace: "slow", fits: ["remeslo", "stavebnictvi", "reality", "autoservis", "technika", "gastro", "lokalni", "vinarstvi"], label: "Silný, hluboký mužský hlas s moravským zabarvením — poctivá práce a jistota" },
+    { id: "uYFJyGaibp4N2VwYQshk", name: "Adam", provider: "elevenlabs", gender: "male", temperament: "warm", pace: "medium", fits: ["kavarna", "gastro", "lokalni", "sluzby", "remeslo", "autoservis", "vinarstvi", "ubytovani"], label: "Sametový konverzační mužský hlas — mluví jako majitel podniku, ne jako reklama" },
+    { id: "daJ4gHLkIVFskWuoLuDX", name: "Oliver", provider: "elevenlabs", gender: "male", temperament: "warm", pace: "medium", fits: ["saas", "sluzby", "e-commerce", "technika", "remeslo", "autoservis", "interier", "finance"], label: "Hladký, poutavý mužský hlas — moderní služby a produkty" },
+    { id: "U48DQ1c9SVmD2BVCSiHL", name: "Zazy", provider: "elevenlabs", gender: "male", temperament: "calm", pace: "slow", fits: ["wellness", "ubytovani", "fotografie", "interier", "vinarstvi", "gastro", "lokalni", "poradenstvi", "vzdelavani"], label: "Čistý vypravěčský mužský hlas s pražskou dikcí — pomalé obrazy a atmosféra" },
+    { id: "7FpO7yFcBAfqM6vZJCg7", name: "Jan B.", provider: "elevenlabs", gender: "male", temperament: "energetic", pace: "medium", fits: ["e-commerce", "fitness", "zabava", "sport", "saas", "autoservis"], label: "Jasný mužský hlas s tahem — akce, novinky, výzvy" },
+    { id: "MpbYQvoTmXjHkaxtLiSh", name: "Anet", provider: "elevenlabs", gender: "female", temperament: "playful", pace: "fast", fits: ["moda", "krasa", "zabava", "e-commerce", "fitness", "sport", "kavarna"], label: "Mladý, živý ženský hlas — sociální sítě, móda a krása" },
+    { id: "bF7C2fCv7Zf30iT84wZ1", name: "Jana", provider: "elevenlabs", gender: "female", temperament: "warm", pace: "medium", fits: ["kavarna", "ubytovani", "interier", "gastro", "lokalni", "krasa", "reality", "wellness"], label: "Vřelý, sebejistý ženský hlas s pražskou dikcí — pozvání dovnitř" },
+    { id: "OAAjJsQDvpg3sVjiLgyl", name: "Denisa", provider: "elevenlabs", gender: "female", temperament: "calm", pace: "medium", fits: ["krasa", "wellness", "moda", "fotografie", "interier", "zdravi"], label: "Měkký, vyvážený ženský hlas — péče o sebe a jemné značky" },
+    { id: "7JbZPqJGWUfXXBim0T8U", name: "Katty", provider: "elevenlabs", gender: "female", temperament: "energetic", pace: "fast", fits: ["fitness", "e-commerce", "zabava", "sport", "saas", "moda"], label: "Energický, důvěryhodný ženský hlas — sport, slevy, výzvy" },
+    { id: "12CHcREbuPdJY02VY7zT", name: "Hanka", provider: "elevenlabs", gender: "female", temperament: "authoritative", pace: "medium", fits: ["vzdelavani", "poradenstvi", "zdravi", "saas", "technika", "finance", "reality", "stavebnictvi"], label: "Přátelský informativní ženský hlas — návody a vysvětlení" },
+    { id: "2qbJHyAaz7tHCfVZS6z3", name: "Hana", provider: "elevenlabs", gender: "female", temperament: "calm", pace: "slow", fits: ["zdravi", "wellness", "ubytovani", "vzdelavani", "poradenstvi", "finance", "krasa", "fotografie"], label: "Uklidňující ženský hlas — citlivá témata a péče" },
 ]
 
 const BY_ID = new Map(VOICE_LIBRARY.map(v => [v.id.toLowerCase(), v]))
@@ -174,8 +178,9 @@ export interface VoiceCastingInput {
  * hlasy. Není to náhoda se seedem ani `VOICE_LIBRARY[0]` — obojí by skončilo zpátky
  * u „všichni mluví Kore".
  *
- * Postup: z oboru a persony se sestaví kandidátský fond (hlas se do něj dostane za
- * shodu oboru i za shodu temperamentu), a z fondu vybere FNV-1a hash celého vstupu.
+ * Postup: z oboru a persony se sestaví kandidátský fond — nejdřív hlasy, které sedí
+ * OBOJÍM, teprve když jich není dost, sjednocení (shoda oboru nebo temperamentu) —
+ * a z fondu vybere FNV-1a hash celého vstupu.
  * Hash, ne pořadí: kdyby se vybíralo první shodou, spadly by všechny kavárny na
  * jeden hlas — kandidátský fond má rozhodovat o VHODNOSTI, ne o výsledku.
  */
@@ -189,14 +194,16 @@ export function castVoice(input: VoiceCastingInput, provider: TtsProviderId = DE
     const keywords = INDUSTRY_KEYWORDS.filter(([re]) => re.test(industry)).flatMap(([, kw]) => kw)
     const temperaments = PERSONA_TEMPERAMENTS.filter(([re]) => re.test(persona)).flatMap(([, t]) => t)
 
-    let candidates = pool.filter(v =>
-        (keywords.length > 0 && v.fits.some(f => keywords.includes(f)))
-        || (temperaments.length > 0 && temperaments.includes(v.temperament)),
-    )
-    // Neznámý obor i neznámá persona (nebo příliš úzký průnik) → vybírá se z celé
-    // knihovny. Prázdný fond by jinak shodil casting na výjimku kvůli tomu, že
-    // klient napsal obor vlastními slovy.
-    if (candidates.length < 3) candidates = pool
+    const byIndustry = keywords.length > 0 ? pool.filter(v => v.fits.some(f => keywords.includes(f))) : []
+    const byTemperament = temperaments.length > 0 ? pool.filter(v => temperaments.includes(v.temperament)) : []
+    // Nejdřív hlasy, které sedí OBOJÍM: energický trenér nemá dostat klidného vypravěče
+    // jen proto, že fitness v knihovně sousedí s wellness. Průnik musí mít aspoň dva
+    // kandidáty, aby hash měl z čeho vybírat; jinak sjednocení. Pod třemi kandidáty
+    // (neznámý obor i persona — klient napsal obor vlastními slovy) celá knihovna:
+    // prázdný fond by shodil casting na výjimku.
+    const both = byIndustry.filter(v => byTemperament.includes(v))
+    const either = pool.filter(v => byIndustry.includes(v) || byTemperament.includes(v))
+    const candidates = both.length >= 2 ? both : either.length >= 3 ? either : pool
 
     const seed = `${fold(input.brand)}|${fold(input.persona)}|${industry}|${fold(input.audience)}`
     return candidates[hash32(seed) % candidates.length].id

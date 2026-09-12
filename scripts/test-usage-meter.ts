@@ -10,7 +10,7 @@
  */
 
 import { withUsageMeter, recordUsage, recordUnits, currentUsage, isMetering } from "../instagram/usage-meter"
-import { costUsdForCall, costUsdForBreakdown, resolveModelAlias, videoUnitKey } from "../lib/model-pricing"
+import { costUsdForCall, costUsdForBreakdown, resolveModelAlias, videoUnitKey, type UnitKind } from "../lib/model-pricing"
 import { MODELS, getModel, hasFallback } from "../instagram/models"
 
 let passed = 0
@@ -149,12 +149,14 @@ async function main() {
         for (const tier of ["primary", "fallback"] as const) {
             if (tier === "fallback" && !hasFallback(action)) continue
             const model = getModel(action, tier)
-            const isMedia = action === "image" || action === "imageCheap" || action === "video"
-            // Video se oceňuje pod klíčem model@rozlišení (lib/model-pricing.ts videoUnitKey) —
-            // engine renderuje jen 480p, takže tohle je ta sazba, která musí existovat.
+            // Netokenové modely: video za vteřiny (pod klíčem model@rozlišení, engine renderuje
+            // jen 480p), obraz za kus, hlas ElevenLabs za znak — každý druh jednotky má svou sazbu.
+            const unit: UnitKind | null = action === "video" ? "seconds"
+                : action === "image" || action === "imageCheap" ? "images"
+                : action === "ttsElevenlabs" ? "characters" : null
             const priceKey = action === "video" ? videoUnitKey(model, "480p") : model
-            const priced = isMedia
-                ? costUsdForCall(priceKey, { promptTokens: 0, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0, units: { kind: action === "video" ? "seconds" : "images", n: 1 } })
+            const priced = unit
+                ? costUsdForCall(priceKey, { promptTokens: 0, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0, units: { kind: unit, n: 1 } })
                 : costUsdForCall(model, { promptTokens: 1000, outputTokens: 100, thoughtTokens: 0, cachedTokens: 0 })
             if (priced === null) unpriced.push(`${action}.${tier} → ${model}`)
         }
