@@ -95,8 +95,12 @@ Pipeline (`orchestrators/reel-orchestrator.ts`) je **od zvuku**:
    řečí **stlačuje** (`sidechaincompress`), němé video se ošetří (`probeHasAudio`),
    titulky jdou přes `ass` + `fontsdir` s bundlovaným `assets/fonts/Inter-Bold.ttf`
    (`drawtext` ve statické binárce **není**), `loudnorm` −14 LUFS. Titulky
-   (`reel-subtitles.ts`) jsou krátké karty ≤ 2 × 18 znaků v bezpečné zóně IG,
-   zalamované v kódu (`WrapStyle: 2`). Pád kompozice, videa nebo uploadu je
+   (`reel-subtitles.ts`) jsou krátké karty ≤ 2 řádky v bezpečné zóně IG,
+   zalamované v kódu (`WrapStyle: 2`) a dělené **podle řeči, ne podle šířky**:
+   konec věty = konec karty, čárka/pomlčka je přirozená hranice, karta ani řádek
+   nikdy nekončí předložkou či spojkou (`NO_BREAK_AFTER`), jednoslovný sirotek se
+   slije nebo si půjčí slova z předchozí karty, karta pod `minDisplaySeconds` se
+   sloučí. Pád kompozice, videa nebo uploadu je
    **selhání jobu** (refund + Sentry `step: compose`), nikdy reel bez titulků.
 7. Cover zůstává native (Nano Banana Pro + QA); `rethrowIfQualityUnavailable` platí
    i tady.
@@ -114,9 +118,16 @@ nesmí vidět `seedance-client`, `generateVoiceover` ani `creditGuard`. Server a
 do `edit_history` se `scope: "subtitles"`.
 
 **Styl titulků patří značce**: `ClientConfig.subtitleStyle`
-(`classic|cards|minimal` + pozice/velikost/barvy, clamp ve `validateConfig()`) →
+(`pop|classic|cards|minimal` + pozice/velikost/barvy, clamp ve `validateConfig()`) →
 `resolveSubtitleStyle()` → `chunkForSubtitles`/`buildAss`. Font jen z bundlovaných
-(`assets/fonts`); pozice se řeší `MarginV`, `Alignment` zůstává 2.
+(`assets/fonts`); pozice se řeší `MarginV`, `Alignment` zůstává 2. **Výchozí je `pop`**
+(od 12. 9. 2026): písmo 48, silný obrys a **právě mluvené slovo v barvě značky** —
+každé slovo je vlastní ASS událost (`wordHighlightEvents`, délka slova z počtu znaků).
+Barva jde z `subtitleStyle.accent`, jinak z `feedAesthetic.accentColor` přes
+`usableHighlight()` (bílá, šedá a skoro černá padají na žlutou `POP_DEFAULT_ACCENT`)
+a **propisuje se do uloženého stylu** ve `video_source`, aby ji rekompozice měla i bez
+configu; `runReelRecompose` si ji pro starší reely dočte z `clients.config`.
+Classic (bílá s obrysem, bez zvýraznění) zůstává volbou v Nastavení.
 
 **Textový reel** (`captionData.reelMode === "text"` ze scenáristy, povolený přes
 `ClientConfig.reelModes` — default obojí): stejná pipeline **bez TTS**. Osa vzniká ze

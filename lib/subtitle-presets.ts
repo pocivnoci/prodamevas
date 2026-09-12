@@ -10,6 +10,7 @@
 import type { SubtitlePreset } from "@/instagram/configs/types"
 
 export const SUBTITLE_PRESET_OPTIONS: { id: SubtitlePreset; label: string; description: string }[] = [
+    { id: "pop", label: "Zvýraznění", description: "Větší písmo a právě mluvené slovo v barvě značky. Dnešní standard reelů — výchozí." },
     { id: "classic", label: "Klasické", description: "Bílý text s obrysem a jemným podkladem. Čitelné na všem, nepřebíjí obraz." },
     { id: "cards", label: "Karty", description: "Velké písmo v plném boxu, po pár slovech. Drží pozornost i bez zvuku." },
     { id: "minimal", label: "Minimal", description: "Jen tenký obrys, žádný podklad. Nejmíň ruší, ale na světlé scéně se ztrácí." },

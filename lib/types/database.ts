@@ -105,7 +105,7 @@ export interface ReelVideoSource {
     durationSeconds: number
     /** Styl titulků, se kterým se reel vyrenderoval (`SubtitleStyleConfig`). */
     subtitleStyle?: {
-        preset: "classic" | "cards" | "minimal"
+        preset: "pop" | "classic" | "cards" | "minimal"
         position?: "bottom" | "center" | "top"
         size?: "s" | "m" | "l"
         color?: string

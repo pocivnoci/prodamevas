@@ -84,7 +84,15 @@ export async function runReelRecompose(
     if (media.kind !== "reel") throw new Error("Tenhle příspěvek není reel.")
 
     // Styl: jednorázový override vyhrává nad tím, se kterým se reel vyrenderoval.
-    const subtitles = resolveSubtitleStyle(input.subtitleStyle ?? source.subtitleStyle, { reelMode: source.mode })
+    // Barva zvýraznění (preset `pop`) patří značce: starší reel ji ve stylu uložený
+    // nemá, a bez configu by přepnutí na `pop` dalo žlutou místo barvy značky.
+    const { data: client } = await supabaseAdmin
+        .from("clients")
+        .select("config")
+        .eq("id", clientId)
+        .maybeSingle()
+    const brandAccent = (client?.config as { feedAesthetic?: { accentColor?: string } } | null)?.feedAesthetic?.accentColor
+    const subtitles = resolveSubtitleStyle(input.subtitleStyle ?? source.subtitleStyle, { reelMode: source.mode, brandAccent })
 
     // Text je uživatelův, zalomení dělá kód podle NOVÉ šířky řádku — po přepnutí
     // presetu by jinak ručně upravená karta přetekla přes okraj.
