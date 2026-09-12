@@ -49,6 +49,37 @@ export function extractPatterns(captions: string[]): string[] {
 // MAIN ANALYZER
 // ============================================
 
+/**
+ * Naměřené nejlepší časy publikace značky — vstup pro `resolvePostingTimes`.
+ *
+ * Bere jen sloty ve tvaru HH:MM (legacy „afternoon" plánovač neumí zpracovat)
+ * a vrací i velikost vzorku, aby se pod prahem nebral „nejlepší čas" jednoho
+ * postu za pravdu. clientId je EXPLICITNÍ — volá se i z cronu, kde žádný
+ * aktivní projekt nastavený není.
+ */
+export async function measuredTimeSlots(clientId: string): Promise<{ slots: string[]; sampleSize: number }> {
+    const { data } = await supabase
+        .from("ig_posts")
+        .select("time_slot, likes, comments, saves")
+        .eq("client_id", clientId)
+        .eq("status", "posted")
+        .not("likes", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(100)
+    const rows = (data || []).filter(r => typeof r.time_slot === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(r.time_slot))
+    const bySlot: Record<string, number[]> = {}
+    for (const r of rows) {
+        const slot = r.time_slot as string
+        ;(bySlot[slot] ??= []).push(engagementScore(r))
+    }
+    const slots = Object.entries(bySlot)
+        .map(([slot, scores]) => ({ slot, avg: scores.reduce((a, v) => a + v, 0) / scores.length }))
+        .sort((a, b) => b.avg - a.avg)
+        .slice(0, 2)
+        .map(s => s.slot)
+    return { slots, sampleSize: rows.length }
+}
+
 export async function analyzePerformance(
     config: ClientConfig,
     getPillarForType: (typeName: string) => string

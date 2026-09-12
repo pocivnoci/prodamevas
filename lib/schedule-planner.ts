@@ -37,6 +37,39 @@ export const MAX_POSTS_PER_WEEK = 14
 // Czech-audience defaults (morning commute, after-work, evening scroll).
 const DEFAULT_TIME_SLOTS = ["09:00", "17:00", "19:00"]
 
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
+
+/**
+ * Časy publikace pro plánovač — z toho nejlepšího, co o značce víme.
+ *
+ * Priorita: NAMĚŘENÉ (nejlepší sloty z vlastních metrik, `analyzePerformance`) →
+ * BASELINE z onboardingového skenu Instagramu (`igBaseline.bestPostingTimes`) →
+ * ručně nastavené `config.postingTimes` → výchozí. Do 9/2026 četl plánovač jen
+ * `config.postingTimes`, které nikdo nikde nezapisoval, takže každá značka jela
+ * na výchozích 09/17/19 — i když Výkon ukazoval naměřený nejlepší čas a tarif ho
+ * prodával („který formát a čas fungují nejlíp").
+ *
+ * Naměřené sloty se berou až od `minMeasured` postů s metrikami: pod tím je
+ * „nejlepší čas" šum jednoho postu. Vrací jen hodnoty ve tvaru HH:MM — legacy
+ * `time_slot` typu "afternoon" se tiše přeskočí; `undefined` = použij výchozí.
+ */
+export function resolvePostingTimes(input: {
+    measured?: { slots: string[]; sampleSize: number } | null
+    baseline?: string[] | null
+    configured?: unknown
+    minMeasured?: number
+}): string[] | undefined {
+    const clean = (arr: unknown): string[] =>
+        Array.isArray(arr) ? [...new Set(arr.filter((t): t is string => typeof t === "string" && HHMM.test(t)))] : []
+    const min = input.minMeasured ?? 6
+    const measured = input.measured && input.measured.sampleSize >= min ? clean(input.measured.slots) : []
+    if (measured.length > 0) return measured
+    const baseline = clean(input.baseline)
+    if (baseline.length > 0) return baseline
+    const configured = clean(input.configured)
+    return configured.length > 0 ? configured : undefined
+}
+
 function toDateStr(d: Date): string {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
@@ -169,6 +202,18 @@ function pragueOffsetMs(instant: number): number {
  * time for display. (Single-pass offset — exact except within the ~1h DST switch
  * window at 02:00–03:00 local, which no posting slot uses.)
  */
+/**
+ * Kalendářní den v Praze pro daný okamžik, jako `YYYY-MM-DD`.
+ *
+ * Funkce na Vercelu běží v UTC, takže `toISOString().split("T")[0]` dá u postu
+ * naplánovaného na 23:30 pražského času včerejšek — a týdenní přehled ho ukázal
+ * o den vedle. Tohle je jediné místo, kde se den z okamžiku odvozuje.
+ */
+export function toPragueDateStr(instant: Date): string {
+    const t = instant.getTime()
+    return new Date(t + pragueOffsetMs(t)).toISOString().slice(0, 10)
+}
+
 export function toScheduledFor(date: string, time: string): string {
     const [y, mo, d] = date.split("-").map(Number)
     const [h, mi] = time.split(":").map(Number)

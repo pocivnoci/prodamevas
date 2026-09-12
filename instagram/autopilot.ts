@@ -675,14 +675,47 @@ export async function generateOnePost(options: {
                 .eq("client_id", clientUuid)
                 .or(`last_used_at.is.null,last_used_at.lt.${cooldownDate.toISOString()}`)
                 .order("last_used_at", { ascending: true, nullsFirst: true })
-                .limit(5)
+                .limit(8)
 
             if (candidates && candidates.length > 0) {
-                // Pick from top 3 least-recently-used (slight randomness to avoid predictability)
-                const pick = candidates[Math.floor(Math.random() * Math.min(3, candidates.length))]
+                // Vážený výběr podle naměřeného výkonu (stejný perfFactor jako u formátů:
+                // ×[0.5, 1.6] proti průměru, až od 2 měřených použití, neměřené = 1).
+                // Do 9/2026 tu byla čistá náhoda ze tří nejdéle nepoužitých — produkty
+                // byly jediný zdroj obsahu bez zpětné vazby, ačkoli právě jejich posty
+                // vedou na link_clicks. Skóre je best-effort: bez migrace
+                // 20260912_product_performance jede výběr bez váhy a řekne to v logu.
+                const pool = candidates.slice(0, Math.min(5, candidates.length))
+                let weights = pool.map(() => 1)
+                try {
+                    const { data: scored, error } = await supabaseAdmin
+                        .from("ig_products")
+                        .select("id, performance_score, times_used_with_metrics")
+                        .in("id", pool.map(c => c.id))
+                        .eq("client_id", clientUuid)
+                    if (error) throw new Error(error.message)
+                    const byId = new Map((scored || []).map(r => [r.id, r]))
+                    const measured = (scored || []).filter(r => r.performance_score != null && (r.times_used_with_metrics ?? 0) >= 2)
+                    const avg = measured.length >= 2 ? measured.reduce((a, r) => a + Number(r.performance_score), 0) / measured.length : 0
+                    if (avg > 0) {
+                        weights = pool.map(c => {
+                            const r = byId.get(c.id)
+                            if (!r || r.performance_score == null || (r.times_used_with_metrics ?? 0) < 2) return 1
+                            return Math.min(1.6, Math.max(0.5, Number(r.performance_score) / avg))
+                        })
+                    }
+                } catch (err) {
+                    console.warn(`   ⚠️ výkon produktů nejde číst (${(err as Error)?.message?.slice(0, 80)}) — výběr bez váhy; proběhla migrace 20260912_product_performance?`)
+                }
+                let roll = Math.random() * weights.reduce((a, w) => a + w, 0)
+                let pick = pool[pool.length - 1]
+                for (let i = 0; i < pool.length; i++) {
+                    roll -= weights[i]
+                    if (roll <= 0) { pick = pool[i]; break }
+                }
                 selectedProduct = toSelectedProduct(pick)
                 linkedProductId = pick.id
-                console.log(`   🛍️ Smart product (cooldown ${cooldownDays}d): "${selectedProduct.name}"`)
+                const shifts = pool.map((c, i) => `${c.name}=${weights[i].toFixed(2)}`).filter(x => !x.endsWith("=1.00"))
+                console.log(`   🛍️ Smart product (cooldown ${cooldownDays}d${shifts.length ? `, váhy ${shifts.join(", ")}` : ""}): "${selectedProduct.name}"`)
             } else {
                 console.log(`   ℹ️ All products in cooldown (${cooldownDays}d) — generating without product`)
             }

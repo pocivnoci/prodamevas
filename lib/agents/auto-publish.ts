@@ -192,8 +192,15 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
     // Navazujeme za poslední už naostřený slot, ať se fronta nekříží sama se sebou.
     const lastQueued = queued && queued.length > 0 ? new Date(queued[0].scheduled_for) : null
     const startDate = lastQueued ? new Date(lastQueued.getTime() + DAY_MS) : undefined
-    const times = Array.isArray(config.postingTimes) && (config.postingTimes as string[]).length > 0
-        ? (config.postingTimes as string[]) : undefined
+    // Naměřené časy → baseline z onboardingu → ruční nastavení → výchozí. Do 9/2026
+    // četl plánovač jen config.postingTimes, které nikdo nezapisoval.
+    const { resolvePostingTimes } = await import("@/lib/schedule-planner")
+    const { measuredTimeSlots } = await import("@/instagram/performance")
+    const times = resolvePostingTimes({
+        measured: await measuredTimeSlots(clientId).catch(() => null),
+        baseline: config.igBaseline?.bestPostingTimes,
+        configured: config.postingTimes,
+    })
     const slots = distributeSchedule(armable.length, { postsPerWeek: perWeek, startDate, timeSlots: times })
 
     for (let i = 0; i < armable.length; i++) {

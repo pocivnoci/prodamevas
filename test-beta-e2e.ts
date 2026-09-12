@@ -4104,6 +4104,52 @@ test("31.12 odkaz z e-mailu vede na sekci, která existuje", () => {
     assert(/c\.id === id \|\| c\.clientId === id/.test(ctx), "?project= musí umět slug i UUID")
 })
 
+test("41.1 signály, které se sbíraly a nikdo je nečetl, mají konzumenta", () => {
+    // Audit 9/2026: systém sbíral pět druhů signálu o preferencích a výkonu a
+    // spotřebovával sotva jeden. Každá vazba níž je zdarma (žádné nové volání AI,
+    // nebo jedno na nově rozhodnutý duel) a bez ní se učicí smyčka trhala.
+
+    // Produkty: poslední zdroj obsahu bez performance_score + vážené selekce.
+    const service = codeOnly("instagram/service.ts")
+    const prop = service.slice(service.indexOf("export async function propagateMetricsToSources"))
+    assert(/product_id/.test(prop) && /\.from\("ig_products"\)[\s\S]*performance_score: avgScore/.test(prop),
+        "propagateMetricsToSources musí psát výkon i produktům")
+    assert(fileExists("supabase/migrations/20260912_product_performance.sql"), "výkon produktů má migraci")
+    const auto = codeOnly("instagram/autopilot.ts")
+    assert(!/candidates\[Math\.floor\(Math\.random\(\) \* Math\.min\(3, candidates\.length\)\)\]/.test(auto),
+        "produkt se nevybírá čistou náhodou")
+    assert(/select\("id, performance_score, times_used_with_metrics"\)/.test(auto) && /Math\.min\(1\.6, Math\.max\(0\.5,/.test(auto),
+        "výběr produktu váží naměřený výkon stejným faktorem jako formáty")
+
+    // Zhlédnutí: metrics-sync je posílal, analyzátor je neuměl přijmout.
+    const memory = codeOnly("instagram/memory-agent.ts")
+    const learn = memory.slice(memory.indexOf("export async function analyzeAndLearn"), memory.indexOf("Extrahuj max 3 pravidla"))
+    assert(/views\?: number/.test(learn) && /viewsLine\(p\)/.test(learn), "analyzeAndLearn musí zhlédnutí přijmout a dát je do promptu")
+    assert(/nízký engagement o obsahu nic neříká/.test(learn), "prompt musí modelu říct, že malý dosah není pravidlo")
+
+    // Úprava obrazu („posuň nadpis") se učí jako vizuální paměť pod prahem retrievalu.
+    const edit = codeOnly("app/actions/post-edit-actions.ts")
+    assert(/type: "visual",[\s\S]*confidence: 0\.3/.test(edit.slice(edit.indexOf("if (imageChanged && !(wantsText"))), "úprava vizuálu → upsertMemory visual 0.3")
+
+    // Tisk dostává i pravidla značky, ne jen vizuál.
+    assert(/\["preference", "avoid"\]/.test(codeOnly("instagram/print-pipeline.ts")), "tiskový brief čte preference/avoid")
+
+    // Rozhodnuté A/B duely se učí z naměřeného vítěze — věta v ab-duel.ts je teď pravda.
+    const subs = codeOnly("lib/events/subscribers.ts")
+    assert(/buildDuels\(/.test(subs) && /learnFromVariantSelection\(winner\.id, \[loser\.id\], clientId\)/.test(subs), "metrics.updated učí z rozhodnutých duelů")
+    assert(/\.contains\("source_post_ids", \[winner\.id, loser\.id\]\)/.test(subs), "už zpracovaný duel se nesmí platit podruhé")
+
+    // Naměřený nejlepší čas publikace dojde až do plánovače.
+    const planner = codeOnly("lib/schedule-planner.ts")
+    assert(/export function resolvePostingTimes/.test(planner) && /minMeasured \?\? 6/.test(planner), "resolvePostingTimes s prahem vzorku")
+    assert(/export async function measuredTimeSlots\(clientId: string\)/.test(codeOnly("instagram/performance.ts")), "naměřené sloty berou clientId explicitně")
+    for (const f of ["app/actions/calendar-actions.ts", "lib/agents/auto-publish.ts"]) {
+        const src = codeOnly(f)
+        assert(/resolvePostingTimes\(\{/.test(src) && /measuredTimeSlots\(clientId\)/.test(src) && /igBaseline\?\.bestPostingTimes/.test(src),
+            `${f}: plánovač musí brát naměřené časy → baseline → config`)
+    }
+})
+
 test("28.7 zaseklý job se reapuje i bez otevřeného tabu — a nikdy dvakrát", () => {
     // Reaper žil jen v pollingu z prohlížeče: job, který nikdo nesledoval (cron
     // resume, zavřený tab), visel týdny se strženým kreditem a ranní brief ho
