@@ -113,13 +113,18 @@ publika a jména značky nad knihovnou 30 hlasů (`lib/voice-library.ts`). Star�
 sekce „Hlas značky" s ukázkou (`previewVoice`, cache v bucketu `voice-samples/`,
 sdílená napříč klienty).
 
-**ElevenLabs (12. 9. 2026, větev `elevenlabs-hlas`)**: poskytovatel
-`instagram/tts/elevenlabs.ts` je napsaný (v3 → Multilingual v2 se STEJNÝM hlasem,
-`pcm_24000` → WAV přes `tts/wav.ts`, účtování za znak, žádný pád na Gemini), modely
-v `instagram/models.ts` (`ttsElevenlabs`), sazba v `lib/model-pricing.ts`. **Do registru
-`instagram/tts/index.ts` se zapojí až po poslechu** (`scripts/smoke-elevenlabs-voice.ts`;
-hlídá aserce 17.12) — spolu s hlasy ElevenLabs v `lib/voice-library.ts`, které potřebují
-ověřená `voice_id` z účtu. Seedance jako zdroj řeči padl (poslech 12. 9.: čeština i audio
+**ElevenLabs (12. 9. 2026, větev `elevenlabs-hlas`, PR #129)**: poskytovatel
+`instagram/tts/elevenlabs.ts` je **zapojený** v registru `instagram/tts/index.ts`
+(v3 → Multilingual v2 se STEJNÝM hlasem, `pcm_24000` → WAV přes `tts/wav.ts`, účtování
+za znak, žádný pád na Gemini — reel se parkuje), modely v `instagram/models.ts`
+(`ttsElevenlabs`), sazba 0,10 USD / 1 000 znaků v `lib/model-pricing.ts`. Knihovna má
+**12 rodilých českých hlasů** z komunitní knihovny ElevenLabs (globální `voice_id`,
+zobrazované `name`; hlas musí být přidaný do účtu). Kdo mluví za značku: vybraný hlas
+(`validateConfig` bere poskytovatele z něj), jinak **`DEFAULT_TTS_PROVIDER`** v
+`lib/voice-library.ts` — zatím `gemini`; přepnutí na `elevenlabs` je jedna konstanta a
+rozhodnutí po poslechu. Poslech 12. 9.: 21 premade hlasů × v3 i v2 (42 ukázek, přepis
+Gemini 48/50 bez chyby), spike `scripts/smoke-elevenlabs-voice.ts`, výstupy
+`audit-screenshots/spike/elevenlabs/`. Seedance jako zdroj řeči padl (čeština i audio
 reference neobstály; tvar reference v API je `{ type: "audio_url", audio_url: { url },
 role: "reference_audio" }`, data URL bere — zaznamenáno, aby se to neplatilo znovu).
 

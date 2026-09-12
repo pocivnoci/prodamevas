@@ -16,9 +16,16 @@
  * uživateli. Kdo chce jistotu, poslechne si ukázku v Nastavení.
  */
 
-/** Poskytovatelé syntézy. `elevenlabs` je zatím jen místo v rozhraní — viz
- *  `docs/DESIGN_reels-v2_2026-09-12.md`, fáze 1, bod 1. */
+/** Poskytovatelé syntézy — oba zapojené v `instagram/tts/` (Gemini od začátku,
+ *  ElevenLabs od 12. 9. 2026, `docs/DESIGN_reels-v2_2026-09-12.md`, fáze 1). */
 export type TtsProviderId = "gemini" | "elevenlabs"
+
+/**
+ * Výchozí poskytovatel pro značky bez vlastního výběru. Přepnutí na `elevenlabs`
+ * je rozhodnutí po poslechu — jedna konstanta, aby se výchozí hlas všech značek
+ * nedal změnit omylem uprostřed kódu a aby ho `validateConfig()` i UI četly odsud.
+ */
+export const DEFAULT_TTS_PROVIDER: TtsProviderId = "gemini"
 
 /** Temperament = jak hlas působí. Casting jím vybírá kandidáty pro obor a personu. */
 export type VoiceTemperament = "warm" | "energetic" | "calm" | "authoritative" | "playful"
@@ -26,8 +33,11 @@ export type VoiceTemperament = "warm" | "energetic" | "calm" | "authoritative" |
 export type VoicePace = "slow" | "medium" | "fast"
 
 export interface VoiceProfile {
+    /** ID u poskytovatele: jméno presetu (Gemini), nebo neprůhledné `voice_id` (ElevenLabs). */
     id: string
     provider: TtsProviderId
+    /** Zobrazované jméno, když `id` není čitelné (ElevenLabs). Gemini hlasy ho nepotřebují. */
+    name?: string
     /** Vnímané pohlaví — nedokumentované, jen pro pestrost castingu. */
     gender: "female" | "male"
     temperament: VoiceTemperament
@@ -39,9 +49,16 @@ export interface VoiceProfile {
 }
 
 /**
- * 30 prebuilt hlasů Gemini TTS. Pořadí je pořadí dokumentace; casting na něm
- * nestojí (vybírá se hashem, ne indexem), takže doplnění hlasu na konec nepřehází
- * už nacastované značky.
+ * 30 prebuilt hlasů Gemini TTS + 12 hlasů ElevenLabs. Pořadí je pořadí dokumentace;
+ * casting na něm nestojí (vybírá se hashem, ne indexem), takže doplnění hlasu na
+ * konec nepřehází už nacastované značky.
+ *
+ * ElevenLabs hlasy jsou **rodilí čeští mluvčí** z komunitní knihovny (Voice Library,
+ * filtr jazyk „cs"), vybraní 12. 9. 2026 podle ročního využití a pestrosti
+ * (6 mužských, 6 ženských; standardní, pražská i moravská dikce) — přesně kvůli
+ * české prozodii, která premade hlasům ElevenLabs i Gemini chybí. `id` je globální
+ * `voice_id`; hlas musí být přidaný do našeho účtu (`POST /v1/voices/add/…`), jinak
+ * TTS vrátí `voice_not_found` a reel se zaparkuje. `name` je zobrazované jméno.
  */
 export const VOICE_LIBRARY: VoiceProfile[] = [
     { id: "Zephyr", provider: "gemini", gender: "female", temperament: "energetic", pace: "fast", fits: ["moda", "fitness", "e-commerce", "kavarna"], label: "Jasný, svěží ženský hlas — rychlé tempo, hodí se na módu a lifestyle" },
@@ -74,6 +91,20 @@ export const VOICE_LIBRARY: VoiceProfile[] = [
     { id: "Sadachbia", provider: "gemini", gender: "female", temperament: "playful", pace: "fast", fits: ["zabava", "e-commerce", "kavarna", "moda"], label: "Živý ženský hlas — svižný, dobře drží pozornost" },
     { id: "Sadaltager", provider: "gemini", gender: "male", temperament: "authoritative", pace: "medium", fits: ["vzdelavani", "saas", "finance", "technika"], label: "Znalý mužský hlas — vysvětlí i složitou věc" },
     { id: "Sulafat", provider: "gemini", gender: "female", temperament: "warm", pace: "medium", fits: ["kavarna", "gastro", "ubytovani", "sluzby"], label: "Vřelý ženský hlas — pozvání dovnitř, pohostinnost" },
+
+    // ── ElevenLabs, rodilí čeští mluvčí (komunitní knihovna, 12. 9. 2026) ─────────
+    { id: "KIDKfqJyZ6ASuyzsKfh5", name: "Jan", provider: "elevenlabs", gender: "male", temperament: "calm", pace: "medium", fits: ["poradenstvi", "vzdelavani", "zdravi", "finance"], label: "Klidný, laskavý mužský hlas — vysvětluje bez spěchu; poradenství a vzdělávání" },
+    { id: "vP4R9CqQI4q0HlVrXJWj", name: "Zdeněk", provider: "elevenlabs", gender: "male", temperament: "authoritative", pace: "slow", fits: ["remeslo", "stavebnictvi", "reality", "autoservis"], label: "Silný, hluboký mužský hlas s moravským zabarvením — poctivá práce a jistota" },
+    { id: "uYFJyGaibp4N2VwYQshk", name: "Adam", provider: "elevenlabs", gender: "male", temperament: "warm", pace: "medium", fits: ["kavarna", "gastro", "lokalni", "sluzby"], label: "Sametový konverzační mužský hlas — mluví jako majitel podniku, ne jako reklama" },
+    { id: "daJ4gHLkIVFskWuoLuDX", name: "Oliver", provider: "elevenlabs", gender: "male", temperament: "warm", pace: "medium", fits: ["saas", "sluzby", "e-commerce", "technika"], label: "Hladký, poutavý mužský hlas — moderní služby a produkty" },
+    { id: "U48DQ1c9SVmD2BVCSiHL", name: "Zazy", provider: "elevenlabs", gender: "male", temperament: "calm", pace: "slow", fits: ["wellness", "ubytovani", "fotografie", "interier"], label: "Čistý vypravěčský mužský hlas s pražskou dikcí — pomalé obrazy a atmosféra" },
+    { id: "7FpO7yFcBAfqM6vZJCg7", name: "Jan B.", provider: "elevenlabs", gender: "male", temperament: "energetic", pace: "medium", fits: ["e-commerce", "fitness", "zabava", "sport"], label: "Jasný mužský hlas s tahem — akce, novinky, výzvy" },
+    { id: "MpbYQvoTmXjHkaxtLiSh", name: "Anet", provider: "elevenlabs", gender: "female", temperament: "playful", pace: "fast", fits: ["moda", "krasa", "zabava", "e-commerce"], label: "Mladý, živý ženský hlas — sociální sítě, móda a krása" },
+    { id: "bF7C2fCv7Zf30iT84wZ1", name: "Jana", provider: "elevenlabs", gender: "female", temperament: "warm", pace: "medium", fits: ["kavarna", "ubytovani", "interier", "gastro"], label: "Vřelý, sebejistý ženský hlas s pražskou dikcí — pozvání dovnitř" },
+    { id: "OAAjJsQDvpg3sVjiLgyl", name: "Denisa", provider: "elevenlabs", gender: "female", temperament: "calm", pace: "medium", fits: ["krasa", "wellness", "moda", "fotografie"], label: "Měkký, vyvážený ženský hlas — péče o sebe a jemné značky" },
+    { id: "7JbZPqJGWUfXXBim0T8U", name: "Katty", provider: "elevenlabs", gender: "female", temperament: "energetic", pace: "fast", fits: ["fitness", "e-commerce", "zabava", "sport"], label: "Energický, důvěryhodný ženský hlas — sport, slevy, výzvy" },
+    { id: "12CHcREbuPdJY02VY7zT", name: "Hanka", provider: "elevenlabs", gender: "female", temperament: "authoritative", pace: "medium", fits: ["vzdelavani", "poradenstvi", "zdravi", "saas"], label: "Přátelský informativní ženský hlas — návody a vysvětlení" },
+    { id: "2qbJHyAaz7tHCfVZS6z3", name: "Hana", provider: "elevenlabs", gender: "female", temperament: "calm", pace: "slow", fits: ["zdravi", "wellness", "ubytovani", "vzdelavani"], label: "Uklidňující ženský hlas — citlivá témata a péče" },
 ]
 
 const BY_ID = new Map(VOICE_LIBRARY.map(v => [v.id.toLowerCase(), v]))
@@ -148,7 +179,7 @@ export interface VoiceCastingInput {
  * Hash, ne pořadí: kdyby se vybíralo první shodou, spadly by všechny kavárny na
  * jeden hlas — kandidátský fond má rozhodovat o VHODNOSTI, ne o výsledku.
  */
-export function castVoice(input: VoiceCastingInput, provider: TtsProviderId = "gemini"): string {
+export function castVoice(input: VoiceCastingInput, provider: TtsProviderId = DEFAULT_TTS_PROVIDER): string {
     const pool = voicesForProvider(provider)
     if (pool.length === 0) throw new Error(`castVoice: knihovna nemá hlas pro poskytovatele ${provider}`)
 
