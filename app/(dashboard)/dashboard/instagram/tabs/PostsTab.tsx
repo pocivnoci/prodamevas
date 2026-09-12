@@ -621,7 +621,10 @@ function PostDetailModal({
 
             {/* Content */}
             <div
-                className="relative w-full sm:max-w-4xl max-h-[90vh] bg-[#0a0a0a] border border-white/10 rounded-sm overflow-hidden flex flex-col shadow-2xl"
+                // Na mobilu se posouvá CELÝ modal včetně akční lišty: pevná lišta se šesti
+                // tlačítky pod sebou brala půl výšky telefonu a z reelu byla vidět půlka.
+                // Od `sm` výš se posouvá jen tělo a lišta zůstává dole.
+                className="relative w-full sm:max-w-4xl max-h-[90vh] bg-[#0a0a0a] border border-white/10 rounded-sm overflow-y-auto sm:overflow-hidden flex flex-col shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
@@ -646,8 +649,8 @@ function PostDetailModal({
                     ><X className="w-3.5 h-3.5 shrink-0" /> </button>
                 </div>
 
-                {/* Body — scrollable */}
-                <div className="flex-1 overflow-y-auto">
+                {/* Body — scrollable (od `sm`; na mobilu se posouvá celý modal) */}
+                <div className="sm:flex-1 sm:overflow-y-auto">
                     <div className="flex flex-col lg:flex-row">
                         {/* Left: Image — pinned to the top of the scroll area. It used to be
                             vertically centred in a column stretched by the caption, which put
