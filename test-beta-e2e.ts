@@ -5789,6 +5789,21 @@ test("39.6 nezařazené nápady se zařadí samy", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 40. REDAKCE NESMÍ ZKRÁTIT SCÉNÁŘ REELU
+// ═══════════════════════════════════════════════════════════
+// Agro-invest 12. 9. 2026: revize kvůli jednomu hashtagu vrátila 1 scénu místo
+// 5 beatů scenáristy (prompt jí scény ani neukázal), TTS namluvilo dvě věty a
+// „dlouhý" reel vyšel na 10 s — potichu, za plnou cenu.
+
+test("40.1 revize vidí scény a vrací jich stejně", () => {
+    const eb = codeOnly("instagram/editorial-board.ts")
+    assert(/Scény \(\$\{captionData\.scenes\.length\}/.test(eb), "prompt revize musí scénář ukázat — bez toho ho model vymyslí znovu (a kratší)")
+    assert(/revision\.scenes\.length !== cur\.length/.test(eb), "jiný počet scén se musí zahodit, ne převzít")
+    assert(!/if \(revision\.scenes\) currentCaption\.scenes = revision\.scenes/.test(eb), "slepé převzetí scén z revize je ta chyba")
+    assert(/return \{ \.\.\.sc, \.\.\.patch \}/.test(eb), "revize mění znění beatu, ne kostru (timeRange, textOnly)")
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 
