@@ -30,7 +30,7 @@ function editorialLadder(): string[] {
     if (hasFallback("textPro")) m.push(getModel("textPro", "fallback"))
     return m
 }
-import { COSTS, scorePost } from "./caption-generator"
+import { COSTS, scorePost, buildFactsSection } from "./caption-generator"
 import { buildCtaPolicyJudgeBlock, type CtaPolicy } from "./cta-policy"
 import type { ClientConfig } from "./configs/types"
 import type {
@@ -347,6 +347,14 @@ export async function reviewContentPlan(
 // ============================================
 
 /**
+ * Ověřená fakta do promptu — nepovinná, takže jejich výpadek nesmí shodit review.
+ * Tentýž vzor jako v `reel-director.ts`.
+ */
+function safeFacts(config: ClientConfig): string {
+    try { return buildFactsSection(config) } catch { return "" }
+}
+
+/**
  * Build Chief Editor prompt for reviewing a single post.
  */
 function buildPostReviewPrompt(
@@ -383,6 +391,14 @@ function buildPostReviewPrompt(
         ? `\nSlidy:\n${captionData.slides.map((s: any, i: number) => `  ${i + 1}. "${s.headline}" — ${s.subtext}`).join("\n")}`
         : ""
 
+    // Ověřená fakta značky. Bez nich šéfredaktor kontroloval pravdivost jen proti
+    // PRODUKTOVÝM datům — tedy proti jedinému zdroji ze tří, které copywriter dostal.
+    // Tvrzení „záruka 10 let" nebo „od roku 1998" tak prošlo prodejní bránou bez
+    // jediného dokladu a chytala ho až faktická brána za ní (a v režimu „bold" ani ta).
+    // Týž pomocník jako u režiséra reelu (reel-director.ts): fakta jsou nepovinná,
+    // takže jejich výpadek nesmí shodit review.
+    const factsSection = safeFacts(config)
+
     // Deliberately NO gold examples here: the board is a publish/sales gate, not a
     // voice judge — brand voice is already scored by the critic's rubric.
     return `
@@ -393,7 +409,7 @@ Rozhoduješ, zda se tento příspěvek PUBLIKUJE nebo SE VRÁTÍ k přepracován
 ${config.brandVoice?.persona?.substring(0, 600) || ""}
 Tón: ${config.brandVoice?.voiceTraits?.slice(0, 4).join(", ") || ""}
 Anti-patterns: ${config.brandVoice?.antiPatterns?.slice(0, 5).join(", ") || ""}
-${ctaPolicy ? `\n${buildCtaPolicyJudgeBlock(ctaPolicy)}\n` : ""}${selectedProduct ? `
+${ctaPolicy ? `\n${buildCtaPolicyJudgeBlock(ctaPolicy)}\n` : ""}${factsSection ? `\n${factsSection}\n` : ""}${selectedProduct ? `
 ## PRODUKTOVÁ DATA (jediný zdroj pravdy o produktu)
 Název: ${selectedProduct.name} | Cena: ${selectedProduct.price || "neuvedena"}
 ${selectedProduct.description ? `Popis: ${selectedProduct.description}` : ""}
@@ -413,7 +429,7 @@ ${criticFeedback.detail.feedback?.fix?.length ? `🔧 Opravit: ${criticFeedback.
 ${historyBlock}
 ## TVOJE KRITÉRIA (prodejní gate — rozhoduješ o publikaci, číselnou rubriku už udělal Kritik):
 1. **CTA–PILÍŘ SOULAD** — CTA odpovídá CTA politice výše? (REACH post NESMÍ obsahovat web/URL; CONVERSION post MUSÍ mít odkaz + důvod kliknout)
-2. **PRAVDIVOST** — Tvrzení o produktu (cena, vlastnosti, název) sedí s produktovými daty? Žádné vymyšlené sliby ani garance?
+2. **PRAVDIVOST** — Každé číslo, rok, záruka, certifikát a technický parametr v textu má oporu v seznamu ověřených faktů výš nebo v produktových datech? Co oporu nemá, je vada — i když to zní nevinně. Žádné vymyšlené sliby ani garance.
 3. **PRODEJNÍ TAH** — Dává post čtenáři konkrétní důvod jednat TEĎ (benefit, zvědavost, urgence bez laciného nátlaku)?
 4. **RED FLAGS** — Nic právně/reputačně rizikového, žádné přehnané sliby, nic co by brand nechtěl mít veřejně?
 
