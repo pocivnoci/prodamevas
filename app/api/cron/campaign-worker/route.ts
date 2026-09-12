@@ -277,16 +277,27 @@ export async function GET(req: Request) {
         const itemCategoryId: string | undefined = item?.categoryId || undefined
         // Per-item medium chosen in the plan (image/carousel) overrides the campaign-wide
         // default. generateOnePost still applies the reel kill-switch + feed-safe clamp.
-        const itemMedium = item?.medium || opts.medium || undefined
+        let itemMedium = item?.medium || opts.medium || undefined
+
+        // Reel naplánovaný tam, kde byl dostupný (jiné prostředí, jiný tarif), tady ale
+        // nejde vyrobit: překlopit STEJNĚ jako plán (většinou obrázek, každý třetí karusel),
+        // ne paušálně na karusel — 12. 9. 2026 tak agro-invest dostal z prvních sedmi
+        // postů šest karuselů. Nahlas, protože se dodává jiný formát, než uživatel schválil.
+        const reelBlockedBy = !isReelMedium(itemMedium) ? null
+            : process.env.REELS_ENABLED !== "1" ? "REELS_ENABLED není zapnuté"
+            : allowedMedia && !allowedMedia.includes(itemMedium) ? "tarif reel nedovoluje"
+            : null
+        if (reelBlockedBy) {
+            const fallback: MediumType = cursor % 3 === 0 && (!allowedMedia || allowedMedia.includes("carousel")) ? "carousel" : "image"
+            console.warn(`⚠️ [campaign] post #${cursor + 1}: naplánovaný reel nejde vyrobit (${reelBlockedBy}) → ${fallback}`)
+            itemMedium = fallback
+        }
 
         // Billed medium = what will actually render: pre-apply the same clamps the engine
         // uses (kill-switch, plan gating), so the media-weighted charge matches delivery.
         let chargedMedium: MediumType =
             isReelMedium(itemMedium) || itemMedium === "carousel" ? itemMedium : "image"
-        if (isReelMedium(chargedMedium) && process.env.REELS_ENABLED !== "1") chargedMedium = "carousel"
-        if (isReelMedium(chargedMedium) && allowedMedia && !allowedMedia.includes(chargedMedium)) {
-            chargedMedium = allowedMedia.includes("carousel") ? "carousel" : "image"
-        }
+        if (chargedMedium === "carousel" && allowedMedia && !allowedMedia.includes("carousel")) chargedMedium = "image"
 
         // ── Per-post credit check (clientId-based; no session in a worker) ──
         // Admin/internal bypass: CAMPAIGN_ADMIN_BYPASS=1 (global) OR options.adminBypass
