@@ -146,7 +146,7 @@ export interface PostFormat {
 /** Tři presety, ne volný CSS. Preset mapuje na hotovou dvojici (chunkOpts + ASS styl)
  *  v `instagram/reel-subtitles.ts`; cokoli mimo tyhle tři hodnot by `buildAss` poslalo
  *  s neznámým stylem do libassu, a to se pozná až na vyrenderovaném videu. */
-export type SubtitlePreset = "classic" | "cards" | "minimal"
+export type SubtitlePreset = "pop" | "classic" | "cards" | "minimal"
 export type SubtitlePosition = "bottom" | "center" | "top"
 export type SubtitleSize = "s" | "m" | "l"
 

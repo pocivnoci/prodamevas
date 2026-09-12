@@ -19,7 +19,7 @@ import { buildTextTimeline, textCardWordBudget } from "../instagram/reel-text-ti
 import { CLIENT_BUCKET_MIME_TYPES } from "../lib/storage-buckets"
 import sharp from "sharp"
 import { referenceTooSmall, upscaleReference } from "../instagram/reel-references"
-import { chunkForSubtitles, wrapWords, buildAss, assTime, escapeAssText, resolveSubtitleStyle, cardsFromEdits, hexToAssColour, ASS_DEFAULTS } from "../instagram/reel-subtitles"
+import { chunkForSubtitles, wrapWords, buildAss, assTime, escapeAssText, resolveSubtitleStyle, cardsFromEdits, hexToAssColour, ASS_DEFAULTS, endsWithNoBreakWord, usableHighlight, POP_DEFAULT_ACCENT, wordHighlightEvents, assTagColour } from "../instagram/reel-subtitles"
 import { validateStoryboard, parseStoryboard, finalizeVideoPrompt, buildReelDirectorPrompt, type ReelStoryboard } from "../instagram/reel-storyboard"
 import { buildTaskBody, parseTaskStatus, MAX_REFERENCES } from "../instagram/seedance-client"
 import { buildComposeArgs, escapeFilterPath } from "../instagram/reel-compositor"
@@ -163,7 +163,7 @@ check("autopilot posílá režim i hook do obrazu orchestrátoru", (() => {
 })())
 check("textový reel má výchozí preset titulků cards, mluvený zůstává na classic",
     resolveSubtitleStyle(undefined, { reelMode: "text" }).style.preset === "cards"
-    && resolveSubtitleStyle(undefined, { reelMode: "voiceover" }).style.preset === "classic"
+    && resolveSubtitleStyle(undefined, { reelMode: "voiceover" }).style.preset === "pop"
     && resolveSubtitleStyle({ preset: "minimal" }, { reelMode: "text" }).style.preset === "minimal")
 check("povolené režimy mají default obojí a prázdný výběr padá na hlas", (() => {
     const both = clampReelModes(undefined)
@@ -220,10 +220,36 @@ check("ASS: WrapStyle 2 — zalamujeme sami", /WrapStyle: 2/.test(ass))
 check("ASS: každá karta je Dialogue s \\N mezi řádky", (ass.match(/^Dialogue: /gm) || []).length === cards.length && ass.includes("\\N"))
 check("ASS: diakritika zůstává", ass.includes("rozdělit") || ass.includes("dlouhá"))
 
+console.log("\n✂️ KARTY PODLE ŘEČI, NE PODLE ŠÍŘKY\n")
+// Agro-invest 12. 9. 2026: „neprodáte ji / přes noc. Proto" + „odkupu." samo na kartě
+// vypadalo jako automatické titulky z telefonu. Konec věty = konec karty, čárka je
+// přirozená hranice, předložka/spojka nikdy nekončí kartu ani řádek, sirotek se slije.
+const agro = chunkForSubtitles([{ text: "Zemědělská půda není krypto, neprodáte ji přes noc. Proto klientům nabízíme garanci zpětného odkupu.", start: 0.5, end: 6.98 }])
+const agroText = agro.map(c => c.lines.join(" "))
+check("konec věty ukončí kartu (Proto začíná novou)", agroText.some(t => t.endsWith("přes noc.")) && agroText.some(t => t.startsWith("Proto")), agroText.join(" | "))
+check("čárka je hranice karty (krypto, končí kartu)", agroText.some(t => t.endsWith("krypto,")), agroText.join(" | "))
+check("žádná karta nekončí předložkou ani spojkou", agro.every(c => !endsWithNoBreakWord(c.lines.join(" ").split(" "))), agroText.join(" | "))
+check("žádný jednoslovný sirotek na konci věty", agro.every(c => c.lines.join(" ").split(" ").length >= 2), agroText.join(" | "))
+check("řádek nekončí jednopísmennou předložkou (Tohle vám o / půdě) — na šířce presetu pop", wrapWords("Tohle vám o půdě neřeknou.".split(" "), 16).every(l => !endsWithNoBreakWord(l.split(" "))), wrapWords("Tohle vám o půdě neřeknou.".split(" "), 16).join(" | "))
+check("šířka řádku je tvrdý strop — předložka zůstane, když by se další řádek nevešel", wrapWords("Tohle vám o půdě neřeknou.".split(" "), 15).every(l => l.length <= 15))
+check("řádky pořád nepřetečou přes šířku", agro.every(c => c.lines.every(l => l.length <= 18)))
+
+console.log("\n🟡 ZVÝRAZNĚNÍ SLOVA (preset pop)\n")
+const pop = resolveSubtitleStyle({ subtitleStyle: undefined, feedAesthetic: { accentColor: "#d4af37" } })
+check("výchozí preset je pop a barvu bere ze značky", pop.style.preset === "pop" && pop.style.accent === "#D4AF37" && pop.assStyle.highlightColour === hexToAssColour("#D4AF37"))
+check("bílý, šedý ani skoro černý akcent nezvýrazní nic → žlutá", usableHighlight("#ffffff") === POP_DEFAULT_ACCENT && usableHighlight("#888888") === POP_DEFAULT_ACCENT && usableHighlight("#101010") === POP_DEFAULT_ACCENT && usableHighlight(undefined) === POP_DEFAULT_ACCENT)
+check("barva zvýraznění se propíše do uloženého stylu (přerenderování bez configu)", resolveSubtitleStyle(pop.style).assStyle.highlightColour === pop.assStyle.highlightColour)
+const popCard = { start: 1, end: 3, lines: ["Tohle vám", "o půdě neřeknou."] }
+const popEvents = wordHighlightEvents(popCard, { primaryColour: "&H00FFFFFF", highlightColour: hexToAssColour("#D4AF37") })
+check("jedna událost na slovo, navazují bez překryvu", popEvents.length === 5 && popEvents[0].includes(assTime(1)) && popEvents[4].includes(assTime(3)))
+check("každá událost nese celou kartu a právě jedno obarvené slovo", popEvents.every(e => (e.match(/\\1c&H37AFD4&/g) || []).length === 1 && e.includes("\\N")))
+check("tag barvy: &HBBGGRR& bez alfy", assTagColour("&H00FFFFFF") === "&HFFFFFF&" && assTagColour(hexToAssColour("#FF8800")) === "&H0088FF&")
+check("bez barvy zvýraznění je karta jedna událost (classic)", (buildAss([popCard], resolveSubtitleStyle({ preset: "classic" }).assStyle).match(/^Dialogue: /gm) || []).length === 1)
+
 console.log("\n🎨 STYL TITULKŮ A REKOMPOZICE\n")
 // Titulek je vypálený do videa — jediná oprava překlepu je složit kompozici znovu.
 // Aby to šlo bez nového Seedance videa a bez TTS, musí po reelu zbýt artefakty.
-for (const preset of ["classic", "cards", "minimal"] as const) {
+for (const preset of ["pop", "classic", "cards", "minimal"] as const) {
     const r = resolveSubtitleStyle({ subtitleStyle: { preset } })
     const assForPreset = buildAss(chunkForSubtitles([{ text: "Ranní káva má chuť, kterou si pamatujete.", start: 0.5, end: 4 }], r.chunkOpts), r.assStyle)
     const styleLine = (assForPreset.match(/^Style: Chrlit,.*$/m) || [""])[0]
@@ -233,10 +259,10 @@ for (const preset of ["classic", "cards", "minimal"] as const) {
     check(`preset ${preset}: karty se vejdou na svou šířku řádku`,
         chunkForSubtitles([{ text: "Ranní káva má chuť, kterou si pamatujete.", start: 0.5, end: 4 }], r.chunkOpts).every(c => c.lines.every(l => l.length <= r.chunkOpts.maxCharsPerLine!)))
 }
-const classic = resolveSubtitleStyle(undefined)
+const classic = resolveSubtitleStyle({ preset: "classic" })
 const cardsPreset = resolveSubtitleStyle({ preset: "cards" })
 const minimalPreset = resolveSubtitleStyle({ preset: "minimal" })
-check("bez konfigurace je default classic dole ve střední velikosti", classic.style.preset === "classic" && classic.style.position === "bottom" && classic.style.size === "m")
+check("bez konfigurace je default pop dole ve střední velikosti", resolveSubtitleStyle(undefined).style.preset === "pop" && classic.style.position === "bottom" && classic.style.size === "m")
 check("cards: větší písmo, míň znaků na řádek, neprůhledný box", (cardsPreset.assStyle.fontSize ?? 0) > (classic.assStyle.fontSize ?? 0) && (cardsPreset.chunkOpts.maxCharsPerLine ?? 99) < (classic.chunkOpts.maxCharsPerLine ?? 0) && cardsPreset.assStyle.borderStyle === 3)
 check("minimal: bez podkladu (plná průhlednost) a tenký obrys", minimalPreset.assStyle.backColour === "&HFF000000" && (minimalPreset.assStyle.outline ?? 9) < (classic.assStyle.outline ?? ASS_DEFAULTS.outline))
 check("velikost hýbe písmem i šířkou řádku proti sobě", (() => {
@@ -249,7 +275,7 @@ check("pozice mění jen MarginV (Alignment zůstává 2 — u 5/8 mění libass
 })())
 check("nesmyslný preset i barva spadnou na default, ne do ASS", (() => {
     const r = resolveSubtitleStyle({ preset: "neon" as never, color: "rgb(1,2,3)" as never, size: "xxl" as never })
-    return r.style.preset === "classic" && r.style.size === "m" && r.style.color === undefined && r.assStyle.primaryColour === undefined
+    return r.style.preset === "pop" && r.style.size === "m" && r.style.color === undefined && r.assStyle.primaryColour === undefined
 })())
 check("hex barva → ASS &HAABBGGRR (obrácené pořadí bajtů)", hexToAssColour("#FF8800") === "&H000088FF" && resolveSubtitleStyle({ preset: "classic", color: "#FF8800" }).assStyle.primaryColour === "&H000088FF")
 check("upravená karta se zalomí podle NOVÉ šířky řádku, ne podle staré", (() => {

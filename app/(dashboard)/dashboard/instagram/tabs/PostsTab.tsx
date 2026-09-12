@@ -661,7 +661,9 @@ function PostDetailModal({
                                         // šla URL videa do <img> a reel se „nezobrazil".
                                         // `key` na URL: po přerenderování titulků má video jinou
                                         // adresu a bez remountu by <source> zůstal na staré.
-                                        <ReelPlayer controls key={media.videoUrl} videoUrl={media.videoUrl} coverUrl={media.coverUrl} className="w-full max-h-[70vh] aspect-[9/16] rounded-sm" />
+                                        // Obal 9:16 omezený VÝŠKOU (70 vh) i šířkou sloupce: dřív byl box široký
+                                        // a jen 70 vh vysoký, takže se cover na desktopu usekl.
+                                        <ReelPlayer controls key={media.videoUrl} videoUrl={media.videoUrl} coverUrl={media.coverUrl} className="w-full max-w-[calc(70vh*9/16)] aspect-[9/16] rounded-sm" />
                                     ) : (
                                         <RegionSelectableImage
                                             src={imageUrls[carouselIndex] || imageUrls[0]}

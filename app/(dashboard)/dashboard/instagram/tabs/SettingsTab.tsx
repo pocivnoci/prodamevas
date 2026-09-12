@@ -1671,7 +1671,7 @@ function VisualSection({ config, updateField, handleLogoUpload, logoUploading, p
             >
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     {SUBTITLE_PRESET_OPTIONS.map(o => {
-                        const active = (config.subtitleStyle?.preset || "classic") === o.id
+                        const active = (config.subtitleStyle?.preset || "pop") === o.id
                         return (
                             <button
                                 key={o.id}
