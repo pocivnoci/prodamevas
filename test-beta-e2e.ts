@@ -2129,9 +2129,18 @@ test("15.3 úprava obrázku je zpoplatněná, úprava textu ne", () => {
     assert(/wantsImage \? await creditGuard/.test(code), "textová úprava se nesmí účtovat")
     assert(code.includes("guard.commit"), "kredit se strhává až po úspěchu")
 
+    // Ceník akcí žije v client-safe lib/credits.ts (UI z něj skládá nápovědu);
+    // lib/subscription.ts ho jen re-exportuje a rozhoduje o vážení.
+    const credits = fileContent("lib/credits.ts")
+    assert(credits.includes('post_edit: 1'), "post_edit musí stát 1 kredit")
+    assert(/export \{ ACTION_CREDITS, type ActionType \} from "@\/lib\/credits"/.test(fileContent("lib/subscription.ts")),
+        "backend bere ceník akcí z lib/credits.ts, ne z vlastní kopie")
     const sub = fileContent("lib/subscription.ts")
-    assert(sub.includes('post_edit: 1'), "post_edit musí stát 1 kredit")
     assert(!/action === "post" \|\| action === "post_edit"/.test(sub), "post_edit je plochý — edit je jedno volání modelu bez ohledu na médium")
+    // Nápověda a hinty skládají čísla z tabulek, ne z ruky (jednou už lhaly).
+    const faq = codeOnly("app/(dashboard)/dashboard/instagram/tabs/FaqTab.tsx")
+    assert(/ACTION_CREDITS\.post_edit/.test(faq) && !/= 1 kredit\. Generování nápadů = 1 kredit/.test(faq), "FAQ bere ceny akcí z ACTION_CREDITS")
+    assert(/mediaCreditsSentence\(\)/.test(codeOnly("app/(dashboard)/dashboard/instagram/tabs/Hint.tsx")), "hint o formátech bere váhy z MEDIA_CREDITS")
 })
 
 test("15.4 post_edit je povolený na všech plánech, které umí generovat", () => {

@@ -120,7 +120,7 @@ export async function GET(req: Request) {
             progress: 100,
             agent_message: "✅ Hotovo!",
             retry_after: null,
-            result: { success: true, postId: result.id, caption: result.caption, imageUrl: result.imageUrl, cost: result.cost },
+            result: { success: true, postId: result.id, caption: result.caption, imageUrl: result.imageUrl, cost: result.cost, mediaType: result.mediaType },
         })
 
         console.log(`   ✅ job ${job.id} dokončen po odkladu`)

@@ -467,7 +467,7 @@ export async function GET(req: Request) {
 
             await supabaseAdmin.from("ig_jobs").update({
                 status: "done", progress: 100, agent_message: "✅ Hotovo!",
-                result: { success: true, postId: result.id, caption: result.caption, imageUrl: result.imageUrl, cost: result.cost },
+                result: { success: true, postId: result.id, caption: result.caption, imageUrl: result.imageUrl, cost: result.cost, mediaType: result.mediaType },
             }).eq("id", job.id)
 
             // Engine clamped below the billed medium? Refund the difference.

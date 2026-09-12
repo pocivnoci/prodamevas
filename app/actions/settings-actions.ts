@@ -39,18 +39,11 @@ export async function activateFreePlan(
 export async function getClientConfig(projectId: string): Promise<ClientConfig | null> {
     try {
         await requireProjectAccess(projectId)
-        const { data, error } = await supabaseAdmin
-            .from("clients")
-            .select("config")
-            .eq("slug", projectId)
-            .single()
-
-        if (error || !data) {
-            console.error("Error fetching config:", error)
-            return null
-        }
-
-        return data.config as ClientConfig
+        // Přes loadConfig, ne surové JSONB: brána slug už přeložila a druhý dotaz
+        // na `clients` byl loadConfig bez validateConfig — BrandTab tak viděl config
+        // bez defaultů, které SettingsTab (config-actions) měl. Jedno pole, dvě pravdy.
+        const { loadConfig } = await import("@/instagram/configs")
+        return await loadConfig(projectId)
     } catch (err) {
         console.error("Exception fetching config:", err)
         return null

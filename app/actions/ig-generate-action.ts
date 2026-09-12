@@ -18,6 +18,9 @@ import { MAX_POSTS_PER_WEEK, monthSpanDays, postsForSpan } from "@/lib/schedule-
 
 
 export interface GenerateResult {
+    /** Médium, které skutečně vzniklo (`ig_jobs.result.mediaType`) — UI podle něj
+     *  vykreslí story jako story; heuristika „víc URL = karusel" to nepozná. */
+    mediaType?: string | null
     success: boolean
     postId?: string
     caption?: string
