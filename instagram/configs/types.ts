@@ -10,6 +10,7 @@ import type { FeedPatternId } from "../../lib/feed-pattern"
 import type { PhotoPolicy } from "../../lib/photo-policy"
 import type { MediumType } from "../../lib/credits"
 import type { TtsProviderId } from "../../lib/voice-library"
+import type { ReelMode } from "../../lib/reel-media"
 
 // ─── Product ────────────────────────────────────────────────
 
@@ -521,6 +522,13 @@ export interface ClientConfig {
      *  Default doplňuje `validateConfig()` (clamp, ne default-through: `buildAss`
      *  z presetu skládá ASS styl a nesmí dostat neznámou hodnotu). */
     subtitleStyle?: SubtitleStyleConfig
+
+    /** Ze kterých režimů reelu smí scenárista vybírat: `voiceover` (namluvená
+     *  narrace) a/nebo `text` (karty na obraze, hudba ze Seedance, žádné TTS).
+     *  Default ve `validateConfig()` je OBOJÍ — u vizuálních oborů (móda, gastro,
+     *  interiéry) je textový reel přirozenější než vypravěč nad obrazem. Značka,
+     *  která hlas chce vždycky, si `text` odklikne v Nastavení. */
+    reelModes?: ReelMode[]
 
     /** Per-post-type format overrides (aspect ratio, medium, overlay style) */
     postFormats?: Record<string, PostFormat>

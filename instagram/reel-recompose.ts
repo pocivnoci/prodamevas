@@ -72,7 +72,11 @@ export async function runReelRecompose(
     }
 
     const source = post.video_source as ReelVideoSource | null
-    if (!source?.rawVideoPath || !source.voiceoverPath) {
+    // Textový reel voiceover nikdy neměl (hudba je rovnou ve videu) — chybějící WAV
+    // u něj není chybějící zdroj. U mluveného reelu bez WAV by nová kompozice tiše
+    // umlčela narraci, a to je horší než odmítnout.
+    const textOnly = source?.mode === "text"
+    if (!source?.rawVideoPath || (!textOnly && !source.voiceoverPath)) {
         throw new Error("U tohohle reelu nemáme uložené surové video — titulky jdou změnit jen vygenerováním znovu.")
     }
 
@@ -80,7 +84,7 @@ export async function runReelRecompose(
     if (media.kind !== "reel") throw new Error("Tenhle příspěvek není reel.")
 
     // Styl: jednorázový override vyhrává nad tím, se kterým se reel vyrenderoval.
-    const subtitles = resolveSubtitleStyle(input.subtitleStyle ?? source.subtitleStyle)
+    const subtitles = resolveSubtitleStyle(input.subtitleStyle ?? source.subtitleStyle, { reelMode: source.mode })
 
     // Text je uživatelův, zalomení dělá kód podle NOVÉ šířky řádku — po přepnutí
     // presetu by jinak ručně upravená karta přetekla přes okraj.
@@ -89,10 +93,12 @@ export async function runReelRecompose(
         : chunkForSubtitles(source.timeline, subtitles.chunkOpts)
     if (cards.length === 0) throw new Error("Reel bez jediné titulkové karty — smaž radši text v úpravě, ne všechny karty.")
 
-    await report?.(20, "📥 Stahuji surové video a voiceover…")
+    await report?.(20, textOnly ? "📥 Stahuji surové video…" : "📥 Stahuji surové video a voiceover…")
     const bucket = source.bucket
     const rawVideo = await downloadFromBucket(bucket, source.rawVideoPath)
-    const voiceoverWav = await downloadFromBucket(source.voiceoverBucket || bucket, source.voiceoverPath)
+    const voiceoverWav = source.voiceoverPath
+        ? await downloadFromBucket(source.voiceoverBucket || bucket, source.voiceoverPath)
+        : undefined
 
     await report?.(50, "🎞️ Vypaluji nové titulky…")
     const ass = buildAss(cards, subtitles.assStyle)
@@ -102,6 +108,10 @@ export async function runReelRecompose(
         ass,
         atempo: source.atempo,
         durationSeconds: source.durationSeconds,
+        // Textový reel nemá řeč, pod kterou by se hudba tlumila — musí se složit
+        // se stejnou hlasitostí jako poprvé, jinak by přerenderování titulků
+        // potichu ztišilo zvuk.
+        ...(voiceoverWav ? {} : { ambientLevel: 1 }),
     })
 
     await report?.(80, "📤 Nahrávám video…")

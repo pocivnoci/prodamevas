@@ -216,8 +216,49 @@ minimal`, pozice, velikost a barvy, s defaultem ve `validateConfig()`. `classic`
 dnešní vzhled, takže značka bez nastavení nic nepozná. Preset `cards` (velké písmo
 v plném boxu) je zároveň to, co bude potřebovat **textový režim** z fáze 3.
 
-Co zůstává nehotové (fáze 3): hudba, textový režim jako celek a vypálení
-`onScreenHook` ze scenáristy jako samostatné karty v první 1,5 s.
+## Textový režim — co je hotové (12. 9. 2026)
+
+Fáze 3, režim B je nasazený. Když scenárista vrátí `mode: "text"`, jede reel touž
+pipeline, jen **bez zvuku z naší strany**:
+
+- **Přenos režimu.** `scriptToScenes()` nechává text karty v `scenes[].narration`
+  (prochází tedy kritikem, redakcí i faktickou bránou úplně stejně jako mluvená
+  věta) a přidává `textOnly: true`. Autopilot posílá `captionData.reelMode` a
+  `captionData.onScreenHook` do orchestrátoru; obojí je součástí caption
+  checkpointu, takže to přežije resume. Orchestrátor si režim čte **z video
+  checkpointu přednostně** — resume nesmí reel přepnout uprostřed.
+- **Časová osa ze čtení, ne z řeči.** `buildTextTimeline()`
+  (`instagram/reel-text-timeline.ts`) — 3 slova/s čtecího tempa, minimum 1,2 s na
+  kartu, týž nájezd/mezery/dojezd jako u řeči (`REEL_TIMELINE`), clamp na
+  `REEL_LIMITS`. Co se nevejde, se zkracuje přes `condenseNarration` (nejvýš dvě
+  kola) — zrychlit čtení nejde, takže `atempo` je vždy 1. Délku videa určuje osa,
+  stejně jako u voiceoveru.
+- **Žádné TTS.** Textová větev je samostatná funkce `prepareTextTimeline()` a
+  guard hlídá, že v jejím těle není `synthesizeNarration` ani `COSTS.ttsVoiceover`.
+- **Zvuk dodává Seedance.** Režisér dostane osu jako karty (ne repliky) a
+  instrukci „no narration; the on-screen text cards carry the message"; prompt si
+  říká o **nativní hudbu a atmosféru podle nálady** (`audioMood`). Text v obraze
+  zůstává zakázaný — karty vypaluje náš ASS engine. `composeReel` běží bez
+  `voiceoverWav` (loudnorm, žádný sidechain) a `ambientLevel` jede na 1,0 místo
+  0,6, protože není co potlačovat.
+- **Titulky.** Výchozí preset textového reelu je `cards` (velké písmo v boxu) —
+  přepíše se jen globální default `classic`, vlastní volba značky platí dál.
+  `onScreenHook` je první karta. `video_source.mode = "text"`, `voiceoverPath`
+  chybí, a rekompozice (`reel_recompose`, 0 kreditů) s tím počítá.
+- **Cena se nemění.** Textový reel stojí tolik co mluvený (5 / 10 kreditů); levnější
+  je jen pro nás — chybí TTS. V detailu reelu ho značí štítek „Textový reel (bez hlasu)".
+- **Povolení.** `ClientConfig.reelModes` (default **obojí** ve `validateConfig()`,
+  přepínač „Povolit reely bez hlasu" v Nastavení) se propisuje do promptu
+  scenáristy i do validátoru: zakázaný režim se vůbec nenabídne.
+
+**Otevřená otázka zůstává hudba.** Zatím je to jen to, co vygeneruje Seedance —
+atmosféra a podkres, ne skladba, a nemáme nad tím kontrolu ani licenční papír na
+konkrétní track. Licencovaná knihovna (vlastní tracky v bucketu vybírané podle
+nálady) nebo generativní hudba je pořád nerozhodnutá — viz „Rozhodnutí, která
+potřebujeme od zakladatelů", bod 5.
+
+Co zůstává nehotové (fáze 3): hudba jako licencovaný podklad a režim C (mluvící
+člověk).
 
 ## Co se NEMĚNÍ
 

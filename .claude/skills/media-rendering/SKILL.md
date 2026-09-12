@@ -118,6 +118,16 @@ do `edit_history` se `scope: "subtitles"`.
 `resolveSubtitleStyle()` → `chunkForSubtitles`/`buildAss`. Font jen z bundlovaných
 (`assets/fonts`); pozice se řeší `MarginV`, `Alignment` zůstává 2.
 
+**Textový reel** (`captionData.reelMode === "text"` ze scenáristy, povolený přes
+`ClientConfig.reelModes` — default obojí): stejná pipeline **bez TTS**. Osa vzniká ze
+čtecího tempa karet (`buildTextTimeline` v `instagram/reel-text-timeline.ts`: 3 slova/s,
+min. 1,2 s na kartu, `atempo` vždy 1), režisér dostane karty místo replik a Seedance
+se v promptu žádá o nativní hudbu podle nálady; `composeReel` jede bez `voiceoverWav`
+(loudnorm, žádný sidechain) a `ambientLevel` na 1,0. Výchozí preset titulků je `cards`,
+první karta je `onScreenHook`, `video_source.mode = "text"` a `voiceoverPath` chybí —
+rekompozice s tím počítá. **Kredity stejné jako u mluveného reelu.** TTS ve větvi
+`prepareTextTimeline()` je zakázané a hlídá to guard.
+
 **CTA politika platí i na obraz** — `ctaPolicy` jde přes `RenderContext` do
 režiséra; resolve v `autopilot.ts` **musí zůstat nad checkpoint větví**.
 Binárka i font jsou připnuté v `next.config.ts` pro `ig-run-job`, `campaign-worker`

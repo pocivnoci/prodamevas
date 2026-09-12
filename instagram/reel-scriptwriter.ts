@@ -41,16 +41,16 @@ import {
 } from "@/lib/hook-patterns"
 import { engagementScore } from "@/lib/engagement"
 import { industryRiskFamily, type IndustryRiskFamily } from "@/lib/industry-risk"
-import { plannedNarrationSentences, plannedNarrationWords, type ReelMedium } from "@/lib/reel-media"
+import { clampReelModes, plannedNarrationSentences, plannedNarrationWords, type ReelMedium, type ReelMode } from "@/lib/reel-media"
 
 // ─── Typy ───────────────────────────────────────────────────────────────────
 
-export type ReelMode = "voiceover" | "text"
+export type { ReelMode }
 
 export interface ReelBeat {
     /** Mluvené slovo (režim `voiceover`). */
     narration?: string
-    /** Textová karta (režim `text`) — R4 z ní staví časovou osu bez TTS. */
+    /** Textová karta (režim `text`) — orchestrátor z ní staví osu bez TTS. */
     card?: string
     /** Co je v záběru — anglicky, konkrétně. */
     visual: string
@@ -109,6 +109,8 @@ export interface ReelScriptInput {
     offeredPatterns?: HookPattern[]
     /** Kolik vzorů posledních reelů je zakázaných (default 3). */
     antiRepeatCount?: number
+    /** Override povolených režimů; jinak platí `config.reelModes`. */
+    allowedModes?: ReelMode[]
 }
 
 /** Kill switch — scénář se dá vypnout bez deploye, pipeline pak jede po staru. */
@@ -124,6 +126,11 @@ export function bannedHookPatterns(pastReels: PastReel[] | undefined, n = 3): st
             .map(r => r.hookPattern)
             .filter(isHookPatternId),
     )]
+}
+
+/** Režimy, ze kterých smí scenárista vybírat: nastavení značky, jinak obojí. */
+export function allowedReelModes(input: { config: ClientConfig; allowedModes?: ReelMode[] }): ReelMode[] {
+    return clampReelModes(input.allowedModes ?? input.config.reelModes)
 }
 
 /** Statistika vzorů z reelů klienta — vstup pro vážený výběr. */
@@ -183,6 +190,17 @@ export function buildReelScriptPrompt(input: ReelScriptInput): string {
         ? input.pastReels.slice(0, 8).map((r, i) => `${i + 1}. „${r.hook}"${r.hookPattern ? ` [vzor: ${r.hookPattern}]` : ""}${r.score != null ? ` (síla ${Math.round(r.score)})` : ""}`).join("\n")
         : "(zatím žádné reely — první scénář značky)"
 
+    // Povolené režimy jsou nastavení ZNAČKY, ne volba modelu: když klient hlas chce
+    // vždycky, nemá smysl textový režim vůbec nabízet — model si ho jinak vybere
+    // sám a validátor by scénář zahodil až po zaplaceném kole Opusu.
+    const modes = allowedReelModes(input)
+    const modeLines: string[] = []
+    if (modes.includes("voiceover")) modeLines.push(`- "voiceover" — beaty nesou "narration" (mluvené slovo). Výchozí volba.`)
+    if (modes.includes("text")) modeLines.push(`- "text" — beaty nesou "card" (krátká textová karta na obraze), hlas žádný, nese to hudba a obraz. Vyber ho, když je téma vizuální a mluvené slovo by překáželo (móda, gastro, interiéry, proměna).`)
+    const modeRules = modes.length > 1
+        ? `${modeLines.join("\n")}\nZvol jedno a drž ho ve všech beatech; nemíchej "narration" a "card".`
+        : `${modeLines.join("\n")}\n**Značka povoluje jen režim "${modes[0]}" — do pole "mode" napiš přesně "${modes[0]}" a drž ho ve všech beatech.**`
+
     const ctaRule = ctaPolicy.allowWebsite
         ? `Poslední beat MUSÍ vyzvat na ${config.website}.`
         : `Poslední beat MUSÍ být engagement výzva (otázka / ulož si / pošli dál) — BEZ webu, BEZ URL, BEZ adresy.`
@@ -239,15 +257,13 @@ ${formatHookPatterns(patterns)}
 - ${ctaRule}
 
 ## REŽIM
-- "voiceover" — beaty nesou "narration" (mluvené slovo). Výchozí volba.
-- "text" — beaty nesou "card" (krátká textová karta na obraze), hlas žádný, nese to hudba a obraz. Vyber ho, když je téma vizuální a mluvené slovo by překáželo (móda, gastro, interiéry, proměna).
-Zvol jedno a drž ho ve všech beatech; nemíchej "narration" a "card".
+${modeRules}
 
 ## VÝSTUP — vrať POUZE validní JSON, bez markdownu:
 {
   "hookPattern": "id vybraného vzoru",
   "hook": "mluvený hook — první věta, česky, 2–8 slov",
-  "mode": "voiceover",
+  "mode": "${modes[0]}",
   "beats": [
     {
       "narration": "Česká věta pro voiceover (v režimu text místo toho \\"card\\").",
@@ -339,6 +355,8 @@ export interface ReelScriptContext {
     website?: string
     /** Zakázané vzory (poslední reely). */
     bannedPatterns?: string[]
+    /** Režimy povolené značkou; prázdné = obojí. */
+    allowedModes?: ReelMode[]
 }
 
 /** Seznam problémů; prázdný = v pořádku. Čisté — drží to guard. */
@@ -348,6 +366,9 @@ export function validateReelScript(s: ReelScript, ctx: ReelScriptContext): strin
         problems.push(`hookPattern "${s.hookPattern}" není ze známé palety (${HOOK_PATTERNS.map(p => p.id).join(", ")})`)
     } else if (ctx.bannedPatterns?.includes(s.hookPattern)) {
         problems.push(`hookPattern "${s.hookPattern}" použily poslední reely — vyber jiný`)
+    }
+    if (ctx.allowedModes?.length && !ctx.allowedModes.includes(s.mode)) {
+        problems.push(`režim "${s.mode}" značka nepovoluje (smí ${ctx.allowedModes.join(", ")})`)
     }
     if (!s.hook) problems.push("chybí hook")
     if (!s.cta) problems.push("chybí CTA")
@@ -437,6 +458,7 @@ export async function writeReelScript(input: ReelScriptInput): Promise<{ script:
         allowWebsite: input.ctaPolicy.allowWebsite,
         website: input.config.website,
         bannedPatterns: banned,
+        allowedModes: allowedReelModes(input),
     }
 
     let attemptPrompt = basePrompt
@@ -472,27 +494,33 @@ export interface CaptionScene {
     mood: string
     narration?: string
     soundEffect?: string
+    /** Textový režim: `narration` je text KARTY, ne replika k namluvení. */
+    textOnly?: boolean
 }
 
 /**
  * Beaty scenáristy → `captionData.scenes`. Časy jsou rovnoměrné a jen orientační:
- * skutečnou osu staví `buildTimeline` z NAMĚŘENÉ řeči (audio-first), tohle je
- * popisek pro režiséra a fallback pro dry-run.
+ * skutečnou osu staví `buildTimeline` z NAMĚŘENÉ řeči (audio-first), u textového
+ * reelu `buildTextTimeline` ze čtecího tempa; tohle je popisek pro režiséra a
+ * fallback pro dry-run.
  *
- * ⚠️ TODO (R4 — textový režim): v režimu `text` se dnes `card` mapuje na
- * `narration`, aby pipeline dojela tak jako dnes (TTS kartu namluví). Až R4 dodá
- * osu z karet bez TTS, tohle mapování zmizí a `mode` půjde do `video_source`.
+ * `card` zůstává v poli `narration` i v textovém režimu ZÁMĚRNĚ: je to táž věta,
+ * která projde kritikem, redakcí i faktickou bránou — jen ji divák čte, místo aby
+ * ji slyšel. Rozlišuje se příznakem `textOnly`, ne druhým polem, aby žádná brána
+ * nemohla textový reel omylem přeskočit.
  */
 export function scriptToScenes(script: ReelScript, durationSeconds: number): CaptionScene[] {
     const n = Math.max(1, script.beats.length)
     const step = durationSeconds / n
+    const textOnly = script.mode === "text"
     return script.beats.map((b, i) => ({
         timeRange: `${(i * step).toFixed(1)}-${((i + 1) * step).toFixed(1)}s`,
         visual: b.visual,
         camera: b.camera,
         mood: b.mood,
-        narration: script.mode === "text" ? (b.card || b.narration) : (b.narration || b.card),
+        narration: textOnly ? (b.card || b.narration) : (b.narration || b.card),
         soundEffect: b.sfx,
+        ...(textOnly ? { textOnly: true } : {}),
     }))
 }
 

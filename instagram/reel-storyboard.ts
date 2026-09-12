@@ -63,6 +63,9 @@ export interface DirectReelInput {
     ctaPolicy?: CtaPolicy
     selectedProduct?: SelectedProduct
     references: ReelReference[]
+    /** Textový reel: `narration` jsou KARTY na obraze, ne mluvené slovo. Video
+     *  nese hudbu a atmosféru, karty vypaluje náš ASS engine (ne Seedance). */
+    textOnly?: boolean
 }
 
 /** Tolerance pro navazování záběrů (sekundy). */
@@ -122,7 +125,7 @@ export function buildReelDirectorPrompt(input: DirectReelInput, memorySection: s
         : "No specific product — the brand world itself is the subject."
     const websiteRule = ctaPolicy && !ctaPolicy.allowWebsite
         ? `⛔ This post's CTA policy (${ctaPolicy.pillarLabel.toUpperCase()}) forbids the website: NO URL, NO domain, NO address anywhere in the video. Land the final shot on a stable brand moment (product, packaging, signature space).`
-        : `The final shot may hold on branded packaging or a signature brand visual; the Czech CTA is spoken and subtitled, never rendered as text.`
+        : `The final shot may hold on branded packaging or a signature brand visual; the Czech CTA is ${input.textOnly ? "burned in later as a text card by us" : "spoken and subtitled"}, never rendered as text by you.`
 
     return `You are the DIRECTOR of a ${durationSeconds}-second vertical Instagram Reel (9:16) for the Czech brand "${config.name}".
 The copy is FINAL and already approved — you do not write or change it. Your job is the picture: a shot list that matches the spoken narration second by second, built from the brand's own reference images, and ONE video-generation prompt for the Seedance model.
@@ -141,10 +144,17 @@ ${refsText}
 
 ${productText}
 
-## SPOKEN NARRATION (Czech, measured timings — shots must follow this timeline)
+${input.textOnly
+        ? `## ON-SCREEN TEXT CARDS (Czech, timed — shots must follow this timeline)
+This reel has **no narration**: nobody speaks. The on-screen text cards below carry the message, and WE burn them in afterwards — the video itself must stay free of any text.
+Hook card: "${input.hook}"
+${narrationText}
+Total video length: ${durationSeconds}s. The last card ends before the video does — the last second is a hold.
+Because there is no voice, the SOUND is the whole audio track: ask the video model for native background music and ambience matching the mood ("audioMood"), never for speech, lyrics or a voice-over.`
+        : `## SPOKEN NARRATION (Czech, measured timings — shots must follow this timeline)
 Hook: "${input.hook}"
 ${narrationText}
-Total video length: ${durationSeconds}s. Speech ends before the video does — the last second is a hold.
+Total video length: ${durationSeconds}s. Speech ends before the video does — the last second is a hold.`}
 
 ## COPYWRITER'S SCENE IDEAS (inspiration, not law)
 ${scenesText}
@@ -154,7 +164,9 @@ ${scenesText}
 - Every shot names the reference images it is built from ("referenceIndexes"). Use the brand's own spaces, people, products and textures — never a generic stock scene when a reference exists.
 - The product (if any) must be recognisable and true to its image. The logo (if provided) may appear ONLY as a physical object already in the scene (packaging, signage, printed material) — never as an overlay or floating graphic.
 - NO on-screen text, captions, titles, subtitles, watermarks or UI in the video. Text is added later by us.
-- NO speech, NO dialogue, NO lip-sync, NO singing. Sound = ambience and diegetic effects only (the Czech voiceover is mixed in afterwards).
+- NO speech, NO dialogue, NO lip-sync, NO singing. ${input.textOnly
+        ? `Sound = instrumental background music in the "audioMood" mood plus diegetic ambience; nothing is mixed in afterwards, so the music has to come from the video model itself.`
+        : `Sound = ambience and diegetic effects only (the Czech voiceover is mixed in afterwards).`}
 - ${websiteRule}
 - Camera choreography must be a smooth continuous flow with concrete moves (dolly, orbit, rack focus, handheld tracking…). Consistent lighting within a shot.
 - The first 1.5 s must visually hook (movement, contrast, a face, a reveal).
@@ -237,7 +249,12 @@ export function validateStoryboard(
  * Prompt pro Seedance = režisérův text + tvrdé zákazy, které se do modelu
  * NEPOSÍLAJÍ na důvěru: bez textu v obraze, bez řeči, formát a délka.
  */
-export function finalizeVideoPrompt(sb: ReelStoryboard, input: Pick<DirectReelInput, "durationSeconds" | "ctaPolicy">): string {
+export function finalizeVideoPrompt(sb: ReelStoryboard, input: Pick<DirectReelInput, "durationSeconds" | "ctaPolicy" | "textOnly">): string {
     const noWeb = input.ctaPolicy && !input.ctaPolicy.allowWebsite ? " No website address, URL or domain anywhere." : ""
-    return `${sb.videoPrompt.trim()}\n\nFormat: vertical 9:16, ${input.durationSeconds} seconds, continuous cinematic camera. Sound: ${sb.audioMood || "natural ambience"}; ${sb.soundDesign.slice(0, 4).join(", ") || "ambient sound only"}. STRICT: no on-screen text, captions, titles, logos as overlays or watermarks; no speech, dialogue, singing or lip movement.${noWeb}`
+    // Textový reel nemá do čeho mixovat voiceover — hudba z modelu je CELÝ zvuk,
+    // takže se o ni musí říct výslovně (výchozí `generate_audio` dává jen ruchy).
+    const sound = input.textOnly
+        ? `Sound: instrumental background music, ${sb.audioMood || "calm"} mood, mixed with natural ambience; ${sb.soundDesign.slice(0, 4).join(", ") || "ambient sound"}. No voice, no lyrics, no narration.`
+        : `Sound: ${sb.audioMood || "natural ambience"}; ${sb.soundDesign.slice(0, 4).join(", ") || "ambient sound only"}.`
+    return `${sb.videoPrompt.trim()}\n\nFormat: vertical 9:16, ${input.durationSeconds} seconds, continuous cinematic camera. ${sound} STRICT: no on-screen text, captions, titles, logos as overlays or watermarks; no speech, dialogue, singing or lip movement.${noWeb}`
 }

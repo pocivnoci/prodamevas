@@ -2459,10 +2459,13 @@ test("17.5 chybějící ffmpeg nebo padlá kompozice nesmí tiše degradovat ree
 
 test("17.6 audio-first: TTS a časová osa před videem, délku určuje řeč", () => {
     const reel = codeOnly("instagram/orchestrators/reel-orchestrator.ts")
-    const tts = reel.indexOf("synthesizeNarration(")
+    // Osa se od textového režimu staví ve dvou funkcích (mluvená přes TTS, textová
+    // ze čtecího tempa) — pořadí se proto měří na místě volání, ne na `synthesizeNarration`.
+    const timeline = reel.indexOf("prepareVoiceoverTimeline(ctx")
     const submit = reel.indexOf("submitVideoTask(")
-    assert(tts > 0 && submit > 0 && tts < submit, "namluvení a měření musí předcházet zadání videa — TTS, které nejde, nesmí stát vteřinu videa")
-    assert(/buildTimeline\(/.test(reel) && /durationSeconds = timeline\.durationSeconds/.test(reel), "délka videa se čte z časové osy, ne z konfigurace")
+    assert(timeline > 0 && submit > 0 && timeline < submit, "namluvení a měření musí předcházet zadání videa — TTS, které nejde, nesmí stát vteřinu videa")
+    assert(/synthesizeNarration\(/.test(reel) && /buildTimeline\(/.test(reel) && /durationSeconds = prepared\.durationSeconds/.test(reel),
+        "délka videa se čte z časové osy, ne z konfigurace")
     assert(/condenseNarration\(/.test(reel), "příliš dlouhá řeč se zkracuje, ne usekává")
     const audio = codeOnly("instagram/reel-audio.ts")
     assert(/QualityUnavailableError\(`TTS nedostupné/.test(audio), "TTS mimo provoz = zaparkovat, ne selhat ani nedodat")
@@ -2606,7 +2609,9 @@ test("17.13 titulky reelu jdou přepsat bez nového videa a bez kreditů", () =>
     const reel = codeOnly("instagram/orchestrators/reel-orchestrator.ts")
     assert(/ig-reels\/\$\{ts\}-raw\.mp4/.test(reel), "surové video ze Seedance se musí uložit, jinak není z čeho přerenderovat")
     assert(!/storage\.from\(vc\.voiceoverBucket\)\.remove/.test(reel), "voiceover WAV se po kompozici NESMÍ mazat — potřebuje ho rekompozice")
-    assert(/resolveSubtitleStyle\(config\)/.test(reel), "styl titulků patří značce; buildAss override uměl, ale nikdo mu ho nedával")
+    // Od textového režimu se styl řeší i s režimem: textový reel má jiný výchozí
+    // preset (`cards`), protože karta v něm nese sdělení, ne doprovod řeči.
+    assert(/resolveSubtitleStyle\(config, \{ reelMode \}\)/.test(reel), "styl titulků patří značce; buildAss override uměl, ale nikdo mu ho nedával")
 
     const recompose = codeOnly("instagram/reel-recompose.ts")
     assert(!/seedance-client|generateVoiceover|synthesizeNarration/.test(recompose),
@@ -2624,6 +2629,29 @@ test("17.13 titulky reelu jdou přepsat bez nového videa a bez kreditů", () =>
     // Default stylu — bez něj by engine indexoval preset podle undefined.
     assert(/subtitleStyle: clampSubtitleStyle/.test(codeOnly("instagram/configs/index.ts")), "subtitleStyle potřebuje clamp ve validateConfig")
     assert(fileContains("app/actions/admin-actions.ts", "edit_history, video_source"), "detail příspěvku musí video_source dostat ze seznamu")
+})
+
+test("17.14 textový reel: oba režimy povolené, TTS se přeskočí", () => {
+    // Textový reel (karty + hudba, žádný voiceover) je rovnocenný formát, ne
+    // experiment — default proto musí být OBOJÍ, jinak se nikdy nevyrobí.
+    const { clampReelModes } = require("./lib/reel-media") as typeof import("./lib/reel-media")
+    const def = clampReelModes(undefined)
+    assert(def.includes("voiceover") && def.includes("text"), "default reelModes je obojí")
+    assert(clampReelModes([]).join() === "voiceover", "prázdný výběr padá na hlas, ne na reel, který nejde vyrobit")
+    assert(/reelModes: clampReelModes/.test(codeOnly("instagram/configs/index.ts")), "reelModes potřebuje clamp ve validateConfig")
+
+    // Účtování se nemění: textový reel stojí stejně jako mluvený (levnější je jen
+    // pro nás — chybí TTS). Cena je v tabulce médií, ne v orchestrátoru.
+    const reel = codeOnly("instagram/orchestrators/reel-orchestrator.ts")
+    const branch = reel.slice(reel.indexOf("async function prepareTextTimeline"))
+    const body = branch.slice(0, branch.indexOf("\n}"))
+    assert(body.length > 200 && !/synthesizeNarration|ttsVoiceover/.test(body), "textová větev nesmí volat TTS ani účtovat voiceover")
+    assert(/mode: reelMode/.test(reel), "video_source musí nést režim — rekompozice podle něj pozná, že WAV chybět má")
+
+    // Rekompozice titulků musí jít i u reelu bez voiceoveru (0 kreditů platí dál).
+    assert(/source\?\.mode === "text"/.test(codeOnly("instagram/reel-recompose.ts")), "rekompozice musí textový reel rozpoznat")
+    assert(/textOnly \|\| !!source\?\.voiceoverPath/.test(codeOnly("app/(dashboard)/dashboard/instagram/tabs/ReelSubtitlesPanel.tsx")),
+        "detail reelu nesmí u textového reelu tvrdit, že chybí zdroj")
 })
 
 // ═══════════════════════════════════════════════════════════

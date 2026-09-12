@@ -29,6 +29,7 @@ import {
     buildReelScriptPrompt, parseReelScript, validateReelScript, scriptToScenes,
     bannedHookPatterns, statsFromReels, type ReelScriptInput,
 } from "../instagram/reel-scriptwriter"
+import { buildReelDirectorPrompt, finalizeVideoPrompt } from "../instagram/reel-storyboard"
 import { pickHookPatterns, hookPatternWeights, HOOK_PATTERNS } from "../lib/hook-patterns"
 import { plannedNarrationWords } from "../lib/reel-media"
 
@@ -1128,7 +1129,7 @@ test("nevalidní scénář neprojde validátorem", () => {
     assert(problems.some(p => /URL|doménu/.test(p)), "web při zakázané politice CTA musí propadnout")
 })
 
-test("textový režim mapuje karty na narraci, aby pipeline nespadla", () => {
+test("textový režim nese kartu v narration, ale označí scénu jako textovou", () => {
     const script = parseReelScript(JSON.stringify({
         hookPattern: "process", hook: "Jak to vzniká", mode: "text",
         beats: [{ card: "Krok jedna", visual: "shot", camera: "pan", mood: "warm" }],
@@ -1136,7 +1137,51 @@ test("textový režim mapuje karty na narraci, aby pipeline nespadla", () => {
     }))
     assert(script.mode === "text", "režim text se musí přečíst")
     const scenes = scriptToScenes(script, 8)
-    assert(scenes[0].narration === "Krok jedna", "dokud R4 nedodá osu z karet, card se mapuje na narration")
+    // Karta zůstává v `narration` schválně: je to táž věta, kterou čte kritik
+    // i faktická brána — jen ji divák čte, místo aby ji slyšel.
+    assert(scenes[0].narration === "Krok jedna", "text karty patří do narration (prochází branami)")
+    assert(scenes[0].textOnly === true, "scéna musí nést příznak textOnly, jinak by ji orchestrátor namluvil")
+    assert(scriptToScenes(parseReelScript(JSON.stringify({
+        hookPattern: "process", hook: "H", mode: "voiceover",
+        beats: [{ narration: "Věta", visual: "shot", camera: "pan", mood: "warm" }],
+        cta: "Ulož si to", onScreenHook: "H",
+    })), 8)[0].textOnly === undefined, "mluvený reel textOnly nenese")
+})
+
+test("scenárista respektuje režimy povolené značkou", () => {
+    const both = buildReelScriptPrompt(reelInput)
+    assert(/"voiceover"/.test(both) && /"text"/.test(both), "s výchozím nastavením se nabízí oba režimy")
+    const onlyVoice = buildReelScriptPrompt({ ...reelInput, allowedModes: ["voiceover"] })
+    assert(!/beaty nesou "card"/.test(onlyVoice), "zakázaný textový režim se nesmí nabízet — Opus by ho vybral a validátor by kolo zahodil")
+    assert(/povoluje jen režim "voiceover"/.test(onlyVoice), "jediný povolený režim se musí říct natvrdo")
+    const problems = validateReelScript(parseReelScript(JSON.stringify({
+        hookPattern: "process", hook: "Jak to vzniká", mode: "text",
+        beats: [{ card: "Krok jedna", visual: "shot", camera: "pan", mood: "warm" }, { card: "Krok dva", visual: "s", camera: "c", mood: "m" }],
+        cta: "Ulož si to", onScreenHook: "Jak to vzniká",
+    })), { durationSeconds: 8, allowWebsite: false, allowedModes: ["voiceover"] })
+    assert(problems.some(p => /nepovoluje/.test(p)), "režim mimo nastavení značky musí propadnout validací")
+})
+
+test("režisér textového reelu dostane karty, hudbu a zákaz textu v obraze", () => {
+    const base = {
+        config: reelConfig, clientId: "c", medium: "reel" as const, durationSeconds: 8,
+        hook: "Jak to vzniká",
+        narration: [{ text: "Krok jedna", start: 0.5, end: 2 }],
+        cta: "Ulož si to", postType: "behind_scenes", references: [],
+    }
+    const textPrompt = buildReelDirectorPrompt({ ...base, textOnly: true }, "", "")
+    assert(/no narration/i.test(textPrompt), "režisér musí vědět, že nikdo nemluví")
+    assert(/ON-SCREEN TEXT CARDS/.test(textPrompt), "časová osa jsou karty, ne repliky")
+    assert(/music/i.test(textPrompt), "bez hlasu nese zvuk hudba — musí si o ni říct Seedance")
+    assert(/no on-screen text|free of any text/i.test(textPrompt), "text v obraze zůstává zakázaný (karty vypaluje náš ASS engine)")
+    const voicePrompt = buildReelDirectorPrompt(base, "", "")
+    assert(/SPOKEN NARRATION/.test(voicePrompt) && !/music/i.test(voicePrompt), "mluvený reel si o hudbu neříká (přebila by voiceover)")
+
+    const sb = { shots: [], audioMood: "calm morning", soundDesign: ["steam"], coverScene: "cup", videoPrompt: "A shot of a cup on a table with morning light and steam rising slowly." }
+    const finalText = finalizeVideoPrompt(sb, { durationSeconds: 8, textOnly: true })
+    assert(/background music/i.test(finalText) && /calm morning/.test(finalText), "finální prompt textového reelu žádá hudbu podle nálady")
+    assert(/no speech/i.test(finalText) && /no on-screen text/i.test(finalText), "zákazy řeči i textu platí dál")
+    assert(!/background music/i.test(finalizeVideoPrompt(sb, { durationSeconds: 8 })), "mluvený reel hudbu nechce")
 })
 
 // ─── Report ─────────────────────────────────────────────────

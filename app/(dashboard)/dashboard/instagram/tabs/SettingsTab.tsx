@@ -1705,6 +1705,21 @@ function VisualSection({ config, updateField, handleLogoUpload, logoUploading, p
                         </select>
                     </div>
                 </div>
+                <label className="flex items-start gap-2.5 cursor-pointer mt-4 pt-4 border-t border-white/5">
+                    <input
+                        type="checkbox"
+                        checked={(config.reelModes ?? ["voiceover", "text"]).includes("text")}
+                        onChange={(e) => updateField(["reelModes"], e.target.checked ? ["voiceover", "text"] : ["voiceover"])}
+                        className="mt-0.5 accent-emerald-500"
+                    />
+                    <span className="text-[10px] text-white/40 leading-relaxed">
+                        Povolit reely bez hlasu
+                        <span className="block text-white/25">
+                            Scenárista pak u vizuálních námětů (jídlo, interiér, proměna) může místo vypravěče zvolit
+                            <strong className="text-white/40"> textové karty a hudbu</strong>. Stojí stejně jako reel s hlasem.
+                        </span>
+                    </span>
+                </label>
                 <p className="text-[9px] text-white/25 mt-3 leading-relaxed">
                     Instagram u reelu titulkovou stopu nebere — titulky se <strong className="text-white/40">vypalují do obrazu</strong>.
                     Změna se proto projeví až na nově vyrobeném reelu; u hotového reelu ho jde přerenderovat v detailu příspěvku,

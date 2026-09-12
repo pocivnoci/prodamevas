@@ -103,3 +103,43 @@ export function narrationWordBudget(input: { words: number; speechSeconds: numbe
     const available = Math.max(0, maxSeconds * REEL_TIMELINE.maxTempo - narrationFixedSeconds(sentences))
     return Math.max(sentences, Math.min(words - 1, Math.floor(rate * available * 0.9)))
 }
+
+// ─── Režim reelu: mluvený vs. textový ───────────────────────────────────────
+
+/**
+ * `voiceover` = reel s namluvenou narrací. `text` = karty na obraze, hudba a
+ * atmosféra rovnou ze Seedance, žádné TTS (docs/DESIGN_reels-v2_2026-09-12.md,
+ * fáze 3). Režim volí scenárista; `ClientConfig.reelModes` říká, z čeho smí vybírat.
+ */
+export const REEL_MODES = ["voiceover", "text"] as const
+export type ReelMode = (typeof REEL_MODES)[number]
+
+export function isReelMode(v: unknown): v is ReelMode {
+    return typeof v === "string" && (REEL_MODES as readonly string[]).includes(v)
+}
+
+/**
+ * Clamp pro `validateConfig()`. Default je OBOJÍ — textový reel je rovnocenný
+ * formát, ne experiment. Prázdný seznam (klient odklikal všechno) padá zpátky na
+ * `["voiceover"]`: reel bez jediného povoleného režimu by nešel vyrobit vůbec,
+ * a to je horší výsledek než reel s hlasem.
+ */
+export function clampReelModes(raw: unknown): ReelMode[] {
+    if (!Array.isArray(raw)) return [...REEL_MODES]
+    const uniq = [...new Set(raw.filter(isReelMode))]
+    return uniq.length ? uniq : ["voiceover"]
+}
+
+/**
+ * Čtecí tempo textové karty — kolik slov divák stihne přečíst za vteřinu. 3 slova/s
+ * je pohodlné tempo krátkých karet (proti 2,2 slova/s mluvené řeči výš): čtení je
+ * rychlejší než řeč, ale karta kratší než `MIN_CARD_SECONDS` se nestihne přečíst
+ * ani v jednom slově — oko ji zaregistruje až v okamžiku, kdy mizí.
+ */
+export const READ_WORDS_PER_SECOND = 3
+export const MIN_CARD_SECONDS = 1.2
+
+/** Čas mimo karty: nájezd + mezery mezi kartami + dojezd (táž čísla jako u řeči). */
+export function cardsFixedSeconds(cards: number): number {
+    return narrationFixedSeconds(cards)
+}
